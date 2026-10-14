@@ -205,6 +205,14 @@
       "readme": "tools/fuzz-kit/README.md",
       "side": "games",
       "category": "testing"
+    },
+    {
+      "id": "canvas-probe",
+      "summary": "Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area.",
+      "folder": "tools/canvas-probe",
+      "readme": "tools/canvas-probe/README.md",
+      "side": "games",
+      "category": "testing"
     }
   ],
   "related": {
