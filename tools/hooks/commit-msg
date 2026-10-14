@@ -1,0 +1,19 @@
+#!/bin/sh
+# Copyright (c) 2026 JNFoo. All rights reserved.
+# House rules, checked by a machine instead of by memory (see AGENTS.md):
+#  - no "Claude-Session:" line and no claude.ai link in a commit message
+#  - author and committer are JNFoo with the noreply address
+# A Co-Authored-By trailer is fine. Install once per clone: sh tools/hooks/install.sh
+msg="$1"; bad=0
+want_name="JNFoo"; want_mail="45110762+JNFoo@users.noreply.github.com"
+if grep -v '^#' "$msg" | grep -qiE '^Claude-Session:|claude\.ai/'; then
+  echo "commit-msg: remove the Claude-Session line and any claude.ai link (house rule). A Co-Authored-By line is fine." >&2; bad=1
+fi
+for v in GIT_AUTHOR_IDENT GIT_COMMITTER_IDENT; do
+  id=$(git var "$v" 2>/dev/null)
+  case "$id" in
+    "$want_name <$want_mail> "*) ;;
+    *) echo "commit-msg: $v is '$id'. Run: git config user.name $want_name && git config user.email $want_mail" >&2; bad=1 ;;
+  esac
+done
+exit $bad

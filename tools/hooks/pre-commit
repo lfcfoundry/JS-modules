@@ -1,0 +1,18 @@
+#!/bin/sh
+# Copyright (c) 2026 JNFoo. All rights reserved.
+# Fails early on the wrong author or committer; warns (never blocks) about British spellings in added lines.
+# Add the text "spelling-ok" to a line to silence the warning for it (quoted source, proper names, CSS keywords).
+want_name="JNFoo"; want_mail="45110762+JNFoo@users.noreply.github.com"; bad=0
+for v in GIT_AUTHOR_IDENT GIT_COMMITTER_IDENT; do
+  id=$(git var "$v" 2>/dev/null)
+  case "$id" in
+    "$want_name <$want_mail> "*) ;;
+    *) echo "pre-commit: $v is '$id'. Run: git config user.name $want_name && git config user.email $want_mail" >&2; bad=1 ;;
+  esac
+done
+[ "$bad" = 0 ] || exit 1
+words='colour|behaviour|centre|centred|grey|favourite|neighbour|honour|flavour|organis(e|ed|es|ing|ation)|realis(e|ed|es|ing)|recognis(e|ed|es|ing)|analyse|catalogue|defence|licence|programme|whilst'
+git diff --cached -U0 --diff-filter=AM --no-color | grep -E '^\+' | grep -vE '^\+\+\+' | grep -v 'spelling-ok' | grep -iwE "$words" | head -5 | while IFS= read -r line; do
+  echo "pre-commit (warning, not blocking): British spelling? $line" | cut -c1-160 >&2
+done
+exit 0

@@ -25,3 +25,7 @@ This repository is meant to be read, copied from and extended by people and AI h
 
 ## Working with other sessions
 Several AI sessions and people may push to this repository. Before you start, `git fetch` and read `TASKS.md`; put your row in it and push that small commit first. Rebase or merge on the latest `main` before you push, never force-push, and do not rewrite another session's files without saying so in the commit message.
+
+## House-rule hooks
+
+Run `sh tools/hooks/install.sh` once per clone. The hooks reject a `Claude-Session:` line, a claude.ai link and any author or committer other than JNFoo, so the rules in this file are checked by a machine (see `tools/hooks/README.md`).
