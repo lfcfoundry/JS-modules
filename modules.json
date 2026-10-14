@@ -144,6 +144,30 @@
       "category": "controls"
     },
     {
+      "id": "tab-guard",
+      "global": "TabGuard",
+      "summary": "Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data.",
+      "file": "modules/tab-guard/tab-guard.js",
+      "readme": "modules/tab-guard/README.md",
+      "demo": "modules/tab-guard/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "saving"
+    },
+    {
+      "id": "back-close",
+      "global": "BackClose",
+      "summary": "Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher).",
+      "file": "modules/back-close/back-close.js",
+      "readme": "modules/back-close/README.md",
+      "demo": "modules/back-close/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "controls"
+    },
+    {
       "id": "lzma-decode",
       "global": "lzmaDecode",
       "summary": "Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively.",

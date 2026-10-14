@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><title>back-close test page</title>
+<div id="p1" hidden>one</div><div id="p2" hidden>two</div><div id="p3" hidden>three</div>
+<script src="../back-close.js"></script>
+<script>
+  window.hits = [];
+  window.locked = false;
+  function mk(id) { var el = document.getElementById(id); BackClose.watch(el, function () { hits.push(id); if (!(id === 'p3' && locked)) el.hidden = true; }); }
+  mk('p1'); mk('p2'); mk('p3');
+</script>

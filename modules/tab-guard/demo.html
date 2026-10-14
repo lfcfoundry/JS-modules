@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tab-guard demo</title>
+<style>body{font:16px system-ui,sans-serif;text-align:center;padding:2rem}#s{font-size:1.4rem;padding:1rem;border-radius:.8rem;background:#dfd}body.twin #s{background:#fdd}button{font-size:1.1rem;padding:.6rem 1.2rem;border-radius:.6rem}</style>
+<h1>tab-guard demo</h1>
+<p>Open this same page in a second tab. Only one tab is "in charge" at a time.</p>
+<p id="s">Starting…</p>
+<p><button id="go" hidden>Use this tab instead</button></p>
+<script src="tab-guard.js"></script>
+<script>
+  var s = document.getElementById('s'), go = document.getElementById('go');
+  if (!TabGuard.supported) s.textContent = 'This browser has no Web Locks, so nothing is guarded.';
+  var g = TabGuard.start({
+    name: 'tab-guard-demo',
+    onClaimed: function () { document.body.className = ''; s.textContent = 'This tab is in charge.'; go.hidden = true; },
+    onTwin: function () { document.body.className = 'twin'; s.textContent = 'Another tab is in charge. Saving would be switched off here.'; go.hidden = false; go.disabled = false; },
+    onTakeOver: function () { document.body.className = ''; s.textContent = 'This tab took over.'; go.hidden = true; }
+  });
+  go.onclick = function () { go.disabled = true; g.takeOver(); };
+</script>

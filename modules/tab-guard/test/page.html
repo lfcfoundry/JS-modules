@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><title>tab-guard test page</title>
+<script src="../tab-guard.js"></script>
+<script>
+  window.log = [];
+  window.g = TabGuard.start({
+    name: location.hash.slice(1) || 'tg-test', retryMs: 150,
+    onClaimed: function () { log.push('claimed'); },
+    onTwin: function () { log.push('twin'); },
+    onTakeOver: function () { log.push('takeover'); }
+  });
+</script>

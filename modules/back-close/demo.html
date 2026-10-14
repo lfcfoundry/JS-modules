@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>back-close demo</title>
+<style>body{font:16px system-ui,sans-serif;text-align:center;padding:2rem}.panel{position:fixed;inset:20% 10%;background:#fff;border:3px solid #333;border-radius:1rem;padding:1rem}.panel[hidden]{display:none}button{font-size:1.1rem;padding:.6rem 1.2rem;border-radius:.6rem;margin:.3rem}</style>
+<h1>back-close demo</h1>
+<p>Open a panel, then press Escape, or swipe back on Android. The panel closes and the page stays.</p>
+<button id="o1">Open panel one</button> <button id="o2">Open panel two (on top)</button>
+<p>Closed by back or Escape: <b id="n">0</b> · supported: <b id="sup"></b></p>
+<div class="panel" id="p1" hidden>Panel one <button id="c1">Close</button></div>
+<div class="panel" id="p2" hidden style="inset:30% 5% 10% 20%;background:#ffd">Panel two <button id="c2">Close</button></div>
+<script src="back-close.js"></script>
+<script>
+  var n = 0, N = document.getElementById('n');
+  document.getElementById('sup').textContent = BackClose.supported ? 'yes' : 'no (Escape and the buttons still work)';
+  function wire(panel, open, close) {
+    BackClose.watch(panel, function () { n++; N.textContent = n; panel.hidden = true; });
+    open.onclick = function () { panel.hidden = false; };
+    close.onclick = function () { panel.hidden = true; };
+  }
+  wire(p1, o1, c1); wire(p2, o2, c2);
+</script>

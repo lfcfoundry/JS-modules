@@ -38,6 +38,8 @@ Let players hold a button, or play with a gamepad.
 |---|---|---|
 | [hold-press](modules/hold-press/README.md) | Hold-to-repeat for buttons that survives Android Chrome pointercancel. | `HoldPress` |
 | [pad-nav](modules/pad-nav/README.md) | Gamepad API to DOM focus: move through buttons and menus with a controller, no game code. | `PadNav` |
+| [tab-guard](modules/tab-guard/README.md) | Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data. | `TabGuard` |
+| [back-close](modules/back-close/README.md) | Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher). | `BackClose` |
 
 #### Looks and effects
 
@@ -173,7 +175,7 @@ The games' own art, characters, text, sounds and secret content stay in Apple Pr
 ```
 npm i playwright-core
 CHROMIUM=/path/to/chrome node tests/run.js      # CHROMIUM optional if Playwright finds a browser
-npm run test:kits                               # frame-kit, sprite-baker, pad-nav, lzma, fuzz-kit, canvas-probe (needs python3 and Playwright for Python for the browser parts)
+npm run test:kits                               # frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma, fuzz-kit, canvas-probe (needs python3 and Playwright for Python for the browser parts)
 ```
 
 27 checks: maths and save logic in Node, the browser pieces (curtains, hold-press, fly-to-mini, probes, governor, sticker text) in Chromium. For humans and AI helpers: read [AGENTS.md](AGENTS.md), [llms.txt](llms.txt) and [modules.json](modules.json).
