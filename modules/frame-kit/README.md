@@ -5,13 +5,14 @@ Browser check of the example (Playwright for Python, Chromium already installed)
 
 ## What it is
 
-Three tiny, independent helpers for browser games and other `requestAnimationFrame` loops. Each is one file with no dependencies; use any one without the others.
+Four tiny, independent helpers for browser games and other `requestAnimationFrame` loops. Each is one file with no dependencies; use any one without the others.
 
 | Helper | File | One line |
 | --- | --- | --- |
 | `EvenDt` | `even-dt.js` | Smooths the uneven frame gaps a browser reports by snapping them to the screen's learned refresh period. |
 | `QualityGovernor` | `quality-governor.js` | Steps a quality level down or up from how long frames really take, with hysteresis. |
 | `JobPump` | `job-pump.js` | Runs queued build steps for about N milliseconds per frame, so a big pre-render never hitches a frame. |
+| `FrameMeter` | `frame-meter.js` | A speed meter: frames a second, the slowest frame, hitches with a plain-words cause (game or device) and the delay from a tap to the next frame. |
 
 ## Why it exists
 
@@ -133,6 +134,23 @@ The rule: an exponential moving average of the gap (`smoothing`) is compared wit
 
 A plain function is one step. For a generator, every `yield` ends one step. Jobs run strictly in the order added, and a generator is finished before the next job starts. The budget is checked after each step, so a frame can overshoot by at most one step. Options: `now` (clock function, default `performance.now`), `onError(err)` (a throwing job is dropped; with `onError` the queue continues, without it `run()` rethrows).
 
+### `new FrameMeter(opts)`
+
+```js
+var meter = new FrameMeter();                 // opts: everyMs 500, hitchMs 50, ratio 2, gameShare 0.6, windowMs 60000, tapKeep 20
+canvas.addEventListener('pointerdown', function (e) { meter.input(e.timeStamp); });
+function frame(now) {
+  var t0 = performance.now();
+  update(); draw();
+  if (meter.frame(now, performance.now() - t0)) badge.textContent = meter.lines(['quality ' + level]).join('\n');
+  requestAnimationFrame(frame);
+}
+```
+
+`frame(now, workMs, gapMs)` returns true when the numbers were refreshed (about twice a second). `lines(extra)` gives `["58 fps", "worst 21 ms", ...extra, "tap 24 ms", "2 hitches: the device"]`; the tap line only appears after a tap, and the verdict is `smooth` when there were no hitches in the last minute. Also `fps`, `worstMs`, `tapMs()`, `hitches()` (`{count, game, device, unknown}`), `verdict()` and `reset()`.
+
+A hitch is a frame longer than 50 ms **and** more than twice the average of the three frames before it, so a steady 30 fps game is "smooth". It is called "the game" when your own update and draw took at least 60% of that frame, otherwise "the device" (the browser, the graphics driver or power saving).
+
 ## How it differs from existing open source
 
 None of these ideas is new, and the established tools below are better in the ways stated. What is offered here is three small, readable, tested files with no framework attached. I read each source named below; where I could not read the details, it says so. I did not do an exhaustive search for vanilla-JS packages, so others may exist.
@@ -147,6 +165,9 @@ None of these ideas is new, and the established tools below are better in the wa
 **`QualityGovernor`**
 
 - [drei's `PerformanceMonitor` and `AdaptiveDpr`](https://drei.docs.pmnd.rs/getting-started/introduction) (React Three Fiber): the monitor reports `onIncline` / `onDecline` / `onFallback` and keeps a 0 to 1 `factor`; `AdaptiveDpr` moves the pixel ratio between bounds. I could only read the drei site's sidebar and a [third-party copy of its docs](https://tessl.io/registry/tessl/npm-react-three--drei/files/docs/performance.md), which does not state the exact trigger rules, so I make no claim about them. They are better when you are already in React Three Fiber: they are integrated with the renderer and the pixel ratio. `QualityGovernor` has no framework, uses integer levels you define, and its slow/fast streak and delay rules are all documented and tested here.
+
+**`FrameMeter`**
+- Stats.js and similar panels draw frames a second and milliseconds as a graph. `FrameMeter` adds a relative hitch rule (from PerfDog's "jank" definition), a game-or-device cause from two numbers every browser can measure, and the tap-to-next-frame delay, and it returns plain text instead of drawing. It does not use the Long Animation Frame or Event Timing APIs, which are missing in Firefox.
 
 **`JobPump`**
 
@@ -178,6 +199,12 @@ None of these ideas is new, and the established tools below are better in the wa
 - Changes are slow by design: at least 100 slow frames and 3 seconds to step down, 10 seconds fast and 10 seconds since the last change to step up. The grace period at the start is counted from the first `frame()` call.
 - `onChange` is where you apply a level. If applying it is expensive (resizing a canvas), the next few frames will look slow; the average restarts after a step down for that reason.
 
+**`FrameMeter`**
+
+- It cannot see graphics or presentation stalls: a frame can start on time and still be shown late. "The device" means "not your code", not a proven cause.
+- The tap delay is to the start of the next frame callback, not to the picture reaching the screen. `event.timeStamp` and the frame timestamp must come from the same clock (they do in current Chromium and Firefox; with `privacy.resistFingerprinting` both are rounded).
+- A battery-saver loop that skips frames on purpose (about 30 fps) reads as steady, not as hitches.
+
 **`JobPump`**
 
 - **Never hold a shared scratch resource across a yield.** If every build reuses one temporary canvas, `ImageData` or typed array, fill it and use it inside one slice (before the next `yield`). Another job may run between two slices and overwrite it.
@@ -198,6 +225,7 @@ Differences from the original game code, on purpose: `EvenDt` recomputes the med
   - The default option values are the original game's constants (listed in the API tables). A test pins the governor defaults. Do not retune them; add an option instead.
   - `EvenDt.next()` returns the input unchanged for gaps outside `(minGap, maxGap)` and for gaps not near a multiple of the period, and never returns a negative number.
   - `QualityGovernor` steps one level at a time; steps down need `slowFrames` slow frames and `downDelay`, steps up need `fastMs` and `upDelay`; the average restarts only on a step down.
+  - `FrameMeter` calls a frame a hitch only when it is over `hitchMs` and over `ratio` times the average of the three frames before it; the cause is `game` only when `workMs >= gameShare * gap`. Tests pin both.
   - `JobPump.run()` checks its budget after a step, runs at least `minSteps` steps, and keeps FIFO order. Do not make it round-robin without a new option.
 - Do not weaken a test to make it pass. If a bound in a test looks wrong, read the matching sentence in "Limits and gotchas" first; those bounds are documented behavior.
 - Keep American English, no personal names beyond the copyright holder, and no game art or story from the source game.

@@ -28,7 +28,7 @@ Make a game behave on slow phones, privacy-focused browsers and power-saving scr
 |---|---|---|
 | [env-probes](modules/env-probes/README.md) | Detects privacy modes that round timers, scramble canvas read-back or block storage. | `EnvProbes` |
 | [fx-governor](modules/fx-governor/README.md) | Steps visual effects down when the device cannot keep up; never back up behind the player. | `FxGovernor` |
-| [frame-kit](modules/frame-kit/README.md) | Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames. | `EvenDt`, `QualityGovernor`, `JobPump` |
+| [frame-kit](modules/frame-kit/README.md) | Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. | `EvenDt`, `QualityGovernor`, `JobPump`, `FrameMeter` |
 
 #### Controls
 
@@ -149,7 +149,7 @@ For building and testing. Not shipped inside a game or story.
 
 ## How to use a module
 
-Every module is **no dependencies** and, apart from `frame-kit` (three small files, each usable alone), **one file**, and works two ways:
+Every module is **no dependencies** and, apart from `frame-kit` (four small files, each usable alone), **one file**, and works two ways:
 
 ```html
 <script src="modules/save-kit/save-kit.js"></script>

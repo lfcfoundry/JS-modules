@@ -4,6 +4,7 @@ const path = require('path');
 const EvenDt = require(path.join(__dirname, '..', 'even-dt.js'));
 const QualityGovernor = require(path.join(__dirname, '..', 'quality-governor.js'));
 const JobPump = require(path.join(__dirname, '..', 'job-pump.js'));
+const FrameMeter = require(path.join(__dirname, '..', 'frame-meter.js'));
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -329,6 +330,56 @@ test('real clock: default now() works and a 3 ms budget is respected within a st
   const t0 = Date.now(); pump.run(3);
   assert(Date.now() - t0 < 3 + 25, 'about 3 ms, got ' + (Date.now() - t0));
   assert(pump.size > 0 && pump.size < 50);
+});
+
+/* ---- FrameMeter ---- */
+function feed(m, gaps, work) { let now = 1000; m.frame(now); gaps.forEach((g, i) => { now += g; m.frame(now, work ? work[i] : undefined); }); return now; }
+
+test('FrameMeter: steady 60 Hz reads 60 fps, small worst, smooth', function () {
+  const m = new FrameMeter(); feed(m, new Array(120).fill(16.67), new Array(120).fill(4));
+  near(m.fps, 60, 1.5, 'fps'); assert(m.worstMs <= 17, 'worst ' + m.worstMs); assert(m.verdict() === 'smooth');
+  assert(m.lines(['quality 0']).join('|') === m.fps + ' fps|worst ' + m.worstMs + ' ms|quality 0|smooth', m.lines(['quality 0']).join('|'));
+});
+
+test('FrameMeter: a long frame while the game worked little is the device', function () {
+  const m = new FrameMeter(); const g = new Array(60).fill(16.67), w = new Array(60).fill(4); g[40] = 120; w[40] = 6;
+  feed(m, g, w); const h = m.hitches(); assert(h.count === 1 && h.device === 1 && h.game === 0, JSON.stringify(h)); assert(m.verdict() === '1 hitch: the device', m.verdict());
+});
+
+test('FrameMeter: a long frame while the game worked most of it is the game', function () {
+  const m = new FrameMeter(); const g = new Array(60).fill(16.67), w = new Array(60).fill(4); g[30] = 90; w[30] = 80;
+  feed(m, g, w); assert(m.verdict() === '1 hitch: the game', m.verdict());
+});
+
+test('FrameMeter: both causes, plural words, unknown without work time', function () {
+  let m = new FrameMeter(); let g = new Array(80).fill(16.67), w = new Array(80).fill(4); g[20] = 100; w[20] = 90; g[50] = 100; w[50] = 5; feed(m, g, w);
+  assert(m.verdict() === '2 hitches: both', m.verdict());
+  m = new FrameMeter(); g = new Array(40).fill(16.67); g[20] = 100; feed(m, g); assert(m.verdict() === '1 hitch: cause unknown', m.verdict());
+});
+
+test('FrameMeter: the rule is relative and has a floor (30 Hz steady is smooth; a 45 ms blip at 60 Hz is not a hitch)', function () {
+  let m = new FrameMeter(); feed(m, new Array(60).fill(33.3)); assert(m.verdict() === 'smooth', m.verdict());
+  m = new FrameMeter(); const g = new Array(60).fill(16.67); g[30] = 45; feed(m, g); assert(m.verdict() === 'smooth', 'floor ' + m.verdict());
+  m = new FrameMeter(); const g2 = new Array(60).fill(33.3); g2[30] = 60; feed(m, g2); assert(m.verdict() === 'smooth', 'less than 2x the average');
+});
+
+test('FrameMeter: old hitches leave the window', function () {
+  const m = new FrameMeter({ windowMs: 2000 }); const g = new Array(300).fill(16.67); g[10] = 150; feed(m, g, new Array(300).fill(3));
+  assert(m.hitches().count === 0, 'the 150 ms hitch is older than 2 s'); assert(m.verdict() === 'smooth');
+});
+
+test('FrameMeter: tap delay is the median of input to next frame; stale or negative values are dropped', function () {
+  const m = new FrameMeter(); let now = 1000; m.frame(now);
+  [10, 12, 40, 11, 13].forEach(d => { m.input(now + 2); now += d + 2; m.frame(now, 3); });
+  near(m.tapMs(), 12, 0.6, 'median'); assert(m.lines().indexOf('tap ' + m.tapMs() + ' ms') > 0);
+  m.input(now + 5000); now += 16; m.frame(now); near(m.tapMs(), 12, 0.6, 'a future timestamp is ignored');
+  const e = new FrameMeter(); e.frame(10); e.frame(26); assert(e.tapMs() === -1 && e.lines().every(l => !/^tap/.test(l)), 'no taps, no tap line');
+});
+
+test('FrameMeter: report refreshes about every interval and reset clears everything', function () {
+  const m = new FrameMeter({ everyMs: 500 }); let now = 0, refreshed = 0; m.frame(now);
+  for (let i = 0; i < 120; i++) { now += 16.67; if (m.frame(now)) refreshed++; }
+  assert(refreshed >= 3 && refreshed <= 5, 'refreshed ' + refreshed); m.reset(); assert(m.fps === 0 && m.verdict() === 'smooth' && m.tapMs() === -1);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -11,7 +11,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 ## Games: Device and browser adaptation
 - [env-probes](https://github.com/JNFoo/JS-modules/blob/main/modules/env-probes/README.md): Detects privacy modes that round timers, scramble canvas read-back or block storage. (global EnvProbes)
 - [fx-governor](https://github.com/JNFoo/JS-modules/blob/main/modules/fx-governor/README.md): Steps visual effects down when the device cannot keep up; never back up behind the player. (global FxGovernor)
-- [frame-kit](https://github.com/JNFoo/JS-modules/blob/main/modules/frame-kit/README.md): Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames. (global EvenDt, QualityGovernor, JobPump)
+- [frame-kit](https://github.com/JNFoo/JS-modules/blob/main/modules/frame-kit/README.md): Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. (global EvenDt, QualityGovernor, JobPump, FrameMeter)
 
 ## Games: Controls
 - [hold-press](https://github.com/JNFoo/JS-modules/blob/main/modules/hold-press/README.md): Hold-to-repeat for buttons that survives Android Chrome pointercancel. (global HoldPress)
