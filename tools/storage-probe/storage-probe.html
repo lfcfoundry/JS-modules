@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Storage probe</title>
+<!-- storage-probe: one button that tells you, in plain words, whether pages opened from different files on this device share saved data.
+     MIT License, Copyright (c) 2026 JNFoo. https://github.com/JNFoo/JS-modules  (tools/storage-probe) -->
+<style>
+  :root { --bg:#fbf8f2; --fg:#231f1a; --muted:#6b645a; --line:#d9d1c3; --accent:#9a4a12; --good:#1f6b3a; --warn:#8a5a00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1d1a16; --fg:#efe9de; --muted:#a49b8d; --line:#3c362d; --accent:#e59a54; --good:#6fcf8f; --warn:#e8bd5c; } }
+  html,body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.5 system-ui,sans-serif; }
+  main { max-width:38rem; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:1.35rem; margin:.2em 0 .4em; }
+  button { font:inherit; font-weight:600; padding:.7em 1.1em; border-radius:10px; border:2px solid var(--accent); background:var(--accent); color:var(--bg); cursor:pointer; }
+  button.plain { background:transparent; color:var(--accent); }
+  #verdict { margin:1em 0; padding:.8em 1em; border-left:5px solid var(--line); }
+  #verdict.good { border-color:var(--good); } #verdict.warn { border-color:var(--warn); }
+  #verdict b { display:block; margin-bottom:.2em; }
+  ul { padding-left:1.2em; } li { margin:.25em 0; } .muted { color:var(--muted); font-size:.9em; }
+  pre { white-space:pre-wrap; word-break:break-word; background:transparent; border:1px solid var(--line); padding:.6em; font-size:.8em; }
+  code { font-size:.9em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Do pages opened from different files share saved data?</h1>
+  <p>Press the button. Then save this same page a second time (under another name, or in another folder), open that copy, and press its button too. Each copy tells you what it can see of the other.</p>
+  <p><button id="go" type="button">Run the check</button> <button id="copy" class="plain" type="button" hidden>Copy the report</button></p>
+  <div id="verdict" hidden></div>
+  <ul id="facts"></ul>
+  <pre id="report" hidden></pre>
+  <p class="muted">Nothing leaves this device. The check writes one small entry to this browser's saved data (key <code>storage-probe:v1</code>); clear it by clearing the site data for this page.</p>
+</main>
+<script>
+(function () {
+  'use strict';
+  var KEY = 'storage-probe:v1', LOCK = 'storage-probe-lock', me = location.href, facts = [], live = [];
+  function $(id) { return document.getElementById(id); }
+  function read() { try { var o = JSON.parse(localStorage.getItem(KEY) || '{}'); return o && typeof o.copies === 'object' ? o : { copies: {} }; } catch (e) { return { copies: {} }; } }
+  function fact(text) { facts.push(text); var li = document.createElement('li'); li.textContent = text; $('facts').appendChild(li); }
+  function verdict(kind, head, body) { var v = $('verdict'); v.hidden = false; v.className = kind; v.innerHTML = ''; var b = document.createElement('b'); b.textContent = head; v.appendChild(b); v.appendChild(document.createTextNode(body)); }
+
+  /* a live note when another copy writes while this page is open */
+  window.addEventListener('storage', function (e) {
+    if (e.key !== KEY) return;
+    live.push(new Date().toLocaleTimeString());
+    fact('Just now another copy wrote to the same saved data (' + live[live.length - 1] + '). That proves the two files share storage.');
+  });
+  var bc = null; try { bc = new BroadcastChannel('storage-probe'); bc.onmessage = function (m) { if (m.data && m.data.from !== me) fact('Another copy answered over a broadcast channel: ' + m.data.from); }; } catch (e) { /* no BroadcastChannel */ }
+
+  function run() {
+    $('facts').innerHTML = ''; facts = [];
+    var out = { href: me, scheme: location.protocol, origin: String(location.origin), secure: !!window.isSecureContext, agent: navigator.userAgent };
+    fact('This copy is: ' + me);
+    fact('Address type: ' + location.protocol + ' (the page\'s "origin" is ' + out.origin + ').');
+    var ok = true;
+    try { localStorage.setItem('storage-probe:t', '1'); localStorage.removeItem('storage-probe:t'); } catch (e) { ok = false; }
+    if (!ok) { verdict('warn', 'This browser would not let the page save anything.', 'Saved data is blocked here (a private window, blocked site data, or this kind of address). Games opened this way cannot keep their progress at all.'); out.verdict = 'blocked'; finish(out); return; }
+    var s = read(), others = Object.keys(s.copies).filter(function (h) { return h !== me; });
+    s.copies[me] = { at: Date.now(), n: ((s.copies[me] && s.copies[me].n) || 0) + 1 };
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { fact('Writing the entry failed: ' + e.message); }
+    if (bc) try { bc.postMessage({ from: me }); } catch (e) { /* closed */ }
+    out.others = others;
+    if (others.length) {
+      fact('This copy can see saved data written by ' + others.length + ' other file(s): ' + others.join(' | '));
+      verdict('good', 'Shared: files on this device share their saved data.', 'This copy can read what another file wrote. Two games or editors opened from different files share one set of saved data, so each must use its own unique key prefix, and a program that keeps one save (like a story editor\'s autosave) will have one save for every copy of it.');
+      out.verdict = 'shared';
+    } else {
+      fact('This copy has not heard from any other file yet.');
+      verdict('', 'Nothing seen from other files yet.', 'Now save this page a second time (another name or folder), open that copy and press its button. If that copy says it can see this one, saved data is shared. If, after pressing the button in both copies, each still says it has heard from no one, saved data is kept separate for each file.');
+      out.verdict = 'alone so far';
+    }
+    /* locks: is another copy holding the writer lock right now? */
+    if (navigator.locks && navigator.locks.request) {
+      navigator.locks.request(LOCK, { ifAvailable: true }, function (lock) {
+        if (!lock) { fact('Web Locks: another copy is open right now and holds the lock. Open copies can see each other live.'); out.locks = 'held by another open copy'; return; }
+        fact('Web Locks: available; this copy now holds the lock while it stays open. Keep this tab open and press the button in the other copy: it should report that the lock is taken.'); out.locks = 'free, now held here';
+        return new Promise(function () { });
+      });
+    } else { fact('Web Locks: not available in this browser.'); out.locks = 'missing'; }
+    fact('Close-gesture API (CloseWatcher, for the phone back swipe): ' + (typeof window.CloseWatcher === 'function' ? 'available' : 'missing') + '.');
+    if (navigator.storage && navigator.storage.estimate) {
+      navigator.storage.estimate().then(function (e) { fact('Space: about ' + Math.round((e.usage || 0) / 1024) + ' KB used of ' + Math.round((e.quota || 0) / 1048576) + ' MB.'); });
+    }
+    if (navigator.storage && navigator.storage.persisted) {
+      navigator.storage.persisted().then(function (p) { fact('Kept permanently by the browser: ' + (p ? 'yes' : 'not yet (the browser may clear it when space runs low).')); });
+    }
+    finish(out);
+  }
+  function finish(out) {
+    var r = $('report');
+    setTimeout(function () {
+      r.hidden = false; r.textContent = 'storage-probe report\n' + JSON.stringify(out, null, 1) + '\n\n' + facts.join('\n');
+      $('copy').hidden = false;
+    }, 400);
+  }
+  $('go').addEventListener('click', run);
+  $('copy').addEventListener('click', function () {
+    var t = $('report').textContent, b = $('copy');
+    function done() { b.textContent = 'Copied'; }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { select(); });
+    else select();
+    function select() { var rg = document.createRange(); rg.selectNodeContents($('report')); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg); b.textContent = 'Selected: copy it by hand'; }
+  });
+  window.__probe = { run: run, read: read };
+})();
+</script>
+</body>
+</html>

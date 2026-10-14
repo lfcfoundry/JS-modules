@@ -53,6 +53,25 @@ const S = '/*TEST_HOOK_START*/', E = '/*TEST_HOOK_END*/';
   // 8. periodic hooks run on schedule, and a throwing one is a finding
   let periodic = 0; await new Fuzzer({ seed: 1, errors: false, ops: [{ name: 'x', run: () => { } }], every: [{ n: 10, run: () => { periodic++; } }] }).run(100);
   check('periodic hooks run every n ops', periodic === 10, periodic);
+  // 8b. shrinking: a failing run is cut down to the few operations that matter, and the short script replays to the same failure
+  {
+    const holder = { app: null };
+    const make = () => { holder.app = makeApp(true); return new Fuzzer(cfgFor(holder.app, 11, { afterFail: () => holder.app.reset() })); };
+    const rec = await make().run(400, { perOp: true });
+    check('perOp: a run records a script as long as the run', rec.script && rec.script.length === rec.ops && rec.fails.length > 0, { ops: rec.ops, n: rec.script && rec.script.length });
+    const again = await make().run(0, { script: rec.script });
+    check('replaying the whole script finds the same first failure', again.fails[0] && again.fails[0].i === rec.fails[0].i && again.fails[0].what === rec.fails[0].what, [again.fails[0], rec.fails[0]]);
+    const sh = await Fuzzer.shrink(make, rec.script);
+    check('shrink: a long script is cut to a handful of operations', sh.script.length <= 3 && sh.script.length < sh.from, { from: sh.from, to: sh.script.length, tries: sh.tries });
+    check('shrink: the short script still fails the same way', sh.finding && /negative/.test(sh.finding.what) && sh.finding.op === 'spend', sh.finding);
+    check('shrink: the short script is add then spend (the least that breaks the planted bug)', sh.script.map(e => e.op).join() === 'add,spend', sh.script.map(e => e.op));
+    const sh2 = await Fuzzer.shrink(make, rec.script);
+    check('shrink: same input, same output', JSON.stringify(sh.script) === JSON.stringify(sh2.script));
+    const clean = await Fuzzer.shrink(() => new Fuzzer(cfgFor(makeApp(false), 11)), rec.script);
+    check('shrink: a script that does not fail says so and changes nothing', clean.finding === null && clean.script.length === rec.script.length && /does not fail/.test(clean.note), clean.note);
+    const a1 = await new Fuzzer(cfgFor(makeApp(true), 3)).run(300), a2 = await new Fuzzer(cfgFor(makeApp(true), 3)).run(300);
+    check('the normal (not perOp) run is unchanged and has no script', !a1.script && JSON.stringify(a1) === JSON.stringify(a2));
+  }
   // 9. test hook stripping
   const code = 'a();\n' + S + 'window.__t = 1;' + E + '\nb();' + S + 'x' + E;
   check('hooks are removed, the rest kept', strip(code) === 'a();\n\nb();', strip(code));

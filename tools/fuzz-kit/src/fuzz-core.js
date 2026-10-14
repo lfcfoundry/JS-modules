@@ -19,7 +19,19 @@
      f.run(600).then(function (result) { ... });   // { seed, ops, fails: [{ i, op, what, tail }], visited: { state: count } }
 
    Context c (passed to everything): c.rand() uniform [0,1), c.int(n) 0..n-1, c.pick(array), c.chance(p), c.seed, c.i (operation index), c.op (current op name).
-   Options for run(n, { stopAt: k }) stop after operation k (to rebuild the exact state of a failure for debugging). */
+   Options for run(n, { stopAt: k }) stop after operation k (to rebuild the exact state of a failure for debugging).
+
+   SHRINKING a failure to the shortest replay. run(n, { perOp: true }) gives every operation a random stream of its own and returns a
+   `script` ([{ op, s }, ...]); run(0, { script }) replays exactly those operations, so a script can be cut down and replayed. Fuzzer.shrink
+   does the cutting (delta debugging): it keeps removing pieces of the script while the same failure still happens.
+
+     var make = function () { app.reset(); return new Fuzzer(cfgFor(seed)); };          // a NEW fuzzer on a freshly reset app, every time
+     var r = await make().run(600, { perOp: true });
+     if (r.fails.length) { var s = await Fuzzer.shrink(make, r.script); console.log(s.script.map(function (e) { return e.op; })); }
+     // s = { script, finding: { i, op, what, tail }, tries, from }   the same script always replays to the same failure
+
+   Limits: the app must be put back to the same start by make(); a failure that depends on the clock or on operations that were cut away
+   may not shrink; liveness and periodic hooks count operations by position, so a very short script may meet them at different moments. */
 
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
@@ -34,7 +46,10 @@ Fuzzer.prototype.run = async function (nOps, runOpts) {
   runOpts = runOpts || {};
   var tailLen = cfg.tailLength || 40, maxFails = cfg.maxFails || 5, fails = [], tail = [], visited = {}, winErr = [], opsDone = 0;
   ops.forEach(function (o) { total += o.weight === undefined ? 1 : o.weight; });
-  var c = { seed: seed, i: 0, op: '', rand: R, int: function (n) { return Math.floor(R() * n); }, pick: function (a) { return a[Math.floor(R() * a.length)]; }, chance: function (p) { return R() < p; } };
+  var c = { seed: seed, i: 0, op: '' };
+  function bind(G) { c.rand = G; c.int = function (n) { return Math.floor(G() * n); }; c.pick = function (a) { return a[Math.floor(G() * a.length)]; }; c.chance = function (p) { return G() < p; }; }
+  bind(R);
+  var replay = runOpts.script, perOp = !!(runOpts.perOp || replay), S = mulberry32((seed ^ 0x9E3779B9) | 0), script = [], count = replay ? replay.length : nOps;
   var onErr = null, onRej = null;
   if (cfg.errors !== false && typeof window !== 'undefined' && window.addEventListener) {
     onErr = function (e) { winErr.push('error: ' + e.message); };
@@ -50,8 +65,12 @@ Fuzzer.prototype.run = async function (nOps, runOpts) {
     return 'no progress after ' + tries + ' ordinary inputs; stuck at ' + before;
   }
   try {
-    for (i = 0; i < nOps; i++) {
-      c.i = i; var op = choose(); c.op = op.name;
+    for (i = 0; i < count; i++) {
+      c.i = i; var op, sub = 0;
+      if (replay) { op = ops.filter(function (o) { return o.name === replay[i].op; })[0]; sub = replay[i].s; if (!op) continue; }
+      else { op = choose(); if (perOp) sub = Math.floor(S() * 4294967296); }
+      if (perOp) { bind(mulberry32(sub)); script.push({ op: op.name, s: sub }); }
+      c.op = op.name;
       tail.push(op.name); if (tail.length > tailLen) tail.shift();
       var pre = cfg.before ? cfg.before(c, op) : null;   // optional: capture something before the op (for example numbers that must only grow)
       var threw = false; try { var p = op.run(c); if (p && p.then) await p; } catch (e) { threw = true; fail('threw ' + String(e && e.stack || e).slice(0, 400), op.name); }
@@ -68,11 +87,36 @@ Fuzzer.prototype.run = async function (nOps, runOpts) {
       }
       (cfg.every || []).forEach(function (ev) { if (i % ev.n === ev.n - 1) { try { var q = ev.run(c); if (q && q.then) return q; } catch (e) { fail((ev.name || 'periodic') + ' threw ' + String(e && e.stack || e).slice(0, 400), ev.name || 'periodic'); } } });
       if (runOpts.stopAt !== undefined && i >= runOpts.stopAt) break;
+      if (runOpts.firstOnly && fails.length) break;
     }
   } finally {
     if (onErr) { window.removeEventListener('error', onErr); window.removeEventListener('unhandledrejection', onRej); }
   }
-  return { seed: seed, ops: opsDone, fails: fails, visited: visited };
+  var out = { seed: seed, ops: opsDone, fails: fails, visited: visited };
+  if (perOp) out.script = script;
+  return out;
+};
+
+/* Fuzzer.shrink(make, script, { maxTries }): the shortest sub-script that still fails the same way. See the notes at the top. */
+Fuzzer.shrink = async function (make, script, opts) {
+  var maxTries = (opts && opts.maxTries) || 400, tries = 0, from = script.length;
+  var sig = function (f) { return f.op + '|' + String(f.what).replace(/[0-9.]+/g, '#').slice(0, 80); };
+  var replay = async function (s) { tries++; return make().run(0, { script: s, firstOnly: true }); };
+  var base = await replay(script);
+  if (!base.fails.length) return { script: script, finding: null, tries: tries, from: from, note: 'the script does not fail when replayed' };
+  var key = sig(base.fails[0]);
+  script = script.slice(0, base.fails[0].i + 1);   // nothing after the first failure matters
+  var still = async function (s) { var r = await replay(s); return r.fails.length > 0 && sig(r.fails[0]) === key; };
+  for (var n = 2; script.length >= 2 && tries < maxTries;) {
+    var size = Math.ceil(script.length / n), reduced = false;
+    for (var k = 0; k < script.length && tries < maxTries; k += size) {
+      var cand = script.slice(0, k).concat(script.slice(k + size));
+      if (cand.length && await still(cand)) { script = cand; n = Math.max(n - 1, 2); reduced = true; break; }
+    }
+    if (!reduced) { if (n >= script.length) break; n = Math.min(script.length, n * 2); }
+  }
+  var last = await replay(script);
+  return { script: script, finding: last.fails[0] || null, tries: tries, from: from };
 };
 
 /* Small input helpers for DOM pages. They only build and dispatch events; nothing here knows your app. */

@@ -52,6 +52,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [fuzz-play](https://github.com/JNFoo/JS-modules/blob/main/tools/fuzz-play/README.md): Random-play robot with invariants (Playwright), plus an in-page version for Firefox.
 - [fuzz-kit](https://github.com/JNFoo/JS-modules/blob/main/tools/fuzz-kit/README.md): Seeded, reproducible random-input fuzzer engine with weighted operations, invariants and liveness checks; Playwright and Puppeteer runners; test-hook stripper.
 - [canvas-probe](https://github.com/JNFoo/JS-modules/blob/main/tools/canvas-probe/README.md): Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area.
+- [storage-probe](https://github.com/JNFoo/JS-modules/blob/main/tools/storage-probe/README.md): Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report.
 - [marionette-lite](https://github.com/JNFoo/JS-modules/blob/main/tools/marionette-lite/README.md): Drive Firefox from Python with the standard library only.
 
 ## Tools for the story editor: Size and packaging

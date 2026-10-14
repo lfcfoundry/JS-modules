@@ -9,6 +9,7 @@
 A small, seeded, reproducible random-input fuzzer for **stateful pages and games**, plus the pattern that makes such a page testable without shipping test code.
 
 - **`src/fuzz-core.js`**: the engine. You give it weighted *operations* (taps, key presses, menu clicks, "load a damaged save"), *invariants* (what must be true after every operation) and an optional *liveness* check (from anywhere, ordinary input must lead somewhere). One seed always gives the same sequence, and every failure carries the tail of operation names that led to it. Also a few input helpers (`Fuzzer.Input`: visible controls, pointer and key events, junk values for damaging saved data).
+- **Shrinking**: `run(n, { perOp: true })` also returns a `script` (every operation with a random stream of its own), `run(0, { script })` replays it, and `Fuzzer.shrink(make, script)` cuts it down (delta debugging) to the shortest script that still fails the same way. See the top of `src/fuzz-core.js`; `make()` must return a new fuzzer on a freshly reset app each time. 8 engine checks.
 - **`runner/fuzz_playwright.py`** and **`runner/fuzz_puppeteer.mjs`**: command-line runners. Each seed gets a fresh browser context, loads your page, injects the engine and your adapter, and prints one line per seed. A failing seed exits non-zero.
 - **`tools/strip-test-hooks.js`**: removes everything between `/*TEST_HOOK_START*/` and `/*TEST_HOOK_END*/` so the page you fuzz (with a `window.__app` test handle) and the page you ship come from one source file.
 - **`example/`**: a tiny app (`app.html`) with a planted bug, and the adapter (`adapter.js`) you would write for your own app.
@@ -57,7 +58,7 @@ A finding looks like `{"i": 35, "op": "buy", "what": "coins went negative: -9", 
 ## How it differs from existing open source
 
 - **[gremlins.js](https://github.com/marmelab/gremlins.js)** (marmelab, MIT) is the best-known monkey-testing library for web pages: it unleashes "gremlins" that click, type and scroll at random and reports console errors. It needs no knowledge of your app, which is a real strength; this kit instead asks you to describe operations and invariants for your app, which is more work and catches *logic* bugs (wrong numbers, stuck states) rather than only crashes. Use gremlins.js for a quick smoke test of an ordinary website; use this for a stateful game or tool where "no console error" is far from "correct".
-- **Property-based and stateful testing libraries** such as [fast-check](https://github.com/dubzzz/fast-check) (model-based testing with commands) have the same idea with shrinking of failing sequences, which this kit does not do. They are better when your logic runs in Node; this kit's contribution is the browser-page workflow: injecting into a live page, a steppable clock, fresh contexts per seed, and runners for Chromium and Firefox.
+- **Property-based and stateful testing libraries** such as [fast-check](https://github.com/dubzzz/fast-check) (model-based testing with commands) have the same idea with a much more capable shrinker (they also shrink the values inside each command); this kit's `Fuzzer.shrink` only removes whole operations. They are better when your logic runs in Node; this kit's contribution is the browser-page workflow: injecting into a live page, a steppable clock, fresh contexts per seed, and runners for Chromium and Firefox.
 - **Playwright and Puppeteer** are the drivers; this kit is a layer above them.
 
 I confirmed that these projects exist, but I did not install or benchmark gremlins.js or fast-check for this comparison. The ideas here (seeded random testing with invariants, test hooks stripped at build time) are well known; the value is a small, readable, tested version that works in single-file pages.
@@ -65,7 +66,7 @@ I confirmed that these projects exist, but I did not install or benchmark gremli
 ## Limits and gotchas
 
 - **Reproducibility depends on your app.** The same seed repeats only if the app has no hidden randomness or real-time dependence while fuzzing. Stop the real-time loop, seed the app's own random generator from the fuzz seed, and drive time with a `step` function.
-- **No shrinking.** A finding gives the last 40 operation names, not a minimal sequence.
+- **Only basic shrinking.** A plain finding gives the last 40 operation names; for a minimal sequence record with `perOp: true` and call `Fuzzer.shrink` (it removes whole operations, not values inside them).
 - **The adapter is the work.** Good invariants are what find real bugs. Start with: numbers are finite, state is one of the known states, counters never go negative or backwards, a saved-and-reloaded save equals itself, and liveness.
 - **Fuzzing runs your page.** Skip controls that download files, open file pickers or navigate away (`Fuzzer.Input.clickables(selector, skip)` has a skip callback).
 - Tested in Chromium (Playwright) and Firefox (Puppeteer over WebDriver BiDi); the demo gives identical findings in both.

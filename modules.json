@@ -237,6 +237,14 @@
       "readme": "tools/canvas-probe/README.md",
       "side": "games",
       "category": "testing"
+    },
+    {
+      "id": "storage-probe",
+      "summary": "Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report.",
+      "folder": "tools/storage-probe",
+      "readme": "tools/storage-probe/README.md",
+      "side": "games",
+      "category": "testing"
     }
   ],
   "related": {
