@@ -9,6 +9,7 @@ var steps = [
   ['lzma-decode', 'node', ['modules/lzma-decode/test/run.js']],
   ['fuzz-kit engine', 'node', ['tools/fuzz-kit/test/run.js']],
   ['canvas-probe', 'node', ['tools/canvas-probe/test/run.js']],
+  ['wake-keeper', 'node', ['modules/wake-keeper/test/run.js']],
   ['tab-guard', 'python3', ['modules/tab-guard/test/run.py'], true],
   ['back-close', 'python3', ['modules/back-close/test/run.py'], true],
   ['pad-nav', 'python3', ['modules/pad-nav/test/run.py'], true],

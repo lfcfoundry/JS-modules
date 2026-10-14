@@ -17,6 +17,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [hold-press](https://github.com/JNFoo/JS-modules/blob/main/modules/hold-press/README.md): Hold-to-repeat for buttons that survives Android Chrome pointercancel. (global HoldPress)
 - [pad-nav](https://github.com/JNFoo/JS-modules/blob/main/modules/pad-nav/README.md): Gamepad API to DOM focus: move through buttons and menus with a controller, no game code. (global PadNav)
 - [tab-guard](https://github.com/JNFoo/JS-modules/blob/main/modules/tab-guard/README.md): Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data. (global TabGuard)
+- [wake-keeper](https://github.com/JNFoo/JS-modules/blob/main/modules/wake-keeper/README.md): Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. (global WakeKeeper)
 - [back-close](https://github.com/JNFoo/JS-modules/blob/main/modules/back-close/README.md): Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher). (global BackClose)
 
 ## Games: Looks and effects

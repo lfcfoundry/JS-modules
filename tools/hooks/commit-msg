@@ -3,11 +3,16 @@
 # House rules, checked by a machine instead of by memory (see AGENTS.md):
 #  - no "Claude-Session:" line and no claude.ai link in a commit message
 #  - author and committer are JNFoo with the noreply address
+#  - any version stamp in the message is year.month.day.HHMM
 # A Co-Authored-By trailer is fine. Install once per clone: sh tools/hooks/install.sh
 msg="$1"; bad=0
 want_name="JNFoo"; want_mail="45110762+JNFoo@users.noreply.github.com"
 if grep -v '^#' "$msg" | grep -qiE '^Claude-Session:|claude\.ai/'; then
   echo "commit-msg: remove the Claude-Session line and any claude.ai link (house rule). A Co-Authored-By line is fine." >&2; bad=1
+fi
+# a version stamp must look like year.month.day.HHMM (US Eastern), for example 2026.10.14.1630
+if grep -v '^#' "$msg" | grep -oE '\b20[0-9]{2}\.[0-9]{1,2}\.[0-9]{1,2}\.[0-9]+\b' | grep -vE '^20[0-9]{2}\.(0[1-9]|1[0-2])\.(0[1-9]|[12][0-9]|3[01])\.([01][0-9]|2[0-3])[0-5][0-9]$' | head -1 | grep -q .; then
+  echo "commit-msg: a version stamp here is not year.month.day.HHMM with two-digit parts (for example 2026.10.14.0817). Fix it or reword." >&2; bad=1
 fi
 for v in GIT_AUTHOR_IDENT GIT_COMMITTER_IDENT; do
   id=$(git var "$v" 2>/dev/null)

@@ -156,6 +156,18 @@
       "category": "saving"
     },
     {
+      "id": "wake-keeper",
+      "global": "WakeKeeper",
+      "summary": "Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed, no retry storms.",
+      "file": "modules/wake-keeper/wake-keeper.js",
+      "readme": "modules/wake-keeper/README.md",
+      "demo": "modules/wake-keeper/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "controls"
+    },
+    {
       "id": "back-close",
       "global": "BackClose",
       "summary": "Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher).",

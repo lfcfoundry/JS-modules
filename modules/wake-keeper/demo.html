@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>wake-keeper demo</title>
+<style>body{font:16px system-ui,sans-serif;text-align:center;padding:2rem}#s{font-size:1.3rem;padding:1rem;border-radius:.8rem;background:#eee}button{font-size:1.1rem;padding:.6rem 1.2rem;margin:.3rem;border-radius:.6rem}</style>
+<h1>wake-keeper demo</h1>
+<p>Press Play to ask for the screen lock. It is given back when you press Pause, switch tabs, or leave the page alone for 10 seconds (shortened for this demo).</p>
+<p id="s">Starting…</p>
+<p><button id="play">Play</button><button id="pause">Pause</button></p>
+<script src="wake-keeper.js"></script>
+<script>
+var s = document.getElementById('s'), why = '';
+var wk = WakeKeeper.create({ idleMs: 10000, onChange: show, onRefused: function (e) { why = ' (refused: ' + (e && e.name || 'unknown') + ')'; show(); } });
+function show() { s.textContent = !wk.supported ? 'This browser has no screen wake lock.' : (wk.held ? 'Screen lock held' : 'No screen lock') + (wk.idle ? ' (idle)' : '') + why; }
+document.getElementById('play').onclick = function () { why = ''; wk.want(true); show(); };
+document.getElementById('pause').onclick = function () { wk.want(false); show(); };
+document.addEventListener('pointerdown', function () { wk.poke(); });
+show();
+</script>
