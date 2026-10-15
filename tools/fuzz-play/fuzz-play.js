@@ -2,7 +2,7 @@
 /*!
  * fuzz-play: a robot that plays your browser game badly, on purpose, and checks the rules that must always hold.
  * Part of JS-modules, https://github.com/JNFoo/JS-modules
- * Copyright (c) 2026 JNFoo. MIT License (see LICENSE at the repository root).
+ * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  *   npm i playwright-core            # (and have a Chromium; set CHROMIUM=/path/to/chrome if it isn't found)
  *   node fuzz-play.js --url file:///path/game.html --actions ./examples/dom-actions.js --seconds 60 --seed 1

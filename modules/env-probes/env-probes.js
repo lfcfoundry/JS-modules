@@ -1,7 +1,7 @@
 /*!
  * env-probes.js: tiny checks for browsers that quietly change what your page can do.
  * Part of JS-modules, https://github.com/JNFoo/JS-modules
- * Copyright (c) 2026 JNFoo. MIT License (see LICENSE at the repository root).
+ * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  *  timerRounded()        true when performance.now() is rounded to 100 ms (Firefox "resist fingerprinting" / strict privacy).
  *                        Frame timing, FPS meters and adaptive-quality code are meaningless then.

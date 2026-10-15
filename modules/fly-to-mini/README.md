@@ -23,4 +23,4 @@ One pair of elements per instance. The mini's first child is cloned for the flig
 FLIP and View Transitions API cover element-to-element moves on state change; neither is driven by scroll position or handles a sticky target that appears and disappears.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)

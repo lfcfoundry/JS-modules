@@ -11,7 +11,8 @@ This repository is meant to be read, copied from and extended by people and AI h
 - Keep every module **free of dependencies** and, where it makes sense, **one file** (`frame-kit` is three small files that each work alone). Use ES5-compatible syntax (`var`, no build step), with the UMD wrapper at the top level (browser global + `module.exports`).
 - Never throw out of a probe or a save; return a safe fallback.
 - Add or update a check for every behavior you change: `tests/run.js` for the original modules, or the module's own `test/` folder (run all of those with `npm run test:kits`).
-- Keep the header on each file: `Copyright (c) 2026 JNFoo. MIT License`. Contributions are accepted under the same license.
+- Keep the header on each file: `Copyright (c) 2026 LFC Foundry. MIT License`. Contributions are accepted under the same license.
+- Every HTML page here (demos, examples, tools, the front page) starts, right after `<!doctype html>`, with the LFC Foundry header comment in `tools/foundry-header.txt` (put the page's title where `{NAME}` stands; no `--` inside it). The one visible credit is a small footer line, `Forged by LFC Foundry • MIT Licensed`, at the end of each demo and tool page (not on internal test pages). Packed examples get the header added after packing, so it stays readable at the top. Commits are still authored and committed by JNFoo.
 - Do not add game art, characters, brand names or text from Apple Press. Do not add code you cannot license under MIT, and say where an idea came from in the module README ("Prior art").
 - Plain words in docs. Say what a thing does, then its limits.
 

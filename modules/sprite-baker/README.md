@@ -119,4 +119,4 @@ Run the tests: `node modules/sprite-baker/test/run.js` (exits non-zero on failur
 What not to change: the exported names listed in the API section (other code may call them), and the "no dependencies, no build step" rule.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)

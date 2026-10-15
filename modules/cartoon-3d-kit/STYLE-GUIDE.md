@@ -1,6 +1,6 @@
 # The 3D / cartoon visual style (from Character Press), and how to recreate it
 
-*Extracted Oct 2026 from the source of the game [Apple Press](https://github.com/JNFoo/apple-press): every number below is copied from working code. The game's own artwork is not included; this guide and `demo.html` use a generic round character ("Bloop") so you can recreate the style with your own character. Copyright (c) 2026 JNFoo, MIT License.*
+*Extracted Oct 2026 from the source of the game [Apple Press](https://github.com/JNFoo/apple-press): every number below is copied from working code. The game's own artwork is not included; this guide and `demo.html` use a generic round character ("Bloop") so you can recreate the style with your own character. Copyright (c) 2026 LFC Foundry, MIT License.*
 
 ---
 

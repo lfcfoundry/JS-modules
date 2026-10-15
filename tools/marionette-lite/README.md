@@ -19,4 +19,4 @@ Mozilla's `marionette_driver` package and Selenium both work, but need installs 
 Local use only. No element objects or waits; use `js()` for those. The Marionette protocol can change between Firefox versions.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry

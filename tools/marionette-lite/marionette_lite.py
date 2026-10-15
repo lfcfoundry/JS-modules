@@ -1,7 +1,7 @@
 """
 marionette_lite: drive Firefox from Python with the standard library only (no selenium, no geckodriver, no pip installs).
 Part of JS-modules, https://github.com/JNFoo/JS-modules
-Copyright (c) 2026 JNFoo. MIT License (see LICENSE at the repository root).
+Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
 
 Firefox has a built-in remote-control server called Marionette (start it with --marionette). It speaks a tiny protocol over a
 local TCP socket: messages are "<length>:<json>", commands are [0, id, "Name", {params}] and replies [1, id, error, result].

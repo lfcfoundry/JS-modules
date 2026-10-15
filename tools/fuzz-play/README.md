@@ -30,4 +30,4 @@ Both run seeded random play against your invariants. [`fuzz-kit`](../fuzz-kit/RE
 Start with `fuzz-play` for a quick look at a click-style page. Move to `fuzz-kit` when the game has real state to steer through, or when you want one source file for the tested page and the shipped page.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry

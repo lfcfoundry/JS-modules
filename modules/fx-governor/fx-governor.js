@@ -1,7 +1,7 @@
 /*!
  * fx-governor.js: steps visual effects down by itself when the device can't keep up, and never up again behind the player's back.
  * Part of JS-modules, https://github.com/JNFoo/JS-modules
- * Copyright (c) 2026 JNFoo. MIT License (see LICENSE at the repository root).
+ * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  *   var gov = FxGovernor.create({ levels: ['full', 'lite', 'calm'], onChange: function (level) { document.body.dataset.fx = level; } });
  *   gov.start();                       // runs its own requestAnimationFrame loop; or call gov.frame(t) from your own loop

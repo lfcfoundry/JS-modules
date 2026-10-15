@@ -34,4 +34,4 @@ Web Locks leader-election helpers exist (for example the "navigator.locks leader
 Call `TabGuard.start` once, early. Put your save switch-off in `onTwin`. Give the player a visible button that calls `takeOver()`. Do not call `takeOver()` automatically.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)

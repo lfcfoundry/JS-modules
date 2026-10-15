@@ -17,4 +17,4 @@ CSS has no good text stroke: `-webkit-text-stroke` straddles the glyph edge and 
 48 shadows per outline is heavier than a plain stroke: use it for a few titles, not paragraphs. Works with any font; very thin fonts need a larger outer ring.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)

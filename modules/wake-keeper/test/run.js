@@ -1,4 +1,4 @@
-// Node checks for wake-keeper with a fake navigator, document and clock. Copyright (c) 2026 JNFoo. MIT License.
+// Node checks for wake-keeper with a fake navigator, document and clock. Copyright (c) 2026 LFC Foundry. MIT License.
 var WakeKeeper = require('../wake-keeper.js'), pass = 0, fail = 0;
 function check(name, ok, extra) { if (ok) { pass++; console.log('  ok   ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' ' + extra : '')); } }
 function tick() { return new Promise(function (r) { setImmediate(r); }); }

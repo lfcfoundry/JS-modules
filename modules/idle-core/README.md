@@ -28,4 +28,4 @@ Idle-game maths are usually copied from blog posts and re-fixed. The parts that 
 Pure maths: no storage, no rendering. Numbers beyond 1e21 are shown in exponent form; this is not a big-number library (see break_infinity.js for numbers past 1e308).
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)

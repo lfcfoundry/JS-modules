@@ -2,7 +2,7 @@
 
 Small, dependency-free pieces for single-file browser games, taken out of **[Apple Press](https://github.com/JNFoo/apple-press)** ([play it](https://jnfoo.github.io/apple-press/)) and **[Fancy, the Banana](https://github.com/JNFoo/fancy-banana)** ([play it](https://jnfoo.github.io/fancy-banana/)) and cleaned up so anyone, or any AI helper working with a human, can drop them into another project.
 
-MIT License. Copyright (c) 2026 JNFoo. Use, change and sell anything built with it. Keeping the license line is the only ask.
+MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built with it. Keeping the license line is the only ask.
 
 Live demos: **https://jnfoo.github.io/JS-modules/**
 

@@ -56,4 +56,4 @@ Inside this repository, [`tools/single-file-tools`](../single-file-tools/README.
 - Do not use `--tune` in tests; it is slow. `test/browser.py` checks the real unpack path (file://, HTTP with and without a charset header), a damaged payload, and a file re-saved as text.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)

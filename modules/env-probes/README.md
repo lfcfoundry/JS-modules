@@ -21,4 +21,4 @@ Detection is by behavior, so a future browser could round differently. `canvasRe
 Fingerprinting libraries detect these modes to identify users; this does the opposite: it detects them to keep your game working.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)

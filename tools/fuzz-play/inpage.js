@@ -1,7 +1,7 @@
 /*!
  * fuzz-play/inpage.js: the same idea running INSIDE the page (no round trips, so it is fast), for browsers Playwright can't drive
  * (inject it through Marionette, see tools/marionette-lite, or paste it into a console).
- * Copyright (c) 2026 JNFoo. MIT License.
+ * Copyright (c) 2026 LFC Foundry. MIT License.
  *
  *   FuzzPlay.run({
  *     ms: 60000,

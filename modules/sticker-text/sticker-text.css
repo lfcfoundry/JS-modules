@@ -1,4 +1,4 @@
-/* sticker-text.css: companion to sticker-text.js. MIT, Copyright (c) 2026 JNFoo (see LICENSE). */
+/* sticker-text.css: companion to sticker-text.js. MIT, Copyright (c) 2026 LFC Foundry (see LICENSE). */
 .sticker-text {
   --st-fill: linear-gradient(180deg, #ff9a7c 0%, #e8392d 45%, #a3150f 100%);   /* the letter fill */
   --st-edge: #7a120d;                                                           /* hard lower edge */

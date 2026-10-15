@@ -1,4 +1,4 @@
-// optsvg.js, part of JS-modules (https://github.com/JNFoo/JS-modules). Copyright (c) 2026 JNFoo, MIT License.
+// optsvg.js, part of JS-modules (https://github.com/JNFoo/JS-modules). Copyright (c) 2026 LFC Foundry, MIT License.
 // Usage: npm i svgo; node optsvg.js in.html out.html
 // Compresses the inline SVG pictures that are written directly in the page (not the ones the script builds).
 // Careful settings: nothing is merged, moved, renamed or removed that a style rule or the script could point at;

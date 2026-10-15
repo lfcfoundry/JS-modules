@@ -39,4 +39,4 @@ Many small wake-lock wrappers exist (for example NoSleep.js, which also covers o
 Create the keeper once. Call `want(true)` when play starts and `want(false)` in your pause, card and title code paths; call `poke()` from your pointer and key handlers. Do not request the lock yourself as well.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Pineapple Defense](https://github.com/JNFoo/pineapple-defense)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Pineapple Defense](https://github.com/JNFoo/pineapple-defense)

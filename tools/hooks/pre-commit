@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2026 JNFoo. All rights reserved.
+# Copyright (c) 2026 LFC Foundry. All rights reserved.
 # Fails early on the wrong author or committer; warns (never blocks) about British spellings in added lines.
 # Add the text "spelling-ok" to a line to silence the warning for it (quoted source, proper names, CSS keywords).
 want_name="JNFoo"; want_mail="45110762+JNFoo@users.noreply.github.com"; bad=0

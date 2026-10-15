@@ -53,4 +53,4 @@ Inside this repository, [`tools/single-file-tools`](../../tools/single-file-tool
 - The file must stay ES5 syntax (repository rule). Run the test after any change; it compares with liblzma on 6 kinds of data, 8 settings combinations, sizes from 1 byte to 1.5 MB, and checks error handling and speed.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)

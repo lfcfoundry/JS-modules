@@ -1,4 +1,4 @@
-/* job-pump: runs queued build steps for about N milliseconds per frame so a big pre-render never hitches a frame. MIT License, Copyright (c) 2026 JNFoo. https://github.com/JNFoo/JS-modules */
+/* job-pump: runs queued build steps for about N milliseconds per frame so a big pre-render never hitches a frame. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules */
 'use strict';
 
 /**

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2026 JNFoo. All rights reserved.
+# Copyright (c) 2026 LFC Foundry. All rights reserved.
 # Tests the house-rule hooks in a throwaway repository: sh tools/hooks/test.sh
 here=$(cd "$(dirname "$0")" && pwd); tmp=$(mktemp -d); pass=0; fail=0; n=0
 cd "$tmp" && git init -q . && git config user.name JNFoo && git config user.email 45110762+JNFoo@users.noreply.github.com && git config core.hooksPath "$here"

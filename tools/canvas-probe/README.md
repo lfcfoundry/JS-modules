@@ -70,4 +70,4 @@ If you know a tool that already does this, tell the owner so the prior-art note 
 - Install it before the game script, call `probe.frame()` once per drawn frame (or pass `auto: true`), play for a few seconds, then read `probe.text()`.
 - Use the numbers as a baseline to compare before and after a change. Do not use them as timings.
 - Treat "slow leak" and "source rectangle sticks out" as bugs to fix. Treat style repeats and painted area as hints to check, not failures.
-- Copyright (c) 2026 JNFoo. MIT License.
+- Copyright (c) 2026 LFC Foundry. MIT License.

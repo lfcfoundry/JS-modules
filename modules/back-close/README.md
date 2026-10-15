@@ -23,4 +23,4 @@ On a phone, a pop-up that does not respond to the back gesture sends the player 
 Call `watch` once per panel at start-up, after the panel element exists. Do not also push history entries for the same panel.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)

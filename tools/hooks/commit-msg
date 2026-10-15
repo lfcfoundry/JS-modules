@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2026 JNFoo. All rights reserved.
+# Copyright (c) 2026 LFC Foundry. All rights reserved.
 # House rules, checked by a machine instead of by memory (see AGENTS.md):
 #  - no "Claude-Session:" line and no claude.ai link in a commit message
 #  - author and committer are JNFoo with the noreply address

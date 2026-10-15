@@ -144,4 +144,4 @@ Run the tests: `python3 modules/pad-nav/test/run.py` from the repository root (P
 What not to change without updating the tests: the 380 ms and 120 ms repeat defaults, the 0.45 deadzone, the `2.5` sideways-drift weight, the 4 px minimum, and the button numbers. `test/page.html` places the grid and panel with fixed positions on purpose; changing its layout changes the expected focus paths.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)

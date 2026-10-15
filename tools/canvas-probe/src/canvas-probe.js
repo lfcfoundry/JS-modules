@@ -1,7 +1,7 @@
 /*!
  * canvas-probe.js: counts what a canvas 2D game really asks the browser to do, frame by frame. For test builds only.
  * Part of JS-modules, https://github.com/JNFoo/JS-modules
- * Copyright (c) 2026 JNFoo. MIT License (see LICENSE at the repository root).
+ * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  *   var probe = CanvasProbe.install();          // wraps CanvasRenderingContext2D (and the Offscreen one if present)
  *   // ... in your loop, once per frame, after drawing:

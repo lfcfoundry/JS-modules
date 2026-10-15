@@ -1,4 +1,28 @@
-<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : save-kit demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/JNFoo)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>save-kit demo</title>
 <style>body{font:16px system-ui,sans-serif;max-width:40rem;margin:1rem auto;padding:0 1rem}textarea{width:100%;height:6rem}button{font:inherit;padding:.4rem .8rem;margin:.2rem .2rem .2rem 0}</style>
 <h1>save-kit demo</h1>
@@ -19,3 +43,4 @@
   document.getElementById('import').onclick = function () { store.importCode(box.value).then(function (s) { state = s; show(); store.save(state); msg.textContent = 'Loaded!'; }, function (m) { msg.textContent = m; }); };
   store.autosave(function () { return state; }); show();
 </script>
+<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/JNFoo" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>

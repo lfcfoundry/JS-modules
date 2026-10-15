@@ -1,4 +1,4 @@
-/* pad-nav: gamepad (Gamepad API) navigation for ordinary on-screen DOM menus and panels. MIT License, Copyright (c) 2026 JNFoo. https://github.com/JNFoo/JS-modules */
+/* pad-nav: gamepad (Gamepad API) navigation for ordinary on-screen DOM menus and panels. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules */
 /**
  * @param {object} [o] options, all optional:
  *   getScope()          returns the element that currently owns the controller (the topmost open panel), or null for none

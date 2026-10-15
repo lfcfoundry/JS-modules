@@ -1,7 +1,7 @@
 /*!
  * idle-core.js: the small maths every idle / clicker game ends up needing, tested.
  * Part of JS-modules, https://github.com/JNFoo/JS-modules
- * Copyright (c) 2026 JNFoo. MIT License (see LICENSE at the repository root).
+ * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  *  upgradeCost(base, risePct, owned, discount)   price of the next copy: base * (1 + rise/100)^owned * discount, rounded up
  *  milestoneMult(owned, [10,25,50])              owning 10 doubles each copy's output, 25 doubles again, 50 once more (x8)

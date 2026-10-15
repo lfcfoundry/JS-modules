@@ -17,4 +17,4 @@ Many "adaptive quality" snippets react to a single slow frame. This one averages
 Measures frame rate only, not memory or battery. You decide what each level means in CSS or code.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)

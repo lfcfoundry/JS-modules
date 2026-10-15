@@ -28,4 +28,4 @@ Needs canvas 2D, Promise and `Element.animate` (any browser since about 2020). O
 Libraries such as [curtains.js](https://www.curtainsjs.com/) (WebGL planes) and general animation libraries cover effects; none that I found ship a ready, tested, hardened "theater curtain scene change".
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)

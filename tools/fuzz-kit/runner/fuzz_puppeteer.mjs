@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Run a fuzz-kit adapter against a page with Puppeteer (Chrome, or Firefox over WebDriver BiDi).
-// MIT License, Copyright (c) 2026 JNFoo. https://github.com/JNFoo/JS-modules
+// MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules
 //   node runner/fuzz_puppeteer.mjs URL ADAPTER.js [--seeds 1-20] [--ops 400] [--browser chrome|firefox] [--executable /path/to/browser] [--viewport 412x892]
 // Needs: npm install puppeteer (and, for Firefox, `npx puppeteer browsers install firefox`, or --executable). Same behavior and output as runner/fuzz_playwright.py.
 import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath } from 'node:url';

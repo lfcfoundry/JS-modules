@@ -16,4 +16,4 @@ Shrinking a game that is one HTML file with fonts and pictures inside it. These 
 General minifiers do not know which glyphs a one-file game can print or which SVG ids its script uses. These are small and conservative on purpose.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry

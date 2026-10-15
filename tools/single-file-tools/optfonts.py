@@ -1,7 +1,7 @@
 """
 optfonts.py: cut every base64 font embedded in an HTML file down to the characters the file can actually show.
 Part of JS-modules, https://github.com/JNFoo/JS-modules
-Copyright (c) 2026 JNFoo. MIT License (see LICENSE at the repository root).
+Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
 
 Collects every character in the file (typed directly, written as \\uXXXX / \\u{...} / \\xNN, or as an &entity;), adds plain ASCII and a few
 typographic spaces and quotes, then subsets each @font-face with fontTools and re-embeds it as woff2.

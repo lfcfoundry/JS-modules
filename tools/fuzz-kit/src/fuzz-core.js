@@ -1,4 +1,4 @@
-/* fuzz-core: a seeded, reproducible random-input fuzzer for stateful web pages and games. MIT License, Copyright (c) 2026 JNFoo. https://github.com/JNFoo/JS-modules */
+/* fuzz-core: a seeded, reproducible random-input fuzzer for stateful web pages and games. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules */
 
 /* A fuzzer here is: a list of weighted OPERATIONS (taps, key presses, menu clicks, "load a damaged save"...), a list of INVARIANTS
    (things that must hold after every operation) and an optional LIVENESS check (from anywhere, ordinary input must lead somewhere).

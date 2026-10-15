@@ -1,7 +1,7 @@
 /*!
  * hold-press.js: "hold to keep pressing" for a button or any element, on mouse, touch and pen.
  * Part of JS-modules, https://github.com/JNFoo/JS-modules
- * Copyright (c) 2026 JNFoo. MIT License (see LICENSE at the repository root).
+ * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  * A short tap stays a normal click (your own 'click' listener). Holding for `delayMs` starts repeating onPress every
  * `everyMs`. When the hold ends, the click the browser sends on release is swallowed, so letting go never adds an

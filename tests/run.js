@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// JS-modules tests. Copyright (c) 2026 JNFoo, MIT License.
+// JS-modules tests. Copyright (c) 2026 LFC Foundry, MIT License.
 // Run: npm i playwright-core && CHROMIUM=/path/to/chrome node tests/run.js      (CHROMIUM optional if Playwright finds a browser)
 const assert = require('assert'), path = require('path');
 const root = path.resolve(__dirname, '..'), M = (m, f) => path.join(root, 'modules', m, f);

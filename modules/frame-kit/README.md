@@ -233,4 +233,4 @@ Differences from the original game code, on purpose: `EvenDt` recomputes the med
 Related: [`fx-governor`](../fx-governor/README.md) in this repository also steps effects down when a device cannot keep up, but never steps back up. `QualityGovernor` here steps back up after a calm spell. Pick the one that matches the behavior you want.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)

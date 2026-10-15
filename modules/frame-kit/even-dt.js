@@ -1,4 +1,4 @@
-/* even-dt: smooths the uneven frame gaps a browser reports by snapping them to the screen's learned refresh period. MIT License, Copyright (c) 2026 JNFoo. https://github.com/JNFoo/JS-modules */
+/* even-dt: smooths the uneven frame gaps a browser reports by snapping them to the screen's learned refresh period. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules */
 'use strict';
 
 /**

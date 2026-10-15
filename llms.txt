@@ -1,5 +1,5 @@
 # JS-modules
-> Small, dependency-free JavaScript modules and tools for single-file browser games, extracted from Apple Press and Fancy, the Banana. MIT License, Copyright (c) 2026 JNFoo.
+> Small, dependency-free JavaScript modules and tools for single-file browser games, extracted from Apple Press and Fancy, the Banana. MIT License, Copyright (c) 2026 LFC Foundry.
 
 Each module is one file usable as a browser global or via require(). Start with modules.json (machine-readable index).
 

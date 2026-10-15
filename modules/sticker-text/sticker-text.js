@@ -1,7 +1,7 @@
 /*!
  * sticker-text.js: die-cut "sticker" lettering for logos and titles, in plain HTML + CSS (no images, scales with font-size).
  * Part of JS-modules, https://github.com/JNFoo/JS-modules
- * Copyright (c) 2026 JNFoo. MIT License (see LICENSE at the repository root).
+ * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  * CSS has no good text stroke (-webkit-text-stroke straddles the glyph edge and chews up thin letters). The trick: draw the
  * word three times: (1) the real invisible text for layout and accessibility, (2) a copy behind it whose `text-shadow` is a

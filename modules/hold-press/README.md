@@ -24,4 +24,4 @@ Repeat timing is `setInterval`, not frame-locked. Not for drag gestures.
 Press-and-hold helpers exist (for example Hammer.js "press" gestures), but they are built on pointer/touch recognition and do not handle the Android `pointercancel` case or swallow the trailing click.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)

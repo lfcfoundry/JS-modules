@@ -30,4 +30,4 @@ Not encryption and not anti-cheat: a save code can be edited by anyone who wants
 Generic storage wrappers (for example [localForage](https://localforage.github.io/localForage/), store.js) deal with storage back-ends, not game-save safety, backups or copyable codes.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 JNFoo · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
