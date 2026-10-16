@@ -36,10 +36,23 @@ var fly = FlyToMini.create({
 | `canAnimate()` | reduced-motion check | Return false to skip the flight (the state still changes). The default returns false when the system asks for reduced motion. If you pass your own function, it replaces the default, so include that check yourself. |
 | `downMs` / `upMs` | 440 / 400 | Flight lengths. |
 | `arc` | 18 | Pixels the copy rises on its way. |
+| `engine` | `'flight'` | `'transition'` lets the browser's View Transitions API do the move instead (see below). Where `document.startViewTransition` is missing it quietly uses the flight. |
+| `transitionName` | `'fly-to-mini'` | The `view-transition-name` used by that engine. Only letters, digits, `_` and `-` are kept. Change it if your page already uses the name. |
 
 **CSS class names the module uses.** `.flying` is added to `big` while its copy is in the air (hide the big art with it). `.mini-fly` is the flying copy's layer. `.landed` is added to the element that was reached, for 400 ms. The module sets no styles on these names; they are hooks for your CSS.
 
 Methods: `set(on, animate)` moves to a state yourself (`animate` false skips the flight), `stop()` ends a flight where it is and removes the copy, `destroy()` also stops watching.
+
+## Optional View Transitions engine
+`engine: 'transition'` hands the move to the browser. The module names the big art and the mini's picture with the same `view-transition-name`, the browser morphs one into the other, and the module adds the same arc, tilt and squash on top (through the `rotate`, `translate` and `scale` properties, which add to the browser's own transform). `downMs` and `upMs` still set the length. No flying copy is made, so there is less code running per frame.
+
+Try it in the demo by adding `?engine=transition` to its address. It is **off by default** on purpose:
+- While it plays, the whole page is a frozen picture (about 0.4 s), and the page cannot be scrolled or tapped. The flight leaves the page alive.
+- It does not follow a mini that moves while the page scrolls; the flight re-reads the target every frame.
+- The browser only captures what is on screen. If the page jumps a long way at once (a script scroll, not a swipe), the old picture is off screen and the mini simply appears.
+- Do not hide the big art with `.flying` for this engine: the class is not added, and the new picture on the way up must be visible.
+- One transition runs at a time. A new one retires the old one; the final state is always the last direction asked for.
+- Measured so far: the mechanics in Chromium 141 (names set and cleared, the 440 ms move, the zigzag case) and in a fake-DOM test. The look of the move has not been judged by eye on a phone or in Firefox 144+.
 
 ## Hidden mini
 With `display:none` the mini has no size, so the module cannot measure where to fly. On the way down it therefore calls `onChange(true)` right at the start (your code shows the mini), makes the mini invisible with an inline `visibility:hidden`, measures it, and removes that inline style when the copy lands. So in that case `onChange(true)` arrives at the start of the flight and again at the end. If the mini is kept laid out and only made invisible, `onChange(false)` arrives at the start (as before) and `onChange(true)` at the end. If the mini still has no size after `onChange(true)` (your CSS hides it at this window size), there is no flight and the state just changes. If your callback does something that must happen only once (a sound, a counter), guard it.
@@ -62,10 +75,10 @@ With `display:none` the mini has no size, so the module cannot measure where to 
 - The "away" line is half visible with no hysteresis, so jittery scrolling right at the edge can start flights back and forth (interrupted flights resume from where they were, so it only looks busy).
 - If the mini has keyboard focus when your `onChange` hides it, focus is lost. Moving focus is your page's job.
 - Needs `IntersectionObserver` and `requestAnimationFrame`. Without `IntersectionObserver` it calls `onChange(true)` once and never flies.
-- Tested with a fake DOM in Node (`test/run.js`) and with the demo in Chromium. Not measured on phones.
+- Tested with a fake DOM in Node (`test/run.js`) and with the demo in Chromium (both engines). Not measured on phones.
 
 ## Prior art
-- **View Transitions API** (built in, Chrome 111+, Firefox 144+): morphs a named element between two page states. It is one transition at a time and the page waits on your update callback; it does not follow a sticky target that keeps moving while the page scrolls. Good for a state change you trigger; this module reacts to scroll position.
+- **View Transitions API** (built in, Chrome 111+, Firefox 144+): morphs a named element between two page states. It is one transition at a time and the page waits on your update callback; it does not follow a sticky target that keeps moving while the page scrolls. Good for a state change you trigger; this module reacts to scroll position. It is available here as the optional `engine: 'transition'`, with the trade-offs listed above.
 - **CSS scroll-driven animations** (`animation-timeline: scroll()` / `view()`): tie an animation to scroll position and are excellent for shrinking headers. One element animates along its own path; it cannot hop to a separately placed element, so it does not cover a copy that leaves the big art and lands on a sticky mini. Browser support differed in Firefox when this was written, so check before relying on it.
 - **FLIP** ([flip-toolkit](https://github.com/aholachek/flip-toolkit), MIT; GSAP Flip, not open source): record the before and after positions and animate the difference. Built for layout changes, not for a scroll-triggered flight to a target that appears and disappears.
 - `@container scroll-state(stuck)` could replace the "is the bar stuck" observation in CSS, in Chromium only at the time of writing.

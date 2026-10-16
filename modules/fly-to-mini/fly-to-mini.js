@@ -20,6 +20,10 @@
  * becomes wide and the mini disappears (offsetWidth 0), the flight ends at once. A timer lands the copy even if frames stop coming,
  * and a throwing frame lands it at once, so the art is never left at opacity 0. When the system asks for reduced motion there is
  * no flight (the state just changes). create() with a missing element returns an inert object instead of throwing.
+ *
+ * Optional engine: pass engine:'transition' to let the browser's View Transitions API do the move (the same arc, tilt and squash are
+ * added on top). It is used only where document.startViewTransition exists; everywhere else the flight above runs. While it plays,
+ * the whole page is a frozen snapshot, and the mini is not followed if the page scrolls, so the flight stays the default.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -51,6 +55,8 @@
     var onChangeFn = typeof o.onChange === 'function' ? o.onChange : function () {};
     var canAnimate = typeof o.canAnimate === 'function' ? o.canAnimate : motionOk;
     var downMs = o.downMs || 440, upMs = o.upMs || 400, arc = o.arc == null ? 18 : o.arc;
+    var wantVT = o.engine === 'transition', vtName = String(o.transitionName || 'fly-to-mini').replace(/[^\w-]/g, '') || 'fly-to-mini';
+    var vt = null, vtToken = 0, vtStyle = null;   // the running View Transition, a counter that retires stale ones, the page's <style> for it
     var inset = o.topInset == null ? 130 : Number(o.topInset);
     if (!isFinite(inset)) inset = 130;
     var on = false, first = true, flyEl = null, raf = 0, dir = 0, cur = null, io = null, timer = 0;
@@ -73,14 +79,57 @@
       flyEl = null;
       try { big.classList.remove('flying'); } catch (e) {}
       unreveal();
+      vtStop();
     }
-    function land(isOn) {
-      stop(); notify(isOn);
+    function pop(isOn) {
       try {
         var el = isOn ? mini : big;
         el.classList.remove('landed'); void el.offsetWidth; el.classList.add('landed');   // CSS: .landed { animation: pop 400ms }
         setTimeout(function () { try { el.classList.remove('landed'); } catch (e) {} }, 400);
       } catch (e) {}
+    }
+    function land(isOn) { stop(); notify(isOn); pop(isOn); }
+
+    // ---- optional engine: View Transitions ----
+    function face() { return isBox(o.content) ? o.content : (mini.firstElementChild || mini); }
+    function setName(e, v) {
+      try { if (v) e.style.setProperty('view-transition-name', v); else e.style.removeProperty('view-transition-name'); } catch (err) {}
+    }
+    function vtClear() { setName(art, ''); setName(face(), ''); if (vtStyle) vtStyle.textContent = ''; }
+    function vtStop() {
+      if (!vt && !vtStyle) return;
+      vtToken++;
+      try { if (vt) vt.skipTransition(); } catch (e) {}
+      vt = null; vtClear();
+    }
+    function vtStart() {
+      var myOn = on, token = ++vtToken, dur = myOn ? downMs : upMs, src = myOn ? art : face(), dst = myOn ? face() : art;
+      if (!vtStyle) {
+        vtStyle = document.createElement('style'); vtStyle.setAttribute('data-fly-to-mini', '');
+        (document.head || document.documentElement).appendChild(vtStyle);
+      }
+      setName(art, ''); setName(face(), '');
+      setName(src, vtName);                                   // the old picture is captured under this name
+      // Our own element moves; the rest of the page must not cross-fade while it does. This style lives only as long as the move.
+      vtStyle.textContent = '::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}' +
+        '::view-transition-group(' + vtName + '){animation-duration:' + dur + 'ms;animation-timing-function:cubic-bezier(.65,0,.35,1)}';
+      var t = document.startViewTransition(function () {
+        if (token !== vtToken) return;                        // a newer move took over; it sets the final state
+        setName(src, ''); notify(myOn); setName(dst, vtName); // the new picture is captured under the same name
+      });
+      vt = t;
+      function done() { if (token !== vtToken) return; vt = null; vtClear(); pop(myOn); }
+      t.finished.then(done, done);
+      t.ready.then(function () {
+        if (token !== vtToken) return;
+        try {   // arc, tilt and squash on top of the browser's own move (individual properties add to its transform)
+          document.documentElement.animate({
+            rotate: ['0deg', (myOn ? -16 : 16) + 'deg', '0deg'],
+            translate: ['0px 0px', '0px ' + (-arc) + 'px', '0px 0px'],
+            scale: ['1 1', '1.06 0.943', '1 1']
+          }, { duration: dur, easing: 'ease-in-out', pseudoElement: '::view-transition-group(' + vtName + ')' });
+        } catch (e) {}
+      }, function () {});
     }
     function noFlight() { stop(); notify(on); }
 
@@ -144,7 +193,9 @@
       var can = false;
       try { can = !!animate && !!canAnimate() && !document.hidden && !!mini.animate; } catch (e) {}
       if (!can) { noFlight(); return; }
-      try { startFlight(); } catch (err) { noFlight(); }
+      try {
+        if (wantVT && typeof document.startViewTransition === 'function') vtStart(); else startFlight();
+      } catch (err) { noFlight(); }
     }
 
     try {
@@ -156,7 +207,7 @@
         io.observe(big);
       } else { notify(true); }
     } catch (e) { io = null; }
-    return { set: set, stop: stop, destroy: function () { stop(); try { if (io) io.disconnect(); } catch (e) {} }, get isMini() { return on; } };
+    return { set: set, stop: stop, destroy: function () { stop(); try { if (io) io.disconnect(); } catch (e) {} try { if (vtStyle && vtStyle.parentNode) vtStyle.parentNode.removeChild(vtStyle); } catch (e) {} vtStyle = null; }, get isMini() { return on; } };
   }
   return { create: create };
 });

@@ -165,6 +165,16 @@ async function t(name, fn) { try { await fn(); pass++; console.log('  ok   ' + n
     assert.strictEqual(await p.evaluate(() => document.getElementById('bar').classList.contains('mini-on')), false);
     assert.strictEqual(await p.evaluate(() => document.querySelectorAll('.mini-fly').length), 0); await p.context().close();
   });
+  await t('fly-to-mini: the View Transitions engine moves the mini in and out and leaves nothing behind', async () => {
+    const p = await open('fly-to-mini'); await p.goto(p.url() + '?engine=transition'); await p.waitForTimeout(300);
+    const left = () => p.evaluate(() => [document.querySelectorAll('.mini-fly').length, [...document.querySelectorAll('#big,#big *,#mini,#mini *')].filter(e => e.style.viewTransitionName).length, document.querySelector('style[data-fly-to-mini]') ? document.querySelector('style[data-fly-to-mini]').textContent : '']);
+    await p.evaluate(() => window.scrollTo(0, 260)); await p.waitForTimeout(900);
+    assert.strictEqual(await p.evaluate(() => document.getElementById('bar').classList.contains('mini-on')), true); assert.deepStrictEqual(await left(), [0, 0, '']);
+    await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(900);
+    assert.strictEqual(await p.evaluate(() => document.getElementById('bar').classList.contains('mini-on')), false); assert.deepStrictEqual(await left(), [0, 0, '']);
+    await p.evaluate(() => window.scrollTo(0, 260)); await p.waitForTimeout(100); await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(60); await p.evaluate(() => window.scrollTo(0, 260)); await p.waitForTimeout(1100);
+    assert.strictEqual(await p.evaluate(() => document.getElementById('bar').classList.contains('mini-on')), true, 'a zigzag ends on the last direction'); assert.deepStrictEqual(await left(), [0, 0, '']); await p.context().close();
+  });
   await t('sticker-text applies a ring and the data attribute', async () => {
     const p = await open('sticker-text'); const r = await p.evaluate(() => { const a = document.getElementById('a'); return [a.getAttribute('data-t'), a.style.getPropertyValue('--st-ring').split(',').length, getComputedStyle(a, '::before').textShadow.split('rgb').length - 1]; });
     assert.strictEqual(r[0], 'Bloop'); assert.strictEqual(r[1], 48); assert.ok(r[2] >= 40); await p.context().close();

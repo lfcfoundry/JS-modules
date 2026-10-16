@@ -25,7 +25,8 @@ function reset() { clock.timers = []; clock.rafs = []; clock.now = 1000; }
 
 function el(rect) {
   var cls = {}, e = {
-    _rect: rect || { left: 0, top: 0, width: 0, height: 0 }, _hidden: false, children: [], parentNode: null, style: { visibility: '' }, animate: function () {},
+    _rect: rect || { left: 0, top: 0, width: 0, height: 0 }, _hidden: false, children: [], parentNode: null, animate: function () {},
+    style: { visibility: '', setProperty: function (k, v) { this[k] = v; }, removeProperty: function (k) { delete this[k]; } },
     classList: { add: function (c) { cls[c] = 1; }, remove: function (c) { delete cls[c]; }, contains: function (c) { return !!cls[c]; } },
     getBoundingClientRect: function () { var r = e._rect; return e._hidden ? { left: 0, top: 0, width: 0, height: 0 } : { left: r.left, top: r.top, width: r.width, height: r.height }; },
     cloneNode: function () { return el(e._rect); }, setAttribute: function () {},
@@ -33,16 +34,25 @@ function el(rect) {
     removeChild: function (c) { e.children = e.children.filter(function (x) { return x !== c; }); c.parentNode = null; return c; }
   };
   Object.defineProperty(e, 'offsetWidth', { get: function () { return e._hidden ? 0 : e._rect.width; } });
-  Object.defineProperty(e, 'firstElementChild', { get: function () { return el(e._rect); } });
+  Object.defineProperty(e, 'firstElementChild', { get: function () { return e._face || (e._face = el(e._rect)); } });
   return e;
 }
 
 var IO = { last: null };
+var vtLog = { all: [], wobbles: [] };
+function thenable() { var th = { ok: null, bad: null, then: function (a, b) { th.ok = a; th.bad = b; } }; return th; }
 function setup(opts) {
   opts = opts || {};
-  reset();
+  reset(); vtLog = { all: [], wobbles: [] };
   var body = el();
   global.document = { hidden: false, body: body, createElement: function () { var d = el({ left: 0, top: 0, width: 0, height: 0 }); return d; } };
+  if (opts.vt) {   // a fake View Transitions API: the test settles it by hand
+    global.document.documentElement = el(); global.document.head = el(); global.document.documentElement.animate = function (k, o) { vtLog.wobbles.push(o.pseudoElement); };
+    global.document.startViewTransition = function (cb) {
+      var tr = { cb: cb, skipped: false, skipTransition: function () { tr.skipped = true; }, ready: thenable(), finished: thenable() };
+      vtLog.all.push(tr); return tr;
+    };
+  }
   global.window = {
     innerHeight: 700,
     matchMedia: function () { return { matches: !!opts.reduced }; },
@@ -160,6 +170,51 @@ t('a flight cut short by scrolling back ends cleanly', function () {
   var s = setup({ miniHidden: true, hideWithChange: true });
   s.scroll(1); s.scroll(0.2); advance(100); s.scroll(0.9); advance(800);
   assert.strictEqual(flights(s).length, 0); assert.ok(!s.big.classList.contains('flying')); assert.strictEqual(s.fly.isMini, false); assert.strictEqual(s.changes[s.changes.length - 1], false);
+});
+
+// ---- optional View Transitions engine ----
+var NAME = 'view-transition-name';
+t('engine "transition" uses the browser: names the old picture, swaps the name in the update callback, never makes a copy', function () {
+  var s = setup({ vt: true, miniHidden: true, hideWithChange: true, extra: { engine: 'transition' } });
+  s.scroll(1); s.scroll(0.2);
+  assert.strictEqual(vtLog.all.length, 1); assert.strictEqual(flights(s).length, 0, 'no flying copy');
+  assert.strictEqual(s.big.style[NAME], 'fly-to-mini', 'the big art carries the name while the old state is captured');
+  assert.ok(!s.big.classList.contains('flying'), 'the big art stays visible, so the new picture is not blank on the way up');
+  assert.strictEqual(s.changes.length, 0, 'the page changes only inside the callback');
+  vtLog.all[0].cb();
+  assert.strictEqual(s.big.style[NAME], undefined); assert.strictEqual(s.mini.firstElementChild.style[NAME], 'fly-to-mini');
+  assert.strictEqual(s.changes.join(), 'true'); assert.strictEqual(s.fly.isMini, true);
+  vtLog.all[0].ready.ok(); assert.strictEqual(vtLog.wobbles[0], '::view-transition-group(fly-to-mini)', 'tilt and squash are added to the group');
+  vtLog.all[0].finished.ok();
+  assert.strictEqual(s.mini.firstElementChild.style[NAME], undefined, 'no name left behind'); assert.strictEqual(document.head.children[0].textContent, '', 'the page-wide style is emptied');
+  assert.ok(s.mini.classList.contains('landed'));
+});
+t('engine "transition": a move cut short by scrolling back leaves the final state and no stale names', function () {
+  var s = setup({ vt: true, miniHidden: true, hideWithChange: true, extra: { engine: 'transition' } });
+  s.scroll(1); s.scroll(0.2);               // down; the first callback has not run yet
+  s.scroll(0.9);                            // back up at once
+  assert.strictEqual(vtLog.all.length, 2);
+  vtLog.all[0].cb(); assert.strictEqual(s.changes.length, 0, 'the retired move does nothing');
+  vtLog.all[1].cb(); assert.strictEqual(s.changes.join(), 'false'); assert.strictEqual(s.fly.isMini, false);
+  assert.strictEqual(s.big.style[NAME], 'fly-to-mini'); assert.strictEqual(s.mini.firstElementChild.style[NAME], undefined);
+  vtLog.all[0].finished.ok(); assert.strictEqual(s.big.style[NAME], 'fly-to-mini', 'a retired move must not clear the live one');
+  vtLog.all[1].finished.ok(); assert.strictEqual(s.big.style[NAME], undefined);
+});
+t('engine "transition" falls back to the flight where startViewTransition is missing', function () {
+  var s = setup({ extra: { engine: 'transition' } });   // no vt in this fake
+  s.scroll(1); s.scroll(0.2); assert.strictEqual(flights(s).length, 1); advance(600); assert.strictEqual(flights(s).length, 0);
+});
+t('engine "transition": reduced motion skips it, and a throwing startViewTransition still changes the state', function () {
+  var s = setup({ vt: true, reduced: true, extra: { engine: 'transition' } });
+  s.scroll(1); s.scroll(0.2); assert.strictEqual(vtLog.all.length, 0); assert.strictEqual(s.fly.isMini, true); assert.strictEqual(s.changes[s.changes.length - 1], true);
+  var s2 = setup({ vt: true, extra: { engine: 'transition' } }); document.startViewTransition = function () { throw new Error('nope'); };
+  s2.scroll(1); s2.scroll(0.2); assert.strictEqual(s2.fly.isMini, true); assert.strictEqual(s2.changes[s2.changes.length - 1], true); assert.ok(!s2.big.style[NAME]);
+});
+t('engine "transition": stop() and destroy() skip the move and clear the names and the style', function () {
+  var s = setup({ vt: true, extra: { engine: 'transition', transitionName: 'my name!' } });
+  s.scroll(1); s.scroll(0.2); assert.strictEqual(s.big.style[NAME], 'myname', 'odd characters are stripped from the name');
+  s.fly.stop(); assert.ok(vtLog.all[0].skipped); assert.strictEqual(s.big.style[NAME], undefined);
+  s.scroll(0.9); s.fly.destroy(); assert.strictEqual(document.head.children.length, 0, 'the <style> is removed');
 });
 
 console.log('fly-to-mini: ' + pass + ' passed' + (fail ? ', ' + fail + ' FAILED' : ''));
