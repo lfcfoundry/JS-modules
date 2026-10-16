@@ -42,6 +42,7 @@ Measured here (Node 22, Chromium 155 and Firefox 158 on a shared Linux box; the 
 | What | Value |
 |---|---|
 | Decoder size, minified with terser (`--ecma 2020`, top-level mangled) | 7,418 bytes with all checks, **6,570 bytes** with the `// lean-cut` lines removed as the packer does (I did not run the real packer; I removed those lines and the throw messages myself). `lzma-decode` measured the same way: 1,896 bytes. |
+| Cold start (Chromium 141, 2026-10-16) | The first decode of a fresh page costs about 20 ms extra on a 30 KB stream (about 42 ms against about 20 ms warm) and nothing visible on the 702 KB Fancy the Banana page (about 200 ms first, 200 to 260 ms after). A warm-up decode of a small stream first costs more than it saves, so none is built in. |
 | Speed, Node | about 109 ms for the 431 KB page, 3.8 MB/s of output (`lzma-decode`, same page: 29 ms, 14 MB/s, so PPMd is about 4 times slower) |
 | Speed, Chromium 155 (ungoogled) | 3.1-3.5 MB/s |
 | Speed, Firefox 158 | between 1.1 and 2.3 MB/s in two runs on a busy machine; I could not get a steady figure |
