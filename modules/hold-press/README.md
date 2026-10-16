@@ -50,4 +50,4 @@ After a hold ends, the next click on the button is swallowed, for up to 700 ms a
 Attach once per button after it exists, call `detach()` when the button goes away, and always keep a plain tap (a normal `click` listener) that does the same action. Add the paste-in styles to the button. Do not rely on `info.mini`; it does not exist.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
