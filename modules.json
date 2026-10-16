@@ -193,6 +193,18 @@
       "category": "size"
     },
     {
+      "id": "ppmd-decode",
+      "global": "ppmd7Decode",
+      "summary": "A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower.",
+      "file": "modules/ppmd-decode/ppmd-decode.js",
+      "readme": "modules/ppmd-decode/README.md",
+      "demo": "tools/ppmd-pack/example/packed-base64.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "size"
+    },
+    {
       "id": "cartoon-3d-kit",
       "summary": "A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG.",
       "file": "modules/cartoon-3d-kit/STYLE-GUIDE.md",
@@ -217,6 +229,14 @@
       "summary": "Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library).",
       "folder": "tools/lzma-pack",
       "readme": "tools/lzma-pack/README.md",
+      "side": "games",
+      "category": "size"
+    },
+    {
+      "id": "ppmd-pack",
+      "summary": "Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor. Pure Python; pays off above about 60 KB of compressed data.",
+      "folder": "tools/ppmd-pack",
+      "readme": "tools/ppmd-pack/README.md",
       "side": "games",
       "category": "size"
     },
