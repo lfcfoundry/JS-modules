@@ -6,7 +6,7 @@ Turns one HTML file into one smaller, self-unpacking HTML file using LZMA, and c
 
 ## What it is
 
-`pack.py` compresses the page with LZMA and writes a wrapper page: the compressed bytes plus a minified loader (measured with terser on the example page: 2,867 bytes in `bytes` mode and 2,675 in `base64` mode, including the long payload name; the Opening line adds roughly 0.1 KB more) built from [`modules/lzma-decode`](../../modules/lzma-decode/README.md). While it unpacks, a small "Opening..." line shows on the page's own background color (read from the input page, or given with `--bg`), so a dark game never flashes white. Opening it unpacks the page, verifies the hash, and replaces itself with the real page. If the hash does not match (the file was opened and saved as text, or cut short), it shows a plain message instead of running anything.
+`pack.py` compresses the page with LZMA and writes a wrapper page: the compressed bytes plus a minified loader (measured with terser on the example page: 2,340 bytes in `bytes` mode and 2,148 in `base64` mode, including the long payload name; the Opening line adds roughly 0.1 KB more) built from [`modules/lzma-decode`](../../modules/lzma-decode/README.md). While it unpacks, a small "Opening..." line shows on the page's own background color (read from the input page, or given with `--bg`), so a dark game never flashes white. Opening it unpacks the page, verifies the hash, and replaces itself with the real page. If the hash does not match (the file was opened and saved as text, or cut short), it shows a plain message instead of running anything.
 
 ## Why it exists
 
@@ -18,7 +18,7 @@ For a single-file offline game or tool that has to stay one file, a few extra pe
 python3 tools/lzma-pack/pack.py mypage.html mypage.packed.html --title "My page"
 ```
 
-Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` and `example/packed-base64.html` (both unpack `example/app.html`). They are rebuilt from `example/app.html` with the current packer (payload in `__lzmaPackedPayload_7f3a9c21`, no `var s=`), 5,810 and 6,030 bytes; the license notice comment in their head is passed with `--head`:
+Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` and `example/packed-base64.html` (both unpack `example/app.html`). They are rebuilt from `example/app.html` with the current packer (payload in `__lzmaPackedPayload_7f3a9c21`, no `var s=`), 5,286 and 5,506 bytes; the license notice comment in their head is passed with `--head`:
 
 ```
 python3 tools/lzma-pack/pack.py tools/lzma-pack/example/app.html tools/lzma-pack/example/packed-bytes.html --title "lzma-pack example" --head "$(cat license-comment.txt)"
@@ -36,8 +36,15 @@ python3 tools/lzma-pack/pack.py tools/lzma-pack/example/app.html tools/lzma-pack
 | `--encoding bytes\|base64` | `bytes` (default): smallest, stored raw, wrapper declared windows-1252. `base64`: about a third bigger, safe on any server or editor. |
 | `--tune` | Try lc 0-4 and pb 0-2 and keep the smallest result (slower). |
 | `--bg auto\|none\|COLOR` | Color behind the "Opening..." line. `auto` (default) reads it from the input: an inline `<body style>`, the last `html`/`body`/`:root` rule that sets a background (a `var(--name)` is looked up), or a `theme-color` meta tag; white if none is found. `none` shows nothing. Or a plain color such as `#101018`, `rgb(16,16,24)` or `black`. |
+| `--minify-page` | First minify the page's own inline scripts (needs terser or esbuild), then pack. Off by default; see "Minifying the page first" below. |
 | `--skip-node-check` | Do not run the packed page's own decoder in Node after packing (see below). |
-| `--minifier auto\|terser\|esbuild\|none` | Finds `terser` or `esbuild` on the PATH, in a `node_modules/.bin`, or from the `TERSER` / `ESBUILD` environment variable. Without one the loader is about 7.5 KB. |
+| `--minifier auto\|terser\|esbuild\|none` | Finds `terser` or `esbuild` on the PATH, in a `node_modules/.bin`, or from the `TERSER` / `ESBUILD` environment variable. Without one the loader is about 8.4 KB. |
+
+## Minifying the page first
+
+`--minify-page` runs terser (or esbuild) over the page's own inline classic scripts before compressing. It leaves alone module scripts, scripts with `src`, data blocks (JSON, templates) and any script the minifier cannot parse. Names at the top level of a script keep their names, so `onclick="..."` handlers and scripts that call each other still work; only names inside functions are shortened. The packer's checks then compare the unpacked page with the minified page.
+
+Measured on the real Fancy, the Banana page (701,722 bytes, one big inline script): 184,549 bytes packed, 133,455 with `--minify-page` (27.7% smaller). I opened the original, the packed page and the minified packed page in Firefox 158 and ungoogled-chromium 155: all three showed the same page (19 canvases, 58 buttons) with no errors. That is a load check, not a play-through, so play your game once before shipping the minified version. It is off by default because it changes your game's code.
 
 ## What the packer checks
 

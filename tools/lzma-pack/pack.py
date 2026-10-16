@@ -218,18 +218,60 @@ def minify(src, which):
     return to_ascii(r.stdout.strip())
 
 
+SCRIPT_RE = re.compile(r"(<script\b)([^>]*)(>)(.*?)(</script\s*>)", re.I | re.S)
+
+
+def minify_page(text, which="auto"):
+    """Minify the page's own inline classic scripts (not modules, not scripts with src, not data blocks) with terser or esbuild.
+    Names at the top level of a script are NOT renamed (toplevel mangling would break onclick="..." handlers and other scripts), and a script the
+    minifier cannot parse, or whose output would contain a closing script tag, stays as it was. Returns (new text, scripts changed, scripts skipped)."""
+    m = find_minifier(which)
+    if not m:
+        raise SystemExit("--minify-page needs terser or esbuild (on the PATH, in node_modules/.bin, or named by TERSER / ESBUILD)")
+    name, path = m
+    cmd = [path, "--ecma", "2020", "--compress", "--mangle"] if name == "terser" else [path, "--minify", "--target=es2020"]
+    stats = [0, 0]
+
+    def one(mo):
+        attrs, body = mo.group(2), mo.group(4)
+        kind = re.search(r"\btype\s*=\s*[\"']?([^\s\"'>]*)", attrs, re.I)
+        classic = kind is None or kind.group(1).lower() in ("", "text/javascript", "application/javascript")
+        if not classic or re.search(r"\bsrc\s*=", attrs, re.I) or not body.strip():
+            return mo.group(0)
+        r = subprocess.run(cmd, input=body, capture_output=True, text=True)
+        out = r.stdout.strip()
+        if r.returncode != 0 or not out or re.search(r"</script", out, re.I) or len(out) >= len(body):
+            stats[1] += 1
+            return mo.group(0)
+        stats[0] += 1
+        return mo.group(1) + attrs + mo.group(3) + "\n" + out + "\n" + mo.group(5)
+    return SCRIPT_RE.sub(one, text), stats[0], stats[1]
+
+
 def decoder_source():
     s = DECODER.read_text(encoding="utf-8")
     cut = s.index("\nfunction lzmaDecodeFile")   # the page does not need the .lzma-file helper or the module export lines
-    return s[:cut]
+    s = s[:cut]
+    # The packer made the stream itself, so the loader skips the checks meant for outside files (lines marked "lean-cut"), and the page shows its own
+    # message for any failure, so each long error message becomes a bare throw. Both save a few hundred bytes of loader.
+    s = "\n".join(l for l in s.split("\n") if not l.rstrip().endswith("// lean-cut"))
+    s = re.sub(r"throw new Error\((?:[^()]|\([^()]*\))*\)", "throw 0", s)
+    if "Error(" in s:
+        raise SystemExit("pack.py: an error message in lzma-decode.js was not shortened; update the pattern in decoder_source()")
+    return s
 
 
-def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False, bg="auto", check_node=True):
+def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False, bg="auto", check_node=True, minify_pg=False):
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:
         raise SystemExit("the input is not valid UTF-8 (first bad byte at offset %d). Save the page as UTF-8 and pack it again: the loader "
                          "decodes the unpacked page as UTF-8, so any other encoding would come out garbled." % e.start)
+    page_note = ""
+    if minify_pg:   # smaller input, so a smaller payload; the checks below then compare against the minified page, which is what gets unpacked
+        text2, done, skipped = minify_page(text, minifier)
+        page_note = "%d script(s) minified, %d left alone, %d bytes saved before packing" % (done, skipped, len(data) - len(text2.encode("utf-8")))
+        data = text2.encode("utf-8")
     best = None
     grid = [(4, 0, 0)] if not tune else [(lc, 0, pb) for lc in range(0, 5) for pb in range(0, 3)]
     for lc, lp, pb in grid:
@@ -269,7 +311,7 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
         raise SystemExit("self-check failed: the compressed data does not unpack to the input")
     # self-check 2, with what actually ships: run the page's own scripts (JavaScript decoder, byte reader and hash) in Node
     node = node_roundtrip(page, data) if check_node else "off"
-    return page, {"lc": lc, "lp": lp, "pb": pb, "compressed": len(z), "loader": len(loader), "encoding": encoding, "node": node, "bg": op[0] if op else "none"}
+    return page, {"lc": lc, "lp": lp, "pb": pb, "compressed": len(z), "loader": len(loader), "encoding": encoding, "node": node, "bg": op[0] if op else "none", "page": page_note}
 
 
 def main():
@@ -279,12 +321,15 @@ def main():
     ap.add_argument("--encoding", default="bytes", choices=["bytes", "base64"]); ap.add_argument("--tune", action="store_true")
     ap.add_argument("--minifier", default="auto", choices=["auto", "terser", "esbuild", "none"])
     ap.add_argument("--bg", default="auto", help="background color of the 'Opening...' line: auto (read it from the input), none, or a color like #101018")
+    ap.add_argument("--minify-page", action="store_true", help="first minify the page's own inline classic scripts (terser or esbuild needed); top-level names are kept")
     ap.add_argument("--skip-node-check", action="store_true", help="do not run the packed page's own decoder in Node after packing")
     a = ap.parse_args()
     data = pathlib.Path(a.input).read_bytes()
-    page, info = pack(data, a.title, a.head, a.encoding, a.minifier, a.tune, a.bg, not a.skip_node_check)
+    page, info = pack(data, a.title, a.head, a.encoding, a.minifier, a.tune, a.bg, not a.skip_node_check, a.minify_page)
     pathlib.Path(a.output).write_bytes(page)
     print("%s: %d bytes -> %d bytes (%.1f%%)  [lzma lc=%d lp=%d pb=%d, payload %d, loader %d, %s, opening bg %s, node check %s]" % (a.output, len(data), len(page), 100.0 * len(page) / max(1, len(data)), info["lc"], info["lp"], info["pb"], info["compressed"], info["loader"], info["encoding"], info["bg"], info["node"]))
+    if info.get("page"):
+        print("page minifier: " + info["page"])
 
 
 if __name__ == "__main__":

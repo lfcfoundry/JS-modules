@@ -209,5 +209,61 @@ def t_sizes():
 
 check("a larger page packs", t_sizes)
 
+# --- lean loader and the optional page minifier ---
+def t_lean_loader():
+    page, info = pack.pack(APP, encoding="bytes", minifier="none", check_node=False)
+    s = page.decode("latin-1")
+    assert "LZMA:" not in s, "a long error message is still in the loader"
+    assert not any(l.rstrip().endswith("// lean-cut") for l in s.split("\n")) and "allowed maxSize" not in s, "a check meant for outside files is still in the loader"
+
+
+check("the packed loader carries no long error messages or outside-file checks", t_lean_loader)
+
+
+def t_lean_roundtrip():
+    page, info = pack.pack(APP, encoding="bytes", check_node=True)
+    assert info["node"] in ("ok",), info["node"]
+
+
+needs_node("the lean loader still unpacks the page byte for byte (Node)", t_lean_roundtrip)
+
+MIXED = ("<!doctype html><meta charset=utf-8><title>m</title><body style='background:#111'><button onclick='hello()'>go</button>"
+         "<script>function hello(){ var message = 'hi there'; var counter = 0; counter = counter + 1; return message + counter }  // comment\n"
+         "window.hello = hello;</script>"
+         "<script type=module>import.meta; const longName = 1; console.log(longName)</script>"
+         "<script type=application/json>{ \"a\" :  1 }</script>"
+         "<script src=other.js></script>").encode("utf-8")
+
+
+def t_minify_page():
+    if not pack.find_minifier("auto"):
+        raise AssertionError("SKIP")
+    page, info = pack.pack(MIXED, encoding="bytes", check_node=bool(NODE), minify_pg=True)
+    assert "1 script(s) minified" in info["page"], info["page"]
+    text, done, skipped = pack.minify_page(MIXED.decode("utf-8"))
+    assert done == 1 and "const longName = 1" in text and '{ "a" :  1 }' in text and "src=other.js" in text and "onclick='hello()'" in text
+    assert "// comment" not in text and "var message" not in text, "the classic script was not minified"
+
+
+def t_minify_page_runner():
+    global skipped
+    if not pack.find_minifier("auto"):
+        skipped += 1
+        print("skip the page minifier keeps modules, data blocks, src scripts and top-level names (terser or esbuild not found)")
+        return
+    check("the page minifier keeps modules, data blocks, src scripts and top-level names", t_minify_page)
+
+
+t_minify_page_runner()
+
+
+def t_minify_page_needs_tool():
+    if pack.find_minifier("auto"):
+        return
+    raises(lambda: pack.pack(MIXED, minify_pg=True, check_node=False), "needs terser or esbuild")
+
+
+check("--minify-page without a minifier says what is missing", t_minify_page_needs_tool)
+
 print("lzma-pack: %d passed, %d failed, %d skipped" % (passed, failed, skipped))
 sys.exit(1 if failed else 0)
