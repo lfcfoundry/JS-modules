@@ -6,7 +6,7 @@ Turns one HTML file into one smaller, self-unpacking HTML file using LZMA, and c
 
 ## What it is
 
-`pack.py` compresses the page with LZMA and writes a wrapper page: the compressed bytes plus a minified loader (about 2.6 KB when first measured, plus roughly 0.2 KB for the long payload name and the Opening line; I could not re-measure with a minifier for this edit) built from [`modules/lzma-decode`](../../modules/lzma-decode/README.md). While it unpacks, a small "Opening..." line shows on the page's own background color (read from the input page, or given with `--bg`), so a dark game never flashes white. Opening it unpacks the page, verifies the hash, and replaces itself with the real page. If the hash does not match (the file was opened and saved as text, or cut short), it shows a plain message instead of running anything.
+`pack.py` compresses the page with LZMA and writes a wrapper page: the compressed bytes plus a minified loader (measured with terser on the example page: 2,867 bytes in `bytes` mode and 2,675 in `base64` mode, including the long payload name; the Opening line adds roughly 0.1 KB more) built from [`modules/lzma-decode`](../../modules/lzma-decode/README.md). While it unpacks, a small "Opening..." line shows on the page's own background color (read from the input page, or given with `--bg`), so a dark game never flashes white. Opening it unpacks the page, verifies the hash, and replaces itself with the real page. If the hash does not match (the file was opened and saved as text, or cut short), it shows a plain message instead of running anything.
 
 ## Why it exists
 
@@ -18,7 +18,14 @@ For a single-file offline game or tool that has to stay one file, a few extra pe
 python3 tools/lzma-pack/pack.py mypage.html mypage.packed.html --title "My page"
 ```
 
-Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` and `example/packed-base64.html` (both unpack `example/app.html`).
+Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` and `example/packed-base64.html` (both unpack `example/app.html`). They are rebuilt from `example/app.html` with the current packer (payload in `__lzmaPackedPayload_7f3a9c21`, no `var s=`), 5,810 and 6,030 bytes; the license notice comment in their head is passed with `--head`:
+
+```
+python3 tools/lzma-pack/pack.py tools/lzma-pack/example/app.html tools/lzma-pack/example/packed-bytes.html --title "lzma-pack example" --head "$(cat license-comment.txt)"
+python3 tools/lzma-pack/pack.py tools/lzma-pack/example/app.html tools/lzma-pack/example/packed-base64.html --title "lzma-pack example" --head "$(cat license-comment.txt)" --encoding base64
+```
+
+(`license-comment.txt` is the `<!-- ... -->` block from the top of `app.html`, with the emoji left out because `--head` writes non-ASCII characters as `&#...;`.)
 
 ## Options
 
@@ -72,4 +79,4 @@ Inside this repository, [`tools/single-file-tools`](../single-file-tools/README.
 - Pass `check_node=False` to `pack.pack()` in tests that do not need the Node check.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
