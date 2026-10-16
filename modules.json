@@ -266,56 +266,56 @@
     }
   ],
   "related": {
-    "repository": "https://github.com/JNFoo/p-see-story-editor",
-    "pages": "https://jnfoo.github.io/p-see-story-editor/",
+    "repository": "https://github.com/lfcfoundry/story-editor",
+    "pages": "https://lfcfoundry.github.io/story-editor/",
     "note": "Story packages live with the editor they are generated from.",
     "packages": [
       {
         "id": "story-format",
         "summary": "Create, clean, import and export interactive stories as JSON, with a JSON Schema.",
-        "readme": "https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-format/README.md",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md",
         "side": "stories",
         "category": "data"
       },
       {
         "id": "story-check",
         "summary": "Exact checker for branching stories with items, numbers and dice: dead ends and endings no player can reach.",
-        "readme": "https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-check/README.md",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md",
         "side": "stories",
         "category": "checking"
       },
       {
         "id": "story-player",
         "summary": "Build one offline HTML game from a story, or play a story from code or a terminal.",
-        "readme": "https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-player/README.md",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-player/README.md",
         "side": "stories",
         "category": "playing"
       },
       {
         "id": "story-map",
         "summary": "Layered, arc and matrix drawings of a story graph (SVG) and seeded simulated players.",
-        "readme": "https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-map/README.md",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md",
         "side": "stories",
         "category": "drawing"
       },
       {
         "id": "zip-page",
         "summary": "Wrap a finished HTML page into a smaller page that unzips itself, with a pure-JS inflater fallback.",
-        "readme": "https://github.com/JNFoo/p-see-story-editor/blob/main/packages/zip-page/README.md",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md",
         "side": "stories",
         "category": "size"
       },
       {
         "id": "qa-kit",
         "summary": "Tiered test runner and a Playwright-style API over WebDriver BiDi for stock Firefox; seeded random-story generator.",
-        "readme": "https://github.com/JNFoo/p-see-story-editor/blob/main/packages/qa-kit/README.md",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md",
         "side": "stories",
         "category": "testing"
       },
       {
         "id": "ai-collab-kit",
         "summary": "A written process and templates for a person and an AI assistant building software together.",
-        "readme": "https://github.com/JNFoo/p-see-story-editor/blob/main/packages/ai-collab-kit/README.md",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md",
         "side": "stories",
         "category": "ai-helper"
       }

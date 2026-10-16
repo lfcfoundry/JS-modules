@@ -73,7 +73,7 @@ Unpack a smaller file inside the game. The tools that pack it are under Tools.
 
 ### Story editor
 
-Packages for interactive stories. They live with the [Story Editor](https://github.com/JNFoo/p-see-story-editor) they are generated from, under `packages/`.
+Packages for interactive stories. They live with the [Story Editor](https://github.com/lfcfoundry/story-editor) they are generated from, under `packages/`.
 
 #### Story data
 
@@ -81,7 +81,7 @@ Create, clean and save stories in one shared file format.
 
 | Package | One line |
 |---|---|
-| [story-format](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-format/README.md) | Create, clean, import and export interactive stories as JSON, with a JSON Schema. |
+| [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md) | Create, clean, import and export interactive stories as JSON, with a JSON Schema. |
 
 #### Checking
 
@@ -89,7 +89,7 @@ Find dead ends and endings nobody can reach before a reader does.
 
 | Package | One line |
 |---|---|
-| [story-check](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-check/README.md) | Exact checker for branching stories with items, numbers and dice: dead ends and endings no player can reach. |
+| [story-check](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md) | Exact checker for branching stories with items, numbers and dice: dead ends and endings no player can reach. |
 
 #### Drawing
 
@@ -97,7 +97,7 @@ See a story's shape: maps of its pages and simulated readers.
 
 | Package | One line |
 |---|---|
-| [story-map](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-map/README.md) | Layered, arc and matrix drawings of a story graph (SVG) and seeded simulated players. |
+| [story-map](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md) | Layered, arc and matrix drawings of a story graph (SVG) and seeded simulated players. |
 
 #### Playing and building
 
@@ -105,7 +105,7 @@ Turn a story into a game, or play it from code or a terminal.
 
 | Package | One line |
 |---|---|
-| [story-player](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-player/README.md) | Build one offline HTML game from a story, or play a story from code or a terminal. |
+| [story-player](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-player/README.md) | Build one offline HTML game from a story, or play a story from code or a terminal. |
 
 ### Tools
 
@@ -135,19 +135,19 @@ For building and testing. Not shipped inside a game or story.
 
 | Package | One line |
 |---|---|
-| [zip-page](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/zip-page/README.md) | Wrap a finished HTML page into a smaller page that unzips itself, with a pure-JS inflater fallback. |
+| [zip-page](https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md) | Wrap a finished HTML page into a smaller page that unzips itself, with a pure-JS inflater fallback. |
 
 **Testing.** Run tests on stock Firefox and generate random stories.
 
 | Package | One line |
 |---|---|
-| [qa-kit](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/qa-kit/README.md) | Tiered test runner and a Playwright-style API over WebDriver BiDi for stock Firefox; seeded random-story generator. |
+| [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md) | Tiered test runner and a Playwright-style API over WebDriver BiDi for stock Firefox; seeded random-story generator. |
 
 **Working with an AI helper.** A written process for a person and an AI assistant building software together.
 
 | Package | One line |
 |---|---|
-| [ai-collab-kit](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/ai-collab-kit/README.md) | A written process and templates for a person and an AI assistant building software together. |
+| [ai-collab-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md) | A written process and templates for a person and an AI assistant building software together. |
 
 ## How to use a module
 
@@ -185,7 +185,7 @@ npm run test:kits                               # frame-kit, sprite-baker, pad-n
 ## More from LFC Foundry
 
 - [Apple Press](https://github.com/JNFoo/apple-press): a clicker game for kids ([play](https://jnfoo.github.io/apple-press/))
-- [Story Editor](https://github.com/JNFoo/p-see-story-editor): an offline editor for branching stories, plus MIT packages cut from it: story format and checker, game builder and player, story map layout, a self-unzipping page packer, and a Firefox test kit ([try it](https://jnfoo.github.io/p-see-story-editor/))
+- [Story Editor](https://github.com/lfcfoundry/story-editor): an offline editor for branching stories, plus MIT packages cut from it: story format and checker, game builder and player, story map layout, a self-unzipping page packer, and a Firefox test kit ([try it](https://lfcfoundry.github.io/story-editor/))
 - [Fancy Banana](https://github.com/JNFoo/fancy-banana): a one-tap flying-banana arcade game ([play](https://jnfoo.github.io/fancy-banana/))
 - [Pineapple Defense](https://github.com/JNFoo/pineapple-defense): a flick-to-throw pineapples-at-penguins game that uses a few of these pieces ([play](https://jnfoo.github.io/pineapple-defense/))
 - [JS-modules](https://github.com/lfcfoundry/JS-modules): this repository ([demos](https://lfcfoundry.github.io/JS-modules/))

@@ -34,17 +34,17 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [lzma-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/lzma-decode/README.md): Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. (global lzmaDecode)
 - [ppmd-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/ppmd-decode/README.md): A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. (global ppmd7Decode)
 
-## Story editor: Story data (in https://github.com/JNFoo/p-see-story-editor, generated from the Story Editor's sources)
-- [story-format](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-format/README.md): Create, clean, import and export interactive stories as JSON, with a JSON Schema.
+## Story editor: Story data (in https://github.com/lfcfoundry/story-editor, generated from the Story Editor's sources)
+- [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md): Create, clean, import and export interactive stories as JSON, with a JSON Schema.
 
-## Story editor: Checking (in https://github.com/JNFoo/p-see-story-editor, generated from the Story Editor's sources)
-- [story-check](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-check/README.md): Exact checker for branching stories with items, numbers and dice: dead ends and endings no player can reach.
+## Story editor: Checking (in https://github.com/lfcfoundry/story-editor, generated from the Story Editor's sources)
+- [story-check](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md): Exact checker for branching stories with items, numbers and dice: dead ends and endings no player can reach.
 
-## Story editor: Drawing (in https://github.com/JNFoo/p-see-story-editor, generated from the Story Editor's sources)
-- [story-map](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-map/README.md): Layered, arc and matrix drawings of a story graph (SVG) and seeded simulated players.
+## Story editor: Drawing (in https://github.com/lfcfoundry/story-editor, generated from the Story Editor's sources)
+- [story-map](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md): Layered, arc and matrix drawings of a story graph (SVG) and seeded simulated players.
 
-## Story editor: Playing and building (in https://github.com/JNFoo/p-see-story-editor, generated from the Story Editor's sources)
-- [story-player](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-player/README.md): Build one offline HTML game from a story, or play a story from code or a terminal.
+## Story editor: Playing and building (in https://github.com/lfcfoundry/story-editor, generated from the Story Editor's sources)
+- [story-player](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-player/README.md): Build one offline HTML game from a story, or play a story from code or a terminal.
 
 ## Tools for games: Size and packaging
 - [lzma-pack](https://github.com/lfcfoundry/JS-modules/blob/main/tools/lzma-pack/README.md): Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library).
@@ -57,13 +57,13 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [storage-probe](https://github.com/lfcfoundry/JS-modules/blob/main/tools/storage-probe/README.md): Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report.
 
 ## Tools for the story editor: Size and packaging
-- [zip-page](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/zip-page/README.md): Wrap a finished HTML page into a smaller page that unzips itself, with a pure-JS inflater fallback.
+- [zip-page](https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md): Wrap a finished HTML page into a smaller page that unzips itself, with a pure-JS inflater fallback.
 
 ## Tools for the story editor: Testing
-- [qa-kit](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/qa-kit/README.md): Tiered test runner and a Playwright-style API over WebDriver BiDi for stock Firefox; seeded random-story generator.
+- [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md): Tiered test runner and a Playwright-style API over WebDriver BiDi for stock Firefox; seeded random-story generator.
 
 ## Tools for the story editor: Working with an AI helper
-- [ai-collab-kit](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/ai-collab-kit/README.md): A written process and templates for a person and an AI assistant building software together.
+- [ai-collab-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md): A written process and templates for a person and an AI assistant building software together.
 
 ## Docs
 - [README](https://github.com/lfcfoundry/JS-modules/blob/main/README.md): overview and install
