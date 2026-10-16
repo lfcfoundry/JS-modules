@@ -18,7 +18,7 @@ For a single-file offline game or tool that has to stay one file, a few extra pe
 python3 tools/lzma-pack/pack.py mypage.html mypage.packed.html --title "My page"
 ```
 
-Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` and `example/packed-base64.html` (both unpack `example/app.html`). They are rebuilt from `example/app.html` with the current packer (payload in `__lzmaPackedPayload_7f3a9c21`, no `var s=`), 5,286 and 5,506 bytes; the license notice comment in their head is passed with `--head`:
+Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` and `example/packed-base64.html` (both unpack `example/app.html`). They are rebuilt from `example/app.html` with the current packer (payload in `__lzmaPackedPayload_7f3a9c21`, no `var s=`), 5,287 and 5,511 bytes; the license notice comment in their head is passed with `--head`:
 
 ```
 python3 tools/lzma-pack/pack.py tools/lzma-pack/example/app.html tools/lzma-pack/example/packed-bytes.html --title "lzma-pack example" --head "$(cat license-comment.txt)"
