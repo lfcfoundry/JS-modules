@@ -67,4 +67,4 @@ Generic storage wrappers (for example [localForage](https://localforage.github.i
 - Run the checks with `node modules/save-kit/test/run.js` (plain Node, no browser). `OLD_REF=<commit>` compares against an older file; `OLD_REF=none` skips that.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
