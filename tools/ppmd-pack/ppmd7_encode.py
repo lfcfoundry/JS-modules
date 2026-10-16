@@ -1,3 +1,4 @@
+# Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd7_encode: a pure Python PPMd encoder, variant H ("PPMd7" as used by 7-Zip) with the 7z range coder.
 MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules
 Version 2026.10.15.2215

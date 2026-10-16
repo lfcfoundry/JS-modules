@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd-pack: turn one HTML file into a smaller self-unpacking HTML file with PPMd.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules
 Version 2026.10.15.2215
 
