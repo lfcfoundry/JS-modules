@@ -1,0 +1,12 @@
+[
+  {"input": "tiny.html",   "order": 12, "mem": 1048576, "expected": "tiny-o12-m1M.ppmd"},
+  {"input": "tiny.html",   "order": 6,  "mem": 2048,    "expected": "tiny-o6-m2048.ppmd"},
+  {"input": "notes.md",    "order": 32, "mem": 1048576, "expected": "notes-o32-m1M.ppmd"},
+  {"input": "notes.md",    "order": 6,  "mem": 2048,    "expected": "notes-o6-m2048.ppmd"},
+  {"input": "noise.bin",   "order": 12, "mem": 1048576, "expected": "noise-o12-m1M.ppmd"},
+  {"input": "noise.bin",   "order": 4,  "mem": 4096,    "expected": "noise-o4-m4096.ppmd"},
+  {"input": "pattern.txt", "order": 64, "mem": 65536,   "expected": "pattern-o64-m64k.ppmd"},
+  {"input": "pattern.txt", "order": 2,  "mem": 100003,  "expected": "pattern-o2-m100003.ppmd"},
+  {"input": "empty.bin",   "order": 12, "mem": 1048576, "expected": "empty.ppmd"},
+  {"input": "one.bin",     "order": 12, "mem": 1048576, "expected": "one.ppmd"}
+]

@@ -1,0 +1,40 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : ppmd-pack example
+    🏭 FORGED BY : LFC Foundry (https://github.com/JNFoo)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ppmd-pack example</title>
+<body style="font:16px system-ui;margin:2rem;max-width:34rem">
+<h1 id="h">Hello from a packed page</h1>
+<p>This page was stored PPMd-compressed inside <code>packed-bytes.html</code> (or <code>packed-base64.html</code>), unpacked by a small decoder, and written into the browser. Unicode survives the trip: caf&eacute; &#9731; &#127820; &mdash; &ldquo;quotes&rdquo;.</p>
+<button id="b">Count clicks: 0</button>
+<script>
+var n = 0, b = document.getElementById('b');
+b.onclick = function () { b.textContent = 'Count clicks: ' + (++n); };
+document.title = 'unpacked ok';
+// some repeated text so there is something to compress:
+var filler = '<!-- ' + new Array(200).join('lorem ipsum dolor sit amet ') + ' -->';
+</script>
+<!-- lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet -->
+<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/JNFoo" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
