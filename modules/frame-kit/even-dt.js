@@ -1,34 +1,46 @@
 /* even-dt: smooths the uneven frame gaps a browser reports by snapping them to the screen's learned refresh period. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules */
-'use strict';
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.EvenDt = factory();
+})(typeof self !== 'undefined' ? self : typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';   // inside the wrapper, so pasting this file into a game does not make the whole game strict
 
-/**
- * EvenDt
- *
- * Browsers report frame gaps (the time between two requestAnimationFrame
- * callbacks) that wobble by a millisecond or two even when every frame is
- * presented on time. A game that moves by that raw gap shows the wobble as a
- * faint shiver in scrolling scenery. EvenDt:
- *
- *   1. learns the screen's real period (the MEDIAN of the recent gaps),
- *   2. snaps each gap to the nearest whole multiple of that period when it is
- *      close enough (within `tolerance` of the period), and
- *   3. pays the left-over difference back slowly (`payback` per frame) so the
- *      game clock never drifts away from real time.
- *
- * Gaps that are not close to a whole multiple (real stalls) pass through
- * untouched, and the owed drift is dropped at that point.
- *
- * Usage:
- *   var even = new EvenDt();
- *   function frame(now) {
- *     var dtMs = even.next(now - last); last = now;
- *     step(dtMs / 1000);
- *   }
- *
- * Every option is optional; the defaults are the values from the game this was
- * extracted from.
- */
-var EvenDt = (function () {
+  /**
+   * EvenDt
+   *
+   * Browsers report frame gaps (the time between two requestAnimationFrame
+   * callbacks) that wobble by a millisecond or two even when every frame is
+   * presented on time. A game that moves by that raw gap shows the wobble as a
+   * faint shiver in scrolling scenery. EvenDt:
+   *
+   *   1. learns the screen's real period (the MEDIAN of the recent gaps),
+   *   2. snaps each gap to the nearest whole multiple of that period when it is
+   *      close enough (within `tolerance` of the period), and
+   *   3. pays the left-over difference back slowly (`payback` per frame) so the
+   *      game clock never drifts away from real time.
+   *
+   * Gaps that are not close to a whole multiple (real stalls) pass through
+   * untouched, and the owed drift is dropped at that point.
+   *
+   * Usage:
+   *   var even = new EvenDt();
+   *   function frame(now) {
+   *     var dtMs = even.next(now - last); last = now;
+   *     step(dtMs / 1000);
+   *   }
+   *
+   * Every option is optional; the defaults are the values from the game this was
+   * extracted from.
+   *
+   * Limit: gaps of `minGap` (2 ms) or less are never learned from. On a very
+   * fast screen (about 480 Hz, period near 2 ms) the jitter pushes many real
+   * gaps under that line, the short ones are thrown away, and the learned
+   * period comes out too long (7% in the test with half a millisecond of
+   * jitter; at 360 Hz the same test showed about 1%, and at 240 Hz and below none).
+   * On such a screen pass a smaller minGap (for example 0.5). The default stays
+   * 2 so that duplicate callbacks and rounding artifacts are still ignored on
+   * normal screens.
+   */
   function pick(v, d) { return v === undefined || v === null ? d : v; }
 
   /**
@@ -108,6 +120,4 @@ var EvenDt = (function () {
   };
 
   return EvenDt;
-})();
-
-if (typeof module !== 'undefined' && module.exports) module.exports = EvenDt; else (typeof globalThis !== 'undefined' ? globalThis : this).EvenDt = EvenDt;
+});

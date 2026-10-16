@@ -1,33 +1,58 @@
 /* frame-meter: a tiny speed meter for requestAnimationFrame games: frames a second, slowest frame, hitches with a plain-words cause, and tap-to-next-frame delay. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules */
-'use strict';
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.FrameMeter = factory();
+})(typeof self !== 'undefined' ? self : typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';   // inside the wrapper, so pasting this file into a game does not make the whole game strict
 
-/**
- * FrameMeter
- *
- * Call frame(now, workMs) once per animation frame and input(eventTimeStamp)
- * from a pointerdown. Read lines() about twice a second and show the text.
- *
- *   - fps:     frames counted over the last report interval.
- *   - worst:   the longest gap between two frames in that interval.
- *   - hitch:   a frame whose gap is more than `ratio` times the average of the
- *              three frames before it AND longer than `hitchMs`. (A relative
- *              rule, so it works at 30, 60 or 120 Hz. Idea from PerfDog's jank
- *              rule, tuned for a flick game.)
- *   - cause:   when you pass workMs (how long your own update and draw took),
- *              a hitch is called "game" if the work was at least `gameShare`
- *              of the gap, otherwise "device" (the browser, the graphics
- *              driver or power saving). Without workMs the cause is unknown.
- *   - tap:     the median of the last `tapKeep` delays from an input event's
- *              timeStamp to the next frame callback. It is the delay until the
- *              next frame starts, not until the picture reaches the glass.
- *
- * Pure logic: no DOM, no timers, no allocation per frame after warm-up.
- *
- * Limits: it cannot see graphics or presentation stalls (a frame can be
- * "on time" and still be shown late); script timing only. It says "device"
- * for anything that is not your own code.
- */
-var FrameMeter = (function () {
+  /**
+   * FrameMeter
+   *
+   * Call frame(now, workMs) once per animation frame and input(eventTimeStamp)
+   * from a pointerdown. Read lines() about twice a second and show the text.
+   *
+   *   - fps:     frames counted over the last report interval.
+   *   - worst:   the longest gap between two frames in that interval.
+   *   - hitch:   a frame whose gap is more than `ratio` times the average of the
+   *              three frames before it AND longer than `hitchMs`. (A relative
+   *              rule, so it works at 30, 60 or 120 Hz. Idea from PerfDog's jank
+   *              rule, tuned for a flick game.)
+   *   - cause:   when you pass workMs (how long your own update and draw took),
+   *              a hitch is called "game" if the work was at least `gameShare`
+   *              of the gap, otherwise "device" (the browser, the graphics
+   *              driver or power saving). Without workMs the cause is unknown.
+   *   - tap:     the median of the last `tapKeep` delays from an input event's
+   *              timeStamp to the next frame callback. It is the delay until the
+   *              next frame starts, not until the picture reaches the glass.
+   *
+   * PAUSES: a tab that was hidden and comes back, or a device that slept, shows
+   * up as one huge gap. That is not a slow game, so the meter skips it: the
+   * first gap after pause() (call it when the tab is hidden or a menu opens),
+   * after document.hidden was seen, or a gap longer than `pauseGapMs` (default
+   * 1000 ms) is not counted as a frame, a hitch or the worst gap, and the
+   * running average and report interval start over.
+   *
+   * Pure logic: no DOM access except one guarded read of document.hidden, no
+   * timers, no allocation per frame after warm-up.
+   *
+   * Limits: it cannot see graphics or presentation stalls (a frame can be
+   * "on time" and still be shown late); script timing only. It says "device"
+   * for anything that is not your own code. On a coarse clock (Firefox with
+   * privacy protection rounds time to 16.67 ms or more) workMs is mostly 0 or
+   * a whole tick, so "game or device" is not reliable there.
+   */
+
+  /**
+   * @param {object} [opts]
+   * @param {number} [opts.everyMs=500]     Report interval.
+   * @param {number} [opts.hitchMs=50]      A hitch must be longer than this many ms.
+   * @param {number} [opts.ratio=2]         ... and longer than this times the average of the three frames before it.
+   * @param {number} [opts.gameShare=0.6]   Work share of the gap at or above which the cause is "game".
+   * @param {number} [opts.windowMs=60000]  How long a hitch stays in the verdict.
+   * @param {number} [opts.tapKeep=20]      How many tap delays the median covers.
+   * @param {number} [opts.pauseGapMs=1000] A gap longer than this is a pause (hidden tab, sleep), not a frame.
+   * @param {number} [opts.tapSlackMs=50]   A tap whose timeStamp is up to this many ms AFTER the frame time counts as a 0 ms delay (the event arrived during the frame); a larger mismatch is dropped.
+   */
   function FrameMeter(opts) {
     opts = opts || {};
     this.everyMs = opts.everyMs || 500;
@@ -36,23 +61,45 @@ var FrameMeter = (function () {
     this.gameShare = opts.gameShare || 0.6;
     this.windowMs = opts.windowMs || 60000;
     this.tapKeep = opts.tapKeep || 20;
+    this.pauseGapMs = opts.pauseGapMs || 1000;
+    this.tapSlackMs = opts.tapSlackMs == null ? 50 : opts.tapSlackMs;
     this.reset();
   }
 
   FrameMeter.prototype.reset = function () {
+    this._started = false; this._skip = false; this._prev = 0;
     this._t0 = 0; this._n = 0; this._max = 0;
     this._g = [0, 0, 0]; this._gi = 0; this._gn = 0;
     this._hits = []; this._taps = []; this._tapAt = -1;
     this.fps = 0; this.worstMs = 0; this._changed = false;
+    this.pauses = 0;        // how many pauses were skipped (for a debug line)
+    this.tapsDropped = 0;   // taps thrown away because their timestamp did not fit the frame clock
   };
 
-  /* now: the requestAnimationFrame timestamp. gapMs: pass your own gap if you already compute one, else it is taken from the last call. workMs: optional. Returns true when the numbers were refreshed. */
+  /* Call when frames stop being representative (tab hidden, menu or ad open): the next gap is skipped. Returns the meter. */
+  FrameMeter.prototype.pause = function () { this._skip = true; return this; };
+
+  /* forget the running average and restart the report interval at `now` (does not touch the hitches already recorded) */
+  FrameMeter.prototype._rebase = function (now) {
+    this._skip = false; this._prev = now; this._t0 = now;
+    this._n = 0; this._max = 0; this._gn = 0; this._gi = 0; this._tapAt = -1;
+    this.pauses++;
+  };
+
+  /* now: the requestAnimationFrame timestamp. gapMs: pass your own gap if you already compute one, else it is taken from the last call. workMs: optional. Returns true when the numbers were refreshed. Never throws. */
   FrameMeter.prototype.frame = function (now, workMs, gapMs) {
-    if (!this._t0) { this._t0 = now; this._prev = now; return false; }
-    var gap = gapMs == null ? now - this._prev : gapMs; this._prev = now;
+    if (typeof now !== 'number' || now !== now) return false;
+    if (!this._started) { this._started = true; this._t0 = now; this._prev = now; return false; }
+    var real = now - this._prev, hidden = false;
+    try { hidden = typeof document !== 'undefined' && document.hidden === true; } catch (e) { hidden = false; }
+    var gap = gapMs == null ? real : gapMs;
+    if (this._skip || hidden || !(real >= 0) || real > this.pauseGapMs || gap > this.pauseGapMs) { this._rebase(now); return false; }
+    this._prev = now;
     if (this._tapAt >= 0) {
       var d = now - this._tapAt; this._tapAt = -1;
+      if (d < 0 && d >= -this.tapSlackMs) d = 0;   // the event came in during this frame: its delay is zero, not negative
       if (d >= 0 && d <= 1000) { this._taps.push(d); if (this._taps.length > this.tapKeep) this._taps.shift(); }
+      else this.tapsDropped++;
     }
     this._n++; if (gap > this._max) this._max = gap;
     if (this._gn >= 3) {
@@ -72,7 +119,7 @@ var FrameMeter = (function () {
   };
 
   /* call from pointerdown with event.timeStamp (same clock as the frame timestamp) */
-  FrameMeter.prototype.input = function (eventTimeStamp) { this._tapAt = eventTimeStamp; };
+  FrameMeter.prototype.input = function (eventTimeStamp) { if (typeof eventTimeStamp === 'number' && eventTimeStamp >= 0) this._tapAt = eventTimeStamp; };
 
   FrameMeter.prototype.tapMs = function () {
     var n = this._taps.length; if (!n) return -1;
@@ -104,6 +151,4 @@ var FrameMeter = (function () {
   };
 
   return FrameMeter;
-})();
-
-if (typeof module !== 'undefined' && module.exports) module.exports = FrameMeter; else (typeof globalThis !== 'undefined' ? globalThis : this).FrameMeter = FrameMeter;
+});

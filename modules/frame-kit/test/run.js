@@ -1,10 +1,15 @@
-/* frame-kit tests: Node only, no dependencies, fake clock. Run: node frame-kit/test/run.js (exits non-zero on any failure). */
+/* frame-kit tests: Node only, no dependencies, fake clock. Run: node modules/frame-kit/test/run.js (exits non-zero on any failure).
+   To run the same checks against another copy of the four files (for example an older version, to see which checks fail on it):
+   FRAME_KIT_DIR=/path/to/folder node modules/frame-kit/test/run.js */
 'use strict';
 const path = require('path');
-const EvenDt = require(path.join(__dirname, '..', 'even-dt.js'));
-const QualityGovernor = require(path.join(__dirname, '..', 'quality-governor.js'));
-const JobPump = require(path.join(__dirname, '..', 'job-pump.js'));
-const FrameMeter = require(path.join(__dirname, '..', 'frame-meter.js'));
+const fs = require('fs');
+const vm = require('vm');
+const DIR = process.env.FRAME_KIT_DIR || path.join(__dirname, '..');
+const EvenDt = require(path.join(DIR, 'even-dt.js'));
+const QualityGovernor = require(path.join(DIR, 'quality-governor.js'));
+const JobPump = require(path.join(DIR, 'job-pump.js'));
+const FrameMeter = require(path.join(DIR, 'frame-meter.js'));
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -380,6 +385,210 @@ test('FrameMeter: report refreshes about every interval and reset clears everyth
   const m = new FrameMeter({ everyMs: 500 }); let now = 0, refreshed = 0; m.frame(now);
   for (let i = 0; i < 120; i++) { now += 16.67; if (m.frame(now)) refreshed++; }
   assert(refreshed >= 3 && refreshed <= 5, 'refreshed ' + refreshed); m.reset(); assert(m.fps === 0 && m.verdict() === 'smooth' && m.tapMs() === -1);
+});
+
+/* ---- Fixes from the 2026-10 audit ---- */
+console.log('Audit fixes');
+
+test('each file is sloppy at the top level (its strict mode is inside the wrapper) and still exports and sets its global', function () {
+  [['even-dt.js', 'EvenDt'], ['quality-governor.js', 'QualityGovernor'], ['job-pump.js', 'JobPump'], ['frame-meter.js', 'FrameMeter']].forEach(function (f) {
+    const src = fs.readFileSync(path.join(DIR, f[0]), 'utf8');
+    assert(/MIT License, Copyright \(c\) 2026 LFC Foundry/.test(src.split('\n')[0]), f[0] + ' keeps its header line');
+    const ctx = {}; vm.createContext(ctx);
+    vm.runInContext(src + '\n;var __top = (function () { return this === undefined ? "strict" : "sloppy"; })();', ctx);
+    assert(ctx.__top === 'sloppy', f[0] + ' must not make the page strict, got ' + ctx.__top);
+    assert(typeof ctx[f[1]] === 'function', f[0] + ' sets the global ' + f[1]);
+  });
+});
+
+test('EvenDt: on a 480 Hz screen the default minGap biases the learned period high; minGap 0.5 does not (documented)', function () {
+  const raw = beatStream(1000 / 480, 0.5, 800, 5), a = new EvenDt(), b = new EvenDt({ minGap: 0.5 });
+  raw.forEach(g => { a.next(g); b.next(g); });
+  assert(a.period > 1000 / 480 * 1.04, 'default learns a period that is too long: ' + a.period.toFixed(3));
+  near(b.period, 1000 / 480, 1000 / 480 * 0.03, 'minGap 0.5 period');
+});
+
+/* FrameMeter */
+function runFrames(m, gaps, work) { let now = 1000, worstSeen = 0; m.frame(now); gaps.forEach((g, i) => { now += g; if (m.frame(now, work)) worstSeen = Math.max(worstSeen, m.worstMs); }); return worstSeen; }
+
+test('FrameMeter: a tab that comes back after a long hidden spell is not a hitch and does not inflate the worst gap', function () {
+  const m = new FrameMeter(), g = new Array(180).fill(16.67); g[60] = 30000;
+  const worst = runFrames(m, g, 3);
+  assert(m.verdict() === 'smooth', 'verdict ' + m.verdict());
+  assert(worst < 40, 'worst gap ' + worst);
+  assert(m.pauses === 1, 'one pause skipped');
+  near(m.fps, 60, 2, 'fps recovers');
+});
+
+test('FrameMeter: pause() skips the next gap even when it is shorter than pauseGapMs', function () {
+  const m = new FrameMeter(); let now = 1000; m.frame(now);
+  for (let i = 0; i < 20; i++) { now += 16.67; m.frame(now, 3); }
+  m.pause(); now += 400; m.frame(now, 3);
+  for (let i = 0; i < 20; i++) { now += 16.67; m.frame(now, 3); }
+  assert(m.verdict() === 'smooth', 'verdict ' + m.verdict());
+  const n = new FrameMeter(); now = 1000; n.frame(now);
+  for (let i = 0; i < 20; i++) { now += 16.67; n.frame(now, 3); }
+  now += 400; n.frame(now, 3);
+  assert(n.verdict() !== 'smooth', 'without pause() a 400 ms gap is a hitch');
+  const k = new FrameMeter({ pauseGapMs: 200 }); now = 1000; k.frame(now);
+  for (let i = 0; i < 20; i++) { now += 16.67; k.frame(now, 3); }
+  now += 400; k.frame(now, 3); assert(k.verdict() === 'smooth', 'a smaller pauseGapMs also skips it');
+});
+
+test('FrameMeter: while document.hidden is true frames are skipped, not measured', function () {
+  const m = new FrameMeter(); let now = 1000; m.frame(now);
+  for (let i = 0; i < 20; i++) { now += 16.67; m.frame(now, 3); }
+  global.document = { hidden: true };
+  try { now += 300; m.frame(now, 3); } finally { delete global.document; }
+  for (let i = 0; i < 20; i++) { now += 16.67; m.frame(now, 3); }
+  assert(m.verdict() === 'smooth' && m.pauses === 1, m.verdict() + ' / pauses ' + m.pauses);
+});
+
+test('FrameMeter: a tap stamped a little after the frame time counts as 0 ms; a far mismatch is dropped and counted', function () {
+  const e = new FrameMeter(); let now = 1000; e.frame(now);
+  e.input(now + 20 + 5); now += 20; e.frame(now, 3);
+  assert(e.tapMs() === 0, 'clamped to 0, got ' + e.tapMs());
+  e.input(now + 5000); now += 16; e.frame(now, 3);
+  assert(e.tapMs() === 0 && e.tapsDropped === 1, 'far future dropped and counted: ' + e.tapsDropped);
+});
+
+test('FrameMeter: junk input never throws', function () {
+  const m = new FrameMeter();
+  m.frame(NaN); m.frame(undefined); m.frame('x'); m.input('x'); m.input(NaN); m.input(-5); m.frame(0); m.frame(16);
+  assert(typeof m.verdict() === 'string' && m.lines().length >= 3);
+});
+
+/* JobPump */
+test('JobPump: a bare performance.now is accepted (no Illegal invocation) and a broken clock falls back to the default', function () {
+  if (typeof performance === 'undefined' || typeof performance.now !== 'function') return;
+  const a = new JobPump({ now: performance.now }); let n = 0;
+  for (let i = 0; i < 20; i++) a.add(() => { n++; });
+  while (a.run(5)) { /* drain */ }
+  assert(n === 20, 'ran ' + n);
+  const b = new JobPump({ now: function () { throw new Error('clock broke'); } }); let m = 0;
+  for (let i = 0; i < 20; i++) b.add(() => { m++; });
+  while (b.run(5)) { /* drain */ }
+  assert(m === 20, 'ran ' + m);
+  const c = new JobPump({ now: function () { return 'soon'; } }); c.add(() => { m++; }); c.run(5);
+  assert(m === 21, 'a clock that answers with a string is replaced');
+});
+
+/* A clock that only shows multiples of tickMs, while each step really takes stepMs and the rest of the frame takes drawMs. */
+function coarseRig(tickMs, stepMs, drawMs, opts, jobs) {
+  const st = { real: 0 };
+  const pump = new JobPump(Object.assign({ now: () => Math.floor(st.real / tickMs) * tickMs }, opts));
+  let done = 0; for (let i = 0; i < jobs; i++) pump.add(() => { st.real += stepMs; done++; });
+  const spans = []; let frames = 0;
+  while (pump.size > 0) {
+    const r0 = st.real, rem = pump.run(4); spans.push(st.real - r0); st.real += drawMs; if (++frames > 5000) break;
+    if (!rem) break;
+  }
+  return { spans, frames, done, pump };
+}
+
+test('JobPump: on a 16.67 ms clock a 4 ms budget no longer eats a whole frame (steps are counted once the clock is frozen)', function () {
+  const r = coarseRig(16.667, 1, 7, { clockStepMs: 16.667 }, 400);
+  assert(r.done === 400, 'all work ran: ' + r.done);
+  assert(Math.max.apply(null, r.spans) <= 8.0001, 'worst run took ' + Math.max.apply(null, r.spans).toFixed(2) + ' ms of real time');
+});
+
+test('JobPump: the same without being told the clock step: it learns it within a few frames', function () {
+  const r = coarseRig(16.667, 1, 7, {}, 400);
+  assert(r.done === 400, 'all work ran');
+  const later = r.spans.slice(40);
+  assert(Math.max.apply(null, later) <= 8.0001, 'after warm-up the worst run took ' + Math.max.apply(null, later).toFixed(2) + ' ms');
+  near(r.pump.clockStepMs, 16.667, 0.01, 'learned tick');
+});
+
+test('JobPump: a fine clock with tiny steps is not held back by the coarse-clock rule', function () {
+  const st = { real: 0 }, pump = new JobPump({ now: () => st.real }); let n = 0;
+  for (let i = 0; i < 5000; i++) pump.add(() => { st.real += 0.01; n++; });
+  pump.run(4); pump.run(4);
+  assert(n > 500, 'two runs did ' + n + ' steps');
+});
+
+test('JobPump: clear() then add() inside a job keeps the new job', function () {
+  const pump = new JobPump(); const log = [];
+  pump.add(() => { log.push('first'); pump.clear(); pump.add(() => { log.push('new'); }); });
+  pump.add(() => { log.push('old'); });
+  while (pump.run(1000)) { /* drain */ }
+  assert(log.join() === 'first,new' && pump.size === 0, log.join());
+  const p2 = new JobPump(); const l2 = [];
+  p2.add(function* () { l2.push('g1'); p2.clear(); p2.add(() => { l2.push('after'); }); yield; l2.push('never'); });
+  p2.run(Infinity); assert(l2.join() === 'g1,after', l2.join());
+});
+
+/* QualityGovernor */
+function device(gov, slowAtZero, fromMs, toMs) {   // level 0 is too heavy (40 ms frames), every other level is fine (16 ms)
+  let t = fromMs; while (t < toMs) { const g = gov.level === 0 && slowAtZero ? 40 : 16; t += g; gov.frame(g, t); } return t;
+}
+
+test('QualityGovernor: flip-flop guard stops the slow up/down cycle and stays at the lighter level', function () {
+  const log = [], gov = new QualityGovernor({ levels: 3, onChange: (l, p) => log.push([l, p]) });
+  device(gov, true, 0, 600000);
+  assert(log.length <= 8, 'changes: ' + log.length);
+  assert(gov.level === 1 && gov.gaveUp, 'stays at 1, level ' + gov.level);
+  assert(gov.flips === 3, 'three reversals counted: ' + gov.flips);
+});
+
+test('QualityGovernor: flipLimit 0 keeps the old endless cycle', function () {
+  const log = [], gov = new QualityGovernor({ levels: 3, flipLimit: 0, onChange: (l, p) => log.push([l, p]) });
+  device(gov, true, 0, 600000);
+  assert(log.length > 30 && !gov.gaveUp && gov.flips === 0, 'changes: ' + log.length);
+});
+
+test('QualityGovernor: each reversal doubles the wait before the level is tried again', function () {
+  const ups = [], gov = new QualityGovernor({ levels: 3, flipLimit: 5, onChange: (l, p) => { if (l < p) ups.push(t); } });
+  let t = 0; while (t < 400000) { const g = gov.level === 0 ? 40 : 16; t += g; gov.frame(g, t); }
+  assert(ups.length >= 4, 'ups ' + ups.length);
+  const gaps = []; for (let i = 1; i < ups.length; i++) gaps.push(ups[i] - ups[i - 1]);
+  assert(gaps[1] > gaps[0] * 1.6 && gaps[2] > gaps[1] * 1.6, 'wait grows: ' + gaps.map(Math.round).join(', '));
+});
+
+test('QualityGovernor: a device that is only slow once is not penalised, and a real step up later still works', function () {
+  const gov = new QualityGovernor({ levels: 3 });
+  let t = device(gov, true, 0, 20000);   // down to 1, up to 0, then (slow again) down to 1: one reversal
+  t = device(gov, false, t, t + 200000);
+  assert(gov.level === 0 && !gov.gaveUp, 'recovered to 0, level ' + gov.level);
+});
+
+test('QualityGovernor: force() starts the guard over', function () {
+  const gov = new QualityGovernor({ levels: 3 });
+  device(gov, true, 0, 600000); assert(gov.gaveUp);
+  gov.force(0); assert(!gov.gaveUp && gov.flips === 0 && gov.level === 0);
+  gov.force(2); gov.resetGuard();
+});
+
+test('QualityGovernor: a long stall ends the "fast in a row" total', function () {
+  const gov = new QualityGovernor({ levels: 3 }); let t = drive(gov, () => 40, 0, 20000);
+  assert(gov.level === 2, 'bottom first, got ' + gov.level);
+  t = drive(gov, () => 16, t, t + 9000);
+  t += 5000; gov.frame(5000, t);            // the tab was hidden, now it is back
+  t = drive(gov, () => 16, t, t + 2500);    // 9 s + 2.5 s, but not in a row
+  assert(gov.level === 2, 'must not step up on 11.5 s that include a stall, got ' + gov.level);
+  t = drive(gov, () => 16, t, t + 12000);
+  assert(gov.level === 1, 'steps up after a real 10 s calm spell, got ' + gov.level);
+});
+
+test('QualityGovernor: the stall is seen from the clock too, and hold() ends the fast total', function () {
+  const gov = new QualityGovernor({ levels: 3 }); let t = drive(gov, () => 40, 0, 20000);
+  t = drive(gov, () => 16, t, t + 9000);
+  t += 5000; gov.frame(16, t);              // the caller capped the gap, the clock still jumped
+  t = drive(gov, () => 16, t, t + 2500);
+  assert(gov.level === 2, 'clock jump counts as a stall, got ' + gov.level);
+  const h = new QualityGovernor({ levels: 3 }); t = drive(h, () => 40, 0, 20000);
+  t = drive(h, () => 16, t, t + 9000); h.hold(); t = drive(h, () => 16, t, t + 2500);
+  assert(h.level === 2, 'hold() restarts the fast total, got ' + h.level);
+});
+
+test('QualityGovernor: a throwing onChange never leaves a half-changed state or escapes frame()', function () {
+  const errs = []; let calls = 0;
+  const gov = new QualityGovernor({ levels: 3, onChange: () => { calls++; throw new Error('bad callback'); }, onError: e => errs.push(e.message) });
+  drive(gov, () => 40, 0, 30000);
+  assert(gov.level === 2 && calls === 2 && errs.length === 2, 'level ' + gov.level + ', calls ' + calls);
+  assert(gov.lastError && gov.lastError.message === 'bad callback');
+  const f = new QualityGovernor({ levels: 3, onChange: () => { throw new Error('forced'); }, onError: () => { throw new Error('and the handler too'); } });
+  f.force(2); assert(f.level === 2, 'force() survives a throwing callback and handler');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

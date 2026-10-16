@@ -56,7 +56,7 @@
 <body>
 <main>
   <h1>frame-kit example</h1>
-  <p class="sub">Three tiny helpers. Everything here runs offline from the three files next to this page.</p>
+  <p class="sub">Four tiny helpers. Everything here runs offline from the four files next to this page. Sections 2 and 4 have a one-button automatic check that tells you in plain words what happened.</p>
 
   <section>
     <h2>1. EvenDt: raw vs smoothed frame gaps</h2>
@@ -80,6 +80,8 @@
       <span>level <b id="lvn">0</b></span>
     </div>
     <div class="row"><span>Drag the load up: after a short delay the level steps down; set it back to 0 and it climbs again. This demo uses shorter delays than the defaults so you can see it.</span></div>
+    <div class="row"><button id="qgGo">Run the automatic check (about 15 seconds)</button><span id="qgState">idle</span></div>
+    <div class="row"><b id="qgResult" style="font-weight:600"></b></div>
   </section>
 
   <section>
@@ -100,11 +102,22 @@
       </div>
     </div>
   </section>
+
+  <section>
+    <h2>4. FrameMeter: speed numbers, and who slowed a frame</h2>
+    <div class="row" style="margin-top:0"><b id="fmLines" style="font-weight:600">waiting for the first report...</b></div>
+    <div class="row">
+      <button id="fmGo">Run the automatic check (about 6 seconds)</button><span id="fmState">idle</span>
+    </div>
+    <div class="row"><b id="fmResult" style="font-weight:600"></b></div>
+    <div class="row"><span>The check freezes this page on purpose three times: once inside the animation frame (the game's own work), once between frames (the device or browser), and once right after <code>pause()</code>, the way a hidden tab coming back looks. The meter should name the first as the game, the second as the device, and ignore the third. Leave the other sections idle while it runs.</span></div>
+  </section>
 </main>
 
 <script src="even-dt.js"></script>
 <script src="quality-governor.js"></script>
 <script src="job-pump.js"></script>
+<script src="frame-meter.js"></script>
 <script>
 (function () {
   'use strict';
@@ -115,7 +128,8 @@
   var LEVELS = 5;
   var lvBox = [];
   for (var i = 0; i < LEVELS; i++) { var b = document.createElement('i'); $('lv').appendChild(b); lvBox.push(b); }
-  function showLevel(l) { for (var i = 0; i < LEVELS; i++) lvBox[i].className = i >= LEVELS - 1 - l ? 'on' : ''; $('lvn').textContent = l; }
+  var peakLevel = 0;
+  function showLevel(l) { for (var i = 0; i < LEVELS; i++) lvBox[i].className = i >= LEVELS - 1 - l ? 'on' : ''; $('lvn').textContent = l; if (l > peakLevel) peakLevel = l; }
   // Level 0 is full quality (all boxes lit); each step down turns one box off. Shorter delays than the defaults, for the demo only.
   var gov = new QualityGovernor({ levels: LEVELS, slowFrames: 40, downDelay: 1500, fastMs: 4000, upDelay: 4000, onChange: showLevel });
   showLevel(0);
@@ -162,6 +176,50 @@
   $('bud').oninput = function () { $('budv').textContent = this.value; };
   $('load').oninput = function () { $('loadv').textContent = this.value; };
 
+  // ----- automatic check for the governor: load the page for 4 s, then let it rest and see whether the level comes back
+  $('qgGo').onclick = function () {
+    var btn = this; btn.disabled = true; peakLevel = gov.level; $('qgResult').textContent = '';
+    $('load').value = 30; $('loadv').textContent = 30; $('qgState').textContent = 'step 1 of 2: loading every frame with 30 ms of extra work...';
+    setTimeout(function () {
+      $('load').value = 0; $('loadv').textContent = 0; $('qgState').textContent = 'step 2 of 2: load removed, waiting for the level to climb back...';
+    }, 4000);
+    setTimeout(function () {
+      var peak = peakLevel, now = gov.level, ok = peak >= 1 && now < peak;
+      $('qgState').textContent = 'done';
+      $('qgResult').textContent = (ok ? 'PASS: ' : 'CHECK: ') + 'under load the level went down to ' + peak + '; after the load stopped it is at ' + now + (ok ? ', so it recovered.' : (peak < 1 ? ', so it never stepped down (was the page hidden or throttled?).' : ', so it has not climbed back yet (it waits at least 4 seconds per step; try again or wait).'));
+      btn.disabled = false;
+    }, 15000);
+  };
+
+  // ----- FrameMeter: a live meter plus a one-button automatic check
+  var meter = new FrameMeter(), lastWork = 0;
+  var check = null;   // while the automatic check runs: { meter, t0, step }
+  // the recommended wiring: a hidden tab is not a slow game
+  document.addEventListener('visibilitychange', function () { if (document.hidden) { meter.pause(); gov.hold(); } });
+  function fmShow() { $('fmLines').textContent = meter.lines(['quality ' + gov.level]).join('   |   '); }
+  $('fmGo').onclick = function () {
+    $('fmGo').disabled = true; $('fmResult').textContent = '';
+    check = { meter: new FrameMeter(), t0: 0, step: 0 };
+    $('fmState').textContent = 'running...';
+  };
+  function fmFinish() {
+    var h = check.meter.hitches(), p = check.meter.pauses, ok = h.game >= 1 && h.device >= 1 && h.count <= 3 && p >= 1;
+    $('fmResult').textContent = (ok ? 'PASS: ' : 'CHECK: ') + 'the meter says "' + check.meter.verdict() + '" and skipped ' + p + ' pause' + (p === 1 ? '' : 's') + '. ' +
+      (ok ? 'It blamed the game for the freeze inside the frame, the device for the freeze between frames, and ignored the one after pause().'
+          : 'Expected one hitch blamed on the game, one on the device, and the pause ignored. Other activity on the page (or a busy computer) can add hitches; run it again with nothing else going.');
+    $('fmState').textContent = 'done'; $('fmGo').disabled = false; check = null;
+  }
+  // called once per animation frame, before the meter sees the frame
+  function fmDrive(now) {
+    if (!check) return;
+    if (!check.t0) check.t0 = now;
+    var t = now - check.t0;
+    if (check.step === 0 && t > 1500) { check.step = 1; burn(120); }                                                  // the game's own work inside the frame
+    else if (check.step === 1 && t > 2500) { check.step = 2; setTimeout(function () { burn(120); }, 0); }           // the page is frozen between frames: not the game's work
+    else if (check.step === 2 && t > 3500) { check.step = 3; check.meter.pause(); meter.pause(); setTimeout(function () { burn(400); }, 0); }   // like a tab coming back
+    else if (check.step === 3 && t > 6000) { check.step = 4; fmFinish(); }
+  }
+
   // ----- charts and animation
   var chart = $('chart'), cg = chart.getContext('2d'), CW = chart.width, CH = chart.height;
   var ball = $('ball'), bg = ball.getContext('2d');
@@ -190,6 +248,7 @@
 
   var last = 0, shown = 0;
   function frame(now) {
+    var w0 = performance.now();
     if (last) {
       var gap = now - last;
       if (gap > 0) {
@@ -215,6 +274,11 @@
       }
     }
     last = now;
+    // FrameMeter: the work that stretches a gap is the work of the frame BEFORE it, so we hand it last frame's work time.
+    fmDrive(now);
+    if (check) check.meter.frame(now, lastWork);
+    if (meter.frame(now, lastWork)) fmShow();
+    lastWork = performance.now() - w0;
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
