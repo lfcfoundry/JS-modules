@@ -32,7 +32,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 
 ## Games: Size and packaging
 - [lzma-decode](https://github.com/JNFoo/JS-modules/blob/main/modules/lzma-decode/README.md): Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. (global lzmaDecode)
-- [ppmd-decode](https://github.com/JNFoo/JS-modules/blob/main/modules/ppmd-decode/README.md): A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. (global ppmd7Decode)
+- [ppmd-decode](https://github.com/JNFoo/JS-modules/blob/main/modules/ppmd-decode/README.md): A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. (global ppmd7Decode)
 
 ## Story editor: Story data (in https://github.com/JNFoo/p-see-story-editor, generated from the Story Editor's sources)
 - [story-format](https://github.com/JNFoo/p-see-story-editor/blob/main/packages/story-format/README.md): Create, clean, import and export interactive stories as JSON, with a JSON Schema.
@@ -48,7 +48,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 
 ## Tools for games: Size and packaging
 - [lzma-pack](https://github.com/JNFoo/JS-modules/blob/main/tools/lzma-pack/README.md): Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library).
-- [ppmd-pack](https://github.com/JNFoo/JS-modules/blob/main/tools/ppmd-pack/README.md): Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor. Pure Python; pays off above about 60 KB of compressed data.
+- [ppmd-pack](https://github.com/JNFoo/JS-modules/blob/main/tools/ppmd-pack/README.md): Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data.
 - [single-file-tools](https://github.com/JNFoo/JS-modules/blob/main/tools/single-file-tools/README.md): Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games.
 
 ## Tools for games: Testing

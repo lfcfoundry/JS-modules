@@ -195,7 +195,7 @@
     {
       "id": "ppmd-decode",
       "global": "ppmd7Decode",
-      "summary": "A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower.",
+      "summary": "A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip.",
       "file": "modules/ppmd-decode/ppmd-decode.js",
       "readme": "modules/ppmd-decode/README.md",
       "demo": "tools/ppmd-pack/example/packed-base64.html",
@@ -234,7 +234,7 @@
     },
     {
       "id": "ppmd-pack",
-      "summary": "Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor. Pure Python; pays off above about 60 KB of compressed data.",
+      "summary": "Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data.",
       "folder": "tools/ppmd-pack",
       "readme": "tools/ppmd-pack/README.md",
       "side": "games",
