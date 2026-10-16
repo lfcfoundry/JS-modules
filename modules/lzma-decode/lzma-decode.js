@@ -22,12 +22,12 @@
    the range coder normalizes below 2^24. The output buffer doubles as the dictionary, so there is no window limit.
    Syntax is ES5, but Uint16Array.prototype.fill (used in probs) is an ES2015 method: a browser from before 2015 lacks it.
    This file is deliberately not wrapped in a UMD function: tools/lzma-pack/pack.py cuts it where the file helper below begins and pastes
-   the part above into every packed page; that helper must stay the last function. Keep it plain ASCII for the same reason (the packed page is read as windows-1252). */
+   the part above into every packed page; that helper must stay the last function. The packer also drops lines that end in the marker comment "lean-cut" and turns every error throw into a bare throw (the packed page shows its own message), so keep each such line self-contained. Keep it plain ASCII for the same reason (the packed page is read as windows-1252). */
 function lzmaDecode(src, outSize, opts) {
   opts = opts || {};
   var lc = opts.lc === undefined ? 4 : opts.lc, lp = opts.lp === undefined ? 0 : opts.lp, pb = opts.pb === undefined ? 0 : opts.pb;
-  if (!(lc >= 0 && lc <= 8 && lp >= 0 && lp <= 4 && pb >= 0 && pb <= 4)) throw new Error('LZMA: lc 0-8, lp 0-4 and pb 0-4 are supported');
-  if (opts.maxSize !== undefined && !(outSize <= opts.maxSize)) throw new Error('LZMA: the result would be ' + outSize + ' bytes, more than the allowed maxSize of ' + opts.maxSize);
+  if (!(lc >= 0 && lc <= 8 && lp >= 0 && lp <= 4 && pb >= 0 && pb <= 4)) throw new Error('LZMA: lc 0-8, lp 0-4 and pb 0-4 are supported');   // lean-cut
+  if (opts.maxSize !== undefined && !(outSize <= opts.maxSize)) throw new Error('LZMA: the result would be ' + outSize + ' bytes, more than the allowed maxSize of ' + opts.maxSize);   // lean-cut
   var out = new Uint8Array(outSize), ip = 0, op = 0;
   var range = 0xFFFFFFFF, code = 0;            // the range coder: both stay unsigned 32-bit
   var state = 0, rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;   // the match state (0-11) and the four most recent distances (minus one)
