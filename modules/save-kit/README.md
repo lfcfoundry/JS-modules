@@ -13,7 +13,7 @@ var stop = kit.autosave(function () { return state; }, 2000);   // timer + pageh
 kit.exportCode(state).then(show, showMessage);   // 'MG1z.<data>.<7-char check>' (or 'MG1p...')
 kit.importCode(pasted).then(function (clean) { kit.stageImport(clean, state); location.reload(); }, showMessage);
 ```
-`SaveKit.validate(schema, defaults, untrusted)` is also exported, plus `SaveKit.has(obj, key)` (see counts below) and `SaveKit.twoTap(fn, ms, onArm)` for "tap again to confirm" on destructive buttons. Schema types are listed at the top of `save-kit.js`.
+`SaveKit.validate(schema, defaults, untrusted)` is also exported, plus `SaveKit.has(obj, key)` (see counts below) and `SaveKit.twoTap(fn, ms, onArm)` for "tap again to confirm" on destructive buttons. Two small methods on the kit: `kit.pause(true)` switches saving off (and `kit.pause(false)` on again), which `stageImport` uses while a loaded save waits for a reload; `kit.forceBackupNext()` makes the next `save()` also refresh the backup slot, whatever the backup interval. Schema types are listed at the top of `save-kit.js`.
 
 ## What makes it different
 Many save helpers just `JSON.stringify` into storage. This one assumes the data is hostile or broken:

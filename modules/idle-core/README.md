@@ -9,7 +9,7 @@ The small maths every idle / clicker game ends up needing, tested. About 17 KB u
 | `maxAffordable(base, risePct, owned, money, discount)` | how many copies the money buys (the "buy max" button) |
 | `milestoneMult(owned, [10,25,50])` / `milestoneLeft` | each copy's output doubles at 10, 25, 50 owned (x8) |
 | `RateBook(computeFn)` | memoized rates, recomputed only after `invalidate()`; NaN and Infinity are cleaned out |
-| `tickEarnings(dt, opts)` | a long gap (frozen phone, hidden tab) counts at the away percent and is capped, like reopening the game |
+| `tickEarnings(dt, opts)` | a long gap (frozen phone, hidden tab) counts at the away percent and is capped, like reopening the game. `opts.graceSec` (default 5) is how long a tick can be before it counts as time away; `opts.percent` and `opts.capSec` as below |
 | `awayEarnings(rate, awaySec, opts)` | income while away: percent of normal speed (clamped to 0..100), capped (default 8 h) |
 | `awayClock(opts)` | the gap between hiding the page and coming back, measured with `Date.now()`; ignores backwards and impossible jumps |
 | `BoostQueue(caps, saved)` | timed multipliers that never overlap: one runs, the others wait their turn, in the order they were given |
