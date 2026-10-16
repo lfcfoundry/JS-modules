@@ -1,7 +1,8 @@
 """Browser test for canvas-probe on a real canvas (Chromium). Run: python3 tools/canvas-probe/test/browser.py
 Checks that the wrapped real CanvasRenderingContext2D still draws the right pixels, that the counts are right, that a planted
 save() leak and an overhanging drawImage source are caught, and that uninstall() puts the real methods back.
-Python 3 + Playwright for Python with Chromium; no network. Counts only: never judge milliseconds with the probe on."""
+Python 3 + Playwright for Python with Chromium; no network. Counts only: never judge milliseconds with the probe on.
+Copyright (c) 2026 LFC Foundry. MIT License."""
 import pathlib, sys
 from playwright.sync_api import sync_playwright
 SRC = (pathlib.Path(__file__).resolve().parent.parent / "src" / "canvas-probe.js").read_text()
@@ -44,6 +45,24 @@ with sync_playwright() as p:
     check("the planted save() leak is reported", rep["saveRestore"]["leakFrames"] == 1 and rep["saveRestore"]["openContextsNow"] == 1, rep["saveRestore"])
     check("the plain-words report mentions the leak", "leak" in r["text"], r["text"])
     check("uninstall restores the real methods and accessors", r["restored"])
+    # added 2026-10-15 (not yet run in a browser by the author of the change): reset(), size writes and the readback flag on a real canvas
+    r2 = pg.evaluate("""() => {
+      var probe = CanvasProbe.install({ keep: 10 }), out = {};
+      var a = document.createElement('canvas'); a.width = 50; a.height = 50;
+      var x = a.getContext('2d'), y = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+      x.save(); x.save(); if (typeof x.reset === 'function') x.reset(); else { x.restore(); x.restore(); }
+      probe.frame(); out.afterReset = probe.report().saveRestore;
+      x.save(); a.width = a.width; probe.frame(); out.afterResize = probe.report().saveRestore;
+      probe.reset(); x.getImageData(0, 0, 1, 1); y.getImageData(0, 0, 1, 1); probe.frame(); out.readback = probe.report().readback;
+      var g = document.createElement('canvas'); g.width = 10; g.height = 10; var gx = g.getContext('2d');
+      var big = document.createElement('canvas'); big.width = 2000; big.height = 2000; big.getContext('2d').fillRect(0, 0, 2000, 2000);
+      probe.reset(); gx.fillRect(0, 0, 10, 10); big.getContext('2d').fillRect(0, 0, 5, 5); probe.frame(); out.area = probe.report().paintedArea;
+      out.text = probe.text(); probe.uninstall(); return out;
+    }""")
+    check("real context: save, save, reset leaves no open context", r2["afterReset"]["openContextsNow"] == 0 and r2["afterReset"]["leakFrames"] == 0, r2["afterReset"])
+    check("real canvas: writing width empties the save stack", r2["afterResize"]["openContextsNow"] == 0 and r2["afterResize"]["leakFrames"] == 0, r2["afterResize"])
+    check("real canvas: getImageData without willReadFrequently is flagged once, with it is not", r2["readback"]["getImageDataWithoutWillReadFrequently"] == 1, r2["readback"])
+    check("real canvases: painted area is per canvas (full fill of a small canvas next to a big one reads 1)", r2["area"]["median"] == 1, r2["area"])
     check("no page errors", not errs, errs)
     br.close()
 print("FAILED %d" % fails if fails else "all passed")
