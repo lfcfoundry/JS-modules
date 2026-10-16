@@ -43,4 +43,4 @@ Fingerprinting libraries ([CreepJS](https://github.com/abrahamjuliot/creepjs), [
 - Tests: `node modules/env-probes/test/run.js` (fake window, document, navigator, performance and storage). `_env(fakes)` and `_reset()` exist for tests only.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
