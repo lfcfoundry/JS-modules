@@ -4,7 +4,7 @@
   "copyright": "LFC Foundry",
   "repository": "https://github.com/lfcfoundry/JS-modules",
   "pages": "https://lfcfoundry.github.io/JS-modules/",
-  "origin": "Extracted from Apple Press, https://github.com/JNFoo/apple-press (play: https://jnfoo.github.io/apple-press/), and Fancy, the Banana, https://github.com/JNFoo/fancy-banana (play: https://jnfoo.github.io/fancy-banana/)",
+  "origin": "Extracted from Apple Press, https://github.com/JNFoo/apple-press (play: https://jnfoo.github.io/apple-press/), and Fancy, the Banana, https://github.com/lfcfoundry/fancy-banana (play: https://lfcfoundry.github.io/fancy-banana/)",
   "modules": [
     {
       "id": "stage-curtains",

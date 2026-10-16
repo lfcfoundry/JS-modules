@@ -1,6 +1,6 @@
 # JS-modules
 
-Small, dependency-free pieces for single-file browser games, taken out of **[Apple Press](https://github.com/JNFoo/apple-press)** ([play it](https://jnfoo.github.io/apple-press/)) and **[Fancy, the Banana](https://github.com/JNFoo/fancy-banana)** ([play it](https://jnfoo.github.io/fancy-banana/)) and cleaned up so anyone, or any AI helper working with a human, can drop them into another project.
+Small, dependency-free pieces for single-file browser games, taken out of **[Apple Press](https://github.com/JNFoo/apple-press)** ([play it](https://jnfoo.github.io/apple-press/)) and **[Fancy, the Banana](https://github.com/lfcfoundry/fancy-banana)** ([play it](https://lfcfoundry.github.io/fancy-banana/)) and cleaned up so anyone, or any AI helper working with a human, can drop them into another project.
 
 MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built with it. Keeping the license line is the only ask.
 
@@ -186,6 +186,6 @@ npm run test:kits                               # frame-kit, sprite-baker, pad-n
 
 - [Apple Press](https://github.com/JNFoo/apple-press): a clicker game for kids ([play](https://jnfoo.github.io/apple-press/))
 - [Story Editor](https://github.com/lfcfoundry/story-editor): an offline editor for branching stories, plus MIT packages cut from it: story format and checker, game builder and player, story map layout, a self-unzipping page packer, and a Firefox test kit ([try it](https://lfcfoundry.github.io/story-editor/))
-- [Fancy Banana](https://github.com/JNFoo/fancy-banana): a one-tap flying-banana arcade game ([play](https://jnfoo.github.io/fancy-banana/))
+- [Fancy Banana](https://github.com/lfcfoundry/fancy-banana): a one-tap flying-banana arcade game ([play](https://lfcfoundry.github.io/fancy-banana/))
 - [Pineapple Defense](https://github.com/JNFoo/pineapple-defense): a flick-to-throw pineapples-at-penguins game that uses a few of these pieces ([play](https://jnfoo.github.io/pineapple-defense/))
 - [JS-modules](https://github.com/lfcfoundry/JS-modules): this repository ([demos](https://lfcfoundry.github.io/JS-modules/))
