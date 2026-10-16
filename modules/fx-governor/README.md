@@ -48,4 +48,4 @@ Measures frame rate only, not memory or battery. You decide what each level mean
 - Tests: `node modules/fx-governor/test/run.js` (fake `requestAnimationFrame`).
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
