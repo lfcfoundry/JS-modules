@@ -2,6 +2,8 @@
 .sticker-text {
   --st-fill: linear-gradient(180deg, #ff9a7c 0%, #e8392d 45%, #a3150f 100%);   /* the letter fill */
   --st-edge: #7a120d;                                                           /* hard lower edge */
+  /* Outline color: set --st-outline in CSS to recolor the ring. StickerText.apply({outline}) only sets the default. */
+  --st-ring-color: var(--st-outline, var(--st-outline-default, #fff7e3));
   position: relative; display: inline-block;
   font-weight: 800; line-height: .92; letter-spacing: -.02em; white-space: nowrap;
   padding-inline: .06em .1em;                         /* room for the outline */
@@ -10,12 +12,19 @@
   filter: drop-shadow(0 .05em 0 var(--st-edge)) drop-shadow(0 .1em .07em rgba(0, 0, 0, .28));
 }
 .sticker-text::before, .sticker-text::after {
-  content: attr(data-t); position: absolute; left: 0; top: 0; padding-inline: inherit; white-space: nowrap;
+  content: attr(data-t);                              /* fallback for older browsers */
+  content: attr(data-t) / "";                         /* empty alt text: screen readers skip the decorative copies */
+  position: absolute; left: 0; top: 0; padding-inline: inherit; white-space: nowrap;
 }
-.sticker-text::before { color: var(--st-outline, #fff7e3); text-shadow: var(--st-ring); }   /* the outline layer */
+.sticker-text::before { color: var(--st-ring-color); text-shadow: var(--st-ring); }   /* the outline layer */
 .sticker-text::after {
   background: var(--st-fill); -webkit-background-clip: text; background-clip: text;
   color: transparent; -webkit-text-fill-color: transparent;                                /* the gradient layer */
+}
+/* Windows high contrast: the system forces its own colors and removes text shadows, so show the real text and skip the copies. */
+@media (forced-colors: active) {
+  .sticker-text { color: CanvasText; filter: none; transform: none; }
+  .sticker-text::before, .sticker-text::after { content: none; display: none; }
 }
 /* Chunky "thick plastic" pill for the subtitle: gradient + hard lip + soft shadow + inner top highlight. */
 .sticker-pill {
