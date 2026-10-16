@@ -316,6 +316,28 @@ def t_es5():
 
 check("the loader is plain ES5 (no async, arrow functions, let, const)", t_es5)
 
+def t_waiting():
+    gz = gzip.compress(b"x")
+    page = pk.build_page(gz)
+    body = page.split("<body", 1)[1].split("<script>", 1)[0]
+    assert "Loading\u2026" in body and "Opening" not in page, "the waiting line is missing: " + body
+    assert "background:#101018" in body and "color:#ccc" in body, "the default dark background and light text are missing: " + body
+    assert "justify-content:center" in body and "align-items:center" in body, "the waiting line is not centered"
+    assert "background:#fff" not in body, "the waiting page is still white"
+    assert "background:#fff8e0" in pk.build_page(gz, "t", "#fff8e0") and "color:#444" in pk.build_page(gz, "t", "#fff8e0"), "--bg color or its dark text is missing"
+    assert "background:navy" in pk.build_page(gz, "t", "navy") and "background:rgb(16,16,24)" in pk.build_page(gz, "t", "rgb(16,16,24)")
+    bad = pk.build_page(gz, "t", '#fff"><script>alert(1)</script>')
+    assert "alert" not in bad and "background:#101018" in bad, "a color that is not plain must fall back to the default"
+    for weird in (None, 5, "", "   ", "url(x)"):
+        assert "background:#101018" in pk.build_page(gz, "t", weird), "build_page must never throw on bg=%r" % (weird,)
+    # the replaced page: document.write swaps the whole document, so the waiting line goes with it (checked in the loader test below)
+    old_overhead = 1325   # what the markup and script around the payload weighed before the waiting page existed (the title is "Loading")
+    extra = len(page) - len(base64.b64encode(gz).decode()) - old_overhead
+    assert extra < 400, "the waiting page added %d bytes beyond the old size; expected a few hundred at most" % extra
+
+
+check("the waiting page shows a centered Loading line on a dark (or chosen) background, and stays small", t_waiting)
+
 HARNESS = r"""
 const fs = require('fs'); const j = JSON.parse(fs.readFileSync(0, 'utf8'));
 (async () => {
@@ -334,10 +356,10 @@ const fs = require('fs'); const j = JSON.parse(fs.readFileSync(0, 'utf8'));
 """
 
 
-def loader_results(cases):
+def loader_results(cases, bg="#101018"):
     payload = []
     for gz, old in cases:
-        page = pk.build_page(gz)
+        page = pk.build_page(gz, "Loading", bg)
         payload.append({"script": re.findall(r"<script>(.*?)</script>", page, re.S)[0], "old": old})
     r = subprocess.run([NODE, "-e", HARNESS], input=json.dumps({"cases": payload}).encode(), capture_output=True, timeout=120)
     assert r.returncode == 0, r.stderr.decode()[-300:]
@@ -356,6 +378,9 @@ def t_loader():
         assert res[k].get("written") is None and res[k]["message"] == pk.DAMAGED_MSG, "%s: %s" % (what, res[k])
         assert "updated since 2023" not in res[k]["message"], "a damaged file was blamed on an old browser"
     assert res[4]["message"] == pk.OLD_MSG and res[4]["written"] is None, res[4]
+    # the unpacked page must be exactly the input, whatever --bg says
+    r = loader_results([(good, False)], bg="#ffeedd")
+    assert r[0].get("written") == RAW.decode("utf-8"), "--bg changed the unpacked page: %s" % r[0]
 
 
 if NODE:
@@ -369,7 +394,13 @@ try:
         d = TMP / "z.html"; d.write_bytes(RAW)
         r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "z.small.html"), "A <B> title"]); assert r.returncode == 0, r.stderr
         assert "&lt;B&gt;" in (TMP / "z.small.html").read_text(encoding="utf-8")
-    check("pack.py command line, with zopfli", t_cli)
+        assert "background:#101018" in (TMP / "z.small.html").read_text(encoding="utf-8"), "the default waiting page is missing from the packed file"
+        r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "z2.small.html"), "T", "--bg", "#223344"]); assert r.returncode == 0, r.stderr
+        out = (TMP / "z2.small.html").read_text(encoding="utf-8")
+        assert "background:#223344" in out and "Loading\u2026" in out and "<title>T</title>" in out, "--bg was not used"
+        r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "z3.small.html"), "--bg", "red;}</style>"]); assert r.returncode == 0, r.stderr
+        assert "not a plain color" in r.stderr and "background:#101018" in (TMP / "z3.small.html").read_text(encoding="utf-8"), "a bad --bg must fall back and say so"
+    check("pack.py command line, with zopfli (title, --bg, bad --bg)", t_cli)
 except ImportError:
     skip("pack.py command line with zopfli", "zopfli is not installed: pip install zopfli")
     r = run([sys.executable, str(HERE / "pack.py"), str(TMP / "page.html" if (TMP / "page.html").exists() else __file__), str(TMP / "o.html")])
