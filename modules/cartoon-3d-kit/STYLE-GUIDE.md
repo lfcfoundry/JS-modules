@@ -1,12 +1,12 @@
-# The 3D / cartoon visual style (from Character Press), and how to recreate it
+# The 3D / cartoon visual style, and how to recreate it
 
-*Extracted Oct 2026 from the source of the game [Apple Press](https://github.com/JNFoo/apple-press): every number below is copied from working code. The game's own artwork is not included; this guide and `demo.html` use a generic round character ("Bloop") so you can recreate the style with your own character. Copyright (c) 2026 LFC Foundry, MIT License.*
+*Extracted Oct 2026 from a published game: every number below is copied from working code. The game's own artwork is not included; this guide and `demo.html` use a generic round character ("Bloop") so you can recreate the style with your own character. Copyright (c) 2026 LFC Foundry, MIT License.*
 
 ---
 
 ## 0. The look in one paragraph
 
-Character Press is **flat vector shapes made to feel like soft 3D toys.** Nothing is a 3D model and nothing is a bitmap. Every object is an SVG shape with **one radial gradient lit from the upper left**, a **soft shadow pooled at the lower right**, a **small white specular highlight**, and a **thin rim of bounced light on the right edge**. Characters have **huge glossy eyes, blush cheeks and a tiny smile placed low on the body**. Outlines are **warm dark brown, never black**. Logo text is **cream-outlined sticker lettering with a hard drop edge**. Scenery is **calm, desaturated, layered flat color** so the glossy character always pops. Everything **squashes, stretches, bobs and overshoots** when touched. That combination (gloss + low-set cute face + squash and stretch + calm background) is the charm.
+The style is **flat vector shapes made to feel like soft 3D toys.** Nothing is a 3D model and nothing is a bitmap. Every object is an SVG shape with **one radial gradient lit from the upper left**, a **soft shadow pooled at the lower right**, a **small white specular highlight**, and a **thin rim of bounced light on the right edge**. Characters have **huge glossy eyes, blush cheeks and a tiny smile placed low on the body**. Outlines are **warm dark brown, never black**. Logo text is **cream-outlined sticker lettering with a hard drop edge**. Scenery is **calm, desaturated, layered flat color** so the glossy character always pops. Everything **squashes, stretches, bobs and overshoots** when touched. That combination (gloss + low-set cute face + squash and stretch + calm background) is the charm.
 
 The five-word version: **glossy, round, lit, squishy, calm background.**
 
@@ -14,7 +14,7 @@ The five-word version: **glossy, round, lit, squishy, calm background.**
 
 ## 1. Principles (the "why" behind every number later)
 
-| # | Principle | How Character Press does it |
+| # | Principle | How the style does it |
 |---|---|---|
 | 1 | **One light source, everywhere.** | Light always comes from the upper left. Highlights sit upper left, shade sits lower right, rim light on the right. Logo, hero, special collectibles, bubbles and icons all obey it. Mixing light directions is the fastest way to lose the look. |
 | 2 | **Gradients do the 3D, not outlines.** | The body is filled with a *radial* gradient whose focus (36% / 30%) is off-center toward the light. No black outline on the hero. |
@@ -84,7 +84,7 @@ Note what changes in dark mode: the hero gets *lighter and warmer* (so it glows 
 ```
 M100 50c40 0 70 30 70 72 0 30-26 54-70 54s-70-24-70-54c0-42 30-72 70-72Z
 ```
-Why it works: a wide, soft, slightly bottom-heavy blob with a flatter base, so it looks like it sits on the ground. The body spans roughly x 30 to 170 and y 50 to 176 of the 200 box. Leave room above for an accent part and below for the shadow. (The game itself uses an character silhouette with two top lobes and a dimple at top and bottom; any rounded silhouette with one asymmetry works the same way.)
+Why it works: a wide, soft, slightly bottom-heavy blob with a flatter base, so it looks like it sits on the ground. The body spans roughly x 30 to 170 and y 50 to 176 of the 200 box. Leave room above for an accent part and below for the shadow. (The original game uses a character silhouette with two top lobes and a dimple at top and bottom; any rounded silhouette with one asymmetry works the same way.)
 
 ### 3.3 The gradients (copy these exactly)
 ```html
@@ -123,7 +123,7 @@ Why it works: a wide, soft, slightly bottom-heavy blob with a flatter base, so i
 ```
 The soft gloss ellipse is *tilted 16 degrees* to follow the body curve. The little dot is the "glint" that makes it look wet and polished. If you remove it, the hero looks matte.
 
-### 3.5 Skin ramps (hi / mid / lo, plus a glow color)
+### 3.5 Skin ramps (hi / mid / lo, plus a glow color and a label color)
 Each stage re-skins the hero by changing only these variables on a wrapper:
 ```css
 .wrap { --sk-hi:var(--character-hi); --sk-mid:var(--character); --sk-lo:var(--character-deep); --sk-glow:var(--character); --sk-label:#fff; --sk-pop:var(--character); }
@@ -133,16 +133,32 @@ Each stage re-skins the hero by changing only these variables on a wrapper:
 [data-hue="5"]  { --sk-hi:#fdf6ae; --sk-mid:#fbec5d; --sk-lo:#a38b12; --sk-glow:#fff27a; --sk-label:#3a3000; }  /* yellow */
 [data-hue="7"]  { --sk-hi:#80c0ad; --sk-mid:#00805a; --sk-lo:#003a28; --sk-glow:#3fd6a0; }   /* green */
 [data-hue="8"]  { --sk-hi:#c8b6ff; --sk-mid:#5b3bd1; --sk-lo:#1d0f5c; --sk-glow:#9a7cf5; }   /* violet */
-[data-hue="9"]  { --sk-hi:#fff;    --sk-mid:#35c7e0; --sk-lo:#0b3a63; --sk-glow:#7df9ff; }   /* ice */
-[data-hue="11"] { --sk-hi:#ffbfa8; --sk-mid:#ff7f50; --sk-lo:#733924; --sk-glow:#ffa07a; }   /* coral */
+[data-hue="9"]  { --sk-hi:#fff;    --sk-mid:#35c7e0; --sk-lo:#0b3a63; --sk-glow:#7df9ff; --sk-label:#2a120d; }  /* ice: dark label */
+[data-hue="11"] { --sk-hi:#ffbfa8; --sk-mid:#ff7f50; --sk-lo:#733924; --sk-glow:#ffa07a; --sk-label:#2a120d; }  /* coral: dark label */
 [data-hue="13"] { --sk-hi:#fff;    --sk-mid:#ccccff; --sk-lo:#4a4aa8; --sk-glow:#d9d9ff; --sk-label:#2a2a66; }  /* pearl */
 ```
+The same skins as a table (the check in `test/run.js` reads this table and the demo's skin list, and fails if a label is below 4.5:1 against its `mid`):
+
+| Skin | hi | mid | lo | glow | label |
+|---|---|---|---|---|---|
+| Red (default) | #e6685b | #c4372c | #86231b | #c4372c | #ffffff |
+| Crimson | #e8808e | #d1001c | #5e000d | #ff3b4f | #ffffff |
+| Brown | #c2a48f | #6a442e | #301f15 | #c98a5c | #ffffff |
+| Yellow | #fdf6ae | #fbec5d | #a38b12 | #fff27a | #3a3000 |
+| Gold | #fff3b0 | #f2b705 | #a86a00 | #ffd23f | #2a120d |
+| Green | #80c0ad | #00805a | #003a28 | #3fd6a0 | #ffffff |
+| Violet | #c8b6ff | #5b3bd1 | #1d0f5c | #9a7cf5 | #ffffff |
+| Ice | #ffffff | #35c7e0 | #0b3a63 | #7df9ff | #2a120d |
+| Coral | #ffbfa8 | #ff7f50 | #733924 | #ffa07a | #2a120d |
+| Pearl | #ffffff | #ccccff | #4a4aa8 | #d9d9ff | #2a2a66 |
+
+White text only works on the darker `mid` colors. Gold, Ice, Coral, Yellow and Pearl are light, so they get a dark label from this guide's own palette (warm ink `#2a120d`, or the deeper tones above). When you add a skin, compute the ratio before you ship it.
 **How to pick a ramp for a new color (the formula):**
 - `mid` = the pure, saturated color you want people to remember.
 - `hi` = the same hue, much lighter, a touch warmer, never pure white (except for icy/pearl skins).
 - `lo` = the same hue, much darker, *more* saturated or shifted slightly toward purple/blue (never gray, never black).
 - `glow` = a bright, slightly lighter cousin of `mid`, used for aura, ring, pop numbers, label glow.
-- `label` = text color on top of `mid`: white for dark/medium colors, a dark brown for yellows and pale colors.
+- `label` = text color on top of `mid`: white for dark/medium colors, a dark brown for yellows and pale colors. The ratio must be at least 4.5:1 (WCAG AA for normal text); white on Gold is 1.8, on Ice 2.0 and on Coral 2.5, so those three must not use white.
 - Check contrast of `pop` (number color) against both light and dark backgrounds; pale skins get a deeper `pop` / bar color.
 
 ### 3.6 The face
@@ -249,6 +265,10 @@ Logo-specific choices: **the outline is cream (`#fff7e3`), not dark**. That is w
 ```
 The word is drawn **three times**: the real (invisible) text for layout, a cream copy behind it with a thick fake outline, and a gradient-filled copy on top. Then two stacked `drop-shadow`s add the hard bottom edge (`0 .05em 0` in dark maroon `#7a120d`) and a soft ground shadow.
 
+*Ready-made code for this lettering: the [`sticker-text`](../sticker-text/README.md) module. For canvas games, [`sprite-baker`](../sprite-baker/README.md) bakes shaded sprites; reuse the `hi / mid / lo` ramp from section 3.5 as its material stops.*
+
+**Screen readers:** the `::before` and `::after` copies repeat the word, and some screen readers announce generated content, so the title can be read two or three times. Put `aria-label="Your Title"` on the heading that holds the logo (the demo does this on its `<h1>`), mark the mini hero SVG `aria-hidden="true"`, and check the result with a screen reader if the title matters.
+
 **The outline trick** (CSS has no good text stroke): the `::before` copy gets about 48 `text-shadow`s with **zero blur** placed on rings around the glyph: three rings of 16 offsets at radii **0.050em, 0.075em and 0.098em**. Generate them with a loop (angle = i/16 × 2π, offset = cos·r, sin·r), as the demo file does. Because it is in `em`, it scales perfectly with the text.
 
 ```css
@@ -327,6 +347,47 @@ art.animate([
 ### 5.4 Calm mode
 Every effect checks a flag first. "Calm" turns off bobbing, aura pulse, confetti and squash entirely, and the OS "reduce motion" setting is honored. Build this in from day one: **it is not optional polish, it is part of the style.**
 
+CSS animations stop with one rule, but animations started from script (`element.animate()`) and transitions are not touched by it, so the script must check too. This is what `demo.html` does:
+```css
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; }      /* bob, aura, blink, wiggle */
+  .pupils { transition: none; }          /* no glide */
+}
+```
+```js
+var calmQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+function calm() { return !!(calmQuery && calmQuery.matches) || userCalm; }   // userCalm: your own in-game switch
+
+hero.addEventListener('click', function (e) {
+  if (calm()) return;                    // skip squash, pop number, confetti, ring (all element.animate() calls)
+  /* ... effects ... */
+});
+document.addEventListener('pointermove', function (e) {
+  if (calm()) { pupils.style.transform = ''; return; }   // pupils stay centered
+  /* ... follow the pointer ... */
+});
+```
+Ask the query again on every tap (as above) so a change in system settings takes effect without a reload. In calm mode still give the player some feedback that does not move: change a counter's text, flash a color, or change the mood for a moment.
+
+**Keyboard taps.** A click made with the keyboard (Enter or Space on the button) has no pointer position; some browsers report 0,0. When `e.detail === 0`, start the effects from the center of the button instead of `clientX` / `clientY`:
+```js
+var kb = e.detail === 0, b = hero.getBoundingClientRect();
+var px = kb ? b.left + b.width / 2 : e.clientX, py = kb ? b.top + b.height / 2 : e.clientY;
+```
+
+**Forced colors (Windows high contrast).** The browser swaps colors for system colors and drops shadows and gradient backgrounds, which flattens the hero and can hide gradient-filled text. Keep the artwork's own colors and give the sticker lettering a plain fallback:
+```css
+@media (forced-colors: active) {
+  .stage, .logo-hero { forced-color-adjust: none; }   /* the character and scene keep their painted colors */
+  .logo-1 { color: CanvasText; }                       /* show the real text ... */
+  .logo-1::before, .logo-1::after { content: none; }   /* ... and drop the two decorated copies */
+  .logo-2 { border: 2px solid CanvasText; box-shadow: none; }
+}
+```
+`forced-color-adjust` is not supported in Safari, where this block simply does nothing.
+
+**Auto-dark on phones.** Add `<meta name="color-scheme" content="only light">` (and `color-scheme: only light` on `:root`, as in section 2) so a phone's "dark mode for websites" does not repaint the white highlights. If your product has real dark tokens, switch them yourself with your own switch or `prefers-color-scheme`; the demo ships light only.
+
 ---
 
 ## 6. Scenes (the calm stage)
@@ -365,7 +426,7 @@ Color use: palette variables for the background world (`.c-hillf { fill:var(--hi
 | Birds | stroke-only `M0 0q4-5 8 0 4-5 8 0`, wing flap `scaleY(1↔.3)` at .38 s, fly across in ~23 s |
 | Butterfly | four wing ellipses plus a body rect, wings flap, wanders a path |
 | Chimney smoke | three circles, white, grow/rise/fade, 3.4 s ease-out, staggered 1.1 s |
-| Dropping character | an character falls from a tree, bounces three times (`33px → 26px → 33px`), fades, every 11 s |
+| Dropping character | a character falls from a tree, bounces three times (`33px → 26px → 33px`), fades, every 11 s |
 | Stars | tiny white circles with a few given a `tw` (twinkle) class |
 | Petals / fireflies | tiny absolutely positioned elements moved by the compositor (`translate` / `rotate` only), no per-frame JavaScript |
 
@@ -411,17 +472,22 @@ The interface is deliberately **plain** so the character carries the charm: flat
 
 - Cards: `background: var(--panel); border: 1px solid var(--line); border-radius: 6px to 12px`.
 - Primary cards that you can afford use `border: 1px solid var(--character)`; disabled ones use `--line` and transparent fill.
-- Pills and badges: `border-radius: 999px`, tinted fills with `color-mix(in srgb, var(--leaf) 14%, var(--panel))`.
+- **Fallback before `color-mix()`:** an older browser that does not know `color-mix()` (before Chrome 111 or Firefox 113) throws away the whole declaration it appears in, including every other shadow in the same list. So write the same property once without `color-mix()` first, then again with it; browsers that understand it use the second line.
+  ```css
+  .pill { background: var(--panel); background: color-mix(in srgb, var(--leaf) 14%, var(--panel)); }
+  ```
+- Pills and badges: `border-radius: 999px`, tinted fills with `color-mix(in srgb, var(--leaf) 14%, var(--panel))` (with the fallback line above it).
 - **The Press label** under the hero (the "chunky plastic" pill):
   ```css
   .label span { padding:.3rem .95rem .35rem; border-radius:999px; background:var(--sk-mid); color:var(--sk-label);
     font:800 1.05rem/1 var(--display);
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.18), 0 0 14px rgba(0,0,0,.2);   /* fallback: same lip and shadow, gray halo */
     box-shadow: inset 0 -3px 0 rgba(0,0,0,.18),                       /* darker lip along the bottom inside */
                 0 2px 8px rgba(0,0,0,.18),                              /* soft shadow */
                 0 0 14px color-mix(in srgb, var(--sk-glow) 50%, transparent);   /* colored halo */
     text-shadow: 0 1px 2px rgba(0,0,0,.3); }
   ```
-- **Celebration card** (big moments): `border: 3px solid var(--sk-mid)` + an outer ring `0 0 0 6px color-mix(in srgb,var(--sk-glow) 35%, transparent)` + `0 30px 90px rgba(0,0,0,.55)` + `0 0 90px color-mix(in srgb,var(--sk-glow) 55%, transparent)`, over a dark radial backdrop tinted with the new skin's glow, and a "slam" entrance: `520ms cubic-bezier(.2,.9,.3,1.1)` (the last control point overshoots).
+- **Celebration card** (big moments): `border: 3px solid var(--sk-mid)` + an outer ring `0 0 0 6px color-mix(in srgb,var(--sk-glow) 35%, transparent)` (write a fallback `box-shadow` without `color-mix()` on the line above, as shown for the label) + `0 30px 90px rgba(0,0,0,.55)` + `0 0 90px color-mix(in srgb,var(--sk-glow) 55%, transparent)`, over a dark radial backdrop tinted with the new skin's glow, and a "slam" entrance: `520ms cubic-bezier(.2,.9,.3,1.1)` (the last control point overshoots).
 - Focus ring: `3px solid #1f6feb` (light) / `#7ab7ff` (dark). Accessibility is part of the look.
 
 ---
@@ -463,7 +529,9 @@ Follow this order. Each step is a checkpoint; stop and look at it at **24 px, 12
 | Duplicated gradient ids when copying an SVG | Rename ids (and `url(#…)`, `href`) in the copy. |
 | A CSS animation on `transform` overrides a `transform="translate()"` attribute on an SVG shape, so the shape jumps to the corner | Draw the shape at its final coordinates in the path instead of positioning it with `transform`. |
 | A moving white gradient showed as a dark streak on some Android GPUs | Build shines from stacked thin stripes with stepped opacity. |
-| Phone "dark mode for websites" turned the white highlights dark | `color-scheme: only light` on `:root` (the game has its own dark mode). |
+| Phone "dark mode for websites" turned the white highlights dark | `color-scheme: only light` on `:root` and the matching `<meta name="color-scheme" content="only light">` (the game has its own dark mode). |
+| Confetti started at the top-left corner after a keyboard tap | Use the button's center when `e.detail === 0` (section 5.4). |
+| Skin label unreadable (white on Gold or Ice) | Pick a dark `label` for light `mid` colors and check 4.5:1 (section 3.5). |
 | Blurry or invisible highlight on very small renders | Highlights need a minimum size; the dot should still be ≥ 1 px at the smallest displayed size. |
 | A flying copy of an element was invisible when placed inside a section that is skipped while off screen (`content-visibility: auto`) | Put overlays on the page's top-level container. |
 | Pure black outlines made the character look pasted on | Use the warm ink, `#2a120d`, everywhere. |
@@ -486,10 +554,10 @@ Follow this order. Each step is a checkpoint; stop and look at it at **24 px, 12
 - [ ] Confetti in three shapes, with gravity
 - [ ] Scene = sky gradient + 3 value-stepped ground layers + circle/rect props + .2 vignette; scene less saturated than hero
 - [ ] Chunky pill/button = gradient + hard lip shadow + soft shadow + inner top highlight
-- [ ] Skins tested for contrast; dark mode makes the hero lighter and the world darker
-- [ ] Calm mode and reduced motion respected
+- [ ] Skins tested for contrast (label on `mid` at least 4.5:1); dark mode makes the hero lighter and the world darker
+- [ ] Calm mode and reduced motion respected, including `element.animate()` calls; forced colors keep the hero readable; keyboard taps start effects at the button center
 - [ ] Checked at 24 px, 120 px, 300 px, light and dark
 
 ---
 
-*Source map (if you want to read the original): the game file's CSS sections 1.1 (skins), 1.5 (character on its scene), 1.6 and 1.16 (scenes and moving scenery), 1.9 and 1.10 (faces), 1.12 (special collectibles), 1.14 (title and logo); the press, pop, ring and squash code is in the click handler (`press`, `jiggle`, `popNumber`, `ring`, `bits`, `lookAt`).*
+*Source map (the original game is not part of this repository): the game file's CSS sections 1.1 (skins), 1.5 (character on its scene), 1.6 and 1.16 (scenes and moving scenery), 1.9 and 1.10 (faces), 1.12 (special collectibles), 1.14 (title and logo); the press, pop, ring and squash code is in the click handler (`press`, `jiggle`, `popNumber`, `ring`, `bits`, `lookAt`).*

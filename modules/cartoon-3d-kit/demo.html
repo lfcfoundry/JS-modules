@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
     ===================================================================================
-    🛠️ APPLICATION : Cartoon 3D style kit (from Apple Press), by JNFoo
+    🛠️ APPLICATION : Cartoon 3D style kit demo
     🏭 FORGED BY : LFC Foundry (https://github.com/JNFoo)
     📜 LICENSE : MIT License
     ===================================================================================
@@ -24,7 +24,8 @@
     ===================================================================================
     -->
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cartoon 3D style kit (from Apple Press), by JNFoo</title>
+<meta name="color-scheme" content="only light">
+<title>Cartoon 3D style kit demo</title>
 <style>
 /* 1. TOKENS ---------------------------------------------------------- */
 :root{
@@ -32,6 +33,8 @@
   --sk-hi:#e6685b; --sk-mid:#c4372c; --sk-lo:#86231b; --sk-glow:#c4372c; --stem:#5b3f27; --leaf:#3f7d4c;
   --sky-top:#b5d6e8; --sky-bot:#eef5f1; --hill-far:#b3cdc0; --hill-mid:#90b9a1; --ground:#6aa282;
   --trunk:#6b4a2f; --foliage:#3f7d4c; --foliage-2:#5ca06a; --bld:#ece6d9; --bld-2:#c6bba9; --roof:#a8473a; --win:#ffd98a;
+  color-scheme:only light;             /* stops phone "force dark" from repainting the white shines dark (see guide, section 5.4) */
+  --sk-label:#fff; --sk-label-shadow:0 1px 2px rgba(0,0,0,.3);
   --ink:#2a120d;                      /* "black" for faces and outlines: a warm dark brown, never #000 */
   --display:'Bricolage Grotesque',system-ui,-apple-system,'Segoe UI',sans-serif;
   --body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
@@ -60,8 +63,9 @@ h2{margin:.2rem 0 0;font:700 .8rem var(--body);letter-spacing:.12em;text-transfo
 .face .eye-w{fill:#fff;stroke:var(--ink);stroke-width:2.2}
 .face .pupil{fill:#1d1410}.face .glintp{fill:#fff}
 .face .mouth{stroke:var(--ink);stroke-width:4.5;stroke-linecap:round;fill:none}
-.label{position:absolute;left:0;right:0;top:100%;margin-top:.15rem;text-align:center;font:800 1.05rem/1 var(--display);color:#fff;pointer-events:none}
-.label span{display:inline-block;padding:.3rem .95rem .35rem;border-radius:999px;background:var(--sk-mid);box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.18),0 0 14px color-mix(in srgb,var(--sk-glow) 50%,transparent);text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.label{position:absolute;left:0;right:0;top:100%;margin-top:.15rem;text-align:center;font:800 1.05rem/1 var(--display);color:var(--sk-label);pointer-events:none}
+.label span{display:inline-block;padding:.3rem .95rem .35rem;border-radius:999px;background:var(--sk-mid);box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.18),0 0 14px rgba(0,0,0,.2);   /* fallback without color-mix() */
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.18),0 0 14px color-mix(in srgb,var(--sk-glow) 50%,transparent);text-shadow:var(--sk-label-shadow)}
 .ring{position:absolute;inset:6%;border-radius:50%;border:4px solid var(--sk-glow);pointer-events:none}
 .pop{position:absolute;z-index:4;pointer-events:none;white-space:nowrap;font:800 1.9rem/1 var(--display);color:var(--sk-glow);
   text-shadow:-2px 0 var(--bg),2px 0 var(--bg),0 -2px var(--bg),0 2px var(--bg),-2px -2px var(--bg),2px 2px var(--bg),-2px 2px var(--bg),2px -2px var(--bg),0 0 16px var(--sk-glow)}
@@ -81,7 +85,16 @@ h2{margin:.2rem 0 0;font:700 .8rem var(--body);letter-spacing:.12em;text-transfo
 .logo-1::after{background:linear-gradient(180deg,#ff9a7c 0%,#e8392d 45%,#a3150f 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
 .logo-2{position:relative;margin:.2rem 0 0 .5rem;padding:.1em .7em .16em;font-weight:800;font-size:1.35rem;letter-spacing:.2em;text-transform:uppercase;color:#fff;background:linear-gradient(180deg,#62c981,#2c8a49);border-radius:.35em;box-shadow:0 .12em 0 #1b5c32,0 .3em .5em rgba(0,0,0,.22),inset 0 .08em 0 rgba(255,255,255,.35);text-shadow:0 .06em 0 rgba(0,0,0,.28);transform:rotate(-2deg)}
 .logo-2::after{content:"";position:absolute;right:-.45em;top:-.5em;width:1em;height:.52em;border-radius:0 100% 0 100%;background:linear-gradient(135deg,#8be3a0,#2c8a49);box-shadow:0 .06em 0 #1b5c32;transform:rotate(-24deg)}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+/* 4. SYSTEM SETTINGS: only change anything when the person's system asks (guide, section 5.4) */
+@media (prefers-reduced-motion:reduce){*{animation:none!important}.pupils{transition:none}}
+@media (forced-colors:active){
+  .stage,.logo-hero{forced-color-adjust:none}                 /* the scene and character keep their painted colors */
+  .stage{border-color:CanvasText}
+  .logo-1{color:CanvasText;filter:none}                       /* show the real text, drop the two decorated copies */
+  .logo-1::before,.logo-1::after{content:none}
+  .logo-2{border:2px solid CanvasText;box-shadow:none;text-shadow:none}
+  .logo-2::after{display:none}
+}
 </style></head>
 <body><div class="demo">
 
@@ -159,9 +172,9 @@ h2{margin:.2rem 0 0;font:700 .8rem var(--body);letter-spacing:.12em;text-transfo
   </button>
 </div>
 
-<h2>Skins: change three variables, get a new fruit</h2>
+<h2>Skins: change four colors, get a new look</h2>
 <div style="display:flex;gap:.6rem;flex-wrap:wrap">
-  <button data-skin="red" class="sk">Red</button><button data-skin="gold" class="sk">Gold</button><button data-skin="violet" class="sk">Violet</button><button data-skin="teal" class="sk">Ice</button>
+  <button data-skin="red" class="sk">Red</button><button data-skin="gold" class="sk">Gold</button><button data-skin="violet" class="sk">Violet</button><button data-skin="ice" class="sk">Ice</button>
 </div>
 </div>
 <script>
@@ -170,9 +183,15 @@ h2{margin:.2rem 0 0;font:700 .8rem var(--body);letter-spacing:.12em;text-transfo
 document.documentElement.style.setProperty('--stroke',o.join(','))})();
 var hero=document.getElementById('hero'),art=document.getElementById('art'),stage=document.getElementById('stage'),pupils=document.getElementById('pupils');
 function mk(c){var e=document.createElement('span');e.className=c;return e}
+// calm mode: the system "reduce motion" setting is asked on every tap, so a change takes effect without a reload (guide, section 5.4)
+var calmQuery=window.matchMedia?matchMedia('(prefers-reduced-motion: reduce)'):null;
+function calm(){return !!(calmQuery&&calmQuery.matches)}
 hero.addEventListener('click',function(e){
-  var r=stage.getBoundingClientRect(),ab=hero.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
-  var tilt=Math.max(-1,Math.min(1,(e.clientX-(ab.left+ab.width/2))/(ab.width/2)))*7;
+  if(calm())return;   // skips squash, pop number, confetti and ring (all element.animate() calls)
+  var r=stage.getBoundingClientRect(),ab=hero.getBoundingClientRect();
+  // a keyboard click (Enter or Space) has no pointer position: start from the middle of the button
+  var kb=e.detail===0,px=kb?ab.left+ab.width/2:e.clientX,py=kb?ab.top+ab.height/2:e.clientY,x=px-r.left,y=py-r.top;
+  var tilt=Math.max(-1,Math.min(1,(px-(ab.left+ab.width/2))/(ab.width/2)))*7;
   art.animate([{transform:'rotate(0deg) scale(1,1)'},{transform:'rotate('+tilt.toFixed(1)+'deg) scale(1.09,0.88)',offset:.28},{transform:'rotate('+(-tilt*.35).toFixed(1)+'deg) scale(0.96,1.07)',offset:.62},{transform:'rotate(0deg) scale(1,1)'}],{duration:300,easing:'ease-out'});
   var p=mk('pop');p.textContent='+1';p.style.left=(x+Math.random()*28-14)+'px';p.style.top=y+'px';stage.appendChild(p);var rot=Math.random()*24-12;
   p.animate([{transform:'translate(-50%,-50%) scale(.3) rotate('+rot+'deg)',opacity:0},{transform:'translate(-50%,-75%) scale(1.5) rotate('+rot+'deg)',opacity:1,offset:.18},{transform:'translate(-50%,-105%) scale(1) rotate('+rot*.4+'deg)',opacity:1,offset:.42},{transform:'translate(-50%,-300%) scale(.85)',opacity:0}],{duration:950,easing:'cubic-bezier(.2,.8,.3,1)'}).onfinish=function(){p.remove()};
@@ -184,10 +203,13 @@ hero.addEventListener('click',function(e){
     b.animate([{transform:'translate(-50%,-50%) rotate(0) scale(1)',opacity:1,easing:'cubic-bezier(.2,.7,.4,1)'},{transform:'translate(calc(-50% + '+dx*.6+'px),calc(-50% + '+up+'px)) rotate('+ro/2+'deg)',opacity:1,offset:.4,easing:'ease-in'},{transform:'translate(calc(-50% + '+dx*1.3+'px),calc(-50% + '+dn+'px)) rotate('+ro+'deg) scale(.5)',opacity:0}],{duration:650+Math.random()*450}).onfinish=(function(b){return function(){b.remove()}})(b)}
   var rg=mk('ring');hero.appendChild(rg);rg.animate([{transform:'scale(.75)',opacity:.85},{transform:'scale(1.7)',opacity:0}],{duration:520,easing:'ease-out'}).onfinish=function(){rg.remove()};
 });
-document.addEventListener('pointermove',function(e){var r=hero.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height*.52),d=Math.sqrt(dx*dx+dy*dy)||1,k=Math.min(1,d/140);
+document.addEventListener('pointermove',function(e){if(calm()){pupils.style.transform='';return}   // pupils stay centered in calm mode
+  var r=hero.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height*.52),d=Math.sqrt(dx*dx+dy*dy)||1,k=Math.min(1,d/140);
   pupils.style.transform='translate('+(dx/d*4.6*k).toFixed(2)+'px,'+(dy/d*4.6*k).toFixed(2)+'px)'});
-var SK={red:['#e6685b','#c4372c','#86231b','#c4372c'],gold:['#fff3b0','#f2b705','#a86a00','#ffd23f'],violet:['#c8b6ff','#5b3bd1','#1d0f5c','#7dd3fc'],teal:['#ffffff','#35c7e0','#0b3a63','#7df9ff']};
+// each skin: [hi, mid, lo, glow, label]. The label is the text color on top of mid; light skins get warm ink so it stays at 4.5:1 or better (test/run.js checks this list)
+var SK={red:['#e6685b','#c4372c','#86231b','#c4372c','#ffffff'],gold:['#fff3b0','#f2b705','#a86a00','#ffd23f','#2a120d'],violet:['#c8b6ff','#5b3bd1','#1d0f5c','#7dd3fc','#ffffff'],ice:['#ffffff','#35c7e0','#0b3a63','#7df9ff','#2a120d']};
 [].forEach.call(document.querySelectorAll('.sk'),function(b){b.style.cssText='padding:.4rem .9rem;border-radius:999px;border:1px solid var(--line);background:var(--panel);font:700 .85rem var(--body);cursor:pointer';
-  b.onclick=function(){var v=SK[b.dataset.skin],s=document.documentElement.style;s.setProperty('--sk-hi',v[0]);s.setProperty('--sk-mid',v[1]);s.setProperty('--sk-lo',v[2]);s.setProperty('--sk-glow',v[3])}});
+  b.onclick=function(){var v=SK[b.dataset.skin],s=document.documentElement.style;s.setProperty('--sk-hi',v[0]);s.setProperty('--sk-mid',v[1]);s.setProperty('--sk-lo',v[2]);s.setProperty('--sk-glow',v[3]);s.setProperty('--sk-label',v[4]);
+    s.setProperty('--sk-label-shadow',v[4]==='#ffffff'?'0 1px 2px rgba(0,0,0,.3)':'0 1px 0 rgba(255,255,255,.35)')}});
 </script><footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/JNFoo" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
 </body></html>
