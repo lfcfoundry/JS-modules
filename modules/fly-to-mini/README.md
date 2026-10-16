@@ -77,4 +77,4 @@ With `display:none` the mini has no size, so the module cannot measure where to 
 - Do not build a second timer or try/catch around it; the failsafe is inside. Node checks: `node modules/fly-to-mini/test/run.js`. The browser demo is `demo.html`.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
