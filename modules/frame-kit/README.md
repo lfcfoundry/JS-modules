@@ -114,7 +114,7 @@ How `next()` works: gaps of `minGap` or less and `maxGap` or more are returned u
 
 The rule: an exponential moving average of the gap (`smoothing`) is compared with `slowAbove` and `fastBelow`. It must stay above `slowAbove` for `slowFrames` frames in a row, and `downDelay` ms must have passed since the last change, to step down one level (the average then restarts from `expectedPeriod`). It must stay below `fastBelow` for `fastMs` of real time in a row, and `upDelay` ms must have passed since the last change, to step up one level. Between the two lines nothing happens, which is the hysteresis. Gaps over `maxGap`, or not positive, are not measured and break the slow streak; a gap over `maxGap` (or a jump of the clock over `maxGap` between two calls), for example a hidden tab coming back, also ends the fast streak, so "10 seconds fast in a row" never includes a stall.
 
-The flip-flop guard: hysteresis stops quick flapping, but not a slow loop (the lighter level is fine, the heavier one is too much, so the level climbs after ten calm seconds and drops again a few seconds later, for ever, and each cycle may cost a visible hitch when a level rebuilds art). The guard counts a *reversal* when a step down to a level comes within `flipWindow` ms of the step up to it. Each reversal doubles both waits (`fastMs` and `upDelay`) before that level is tried again; after `flipLimit` reversals the governor gives up on that level and stays below it (`gaveUp` is `true`) until `force()` or `resetGuard()`. It is on by default; `flipLimit: 0` gives the older behavior. Defaults: 3 reversals, 30 seconds, so a device that is borderline for a level makes at most seven level changes (about 90 seconds in the test) and then stays put, instead of one change every 7 seconds for ever.
+The flip-flop guard: hysteresis stops quick flapping, but not a slow loop (the lighter level is fine, the heavier one is too much, so the level climbs after ten calm seconds and drops again a few seconds later, for ever, and each cycle may cost a visible hitch when a level rebuilds art). The guard counts a *reversal* when a step down to a level comes within `flipWindow` ms of the step up to it. Each reversal doubles both waits (`fastMs` and `upDelay`) before that level is tried again; after `flipLimit` reversals the governor gives up on that level and stays below it (`gaveUp` is `true`) until `force()` or `resetGuard()`. It is off by default (`flipLimit: 0`, the plain behavior); turn it on with `flipLimit: 3`. With the suggested 3 reversals and the default 30 seconds, so a device that is borderline for a level makes at most seven level changes (about 90 seconds in the test) and then stays put, instead of one change every 7 seconds for ever.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -130,7 +130,7 @@ The flip-flop guard: hysteresis stops quick flapping, but not a slow loop (the l
 | `fastMs` | `10000` | Fast time in a row (ms) needed to step up. |
 | `upDelay` | `10000` | Minimum ms since the last change before stepping up. |
 | `maxGap` | `100` | Gaps above this (ms) are ignored, and end the fast streak. |
-| `flipLimit` | `3` | Quick reversals on one level before the governor gives up on it. `0` turns the guard off. |
+| `flipLimit` | `0` | Quick reversals on one level before the governor gives up on it. `0` (the default) leaves the guard off; `3` is a good value to turn it on. |
 | `flipWindow` | `30000` | A step down this soon (ms) after a step up to the same level is a reversal. |
 | `enabled` | `true` | Start enabled or frozen. |
 | `level` | `0` | Starting level (`onChange` is not called for it). |
@@ -221,7 +221,7 @@ None of these ideas is new, and the established tools below are better in the wa
 - A 120 or 144 Hz screen is treated as fast, which is correct but means it will not step down until it falls below roughly 45 fps; pass `expectedPeriod` if you want it to react at a frame rate relative to the screen.
 - It sees the gap between frames, not why it is long. A throttled background tab, a power-saving cap, or a slow video decoder looks the same as a slow GPU. Call `hold()` or skip `frame()` while paused or hidden.
 - Changes are slow by design: at least 100 slow frames and 3 seconds to step down, 10 seconds fast and 10 seconds since the last change to step up. The grace period at the start is counted from the first `frame()` call.
-- The flip-flop guard gives up for good on a level (until `force()` or `resetGuard()`), so a device that was only temporarily busy during three quick up-and-down cycles stays one level lower than it could. Raise `flipLimit` or turn the guard off (`flipLimit: 0`) if you prefer to keep trying. The guard needs the heavier level to cost something; it cannot tell a level that is too heavy from a device that is simply having a bad minute.
+- The flip-flop guard gives up for good on a level (until `force()` or `resetGuard()`), so a device that was only temporarily busy during three quick up-and-down cycles stays one level lower than it could. Raise `flipLimit` or leave it off (`flipLimit: 0`, the default) if you prefer to keep trying. The guard needs the heavier level to cost something; it cannot tell a level that is too heavy from a device that is simply having a bad minute.
 - `onChange` is where you apply a level. If applying it is expensive (resizing a canvas), the next few frames will look slow; the average restarts after a step down for that reason.
 
 **`FrameMeter`**
@@ -243,7 +243,7 @@ None of these ideas is new, and the established tools below are better in the wa
 - With no `onError`, an exception from a job leaves `run()` with the failed job already dropped; call `run()` again to continue.
 - Closing a half-finished generator in `clear()` runs its `finally` blocks; put clean-up there.
 
-Differences from the original game code, on purpose: `EvenDt` recomputes the median every `refreshEvery` accepted gaps (the original, by a quirk of its length check, recomputed it every frame once its window was full). `QualityGovernor` measures its start-up grace period from the first frame it sees instead of from time zero, takes its levels, thresholds and effects as options and a callback instead of changing game globals, and adds the flip-flop guard (on by default, `flipLimit: 0` for the plain behavior).
+Differences from the original game code, on purpose: `EvenDt` recomputes the median every `refreshEvery` accepted gaps (the original, by a quirk of its length check, recomputed it every frame once its window was full). `QualityGovernor` measures its start-up grace period from the first frame it sees instead of from time zero, takes its levels, thresholds and effects as options and a callback instead of changing game globals, and adds an optional flip-flop guard (off by default; `flipLimit: 3` turns it on).
 
 ## For AI agents
 
@@ -261,4 +261,4 @@ Differences from the original game code, on purpose: `EvenDt` recomputes the med
 Related: [`fx-governor`](../fx-governor/README.md) in this repository also steps effects down when a device cannot keep up, but never steps back up. `QualityGovernor` here steps back up after a calm spell. Pick the one that matches the behavior you want.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry

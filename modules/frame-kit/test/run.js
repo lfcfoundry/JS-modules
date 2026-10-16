@@ -524,11 +524,18 @@ function device(gov, slowAtZero, fromMs, toMs) {   // level 0 is too heavy (40 m
 }
 
 test('QualityGovernor: flip-flop guard stops the slow up/down cycle and stays at the lighter level', function () {
-  const log = [], gov = new QualityGovernor({ levels: 3, onChange: (l, p) => log.push([l, p]) });
+  const log = [], gov = new QualityGovernor({ levels: 3, flipLimit: 3, onChange: (l, p) => log.push([l, p]) });
   device(gov, true, 0, 600000);
   assert(log.length <= 8, 'changes: ' + log.length);
   assert(gov.level === 1 && gov.gaveUp, 'stays at 1, level ' + gov.level);
   assert(gov.flips === 3, 'three reversals counted: ' + gov.flips);
+});
+
+test('QualityGovernor: the guard is off unless you ask for it', function () {
+  const gov = new QualityGovernor({ levels: 3 });
+  assert(gov.flipLimit === 0, 'default flipLimit ' + gov.flipLimit);
+  device(gov, true, 0, 600000);
+  assert(!gov.gaveUp && gov.flips === 0, 'no give-up by default');
 });
 
 test('QualityGovernor: flipLimit 0 keeps the old endless cycle', function () {
@@ -553,7 +560,7 @@ test('QualityGovernor: a device that is only slow once is not penalised, and a r
 });
 
 test('QualityGovernor: force() starts the guard over', function () {
-  const gov = new QualityGovernor({ levels: 3 });
+  const gov = new QualityGovernor({ levels: 3, flipLimit: 3 });
   device(gov, true, 0, 600000); assert(gov.gaveUp);
   gov.force(0); assert(!gov.gaveUp && gov.flips === 0 && gov.level === 0);
   gov.force(2); gov.resetGuard();

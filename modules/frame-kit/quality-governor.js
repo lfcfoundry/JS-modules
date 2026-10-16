@@ -33,7 +33,7 @@
    * quick reversals (a step up followed by a step down within `flipWindow` ms).
    * Each reversal doubles the wait before that level is tried again, and after
    * `flipLimit` reversals the governor gives up on that level and stays put.
-   * `flipLimit: 0` turns the guard off (the older behavior).
+   * The guard is off by default (`flipLimit: 0`, the older behavior); `flipLimit: 3` turns it on.
    *
    * KNOWN LIMITATION: "slow" and "fast" are measured against a 60 Hz screen
    * (16.7 ms) by default. A clean 30 Hz screen (33.3 ms gaps) therefore looks
@@ -72,7 +72,7 @@
    * @param {number}   [opts.fastMs=10000]       Consecutive fast time (ms) needed to step up.
    * @param {number}   [opts.upDelay=10000]      Minimum ms since the last change before a step up.
    * @param {number}   [opts.maxGap=100]         Gaps above this (ms), or at or below 0, are not measured (tab switches, stalls) and break the slow streak; a gap above it also ends the fast streak.
-   * @param {number}   [opts.flipLimit=3]        Quick reversals on one level before the governor gives up on that level. 0 = guard off.
+   * @param {number}   [opts.flipLimit=0]        Quick reversals on one level before the governor gives up on that level. 0 (the default) = guard off, 3 is a good value.
    * @param {number}   [opts.flipWindow=30000]   A step down this soon (ms) after a step up to the same level is a reversal.
    * @param {boolean}  [opts.enabled=true]       When false, frame() does nothing.
    * @param {number}   [opts.level=0]            Starting level (onChange is not called for it).
@@ -91,7 +91,7 @@
     this.fastMs = pick(o.fastMs, 10000);
     this.upDelay = pick(o.upDelay, 10000);
     this.maxGap = pick(o.maxGap, 100);
-    this.flipLimit = Math.max(0, pick(o.flipLimit, 3) | 0);
+    this.flipLimit = Math.max(0, pick(o.flipLimit, 0) | 0);
     this.flipWindow = pick(o.flipWindow, 30000);
     this.enabled = pick(o.enabled, true);
     this.lastError = null;   // the last error thrown by onChange, if any
