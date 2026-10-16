@@ -23,7 +23,22 @@
     product name and branding.
     ===================================================================================
     --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>env-probes demo</title><style>body{font:16px system-ui,sans-serif;margin:1rem}pre{background:#eee;padding:1rem;border-radius:.5rem;white-space:pre-wrap}</style>
-<h1>env-probes demo</h1><p>What this browser lets your page do:</p><pre id="out"></pre>
-<script src="env-probes.js"></script><script>document.getElementById('out').textContent = JSON.stringify(EnvProbes.report(), null, 2);</script>
+<title>env-probes demo</title>
+<style>body{font:16px system-ui,sans-serif;margin:1rem;max-width:42rem}ul{padding-left:1.2rem}li{margin:.4rem 0}details{margin:1rem 0}pre{background:#eee;padding:1rem;border-radius:.5rem;white-space:pre-wrap;color:#111}button{font:inherit;padding:.4rem .8rem}</style>
+<h1>env-probes demo</h1><p>What this browser lets your page do. The checks run once by themselves when the page loads.</p>
+<ul id="lines"><li>Running the checks...</li></ul>
+<button id="again" type="button">Run again</button>
+<details><summary>Raw numbers (for bug reports)</summary><pre id="out"></pre></details>
+<script src="env-probes.js"></script>
+<script>
+  function run() {
+    EnvProbes._reset();   // forget cached answers so "Run again" really measures again
+    var lines = document.getElementById('lines'), out = document.getElementById('out');
+    lines.textContent = '';
+    EnvProbes.explain().forEach(function (s) { var li = document.createElement('li'); li.textContent = s; lines.appendChild(li); });
+    out.textContent = JSON.stringify(EnvProbes.report(), null, 2);
+  }
+  document.getElementById('again').onclick = run;
+  run();
+</script>
 <footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/JNFoo" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
