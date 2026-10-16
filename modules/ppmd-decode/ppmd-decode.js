@@ -118,7 +118,7 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
   function splitBlock(ptr, oldIndx, newIndx) {
     insertBlock(ptr + indx2Units[newIndx] * 12, indx2Units[oldIndx] - indx2Units[newIndx]);
   }
-  /* Merge neighbouring free blocks, then refill the free lists. */
+  /* Merge neighboring free blocks, then refill the free lists. */
   function glueFreeBlocks() {
     var n = head, i, nu, next, node, node2, prev2, next2;
     glueCount = 255;
