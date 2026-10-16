@@ -1,5 +1,6 @@
-/* Tests for lzma-decode: compares the decoder with Python's own lzma module (liblzma) on many inputs and settings.
-   Run: node lzma-pack/test/run.js   (needs python3 on the PATH; no network, no packages) */
+/* Copyright (c) 2026 LFC Foundry. MIT License.
+   Tests for lzma-decode: compares the decoder with Python's own lzma module (liblzma) on many inputs and settings.
+   Run: node modules/lzma-decode/test/run.js   (needs python3 on the PATH; no network, no packages) */
 'use strict';
 const { execFileSync } = require('child_process');
 const path = require('path');
@@ -58,6 +59,17 @@ jobs.forEach((j, i) => {
 { const j = jobs.find((x) => x.kind === 'text' && x.n === 30000 && x.p[0] === 4); const i = jobs.indexOf(j); const raw = Uint8Array.from(Buffer.from(out[i].raw, 'hex'));
   let threw = false; try { lzmaDecode(raw.subarray(0, raw.length >> 1), j.n, { lc: 4, lp: 0, pb: 0 }); } catch (e) { threw = /ended early|before the start/.test(e.message); }
   check('a cut-short stream throws', threw);
+  // a cut-short stream that claims a huge result must fail at once, not after decoding 64 MB of nothing
+  // (8 zero bytes decode as an endless run of zero literals, so the old end-only check had to fill all 64 MB before it complained)
+  { const t1 = Date.now(); let msg = ''; try { lzmaDecode(new Uint8Array(8), 64 << 20, { lc: 4, lp: 0, pb: 0 }); } catch (e) { msg = e.message; }
+    const ms1 = Date.now() - t1; check('early truncation check: cut stream with a 64 MB claim fails fast (took ' + ms1 + ' ms)', /ended early/.test(msg) && ms1 < 400, msg); }
+  // maxSize ceiling
+  { let msg = ''; try { lzmaDecode(raw, j.n, { lc: 4, lp: 0, pb: 0, maxSize: j.n - 1 }); } catch (e) { msg = e.message; } check('maxSize below the size is refused before allocating', /maxSize/.test(msg), msg);
+    check('maxSize equal to the size decodes', Buffer.compare(Buffer.from(lzmaDecode(raw, j.n, { lc: 4, lp: 0, pb: 0, maxSize: j.n })), Buffer.from(j.data)) === 0);
+    msg = ''; try { lzmaDecode(raw, 4e9, { maxSize: 1 << 20 }); } catch (e) { msg = e.message; } check('a 4 GB claim with maxSize is an Error, not a RangeError or a crash', /maxSize/.test(msg), msg);
+    const fi = jobs.findIndex((x) => x.kind === 'text' && x.n === 30000 && x.p[0] === 4); const fb = Uint8Array.from(Buffer.from(out[fi].alone, 'hex')); msg = '';
+    try { lzmaDecode.file(fb, 30000, { maxSize: 10 }); } catch (e) { msg = e.message; } check('file(): maxSize is passed through', /maxSize/.test(msg), msg);
+    check('file(): maxSize large enough still decodes', lzmaDecode.file(fb, 30000, { maxSize: 30000 }).length === 30000); }
   threw = false; try { lzmaDecode(raw, j.n, { lc: 9 }); } catch (e) { threw = true; } check('lc 9 is refused', threw);
   threw = false; try { lzmaDecode.file(new Uint8Array(5)); } catch (e) { threw = true; } check('a tiny file is refused', threw);
   // speed: decode 1.5 MB in well under 2 seconds

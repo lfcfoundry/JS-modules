@@ -6,20 +6,28 @@
        src      Uint8Array: the compressed bytes, WITHOUT the leading zero byte every LZMA stream starts with
                 (a raw stream made by liblzma/xz starts "00 xx xx xx xx": drop the first byte)
        outSize  the exact number of bytes the result has (the decoder stops there; an end marker, if present, is ignored)
-       opts     { lc, lp, pb }  the literal-context, literal-position and position bits the stream was made with
+       opts     { lc, lp, pb, maxSize }  the literal-context, literal-position and position bits the stream was made with
                 (defaults 4, 0, 0: what lzma-pack's packer uses). xz's own default is lc=3, lp=0, pb=2.
+                maxSize (optional): refuse to allocate more than this many bytes. Use it when outSize comes from a file you did not
+                pack yourself: a .lzma header can ask for up to 4 GB.
 
-     lzmaDecodeFile(bytes, size)  decodes a classic .lzma file (13-byte header: properties, dictionary size, 8-byte size).
+     lzmaDecodeFile(bytes, size, opts)  decodes a classic .lzma file (13-byte header: properties, dictionary size, 8-byte size).
                             If the header says "size unknown" (xz and Python's lzma write that), pass the size yourself.
+                            opts may carry maxSize (the other fields come from the header).
 
-   Throws an Error on input that is cut short or points before the start of the output. It does not verify a checksum:
+   Throws an Error on input that is cut short (noticed as soon as the decoder reads past the end, not only at the end) or points
+   before the start of the output, and when outSize is more than opts.maxSize. It does not verify a checksum:
    LZMA streams have none, so check the result yourself if you need to (lzma-pack's loader does).
    Written from the LZMA specification. The probability model is the standard one: 11-bit probabilities, adaptation shift 5,
-   the range coder normalizes below 2^24. The output buffer doubles as the dictionary, so there is no window limit. */
+   the range coder normalizes below 2^24. The output buffer doubles as the dictionary, so there is no window limit.
+   Syntax is ES5, but Uint16Array.prototype.fill (used in probs) is an ES2015 method: a browser from before 2015 lacks it.
+   This file is deliberately not wrapped in a UMD function: tools/lzma-pack/pack.py cuts it where the file helper below begins and pastes
+   the part above into every packed page; that helper must stay the last function. Keep it plain ASCII for the same reason (the packed page is read as windows-1252). */
 function lzmaDecode(src, outSize, opts) {
   opts = opts || {};
   var lc = opts.lc === undefined ? 4 : opts.lc, lp = opts.lp === undefined ? 0 : opts.lp, pb = opts.pb === undefined ? 0 : opts.pb;
   if (!(lc >= 0 && lc <= 8 && lp >= 0 && lp <= 4 && pb >= 0 && pb <= 4)) throw new Error('LZMA: lc 0-8, lp 0-4 and pb 0-4 are supported');
+  if (opts.maxSize !== undefined && !(outSize <= opts.maxSize)) throw new Error('LZMA: the result would be ' + outSize + ' bytes, more than the allowed maxSize of ' + opts.maxSize);
   var out = new Uint8Array(outSize), ip = 0, op = 0;
   var range = 0xFFFFFFFF, code = 0;            // the range coder: both stay unsigned 32-bit
   var state = 0, rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;   // the match state (0-11) and the four most recent distances (minus one)
@@ -56,6 +64,7 @@ function lzmaDecode(src, outSize, opts) {
   var i, posState, prev, base, sym, matchByte, matchBit, len, slot, nb, dist, x, k, b;
   for (i = 0; i < 4; i++) code = (code * 256 + next()) >>> 0;   // the first 4 bytes of the stream seed the range coder
   while (op < outSize) {
+    if (ip > src.length) throw new Error('LZMA: the compressed data ended early');   // a valid stream never reads past its end: stop at once, not after decoding garbage to the full size
     posState = op & pbMask;
     if (!bit(isMatch, (state << 4) + posState)) {   // a literal byte
       prev = op ? out[op - 1] : 0;
@@ -112,7 +121,7 @@ function lzmaDecode(src, outSize, opts) {
   return out;
 }
 
-function lzmaDecodeFile(bytes, size) {   // a classic .lzma file: props byte, 4-byte dictionary size, 8-byte uncompressed size, then the stream
+function lzmaDecodeFile(bytes, size, opts) {   // a classic .lzma file: props byte, 4-byte dictionary size, 8-byte uncompressed size, then the stream
   if (bytes.length < 14) throw new Error('LZMA: file too short');
   var d = bytes[0], lc = d % 9; d = (d - lc) / 9;
   var lp = d % 5, pb = (d - lp) / 5, i, unknown = true, high = false;
@@ -121,7 +130,7 @@ function lzmaDecodeFile(bytes, size) {   // a classic .lzma file: props byte, 4-
   if (unknown) { if (size === undefined) throw new Error('LZMA: the file does not say how big the result is: pass the size as the second argument'); }
   else if (high) throw new Error('LZMA: sizes above 4 GB are not supported');
   else if (size === undefined) size = bytes[5] + bytes[6] * 256 + bytes[7] * 65536 + bytes[8] * 16777216;
-  return lzmaDecode(bytes.subarray(14), size, { lc: lc, lp: lp, pb: pb });   // byte 13 is the always-zero first stream byte
+  return lzmaDecode(bytes.subarray(14), size, { lc: lc, lp: lp, pb: pb, maxSize: opts && opts.maxSize });   // byte 13 is the always-zero first stream byte
 }
 lzmaDecode.file = lzmaDecodeFile;
 
