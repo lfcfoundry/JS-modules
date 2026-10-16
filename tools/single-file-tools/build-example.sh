@@ -1,6 +1,6 @@
 #!/bin/bash
 # The whole single-file pipeline, as used for Apple Press, in one place. Each step is optional.
-# Part of JS-modules, https://github.com/JNFoo/JS-modules. Copyright (c) 2026 LFC Foundry. MIT License.
+# Part of JS-modules, https://github.com/lfcfoundry/JS-modules. Copyright (c) 2026 LFC Foundry. MIT License.
 # Usage: ./build-example.sh game.html            (writes game.slim.html and game.small.html next to it)
 # Works from any folder: the tools are found next to this script, the input path is taken as you type it.
 # Needs: pip install fonttools brotli zopfli ; npm i svgo terser html-minifier-terser

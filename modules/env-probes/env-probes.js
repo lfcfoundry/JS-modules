@@ -1,6 +1,6 @@
 /*!
  * env-probes.js: tiny checks for browsers that quietly change what your page can do.
- * Part of JS-modules, https://github.com/JNFoo/JS-modules
+ * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  *  timerStepMs()         the smallest step performance.now() takes, in ms (0 when it never moved). Measured with a bounded loop, no waiting.

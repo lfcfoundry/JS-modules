@@ -1,4 +1,4 @@
-/* frame-meter: a tiny speed meter for requestAnimationFrame games: frames a second, slowest frame, hitches with a plain-words cause, and tap-to-next-frame delay. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules */
+/* frame-meter: a tiny speed meter for requestAnimationFrame games: frames a second, slowest frame, hitches with a plain-words cause, and tap-to-next-frame delay. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.FrameMeter = factory();

@@ -1,7 +1,7 @@
 /*!
  * back-close.js: make the phone's back swipe or back button close the top panel, instead of leaving the page.
  * Uses CloseWatcher, which is also what the Escape key and the desktop close gestures go through.
- * Part of JS-modules, https://github.com/JNFoo/JS-modules
+ * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  *   var panelBack = BackClose.watch(panel, function () { closePanel(); });   // panel: any element that uses the `hidden` attribute

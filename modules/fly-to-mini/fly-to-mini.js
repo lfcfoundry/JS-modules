@@ -1,7 +1,7 @@
 /*!
  * fly-to-mini.js: when a big element scrolls away, a copy of its small stand-in flies from it to the sticky mini version
  * (and back again when you scroll up). A shared-element transition for scroll, with an arc, a tilt and a squash.
- * Part of JS-modules, https://github.com/JNFoo/JS-modules
+ * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  *   var fly = FlyToMini.create({

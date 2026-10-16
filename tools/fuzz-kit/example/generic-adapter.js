@@ -1,6 +1,6 @@
 /* A zero-game-code adapter: random clicks on visible controls, taps near the middle of the screen, key presses, scrolling and short waits,
    with one rule checked after every move: no NaN, undefined or [object ...] in the visible text.
-   Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/JNFoo/JS-modules
+   Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
    Use it for a first look at any click-style page (it replaces the old fuzz-play "dom-actions" file):
      python3 tools/fuzz-kit/runner/fuzz_playwright.py file:///path/game.html tools/fuzz-kit/example/generic-adapter.js --seeds 1-10 --ops 300
    Limits: it knows nothing about your rules, so it finds crashes and junk text, not wrong numbers; the short waits use real time, so a run is the same moves

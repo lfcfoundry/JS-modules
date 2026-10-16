@@ -1,6 +1,6 @@
 /*!
  * wake-keeper.js: keep the screen awake only while a game really wants it.
- * Part of JS-modules, https://github.com/JNFoo/JS-modules
+ * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  *   var wk = WakeKeeper.create({ idleMs: 60000, onRefused: function (err) { ... } });

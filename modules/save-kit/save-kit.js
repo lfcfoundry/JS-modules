@@ -1,6 +1,6 @@
 /*!
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
- * Part of JS-modules, https://github.com/JNFoo/JS-modules
+ * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
  *
  * What it gives you

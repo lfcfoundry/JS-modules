@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a fuzz-kit adapter against a page with Playwright for Python.  Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/JNFoo/JS-modules
+"""Run a fuzz-kit adapter against a page with Playwright for Python.  Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
 
   python3 runner/fuzz_playwright.py URL ADAPTER.js [--seeds 1-20] [--ops 400] [--browser chromium|firefox|webkit] [--viewport 412x892]
       [--shrink] [--shrink-tries 200] [--shrink-secs 30]      when a seed fails, cut it down to the shortest replay (same game, recorded) and print it

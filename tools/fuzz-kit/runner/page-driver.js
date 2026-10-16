@@ -1,5 +1,5 @@
 /* page-driver: the in-page half of the fuzz-kit runners (fuzz_playwright.py and fuzz_puppeteer.mjs both inject it, after src/fuzz-core.js and your adapter's
-   window.__fuzzConfig). Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/JNFoo/JS-modules
+   window.__fuzzConfig). Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
 
    It starts one seed and leaves the answer in window variables, because a runner that waits on one long evaluate() call cannot notice a page that hangs:
 

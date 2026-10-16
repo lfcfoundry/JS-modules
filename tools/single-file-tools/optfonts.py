@@ -1,6 +1,6 @@
 """
 optfonts.py: cut every base64 font embedded in an HTML file down to the characters the file can actually show.
-Part of JS-modules, https://github.com/JNFoo/JS-modules
+Part of JS-modules, https://github.com/lfcfoundry/JS-modules
 Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
 
 Collects every character in the file (typed directly, written as \\uXXXX / \\u{...} / \\xNN, as a JavaScript surrogate pair

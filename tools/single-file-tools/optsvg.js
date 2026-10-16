@@ -1,4 +1,4 @@
-// optsvg.js, part of JS-modules (https://github.com/JNFoo/JS-modules). Copyright (c) 2026 LFC Foundry, MIT License.
+// optsvg.js, part of JS-modules (https://github.com/lfcfoundry/JS-modules). Copyright (c) 2026 LFC Foundry, MIT License.
 // Usage: npm i svgo; node optsvg.js in.html out.html [--report]
 // Compresses the inline SVG pictures that are written directly in the page's markup, anywhere in the file (also after the game's script).
 // SVG text inside <script>, <style>, <textarea> and comments is left byte for byte as it is: a script that builds pictures from a string

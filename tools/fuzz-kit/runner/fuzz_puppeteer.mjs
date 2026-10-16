@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Run a fuzz-kit adapter against a page with Puppeteer (Chrome, or stock Firefox over WebDriver BiDi).
-// Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/JNFoo/JS-modules
+// Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
 //   node runner/fuzz_puppeteer.mjs URL ADAPTER.js [--seeds 1-20] [--ops 400] [--browser chrome|firefox] [--executable /path/to/browser] [--viewport 412x892]
 //       [--shrink] [--shrink-tries 200] [--shrink-secs 30] [--seed-secs 120] [--bundle DIR] [--throttle 4] [--real-input] [--junk-text] [--junk-skip "a,b"]
 //       [--ignore-console REGEX]... [--allow-console-errors] [--allow-navigation] [--hang-trace] [--init "JS"] [--mobile]

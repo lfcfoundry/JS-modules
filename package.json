@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "description": "Small, dependency-free pieces for single-file browser games, extracted from Apple Press and Fancy, the Banana.",
   "license": "MIT",
-  "author": "JNFoo",
+  "author": "LFC Foundry",
   "repository": {
     "type": "git",
-    "url": "https://github.com/JNFoo/JS-modules.git"
+    "url": "https://github.com/lfcfoundry/JS-modules.git"
   },
-  "homepage": "https://jnfoo.github.io/JS-modules/",
+  "homepage": "https://lfcfoundry.github.io/JS-modules/",
   "scripts": {
     "test": "node tests/run.js",
     "test:kits": "node tests/kits.js",

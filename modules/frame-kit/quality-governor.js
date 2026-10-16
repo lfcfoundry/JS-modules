@@ -1,4 +1,4 @@
-/* quality-governor: steps a quality level up or down from how long frames really take, with hysteresis. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/JNFoo/JS-modules */
+/* quality-governor: steps a quality level up or down from how long frames really take, with hysteresis. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.QualityGovernor = factory();
