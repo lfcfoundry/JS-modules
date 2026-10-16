@@ -161,6 +161,16 @@ say "a new bad commit on that branch is stopped" 1 "$(push origin feature)"
 git reset -q --hard HEAD~1
 say "deleting a remote branch passes" 0 "$(push origin :feature)"
 
+# the author allow-list (tools/hooks/authors.txt): a copy of the hooks with one extra person listed, and Claude listed on purpose
+cd "$tmp" && mkdir hooks2 && cp "$here"/* hooks2/ && printf 'JNFoo <%s>\nPat Doe <pat@example.com>\nClaude <noreply@anthropic.com>\n' "$MAIL" > hooks2/authors.txt
+newrepo "$tmp/list" && git config core.hooksPath "$tmp/hooks2"
+git config user.name "Pat Doe"; git config user.email pat@example.com; t "a person on the allow-list may commit" 0 "Add a thing"
+git config user.name "Pat Doe"; git config user.email other@example.com; t "the right name with an unlisted address is blocked" 1 "Add a thing"
+git config user.name Claude; git config user.email noreply@anthropic.com; t "Claude is blocked even when listed" 1 "Add a thing"
+git config user.name JNFoo; git config user.email "$MAIL"; t "the owner still passes with the extra people listed" 0 "Add a thing"
+rm "$tmp/hooks2/authors.txt"; git config user.name "Pat Doe"; git config user.email pat@example.com; t "with no authors.txt only the owner passes" 1 "Add a thing"
+cd "$tmp"
+
 # install.sh: sets the path, leaves a different one alone unless told, reports what it did
 mkdir "$tmp/inst" && cd "$tmp/inst" && git init -q . && git config user.name JNFoo && git config user.email "$MAIL" || exit 1
 mkdir -p tools && cp -R "$here" tools/hooks && chmod -x tools/hooks/pre-push

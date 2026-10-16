@@ -3,13 +3,29 @@
 #
 # The rules, exactly as the owner set them (do not loosen or scope them without asking the owner; see README.md):
 #  - no "Claude-Session:" line and no claude.ai link in a commit message (a Co-Authored-By trailer is fine)
-#  - author AND committer are JNFoo with the noreply address
+#  - author AND committer are on the allow-list in tools/hooks/authors.txt (it starts with JNFoo and the noreply address only); a name or
+#    address that contains "claude" or "anthropic" is always refused, even if someone puts it on the list
 #  - any version stamp in a message is year.month.day.HHMM with two-digit parts
 # Plain POSIX sh (awk, grep, sed). grep -o and \b work on GNU, BusyBox and BSD.
 
 HR_NAME="JNFoo"
 HR_MAIL="45110762+JNFoo@users.noreply.github.com"
 HR_PREFIX="house rules: "
+# The folder the hooks live in (the hook that sourced this file sets $here; the fallback is the repository's own copy).
+[ -n "${here:-}" ] || here="$(git rev-parse --show-toplevel 2>/dev/null)/tools/hooks"
+HR_AUTHORS="$here/authors.txt"
+
+# hr_listed IDENT: 0 if "Name <email>" is allowed. Refused outright: anything with "claude" or "anthropic" in it. Allowed: an exact line of
+# authors.txt (blank lines and lines starting with "#" are ignored). With no authors.txt the list is just JNFoo, so a broken checkout
+# fails closed, not open.
+hr_listed() {
+  case $(printf '%s' "$1" | tr 'A-Z' 'a-z') in *claude*|*anthropic*) return 1 ;; esac
+  if [ -f "$HR_AUTHORS" ]; then
+    grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$HR_AUTHORS" | sed 's/[[:space:]]*$//' | grep -qxF -- "$1"
+  else
+    [ "$1" = "$HR_NAME <$HR_MAIL>" ]
+  fi
+}
 
 # hr_body FILE: the message text that counts when git hands a hook the message file. Drops git's own template comment block
 # (from its "# Please enter ..." line to the end) and everything after the scissors line (the diff that --verbose appends).
@@ -42,15 +58,12 @@ hr_message() {
   return $_bad
 }
 
-# hr_check_idents: the author and committer git would use for the next commit. Return 1 (with a message) if either is not JNFoo.
+# hr_check_idents: the author and committer git would use for the next commit. Return 1 (with a message) if either is not on the allow-list.
 hr_check_idents() {
   _ibad=0
   for _v in GIT_AUTHOR_IDENT GIT_COMMITTER_IDENT; do
-    _id=$(git var "$_v" 2>/dev/null)
-    case "$_id" in
-      "$HR_NAME <$HR_MAIL> "*) ;;
-      *) echo "${HR_PREFIX}$_v is '$_id'. Run: git config user.name $HR_NAME && git config user.email $HR_MAIL" >&2; _ibad=1 ;;
-    esac
+    _id=$(git var "$_v" 2>/dev/null | sed -E 's/ [0-9]+ [-+][0-9]{4}$//')
+    hr_listed "$_id" || { echo "${HR_PREFIX}$_v is '$_id', which is not on the allow-list (tools/hooks/authors.txt). Owner: git config user.name $HR_NAME && git config user.email $HR_MAIL" >&2; _ibad=1; }
   done
   return $_ibad
 }
@@ -60,8 +73,8 @@ hr_commit() {
   _cbad=0
   _ids=$(git log -1 --format='%an <%ae>%n%cn <%ce>' "$1" 2>/dev/null)
   _a=$(printf '%s\n' "$_ids" | sed -n 1p); _c=$(printf '%s\n' "$_ids" | sed -n 2p)
-  [ "$_a" = "$HR_NAME <$HR_MAIL>" ] || { echo "${HR_PREFIX}author is '$_a' (must be $HR_NAME <$HR_MAIL>)" >&2; _cbad=1; }
-  [ "$_c" = "$HR_NAME <$HR_MAIL>" ] || { echo "${HR_PREFIX}committer is '$_c' (must be $HR_NAME <$HR_MAIL>)" >&2; _cbad=1; }
+  hr_listed "$_a" || { echo "${HR_PREFIX}author is '$_a' (not on the allow-list in tools/hooks/authors.txt)" >&2; _cbad=1; }
+  hr_listed "$_c" || { echo "${HR_PREFIX}committer is '$_c' (not on the allow-list in tools/hooks/authors.txt)" >&2; _cbad=1; }
   git log -1 --format=%B "$1" > "$2" 2>/dev/null
   hr_message "$2" final || _cbad=1
   return $_cbad

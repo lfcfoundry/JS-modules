@@ -33,5 +33,5 @@ if [ -d "$old" ]; then
 fi
 # the rules need the identity to be right; install.sh never changes it
 who="$(git config user.name) <$(git config user.email)>"
-[ "$who" = "JNFoo <45110762+JNFoo@users.noreply.github.com>" ] || echo "install.sh: note: git identity is '$who'. Commits are blocked until: git config user.name JNFoo && git config user.email 45110762+JNFoo@users.noreply.github.com"
+[ "$who" = "JNFoo <45110762+JNFoo@users.noreply.github.com>" ] || echo "install.sh: note: git identity is '$who'. Commits are blocked until it is on the allow-list in tools/hooks/authors.txt (owner: git config user.name JNFoo && git config user.email 45110762+JNFoo@users.noreply.github.com)"
 exit 0

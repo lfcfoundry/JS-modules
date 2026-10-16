@@ -10,13 +10,13 @@ Git does not copy hooks when it clones a repository, so these live in a tracked 
 
 - If `core.hooksPath` is already set to something else (another tool may own it), `install.sh` **does not replace it**. It prints the existing path, changes nothing and exits 1. To switch anyway, run `sh tools/hooks/install.sh --replace`: it prints the old value and saves it as `git config house.previousHooksPath`.
 - It also names any hooks left in `.git/hooks` that stop running once the path is set.
-- It never changes your git identity; it only tells you if the identity is not JNFoo.
+- It never changes your git identity; it only tells you if the identity is not on the allow-list.
 
 **Claude Code sessions** get this automatically: `.claude/settings.json` at the repository root has one `SessionStart` hook that runs `install.sh`, so a fresh cloud clone is protected without anyone remembering. It only helps Claude Code; a plain terminal, another tool or a clone made some other way still needs the manual command. (Claude Code asks a person to approve project hooks the first time; the script only sets one local git setting.)
 
 ## The rules (exactly as the owner set them)
 - No `Claude-Session:` line and no `claude.ai/` link in a commit message. A `Co-Authored-By` trailer is fine.
-- Author **and** committer must be `JNFoo <45110762+JNFoo@users.noreply.github.com>`.
+- Author **and** committer must be a `Name <email>` line in `tools/hooks/authors.txt`. The file starts with only `JNFoo <45110762+JNFoo@users.noreply.github.com>`; adding an outside contributor is a deliberate edit to that file. A name or address containing `claude` or `anthropic` is always refused, even if listed. With no `authors.txt` only JNFoo passes.
 - A version stamp in a message must be `year.month.day.HHMM` with two-digit parts (for example `2026.10.14.0817`).
 - American spelling in added lines (a warning).
 - The MIT header on every new `.js`, `.py` and `.sh` file, and the LFC Foundry comment right after `<!doctype html>` on every new `.html` file (a warning).
@@ -37,10 +37,10 @@ The commit-time hooks sit on one door of a house with several.
 - **`--no-verify` can still skip them.** `git commit --no-verify` and `git push --no-verify` skip these hooks, and nothing records it. That is deliberate in git, so these hooks catch the common slip, not a determined bypass.
 - **Commits made elsewhere.** Commits made on the GitHub website or through an API tool never run local hooks (and the website's committer is `GitHub`, which the rule would reject). A check on GitHub itself (an Actions workflow) would be the only backstop that does not depend on the local clone; it is not built yet.
 
-## Open question for the owner
-The author and committer rule applies to everyone who installs the hooks. `AGENTS.md` welcomes contributions under MIT, but an outside person who runs `install.sh` as told cannot commit under their own name. The owner has **not** decided whether the author rule should be scoped to the owner's helper sessions (for example, only when a session variable is set, or only for pushes to the owner's branches) or stay as it is. Until he decides, the rule is exactly as set above for everyone. Do not loosen it on your own.
+## Outside contributors
+The author rule used to allow only JNFoo, which stopped an outside person who ran `install.sh` from committing under their own name. Now the rule is the allow-list above: the owner adds a person to `authors.txt` when they join. Claude and bot identities stay refused.
 
 ## Test
-`sh tools/hooks/test.sh` builds throwaway repositories (and a throwaway bare remote) under `mktemp`, clears the git identity variables first, and runs 71 checks: 41 for `commit-msg` and `pre-commit` (messages, identities, the template and scissors skips, spelling, headers) and 30 for `pre-push` and `install.sh`. It refuses to start if the scratch folder would be inside the real repository and stops if `mktemp` or `cd` fails.
+`sh tools/hooks/test.sh` builds throwaway repositories (and a throwaway bare remote) under `mktemp`, clears the git identity variables first, and runs 76 checks: 46 for `commit-msg` and `pre-commit` (messages, identities, the template and scissors skips, spelling, headers) and 30 for `pre-push` and `install.sh`. It refuses to start if the scratch folder would be inside the real repository and stops if `mktemp` or `cd` fails.
 
 Why: these rules had to be repeated by the owner; a hook checks them every time. Claude Code's own commit reminder asks for a session line, and this hook is what stops it.

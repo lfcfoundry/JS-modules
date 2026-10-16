@@ -1,0 +1,4 @@
+# Copyright (c) 2026 LFC Foundry. MIT License.
+# Who may be the author and committer of a commit here. One "Name <email>" per line, exact match. Blank lines and "#" lines are ignored.
+# A name or address containing "claude" or "anthropic" is always refused, even if it is listed. Add a person by editing this file on purpose.
+JNFoo <45110762+JNFoo@users.noreply.github.com>

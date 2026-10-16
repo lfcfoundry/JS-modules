@@ -31,7 +31,7 @@ done
 if [ "$bad" -gt 0 ]; then
   [ "$bad" -gt "$shown" ] && echo "pre-push: ... and $((bad - shown)) more commit(s)." >&2
   echo "pre-push: $bad of $checked outgoing commit(s) break the house rules (AGENTS.md), so nothing was pushed." >&2
-  echo "pre-push: to fix the author and committer of the last N commits: git config user.name $HR_NAME && git config user.email $HR_MAIL &&" >&2
+  echo "pre-push: to fix the author and committer of the last N commits (the owner): git config user.name $HR_NAME && git config user.email $HR_MAIL &&" >&2
   echo "          git rebase --exec 'git commit --amend --no-edit --reset-author' HEAD~N     (a message needs 'git rebase -i HEAD~N' and 'reword')." >&2
   exit 1
 fi
