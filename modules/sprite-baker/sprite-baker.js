@@ -11,6 +11,7 @@ var SpriteBaker = (function () {
   var NO_DEPTH = -1e9;        // depth buffer clear value; anything nearer than this is drawn
   var DEFAULT_CULL = -0.75;   // triangles whose three normals' z sum is below this are skipped (see tri)
   var DEFAULT_LIGHT = [-0.42, -0.62, 0.66];   // from the upper left, toward the viewer (y is down, so -y is up)
+  var DEFAULT_MAX_PIXELS = 4194304;   // ceiling on w * h * ss * ss for one working surface (8 bytes a pixel, about 32 MiB); see opts.maxPixels
 
   /* ------------------------------------------------------------------ small vector helpers */
 
@@ -55,7 +56,9 @@ var SpriteBaker = (function () {
   };
 
   function makeImage(w, h, data) {
-    if (typeof ImageData !== 'undefined') return new ImageData(data, w, h);
+    if (typeof ImageData !== 'undefined') {
+      try { return new ImageData(data, w, h); } catch (e) { /* zero size or a mismatch: fall through to the plain object */ }
+    }
     return { width: w, height: h, data: data };
   }
 
@@ -137,12 +140,15 @@ var SpriteBaker = (function () {
   function tri(rast, a, b, c, mat, opts) {
     var cull = opts && opts.cull !== undefined ? opts.cull : DEFAULT_CULL;
     if (cull !== false && a[5] + b[5] + c[5] < cull) return;
+    /* A NaN or infinite number anywhere in the triangle would poison the depth buffer (NaN never loses a depth test, so
+       every later triangle would overwrite that pixel). Skip such a triangle whole. One sum per triangle, not per pixel. */
+    if (!isFinite(a[0] + a[1] + a[2] + a[3] + a[4] + a[5] + b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + c[0] + c[1] + c[2] + c[3] + c[4] + c[5])) return;
     mat = asMaterial(mat);
 
     var w = rast.w, h = rast.h, zbuf = rast.z, out = rast.px, lut = mat.lut;
     var x0 = a[0], y0 = a[1], x1 = b[0], y1 = b[1], x2 = c[0], y2 = c[1];
     var area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
-    if (area === 0) return;
+    if (area === 0 || !isFinite(area)) return;
     var minx = Math.max(0, Math.floor(Math.min(x0, x1, x2))), maxx = Math.min(w - 1, Math.ceil(Math.max(x0, x1, x2)));
     var miny = Math.max(0, Math.floor(Math.min(y0, y1, y2))), maxy = Math.min(h - 1, Math.ceil(Math.max(y0, y1, y2)));
     var inv = 1 / area;
@@ -159,6 +165,7 @@ var SpriteBaker = (function () {
         if (w0 < -1e-5 || w1 < -1e-5 || w2 < -1e-5) continue;
 
         z = w0 * a[2] + w1 * b[2] + w2 * c[2];
+        if (!isFinite(z)) continue;   // belt and braces: never store a non-finite depth
         idx = y * w + x;
         if (z <= zbuf[idx]) continue;
         zbuf[idx] = z;
@@ -199,8 +206,11 @@ var SpriteBaker = (function () {
   /* A 3x3 rotation matrix (row-major, 9 numbers) about `axis` (any length, normalized here), by phi radians.
      The sense is chosen so that rotateX with a positive phi turns the TOP of a shape (-y) toward the viewer (+z), which
      is what a shape rolling toward the camera looks like in a y-down screen. Sines and cosines within 1e-12 of 0 are
-     snapped to 0, so a full turn (phi = 2 pi) reproduces the identity exactly and a looping roll loops pixel for pixel. */
+     snapped to 0, so a full turn (phi = 2 pi) reproduces the identity exactly and a looping roll loops pixel for pixel.
+     A zero-length or non-finite axis, or a non-finite phi, gives the identity (no turn) instead of a shrunken shape. */
   function rotationMatrix(axis, phi) {
+    var len = Math.sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    if (!(len > 0) || !isFinite(len) || !isFinite(phi)) return [1, 0, 0, 0, 1, 0, 0, 0, 1];
     var u = norm3(axis[0], axis[1], axis[2]), c = Math.cos(-phi), s = Math.sin(-phi), t, x = u[0], y = u[1], z = u[2];
     if (Math.abs(c) < 1e-12) c = 0;
     if (Math.abs(s) < 1e-12) s = 0;
@@ -472,13 +482,23 @@ var SpriteBaker = (function () {
     return makeImage(img.width, img.height, new Uint8ClampedArray(img.data));
   }
 
-  /* toCanvas(img): browser only. Returns a new <canvas> holding the image. */
-  function toCanvas(img) {
-    if (typeof document === 'undefined') throw new Error('toCanvas needs a browser document');
-    var c = document.createElement('canvas');
-    c.width = img.width; c.height = img.height;
-    c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(img.data), img.width, img.height), 0, 0);
-    return c;
+  /* toCanvas(img, opts): browser only. Returns a new <canvas> holding the image, or null (never throws) when there is no
+     document (Node, a worker), the image is empty or malformed, or the browser will not give a 2D context (it does that for
+     a canvas that is too large). Callers must handle null.
+     opts.willReadFrequently: true asks the browser for a plain-memory canvas (getContext('2d', { willReadFrequently: true })).
+     Default unchanged: getContext('2d') with no options. Keep the flag off for sprites you only draw. */
+  function toCanvas(img, opts) {
+    try {
+      if (typeof document === 'undefined' || !document || !img) return null;
+      var w = img.width, h = img.height;
+      if (!(w > 0) || !(h > 0) || w !== Math.floor(w) || h !== Math.floor(h)) return null;
+      var c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      var g = opts && opts.willReadFrequently ? c.getContext('2d', { willReadFrequently: true }) : c.getContext('2d');
+      if (!g) return null;
+      g.putImageData(new ImageData(new Uint8ClampedArray(img.data), w, h), 0, 0);
+      return c;
+    } catch (e) { return null; }
   }
 
   /* A scene is an array of parts (or { parts: [...] }). A part is { mesh, material } with a mesh() result, or
@@ -495,7 +515,8 @@ var SpriteBaker = (function () {
   }
 
   function sizeOf(size) {
-    var w = Array.isArray(size) ? size[0] : typeof size === 'object' ? size.width : size, h = Array.isArray(size) ? size[1] : typeof size === 'object' ? size.height : size;
+    var o = size && typeof size === 'object' && !Array.isArray(size);
+    var w = Array.isArray(size) ? size[0] : o ? size.width : size, h = Array.isArray(size) ? size[1] : o ? size.height : size;
     return [w | 0, h | 0];
   }
 
@@ -508,20 +529,29 @@ var SpriteBaker = (function () {
       p = part.mesh.pos; n = p.length / 3;
       for (k = 0; k < n; k++) {
         dx = p[k * 3] - center[0]; dy = p[k * 3 + 1] - center[1]; dz = p[k * 3 + 2] - center[2];
+        if (!isFinite(dx + dy + dz)) continue;   // a NaN point must not reach `far` (Math.max keeps NaN)
         rho = Math.sqrt(dy * dy + dz * dz);
         if (Math.abs(dx) > halfW) halfW = Math.abs(dx);
         if (rho > halfH) halfH = rho;
-        far = Math.max(far, Math.sqrt(dx * dx + dy * dy + dz * dz));
+        far = Math.max(far, Math.sqrt(dx * dx + dy * dy + dz * dz));   // finite here: non-finite points were skipped above
       }
     });
     if (!onX) { halfW = far; halfH = far; }
     return Math.min((w / 2 - margin) / (halfW || 1), (h / 2 - margin) / (halfH || 1));
   }
 
-  /* Shared by bakeSprite and bakeRoll: build everything once, then render one frame per angle, reusing one Rast. */
-  function bakeAngles(scene, size, opts, angles) {
+  /* The shared core of bakeSprite, bakeRoll and baker: build everything once (meshes, scale, one working surface), then
+     return render(phi), which draws one picture and returns it. Returns { reason: '...' } instead when nothing can be baked
+     (size zero or not a number, or even ss 1 would pass opts.maxPixels). Programmer errors (empty scene, bad material or
+     mesh) still throw. */
+  function setup(scene, size, opts) {
     opts = opts || {};
-    var parts = prepare(scene), wh = sizeOf(size), w = wh[0], h = wh[1], ss = Math.max(1, (opts.ss === undefined ? 2 : opts.ss) | 0);
+    var parts = prepare(scene), wh = sizeOf(size), w = wh[0], h = wh[1];
+    if (!(w > 0) || !(h > 0)) return { reason: 'size' };
+    var maxPixels = opts.maxPixels > 0 ? opts.maxPixels : DEFAULT_MAX_PIXELS;
+    var ss = Math.max(1, (opts.ss === undefined ? 2 : opts.ss) | 0);
+    if (w * h > maxPixels) return { reason: 'too-big' };
+    ss = Math.min(ss, Math.max(1, Math.floor(Math.sqrt(maxPixels / (w * h)))));   // lower ss until w * h * ss * ss fits
     var axis = opts.axis || [1, 0, 0], center = opts.center || [0, 0, 0], ol = opts.outline || null;
     var margin = (opts.margin === undefined ? 2 : opts.margin) + (ol ? Math.ceil(ol.radius || 0) : 0);
     var scale = opts.scale !== undefined ? opts.scale : fitScale(parts, w, h, center, axis, margin);
@@ -530,40 +560,82 @@ var SpriteBaker = (function () {
     if (opts.light) rast.setLight(opts.light);
     var tOpts = opts.cull !== undefined ? { cull: opts.cull } : null;
 
-    return angles.map(function (phi) {
-      var view = { scale: scale * ss, ox: ox * ss, oy: oy * ss, rot: rotationMatrix(axis, phi), center: center }, img;
-      rast.clear();
-      parts.forEach(function (part) { drawMesh(rast, part.mesh, part.material, view, tOpts); });
-      img = downsample(rast, ss);
-      return ol ? outline(img, ol.radius, ol.color) : img;
-    });
+    return {
+      width: w, height: h, ss: ss, scale: scale,
+      render: function (phi) {
+        var view = { scale: scale * ss, ox: ox * ss, oy: oy * ss, rot: rotationMatrix(axis, phi), center: center }, img;
+        rast.clear();
+        parts.forEach(function (part) { drawMesh(rast, part.mesh, part.material, view, tOpts); });
+        img = downsample(rast, ss);
+        return ol ? outline(img, ol.radius, ol.color) : img;
+      }
+    };
   }
 
   /* bakeSprite(scene, size, opts): render one picture. size is a number (square), [w, h], or { width, height }, in output
-     pixels. Returns { width, height, data } (RGBA, not premultiplied); wrap it with toCanvas() or toImageData().
-     opts: phi (0, radians turned about opts.axis), axis ([1,0,0]), center ([0,0,0], the point the axis passes through),
+     pixels. Returns { width, height, data } (RGBA, not premultiplied); wrap it with toCanvas() or toImageData(). Returns
+     null when nothing can be baked (size zero or not a number, or the picture is over opts.maxPixels even at ss 1).
+     opts: phi (0, radians turned about opts.axis), axis ([1,0,0]; a zero axis means no turn), center ([0,0,0], the point the
+           axis passes through),
            ss (2, integer supersampling: the raster is ss times larger each way, then box-filtered down),
+           maxPixels (4194304: ceiling on width * height * ss * ss; ss is lowered automatically to fit, and Infinity turns
+             the ceiling off; a 1024 x 1024 sprite at ss 4 is baked at ss 2 unless you raise it),
            scale / ox / oy (pixels per unit and pixel position of the scene origin; default: auto-fit and centered),
            margin (2, pixels kept clear when auto-fitting), light ([x, y, z]), cull (see tri),
            outline ({ radius, color: [r, g, b] }, default none). */
   function bakeSprite(scene, size, opts) {
-    return bakeAngles(scene, size, opts, [(opts && opts.phi) || 0])[0];
+    var s = setup(scene, size, opts);
+    return s.render ? s.render((opts && opts.phi) || 0) : null;
+  }
+
+  /* baker(scene, size, opts): bake a roll in slices. It builds the meshes, the scale and ONE working surface now, and
+     bakes frame i only when asked, so a game can bake one frame per tick (or per job) instead of freezing for all of
+     them. Same opts as bakeSprite, plus opts.frames (12) and opts.turn (2 pi): frame i is turned i / frames of turn, the
+     same angles bakeRoll uses, and the pictures are pixel for pixel what bakeRoll gives for the same input.
+     Returns { count, width, height, ss, scale, index, frame(i), next(), reset() }:
+       frame(i)  picture i as { width, height, data }, or null when i is not an integer in 0 .. count - 1 (any order)
+       next()    the picture at `index`, then index moves on; null once all are done. reset() sets index back to 0.
+     When nothing can be baked it still returns an object, with count 0, a `reason` ('size', 'frames' or 'too-big') and
+     frame/next returning null, so check `count`. Building the meshes happens here, so call baker() in its own tick too.
+     Each picture owns its pixel array; the working surface is reused. */
+  function baker(scene, size, opts) {
+    var frames = opts && opts.frames !== undefined ? opts.frames : 12, turn = opts && opts.turn !== undefined ? opts.turn : PI2;
+    var s = null, self = { count: 0, width: 0, height: 0, ss: 0, scale: 0, index: 0, reason: '' };
+    frames = frames | 0;
+    self.frame = function (i) {
+      if (!self.count || typeof i !== 'number' || i !== Math.floor(i) || i < 0 || i >= self.count) return null;
+      return s.render(i / self.count * turn);
+    };
+    self.next = function () {
+      if (self.index >= self.count) return null;
+      return self.frame(self.index++);
+    };
+    self.reset = function () { self.index = 0; return self; };
+    if (frames < 1) { self.reason = 'frames'; return self; }
+    s = setup(scene, size, opts);
+    if (!s.render) { self.reason = s.reason; return self; }
+    self.count = frames; self.width = s.width; self.height = s.height; self.ss = s.ss; self.scale = s.scale;
+    return self;
   }
 
   /* bakeRoll(scene, frames, size, opts): render `frames` pictures of the scene turned about its long horizontal axis (the
      x axis through opts.center) by i / frames of opts.turn (default one full turn, 2 pi) for i = 0 .. frames - 1. So frame
      0 is the unturned pose and, because a full turn is not repeated, the sequence loops seamlessly. Same opts as
-     bakeSprite. All frames share one scale, so the sprite does not breathe. Returns an array of { width, height, data }. */
+     bakeSprite. All frames share one scale, so the sprite does not breathe. Returns an array of { width, height, data },
+     or null when nothing can be baked (frames below 1, size zero, or over opts.maxPixels even at ss 1). All at once;
+     use baker() to bake in slices. */
   function bakeRoll(scene, frames, size, opts) {
-    var turn = opts && opts.turn !== undefined ? opts.turn : PI2, angles = [], i;
-    frames = frames | 0;
-    if (frames < 1) throw new Error('bakeRoll needs frames >= 1');
-    for (i = 0; i < frames; i++) angles.push(i / frames * turn);
-    return bakeAngles(scene, size, opts, angles);
+    var o = {}, k, b, out = [], i;
+    for (k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];   // a copy, so frames never leaks into the caller's opts
+    o.frames = frames | 0;   // undefined or NaN becomes 0, which baker() reports as nothing to bake
+    b = baker(scene, size, o);
+    if (!b.count) return null;
+    for (i = 0; i < b.count; i++) out.push(b.frame(i));
+    return out;
   }
 
   return {
-    version: '1.0.0',
+    version: '1.1.0',
     Rast: Rast,
     material: material,
     bakeRamp: bakeRamp,
@@ -581,9 +653,11 @@ var SpriteBaker = (function () {
     outline: outline,
     bakeSprite: bakeSprite,
     bakeRoll: bakeRoll,
+    baker: baker,
     toImageData: toImageData,
     toCanvas: toCanvas,
-    DEFAULT_LIGHT: DEFAULT_LIGHT.slice()
+    DEFAULT_LIGHT: DEFAULT_LIGHT.slice(),
+    DEFAULT_MAX_PIXELS: DEFAULT_MAX_PIXELS
   };
 })();
 
