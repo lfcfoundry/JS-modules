@@ -1,5 +1,7 @@
 # sticker-text
 
+**Version 1.0.0 · API 1**
+
 Die-cut "sticker" lettering for logos and titles in plain HTML and CSS: no images, scales with `font-size`. About 2 KB JS + CSS.
 
 ```html

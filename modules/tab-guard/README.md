@@ -1,5 +1,7 @@
 # tab-guard
 
+**Version 1.0.0 · API 1**
+
 Keeps one open copy of a page "in charge", so two tabs (or two copies of a game) do not overwrite each other's saved data. About 8 KB with its comments, no dependencies.
 
 ## Use

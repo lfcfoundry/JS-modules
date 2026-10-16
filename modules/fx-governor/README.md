@@ -1,5 +1,7 @@
 # fx-governor
 
+**Version 1.0.0 · API 1**
+
 Steps visual effects down by itself when the device cannot keep up, and **never steps back up behind the player's back**. About 6 KB with comments.
 
 ```js

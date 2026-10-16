@@ -2,6 +2,7 @@
  * pad-nav.js: gamepad (Gamepad API) navigation for ordinary on-screen DOM menus and panels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
+ * Version 1.0.0 (API 1)
  *
  *   var pn = new PadNav({ getScope: function () { return openPanel; }, hintEl: hintDiv, onBack: closePanel });
  *   pn.start();   // or call pn.step() once per frame from your own loop

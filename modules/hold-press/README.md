@@ -1,5 +1,7 @@
 # hold-press
 
+**Version 1.0.0 · API 1**
+
 "Hold to keep pressing" for a button or any element, on mouse, touch and pen. About 9 KB, no dependencies.
 
 **Test it:** `node modules/hold-press/test/run.js` (fake touch and pointer events and a fake clock, 17 checks, no browser).

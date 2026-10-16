@@ -1,5 +1,7 @@
 # wake-keeper
 
+**Version 1.0.0 · API 1**
+
 Keeps a phone or tablet screen awake **only while a game really wants it**. About 7 KB, no dependencies.
 
 **Test it:** `node modules/wake-keeper/test/run.js` (fake browser, 42 checks).

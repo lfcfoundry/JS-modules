@@ -1,5 +1,7 @@
 # fly-to-mini
 
+**Version 1.1.0 · API 1**
+
 When a big element scrolls away, a copy of its small stand-in **flies** from it to the sticky mini version, and back again when you scroll up. A shared-element transition for scrolling, with an arc, a tilt and a squash. About 7 KB.
 
 ## Quick start

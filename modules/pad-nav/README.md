@@ -1,5 +1,7 @@
 # pad-nav
 
+**Version 1.0.0 · API 1**
+
 Tests (offline): `node modules/pad-nav/test/run.js` (fake pads and a tiny fake DOM, no browser, under a second) and `python3 modules/pad-nav/test/run.py` (about 3 seconds, needs Playwright for Python and an installed Chromium).
 
 ## What it is

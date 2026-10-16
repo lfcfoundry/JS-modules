@@ -1,5 +1,7 @@
 # fuzz-kit
 
+**Version 1.0.0 · API 1**
+
 **Test it:**
 - `node tools/fuzz-kit/test/run.js` runs the engine, the input helpers, the in-page driver and the Puppeteer runner's own logic against fake pages (no browser; 180 checks).
 - `python3 tools/fuzz-kit/test/runner_fakes.py` runs the Playwright runner's own logic against a fake page (no browser; 38 checks).

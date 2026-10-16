@@ -1,6 +1,8 @@
 # sprite-baker
 
-Version 1.2.0 (`SB.version`). Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
+**Version 1.2.0 · API 1**
+
+The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
 ## What it is
 

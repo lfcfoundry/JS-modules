@@ -2,6 +2,7 @@
  * wake-keeper.js: keep the screen awake only while a game really wants it.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
+ * Version 1.0.0 (API 1)
  *
  *   var wk = WakeKeeper.create({ idleMs: 60000, onRefused: function (err) { ... } });
  *   wk.want(true);    // playing: ask for the lock      wk.want(false);  // paused, card open, title screen: give it back

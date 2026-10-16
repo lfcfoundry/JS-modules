@@ -1,4 +1,4 @@
-/* job-pump: runs queued build steps for about N milliseconds per frame so a big pre-render never hitches a frame. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules */
+/* job-pump: runs queued build steps for about N milliseconds per frame so a big pre-render never hitches a frame. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.0.0 (API 1) */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.JobPump = factory();

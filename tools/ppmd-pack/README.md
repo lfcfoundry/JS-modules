@@ -1,5 +1,7 @@
 # ppmd-pack
 
+**Version 1.0.0 · API 1**
+
 Turns one HTML file into one smaller, self-unpacking HTML file using PPMd (the "PPMd7" / variant H compressor that 7-Zip offers), and checks a hash of the result before running it. It is the heavier sibling of [`lzma-pack`](../lzma-pack/README.md): the same wrapper page and options, a stronger compressor for text and code, and a bigger, slower decoder. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader). The encoder is pure Python; nothing is compiled and nothing is downloaded.
 
 **Test it:** `python3 tools/ppmd-pack/test/run.py` (Python 3 and Node.js, no browser, about 20 seconds) and `python3 tools/ppmd-pack/test/browser.py` (Playwright for Python with Chromium; offline). The decoder it embeds is tested separately: `node modules/ppmd-decode/test/run.js`.

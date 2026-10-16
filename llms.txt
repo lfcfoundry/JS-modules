@@ -6,33 +6,33 @@ Each module is one file usable as a browser global or via require(). Start with 
 Grouped by what each piece does: Games, Story editor, Tools. Every entry in modules.json also carries `side` and `category`.
 
 ## Games: Saving and data safety
-- [save-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/save-kit/README.md): Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. (global SaveKit)
+- [save-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/save-kit/README.md): Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. (global SaveKit) Version 1.0.0, API 1.
 
 ## Games: Device and browser adaptation
-- [env-probes](https://github.com/lfcfoundry/JS-modules/blob/main/modules/env-probes/README.md): Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. (global EnvProbes)
-- [fx-governor](https://github.com/lfcfoundry/JS-modules/blob/main/modules/fx-governor/README.md): Steps visual effects down when the device cannot keep up; never back up behind the player. (global FxGovernor)
-- [frame-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/frame-kit/README.md): Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. (global EvenDt, QualityGovernor, JobPump, FrameMeter)
+- [env-probes](https://github.com/lfcfoundry/JS-modules/blob/main/modules/env-probes/README.md): Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. (global EnvProbes) Version 1.0.0, API 1.
+- [fx-governor](https://github.com/lfcfoundry/JS-modules/blob/main/modules/fx-governor/README.md): Steps visual effects down when the device cannot keep up; never back up behind the player. (global FxGovernor) Version 1.0.0, API 1.
+- [frame-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/frame-kit/README.md): Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. (global EvenDt, QualityGovernor, JobPump, FrameMeter) Version 1.0.0, API 1.
 
 ## Games: Controls
-- [hold-press](https://github.com/lfcfoundry/JS-modules/blob/main/modules/hold-press/README.md): Hold-to-repeat for buttons that survives Android Chrome pointercancel. (global HoldPress)
-- [pad-nav](https://github.com/lfcfoundry/JS-modules/blob/main/modules/pad-nav/README.md): Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. (global PadNav)
-- [tab-guard](https://github.com/lfcfoundry/JS-modules/blob/main/modules/tab-guard/README.md): Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. (global TabGuard)
-- [wake-keeper](https://github.com/lfcfoundry/JS-modules/blob/main/modules/wake-keeper/README.md): Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. (global WakeKeeper)
-- [back-close](https://github.com/lfcfoundry/JS-modules/blob/main/modules/back-close/README.md): Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). (global BackClose)
+- [hold-press](https://github.com/lfcfoundry/JS-modules/blob/main/modules/hold-press/README.md): Hold-to-repeat for buttons that survives Android Chrome pointercancel. (global HoldPress) Version 1.0.0, API 1.
+- [pad-nav](https://github.com/lfcfoundry/JS-modules/blob/main/modules/pad-nav/README.md): Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. (global PadNav) Version 1.0.0, API 1.
+- [tab-guard](https://github.com/lfcfoundry/JS-modules/blob/main/modules/tab-guard/README.md): Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. (global TabGuard) Version 1.0.0, API 1.
+- [wake-keeper](https://github.com/lfcfoundry/JS-modules/blob/main/modules/wake-keeper/README.md): Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. (global WakeKeeper) Version 1.0.0, API 1.
+- [back-close](https://github.com/lfcfoundry/JS-modules/blob/main/modules/back-close/README.md): Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). (global BackClose) Version 1.0.0, API 1.
 
 ## Games: Looks and effects
-- [stage-curtains](https://github.com/lfcfoundry/JS-modules/blob/main/modules/stage-curtains/README.md): Velvet stage curtains that slide shut over a page, then fly open. (global StageCurtains)
-- [fly-to-mini](https://github.com/lfcfoundry/JS-modules/blob/main/modules/fly-to-mini/README.md): A big element scrolls away and a copy flies to its sticky mini version (and back). (global FlyToMini)
-- [sticker-text](https://github.com/lfcfoundry/JS-modules/blob/main/modules/sticker-text/README.md): Die-cut sticker lettering in plain CSS text-shadow rings, no images. (global StickerText)
-- [sprite-baker](https://github.com/lfcfoundry/JS-modules/blob/main/modules/sprite-baker/README.md): Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. (global SpriteBaker)
-- [cartoon-3d-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/cartoon-3d-kit/README.md): A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG.
+- [stage-curtains](https://github.com/lfcfoundry/JS-modules/blob/main/modules/stage-curtains/README.md): Velvet stage curtains that slide shut over a page, then fly open. (global StageCurtains) Version 1.0.0, API 1.
+- [fly-to-mini](https://github.com/lfcfoundry/JS-modules/blob/main/modules/fly-to-mini/README.md): A big element scrolls away and a copy flies to its sticky mini version (and back). (global FlyToMini) Version 1.1.0, API 1.
+- [sticker-text](https://github.com/lfcfoundry/JS-modules/blob/main/modules/sticker-text/README.md): Die-cut sticker lettering in plain CSS text-shadow rings, no images. (global StickerText) Version 1.0.0, API 1.
+- [sprite-baker](https://github.com/lfcfoundry/JS-modules/blob/main/modules/sprite-baker/README.md): Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. (global SpriteBaker) Version 1.2.0, API 1.
+- [cartoon-3d-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/cartoon-3d-kit/README.md): A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG. Version 1.0.0, API 1.
 
 ## Games: Game math
-- [idle-core](https://github.com/lfcfoundry/JS-modules/blob/main/modules/idle-core/README.md): Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. (global IdleCore)
+- [idle-core](https://github.com/lfcfoundry/JS-modules/blob/main/modules/idle-core/README.md): Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. (global IdleCore) Version 1.0.0, API 1.
 
 ## Games: Size and packaging
-- [lzma-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/lzma-decode/README.md): Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. (global lzmaDecode)
-- [ppmd-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/ppmd-decode/README.md): A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. (global ppmd7Decode)
+- [lzma-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/lzma-decode/README.md): Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. (global lzmaDecode) Version 1.0.0, API 1.
+- [ppmd-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/ppmd-decode/README.md): A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. (global ppmd7Decode) Version 1.0.0, API 1.
 
 ## Story editor: Story data (in https://github.com/lfcfoundry/story-editor, generated from the Story Editor's sources)
 - [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md): Create, clean, import and export interactive stories as JSON, with a JSON Schema.
@@ -47,14 +47,14 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [story-player](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-player/README.md): Build one offline HTML game from a story, or play a story from code or a terminal.
 
 ## Tools for games: Size and packaging
-- [lzma-pack](https://github.com/lfcfoundry/JS-modules/blob/main/tools/lzma-pack/README.md): Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library).
-- [ppmd-pack](https://github.com/lfcfoundry/JS-modules/blob/main/tools/ppmd-pack/README.md): Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data.
-- [single-file-tools](https://github.com/lfcfoundry/JS-modules/blob/main/tools/single-file-tools/README.md): Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games.
+- [lzma-pack](https://github.com/lfcfoundry/JS-modules/blob/main/tools/lzma-pack/README.md): Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library). Version 1.0.0, API 1.
+- [ppmd-pack](https://github.com/lfcfoundry/JS-modules/blob/main/tools/ppmd-pack/README.md): Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data. Version 1.0.0, API 1.
+- [single-file-tools](https://github.com/lfcfoundry/JS-modules/blob/main/tools/single-file-tools/README.md): Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games. Version 1.0.0, API 1.
 
 ## Tools for games: Testing
-- [fuzz-kit](https://github.com/lfcfoundry/JS-modules/blob/main/tools/fuzz-kit/README.md): Seeded, reproducible random-input fuzzer engine with weighted operations, invariants, liveness checks and failure shrinking; Playwright and Puppeteer runners with real input and CPU throttling; stock-Firefox recipe; test-hook stripper.
-- [canvas-probe](https://github.com/lfcfoundry/JS-modules/blob/main/tools/canvas-probe/README.md): Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area.
-- [storage-probe](https://github.com/lfcfoundry/JS-modules/blob/main/tools/storage-probe/README.md): Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report.
+- [fuzz-kit](https://github.com/lfcfoundry/JS-modules/blob/main/tools/fuzz-kit/README.md): Seeded, reproducible random-input fuzzer engine with weighted operations, invariants, liveness checks and failure shrinking; Playwright and Puppeteer runners with real input and CPU throttling; stock-Firefox recipe; test-hook stripper. Version 1.0.0, API 1.
+- [canvas-probe](https://github.com/lfcfoundry/JS-modules/blob/main/tools/canvas-probe/README.md): Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area. Version 1.0.0, API 1.
+- [storage-probe](https://github.com/lfcfoundry/JS-modules/blob/main/tools/storage-probe/README.md): Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report. Version 1.0.0, API 1.
 
 ## Tools for the story editor: Size and packaging
 - [zip-page](https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md): Wrap a finished HTML page into a smaller page that unzips itself, with a pure-JS inflater fallback.

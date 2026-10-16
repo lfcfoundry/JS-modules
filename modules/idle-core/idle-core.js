@@ -2,6 +2,7 @@
  * idle-core.js: the small maths every idle / clicker game ends up needing, tested.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
+ * Version 1.0.0 (API 1)
  *
  *  upgradeCost(base, risePct, owned, discount)   price of the next copy: base * (1 + rise/100)^owned * discount, rounded up
  *  costOfMany(base, risePct, owned, n, discount) price of the next n copies in one sum (the "buy 10" button)

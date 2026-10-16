@@ -1,5 +1,7 @@
 # env-probes
 
+**Version 1.0.0 · API 1**
+
 Tiny checks for browsers that quietly change what your page can do. About 12 KB with comments, no dependencies. Never throws, in a page, a Worker or Node.
 
 ```js

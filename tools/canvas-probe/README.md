@@ -1,5 +1,7 @@
 # canvas-probe
 
+**Version 1.0.0 · API 1**
+
 **Test it:** `node tools/canvas-probe/test/run.js` (fake canvas, no browser, 67 checks) and `python3 tools/canvas-probe/test/browser.py` (Playwright for Python with Chromium, a real canvas, 13 checks; the last four were added 2026-10-15 and have not been run yet).
 
 ## What it is

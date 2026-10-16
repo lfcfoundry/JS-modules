@@ -1,5 +1,7 @@
 # idle-core
 
+**Version 1.0.0 · API 1**
+
 The small maths every idle / clicker game ends up needing, tested. About 17 KB unminified (about 6 KB before the 2026-10-15 fixes), pure functions (also runs in Node, no dependencies, ES5 syntax).
 
 | Function | What it does |

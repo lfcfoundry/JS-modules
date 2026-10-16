@@ -1,5 +1,7 @@
 # cartoon-3d-kit
 
+**Version 1.0.0 · API 1**
+
 Run the check (offline, no browser, under a second): `node modules/cartoon-3d-kit/test/run.js`
 
 ## What it is

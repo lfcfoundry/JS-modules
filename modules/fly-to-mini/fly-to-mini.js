@@ -3,6 +3,7 @@
  * (and back again when you scroll up). A shared-element transition for scroll, with an arc, a tilt and a squash.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
+ * Version 1.1.0 (API 1)
  *
  *   var fly = FlyToMini.create({
  *     big: document.querySelector('#apple'),          // watched with IntersectionObserver

@@ -16,60 +16,60 @@ Grouped by what a piece does. The live page, with demos and a quick finder, is *
 
 Keep a player's progress safe and let them move it between devices.
 
-| Module | One line | Global |
-|---|---|---|
-| [save-kit](modules/save-kit/README.md) | Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. | `SaveKit` |
+| Module | One line | Global | Version |
+|---|---|---|---|
+| [save-kit](modules/save-kit/README.md) | Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. | `SaveKit` | 1.0.0 · API 1 |
 
 #### Device and browser adaptation
 
 Make a game behave on slow phones, privacy-focused browsers and power-saving screens.
 
-| Module | One line | Global |
-|---|---|---|
-| [env-probes](modules/env-probes/README.md) | Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. | `EnvProbes` |
-| [fx-governor](modules/fx-governor/README.md) | Steps visual effects down when the device cannot keep up; never back up behind the player. | `FxGovernor` |
-| [frame-kit](modules/frame-kit/README.md) | Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. | `EvenDt`, `QualityGovernor`, `JobPump`, `FrameMeter` |
+| Module | One line | Global | Version |
+|---|---|---|---|
+| [env-probes](modules/env-probes/README.md) | Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. | `EnvProbes` | 1.0.0 · API 1 |
+| [fx-governor](modules/fx-governor/README.md) | Steps visual effects down when the device cannot keep up; never back up behind the player. | `FxGovernor` | 1.0.0 · API 1 |
+| [frame-kit](modules/frame-kit/README.md) | Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. | `EvenDt`, `QualityGovernor`, `JobPump`, `FrameMeter` | 1.0.0 · API 1 |
 
 #### Controls
 
 Let players hold a button, or play with a gamepad.
 
-| Module | One line | Global |
-|---|---|---|
-| [hold-press](modules/hold-press/README.md) | Hold-to-repeat for buttons that survives Android Chrome pointercancel. | `HoldPress` |
-| [pad-nav](modules/pad-nav/README.md) | Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. | `PadNav` |
-| [tab-guard](modules/tab-guard/README.md) | Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. | `TabGuard` |
-| [wake-keeper](modules/wake-keeper/README.md) | Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. | `WakeKeeper` |
-| [back-close](modules/back-close/README.md) | Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). | `BackClose` |
+| Module | One line | Global | Version |
+|---|---|---|---|
+| [hold-press](modules/hold-press/README.md) | Hold-to-repeat for buttons that survives Android Chrome pointercancel. | `HoldPress` | 1.0.0 · API 1 |
+| [pad-nav](modules/pad-nav/README.md) | Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. | `PadNav` | 1.0.0 · API 1 |
+| [tab-guard](modules/tab-guard/README.md) | Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. | `TabGuard` | 1.0.0 · API 1 |
+| [wake-keeper](modules/wake-keeper/README.md) | Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. | `WakeKeeper` | 1.0.0 · API 1 |
+| [back-close](modules/back-close/README.md) | Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). | `BackClose` | 1.0.0 · API 1 |
 
 #### Looks and effects
 
 Curtains, flying elements, lettering and 3D-looking sprites, plus a written style guide.
 
-| Module | One line | Global |
-|---|---|---|
-| [stage-curtains](modules/stage-curtains/README.md) | Velvet stage curtains that slide shut over a page, then fly open. | `StageCurtains` |
-| [fly-to-mini](modules/fly-to-mini/README.md) | A big element scrolls away and a copy flies to its sticky mini version (and back). | `FlyToMini` |
-| [sticker-text](modules/sticker-text/README.md) | Die-cut sticker lettering in plain CSS text-shadow rings, no images. | `StickerText` |
-| [sprite-baker](modules/sprite-baker/README.md) | Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. | `SpriteBaker` |
-| [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG. | none |
+| Module | One line | Global | Version |
+|---|---|---|---|
+| [stage-curtains](modules/stage-curtains/README.md) | Velvet stage curtains that slide shut over a page, then fly open. | `StageCurtains` | 1.0.0 · API 1 |
+| [fly-to-mini](modules/fly-to-mini/README.md) | A big element scrolls away and a copy flies to its sticky mini version (and back). | `FlyToMini` | 1.1.0 · API 1 |
+| [sticker-text](modules/sticker-text/README.md) | Die-cut sticker lettering in plain CSS text-shadow rings, no images. | `StickerText` | 1.0.0 · API 1 |
+| [sprite-baker](modules/sprite-baker/README.md) | Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. | `SpriteBaker` | 1.2.0 · API 1 |
+| [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG. | none | 1.0.0 · API 1 |
 
 #### Game math
 
 The numbers behind idle and clicker games.
 
-| Module | One line | Global |
-|---|---|---|
-| [idle-core](modules/idle-core/README.md) | Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. | `IdleCore` |
+| Module | One line | Global | Version |
+|---|---|---|---|
+| [idle-core](modules/idle-core/README.md) | Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. | `IdleCore` | 1.0.0 · API 1 |
 
 #### Size and packaging
 
 Unpack a smaller file inside the game. The tools that pack it are under Tools.
 
-| Module | One line | Global |
-|---|---|---|
-| [lzma-decode](modules/lzma-decode/README.md) | Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. | `lzmaDecode` |
-| [ppmd-decode](modules/ppmd-decode/README.md) | A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. | `ppmd7Decode` |
+| Module | One line | Global | Version |
+|---|---|---|---|
+| [lzma-decode](modules/lzma-decode/README.md) | Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. | `lzmaDecode` | 1.0.0 · API 1 |
+| [ppmd-decode](modules/ppmd-decode/README.md) | A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. | `ppmd7Decode` | 1.0.0 · API 1 |
 
 ### Story editor
 
@@ -115,19 +115,19 @@ For building and testing. Not shipped inside a game or story.
 
 **Size and packaging.** Pack a finished one-file game into a smaller file.
 
-| Tool | One line |
-|---|---|
-| [lzma-pack](tools/lzma-pack/README.md) | Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library). |
-| [ppmd-pack](tools/ppmd-pack/README.md) | Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data. |
-| [single-file-tools](tools/single-file-tools/README.md) | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games. |
+| Tool | One line | Version |
+|---|---|---|
+| [lzma-pack](tools/lzma-pack/README.md) | Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library). | 1.0.0 · API 1 |
+| [ppmd-pack](tools/ppmd-pack/README.md) | Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data. | 1.0.0 · API 1 |
+| [single-file-tools](tools/single-file-tools/README.md) | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games. | 1.0.0 · API 1 |
 
 **Testing.** Test a game by playing it at random, shrinking any failure to a short replay, and by counting what it draws.
 
-| Tool | One line |
-|---|---|
-| [fuzz-kit](tools/fuzz-kit/README.md) | Seeded, reproducible random-input fuzzer engine with weighted operations, invariants, liveness checks and failure shrinking; Playwright and Puppeteer runners with real input and CPU throttling; stock-Firefox recipe; test-hook stripper. |
-| [canvas-probe](tools/canvas-probe/README.md) | Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area. |
-| [storage-probe](tools/storage-probe/README.md) | Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report. |
+| Tool | One line | Version |
+|---|---|---|
+| [fuzz-kit](tools/fuzz-kit/README.md) | Seeded, reproducible random-input fuzzer engine with weighted operations, invariants, liveness checks and failure shrinking; Playwright and Puppeteer runners with real input and CPU throttling; stock-Firefox recipe; test-hook stripper. | 1.0.0 · API 1 |
+| [canvas-probe](tools/canvas-probe/README.md) | Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area. | 1.0.0 · API 1 |
+| [storage-probe](tools/storage-probe/README.md) | Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report. | 1.0.0 · API 1 |
 
 #### For the story editor
 

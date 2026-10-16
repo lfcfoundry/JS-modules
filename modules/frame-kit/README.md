@@ -1,5 +1,7 @@
 # frame-kit
 
+**Version 1.0.0 · API 1**
+
 Test everything (Node only, offline, about a second): `node modules/frame-kit/test/run.js` (run from the repository root; it exits non-zero on any failure).
 Browser check of the example (Playwright for Python, Chromium already installed): `python3 modules/frame-kit/test/check-example.py`.
 

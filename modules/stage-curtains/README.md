@@ -1,5 +1,7 @@
 # stage-curtains
 
+**Version 1.0.0 · API 1**
+
 Velvet stage curtains that slide shut over a page, then fly open. A scene-change transition for games and shows. About 29 KB, no images (the velvet is painted with canvas).
 
 ## Quick start

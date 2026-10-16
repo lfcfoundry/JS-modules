@@ -1,5 +1,7 @@
 # storage-probe
 
+**Version 1.0.0 · API 1**
+
 One page, one button. It tells you in plain words whether pages opened from **different files** on this device share their saved data (localStorage, locks, storage events). Save the page twice (another name or folder), open both, press the button in each.
 
 Why it exists: the Story Editor and the games are single files that people keep in several folders. Whether two copies share one save, and whether one copy can tell the other is open, decides how the autosave, the one-window guard and every storage key must be designed. This tool answers it on the reader's own phone or computer, without a developer.

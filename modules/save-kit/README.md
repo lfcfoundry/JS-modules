@@ -1,5 +1,7 @@
 # save-kit
 
+**Version 1.0.0 · API 1**
+
 Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 17 KB with its comments, no dependencies.
 
 ## Use

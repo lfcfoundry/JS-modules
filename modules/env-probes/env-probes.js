@@ -2,6 +2,7 @@
  * env-probes.js: tiny checks for browsers that quietly change what your page can do.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
+ * Version 1.0.0 (API 1)
  *
  *  timerStepMs()         the smallest step performance.now() takes, in ms (0 when it never moved). Measured with a bounded loop, no waiting.
  *  timerRounded()        true when the clock is rounded: no step seen, or a step above about 8 ms. Catches Firefox "resist fingerprinting"

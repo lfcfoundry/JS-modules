@@ -3,6 +3,7 @@
  * Uses CloseWatcher, which is also what the Escape key and the desktop close gestures go through.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
+ * Version 1.0.0 (API 1)
  *
  *   var panelBack = BackClose.watch(panel, function () { closePanel(); });   // panel: any element that uses the `hidden` attribute
  *   closeButton.onclick = function () { panelBack.close(); };                // optional: the X button and pad B take the same route

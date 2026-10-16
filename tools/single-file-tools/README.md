@@ -1,5 +1,7 @@
 # single-file-tools
 
+**Version 1.0.0 · API 1**
+
 Shrinking a game that is one HTML file with fonts and pictures inside it. These are the steps used for the owner's single-file games, each optional (`build-example.sh` runs them all).
 
 | Tool | Does | Needs |

@@ -1,5 +1,7 @@
 # lzma-decode
 
+**Version 1.0.0 · API 1**
+
 A small LZMA1 decoder in about 135 lines of JavaScript with ES5 syntax (one ES2015 method, see Limits): readable, commented, tested against Python's own `lzma` module. Use it to unpack LZMA data in the browser, which can only unpack gzip and deflate natively. The matching packer is [`tools/lzma-pack`](../../tools/lzma-pack/README.md).
 
 **Test it:** `node modules/lzma-decode/test/run.js` (needs `python3` on the PATH; offline).

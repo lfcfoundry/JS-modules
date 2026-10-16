@@ -3,6 +3,7 @@
  * each other's saved data. Uses the Web Locks API. No storage and no polling; the only timer is one short retry at start-up.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
+ * Version 1.0.0 (API 1)
  *
  *   var g = TabGuard.start({
  *     name: 'my-game-open',                       // same name = same guard; use one per saved game
