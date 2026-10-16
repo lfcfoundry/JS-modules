@@ -71,4 +71,4 @@ I found no open-source, ready, tested "theater curtain scene change" with fallba
 - Node checks: `node modules/stage-curtains/test/run.js`. Browser checks for this module are in `tests/run.js`. The demo is `demo.html`.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
