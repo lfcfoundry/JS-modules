@@ -1,0 +1,516 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : frame-kit example
+    🏭 FORGED BY : LFC Foundry (https://github.com/JNFoo)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>frame-kit example</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f6f5f1; --fg: #1d1d1b; --mute: #6b6a64; --card: #fff; --line: #d9d7cf; --raw: #b0aea5; --sm: #0b7a75; --warn: #c2410c; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ecebe6; --mute: #9a988f; --card: #201f1d; --line: #38362f; --raw: #7c7a72; --sm: #3dd6cc; --warn: #fb923c; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 8px; }
+  p.sub { margin: 0 0 16px; color: var(--mute); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+  canvas { display: block; width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-top: 8px; color: var(--mute); }
+  .row b { color: var(--fg); font-variant-numeric: tabular-nums; }
+  label { display: inline-flex; align-items: center; gap: 6px; }
+  input[type=range] { width: 160px; }
+  button { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .lv { display: inline-flex; gap: 4px; }
+  .lv i { width: 26px; height: 18px; border-radius: 3px; border: 1px solid var(--line); display: inline-block; }
+  .lv i.on { background: var(--sm); border-color: var(--sm); }
+  .key i { display: inline-block; width: 12px; height: 3px; vertical-align: middle; margin-right: 4px; }
+  progress { width: 160px; }
+  .warn { color: var(--warn); }
+</style>
+</head>
+<body>
+<main>
+  <h1>frame-kit example</h1>
+  <p class="sub">Four tiny helpers. Everything here runs offline from the four files next to this page. Sections 2 and 4 have a one-button automatic check that tells you in plain words what happened.</p>
+
+  <section>
+    <h2>1. EvenDt: raw vs smoothed frame gaps</h2>
+    <canvas id="chart" width="720" height="130"></canvas>
+    <div class="row key"><span><i style="background:var(--raw)"></i>raw gap</span><span><i style="background:var(--sm)"></i>smoothed gap (EvenDt)</span></div>
+    <div class="row">
+      <span>learned period <b id="per">0</b> ms</span>
+      <span>raw wobble (std) <b id="rs">0</b> ms</span>
+      <span>smoothed wobble (std) <b id="ss">0</b> ms</span>
+    </div>
+    <canvas id="ball" width="720" height="60" style="margin-top:10px"></canvas>
+    <div class="row"><span>The ball moves by the smoothed gap and never stops, even while the texture below is being built.</span></div>
+  </section>
+
+  <section>
+    <h2>2. QualityGovernor: level follows real frame times</h2>
+    <div class="lv" id="lv"></div>
+    <div class="row">
+      <label>extra load per frame <input id="load" type="range" min="0" max="60" value="0"> <b id="loadv">0</b> ms</label>
+      <span>average gap <b id="avg">0</b> ms</span>
+      <span>level <b id="lvn">0</b></span>
+    </div>
+    <div class="row"><span>Drag the load up: after a short delay the level steps down; set it back to 0 and it climbs again. This demo uses shorter delays than the defaults so you can see it.</span></div>
+    <div class="row"><button id="qgGo">Run the automatic check (about 15 seconds)</button><span id="qgState">idle</span></div>
+    <div class="row"><b id="qgResult" style="font-weight:600"></b></div>
+  </section>
+
+  <section>
+    <h2>3. JobPump: a big texture built in slices</h2>
+    <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start">
+      <canvas id="prev" width="256" height="256" style="width:256px"></canvas>
+      <div>
+        <div class="row" style="margin-top:0">
+          <label>budget per frame <input id="bud" type="range" min="1" max="12" value="4"> <b id="budv">4</b> ms</label>
+        </div>
+        <div class="row">
+          <button id="go">Build 2048 x 2048 texture in slices</button>
+          <button id="blk">Build all at once (hitches)</button>
+        </div>
+        <div class="row"><progress id="prog" max="1" value="0"></progress> <b id="pct">0%</b></div>
+        <div class="row"><span>worst frame gap during the last build <b id="worst">-</b> ms</span></div>
+        <div class="row"><span id="status">idle</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. FrameMeter: speed numbers, and who slowed a frame</h2>
+    <div class="row" style="margin-top:0"><b id="fmLines" style="font-weight:600">waiting for the first report...</b></div>
+    <div class="row">
+      <button id="fmGo">Run the automatic check (about 6 seconds)</button><span id="fmState">idle</span>
+    </div>
+    <div class="row"><b id="fmResult" style="font-weight:600"></b></div>
+    <div class="row"><span>The check freezes this page on purpose three times: once inside the animation frame (the game's own work), once between frames (the device or browser), and once right after <code>pause()</code>, the way a hidden tab coming back looks. The meter should name the first as the game, the second as the device, and ignore the third. Leave the other sections idle while it runs.</span></div>
+  </section>
+</main>
+
+<script src="even-dt.js"></script>
+<script src="quality-governor.js"></script>
+<script src="job-pump.js"></script>
+<script src="frame-meter.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+
+  var even = new EvenDt();
+  var pump = new JobPump();
+  var LEVELS = 5;
+  var lvBox = [];
+  for (var i = 0; i < LEVELS; i++) { var b = document.createElement('i'); $('lv').appendChild(b); lvBox.push(b); }
+  var peakLevel = 0;
+  function showLevel(l) { for (var i = 0; i < LEVELS; i++) lvBox[i].className = i >= LEVELS - 1 - l ? 'on' : ''; $('lvn').textContent = l; if (l > peakLevel) peakLevel = l; }
+  // Level 0 is full quality (all boxes lit); each step down turns one box off. Shorter delays than the defaults, for the demo only.
+  var gov = new QualityGovernor({ levels: LEVELS, slowFrames: 40, downDelay: 1500, fastMs: 4000, upDelay: 4000, onChange: showLevel });
+  showLevel(0);
+
+  // ----- texture build: one generator, one yield per 16 rows. The ImageData is created and used inside one slice (nothing shared is held across a yield).
+  var SIZE = 2048, ROWS = 16;
+  var big = document.createElement('canvas'); big.width = big.height = SIZE;
+  var bigG = big.getContext('2d');
+  var prevC = $('prev'), prevG = prevC.getContext('2d');
+  var building = false, sliceDone = 0, sliceTotal = SIZE / ROWS;
+  function hash(x, y) { var h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+  function vnoise(x, y) {
+    var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    var a = hash(xi, yi), c = hash(xi + 1, yi), d = hash(xi, yi + 1), e = hash(xi + 1, yi + 1);
+    return a + (c - a) * u + (d - a) * v + (a - c - d + e) * u * v;
+  }
+  function* buildTexture() {
+    for (var y0 = 0; y0 < SIZE; y0 += ROWS) {
+      var img = bigG.createImageData(SIZE, ROWS), px = img.data, o = 0;
+      for (var y = 0; y < ROWS; y++) for (var x = 0; x < SIZE; x++) {
+        var n = 0, amp = .5, f = 1 / 160;
+        for (var k = 0; k < 5; k++) { n += vnoise(x * f + k * 7, (y0 + y) * returning such an object. Default off: the hint says A, B and Start.
+ *   hintMs              how long the hint stays up after waking or a scope change, default 3500
+ *   guardMs             A is ignored this long after a scope appears (so the A that opened a panel does not also pick inside it), default 450
+ *   wakeMs              a scope that opens within this long of pad use gets focus immediately, default 8000
+ *   scroll              keep the focused element visible with scrollIntoView, default true
+ *   requireStandard     only read pads whose mapping is 'standard', default true
+ *
+ * step() never throws: getGamepads (which throws a SecurityError when the page disables the feature) and every callback
+ * above are wrapped, and the error goes to onError and pn.lastError.
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.PadNav = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  var EMPTY = [];
+
+  function PadNav(o) {
+    o = o || {};
+    var num = function (v, d) { return typeof v === 'number' && isFinite(v) ? v : d; };
+    this.getScopeFn = typeof o.getScope === 'function' ? o.getScope : null;
+    this.scopeSelector = o.scopeSelector || null;
+    this.selector = o.focusableSelector || PadNav.DEFAULT_SELECTOR;
+    this.filter = typeof o.filter === 'function' ? o.filter : null;
+    this.onBack = o.onBack || null;
+    this.onStart = o.onStart || null;
+    this.onA = o.onA || null;
+    this.onUse = o.onUse || null;
+    this.onDisconnect = o.onDisconnect || null;
+    this.onError = o.onError || null;
+    this.getPads = typeof o.getPads === 'function' ? o.getPads : function () { return typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : []; };
+    this.deadzone = num(o.deadzone, 0.45);
+    this.release = typeof o.release === 'number' && isFinite(o.release) ? Math.max(0, o.release) : null;   // null: deadzone - 0.1
+    this.repeatDelay = num(o.repeatDelay, 380);
+    this.repeatRate = num(o.repeatRate, 120);
+    this.focusClass = o.focusClass || 'pad-focus';
+    this.formControls = o.formControls !== false;
+    this.adjustClass = o.adjustClass || 'pad-adjust';
+    this.hintEl = o.hintEl || null;
+    this.hintText = o.hintText || null;
+    this.labels = o.labels || null;
+    this.hintMs = num(o.hintMs, 3500);
+    this.guardMs = num(o.guardMs, 450);
+    this.wakeMs = num(o.wakeMs, 8000);
+    this.scroll = o.scroll !== false;
+    this.requireStandard = o.requireStandard !== false;
+
+    this.prev = {};            // last frame's pressed state, for edge detection
+    this.rep = {};             // per direction: when the next repeat is due
+    this.latch = {};           // per pad: which stick directions are held (for the press/release gap)
+    this.hadPad = false;       // was a usable pad read on the latest frame
+    this.awake = false;        // true after the first pad input; nothing is shown before that
+    this.lastUsed = -Infinity; // time of the latest pad input
+    this.useId = '';           // id text of the pad that gave the latest input
+    this.seen = false;         // has a scope been looked at yet
+    this.scope = null;
+    this.scopeAt = -Infinity;
+    this.hintAt = 0;
+    this.ringEl = null;        // the element wearing focusClass
+    this.adjust = null;        // the slider in adjust mode, if any
+    this.memory = typeof WeakMap === 'function' ? new WeakMap() : null;   // last focused element per scope
+    this.raf = 0;
+    this.hintShown = null;     // cached so the DOM is only written when the hint changes
+    this.hintShownText = null;
+    this.lastError = null;
+    this.lastErrorWhere = '';
+    this.errKey = '';
+    this.nameFor = null;       // cached button names for the pad id in nameFor
+    this.nameObj = null;
+    this.hintCache = null;
+
+    var self = this;
+    this.onBlur = function (e) { if (e.target && e.target === self.ringEl) self.clearRing(); };
+    this.onGpGone = function () { self.checkLost(); };
+    if (typeof document !== 'undefined') document.addEventListener('blur', this.onBlur, true);
+    if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('gamepaddisconnected', this.onGpGone);
+    try {
+      var h = this.hintEl;
+      if (h && h.setAttribute && !(h.getAttribute && h.getAttribute('role'))) h.setAttribute('role', 'status');   // announced politely; the look is unchanged
+    } catch (e) { /* not an element */ }
+    this.setHint(false, '');
+  }
+
+  /** Pure helper: index of the nearest rect from `from` in direction 'l','r','u' or 'd', or -1. Rects are {left, top, width, height}. */
+  PadNav.nearest = function (from, rects, dir) {
+    var cx = from.left + from.width / 2, cy = from.top + from.height / 2, best = -1, bs = Infinity, i, p, dx, dy, along, across, score;
+    for (i = 0; i < rects.length; i++) {
+      p = rects[i]; dx = p.left + p.width / 2 - cx; dy = p.top + p.height / 2 - cy;
+      along = dir === 'l' ? -dx : dir === 'r' ? dx : dir === 'u' ? -dy : dy;
+      across = dir === 'l' || dir === 'r' ? Math.abs(dy) : Math.abs(dx);
+      if (along < 4) continue;                  // not really in that direction (also skips the element itself)
+      score = along + across * 2.5;             // sideways drift costs 2.5x: a roughly straight neighbor beats a nearer diagonal one
+      if (score < bs) { bs = score; best = i; }
+    }
+    return best;
+  };
+
+  /**
+   * Pure stick state machine. x, y are axes 0 and 1; `was` holds last frame's {l, r, u, d} (0 or 1) for this stick;
+   * a direction starts above `press` and lets go only below `release`. The stick counts along its stronger axis only.
+   * Writes into `out` (may be the same object as `was`) and returns it, so a caller can reuse one object per pad.
+   */
+  PadNav.stick = function (x, y, was, press, release, out) {
+    var ex = Math.abs(x), ey = Math.abs(y);
+    was = was || {}; out = out || {};
+    if (!(release <= press)) release = press;
+    var wl = was.l, wr = was.r, wu = was.u, wd = was.d;
+    out.u = y < 0 && ey >= ex && ey > (wu ? release : press) ? 1 : 0;
+    out.d = y > 0 && ey >= ex && ey > (wd ? release : press) ? 1 : 0;
+    out.l = x < 0 && ex > ey && ex > (wl ? release : press) ? 1 : 0;
+    out.r = x > 0 && ex > ey && ex > (wr ? release : press) ? 1 : 0;
+    return out;
+  };
+
+  /** Pure: decimal places a number needs when written out (0.25 gives 2). */
+  PadNav.decimals = function (n) {
+    var m = /(?:\.(\d+))?(?:e-(\d+))?$/.exec(String(n));
+    return m ? (m[1] ? m[1].length : 0) + (m[2] ? +m[2] : 0) : 0;
+  };
+
+  /**
+   * Pure: the slider value after one step in direction dir (1 or -1), as a string. Arguments are the input's value, min, max
+   * and step strings. HTML defaults apply: min 0, max 100, step 1; step "any" uses one hundredth of the range.
+   */
+  PadNav.rangeNext = function (value, min, max, step, dir) {
+    var lo = parseFloat(min), hi = parseFloat(max), st = parseFloat(step), v = parseFloat(value), n;
+    if (!isFinite(lo)) lo = 0;
+    if (!isFinite(hi)) hi = 100;
+    if (hi < lo) hi = lo;
+    if (!(st > 0) || !isFinite(st)) st = String(step).toLowerCase() === 'any' && hi > lo ? (hi - lo) / 100 : 1;
+    if (!isFinite(v)) v = lo;
+    n = v + (dir < 0 ? -st : st);
+    if (n < lo) n = lo;
+    if (n > hi) n = hi;
+    return String(Number(n.toFixed(Math.min(20, Math.max(PadNav.decimals(st), PadNav.decimals(lo), PadNav.decimals(v))))));
+  };
+
+  /** Pure: index of the next enabled option after `cur`, wrapping around; `cur` itself if it is the only enabled one; -1 if none. opts is an array-like of {disabled}. */
+  PadNav.nextOption = function (opts, cur) {
+    var n = opts ? opts.length : 0, j, k;
+    for (j = 1; j <= n; j++) {
+      k = ((cur < 0 ? -1 : cur) + j) % n;
+      if (opts[k] && !opts[k].disabled) return k;
+    }
+    return -1;
+  };
+
+  /** Pure: button names for the default hint, guessed from a pad's id text (not standardized, so it is a guess). Always returns a new object { dpad, a, b, start }. */
+  PadNav.labelsFor = function (id) {
+    var s = String(id || '').toLowerCase(), o = { dpad: 'D-pad', a: 'A', b: 'B', start: 'Start' };
+    if (/playstation|dualshock|dualsense|sony|054c|\bps[345]\b/.test(s)) { o.a = 'Cross'; o.b = 'Circle'; o.start = 'Options'; }
+    else if (/nintendo|057e|joy-?con|pro controller|switch/.test(s)) { o.a = 'B'; o.b = 'A'; o.start = '+'; }   // the standard layout is by position: index 0 is the bottom button, printed B on Nintendo pads
+    return o;
+  };
+
+  PadNav.clock = function () { return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now(); };
+
+  /** Call once per frame. nowMs defaults to performance.now(). Returns true if a usable pad was read. Never throws. */
+  PadNav.prototype.step = function (nowMs) {
+    try { return this.run(typeof nowMs === 'number' ? nowMs : PadNav.clock()); }
+    catch (e) { this.fail('step', e); return false; }
+  };
+
+  PadNav.prototype.run = fu# frame-kit
+
+Test everything (Node only, offline, about a second): `node modules/frame-kit/test/run.js` (run from the repository root; it exits non-zero on any failure).
+Browser check of the example (Playwright for Python, Chromium already installed): `python3 modules/frame-kit/test/check-example.py`.
+
+## What it is
+
+Four tiny, independent helpers for browser games and other `requestAnimationFrame` loops. Each is one file with no dependencies; use any one without the others.
+
+| Helper | File | One line |
+| --- | --- | --- |
+| `EvenDt` | `even-dt.js` | Smooths the uneven frame gaps a browser reports by snapping them to the screen's learned refresh period. |
+| `QualityGovernor` | `quality-governor.js` | Steps a quality level down or up from how long frames really take, with hysteresis. |
+| `JobPump` | `job-pump.js` | Runs queued build steps for about N milliseconds per frame, so a big pre-render never hitches a frame. |
+| `FrameMeter` | `frame-meter.js` | A speed meter: frames a second, the slowest frame, hitches with a plain-words cause (game or device) and the delay from a tap to the next frame. |
+
+## Why it exists
+
+- Browsers report frame gaps that wobble by a millisecond or two even when every frame is presented on time. A game that moves by the raw gap shows that wobble as a faint shiver in scrolling scenery. `EvenDt` removes most of it.
+- Screens differ: a game that is fine at full quality on one machine needs fewer particles or a lower canvas resolution on another. `QualityGovernor` decides when to change level; you decide what a level means.
+- Procedural art, texture atlases and other bakes can take hundreds of milliseconds. Done in one go they freeze the page. `JobPump` lets you write the bake as a function or a generator and spreads it over frames.
+
+They were extracted from a real, shipped single-file browser game and rewritten to stand alone.
+
+## Quick start
+
+Open `demo.html` by double-click to see all four working (sections 2 and 4 each have a one-button automatic check that reports in plain words). To use them, copy the files you want:
+
+```html
+<script src="even-dt.js"></script>
+<script src="quality-governor.js"></script>
+<script src="job-pump.js"></script>
+<script src="frame-meter.js"></script>        <!-- optional: see the FrameMeter section below -->
+<script>
+  const even = new EvenDt();
+  const pump = new JobPump();
+  const gov = new QualityGovernor({
+    levels: 3,                                   // levels 0 (full), 1, 2 (lightest)
+    onChange: (level) => console.log('quality level is now', level)
+  });
+
+  // A big bake written as a generator: one slice per yield.
+  const texture = document.createElement('canvas');
+  texture.width = texture.height = 1024;
+  pump.add(function* () {
+    const g = texture.getContext('2d');
+    for (let y = 0; y < 1024; y += 32) {
+      g.fillStyle = 'hsl(' + (y / 4) + ',60%,50%)';
+      g.fillRect(0, y, 1024, 32);
+      yield;                                     // give the frame back
+    }
+  });
+
+  let last = 0;
+  function frame(now) {
+    if (last) {
+      const gap = now - last;
+      const dtMs = even.next(gap);               // smoothed gap for movement
+      gov.frame(gap, now);                       // real gap for the governor
+      pump.run(4);                               // about 4 ms of build work per frame
+      // ... move things by dtMs / 1000 seconds, then draw ...
+    }
+    last = now;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+```
+
+In Node (for tests): `const EvenDt = require('./even-dt.js');`. Each file works both ways (browser global and `module.exports`, through the usual UMD wrapper at the top of the file).
+
+Pasting a file into a single-file game is fine: its `'use strict'` is inside the wrapper, so it does not make the rest of your script strict.
+
+## API
+
+All options are optional. Defaults are the values from the original game.
+
+### `new EvenDt(opts)`
+
+| Member | Meaning |
+| --- | --- |
+| `.next(gapMs)` | Returns the smoothed gap in ms. A value that is not a positive finite number returns `0`. |
+| `.period` | The learned screen period in ms (median of the recent gaps), `0` while warming up. |
+| `.drift` | Milliseconds currently owed, for debugging. |
+| `.reset()` | Forget everything (use after a long pause or when the window moves to another screen). |
+
+How `next()` works: gaps of `minGap` or less and `maxGap` or more are returned unchanged and not learned from. Otherwise the gap goes into a window of the last `window` gaps. After `warmup` gaps the period is the median of the window (recomputed every `refreshEvery` gaps). A gap is rounded to the nearest whole multiple of the period (1 to `maxMultiple`); if it is within `tolerance` of the period from that multiple it becomes the multiple plus a small pay-back, otherwise it is returned unchanged and the owed drift is dropped. The difference between the raw gap and the multiple is added to a drift account, of which `payback` is paid out each frame.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `minGap` | `2` | Ignore gaps at or below this (ms). On a screen near 480 Hz or faster pass `0.5` (see the limits below). |
+| `maxGap` | `60` | Ignore gaps at or above this (ms): tab switches, long stalls. |
+| `window` | `40` | How many recent gaps the median covers. |
+| `warmup` | `12` | Gaps needed before snapping starts. |
+| `refreshEvery` | `8` | Recompute the median every this many gaps. |
+| `maxMultiple` | `3` | Largest multiple of the period to snap to (2 is a dropped frame). |
+| `tolerance` | `0.3` | A gap snaps only within this fraction of the period from a multiple. |
+| `payback` | `0.04` | Fraction of the owed drift paid back per frame. |
+
+### `new QualityGovernor(opts)`
+
+| Member | Meaning |
+| --- | --- |
+| `.frame(gapMs, nowMs)` | Feed every frame: the real gap and the current time from any steady clock. |
+| `.level` | Current level, `0` (full quality) to `levels - 1` (lightest). |
+| `.average` | The smoothed frame gap in ms, for a debug overlay. |
+| `.force(n)` | Jump to level `n` (clamped). Restarts the streaks, the delay clock and the flip-flop guard, and calls `onChange` if the level changed. |
+| `.hold()` | Drop the current slow and fast streaks. Call it while frames are not representative (menu open, tab hidden). |
+| `.flips` | How many quick reversals (a step up, then a step down soon after) the flip-flop guard has seen. |
+| `.gaveUp` | `true` once the guard has given up on a level: the governor stays below it. |
+| `.resetGuard()` | Forget the reversals and the give-ups, so every level may be tried again. |
+| `.lastError` | The last error thrown by `onChange`, or `null`. |
+| `.enabled` | Set to `false` to freeze the governor. |
+
+The rule: an exponential moving average of the gap (`smoothing`) is compared with `slowAbove` and `fastBelow`. It must stay above `slowAbove` for `slowFrames` frames in a row, and `downDelay` ms must have passed since the last change, to step down one level (the average tx; }
+  p { margin: 6px 0; }
+  .muted { opacity: .75; font-size: 14px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 16px 0; max-height: 300px; overflow: auto; }
+  .panel[hidden] { display: none; }
+  .panel h2 { font-size: 18px; margin: 0 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  button { font: inherit; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+  .list button { display: block; width: 100%; text-align: left; margin-bottom: 8px; }
+  /* The focus ring pad-nav puts on the focused element. You style it; the library only adds the class. */
+  .pad-focus { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .pad-adjust { outline-style: dashed; }   /* a slider in adjust mode: left and right change it */
+  .ctl { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding: 6px 0; }
+  .ctl input[type=range] { flex: 1; }
+  #hint { position: sticky; bottom: 8px; margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; }
+  #hint[hidden] { display: none; }
+  #sim { display: grid; grid-template-columns: repeat(3, 56px); gap: 6px; justify-content: start; margin: 8px 0; user-select: none; touch-action: none; }
+  #sim button { padding: 8px 0; text-align: center; }
+  #sim .gap { visibility: hidden; }
+  .simrow { display: flex; gap: 6px; margin: 6px 0; }
+  #status { font-size: 14px; }
+  #log { font: 13px/1.4 ui-monospace, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; height: 120px; overflow: auto; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>pad-nav example</h1>
+  <p class="muted">Drive this menu with a connected gamepad (press any button first so the browser notices it), or use the on-screen pad below. D-pad or left stick moves, A picks, B goes back, Start opens or closes the pause panel. In Options, A on the volume slider lets left and right change it (A or B to finish), and A on Difficulty cycles the choices.</p>
+  <p id="status" class="muted">Controller: none detected yet. The on-screen pad below works without one.</p>
+
+  <section class="panel" id="menu" aria-label="Main menu">
+    <h2>Main menu</h2>
+    <div class="row">
+      <button id="bPlay">Play</button>
+      <button id="bOptions">Options</button>
+      <button id="bAbout">About</button>
+      <button id="bQuit">Quit</button>
+    </div>
+    <p class="muted" id="state">Not playing.</p>
+  </section>
+
+  <section class="panel list" id="options" aria-label="Options" hidden>
+    <h2>Options (this panel scrolls)</h2>
+    <label class="ctl">Master volume <input id="vol" type="range" min="0" max="10" value="7"> <output id="volOut">7</output></label>
+    <label class="ctl">Difficulty <select id="diff"><option>Easy</option><option selected>Normal</option><option>Hard</option></select></label>
+    <button>Music volume: 7</button><button>Effects volume: 8</button><button>Screen shake: on</button>
+    <button>Vibration: on</button><button>Subtitles: off</button><button>Text size: medium</button>
+    <button>High contrast: off</button><button>Reduce motion: off</button><button>Language: English</button>
+    <button>Show timer: off</button><button>Auto-save: on</button><button disabled>Cloud save (disabled)</button>
+    <button id="bOptBack">Back</button>
+  </section>
+
+  <section class="panel" id="about" aria-label="About" hidden>
+    <h2>About</h2>
+    <p>A tiny demo of pad-nav. Nothing here is a real game.</p>
+    <div class="row"><button id="bAboutBack">Back</button></div>
+  </section>
+
+  <section class="panel" id="pause" aria-label="Paused" hidden>
+    <h2>Paused</h2>
+    <div class="row"><button id="bResume">Resume</button><button id="bToMenu">Back to menu</button></div>
+  </section>
+
+  <div id="hint" hidden></div>
+
+  <h2 style="font-size:16px;margin-bottom:0">On-screen pad</h2>
+  <p class="muted" style="margin-top:0">Hold a button to repeat. Same code path as a real controller.</p>
+  <div id="sim" aria-label="On-screen gamepad">
+    <button class="gap" tabindex="-1"></button><button data-b="up" aria-label="Up">&#9650;</button><button class="gap" tabindex="-1"></button>
+    <button data-b="left" aria-label="Left">&#9664;</button><button class="gap" tabindex="-1"></button><button data-b="right" aria-label="Right">&#9654;</button>
+    <button class="gap" tabindex="-1"></button><button data-b="down" aria-label="Down">&#9660;</button><button class="gap" tabindex="-1"></button>
+  </div>
+  <div class="simrow" id="sim2">
+    <button data-b="a">A</button><button data-b="b">B</button><button data-b="start">Start</button>
+  </div>
+
+  <div id="log" aria-live="polite"></div>
+</main>
+
+<script src="pad-nav.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var logEl = $('log'), stateEl = $('state'), statusEl = $(

@@ -1,0 +1,166 @@
+[
+ {
+  "name": "empty",
+  "order": 6,
+  "mem": 1048576,
+  "size": 0,
+  "file": "empty.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 0
+  }
+ },
+ {
+  "name": "one-byte",
+  "order": 12,
+  "mem": 1048576,
+  "size": 1,
+  "file": "one-byte.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 0
+  }
+ },
+ {
+  "name": "two-bytes",
+  "order": 2,
+  "mem": 65536,
+  "size": 2,
+  "file": "two-bytes.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 0
+  }
+ },
+ {
+  "name": "html-100",
+  "order": 6,
+  "mem": 2048,
+  "size": 100,
+  "file": "html-100.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 2000
+  }
+ },
+ {
+  "name": "js-5000",
+  "order": 12,
+  "mem": 65536,
+  "size": 5000,
+  "file": "js-5000.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 9000
+  }
+ },
+ {
+  "name": "page-30k-o2",
+  "order": 2,
+  "mem": 1048576,
+  "size": 30000,
+  "file": "page-30k-o2.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 0
+  }
+ },
+ {
+  "name": "page-30k-o6",
+  "order": 6,
+  "mem": 1048576,
+  "size": 30000,
+  "file": "page-30k-o6.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 0
+  }
+ },
+ {
+  "name": "page-30k-o12",
+  "order": 12,
+  "mem": 65536,
+  "size": 30000,
+  "file": "page-30k-o12.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 0
+  }
+ },
+ {
+  "name": "page-30k-o32",
+  "order": 32,
+  "mem": 65536,
+  "size": 30000,
+  "file": "page-30k-o32.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 0
+  }
+ },
+ {
+  "name": "page-30k-o64",
+  "order": 64,
+  "mem": 1048576,
+  "size": 30000,
+  "file": "page-30k-o64.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 0
+  }
+ },
+ {
+  "name": "page-12k-m2048",
+  "order": 8,
+  "mem": 2048,
+  "size": 12000,
+  "file": "page-12k-m2048.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 0
+  }
+ },
+ {
+  "name": "page-30k-odd",
+  "order": 16,
+  "mem": 100003,
+  "size": 30000,
+  "file": "page-30k-odd.ppmd",
+  "gen": {
+   "kind": "slice",
+   "off": 0
+  }
+ },
+ {
+  "name": "random-20k",
+  "order": 6,
+  "mem": 65536,
+  "size": 20000,
+  "file": "random-20k.ppmd",
+  "gen": {
+   "kind": "random",
+   "seed": 7
+  }
+ },
+ {
+  "name": "run-50k",
+  "order": 16,
+  "mem": 16777216,
+  "size": 50000,
+  "file": "run-50k.ppmd",
+  "gen": {
+   "kind": "run",
+   "byte": 65
+  }
+ },
+ {
+  "name": "all-bytes",
+  "order": 8,
+  "mem": 1048576,
+  "size": 768,
+  "file": "all-bytes.ppmd",
+  "gen": {
+   "kind": "all256"
+  }
+ }
+]
