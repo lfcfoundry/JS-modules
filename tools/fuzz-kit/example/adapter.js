@@ -1,5 +1,5 @@
 /* The app-specific part of a fuzz run for example/app.html: operations, invariants, liveness. Injected after src/fuzz-core.js by the runners.
-   Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/JNFoo/JS-modules
+   Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
    Defines window.__fuzzConfig(seed) -> the options object for new Fuzzer(...). This is the file you write for your own app. */
 window.__fuzzConfig = function (seed) {
   var app = window.__app, I = Fuzzer.Input;

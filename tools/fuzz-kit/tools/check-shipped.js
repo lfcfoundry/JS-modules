@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* check-shipped: after-build check that test code did not ship. Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/JNFoo/JS-modules
+/* check-shipped: after-build check that test code did not ship. Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
 
    Looks in the file you ship for the test handle and the hook markers, and fails (exit 1) if any is there.
 

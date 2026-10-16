@@ -4,11 +4,11 @@ Small, dependency-free pieces for single-file browser games, taken out of **[App
 
 MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built with it. Keeping the license line is the only ask.
 
-Live demos: **https://jnfoo.github.io/JS-modules/**
+Live demos: **https://lfcfoundry.github.io/JS-modules/**
 
 ## Pick a piece
 
-Grouped by what a piece does. The live page, with demos and a quick finder, is **https://jnfoo.github.io/JS-modules/**.
+Grouped by what a piece does. The live page, with demos and a quick finder, is **https://lfcfoundry.github.io/JS-modules/**.
 
 ### Games
 
@@ -182,10 +182,10 @@ npm run test:kits                               # frame-kit, sprite-baker, pad-n
 
 27 checks: maths and save logic in Node, the browser pieces (curtains, hold-press, fly-to-mini, probes, governor, sticker text) in Chromium. For humans and AI helpers: read [AGENTS.md](AGENTS.md), [llms.txt](llms.txt) and [modules.json](modules.json).
 
-## More from JNFoo
+## More from LFC Foundry
 
 - [Apple Press](https://github.com/JNFoo/apple-press): a clicker game for kids ([play](https://jnfoo.github.io/apple-press/))
 - [Story Editor](https://github.com/JNFoo/p-see-story-editor): an offline editor for branching stories, plus MIT packages cut from it: story format and checker, game builder and player, story map layout, a self-unzipping page packer, and a Firefox test kit ([try it](https://jnfoo.github.io/p-see-story-editor/))
 - [Fancy Banana](https://github.com/JNFoo/fancy-banana): a one-tap flying-banana arcade game ([play](https://jnfoo.github.io/fancy-banana/))
 - [Pineapple Defense](https://github.com/JNFoo/pineapple-defense): a flick-to-throw pineapples-at-penguins game that uses a few of these pieces ([play](https://jnfoo.github.io/pineapple-defense/))
-- [JS-modules](https://github.com/JNFoo/JS-modules): this repository ([demos](https://jnfoo.github.io/JS-modules/))
+- [JS-modules](https://github.com/lfcfoundry/JS-modules): this repository ([demos](https://lfcfoundry.github.io/JS-modules/))

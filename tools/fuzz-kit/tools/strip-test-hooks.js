@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* strip-test-hooks: remove test-only code from a shipped file. Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/JNFoo/JS-modules
+/* strip-test-hooks: remove test-only code from a shipped file. Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
 
    Everything between /*TEST_HOOK_START*\/ and /*TEST_HOOK_END*\/ (markers included) is deleted, so the page you test (the "full" build with a
    window.__app handle, extra getters, forced states) and the page you ship are made from one source file.

@@ -2,7 +2,7 @@
 <!--
     ===================================================================================
     🛠️ APPLICATION : save-kit demo
-    🏭 FORGED BY : LFC Foundry (https://github.com/JNFoo)
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
     📜 LICENSE : MIT License
     ===================================================================================
     Copyright (c) 2026 LFC Foundry
@@ -43,4 +43,4 @@
   document.getElementById('import').onclick = function () { store.importCode(box.value).then(function (s) { state = s; show(); store.save(state); msg.textContent = 'Loaded!'; }, function (m) { msg.textContent = m; }); };
   store.autosave(function () { return state; }); show();
 </script>
-<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/JNFoo" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
+<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>

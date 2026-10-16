@@ -1,6 +1,6 @@
 """
 pack.py: turn one big HTML file into a smaller, self-extracting one.
-Part of JS-modules, https://github.com/JNFoo/JS-modules
+Part of JS-modules, https://github.com/lfcfoundry/JS-modules
 Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
 
 The whole page is squeezed with Zopfli (a slower, tighter gzip), stored inside a tiny page as base64 text, and the browser's own
