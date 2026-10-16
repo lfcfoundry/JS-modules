@@ -12,6 +12,10 @@
  *     // change the scene behind the curtains here
  *     return curtains.open();                  // fly-through: halves part, whole thing grows and fades
  *   }).then(function () { curtains.destroy(); });
+ *
+ * Nothing here rejects: if the curtain cannot be painted (no canvas 2D, out of memory) prepare(), close() and open() still
+ * resolve and the curtain is simply skipped, so a scene change is never blocked. When the system asks for reduced motion the
+ * curtain fades in and out instead of sliding and zooming (option reducedMotion: true / false forces it either way).
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -20,13 +24,36 @@
   'use strict';
 
   // ---- small helpers ----
-  function parseColor(c) {
-    c = String(c).trim();
+  var FALLBACK_RGB = [179, 32, 42];   // the default curtain red, used when a color cannot be understood
+  // Reads #rgb, #rgba, #rrggbb, #rrggbbaa, rgb()/rgba() (numbers or percentages; alpha is ignored). Returns [r,g,b] or null.
+  function parseSimple(c) {
+    var m, v;
     if (c.charAt(0) === '#') {
-      if (c.length === 4) c = '#' + c.charAt(1) + c.charAt(1) + c.charAt(2) + c.charAt(2) + c.charAt(3) + c.charAt(3);
-      return [1, 3, 5].map(function (i) { return parseInt(c.slice(i, i + 2), 16); });
+      m = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(c);
+      if (!m) return null;
+      v = m[1];
+      if (v.length <= 4) v = v.charAt(0) + v.charAt(0) + v.charAt(1) + v.charAt(1) + v.charAt(2) + v.charAt(2);
+      return [parseInt(v.slice(0, 2), 16), parseInt(v.slice(2, 4), 16), parseInt(v.slice(4, 6), 16)];
     }
-    return (c.match(/\d+/g) || [0, 0, 0]).slice(0, 3).map(Number);
+    m = /^rgba?\(([^)]*)\)$/i.exec(c);
+    if (!m) return null;
+    v = m[1].replace(/\/.*$/, '').split(/[\s,]+/).filter(function (x) { return x !== ''; });
+    if (v.length < 3) return null;
+    v = v.slice(0, 3).map(function (x) { var n = parseFloat(x); if (x.indexOf('%') > 0) n *= 2.55; return Math.max(0, Math.min(255, Math.round(n))); });
+    return v.some(isNaN) ? null : v;
+  }
+  // Names, hsl() and other forms: let the browser's canvas turn them into #rrggbb (it cannot read CSS variables like var(--x)).
+  function parseViaCanvas(c) {
+    try {
+      var x = document.createElement('canvas').getContext('2d'), a, b;
+      x.fillStyle = '#000000'; x.fillStyle = c; a = x.fillStyle;
+      x.fillStyle = '#ffffff'; x.fillStyle = c; b = x.fillStyle;
+      return a === b ? parseSimple(String(a)) : null;   // different results mean the browser rejected the color
+    } catch (e) { return null; }
+  }
+  function parseColor(c) {
+    c = String(c == null ? '' : c).trim();
+    return parseSimple(c) || parseViaCanvas(c) || FALLBACK_RGB.slice();
   }
   // Mixes color a toward color b by t (0..1). Returns 'rgb(r,g,b)'.
   function mix(a, b, t) {
@@ -158,33 +185,71 @@
     x.putImageData(d, 0, 0);
   }
 
-  // Draws SVG text onto a canvas (resolves with the canvas), then optionally adds the pile.
+  // Draws SVG text onto a canvas (resolves with the canvas), then optionally adds the pile. Always resolves (a timer covers an
+  // image that never loads), so a stuck valance cannot block a scene change.
   function svgToCanvas(svg, w, h, k, pileSeed, stepped) {
     return new Promise(function (resolve) {
-      var im = new Image(), el = document.createElement('canvas');
+      var im = new Image(), el = document.createElement('canvas'), fin = false, tm = 0;
+      function finish() { if (fin) return; fin = true; if (tm) clearTimeout(tm); resolve(el); }
       el.width = Math.max(1, Math.round(w * k)); el.height = Math.max(1, Math.round(h * k));
       im.onload = function () {
-        var x = el.getContext('2d');
-        x.drawImage(im, 0, 0, el.width, el.height);
-        if (pileSeed) { try { addPile(x, el.width, el.height, pileSeed, stepped); } catch (e) {} }   // (skipped where canvas read-back is blocked)
-        resolve(el);
+        try {
+          var x = el.getContext('2d');
+          x.drawImage(im, 0, 0, el.width, el.height);
+          if (pileSeed) { try { addPile(x, el.width, el.height, pileSeed, stepped); } catch (e) {} }   // (skipped where canvas read-back is blocked)
+        } catch (e) {}
+        finish();
       };
-      im.onerror = function () { resolve(el); };
+      im.onerror = finish;
+      tm = setTimeout(finish, 4000);
       im.src = 'data:image/svg+xml,' + encodeURIComponent(svg);
       el.style.width = w + 'px'; el.style.height = h + 'px';
     });
   }
 
   // ---- the public object ----
+  var CALM_MS = 320;   // length of the fade used instead of the slide when the system asks for reduced motion
+
+  // Plays one Web Animation on `el` for the style property `prop` ('transform' or 'opacity') and writes the end value INTO the
+  // element, so a stalled or cancelled animation cannot leave it out of place (a timer is the safety net). The finished animation
+  // is kept (not cancelled): cancelling it made the right half jump a hair on a phone. Returns { promise, abort, read }.
+  function slide(el, prop, frames, finalValue, ms, delay, easing, axis) {
+    var done = false, tm = 0, an = null, res, promise = new Promise(function (r) { res = r; });
+    function settle() { if (done) return; done = true; if (tm) clearTimeout(tm); try { el.style[prop] = finalValue; } catch (e) {} res(); }
+    try {
+      el.style[prop] = frames[0][prop];
+      an = el.animate(frames, { duration: ms, delay: delay, easing: easing, fill: 'forwards' });
+      an.onfinish = settle;
+      tm = setTimeout(settle, ms + delay + 400);   // safety net: a stalled animation (seen on a phone) can't leave a half out of place
+    } catch (e) { settle(); }
+    return {
+      promise: promise, el: el, prop: prop, axis: axis,
+      // the value on screen right now, as a string that can be written back into the element
+      read: function () {
+        try {
+          var cs = window.getComputedStyle(el);
+          if (prop === 'opacity') { var o = parseFloat(cs.opacity); return String(isNaN(o) ? 1 : o); }
+          var m = /^matrix\(([^)]+)\)$/.exec(cs.transform), px = 0;
+          if (m) px = parseFloat(m[1].split(',')[axis === 'y' ? 5 : 4]) || 0;
+          return axis === 'y' ? 'translateY(' + px + 'px)' : 'translateX(' + px + 'px)';
+        } catch (e) { return null; }
+      },
+      // stops the animation for good (an interrupted close) without writing the end value
+      abort: function () { if (done) return; done = true; if (tm) clearTimeout(tm); try { if (an) an.cancel(); } catch (e) {} res(); },
+      isDone: function () { return done; }
+    };
+  }
+
   function create(opts) {
     opts = opts || {};
-    var container = opts.container || document.body;
+    var container = opts.container || (typeof document !== 'undefined' ? document.body : null);
     var color = opts.color || '#b3202a';
     var seed = opts.seed || 11;
     var closeMs = opts.closeMs || 760, openMs = opts.openMs || 1300;
     var stepped = !!opts.stepped;
     var zIndex = opts.zIndex == null ? 2147483000 : opts.zIndex;
-    var state = { jobs: null, el: null, parts: null, ready: false, size: null, destroyed: false, closed: false };
+    var state = { jobs: null, el: null, parts: null, ready: false, size: null, destroyed: false, closed: false,
+      preparing: null, closePromise: null, opening: null, openEnd: null, slides: [], locked: null, hurry: false };
 
     function geometry() {
       var W = opts.width || container.clientWidth || window.innerWidth || 400;
@@ -193,100 +258,182 @@
       return { W: W, H: H, PW: Math.ceil(W / 2) + 6, k: k };
     }
 
+    // True when the system asks for less motion (or opts.reducedMotion says so). Read each time a close or open starts.
+    function isCalm() {
+      if (opts.reducedMotion === true || opts.reducedMotion === false) return opts.reducedMotion;
+      try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+    }
+
+    // While closed, the elements that were in the container are made inert (no clicks, no Tab key, hidden from screen readers)
+    // and put back when the curtain is gone. Elements added behind the curtain during the scene change are left alone.
+    function lockPage() {
+      var kids = container.children, i, c;
+      state.locked = [];
+      for (i = 0; kids && i < kids.length; i++) {
+        c = kids[i];
+        if (c === state.el || !c.setAttribute || (c.hasAttribute && c.hasAttribute('inert'))) continue;
+        c.setAttribute('inert', ''); state.locked.push(c);
+      }
+    }
+    function unlockPage() {
+      var l = state.locked; state.locked = null;
+      if (l) l.forEach(function (c) { try { c.removeAttribute('inert'); } catch (e) {} });
+    }
+
     // Paints both halves in small slices during idle time, then assembles the curtain (not yet in the page).
-    // opts: sliceMs (default 2.5), restMs (default 45). Resolves when ready.
+    // opts: sliceMs (default 2.5), restMs (default 45), hurry (paint at once). Resolves when ready, and also resolves (with the curtain
+    // skipped) if painting is impossible or the curtain was destroyed meanwhile. Never rejects.
     function prepare(po) {
       po = po || {};
+      if (state.destroyed) return Promise.resolve(api);
       if (state.ready) return Promise.resolve(api);
       if (state.preparing) return state.preparing;
-      var gm = geometry(); state.size = gm;
-      state.jobs = [0, 1].map(function (n) { return velvetPainter(gm.PW, gm.H, gm.k, color, seed + n * 23, stepped); });   // two different paintings
+      var gm, jobs;
+      try {
+        gm = geometry(); state.size = gm;
+        jobs = state.jobs = [0, 1].map(function (n) { return velvetPainter(gm.PW, gm.H, gm.k, color, seed + n * 23, stepped); });   // two different paintings
+      } catch (e) { state.jobs = null; return Promise.resolve(api); }   // no canvas 2D (or no memory): skip the curtain
       var sliceMs = po.sliceMs || 2.5, restMs = po.restMs == null ? 45 : po.restMs;
-      var idle = window.requestIdleCallback || function (f) { return setTimeout(function () { f({ timeRemaining: function () { return 3; }, didTimeout: false }); }, 50); };
-      state.preparing = new Promise(function (resolve) {
+      var realIdle = typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function';
+      // Without requestIdleCallback (Safari ships it switched off) a timer stands in for it. It cannot tell how much time is left,
+      // so the "is this a real idle moment" check below is skipped and the painting goes ahead in short slices.
+      var idle = realIdle
+        ? function (f, o) { return window.requestIdleCallback(f, o); }
+        : function (f) { return setTimeout(function () { f({ timeRemaining: function () { return 3; }, didTimeout: false }); }, 16); };
+      var p = new Promise(function (resolve, reject) {
         (function slice() {
-          if (state.destroyed) return resolve(api);
-          idle(function (dl) {
-            if (!dl.didTimeout && dl.timeRemaining() < 7 && !po.hurry) { setTimeout(slice, restMs); return; }   // not a real idle moment
-            var done = true;
-            state.jobs.forEach(function (j) { if (!j.done && !j.step(po.hurry ? 0 : sliceMs)) done = false; });
-            if (!done) { setTimeout(slice, restMs); return; }
-            resolve();
-          }, { timeout: 800 });
+          if (state.destroyed) return resolve();
+          try {
+            idle(function (dl) {
+              if (state.destroyed) return resolve();
+              try {
+                var hurry = po.hurry || state.hurry;
+                if (realIdle && !hurry && !dl.didTimeout && dl.timeRemaining() < 7) { setTimeout(slice, restMs); return; }   // not a real idle moment
+                var done = true;
+                jobs.forEach(function (j) { if (!j.done && !j.step(hurry ? 0 : sliceMs)) done = false; });
+                if (!done) { setTimeout(slice, restMs); return; }
+                resolve();
+              } catch (e) { reject(e); }
+            }, { timeout: 800 });
+          } catch (e) { reject(e); }
         })();
       }).then(function () {
-        return svgToCanvas(valanceSvg(gm.W, color), gm.W, 80, gm.k, 99, stepped);
+        return state.destroyed ? null : svgToCanvas(valanceSvg(gm.W, color), gm.W, 80, gm.k, 99, stepped);
       }).then(function (val) {
+        if (state.destroyed || !val) return api;
+        var px = stepped ? ';image-rendering:pixelated' : '';   // chunky look only in stepped mode; otherwise let the browser smooth it
         var el = document.createElement('div');
         el.className = 'stage-curtains';
         el.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;pointer-events:none;z-index:' + zIndex + ';transform-origin:50% 45%;will-change:transform,opacity';
         var parts = [];
-        [state.jobs[0].canvas, mirrorCanvas(state.jobs[1].canvas)].forEach(function (c, side) {
-          c.style.cssText = 'position:absolute;top:0;' + (side ? 'right' : 'left') + ':0;width:' + gm.PW + 'px;height:' + gm.H + 'px;will-change:transform;z-index:4';
+        [jobs[0].canvas, mirrorCanvas(jobs[1].canvas)].forEach(function (c, side) {
+          c.style.cssText = 'position:absolute;top:0;' + (side ? 'right' : 'left') + ':0;width:' + gm.PW + 'px;height:' + gm.H + 'px;will-change:transform;z-index:4' + px;
           el.appendChild(c); parts.push({ el: c, side: side, kind: 'half' });
         });
-        val.style.cssText += ';position:absolute;left:0;top:0;width:100%;z-index:30;will-change:transform';
+        val.style.cssText += ';position:absolute;left:0;top:0;width:100%;z-index:30;will-change:transform' + px;
         el.appendChild(val); parts.push({ el: val, kind: 'valance' });
-        state.el = el; state.parts = parts; state.ready = true;
+        state.el = el; state.parts = parts; state.ready = true; state.hurry = false;
+        return api;
+      }).catch(function () {
+        // Anything failed while painting: skip the curtain, but let the scene change go on.
+        state.preparing = null; state.ready = false; state.el = state.parts = state.jobs = null; state.hurry = false;
         return api;
       });
-      return state.preparing;
+      state.preparing = p;
+      return p;
     }
 
-    // Finishes one half by writing its end place into the element itself (not relying on the animation to hold it).
-    function slide(part, from, to, ms, delay, easing) {
-      return new Promise(function (resolve) {
-        var done = false;
-        part.el.style.transform = from;
-        var an = part.el.animate([{ transform: from }, { transform: to }], { duration: ms, delay: delay, easing: easing, fill: 'forwards' });
-        function settle() { if (done) return; done = true; part.el.style.transform = to; try { an.cancel(); } catch (e) {} resolve(); }
-        an.onfinish = settle;
-        setTimeout(settle, ms + delay + 400);   // safety net: a stalled animation (seen on a phone) can't leave a half out of place
-      });
-    }
-
-    // Slides the curtains shut over the container. Calls prepare() first if needed. Resolves when both halves are in place.
+    // Slides the curtains shut over the container. Calls prepare() first if needed. Resolves when both halves are in place
+    // (a second close() while one is running gets the same answer, at the same moment). If the curtain could not be painted,
+    // resolves at once and nothing is shown.
     function close() {
-      return prepare({ hurry: true }).then(function () {
-        if (state.destroyed || state.closed) return api;
-        container.appendChild(state.el);
-        state.closed = true;
+      if (state.destroyed) return Promise.resolve(api);
+      if (state.opening) return state.opening.then(function () { return close(); });
+      if (state.closePromise) return state.closePromise;
+      state.hurry = true;   // the caller is waiting now: stop waiting for idle moments if painting is still going on
+      var p = state.closePromise = prepare({ hurry: true }).then(function () {
+        if (state.destroyed || !state.ready || !state.el) { if (state.closePromise === p) state.closePromise = null; return api; }
+        var calm = isCalm(), el = state.el;
         var halves = state.parts.filter(function (q) { return q.kind === 'half'; });
         var val = state.parts.filter(function (q) { return q.kind === 'valance'; })[0];
-        val.el.style.transform = 'translateY(-86px)';
-        var vAn = val.el.animate([{ transform: 'translateY(-86px)' }, { transform: 'translateY(6px)', offset: 0.7 }, { transform: 'translateY(-2px)', offset: 0.88 }, { transform: 'translateY(0)' }], { duration: closeMs * 0.84, easing: 'ease-out', fill: 'forwards' });
-        vAn.onfinish = function () { val.el.style.transform = 'translateY(0)'; };
+        state.closed = true; state.slides = [];
+        el.setAttribute('aria-hidden', 'true');    // decorative: screen readers skip it
+        if (calm) el.style.opacity = '0';
+        container.appendChild(el);
+        if (opts.lockPage === true || (opts.lockPage !== false && calm)) lockPage();
+        if (calm) {
+          // calm: everything is already in place, the whole curtain just fades in
+          halves.forEach(function (q) { q.el.style.transform = 'translateX(0)'; });
+          val.el.style.transform = 'translateY(0)';
+          var f = slide(el, 'opacity', [{ opacity: 0 }, { opacity: 1 }], '1', CALM_MS, 0, 'ease-out');
+          state.slides.push(f);
+          return f.promise;
+        }
+        var v = slide(val.el, 'transform', [{ transform: 'translateY(-86px)' }, { transform: 'translateY(6px)', offset: 0.7 }, { transform: 'translateY(-2px)', offset: 0.88 }, { transform: 'translateY(0)' }], 'translateY(0)', closeMs * 0.84, 0, 'ease-out', 'y');
+        state.slides.push(v);
         return Promise.all(halves.map(function (q) {
-          return slide(q, q.side ? 'translateX(105%)' : 'translateX(-105%)', 'translateX(0)', closeMs, q.side ? 50 : 0, 'cubic-bezier(.3,.7,.25,1)');
+          var h = slide(q.el, 'transform', [{ transform: q.side ? 'translateX(105%)' : 'translateX(-105%)' }, { transform: 'translateX(0)' }], 'translateX(0)', closeMs, q.side ? 50 : 0, 'cubic-bezier(.3,.7,.25,1)', 'x');
+          state.slides.push(h);
+          return h.promise;
         }));
-      }).then(function () { return api; });
+      }).then(function () { return api; }, function () { return api; });
+      return p;
     }
 
     // Opens the curtains. opts: flythrough (default true): the whole curtain also grows and fades, as if the camera flies through.
+    // Safe to call while the curtains are still sliding shut: they turn around from where they are, with no jump.
     function open(oo) {
       oo = oo || {};
-      if (!state.closed || state.destroyed) return Promise.resolve(api);
-      var fly = oo.flythrough !== false;
-      var el = state.el;
+      if (state.destroyed) return Promise.resolve(api);
+      if (state.opening) return state.opening;
+      if (state.closePromise && !state.closed) return state.closePromise.then(function () { return open(oo); });   // still being painted
+      if (!state.closed || !state.el) return Promise.resolve(api);
+      var calm = isCalm(), fly = oo.flythrough !== false && !calm, el = state.el;
+      // A close that is still sliding: stop it where it is and write that place into the elements, so the open starts from there.
+      var frozen = state.slides.map(function (h) { return h.isDone() ? null : h.read(); });
+      state.slides.forEach(function (h, i) { h.abort(); if (frozen[i] != null) { try { h.el.style[h.prop] = frozen[i]; } catch (e) {} } });
+      state.slides = [];
+      function from(part, axis) {   // where this part is right now, as a keyframe value
+        var cur = part.el.style.transform || '', m = /^translate([XY])\((-?[\d.eE+-]+)px\)$/.exec(cur);
+        return m && m[1] === axis ? cur : 'translate' + axis + '(0)';
+      }
+      var startOpacity = parseFloat(el.style.opacity); if (isNaN(startOpacity)) startOpacity = 1;
       var anims = [];
-      state.parts.forEach(function (q) {
-        if (q.kind === 'half') anims.push(q.el.animate([{ transform: 'translateX(0)' }, { transform: q.side ? 'translateX(70%)' : 'translateX(-70%)' }], { duration: openMs, delay: 250, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' }));
-        else anims.push(q.el.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-90px)' }], { duration: openMs * 0.85, delay: 450, easing: 'ease-in', fill: 'forwards' }));
+      state.opening = new Promise(function (resolve) {
+        var fin = false, tm = 0;
+        function end() {
+          if (fin) return; fin = true; if (tm) clearTimeout(tm);
+          unlockPage();
+          try { if (el.parentNode) el.parentNode.removeChild(el); el.removeAttribute('aria-hidden'); } catch (e) {}
+          state.closed = false; state.ready = false; state.preparing = null; state.closePromise = null; state.opening = null; state.openEnd = null; state.hurry = false;
+          resolve(api);
+        }
+        state.openEnd = end;
+        try {
+          if (calm) {
+            anims.push(el.animate([{ opacity: startOpacity }, { opacity: 0 }], { duration: CALM_MS, easing: 'ease-in', fill: 'forwards' }));
+          } else {
+            state.parts.forEach(function (q) {
+              if (q.kind === 'half') anims.push(q.el.animate([{ transform: from(q, 'X') }, { transform: q.side ? 'translateX(70%)' : 'translateX(-70%)' }], { duration: openMs, delay: 250, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' }));
+              else anims.push(q.el.animate([{ transform: from(q, 'Y') }, { transform: 'translateY(-90px)' }], { duration: openMs * 0.85, delay: 450, easing: 'ease-in', fill: 'forwards' }));
+            });
+            anims.push(el.animate(fly
+              ? [{ transform: 'scale(1)', opacity: startOpacity }, { transform: 'scale(1.2)', opacity: startOpacity, offset: 0.5 }, { transform: 'scale(1.5)', opacity: 0 }]
+              : [{ opacity: startOpacity }, { opacity: startOpacity, offset: 0.7 }, { opacity: 0 }],
+              { duration: openMs, delay: 250, easing: 'cubic-bezier(.4,0,.7,.4)', fill: 'forwards' }));
+          }
+          anims[anims.length - 1].onfinish = end;
+          tm = setTimeout(end, (calm ? CALM_MS : openMs + 250) + 500);
+        } catch (e) { end(); }
       });
-      anims.push(el.animate(fly
-        ? [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.2)', opacity: 1, offset: 0.5 }, { transform: 'scale(1.5)', opacity: 0 }]
-        : [{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }],
-        { duration: openMs, delay: 250, easing: 'cubic-bezier(.4,0,.7,.4)', fill: 'forwards' }));
-      return new Promise(function (resolve) {
-        var fin = false;
-        function end() { if (fin) return; fin = true; if (el.parentNode) el.parentNode.removeChild(el); state.closed = false; state.ready = false; state.preparing = null; resolve(api); }
-        anims[anims.length - 1].onfinish = end;
-        setTimeout(end, openMs + 250 + 500);
-      });
+      return state.opening;
     }
 
     function destroy() {
       state.destroyed = true;
+      state.slides.forEach(function (h) { h.abort(); }); state.slides = [];
+      if (state.openEnd) state.openEnd();   // resolves an open() that is still running
+      unlockPage();
       if (state.el && state.el.parentNode) state.el.parentNode.removeChild(state.el);
       state.el = state.parts = state.jobs = null;
     }
