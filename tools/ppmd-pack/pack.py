@@ -66,6 +66,11 @@ MEMS = tuple(m * MB for m in (1, 2, 4, 8, 16))
 DEFAULT_ORDER = 12
 
 
+# Courtesy credit, written into every packed page (PPMd is public domain, so this is not a legal duty).
+CREDIT = (b"<!-- Compressed with PPMd, algorithm by Dmitry Shkarin (PPMd variant H), public-domain code by Igor Pavlov (7-Zip), "
+          b"JavaScript and Python port by LFC Foundry (MIT License). -->")
+
+
 def default_mem(size):
     """The smallest power of two that is at least 8 times the input size, kept between 1 MB and 16 MB."""
     m = MB
@@ -202,7 +207,7 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
     title_html = ("<title>" + title.replace("&", "&amp;").replace("<", "&lt;") + "</title>").encode("ascii", "xmlcharrefreplace") if title else b""
     op = lz.opening_style(bg, text)   # the "Opening..." line, in the page's own background color, so a dark page never flashes white
     body = (b'<body style="' + op[1].encode("ascii") + b'">Opening...') if op else b'<body>'
-    page = (b'<!doctype html>' + meta + b'<meta name="viewport" content="width=device-width,initial-scale=1">' + head.encode("ascii", "xmlcharrefreplace") + title_html
+    page = (b'<!doctype html>' + meta + b'<meta name="viewport" content="width=device-width,initial-scale=1">' + CREDIT + head.encode("ascii", "xmlcharrefreplace") + title_html
             + body + b'<script>' + PAYLOAD_NAME.encode() + b'="' + payload + b'"</script><script>' + loader + b'</script>')   # the payload sits in its own script so a minifier cannot fold it
     # the check that matters: run what actually ships (JavaScript decoder, byte reader and hash) in Node
     node = node_roundtrip(page, data) if check_node else "off"

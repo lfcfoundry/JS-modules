@@ -100,6 +100,10 @@ Other things it does:
 - When this tool was written, the Python encoder was compared with the C encoder on 265 cases, all byte for byte identical: 38 test files under 120 KB at orders 6, 12 and 32 with 1 MB and with 2,048 bytes of memory, three larger files (180 to 430 KB) at order 12 with 16 MB, and 34 more with odd memory sizes (3,001 to 200,003 bytes), orders 2 to 64, empty and one-byte input, and random bytes.
 - Streams are decoded by `modules/ppmd-decode` in Node (`test/run.py`), and by the loader inside a real Chromium page (`test/browser.py`).
 
+## Credit in the packed page
+
+Every packed page starts with a short HTML comment crediting Dmitry Shkarin (PPMd variant H), Igor Pavlov (the public-domain 7-Zip code this follows) and LFC Foundry (the port). PPMd is public domain, so this is a courtesy, not a legal duty. It adds about 150 bytes and players never see it.
+
 ## Limits and gotchas
 
 - **Memory.** The packed page allocates `--mem` bytes when it starts (1 to 16 MB by default). That is fine for a desktop or a recent phone; on a very low-memory device the allocation can fail and the page shows the message instead. Use a smaller `--mem` (the cost is a larger file) or `lzma-pack` for such targets.

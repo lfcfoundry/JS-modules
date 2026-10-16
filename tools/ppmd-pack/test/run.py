@@ -404,5 +404,14 @@ def t_sizes():
 
 check("a larger page packs well", t_sizes)
 
+def t_credit():
+    page, info = pack.pack(APP, check_node=False)
+    s = page.decode("latin-1")
+    assert "Dmitry Shkarin" in s and "Igor Pavlov" in s and "7-Zip" in s, "the credit comment is missing from the packed page"
+
+
+check("the packed page carries a credit to Shkarin, Pavlov and 7-Zip", t_credit)
+
+
 print("ppmd-pack: %d passed, %d failed, %d skipped" % (passed, failed, skipped))
 sys.exit(1 if failed else 0)
