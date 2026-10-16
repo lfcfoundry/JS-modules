@@ -45,6 +45,9 @@
   .list button { display: block; width: 100%; text-align: left; margin-bottom: 8px; }
   /* The focus ring pad-nav puts on the focused element. You style it; the library only adds the class. */
   .pad-focus { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .pad-adjust { outline-style: dashed; }   /* a slider in adjust mode: left and right change it */
+  .ctl { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding: 6px 0; }
+  .ctl input[type=range] { flex: 1; }
   #hint { position: sticky; bottom: 8px; margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; }
   #hint[hidden] { display: none; }
   #sim { display: grid; grid-template-columns: repeat(3, 56px); gap: 6px; justify-content: start; margin: 8px 0; user-select: none; touch-action: none; }
@@ -58,7 +61,7 @@
 <body>
 <main>
   <h1>pad-nav example</h1>
-  <p class="muted">Drive this menu with a connected gamepad (press any button first so the browser notices it), or use the on-screen pad below. D-pad or left stick moves, A picks, B goes back, Start opens or closes the pause panel.</p>
+  <p class="muted">Drive this menu with a connected gamepad (press any button first so the browser notices it), or use the on-screen pad below. D-pad or left stick moves, A picks, B goes back, Start opens or closes the pause panel. In Options, A on the volume slider lets left and right change it (A or B to finish), and A on Difficulty cycles the choices.</p>
   <p id="status" class="muted">Controller: none detected yet. The on-screen pad below works without one.</p>
 
   <section class="panel" id="menu" aria-label="Main menu">
@@ -74,6 +77,8 @@
 
   <section class="panel list" id="options" aria-label="Options" hidden>
     <h2>Options (this panel scrolls)</h2>
+    <label class="ctl">Master volume <input id="vol" type="range" min="0" max="10" value="7"> <output id="volOut">7</output></label>
+    <label class="ctl">Difficulty <select id="diff"><option>Easy</option><option selected>Normal</option><option>Hard</option></select></label>
     <button>Music volume: 7</button><button>Effects volume: 8</button><button>Screen shake: on</button>
     <button>Vibration: on</button><button>Subtitles: off</button><button>Text size: medium</button>
     <button>High contrast: off</button><button>Reduce motion: off</button><button>Language: English</button>
@@ -137,6 +142,10 @@
     // pads: the real ones plus the on-screen one
     getPads: function () { var l = navigator.getGamepads ? Array.prototype.slice.call(navigator.getGamepads()) : []; l.push(sim); return l; },
     hintEl: $('hint'),
+    labels: true,   // Cross/Circle on PlayStation pads, B/A on Nintendo pads; the on-screen pad says A and B
+    onUse: function (pad) { log('pad in use: ' + pad.id); },
+    onDisconnect: function () { log('pad lost'); },
+    onError: function (err, where) { log('error in ' + where + ': ' + err); },
     onBack: function (scope) { if (scope !== $('menu') && scope !== $('pause')) back(); else log('B: nothing to go back to here'); },
     onStart: function () {
       if (!playing) { log('Start: nothing to pause (press Play first)'); return; }
@@ -144,6 +153,8 @@
     }
   });
   pn.start();
+  $('vol').addEventListener('input', function () { $('volOut').textContent = this.value; });
+  $('options').addEventListener('change', function (e) { log('changed ' + e.target.id + ': ' + e.target.value); });
 
   document.addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('button') : null;
