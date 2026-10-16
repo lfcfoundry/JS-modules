@@ -36,7 +36,7 @@ var wk = WakeKeeper.create({ idleMs: 10000, onChange: show, onRefused: function 
 function show() { s.textContent = !wk.supported ? 'This browser has no screen wake lock.' : (wk.held ? 'Screen lock held' : 'No screen lock') + (wk.idle ? ' (idle)' : '') + why; }
 document.getElementById('play').onclick = function () { why = ''; wk.want(true); show(); };
 document.getElementById('pause').onclick = function () { wk.want(false); show(); };
-document.addEventListener('pointerdown', function () { wk.poke(); });
+wk.watchInput(document);
 show();
 </script>
 <footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/JNFoo" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
