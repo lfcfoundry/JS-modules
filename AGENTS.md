@@ -16,6 +16,9 @@ This repository is meant to be read, copied from and extended by people and AI h
 - Do not add game art, characters, brand names or text from Apple Press. Do not add code you cannot license under MIT, and say where an idea came from in the module README ("Prior art").
 - Plain words in docs. Say what a thing does, then its limits.
 
+## Version labels
+Every module and tool has a label like `1.2.3 · API 1` (classic major.minor.patch, plus an API number that always equals the major). Patch = a fix, minor = a new option or feature that breaks nobody, major = something an existing user could trip over (an option removed or renamed, a result that now means something else). `modules.json` holds the label and `tools/versions/versions.py` copies it everywhere else; never edit the copies by hand. When you change a module's or tool's shipped code, run `python3 tools/versions/versions.py set <id> X.Y.Z` in the same commit and say what changed in the commit message. Docs-only, test-only and example-only changes keep the label. `python3 tools/versions/versions.py check` must pass. See [tools/versions/README.md](tools/versions/README.md).
+
 ## Run the tests
 `npm i playwright-core && CHROMIUM=/path/to/chrome node tests/run.js`
 

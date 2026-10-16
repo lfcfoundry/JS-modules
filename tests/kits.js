@@ -27,6 +27,8 @@ var steps = [
   ['ppmd-pack python', 'python3', ['tools/ppmd-pack/test/run.py']],
   ['single-file-tools', 'python3', ['tools/single-file-tools/test/run.py']],
   ['fuzz-kit runner (fake page)', 'python3', ['tools/fuzz-kit/test/runner_fakes.py']],
+  ['versions', 'python3', ['tools/versions/test/run.py']],
+  ['version labels agree', 'python3', ['tools/versions/versions.py', 'check']],
   ['house-rule hooks', 'sh', ['tools/hooks/test.sh']],
   ['tab-guard', 'python3', ['modules/tab-guard/test/run.py'], true],
   ['back-close', 'python3', ['modules/back-close/test/run.py'], true],

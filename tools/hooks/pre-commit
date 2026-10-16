@@ -46,4 +46,10 @@ if [ -n "$missing" ]; then
   printf '%s\n' "$missing" | while IFS= read -r m; do echo "pre-commit (header): $m" >&2; done
   if [ "$HOOKS_HEADER_STRICT" = 1 ]; then echo "pre-commit: HOOKS_HEADER_STRICT=1, so the missing header blocks this commit." >&2; exit 1; fi
 fi
+
+# --- version labels: warn when shipped code changed without a new version (HOOKS_VERSION_STRICT=1 blocks) and when the copies disagree ---
+top=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -n "$top" ] && [ -f "$top/tools/versions/versions.py" ] && command -v python3 >/dev/null 2>&1; then
+  python3 "$top/tools/versions/versions.py" --root "$top" check --staged >&2 || { [ "$HOOKS_VERSION_STRICT" = 1 ] && exit 1; }
+fi
 exit 0
