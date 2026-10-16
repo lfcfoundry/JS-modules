@@ -266,5 +266,69 @@ var frames = SB.bakeRoll(ringScene, 8, [48, 48], ringOpts);
   }
 })();
 
+/* 16. alphaMask and hit: threshold, color, bad input, ceiling */
+(function () {
+  function safe(fn) { try { return fn(); } catch (e) { return 'threw ' + e.message; } }
+  var img = { width: 4, height: 1, data: new Uint8ClampedArray([10, 20, 30, 0,  10, 20, 30, 8,  10, 20, 30, 9,  10, 20, 30, 255]) };
+  var before = Array.prototype.join.call(img.data), m = SB.alphaMask(img);
+  check('alphaMask keeps the size and returns a new { width, height, data }', m && m.width === 4 && m.height === 1 && m.data.length === 16 && m.data !== img.data);
+  check('default threshold 8 means alpha ABOVE 8 (0 and 8 out, 9 and 255 in)', m && [0, 1, 2, 3].map(function (i) { return m.data[i * 4 + 3]; }).join() === '0,0,255,255');
+  check('default color is opaque white, outside pixels are all zero', m && m.data.slice(8, 12).join() === '255,255,255,255' && m.data.slice(0, 8).join() === '0,0,0,0,0,0,0,0');
+  check('alphaMask does not change its source', Array.prototype.join.call(img.data) === before);
+  var hi = SB.alphaMask(img, { threshold: 100 }), lo = SB.alphaMask(img, { threshold: 0 });
+  check('threshold 100 keeps only the opaque pixel; threshold 0 keeps every pixel with any alpha', hi.data[11] === 0 && hi.data[15] === 255 && lo.data[7] === 255 && lo.data[3] === 0);
+  var col = SB.alphaMask(img, { color: [1, 2, 3] }), col4 = SB.alphaMask(img, { color: [1, 2, 3, 128] });
+  check('opts.color sets the mask color (alpha 255, or the fourth number)', col.data.slice(12, 16).join() === '1,2,3,255' && col4.data.slice(12, 16).join() === '1,2,3,128');
+  var bad = [undefined, null, 5, 'x', {}, [], { width: 2, height: 2 }, { width: 2, height: 2, data: new Uint8ClampedArray(3) }, { width: 0, height: 0, data: new Uint8ClampedArray(0) },
+    { width: 1.5, height: 2, data: new Uint8ClampedArray(12) }, { width: 2, height: 2, data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, { get width() { throw new Error('boom'); } }];
+  check('alphaMask returns null, never throws, for bad pictures', bad.every(function (b) { return safe(function () { return SB.alphaMask(b); }) === null; }));
+  check('alphaMask returns null for a bad threshold or color', [{ threshold: NaN }, { threshold: '8' }, { color: 'red' }, { color: [1, 2] }, { color: [1, 2, NaN] }, { color: [1, 2, 3, 'x'] }].every(function (o) { return safe(function () { return SB.alphaMask(img, o); }) === null; }));
+  check('alphaMask respects the size ceiling (opts.maxPixels)', SB.alphaMask(img, { maxPixels: 3 }) === null && SB.alphaMask(img, { maxPixels: 4 }) !== null);
+  check('alphaMask refuses a picture over the default ceiling (2048 x 2049)', SB.alphaMask({ width: 2048, height: 2049, data: new Uint8ClampedArray(2048 * 2049 * 4) }) === null);
+  check('hit is true inside the mask and false on empty pixels', SB.hit(m, 2, 0) && SB.hit(m, 3.9, 0.5) && !SB.hit(m, 0, 0) && !SB.hit(m, 1, 0));
+  check('hit is false outside the picture or for bad input, never throws', [[m, -1, 0], [m, 4, 0], [m, 0, 1], [m, NaN, 0], [null, 0, 0], [{}, 0, 0], [m], [5, 1, 1]].every(function (a) { return safe(function () { return SB.hit(a[0], a[1], a[2]); }) === false; }));
+  var real = SB.alphaMask(SB.bakeSprite([{ fn: SB.sphere(10), nu: 12, nv: 18, material: WARM }], 40, { scale: 1.5 }));
+  check('mask of a baked sphere: center inside, corner outside', SB.hit(real, 20, 20) && !SB.hit(real, 1, 1));
+})();
+
+/* 17. toSheet: frame order, padding, wrapping, bad input, ceiling */
+(function () {
+  function safe(fn) { try { return fn(); } catch (e) { return 'threw ' + e.message; } }
+  function pic(w, h, v) { var d = new Uint8ClampedArray(w * h * 4), i; for (i = 0; i < d.length; i++) d[i] = v; return { width: w, height: h, data: d }; }
+  function at(sheet, x, y) { return sheet.image.data[(y * sheet.width + x) * 4]; }
+  var a = pic(4, 2, 10), b = pic(3, 5, 20), c = pic(2, 2, 30);
+  var s = SB.toSheet([a, b, c]);
+  check('toSheet returns image, frames, width and height (canvas null in Node)', s && s.image && s.frames.length === 3 && s.canvas === null && s.width === s.image.width && s.height === s.image.height);
+  check('frames are in input order, in one row, with the default padding of 1', s && JSON.stringify(s.frames) === JSON.stringify([{ x: 0, y: 0, w: 4, h: 2 }, { x: 5, y: 0, w: 3, h: 5 }, { x: 9, y: 0, w: 2, h: 2 }]));
+  check('sheet is as wide as the row (padding only between pictures) and as tall as the tallest', s && s.width === 11 && s.height === 5 && s.image.data.length === 11 * 5 * 4);
+  check('pixels land inside their frames and padding stays transparent', s && at(s, 0, 0) === 10 && at(s, 3, 1) === 10 && at(s, 4, 0) === 0 && at(s, 5, 0) === 20 && at(s, 7, 4) === 20 && at(s, 9, 1) === 30 && at(s, 0, 2) === 0);
+  var p0 = SB.toSheet([a, b], { padding: 0 }), p3 = SB.toSheet([a, b], { padding: 3 });
+  check('opts.padding 0 packs tight; padding 3 leaves 3 pixels', p0.frames[1].x === 4 && p0.width === 7 && p3.frames[1].x === 7 && p3.width === 10);
+  var w = SB.toSheet([a, b, c], { maxWidth: 8 });
+  check('rows wrap at opts.maxWidth (second row starts below the first row plus padding)', w && JSON.stringify(w.frames) === JSON.stringify([{ x: 0, y: 0, w: 4, h: 2 }, { x: 5, y: 0, w: 3, h: 5 }, { x: 0, y: 6, w: 2, h: 2 }]) && w.width === 8 && w.height === 8);
+  check('every frame stays within maxWidth and frames never overlap', (function () {
+    var many = [], i, f, g, j, ok = true, t;
+    for (i = 0; i < 12; i++) many.push(pic(3 + i % 4, 2 + i % 3, i + 1));
+    t = SB.toSheet(many, { maxWidth: 12 });
+    if (!t || t.frames.length !== 12) return false;
+    for (i = 0; i < 12; i++) {
+      f = t.frames[i];
+      if (f.x + f.w > 12 || f.w !== many[i].width || f.h !== many[i].height || at(t, f.x, f.y) !== i + 1) ok = false;
+      for (j = 0; j < i; j++) { g = t.frames[j]; if (f.x < g.x + g.w && g.x < f.x + f.w && f.y < g.y + g.h && g.y < f.y + f.h) ok = false; }
+    }
+    return ok;
+  })());
+  check('toSheet does not change its inputs', a.data[0] === 10 && a.data.length === 32);
+  var bad = [undefined, null, 5, 'x', {}, [], [a, null], [a, { width: 2, height: 2 }], [a, pic(2, 2, 1).width], [pic(3000, 1, 1)]];
+  check('toSheet returns null, never throws, for bad lists (incl. a picture wider than maxWidth)', bad.every(function (x) { return safe(function () { return SB.toSheet(x); }) === null; }));
+  check('toSheet returns null for bad padding or maxWidth', [{ padding: -1 }, { padding: NaN }, { padding: '1' }, { padding: Infinity }, { maxWidth: 0 }, { maxWidth: NaN }].every(function (o) { return safe(function () { return SB.toSheet([a], o); }) === null; }));
+  check('ceiling: a sheet over opts.maxPixels is refused, at the limit it is allowed (11 x 5 = 55)', SB.toSheet([a, b, c], { maxPixels: 54 }) === null && SB.toSheet([a, b, c], { maxPixels: 55 }) !== null);
+  check('ceiling: one picture over opts.maxPixels is refused', SB.toSheet([a], { maxPixels: 7 }) === null);
+  check('ceiling: padding counts (two 2048 x 1024 pictures stack to 2048 x 2049, over the default 4,194,304)', SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)]) === null && SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)], { padding: 0 }) !== null);
+  var rolled = SB.bakeRoll(ringScene, 4, [16, 16], { ss: 1 }), sheet = SB.toSheet(rolled, { padding: 2, maxWidth: 40 });
+  check('baked frames pack into a sheet (4 of 16 x 16 at maxWidth 40 and padding 2: two rows of two)', sheet && sheet.width === 34 && sheet.height === 34 && sheet.frames[2].y === 18);
+  check('version is 1.2.0', SB.version === '1.2.0');
+})();
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

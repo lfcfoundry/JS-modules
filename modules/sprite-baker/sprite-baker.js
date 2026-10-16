@@ -634,8 +634,78 @@ var SpriteBaker = (function () {
     return out;
   }
 
+  /* ------------------------------------------------------------------ masks and sheets (1.2.0) */
+
+  function ceiling(opts) { return opts && opts.maxPixels > 0 ? opts.maxPixels : DEFAULT_MAX_PIXELS; }
+  function num(v) { return typeof v === 'number' && isFinite(v); }
+
+  /* A usable picture: { width, height, data } (or an ImageData) with whole positive sizes, no more than `max` pixels, and a
+     typed array of exactly width * height * 4 bytes. Pictures are never read back from a canvas, so a canvas is not one. */
+  function isPicture(img, max) {
+    return !!img && typeof img === 'object' && img.width > 0 && img.height > 0 && img.width === Math.floor(img.width) && img.height === Math.floor(img.height) &&
+      img.width * img.height <= max && !!img.data && typeof img.data.subarray === 'function' && img.data.length === img.width * img.height * 4;
+  }
+
+  /* alphaMask(img, opts): a silhouette of img, for hit tests, outlines and glows. Every pixel whose alpha is ABOVE
+     opts.threshold (default 8, of 255) becomes opts.color ([r, g, b] or [r, g, b, a], default opaque white); the rest is
+     transparent. Returns a new { width, height, data }; img is not touched. Returns null (never throws) for anything that is
+     not a picture, a bad threshold or color, or a picture over opts.maxPixels (default 4194304). */
+  function alphaMask(img, opts) {
+    try {
+      var t = opts && opts.threshold !== undefined ? opts.threshold : 8, c = opts && opts.color !== undefined ? opts.color : [255, 255, 255];
+      if (!num(t) || !Array.isArray(c) || c.length < 3 || !num(c[0]) || !num(c[1]) || !num(c[2]) || (c.length > 3 && !num(c[3])) || !isPicture(img, ceiling(opts))) return null;
+      var n = img.width * img.height, src = img.data, data = new Uint8ClampedArray(n * 4), a = c.length > 3 ? c[3] : 255, i, o;
+      for (i = 0; i < n; i++) {
+        if (src[i * 4 + 3] > t) { o = i * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = a; }
+      }
+      return { width: img.width, height: img.height, data: data };
+    } catch (e) { return null; }
+  }
+
+  /* hit(img, x, y): true when the pixel under (x, y) has any alpha (so, on an alphaMask, when it is inside the shape). x and
+     y are rounded down to whole pixels. false for anything outside the picture or bad input; never throws. */
+  function hit(img, x, y) {
+    try {
+      x = Math.floor(x); y = Math.floor(y);
+      return !!img && x >= 0 && y >= 0 && x < img.width && y < img.height && !!img.data && img.data[(y * img.width + x) * 4 + 3] > 0;
+    } catch (e) { return false; }
+  }
+
+  /* toSheet(pictures, opts): pack an array of pictures ({ width, height, data }, as the bakers return) into one sheet, in
+     rows ("shelves"): each picture goes right of the last until the next would pass opts.maxWidth (default 2048), then a new
+     row starts. opts.padding (default 1) empty pixels sit BETWEEN pictures, across and down (not around the outer edge).
+     Returns { image, canvas, frames, width, height }: image is the sheet as { width, height, data }; canvas is toCanvas(image)
+     (null in Node or when the browser refuses; the image is still good); frames[i] = { x, y, w, h } for pictures[i], in input
+     order. Returns null (never throws) for an empty or bad list, a bad option, a picture wider than maxWidth, or a sheet (or
+     any one picture) over opts.maxPixels (default 4194304). */
+  function toSheet(pictures, opts) {
+    try {
+      var pad = opts && opts.padding !== undefined ? opts.padding : 1, maxW = opts && opts.maxWidth !== undefined ? opts.maxWidth : 2048, max = ceiling(opts);
+      if (!Array.isArray(pictures) || !pictures.length || !num(pad) || pad < 0 || !num(maxW) || maxW < 1) return null;
+      pad = Math.floor(pad); maxW = Math.floor(maxW);
+      var frames = [], x = 0, y = 0, rowH = 0, sheetW = 0, i, p, row, o, img, out;
+      for (i = 0; i < pictures.length; i++) {
+        p = pictures[i];
+        if (!isPicture(p, max) || p.width > maxW) return null;
+        if (x > 0 && x + p.width > maxW) { y += rowH + pad; x = 0; rowH = 0; }
+        frames.push({ x: x, y: y, w: p.width, h: p.height });
+        x += p.width + pad;
+        if (x - pad > sheetW) sheetW = x - pad;
+        if (p.height > rowH) rowH = p.height;
+      }
+      if (sheetW * (y + rowH) > max) return null;   // checked before the sheet is allocated
+      out = new Uint8ClampedArray(sheetW * (y + rowH) * 4);
+      for (i = 0; i < pictures.length; i++) {
+        p = pictures[i]; o = frames[i];
+        for (row = 0; row < o.h; row++) out.set(p.data.subarray(row * o.w * 4, (row + 1) * o.w * 4), ((o.y + row) * sheetW + o.x) * 4);
+      }
+      img = { width: sheetW, height: y + rowH, data: out };
+      return { image: img, canvas: toCanvas(img), frames: frames, width: img.width, height: img.height };
+    } catch (e) { return null; }
+  }
+
   return {
-    version: '1.1.0',
+    version: '1.2.0',
     Rast: Rast,
     material: material,
     bakeRamp: bakeRamp,
@@ -656,6 +726,9 @@ var SpriteBaker = (function () {
     baker: baker,
     toImageData: toImageData,
     toCanvas: toCanvas,
+    alphaMask: alphaMask,
+    hit: hit,
+    toSheet: toSheet,
     DEFAULT_LIGHT: DEFAULT_LIGHT.slice(),
     DEFAULT_MAX_PIXELS: DEFAULT_MAX_PIXELS
   };

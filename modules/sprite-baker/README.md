@@ -1,12 +1,12 @@
 # sprite-baker
 
-Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
+Version 1.2.0 (`SB.version`). Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
 ## What it is
 
 A tiny software 3D rasterizer for Canvas 2D games. You describe a few smooth parametric shapes, it shades them with a toon color ramp on the CPU (no WebGL), and it bakes the result into ordinary 2D sprites: one picture, or N pictures of the shape rolling about a fixed horizontal axis. Your game then draws those pictures with `drawImage` and never touches 3D again.
 
-About 650 lines of plain JavaScript, a third of them comments, no dependencies, no build step. The core works in Node without a canvas; the browser helpers are optional.
+About 740 lines of plain JavaScript, a third of them comments, no dependencies, no build step. The core works in Node without a canvas; the browser helpers are optional.
 
 ![A capsule with five ridges baked into 16 frames, and a torus with a bead baked into 12 frames](preview.png)
 
@@ -104,6 +104,22 @@ Screen conventions: pixels, x right, y **down**, z toward the viewer (larger z i
 - `SB.outline(img, radius, color)`, `SB.downsample(rast, ss)`, `SB.toImageData(img)` (falls back to a plain `{ width, height, data }` if the platform will not build an `ImageData`).
 - `SB.toCanvas(img, opts)`: browser only. Returns a new `<canvas>`, or **`null`** when there is no `document` (Node, a worker), the image is empty or malformed, or the browser will not give a 2D context (it can refuse a very large canvas). It never throws, so callers must handle `null`. `opts.willReadFrequently: true` asks for a plain-memory canvas (`getContext('2d', { willReadFrequently: true })`); the default is unchanged (`getContext('2d')`). Whether the flag helps drawing speed on your target phone is worth a quick A/B test with per-frame drawing included; it is meant for canvases you read back, which this module itself never does.
 
+**Masks and sheets** (new in 1.2.0). Both take baked pictures (`{ width, height, data }`, what the bakers return), never a canvas, because the module does not read canvases back. Both return `null` instead of throwing, and both honor the size ceiling (`opts.maxPixels`, default 4,194,304).
+
+- `SB.alphaMask(img, opts)`: a silhouette of a picture, for hit tests, outlines and glows. Every pixel with alpha **above** `opts.threshold` (default 8 of 255) becomes `opts.color` (`[r, g, b]`, or `[r, g, b, a]`; default opaque white) and the rest is transparent. Returns a new `{ width, height, data }`, or `null` for a bad picture, threshold or color. `SB.hit(mask, x, y)` is `true` when the pixel under that point has any alpha (`false` outside the picture or for bad input).
+
+  ```js
+  var mask = SB.alphaMask(SB.bakeSprite(scene, 64), { threshold: 8, color: [255, 255, 255] });
+  if (mask && SB.hit(mask, mouseX - spriteX, mouseY - spriteY)) { /* the pointer is on the shape, not just its box */ }
+  ```
+
+- `SB.toSheet(pictures, opts)`: packs an array of pictures into one sprite sheet, left to right in rows, starting a new row when the next picture would pass `opts.maxWidth` (default 2048). `opts.padding` (default 1) empty pixels go between pictures (not around the outer edge). Returns `{ image, canvas, frames, width, height }`: `image` is the sheet as `{ width, height, data }`, `canvas` is `SB.toCanvas(image)` (`null` in Node or when the browser refuses; the image is still good), and `frames[i]` is `{ x, y, w, h }` for `pictures[i]`, in input order. Returns `null` for an empty or bad list, a bad option, a picture wider than `maxWidth`, or a sheet over the ceiling (padding counts).
+
+  ```js
+  var sheet = SB.toSheet(SB.bakeRoll(scene, 12, 96), { padding: 2, maxWidth: 1024 });
+  if (sheet && sheet.canvas) { var f = sheet.frames[3]; g.drawImage(sheet.canvas, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h); }
+  ```
+
 **Sharp on high-density screens.** The module bakes exactly the pixel size you ask for. If the sprite is drawn at 96 CSS pixels, bake it at `Math.round(96 * devicePixelRatio)` pixels (for example 288 on a 3x phone) and draw it with the 96 CSS pixel size, otherwise the browser upscales it and it looks soft or blocky. The size ceiling above still applies.
 
 ## How it differs from existing open source
@@ -146,6 +162,7 @@ Invariants to preserve unless you are changing the look on purpose (and then upd
 - `rotationMatrix` negates the angle so positive x rotation brings the top toward the viewer; it snaps tiny sines and cosines to zero so a full turn is exact. The "frame 0 equals a full-turn render" test relies on both.
 - `bakeRoll` renders angles `i / frames * turn` for `i < frames` (the end angle is not repeated), uses one scale for all frames and reuses one `Rast`.
 - Keep the file dual-loading (last line), the license header (first line), and keep it dependency-free and canvas-free at its core. Only `toCanvas` may touch `document`.
+- `alphaMask` and `toSheet` take pictures, never canvases; keep it that way (no `getImageData`). Like the bakers, they return `null` for bad input and check the ceiling before allocating.
 - Keep game-specific content out: no character art, names, or palettes from the source game. Use American English.
 
 - Every baking path goes through one internal `setup()` (meshes, ceiling, scale, one `Rast`) and its `render(phi)`, so `bakeSprite`, `bakeRoll` and `baker` cannot drift apart. Keep it that way: the test "next() x 8 gives frames byte-identical to bakeRoll" guards it.
@@ -157,4 +174,4 @@ Run the tests: `node modules/sprite-baker/test/run.js` (exits non-zero on failur
 What not to change: the exported names listed in the API section (other code may call them), and the "no dependencies, no build step" rule.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Fancy, the Banana](https://github.com/JNFoo/fancy-banana)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
