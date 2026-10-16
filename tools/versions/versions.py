@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""versions: one place for every module's and tool's version label.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
+"""versions: one place for every module's and tool's version label.  Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
 
 A label is a classic number plus an API number:   1.2.3 · API 1
   - 1.2.3: major.minor.patch. Patch = a fix, minor = a new option or feature that does not break anyone, major = something an existing user
