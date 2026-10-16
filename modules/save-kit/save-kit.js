@@ -7,16 +7,25 @@
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
  *    damaged number never costs the rest of the save. Prototype-pollution keys are dropped. Counts are capped.
  *  - save(): refuses to write when a number is NaN/Infinity/negative (a bug must never overwrite good progress),
- *    stamps `seen`, and copies the last good save to a backup slot at most once a minute.
- *  - load(): reads the main slot, or the backup slot if the main one is unreadable.
- *  - exportCode()/importCode(): 'AB1z.<base64url>.<7-char check>' codes (deflate-raw squeezed where the browser can). The check
- *    catches a code that was cut off while copying.
+ *    stamps `seen`, and copies the last good save to a backup slot at most once a minute. Never throws.
+ *  - load(): reads the main slot and the backup slot and rebuilds the state from the better one, field by field with
+ *    validate(), so one bad number costs only that number. Returns null only when neither slot holds an object.
+ *  - exportCode()/importCode(): 'AB1z.<base64url>.<7-char check>' codes (deflate-raw squeezed where the browser can, and
+ *    only when that is actually shorter). The check catches a code that was cut off while copying. Pasted text is refused
+ *    when it is too long, and unpacking stops when the result passes a limit (see create() below).
  *  - autosave(): timer + pagehide + visibilitychange, because phones close hidden pages without warning.
  *  - twoTap(): "tap again to confirm" helper for destructive buttons (pop-up confirm() is often unavailable).
  *
- * Schema types (strings): 'num' finite >= 0 | 'int' whole >= 0 | 'flag' 0 or 1 | 'str:N' string up to N chars |
- *   'int:N' whole 0..N | 'counts' map of name -> whole number (>0, capped at 1e6, or {counts:{max:N}} via object form) |
- *   { type:'counts', max:20 } | { type:'int', max:99 } | { type:'str', max:20 } | { type:'raw' } (kept as-is if JSON-plain, use sparingly)
+ * Notes
+ *  - `seen` (a timestamp) is stamped on every save and export, and removed again by load()/validate() unless your schema lists it.
+ *  - 'counts' and 'raw' results: counts objects have NO prototype (Object.create(null)), so use SaveKit.has(obj, key) instead of
+ *    obj.hasOwnProperty(key). 'raw' results are plain objects with __proto__/constructor/prototype keys removed.
+ *
+ * Schema types (strings): 'num' finite >= 0 | 'int' whole >= 0 | 'flag' 0 or 1 (a missing or broken value uses the default, so a
+ *   new on-by-default setting stays on for returning players) | 'str:N' string up to N chars |
+ *   'int:N' whole 0..N | 'counts' map of name -> whole number (>0, capped at 1e6) |
+ *   { type:'counts', max:20, maxKeys:500 } (max = biggest value, maxKeys = most names kept, default 1000) |
+ *   { type:'int', max:99 } | { type:'str', max:20 } | { type:'raw' } (kept as-is if JSON-plain, use sparingly)
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -25,13 +34,32 @@
   'use strict';
 
   var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
+  var DEFAULT_MAX_BYTES = 262144;     // biggest unpacked save a code may hold: 256 KiB
+  var DEFAULT_MAX_KEYS = 1000;        // most names kept in one 'counts' field
+  var TOO_BIG = 'That code is too big to open. Copy only the code and try again.';
+  var DAMAGED = 'That code is damaged.';
+  var INCOMPLETE = 'That code is not complete. Copy the whole code and try again.';
+
   function bag() { return Object.create(null); }
   function isNum(v) { return typeof v === 'number' && isFinite(v) && v >= 0; }
+  function has(obj, key) { return Object.prototype.hasOwnProperty.call(obj, key); }
+  function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
 
   function norm(spec) {
-    if (typeof spec === 'object') return spec;
-    var m = /^(\w+)(?::(\d+))?$/.exec(spec) || [];
+    if (spec && typeof spec === 'object') return spec;
+    var m = /^(\w+)(?::(\d+))?$/.exec(String(spec)) || [];
     return { type: m[1] || 'raw', max: m[2] ? +m[2] : undefined };
+  }
+
+  // Copies JSON-plain data into fresh plain objects, leaving out __proto__/constructor/prototype keys. Throws if nested too deep.
+  function scrub(v, depth) {
+    if (depth > 32) throw new Error('too deep');
+    if (v === null || typeof v !== 'object') return v;
+    var out, i;
+    if (Array.isArray(v)) { out = []; for (i = 0; i < v.length; i++) out.push(scrub(v[i], depth + 1)); return out; }
+    out = {};
+    Object.keys(v).forEach(function (k) { if (!BAD_KEYS[k]) out[k] = scrub(v[k], depth + 1); });
+    return out;
   }
 
   // Rebuilds one field's value from untrusted data; `d` is the default used when the value is missing or broken.
@@ -40,18 +68,18 @@
     switch (spec.type) {
       case 'num': return isNum(v) ? v : d;
       case 'int': return isNum(v) ? Math.min(Math.floor(v), spec.max == null ? Number.MAX_SAFE_INTEGER : spec.max) : d;
-      case 'flag': return v === 1 ? 1 : 0;
+      case 'flag': return v === 1 ? 1 : v === 0 ? 0 : (d === 1 ? 1 : 0);
       case 'str': return typeof v === 'string' && v.length <= (spec.max || 200) ? v : (d == null ? '' : d);
       case 'counts':
-        var out = bag();
-        if (!v || typeof v !== 'object' || Array.isArray(v)) return out;
+        var out = bag(), kept = 0, maxKeys = spec.maxKeys > 0 ? spec.maxKeys : DEFAULT_MAX_KEYS;
+        if (!isObj(v)) return out;
         Object.keys(v).forEach(function (k) {
-          if (BAD_KEYS[k] || k.length > 200) return;
+          if (BAD_KEYS[k] || k.length > 200 || kept >= maxKeys) return;
           var n = v[k];
-          if (typeof n === 'number' && isFinite(n) && n > 0) out[k] = Math.min(Math.floor(n), spec.max || 1e6);
+          if (typeof n === 'number' && isFinite(n) && n > 0) { out[k] = Math.min(Math.floor(n), spec.max || 1e6); kept++; }
         });
         return out;
-      case 'raw': try { return JSON.parse(JSON.stringify(v)); } catch (e) { return d; }
+      case 'raw': try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { return d; }
       default: return d;
     }
   }
@@ -59,9 +87,9 @@
   // validate(schema, defaults, untrusted) -> a new, clean state object. Fields not in the schema are dropped.
   function validate(schema, defaults, input) {
     var out = {};
-    input = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    input = isObj(input) ? input : {};
     Object.keys(schema).forEach(function (k) {
-      out[k] = cleanField(schema[k], input[k], defaults ? defaults[k] : undefined);
+      out[k] = cleanField(schema[k], has(input, k) ? input[k] : undefined, defaults ? defaults[k] : undefined);
     });
     return out;
   }
@@ -71,18 +99,28 @@
     return keys.every(function (k) { var v = state[k]; return v === undefined || isNum(v); });
   }
 
+  // countsSound(v): true when v is not a map, or every value in the map is a finite number >= 0 (a NaN written to storage comes back as null).
+  function countsSound(v) {
+    if (!isObj(v)) return true;
+    return Object.keys(v).every(function (k) { return isNum(v[k]); });
+  }
+
   // ---- codes ----
   function checksum(t) {   // FNV-1a, 32 bit, base 36
     var h = 0x811c9dc5;
     for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
     return ('0000000' + h.toString(36)).slice(-7);   // always 7 characters, so words pasted after a code are not swallowed
   }
+  // Base64 without padding, URL-safe. Uses the browser's own Uint8Array.toBase64/fromBase64 when it has them (Chrome 140, Firefox 133,
+  // Safari 18.2), else the loops below.
   function toB64(bytes) {
+    try { if (typeof bytes.toBase64 === 'function') return bytes.toBase64({ alphabet: 'base64url' }).replace(/=+$/, ''); } catch (e) {}
     var bin = '';
     for (var i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
   function fromB64(t) {
+    try { if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(t, { alphabet: 'base64url' }); } catch (e) {}
     var bin = atob(t.replace(/-/g, '+').replace(/_/g, '/'));
     var out = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
@@ -91,81 +129,140 @@
   function canSqueeze() {
     try { new CompressionStream('deflate-raw'); new DecompressionStream('deflate-raw'); return true; } catch (e) { return false; }
   }
-  function squeeze(bytes, how) {
-    var cs = how === 'in' ? new DecompressionStream('deflate-raw') : new CompressionStream('deflate-raw');
-    var out = new Blob([bytes]).stream().pipeThrough(cs);
+  function deflate(bytes) {
+    var out = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
     return new Response(out).arrayBuffer().then(function (b) { return new Uint8Array(b); });
   }
+  // Unpacks deflate-raw bytes, reading the output in pieces; gives up (rejects TOO_BIG) as soon as the output passes `limit`,
+  // so a tiny code that expands about 1000 to 1 is cut off early instead of filling memory.
+  function inflate(bytes, limit) {
+    return new Promise(function (resolve, reject) {
+      var reader, chunks = [], total = 0;
+      try { reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(); } catch (e) { reject(DAMAGED); return; }
+      function pump() {
+        reader.read().then(function (r) {
+          if (r.done) {
+            var out = new Uint8Array(total), at = 0;
+            chunks.forEach(function (c) { out.set(c, at); at += c.length; });
+            resolve(out); return;
+          }
+          total += r.value.length;
+          if (total > limit) { try { reader.cancel().then(null, function () {}); } catch (e) {} reject(TOO_BIG); return; }
+          chunks.push(r.value);
+          pump();
+        }, function () { reject(DAMAGED); });
+      }
+      pump();
+    });
+  }
+  function escapeRe(t) { return t.replace(/[.*+?^${}()|[\]\\\/-]/g, '\\$&'); }
 
   // ---- the store ----
-  // create({ key, schema, defaults, soundKeys, prefix, storage })
+  // create({ key, schema, defaults, soundKeys, prefix, storage, maxCodeBytes, maxCodeChars, backupEveryMs })
   //   key: localStorage key. schema/defaults: see validate(). soundKeys: numeric fields that must be sound to write a save
-  //   (default: every 'num'/'int' field). prefix: 2 capital letters + digit for codes, default 'SK1'.
+  //   (default: every 'num'/'int' field; every value inside a 'counts' field is always checked too). prefix: 2 capital letters + digit for codes,
+  //   default 'SK1'. maxCodeBytes: biggest save a code may unpack to (default 262144 = 256 KiB). maxCodeChars: longest pasted text
+  //   importCode() will look at (default about 4/3 of maxCodeBytes plus 1024, so 350549). storage: any object with getItem/setItem.
   function create(o) {
-    var key = o.key, schema = o.schema, defaults = o.defaults || {}, prefix = o.prefix || 'SK1';
-    var storage = o.storage || (typeof localStorage !== 'undefined' ? localStorage : null);
-    var soundKeys = o.soundKeys || Object.keys(schema).filter(function (k) { var t = norm(schema[k]).type; return t === 'num' || t === 'int'; });
+    o = o || {};
+    var key = o.key, schema = o.schema || {}, defaults = o.defaults || {}, prefix = o.prefix || 'SK1';
+    var storage = o.storage || null;
+    if (!storage) { try { storage = typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { storage = null; } }   // touching localStorage can throw when storage is blocked
+    var maxBytes = o.maxCodeBytes > 0 ? o.maxCodeBytes : DEFAULT_MAX_BYTES;
+    var maxChars = o.maxCodeChars > 0 ? o.maxCodeChars : Math.ceil(maxBytes * 4 / 3) + 1024;
+    var kinds = function (t) { return Object.keys(schema).filter(function (k) { return norm(schema[k]).type === t; }); };
+    var soundKeys = o.soundKeys || kinds('num').concat(kinds('int'));
+    var countKeys = kinds('counts');
+    var re = new RegExp(escapeRe(prefix) + '([zp])\\.([A-Za-z0-9_-]+)\\.([0-9a-z]{7})');
     var off = false, backupAt = 0, backupEvery = o.backupEveryMs == null ? 60000 : o.backupEveryMs;
 
+    // How many fields hold a broken number (numbers in soundKeys, and values inside counts fields).
+    function badFields(x) {
+      var n = 0;
+      soundKeys.forEach(function (k) { var v = x[k]; if (v !== undefined && !isNum(v)) n++; });
+      countKeys.forEach(function (k) { if (!countsSound(x[k])) n++; });
+      return n;
+    }
+    function soundState(x) { return isObj(x) && badFields(x) === 0; }
     function readSlot(slot) {
       try {
         var x = JSON.parse(storage.getItem(slot) || 'null');
-        if (x && typeof x === 'object' && !Array.isArray(x) && isSound(x, soundKeys)) return x;
+        if (isObj(x)) return x;
       } catch (e) {}
       return null;
     }
     var api = {
       validate: function (input) { return validate(schema, defaults, input); },
-      // Returns a clean state from the main slot, else the backup slot, else null.
+      // Returns a clean state rebuilt from the better slot (the main slot unless the backup has fewer broken numbers), else null.
       load: function () {
-        var s = readSlot(key) || readSlot(key + '-backup');
-        return s ? validate(schema, defaults, s) : null;
+        try {
+          var a = readSlot(key), b = readSlot(key + '-backup');
+          if (!a && !b) return null;
+          var pick = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a);
+          return validate(schema, defaults, pick);
+        } catch (e) { return null; }
       },
       // Writes the state. Returns false (and writes nothing) if a number is broken, saving is switched off, or storage fails.
+      // Returns true when the main slot was written, even if the backup write failed (the backup is tried again next time).
       save: function (state) {
-        if (off || !storage || !isSound(state, soundKeys)) return false;
-        state.seen = Date.now();
         try {
+          if (off || !storage || !soundState(state)) return false;
+          state.seen = Date.now();
           var txt = JSON.stringify(state);
           storage.setItem(key, txt);
-          if (Date.now() - backupAt > backupEvery) { storage.setItem(key + '-backup', txt); backupAt = Date.now(); }
+          if (Date.now() - backupAt > backupEvery) {
+            try { storage.setItem(key + '-backup', txt); backupAt = Date.now(); } catch (e) { /* storage full: the main slot is safe */ }
+          }
           return true;
         } catch (e) { return false; }
       },
       forceBackupNext: function () { backupAt = 0; },
       // Switches saving off (true) or on (false). Used while a loaded save waits for a page reload, so the old game can't overwrite it.
       pause: function (v) { off = v !== false; },
-      // Calls getState() and saves: every `every` ms, on pagehide, and when the page is hidden.
+      // Calls getState() and saves: every `every` ms, on pagehide, and when the page is hidden. A getState() that throws is skipped.
       autosave: function (getState, every) {
-        var tick = function () { api.save(getState()); };
+        var tick = function () { var s; try { s = getState(); } catch (e) { return; } api.save(s); };
         var iv = setInterval(tick, every || 2000);
         function onHide() { if (typeof document !== 'undefined' && document.hidden) { api.forceBackupNext(); tick(); } }
         if (typeof window !== 'undefined') { window.addEventListener('pagehide', tick); document.addEventListener('visibilitychange', onHide); }
         return function stop() { clearInterval(iv); if (typeof window !== 'undefined') { window.removeEventListener('pagehide', tick); document.removeEventListener('visibilitychange', onHide); } };
       },
-      // -> Promise<string> like 'SK1z.<data>.<check>' (z = squeezed, p = plain)
+      // -> Promise<string> like 'SK1z.<data>.<check>' (z = squeezed, p = plain; whichever is shorter). Rejects with a message (string)
+      //    when there is no state, a number is broken, or the save is bigger than maxCodeBytes. Never throws.
       exportCode: function (state) {
-        state.seen = Date.now();
-        var raw = new TextEncoder().encode(JSON.stringify(state));
-        var done = function (flag, bytes) { var d = toB64(bytes); return prefix + flag + '.' + d + '.' + checksum(d); };
-        if (!canSqueeze()) return Promise.resolve(done('p', raw));
-        return squeeze(raw, 'out').then(function (b) { return done('z', b); }, function () { return done('p', raw); });
+        try {
+          if (!isObj(state)) return Promise.reject('There is nothing to make a code from yet.');
+          if (!soundState(state)) return Promise.reject('A number in the game is broken, so no code was made. Reload the page and try again.');
+          try { state.seen = Date.now(); } catch (e) {}
+          var raw = new TextEncoder().encode(JSON.stringify(state));
+          if (raw.length > maxBytes) return Promise.reject('This save is too big to turn into a code.');
+          var plain = toB64(raw);
+          var done = function (flag, d) { return prefix + flag + '.' + d + '.' + checksum(d); };
+          if (!canSqueeze()) return Promise.resolve(done('p', plain));
+          return deflate(raw).then(function (b) { var z = toB64(b); return z.length < plain.length ? done('z', z) : done('p', plain); }, function () { return done('p', plain); });
+        } catch (e) { return Promise.reject('This save could not be turned into a code.'); }
       },
-      // -> Promise<clean state>; rejects with a short human-readable message (string).
+      // -> Promise<clean state>; rejects with a short human-readable message (string). Never throws.
+      //    Refuses text longer than maxCodeChars, and stops unpacking when the result passes maxCodeBytes.
       importCode: function (text) {
-        var re = new RegExp(prefix + '([zp])\\.([A-Za-z0-9_-]+)\\.([0-9a-z]{7})');
-        var flat = String(text || '').replace(/\s+/g, '');
-        var m = re.exec(flat);
-        if (!m) return Promise.reject(flat.indexOf(prefix) >= 0 ? 'That code is not complete. Copy the whole code and try again.' : 'That is not a save code for this game.');
-        if (checksum(m[2]) !== m[3]) return Promise.reject('That code is not complete. Copy the whole code and try again.');
-        var bytes;
-        try { bytes = fromB64(m[2]); } catch (e) { return Promise.reject('That code is damaged.'); }
-        var get = m[1] === 'z' ? (canSqueeze() ? squeeze(bytes, 'in') : Promise.reject('This browser cannot open that code. Try a newer browser.')) : Promise.resolve(bytes);
-        return get.then(function (b) {
-          var x = JSON.parse(new TextDecoder().decode(b));
-          if (!x || typeof x !== 'object' || Array.isArray(x) || !isSound(x, soundKeys)) throw 0;
-          return validate(schema, defaults, x);
-        }).catch(function (e) { throw typeof e === 'string' ? e : 'That code is damaged.'; });
+        try {
+          var t = String(text == null ? '' : text);
+          if (t.length > maxChars) return Promise.reject(TOO_BIG);
+          var flat = t.replace(/\s+/g, '');
+          var m = re.exec(flat);
+          if (!m) return Promise.reject(flat.indexOf(prefix) >= 0 ? INCOMPLETE : 'That is not a save code for this game.');
+          if (checksum(m[2]) !== m[3]) return Promise.reject(INCOMPLETE);
+          var bytes;
+          try { bytes = fromB64(m[2]); } catch (e) { return Promise.reject(DAMAGED); }
+          var get;
+          if (m[1] === 'z') get = canSqueeze() ? inflate(bytes, maxBytes) : Promise.reject('This browser cannot open that code. Try a newer browser.');
+          else get = bytes.length > maxBytes ? Promise.reject(TOO_BIG) : Promise.resolve(bytes);
+          return get.then(function (b) {
+            var x = JSON.parse(new TextDecoder().decode(b));
+            if (!soundState(x)) throw 0;
+            return validate(schema, defaults, x);
+          }).catch(function (e) { throw typeof e === 'string' ? e : DAMAGED; });
+        } catch (e) { return Promise.reject(DAMAGED); }
       },
       // Stores an imported state for the next page load: keeps the current game in `<key>-before-load`, pauses saving.
       // Call location.reload() afterwards. Returns false if storage refused.
@@ -193,5 +290,5 @@
     };
   }
 
-  return { create: create, validate: validate, isSound: isSound, checksum: checksum, toBase64Url: toB64, fromBase64Url: fromB64, twoTap: twoTap, bag: bag };
+  return { create: create, validate: validate, isSound: isSound, checksum: checksum, toBase64Url: toB64, fromBase64Url: fromB64, twoTap: twoTap, bag: bag, has: has };
 });
