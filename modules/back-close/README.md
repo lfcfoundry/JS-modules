@@ -56,4 +56,4 @@ On a phone, a pop-up that does not respond to the back gesture sends the player 
 Call `watch` once per panel at start-up, after the panel element exists, and keep the returned handle. Route every close control (X button, pad B, your own Escape handling) through `handle.close()` so there is one path. Prefer a native `<dialog>` for new panels. Turn on `historyFallback` only if iPhone back-swipe support matters, and tell the user the caveats above. Do not also push history entries for the same panel yourself.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
