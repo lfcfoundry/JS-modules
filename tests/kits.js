@@ -1,4 +1,4 @@
-// Runs the per-module tests of frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma-decode/lzma-pack, fuzz-kit, canvas-probe and storage-probe.
+// Runs the per-module tests of every module with its own test/ folder, plus lzma-pack, single-file-tools, fuzz-kit, canvas-probe, storage-probe and the house-rule hooks.
 // Needs node and python3; the browser parts need Playwright for Python with Chromium. Use --quick to skip browser parts.
 var cp = require('child_process'), path = require('path');
 var root = path.resolve(__dirname, '..');
@@ -10,6 +10,22 @@ var steps = [
   ['fuzz-kit engine', 'node', ['tools/fuzz-kit/test/run.js']],
   ['canvas-probe', 'node', ['tools/canvas-probe/test/run.js']],
   ['wake-keeper', 'node', ['modules/wake-keeper/test/run.js']],
+  ['stage-curtains', 'node', ['modules/stage-curtains/test/run.js']],
+  ['fly-to-mini', 'node', ['modules/fly-to-mini/test/run.js']],
+  ['sticker-text', 'node', ['modules/sticker-text/test/run.js']],
+  ['cartoon-3d-kit', 'node', ['modules/cartoon-3d-kit/test/run.js']],
+  ['env-probes', 'node', ['modules/env-probes/test/run.js']],
+  ['fx-governor', 'node', ['modules/fx-governor/test/run.js']],
+  ['hold-press', 'node', ['modules/hold-press/test/run.js']],
+  ['back-close node', 'node', ['modules/back-close/test/run.js']],
+  ['pad-nav node', 'node', ['modules/pad-nav/test/run.js']],
+  ['save-kit', 'node', ['modules/save-kit/test/run.js']],
+  ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
+  ['idle-core', 'node', ['modules/idle-core/test/run.js']],
+  ['lzma-pack python', 'python3', ['tools/lzma-pack/test/run.py']],
+  ['single-file-tools', 'python3', ['tools/single-file-tools/test/run.py']],
+  ['fuzz-kit runner (fake page)', 'python3', ['tools/fuzz-kit/test/runner_fakes.py']],
+  ['house-rule hooks', 'sh', ['tools/hooks/test.sh']],
   ['tab-guard', 'python3', ['modules/tab-guard/test/run.py'], true],
   ['back-close', 'python3', ['modules/back-close/test/run.py'], true],
   ['pad-nav', 'python3', ['modules/pad-nav/test/run.py'], true],

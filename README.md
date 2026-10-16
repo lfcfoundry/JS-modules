@@ -18,7 +18,7 @@ Keep a player's progress safe and let them move it between devices.
 
 | Module | One line | Global |
 |---|---|---|
-| [save-kit](modules/save-kit/README.md) | Safe localStorage saves, backup slot, checksummed copy-paste save codes. | `SaveKit` |
+| [save-kit](modules/save-kit/README.md) | Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. | `SaveKit` |
 
 #### Device and browser adaptation
 
@@ -26,7 +26,7 @@ Make a game behave on slow phones, privacy-focused browsers and power-saving scr
 
 | Module | One line | Global |
 |---|---|---|
-| [env-probes](modules/env-probes/README.md) | Detects privacy modes that round timers, scramble canvas read-back or block storage. | `EnvProbes` |
+| [env-probes](modules/env-probes/README.md) | Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. | `EnvProbes` |
 | [fx-governor](modules/fx-governor/README.md) | Steps visual effects down when the device cannot keep up; never back up behind the player. | `FxGovernor` |
 | [frame-kit](modules/frame-kit/README.md) | Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. | `EvenDt`, `QualityGovernor`, `JobPump`, `FrameMeter` |
 
@@ -37,10 +37,10 @@ Let players hold a button, or play with a gamepad.
 | Module | One line | Global |
 |---|---|---|
 | [hold-press](modules/hold-press/README.md) | Hold-to-repeat for buttons that survives Android Chrome pointercancel. | `HoldPress` |
-| [pad-nav](modules/pad-nav/README.md) | Gamepad API to DOM focus: move through buttons and menus with a controller, no game code. | `PadNav` |
-| [tab-guard](modules/tab-guard/README.md) | Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data. | `TabGuard` |
+| [pad-nav](modules/pad-nav/README.md) | Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. | `PadNav` |
+| [tab-guard](modules/tab-guard/README.md) | Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. | `TabGuard` |
 | [wake-keeper](modules/wake-keeper/README.md) | Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. | `WakeKeeper` |
-| [back-close](modules/back-close/README.md) | Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher). | `BackClose` |
+| [back-close](modules/back-close/README.md) | Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). | `BackClose` |
 
 #### Looks and effects
 
@@ -51,8 +51,8 @@ Curtains, flying elements, lettering and 3D-looking sprites, plus a written styl
 | [stage-curtains](modules/stage-curtains/README.md) | Velvet stage curtains that slide shut over a page, then fly open. | `StageCurtains` |
 | [fly-to-mini](modules/fly-to-mini/README.md) | A big element scrolls away and a copy flies to its sticky mini version (and back). | `FlyToMini` |
 | [sticker-text](modules/sticker-text/README.md) | Die-cut sticker lettering in plain CSS text-shadow rings, no images. | `StickerText` |
-| [sprite-baker](modules/sprite-baker/README.md) | Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load. | `SpriteBaker` |
-| [cartoon-3d-kit](modules/cartoon-3d-kit/STYLE-GUIDE.md) | A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS/SVG/canvas. | none |
+| [sprite-baker](modules/sprite-baker/README.md) | Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick. | `SpriteBaker` |
+| [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG. | none |
 
 #### Game math
 
@@ -60,7 +60,7 @@ The numbers behind idle and clicker games.
 
 | Module | One line | Global |
 |---|---|---|
-| [idle-core](modules/idle-core/README.md) | Tested maths for idle/clicker games: costs, milestones, away income, boost queue, number format. | `IdleCore` |
+| [idle-core](modules/idle-core/README.md) | Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. | `IdleCore` |
 
 #### Size and packaging
 
@@ -119,15 +119,13 @@ For building and testing. Not shipped inside a game or story.
 | [lzma-pack](tools/lzma-pack/README.md) | Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library). |
 | [single-file-tools](tools/single-file-tools/README.md) | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games. |
 
-**Testing.** Test a game by playing it at random, or by driving Firefox from a script.
+**Testing.** Test a game by playing it at random, shrinking any failure to a short replay, and by counting what it draws.
 
 | Tool | One line |
 |---|---|
-| [fuzz-play](tools/fuzz-play/README.md) | Random-play robot with invariants (Playwright), plus an in-page version for Firefox. |
-| [fuzz-kit](tools/fuzz-kit/README.md) | Seeded, reproducible random-input fuzzer engine with weighted operations, invariants and liveness checks; Playwright and Puppeteer runners; test-hook stripper. |
+| [fuzz-kit](tools/fuzz-kit/README.md) | Seeded, reproducible random-input fuzzer engine with weighted operations, invariants, liveness checks and failure shrinking; Playwright and Puppeteer runners with real input and CPU throttling; stock-Firefox recipe; test-hook stripper. |
 | [canvas-probe](tools/canvas-probe/README.md) | Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area. |
 | [storage-probe](tools/storage-probe/README.md) | Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report. |
-| [marionette-lite](tools/marionette-lite/README.md) | Drive Firefox from Python with the standard library only. |
 
 #### For the story editor
 

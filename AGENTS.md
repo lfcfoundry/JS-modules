@@ -8,7 +8,7 @@ This repository is meant to be read, copied from and extended by people and AI h
 3. Wire it up with the snippet at the top of the file or in the README, and open the module's `demo.html` to see it working.
 
 ## Changing this repository
-- Keep every module **free of dependencies** and, where it makes sense, **one file** (`frame-kit` is three small files that each work alone). Use ES5-compatible syntax (`var`, no build step), with the UMD wrapper at the top level (browser global + `module.exports`).
+- Keep every module **free of dependencies** and, where it makes sense, **one file** (`frame-kit` is four small files that each work alone). Use ES5-compatible syntax (`var`, no build step), with the UMD wrapper at the top level (browser global + `module.exports`).
 - Never throw out of a probe or a save; return a safe fallback.
 - Add or update a check for every behavior you change: `tests/run.js` for the original modules, or the module's own `test/` folder (run all of those with `npm run test:kits`).
 - Keep the header on each file: `Copyright (c) 2026 LFC Foundry. MIT License`. Contributions are accepted under the same license.
@@ -29,4 +29,4 @@ Several AI sessions and people may push to this repository. Before you start, `g
 
 ## House-rule hooks
 
-Run `sh tools/hooks/install.sh` once per clone. The hooks reject a `Claude-Session:` line, a claude.ai link and any author or committer other than JNFoo, so the rules in this file are checked by a machine (see `tools/hooks/README.md`).
+Run `sh tools/hooks/install.sh` once per clone (a Claude Code session does it for you through `.claude/settings.json`). `commit-msg` rejects a `Claude-Session:` line, a claude.ai link, any author or committer other than JNFoo and a malformed version stamp; `pre-commit` repeats the author check, warns about British spellings and checks that new files carry the MIT header (HTML pages the LFC Foundry comment); `pre-push` applies the same message and author rules to every commit you are about to push, so a rebase or cherry-pick cannot slip past. They can still be skipped with `--no-verify` or by a clone that never ran the installer. See `tools/hooks/README.md`; run `sh tools/hooks/test.sh` after changing them.

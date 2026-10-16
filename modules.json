@@ -21,7 +21,7 @@
     {
       "id": "save-kit",
       "global": "SaveKit",
-      "summary": "Safe localStorage saves, backup slot, checksummed copy-paste save codes.",
+      "summary": "Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to.",
       "file": "modules/save-kit/save-kit.js",
       "readme": "modules/save-kit/README.md",
       "demo": "modules/save-kit/demo.html",
@@ -45,7 +45,7 @@
     {
       "id": "env-probes",
       "global": "EnvProbes",
-      "summary": "Detects privacy modes that round timers, scramble canvas read-back or block storage.",
+      "summary": "Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words.",
       "file": "modules/env-probes/env-probes.js",
       "readme": "modules/env-probes/README.md",
       "demo": "modules/env-probes/demo.html",
@@ -93,7 +93,7 @@
     {
       "id": "idle-core",
       "global": "IdleCore",
-      "summary": "Tested maths for idle/clicker games: costs, milestones, away income, boost queue, number format.",
+      "summary": "Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format.",
       "file": "modules/idle-core/idle-core.js",
       "readme": "modules/idle-core/README.md",
       "demo": "modules/idle-core/demo.html",
@@ -114,7 +114,8 @@
       "files": [
         "even-dt.js",
         "quality-governor.js",
-        "job-pump.js"
+        "job-pump.js",
+        "frame-meter.js"
       ],
       "side": "games",
       "category": "adaptation"
@@ -122,7 +123,7 @@
     {
       "id": "sprite-baker",
       "global": "SpriteBaker",
-      "summary": "Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load.",
+      "summary": "Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick.",
       "file": "modules/sprite-baker/sprite-baker.js",
       "readme": "modules/sprite-baker/README.md",
       "demo": "modules/sprite-baker/demo.html",
@@ -134,7 +135,7 @@
     {
       "id": "pad-nav",
       "global": "PadNav",
-      "summary": "Gamepad API to DOM focus: move through buttons and menus with a controller, no game code.",
+      "summary": "Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code.",
       "file": "modules/pad-nav/pad-nav.js",
       "readme": "modules/pad-nav/README.md",
       "demo": "modules/pad-nav/demo.html",
@@ -146,7 +147,7 @@
     {
       "id": "tab-guard",
       "global": "TabGuard",
-      "summary": "Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data.",
+      "summary": "Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes.",
       "file": "modules/tab-guard/tab-guard.js",
       "readme": "modules/tab-guard/README.md",
       "demo": "modules/tab-guard/demo.html",
@@ -170,7 +171,7 @@
     {
       "id": "back-close",
       "global": "BackClose",
-      "summary": "Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher).",
+      "summary": "Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it).",
       "file": "modules/back-close/back-close.js",
       "readme": "modules/back-close/README.md",
       "demo": "modules/back-close/demo.html",
@@ -193,8 +194,9 @@
     },
     {
       "id": "cartoon-3d-kit",
-      "summary": "A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS/SVG/canvas.",
+      "summary": "A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG.",
       "file": "modules/cartoon-3d-kit/STYLE-GUIDE.md",
+      "readme": "modules/cartoon-3d-kit/README.md",
       "demo": "modules/cartoon-3d-kit/demo.html",
       "dependencies": "none",
       "side": "games",
@@ -202,22 +204,6 @@
     }
   ],
   "tools": [
-    {
-      "id": "fuzz-play",
-      "summary": "Random-play robot with invariants (Playwright), plus an in-page version for Firefox.",
-      "folder": "tools/fuzz-play",
-      "readme": "tools/fuzz-play/README.md",
-      "side": "games",
-      "category": "testing"
-    },
-    {
-      "id": "marionette-lite",
-      "summary": "Drive Firefox from Python with the standard library only.",
-      "folder": "tools/marionette-lite",
-      "readme": "tools/marionette-lite/README.md",
-      "side": "games",
-      "category": "testing"
-    },
     {
       "id": "single-file-tools",
       "summary": "Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games.",
@@ -236,7 +222,7 @@
     },
     {
       "id": "fuzz-kit",
-      "summary": "Seeded, reproducible random-input fuzzer engine with weighted operations, invariants and liveness checks; Playwright and Puppeteer runners; test-hook stripper.",
+      "summary": "Seeded, reproducible random-input fuzzer engine with weighted operations, invariants, liveness checks and failure shrinking; Playwright and Puppeteer runners with real input and CPU throttling; stock-Firefox recipe; test-hook stripper.",
       "folder": "tools/fuzz-kit",
       "readme": "tools/fuzz-kit/README.md",
       "side": "games",
