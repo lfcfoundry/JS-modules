@@ -1,6 +1,7 @@
 """Browser test for lzma-pack: packs the example page both ways, opens each from file:// and over HTTP (with and without a charset header),
 clicks the page, then damages a packed copy and checks the loader refuses to run it.
-Run: python3 lzma-pack/test/browser.py   (Python 3 + Playwright for Python with Chromium; no network)"""
+Run: python3 tools/lzma-pack/test/browser.py   (Python 3 + Playwright for Python with Chromium; no network)
+Copyright (c) 2026 LFC Foundry. MIT License."""
 import http.server, os, pathlib, sys, tempfile, threading
 from playwright.sync_api import sync_playwright
 
@@ -15,7 +16,7 @@ for enc in ("bytes", "base64"):
     page, info = pack.pack(app, title="t", encoding=enc)
     files[enc] = page
     (tmp / (enc + ".html")).write_bytes(page)
-bad = bytearray(files["bytes"]); i = bad.index(b'var s="') + 40; bad[i] ^= 0x55   # damage the payload
+bad = bytearray(files["bytes"]); i = bad.index(pack.PAYLOAD_NAME.encode() + b'="') + len(pack.PAYLOAD_NAME) + 42; bad[i] ^= 0x55   # damage the payload
 (tmp / "damaged.html").write_bytes(bytes(bad))
 # a copy "opened and saved as text": the bytes re-encoded as UTF-8, which is exactly what an editor does to a windows-1252 file
 (tmp / "resaved.html").write_text(files["bytes"].decode("cp1252", errors="replace"), encoding="utf-8")
