@@ -79,4 +79,4 @@ Idle-game maths are usually copied from blog posts and re-fixed. The parts that 
 - Do not use it for numbers past 1e300; pick a big-number library for that.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
