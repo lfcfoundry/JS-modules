@@ -48,4 +48,4 @@ The raw API is three lines, but a game that grabs the lock on load and never let
 Create the keeper once. Call `want(true)` when play starts and `want(false)` in your pause, card and title code paths; call `poke()` from your pointer and key handlers (or use `watchInput(document)`), and from your controller code if the game supports a pad. Do not request the lock yourself as well.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Pineapple Defense](https://github.com/JNFoo/pineapple-defense)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
