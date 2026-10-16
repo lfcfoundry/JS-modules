@@ -47,4 +47,4 @@ Web Locks leader-election helpers exist (for example the "navigator.locks leader
 Call `TabGuard.start` once, early, with a name that is unique to the saved game. Put your save switch-off in `onTwin`, and give the player a visible button that calls `takeOver()`. Do not call `takeOver()` automatically. Do not stop saving because `supported` is `false` or `onUnavailable` was called: that means there is no guard, not that another copy exists. Use `onFree` to change the notice to "the other copy closed, use this one?" (keep the same button). Tests: `node modules/tab-guard/test/run.js` (plain Node, fake locks); `python3 modules/tab-guard/test/run.py [firefox]` for real browsers (needs Playwright). Set `OLD_REF=none` to skip the comparison with an older file.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
