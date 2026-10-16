@@ -24,22 +24,27 @@
     ===================================================================================
     --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>back-close demo</title>
-<style>body{font:16px system-ui,sans-serif;text-align:center;padding:2rem}.panel{position:fixed;inset:20% 10%;background:#fff;border:3px solid #333;border-radius:1rem;padding:1rem}.panel[hidden]{display:none}button{font-size:1.1rem;padding:.6rem 1.2rem;border-radius:.6rem;margin:.3rem}</style>
+<style>body{font:16px system-ui,sans-serif;text-align:center;padding:2rem}.panel{position:fixed;inset:20% 10%;background:#fff;color:#111;border:3px solid #333;border-radius:1rem;padding:1rem}.panel[hidden]{display:none}button{font-size:1.1rem;padding:.6rem 1.2rem;border-radius:.6rem;margin:.3rem}</style>
 <h1>back-close demo</h1>
-<p>Open a panel, then press Escape, or swipe back on Android. The panel closes and the page stays.</p>
+<p>Open a panel, then press Escape, or swipe back on Android. The panel closes and the page stays. The X button takes the same route. In a browser without CloseWatcher (Safari, iPhone) this demo uses the opt-in history fallback.</p>
 <button id="o1">Open panel one</button> <button id="o2">Open panel two (on top)</button>
-<p>Closed by back or Escape: <b id="n">0</b> · supported: <b id="sup"></b></p>
-<div class="panel" id="p1" hidden>Panel one <button id="c1">Close</button></div>
-<div class="panel" id="p2" hidden style="inset:30% 5% 10% 20%;background:#ffd">Panel two <button id="c2">Close</button></div>
+<p>Closed by back or Escape or the X button: <b id="n">0</b> · back support: <b id="sup"></b></p>
+<div class="panel" id="p1" role="dialog" aria-modal="true" aria-labelledby="t1" tabindex="-1" hidden><h2 id="t1">Panel one</h2> <button id="c1">Close</button></div>
+<div class="panel" id="p2" role="dialog" aria-modal="true" aria-labelledby="t2" tabindex="-1" hidden style="inset:30% 5% 10% 20%;background:#ffd"><h2 id="t2">Panel two</h2> <button id="c2">Close</button></div>
 <script src="back-close.js"></script>
 <script>
-  var n = 0, N = document.getElementById('n');
-  document.getElementById('sup').textContent = BackClose.supported ? 'yes' : 'no (Escape and the buttons still work)';
+  var n = 0, N = document.getElementById('n'), modes = [];
   function wire(panel, open, close) {
-    BackClose.watch(panel, function () { n++; N.textContent = n; panel.hidden = true; });
-    open.onclick = function () { panel.hidden = false; };
-    close.onclick = function () { panel.hidden = true; };
+    var opener = null;
+    var back = BackClose.watch(panel, function () {          // the one close path: back swipe, Escape and the X button all end here
+      n++; N.textContent = n; panel.hidden = true;
+      if (opener) { opener.focus(); opener = null; }         // focus goes back to the button that opened the panel
+    }, { historyFallback: true });
+    modes.push(back.mode);
+    open.onclick = function () { opener = open; panel.hidden = false; close.focus(); };   // focus moves into the dialog
+    close.onclick = function () { back.close(); };
   }
   wire(p1, o1, c1); wire(p2, o2, c2);
+  document.getElementById('sup').textContent = modes[0] === 'closewatcher' ? 'yes (CloseWatcher)' : modes[0] === 'history' ? 'yes (history fallback)' : 'no (Escape and the buttons still work)';
 </script>
 <footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/JNFoo" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
