@@ -42,4 +42,4 @@ The idea of an outline made from offset shadows is not new; the packaged recipe 
 - Do not use it for wrapping text or paragraphs (see Limits). The demo is `demo.html`; Node checks run with `node modules/sticker-text/test/run.js`.
 
 ---
-Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry · extracted from [Apple Press](https://github.com/JNFoo/apple-press)
+Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
