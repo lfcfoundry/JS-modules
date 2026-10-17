@@ -22,7 +22,7 @@
     },
     {
       "id": "save-kit",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "global": "SaveKit",
       "summary": "Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to.",

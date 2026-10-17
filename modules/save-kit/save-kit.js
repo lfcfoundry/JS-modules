@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -16,6 +16,10 @@
  *    when it is too long, and unpacking stops when the result passes a limit (see create() below).
  *  - autosave(): timer + pagehide + visibilitychange, because phones close hidden pages without warning.
  *  - twoTap(): "tap again to confirm" helper for destructive buttons (pop-up confirm() is often unavailable).
+ *  - onOtherTab(cb): tells you when another tab of the same game wrote a save (so an old tab can stop overwriting a newer one).
+ *  - persist(): asks the browser not to delete this site's storage when space runs low. Resolves true/false, never rejects.
+ *  - Options added in 1.1.0 (all off unless given): version + migrate (upgrade old saves), skipUnchangedMs (fewer storage writes),
+ *    compactCodes (shorter codes: leaves out `seen` and fields equal to their default).
  *
  * Notes
  *  - `seen` (a timestamp) is stamped on every save and export, and removed again by load()/validate() unless your schema lists it.
@@ -73,6 +77,7 @@
       case 'str': return typeof v === 'string' && v.length <= (spec.max || 200) ? v : (d == null ? '' : d);
       case 'counts':
         var out = bag(), kept = 0, maxKeys = spec.maxKeys > 0 ? spec.maxKeys : DEFAULT_MAX_KEYS;
+        if (!isObj(v)) v = d;   // a missing or broken field starts from its default (1.0.0 always gave an empty map here)
         if (!isObj(v)) return out;
         Object.keys(v).forEach(function (k) {
           if (BAD_KEYS[k] || k.length > 200 || kept >= maxKeys) return;
@@ -80,7 +85,7 @@
           if (typeof n === 'number' && isFinite(n) && n > 0) { out[k] = Math.min(Math.floor(n), spec.max || 1e6); kept++; }
         });
         return out;
-      case 'raw': try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { return d; }
+      case 'raw': try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { try { return scrub(JSON.parse(JSON.stringify(d)), 0); } catch (e2) { return d; } }   // a fresh copy of the default, never the default object itself
       default: return d;
     }
   }
@@ -127,8 +132,10 @@
     for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out;
   }
+  var squeezes = null;   // asked once per page: building two streams on every export and import was wasted work
   function canSqueeze() {
-    try { new CompressionStream('deflate-raw'); new DecompressionStream('deflate-raw'); return true; } catch (e) { return false; }
+    if (squeezes === null) { try { new CompressionStream('deflate-raw'); new DecompressionStream('deflate-raw'); squeezes = true; } catch (e) { squeezes = false; } }
+    return squeezes;
   }
   function deflate(bytes) {
     var out = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
@@ -176,6 +183,19 @@
     var countKeys = kinds('counts');
     var re = new RegExp(escapeRe(prefix) + '([zp])\\.([A-Za-z0-9_-]+)\\.([0-9a-z]{7})');
     var off = false, backupAt = 0, backupEvery = o.backupEveryMs == null ? 60000 : o.backupEveryMs;
+    var version = o.version > 0 ? Math.floor(o.version) : 0, migrate = typeof o.migrate === 'function' ? o.migrate : null;
+    var skipMs = o.skipUnchangedMs > 0 ? o.skipUnchangedMs : 0, compact = !!o.compactCodes;
+    var lastProbe = null, lastWriteAt = 0, lastSeen;   // for skipUnchangedMs: the last written text (with seen = 0), when, and its seen
+
+    // Runs the game's migrate(save, fromVersion) on a save written with a lower `version` (no `v` counts as 0); a migrate that
+    // throws or returns a non-object leaves the save as it was. The save is a copy, so migrate may change it freely.
+    function upgrade(raw) {
+      if (!migrate || !version) return raw;
+      var from = isNum(raw.v) ? Math.floor(raw.v) : 0;
+      if (from >= version) return raw;
+      try { var r = migrate(JSON.parse(JSON.stringify(raw)), from); return isObj(r) ? r : raw; } catch (e) { return raw; }
+    }
+    function copyOf(x) { var c = {}; Object.keys(x).forEach(function (k) { c[k] = x[k]; }); return c; }
 
     // How many fields hold a broken number (numbers in soundKeys, and values inside counts fields).
     function badFields(x) {
@@ -197,36 +217,47 @@
       // Returns a clean state rebuilt from the better slot (the main slot unless the backup has fewer broken numbers), else null.
       load: function () {
         try {
-          var a = readSlot(key), b = readSlot(key + '-backup');
+          var a = readSlot(key), b = null;
+          if (!a || badFields(a) > 0) b = readSlot(key + '-backup');   // a sound main slot can never lose to the backup, so only read the backup when it could matter
           if (!a && !b) return null;
           var pick = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a);
-          return validate(schema, defaults, pick);
+          return validate(schema, defaults, upgrade(pick));
         } catch (e) { return null; }
       },
       // Writes the state. Returns false (and writes nothing) if a number is broken, saving is switched off, or storage fails.
       // Returns true when the main slot was written, even if the backup write failed (the backup is tried again next time).
-      save: function (state) {
+      // With the skipUnchangedMs option, a save whose fields are all the same as the last written one (only `seen` differs) is not written
+      // again until that many ms have passed; save(state, true) always writes.
+      save: function (state, force) {
         try {
           if (off || !storage || !soundState(state)) return false;
-          state.seen = Date.now();
+          var now = Date.now(), probe = null;
+          if (version) state.v = version;
+          if (skipMs) {
+            state.seen = 0; probe = JSON.stringify(state);
+            if (force !== true && probe === lastProbe && now - lastWriteAt < skipMs) { state.seen = lastSeen; return true; }
+          }
+          state.seen = now;
           var txt = JSON.stringify(state);
           storage.setItem(key, txt);
+          lastProbe = probe; lastWriteAt = now; lastSeen = now;
           if (Date.now() - backupAt > backupEvery) {
             try { storage.setItem(key + '-backup', txt); backupAt = Date.now(); } catch (e) { /* storage full: the main slot is safe */ }
           }
           return true;
-        } catch (e) { return false; }
+        } catch (e) { lastProbe = null; return false; }
       },
       forceBackupNext: function () { backupAt = 0; },
       // Switches saving off (true) or on (false). Used while a loaded save waits for a page reload, so the old game can't overwrite it.
       pause: function (v) { off = v !== false; },
       // Calls getState() and saves: every `every` ms, on pagehide, and when the page is hidden. A getState() that throws is skipped.
       autosave: function (getState, every) {
-        var tick = function () { var s; try { s = getState(); } catch (e) { return; } api.save(s); };
+        var tick = function (force) { var s; try { s = getState(); } catch (e) { return; } api.save(s, force === true); };
         var iv = setInterval(tick, every || 2000);
-        function onHide() { if (typeof document !== 'undefined' && document.hidden) { api.forceBackupNext(); tick(); } }
-        if (typeof window !== 'undefined') { window.addEventListener('pagehide', tick); document.addEventListener('visibilitychange', onHide); }
-        return function stop() { clearInterval(iv); if (typeof window !== 'undefined') { window.removeEventListener('pagehide', tick); document.removeEventListener('visibilitychange', onHide); } };
+        function onLeave() { tick(true); }   // leaving or hiding the page always writes, even with skipUnchangedMs
+        function onHide() { if (typeof document !== 'undefined' && document.hidden) { api.forceBackupNext(); tick(true); } }
+        if (typeof window !== 'undefined') { window.addEventListener('pagehide', onLeave); document.addEventListener('visibilitychange', onHide); }
+        return function stop() { clearInterval(iv); if (typeof window !== 'undefined') { window.removeEventListener('pagehide', onLeave); document.removeEventListener('visibilitychange', onHide); } };
       },
       // -> Promise<string> like 'SK1z.<data>.<check>' (z = squeezed, p = plain; whichever is shorter). Rejects with a message (string)
       //    when there is no state, a number is broken, or the save is bigger than maxCodeBytes. Never throws.
@@ -235,7 +266,13 @@
           if (!isObj(state)) return Promise.reject('There is nothing to make a code from yet.');
           if (!soundState(state)) return Promise.reject('A number in the game is broken, so no code was made. Reload the page and try again.');
           try { state.seen = Date.now(); } catch (e) {}
-          var raw = new TextEncoder().encode(JSON.stringify(state));
+          var body = state;
+          if (compact) {   // only the schema's fields that differ from their default (and `seen` only if the schema lists it)
+            body = {};
+            Object.keys(schema).forEach(function (k) { if (has(state, k) && !(has(defaults, k) && JSON.stringify(state[k]) === JSON.stringify(defaults[k]))) body[k] = state[k]; });
+          }
+          if (version) { if (body === state) body = copyOf(state); body.v = version; }
+          var raw = new TextEncoder().encode(JSON.stringify(body));
           if (raw.length > maxBytes) return Promise.reject('This save is too big to turn into a code.');
           var plain = toB64(raw);
           var done = function (flag, d) { return prefix + flag + '.' + d + '.' + checksum(d); };
@@ -261,9 +298,34 @@
           return get.then(function (b) {
             var x = JSON.parse(new TextDecoder().decode(b));
             if (!soundState(x)) throw 0;
-            return validate(schema, defaults, x);
+            return validate(schema, defaults, upgrade(x));
           }).catch(function (e) { throw typeof e === 'string' ? e : DAMAGED; });
         } catch (e) { return Promise.reject(DAMAGED); }
+      },
+      // Calls cb(cleanState, event) when ANOTHER tab of this site changes the save (the browser never tells the tab that wrote it), or
+      // cb(null, event) when it removed the save. Use it to stop an old tab from overwriting newer progress: pause(true) and offer a reload.
+      // Returns a function that stops listening. Does nothing outside a browser.
+      onOtherTab: function (cb) {
+        if (typeof window === 'undefined' || !window.addEventListener || typeof cb !== 'function') return function () {};
+        function on(e) {
+          if (e.key !== null && e.key !== key) return;   // key null: the other tab cleared all storage
+          if (e.storageArea && storage && e.storageArea !== storage) return;
+          var x = null, clean = null;
+          try { x = e.newValue == null ? null : JSON.parse(e.newValue); } catch (err) {}
+          try { if (isObj(x)) clean = validate(schema, defaults, upgrade(x)); } catch (err) {}
+          try { cb(clean, e); } catch (err) {}
+        }
+        window.addEventListener('storage', on);
+        return function () { window.removeEventListener('storage', on); };
+      },
+      // Asks the browser not to delete this site's storage when space runs low (and, in Safari, after a long time unvisited). Resolves
+      // true if storage is now (or already was) persistent, false if refused or unsupported; never rejects. The browser may say no.
+      persist: function () {
+        try {
+          var sm = navigator.storage;
+          if (sm && sm.persist) return (sm.persisted ? sm.persisted() : Promise.resolve(false)).then(function (p) { return p || sm.persist(); }).then(Boolean, function () { return false; });
+        } catch (e) {}
+        return Promise.resolve(false);
       },
       // Stores an imported state for the next page load: keeps the current game in `<key>-before-load`, pauses saving.
       // Call location.reload() afterwards. Returns false if storage refused.
@@ -271,7 +333,7 @@
         try {
           imported.seen = Date.now();
           if (currentState) storage.setItem(key + '-before-load', JSON.stringify(currentState));
-          off = true;
+          off = true; lastProbe = null;
           storage.setItem(key, JSON.stringify(imported));
           storage.setItem(key + '-backup', JSON.stringify(imported));
           return true;

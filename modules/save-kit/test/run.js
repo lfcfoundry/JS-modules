@@ -233,7 +233,7 @@ function countUnpacked(counter) {
       assert.strictEqual((await k.importCode(nativeCode)).score, 7.25);
       assert.strictEqual((await k.importCode(loopCode)).owned.x, 3);                           // a code made without native base64 still opens
       assert.ok(calls.from > 0);
-      assert.strictEqual(strip(nativeCode).slice(0, 4), strip(loopCode).slice(0, 4));
+      assert.strictEqual(strip(nativeCode).slice(0, 3), strip(loopCode).slice(0, 3));   // the prefix only: the z/p letter can differ when the two codes are almost the same length (their `seen` stamps differ)
     } finally {
       if (hadFrom) Object.defineProperty(Uint8Array, 'fromBase64', hadFrom); else delete Uint8Array.fromBase64;
       if (hadTo) Object.defineProperty(Uint8Array.prototype, 'toBase64', hadTo); else delete Uint8Array.prototype.toBase64;
@@ -314,6 +314,105 @@ function countUnpacked(counter) {
     assert.strictEqual(K.validate({ f: 'flag' }, {}, { f: 7 }).f, 0);
     await assert.rejects(k.importCode('hello'), /not a save code/);
     await assert.rejects(k.importCode(oldZ1.slice(0, oldZ1.length - 6)), /not complete|damaged/);
+  });
+
+  // ---------- 7. added in 1.1.0 ----------
+  await regress('a raw default is copied, so editing a state never changes the defaults (and Reset stays a reset)', async K => {
+    const defaults = { tut: { done: false, steps: [1] } };
+    const k = K.create({ key: 'g', schema: { tut: 'raw' }, defaults, storage: mem() });
+    const s = k.validate({}); s.tut.done = true; s.tut.steps.push(2);
+    assert.deepStrictEqual(defaults.tut, { done: false, steps: [1] });
+    assert.deepStrictEqual(k.validate({}).tut, { done: false, steps: [1] });
+    assert.deepStrictEqual(k.validate({ tut: 'broken-not-json-plain' }).tut, 'broken-not-json-plain');   // a plain string is JSON-plain, so it is kept
+  });
+  await regress('a counts field starts from its default when missing or not a map', async K => {
+    const k = K.create({ key: 'g', schema: { owned: { type: 'counts', max: 9 } }, defaults: { owned: { apple: 2, pear: 50, __proto__x: 1 } }, storage: mem() });
+    const a = k.validate({}), b = k.validate({ owned: 'nope' }), c = k.validate({ owned: { kiwi: 1 } });
+    assert.strictEqual(a.owned.apple, 2); assert.strictEqual(a.owned.pear, 9);            // the same rules (cap 9) apply to the default
+    assert.strictEqual(b.owned.apple, 2); assert.strictEqual(c.owned.kiwi, 1); assert.strictEqual(c.owned.apple, undefined);   // a real map is used as it is
+  });
+  await test('load() reads the backup slot only when the main slot is missing or has a broken number', async K => {
+    const st = mem(); let backupReads = 0; const real = st.getItem; st.getItem = k => { if (k === 'g-backup') backupReads++; return real(k); };
+    const k = K.create({ key: 'g', schema, defaults: { sound: 1 }, storage: st, backupEveryMs: 0 });
+    k.save({ score: 5, level: 1, name: 'A', owned: {} });
+    assert.strictEqual(k.load().score, 5); assert.strictEqual(backupReads, 0);
+    st.setItem('g', '{"score":null,"level":1}'); st.setItem('g-backup', '{"score":9,"level":1}');   // main has a broken number: the sound backup wins, as before
+    assert.strictEqual(k.load().score, 9); assert.strictEqual(backupReads, 1);
+    st._d.g = undefined; delete st._d.g; assert.strictEqual(k.load().score, 9); assert.strictEqual(backupReads, 2);   // main missing
+  });
+  await test('skipUnchangedMs: an unchanged save is not written again until the time is up; save(state, true) and changes always write', async K => {
+    const st = mem(); let writes = 0; const real = st.setItem; st.setItem = (k, v) => { if (k === 'g') writes++; real(k, v); };
+    const k = K.create({ key: 'g', schema, storage: st, skipUnchangedMs: 5000, backupEveryMs: 1e9 });
+    const realNow = Date.now; let t = 1e12; Date.now = () => t;
+    try {
+      const s = { score: 1, level: 1, name: 'A', owned: { x: 1 } };
+      assert.strictEqual(k.save(s), true); assert.strictEqual(writes, 1); const seen0 = s.seen;
+      t += 2000; assert.strictEqual(k.save(s), true); assert.strictEqual(writes, 1); assert.strictEqual(s.seen, seen0);   // skipped, state still shows the stored stamp
+      t += 2000; assert.strictEqual(k.save(s), true); assert.strictEqual(writes, 1);
+      t += 2000; assert.strictEqual(k.save(s), true); assert.strictEqual(writes, 2); assert.ok(s.seen > seen0);          // 6 s since the write: refreshed
+      s.score = 2; t += 100; assert.strictEqual(k.save(s), true); assert.strictEqual(writes, 3);                          // changed: written at once
+      t += 100; assert.strictEqual(k.save(s, true), true); assert.strictEqual(writes, 4);                                  // forced
+      assert.strictEqual(JSON.parse(st._d.g).score, 2);
+      s.score = NaN; assert.strictEqual(k.save(s), false); assert.strictEqual(writes, 4);                                  // a broken number is still refused
+    } finally { Date.now = realNow; }
+    const plain = K.create({ key: 'h', schema, storage: st }); let w2 = 0; const r2 = st.setItem; st.setItem = (k2, v) => { if (k2 === 'h') w2++; r2(k2, v); };
+    const s2 = { score: 1, level: 1, name: 'A', owned: {} }; plain.save(s2); plain.save(s2); assert.strictEqual(w2, 2);   // default: every save writes, as before
+  });
+  await test('compactCodes: shorter codes that open to the same state; default fields and an unlisted `seen` are left out', async K => {
+    const sc = { score: 'num', level: 'int:99', sound: 'flag', music: 'flag', name: 'str:20' }, df = { level: 1, sound: 1, music: 1, name: 'player' };
+    const full = K.create({ key: 'g', schema: sc, defaults: df, storage: mem(), prefix: 'GM1' }), small = K.create({ key: 'g', schema: sc, defaults: df, storage: mem(), prefix: 'GM1', compactCodes: true });
+    const st = { score: 4210.5, level: 1, sound: 1, music: 0, name: 'player' };
+    const a = await full.exportCode(Object.assign({}, st)), b = await small.exportCode(Object.assign({}, st));
+    assert.ok(b.length < a.length * 0.8, 'compact ' + b.length + ' vs ' + a.length);
+    const back = await full.importCode(b); assert.deepStrictEqual(back, full.validate(st));          // another kit (not compact) opens it too
+    assert.deepStrictEqual(await small.importCode(a), small.validate(st));                           // and the compact kit opens full codes
+    const flat = Buffer.from(b.split('.')[1], 'base64url').toString(); if (b[3] === 'p') { assert.ok(!/seen|level|sound|player/.test(flat), flat); assert.ok(/score/.test(flat)); }
+    const keepSeen = K.create({ key: 'g', schema: Object.assign({ seen: 'num' }, sc), defaults: df, storage: mem(), prefix: 'GM1', compactCodes: true });
+    assert.ok((await keepSeen.importCode(await keepSeen.exportCode(Object.assign({}, st)))).seen > 0);   // listed `seen` is kept
+  });
+  await test('version + migrate: old saves and old codes are upgraded on load/import; new ones are stamped and left alone; a bad migrate changes nothing', async K => {
+    const sc = { gold: 'num', coins: 'num' }, st = mem(); const seenFrom = [];
+    const migrate = (raw, from) => { seenFrom.push(from); if (from < 2) { raw.coins = raw.gold; delete raw.gold; } return raw; };
+    const k = K.create({ key: 'g', schema: sc, storage: st, version: 2, migrate, prefix: 'GM1' });
+    st.setItem('g', '{"gold":15,"seen":1}');                                         // written by version 1 (no `v`)
+    assert.strictEqual(k.load().coins, 15); assert.deepStrictEqual(seenFrom.slice(0, 1), [0]);
+    const s = { gold: 1, coins: 7 }; k.save(s); assert.strictEqual(JSON.parse(st._d.g).v, 2);
+    seenFrom.length = 0; assert.strictEqual(k.load().coins, 7); assert.deepStrictEqual(seenFrom, []);   // already version 2: migrate not called
+    const old = 'GM1p.' + b64url(Buffer.from('{"gold":3}')); const code = old + '.' + K.checksum(b64url(Buffer.from('{"gold":3}')));
+    assert.strictEqual((await k.importCode(code)).coins, 3);
+    const bad = K.create({ key: 'b', schema: sc, storage: mem(), version: 2, migrate() { throw new Error('x'); } });
+    bad.stageImport({ gold: 1 }); assert.strictEqual(bad.load().gold, 1); assert.strictEqual(bad.load().coins, undefined);      // the throwing migrate left the save as it was
+    assert.strictEqual(K.create({ key: 'n', schema: sc, storage: mem(), migrate }).save({ gold: 1 }), true);   // migrate without version does nothing
+  });
+  await test('onOtherTab: hears a save written by another tab, a removal, and stops when asked; ignores other keys', async K => {
+    const st = mem(), handlers = {}, win = { addEventListener(t, f) { handlers[t] = f; }, removeEventListener(t, f) { if (handlers[t] === f) delete handlers[t]; } };
+    globalThis.window = win;
+    try {
+      const k = K.create({ key: 'g', schema, defaults: { sound: 1 }, storage: st }), got = [];
+      const stop = k.onOtherTab((s, e) => got.push(s));
+      handlers.storage({ key: 'other', newValue: '{}', storageArea: st }); assert.strictEqual(got.length, 0);
+      handlers.storage({ key: 'g', newValue: '{"score":9,"level":2,"owned":{"a":1}}', storageArea: st });
+      assert.strictEqual(got[0].score, 9); assert.strictEqual(got[0].sound, 1); assert.strictEqual(got[0].owned.a, 1);
+      handlers.storage({ key: 'g', newValue: null, storageArea: st }); assert.strictEqual(got[1], null);
+      handlers.storage({ key: null, newValue: null, storageArea: st }); assert.strictEqual(got[2], null);   // another tab cleared everything
+      handlers.storage({ key: 'g', newValue: '{broken', storageArea: st }); assert.strictEqual(got[3], null);
+      handlers.storage({ key: 'g', newValue: '{"score":1}', storageArea: {} }); assert.strictEqual(got.length, 4);   // another storage area (sessionStorage)
+      stop(); assert.strictEqual(handlers.storage, undefined);
+      assert.strictEqual(typeof k.onOtherTab(() => { throw new Error('cb'); }), 'function'); handlers.storage({ key: 'g', newValue: '{}', storageArea: st });   // a throwing callback is swallowed
+    } finally { delete globalThis.window; }
+    assert.strictEqual(typeof K.create({ key: 'g', schema, storage: mem() }).onOtherTab(() => {}), 'function');       // no window: harmless
+  });
+  await test('persist(): true when granted or already persistent, false when refused, unsupported or throwing; never rejects', async K => {
+    const had = Object.getOwnPropertyDescriptor(globalThis, 'navigator'), k = K.create({ key: 'g', schema, storage: mem() });
+    const setNav = v => Object.defineProperty(globalThis, 'navigator', { value: v, configurable: true });
+    try {
+      setNav({ storage: { persisted: async () => false, persist: async () => true } }); assert.strictEqual(await k.persist(), true);
+      let asked = 0; setNav({ storage: { persisted: async () => true, persist: async () => { asked++; return false; } } }); assert.strictEqual(await k.persist(), true); assert.strictEqual(asked, 0);
+      setNav({ storage: { persisted: async () => false, persist: async () => false } }); assert.strictEqual(await k.persist(), false);
+      setNav({ storage: { persist: () => Promise.reject(new Error('no')) } }); assert.strictEqual(await k.persist(), false);
+      setNav({ storage: { persist() { throw new Error('no'); } } }); assert.strictEqual(await k.persist(), false);
+      setNav({}); assert.strictEqual(await k.persist(), false);
+    } finally { if (had) Object.defineProperty(globalThis, 'navigator', had); else delete globalThis.navigator; }
   });
 
   const extra = OLD ? '; the old file was caught by ' + caught + ' of ' + oldTried + ' regression checks' : '; old file not available for comparison';

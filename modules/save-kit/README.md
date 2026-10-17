@@ -1,10 +1,10 @@
 # save-kit
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node checks with a fake storage; no real browser run recorded for the module itself (its demo page loads in Firefox through `tests/firefox.js`: Firefox 158 per the 2026-10-15 note, Firefox 157 on 2026-10-17).
+**Tested in:** ungoogled-chromium 155.0.8059.39, Firefox 158.0 and WebKitGTK 2.52.6 (one at a time): the timings above, and a check with a real second page (storage events across tabs), real compression, migrate and write counts; 35 Node checks with a fake storage. The real-browser check and the demo page were run again on this build (2026-10-17) in the same three browsers and in GNOME Web (Epiphany) 46.5 (storage events across tabs, code lengths 116 to 48 characters, migrate, 1 write instead of 40, demo page without errors), and the whole repo run in ungoogled Chromium 155 passed. Not tested: a real second browser window, Safari itself, a real phone, persist() after a real user answer.
 
-Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 17 KB with its comments, no dependencies.
+Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 22 KB with its comments, about 11 KB minified (4.8 KB gzipped), no dependencies.
 
 ## Use
 ```js
@@ -17,7 +17,13 @@ var stop = kit.autosave(function () { return state; }, 2000);   // timer + pageh
 kit.exportCode(state).then(show, showMessage);   // 'MG1z.<data>.<7-char check>' (or 'MG1p...')
 kit.importCode(pasted).then(function (clean) { kit.stageImport(clean, state); location.reload(); }, showMessage);
 ```
-`SaveKit.validate(schema, defaults, untrusted)` is also exported, plus `SaveKit.has(obj, key)` (see counts below) and `SaveKit.twoTap(fn, ms, onArm)` for "tap again to confirm" on destructive buttons. Two small methods on the kit: `kit.pause(true)` switches saving off (and `kit.pause(false)` on again), which `stageImport` uses while a loaded save waits for a reload; `kit.forceBackupNext()` makes the next `save()` also refresh the backup slot, whatever the backup interval. Schema types are listed at the top of `save-kit.js`.
+`SaveKit.validate(schema, defaults, untrusted)` is also exported, plus `SaveKit.has(obj, key)` (see counts below) and `SaveKit.twoTap(fn, ms, onArm)` for "tap again to confirm" on destructive buttons. Two small methods on the kit: `kit.pause(true)` switches saving off (and `kit.pause(false)` on again), which `stageImport` uses while a loaded save waits for a reload; `kit.forceBackupNext()` makes the next `save()` also refresh the backup slot, whatever the backup interval.
+
+Since 1.1.0:
+- `kit.onOtherTab(function (state, event) {...})` is called when **another tab** of the same site writes the save (`state` is the clean new save, or `null` if it was removed). The browser never tells the tab that wrote it. Use it so an old tab does not overwrite newer progress: `kit.pause(true)` and show "This game changed in another tab. Reload." Returns a function that stops listening. Does nothing outside a browser.
+- `kit.persist()` asks the browser not to delete this site's storage when space runs low. Resolves `true`/`false`, never rejects. The browser decides: Chrome answers by itself (often `false` for a page nobody installed), **Firefox 158 asks the player and the promise waits for the answer**, and WebKitGTK 2.52.6 has no `persist()` (so `false`). Call it after the player did something that shows they care (a first save), never at page load.
+- `kit.save(state, true)` writes even when `skipUnchangedMs` would skip it (autosave does this by itself when the page is hidden or closed).
+- Schema types are listed at the top of `save-kit.js`.
 
 ## What makes it different
 Many save helpers just `JSON.stringify` into storage. This one assumes the data is hostile or broken:
@@ -37,6 +43,9 @@ Many save helpers just `JSON.stringify` into storage. This one assumes the data 
 | `storage` | Any object with `getItem`/`setItem` | `localStorage`; `null` if the browser blocks it |
 | `soundKeys` | Numbers that must be sound to write a save | every `num` and `int` field |
 | `backupEveryMs` | Least time between backup writes | 60000 |
+| `version`, `migrate` | `version: 2` stamps every save and code with `v: 2`. When a save with a lower `v` (or none) is loaded or imported, `migrate(copyOfOldSave, fromVersion)` is called first and its returned object is then checked as usual. A `migrate` that throws leaves the save as it was. | off |
+| `skipUnchangedMs` | If every field is the same as in the last write (only `seen` differs), `save()` returns `true` without touching storage until this many ms have passed. Pages that hide or close still write. Idle games that read `seen` for the time away should pick a small value (the stored `seen` can be this old). | `0` (every save writes, as before) |
+| `compactCodes` | `exportCode` leaves out fields equal to their default and a `seen` the schema does not list. Opens in any 1.x of save-kit. Only safe if a field's default never changes later (a code made while `sound` was on and defaulted to 1 would turn it on again after the default flips to 0). | `false` |
 | `maxCodeBytes` | Biggest save a code may unpack to, and the biggest one `exportCode` will write | 262144 (256 KiB) |
 | `maxCodeChars` | Longest pasted text `importCode` will look at (the text around the code counts too) | `maxCodeBytes` x 4/3 + 1024 (350549) |
 
@@ -47,12 +56,14 @@ Many save helpers just `JSON.stringify` into storage. This one assumes the data 
 - **`seen` is stamped on every save and export** (a `Date.now()` timestamp written into the stored data) and is **removed again by `load()`/`validate()`** unless your schema lists it (for example `seen: 'num'`). Idle games that need the time away should list it.
 - **`flag` uses its default** when the field is missing or broken, so a new on-by-default setting (`defaults: { sound: 1 }`) stays on for players who saved before it existed. A saved `0` stays `0`.
 - **Failing safely:** `create()`, `load()`, `save()`, `exportCode()`, `importCode()` and `autosave()` never throw. `save(null)` returns `false`; `exportCode(null)` rejects with a message; a `getState()` that throws is skipped for that tick.
-- **Saving mutates your state object** by adding `seen`. Hand it a copy if that matters.
+- **Saving mutates your state object** by adding `seen` (and `v` when you set `version`). Hand it a copy if that matters.
+- **Defaults are copied.** Since 1.1.0 a `raw` default is copied for each state (in 1.0.0 the state held the default object itself, so editing the state edited the defaults and a later reset gave back the edited data), and a `counts` default is used when the field is missing or not a map (1.0.0 always started those from an empty map).
 
 ## Limits
 - Not encryption and not anti-cheat: a save code can be edited by anyone who wants to. Codes are only as private as the place they are pasted.
 - `localStorage` is about 5 MiB per origin and can be blocked or full (private windows): `save` returns `false` instead of throwing, and `load()` returns `null`.
-- **Safari deletes script-written storage** (localStorage, IndexedDB) after seven days of use without the player visiting that site (WebKit's 2020 storage policy; home-screen web apps count separately). A long break can erase a save in Safari. Offer the player a save code, or ask the browser for persistent storage.
+- **Safari may delete script-written storage** (localStorage, IndexedDB) of a site the player has not visited for a while. The 2020 rule was seven days; the 2023 "Updates to Storage Policy" post on webkit.org I read for this review says only "not interacted with by the user for some time" and gives no day count, and says home-screen web apps get the normal quotas and that `persist()` is granted by heuristics such as being a home-screen app. So treat seven days as the old figure, not re-verified. Offer the player a save code, and call `kit.persist()`.
+- **Two tabs of one game** write to the same slot and the last write wins, so an old tab's autosave can erase newer progress. `kit.onOtherTab` lets you notice (the browser's `storage` event fires only in the other tabs, never in the writer).
 - **Third-party frames:** Firefox partitions `localStorage` by the top-level site, so a game embedded in another site may not see the save it made when opened on its own page. Chrome and Safari behavior is not checked here.
 - Pages may be closed with no event at all on phones. Autosave keeps the loss small, it cannot remove it.
 - Squeezed codes need `CompressionStream`/`DecompressionStream` with `deflate-raw` (Chrome 103, Firefox 113, Safari 16.4). An older browser makes plain codes and says "cannot open that code" for squeezed ones.
@@ -68,6 +79,7 @@ Generic storage wrappers (for example [localForage](https://localforage.github.i
 - Treat every promise as possibly rejected: show the string a rejected `importCode`/`exportCode` gives. Do not wrap the calls in your own try/catch for storage; they already return `false`/`null`.
 - After `importCode` succeeds call `stageImport(clean, currentState)` then `location.reload()`; do not call `save()` in between (saving is paused).
 - Use `SaveKit.has(counts, name)` for counts objects. Do not add a second "save codes" module: the candidate "save codes" module on the task board is already covered by save-kit (base64url, FNV-1a checksum, `deflate-raw` with plain fallback, size limits).
+- Several tabs: call `kit.onOtherTab` once and `kit.pause(true)` there; add `version`/`migrate` the first time a schema field is renamed.
 - Run the checks with `node modules/save-kit/test/run.js` (plain Node, no browser). `OLD_REF=<commit>` compares against an older file; `OLD_REF=none` skips that.
 
 ---
