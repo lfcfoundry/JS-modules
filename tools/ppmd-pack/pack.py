@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd-pack: turn one HTML file into a smaller self-unpacking HTML file with PPMd.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
-Version 1.0.2 (API 1)
+Version 1.1.0 (API 1)
 
   python3 tools/ppmd-pack/pack.py INPUT.html OUTPUT.html [--title T] [--head HTML] [--encoding bytes|base64] [--order N] [--mem BYTES] [--tune] [--compare]
-                                  [--minifier auto|terser|esbuild|none] [--minify-page] [--bg auto|none|COLOR] [--skip-node-check]
+                                  [--minifier auto|terser|esbuild|none] [--minify-page] [--bg auto|none|COLOR] [--wasm] [--skip-node-check]
 
 The output is a small page that holds the PPMd-compressed input (PPMd variant H, "PPMd7" as 7-Zip writes it, with the 7z range coder) and a decoder
 (modules/ppmd-decode/ppmd-decode.js). When opened it checks a hash of the compressed bytes, unpacks the input, checks a hash of the result too, and replaces itself with it (document.write). If a hash
@@ -29,6 +29,9 @@ The decoder must use the same order and memory as the encoder, so both are writt
 --encoding base64  store the bytes as base64 text. About a third bigger, but safe on any server and any editor.
 --bg               the color behind the 'Opening...' line shown while the page unpacks: auto (default, read from the input), none, or a color such as "#101018".
 --minify-page      first minify the page's own inline classic scripts (terser or esbuild needed), then pack.
+--wasm             also ship the WebAssembly PPMd decoder (modules/ppmd-decode/wasm/ppmd7.wasm, about 9.3 KB, stored raw behind the PPMd data): the page tries it first
+                   and falls back to the JavaScript decoder, which is always in the page too. Off by default: the page grows by the size of the program, and it opens
+                   about 1.5 to 2 times faster. The page's policy must allow 'wasm-unsafe-eval' (see --head), or the JavaScript decoder is used.
 
 After packing, the tool runs the page's own scripts (the shipped decoder, the byte reader and the hash) in a bare Node.js sandbox and requires the original page back,
 with no error message and no global variable left behind. That is the check that matters; it needs Node.js (without it the packer says so and the result is NOT
@@ -57,6 +60,9 @@ def _load_lzma_pack():
 
 lz = _load_lzma_pack()
 DECODER = HERE.parent.parent / "modules" / "ppmd-decode" / "ppmd-decode.js"
+WASM_DECODER = HERE.parent.parent / "modules" / "ppmd-decode" / "wasm" / "ppmd7.wasm"   # for --wasm
+WASM_SCRATCH = 4096 + 20480   # where the compressed bytes start inside the wasm memory (scratch block at 4096, 20,480 bytes; see modules/ppmd-decode/ppmd-decode-wasm.js)
+WASM_MAX_BYTES = 1 << 30      # the same 1 GB ceiling the ppmd-decode-wasm.js add-on uses
 PAYLOAD_NAME = "__ppmdPackedPayload_5c2e8d14"   # a global, copied into a local by the loader and deleted at once (see tools/lzma-pack)
 FAIL_MESSAGE = ("This file was changed (maybe opened and saved as text, or cut short) or the device has too little free memory. "
                 "Please download it again and open the file itself in a browser.")
@@ -109,9 +115,14 @@ def best_of(data, grid, jobs=None):
 # the same Node sandbox as lzma-pack's, with the decoder's name swapped in for the leak check
 NODE_HARNESS = lz.NODE_HARNESS.replace("lzmaDecode", "ppmd7Decode")
 assert "ppmd7Decode" in NODE_HARNESS
+# the PPMd program imports its memory and exports decode() (0 = done), where the LZMA one exports its own memory and lzma_decode(): swap the counting wrapper
+_OLD_WRAP = [l for l in NODE_HARNESS.split("\n") if "lzma_decode()" in l]
+assert len(_OLD_WRAP) == 1 and "Module: mode ===" in NODE_HARNESS, "lzma-pack's Node sandbox changed; update NODE_HARNESS in ppmd-pack"
+NODE_HARNESS = NODE_HARNESS.replace(_OLD_WRAP[0], "        return { exports: { decode() { stats.calls++; stats.last = r.exports.decode.apply(null, arguments); return mode === 'broken' ? stats.last + 1 : stats.last; } } };")
+NODE_HARNESS = NODE_HARNESS.replace("Instance: function (m, i) {", "Memory: Real.Memory,\n      Instance: function (m, i) {", 1)
 
 
-def node_roundtrip(page, data):
+def node_roundtrip(page, data, wasm=False):
     """Run the packed page's own scripts in Node and compare with the input. Returns 'ok', or 'skipped' when Node is not installed."""
     node = shutil.which("node")
     if not node:
@@ -124,16 +135,21 @@ def node_roundtrip(page, data):
     text = data.decode("utf-8")
     if text.startswith("﻿"):
         text = text[1:]   # the loader's TextDecoder drops a byte order mark
-    payload = json.dumps({"scripts": scripts, "expected": text, "name": PAYLOAD_NAME, "modes": ["plain"]}, ensure_ascii=False).encode("utf-8")
+    modes = ["plain", "wasm", "blocked", "broken"] if wasm else ["plain"]   # a --wasm page must work with the wasm decoder AND fall back to the JavaScript one
+    payload = json.dumps({"scripts": scripts, "expected": text, "name": PAYLOAD_NAME, "modes": modes}, ensure_ascii=False).encode("utf-8")
     try:
         r = subprocess.run([node, "-e", NODE_HARNESS], input=payload, capture_output=True, timeout=900)
     except subprocess.TimeoutExpired:
         raise SystemExit("self-check failed: the packed page's decoder did not finish in Node within 15 minutes")
     if r.returncode != 0:
         raise SystemExit("the Node check could not run: " + r.stderr.decode("utf-8", "replace")[:300])
-    for res in json.loads(r.stdout.decode("utf-8")):   # the shared harness answers with one result per mode; ppmd-pack asks for "plain" only
+    for res in json.loads(r.stdout.decode("utf-8")):   # the shared harness answers with one result per mode
         if not res["ok"]:
-            raise SystemExit("self-check failed with the page's own JavaScript decoder: " + res["reason"])
+            raise SystemExit("self-check failed with the page's own JavaScript decoder (%s): %s" % (res["mode"], res["reason"]))
+        if res["mode"] == "wasm" and not (res["wasmCalls"] == 1 and res["wasmResult"] == 0):
+            raise SystemExit("self-check failed: the page unpacked, but not with the WebAssembly decoder (calls %d, result %s)" % (res["wasmCalls"], res["wasmResult"]))
+        if res["mode"] in ("blocked", "plain") and res["wasmCalls"]:
+            raise SystemExit("self-check failed: the WebAssembly decoder ran although WebAssembly was refused")
     return "ok"
 
 
@@ -162,7 +178,7 @@ def decoder_source():
 
 
 def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False, bg="auto", check_node=True, minify_pg=False,
-         order=None, mem=None, compare=False, jobs=None):
+         order=None, mem=None, compare=False, jobs=None, wasm=False):
     head = lz.allow_wasm(head)   # every page policy carries 'wasm-unsafe-eval' in script-src
     try:
         text = data.decode("utf-8")
@@ -188,21 +204,42 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
         z = ppmd7_encode.encode(data, order, mem)
     chk, chkz = sum31(data), sum31(z)
     dec = decoder_source()
+    wasm_bytes = b""
+    if wasm:   # the wasm decoder rides behind the PPMd stream in the same payload; it cannot be PPMd-packed itself, so it adds its full size to the page
+        if not WASM_DECODER.exists():
+            raise SystemExit("--wasm needs %s (build it with modules/ppmd-decode/wasm/build.sh)" % WASM_DECODER)
+        wasm_bytes = WASM_DECODER.read_bytes()
+    blob = z + wasm_bytes
     if encoding == "bytes":
-        key = min(range(256), key=lambda k: len(lz.js_escape(bytes(b ^ k for b in z))))
-        payload = lz.js_escape(bytes(b ^ key for b in z))
+        key = min(range(256), key=lambda k: len(lz.js_escape(bytes(b ^ k for b in blob))))
+        payload = lz.js_escape(bytes(b ^ key for b in blob))
         read = ("var T=%s,i=0,z=new Uint8Array(s.length),c;for(;i<s.length;i++){c=s.charCodeAt(i);z[i]=(c<256?c:128+T.indexOf(c))^%d}" % (json.dumps(lz.CP1252_HI, separators=(",", ":")), key))
         meta = b'<meta charset="windows-1252">'
     else:
-        payload = base64.b64encode(z)
+        payload = base64.b64encode(blob)
         read = "var i=0,z=Uint8Array.from(atob(s),function(c){return c.charCodeAt(0)});"
         meta = b'<meta charset="utf-8">'
     # The loader copies the payload into a local variable and deletes the global at once; the decoder and every other name live inside the timer function.
     # The compressed bytes are checked BEFORE decoding: the loader leaves out the decoder's checks for outside input, and a damaged PPMd stream can make the
     # decoder spin forever instead of failing, so a re-saved or cut file must be refused first. The unpacked page is checked as well.
-    src = ("setTimeout(function(){" + dec + "\nvar s=" + PAYLOAD_NAME + ";delete window." + PAYLOAD_NAME + ";" + read + "var o,t;"
+    # With --wasm the loader tries the WebAssembly decoder first (the program imports its memory: one memory sized here, the stream copied in, decode() run, 0 means done)
+    # and uses the JavaScript decoder when that throws or returns anything else, e.g. on a page whose policy refuses WebAssembly.
+    zs = "z.subarray(0,%d)" % len(z) if wasm else "z"
+    wfun = ""
+    if wasm:
+        src_off = WASM_SCRATCH
+        out_off = -(-(src_off + len(z)) // 16) * 16
+        model_off = -(-(out_off + len(data)) // 16) * 16
+        total = model_off + (4 - (mem & 3)) + mem + 12
+        if total > WASM_MAX_BYTES:
+            raise SystemExit("--wasm: the model memory plus the page needs %d bytes; the WebAssembly decoder stops at 1 GB. Use a smaller --mem or leave --wasm off." % total)
+        wfun = ("function W(){var m=new WebAssembly.Memory({initial:%d}),x=new WebAssembly.Instance(new WebAssembly.Module(z.subarray(%d)),{env:{memory:m}}).exports;"
+                "new Uint8Array(m.buffer).set(%s,%d);if(!x.decode(%d,%d,%d,%d,%d,%d,%d,4096))return new Uint8Array(m.buffer,%d,%d)}"
+                % (-(-total // 65536), len(z), zs, src_off, src_off, len(z), out_off, len(data), order, mem, model_off, out_off, len(data)))
+    first = "try{o=W()}catch(e){}o=o||" if wasm else "o="
+    src = ("setTimeout(function(){" + dec + "\n" + wfun + "var s=" + PAYLOAD_NAME + ";delete window." + PAYLOAD_NAME + ";" + read + "var o,t;"
            "function H(a){for(var h=0,i=0;i<a.length;i++)h=(h*31+a[i])>>>0;return h}"
-           "try{if(H(z)!=%d)throw 0;o=ppmd7Decode(z,%d,%d,%d);if(H(o)!=%d)throw 0;t=new TextDecoder().decode(o);document.open();document.write(t);document.close()}"
+           "try{if(H(" + zs + ")!=%d)throw 0;" + first + "ppmd7Decode(" + zs + ",%d,%d,%d);if(H(o)!=%d)throw 0;t=new TextDecoder().decode(o);document.open();document.write(t);document.close()}"
            "catch(e){document.body.textContent=%s}},30)") % (chkz, len(data), order, mem, chk, json.dumps(FAIL_MESSAGE))
     loader = lz.minify(src, minifier)
     title_html = ("<title>" + title.replace("&", "&amp;").replace("<", "&lt;") + "</title>").encode("ascii", "xmlcharrefreplace") if title else b""
@@ -211,8 +248,8 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
     page = (b'<!doctype html>' + meta + b'<meta name="viewport" content="width=device-width,initial-scale=1">' + CREDIT + head.encode("ascii", "xmlcharrefreplace") + title_html
             + body + b'<script>' + PAYLOAD_NAME.encode() + b'="' + payload + b'"</script><script>' + loader + b'</script>')   # the payload sits in its own script so a minifier cannot fold it
     # the check that matters: run what actually ships (JavaScript decoder, byte reader and hash) in Node
-    node = node_roundtrip(page, data) if check_node else "off"
-    info = {"order": order, "mem": mem, "compressed": len(z), "loader": len(loader), "encoding": encoding, "node": node,
+    node = node_roundtrip(page, data, wasm) if check_node else "off"
+    info = {"order": order, "mem": mem, "compressed": len(z), "wasm": len(wasm_bytes), "loader": len(loader), "encoding": encoding, "node": node,
             "bg": op[0] if op else "none", "page": page_note, "tuned": bool(tune)}
     if compare:   # the LZMA packer's page for the same input, built with the same wrapper options
         lpage, linfo = lz.pack(data, title, head, encoding, minifier, False, bg, False, False)
@@ -243,16 +280,17 @@ def main():
     ap.add_argument("--minifier", default="auto", choices=["auto", "terser", "esbuild", "none"])
     ap.add_argument("--bg", default="auto", help="background color of the 'Opening...' line: auto (read it from the input), none, or a color like #101018")
     ap.add_argument("--minify-page", action="store_true", help="first minify the page's own inline classic scripts (terser or esbuild needed); top-level names are kept")
+    ap.add_argument("--wasm", action="store_true", help="also ship the WebAssembly PPMd decoder (about 9.3 KB, raw): the page tries it first and falls back to the JavaScript decoder. Off by default; the page needs wasm-unsafe-eval in its policy to use it")
     ap.add_argument("--skip-node-check", action="store_true", help="do not run the packed page's own decoder in Node after packing")
     a = ap.parse_args()
     data = pathlib.Path(a.input).read_bytes()
     if a.tune:
         print("tuning: %d settings, one pure-Python encoding each (this takes a while)..." % len(tune_grid(len(data))), file=sys.stderr)
-    page, info = pack(data, a.title, a.head, a.encoding, a.minifier, a.tune, a.bg, not a.skip_node_check, a.minify_page, a.order, a.mem, a.compare)
+    page, info = pack(data, a.title, a.head, a.encoding, a.minifier, a.tune, a.bg, not a.skip_node_check, a.minify_page, a.order, a.mem, a.compare, None, a.wasm)
     pathlib.Path(a.output).write_bytes(page)
-    print("%s: %d bytes -> %d bytes (%.1f%%)  [ppmd order=%d mem=%d%s, payload %d, loader %d, %s, opening bg %s, node check %s]" % (
+    print("%s: %d bytes -> %d bytes (%.1f%%)  [ppmd order=%d mem=%d%s, payload %d, %sloader %d, %s, opening bg %s, node check %s]" % (
         a.output, len(data), len(page), 100.0 * len(page) / max(1, len(data)), info["order"], info["mem"], " (tuned)" if info["tuned"] else "",
-        info["compressed"], info["loader"], info["encoding"], info["bg"], info["node"]))
+        info["compressed"], ("wasm %d, " % info["wasm"]) if info["wasm"] else "", info["loader"], info["encoding"], info["bg"], info["node"]))
     if info.get("page"):
         print("page minifier: " + info["page"])
     c = info.get("compare")
