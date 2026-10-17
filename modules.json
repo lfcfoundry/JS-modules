@@ -319,6 +319,20 @@
       "category": "files"
     },
     {
+      "id": "netflow-layers",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "NetflowLayers",
+      "summary": "Lays out a graph in rows (top to bottom or left to right) with story order, tags instead of very long links, a column for the pages every route passes, and tall maps cut into columns; 20,000-page maps draw in about 0.4 s.",
+      "file": "modules/netflow-layers/netflow-layers.js",
+      "readme": "modules/netflow-layers/README.md",
+      "demo": "modules/netflow-layers/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "files"
+    },
+    {
       "id": "walker-sim",
       "version": "2.1.0",
       "api": 2,
