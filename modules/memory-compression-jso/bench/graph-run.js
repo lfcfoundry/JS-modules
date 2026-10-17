@@ -1,4 +1,5 @@
 'use strict';
+// Copyright (c) 2026 LFC Foundry. MIT License.
 // A network as an application holds it: items that are objects, and links that point at the item objects themselves (not copies).
 // Usage: node --expose-gc bench/graph-run.js [items=100000] [runs=3]   Prints a markdown table; every result is checked for values and for shared identity.
 var path = require('path'), v8 = require('v8'), D = require(path.join(__dirname, '../test/data.js'));

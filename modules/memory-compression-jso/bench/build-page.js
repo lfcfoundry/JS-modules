@@ -1,4 +1,5 @@
 'use strict';
+// Copyright (c) 2026 LFC Foundry. MIT License.
 // Builds bench/jso-bench.html: one self-contained page with the module, the data sets and the pure-JavaScript contenders.
 var fs = require('fs'), path = require('path'), D = (process.env.JSO_DEPS || '/tmp/jso-deps/node_modules/');
 function r(p) { return fs.readFileSync(p, 'utf8'); }
