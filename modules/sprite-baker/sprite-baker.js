@@ -1,4 +1,4 @@
-/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.2.0 (API 1) */
+/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.3.0 (API 1) */
 var SpriteBaker = (function () {
   'use strict';
 
@@ -155,12 +155,14 @@ var SpriteBaker = (function () {
     var lx = rast.L[0], ly = rast.L[1], lz = rast.L[2], hx = rast.H[0], hy = rast.H[1], hz = rast.H[2];
     var kSpec = mat.specular, kBounce = mat.bounce * 0.16, kPool = mat.pool * 0.3, kRim = mat.rimLight * 0.4, kEdge = mat.edge;
     var x, y, px, py, w0, w1, w2, z, idx, nx, ny, nz, l, wrap, t, rim, sp, ed, i3, o, r, g, bl;
+    var dy0, dy1, dy2, hot, sq, p2, p4, p8, p16, p32, p64, p128, v0, v1, v2;
 
     for (y = miny; y <= maxy; y++) {
+      py = y + 0.5; dy0 = y0 - py; dy1 = y1 - py; dy2 = y2 - py;     // the same differences the lines below used, taken once a row
       for (x = minx; x <= maxx; x++) {
-        px = x + 0.5; py = y + 0.5;
-        w0 = ((x1 - px) * (y2 - py) - (x2 - px) * (y1 - py)) * inv;
-        w1 = ((x2 - px) * (y0 - py) - (x0 - px) * (y2 - py)) * inv;
+        px = x + 0.5;
+        w0 = ((x1 - px) * dy2 - (x2 - px) * dy1) * inv;
+        w1 = ((x2 - px) * dy0 - (x0 - px) * dy2) * inv;
         w2 = 1 - w0 - w1;
         if (w0 < -1e-5 || w1 < -1e-5 || w2 < -1e-5) continue;
 
@@ -184,7 +186,14 @@ var SpriteBaker = (function () {
         if (sp > 0.25) t -= (sp - 0.25) * kPool;
 
         sp = nx * hx + ny * hy + nz * hz;
-        sp = sp > 0 ? (Math.pow(sp, 16) * 0.55 + Math.pow(sp, 110) * 0.55 + Math.pow(sp, 380) * 0.5) * kSpec : 0;
+        /* The highlight is sp^16, sp^110 and sp^380, and Math.pow is the slowest thing in this loop. Here the powers are built from squarings
+           (relative error under 1e-13) and kept only when no color channel lands within 1e-8 of a rounding boundary of the byte it becomes;
+           that rare pixel is worked out again with Math.pow below, so the bytes are exactly the ones Math.pow gives. */
+        hot = sp > 0;
+        if (hot) {
+          sq = sp; p2 = sq * sq; p4 = p2 * p2; p8 = p4 * p4; p16 = p8 * p8; p32 = p16 * p16; p64 = p32 * p32; p128 = p64 * p64;
+          sq = (p16 * 0.55 + p64 * p32 * p8 * p4 * p2 * 0.55 + p128 * p128 * p64 * p32 * p16 * p8 * p4 * 0.5) * kSpec;
+        } else sq = 0;
 
         if (nz < 0.34) t *= kEdge + (1 - kEdge) * Math.max(0, nz) / 0.34;
         t = t < 0 ? 0 : t > 1 ? 1 : t;
@@ -193,9 +202,14 @@ var SpriteBaker = (function () {
 
         ed = nx > 0 && nz < 0.8 ? nx * Math.pow(1 - (nz > 0 ? nz : 0), 2.2) * kRim : 0;
         o = idx * 4;
-        out[o] = r + sp * 255 + ed * 255;       // Uint8ClampedArray rounds and clamps
-        out[o + 1] = g + sp * 255 + ed * 255;
-        out[o + 2] = bl + sp * 235 + ed * 255;  // the highlight is a hair warm: slightly less blue
+        v0 = r + sq * 255 + ed * 255; v1 = g + sq * 255 + ed * 255; v2 = bl + sq * 235 + ed * 255;
+        if (hot && (Math.abs(v0 - Math.floor(v0) - 0.5) < 1e-8 || Math.abs(v1 - Math.floor(v1) - 0.5) < 1e-8 || Math.abs(v2 - Math.floor(v2) - 0.5) < 1e-8)) {
+          sq = (Math.pow(sp, 16) * 0.55 + Math.pow(sp, 110) * 0.55 + Math.pow(sp, 380) * 0.5) * kSpec;
+          v0 = r + sq * 255 + ed * 255; v1 = g + sq * 255 + ed * 255; v2 = bl + sq * 235 + ed * 255;
+        }
+        out[o] = v0;       // Uint8ClampedArray rounds and clamps
+        out[o + 1] = v1;
+        out[o + 2] = v2;  // the highlight is a hair warm: slightly less blue
         out[o + 3] = 255;
       }
     }
@@ -455,17 +469,23 @@ var SpriteBaker = (function () {
       for (i = 0; i < 16; i++) { a = i * Math.PI / 8; add(Math.round(Math.cos(a) * radius), Math.round(Math.sin(a) * radius)); }
       for (i = 0; i < 8; i++) { a = i * Math.PI / 4 + 0.39; add(Math.round(Math.cos(a) * radius * 0.55), Math.round(Math.sin(a) * radius * 0.55)); }
     }
+    var nOff = offs.length, offX = new Int32Array(nOff), offY = new Int32Array(nOff), ox;
+    for (k = 0; k < nOff; k++) { offX[k] = offs[k][0]; offY[k] = offs[k][1]; }
     for (y = 0; y < h; y++) {
       for (x = 0; x < w; x++) {
-        oa = 0;
-        for (k = 0; k < offs.length; k++) {
-          dx = x - offs[k][0]; dy = y - offs[k][1];
-          if (dx < 0 || dy < 0 || dx >= w || dy >= h) continue;
-          sa = src[(dy * w + dx) * 4 + 3];
-          if (sa > oa) oa = sa;
-        }
         o = (y * w + x) * 4;
         sa = src[o + 3];
+        oa = 0;
+        /* A fully opaque pixel is not changed by anything behind it (the outline is multiplied by 255 - sa = 0 below), so it skips the search;
+           any other pixel stops as soon as the largest possible coverage, 255, is found. */
+        if (sa !== 255) {
+          for (k = 0; k < nOff; k++) {
+            dx = x - offX[k]; dy = y - offY[k];
+            if (dx < 0 || dy < 0 || dx >= w || dy >= h) continue;
+            ox = src[(dy * w + dx) * 4 + 3];
+            if (ox > oa) { oa = ox; if (oa === 255) break; }
+          }
+        }
         ra = sa + oa * (255 - sa) / 255;   // picture over outline, "source-over"
         if (ra > 0) {
           data[o] = (src[o] * sa + col[0] * oa * (255 - sa) / 255) / ra;
@@ -705,7 +725,7 @@ var SpriteBaker = (function () {
   }
 
   return {
-    version: '1.2.0',
+    version: '1.3.0',
     Rast: Rast,
     material: material,
     bakeRamp: bakeRamp,

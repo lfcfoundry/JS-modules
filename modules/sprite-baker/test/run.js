@@ -327,7 +327,21 @@ var frames = SB.bakeRoll(ringScene, 8, [48, 48], ringOpts);
   check('ceiling: padding counts (two 2048 x 1024 pictures stack to 2048 x 2049, over the default 4,194,304)', SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)]) === null && SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)], { padding: 0 }) !== null);
   var rolled = SB.bakeRoll(ringScene, 4, [16, 16], { ss: 1 }), sheet = SB.toSheet(rolled, { padding: 2, maxWidth: 40 });
   check('baked frames pack into a sheet (4 of 16 x 16 at maxWidth 40 and padding 2: two rows of two)', sheet && sheet.width === 34 && sheet.height === 34 && sheet.frames[2].y === 18);
-  check('version is 1.2.0', SB.version === '1.2.0');
+  check('version is 1.3.0', SB.version === '1.3.0');
+})();
+
+/* 12. 1.3.0 made the rasterizer faster without changing a single byte. These hashes were taken from 1.2.0 (the shiny material has a strong
+   highlight, rim light and edge glow, which are the terms the faster code rewrote). If they change, the pictures changed. */
+(function () {
+  var SHINY = SB.material([[0, 40, 30, 60], [0.5, 200, 120, 90], [1, 255, 240, 200]], { specular: 1.6, rimLight: 1.2, edge: 0.8 });
+  var ball = [{ fn: SB.sphere(11), nu: 28, nv: 36, material: SHINY }];
+  var pill = [{ fn: SB.capsule([-10, 0, 0], [10, 0, 0], 6, { lobes: 3, depth: 0.1 }), nu: 32, nv: 24, material: SHINY }];
+  var a = hash(SB.bakeSprite(ball, [56, 56], { ss: 2, outline: { radius: 2, color: [10, 10, 30] }, light: [-0.6, -0.7, 0.9] }));
+  var b = hash(SB.bakeSprite(ball, [40, 40], { ss: 3 }));
+  var c = SB.bakeRoll(pill, 3, [64, 40], { ss: 2, outline: { radius: 1.5, color: [0, 0, 0] } }).map(hash).join(',');
+  check('pinned hash of a shiny ball with an outline (same bytes as 1.2.0)', a === 'a6dc8b84', 'hash ' + a);
+  check('pinned hash of a shiny ball with ss 3 and no outline (same bytes as 1.2.0)', b === '335c3ace', 'hash ' + b);
+  check('pinned hashes of a shiny capsule roll with an outline (same bytes as 1.2.0)', c === '12778eec,12778eec,7f65b18d', 'hashes ' + c);
 })();
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
