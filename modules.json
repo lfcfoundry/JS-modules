@@ -92,7 +92,7 @@
     },
     {
       "id": "sticker-text",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "global": "StickerText",
       "summary": "Die-cut sticker lettering in plain CSS text-shadow rings, no images.",

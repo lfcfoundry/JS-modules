@@ -4,6 +4,13 @@
   --st-edge: #7a120d;                                                           /* hard lower edge */
   /* Outline color: set --st-outline in CSS to recolor the ring. StickerText.apply({outline}) only sets the default. */
   --st-ring-color: var(--st-outline, var(--st-outline-default, #fff7e3));
+  /* The outline: one ring of 32 zero-blur copies of the text, .098em out, in the color of the ::before copy (no color given = currentcolor).
+     apply() with the radii or steps option writes a different --st-ring on the element. */
+  --st-ring:
+    .098em 0, .096em .019em, .091em .038em, .081em .054em, .069em .069em, .054em .081em, .038em .091em, .019em .096em,
+    0 .098em, -.019em .096em, -.038em .091em, -.054em .081em, -.069em .069em, -.081em .054em, -.091em .038em, -.096em .019em,
+    -.098em 0, -.096em -.019em, -.091em -.038em, -.081em -.054em, -.069em -.069em, -.054em -.081em, -.038em -.091em, -.019em -.096em,
+    0 -.098em, .019em -.096em, .038em -.091em, .054em -.081em, .069em -.069em, .081em -.054em, .091em -.038em, .096em -.019em;
   position: relative; display: inline-block;
   font-weight: 800; line-height: .92; letter-spacing: -.02em; white-space: nowrap;
   padding-inline: .06em .1em;                         /* room for the outline */
@@ -14,16 +21,21 @@
 .sticker-text::before, .sticker-text::after {
   content: attr(data-t);                              /* fallback for older browsers */
   content: attr(data-t) / "";                         /* empty alt text: screen readers skip the decorative copies */
-  position: absolute; left: 0; top: 0; padding-inline: inherit; white-space: nowrap;
+  position: absolute; inset: -.12em 0; padding: .12em 0; padding-inline: inherit;   /* same width as the element, so wrapped text breaks the same; .12em tail room so descenders keep their fill */
+  white-space: inherit; text-align: inherit;
 }
 .sticker-text::before { color: var(--st-ring-color); text-shadow: var(--st-ring); }   /* the outline layer */
 .sticker-text::after {
   background: var(--st-fill); -webkit-background-clip: text; background-clip: text;
   color: transparent; -webkit-text-fill-color: transparent;                                /* the gradient layer */
 }
+/* Cheaper to draw: no soft ground shadow (the hard lower edge stays). Add class st-flat on text that is repainted often or on many words at once. */
+.sticker-text.st-flat { filter: drop-shadow(0 .05em 0 var(--st-edge)); }
+/* Fastest outline: one text stroke instead of 32 shadows. Round corners in Firefox and WebKit; Chrome ignores stroke-linejoin on HTML text and draws sharp (mitered) corners. */
+.sticker-text.st-stroke::before { text-shadow: none; -webkit-text-stroke: .196em; stroke-linejoin: round; }
 /* Windows high contrast: the system forces its own colors and removes text shadows, so show the real text and skip the copies. */
 @media (forced-colors: active) {
-  .sticker-text { color: CanvasText; filter: none; transform: none; }
+  .sticker-text, .sticker-text.st-flat { color: CanvasText; filter: none; transform: none; }
   .sticker-text::before, .sticker-text::after { content: none; display: none; }
 }
 /* Chunky "thick plastic" pill for the subtitle: gradient + hard lip + soft shadow + inner top highlight. */

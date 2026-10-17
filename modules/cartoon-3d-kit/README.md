@@ -52,7 +52,7 @@ A written style guide plus a working demo for the soft, glossy "toy" look in pla
 
 - It is a guide, not a library: you draw your own character and copy the CSS. Nothing here is installable.
 - Targets current Chrome, Firefox and Android Chrome. `color-mix()` needs Chrome 111 / Firefox 113 (the guide shows a fallback line). `forced-color-adjust` is not supported in Safari. `background-clip: text` for the logo needs a current browser.
-- The sticker lettering uses 48 text shadows per word: fine for a few titles, not for paragraphs.
+- The sticker lettering uses 32 text shadows per word: fine for a few titles, not for paragraphs.
 - The demo ships light only (`color-scheme: only light`). The guide lists dark tokens, but the demo does not switch to them.
 - Accessibility pieces are system-driven: reduced motion turns off squash, pop, confetti, ring and eye glide, and forced colors keeps the character's colors. The default look is unchanged. Keyboard taps start effects from the button's center.
 - The Windows forced-colors block and the Firefox keyboard-click behavior were written from the specs; they have not been checked on real screens.
