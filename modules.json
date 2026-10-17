@@ -64,7 +64,7 @@
     },
     {
       "id": "fx-governor",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "global": "FxGovernor",
       "summary": "Steps visual effects down when the device cannot keep up; never back up behind the player.",
@@ -120,7 +120,7 @@
     },
     {
       "id": "frame-kit",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "global": "EvenDt, QualityGovernor, JobPump, FrameMeter",
       "summary": "Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words.",

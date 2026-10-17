@@ -1,4 +1,4 @@
-/* quality-governor: steps a quality level up or down from how long frames really take, with hysteresis. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.0.0 (API 1) */
+/* quality-governor: steps a quality level up or down from how long frames really take, with hysteresis. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.1.0 (API 1) */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.QualityGovernor = factory();
@@ -71,7 +71,9 @@
    * @param {number}   [opts.downDelay=3000]     Minimum ms since the last change before a step down.
    * @param {number}   [opts.fastMs=10000]       Consecutive fast time (ms) needed to step up.
    * @param {number}   [opts.upDelay=10000]      Minimum ms since the last change before a step up.
-   * @param {number}   [opts.maxGap=100]         Gaps above this (ms), or at or below 0, are not measured (tab switches, stalls) and break the slow streak; a gap above it also ends the fast streak.
+   * @param {number}   [opts.maxGap=100]         Gaps above this (ms), or at or below 0, are not measured (tab switches, stalls) and break the slow streak; a gap above it also ends the fast streak. A run of `stallRun` such gaps is measured after all (see stallRun).
+   * @param {number}   [opts.stallRun=4]         This many gaps over maxGap in a row mean a device that is always that slow, not a pause: they are measured, so a device under about 10 frames a second is no longer ignored. One to three stray stalls still change nothing.
+   * @param {boolean}  [opts.stepUp=true]        false: the governor only ever steps down (it never undoes a level behind the player's back; the player or force() raises it).
    * @param {number}   [opts.flipLimit=0]        Quick reversals on one level before the governor gives up on that level. 0 (the default) = guard off, 3 is a good value.
    * @param {number}   [opts.flipWindow=30000]   A step down this soon (ms) after a step up to the same level is a reversal.
    * @param {boolean}  [opts.enabled=true]       When false, frame() does nothing.
@@ -93,6 +95,10 @@
     this.maxGap = pick(o.maxGap, 100);
     this.flipLimit = Math.max(0, pick(o.flipLimit, 0) | 0);
     this.flipWindow = pick(o.flipWindow, 30000);
+    this.stallRun = Math.max(1, pick(o.stallRun, 4) | 0);   // this many long gaps in a row are a slow device, not a stall
+    this.stepUp = pick(o.stepUp, true);   // false: only ever steps down (a game that must not undo the player's choice behind their back)
+    this.locked = false;   // lock(): the player picked a level; automatic steps stop until unlock()
+    this._run = 0;
     this.enabled = pick(o.enabled, true);
     this.lastError = null;   // the last error thrown by onChange, if any
     this._level = Math.min(this.levels - 1, Math.max(0, pick(o.level, 0) | 0));
@@ -127,6 +133,10 @@
     this._flips = 0; this._minLevel = 0; this._upTo = -1;
   };
 
+  /** Freeze the level (the player chose it) until unlock(). */
+  QualityGovernor.prototype.lock = function () { this.locked = true; return this; };
+  QualityGovernor.prototype.unlock = function () { this.locked = false; this._slow = 0; this._fast = 0; return this; };
+
   /** Forget the reversals and the give-ups, so every level may be tried again. */
   QualityGovernor.prototype.resetGuard = function () { this._resetGuard(); return this; };
 
@@ -145,12 +155,14 @@
    * @param {number} nowMs Current time in ms from any steady clock (rAF timestamp, performance.now()).
    */
   QualityGovernor.prototype.frame = function (gapMs, nowMs) {
-    if (!this.enabled) return;
+    if (!this.enabled || this.locked) return;
     if (this._changedAt === null) this._changedAt = nowMs;
     var last = this._lastNow;
     this._lastNow = nowMs;
     // A long stall (hidden tab, sleep, a freeze) ends both streaks: "10 s fast in a row" cannot include it.
-    var stalled = gapMs > this.maxGap || (last !== null && nowMs - last > this.maxGap);
+    var long = gapMs > this.maxGap || (last !== null && nowMs - last > this.maxGap);
+    this._run = long ? this._run + 1 : 0;
+    var stalled = long && this._run < this.stallRun;
     if (!(gapMs > 0) || stalled) { this._slow = 0; if (stalled) this._fast = 0; return; }
     this._ema += (gapMs - this._ema) * this.smoothing;
     if (this._ema > this.slowAbove) {
@@ -162,7 +174,7 @@
     }
     if (this._slow >= this.slowFrames && this._level < this.levels - 1 && nowMs - this._changedAt > this.downDelay) {
       this._move(this._level + 1, nowMs, 1);
-    } else if (this._level > this._minLevel) {
+    } else if (this.stepUp && this._level > this._minLevel) {
       var m = this._wait(this._level - 1);
       if (this._fast > this.fastMs * m && nowMs - this._changedAt > this.upDelay * m) this._move(this._level - 1, nowMs, -1);
     }

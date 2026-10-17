@@ -107,4 +107,26 @@ t('stop() ends the loop and start() after stop() works; no requestAnimationFrame
   try { var g4 = G.create(); g4.start(); g4.stop(); } finally { global.requestAnimationFrame = raf; }
 });
 
+// slow devices, severe windows, safer choose/release (1.1.0)
+function firstAt(gap, o) { var at = null, x = 1000, g = G.create(Object.assign({ onChange: function () { if (at === null) at = x - 1000; } }, o || {})); for (; x < 121000 && at === null; x += gap) g.frame(x); return at; }
+t('very slow devices (3 fps, 1 fps) step down; two or three pauses in a row still do not count', function () {
+  assert.ok(firstAt(300) > 0 && firstAt(300) < 15000, '3 fps ' + firstAt(300));
+  assert.ok(firstAt(1000) > 0 && firstAt(1000) < 20000, '1 fps ' + firstAt(1000));
+  assert.strictEqual(firstAt(300, { longGaps: 1000000 }), null);   // the old blind spot, on request
+  var out = [], g = G.create({ onChange: function (l) { out.push(l); } }), x = 1000;
+  for (var i = 0; i < 400; i++) { g.frame(x); x += (i % 40 >= 38) ? 600 : 16; }   // two pauses in a row, again and again
+  assert.deepStrictEqual(out, []);
+});
+t('a window under half the line steps down at once; a borderline one still needs two; severe: 0 restores the old timing', function () {
+  assert.ok(firstAt(100) <= 3200, '10 fps ' + firstAt(100));
+  assert.strictEqual(firstAt(40), 6000);                      // 25 fps: under the line, not under half of it
+  assert.strictEqual(firstAt(100, { severe: 0 }), 6000);
+});
+t('choose() with an unknown name does not lock; release(level) sets the level and hands control back', function () {
+  var out = [], g = G.create({ onChange: function (l) { out.push(l); } }); g.choose('nope'); run(g, 1000, 12000, 50);
+  assert.deepStrictEqual(out, ['lite']);
+  g.release('full'); assert.strictEqual(g.level, 'full');
+  g.choose('calm'); assert.strictEqual(g.level, 'calm'); g.release(); assert.strictEqual(g.level, 'calm');
+});
+
 console.log('fx-governor: ' + n + ' checks passed');

@@ -1,4 +1,4 @@
-/* even-dt: smooths the uneven frame gaps a browser reports by snapping them to the screen's learned refresh period. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.0.0 (API 1) */
+/* even-dt: smooths the uneven frame gaps a browser reports by snapping them to the screen's learned refresh period. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.1.0 (API 1) */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.EvenDt = factory();

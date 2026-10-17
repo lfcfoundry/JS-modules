@@ -1,8 +1,8 @@
 # fx-governor
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-Steps visual effects down by itself when the device cannot keep up, and **never steps back up behind the player's back**. About 6 KB with comments.
+Steps visual effects down by itself when the device cannot keep up, and **never steps back up behind the player's back**. About 6.4 KB with comments.
 
 ```js
 var gov = FxGovernor.create({ levels: ['full', 'lite', 'calm'],
@@ -25,9 +25,15 @@ gov.release();               // hand control back; the loop wakes up again
 | `startAfterMs` | 0 | Ignore this many ms of frames after counting could begin (first frame, or `ready()`). |
 | `waitForReady` | false | Do not count anything until you call `gov.ready()`. |
 | `maxAuto` | `levels.length - 2` | Lowest level index it may reach by itself. The default **keeps the last level for the player** (`choose('calm')`), so with three levels it only goes `full` to `lite`, and with two levels it never moves. Pass `levels.length - 1` to let it reach the last level. |
+| `longGaps` | 3 | This many gaps over `gapMs` in a row are a device that is always that slow (under 4 frames a second), not a pause, so they are counted. One or two stray pauses still change nothing. Before 1.1.0 such a device was never helped. |
+| `severe` | 0.5 | A window under this share of the line (under 18 fps by default) counts as all the strikes at once, so a very slow device steps down after one window (about 3 s) instead of two. `0` restores the old timing. |
 | `onSample(fps)`, `onChange(level, fps)` | none | Callbacks. A callback that throws is ignored and never stops adaptation. |
 
-Methods: `start()`, `stop()`, `frame(t)`, `choose(level)`, `release()`, `ready()`; read-only `level`, `minFps`, `resting`.
+Methods: `start()`, `stop()`, `frame(t)`, `choose(level)` (an unknown name is ignored), `release([level])` (with a level it also sets it, for example `release('full')`), `ready()`; read-only `level`, `minFps`, `resting`.
+
+**Let the player try again.** The governor never steps up by itself, so one bad patch (a phone busy updating, heat) can leave a game on `lite` all session. Offer a button "Try full effects again" that runs `gov.choose('full'); gov.release();` (or just `gov.release('full')`). It measures again and steps down again if the device still cannot keep up.
+
+**Remember the level between visits.** Save `gov.level` when it changes (in `onChange`) and start the next visit with `FxGovernor.create({ start: savedLevel })`, so a slow phone does not repeat the first seconds of jank every launch.
 
 **Loading is not slowness.** Games that decode or bake art at start: use `waitForReady: true` and call `gov.ready()` when the art is ready, or set `startAfterMs`.
 
@@ -46,7 +52,7 @@ Measures frame rate only, not memory or battery. You decide what each level mean
 - Copy `fx-governor.js` (UMD: `FxGovernor` global or `require`). Create it, call `start()`, and map `onChange(level)` to CSS or code.
 - Never step quality up automatically; only the player's `choose`/`release` changes control.
 - Pass `expectedPeriod` when the screen may run at 30 Hz; pass `waitForReady` or `startAfterMs` when the page loads art.
-- Future: this is meant to be folded into frame-kit's `QualityGovernor` (a `stepUp: false` mode plus a `choose()` lock), with `FxGovernor` kept as a thin wrapper so existing games keep working.
+- frame-kit's `QualityGovernor` now also has `stepUp: false` and `lock()`, but it measures differently (a smoothed gap over a number of frames, not windows of seconds), so this module stays a separate file with its own timing.
 - Tests: `node modules/fx-governor/test/run.js` (fake `requestAnimationFrame`).
 
 ---
