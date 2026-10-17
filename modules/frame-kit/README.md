@@ -2,7 +2,7 @@
 
 **Version 1.1.0 · API 1**
 
-**Tested in:** Node checks and a simulated 3 frames-a-second device; browser versions for this release: not recorded. Not run: a real slow phone.
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/frame-kit-browser.js: the 67 checks of test/run.js pass inside the page in each browser, 4 of 4, and about 92 to 94 real animation frames in 1.5 s feed FrameMeter, EvenDt and QualityGovernor without an error in each; 67 Node checks). Not run: a real slow phone, Safari itself
 
 Test everything (Node only, offline, about a second): `node modules/frame-kit/test/run.js` (run from the repository root; it exits non-zero on any failure).
 Browser check of the example (Playwright for Python, Chromium already installed): `python3 modules/frame-kit/test/check-example.py`.
