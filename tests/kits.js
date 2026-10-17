@@ -80,6 +80,7 @@ var steps = [
   ['idle-core same answers', 'node', ['tests/idle-core-browser.js'], true, true],   // optional like the ones above (one fixed set of calls in Node and in each browser)
   ['walker-sim same answers', 'node', ['tests/walker-sim-browser.js'], true, true],   // optional like the one above (walks, exact odds, sweeps and split runs in Node and in each browser, with timings)
   ['gif-writer same bytes', 'node', ['tests/gif-writer-browser.js'], true, true],   // optional like the one above (fixed scenes through the palette search and the encoder in Node and in each browser, with timings)
+  ['zip-open checksums', 'node', ['tests/zip-open-crc-browser.js'], true, true],   // optional like the one above (the checksum against a plain bit-by-bit CRC in Node and in each browser, with timings)
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fourth item: a browser step (left out by --quick, run one at a time); fifth: counts as skipped, not failed, when it exits with code 2
 ].map(function (s) { return { name: s[0], cmd: s[1], args: s[2], browser: !!s[3], skippable: !!s[4], always: !!s[5] }; });
 
