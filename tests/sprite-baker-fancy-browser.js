@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-// sprite-baker 1.4.0 "same pixels as Fancy Banana's filler" and speed check. Copyright (c) 2026 LFC Foundry. MIT License.
+// sprite-baker 1.5.0 "same pixels as Fancy Banana's filler" and speed check. Copyright (c) 2026 LFC Foundry. MIT License.
 // In Node and in each real browser: draws a textured, ridged sphere, the gold coin with a spin pose, a rod and the glove through Fancy's own filler
 // (modules/sprite-baker/test/reference-tri.js) and through sprite-baker, compares color and depth byte for byte inside that browser, compares a
 // fingerprint of each picture with Node's, then times the fill (best of 5 alternating runs, smaller is better). With OLD=/path/to/an/older/sprite-baker.js it
 // also times the plain (no texture, no ridge) sphere with that copy beside the new one, to show the plain path did not slow down.
 // Run one browser at a time: CHROMIUM=/path/to/chrome node tests/sprite-baker-fancy-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// With LEAN=1 the drawing (Rast, tri, drawMesh) is done by the lean build Fancy would ship (modules/sprite-baker/lean.py without ramps, mesh, rotation, shapes, baking and sheets,
+// no comments); the meshes and the rotation come from the full file. The lean build is compared with the reference in the same way and timed beside the full file.
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js and tools/webkit-driver. Exit 2 (skipped) when nothing can run.
 'use strict';
 const path = require('path'), fs = require('fs');
@@ -15,12 +17,17 @@ const exes = [['chromium', process.env.CHROMIUM], ['firefox', process.env.FIREFO
 if (!exes.length) { console.log('skipped: needs CHROMIUM, FIREFOX (with puppeteer-core) or WEBKIT=1'); process.exit(2); }
 const SRC = fs.readFileSync(root + 'modules/sprite-baker/sprite-baker.js', 'utf8') + '\nmodule.exports = SpriteBaker;';
 const REF = fs.readFileSync(root + 'modules/sprite-baker/test/reference-tri.js', 'utf8');
+const LEAN = process.env.LEAN ? (() => {
+  const tmp = fs.mkdtempSync(require('os').tmpdir() + '/sbl-'), f = tmp + '/lean.js', r = require('child_process').spawnSync('python3', [root + 'modules/sprite-baker/lean.py', '--without', 'ramps,mesh,rotation,shapes,baking,sheets', '--no-comments', '-o', f], { encoding: 'utf8' });
+  if (r.status !== 0) { console.log('lean.py failed: ' + r.stderr); process.exit(1); }
+  const t = fs.readFileSync(f, 'utf8') + '\nmodule.exports = SpriteBaker;'; fs.rmSync(tmp, { recursive: true, force: true }); return t;
+})() : '';
 const OLD = process.env.OLD ? fs.readFileSync(process.env.OLD, 'utf8') + '\nmodule.exports = SpriteBaker;' : '';
 
 // Runs unchanged in Node and in a page. Returns `out` (fingerprints and in-page equality), `ms` (milliseconds, smaller is better).
-function battery(src, refSrc, oldSrc) {
+function battery(src, refSrc, oldSrc, leanSrc) {
   var load = function (text) { var m = { exports: {} }; new Function('module', text)(m); return m.exports; };
-  var SB = load(src), F = load(refSrc), O = oldSrc ? load(oldSrc) : null, out = {}, ms = {}, seed = 20261017, PI2 = Math.PI * 2;
+  var SB = load(src), F = load(refSrc), O = oldSrc ? load(oldSrc) : null, L = leanSrc ? load(leanSrc) : SB, out = {}, ms = {}, seed = 20261017, PI2 = Math.PI * 2;
   function rnd() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }
   function fp(a) { var h = 2166136261, i; for (i = 0; i < a.length; i++) h = Math.imul(h ^ a[i], 16777619) >>> 0; return h.toString(16); }
   var d = new Uint8ClampedArray(256 * 256 * 4), x, y, i, k;
@@ -44,9 +51,9 @@ function battery(src, refSrc, oldSrc) {
   for (c = 0; c < cases.length; c++) {
     same = true; var h = '';
     for (j = 0; j < 4; j++) {
-      var R = new F.Rast(140, 140), Q = new SB.Rast(140, 140), v = view(j * 1.3);
+      var R = new F.Rast(140, 140), Q = new L.Rast(140, 140), v = view(j * 1.3);
       refMesh(R, cases[c][1], cases[c][2], cases[c][3], v, cases[c][4]);
-      SB.drawMesh(Q, cases[c][1], own(cases[c][2], cases[c][3]), v, cases[c][4] ? { pose: cases[c][4] } : undefined);
+      L.drawMesh(Q, cases[c][1], own(cases[c][2], cases[c][3]), v, cases[c][4] ? { pose: cases[c][4] } : undefined);
       for (i = 0; i < R.px.length && same; i++) if (R.px[i] !== Q.px[i]) same = false;
       for (i = 0; i < R.z.length && same; i++) if (R.z[i] !== Q.z[i]) same = false;
       h += fp(Q.px) + ',';
@@ -62,6 +69,7 @@ function battery(src, refSrc, oldSrc) {
     'textured face sphere, sprite-baker': function (n) { var Q = new SB.Rast(140, 140); SB.drawMesh(Q, ball, own(0, true), view(n * 0.5)); },
     'plain sphere, sprite-baker': function (n) { var Q = new SB.Rast(140, 140); SB.drawMesh(Q, ball, own(2, false), view(n * 0.5)); }
   };
+  if (leanSrc) runs['textured face sphere, lean build'] = function (n) { var Q = new L.Rast(140, 140); L.drawMesh(Q, ball, own(0, true), view(n * 0.5)); };
   if (O) runs['plain sphere, older sprite-baker'] = function (n) { var Q = new O.Rast(140, 140); O.drawMesh(Q, ball, own(2, false), view(n * 0.5)); };
   names = Object.keys(runs);
   for (rep = 0; rep < 6; rep++) (rep % 2 ? names.slice().reverse() : names).forEach(function (nm) { var t = scene(runs[nm]); if (rep > 0 && (best[nm] === undefined || t < best[nm])) best[nm] = t; });   // the first round warms up
@@ -69,7 +77,7 @@ function battery(src, refSrc, oldSrc) {
   return { out: out, ms: ms };
 }
 
-const ref = battery(SRC, REF, OLD);
+const ref = battery(SRC, REF, OLD, LEAN);
 const bad = (o) => Object.keys(o).filter(k => / same as the reference/.test(k) && o[k] !== 'true');
 const table = (ms) => Object.keys(ms).map(k => '    ' + k.padEnd(38) + ms[k] + ' ms (48 pictures; smaller is better)').join('\n');
 let fails = bad(ref.out).length;
@@ -82,7 +90,7 @@ console.log('Node ' + process.version + ': ' + (fails ? 'DIFFERS from the refere
     console.log('Browser: ' + await b.version());
     const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(String(e && e.message || e)));
     await p.goto('about:blank');
-    const got = await p.evaluate(battery, SRC, REF, OLD);
+    const got = await p.evaluate(battery, SRC, REF, OLD, LEAN);
     const diff = bad(got.out);
     const other = Object.keys(ref.out).filter(k => / fingerprint$/.test(k) && got.out[k] !== ref.out[k]);   // a browser's Math.pow or Math.cos may differ from Node's in the last digit
     if (diff.length || errs.length) { fails++; console.log('  FAIL: differs from the reference in ' + (diff.join('; ') || 'nothing') + (errs.length ? '; page error: ' + errs[0] : '')); }

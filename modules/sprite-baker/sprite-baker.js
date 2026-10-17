@@ -1,4 +1,4 @@
-/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.4.0 (API 1) */
+/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.5.0 (API 1) */
 var SpriteBaker = (function () {
   'use strict';
 
@@ -11,7 +11,9 @@ var SpriteBaker = (function () {
   var NO_DEPTH = -1e9;        // depth buffer clear value; anything nearer than this is drawn
   var DEFAULT_CULL = -0.75;   // triangles whose three normals' z sum is below this are skipped (see tri)
   var DEFAULT_LIGHT = [-0.42, -0.62, 0.66];   // from the upper left, toward the viewer (y is down, so -y is up)
+//@begin baking
   var DEFAULT_MAX_PIXELS = 4194304;   // ceiling on w * h * ss * ss for one working surface (8 bytes a pixel, about 32 MiB); see opts.maxPixels
+//@end
 
   /* ------------------------------------------------------------------ small vector helpers */
 
@@ -62,12 +64,15 @@ var SpriteBaker = (function () {
     return { width: w, height: h, data: data };
   }
 
+//@begin ramps
   /* ------------------------------------------------------------------ materials: color ramp baked to a 256-entry LUT */
 
   /* bakeRamp(stops): stops is [[t, r, g, b], ...] with t ascending in 0..1. Returns a Uint8Array(256 * 3) of RGB, entry i
      being the ramp color at t = i / 255. Before the first stop the first color holds; after the last stop the last holds. */
   function bakeRamp(stops) {
+//@begin checks
     if (!Array.isArray(stops) || stops.length === 0) throw new Error('a color ramp needs at least one [t, r, g, b] stop');
+//@end
     var lut = new Uint8Array(256 * 3), n = stops.length, i, j, t, A, B, f;
     for (i = 0; i < 256; i++) {
       t = i / 255;
@@ -81,9 +86,11 @@ var SpriteBaker = (function () {
     }
     return lut;
   }
+//@end
 
   function pick(v, d) { return v === undefined ? d : v; }
 
+//@begin ramps
   /* material(stops, opts): a shading recipe. `lut` is the baked ramp. The options scale the lighting terms described in tri():
        specular (1)  strength of the three-lobe highlight        bounce (1)   warm light bouncing up from the lower right
        pool (1)      how much the ramp's dark end gathers low    rimLight (1) pale light on the right-hand silhouette
@@ -107,29 +114,49 @@ var SpriteBaker = (function () {
       rimLight: pick(opts.rimLight, 1),
       edge: pick(opts.edge, 0.88)
     };
-    if (opts.texture) { checkTexture(opts.texture); m.texture = opts.texture; }
+    if (opts.texture) {
+//@begin checks
+      checkTexture(opts.texture);
+//@end
+      m.texture = opts.texture;
+    }
     if (opts.ridge) {
       var rg = opts.ridge;
       m.ridge = { freq: pick(rg.freq, 5), dark: pick(rg.dark, -0.86), darkScale: pick(rg.darkScale, 0.93), lit: rg.lit, litAdd: pick(rg.litAdd, 0.06) };
+//@begin checks
       if (![m.ridge.freq, m.ridge.dark, m.ridge.darkScale, m.ridge.litAdd].every(isFinite) || (m.ridge.lit !== undefined && !isFinite(m.ridge.lit))) throw new Error('ridge settings must be finite numbers');
+//@end
     }
     return m;
   }
+//@end
 
+//@begin checks
   function checkTexture(T) {
     var w = T && T.w, h = T && T.h, d = T && T.data;
     if (!(w >= 1 && h >= 1 && w === Math.floor(w) && h === Math.floor(h)) || !d || !(d.length >= w * h * 4)) throw new Error('a texture is { w, h, data } with whole-number w and h and w * h * 4 RGBA bytes in data');
   }
+//@end
 
+//@begin ramps
   var materialCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+//@end
   function asMaterial(m) {
     if (m && m.lut) return m;
+//@begin ramps
     if (Array.isArray(m)) {   // raw stops: convert once and remember
       var hit = materialCache && materialCache.get(m);
       if (!hit) { hit = material(m); if (materialCache) materialCache.set(m, hit); }
       return hit;
     }
+//@end
+//@begin checks
+//@begin ramps
     throw new Error('material must be material(stops) or a raw [[t, r, g, b], ...] ramp');
+//@else
+//@     throw new Error('material must be an object with a lut');
+//@end
+//@end
   }
 
   /* ------------------------------------------------------------------ tri: the triangle filler and the shader */
@@ -243,7 +270,11 @@ var SpriteBaker = (function () {
   function triUV(rast, a, b, c, mat) {
     if (!isFinite(a[6] + a[7] + b[6] + b[7] + c[6] + c[7])) return;
     var T = mat.texture, Rg = mat.ridge, tw = 0, th = 0, td = null, uClamp = true, vWrap = PI2, sBase = 0.66, sWrap = 0.5;
-    if (T) { checkTexture(T); tw = T.w; th = T.h; td = T.data; uClamp = pick(T.uClamp, true); vWrap = pick(T.vWrap, PI2); sBase = pick(T.shadeBase, 0.66); sWrap = pick(T.shadeWrap, 0.5); }
+    if (T) {
+//@begin checks
+      checkTexture(T);
+//@end
+      tw = T.w; th = T.h; td = T.data; uClamp = pick(T.uClamp, true); vWrap = pick(T.vWrap, PI2); sBase = pick(T.shadeBase, 0.66); sWrap = pick(T.shadeWrap, 0.5); }
     var rF = 0, rDark = 0, rScale = 1, rLit = 0, rAdd = 0, hasLit = false;
     if (Rg) { rF = pick(Rg.freq, 5); rDark = pick(Rg.dark, -0.86); rScale = pick(Rg.darkScale, 0.93); hasLit = Rg.lit !== undefined; rLit = hasLit ? Rg.lit : 0; rAdd = pick(Rg.litAdd, 0.06); }
 
@@ -337,6 +368,7 @@ var SpriteBaker = (function () {
     }
   }
 
+//@begin rotation
   /* ------------------------------------------------------------------ rotation helpers */
 
   /* A 3x3 rotation matrix (row-major, 9 numbers) about `axis` (any length, normalized here), by phi radians.
@@ -378,9 +410,11 @@ var SpriteBaker = (function () {
   function rotateX(p, phi, center) {
     return rotateAxis(p, [1, 0, 0], phi, typeof center === 'number' ? [0, center, 0] : center);
   }
+//@end
 
   /* ------------------------------------------------------------------ meshes */
 
+//@begin mesh
   function readVertex(r, out) {   // fn may return [x, y, z], [x, y, z, nx, ny, nz], [x, y, z, nx, ny, nz, u, v] or { x, y, z, nx, ny, nz, u, v }
     if (Array.isArray(r)) {
       out.x = r[0]; out.y = r[1]; out.z = r[2];
@@ -429,7 +463,9 @@ var SpriteBaker = (function () {
      surfaces such as a tube, pass true or false yourself). Normals you supply are never auto-flipped. */
   function mesh(fn, nu, nv, opts) {
     nu = nu | 0; nv = nv | 0;
+//@begin checks
     if (nu < 1 || nv < 1) throw new Error('mesh needs nu >= 1 and nv >= 1');
+//@end
     var flip = opts && opts.flip !== undefined ? opts.flip : 'auto';
     var cols = nv + 1, n = (nu + 1) * cols, pos = new Float64Array(n * 3), nrm = new Float64Array(n * 3), fd = new Uint8Array(n), uv = null;
     var i, j, k, v = {}, tmp = [0, 0, 0], l, cx = 0, cy = 0, cz = 0, score = 0;
@@ -462,6 +498,7 @@ var SpriteBaker = (function () {
     if (uv) res.uv = uv;
     return res;
   }
+//@end
 
   /* drawMesh(rast, m, mat, view, opts): transform a mesh and fill its quads as two triangles each (a,b,c and a,c,d).
      view = { scale (1), ox (0), oy (0), rot (a 3x3 matrix from rotationMatrix, default none), center ([0,0,0]) }:
@@ -501,6 +538,7 @@ var SpriteBaker = (function () {
     }
   }
 
+//@begin shapes
   /* ------------------------------------------------------------------ generic shapes: each returns an fn(u, v) for mesh() */
 
   /* sphere(radius, center): radius is a number, or [rx, ry, rz] for an ellipsoid. u runs pole to pole along y, v around.
@@ -518,7 +556,9 @@ var SpriteBaker = (function () {
   /* An orthonormal frame around the segment a -> b: returns { ax, u1, w, len }. */
   function tubeFrame(a, b) {
     var dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+//@begin checks
     if (len === 0) throw new Error('a tube needs two different end points');
+//@end
     var ax = [dx / len, dy / len, dz / len], up = Math.abs(ax[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0], d = up[0] * ax[0] + up[1] * ax[1] + up[2] * ax[2];
     var u1 = norm3(up[0] - ax[0] * d, up[1] - ax[1] * d, up[2] - ax[2] * d);
     var w = [ax[1] * u1[2] - ax[2] * u1[1], ax[2] * u1[0] - ax[0] * u1[2], ax[0] * u1[1] - ax[1] * u1[0]];
@@ -570,7 +610,9 @@ var SpriteBaker = (function () {
       return [cx + a, cy + b, cz + c, na, nb, nc];
     };
   }
+//@end
 
+//@begin baking
   /* ------------------------------------------------------------------ baking: downsample, outline, frames */
 
   /* Box-filter an ss-times oversized raster down to its true size. Colors are averaged weighted by coverage (so the empty
@@ -665,7 +707,9 @@ var SpriteBaker = (function () {
   var meshCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
   function prepare(scene) {
     var parts = Array.isArray(scene) ? scene : scene.parts;
+//@begin checks
     if (!parts || !parts.length) throw new Error('empty scene');
+//@end
     return parts.map(function (p) {
       var m = p.mesh || (meshCache && meshCache.get(p));
       if (!m) { m = mesh(p.fn, p.nu || 16, p.nv || 24, { flip: p.flip }); if (meshCache && !p.mesh) meshCache.set(p, m); }
@@ -792,7 +836,9 @@ var SpriteBaker = (function () {
     for (i = 0; i < b.count; i++) out.push(b.frame(i));
     return out;
   }
+//@end
 
+//@begin sheets
   /* ------------------------------------------------------------------ masks and sheets (1.2.0) */
 
   function ceiling(opts) { return opts && opts.maxPixels > 0 ? opts.maxPixels : DEFAULT_MAX_PIXELS; }
@@ -862,34 +908,77 @@ var SpriteBaker = (function () {
       return { image: img, canvas: toCanvas(img), frames: frames, width: img.width, height: img.height };
     } catch (e) { return null; }
   }
+//@end
 
   return {
-    version: '1.4.0',
+    version: '1.5.0',
     Rast: Rast,
+//@begin ramps
     material: material,
+//@end
+//@begin ramps
     bakeRamp: bakeRamp,
+//@end
     tri: tri,
+//@begin mesh
     mesh: mesh,
+//@end
     drawMesh: drawMesh,
+//@begin shapes
     sphere: sphere,
+//@end
+//@begin shapes
     rod: rod,
+//@end
+//@begin shapes
     capsule: capsule,
+//@end
+//@begin shapes
     torus: torus,
+//@end
+//@begin rotation
     rotationMatrix: rotationMatrix,
+//@end
+//@begin rotation
     rotateAxis: rotateAxis,
+//@end
+//@begin rotation
     rotateX: rotateX,
+//@end
+//@begin baking
     downsample: downsample,
+//@end
+//@begin baking
     outline: outline,
+//@end
+//@begin baking
     bakeSprite: bakeSprite,
+//@end
+//@begin baking
     bakeRoll: bakeRoll,
+//@end
+//@begin baking
     baker: baker,
+//@end
+//@begin baking
     toImageData: toImageData,
+//@end
+//@begin baking
     toCanvas: toCanvas,
+//@end
+//@begin sheets
     alphaMask: alphaMask,
+//@end
+//@begin sheets
     hit: hit,
+//@end
+//@begin sheets
     toSheet: toSheet,
-    DEFAULT_LIGHT: DEFAULT_LIGHT.slice(),
-    DEFAULT_MAX_PIXELS: DEFAULT_MAX_PIXELS
+//@end
+//@begin baking
+    DEFAULT_MAX_PIXELS: DEFAULT_MAX_PIXELS,
+//@end
+    DEFAULT_LIGHT: DEFAULT_LIGHT.slice()
   };
 })();
 
