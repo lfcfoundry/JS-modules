@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.2.0 · API 1**
+**Version 1.2.1 · API 1**
 
-**Tested in:** Node 22.22.0 (43 save-kit checks, 15 lean builds); tests/save-kit-browser.js one browser at a time on 2026-10-17, full file and two lean builds, 13 checks each: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5. Not run: a real second tab for onOtherTab (unchanged apart from the new hook), a phone.
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/save-kit-browser.js 13 of 13 full and 13 of 13 lean in each; tests/save-kit-speed-browser.js: old and new store and load the same in each); 43 Node checks and 15 of 15 lean builds pass; 4,000 random saves give identical results old versus new. Not run: a phone, Safari itself
 
 Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 22 KB with its comments, about 11 KB minified (4.8 KB gzipped), no dependencies.
 
