@@ -51,7 +51,10 @@ def check(name, ok, extra=""):
 
 
 def state(pg):
-    pg.wait_for_timeout(400)
+    # wait until the page reaches an end state (unpacked, or refused with the message), then two painted frames, instead of sleeping a fixed time
+    try: pg.wait_for_function("() => document.title === 'unpacked ok' || (document.body && /was changed/.test(document.body.textContent))", timeout=5000)
+    except Exception: pass   # report whatever state the page is in
+    pg.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
     return pg.evaluate("() => ({ title: document.title, h: (document.getElementById('h') || {}).textContent || '', body: document.body ? document.body.textContent.slice(0, 120) : '', text: document.body ? document.body.innerText : '' })")
 
 

@@ -23,7 +23,8 @@ with sync_playwright() as p:
     page.on("pageerror", lambda e: problems.append(("pageerror", str(e))))
     page.on("requestfailed", lambda r: problems.append(("requestfailed", r.url)))
     page.goto(url)
-    page.wait_for_timeout(1500)
+    try: page.wait_for_function("parseFloat(document.getElementById('per').textContent) > 0", timeout=10000)   # EvenDt has learned the screen's period (was a fixed 1.5 s sleep)
+    except Exception: pass   # the check below reports it
     page.click("#go")
     page.wait_for_function("document.getElementById('status').textContent.startsWith('done')", timeout=60000)
     if float(page.inner_text("#per")) <= 0:
