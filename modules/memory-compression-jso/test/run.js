@@ -183,6 +183,120 @@ t('text patterns: random strings built from a few pieces', function () {
     rt(col, { mode: round % 2 ? 'small' : 'fast' }, 'random pattern column ' + round);
   }
 });
+t('date-time columns: one number per timestamp, exact text back, bad dates fall back', function () {
+  var P2 = function (v) { return ('0' + v).slice(-2); };
+  var fmts = {
+    iso: function (d) { return d.toISOString().slice(0, 19) + 'Z'; }, ms: function (d) { return d.toISOString(); }, minutes: function (d) { return d.toISOString().slice(0, 16) + 'Z'; },
+    day: function (d) { return d.toISOString().slice(0, 10); }, space: function (d) { return d.toISOString().slice(0, 10) + ' ' + d.toISOString().slice(11, 19); },
+    prefixed: function (d) { return 'at ' + d.toISOString().slice(0, 19) + ' UTC'; }, tail: function (d, i) { return d.toISOString().slice(0, 19) + 'Z#' + i; }
+  };
+  var r = D.rng(5), start = Date.UTC(1999, 11, 31, 23, 59, 55), keys = Object.keys(fmts);
+  keys.forEach(function (k) {
+    [100, 2047, 2048, 5000].forEach(function (n) {
+      var step = k === 'minutes' ? 90000 : k === 'day' ? 129600000 : 1500, sorted = many(n, function (i) { return fmts[k](new Date(start + i * step + Math.floor(r() * 1000)), i); });
+      var rand = many(n, function (i) { return fmts[k](new Date(Date.UTC(1900, 0, 1) + Math.floor(r() * 6e12)), i); });
+      var same1 = many(n, function (i) { return fmts[k](new Date(start), i); });
+      [sorted, rand, same1].forEach(function (col, w) { ['fast', 'small'].forEach(function (m) { var p = rt(col, { mode: m }, 'dates ' + k + ' ' + n + ' ' + m + ' ' + w); if (k !== 'tail' && w === 0) assert(p[2] === 3, 'uses the date column: ' + k + ' ' + n + ' ' + m + ' ' + w); }); });
+    });
+  });
+  var edge = ['0000-02-29', '1600-02-29', '1900-01-01', '2000-02-29', '2024-02-29', '2100-12-31', '9999-12-31', '1970-01-01', '1969-12-31', '0001-01-01'];
+  edge.forEach(function (day) { [day, day + 'T00:00:00Z', day + 'T23:59:59Z'].forEach(function (s) { var col = many(60, function (i) { return i % 2 ? s : s.replace(/^(\d{4})/, function (m) { return ('000' + (+m + 1)).slice(-4); }).replace('0001-02-29', '0001-03-01'); }); rt(col, null, 'edge ' + s); }); });
+  var bad = ['2025-02-29', '1900-02-29', '2100-02-29', '2025-13-01', '2025-00-10', '2025-04-31', '2025-01-00', '2025-01-01T24:00:00Z', '2025-01-01T23:60:00Z', '2025-01-01T23:59:60Z'];
+  bad.forEach(function (s) {
+    var col = many(60, function (i) { return i === 33 ? s : '2025-01-' + P2(1 + i % 28) + (s.length > 10 ? 'T' + P2(i % 24) + ':' + P2(i % 60) + ':' + P2(i % 60) + 'Z' : ''); });
+    var p = rt(col, null, 'bad date ' + s); assert.notStrictEqual(p[2], 3, 'not stored as a date column: ' + s);
+  });
+  var sorted = many(5000, function (i) { return new Date(start + i * 1500).toISOString().slice(0, 19) + 'Z'; });
+  var withDates = J.pack(sorted, opt()), plain = J.pack(sorted, opt({ patterns: false }));
+  assert(withDates.length < 5000 * 0.9, 'sorted timestamps take under a byte each, took ' + withDates.length); assert(withDates.length < plain.length / 4, 'much smaller than stored as text');
+  assert.strictEqual(J.pack(many(200, function (i) { return 'x' + i; }), opt())[2], 2, 'files with no date column still say format 2, so older readers open them');
+  var gold = Buffer.from('TUoCBC0tCzwLAQIAAmlkAAJhdIOAgIAAvYCAgACJgICAAMyDgIAAAQEABjwAFAE8ALAJAgABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6OwGMA01DAQEAALAJgIBAAf4C/gUyMDI1LTAxLTMxVDIzOjU5OjUwWhQAEzcUAIAyLTAxVDAwOgMAHjQUAC8xMRQAAB44FAAuMjUUAC8zMhQAAB45FAAuNDYUACw1MxQANDE6MMgABbQAPTE6MMgAPTE6McgAPTE6MsgAPTE6MsgAPTE6M8gAPTE6NMgAPTE6NMgAPTE6NcgAPTI6MMgAPTI6McgAPTI6McgAPTI6MsgAPTI6M8gAPTI6M8gAPTI6NMgAPTI6NcgAPTI6NcgAPTM6MMgAPTM6McgAPTM6MsgAPTM6MsgAPTM6M8gAPTM6NMgAPTM6NMgAPTM6NcgAPTQ6MMgAPTQ6MMgAPTQ6McgAPTQ6MsgAPTQ6M8gAPTQ6M8gAPTQ6NMgAPTQ6NcgAPTQ6NcgAPTU6MMgATDU6MTLkAj01OjHIAD01OjLIAD01OjPIAD01OjTIAD01OjTIAD01OjXIAD02OjDIAD02OjDIAD02OjHIAD02OjLIAD02OjLIAD02OjPIAFA2OjQzWgIAAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5OjvW1obM', 'base64'), grows = many(60, function (i) { return { id: i, at: new Date(Date.UTC(2025, 0, 31, 23, 59, 50) + i * 7000).toISOString().slice(0, 19) + 'Z' }; });
+  same(grows, J.unpack(new Uint8Array(gold), opt()), 'a file made by 1.1.0');
+  var cut = J.pack(sorted, opt({ check: false })); for (var q = 0; q < cut.length; q += 7) throwsJ(function () { J.unpack(cut.subarray(0, q), opt()); }, 'cut at ' + q);
+  if (!JS_ONLY) { var wp = J.pack(sorted, {}), jp = J.pack(sorted, { wasm: false }); assert.deepStrictEqual(Buffer.from(wp), Buffer.from(jp), 'same bytes with and without WebAssembly'); }
+});
+t('fsst: text columns stored as codes, each string readable alone', function () {
+  var r = D.rng(11), first = ['Anna', 'Bruno', 'Chen', 'Dara', 'Elif', 'Farid', 'Gita', 'Hugo', 'Ines', 'Jun'], last = ['Okafor', 'Petrov', 'Quinn', 'Rossi', 'Silva', 'Tanaka', 'Ueda', 'Vargas'], city = ['Lagos', 'Oslo', 'Quito', 'Hanoi', 'Lima', 'Turin', 'Cork', 'Perth'];
+  var pick = function (a) { return a[Math.floor(r() * a.length)]; };
+  var label = function () { return pick(first) + ' ' + pick(last) + ', ' + pick(city) + ' ' + Math.floor(r() * 30); };
+  [600, 5000].forEach(function (n) {
+    var rows = many(n, function (i) { return { id: i, label: label(), tag: 'k' + (i % 3) }; });
+    var p = J.pack(rows, opt({ fsst: true })), plain = J.pack(rows, opt());
+    assert.strictEqual(p[2], 3, 'a file with an FSST column says format 3'); assert(p.length < plain.length, 'FSST is smaller on short varied text: ' + p.length + ' against ' + plain.length);
+    same(rows, J.unpack(p, opt()), 'unpack ' + n); same(rows, J.unpack(p, opt({ wasm: false })), 'unpack without WebAssembly ' + n);
+    var v = J.view(p, opt()); assert(v.lazy); assert.strictEqual(v.field(n - 1, 'label'), rows[n - 1].label); same(rows[7], v.get(7), 'view get'); same(rows, v.toArray(), 'view toArray'); same(rows.map(function (x) { return x.label; }), v.column('label'), 'view column');
+    assert(v.memory().restored < JSON.stringify(rows).length, 'the restored column is smaller than the strings'); v.release(); assert.strictEqual(v.loaded().length, 0);
+    same(rows, J.unpack(J.pack(rows, opt({ fsst: true, mode: 'small' })), opt()), 'small mode');
+    if (!JS_ONLY && J.accelerated()) assert.deepStrictEqual(Buffer.from(J.pack(rows, { fsst: true })), Buffer.from(J.pack(rows, { fsst: true, wasm: false })), 'same bytes with and without WebAssembly ' + n);
+  });
+  var odd = many(5000, function (i) { return i % 7 === 0 ? '' : i % 11 === 0 ? '😀 émoji ' + i + ' 日本語' : i % 13 === 0 ? 'x'.repeat(70000 % (i + 1) + 1) : label() + (i % 5 === 0 ? '\u0001\u007fÿĀ￿' : ''); });
+  var po = J.pack(odd, opt({ fsst: true })); same(odd, J.unpack(po, opt()), 'empty strings, 4-byte characters, long strings, rare characters');
+  var lone = many(5000, function (i) { return i === 2500 ? 'lone \uD800 high' : label(); }); same(lone, J.unpack(J.pack(lone, opt({ fsst: true })), opt()), 'a lone surrogate keeps the plain way');
+  var rows2 = many(1000, function (i) { return { s: label(), n: i }; }), pk = J.pack(rows2, opt({ fsst: true })), none = J.pack(rows2, opt());
+  assert.deepStrictEqual(Buffer.from(J.pack(rows2, opt({ fsst: false }))), Buffer.from(none), 'off by default'); same(rows2, J.unpack(pk, opt()));
+  var nested = { a: many(800, function () { return { v: label() }; }), b: many(800, function (i) { return i % 3 ? label() : null; }), c: many(800, function () { return [label(), label()]; }) };
+  same(nested, J.unpack(J.pack(nested, opt({ fsst: true })), opt()), 'inside nested structures');
+  var cut = J.pack(many(1200, function (i) { return { id: i, label: label() }; }), opt({ fsst: true }));
+  for (var q = 0; q < cut.length; q += 31) throwsJ(function () { J.unpack(cut.subarray(0, q), opt()); }, 'cut at ' + q);
+  var flips = 0, bad = 0, i2, copy;
+  for (i2 = 0; i2 < cut.length; i2 += 13) { copy = Uint8Array.from(cut); copy[i2] ^= 0x55; flips++; try { J.unpack(copy, opt()); } catch (e) { bad++; assert(/MemoryCompression|Invalid|RangeError|data is cut/.test(String(e)), 'a clean error: ' + e); } }
+  assert(flips > 20);
+});
+var PCO = null; try { PCO = require(path.join(path.dirname(path.resolve(modPath)), 'memory-compression-jso-pco.js')).loadSync(); } catch (e) { PCO = null; }
+t('pcodec add-on: number columns stored by Pcodec when smaller, exact every time', function () {
+  if (!PCO) { console.log('      (WebAssembly missing here: skipped)'); return; }
+  var r = D.rng(99), n = 6000, tm = 1.7e9, walk = 0;
+  var rows = many(n, function (i) { tm += Math.floor(r() * 3000); walk += r() - 0.5; return { t: tm, id: i * 7 + 3, v: Math.round(walk * 1000) / 1000, noise: r() * 1000, big: Math.floor(r() * 4e12), small: Math.floor(r() * 50), rep: i % 3 }; });
+  var plain = J.pack(rows, opt()), pk = J.pack(rows, opt({ pco: PCO }));
+  assert.strictEqual(pk[2], 3, 'a file that used Pcodec says format 3'); assert(pk.length < plain.length * 0.9, 'Pcodec is at least 10% smaller here: ' + pk.length + ' against ' + plain.length);
+  same(rows, J.unpack(pk, opt({ pco: PCO })), 'round trip');
+  var rep = []; J.pack(rows, opt({ pco: PCO, report: rep })); var used = rep.filter(function (x) { return x.part === 'pcodec'; });
+  assert(used.length >= 3 && used.length < 7, 'it is picked per column, not for all of them: ' + used.length + ' of 7');
+  assert.deepStrictEqual(Buffer.from(J.pack(rows, opt({ pco: null }))), Buffer.from(plain), 'pco: null (add-on missing) writes the plain file');
+  var small = many(4095, function (i) { return { a: i * 1.37 + r() }; }); assert.deepStrictEqual(Buffer.from(J.pack(small, opt({ pco: PCO }))), Buffer.from(J.pack(small, opt())), 'under 4096 rows Pcodec is not tried');
+  var block = many(997, function () { return Math.floor(r() * 5000); }), ids = many(20000, function (i) { return { from: block[i % 997] }; }), pi = J.pack(ids, opt({ pco: PCO })); assert.deepStrictEqual(Buffer.from(pi), Buffer.from(J.pack(ids, opt())), 'a column that repeats an earlier block keeps the plain way (the block packer finds repeats, Pcodec cannot)'); assert.strictEqual(pi[2], 2, 'and say format 2 (older copies read it)');
+  var v = J.view(pk, opt({ pco: PCO })); same(rows[5], v.get(5), 'view get'); assert.strictEqual(v.field(4000, 'noise'), rows[4000].noise); same(rows.map(function (o) { return o.v; }), Array.from(v.column('v')), 'view column of scaled decimals');
+  var thrown = null; try { J.unpack(pk, opt()); } catch (e) { thrown = e; } assert(thrown && /Pcodec/.test(String(thrown.message)) && /pco option/.test(String(thrown.message)), 'a clear message when the add-on is missing: ' + thrown);
+  thrown = null; try { J.view(pk, opt()).get(1); } catch (e) { thrown = e; } assert(thrown && /Pcodec/.test(String(thrown.message)), 'view says it too');
+  same(rows.slice(0, 20), J.unpack(J.pack(rows.slice(0, 20), opt({ pco: PCO })), opt()), 'files that did not use it open without the add-on');
+  throwsJ(function () { J.pack(rows, opt({ pco: {} })); }, 'a pco option that is not the add-on');
+});
+t('pcodec add-on: special numbers, 32-bit edges, sizes from 4,096 to a million', function () {
+  if (!PCO) return;
+  var r = D.rng(5), specials = [NaN, Infinity, -Infinity, -0, 0, 5e-324, 1.7976931348623157e308, -1.7976931348623157e308, 0.1, 1 / 3];
+  var dbl = many(5000, function (i) { return i % 500 === 7 ? specials[(i / 500 | 0) % specials.length] : r() * 1e6; });
+  var pk = J.pack({ d: dbl }, opt({ pco: PCO })); same({ d: dbl }, J.unpack(pk, opt({ pco: PCO })), 'doubles with NaN, infinities, -0 and 5e-324');
+  var edge = many(5000, function (i) { return i % 3 === 0 ? -2147483648 : i % 3 === 1 ? 2147483647 : Math.floor(r() * 4e9) - 2e9; }), e2 = J.unpack(J.pack(edge, opt({ pco: PCO })), opt({ pco: PCO })); same(edge, e2, '32-bit edges');
+  var wide = many(5000, function (i) { return i % 2 ? -3000000000 - i : 3000000000 + i * 1000; }); same(wide, J.unpack(J.pack(wide, opt({ pco: PCO })), opt({ pco: PCO })), 'whole numbers past 32 bits');
+  var bits = many(5000, function () { return r() < 0.5 ? 0 : 1; }); same(bits, J.unpack(J.pack(bits, opt({ pco: PCO })), opt({ pco: PCO })), 'zeros and ones');
+  [4096, 4097, 16384, FULL ? 1000000 : 200000].forEach(function (m) {
+    var a = many(m, function (i) { return Math.round((Math.sin(i / 50) * 1000 + r() * 10) * 100) / 100; });
+    same({ a: a }, J.unpack(J.pack({ a: a }, opt({ pco: PCO })), opt({ pco: PCO })), m + ' decimals');
+    var b = many(m, function (i) { return 1700000000 + i * 3 + Math.floor(r() * 3); }); same(b, J.unpack(J.pack(b, opt({ pco: PCO })), opt({ pco: PCO })), m + ' whole numbers');
+  });
+  var cells = many(5000, function (i) { return { v: i % 9 === 0 ? null : r() * 77 }; }); same(cells, J.unpack(J.pack(cells, opt({ pco: PCO })), opt({ pco: PCO })), 'inside a column that has nulls');
+});
+t('pcodec add-on: damaged or hostile input is refused', function () {
+  if (!PCO) return;
+  var r = D.rng(11), rows = many(5000, function (i) { return { a: Math.round(r() * 1e6) / 100, b: i * 3 + Math.floor(r() * 4) }; }), pk = J.pack(rows, opt({ pco: PCO, check: true }));
+  var q, i2, copy, bad = 0, flips = 0;
+  for (q = 0; q < pk.length; q += 97) throwsJ(function () { J.unpack(pk.subarray(0, q), opt({ pco: PCO })); }, 'cut at ' + q);
+  for (i2 = 0; i2 < pk.length - 4; i2 += 211) { copy = Uint8Array.from(pk); copy[i2] ^= 0x41; flips++; throwsJ(function () { J.unpack(copy, opt({ pco: PCO })); }, 'flip at ' + i2); }
+  var nocheck = J.pack(rows, opt({ pco: PCO }));
+  for (i2 = 0; i2 < nocheck.length; i2 += 53) { copy = Uint8Array.from(nocheck); copy[i2] ^= 0xA5; try { J.unpack(copy, opt({ pco: PCO })); } catch (e) { bad++; assert(/MemoryCompression|Invalid|RangeError|data is cut|Pcodec|bad|checksum/.test(String(e)), 'a clean error: ' + e); } }
+  var big = new Float64Array(8192); for (q = 0; q < big.length; q++) big[q] = r() * 100;
+  var raw = PCO.compress(0, big);
+  assert.strictEqual(PCO.decompress(0, raw, 8192).length, 8192);
+  assert.throws(function () { PCO.decompress(0, raw, 4096); }, 'more numbers than the caller allows');
+  assert.throws(function () { PCO.decompress(0, raw, 16384); }, 'fewer numbers than the caller expects');
+  assert.throws(function () { PCO.decompress(2, raw, 8192); }, 'the wrong number kind');
+  assert.throws(function () { PCO.decompress(0, raw.subarray(0, raw.length >> 1), 8192); }, 'cut data');
+  assert.throws(function () { PCO.decompress(0, new Uint8Array(40), 8192); }, 'not Pcodec data');
+  assert.throws(function () { PCO.decompress(0, raw, 0); }, 'zero count');
+  assert.throws(function () { PCO.decompress(0, raw, 1e12); }, 'absurd count');
+  assert.throws(function () { PCO.compress(2, big); }, 'wrong array type');
+  PCO.release(); assert.strictEqual(PCO.decompress(0, raw, 8192)[17], big[17], 'works again after release()');
+});
 t('refs: columns of records and of references, shared and circular', function () {
   var nodes = many(300, function (i) { return { id: i, label: 'n' + i, x: i * 0.5, on: i % 2 === 0 }; });
   var edges = many(500, function (i) { return { from: nodes[i % 300], to: nodes[(i * 7) % 300], w: i }; });
