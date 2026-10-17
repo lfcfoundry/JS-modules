@@ -4,7 +4,7 @@
  * thing you are measuring in view and uncovered, redoes a step that was disturbed, and says the answer in plain sentences plus a table you can copy.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   SpeedLab.panel({ scene: document.querySelector("#play"), bar: "#stickyBar", steps: [
  *     { id: "A", role: "baseline", label: "Nothing moving" },
@@ -19,6 +19,8 @@
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   var f1 = function (x) { return Math.round(x * 10) / 10; }, pc = function (x) { return Math.round(x) + '%'; };
+  /** True when step a is clearly worse than step b: under 88% of the frames per second, 4 points more time lost, or 2 more big stutters. */
+  function worse(a, b) { return a.fps < b.fps * 0.88 || a.lost > b.lost + 4 || a.big > b.big + 2; }
 
   /**
    * What the frame gaps (milliseconds between drawn frames) of one step say. lo: { n, ms } for the page's own long busy moments (Chromium only).
@@ -50,8 +52,10 @@
     var closed = Object.keys(opts.closed || {});
     if (closed.length) L.push({ kind: 'warn', text: 'The test closed these things that were covering the page: ' + closed.map(function (k) { return k + ' (' + opts.closed[k] + ' time' + (opts.closed[k] === 1 ? '' : 's') + ')'; }).join(', ') + '.' });
     if (!base || !load) { L.push({ kind: 'warn', text: 'The comparison needs one baseline step and one load step to give an answer. The table below has the numbers.' }); return L; }
+    var thin = [base, load].filter(function (r) { return r.n !== undefined && r.n < 5; })[0];
+    if (thin) { L.push({ kind: 'warn', text: 'No comparison was possible: "' + thin.label + '" drew almost no frames, so the page was probably hidden, in the background or frozen. Keep this page on screen and run the test again.' }); return L; }
     L.push({ kind: 'big', text: base.label + ': ' + Math.round(base.fps) + ' frames per second, ' + pc(base.lost) + ' of the time lost to late frames. ' + load.label + ': ' + Math.round(load.fps) + ' fps, ' + pc(load.lost) + ' lost, ' + load.big + ' big stutter' + (load.big === 1 ? '' : 's') + '.' });
-    var hurt = load.fps < base.fps * 0.88 || load.lost > base.lost + 4 || load.big > base.big + 2;
+    var hurt = worse(load, base);
     if (!hurt) L.push({ kind: 'warn', text: '"' + load.label + '" did not make this device stutter in the test. If the real thing still feels choppy, the cost is probably in the graphics chip drawing the frames, which frame timing cannot see. Tell the person who built the test whether it felt choppy during the run.' });
     else L.push({ kind: 'warn', text: '"' + load.label + '" DID make this device stutter (' + Math.round(base.fps) + ' to ' + Math.round(load.fps) + ' fps, lost time ' + pc(base.lost) + ' to ' + pc(load.lost) + '), so the test reproduces the problem.' });
     var best = null;
@@ -63,6 +67,10 @@
     });
     if (hurt && vars.length && !best) L.push({ kind: 'warn', text: 'None of the variants helped by itself, so the cost is not in the parts this test switches off.' });
     if (hurt && best) L.push({ kind: 'ok', text: 'Biggest help: ' + best[0] + '.' });
+    if (base.med >= 30 && base.med <= 36) L.push({ kind: 'warn', text: 'With nothing going on this device drew only about ' + Math.round(1000 / base.med) + ' frames per second. Low Power Mode or battery saver often does that. Switch it off and run the test again, because the cap limits every number here.' });
+    var cold = heat && heat.n >= 5 && worse(base, heat);
+    if (base.again || cold) L.push({ kind: 'warn', text: base.again && !cold ? 'The first "' + base.label + '" step looked slower than the last one (a cold start), so it was measured a second time.' : 'The first "' + base.label + '" step is slower than the last one, so the answer above may be too hopeful. Run the test again.' });
+    if (load.first) L.push({ kind: 'warn', text: hurt ? 'The "' + load.label + '" step was measured twice and was slow both times (first pass ' + Math.round(load.first.fps) + ' fps).' : 'The first pass of "' + load.label + '" looked slow (' + Math.round(load.first.fps) + ' fps) but a second pass did not, so the first was treated as a one-off slowdown.' });
     var tot = 0; results.forEach(function (r) { tot += r.loaf || 0; });
     if (tot) L.push({ kind: 'warn', text: 'The page itself was busy too long in ' + tot + ' moment' + (tot === 1 ? '' : 's') + ' during the test (table, last column).' });
     if (heat && (heat.fps < base.fps * 0.85 || heat.lost > base.lost + 4)) L.push({ kind: 'warn', text: 'The device got slower over the test (' + Math.round(base.fps) + ' to ' + Math.round(heat.fps) + ' fps with nothing going on), probably from heat, so later steps are unfairly slow.' });
@@ -91,11 +99,11 @@
    *          where less than 30% of it shows, or something covers it, is marked disturbed and redone (up to tries, 3).
    *   bar: the sticky bar that covers the top of the page (element, selector or function), so its height is not counted as visible.
    *   covers: [{ name, test(), close() }]    things that can cover the page (a card, a help panel); they are closed before each step.
-   *   stepMs (4500), warmMs (1100: dropped from each step), settleMs (250), coverTries (50) and coverWaitMs (300: how hard and how long to try closing a cover), notes() (extra warnings for the answer), onProgress(i, n, step), header (first line of the report).
+   *   stepMs (2500), warmMs (1100: dropped from each step), settleMs (250), coverTries (50) and coverWaitMs (300: how hard and how long to try closing a cover), notes() (extra warnings for the answer), onProgress(i, n, step), header (first line of the report).
    * Resolves with { steps, verdict, text, closed }.
    */
   function run(opts) {
-    var steps = opts.steps || [], STEP = opts.stepMs || 4500, WARM = opts.warmMs === undefined ? 1100 : opts.warmMs, TRIES = opts.tries || 3, SHOW = opts.showFraction || 0.5;
+    var steps = opts.steps || [], STEP = opts.stepMs || 2500, WARM = opts.warmMs === undefined ? 1100 : opts.warmMs, TRIES = opts.tries || 3, SHOW = opts.showFraction || 0.5;
     var sty = document.createElement('style'); sty.setAttribute('data-speed-lab', ''); document.head.appendChild(sty);
     var closed = {}, LO = { n: 0, ms: 0 }, loOn = false, po = null, scene = function () { return el(opts.scene); }, barB = function () { var b = el(opts.bar); try { return b ? b.getBoundingClientRect().bottom : 0; } catch (e) { return 0; } };
     try { po = new PerformanceObserver(function (l) { if (!loOn) return; l.getEntries().forEach(function (e) { LO.n++; LO.ms += e.duration; }); }); po.observe({ type: 'long-animation-frame' }); } catch (e) { po = null; }
@@ -108,36 +116,49 @@
     }
     function frames(ms) {
       return new Promise(function (done) {
-        var d = [], last = 0, t0 = performance.now(), warm = true;
+        var d = [], last = 0, t0 = performance.now(), warm = true, over = false, hid = !!document.hidden, cut;
+        function vis() { if (document.hidden) hid = true; }
+        function end() { if (over) return; over = true; clearTimeout(cut); document.removeEventListener('visibilitychange', vis); done({ d: d, hidden: hid }); }
+        document.addEventListener('visibilitychange', vis); cut = setTimeout(end, WARM + ms + 1500);
         (function f(t) {
+          if (over) return;
           if (last && !warm) d.push(t - last);
           last = t;
           if (warm && t - t0 >= WARM) { warm = false; last = 0; }
-          if (t - t0 < WARM + ms) requestAnimationFrame(f); else done(d);
+          if (t - t0 < WARM + ms) requestAnimationFrame(f); else end();
         })(performance.now());
       });
+    }
+    async function measure(s) {
+      var r = null, undo = null, tries;
+      for (tries = 1; tries <= TRIES; tries++) {
+        await clearCovers();
+        sty.textContent = s.css || '';
+        try { undo = s.setup ? s.setup({ step: s, scene: scene() }) : null; if (undo && typeof undo.then === 'function') undo = await undo; } catch (e) { undo = null; }
+        scrollHalf(); await sleep(opts.settleMs === undefined ? 250 : opts.settleMs); scrollHalf();
+        var v0 = visFrac(); LO = { n: 0, ms: 0 }; loOn = true;
+        var got = await frames(STEP); loOn = false; r = stat(got.d, LO);
+        r.vis = Math.round(Math.min(v0, visFrac()) * 100);
+        var cv = covering(); r.bad = cv ? cv.name + ' was on screen' : (got.hidden ? 'the page was hidden or in the background' : (r.n < 5 ? 'the page drew almost no frames' : (r.vis < 30 ? 'the part being measured was hidden' : '')));
+        if (typeof undo === 'function') { try { undo(); } catch (e) { /* tried */ } }
+        if (!r.bad) break;
+      }
+      r.id = s.id; r.label = s.label; r.role = s.role || ''; r.tries = Math.min(tries, TRIES);
+      return r;
     }
     return (async function () {
       var out = [];
       try {
         for (var i = 0; i < steps.length; i++) {
-          var s = steps[i], r = null, undo = null, tries;
-          if (opts.onProgress) opts.onProgress(i, steps.length, s);
-          for (tries = 1; tries <= TRIES; tries++) {
-            await clearCovers();
-            sty.textContent = s.css || '';
-            try { undo = s.setup ? s.setup({ step: s, scene: scene() }) : null; if (undo && typeof undo.then === 'function') undo = await undo; } catch (e) { undo = null; }
-            scrollHalf(); await sleep(opts.settleMs === undefined ? 250 : opts.settleMs); scrollHalf();
-            var v0 = visFrac(); LO = { n: 0, ms: 0 }; loOn = true;
-            var fr = await frames(STEP); loOn = false; r = stat(fr, LO);
-            r.vis = Math.round(Math.min(v0, visFrac()) * 100);
-            var cv = covering(); r.bad = cv ? cv.name + ' was on screen' : (r.vis < 30 ? 'the part being measured was hidden' : '');
-            if (typeof undo === 'function') { try { undo(); } catch (e) { /* tried */ } }
-            if (!r.bad) break;
-          }
-          r.id = s.id; r.label = s.label; r.role = s.role || ''; r.tries = Math.min(tries, TRIES);
-          out.push(r);
+          if (opts.onProgress) opts.onProgress(i, steps.length, steps[i]);
+          out.push(await measure(steps[i]));
         }
+        // A first step that is slower than the closing one with nothing going on is a cold start (seen in WebKitGTK 2.52.6): measure it once more.
+        // A load step that looks slow is measured once more too, so a one-off slowdown (the same browser slows for a few seconds after a page loads) is not blamed on the load.
+        var bi = -1, hi = -1, li = -1; out.forEach(function (r, k) { if (r.role === 'baseline' && bi < 0) bi = k; else if (r.role === 'heat') hi = k; else if (r.role === 'load' && li < 0) li = k; });
+        var good = function (r) { return r && r.n >= 5 && !r.bad; };
+        if (good(out[bi]) && good(out[hi]) && worse(out[bi], out[hi])) { out[bi] = await measure(steps[bi]); out[bi].again = true; }
+        if (good(out[bi]) && good(out[li]) && worse(out[li], out[bi])) { var first = out[li]; out[li] = await measure(steps[li]); out[li].again = true; out[li].first = { fps: first.fps, lost: first.lost, big: first.big }; }
       } finally { sty.remove(); if (po) po.disconnect(); }
       var notes = typeof opts.notes === 'function' ? opts.notes() : (opts.notes || []);
       var res = { steps: out, closed: closed };
@@ -152,7 +173,7 @@
    * title, intro, container (default: a panel fixed at the bottom of the page), onDone(result).
    */
   function panel(opts) {
-    var n = (opts.steps || []).length, secs = Math.round(n * ((opts.stepMs || 4500) + (opts.warmMs === undefined ? 1100 : opts.warmMs) + 400) / 1000 + 3);
+    var n = (opts.steps || []).length, secs = Math.round(n * ((opts.stepMs || 2500) + (opts.warmMs === undefined ? 1100 : opts.warmMs) + 400) / 1000 + 3);
     var box = document.createElement('div'); box.setAttribute('data-speed-lab-panel', '');
     box.style.cssText = opts.container ? '' : 'position:fixed;left:0;right:0;bottom:0;z-index:2147483000;max-height:62vh;overflow:auto;box-sizing:border-box;background:#121420;color:#fff;font:500 14px/1.35 system-ui,sans-serif;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px))';
     var btn = 'font:700 15px system-ui,sans-serif;color:#111;background:#ffe58a;border:0;border-radius:8px;padding:10px 14px;min-height:42px;margin:6px 6px 0 0;cursor:pointer';
