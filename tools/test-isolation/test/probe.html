@@ -1,0 +1,45 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : test-isolation browser check
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset="utf-8"><title>test-isolation property-style probes</title>
+<script src="../test-isolation.js"></script>
+<script>
+// Seven things a real Storage does that the 1.0.0 wrapper got wrong; the answer is left in window.__result.
+var REAL = window.localStorage, P = 'iso:', r = {};
+function safe(f) { try { return f(); } catch (e) { return 'THROWS ' + (e && e.name); } }
+REAL.clear(); REAL.setItem('save', 'REAL'); REAL.setItem('other', 'REAL2');
+var ls = TestIsolation.wrap(REAL, P);
+ls.setItem('a', '1');
+r.objectKeys = safe(function () { return JSON.stringify(Object.keys(ls)); });                    // want ["a"]
+r.inOperator = safe(function () { return ('a' in ls) + '/' + ('save' in ls); });                  // want true/false
+r.jsonStringify = safe(function () { return JSON.stringify(ls); });                                // want {"a":"1"}
+r.propertyRead = safe(function () { return String(ls.a); });                                       // want 1
+r.propertyWrite = safe(function () { ls.b = '2'; return 'getItem=' + ls.getItem('b') + ' stored=' + REAL.getItem(P + 'b'); });   // want getItem=2 stored=2
+r.propertyDelete = safe(function () { delete ls.a; return 'after delete getItem=' + ls.getItem('a'); });   // want null
+r.length = safe(function () { return ls.length; });                                                // want 1 (only b)
+ls.clear();
+r.realUntouched = REAL.getItem('save') === 'REAL' && REAL.getItem('other') === 'REAL2';
+REAL.clear(); window.__result = r;
+</script>

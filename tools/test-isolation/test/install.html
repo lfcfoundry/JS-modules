@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : test-isolation browser check
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset="utf-8"><title>test-isolation install, fresh, seed and snippet check</title>
+<script>var REAL = window.localStorage; REAL.clear(); REAL.setItem('save', 'REAL'); REAL.setItem('opt', 'O'); REAL.setItem('lab:old', 'stale');</script>
+<script src="../test-isolation.js"></script>
+<script>
+var r = {};
+var inst = TestIsolation.install({ prefix: 'lab:', fresh: true, seed: true });
+r.installOk = inst.ok;
+r.staleGone = localStorage.getItem('old') === null;
+r.seededSave = localStorage.getItem('save');
+localStorage.setItem('save', 'TEST'); localStorage.newkey = 'N';
+r.realSaveAfterWrite = REAL.getItem('save'); r.testCopyStored = REAL.getItem('lab:save') + '/' + REAL.getItem('lab:newkey');
+r.keys = JSON.stringify(Object.keys(localStorage).sort());
+inst.restore(); r.restored = (window.localStorage === REAL) || (window.localStorage.getItem('save') === 'REAL');
+// the inline snippet, run the way a test page does it (as page script text, first thing)
+REAL.clear(); REAL.setItem('save', 'REAL');
+var s = document.createElement('script'); s.textContent = TestIsolation.snippet('snip:', ['localStorage']); document.head.appendChild(s);
+localStorage.setItem('save', 'T2'); localStorage.other = 'O2';
+r.snippetRealSave = REAL.getItem('save'); r.snippetStored = REAL.getItem('snip:save') + '/' + REAL.getItem('snip:other'); r.snippetKeys = JSON.stringify(Object.keys(localStorage).sort());
+r.snippetLen = TestIsolation.snippet('snip:').length;
+REAL.clear(); window.__result = r;
+</script>

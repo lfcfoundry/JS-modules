@@ -46,5 +46,33 @@ t('the snippet does the same thing as install when run on its own', function () 
   var none = { get localStorage() { throw new Error('denied'); } }; new Function('window', T.snippet('x:'))(none);   // must not throw
   assert.ok(T.snippet('a"b').indexOf('"a\\"b"') > 0, 'a quote in the prefix is escaped');
 });
+
+t('property-style use behaves like a real Storage: read, write, in, delete, Object.keys, JSON.stringify, for-in', function () {
+  var real = fakeStorage({ save: 'REAL' }), s = T.wrap(real, 'p:');
+  s.a = '1'; s.setItem('b', 2);
+  assert.strictEqual(real.getItem('p:a'), '1'); assert.strictEqual(s.a, '1'); assert.strictEqual(s.b, '2'); assert.strictEqual(s.save, undefined);
+  assert.ok('a' in s); assert.ok(!('save' in s)); assert.deepStrictEqual(Object.keys(s), ['a', 'b']); assert.strictEqual(JSON.stringify(s), '{"a":"1","b":"2"}');
+  var seen = []; for (var k in s) seen.push(k); assert.deepStrictEqual(seen, ['a', 'b']);
+  delete s.a; assert.strictEqual(real.getItem('p:a'), null); assert.strictEqual(real.getItem('save'), 'REAL');
+});
+t('the remembered key list stays right: own writes, outside writes that change the count, and key loops', function () {
+  var real = fakeStorage({ g: '1' }), s = T.wrap(real, 'c:');
+  s.setItem('x', '1'); assert.strictEqual(s.length, 1); s.setItem('y', '1'); assert.strictEqual(s.length, 2);
+  real.setItem('c:z', '1'); assert.strictEqual(s.length, 3, 'a key added behind its back is noticed (the count changed)');
+  real.removeItem('c:z'); s.removeItem('x'); assert.deepStrictEqual([0, 1, 2].map(function (i) { return s.key(i); }), ['y', null, null]);
+  s.clear(); assert.strictEqual(s.length, 0); assert.strictEqual(real.getItem('g'), '1');
+});
+t('fresh removes what an earlier run left; seed copies the real values in and never changes them', function () {
+  var real = fakeStorage({ save: 'REAL', opt: 'o', 'lab:old': 'stale' }), page = { localStorage: real };
+  var r = T.install({ target: page, prefix: 'lab:', fresh: true, seed: true });
+  assert.strictEqual(page.localStorage.getItem('old'), null); assert.strictEqual(page.localStorage.getItem('save'), 'REAL'); assert.strictEqual(page.localStorage.length, 2);
+  page.localStorage.setItem('save', 'TEST'); assert.strictEqual(real.getItem('save'), 'REAL'); assert.strictEqual(real.getItem('lab:save'), 'TEST'); r.restore();
+  assert.throws(function () { T.install({ target: { localStorage: fakeStorage({}) }, prefix: '' }); }, /prefix cannot be empty/);
+});
+t('without Proxy it falls back to the method-only object', function () {
+  var P = global.Proxy; global.Proxy = undefined;
+  try { var real = fakeStorage({ save: 'REAL' }), s = T.wrap(real, 'n:'); s.setItem('a', '1'); assert.strictEqual(s.getItem('a'), '1'); assert.strictEqual(s.length, 1); assert.deepStrictEqual(Object.keys(s), []); assert.strictEqual(real.getItem('save'), 'REAL'); }
+  finally { global.Proxy = P; }
+});
 console.log(fail ? fail + ' FAILED, ' + pass + ' passed' : 'test-isolation: all ' + pass + ' checks passed');
 process.exit(fail ? 1 : 0);
