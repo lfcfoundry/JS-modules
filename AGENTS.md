@@ -22,6 +22,8 @@ Every module and tool has a label like `1.2.3 · API 1` (classic major.minor.pat
 ## Run the tests
 `npm i playwright-core && CHROMIUM=/path/to/chrome node tests/run.js`
 
+Test browsers are **Firefox 158** and **ungoogled Chromium 155** (Linux). Do not use Chromium 141 or 153 or Firefox 157 for new results. Run one browser at a time (two at once make timing flaky), point the tests at the install with `CHROMIUM`, `FIREFOX_PATH` and `GECKODRIVER_PATH`, and label every result with the browser and version that ran. Say so when WebKit or a real phone was not checked. Keep the browser files out of this repository.
+
 ## Adding a module
 1. Make `modules/<name>/` with the file(s), `README.md` (what it does, quick start, API, how it differs from existing open source, limits, a "For AI agents" section), `demo.html`, and a `test/` folder.
 2. Add it to `modules.json`, `llms.txt`, `index.html` and the README table, and to `tests/kits.js` if it has its own tests.
