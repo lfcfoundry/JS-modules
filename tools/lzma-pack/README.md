@@ -1,8 +1,8 @@
 # lzma-pack
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Chromium (version not recorded; 14 browser checks); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; the real Fancy the Banana page (original, packed, packed and minified) loaded the same in Firefox 158 and ungoogled Chromium 155 (a load check, not a play-through, noted 2026-10-15). Not run: WebKitGTK, a phone.
+**Tested in:** Node 22.22.0 (340 lzma-decode checks, 23 lzma-pack checks); tests/lzma-wasm-browser.js one browser at a time on 2026-10-17: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; tools/lzma-pack/test/browser.py in ungoogled-chromium 155.0.8059.39-1
 
 Turns one HTML file into one smaller, self-unpacking HTML file using LZMA, and checks a hash of the result before running it. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader).
 
@@ -41,8 +41,33 @@ python3 tools/lzma-pack/pack.py tools/lzma-pack/example/app.html tools/lzma-pack
 | `--tune` | Try lc 0-4 and pb 0-2 and keep the smallest result (slower). |
 | `--bg auto\|none\|COLOR` | Color behind the "Opening..." line. `auto` (default) reads it from the input: an inline `<body style>`, the last `html`/`body`/`:root` rule that sets a background (a `var(--name)` is looked up), or a `theme-color` meta tag; white if none is found. `none` shows nothing. Or a plain color such as `#101018`, `rgb(16,16,24)` or `black`. |
 | `--minify-page` | First minify the page's own inline scripts (needs terser or esbuild), then pack. Off by default; see "Minifying the page first" below. |
+| `--wasm` | Off by default. Also ship the WebAssembly decoder (4,087 bytes, stored raw behind the LZMA data): the loader tries it first and uses the JavaScript decoder if it is missing, refused or wrong. See "Optional WebAssembly loader" below. |
 | `--skip-node-check` | Do not run the packed page's own decoder in Node after packing (see below). |
 | `--minifier auto\|terser\|esbuild\|none` | Finds `terser` or `esbuild` on the PATH, in a `node_modules/.bin`, or from the `TERSER` / `ESBUILD` environment variable. Without one the loader is about 8.4 KB. |
+
+## Optional WebAssembly loader (new in 1.1.0)
+
+`--wasm` writes a loader that tries the WebAssembly LZMA decoder first (`modules/lzma-decode/wasm/lzma-decode.wasm`) and falls back to the JavaScript decoder, which is always in the page too. It is off by default because it costs file size: the WebAssembly bytes cannot be LZMA-packed themselves, so the page grows by about 4.5 KB.
+
+| Page (packed, `bytes` encoding, terser) | Default | With `--wasm` | Change (smaller is better) |
+|---|---|---|---|
+| Pineapple Defense, 569,513 bytes in | 148,360 | 152,880 | +4,520 bytes (+3.0%) |
+| Fancy the Banana, 701,727 bytes in | 184,728 | 189,228 | +4,500 bytes (+2.4%) |
+
+Time from opening the file until the unpacked page starts (milliseconds, median of 9 loads for Pineapple Defense, 5 for Fancy; the number includes the browser's own page work and a 30 ms timer in the loader, so only the difference matters; smaller is better):
+
+| Browser | Pineapple default | Pineapple `--wasm` | Fancy default | Fancy `--wasm` |
+|---|---|---|---|---|
+| ungoogled-chromium 155.0.8059.39-1 | 104.0 | 77.7 | 117.9 | 87.4 |
+| Firefox 158.0 (reports 158.0b5) | 150.0 | 132.0 | 149.0 | 130.0 |
+| WebKitGTK 2.52.6 | 84.0 | 70.0 | 100.0 | 76.0 |
+| GNOME Web 46.5 | 111.0 | 88.0 | 117.0 | 95.0 |
+
+The saving is 14 to 30 ms on a desktop; a phone is not measured. Whether 4.5 KB for 14 to 30 ms is worth it is the game owner's call; a game that is already close to a size limit should keep the default.
+
+What the page needs: `'wasm-unsafe-eval'` in the `script-src` of the wrapper's Content-Security-Policy (the `--head` option; the packer prints a note when `--head` sets a policy without it). Chromium and Firefox refuse WebAssembly without it and the page then simply uses the JavaScript decoder (checked in both with a policy that lacks the word: the page still opened and no WebAssembly instance was made). WebKitGTK 2.52.6 and GNOME Web 46.5 did not refuse WebAssembly under that policy, so the fallback was not exercised there; it is exercised in Node by the packer's own check below. Pages without any policy need nothing.
+
+The self-check runs the page's loader four times in Node: with a WebAssembly that counts its calls (the decoder must run exactly once and return the exact length), with no WebAssembly at all, with WebAssembly whose compile step throws (as a refusing policy does), and with a decoder that returns a wrong length. All four must write the input page back. A damaged `lzma-decode.wasm` is therefore caught at pack time instead of silently making every page slow.
 
 ## Minifying the page first
 
