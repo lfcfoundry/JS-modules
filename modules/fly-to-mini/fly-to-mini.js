@@ -3,7 +3,7 @@
  * (and back again when you scroll up). A shared-element transition for scroll, with an arc, a tilt and a squash.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  *
  *   var fly = FlyToMini.create({
  *     big: document.querySelector('#apple'),          // watched with IntersectionObserver
@@ -21,6 +21,10 @@
  * becomes wide and the mini disappears (offsetWidth 0), the flight ends at once. A timer lands the copy even if frames stop coming,
  * and a throwing frame lands it at once, so the art is never left at opacity 0. When the system asks for reduced motion there is
  * no flight (the state just changes). create() with a missing element returns an inert object instead of throwing.
+ *
+ * Options added in 1.2.0 (all off unless you ask, so a copy of 1.1.0 can be replaced by this one): bar (the sticky bar as an element, instead of a
+ * pixel number; the module measures it and follows its size), onVisible(ratio) with steps, hysteresis, keepFocus, reducedFade, and the method
+ * alert() (makes the mini glow and bounce, class "mini-alert"). The clone also loses its id attributes and gets a copy of any canvas.
  *
  * Optional engine: pass engine:'transition' to let the browser's View Transitions API do the move (the same arc, tilt and squash are
  * added on top). It is used only where document.startViewTransition exists; everywhere else the flight above runs. While it plays,
@@ -46,7 +50,7 @@
         on = !!next;
         try { if (o && typeof o.onChange === 'function') o.onChange(on); } catch (e) {}
       },
-      stop: function () {}, destroy: function () {}, get isMini() { return on; }
+      stop: function () {}, destroy: function () {}, alert: function () { return false; }, get isMini() { return on; }
     };
   }
 
@@ -60,7 +64,8 @@
     var vt = null, vtToken = 0, vtStyle = null;   // the running View Transition, a counter that retires stale ones, the page's <style> for it
     var inset = o.topInset == null ? 130 : Number(o.topInset);
     if (!isFinite(inset)) inset = 130;
-    var on = false, first = true, flyEl = null, raf = 0, dir = 0, cur = null, io = null, timer = 0;
+    var barEl = isBox(o.bar) ? o.bar : null, hys = Math.min(0.4, Math.max(0, Number(o.hysteresis) || 0)), keepFocus = !!o.keepFocus, reducedFade = !!o.reducedFade;
+    var on = false, first = true, flyEl = null, raf = 0, dir = 0, cur = null, io = null, ro = null, timer = 0, popTs = [], alertT = 0, alertAt = -1e9, pendingFocus = '';
     var revealed = false, prevVis = '';   // true while a display:none mini is shown invisibly so it can be measured
 
     // The caller's callback may throw; that must not stop a landing. The error is reported, not swallowed silently.
@@ -86,10 +91,48 @@
       try {
         var el = isOn ? mini : big;
         el.classList.remove('landed'); void el.offsetWidth; el.classList.add('landed');   // CSS: .landed { animation: pop 400ms }
-        setTimeout(function () { try { el.classList.remove('landed'); } catch (e) {} }, 400);
+        var id = setTimeout(function () { popTs = popTs.filter(function (x) { return x !== id; }); try { el.classList.remove('landed'); } catch (e) {} }, 400); popTs.push(id);
       } catch (e) {}
     }
-    function land(isOn) { stop(); notify(isOn); pop(isOn); }
+    function land(isOn) { stop(); notify(isOn); pop(isOn); settleFocus(); }
+
+    // ---- keepFocus: if the button that was in use is the one that just went away, the other one takes the focus ----
+    function focusOwner() {
+      try {
+        var a = document.activeElement;
+        if (!a) return '';
+        if (a === big || (big.contains && big.contains(a))) return 'big';
+        if (a === mini || (mini.contains && mini.contains(a))) return 'mini';
+      } catch (e) {}
+      return '';
+    }
+    function noteFocus(next) {   // called when the state flips, before anything is hidden
+      if (!keepFocus) return;
+      var w = focusOwner();
+      if (w) pendingFocus = (w === 'big') === next ? (next ? 'mini' : 'big') : '';
+      else if (pendingFocus && (pendingFocus === 'mini') !== next) pendingFocus = '';   // (focus was already lost, but the old plan no longer points the right way)
+    }
+    function settleFocus() {
+      var w = pendingFocus; pendingFocus = '';
+      if (!w) return;
+      try { (w === 'mini' ? mini : big).focus({ preventScroll: true }); } catch (e) {}
+    }
+    // ---- reducedFade: where the flight is skipped, the element that arrives fades in instead of just appearing ----
+    function fadeIn(isOn) {
+      try { (isOn ? mini : big).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out' }); } catch (e) {}
+    }
+    // ---- alert(): the mini glows and bounces (CSS hook .mini-alert), at most once every alertGapMs and only while it is showing ----
+    function alertMini() {
+      var now = performance.now();
+      if (!on || revealed || flyEl || vt || (typeof document.hidden === 'boolean' && document.hidden) || now - alertAt < (o.alertGapMs == null ? 3500 : o.alertGapMs)) return false;
+      alertAt = now;
+      try {
+        mini.classList.remove('mini-alert'); void mini.offsetWidth; mini.classList.add('mini-alert');
+        clearTimeout(alertT);
+        alertT = setTimeout(function () { try { mini.classList.remove('mini-alert'); } catch (e) {} }, canAnimate() ? (o.alertMs || 1800) : (o.alertMs || 1800) + 1200);
+      } catch (e) { return false; }
+      return true;
+    }
 
     // ---- optional engine: View Transitions ----
     function face() { return isBox(o.content) ? o.content : (mini.firstElementChild || mini); }
@@ -119,7 +162,7 @@
         setName(src, ''); notify(myOn); setName(dst, vtName); // the new picture is captured under the same name
       });
       vt = t;
-      function done() { if (token !== vtToken) return; vt = null; vtClear(); pop(myOn); }
+      function done() { if (token !== vtToken) return; vt = null; vtClear(); pop(myOn); settleFocus(); }
       t.finished.then(done, done);
       t.ready.then(function () {
         if (token !== vtToken) return;
@@ -132,7 +175,21 @@
         } catch (e) {}
       }, function () {});
     }
-    function noFlight() { stop(); notify(on); }
+    // A copy of the picture without the page's ids (they would appear twice), with any canvas drawn into the copy (a cloned canvas is blank).
+    function cloneFace(src) {
+      var c = src.cloneNode(true);
+      try {
+        if (c.removeAttribute) c.removeAttribute('id');
+        if (c.querySelectorAll) {
+          var withId = c.querySelectorAll('[id]'), i;
+          for (i = 0; i < withId.length; i++) withId[i].removeAttribute('id');
+          var from = src.querySelectorAll('canvas'), to = c.querySelectorAll('canvas');
+          for (i = 0; i < to.length && i < from.length; i++) { try { to[i].getContext('2d').drawImage(from[i], 0, 0); } catch (e) {} }
+        }
+      } catch (e) {}
+      return c;
+    }
+    function noFlight() { stop(); notify(on); settleFocus(); }
 
     function startFlight() {
       unreveal();
@@ -154,7 +211,7 @@
       if (!flyEl) {
         flyEl = document.createElement('div'); flyEl.className = 'mini-fly'; flyEl.setAttribute('aria-hidden', 'true');
         flyEl.style.cssText = 'position:fixed;left:0;top:0;pointer-events:none;z-index:2147483000;will-change:transform;width:' + base + 'px;height:' + base + 'px';
-        flyEl.appendChild((isBox(o.content) ? o.content : (mini.firstElementChild || mini)).cloneNode(true));
+        flyEl.appendChild(cloneFace(isBox(o.content) ? o.content : (mini.firstElementChild || mini)));
         h.appendChild(flyEl);
       }
       dir = on ? 1 : -1;
@@ -190,25 +247,64 @@
     function set(next, animate) {
       next = !!next;
       if (next === on) return;
+      noteFocus(next);
       on = next;
-      var can = false;
-      try { can = !!animate && !!canAnimate() && !document.hidden && !!mini.animate; } catch (e) {}
-      if (!can) { noFlight(); return; }
+      var can = false, skipped = false;
+      try { can = !!animate && !!canAnimate() && !document.hidden && !!mini.animate; skipped = !!animate && !document.hidden && !canAnimate(); } catch (e) {}
+      if (!can) { noFlight(); if (reducedFade && skipped) fadeIn(next); return; }
       try {
         if (wantVT && typeof document.startViewTransition === 'function') vtStart(); else startFlight();
       } catch (err) { noFlight(); }
     }
 
+    // The sticky bar's height when `bar` is given (the module follows its size), otherwise the topInset number.
+    function insetNow() {
+      if (!barEl) return inset;
+      var h = 0;
+      try { h = Math.round(barEl.getBoundingClientRect().height); } catch (e) {}
+      return h > 0 ? h : 0;
+    }
+    // Steps at which the observer reports: 0, 0.5 and 1 plus the caller's `steps`, and the point where the mini goes back (0.5 + hysteresis).
+    function stepList() {
+      var l = [0, 0.5, 1].concat(Array.isArray(o.steps) ? o.steps : []);
+      if (hys) l.push(0.5 + hys);
+      l = l.filter(function (n) { return typeof n === 'number' && n >= 0 && n <= 1; }).sort(function (a, b) { return a - b; });
+      return l.filter(function (n, i) { return i === 0 || n !== l[i - 1]; });
+    }
+    var curInset = 0;
+    function watch() {
+      try { if (io) io.disconnect(); } catch (e) {}
+      io = null;
+      curInset = insetNow();
+      first = true;   // (the first report after (re)starting only sets the state; it never animates)
+      try {
+        io = new IntersectionObserver(function (entries) {
+          var r = entries[entries.length - 1].intersectionRatio;   // the newest report, in case several were waiting
+          if (typeof o.onVisible === 'function') { try { o.onVisible(r); } catch (e) { try { console.error(e); } catch (e2) {} } }
+          set(on ? r < 0.5 + hys : r < 0.5, !first);
+          first = false;
+        }, { threshold: stepList(), rootMargin: curInset > 0 ? '-' + curInset + 'px 0px 0px 0px' : '0px' });
+        io.observe(big);
+      } catch (e) { io = null; }
+    }
     try {
       if ('IntersectionObserver' in window) {
-        io = new IntersectionObserver(function (entries) {
-          set(entries[0].intersectionRatio < 0.5, !first);
-          first = false;
-        }, { threshold: [0, 0.5, 1], rootMargin: inset > 0 ? '-' + inset + 'px 0px 0px 0px' : '0px' });
-        io.observe(big);
+        watch();
+        if (barEl && typeof ResizeObserver !== 'undefined') {
+          ro = new ResizeObserver(function () { if (insetNow() !== curInset) watch(); });
+          ro.observe(barEl);
+        }
       } else { notify(true); }
     } catch (e) { io = null; }
-    return { set: set, stop: stop, destroy: function () { stop(); try { if (io) io.disconnect(); } catch (e) {} try { if (vtStyle && vtStyle.parentNode) vtStyle.parentNode.removeChild(vtStyle); } catch (e) {} vtStyle = null; }, get isMini() { return on; } };
+    return {
+      set: set, stop: stop, alert: alertMini,
+      destroy: function () {
+        stop(); popTs.forEach(function (id) { clearTimeout(id); }); popTs = []; clearTimeout(alertT);
+        try { if (io) io.disconnect(); } catch (e) {} try { if (ro) ro.disconnect(); } catch (e) {}
+        try { if (vtStyle && vtStyle.parentNode) vtStyle.parentNode.removeChild(vtStyle); } catch (e) {} vtStyle = null;
+      },
+      get isMini() { return on; }
+    };
   }
   return { create: create };
 });
