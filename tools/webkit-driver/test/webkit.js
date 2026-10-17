@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 LFC Foundry. MIT License. Drives a real WebKitGTK (or GNOME Web with `epiphany`) through webkit-driver.js: about 10 checks, 5 seconds.
+/* Copyright (c) 2026 LFC Foundry. MIT License. Drives a real WebKitGTK (or GNOME Web with `epiphany`) through webkit-driver.js: about 12 checks, 5 seconds.
  *   node test/webkit.js [webkitgtk|epiphany]      Skips with a note when WebKitWebDriver is not installed. Never run it while another browser is running. */
 'use strict';
 var WD = require('../webkit-driver.js'), fs = require('fs'), os = require('os'), path = require('path'), cp = require('child_process'), kind = process.argv[2] || 'webkitgtk', fails = 0;
@@ -16,11 +16,17 @@ var PAGE = 'data:text/html,<title>t</title><body style="margin:0"><button id=b s
     ok(o.a.length === 3 && o.s === 'é', 'evaluate waits for a promise and returns objects');
     await p.mouse.click(120, 120); await sleep(150);
     ok((await p.evaluate(function () { return document.title; })) === 'clicked', 'a mouse click lands on the button');
-    await p.evaluate(function () { window.ev = []; ['mousedown', 'mouseup', 'keydown', 'wheel'].forEach(function (n) { addEventListener(n, function (e) { ev.push(n + (e.key ? ':' + e.key : '')); }); }); addEventListener('mousemove', function (e) { window.last = [e.clientX, e.clientY]; }); });
+    await p.evaluate(function () { window.ev = []; ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'keydown', 'wheel'].forEach(function (n) { addEventListener(n, function (e) { ev.push(n + (e.key ? ':' + e.key : '')); }); }); addEventListener('mousemove', function (e) { window.last = [e.clientX, e.clientY]; }); addEventListener('pointermove', function (e) { window.plast = [e.clientX, e.clientY, e.pointerType, e.pointerId, e.isPrimary]; }); });
     await p.mouse.move(310, 310); await p.mouse.down(); await p.mouse.move(400, 350, { steps: 4 }); await p.mouse.up();
     await p.keyboard.press('ArrowRight'); await p.keyboard.press('Escape'); await p.mouse.wheel(0, 120); await sleep(200);
-    var ev = await p.evaluate(function () { return { e: ev.join(','), last: last }; });
+    var ev = await p.evaluate(function () { return { e: ev.join(','), last: last, plast: window.plast }; });
     ok(/mousedown/.test(ev.e) && /mouseup/.test(ev.e) && ev.last[0] === 400 && ev.last[1] === 350, 'a drag presses, moves in steps to the end point and releases');
+    ok(/pointerdown,mousedown,pointerup,mouseup/.test(ev.e) && ev.plast && ev.plast[0] === 400 && ev.plast[1] === 350 && ev.plast[2] === 'mouse' && ev.plast[3] === 1 && ev.plast[4] === true, 'a drag also sends pointer events (pointerdown before mousedown, pointerup before mouseup, a primary mouse pointer ending at 400,350)');
+    // pointer capture: a page that captures the pointer on pointerdown keeps getting its moves after the pointer leaves it, and hears lostpointercapture on release
+    await p.evaluate(function () { var d = document.getElementById('b'); window.cap = []; d.addEventListener('pointerdown', function (e) { d.setPointerCapture(e.pointerId); cap.push('down:' + d.hasPointerCapture(e.pointerId)); }); d.addEventListener('pointermove', function (e) { if (d.hasPointerCapture(e.pointerId)) cap.push('move'); }); d.addEventListener('lostpointercapture', function () { cap.push('lost'); }); });
+    await p.mouse.move(120, 120); await p.mouse.down(); await p.mouse.move(500, 400, { steps: 3 }); await p.mouse.up(); await sleep(100);
+    var cp2 = await p.evaluate(function () { return cap.join(','); });
+    ok(/^down:true,(move,)+lost$/.test(cp2), 'pointer capture: moves after leaving the button still reach it, and release is announced (' + cp2 + ')');
     ok(/keydown:ArrowRight,keydown:Escape/.test(ev.e), 'key presses arrive in order');
     ok(/wheel/.test(ev.e), 'the wheel scrolls at the pointer');
     await p.evaluate(function () { console.error('boom'); setTimeout(function () { throw new Error('late'); }, 10); }); await sleep(200); await p.evaluate(function () { return 1; });

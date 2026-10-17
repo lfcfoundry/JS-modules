@@ -2,9 +2,9 @@
 
 **Version 1.1.0 · API 1**
 
-**Tested in:** Node checks; the speed figures were measured in Chromium (version not recorded). Firefox for this release: not recorded (Firefox 157 ran `tests/firefox.js` on 2026-10-17: 5 passed). Not run: Firefox privacy-profile test, WebKitGTK, a phone.
+**Tested in:** Node checks; tests/pieces-browser.js env-probes (the demo page loads, report() sees a page, canvas read-back and storage work, explain() gives sentences) one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, all passed. Not run: Firefox privacy-profile test, a phone.
 
-Tiny checks for browsers that quietly change what your page can do. About 8 KB minified (about 3.2 KB gzipped), no dependencies. Open `demo.html` for the one-button device check page. Never throws, in a page, a Worker or Node.
+Tiny checks for browsers that quietly change what your page can do. About 11 KB minified (about 4.4 KB gzipped; measured with terser 5.36.0), no dependencies. Open `demo.html` for the one-button device check page. Never throws, in a page, a Worker or Node.
 
 ```js
 EnvProbes.timerRounded();      // true: the clock is rounded (Firefox "resist fingerprinting" ~16.67 ms, Tor-style 100 ms)

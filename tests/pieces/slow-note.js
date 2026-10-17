@@ -16,8 +16,10 @@ check('slow-note', async (b) => {
   if (sup['slow tap'] || sup['slow frame']) {
     await sleep(1100); await p.click('#slow'); await sleep(900);
     const kinds = await p.evaluate(() => note.entries().map(x => x[1]));
-    ok(!sup['slow tap'] || kinds.includes('slow tap'), 'the slow tap was not noted: ' + kinds);
-    said += ', slow ' + [sup['slow tap'] ? 'tap' : '', sup['slow frame'] ? 'frame' : ''].filter(Boolean).join(' and ') + ' seen';
+    const scripted = !!p._synth;   // GNOME Web refuses WebDriver clicks, so the driver sends clicks as script events; browsers time only real input, so no slow tap can show up
+    ok(!sup['slow tap'] || scripted || kinds.includes('slow tap'), 'the slow tap was not noted: ' + kinds);
+    const seen = [sup['slow tap'] && !scripted ? 'tap' : '', sup['slow frame'] ? 'frame' : ''].filter(Boolean).join(' and ');
+    said += (seen ? ', slow ' + seen + ' seen' : '') + (scripted && sup['slow tap'] ? ' (slow tap not checked here: this browser only gets scripted clicks, which it does not time)' : '');
   } else said += '; this browser reports no slow taps or frames (nothing to check)';
   const before = await p.evaluate(() => note.count());
   await p.reload(); await sleep(300);
