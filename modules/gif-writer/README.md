@@ -2,7 +2,7 @@
 
 **Version 1.0.0 · API 1**
 
-**Tested in:** Node checks; the demo page in Firefox 158 and ungoogled Chromium 155, one at a time (`tests/flow-demos.js`, 2026-10-17). Not run: WebKitGTK, a phone.
+**Tested in:** Node checks; the demo page in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time (`tests/flow-demos.js`, 2026-10-17; WebKitGTK through WebDriver). Not run: GNOME Web (Epiphany) 46.5, a phone.
 
 Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 16 KB (5.9 KB gzipped), no dependencies. Cut from Net Flow Map's GIF maker.
 
