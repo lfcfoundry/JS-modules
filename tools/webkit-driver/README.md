@@ -1,8 +1,10 @@
 # webkit-driver
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Test it:** `node tools/webkit-driver/test/run.js` (pretend driver, no browser, 7 checks) and `node tools/webkit-driver/test/webkit.js` (a real WebKitGTK 2.52.6, 12 checks, about 2 seconds; `node tools/webkit-driver/test/webkit.js epiphany` does the same in GNOME Web 46.5, about 8 seconds).
+**Tested in:** WebKitGTK 2.52.6 (17 real checks and 7 pretend-driver checks pass; plus the five Apple Press piece checks, the four Net Flow Map demos and the idle-core same-answers run through tests/webkit-shim.js) and GNOME Web 46.5 (the real checks that apply to it pass). Not run: Firefox 158 and ungoogled Chromium 155 (this driver does not drive them) and Net Flow Map's own 82-check suite.
+
+**Test it:** `node tools/webkit-driver/test/run.js` (pretend driver, no browser, 7 checks) and `node tools/webkit-driver/test/webkit.js` (a real WebKitGTK 2.52.6, 17 checks, about 5 seconds; `node tools/webkit-driver/test/webkit.js epiphany` does the same in GNOME Web 46.5, about 8 seconds).
 
 ## What it is
 
@@ -30,10 +32,14 @@ It needs `WebKitWebDriver` on the machine, plus `xvfb-run` and `dbus-run-session
 
 ## API
 
-- `launch(opts)` resolves to `{ page, version, close() }`. Options: `browser` (`'webkitgtk'` default, or `'epiphany'`), `width`, `height` (default 1280 x 800), `timeout` (how long one page script may run, default 600000 ms), `driver` and `binary` (paths), `xvfb` (default: only when there is no `DISPLAY`), `port`. `close()` ends the driver and the whole process group; exiting Node does too.
+- `launch(opts)` resolves to `{ page, version, close() }`. Options: `browser` (`'webkitgtk'` default, or `'epiphany'`), `width`, `height` (default 1280 x 800), `timeout` (how long one page script may run, default 600000 ms), `driver` and `binary` (paths), `xvfb` (default: only when there is no `DISPLAY`), `port`, and four that are off by default:
+  - `deviceScaleFactor` (whole numbers only): the page sees `devicePixelRatio` 2 with the same page area.
+  - `colorScheme: 'dark'`: `prefers-color-scheme: dark` becomes true.
+  - `reducedMotion: true`: `prefers-reduced-motion: reduce` becomes true.
+  - `serve` (`true` serves the current folder, or give a folder path): `goto('file:///...')` for a file under that folder is loaded over `http://127.0.0.1` through a small local web server, so errors thrown while the page loads are reported with their real text. Two things change: the page's origin is `http://127.0.0.1:...`, so `localStorage` is not shared with `file://`; and a page whose security policy only allows hashed or nonce scripts would block the hook that reports errors. `close()` ends the driver and the whole process group; exiting Node does too.
 - `page.goto(url)`: loads and waits for the load event.
 - `page.evaluate(fn, arg)`: runs `fn(arg)` in the page. The argument and the answer must be JSON-able; a returned promise is awaited; an error thrown in the page is thrown here with its message. Answers travel as one JSON string, so a large array (a million numbers) works.
-- `page.waitForFunction(fn, arg, { timeout })`: polls every 50 ms until `fn(arg)` is truthy; rejects after the timeout (default 20000 ms).
+- `page.waitForFunction(fn, arg, { timeout })`: checks inside the page, once per frame, until `fn(arg)` is truthy; rejects after the timeout (default 20000 ms), and rejects at once if `fn` throws.
 - `page.mouse.move(x, y, { steps })`, `.down()`, `.up()`, `.click(x, y)`, `.wheel(dx, dy)`; `page.keyboard.press('Escape' | 'ArrowRight' | 'a' | 'Control+a')`.
 - `page.setViewport({ width, height })`: sizes the window so the page area is exactly that.
 - `page.screenshot({ path })`: PNG of the page area; resolves to a Buffer.
@@ -46,7 +52,8 @@ It needs `WebKitWebDriver` on the machine, plus `xvfb-run` and `dbus-run-session
 ## Limits
 
 - **Linux only**, and WebKitGTK is not Safari: it catches many but not all iPhone-only problems. It runs software drawing in a container, so it says nothing about real graphics speed. WebGPU is not available in it.
-- Errors thrown **while the page is loading** are not seen (the hook goes in right after the load event). Errors after that are.
+- Errors thrown **while the page is loading** are not seen on a plain `file://` page (the hook goes in right after the load event); with the `serve` option they are. Errors after the load are always seen.
+- WebKitGTK 2.52.6 has **no BiDi** and **no touch events** (a touch test is done with the mouse).
 - Only **console errors** are reported, not other console output.
 - **GNOME Web (Epiphany 46)** refuses the WebDriver input calls (`unsupported operation`), so there the mouse, wheel and keys are sent as DOM events by script. Those events are untrusted, so a page that insists on real ones will not react. WebKitGTK itself (`MiniBrowser`) uses real input.
 - A WebGL canvas that has been shown on screen is **empty if read back in a later task** (WebKit clears it); draw and read in the same task, as the Net Flow Map browser test does.

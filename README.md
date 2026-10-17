@@ -155,7 +155,7 @@ For building and testing. Not shipped inside a game or story.
 | [firefox-stand-in](tools/firefox-stand-in/README.md) | Runs a Playwright-for-Python test in stock Firefox (through Selenium and geckodriver) without rewriting it; says plainly which calls it supports and stops with a clear message on the rest. | 1.0.0 · API 1 |
 | [test-isolation](tools/test-isolation/README.md) | Puts a prefix in front of every localStorage key on a test page, so a speed test or random-play run never touches the real saved game. | 1.0.0 · API 1 |
 | [speed-lab](tools/speed-lab/README.md) | One-button speed test run on the device: compares your page with parts switched off, keeps the scene in view and uncovered, and says the answer in plain sentences with a copyable table. | 1.0.0 · API 1 |
-| [webkit-driver](tools/webkit-driver/README.md) | Drives WebKitGTK or GNOME Web from Node with no dependencies, using the call names of Playwright and Puppeteer (goto, evaluate, waitForFunction, mouse, keyboard, screenshot, console errors), so a test written for them can also run in WebKit. | 1.0.0 · API 1 |
+| [webkit-driver](tools/webkit-driver/README.md) | Drives WebKitGTK or GNOME Web from Node with no dependencies, using the call names of Playwright and Puppeteer (goto, evaluate, waitForFunction, mouse, keyboard, screenshot, console errors), so a test written for them can also run in WebKit. | 1.1.0 · API 1 |
 
 #### For the story editor
 

@@ -420,7 +420,7 @@
     },
     {
       "id": "webkit-driver",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "summary": "Drives WebKitGTK or GNOME Web from Node with no dependencies, using the call names of Playwright and Puppeteer (goto, evaluate, waitForFunction, mouse, keyboard, screenshot, console errors), so a test written for them can also run in WebKit.",
       "folder": "tools/webkit-driver",
