@@ -1,8 +1,8 @@
 # memory-compression-jso
 
-**Version 1.1.0 · API 1**
+**Version 1.1.1 · API 1**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time: the comparison page and the demo page; Node 22.22.0: 26 checks with and without WebAssembly plus the long random test. Not run: a phone
+**Tested in:** Node 22; Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (research thread's runs of 1.1.0 build, same bytes)
 
 Keeps a big pile of plain JavaScript objects (a list of 300,000 links, 100,000 scene items, an API answer, a log) packed in memory as a few megabytes of bytes, and brings every value back exactly. It is the object version of [memory-compression](../memory-compression/README.md): arrays of objects are stored as columns, and the columns go through that module's float-aware packing. One file, no dependencies, works offline, about 174 KB with comments (55 KB gzipped; the core and its two small optional WebAssembly helpers are inside).
 
@@ -169,70 +169,70 @@ Same code, same checks, smaller sets (so the page finishes in about a minute): 6
 
 | data set (items) | this module 1.1.0 fast: pack / unpack, ms | this module 1.0.0 fast: pack / unpack, ms | msgpackr with records: pack / unpack, ms | size, MB: this module 1.1.0 / msgpackr |
 |---|---|---|---|---|
-| nfm-links (60,000) | 23.4 / 7 | 19.3 / 5 | 24.3 / 13.6 | 1.553 / 3.822 |
-| nfm-nodes (20,000) | 12.3 / 4.3 | 10.5 / 4.4 | 13.4 / 10.1 | 0.437 / 1.697 |
-| api-users (10,000) | 7.5 / 4 | 6.5 / 2.8 | 7.3 / 9.2 | 0.155 / 1.142 |
-| geojson (4,000) | 6 / 4.9 | 5.4 / 6.3 | 7.1 / 5.7 | 0.369 / 1.446 |
-| events (40,000) | 12.3 / 3.9 | 9.7 / 4.1 | 12.5 / 14.6 | 0.336 / 1.914 |
+| nfm-links (60,000) | 19.3 / 6.8 | 21.8 / 5 | 25 / 16 | 1.553 / 3.822 |
+| nfm-nodes (20,000) | 10.9 / 4.3 | 10.5 / 4 | 12 / 9.7 | 0.437 / 1.697 |
+| api-users (10,000) | 7.6 / 4.1 | 8.6 / 3.7 | 8.1 / 9.6 | 0.155 / 1.142 |
+| geojson (4,000) | 5.7 / 5.1 | 5.4 / 5.7 | 7.1 / 5.3 | 0.369 / 1.446 |
+| events (40,000) | 11.8 / 3.6 | 10.8 / 4.6 | 14.7 / 14.8 | 0.336 / 1.914 |
 | small (1,000) | 0.6 / 0.1 | 0.5 / 0.1 | 0.5 / 0.4 | 0.007 / 0.048 |
-| irregular (4,000) | 1.2 / 0.9 | 1.2 / 0.9 | 1.2 / 1.7 | 0.031 / 0.045 |
+| irregular (4,000) | 1.2 / 0.9 | 1.2 / 1 | 1.7 / 2.2 | 0.031 / 0.045 |
 
 **ungoogled Chromium 155.0.8059.39-1**
 
 | data set (items) | this module 1.1.0 fast: pack / unpack, ms | this module 1.0.0 fast: pack / unpack, ms | msgpackr with records: pack / unpack, ms | size, MB: this module 1.1.0 / msgpackr |
 |---|---|---|---|---|
-| nfm-links (60,000) | 18 / 6.9 | 19.5 / 6.7 | 20.3 / 8.7 | 1.553 / 3.822 |
-| nfm-nodes (20,000) | 11.2 / 3.5 | 11.1 / 3.7 | 10.7 / 6.6 | 0.437 / 1.697 |
-| api-users (10,000) | 8.7 / 3.2 | 7.4 / 2.6 | 7.1 / 6.8 | 0.155 / 1.142 |
-| geojson (4,000) | 6.1 / 3.8 | 6 / 4.5 | 5 / 3 | 0.369 / 1.446 |
-| events (40,000) | 15.3 / 3.2 | 12.6 / 3.8 | 12 / 12 | 0.336 / 1.914 |
-| small (1,000) | 0.6 / 0.1 | 0.5 / 0.1 | 0.6 / 0.2 | 0.007 / 0.048 |
-| irregular (4,000) | 1.3 / 0.8 | 1.2 / 0.8 | 0.8 / 0.9 | 0.031 / 0.045 |
+| nfm-links (60,000) | 17.9 / 6.5 | 19.1 / 5.2 | 20.1 / 8.3 | 1.553 / 3.822 |
+| nfm-nodes (20,000) | 10.9 / 3.1 | 11.5 / 3.4 | 10.6 / 5.8 | 0.437 / 1.697 |
+| api-users (10,000) | 8.2 / 3.1 | 6.9 / 2.6 | 6.4 / 6.6 | 0.155 / 1.142 |
+| geojson (4,000) | 7.1 / 4.2 | 6 / 4 | 5.7 / 2.9 | 0.369 / 1.446 |
+| events (40,000) | 14.8 / 2.7 | 12.8 / 3.7 | 12.2 / 12.3 | 0.336 / 1.914 |
+| small (1,000) | 0.5 / 0.1 | 0.5 / 0.1 | 0.6 / 0.1 | 0.007 / 0.048 |
+| irregular (4,000) | 1.2 / 0.8 | 1.2 / 0.7 | 0.8 / 0.8 | 0.031 / 0.045 |
 
 **WebKitGTK 2.52.6**
 
 | data set (items) | this module 1.1.0 fast: pack / unpack, ms | this module 1.0.0 fast: pack / unpack, ms | msgpackr with records: pack / unpack, ms | size, MB: this module 1.1.0 / msgpackr |
 |---|---|---|---|---|
-| nfm-links (60,000) | 27 / 7 | 21 / 6 | 25 / 9 | 1.553 / 3.822 |
-| nfm-nodes (20,000) | 14 / 7 | 12 / 5 | 11 / 9 | 0.437 / 1.697 |
-| api-users (10,000) | 14 / 8 | 8 / 4 | 6 / 11 | 0.155 / 1.142 |
-| geojson (4,000) | 10 / 8 | 10 / 8 | 6 / 3 | 0.369 / 1.446 |
-| events (40,000) | 22 / 5 | 15 / 6 | 10 / 16 | 0.336 / 1.914 |
-| small (1,000) | 0.7 / 0.3 | 0.8 / 0.3 | 0.3 / 0.4 | 0.007 / 0.048 |
-| irregular (4,000) | 1 / 1 | 1 / 1 | 1 / 1 | 0.031 / 0.045 |
+| nfm-links (60,000) | 25 / 7 | 24 / 7 | 25 / 9 | 1.553 / 3.822 |
+| nfm-nodes (20,000) | 13 / 6 | 14 / 5 | 12 / 9 | 0.437 / 1.697 |
+| api-users (10,000) | 11 / 6 | 8 / 4 | 6 / 10 | 0.155 / 1.142 |
+| geojson (4,000) | 10 / 9 | 9 / 7 | 6 / 3 | 0.369 / 1.446 |
+| events (40,000) | 17 / 4 | 16 / 5 | 11 / 16 | 0.336 / 1.914 |
+| small (1,000) | 0.8 / 0.3 | 0.7 / 0.3 | 0.3 / 0.3 | 0.007 / 0.048 |
+| irregular (4,000) | 1 / 1 | 1 / 1 | 1 / 2 | 0.031 / 0.045 |
 
 **GNOME Web (Epiphany) 46.5**
 
 | data set (items) | this module 1.1.0 fast: pack / unpack, ms | this module 1.0.0 fast: pack / unpack, ms | msgpackr with records: pack / unpack, ms | size, MB: this module 1.1.0 / msgpackr |
 |---|---|---|---|---|
-| nfm-links (60,000) | 24 / 8 | 23 / 7 | 26 / 10 | 1.553 / 3.822 |
-| nfm-nodes (20,000) | 16 / 6 | 12 / 4 | 12 / 9 | 0.437 / 1.697 |
-| api-users (10,000) | 12 / 6 | 7 / 4 | 6 / 9 | 0.155 / 1.142 |
-| geojson (4,000) | 7 / 8 | 8 / 8 | 6 / 3 | 0.369 / 1.446 |
-| events (40,000) | 20 / 4 | 16 / 6 | 9 / 16 | 0.336 / 1.914 |
-| small (1,000) | 0.8 / 0.2 | 0.7 / 0.3 | 0.3 / 0.3 | 0.007 / 0.048 |
+| nfm-links (60,000) | 20 / 8 | 19 / 7 | 25 / 9 | 1.553 / 3.822 |
+| nfm-nodes (20,000) | 14 / 6 | 14 / 5 | 12 / 9 | 0.437 / 1.697 |
+| api-users (10,000) | 12 / 6 | 7 / 4 | 5 / 10 | 0.155 / 1.142 |
+| geojson (4,000) | 7 / 7 | 7 / 7 | 6 / 4 | 0.369 / 1.446 |
+| events (40,000) | 18 / 4 | 16 / 5 | 10 / 15 | 0.336 / 1.914 |
+| small (1,000) | 0.8 / 0.3 | 0.7 / 0.3 | 0.3 / 0.3 | 0.007 / 0.048 |
 | irregular (4,000) | 1 / 1 | 1 / 1 | 1 / 1 | 0.031 / 0.045 |
 
-What the browser tables say: the packed size is the same in every browser and is 1.5 to 7.4 times smaller than msgpackr's. Against msgpackr with records, unpacking is faster or equal on all 7 sets in Firefox, on 6 of 7 in Chromium (the map features are 1.3 times slower), and on 5 of 7 in both WebKit browsers (the map features are 2.7 times slower). Packing is equal or faster on 6 of 7 sets in Firefox and mostly within 30% in Chromium; in both WebKit browsers it is 1.1 to 1.3 times slower on the number-heavy sets and 1.7 to 2.3 times slower on the text-heavy ones (users 14 against 6 ms, events 22 against 10 ms in WebKitGTK). WebKit is this module's weakest engine.
+What the browser tables say: the packed size is the same in every browser and is 1.5 to 7.4 times smaller than msgpackr's. Against msgpackr with records, unpacking is faster or tied on all 7 sets in Firefox and on 6 of 7 in each of the other three browsers (the map features are 1.5 to 3 times slower there). Packing is equal or faster on 6 of 7 sets in Firefox; in Chromium it is 1.2 to 1.5 times slower on the text-heavy and nested sets; in both WebKit browsers it is 1.5 to 2.4 times slower on the user records, log events and map features (users 11 against 6 ms, events 17 against 11 ms in WebKitGTK). WebKit is this module's weakest engine.
 
-**Does 1.1.0 pack slower than 1.0.0 in a browser?** Only on text-heavy data, and only because of text patterns. Pack time, milliseconds, smaller is better (best of 30 alternating runs, fast mode):
+**Does 1.1.0 pack slower than 1.0.0 in a browser?** Only on text-heavy data, and only because of text patterns. Pack time, milliseconds, smaller is better (best of 30 alternating runs, fast mode; the WebKit timer counts whole milliseconds):
 
 | browser | data set | 1.0.0 | 1.1.0 | 1.1.0 with `patterns: false` |
 |---|---|---:|---:|---:|
-| Firefox 158.0 | users (10,000) | 6.3 | 7.7 | 6.2 |
-| Firefox 158.0 | events (40,000) | 10.1 | 12.2 | 10.3 |
-| Firefox 158.0 | links (60,000) | 19.1 | 18.4 | 18.1 |
-| ungoogled Chromium 155.0.8059.39-1 | users (10,000) | 7.1 | 8.2 | 7.2 |
-| ungoogled Chromium 155.0.8059.39-1 | events (40,000) | 14.2 | 15.3 | 13.5 |
-| ungoogled Chromium 155.0.8059.39-1 | links (60,000) | 19.8 | 17.9 | 17.6 |
-| WebKitGTK 2.52.6 | users (10,000) | 7 | 11 | 8 |
-| WebKitGTK 2.52.6 | events (40,000) | 16 | 18 | 16 |
-| WebKitGTK 2.52.6 | links (60,000) | 25 | 24 | 23 |
-| GNOME Web 46.5 | users (10,000) | 8 | 12 | 8 |
-| GNOME Web 46.5 | events (40,000) | 16 | 18 | 16 |
-| GNOME Web 46.5 | links (60,000) | 28 | 27 | 30 |
+| Firefox 158.0 | users (10,000) | 8.6 | 9.2 | 8.5 |
+| Firefox 158.0 | events (40,000) | 11.8 | 16.1 | 13.4 |
+| Firefox 158.0 | links (60,000) | 20.9 | 19.6 | 19.1 |
+| ungoogled Chromium 155.0.8059.39-1 | users (10,000) | 7.3 | 8.4 | 7.2 |
+| ungoogled Chromium 155.0.8059.39-1 | events (40,000) | 14.2 | 15.1 | 14.1 |
+| ungoogled Chromium 155.0.8059.39-1 | links (60,000) | 19.1 | 17.4 | 17.4 |
+| GNOME Web 46.5 | users (10,000) | 8 | 11 | 8 |
+| GNOME Web 46.5 | events (40,000) | 15 | 17 | 14 |
+| GNOME Web 46.5 | links (60,000) | 25 | 23 | 23 |
+| WebKitGTK 2.52.6 | users (10,000) | 8 | 11 | 8 |
+| WebKitGTK 2.52.6 | events (40,000) | 16 | 18 | 15 |
+| WebKitGTK 2.52.6 | links (60,000) | 24 | 23 | 23 |
 
-Takeaway: on text-heavy data 1.1.0 costs 1 to 4 ms more per pack at these sizes (10 to 60% longer) and gives a 29 to 33% smaller file; on number-heavy data it is the same speed. `patterns: false` brings the old speed back.
+Takeaway: on text-heavy data 1.1.0 costs about 1 to 4 ms more per pack at these sizes and gives a 29 to 33% smaller file; on number-heavy data (links) it is the same speed or slightly faster. `patterns: false` brings the 1.0.0 speed back everywhere.
 
 ### What keeping it costs in memory (Node, after a full garbage collection)
 Megabytes held in memory (smaller is better); the last two columns say how many times smaller than the live objects (bigger is better).
@@ -303,7 +303,7 @@ Measured against msgpackr 2.1.0 (with and without records, and with bundled stri
 **Inside JS-modules:** [memory-compression](../memory-compression/README.md) packs typed arrays and bytes (no objects); this module is the same core plus an object layer. `save-kit` and `zip-open` use the browser's own `CompressionStream` (asynchronous, no floats help).
 
 ## What it is not
-- **Not the fastest packer for every shape of data.** On objects with many short text fields (the users set) it packs 1.2 times slower than msgpackr with records in Node and up to 2.3 times slower in WebKit, and avsc with a schema packs faster on the big sets. It wins on size, on unpack speed in most cases, and on number-heavy data.
+- **Not the fastest packer for every shape of data.** On objects with many short text fields (the users set) it packs 1.2 times slower than msgpackr with records in Node and up to 2.4 times slower in WebKit, and avsc with a schema packs faster on the big sets. It wins on size, on unpack speed in most cases, and on number-heavy data.
 - **Not good at irregular data.** When every item is different the size gain falls to about 37% of the JSON text and speed is about even with msgpackr, which is the bottom of what it does.
 - **Not a streaming format.** It packs a whole value at once and needs the whole result to unpack.
 - **Not a way to keep a live scene.** Unpacking 300,000 links takes about 70 ms in Node. Use it for data that sits still (other scenes, undo steps, saves, big tables, a copy kept while the objects are freed), then unpack it when you need it, or use `view()` to read single items.
