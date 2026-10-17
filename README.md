@@ -78,7 +78,7 @@ Unpack a smaller file inside the game. The tools that pack it are under Tools.
 
 | Module | One line | Global | Version |
 |---|---|---|---|
-| [lzma-decode](modules/lzma-decode/README.md) | Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. | `lzmaDecode` | 1.0.0 · API 1 |
+| [lzma-decode](modules/lzma-decode/README.md) | Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. | `lzmaDecode` | 1.1.0 · API 1 |
 | [ppmd-decode](modules/ppmd-decode/README.md) | A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. | `ppmd7Decode` | 1.0.0 · API 1 |
 
 #### Files, charts and simulation
@@ -143,7 +143,7 @@ For building and testing. Not shipped inside a game or story.
 
 | Tool | One line | Version |
 |---|---|---|
-| [lzma-pack](tools/lzma-pack/README.md) | Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library). | 1.0.0 · API 1 |
+| [lzma-pack](tools/lzma-pack/README.md) | Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library). | 1.1.0 · API 1 |
 | [ppmd-pack](tools/ppmd-pack/README.md) | Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data. | 1.0.0 · API 1 |
 | [single-file-tools](tools/single-file-tools/README.md) | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games. | 1.1.0 · API 1 |
 

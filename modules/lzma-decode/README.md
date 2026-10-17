@@ -1,12 +1,12 @@
 # lzma-decode
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** 140 Node checks against Python's `lzma`; the 14 `lzma-pack` browser checks in Chromium (version not recorded); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; the Fancy the Banana load check in Firefox 158 and ungoogled Chromium 155 (see lzma-pack). Not run: WebKitGTK, a phone.
+**Tested in:** Node 22.22.0 (340 lzma-decode checks, 23 lzma-pack checks); tests/lzma-wasm-browser.js one browser at a time on 2026-10-17: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; tools/lzma-pack/test/browser.py in ungoogled-chromium 155.0.8059.39-1
 
 A small LZMA1 decoder in about 135 lines of JavaScript with ES5 syntax (one ES2015 method, see Limits): readable, commented, tested against Python's own `lzma` module. Use it to unpack LZMA data in the browser, which can only unpack gzip and deflate natively. The matching packer is [`tools/lzma-pack`](../../tools/lzma-pack/README.md).
 
-**Test it:** `node modules/lzma-decode/test/run.js` (needs `python3` on the PATH; offline).
+**Test it:** `node modules/lzma-decode/test/run.js` (needs `python3` on the PATH; offline; also runs the WebAssembly add-on against the same data). Browser timings: `tests/lzma-wasm-browser.js`.
 
 ## Quick start
 
@@ -34,6 +34,29 @@ Make a raw stream in Python: `lzma.compress(data, format=lzma.FORMAT_RAW, filter
 
 Set `maxSize` whenever the data or its size did not come from your own packer. A `.lzma` header can ask for up to 4 GB; without a ceiling that is a `RangeError` or an out-of-memory tab. `lzma-pack`'s own pages do not need it: the size is written next to the data by the packer.
 
+## Optional WebAssembly add-on (new in 1.1.0)
+
+Two versions, you choose: `lzma-decode.js` alone is the plain one every project uses by default (about 1.9 KB in a packed page). `lzma-decode-wasm.js` is an optional extra file (4,087 bytes of WebAssembly, 5,452 characters of base64 inside the file) that decodes the same streams about twice as fast. Load it after `lzma-decode.js`:
+
+```html
+<script src="lzma-decode.js"></script>
+<script src="lzma-decode-wasm.js"></script>
+<script>var out = lzmaDecodeWasm(bytes, size, { lc: 4, lp: 0, pb: 0 });   // same arguments and result as lzmaDecode</script>
+```
+
+It gives the same bytes. When WebAssembly is not usable (the page's Content-Security-Policy lacks `'wasm-unsafe-eval'` in Chromium and Firefox, or the browser is too old), or the settings are lc + lp above 4, or the stream is bad, the call is handed to the JavaScript decoder, so it always works and throws the JavaScript decoder's error messages. `lzmaDecodeWasm.available` says whether WebAssembly was usable; `lzmaDecodeWasm.engine` says which decoder the last call used (`'wasm'` or `'js'`); `lzmaDecodeWasm.file(bytes, size?, opts?)` is the `.lzma`-file form.
+
+First decode of the 569,513-byte Pineapple Defense page (141,872 bytes of LZMA), in a fresh page each time, median of 9, compile time of the WebAssembly module included, in milliseconds:
+
+| Browser | JavaScript | WebAssembly add-on | Speed-up (higher is better) |
+|---|---|---|---|
+| ungoogled-chromium 155.0.8059.39-1 | 40.8 | 20.1 | 2.03x |
+| Firefox 158.0 (reports 158.0b5) | 35.0 | 18.0 | 1.94x |
+| WebKitGTK 2.52.6 | 36.0 | 24.0 | 1.50x |
+| GNOME Web 46.5 | 44.0 | 28.0 | 1.57x |
+
+Smaller milliseconds are better. These are headless desktop runs on one machine; phones are not measured. A warm 1.5 MB decode in Node 22: 98.6 ms (JavaScript) to 47.3 ms (WebAssembly), 2.1x. The result is a copy that stands alone (its own buffer of exactly `outSize` bytes), so the 2x working memory of the run is freed at once. The source is `wasm/lzma-decode.c` (a line-for-line port of `lzma-decode.js`), `wasm/build.sh` rebuilds `wasm/lzma-decode.wasm` (clang with the wasm32 target; 4,087 bytes with clang 18.1.3) and `wasm/embed.py` writes it into `lzma-decode-wasm.js`; the WebAssembly file is kept under 4,096 bytes on purpose, because Chromium only compiles a module of that size or less on the main thread with the plain constructor. To put it in a packed page, see `tools/lzma-pack` (`--wasm`).
+
 ## How it differs from existing open source
 
 - **The [`lzma` package on npm](https://www.npmjs.com/package/lzma)** (a JavaScript LZMA library that can compress as well as decompress) and **[kripken/lzma.js](https://github.com/kripken/lzma.js)** (as far as I know an Emscripten build of the C LZMA code) are the established ways to use LZMA from JavaScript. Use one of them if you need to *compress* in the browser. This decoder is smaller because it only decodes, and it is a single readable function.
@@ -58,6 +81,7 @@ Inside this repository, [`tools/single-file-tools`](../../tools/single-file-tool
 ## For AI agents
 
 - The decoder is a direct state machine from the LZMA specification: `isMatch`, `isRep`, `isRepG0/G1/G2`, `isRep0Long`, `posSlot`, `posSpecial`, `align`, two length coders, and `literal`. Do not "simplify" the order of bit decodes: one misplaced call corrupts everything after it, usually without an error.
+- `lzma-decode-wasm.js` is generated: change `wasm/lzma-decode.c`, run `sh modules/lzma-decode/wasm/build.sh` then `python3 modules/lzma-decode/wasm/embed.py`, and keep the .wasm under 4,096 bytes. Any change to the JavaScript decoder's model must be made in the C port too; the tests compare both with liblzma and with each other on damaged streams.
 - Keep `lzmaDecodeFile` the last function before the export line: `tools/lzma-pack/pack.py` cuts the file there when it embeds the decoder in a packed page.
 - The file must stay ES5 syntax (repository rule). Run the test after any change; it compares with liblzma on 6 kinds of data, 8 settings combinations, sizes from 1 byte to 1.5 MB, and checks error handling and speed.
 

@@ -265,5 +265,86 @@ def t_minify_page_needs_tool():
 
 check("--minify-page without a minifier says what is missing", t_minify_page_needs_tool)
 
+
+# ---- --wasm: the optional WebAssembly decoder in the loader (off by default) ---------------------------------------------------
+def t_wasm_off_by_default():
+    for enc in ("bytes", "base64"):
+        page, info = pack.pack(APP, encoding=enc, minifier="none", check_node=False)
+        assert b"WebAssembly" not in page and info["wasm"] == 0, "a default page mentions WebAssembly"
+
+
+check("--wasm is off by default: the packed page does not mention WebAssembly", t_wasm_off_by_default)
+
+
+def t_wasm_flag():
+    import subprocess
+    h = subprocess.run([sys.executable, str(HERE / "pack.py"), "--help"], capture_output=True, text=True).stdout
+    assert "--wasm" in h and "wasm-unsafe-eval" in h and "Off by default" in h, "the help does not explain --wasm"
+
+
+check("the usage text explains --wasm and the wasm-unsafe-eval policy word", t_wasm_flag)
+
+
+def t_wasm_sizes():
+    for enc, extra in (("bytes", 6000), ("base64", 7600)):
+        a, ia = pack.pack(APP, encoding=enc, minifier="none", check_node=False)
+        b, ib = pack.pack(APP, encoding=enc, minifier="none", check_node=False, wasm=True)
+        grew = len(b) - len(a)
+        assert ib["wasm"] == len(pack.WASM_DECODER.read_bytes()) and ib["wasm"] < 4096, "the wasm size is not reported or grew past 4,096 bytes"
+        assert ib["wasm"] <= grew <= extra, "%s: the page grew by %d bytes (wasm %d), expected the wasm size plus a few hundred bytes of loader" % (enc, grew, ib["wasm"])
+        assert page_scripts(b) == 2, "a --wasm page must still have exactly two scripts"
+
+
+def page_scripts(page):
+    return len(re.findall(rb"<script>", page))
+
+
+check("--wasm adds the wasm size plus a few hundred bytes of loader (both encodings) and keeps two scripts", t_wasm_sizes)
+
+
+def t_wasm_roundtrip():
+    for enc in ("bytes", "base64"):
+        for tune in (False, True):
+            page, info = pack.pack(APP, encoding=enc, tune=tune, wasm=True, check_node=True)
+            assert info["node"] == "ok" and info["wasm"] > 0
+    page, info = pack.pack(page_text(40000), wasm=True, check_node=True)   # a larger page: the wasm side has to grow its memory
+    assert info["node"] == "ok"
+
+
+needs_node("a --wasm page unpacks with the wasm decoder, and with WebAssembly absent, refused, or returning a wrong length (Node, 4 modes)", t_wasm_roundtrip)
+
+
+def t_wasm_bad_module_is_refused():
+    import tempfile
+    real = pack.WASM_DECODER
+    with tempfile.TemporaryDirectory() as d:
+        fake = pathlib.Path(d) / "x.wasm"
+        fake.write_bytes(real.read_bytes()[:-40] + b"\x00" * 40)   # a damaged copy of the decoder
+        pack.WASM_DECODER = fake
+        try:
+            try:
+                pack.pack(APP, wasm=True, check_node=True)
+            except SystemExit as e:
+                assert "WebAssembly decoder" in str(e) or "self-check failed" in str(e), str(e)
+                return
+            raise AssertionError("a damaged wasm decoder was shipped without a complaint")
+        finally:
+            pack.WASM_DECODER = real
+
+
+needs_node("a damaged wasm decoder is caught at pack time (the page would only have fallen back, silently slow)", t_wasm_bad_module_is_refused)
+
+
+def t_wasm_missing():
+    real = pack.WASM_DECODER
+    pack.WASM_DECODER = real.with_name("nope.wasm")
+    try:
+        raises(lambda: pack.pack(APP, wasm=True, check_node=False), "build.sh")
+    finally:
+        pack.WASM_DECODER = real
+
+
+check("--wasm without the built decoder file says how to build it", t_wasm_missing)
+
 print("lzma-pack: %d passed, %d failed, %d skipped" % (passed, failed, skipped))
 sys.exit(1 if failed else 0)
