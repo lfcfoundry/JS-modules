@@ -209,6 +209,41 @@ t('destroy() during open() resolves it', async function () {
   var op = s.c.open(); s.c.destroy(); var r = await settle(op, 1000); assert.ok(r.done && !r.threw);
 });
 
+
+// ---- 1.1.0: waiting close() paints a little each frame, a turned window is painted again, a cancelled zoom ends the open ----
+async function ticksUntilMoving(o) {
+  var s = setup({ idle: true, opts: o }); var p = s.c.close(), n = 0;
+  while (!ANIMS.length && n < 400) { await tick(16); n++; }
+  ANIMS.forEach(function (a) { a.finish(); }); var r = await settle(p, 3000); assert.ok(r.done && !r.threw);
+  assert.strictEqual(s.c.isClosed, true); return n;
+}
+t('close() with nothing painted yet paints a little each frame (warmMs); warmMs: 0 paints it all at once', async function () {
+  var big = { width: 800, height: 1000 };
+  var warm = await ticksUntilMoving(big), fast = await ticksUntilMoving({ width: 800, height: 1000, warmMs: 0 });
+  assert.ok(warm > fast + 2, 'warm took ' + warm + ' frames, all-at-once took ' + fast);
+});
+t('warmMs: a very short wait still ends with the curtain closed (the rest is painted at once)', async function () {
+  var n = await ticksUntilMoving({ width: 800, height: 1000, warmMs: 1 }); assert.ok(n < 400);
+});
+t('a window turned between prepare() and close() gets velvet painted for the new size', async function () {
+  var s = setup({ idle: true, opts: { width: 0, height: 0 } }); s.body.clientWidth = 60; s.body.clientHeight = 40;
+  var r0 = await settle(s.c.prepare(), 15000); assert.ok(r0.done); assert.strictEqual(s.c.isReady, true);
+  s.body.clientWidth = 90; s.body.clientHeight = 40;
+  var p = s.c.close(); await tick(600); ANIMS.forEach(function (a) { a.finish(); }); var r = await settle(p, 3000); assert.ok(r.done && !r.threw);
+  assert.strictEqual(halves(s.c)[0].style.cssText.indexOf('width:51px') >= 0, true, 'half is ' + halves(s.c)[0].style.cssText);   // ceil(90 / 2) + 6
+});
+t('an unchanged size keeps the velvet that was painted ahead (no repaint)', async function () {
+  var s = setup({ idle: true, opts: { width: 0, height: 0 } }); s.body.clientWidth = 60; s.body.clientHeight = 40;
+  await settle(s.c.prepare(), 15000); var el = s.c.element;
+  var p = s.c.close(); await tick(300); assert.strictEqual(s.c.element, el, 'the curtain painted ahead was thrown away'); ANIMS.forEach(function (a) { a.finish(); }); await settle(p, 1000);
+});
+t('open(): a zoom that is cancelled by the browser ends the open at once, not after the timer', async function () {
+  var s = setup({ idle: true }); var p = s.c.close(); await tick(300); ANIMS.forEach(function (a) { a.finish(); }); await settle(p, 1000);
+  var before = ANIMS.length, el = s.c.element, op = s.c.open(), done = false; op.then(function () { done = true; });
+  var last = ANIMS.slice(before).filter(function (a) { return typeof a.oncancel === 'function'; })[0]; assert.ok(last, 'the zoom has no cancel handler');
+  last.oncancel(); await tick(48); assert.strictEqual(done, true, 'open() waited for the timer'); assert.strictEqual(s.body.children.indexOf(el), -1);
+});
+
 (async function () {
   for (var i = 0; i < tests.length; i++) {
     try { await tests[i].fn(); pass++; } catch (e) { fail++; console.error('FAIL ' + tests[i].name + ': ' + (e && e.stack || e)); }

@@ -2,7 +2,7 @@
  * stage-curtains.js: velvet stage curtains that slide shut over a page, then fly open.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  * No dependencies. Needs: canvas 2D, Promise, Element.animate (Web Animations). Any modern browser (2020+).
  *
@@ -209,7 +209,8 @@
   }
 
   // ---- the public object ----
-  var CALM_MS = 320;   // length of the fade used instead of the slide when the system asks for reduced motion
+  var CALM_MS = 320;
+  var WARM_STEP_MS = 4;   // how much velvet a waiting close() paints each frame   // length of the fade used instead of the slide when the system asks for reduced motion
 
   // Plays one Web Animation on `el` for the style property `prop` ('transform' or 'opacity') and writes the end value INTO the
   // element, so a stalled or cancelled animation cannot leave it out of place (a timer is the safety net). The finished animation
@@ -250,7 +251,7 @@
     var stepped = !!opts.stepped;
     var zIndex = opts.zIndex == null ? 2147483000 : opts.zIndex;
     var state = { jobs: null, el: null, parts: null, ready: false, size: null, destroyed: false, closed: false,
-      preparing: null, closePromise: null, opening: null, openEnd: null, slides: [], locked: null, hurry: false };
+      preparing: null, closePromise: null, opening: null, openEnd: null, slides: [], locked: null, hurry: false, waiting: null };
 
     function geometry() {
       var W = opts.width || container.clientWidth || window.innerWidth || 400;
@@ -281,6 +282,9 @@
       if (l) l.forEach(function (c) { try { c.removeAttribute('inert'); } catch (e) {} });
     }
 
+    // Throws away a finished, not yet shown curtain (it is painted again by the next prepare()).
+    function forget() { state.ready = false; state.el = state.parts = state.jobs = null; state.preparing = null; state.size = null; }
+
     // Paints both halves in small slices during idle time, then assembles the curtain (not yet in the page).
     // opts: sliceMs (default 2.5), restMs (default 45), hurry (paint at once). Resolves when ready, and also resolves (with the curtain
     // skipped) if painting is impossible or the curtain was destroyed meanwhile. Never rejects.
@@ -305,17 +309,27 @@
         (function slice() {
           if (state.destroyed) return resolve();
           try {
+            // close() is waiting for the velvet: paint 4 ms of it every frame (the page keeps moving) until the wait is used up
+            var w = state.waiting;
+            if (w && performance.now() - w.since < w.ms) {
+              var all = true;
+              jobs.forEach(function (j) { if (!j.done && !j.step(WARM_STEP_MS)) all = false; });
+              if (all) resolve(); else setTimeout(slice, 16);
+              return;
+            }
             idle(function (dl) {
               if (state.destroyed) return resolve();
               try {
-                var hurry = po.hurry || state.hurry;
-                if (realIdle && !hurry && !dl.didTimeout && dl.timeRemaining() < 7) { setTimeout(slice, restMs); return; }   // not a real idle moment
+                if (state.waiting && performance.now() - state.waiting.since < state.waiting.ms) { slice(); return; }   // close() asked while this was queued
+                var hurry = po.hurry || state.hurry || !!state.waiting;
+                var forced = !!dl.didTimeout;   // a page that is busy every frame never reports an idle moment: this turn is the one it gets
+                if (realIdle && !hurry && !forced && dl.timeRemaining() < 7) { setTimeout(slice, restMs); return; }   // not a real idle moment
                 var done = true;
-                jobs.forEach(function (j) { if (!j.done && !j.step(hurry ? 0 : sliceMs)) done = false; });
+                jobs.forEach(function (j) { if (!j.done && !j.step(hurry ? 0 : forced ? sliceMs * 2 : sliceMs)) done = false; });
                 if (!done) { setTimeout(slice, restMs); return; }
                 resolve();
               } catch (e) { reject(e); }
-            }, { timeout: 800 });
+            }, { timeout: 250 });
           } catch (e) { reject(e); }
         })();
       }).then(function () {
@@ -333,11 +347,11 @@
         });
         val.style.cssText += ';position:absolute;left:0;top:0;width:100%;z-index:30;will-change:transform' + px;
         el.appendChild(val); parts.push({ el: val, kind: 'valance' });
-        state.el = el; state.parts = parts; state.ready = true; state.hurry = false;
+        state.el = el; state.parts = parts; state.ready = true; state.hurry = false; state.waiting = null;
         return api;
       }).catch(function () {
         // Anything failed while painting: skip the curtain, but let the scene change go on.
-        state.preparing = null; state.ready = false; state.el = state.parts = state.jobs = null; state.hurry = false;
+        state.preparing = null; state.ready = false; state.el = state.parts = state.jobs = null; state.hurry = false; state.waiting = null;
         return api;
       });
       state.preparing = p;
@@ -351,8 +365,13 @@
       if (state.destroyed) return Promise.resolve(api);
       if (state.opening) return state.opening.then(function () { return close(); });
       if (state.closePromise) return state.closePromise;
-      state.hurry = true;   // the caller is waiting now: stop waiting for idle moments if painting is still going on
-      var p = state.closePromise = prepare({ hurry: true }).then(function () {
+      // The velvet was painted for another size (the window was turned or resized since prepare()): paint it again, so no gap shows.
+      if (state.ready && state.size) { var g = geometry(); if (g.W !== state.size.W || g.H !== state.size.H || g.k !== state.size.k) forget(); }
+      // The caller is waiting now. Unless painting is done, paint what is left a little each frame for up to warmMs (default 2500),
+      // then all at once; warmMs: 0 paints all at once straight away.
+      var warmMs = opts.warmMs == null ? 2500 : opts.warmMs;
+      if (!state.ready) { if (warmMs > 0) state.waiting = { since: performance.now(), ms: warmMs }; else state.hurry = true; }
+      var p = state.closePromise = prepare({ hurry: warmMs <= 0 }).then(function () {
         if (state.destroyed || !state.ready || !state.el) { if (state.closePromise === p) state.closePromise = null; return api; }
         var calm = isCalm(), el = state.el;
         var halves = state.parts.filter(function (q) { return q.kind === 'half'; });
@@ -406,7 +425,7 @@
           if (fin) return; fin = true; if (tm) clearTimeout(tm);
           unlockPage();
           try { if (el.parentNode) el.parentNode.removeChild(el); el.removeAttribute('aria-hidden'); } catch (e) {}
-          state.closed = false; state.ready = false; state.preparing = null; state.closePromise = null; state.opening = null; state.openEnd = null; state.hurry = false;
+          state.closed = false; state.ready = false; state.preparing = null; state.closePromise = null; state.opening = null; state.openEnd = null; state.hurry = false; state.waiting = null;
           resolve(api);
         }
         state.openEnd = end;
@@ -423,7 +442,7 @@
               : [{ opacity: startOpacity }, { opacity: startOpacity, offset: 0.7 }, { opacity: 0 }],
               { duration: openMs, delay: 250, easing: 'cubic-bezier(.4,0,.7,.4)', fill: 'forwards' }));
           }
-          anims[anims.length - 1].onfinish = end;
+          anims[anims.length - 1].onfinish = end; anims[anims.length - 1].oncancel = end;   // (a timer ends it too, if the browser never says)
           tm = setTimeout(end, (calm ? CALM_MS : openMs + 250) + 500);
         } catch (e) { end(); }
       });

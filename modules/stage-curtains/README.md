@@ -1,8 +1,8 @@
 # stage-curtains
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node checks with a fake DOM; Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; Firefox 158 per the 2026-10-15 task-board note and Firefox 157 on 2026-10-17 (`tests/firefox.js`): close puts both halves in place, open removes the curtain. Not run: WebKitGTK, a phone.
+**Tested in:** Node checks with a fake DOM (26, 5 of them new; the 3 new curtain checks fail on 1.0.0); the comparison page in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 and WebKitGTK 2.52.6 (close, open, stalled and cancelled animations, turned window); then the repository's own suites one browser at a time: tests/run.js in ungoogled Chromium 155.0.8059.39-1 (29 pass), tests/firefox.js in Firefox 158.0 (5 pass), and in WebKitGTK 2.52.6 the piece, demo and same-answers suites (all pass); close and open of the curtain also ran in WebKitGTK 2.52.6 and GNOME Web 46.5 without errors. Not run: a phone.
 
 Velvet stage curtains that slide shut over a page, then fly open. A scene-change transition for games and shows. About 29 KB, no images (the velvet is painted with canvas).
 
@@ -33,8 +33,9 @@ curtains.prepare()                    // paints the velvet in small slices of id
 | `maxPixelRatio` | 1.25 | Cap on canvas pixels per CSS pixel. |
 | `reducedMotion` | follows the system | `true` forces calm mode, `false` forces the full motion. |
 | `lockPage` | calm mode only | `true` always makes the page behind inert while closed; `false` never does. |
+| `warmMs` | 2500 | How long `close()` may take to finish painting a little each frame when the velvet is not ready yet; after that the rest is painted at once. `0` paints it all at once straight away (the way 1.0.0 did). |
 
-- `prepare(opts)` paints the velvet in slices (`sliceMs` 2.5, `restMs` 45) during idle time. `prepare({ hurry: true })` paints at once. `close()` always hurries, so calling it without `prepare()` still works.
+- `prepare(opts)` paints the velvet in slices (`sliceMs` 2.5, `restMs` 45) during idle time. `prepare({ hurry: true })` paints at once. A page that is busy every frame never reports an idle moment; the browser then hands over a turn after 250 ms, and that turn paints a slice twice as long (5 ms). `close()` works without `prepare()`: if the velvet is not ready, `close()` paints a little (4 ms) each frame for up to `warmMs`, so the page keeps moving, and then finishes the rest at once. If the container or window has a different size than at `prepare()` (the phone was turned), the velvet is painted again for the new size.
 - `close()` slides the curtain shut and resolves when both halves are in place. Calling it again while it runs gives the same promise, which resolves at the same moment.
 - `open({ flythrough: false })` parts the halves; by default the whole curtain also grows and fades, as if the camera flew through. It may be called while the curtain is still closing: the halves turn around from where they are, with no jump. A second `open()` returns the running one.
 - `destroy()` removes the curtain at once; a running `prepare()`, `close()` or `open()` still resolves.
@@ -52,7 +53,7 @@ On Android Chrome one curtain half once stayed at its starting position while th
 
 ## Limits
 - Needs canvas 2D, Promise and `Element.animate` (any browser since about 2020). One curtain per container.
-- **Size is measured at `prepare()`.** If the window is rotated or resized before `close()`, there can be a gap or overlap in the middle. Call `prepare()` again on a new `create()` after a resize, and prepare late enough that the size is final.
+- **Size is measured at `prepare()` and checked again at `close()`.** If the size changed in between, the velvet is painted again (a little each frame, so it costs up to `warmMs` of waiting instead of being instant). A size change while `prepare()` is still painting is not noticed: prepare late enough that the size is final.
 - **Only the first screen of a scrolled page is covered.** The curtain is `position: absolute` inside the container, so with `document.body` as the container and a scrolled page it sits at the top of the page, not on the current view. It suits games and apps that do not scroll. For a scrolling page, give it a fixed-size container.
 - The page behind keeps running; pause your own game logic while closed if you need to.
 - Painting is cut into small slices, but the last step of each half and the mirror copy run in one go, so "never drops a frame" is a goal, not a measurement.
