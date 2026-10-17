@@ -26,6 +26,8 @@ Test **only** with the browsers on the `browsers` branch of the private knowledg
 
 **Every release records its browsers.** Run `versions.py set <id> X.Y.Z --tested "Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6" --note "..."`: the `--tested` text becomes the **Tested in** line of the changelog entry and of the module's README. Name each browser with its version, say what was not run, and write "not recorded" only when it truly is not known. Left out, the line says "not recorded" and the command reminds you. If you test an older release later, `versions.py tested <id> X.Y.Z "..."` fixes that entry's line.
 
+**Faster, trustworthy testing:** follow the universal QA and browser-testing guide at `build-notes/qa/QA-AND-BROWSER-TESTING-UNIVERSAL-GUIDE.md` in the private knowledgebase-single-file repo (print the real browser version on line 1 of every run; targeted checks while working; full run once when the design is final).
+
 ## Adding a module
 1. Make `modules/<name>/` with the file(s), `README.md` (what it does, quick start, API, how it differs from existing open source, limits, a "For AI agents" section), `demo.html`, and a `test/` folder.
 2. Add it to `modules.json`, `llms.txt`, `index.html` and the README table, and to `tests/kits.js` if it has its own tests.
