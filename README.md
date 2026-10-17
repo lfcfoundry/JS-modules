@@ -170,7 +170,7 @@ For building and testing. Not shipped inside a game or story.
 | Package | One line |
 |---|---|
 | [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md) | Tiered test runner and a Playwright-style API over WebDriver BiDi for stock Firefox; seeded random-story generator. |
-| [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md) | A guide and a small helper for keeping two implementations of one rule set from drifting apart: seeded random inputs, a side-by-side comparison, a field table and a time limit. |
+| [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md) | A guide and a helper (about 7.2 KB minified) for keeping two implementations of one rule set from drifting apart: seeded random inputs, a side-by-side comparison (also for async functions), shrinking a failing input to a small one, a field table and a time limit; runs in browsers too. |
 
 **Working with an AI helper.** A written process for a person and an AI assistant building software together.
 

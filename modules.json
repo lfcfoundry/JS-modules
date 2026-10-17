@@ -519,7 +519,7 @@
       },
       {
         "id": "contract-kit",
-        "summary": "A guide and a small helper for keeping two implementations of one rule set from drifting apart: seeded random inputs, a side-by-side comparison, a field table and a time limit.",
+        "summary": "A guide and a helper (about 7.2 KB minified) for keeping two implementations of one rule set from drifting apart: seeded random inputs, a side-by-side comparison (also for async functions), shrinking a failing input to a small one, a field table and a time limit; runs in browsers too.",
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md",
         "side": "stories",
         "category": "testing"
