@@ -1,12 +1,12 @@
 # back-close
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Chromium (version not recorded) and Firefox 155 (11 browser checks, at the cut from Apple Press); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; Firefox 157.0.1 through the Firefox stand-in (11 checks, 2026-10-17). Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
+**Tested in:** Node: 30 checks pass (7 new). Module browser suite passes in ungoogled Chromium 155.0.8059.39-1. Not run: that browser suite in Firefox 158.0, WebKitGTK and GNOME Web (no geckodriver on the browsers branch; no driver for the others), a phone. CloseWatcher itself is absent in WebKitGTK 2.52.6
 
 Makes a phone's back swipe (or back button) close the top panel instead of leaving the page. About 7 KB, no dependencies.
 
-**Test it:** `node modules/back-close/test/run.js` (fake CloseWatcher and fake history, 23 checks) and `python3 modules/back-close/test/run.py` (real browser, Escape key).
+**Test it:** `node modules/back-close/test/run.js` (fake CloseWatcher and fake history, 30 checks) and `python3 modules/back-close/test/run.py` (real browser, Escape key).
 
 ## Use
 ```js
@@ -15,8 +15,18 @@ closeButton.onclick = function () { back.close(); };               // optional: 
 ```
 The watcher is on while the panel is shown (no `hidden` attribute, and the panel is in the page) and off when it is hidden, however that happened, so your own close button needs no extra code. If your function leaves the panel open (for example while a button is locked), the watcher is armed again, unless the panel was removed from the page or you called `destroy()`.
 
-`watch` returns `{ supported, mode, close(), destroy() }`:
+Panels shown by a CSS class or a style instead of `hidden`: pass `isShown` (and the `attributes` to watch, default `['hidden']`):
+```js
+BackClose.watch(panel, closePanel, { isShown: function (el) { return el.classList.contains('open'); }, attributes: ['class'] });
+```
+Not an element at all (drawn on a canvas, or several panels that one back swipe should close together): `BackClose.watchWhen(isOpen, close)` takes a function and a handle's `sync()` arms or removes the watcher to match it. Call `sync()` whenever panels open or close:
+```js
+var back = BackClose.watchWhen(function () { return anyPanelOpen(); }, function () { closeAllPanels(); });
+openPanel = function () { /* ... */ back.sync(); };
+```
+A throwing `isShown` counts as "not shown". `watch` and `watchWhen` both return `{ supported, mode, close(), destroy(), sync() }`:
 - `close()` asks the same watcher to close (`CloseWatcher.requestClose()`, or the history route below), so the on-screen X, a controller B button and the back swipe all end in your one close function. It returns `false` when the panel is not shown. In a browser without any back support it simply calls your function.
+- `sync()` re-reads whether the panel is shown and arms or removes the watcher (a `watch` handle does this by itself from the attribute observer; `watchWhen` handles need it).
 - `mode` is `'closewatcher'`, `'history'` (fallback in use) or `'none'`.
 
 ## Safari and iPhone: the history fallback (opt-in)
@@ -43,8 +53,8 @@ The demo shows the pattern: give the panel `role="dialog"`, `aria-modal="true"` 
 On a phone, a pop-up that does not respond to the back gesture sends the player out of the game or to the previous site. `CloseWatcher` is the browser's own "close request" channel (the Escape key, the Android back gesture and other platform close gestures all go through it), so one hook covers them.
 
 ## Limits
-- `CloseWatcher` is in Chrome and Android Chrome 126+ and Firefox 149+. It is not in Safari or Safari on iPhone. Elsewhere `supported` is false and nothing happens, unless you turn on the history fallback; your normal close controls and Escape handler still work.
-- Only the `hidden` attribute is watched. A panel shown by a CSS class, `style.display` or `aria-hidden` is invisible to it. If you take the panel out of the page and put it back while it is shown, toggle `hidden` once (or call `watch` again) so the watcher arms again.
+- `CloseWatcher` is in Chrome and Android Chrome 126+ and Firefox 149+. Safari: Technology Preview 249 only; stable Safari 27 not confirmed (web research on 2026-10-17, not tested on a device). WebKitGTK 2.52.6 (the Linux stand-in for Safari) has none. It is not in Safari on iPhone. Elsewhere `supported` is false and nothing happens, unless you turn on the history fallback; your normal close controls and Escape handler still work.
+- By default only the `hidden` attribute is watched. A panel shown by a CSS class, `style.display` or `aria-hidden` needs `isShown` and `attributes` (above) or `watchWhen`. If you take the panel out of the page and put it back while it is shown, toggle `hidden` once (or call `watch` again) so the watcher arms again.
 - If you remove a shown panel from the page without hiding it, one back request is still used up (your function is called); no new watcher is armed after that.
 - A close function that always refuses makes the back swipe do nothing on that panel. The browser limits how badly a page can do this, but do not do it.
 - Several panels open at once: the newest closes first. Panels shown without a tap or key in between (for example by a timer) can be grouped by the browser and close together on one back swipe. Show panels from a user action where you can.

@@ -2,7 +2,7 @@
 
 **Version 1.0.0 · API 1**
 
-**Tested in:** Node checks with a fake wake lock; no real browser run recorded (its demo page loads in Firefox through `tests/firefox.js`: Firefox 158 per the 2026-10-15 note, Firefox 157 on 2026-10-17). Not run: a phone.
+**Tested in:** Node: 42 checks pass (rerun 2026-10-17). navigator.wakeLock exists in Firefox 158.0 (feature check only). Not run: a real wake lock in any test browser, a phone
 
 Keeps a phone or tablet screen awake **only while a game really wants it**. About 7 KB, no dependencies.
 
@@ -31,6 +31,16 @@ var stop = wk.watchInput(document);   // or let it call poke() for you on pointe
 - Asked for again when the tab becomes visible (the browser drops the lock when a tab is hidden) and after a `poke()` that follows an idle release.
 - A refusal is not retried in a loop. `onRefused` runs once per attempt, and nothing asks again for `refusalBackoffMs` (about 20 s) unless `want()` really changes (off then on) or the tab becomes visible again. So `poke()` on every tap cannot cause a storm of failing requests. After the wait, the next `poke()` or `want(true)` tries again.
 - If the tab is hidden, or you stop wanting the lock, while the request is still pending, the late lock is released at once. If the game wants the lock again by the time the old answer arrives (pause and resume, or hidden and shown, in a quick row), a fresh request is made, so the player is not left without a lock.
+
+## With controllers and other input
+A pad or key hold is not always a DOM event the module can see, so tell it yourself with `poke()`. The two modules that read input for you have a one-line hook for it:
+```js
+var wk = WakeKeeper.create({ idleMs: 60000 });
+wk.watchInput(document);                                      // taps, touches and keys
+new PadNav({ onInput: function () { wk.poke(); } }).start();   // controller play (pad-nav calls it at most every 250 ms)
+HoldPress.attach(button, { onPress: function () { wk.poke(); } });   // a long hold keeps the screen awake
+```
+Without this, a player who only uses a controller, or holds a button for a minute, would see the screen dim after `idleMs`, because none of that input is a tap or a key press.
 
 ## Why
 The raw API is three lines, but a game that grabs the lock on load and never lets go drains the battery on a title screen or a forgotten tab. The core rules (release when hidden, ask again when visible, one lock at a time, show when it is held) follow MDN and the specification. Releasing after a quiet spell and the refusal wait are this module's own additions, not platform rules.

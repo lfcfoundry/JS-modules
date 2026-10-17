@@ -270,6 +270,70 @@ const count = (c, what) => c.log.filter((x) => x === what).length;
     a.g.stop(); await settle(20); assert.strictEqual(b.g.free, true);
   });
 
+  // ---------- backForwardCache: let go on beforeunload, take back on pageshow ----------
+  function fakeWin() {
+    const L = {}; const w = { L,
+      addEventListener(t, f) { (L[t] = L[t] || []).push(f); }, removeEventListener(t, f) { L[t] = (L[t] || []).filter((x) => x !== f); },
+      fire(t, ev) { (L[t] || []).slice().forEach((f) => f(ev || { type: t })); }, count() { return Object.keys(L).reduce((n, k) => n + L[k].length, 0); } };
+    return w;
+  }
+  const winDesc = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  await test('backForwardCache is off by default: no page listeners at all', async (K) => {
+    const win = fakeWin(); globalThis.window = win; setNav({ locks: makeLocks() });
+    const a = copy(K); await settle(10); assert.strictEqual(win.count(), 0); a.g.stop();
+  });
+  await test('backForwardCache: beforeunload frees the lock at once, pageshow (cached) takes it back', async (K) => {
+    const win = fakeWin(), w = makeLocks(); globalThis.window = win; setNav({ locks: w });
+    const a = copy(K, { backForwardCache: true, returnMs: 500 }); await settle(10);
+    assert.ok(w.isHeld() && a.g.holding);
+    win.fire('beforeunload'); await settle(10);
+    assert.ok(!w.isHeld() && !a.g.holding, 'the lock is free while the page is away');
+    win.fire('pageshow', { persisted: true }); await settle(10);
+    assert.ok(w.isHeld() && a.g.holding && !a.g.twin);
+    assert.deepStrictEqual(a.log, ['claimed', 'claimed'], 'onClaimed is called again on the way back');
+    a.g.stop();
+  });
+  await test('backForwardCache: if the page stays (leaving was cancelled), it takes the lock back after returnMs', async (K) => {
+    const win = fakeWin(), w = makeLocks(); globalThis.window = win; setNav({ locks: w });
+    const a = copy(K, { backForwardCache: true, returnMs: 40 }); await settle(10);
+    win.fire('beforeunload'); await settle(15); assert.ok(!w.isHeld());
+    await settle(50); assert.ok(w.isHeld() && a.g.holding, 'back in charge after the wait');
+    a.g.stop();
+  });
+  await test('backForwardCache: a pageshow that is not from the cache changes nothing', async (K) => {
+    const win = fakeWin(), w = makeLocks(); globalThis.window = win; setNav({ locks: w });
+    const a = copy(K, { backForwardCache: true, returnMs: 500 }); await settle(10);
+    win.fire('pageshow', { persisted: false }); win.fire('pageshow', { persisted: true }); await settle(10);
+    assert.deepStrictEqual(a.log, ['claimed'], 'not away, so nothing to take back'); a.g.stop();
+  });
+  await test('backForwardCache: another copy that claimed in the meantime makes this one the twin, once', async (K) => {
+    const win = fakeWin(), w = makeLocks(); globalThis.window = win; setNav({ locks: w });
+    const a = copy(K, { backForwardCache: true, returnMs: 500 }); await settle(10);
+    win.fire('beforeunload'); await settle(10);
+    const b = copy(K); await settle(10); assert.deepStrictEqual(b.log, ['claimed'], 'the other copy got the free lock');
+    win.fire('pageshow', { persisted: true }); await settle(10);
+    assert.deepStrictEqual(a.log, ['claimed', 'twin']); assert.ok(a.g.twin && !a.g.holding);
+    b.g.stop(); await settle(20); assert.strictEqual(a.g.free, true, 'and it hears when the other copy goes');
+    a.g.stop();
+  });
+  await test('backForwardCache: a waiting twin drops its request while away and queues again on return, with no second onTwin', async (K) => {
+    const win = fakeWin(), w = makeLocks(); globalThis.window = win; setNav({ locks: w });
+    const a = copy(K); await settle(10);
+    const b = copy(K, { backForwardCache: true, returnMs: 500 }); await settle(40);
+    assert.deepStrictEqual(b.log, ['twin']); assert.strictEqual(w.waiting(), 1);
+    win.fire('beforeunload'); await settle(10); assert.strictEqual(w.waiting(), 0, 'no pending request while away');
+    win.fire('pageshow', { persisted: true }); await settle(20);
+    assert.strictEqual(w.waiting(), 1); assert.deepStrictEqual(b.log, ['twin']);
+    a.g.stop(); b.g.stop();
+  });
+  await test('backForwardCache: stop() removes the page listeners and a late pageshow does nothing', async (K) => {
+    const win = fakeWin(), w = makeLocks(); globalThis.window = win; setNav({ locks: w });
+    const a = copy(K, { backForwardCache: true, returnMs: 20 }); await settle(10);
+    assert.strictEqual(win.count(), 2); a.g.stop(); assert.strictEqual(win.count(), 0);
+    win.fire('pageshow', { persisted: true }); await settle(30); assert.ok(!w.isHeld());
+  });
+  if (winDesc) Object.defineProperty(globalThis, 'window', winDesc); else delete globalThis.window;
+
   restore();
   const extra = OLD ? '; the old file was caught by ' + caught + ' of ' + oldTried + ' regression checks' : '; old file not available for comparison';
   console.log('tab-guard: ' + pass + ' passed, ' + fail + ' failed' + extra);

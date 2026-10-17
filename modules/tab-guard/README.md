@@ -1,8 +1,8 @@
 # tab-guard
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Chromium (version not recorded) and Firefox 155 (13 browser checks, at the cut from Apple Press); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`. Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
+**Tested in:** Node: 29 checks pass (7 new). Real Back-button runs, 3 each, with and without the option: Firefox 158.0 (reports 158.0b5), ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5. Module browser suite (python3 modules/tab-guard/test/run.py) passes in ungoogled Chromium 155.0.8059.39-1. Not run: that browser suite in Firefox 158.0, WebKitGTK and GNOME Web (no geckodriver on the browsers branch; no driver for the others), a phone
 
 Keeps one open copy of a page "in charge", so two tabs (or two copies of a game) do not overwrite each other's saved data. About 8 KB with its comments, no dependencies.
 
@@ -19,6 +19,7 @@ var g = TabGuard.start({
 button.onclick = function () { g.takeOver(); };            // "Use this copy instead"
 g.stop();                                                  // optional: give the lock back
 ```
+Other options: `retryMs` (default 700, the one retry at start-up) and `backForwardCache` (below).
 `g` has `supported`, `holding`, `twin`, `free` and `reason` fields, plus `takeOver()` and `stop()`.
 
 ## How it works
@@ -29,6 +30,17 @@ The first copy takes a Web Lock and holds it as long as the page lives; the Web 
 **"The other copy closed. Use this one?"** After `onTwin`, this copy keeps one waiting request in the lock queue. When the lock becomes free, `onFree` is called once and `g.free` is `true`. The waiting request hands the lock straight back, so this copy is not put in charge by itself and a freshly opened copy can still claim it. If the player says yes, call `takeOver()` (then `onTakeOver` fires; reload to read the latest save). The waiting request is cancelled by `takeOver()` and `stop()`.
 
 **`takeOver()` is safe to call too often.** It does nothing on the copy already in charge, and a second call while the first is still pending is ignored. (Stealing your own lock would knock your own copy out.)
+
+## The Back button and the back/forward cache (`backForwardCache: true`)
+Browsers keep a page you just left in a "back/forward cache" so Back is instant. The three test browsers behave differently with a lock held (3 Back presses each, `tab-guard` on its own test page):
+
+| Browser | Without the option | With `backForwardCache: true` |
+|---|---|---|
+| Firefox 158.0 | whole page reloads 3 of 3 (a held lock blocks the cache) | restored from the cache 3 of 3, still in charge |
+| ungoogled Chromium 155.0.8059.39 | restored 3 of 3, still in charge | restored 3 of 3, still in charge (re-claimed once) |
+| WebKitGTK 2.52.6 | restored 3 of 3 but the lock is gone and the page wrongly hears `onTwin` then `onFree` | restored 3 of 3, still in charge |
+
+With the option on, the guard lets go of the lock when the page is about to be left (`beforeunload`; letting go on `pagehide` was measured to be too late for Firefox) and takes it again when the page comes back (`pageshow` with `persisted`), or after `returnMs` (default 1000) if the page turned out to be staying (for example a cancelled "leave this page?" prompt). `onClaimed` is called again on the return. The price: for that moment another open copy can claim the lock. If one does, the returning page simply becomes the twin (`onTwin` once, then `onFree` when that copy closes), exactly as if it had started second. Leave it off if your game never shows a link away from itself or you do not care about instant Back.
 
 ## Why not storage events
 A `localStorage` heartbeat needs timers and can be wrong after a crash. A lock is released by the browser itself when the page unloads, so a closed tab does not leave a stale "in use" flag behind. What happens after a hard crash of the browser process is not documented by MDN and has not been tested here; expect the same cleanup, but do not rely on it for anything that cannot be repaired.

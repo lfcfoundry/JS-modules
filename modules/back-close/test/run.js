@@ -16,7 +16,7 @@ function live() { return FakeCW.all.filter(function (c) { return !c.dead; }); }
 function userClose() { var l = live(); if (l.length) l[l.length - 1].requestClose(); return l.length > 0; }   // Escape or back swipe: newest watcher first
 
 function FakeMO(cb) { this.cb = cb; this.el = null; }
-FakeMO.prototype.observe = function (el) { this.el = el; el.observers.push(this); };
+FakeMO.prototype.observe = function (el, opts) { this.el = el; this.opts = opts; el.observers.push(this); };
 FakeMO.prototype.disconnect = function () { if (this.el) this.el.observers = this.el.observers.filter(function (o) { return o !== this; }, this); };
 function panel(shown) {
   var el = { observers: [], isConnected: true, _hidden: !shown };
@@ -194,6 +194,62 @@ check('fallback: destroy() during the close function does not push again', funct
 check('fallback: a throwing pushState is survived', function () {
   newWorld(false); hist.pushState = function () { throw new Error('SecurityError'); };
   var el = panel(true), h = BackClose.watch(el, function () {}, { historyFallback: true }); h.destroy();
+});
+
+// ---- panels that are not toggled with `hidden`, and panels that are not an element ----
+function classPanel(open) {   // a panel opened with a class: `open` changes notify the observers the way an attribute change would
+  var el = { observers: [], isConnected: true, _open: !!open, hidden: false };
+  Object.defineProperty(el, 'open', { get: function () { return el._open; }, set: function (v) { el._open = !!v; el.observers.slice().forEach(function (o) { o.cb(); }); } });
+  return el;
+}
+
+check('isShown + attributes: a class-toggled panel arms when it opens and disarms when it closes; the observer watches only `class`', function () {
+  newWorld(true); var el = classPanel(false), hits = 0;
+  BackClose.watch(el, function () { hits++; el.open = false; }, { isShown: function (e) { return e.open; }, attributes: ['class'] });
+  assert.deepStrictEqual(el.observers[0].opts, { attributes: true, attributeFilter: ['class'] });
+  assert.strictEqual(live().length, 0, 'closed: nothing armed');
+  el.open = true; assert.strictEqual(live().length, 1);
+  userClose(); assert.strictEqual(hits, 1); assert.strictEqual(live().length, 0);
+  el.open = true; el.open = false; assert.strictEqual(live().length, 0, 'closing yourself disarms');
+});
+
+check('isShown: a detached panel is never armed, and a throwing isShown counts as closed', function () {
+  newWorld(true); var el = classPanel(true); el.isConnected = false;
+  BackClose.watch(el, function () {}, { isShown: function (e) { return e.open; } }); assert.strictEqual(live().length, 0);
+  var bad = classPanel(true); BackClose.watch(bad, function () {}, { isShown: function () { throw new Error('page bug'); } }); assert.strictEqual(live().length, 0);
+});
+
+check('default is unchanged: the observer watches `hidden` only', function () {
+  newWorld(true); var el = panel(true); BackClose.watch(el, function () {});
+  assert.deepStrictEqual(el.observers[0].opts, { attributes: true, attributeFilter: ['hidden'] });
+});
+
+check('watchWhen: no element and no MutationObserver needed; sync() arms and disarms; the back request closes everything', function () {
+  newWorld(true); delete global.MutationObserver;
+  var openN = 0, closed = 0, h = BackClose.watchWhen(function () { return openN > 0; }, function () { closed++; openN = 0; h.sync(); });
+  assert.strictEqual(h.supported, true); assert.strictEqual(h.mode, 'closewatcher'); assert.strictEqual(live().length, 0);
+  openN = 2; h.sync(); assert.strictEqual(live().length, 1); h.sync(); assert.strictEqual(live().length, 1, 'syncing again does not stack watchers');
+  userClose(); assert.strictEqual(closed, 1); assert.strictEqual(live().length, 0);
+  openN = 1; h.sync(); assert.strictEqual(live().length, 1); openN = 0; h.sync(); assert.strictEqual(live().length, 0, 'everything closed another way');
+});
+
+check('watchWhen: the close function leaving a panel open arms again; handle.close() uses the same route; destroy() removes it', function () {
+  newWorld(true); var openN = 1, tries = 0, h = BackClose.watchWhen(function () { return openN > 0; }, function () { tries++; });
+  assert.strictEqual(live().length, 1); userClose(); assert.strictEqual(tries, 1); assert.strictEqual(live().length, 1, 'still open, so armed again');
+  assert.strictEqual(h.close(), true); assert.strictEqual(tries, 2);
+  h.destroy(); assert.strictEqual(live().length, 0); h.sync(); assert.strictEqual(live().length, 0, 'sync() after destroy() does nothing'); assert.strictEqual(h.close(), false);
+});
+
+check('watchWhen: without CloseWatcher it is unsupported but close() still runs your function while open; with the history option it uses history', function () {
+  newWorld(false); var openN = 1, hits = 0, h = BackClose.watchWhen(function () { return openN > 0; }, function () { hits++; openN = 0; h.sync(); });
+  assert.strictEqual(h.supported, false); assert.strictEqual(h.close(), true); assert.strictEqual(hits, 1); assert.strictEqual(h.close(), false);
+  newWorld(false); var open2 = 1, hits2 = 0, h2 = BackClose.watchWhen(function () { return open2 > 0; }, function () { hits2++; open2 = 0; h2.sync(); }, { historyFallback: true });
+  assert.strictEqual(h2.mode, 'history'); assert.strictEqual(hist.index, 1); userBack(); assert.strictEqual(hits2, 1); assert.strictEqual(hist.index, 0);
+});
+
+check('watchWhen: bad arguments give an unsupported handle that never throws', function () {
+  newWorld(true); var h = BackClose.watchWhen(null, function () {}); assert.strictEqual(h.supported, false); assert.strictEqual(h.close(), false); h.sync(); h.destroy();
+  var h2 = BackClose.watchWhen(function () { return true; }); assert.strictEqual(h2.supported, false);
 });
 
 console.log('\nback-close (node): ' + (pass + fail) + ' checks, ' + fail + ' failed');

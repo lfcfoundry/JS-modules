@@ -15,11 +15,11 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [slow-note](https://github.com/lfcfoundry/JS-modules/blob/main/modules/slow-note/README.md): Keeps a short note, only on the device, of the errors, slow taps and long frames a page had; copyable as plain text, nothing is sent anywhere. Version 1.0.0, API 1.
 
 ## Games: Controls
-- [hold-press](https://github.com/lfcfoundry/JS-modules/blob/main/modules/hold-press/README.md): Hold-to-repeat for buttons that survives Android Chrome pointercancel. (global HoldPress) Version 1.0.0, API 1.
-- [pad-nav](https://github.com/lfcfoundry/JS-modules/blob/main/modules/pad-nav/README.md): Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. (global PadNav) Version 1.0.0, API 1.
-- [tab-guard](https://github.com/lfcfoundry/JS-modules/blob/main/modules/tab-guard/README.md): Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. (global TabGuard) Version 1.0.0, API 1.
+- [hold-press](https://github.com/lfcfoundry/JS-modules/blob/main/modules/hold-press/README.md): Hold-to-repeat for buttons that survives Android Chrome pointercancel. (global HoldPress) Version 1.1.0, API 1.
+- [pad-nav](https://github.com/lfcfoundry/JS-modules/blob/main/modules/pad-nav/README.md): Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. (global PadNav) Version 1.1.0, API 1.
+- [tab-guard](https://github.com/lfcfoundry/JS-modules/blob/main/modules/tab-guard/README.md): Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. (global TabGuard) Version 1.1.0, API 1.
 - [wake-keeper](https://github.com/lfcfoundry/JS-modules/blob/main/modules/wake-keeper/README.md): Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. (global WakeKeeper) Version 1.0.0, API 1.
-- [back-close](https://github.com/lfcfoundry/JS-modules/blob/main/modules/back-close/README.md): Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). (global BackClose) Version 1.0.0, API 1.
+- [back-close](https://github.com/lfcfoundry/JS-modules/blob/main/modules/back-close/README.md): Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). (global BackClose) Version 1.1.0, API 1.
 
 ## Games: First visit and grown-ups
 - [grown-ups-door](https://github.com/lfcfoundry/JS-modules/blob/main/modules/grown-ups-door/README.md): A hold-then-drag task a young child will not finish, in front of the buttons and links a grown-up should press (a speed bump, not security). Version 1.0.0, API 1.

@@ -203,4 +203,114 @@ check('detach() removes every listener and stops a running hold', function () {
   W.h.detach();   // twice is fine
 });
 
+// ---- page-wide listeners only while a press is down ----
+check('idle: nothing is listening on the window; a mouse press adds listeners and the release removes them', function () {
+  var W = world(); clock.timers = [];
+  assert.strictEqual(W.w.count(), 0, 'idle');
+  W.el.dispatch('pointerdown', { pointerType: 'mouse', button: 0, pointerId: 1, isPrimary: true, clientX: 50, clientY: 25 });
+  assert.ok(W.w.count() > 0, 'listening during the press');
+  advance(1000); mouseUp(W, 50, 25);
+  assert.strictEqual(W.w.count(), 0, 'released: no window listeners left');
+  advance(1000);
+});
+check('a touch press adds window listeners and the finger lifting removes them (also after a hold that already ended)', function () {
+  var W = world(); clock.timers = [];
+  W.el.dispatch('touchstart', fingerDown(IN, 1)); assert.ok(W.w.count() > 0);
+  advance(700); W.w.dispatch('touchmove', { changedTouches: [touch(1, 400, 300)], touches: [touch(1, 400, 300)] });   // slid out of the zone? no zone: stays
+  assert.ok(W.w.count() > 0, 'finger still down');
+  W.w.dispatch('touchend', { changedTouches: [touch(1, 50, 25)], touches: [] });
+  assert.strictEqual(W.w.count(), 0);
+});
+check('a hold that ends while the finger is still down keeps listening until the finger lifts (the click still needs settling)', function () {
+  var W = world({ zone: function (x) { return x < 200; } }); clock.timers = [];
+  W.el.dispatch('touchstart', fingerDown(IN, 1)); advance(700);
+  W.w.dispatch('touchmove', { changedTouches: [touch(1, 300, 25)], touches: [touch(1, 300, 25)] });
+  assert.strictEqual(W.h.holding, false, 'left the zone: hold over');
+  assert.ok(W.w.count() > 0, 'still listening');
+  W.w.dispatch('touchend', { changedTouches: [touch(1, 300, 25)], touches: [] });
+  assert.strictEqual(W.w.count(), 0);
+});
+check('a press that is not allowed adds no window listeners', function () {
+  var W = world({ canPress: function () { return false; } }); clock.timers = [];
+  W.el.dispatch('pointerdown', { pointerType: 'mouse', button: 0, pointerId: 1, isPrimary: true, clientX: 50, clientY: 25 });
+  assert.strictEqual(W.w.count(), 0);
+});
+check('window blur ends a press and removes the listeners', function () {
+  var W = world(); clock.timers = [];
+  mouseHold(W, 1000); assert.ok(W.h.holding);
+  W.w.dispatch('blur', {}); assert.strictEqual(W.h.holding, false); assert.strictEqual(W.w.count(), 0);
+});
+check('detach() during a press removes the window listeners too', function () {
+  var W = world(); clock.timers = [];
+  mouseHold(W, 1000); W.h.detach(); assert.strictEqual(W.w.count(), 0);
+});
+
+// ---- lockTouch ----
+check('lockTouch sets touch-action none while attached and puts the old value back on detach', function () {
+  var w = target(); global.window = w;
+  var el = target(); el.isConnected = true; el.style = { touchAction: 'manipulation' };
+  var h = Module.attach(el, { lockTouch: true, onPress: function () {} });
+  assert.strictEqual(el.style.touchAction, 'none');
+  h.detach(); assert.strictEqual(el.style.touchAction, 'manipulation'); h.detach(); assert.strictEqual(el.style.touchAction, 'manipulation');
+  var e2 = target(); e2.style = { touchAction: '' }; var h2 = Module.attach(e2, { lockTouch: true }); h2.detach(); assert.strictEqual(e2.style.touchAction, '');
+  var e3 = target(); e3.style = { touchAction: 'pan-y' }; var h3 = Module.attach(e3, {}); assert.strictEqual(e3.style.touchAction, 'pan-y', 'off by default'); h3.detach();
+  var e4 = target(); Module.attach(e4, { lockTouch: true }).detach();   // an element without style is fine
+});
+
+// ---- keyboard ----
+function key(W, type, k, extra) { var e = { key: k, repeat: false }; for (var q in extra) e[q] = extra[q]; return W.el.dispatch(type, e); }
+check('keyboard is off by default: no key listeners', function () {
+  var W = world(); assert.strictEqual((W.el.list.keydown || []).length, 0); assert.strictEqual((W.el.list.keyup || []).length, 0);
+});
+check('keyboard: holding Enter repeats onPress after the delay, key up ends it', function () {
+  var W = world({ keyboard: true }); clock.timers = []; clock.now = 0;
+  key(W, 'keydown', 'Enter'); advance(399); assert.strictEqual(W.k.presses.length, 0);
+  advance(1); assert.strictEqual(W.k.presses.length, 1); assert.strictEqual(W.k.presses[0].count, 1);
+  advance(400); assert.strictEqual(W.k.presses.length, 3);
+  var r = key(W, 'keydown', 'Enter', { repeat: true }); assert.ok(r.prevented, 'auto-repeat keydown must not click again');
+  key(W, 'keyup', 'Enter'); assert.strictEqual(W.k.ends, 1); assert.strictEqual(W.h.holding, false); advance(2000); assert.strictEqual(W.k.presses.length, 3);
+  assert.strictEqual(W.w.count(), 0, 'a key hold adds no window listeners');
+});
+check('keyboard: a quick Enter or Space tap fires no repeats and swallows nothing', function () {
+  var W = world({ keyboard: true }); clock.timers = [];
+  key(W, 'keydown', ' '); advance(100); key(W, 'keyup', ' ');
+  var c = W.el.dispatch('click', { detail: 0 }); assert.ok(!c.prevented); assert.strictEqual(W.k.clicks, 1); assert.strictEqual(W.k.presses.length, 0);
+});
+check('keyboard: after a Space hold fired, the click Space sends on release is swallowed once; the next one works', function () {
+  var W = world({ keyboard: true }); clock.timers = [];
+  key(W, 'keydown', ' '); advance(1000); assert.ok(W.k.presses.length >= 1);
+  key(W, 'keyup', ' ');
+  var c = W.el.dispatch('click', { detail: 0 }); assert.ok(c.prevented); assert.strictEqual(W.k.clicks, 0);
+  var c2 = W.el.dispatch('click', { detail: 0 }); assert.ok(!c2.prevented); assert.strictEqual(W.k.clicks, 1, 'only one click was swallowed');
+});
+check('keyboard: a mouse click right after a key hold is not swallowed, and a forgotten swallow expires', function () {
+  var W = world({ keyboard: true }); clock.timers = [];
+  key(W, 'keydown', ' '); advance(1000); key(W, 'keyup', ' ');
+  var c = W.el.dispatch('click', { detail: 1 }); assert.ok(!c.prevented, 'a real mouse click is never swallowed by the key rule');
+  advance(800); var c2 = W.el.dispatch('click', { detail: 0 }); assert.ok(!c2.prevented, 'expired');
+});
+check('keyboard: an Enter hold does not swallow anything afterwards', function () {
+  var W = world({ keyboard: true }); clock.timers = [];
+  key(W, 'keydown', 'Enter'); advance(1000); key(W, 'keyup', 'Enter');
+  var c = W.el.dispatch('click', { detail: 0 }); assert.ok(!c.prevented);
+});
+check('keyboard: other keys, modifiers, canPress false and zone false do nothing', function () {
+  var W = world({ keyboard: true, canPress: function () { return false; } }); clock.timers = [];
+  key(W, 'keydown', 'Enter'); advance(1000); assert.strictEqual(W.k.presses.length, 0);
+  var X = world({ keyboard: true }); clock.timers = [];
+  key(X, 'keydown', 'a'); key(X, 'keydown', 'Enter', { ctrlKey: true }); advance(1000); assert.strictEqual(X.k.presses.length, 0);
+  var Z = world({ keyboard: true, zone: function () { return false; } }); clock.timers = [];
+  key(Z, 'keydown', ' '); advance(1000); assert.strictEqual(Z.k.presses.length, 0);
+});
+check('keyboard: losing focus ends the hold', function () {
+  var W = world({ keyboard: true }); clock.timers = [];
+  key(W, 'keydown', ' '); advance(1000); W.el.dispatch('blur', {}); assert.strictEqual(W.h.holding, false); var n = W.k.presses.length; advance(1000); assert.strictEqual(W.k.presses.length, n);
+  assert.strictEqual(W.el.dispatch('click', { detail: 0 }).prevented, undefined, 'a hold ended by blur does not swallow a later click');
+});
+check('keyboard: a mouse hold running blocks a key hold from starting; detach removes key listeners', function () {
+  var W = world({ keyboard: true }); clock.timers = [];
+  mouseHold(W, 1000); var n = W.k.presses.length; key(W, 'keydown', 'Enter'); advance(500); assert.ok(W.k.presses.length > n); mouseUp(W, 50, 25);
+  W.h.detach(); assert.strictEqual(W.el.count(), 1, 'only the page own click listener is left');
+});
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);

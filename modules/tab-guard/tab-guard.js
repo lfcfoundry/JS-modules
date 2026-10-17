@@ -3,7 +3,7 @@
  * each other's saved data. Uses the Web Locks API. No storage and no polling; the only timer is one short retry at start-up.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   var g = TabGuard.start({
  *     name: 'my-game-open',                       // same name = same guard; use one per saved game
@@ -26,6 +26,12 @@
  * (SecurityError in a sandboxed frame, InvalidStateError when the page is not active), the guard is unavailable: g.supported
  * becomes false, g.reason names the error, onUnavailable(err) is called, and the game should keep saving.
  *
+ * Back button and the back/forward cache: in Firefox 158 a page that holds a lock is not kept in the back/forward cache, so Back
+ * reloads the whole game. With { backForwardCache: true } the guard lets go of the lock on beforeunload (releasing on pagehide
+ * was measured to be too late) and takes it again when the page comes back from the cache (pageshow), or after `returnMs`
+ * (default 1000) if the page turned out to be staying. In that moment another copy could claim the lock: it is off by default.
+ * The same option also fixes WebKitGTK 2.52.6, where the cached page loses its lock and, without it, wrongly hears onTwin on Back.
+ *
  * Needs navigator.locks (Chrome 69+, Firefox 96+, Safari 15.4+) and a secure context (https, localhost or file:). A plain
  * http:// page on a home network (for example http://192.168.1.20) has no navigator.locks, so nothing is guarded there.
  * Without it, start() returns { supported: false, reason: ... } and calls nothing.
@@ -38,7 +44,7 @@
 
   function start(o) {
     o = o || {};
-    var name = o.name || 'tab-guard', retryMs = o.retryMs == null ? 700 : o.retryMs;
+    var name = o.name || 'tab-guard', retryMs = o.retryMs == null ? 700 : o.retryMs, returnMs = o.returnMs == null ? 1000 : o.returnMs;
     var nav = typeof navigator !== 'undefined' ? navigator : null;
     var guard = { supported: false, holding: false, twin: false, free: false, reason: '', takeOver: function () {}, stop: function () {} };
     if (!nav || !nav.locks || !nav.locks.request) {
@@ -46,7 +52,7 @@
       return guard;
     }
     guard.supported = true;
-    var stopped = false, taking = false, cur = null, waiter = null, timer = null;
+    var stopped = false, taking = false, cur = null, waiter = null, timer = null, away = false, awayTimer = null, win = typeof window !== 'undefined' && window.addEventListener ? window : null;
 
     function say(fn, arg) { if (typeof fn === 'function') { try { fn(arg); } catch (e) { /* the page's own callback failed; keep the guard working */ } } }
 
@@ -57,6 +63,8 @@
       guard.supported = false; guard.holding = false; guard.reason = (e && e.name) || 'error';
       drop(cur); drop(waiter); cur = waiter = null;
       if (timer) { clearTimeout(timer); timer = null; }
+      if (awayTimer) { clearTimeout(awayTimer); awayTimer = null; }
+      unlisten();
       say(o.onUnavailable, e);
     }
 
@@ -127,11 +135,30 @@
         guard.holding = true; guard.twin = false; guard.free = false; say(o.onTakeOver);
       });
     };
+    // Back/forward cache option: let go of everything just before the page leaves, take it all back when it returns.
+    function leaving() {
+      if (stopped || away || !guard.supported) return;
+      away = true;
+      if (timer) { clearTimeout(timer); timer = null; }
+      drop(cur); drop(waiter); cur = waiter = null; taking = false; guard.holding = false;
+      if (awayTimer) clearTimeout(awayTimer);
+      awayTimer = setTimeout(function () { awayTimer = null; back(); }, returnMs);   // the page is still here: the leaving did not happen
+    }
+    function back() {
+      if (!away || stopped || !guard.supported) return;
+      away = false;
+      if (awayTimer) { clearTimeout(awayTimer); awayTimer = null; }
+      begin(false);   // claims the lock if it is free; if another copy took it in the meantime this copy is the twin (onTwin only the first time)
+    }
+    function onShow(e) { if (e && e.persisted) back(); }
+    function unlisten() { if (win) { win.removeEventListener('beforeunload', leaving); win.removeEventListener('pageshow', onShow); } }
     guard.stop = function () {
-      stopped = true; guard.holding = false;
+      stopped = true; guard.holding = false; unlisten();
+      if (awayTimer) { clearTimeout(awayTimer); awayTimer = null; }
       if (timer) { clearTimeout(timer); timer = null; }
       drop(cur); drop(waiter); cur = waiter = null;
     };
+    if (o.backForwardCache && win) { win.addEventListener('beforeunload', leaving); win.addEventListener('pageshow', onShow); }
     begin(true);
     return guard;
   }
