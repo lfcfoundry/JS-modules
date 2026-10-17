@@ -23,22 +23,78 @@
     product name and branding.
     ===================================================================================
     --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>env-probes demo</title>
-<style>body{font:16px system-ui,sans-serif;margin:1rem;max-width:42rem}ul{padding-left:1.2rem}li{margin:.4rem 0}details{margin:1rem 0}pre{background:#eee;padding:1rem;border-radius:.5rem;white-space:pre-wrap;color:#111}button{font:inherit;padding:.4rem .8rem}</style>
-<h1>env-probes demo</h1><p>What this browser lets your page do. The checks run once by themselves when the page loads.</p>
-<ul id="lines"><li>Running the checks...</li></ul>
-<button id="again" type="button">Run again</button>
-<details><summary>Raw numbers (for bug reports)</summary><pre id="out"></pre></details>
+<title>Device check</title>
+<style>
+body{font:16px system-ui,sans-serif;margin:1rem;max-width:42rem}
+h1{margin:.2rem 0 .6rem}
+button{font:inherit;padding:.7rem 1.2rem;border-radius:.6rem;border:1px solid #888;cursor:pointer}
+#go{font-size:1.15rem;font-weight:600;background:#1a5fd0;color:#fff;border-color:#1a5fd0}
+#verdict{margin:1rem 0 .4rem;padding:.8rem 1rem;border-radius:.6rem;font-weight:600;display:none}
+#verdict.good{display:block;background:#d9f2dd;color:#0b3d17}
+#verdict.some{display:block;background:#fff0cc;color:#4d3500}
+ul{padding-left:1.2rem}li{margin:.4rem 0}
+table{border-collapse:collapse;width:100%}td{padding:.3rem .4rem;border-bottom:1px solid #ccc}td.m{width:2.5rem;text-align:center;font-weight:700}
+.y{color:#0b6b1f}.n{color:#a33}
+details{margin:1rem 0}pre{background:#eee;padding:1rem;border-radius:.5rem;white-space:pre-wrap;color:#111}
+#out{display:none}
+</style>
+<h1>Device check</h1>
+<p>Press the button to see what this browser lets a page do: clock, canvas, saving, motion, touch, and which newer browser features work. It takes a few milliseconds and sends nothing anywhere.</p>
+<p><button id="go" type="button">Check this device</button></p>
+<div id="verdict" role="status"></div>
+<div id="result" style="display:none">
+<ul id="lines"></ul>
+<h2>Browser features</h2>
+<table id="caps"></table>
+<p><button id="copy" type="button">Copy report</button> <span id="copied" aria-live="polite"></span></p>
+<details><summary>Raw numbers (for bug reports)</summary><pre id="raw"></pre></details>
+</div>
+<textarea id="out" readonly></textarea>
 <script src="env-probes.js"></script>
 <script>
+  var LABELS = {
+    webLocks: 'Web Locks (one open copy of a game at a time)',
+    wakeLock: 'Wake Lock (keep the screen on)',
+    closeWatcher: 'Back button closes menus',
+    gamepad: 'Game controllers',
+    compressionStream: 'Built-in compression',
+    idleCallback: 'Idle-time work',
+    webAnimations: 'Web Animations',
+    viewTransitions: 'View Transitions (smooth screen-to-screen morphs)'
+  };
+  var text = '';
+  function el(tag, txt, cls) { var e = document.createElement(tag); if (txt) e.textContent = txt; if (cls) e.className = cls; return e; }
   function run() {
-    EnvProbes._reset();   // forget cached answers so "Run again" really measures again
-    var lines = document.getElementById('lines'), out = document.getElementById('out');
-    lines.textContent = '';
-    EnvProbes.explain().forEach(function (s) { var li = document.createElement('li'); li.textContent = s; lines.appendChild(li); });
-    out.textContent = JSON.stringify(EnvProbes.report(), null, 2);
+    EnvProbes._reset();   // forget cached answers so a second press really measures again
+    var r = EnvProbes.report(), lines = EnvProbes.explain(r), caps = r.capabilities || {};
+    var good = !r.timerRounded && r.canvasReadback === 'ok' && r.storageState === 'ok';
+    var v = document.getElementById('verdict');
+    v.className = good ? 'good' : 'some';
+    v.textContent = good ? 'This device looks fine: the clock is precise, canvas reads back exactly and saving works.' : 'Some things are limited on this device. The notes below say what that means.';
+    var ul = document.getElementById('lines'); ul.textContent = '';
+    lines.forEach(function (s) { ul.appendChild(el('li', s)); });
+    var t = document.getElementById('caps'); t.textContent = '';
+    Object.keys(LABELS).forEach(function (k) {
+      var tr = document.createElement('tr'), ok = !!caps[k];
+      tr.appendChild(el('td', ok ? 'Yes' : 'No', 'm ' + (ok ? 'y' : 'n'))); tr.appendChild(el('td', LABELS[k])); t.appendChild(tr);
+    });
+    var json = JSON.stringify(r, null, 2);
+    document.getElementById('raw').textContent = json;
+    text = 'Device check\n' + v.textContent + '\n\n' + lines.join('\n') + '\n\nBrowser features:\n' +
+      Object.keys(LABELS).map(function (k) { return (caps[k] ? 'Yes  ' : 'No   ') + LABELS[k]; }).join('\n') + '\n\n' + json + '\n';
+    document.getElementById('result').style.display = 'block';
+    document.getElementById('copied').textContent = '';
+    document.getElementById('go').textContent = 'Check again';
   }
-  document.getElementById('again').onclick = run;
-  run();
+  function copy() {
+    var say = function (m) { document.getElementById('copied').textContent = m; };
+    function fallback() {
+      var ta = document.getElementById('out'); ta.value = text; ta.style.display = 'block'; ta.style.width = '100%'; ta.rows = 8; ta.select();
+      try { say(document.execCommand('copy') ? 'Copied.' : 'Select the text below and copy it.'); } catch (e) { say('Select the text below and copy it.'); }
+    }
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { say('Copied.'); }, fallback); else fallback(); } catch (e) { fallback(); }
+  }
+  document.getElementById('go').onclick = run;
+  document.getElementById('copy').onclick = copy;
 </script>
 <footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>

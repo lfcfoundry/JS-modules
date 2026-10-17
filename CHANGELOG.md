@@ -9,7 +9,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [stage-curtains](modules/stage-curtains/README.md) | 1.0.0 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
 | [save-kit](modules/save-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.0.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
-| [env-probes](modules/env-probes/README.md) | 1.0.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
+| [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.0.0 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.1.0 · API 1 | [changelog](modules/fly-to-mini/CHANGELOG.md) |
 | [sticker-text](modules/sticker-text/README.md) | 1.0.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
@@ -33,3 +33,4 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-10-16 · **fly-to-mini** 1.1.0 · API 1: New optional `engine: 'transition'` uses the browser's View Transitions API for the move (with the same arc, tilt and squash). The flight is still the default, and browsers without the API use it automatically. Nothing existing changes. Not yet judged by eye on a phone or in Firefox.
+- 2026-10-16 · **env-probes** 1.1.0 · API 1: Faster clock and canvas checks. New: canvasNoise() says how big canvas noise is, framed() says whether the page sits inside another page, capabilities() lists which newer browser features work, plus hover, any-hover and reduced-transparency questions. explain() now says so when saving is blocked inside a frame. The demo is now a one-button device check page with a copy-report button. Everything old answers the same as before.

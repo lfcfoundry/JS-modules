@@ -23,7 +23,8 @@ function fakeCanvas(opts) {
       buf = new Uint8ClampedArray(cv.width * cv.height * 4);
       return {
         fillStyle: '',
-        fillRect: function (x, y) { var m = /rgb\((\d+),(\d+),(\d+)\)/.exec(this.fillStyle), o = (y * cv.width + x) * 4; buf[o] = +m[1]; buf[o + 1] = +m[2]; buf[o + 2] = +m[3]; buf[o + 3] = 255; },
+        createImageData: function (w, h) { return { data: new Uint8ClampedArray(w * h * 4), width: w, height: h }; },
+        putImageData: function (img) { buf.set(img.data); },
         getImageData: function () {
           if (opts.throws) throw new Error('blocked');
           var d = new Uint8ClampedArray(buf);
@@ -191,6 +192,87 @@ t('explain says it in plain words for a rounded clock, noisy canvas and full sto
   assert.ok(/noise to canvas/.test(txt)); assert.ok(/Storage is full/.test(txt)); assert.ok(/precise enough/.test(txt));
   reset({ performance: clock(1000 / 60, 0.002) });
   txt = P.explain().join(' '); assert.ok(/rounds its clock/.test(txt) && /frame meters should be switched off/.test(txt)); assert.ok(/not tried/.test(txt));
+});
+
+// --- 1.1.0 additions ---
+t('clock: three steps are enough (fine clock stops early, rounded clock still rounded)', function () {
+  var reads = 0, now = 0;
+  reset({ performance: { now: function () { reads++; now += 0.01; return Math.floor(now / 0.5) * 0.5; } } });
+  assert.strictEqual(P.timerRounded(), false); assert.ok(Math.abs(P.timerStepMs() - 0.5) < 1e-9);
+  assert.ok(reads < 200, 'reads ' + reads);   // 3 steps of 0.5 ms at 0.01 ms per read is about 150 reads; 8 steps would need about 400
+  reset({ performance: clock(1000 / 60, 0.002) }); assert.strictEqual(P.timerRounded(), true);
+});
+t('canvas: patch goes in with one putImageData and no per-pixel fills', function () {
+  var c = fakeCanvas(), puts = 0, ctxOf;
+  var orig = c.doc.createElement;
+  c.doc.createElement = function () { var cv = orig(); var gc = cv.getContext; cv.getContext = function () { var g = gc.apply(cv, arguments); if (g) { var pi = g.putImageData; g.putImageData = function () { puts++; return pi.apply(g, arguments); }; g.fillRect = function () { throw new Error('per-pixel fill used'); }; } return g; }; return cv; };
+  reset({ performance: clock(0.1, 0.01), document: c.doc });
+  assert.strictEqual(P.canvasReadback(), 'ok'); assert.strictEqual(puts, 1);
+});
+t('canvas: a context without putImageData is blocked, not a crash', function () {
+  var c = fakeCanvas(), orig = c.doc.createElement;
+  c.doc.createElement = function () { var cv = orig(), gc = cv.getContext; cv.getContext = function () { var g = gc.apply(cv, arguments); delete g.putImageData; return g; }; return cv; };
+  reset({ performance: clock(0.1, 0.01), document: c.doc }); assert.strictEqual(P.canvasReadback(), 'blocked');
+});
+t('canvasNoise: null when not read, zeros when exact, size and share when noisy', function () {
+  reset({ performance: clock(1000 / 60, 0.002) }); assert.strictEqual(P.canvasNoise(), null);
+  var c = fakeCanvas(); reset({ performance: clock(0.1, 0.01), document: c.doc });
+  assert.deepStrictEqual(P.canvasNoise(), { maxDelta: 0, share: 0 });
+  c = fakeCanvas({ noise: function (d, w) { d[(3 * w + 9) * 4 + 1] ^= 1; } });   // one pixel, one level
+  reset({ performance: clock(0.1, 0.01), document: c.doc });
+  assert.strictEqual(P.canvasReadback(), 'noisy'); var nz = P.canvasNoise();
+  assert.strictEqual(nz.maxDelta, 1); assert.strictEqual(nz.share, 0.004);
+  c = fakeCanvas({ noise: function (d) { for (var i = 0; i < d.length; i += 4) d[i] ^= 64; } });   // every pixel, big
+  reset({ performance: clock(0.1, 0.01), document: c.doc }); P.canvasReadback(); nz = P.canvasNoise();
+  assert.strictEqual(nz.maxDelta, 64); assert.strictEqual(nz.share, 1);   // every pixel changed, drawn or not
+  c = fakeCanvas({ blank: true }); reset({ performance: clock(0.1, 0.01), document: c.doc }); assert.strictEqual(P.canvasNoise(), null);
+  var r = P.report(); assert.ok('canvasNoise' in r);
+});
+t('canvas noise sentence says tiny or large', function () {
+  var c = fakeCanvas({ noise: function (d, w) { d[(3 * w + 9) * 4 + 1] ^= 1; } });
+  reset({ performance: clock(0.1, 0.01), document: c.doc }); assert.ok(/tiny, up to 1 levels/.test(P.explain().join(' ')));
+  c = fakeCanvas({ noise: function (d) { d[0] = 105; } });
+  reset({ performance: clock(0.1, 0.01), document: c.doc }); assert.ok(/large, up to 100 levels/.test(P.explain().join(' ')));
+});
+t('framed: none, same-origin, cross-origin, and a throwing window', function () {
+  var me = {}, top = { location: { href: 'https://example.test/' } };
+  reset({ window: { self: me, top: me } }); assert.strictEqual(P.framed(), 'none');
+  reset({ window: { self: me, top: top } }); assert.strictEqual(P.framed(), 'same-origin');
+  var wall = { get location() { throw new Error('SecurityError'); } };
+  reset({ window: { self: me, top: wall } }); assert.strictEqual(P.framed(), 'cross-origin');
+  reset({ window: { get top() { throw new Error('x'); }, self: me } }); assert.strictEqual(P.framed(), 'cross-origin');
+  reset({}); assert.strictEqual(P.framed(), 'none');
+});
+t('explain: blocked storage inside a frame says so, outside a frame keeps the old words', function () {
+  var me = {}, wall = { get location() { throw new Error('SecurityError'); } };
+  var mq = function () { return { matches: false }; };
+  reset({ localStorage: fakeStorage('throw'), window: { self: me, top: wall, matchMedia: mq } });
+  var txt = P.explain().join(' '); assert.ok(/inside another page/.test(txt)); assert.ok(!/private window/.test(txt));
+  reset({ localStorage: fakeStorage('throw'), window: { self: me, top: me, matchMedia: mq } });
+  assert.ok(/private window/.test(P.explain().join(' ')));
+});
+t('transparency and hover questions', function () {
+  var on = {};
+  reset({ window: { matchMedia: function (q) { return { matches: !!on[q] }; } } });
+  assert.strictEqual(P.prefersReducedTransparency(), false); assert.strictEqual(P.hover(), false); assert.strictEqual(P.anyHover(), false);
+  on['(prefers-reduced-transparency: reduce)'] = true; on['(hover: hover)'] = true; on['(any-hover: hover)'] = true;
+  assert.strictEqual(P.prefersReducedTransparency(), true); assert.strictEqual(P.hover(), true); assert.strictEqual(P.anyHover(), true);
+});
+t('explain: mentions solid backgrounds for reduced transparency and no-hover devices, only inside a page', function () {
+  var on = { '(prefers-reduced-transparency: reduce)': true };
+  reset({ document: {}, window: { matchMedia: function (q) { return { matches: !!on[q] }; } } });
+  var txt = P.explain().join(' '); assert.ok(/solid backgrounds/.test(txt)); assert.ok(/hover tooltip/.test(txt));
+  P._env(); assert.ok(!/hover tooltip/.test(P.explain().join(' ')));
+});
+t('capabilities: all false with nothing, true for each fake feature, never throws', function () {
+  P._env(); var c = P.capabilities();
+  ['webLocks', 'wakeLock', 'closeWatcher', 'gamepad', 'compressionStream', 'idleCallback', 'webAnimations', 'viewTransitions'].forEach(function (k) { assert.strictEqual(c[k], false, k); });
+  var f = function () {};
+  reset({ navigator: { locks: { request: f }, wakeLock: { request: f }, getGamepads: f }, window: { CloseWatcher: f, CompressionStream: f, requestIdleCallback: f, Element: { prototype: { animate: f } } }, document: { startViewTransition: f } });
+  c = P.capabilities(); Object.keys(c).forEach(function (k) { assert.strictEqual(c[k], true, k); }); assert.strictEqual(Object.keys(c).length, 8);
+  reset({ navigator: { get locks() { throw new Error('x'); } }, window: { get CloseWatcher() { throw new Error('y'); } } });
+  c = P.capabilities(); assert.strictEqual(c.webLocks, false); assert.strictEqual(c.closeWatcher, false);
+  assert.ok(P.report().capabilities);
 });
 
 P._env();

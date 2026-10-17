@@ -4,7 +4,7 @@
 const assert = require('assert'), path = require('path');
 const root = path.resolve(__dirname, '..'), M = (m, f) => path.join(root, 'modules', m, f);
 let pass = 0, fail = 0;
-async function t(name, fn) { try { await fn(); pass++; console.log('  ok   ' + name); } catch (e) { fail++; console.log('  FAIL ' + name + '\n       ' + String(e && e.stack || e).split('\n').slice(0, 3).join('\n       ')); } }
+async function t(name, fn) { if (process.env.ONLY && !new RegExp(process.env.ONLY).test(name)) return; try { await fn(); pass++; console.log('  ok   ' + name); } catch (e) { fail++; console.log('  FAIL ' + name + '\n       ' + String(e && e.stack || e).split('\n').slice(0, 3).join('\n       ')); } }
 
 (async () => {
   console.log('idle-core (node)');
@@ -93,6 +93,18 @@ async function t(name, fn) { try { await fn(); pass++; console.log('  ok   ' + n
   await t('env-probes reports sane values in Chromium', async () => {
     const p = await open('env-probes'); const r = await p.evaluate(() => EnvProbes.report());
     assert.strictEqual(r.timerRounded, false); assert.strictEqual(r.canvasReadbackOk, true); assert.strictEqual(r.storageWorks, true); await p.context().close();
+  });
+  await t('env-probes 1.1.0: noise size, framed, capabilities, and the one-button device check page', async () => {
+    const p = await open('env-probes'); const r = await p.evaluate(() => EnvProbes.report());
+    assert.deepStrictEqual(r.canvasNoise, { maxDelta: 0, share: 0 }); assert.strictEqual(r.framed, 'none');
+    assert.strictEqual(typeof r.hover, 'boolean'); assert.strictEqual(typeof r.prefersReducedTransparency, 'boolean');
+    assert.strictEqual(r.capabilities.webAnimations, true); assert.strictEqual(r.capabilities.compressionStream, true);
+    assert.strictEqual(await p.isVisible('#result'), false);
+    await p.click('#go');
+    assert.strictEqual(await p.isVisible('#verdict.good'), true);
+    assert.strictEqual(await p.locator('#caps tr').count(), 8); assert.ok(await p.locator('#lines li').count() > 3);
+    assert.strictEqual(await p.textContent('#go'), 'Check again');
+    assert.deepStrictEqual(p.errs, []); await p.context().close();
   });
   await t('stage-curtains: close puts both halves in place, open removes the curtain', async () => {
     const p = await open('stage-curtains');

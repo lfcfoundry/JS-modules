@@ -24,7 +24,7 @@ const ok = (c, m) => { if (!c) throw new Error(m || 'check failed'); };
   });
   await t('env-probes: canvas read-back and storage work; reports the timer', async () => {
     const p = await open('modules/env-probes/demo.html'); const r = await p.evaluate(() => EnvProbes.report());
-    notes.push('Firefox timer rounding reported by env-probes: ' + r.timerRounded + (r.timerStep ? ' (step ' + r.timerStep + ' ms)' : ''));
+    notes.push('Firefox timer rounding reported by env-probes: ' + r.timerRounded + (r.timerStepMs ? ' (step ' + r.timerStepMs + ' ms)' : ''));
     ok(r.canvasReadbackOk === true, 'canvas read-back'); ok(r.storageWorks === true, 'storage'); await p.close();
   });
   await t('stage-curtains: close puts both halves in place, open removes the curtain', async () => {
