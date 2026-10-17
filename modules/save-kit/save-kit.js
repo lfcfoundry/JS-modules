@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.2.1 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -88,11 +88,13 @@
         var out = bag(), kept = 0, maxKeys = spec.maxKeys > 0 ? spec.maxKeys : DEFAULT_MAX_KEYS;
         if (!isObj(v)) v = d;   // a missing or broken field starts from its default (1.0.0 always gave an empty map here)
         if (!isObj(v)) return out;
-        Object.keys(v).forEach(function (k) {
-          if (BAD_KEYS[k] || k.length > 200 || kept >= maxKeys) return;
-          var n = v[k];
-          if (typeof n === 'number' && isFinite(n) && n > 0) { out[k] = Math.min(Math.floor(n), spec.max || 1e6); kept++; }
-        });
+        var ks = Object.keys(v), cap = spec.max || 1e6, i, k, n;
+        for (i = 0; i < ks.length; i++) {
+          k = ks[i];
+          if (BAD_KEYS[k] || k.length > 200 || kept >= maxKeys) continue;
+          n = v[k];
+          if (typeof n === 'number' && isFinite(n) && n > 0) { out[k] = Math.min(Math.floor(n), cap); kept++; }
+        }
         return out;
 //@begin raw
       case 'raw': try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { try { return scrub(JSON.parse(JSON.stringify(d)), 0); } catch (e2) { return d; } }   // a fresh copy of the default, never the default object itself
@@ -102,24 +104,35 @@
   }
 
   // validate(schema, defaults, untrusted) -> a new, clean state object. Fields not in the schema are dropped.
-  function validate(schema, defaults, input) {
-    var out = {};
+  function validate(schema, defaults, input) { return validateWith(fieldsOf(schema), defaults, input); }
+  // The field rules read once: [name, normalized rule] pairs (create() keeps them, so a save or load does not parse the rules again).
+  function fieldsOf(schema) {
+    var ks = Object.keys(schema), f = [], i;
+    for (i = 0; i < ks.length; i++) f.push([ks[i], norm(schema[ks[i]])]);
+    return f;
+  }
+  function validateWith(fields, defaults, input) {
+    var out = {}, i, k;
     input = isObj(input) ? input : {};
-    Object.keys(schema).forEach(function (k) {
-      out[k] = cleanField(schema[k], has(input, k) ? input[k] : undefined, defaults ? defaults[k] : undefined);
-    });
+    for (i = 0; i < fields.length; i++) {
+      k = fields[i][0];
+      out[k] = cleanField(fields[i][1], has(input, k) ? input[k] : undefined, defaults ? defaults[k] : undefined);
+    }
     return out;
   }
 
   // isSound(state, keys): true when every listed numeric field that is present is a sound number.
   function isSound(state, keys) {
-    return keys.every(function (k) { var v = state[k]; return v === undefined || isNum(v); });
+    for (var i = 0; i < keys.length; i++) { var v = state[keys[i]]; if (v !== undefined && !isNum(v)) return false; }
+    return true;
   }
 
   // countsSound(v): true when v is not a map, or every value in the map is a finite number >= 0 (a NaN written to storage comes back as null).
   function countsSound(v) {
     if (!isObj(v)) return true;
-    return Object.keys(v).every(function (k) { return isNum(v[k]); });
+    var ks = Object.keys(v);
+    for (var i = 0; i < ks.length; i++) if (!isNum(v[ks[i]])) return false;
+    return true;
   }
 
 //@begin codes
@@ -207,7 +220,8 @@
     var maxBytes = o.maxCodeBytes > 0 ? o.maxCodeBytes : DEFAULT_MAX_BYTES;
     var maxChars = o.maxCodeChars > 0 ? o.maxCodeChars : Math.ceil(maxBytes * 4 / 3) + 1024;
 //@end
-    var kinds = function (t) { return Object.keys(schema).filter(function (k) { return norm(schema[k]).type === t; }); };
+    var fields = fieldsOf(schema);
+    var kinds = function (t) { return fields.filter(function (f) { return f[1].type === t; }).map(function (f) { return f[0]; }); };
     var soundKeys = o.soundKeys || kinds('num').concat(kinds('int'));
     var countKeys = kinds('counts');
 //@begin codes
@@ -244,9 +258,9 @@
 
     // How many fields hold a broken number (numbers in soundKeys, and values inside counts fields).
     function badFields(x) {
-      var n = 0;
-      soundKeys.forEach(function (k) { var v = x[k]; if (v !== undefined && !isNum(v)) n++; });
-      countKeys.forEach(function (k) { if (!countsSound(x[k])) n++; });
+      var n = 0, i, v;
+      for (i = 0; i < soundKeys.length; i++) { v = x[soundKeys[i]]; if (v !== undefined && !isNum(v)) n++; }
+      for (i = 0; i < countKeys.length; i++) if (!countsSound(x[countKeys[i]])) n++;
       return n;
     }
     function soundState(x) { return isObj(x) && badFields(x) === 0; }
@@ -262,13 +276,13 @@
     // Schema check, then the game's own afterValidate(clean, raw) if there is one: it may change `clean` in place, return a replacement object, or return
     // false/null to refuse the save. A hook that throws is ignored (the schema-checked state is used). Returns null when refused.
     function finish(raw) {
-      var c = validate(schema, defaults, upgrade(raw)), r;
+      var c = validateWith(fields, defaults, upgrade(raw)), r;
       if (!after) return c;
       try { r = after(c, raw); } catch (e) { return c; }
       return r === false || r === null ? null : isObj(r) ? r : c;
     }
     var api = {
-      validate: function (input) { return validate(schema, defaults, input); },
+      validate: function (input) { return validateWith(fields, defaults, input); },
       // Returns a clean state rebuilt from the better slot (the main slot unless the backup has fewer broken numbers), else null.
       // With damagedKey, main-slot text that was not used (unreadable, refused by afterValidate, or worse than the backup) is copied there first.
       load: function () {
