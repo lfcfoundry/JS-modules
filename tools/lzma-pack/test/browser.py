@@ -5,6 +5,16 @@ Copyright (c) 2026 LFC Foundry. MIT License."""
 import http.server, os, pathlib, sys, tempfile, threading
 from playwright.sync_api import sync_playwright
 
+def real_chromium(p, **kw):
+    """Start the Chromium named in CHROMIUM (the build from the test-browsers branch), never Playwright's own stock one, and print its real version."""
+    exe = os.environ.get("CHROMIUM")
+    if not exe:
+        print("skipped: set CHROMIUM=/path/to/chrome (the ungoogled Chromium from the test-browsers branch); this test does not fall back to Playwright's own Chromium"); sys.exit(2)
+    br = p.chromium.launch(executable_path=exe, **kw)
+    print("browser: Chromium " + br.version + " (" + exe + ")")
+    return br
+
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent   # tools/lzma-pack
 sys.path.insert(0, str(ROOT))
 import pack  # noqa: E402
@@ -40,7 +50,7 @@ def state(pg):
     return pg.evaluate("() => ({ title: document.title, h: (document.getElementById('h') || {}).textContent || '', body: document.body ? document.body.textContent.slice(0, 80) : '', text: document.body ? document.body.innerText : '' })")
 
 with sync_playwright() as p:
-    br = p.chromium.launch(); ctx = br.new_context(); pg = ctx.new_page(); errs = []
+    br = real_chromium(p); ctx = br.new_context(); pg = ctx.new_page(); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
     plain, utf8 = serve(False), serve(True)
     urls = {

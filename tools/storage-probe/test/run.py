@@ -12,6 +12,16 @@ Copyright (c) 2026 LFC Foundry. MIT License.
 import os, shutil, sys, tempfile
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
+def real_chromium(p, **kw):
+    """Start the Chromium named in CHROMIUM (the build from the test-browsers branch), never Playwright's own stock one, and print its real version."""
+    exe = os.environ.get("CHROMIUM")
+    if not exe:
+        print("skipped: set CHROMIUM=/path/to/chrome (the ungoogled Chromium from the test-browsers branch); this test does not fall back to Playwright's own Chromium"); sys.exit(2)
+    br = p.chromium.launch(executable_path=exe, **kw)
+    print("browser: Chromium " + br.version + " (" + exe + ")")
+    return br
+
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, '..', 'storage-probe.html')
 fails, count = [], 0
@@ -33,7 +43,7 @@ def main():
     shutil.copy(SRC, os.path.join(a, 'probe.html')); shutil.copy(SRC, os.path.join(b, 'probe-copy.html'))
     with sync_playwright() as p:
         try:
-            br = p.firefox.launch(headless=True, executable_path=os.environ.get('FIREFOX_PATH')) if which == 'firefox' else p.chromium.launch(headless=True, executable_path=os.environ.get('CHROMIUM') or None)
+            br = p.firefox.launch(headless=True, executable_path=os.environ.get('FIREFOX_PATH')) if which == 'firefox' else real_chromium(p, headless=True)
         except Exception as e:
             # Playwright's Firefox driver needs its own patched Firefox build; a stock Firefox exits at once.
             print('storage-probe (%s): SKIPPED, the browser would not start (%s)' % (which, str(e).splitlines()[0]))

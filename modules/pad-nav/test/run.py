@@ -11,6 +11,16 @@ import sys
 import time
 from playwright.sync_api import sync_playwright
 
+def real_chromium(p, **kw):
+    """Start the Chromium named in CHROMIUM (the build from the test-browsers branch), never Playwright's own stock one, and print its real version."""
+    exe = os.environ.get("CHROMIUM")
+    if not exe:
+        print("skipped: set CHROMIUM=/path/to/chrome (the ungoogled Chromium from the test-browsers branch); this test does not fall back to Playwright's own Chromium"); sys.exit(2)
+    br = p.chromium.launch(executable_path=exe, **kw)
+    print("browser: Chromium " + br.version + " (" + exe + ")")
+    return br
+
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 PAGE = 'file://' + os.path.join(HERE, 'page.html')
 fails = []
@@ -28,7 +38,7 @@ def check(name, cond, detail=''):
 def main():
     t0 = time.time()
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = real_chromium(p, headless=True)
         ctx = browser.new_context(viewport={'width': 800, 'height': 600})
         ctx.route('**/*', lambda route: route.abort() if route.request.url.startswith('http') else route.continue_())
         page = ctx.new_page()

@@ -6,7 +6,18 @@ import json, pathlib, subprocess, sys, tempfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 import importlib.util
 spec = importlib.util.spec_from_file_location("pw_runner", ROOT / "runner" / "fuzz_playwright.py"); mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+import os
 from playwright.sync_api import sync_playwright
+
+def real_chromium(p, **kw):
+    """Start the Chromium named in CHROMIUM (the build from the test-browsers branch), never Playwright's own stock one, and print its real version."""
+    exe = os.environ.get("CHROMIUM")
+    if not exe:
+        print("skipped: set CHROMIUM=/path/to/chrome (the ungoogled Chromium from the test-browsers branch); this test does not fall back to Playwright's own Chromium"); sys.exit(2)
+    br = p.chromium.launch(executable_path=exe, **kw)
+    print("browser: Chromium " + br.version + " (" + exe + ")")
+    return br
+
 
 adapter = (ROOT / "example" / "adapter.js").read_text()
 app_url = (ROOT / "example" / "app.html").as_uri()
@@ -17,7 +28,7 @@ def check(name, ok, extra=""):
     if not ok: fails += 1
 
 with sync_playwright() as p:
-    br = p.chromium.launch()
+    br = real_chromium(p)
     # 1. the clean app: several seeds, no findings, and the run actually visits every state
     seen = {}; clean_ok = True
     for seed in range(1, 6):
@@ -63,7 +74,7 @@ with sync_playwright() as p:
 
 # 7b. Fuzzer.Input.pickVisible: picks only visible, enabled controls, spreads over them, honors a skip test, and says null when none is visible
 with sync_playwright() as p:
-    br = p.chromium.launch(); pg = br.new_page()
+    br = real_chromium(p); pg = br.new_page()
     pg.set_content('<!doctype html><meta charset=utf-8><body>' + ''.join('<button id=b%d%s>b%d</button>' % (i, ' style="display:none"' if i % 5 else '', i) for i in range(50)) + '<button id=dis disabled>x</button>')
     pg.evaluate((ROOT / "src" / "fuzz-core.js").read_text() + "\n;0")
     r = pg.evaluate("""() => {
@@ -83,7 +94,7 @@ with sync_playwright() as p:
 out = pathlib.Path(tempfile.mkdtemp()) / "shipped.html"
 subprocess.run(["node", str(ROOT / "tools" / "strip-test-hooks.js"), str(ROOT / "example" / "app.html"), str(out)], check=True, capture_output=True)
 with sync_playwright() as p:
-    br = p.chromium.launch(); pg = br.new_page(); errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
+    br = real_chromium(p); pg = br.new_page(); errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.goto(out.as_uri()); pg.click("#tap"); pg.click("#tap")
     check("stripped copy: no window.__app handle", pg.evaluate("typeof window.__app") == "undefined")
     check("stripped copy: the app still works and has no errors", "coins 1" in pg.inner_text("#out") and not errs, [pg.inner_text("#out"), errs])
