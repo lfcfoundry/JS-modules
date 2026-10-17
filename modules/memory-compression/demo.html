@@ -1,0 +1,64 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : memory-compression demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>memory-compression demo</title>
+<style>body{font:16px system-ui,sans-serif;max-width:42rem;margin:1rem auto;padding:0 1rem}button{font:inherit;padding:.5rem .9rem;margin:.2rem .2rem .2rem 0}table{border-collapse:collapse;width:100%;margin:.6rem 0}td,th{border-bottom:1px solid #8884;padding:.3rem .4rem;text-align:left}td.n,th.n{text-align:right}.ok{color:#0a7a2f}.bad{color:#b00020}small{opacity:.75}</style>
+<h1>memory-compression demo</h1>
+<p>Makes a pretend scene (coordinates, colors and names), squeezes it three ways, restores it, and checks every byte came back. Nothing leaves this page.</p>
+<p>Scene size: <button data-mb="8">8 MB</button><button data-mb="32">32 MB</button><button data-mb="120">120 MB</button></p>
+<p id="state">Starting...</p>
+<table id="t" hidden><thead><tr><th>Way</th><th class="n">Packed size</th><th class="n">Pack</th><th class="n">Restore</th><th>Same bytes?</th></tr></thead><tbody></tbody></table>
+<p id="one"></p>
+<p><small>Restore time is the time to get the whole scene back into memory. The first row is the one to use for live memory, the second is for smaller save files.</small></p>
+<script src="memory-compression.js"></script>
+<script>
+  // A pretend scene: 28-byte records (x, y, size as floats; color, flags and an id as whole numbers) plus a text block.
+  function makeScene(mb) {
+    var n = Math.floor(mb * 1048576 / 28), buf = new ArrayBuffer(n * 28), dv = new DataView(buf), s = 12345, x = 0, y = 0;
+    function rnd() { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }
+    for (var i = 0; i < n; i++) { x += (rnd() - 0.5) * 4; y += (rnd() - 0.5) * 4; var o = i * 28;
+      dv.setFloat32(o, x, true); dv.setFloat32(o + 4, y, true); dv.setFloat32(o + 8, 1 + ((rnd() * 8) | 0) * 0.25, true);
+      dv.setUint32(o + 12, [0xff3366ff, 0xff66ccff, 0xffffcc33][(rnd() * 3) | 0], true); dv.setUint32(o + 16, (rnd() * 4) | 0, true); dv.setUint32(o + 20, i, true); dv.setUint32(o + 24, 0, true); }
+    return new Uint8Array(buf);
+  }
+  function same(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
+  function best(fn, k) { var b = 1e9; for (var i = 0; i < k; i++) { var t = performance.now(); fn(); t = performance.now() - t; if (t < b) b = t; } return b; }
+  function row(name, size, total, p, u, ok) { var tr = document.createElement('tr'); tr.innerHTML = '<td>' + name + '</td><td class="n">' + (size / 1048576).toFixed(1) + ' MB (' + (100 * size / total).toFixed(0) + '%)</td><td class="n">' + p.toFixed(0) + ' ms</td><td class="n">' + u.toFixed(0) + ' ms</td><td class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? 'yes, every byte' : 'NO') + '</td>'; t.tBodies[0].appendChild(tr); }
+  function run(mb) {
+    state.textContent = 'Making a ' + mb + ' MB scene...'; t.hidden = true; t.tBodies[0].innerHTML = '';
+    setTimeout(function () {
+      var d = makeScene(mb), total = d.length, w = MemoryCompression.accelerated() ? ' (fast path on)' : ' (plain JavaScript path)';
+      [['memory-compression, fast mode', { width: 28 }], ['memory-compression, small mode', { width: 28, mode: 'small' }]].forEach(function (c) {
+        var packed = MemoryCompression.pack(d, c[1]), back = MemoryCompression.unpack(packed, { as: 'bytes' });
+        row(c[0], packed.length, total, best(function () { MemoryCompression.pack(d, c[1]); }, 1), best(function () { MemoryCompression.unpack(packed, { as: 'bytes' }); }, 3), same(back, d));
+      });
+      var pk = MemoryCompression.pack(d, { width: 28 }), vw = MemoryCompression.view(pk), mid = vw.chunks >> 1, tc = best(function () { vw.read(mid); }, 5);
+      one.textContent = 'Kept packed, you can also restore just one piece: chunk ' + (mid + 1) + ' of ' + vw.chunks + ' (' + (vw.chunkLength(mid) / 1048576).toFixed(1) + ' MB) comes back in ' + tc.toFixed(1) + ' ms.';
+      t.hidden = false; state.textContent = (total / 1048576).toFixed(0) + ' MB scene' + w + '. Run it again for steadier numbers.';
+    }, 30);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('button[data-mb]'), function (b) { b.onclick = function () { run(+b.getAttribute('data-mb')); }; });
+  MemoryCompression.ready().then(function () { run(8); });
+</script>
