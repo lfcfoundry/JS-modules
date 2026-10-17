@@ -129,37 +129,37 @@ Each stage re-skins the hero by changing only these variables on a wrapper:
 .wrap { --sk-hi:var(--character-hi); --sk-mid:var(--character); --sk-lo:var(--character-deep); --sk-glow:var(--character); --sk-label:#fff; --sk-pop:var(--character); }
 /* examples (stage hues) */
 [data-hue="2"]  { --sk-hi:#e8808e; --sk-mid:#d1001c; --sk-lo:#5e000d; --sk-glow:#ff3b4f; }   /* crimson */
-[data-hue="4"]  { --sk-hi:#c2a48f; --sk-mid:#6a442e; --sk-lo:#301f15; --sk-glow:#c98a5c; }   /* brown */
-[data-hue="5"]  { --sk-hi:#fdf6ae; --sk-mid:#fbec5d; --sk-lo:#a38b12; --sk-glow:#fff27a; --sk-label:#3a3000; }  /* yellow */
-[data-hue="7"]  { --sk-hi:#80c0ad; --sk-mid:#00805a; --sk-lo:#003a28; --sk-glow:#3fd6a0; }   /* green */
-[data-hue="8"]  { --sk-hi:#c8b6ff; --sk-mid:#5b3bd1; --sk-lo:#1d0f5c; --sk-glow:#9a7cf5; }   /* violet */
-[data-hue="9"]  { --sk-hi:#fff;    --sk-mid:#35c7e0; --sk-lo:#0b3a63; --sk-glow:#7df9ff; --sk-label:#2a120d; }  /* ice: dark label */
-[data-hue="11"] { --sk-hi:#ffbfa8; --sk-mid:#ff7f50; --sk-lo:#733924; --sk-glow:#ffa07a; --sk-label:#2a120d; }  /* coral: dark label */
-[data-hue="13"] { --sk-hi:#fff;    --sk-mid:#ccccff; --sk-lo:#4a4aa8; --sk-glow:#d9d9ff; --sk-label:#2a2a66; }  /* pearl */
+[data-hue="4"]  { --sk-hi:#c2a48f; --sk-mid:#6a442e; --sk-lo:#301f15; --sk-glow:#c98a5c; --sk-pop:#6a442e; }   /* brown */
+[data-hue="5"]  { --sk-hi:#fdf6ae; --sk-mid:#fbec5d; --sk-lo:#a38b12; --sk-glow:#fff27a; --sk-pop:#a38b12; --sk-label:#3a3000; }  /* yellow */
+[data-hue="7"]  { --sk-hi:#80c0ad; --sk-mid:#00805a; --sk-lo:#003a28; --sk-glow:#3fd6a0; --sk-pop:#00805a; }   /* green */
+[data-hue="8"]  { --sk-hi:#c8b6ff; --sk-mid:#5b3bd1; --sk-lo:#1d0f5c; --sk-glow:#9a7cf5; --sk-pop:#5b3bd1; }   /* violet */
+[data-hue="9"]  { --sk-hi:#fff;    --sk-mid:#35c7e0; --sk-lo:#0b3a63; --sk-glow:#7df9ff; --sk-pop:#0b3a63; --sk-label:#2a120d; }  /* ice: dark label */
+[data-hue="11"] { --sk-hi:#ffbfa8; --sk-mid:#ff7f50; --sk-lo:#733924; --sk-glow:#ffa07a; --sk-pop:#733924; --sk-label:#2a120d; }  /* coral: dark label */
+[data-hue="13"] { --sk-hi:#fff;    --sk-mid:#ccccff; --sk-lo:#4a4aa8; --sk-glow:#d9d9ff; --sk-pop:#4a4aa8; --sk-label:#2a2a66; }  /* pearl */
 ```
-The same skins as a table (the check in `test/run.js` reads this table and the demo's skin list, and fails if a label is below 4.5:1 against its `mid`):
+The same skins as a table (the check in `test/run.js` reads this table and the demo's skin list, and fails if a label is below 4.5:1 against its `mid`, if a pop number is below 3:1 on the two light backgrounds, or if the demo's colors differ from this table):
 
-| Skin | hi | mid | lo | glow | label |
-|---|---|---|---|---|---|
-| Red (default) | #e6685b | #c4372c | #86231b | #c4372c | #ffffff |
-| Crimson | #e8808e | #d1001c | #5e000d | #ff3b4f | #ffffff |
-| Brown | #c2a48f | #6a442e | #301f15 | #c98a5c | #ffffff |
-| Yellow | #fdf6ae | #fbec5d | #a38b12 | #fff27a | #3a3000 |
-| Gold | #fff3b0 | #f2b705 | #a86a00 | #ffd23f | #2a120d |
-| Green | #80c0ad | #00805a | #003a28 | #3fd6a0 | #ffffff |
-| Violet | #c8b6ff | #5b3bd1 | #1d0f5c | #9a7cf5 | #ffffff |
-| Ice | #ffffff | #35c7e0 | #0b3a63 | #7df9ff | #2a120d |
-| Coral | #ffbfa8 | #ff7f50 | #733924 | #ffa07a | #2a120d |
-| Pearl | #ffffff | #ccccff | #4a4aa8 | #d9d9ff | #2a2a66 |
+| Skin | hi | mid | lo | glow | pop | label |
+|---|---|---|---|---|---|---|
+| Red (default) | #e6685b | #c4372c | #86231b | #c4372c | #c4372c | #ffffff |
+| Crimson | #e8808e | #d1001c | #5e000d | #ff3b4f | #ff3b4f | #ffffff |
+| Brown | #c2a48f | #6a442e | #301f15 | #c98a5c | #6a442e | #ffffff |
+| Yellow | #fdf6ae | #fbec5d | #a38b12 | #fff27a | #a38b12 | #3a3000 |
+| Gold | #fff3b0 | #f2b705 | #a86a00 | #ffd23f | #a86a00 | #2a120d |
+| Green | #80c0ad | #00805a | #003a28 | #3fd6a0 | #00805a | #ffffff |
+| Violet | #c8b6ff | #5b3bd1 | #1d0f5c | #9a7cf5 | #5b3bd1 | #ffffff |
+| Ice | #ffffff | #35c7e0 | #0b3a63 | #7df9ff | #0b3a63 | #2a120d |
+| Coral | #ffbfa8 | #ff7f50 | #733924 | #ffa07a | #733924 | #2a120d |
+| Pearl | #ffffff | #ccccff | #4a4aa8 | #d9d9ff | #4a4aa8 | #2a2a66 |
 
 White text only works on the darker `mid` colors. Gold, Ice, Coral, Yellow and Pearl are light, so they get a dark label from this guide's own palette (warm ink `#2a120d`, or the deeper tones above). When you add a skin, compute the ratio before you ship it.
 **How to pick a ramp for a new color (the formula):**
 - `mid` = the pure, saturated color you want people to remember.
 - `hi` = the same hue, much lighter, a touch warmer, never pure white (except for icy/pearl skins).
 - `lo` = the same hue, much darker, *more* saturated or shifted slightly toward purple/blue (never gray, never black).
-- `glow` = a bright, slightly lighter cousin of `mid`, used for aura, ring, pop numbers, label glow.
+- `glow` = a bright, slightly lighter cousin of `mid`, used for aura, ring, label glow and (in dark mode) pop numbers.
 - `label` = text color on top of `mid`: white for dark/medium colors, a dark brown for yellows and pale colors. The ratio must be at least 4.5:1 (WCAG AA for normal text); white on Gold is 1.8, on Ice 2.0 and on Coral 2.5, so those three must not use white.
-- Check contrast of `pop` (number color) against both light and dark backgrounds; pale skins get a deeper `pop` / bar color.
+- `pop` = the color of the "+1" number on the light page (large bold text, so 3:1 is the floor). Dark and mid skins keep `glow` (Red, Crimson) or use `mid` (Brown, Green, Violet); the pale skins (Yellow, Gold, Ice, Coral, Pearl) use their `lo`, because their `glow` is almost the page color (Yellow's glow is 1.04:1 on the light panel). Every pop in the table is at least 3:1 on `#fbfcfc` and `#eef5f1`; Yellow is the weakest at 3.03. In dark mode `pop` is simply `glow` (every skin is 3.0:1 or better on `#1a2226`). Check any new skin's `pop` on both before you ship it.
 
 ### 3.6 The face
 The face is a `<g class="face">` over the body. Coordinates are in the 200 box:
@@ -223,6 +223,13 @@ A sprout: a curved thick round-capped stem and a pointed lens-shaped leaf at an 
 @keyframes wiggle { 0%,86%,100%{transform:rotate(0)} 88%{transform:rotate(-5deg)} 90%{transform:rotate(5deg)} 92%{transform:rotate(-3deg)} 94%{transform:rotate(2deg)} }
 ```
 **Tip:** long idle gaps with a short burst (the wiggle is idle 86% of the time) feel alive without being busy. Different loop lengths (3.2 s, 3.4 s, 4.6 s, 9 s) never sync up, so the motion never looks mechanical.
+
+### 3.10 Many characters on one screen
+The idle motion (bob, aura pulse, blink, wiggle) is cheap for one hero and adds up for a crowd. Browser work per second, in one test browser (Chromium 155, headless, median of three 5-second runs, lower is better): 1 hero about 78 ms, 12 heroes about 272 ms, 48 heroes about 644 ms; with every animation off the same 12 heroes cost about 4 ms. So:
+- **Pause what nobody sees.** When a hero is off-screen or the tab is hidden, set `animation-play-state: paused` on its bob, aura, blink and wiggle (or use the calm switch in section 5.4). Switching everything off is the ceiling of what a pause can save, about 98% of the idle cost at 12 heroes; the pause itself was not built or timed.
+- **Drop the aura on crowds.** The aura pulse alone is about 17% of the 12-hero cost (272 down to 227 ms). Blink is about 22% and wiggle about 14%.
+- **Do not merge bob and wiggle onto one element** to save a layer: it was 56% worse (425 ms). `will-change` on the moving layers gave no gain (275 ms), and `content-visibility:auto` on each stage only about 5% (259 ms).
+These numbers come from one test browser and were not measured on phones, Firefox or WebKitGTK.
 
 ---
 

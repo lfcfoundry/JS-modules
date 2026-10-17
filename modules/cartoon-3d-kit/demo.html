@@ -30,7 +30,7 @@
 /* 1. TOKENS ---------------------------------------------------------- */
 :root{
   --bg:#edf1f2; --panel:#fbfcfc; --fg:#162226; --muted:#55656b; --line:#d0dadd;
-  --sk-hi:#e6685b; --sk-mid:#c4372c; --sk-lo:#86231b; --sk-glow:#c4372c; --stem:#5b3f27; --leaf:#3f7d4c;
+  --sk-hi:#e6685b; --sk-mid:#c4372c; --sk-lo:#86231b; --sk-glow:#c4372c; --sk-pop:#c4372c; --stem:#5b3f27; --leaf:#3f7d4c;
   --sky-top:#b5d6e8; --sky-bot:#eef5f1; --hill-far:#b3cdc0; --hill-mid:#90b9a1; --ground:#6aa282;
   --trunk:#6b4a2f; --foliage:#3f7d4c; --foliage-2:#5ca06a; --bld:#ece6d9; --bld-2:#c6bba9; --roof:#a8473a; --win:#ffd98a;
   color-scheme:only light;             /* stops phone "force dark" from repainting the white shines dark (see guide, section 5.4) */
@@ -67,7 +67,7 @@ h2{margin:.2rem 0 0;font:700 .8rem var(--body);letter-spacing:.12em;text-transfo
 .label span{display:inline-block;padding:.3rem .95rem .35rem;border-radius:999px;background:var(--sk-mid);box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.18),0 0 14px rgba(0,0,0,.2);   /* fallback without color-mix() */
   box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.18),0 0 14px color-mix(in srgb,var(--sk-glow) 50%,transparent);text-shadow:var(--sk-label-shadow)}
 .ring{position:absolute;inset:6%;border-radius:50%;border:4px solid var(--sk-glow);pointer-events:none}
-.pop{position:absolute;z-index:4;pointer-events:none;white-space:nowrap;font:800 1.9rem/1 var(--display);color:var(--sk-glow);
+.pop{position:absolute;z-index:4;pointer-events:none;white-space:nowrap;font:800 1.9rem/1 var(--display);color:var(--sk-pop);
   text-shadow:-2px 0 var(--bg),2px 0 var(--bg),0 -2px var(--bg),0 2px var(--bg),-2px -2px var(--bg),2px 2px var(--bg),-2px 2px var(--bg),2px -2px var(--bg),0 0 16px var(--sk-glow)}
 .bit{position:absolute;z-index:3;pointer-events:none;border-radius:50%}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
@@ -207,9 +207,9 @@ document.addEventListener('pointermove',function(e){if(calm()){pupils.style.tran
   var r=hero.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height*.52),d=Math.sqrt(dx*dx+dy*dy)||1,k=Math.min(1,d/140);
   pupils.style.transform='translate('+(dx/d*4.6*k).toFixed(2)+'px,'+(dy/d*4.6*k).toFixed(2)+'px)'});
 // each skin: [hi, mid, lo, glow, label]. The label is the text color on top of mid; light skins get warm ink so it stays at 4.5:1 or better (test/run.js checks this list)
-var SK={red:['#e6685b','#c4372c','#86231b','#c4372c','#ffffff'],gold:['#fff3b0','#f2b705','#a86a00','#ffd23f','#2a120d'],violet:['#c8b6ff','#5b3bd1','#1d0f5c','#7dd3fc','#ffffff'],ice:['#ffffff','#35c7e0','#0b3a63','#7df9ff','#2a120d']};
+var SK={red:['#e6685b','#c4372c','#86231b','#c4372c','#c4372c','#ffffff'],gold:['#fff3b0','#f2b705','#a86a00','#ffd23f','#a86a00','#2a120d'],violet:['#c8b6ff','#5b3bd1','#1d0f5c','#9a7cf5','#5b3bd1','#ffffff'],ice:['#ffffff','#35c7e0','#0b3a63','#7df9ff','#0b3a63','#2a120d']};
 [].forEach.call(document.querySelectorAll('.sk'),function(b){b.style.cssText='padding:.4rem .9rem;border-radius:999px;border:1px solid var(--line);background:var(--panel);font:700 .85rem var(--body);cursor:pointer';
-  b.onclick=function(){var v=SK[b.dataset.skin],s=document.documentElement.style;s.setProperty('--sk-hi',v[0]);s.setProperty('--sk-mid',v[1]);s.setProperty('--sk-lo',v[2]);s.setProperty('--sk-glow',v[3]);s.setProperty('--sk-label',v[4]);
-    s.setProperty('--sk-label-shadow',v[4]==='#ffffff'?'0 1px 2px rgba(0,0,0,.3)':'0 1px 0 rgba(255,255,255,.35)')}});
+  b.onclick=function(){var v=SK[b.dataset.skin],s=document.documentElement.style;s.setProperty('--sk-hi',v[0]);s.setProperty('--sk-mid',v[1]);s.setProperty('--sk-lo',v[2]);s.setProperty('--sk-glow',v[3]);s.setProperty('--sk-pop',v[4]);s.setProperty('--sk-label',v[5]);
+    s.setProperty('--sk-label-shadow',v[5]==='#ffffff'?'0 1px 2px rgba(0,0,0,.3)':'0 1px 0 rgba(255,255,255,.35)')}});
 </script><footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
 </body></html>
