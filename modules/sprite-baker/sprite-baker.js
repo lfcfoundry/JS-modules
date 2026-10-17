@@ -1,4 +1,4 @@
-/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.3.0 (API 1) */
+/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.4.0 (API 1) */
 var SpriteBaker = (function () {
   'use strict';
 
@@ -88,10 +88,17 @@ var SpriteBaker = (function () {
        specular (1)  strength of the three-lobe highlight        bounce (1)   warm light bouncing up from the lower right
        pool (1)      how much the ramp's dark end gathers low    rimLight (1) pale light on the right-hand silhouette
        edge (0.88)   brightness factor at a silhouette (1 = no edge darkening)
-     Set any of them to 0 (edge: 1) to switch that term off. */
+     Set any of them to 0 (edge: 1) to switch that term off. Two more options, both off unless given, need 8-number vertices
+     [x, y, z, nx, ny, nz, u, v] (drawMesh makes them; a triangle with 6-number vertices is drawn without them):
+       texture { w, h, data, uClamp (true), vWrap (2 pi), shadeBase (0.66), shadeWrap (0.5) }   a picture painted across the surface:
+              RGBA bytes (not premultiplied) looked up at (u, v) with bilinear weights by alpha; u is clamped along the body (uClamp) or wraps
+              (false); v wraps once per vWrap; the paint color is multiplied by shadeBase + shadeWrap * wrap and blended over the shaded color
+              by its alpha; the highlight is dialed down where the paint is (x 0.55 under strong red, else x (1 - 0.8 * alpha))
+       ridge { freq (5), dark (-0.86), darkScale (0.93), lit, litAdd (0.06) }   faint grooves: with r = cos(freq * v), r < dark multiplies the light
+              value by darkScale, and (only when `lit` is given) r > lit adds litAdd. */
   function material(stops, opts) {
     opts = opts || {};
-    return {
+    var m = {
       stops: stops,
       lut: bakeRamp(stops),
       specular: pick(opts.specular, 1),
@@ -100,6 +107,18 @@ var SpriteBaker = (function () {
       rimLight: pick(opts.rimLight, 1),
       edge: pick(opts.edge, 0.88)
     };
+    if (opts.texture) { checkTexture(opts.texture); m.texture = opts.texture; }
+    if (opts.ridge) {
+      var rg = opts.ridge;
+      m.ridge = { freq: pick(rg.freq, 5), dark: pick(rg.dark, -0.86), darkScale: pick(rg.darkScale, 0.93), lit: rg.lit, litAdd: pick(rg.litAdd, 0.06) };
+      if (![m.ridge.freq, m.ridge.dark, m.ridge.darkScale, m.ridge.litAdd].every(isFinite) || (m.ridge.lit !== undefined && !isFinite(m.ridge.lit))) throw new Error('ridge settings must be finite numbers');
+    }
+    return m;
+  }
+
+  function checkTexture(T) {
+    var w = T && T.w, h = T && T.h, d = T && T.data;
+    if (!(w >= 1 && h >= 1 && w === Math.floor(w) && h === Math.floor(h)) || !d || !(d.length >= w * h * 4)) throw new Error('a texture is { w, h, data } with whole-number w and h and w * h * 4 RGBA bytes in data');
   }
 
   var materialCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
@@ -144,6 +163,7 @@ var SpriteBaker = (function () {
        every later triangle would overwrite that pixel). Skip such a triangle whole. One sum per triangle, not per pixel. */
     if (!isFinite(a[0] + a[1] + a[2] + a[3] + a[4] + a[5] + b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + c[0] + c[1] + c[2] + c[3] + c[4] + c[5])) return;
     mat = asMaterial(mat);
+    if ((mat.texture || mat.ridge) && a.length > 7 && b.length > 7 && c.length > 7) return triUV(rast, a, b, c, mat);   // one check per triangle; the plain loop below stays as it was
 
     var w = rast.w, h = rast.h, zbuf = rast.z, out = rast.px, lut = mat.lut;
     var x0 = a[0], y0 = a[1], x1 = b[0], y1 = b[1], x2 = c[0], y2 = c[1];
@@ -215,6 +235,108 @@ var SpriteBaker = (function () {
     }
   }
 
+  /* triUV: tri() for a material with a texture and/or ridge, on 8-number vertices. The same fill and the same light as tri(); per pixel it also
+     reads (u, v), changes the light value with the ridge (after the bounce and pool terms, before the edge darkening and the ramp lookup), and
+     blends the picture in (after the ramp lookup, before the highlight and the rim light are added). It is a separate function so the plain
+     loop in tri() pays nothing for it. Colors are summed the way Fancy Banana's own fill sums them (r + (highlight + rim)), which is the
+     order its pixels were checked against. */
+  function triUV(rast, a, b, c, mat) {
+    if (!isFinite(a[6] + a[7] + b[6] + b[7] + c[6] + c[7])) return;
+    var T = mat.texture, Rg = mat.ridge, tw = 0, th = 0, td = null, uClamp = true, vWrap = PI2, sBase = 0.66, sWrap = 0.5;
+    if (T) { checkTexture(T); tw = T.w; th = T.h; td = T.data; uClamp = pick(T.uClamp, true); vWrap = pick(T.vWrap, PI2); sBase = pick(T.shadeBase, 0.66); sWrap = pick(T.shadeWrap, 0.5); }
+    var rF = 0, rDark = 0, rScale = 1, rLit = 0, rAdd = 0, hasLit = false;
+    if (Rg) { rF = pick(Rg.freq, 5); rDark = pick(Rg.dark, -0.86); rScale = pick(Rg.darkScale, 0.93); hasLit = Rg.lit !== undefined; rLit = hasLit ? Rg.lit : 0; rAdd = pick(Rg.litAdd, 0.06); }
+
+    var w = rast.w, h = rast.h, zbuf = rast.z, out = rast.px, lut = mat.lut;
+    var x0 = a[0], y0 = a[1], x1 = b[0], y1 = b[1], x2 = c[0], y2 = c[1];
+    var area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+    if (area === 0 || !isFinite(area)) return;
+    var minx = Math.max(0, Math.floor(Math.min(x0, x1, x2))), maxx = Math.min(w - 1, Math.ceil(Math.max(x0, x1, x2)));
+    var miny = Math.max(0, Math.floor(Math.min(y0, y1, y2))), maxy = Math.min(h - 1, Math.ceil(Math.max(y0, y1, y2)));
+    var inv = 1 / area;
+    var lx = rast.L[0], ly = rast.L[1], lz = rast.L[2], hx = rast.H[0], hy = rast.H[1], hz = rast.H[2];
+    var kSpec = mat.specular, kBounce = mat.bounce * 0.16, kPool = mat.pool * 0.3, kRim = mat.rimLight * 0.4, kEdge = mat.edge;
+    var x, y, px, py, w0, w1, w2, z, idx, nx, ny, nz, l, wrap, t, rim, sp, ed, i3, o, r, g, bl, tu, tv, rd, hot, sq, p2, p4, p8, p16, p32, p64, p128;
+    var tx, ty, x0i, y0i, y1i, fx, fy, i00, i10, i01, i11, w00, w10, w01, w11, al, aa, shade, tr, tg, tb, dmp;
+
+    for (y = miny; y <= maxy; y++) {
+      for (x = minx; x <= maxx; x++) {
+        px = x + 0.5; py = y + 0.5;
+        w0 = ((x1 - px) * (y2 - py) - (x2 - px) * (y1 - py)) * inv;
+        w1 = ((x2 - px) * (y0 - py) - (x0 - px) * (y2 - py)) * inv;
+        w2 = 1 - w0 - w1;
+        if (w0 < -1e-5 || w1 < -1e-5 || w2 < -1e-5) continue;
+
+        z = w0 * a[2] + w1 * b[2] + w2 * c[2];
+        if (!isFinite(z)) continue;
+        idx = y * w + x;
+        if (z <= zbuf[idx]) continue;
+        zbuf[idx] = z;
+
+        nx = w0 * a[3] + w1 * b[3] + w2 * c[3];
+        ny = w0 * a[4] + w1 * b[4] + w2 * c[4];
+        nz = w0 * a[5] + w1 * b[5] + w2 * c[5];
+        l = 1 / Math.sqrt(nx * nx + ny * ny + nz * nz + 1e-9);
+        nx *= l; ny *= l; nz *= l;
+
+        wrap = (nx * lx + ny * ly + nz * lz) * 0.5 + 0.5;
+        t = wrap * wrap * 0.35 + wrap * 0.65;
+        rim = nx * 0.5 + ny * 0.72 + nz * 0.2;
+        t = t * 0.9 + (rim > 0 ? rim * kBounce : 0);
+        sp = nx * 0.55 + ny * 0.8;
+        if (sp > 0.25) t -= (sp - 0.25) * kPool;
+
+        sp = nx * hx + ny * hy + nz * hz;
+        hot = sp > 0;
+        if (hot) {
+          sq = sp; p2 = sq * sq; p4 = p2 * p2; p8 = p4 * p4; p16 = p8 * p8; p32 = p16 * p16; p64 = p32 * p32; p128 = p64 * p64;
+          sq = (p16 * 0.55 + p64 * p32 * p8 * p4 * p2 * 0.55 + p128 * p128 * p64 * p32 * p16 * p8 * p4 * 0.5) * kSpec;
+        } else sq = 0;
+
+        tv = w0 * a[7] + w1 * b[7] + w2 * c[7];
+        if (Rg) { rd = Math.cos(rF * tv); if (rd < rDark) t *= rScale; else if (hasLit && rd > rLit) t += rAdd; }
+        if (nz < 0.34) t *= kEdge + (1 - kEdge) * Math.max(0, nz) / 0.34;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        i3 = ((t * 255) | 0) * 3;
+        r = lut[i3]; g = lut[i3 + 1]; bl = lut[i3 + 2];
+
+        dmp = 1;
+        if (T) {   // bilinear lookup, weights by alpha (premultiplied average); no paint where the summed alpha is below 1
+          tu = w0 * a[6] + w1 * b[6] + w2 * c[6];
+          tx = uClamp ? Math.min(tw - 1.001, Math.max(0, tu * tw - 0.5)) : ((tu * tw - 0.5) % tw + tw) % tw;
+          ty = (((tv / vWrap) * th - 0.5) % th + th) % th;
+          x0i = tx | 0; y0i = ty | 0; fx = tx - x0i; fy = ty - y0i; y1i = (y0i + 1) % th;
+          i00 = (y0i * tw + x0i) * 4; i10 = uClamp ? i00 + 4 : (y0i * tw + (x0i + 1) % tw) * 4; i01 = (y1i * tw + x0i) * 4; i11 = uClamp ? i01 + 4 : (y1i * tw + (x0i + 1) % tw) * 4;
+          w00 = (1 - fx) * (1 - fy); w10 = fx * (1 - fy); w01 = (1 - fx) * fy; w11 = fx * fy;
+          aa = td[i00 + 3] * w00 + td[i10 + 3] * w10 + td[i01 + 3] * w01 + td[i11 + 3] * w11;
+          al = aa / 255;
+          if (al > 0) {
+            if (aa < 1) { tr = tg = tb = 0; }
+            else {
+              tr = (td[i00] * td[i00 + 3] * w00 + td[i10] * td[i10 + 3] * w10 + td[i01] * td[i01 + 3] * w01 + td[i11] * td[i11 + 3] * w11) / aa;
+              tg = (td[i00 + 1] * td[i00 + 3] * w00 + td[i10 + 1] * td[i10 + 3] * w10 + td[i01 + 1] * td[i01 + 3] * w01 + td[i11 + 1] * td[i11 + 3] * w11) / aa;
+              tb = (td[i00 + 2] * td[i00 + 3] * w00 + td[i10 + 2] * td[i10 + 3] * w10 + td[i01 + 2] * td[i01 + 3] * w01 + td[i11 + 2] * td[i11 + 3] * w11) / aa;
+            }
+            shade = sBase + sWrap * wrap;
+            r = r * (1 - al) + tr * shade * al; g = g * (1 - al) + tg * shade * al; bl = bl * (1 - al) + tb * shade * al;
+            dmp = tr > 200 && tg < 90 ? 0.55 : 1 - al * 0.8;
+          }
+        }
+        ed = nx > 0 && nz < 0.8 ? nx * Math.pow(1 - (nz > 0 ? nz : 0), 2.2) * kRim : 0;
+        o = idx * 4;
+        sq *= dmp;
+        out[o] = r + (sq * 255 + ed * 255);
+        out[o + 1] = g + (sq * 255 + ed * 255);
+        out[o + 2] = bl + (sq * 235 + ed * 255);
+        if (hot && (Math.abs(r + (sq * 255 + ed * 255) - Math.floor(r + (sq * 255 + ed * 255)) - 0.5) < 1e-8 || Math.abs(g + (sq * 255 + ed * 255) - Math.floor(g + (sq * 255 + ed * 255)) - 0.5) < 1e-8 || Math.abs(bl + (sq * 235 + ed * 255) - Math.floor(bl + (sq * 235 + ed * 255)) - 0.5) < 1e-8)) {
+          sq = (Math.pow(sp, 16) * 0.55 + Math.pow(sp, 110) * 0.55 + Math.pow(sp, 380) * 0.5) * kSpec * dmp;   // too close to a rounding edge: work it out with Math.pow
+          out[o] = r + (sq * 255 + ed * 255); out[o + 1] = g + (sq * 255 + ed * 255); out[o + 2] = bl + (sq * 235 + ed * 255);
+        }
+        out[o + 3] = 255;
+      }
+    }
+  }
+
   /* ------------------------------------------------------------------ rotation helpers */
 
   /* A 3x3 rotation matrix (row-major, 9 numbers) about `axis` (any length, normalized here), by phi radians.
@@ -259,15 +381,19 @@ var SpriteBaker = (function () {
 
   /* ------------------------------------------------------------------ meshes */
 
-  function readVertex(r, out) {   // fn may return [x, y, z], [x, y, z, nx, ny, nz] or { x, y, z, nx, ny, nz }
+  function readVertex(r, out) {   // fn may return [x, y, z], [x, y, z, nx, ny, nz], [x, y, z, nx, ny, nz, u, v] or { x, y, z, nx, ny, nz, u, v }
     if (Array.isArray(r)) {
       out.x = r[0]; out.y = r[1]; out.z = r[2];
       out.hasN = r.length >= 6;
       if (out.hasN) { out.nx = r[3]; out.ny = r[4]; out.nz = r[5]; }
+      out.hasUV = r.length >= 8;
+      if (out.hasUV) { out.u = r[6]; out.v = r[7]; }
     } else {
       out.x = r.x; out.y = r.y; out.z = r.z;
       out.hasN = r.nx !== undefined;
       if (out.hasN) { out.nx = r.nx; out.ny = r.ny; out.nz = r.nz; }
+      out.hasUV = r.u !== undefined && r.v !== undefined;
+      if (out.hasUV) { out.u = r.u; out.v = r.v; }
     }
   }
 
@@ -294,7 +420,9 @@ var SpriteBaker = (function () {
 
   /* mesh(fn, nu, nv, opts): sample the parametric surface fn(u, v), u and v in 0..1, on an (nu + 1) x (nv + 1) grid.
      fn returns [x, y, z] (normal found by finite differences), or [x, y, z, nx, ny, nz] / { x, y, z, nx, ny, nz } when
-     you know the true normal. Returns { nu, nv, pos, nrm }, both Float64Array of (nu + 1) * (nv + 1) * 3, unit normals.
+     you know the true normal; add u and v (8 numbers, or u and v fields) to choose the picture coordinates, which are otherwise u = i / nu and
+     v = (j / nv) * 2 pi for row i, column j. Returns { nu, nv, pos, nrm } (and `uv`, a Float64Array of two numbers a vertex, when fn gave
+     them), the first two Float64Array of (nu + 1) * (nv + 1) * 3, unit normals.
      The mesh is evaluated once; drawMesh can then draw it any number of times with different transforms.
      opts.flip: true flips every normal, false flips none, 'auto' (the default) flips only the finite-difference normals
      when, on average, they point toward the mesh's centroid (right for closed, roughly convex shapes; for open or hollow
@@ -303,7 +431,7 @@ var SpriteBaker = (function () {
     nu = nu | 0; nv = nv | 0;
     if (nu < 1 || nv < 1) throw new Error('mesh needs nu >= 1 and nv >= 1');
     var flip = opts && opts.flip !== undefined ? opts.flip : 'auto';
-    var cols = nv + 1, n = (nu + 1) * cols, pos = new Float64Array(n * 3), nrm = new Float64Array(n * 3), fd = new Uint8Array(n);
+    var cols = nv + 1, n = (nu + 1) * cols, pos = new Float64Array(n * 3), nrm = new Float64Array(n * 3), fd = new Uint8Array(n), uv = null;
     var i, j, k, v = {}, tmp = [0, 0, 0], l, cx = 0, cy = 0, cz = 0, score = 0;
 
     for (i = 0; i <= nu; i++) {
@@ -319,6 +447,7 @@ var SpriteBaker = (function () {
           nrm[k * 3] = tmp[0]; nrm[k * 3 + 1] = tmp[1]; nrm[k * 3 + 2] = tmp[2];
           fd[k] = 1;
         }
+        if (v.hasUV) { if (!uv) uv = new Float64Array(n * 2); uv[k * 2] = v.u; uv[k * 2 + 1] = v.v; }
         cx += v.x; cy += v.y; cz += v.z;
       }
     }
@@ -329,18 +458,23 @@ var SpriteBaker = (function () {
     } else if (flip === true) {
       for (k = 0; k < n * 3; k++) nrm[k] = -nrm[k];
     }
-    return { nu: nu, nv: nv, pos: pos, nrm: nrm };
+    var res = { nu: nu, nv: nv, pos: pos, nrm: nrm };
+    if (uv) res.uv = uv;
+    return res;
   }
 
   /* drawMesh(rast, m, mat, view, opts): transform a mesh and fill its quads as two triangles each (a,b,c and a,c,d).
      view = { scale (1), ox (0), oy (0), rot (a 3x3 matrix from rotationMatrix, default none), center ([0,0,0]) }:
        p' = rot * (p - center) + center;  screen = (ox + p'.x * scale, oy + p'.y * scale, p'.z * scale)
-     and normals are turned by `rot` only. opts is passed on to tri (cull). */
+     and normals are turned by `rot` only. opts is passed on to tri (cull). opts.pose: function (p) { return p } is called on each vertex after
+     the turn and before the scale, with { x, y, z, nx, ny, nz } (a fresh object each time); what it returns (or p itself, changed, when it
+     returns nothing) is what gets drawn. For a material with a texture or ridge each vertex also carries (u, v), from the mesh or the grid default. */
   function drawMesh(rast, m, mat, view, opts) {
     view = view || {};
     var s = view.scale === undefined ? 1 : view.scale, ox = view.ox || 0, oy = view.oy || 0, rot = view.rot || null, cen = view.center || [0, 0, 0];
     var cols = m.nv + 1, n = cols * (m.nu + 1), verts = new Array(n), k, i, j, x, y, z, nx, ny, nz, a, b, c, d;
     mat = asMaterial(mat);
+    var pose = opts && typeof opts.pose === 'function' ? opts.pose : null, withUV = !!(mat.texture || mat.ridge), uvs = m.uv;
 
     for (k = 0; k < n; k++) {
       x = m.pos[k * 3]; y = m.pos[k * 3 + 1]; z = m.pos[k * 3 + 2];
@@ -351,7 +485,12 @@ var SpriteBaker = (function () {
         var qx = rot[0] * nx + rot[1] * ny + rot[2] * nz, qy = rot[3] * nx + rot[4] * ny + rot[5] * nz, qz = rot[6] * nx + rot[7] * ny + rot[8] * nz;
         x = rx; y = ry; z = rz; nx = qx; ny = qy; nz = qz;
       }
-      verts[k] = [ox + x * s, oy + y * s, z * s, nx, ny, nz];
+      if (pose) {
+        var P = { x: x, y: y, z: z, nx: nx, ny: ny, nz: nz }, Q = pose(P) || P;
+        x = Q.x; y = Q.y; z = Q.z; nx = Q.nx; ny = Q.ny; nz = Q.nz;
+      }
+      if (withUV) verts[k] = [ox + x * s, oy + y * s, z * s, nx, ny, nz, uvs ? uvs[k * 2] : ((k / cols) | 0) / m.nu, uvs ? uvs[k * 2 + 1] : ((k % cols) / m.nv) * PI2];
+      else verts[k] = [ox + x * s, oy + y * s, z * s, nx, ny, nz];
     }
     for (i = 0; i < m.nu; i++) {
       for (j = 0; j < m.nv; j++) {
@@ -725,7 +864,7 @@ var SpriteBaker = (function () {
   }
 
   return {
-    version: '1.3.0',
+    version: '1.4.0',
     Rast: Rast,
     material: material,
     bakeRamp: bakeRamp,
