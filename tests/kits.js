@@ -49,7 +49,7 @@ var steps = [
   ['memory-compression no wasm', 'node', ['modules/memory-compression/test/run.js', '--js-only']],
   ['memory-compression-jso', 'node', ['modules/memory-compression-jso/test/run.js']],
   ['memory-compression-jso no wasm', 'node', ['modules/memory-compression-jso/test/run.js', '--js-only']],
-  ['river-layout', 'node', ['modules/river-layout/test/run.js']],
+  ['netflow-sankey', 'node', ['modules/netflow-sankey/test/run.js']],
   ['walker-sim', 'node', ['modules/walker-sim/test/run.js']],
   ['walker-sim minified', 'node', ['modules/walker-sim/test/run.js', 'modules/walker-sim/walker-sim.min.js']],
   ['pad-nav node', 'node', ['modules/pad-nav/test/run.js']],

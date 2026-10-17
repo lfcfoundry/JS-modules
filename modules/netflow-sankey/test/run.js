@@ -1,6 +1,6 @@
-/* Copyright (c) 2026 LFC Foundry. MIT License. river-layout checks: layering, every flow drawn at one scale, no overlaps, weighted order, plain input and SVG. Run: node modules/river-layout/test/run.js */
+/* Copyright (c) 2026 LFC Foundry. MIT License. netflow-sankey checks: layering, every flow drawn at one scale, no overlaps, weighted order, plain input and SVG. Run: node modules/netflow-sankey/test/run.js */
 'use strict';
-const RL = require('../river-layout.js');
+const RL = require('../netflow-sankey.js');
 let bad = 0;
 const ok = (c, m) => { if (!c) throw new Error(m); };
 const t = (name, fn) => { try { fn(); console.log('ok   ' + name); } catch (e) { bad++; console.log('FAIL ' + name + ': ' + e.message); } };
@@ -84,4 +84,38 @@ t('an empty or one-link input does not throw', () => {
   const R1 = RL.layoutFlows({ links: [{ from: 'a', to: 'b', value: 1 }] }); ok(R1.bands.length === 1 && R1.nodes.length === 2, 'one link');
   RL.toSvg(R0); RL.toSvg(R1);
 });
-console.log(bad ? 'river-layout: ' + bad + ' FAILED' : 'river-layout: all passed'); process.exit(bad ? 1 : 0);
+// ---- netflow-sankey 2.0.0 is faster but must draw exactly what river-layout 1.0.0 (the old name) drew: these hashes were made by that version (layout without the timing, then the SVG text) ----
+const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
+const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' ? undefined : v)) + ' ' + fnv(RL.toSvg(R)) + ' ' + fnv(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 })); };
+const PIN = {
+  'a 7x10 network with 3 loops': '89c38031 c261bece 7570244e',
+  'the same with plain (unweighted) order': '71efb5d1 66a8d0c2 4d247fa9',
+  'a 5x40 network with fractional flows, long links, 12 loops and odd names': '227d055c 5f46f8b2 18dca2a5',
+  'a 10x25 network, fewer restarts, fixed height': '705e4fd0 6143f42e 3a0c63fb',
+};
+const fracNet = () => { const r = rng(9), links = []; for (let k = 0; k + 1 < 5; k++) for (let j = 0; j < 40; j++) { const to = k + 1 + (r() < 0.2 ? Math.min(1, 3 - k) : 0); links.push({ from: `Ünï ${k} <${j}>`, to: `Ünï ${to} <${Math.floor(r() * 40)}>`, value: Math.round((0.05 + r() * 9) * 1000) / 1000 }); }
+  for (let q = 0; q < 12; q++) links.push({ from: `Ünï 4 <${q}>`, to: `Ünï ${q % 3} <${q + 1}>`, value: 2.5 }); return { links }; };
+t('same pictures as river-layout 1.0.0: layout numbers and SVG text, four networks', () => {
+  const got = {
+    'a 7x10 network with 3 loops': fingerprint(net()),
+    'the same with plain (unweighted) order': fingerprint(net(), { unweighted: true }),
+    'a 5x40 network with fractional flows, long links, 12 loops and odd names': fingerprint(fracNet()),
+    'a 10x25 network, fewer restarts, fixed height': fingerprint(synth(10, 25, 5, 5), { restarts: 2, height: 500 }),
+  };
+  Object.keys(PIN).forEach((k) => ok(got[k] === PIN[k], k + ': ' + got[k] + ' (river-layout 1.0.0 gave ' + PIN[k] + ')'));
+});
+t('hand edits keep the order (fixedOrder) and pinned bars (fixY) exactly as before', () => {
+  const R0 = RL.layoutFlows(net(), { budgetMs: 1e9 }), R1 = RL.layoutFlows(net(), { budgetMs: 1e9, fixedOrder: R0.order });
+  ok(JSON.stringify(R1.order.layers) === JSON.stringify(R0.order.layers), 'order kept');
+  const R2 = RL.layoutFlows(net(), { budgetMs: 1e9, fixedOrder: R0.order, fixY: { 'S2 i3': 120, 'S4 i1': 40 } });
+  ok(R2.nodes.find((n) => n.id === 'S2 i3').y === 120 && R2.nodes.find((n) => n.id === 'S4 i1').pinned, 'pinned bars sit where they were put');
+  ok(fnv(RL.toSvg(R1)) + ' ' + fnv(RL.toSvg(R2)) === 'a387c988 4ef018d2', 'svg ' + fnv(RL.toSvg(R1)) + ' ' + fnv(RL.toSvg(R2)));
+});
+t('an item named like a stand-in bar ("d1") with a long link: its bands stack without overlapping', () => {
+  // river-layout 1.0.0 mixed up the band ends of such an item with its own stand-in bar and started a band in the wrong place
+  const R = RL.layoutFlows({ links: [{ from: 'd1', to: 'a', value: 5 }, { from: 'a', to: 'b', value: 5 }, { from: 'd1', to: 'b', value: 7 }, { from: 'd1', to: 'c', value: 2 }, { from: 'c', to: 'b', value: 2 }] });
+  const bar = R.nodes.find((n) => n.id === 'd1'), out = R.bands.filter((b) => b.from === 'd1' && b.x0 === bar.x + bar.w).sort((p, q) => p.y0a - q.y0a);
+  ok(out.length === 3, 'three bands leave d1');
+  for (let i = 1; i < out.length; i++) ok(out[i].y0a >= out[i - 1].y0b - 1e-6, 'bands leaving d1 overlap');
+});
+console.log(bad ? 'netflow-sankey: ' + bad + ' FAILED' : 'netflow-sankey: all passed'); process.exit(bad ? 1 : 0);
