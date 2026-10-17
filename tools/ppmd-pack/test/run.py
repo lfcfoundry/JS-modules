@@ -413,5 +413,16 @@ def t_credit():
 check("the packed page carries a credit to Shkarin, Pavlov and 7-Zip", t_credit)
 
 
+def t_csp_token():
+    head = '<meta http-equiv="Content-Security-Policy" content="script-src \'unsafe-inline\'; img-src data:">'
+    page, info = pack.pack(APP, head=head, check_node=False)
+    assert b"script-src 'unsafe-inline' 'wasm-unsafe-eval'; img-src data:" in page, "the packed page's policy does not carry the token"
+    plain, info = pack.pack(APP, check_node=False)
+    assert b"Content-Security-Policy" not in plain, "a page without a --head policy must not get one"
+
+
+check("a --head page policy gets 'wasm-unsafe-eval' in script-src; a page without one gets no policy", t_csp_token)
+
+
 print("ppmd-pack: %d passed, %d failed, %d skipped" % (passed, failed, skipped))
 sys.exit(1 if failed else 0)

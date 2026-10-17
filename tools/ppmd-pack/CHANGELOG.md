@@ -2,6 +2,11 @@
 
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
+## 1.0.2 · API 1 · 2026-10-17
+Same page-policy rule as lzma-pack 1.1.1: a Content-Security-Policy given with --head now carries 'wasm-unsafe-eval' in script-src (the packer reuses lzma-pack's rewrite). Before: nothing was added or warned about. After: the token is added (1 new check; 24 of 24 packer checks pass, 3 skipped as before), everything else in the policy is unchanged, and a page with no --head policy still gets none. This makes the coming --wasm mode work under a page policy without a manual edit.
+
+Tested in: 24 packer checks pass (3 need tools not present here and are skipped, as before); the policy rewrite is lzma-pack's, shared, and ran in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5 through tests/lzma-wasm-browser.js
+
 ## 1.0.1 · API 1 · 2026-10-17
 Fixed: packing a page failed every time with 'TypeError: Cannot read properties of undefined (reading forEach)' unless you passed --skip-node-check, since lzma-pack 1.1.0 changed the Node check it shares (7 of the 26 tool checks failed). It now asks the shared check for the plain mode only, as before, and reads its list of answers. After the fix: 23 of 23 checks that can run here pass, and the Node check runs again (nothing else changes in the packed page).
 

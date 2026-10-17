@@ -1,8 +1,8 @@
 # ppmd-pack
 
-**Version 1.0.1 · API 1**
+**Version 1.0.2 · API 1**
 
-**Tested in:** tools/ppmd-pack/test/run.py in Python 3 with Node 22.22.0: 23 passed, 0 failed, 3 skipped (no terser or esbuild installed here). Browsers not involved: the fix is in the packer's own Node check.
+**Tested in:** 24 packer checks pass (3 need tools not present here and are skipped, as before); the policy rewrite is lzma-pack's, shared, and ran in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5 through tests/lzma-wasm-browser.js
 
 Turns one HTML file into one smaller, self-unpacking HTML file using PPMd (the "PPMd7" / variant H compressor that 7-Zip offers), and checks a hash of the result before running it. It is the heavier sibling of [`lzma-pack`](../lzma-pack/README.md): the same wrapper page and options, a stronger compressor for text and code, and a bigger, slower decoder. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader). The encoder is pure Python; nothing is compiled and nothing is downloaded.
 
@@ -73,7 +73,7 @@ The example page is only 2.7 KB, so the packed copies are bigger than the origin
 | Option | Meaning |
 |---|---|
 | `--title T` | Title of the wrapper page. |
-| `--head HTML` | Extra HTML for the wrapper's head, for example a Content-Security-Policy meta tag. |
+| `--head HTML` | Extra HTML for the wrapper's head, for example a Content-Security-Policy meta tag. A Content-Security-Policy meta tag in it gets `'wasm-unsafe-eval'` added to its `script-src` (or a `script-src` built from its `default-src` when there is none); nothing else in the policy changes, and a page with no policy gets none. |
 | `--encoding bytes\|base64` | `bytes` (default): smallest, stored raw, wrapper declared windows-1252. `base64`: about a third bigger, safe on any server or editor. |
 | `--order N` | Model order, 2 to 64 (default 12). Higher orders help repetitive pages and cost time. |
 | `--mem BYTES` | Model memory, 2048 and up; a `K` or `M` suffix is accepted (`4M`). Default: the smallest power of two that is at least 8 times the input size, kept between 1 MB and 16 MB. **The page allocates this much memory at start** (and frees it when it is done). The decoder must use the same order and memory as the encoder, so both are written into the loader. |

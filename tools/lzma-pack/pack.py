@@ -285,7 +285,45 @@ def decoder_source():
     return s
 
 
+WASM_TOKEN = "'wasm-unsafe-eval'"
+
+
+def allow_wasm(head):
+    """Adds 'wasm-unsafe-eval' to the script-src of every Content-Security-Policy meta tag in the --head text (the one thing the project allows to be added to a page policy).
+    A policy with no script-src but a default-src gets a script-src made of the default-src sources plus the token; a policy that says nothing about scripts, or already has the token, is left as it is."""
+    def fix_policy(policy):
+        parts = [d.strip() for d in policy.split(";") if d.strip()]
+        names = [d.split(None, 1)[0].lower() for d in parts]
+        if "script-src" in names:
+            i = names.index("script-src")
+            src = parts[i].split()[1:]
+            base = parts[i]
+        elif "default-src" in names:
+            src = parts[names.index("default-src")].split()[1:]
+            base = None
+        else:
+            return policy
+        if WASM_TOKEN in src:
+            return policy
+        src = [t for t in src if t.lower() != "'none'"] + [WASM_TOKEN]
+        rule = "script-src " + " ".join(src)
+        if base is not None:
+            parts[i] = rule
+        else:
+            parts.append(rule)
+        return "; ".join(parts)
+
+    def fix_tag(m):
+        tag = m.group(0)
+        if not re.search(r"http-equiv\s*=\s*[\"']?content-security-policy", tag, re.I):
+            return tag
+        return re.sub(r"(content\s*=\s*)(?:\"([^\"]*)\"|'([^']*)')",
+                      lambda c: c.group(1) + ('"' + fix_policy(c.group(2)) + '"' if c.group(2) is not None else "'" + fix_policy(c.group(3)) + "'"), tag, flags=re.I)
+    return re.sub(r"<meta\b[^>]*>", fix_tag, head, flags=re.I)
+
+
 def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False, bg="auto", check_node=True, minify_pg=False, wasm=False):
+    head = allow_wasm(head)   # every page policy carries 'wasm-unsafe-eval' in script-src
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:
@@ -314,9 +352,6 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
         wasm_bytes = WASM_DECODER.read_bytes()
         if lc + lp > 4:
             raise SystemExit("--wasm: the wasm decoder takes lc + lp up to 4")
-        if re.search(r"content-security-policy", head, re.I) and "wasm-unsafe-eval" not in head:
-            print("note: --head sets a Content-Security-Policy without 'wasm-unsafe-eval' in script-src. Chromium and Firefox then refuse the WebAssembly decoder and "
-                  "the page falls back to the (slower) JavaScript decoder; add 'wasm-unsafe-eval' to script-src to use it.", file=sys.stderr)
     blob = z + wasm_bytes
     if encoding == "bytes":
         key = min(range(256), key=lambda k: len(js_escape(bytes(b ^ k for b in blob))))
