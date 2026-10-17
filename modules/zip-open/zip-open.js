@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -184,11 +184,31 @@
   function u32(d, o) { return d.getUint32(o, true); }
   function u64(d, o) { var lo = d.getUint32(o, true), hi = d.getUint32(o + 4, true); return hi > 0x1fffff ? Infinity : lo + hi * 4294967296; }
 
-  var CRC_T = null;
+  var CRC_T = null, LE = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+  /** CRC-32 (the zip checksum). "Slicing by 8": eight table lookups handle eight bytes at once, and where the bytes sit on a 4-byte boundary they are read as whole words. */
   function crc32(u8) {
-    if (!CRC_T) { CRC_T = new Int32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1; CRC_T[n] = c; } }
-    var crc = -1, t = CRC_T;
-    for (var i = 0, L = u8.length; i < L; i++) crc = (crc >>> 8) ^ t[(crc ^ u8[i]) & 255];
+    var t = CRC_T, n, c, k, i;
+    if (!t) {   // table 0 is the classic one; table j holds the effect of a byte followed by j zero bytes
+      t = CRC_T = new Int32Array(2048);
+      for (n = 0; n < 256; n++) { c = n; for (k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1; t[n] = c; }
+      for (n = 0; n < 256; n++) { c = t[n]; for (k = 1; k < 8; k++) { c = t[c & 255] ^ (c >>> 8); t[k * 256 + n] = c; } }
+    }
+    var crc = -1, L = u8.length, hi;
+    i = 0;
+    if (LE && L >= 8 && typeof u8.byteOffset === 'number' && (u8.byteOffset & 3) === 0) {
+      var w = new Int32Array(u8.buffer, u8.byteOffset, L >> 2), j = 0, e = (L >> 3) << 1;
+      for (; j < e; j += 2) {
+        crc ^= w[j]; hi = w[j + 1];
+        crc = t[1792 + (crc & 255)] ^ t[1536 + ((crc >>> 8) & 255)] ^ t[1280 + ((crc >>> 16) & 255)] ^ t[1024 + (crc >>> 24)] ^ t[768 + (hi & 255)] ^ t[512 + ((hi >>> 8) & 255)] ^ t[256 + ((hi >>> 16) & 255)] ^ t[hi >>> 24];
+      }
+      i = j << 2;
+    } else {
+      for (var e2 = L - 7; i < e2; i += 8) {
+        crc ^= u8[i] | u8[i + 1] << 8 | u8[i + 2] << 16 | u8[i + 3] << 24;
+        crc = t[1792 + (crc & 255)] ^ t[1536 + ((crc >>> 8) & 255)] ^ t[1280 + ((crc >>> 16) & 255)] ^ t[1024 + (crc >>> 24)] ^ t[768 + u8[i + 4]] ^ t[512 + u8[i + 5]] ^ t[256 + u8[i + 6]] ^ t[u8[i + 7]];
+      }
+    }
+    for (; i < L; i++) crc = (crc >>> 8) ^ t[(crc ^ u8[i]) & 255];
     return (crc ^ -1) >>> 0;
   }
   function isZip(u8) { return u8 && u8.length >= 4 && u8[0] === 0x50 && u8[1] === 0x4b && (u8[2] === 3 || u8[2] === 5) && (u8[3] === 4 || u8[3] === 6); }
