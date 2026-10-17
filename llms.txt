@@ -22,7 +22,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 
 ## Games: Looks and effects
 - [stage-curtains](https://github.com/lfcfoundry/JS-modules/blob/main/modules/stage-curtains/README.md): Velvet stage curtains that slide shut over a page, then fly open. (global StageCurtains) Version 1.0.0, API 1.
-- [fly-to-mini](https://github.com/lfcfoundry/JS-modules/blob/main/modules/fly-to-mini/README.md): A big element scrolls away and a copy flies to its sticky mini version (and back). (global FlyToMini) Version 1.1.0, API 1.
+- [fly-to-mini](https://github.com/lfcfoundry/JS-modules/blob/main/modules/fly-to-mini/README.md): A big element scrolls away and a copy flies to its sticky mini version (and back). (global FlyToMini) Version 1.2.0, API 1.
 - [sticker-text](https://github.com/lfcfoundry/JS-modules/blob/main/modules/sticker-text/README.md): Die-cut sticker lettering in plain CSS text-shadow rings, no images. (global StickerText) Version 1.0.0, API 1.
 - [sprite-baker](https://github.com/lfcfoundry/JS-modules/blob/main/modules/sprite-baker/README.md): Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. (global SpriteBaker) Version 1.2.0, API 1.
 - [cartoon-3d-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/cartoon-3d-kit/README.md): A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG. Version 1.0.0, API 1.
