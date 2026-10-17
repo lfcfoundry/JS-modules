@@ -2,7 +2,7 @@
  * memory-compression-jso.js: keep big piles of plain JavaScript objects packed in memory, and bring them back exactly, fast.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.1.1 (API 1)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file)
  *  - pack(value) / unpack(bytes): any JSON-like value (and Date, Map, Set, typed arrays, BigInt, RegExp, undefined, NaN, -0) to a small

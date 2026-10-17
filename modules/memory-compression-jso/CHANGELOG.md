@@ -2,6 +2,11 @@
 
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
+## 1.1.1 · API 1 · 2026-10-17
+Packing a text column in WebKit is about 0.8 to 1.6 ms faster per pack (smaller is better) because a shortcut that cost time there was removed; no change in V8 (Chromium, Node), same bytes written, same file size. The README figures were refreshed (msgpackr in WebKit: 1.5 to 2.4 times slower, was 1.7 to 2.3).
+
+Tested in: Node 22; Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (research thread's runs of 1.1.0 build, same bytes)
+
 ## 1.1.0 · API 1 · 2026-10-17
 New: text patterns. Strings that follow a pattern ('user7@example.org', '2025-03-05T04:15:00Z', 'Item 12 flow') are stored as the pattern once plus a column of numbers. Files are smaller: 50,000 user records 1.080 MB to 0.764 MB (29% smaller), 200,000 log events 2.481 MB to 1.670 MB (33% smaller), 100,000 scene items 2.652 MB to 2.099 MB (21% smaller); number-only sets such as the 300,000 links stay at 7.854 MB. Small mode packs the events 1.5 times faster (174 ms to 117 ms, Node). In a browser the extra step makes text-heavy packing about 1 to 4 ms slower at 10,000 to 40,000 rows (for example 6.3 ms to 7.7 ms in Firefox 158.0); pack(x, {patterns: false}) skips it and gives the old speed back.
 New: shared objects stored by column. With refs: true, 100,000 items and 300,000 links that point at the item objects come out at 2.49 MB instead of 5.78 MB (2.3 times smaller) and pack in 228 ms instead of 484 ms (2.1 times faster); unpack 122 ms instead of 166 ms. msgpackr with its structure-clone option needs 11.49 MB for the same graph.
