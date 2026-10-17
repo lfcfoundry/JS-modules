@@ -1,12 +1,12 @@
 # zip-open
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node checks; the demo page in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time (`tests/flow-demos.js`, 2026-10-17; WebKitGTK 2.52.6 through `tools/webkit-driver`). Not run: GNOME Web (Epiphany) 46.5, a phone.
+**Tested in:** Node 22.22.0 module test (15 checks passed) and tests/zip-open-crc-browser.js, one browser at a time: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, each giving the same 814 checksums as a plain bit-by-bit CRC (0 different). Not run: a phone.
 
 Opens `.zip` and Excel `.xlsx` files safely, in the browser or in Node. Text files come out as strings, every Excel sheet comes out as CSV text, and every problem is a note in plain words. About 26 KB (9.0 KB gzipped), no dependencies. Cut from Netflow Map's file opener.
 
-**Test it:** `node modules/zip-open/test/run.js` (14 checks, including zip bombs, bad checksums, cut-off files, lying offsets and zips inside zips; about 2.6 s). **Try it:** `demo.html` (drop a file, or press the bomb button).
+**Test it:** `node modules/zip-open/test/run.js` (15 checks, including zip bombs, bad checksums, cut-off files, lying offsets and zips inside zips; about 2.6 s). **Try it:** `demo.html` (drop a file, or press the bomb button).
 
 ## Use
 ```js
