@@ -19,6 +19,10 @@ var steps = [
   ['fx-governor', 'node', ['modules/fx-governor/test/run.js']],
   ['hold-press', 'node', ['modules/hold-press/test/run.js']],
   ['back-close node', 'node', ['modules/back-close/test/run.js']],
+  ['gif-writer', 'node', ['modules/gif-writer/test/run.js']],
+  ['zip-open', 'node', ['modules/zip-open/test/run.js']],
+  ['river-layout', 'node', ['modules/river-layout/test/run.js']],
+  ['walker-sim', 'node', ['modules/walker-sim/test/run.js']],
   ['pad-nav node', 'node', ['modules/pad-nav/test/run.js']],
   ['save-kit', 'node', ['modules/save-kit/test/run.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
@@ -40,6 +44,7 @@ var steps = [
   ['canvas-probe browser', 'python3', ['tools/canvas-probe/test/browser.py'], true],
   ['storage-probe browser', 'python3', ['tools/storage-probe/test/run.py'], true],
   ['firefox-stand-in', 'python3', ['tools/firefox-stand-in/test/run.py'], true, true],   // optional: skipped (exit code 2) when Selenium, Firefox or geckodriver is missing
+  ['flow demos', 'node', ['tests/flow-demos.js'], true, true],   // optional like the next one (needs puppeteer-core and CHROMIUM or FIREFOX)
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fifth item: optional, skipped when puppeteer-core or Firefox is missing (exit code 2)
 ];
 var failed = 0;

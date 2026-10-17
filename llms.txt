@@ -34,6 +34,12 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [lzma-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/lzma-decode/README.md): Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. (global lzmaDecode) Version 1.0.0, API 1.
 - [ppmd-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/ppmd-decode/README.md): A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. (global ppmd7Decode) Version 1.0.0, API 1.
 
+## Games: Files, charts and simulation
+- [gif-writer](https://github.com/lfcfoundry/JS-modules/blob/main/modules/gif-writer/README.md): Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation). Version 1.0.0, API 1.
+- [zip-open](https://github.com/lfcfoundry/JS-modules/blob/main/modules/zip-open/README.md): Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note. Version 1.0.0, API 1.
+- [river-layout](https://github.com/lfcfoundry/JS-modules/blob/main/modules/river-layout/README.md): Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer. Version 1.0.0, API 1.
+- [walker-sim](https://github.com/lfcfoundry/JS-modules/blob/main/modules/walker-sim/README.md): Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 1.75 million walkers a second). Version 1.0.0, API 1.
+
 ## Story editor: Story data (in https://github.com/lfcfoundry/story-editor, generated from the Story Editor's sources)
 - [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md): Create, clean, search, import and export interactive stories as JSON, with a JSON Schema. Twine import lives in twine-import.
 - [twine-import](https://github.com/lfcfoundry/story-editor/blob/main/packages/twine-import/README.md): Reads Twine stories (Twine 2 HTML, Twee 3, Twine 1) and turns SugarCube and Harlowe code into rules, with a plain-words report.
