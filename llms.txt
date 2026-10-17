@@ -49,7 +49,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 ## Tools for games: Size and packaging
 - [lzma-pack](https://github.com/lfcfoundry/JS-modules/blob/main/tools/lzma-pack/README.md): Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library). Version 1.0.0, API 1.
 - [ppmd-pack](https://github.com/lfcfoundry/JS-modules/blob/main/tools/ppmd-pack/README.md): Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data. Version 1.0.0, API 1.
-- [single-file-tools](https://github.com/lfcfoundry/JS-modules/blob/main/tools/single-file-tools/README.md): Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games. Version 1.0.0, API 1.
+- [single-file-tools](https://github.com/lfcfoundry/JS-modules/blob/main/tools/single-file-tools/README.md): Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games. Version 1.1.0, API 1.
 
 ## Tools for games: Testing
 - [fuzz-kit](https://github.com/lfcfoundry/JS-modules/blob/main/tools/fuzz-kit/README.md): Seeded, reproducible random-input fuzzer engine with weighted operations, invariants, liveness checks and failure shrinking; Playwright and Puppeteer runners with real input and CPU throttling; stock-Firefox recipe; test-hook stripper. Version 1.0.0, API 1.

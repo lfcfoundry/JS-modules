@@ -137,7 +137,8 @@ else:
             assert want in cm, "glyph U+%X was dropped" % want
         for gone in (0x416, 0x2665, 0x263A):
             assert gone not in cm, "unused glyph U+%X was kept" % gone
-        assert re.search(r"font-family:\s*'TestFont'", out) and "format('truetype')" in out
+        assert re.search(r"font-family:\s*'TestFont'", out) and ("format('%s')" % FMT) in out and "format('truetype')" not in out, "the format() hint must match the bytes"
+        assert ("data:font/%s;base64," % FMT) in out, "the data: URL type must match the bytes"
         assert out.count("<svg") == fixture(FONT).decode().count("<svg"), "markup changed"
         assert "characters kept" in r.stdout
 
@@ -169,6 +170,16 @@ else:
         assert 0x416 in font_cmaps(dst.read_text(encoding="utf-8"))[0].getBestCmap(), "--extra no longer keeps a glyph"
 
     check("optfonts --extra still keeps a glyph", t_extra)
+
+    def t_missing_and_costs():
+        dst = TMP / "page.costs.html"
+        r = run_optfonts(src, dst, "--extra", "\u00f1\u00fc", "--costs"); assert r.returncode == 0, r.stderr[-400:]
+        assert "does not have" in r.stdout and "U+00F1" in r.stdout and "U+00FC" in r.stdout, "characters the font lacks are not listed: " + r.stdout
+        assert "U+0041" not in r.stdout.split("does not have")[1].split("\n")[0], "plain ASCII must not be listed as missing"
+        assert re.search(r"feature (kern|liga|ccmp) costs \d+ bytes", r.stdout) and len(re.findall(r"feature \w+ costs", r.stdout)) == 13, "--costs must list every default feature: " + r.stdout
+        r2 = run_optfonts(src, TMP / "page.nocosts.html"); assert "feature " not in r2.stdout, "costs must only appear with --costs"
+
+    check("optfonts --report lists characters the font lacks, --costs lists each layout feature's bytes (only when asked)", t_missing_and_costs)
 
     def t_nobrotli():
         if HAVE_BROTLI:
@@ -234,6 +245,25 @@ else:
         assert out.count('data-opt="1"') == 1, "the whole outer picture should be one unit: " + out
 
     check("optsvg: an svg nested in an svg is one picture", t_svg_nested)
+
+    def t_svg_hard():
+        doc = ('<p>a</p><svg id="st" width="9"><style>.x{fill:red}</style><rect class="x"/></svg>'      # a style inside: one picture, handled
+               '<p>b</p><svg id="sc" width="9"><script>var q=1</script><rect/></svg>'                     # a script inside: left alone, said so
+               '<p>c</p><svg id="ok" width="9"><rect/></svg>'                                             # after the two above: still handled
+               '<p>d</p><svg id="open" width="9"><rect/>')                                                # never closed: left alone, said so
+        sp3 = TMP / "hard.html"; sp3.write_text(doc, encoding="utf-8")
+        env = dict(os.environ, NODE_PATH=str(TMP / "stub" / "node_modules"))
+        r = run([NODE, str(HERE / "optsvg.js"), str(sp3), str(TMP / "hard.out.html")], env=env); assert r.returncode == 0, r.stderr
+        out = (TMP / "hard.out.html").read_text(encoding="utf-8")
+        assert out.count('data-opt="1"') == 2, "the picture with a style and the one after the script picture should both be handled: " + out
+        assert '<svg id="sc" width="9"><script>var q=1</script><rect/></svg>' in out, "a picture with a script inside must be left byte for byte"
+        assert out.endswith('<svg id="open" width="9"><rect/>'), "an unclosed picture must be left as written"
+        assert "2 left alone" in r.stdout and "2 pictures could not be read" in r.stdout and "script inside" in r.stdout and "never closed" in r.stdout, \
+            "skipped pictures must be listed without --report: " + r.stdout
+        r = run([NODE, str(HERE / "optsvg.js"), str(sp3), str(TMP / "hard.out2.html"), "--report"], env=env)
+        assert "gzip at level 9: whole file" in r.stdout and "picture 1" in r.stdout, "--report must print the gzip numbers: " + r.stdout
+
+    check("optsvg: a picture with a style inside is handled, one with a script or no end is left alone and listed, later pictures still run, --report prints gzip numbers", t_svg_hard)
 
     if HAVE_SVGO:
         def t_svg_real():
@@ -388,6 +418,85 @@ if NODE:
 else:
     skip("loader behavior", "Node.js not found")
 
+
+# ---- bytes mode (--encoding bytes): raw bytes in a windows-1252 page ----------------------------------------------------------------------
+def js_text_1252(page):
+    """The page bytes the way a browser reads them with charset windows-1252: one character per byte (0x80-0x9f by the WHATWG table)."""
+    lz = pk._lzma_helpers()
+    return "".join(chr(b) if b < 128 or b >= 160 else chr(lz.CP1252_HI[b - 128]) for b in page)
+
+
+def bytes_loader_results(cases):
+    """cases: (gzip bytes, old browser?, how the server reads the page: 'cp1252' or 'utf8'). Runs the page's two scripts in Node."""
+    payload = []
+    for gz, old, charset in cases:
+        page = pk.build_page_bytes(gz, "Loading")
+        text = js_text_1252(page) if charset == "cp1252" else page.decode("utf-8", "replace")
+        scripts = re.findall(r"<script>(.*?)</script>", text, re.S)
+        assert len(scripts) == 2, "expected the payload script and the loader script, got %d" % len(scripts)
+        scripts[0] = scripts[0].replace(pk.PAYLOAD_NAME + '="', "window." + pk.PAYLOAD_NAME + '="', 1)
+        payload.append({"script": scripts[0] + ";" + scripts[1], "old": old})
+    r = subprocess.run([NODE, "-e", HARNESS], input=json.dumps({"cases": payload}).encode(), capture_output=True, timeout=120)
+    assert r.returncode == 0, r.stderr.decode()[-300:]
+    return json.loads(r.stdout.decode())
+
+
+def t_bytes_loader():
+    import random
+    rnd = random.Random(7)
+    # every byte value (so every escape and the windows-1252 gaps are used) plus a page that has to come back exactly
+    big = bytes(rnd.randrange(256) for _ in range(4000))
+    raw = b"<!doctype html><title>x</title><p>caf\xc3\xa9 \xe2\x98\x83 </p><script>var a='</script' + '>'</script><!-- --> " + big.hex().encode()
+    good = gzip.compress(raw)
+
+    flipped = bytearray(good); flipped[len(flipped) // 2] ^= 0xFF
+    res = bytes_loader_results([(good, False, "cp1252"), (bytes(flipped), False, "cp1252"), (good[: len(good) // 2], False, "cp1252"),
+                                (good, True, "cp1252"), (good, False, "utf8")])
+    assert res[0].get("written") == raw.decode("utf-8"), "a good bytes-mode file did not unpack: %s" % str(res[0])[:300]
+    for k, what in ((1, "changed bytes"), (2, "a cut-off file")):
+        assert res[k].get("written") is None and res[k]["message"] == pk.DAMAGED_MSG, "%s: %s" % (what, res[k])
+    assert res[3]["message"] == pk.OLD_MSG and res[3]["written"] is None, res[3]
+    # a server that forces charset=utf-8: the page must say it could not be unpacked, never write wrong text
+    assert res[4].get("written") is None and res[4]["message"] == pk.DAMAGED_MSG, "utf-8 forced: %s" % str(res[4])[:300]
+
+
+def t_bytes_page_shape():
+    import random
+    rnd = random.Random(3)
+    gz = zlib_gz(bytes(rnd.randrange(256) for _ in range(6000)))
+    b = pk.build_page_bytes(gz, "T <b>")
+    assert b'<meta charset="windows-1252">' in b and b"&lt;b&gt;" in b, "meta charset or escaped title missing"
+    assert b"&#8230;" in b and all(c < 128 for c in b.split(b"<script>")[0]), "the part before the payload must be plain ASCII"
+    assert len(b) < len(pk.build_page(gz).encode("utf-8")) * 0.85, "bytes mode is not clearly smaller: %d vs %d" % (len(b), len(pk.build_page(gz)))
+    src = b.split(b"<script>")[-1]
+    assert b"async" not in src and b"=>" not in src and b"let " not in src and b"const " not in src and b"`" not in src, "bytes loader must be plain ES5"
+    assert pk.PAYLOAD_NAME.encode() + b"=" in b and b"delete window." + pk.PAYLOAD_NAME.encode() in b, "the payload global must be deleted by the loader"
+
+
+def t_best_key():
+    import random
+    lz = pk._lzma_helpers()
+    for seed, size, bias in ((1, 3000, None), (2, 5000, 60), (3, 800, 0), (4, 4000, 92)):
+        rnd = random.Random(seed)
+        data = bytes(rnd.randrange(256) if bias is None or rnd.random() < 0.8 else bias for _ in range(size))
+        slow = min(range(256), key=lambda k: len(lz.js_escape(bytes(b ^ k for b in data))))
+        assert pk._best_key(data) == slow, "fast key search disagrees with trying every key (seed %d)" % seed
+    assert pk._best_key(b"") in range(256)
+
+
+check("bytes mode: the fast key search picks the same XOR key as trying all 256 with js_escape", t_best_key)
+
+
+def zlib_gz(raw):
+    return gzip.compress(raw)
+
+
+if NODE:
+    check("bytes mode: unpacks exactly, calls damaged files damaged, and fails safely when the server forces utf-8 (run in Node)", t_bytes_loader)
+else:
+    skip("bytes-mode loader behavior", "Node.js not found")
+check("bytes mode: windows-1252 page, ASCII head, escaped title, at least 15% smaller, plain ES5, payload global deleted", t_bytes_page_shape)
+
 try:
     import zopfli  # noqa: F401
     def t_cli():
@@ -401,6 +510,19 @@ try:
         r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "z3.small.html"), "--bg", "red;}</style>"]); assert r.returncode == 0, r.stderr
         assert "not a plain color" in r.stderr and "background:#101018" in (TMP / "z3.small.html").read_text(encoding="utf-8"), "a bad --bg must fall back and say so"
     check("pack.py command line, with zopfli (title, --bg, bad --bg)", t_cli)
+
+    def t_cli_modes():
+        d = TMP / "m.html"; d.write_bytes(RAW)
+        for flag, passes in (([], 15), (["--fast"], 5), (["--best"], 60), (["--passes", "9"], 9)):
+            r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "m.small.html"), "T"] + flag); assert r.returncode == 0, r.stderr
+            assert ("%d Zopfli passes" % passes) in r.stdout and "base64" in r.stdout, "%s: %s" % (flag, r.stdout)
+        r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "m.bytes.html"), "T", "--encoding", "bytes"]); assert r.returncode == 0, r.stderr
+        raw_page = (TMP / "m.bytes.html").read_bytes()
+        assert b'charset="windows-1252"' in raw_page and "bytes" in r.stdout and "charset=utf-8" in r.stderr, "bytes mode did not say what it is: " + r.stdout + r.stderr
+        for bad in (["--encoding", "rot13"], ["--encoding"], ["--passes", "0"], ["--passes", "x"], ["--passes"]):
+            r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "bad.html"), "T"] + bad); assert r.returncode != 0 and "Traceback" not in r.stderr, "%s: %s" % (bad, r.stderr[-200:])
+
+    check("pack.py command line: --fast, --best, --passes, --encoding bytes, and clear errors for bad values", t_cli_modes)
 except ImportError:
     skip("pack.py command line with zopfli", "zopfli is not installed: pip install zopfli")
     r = run([sys.executable, str(HERE / "pack.py"), str(TMP / "page.html" if (TMP / "page.html").exists() else __file__), str(TMP / "o.html")])
