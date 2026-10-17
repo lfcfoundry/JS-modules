@@ -26,9 +26,10 @@ function build(file, i) {
   t = /<head[^>]*>/i.test(t) ? t.replace(/<head[^>]*>/i, m => m + mark) : t.replace(/^(<!doctype[^>]*>)?/i, m => m + mark);
   const src = path.join(tmp, 'in' + i + '.html'); fs.writeFileSync(src, t);
   const v = {};
-  const pk = (name, args) => { const out = path.join(tmp, name + i + '.html'); execFileSync('python3', [root + 'tools/lzma-pack/pack.py', src, out, '--title', 'x', '--skip-node-check'].concat(args), { env: Object.assign({}, process.env), stdio: ['ignore', 'pipe', 'inherit'] }); v[name] = out; return fs.statSync(out).size; };
+  const pk = (name, args, strip) => { const out = path.join(tmp, name + i + '.html'); execFileSync('python3', [root + 'tools/lzma-pack/pack.py', src, out, '--title', 'x', '--skip-node-check'].concat(args), { env: Object.assign({}, process.env), stdio: ['ignore', 'pipe', 'inherit'] }); if (strip) fs.writeFileSync(out, fs.readFileSync(out, 'latin1').replace(" 'wasm-unsafe-eval'", ''), 'latin1');   // the packer adds the token to every policy; cut it out again to see the fallback
+    v[name] = out; return fs.statSync(out).size; };
   const sizes = { plain: pk('plain', ['--head', COUNT]), wasm: pk('wasm', ['--wasm', '--head', COUNT]),
-    blocked: pk('blocked', ['--wasm', '--head', CSP_NO + COUNT]), allowed: pk('allowed', ['--wasm', '--head', CSP_OK + COUNT]) };
+    blocked: pk('blocked', ['--wasm', '--head', CSP_NO + COUNT], true), allowed: pk('allowed', ['--wasm', '--head', CSP_OK + COUNT]), carried: pk('carried', ['--wasm', '--head', CSP_NO + COUNT]) };   // carried: a policy without the token, as given; the packer adds it
   return { name: path.basename(path.dirname(path.resolve(file))), input: fs.statSync(file).size, files: v, sizes };
 }
 const built = pages.map(build);
@@ -76,7 +77,7 @@ async function decodeOnce(b, which) {
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     console.log('Browser: ' + await b.version());
     for (const pg of built) {
-      const names = pg === built[0] ? ['plain', 'wasm', 'blocked', 'allowed'] : ['plain', 'wasm'], runs = pg === built[0] ? RUNS : Math.min(RUNS, 5);
+      const names = pg === built[0] ? ['plain', 'wasm', 'blocked', 'allowed', 'carried'] : ['plain', 'wasm'], runs = pg === built[0] ? RUNS : Math.min(RUNS, 5);
       const res = {}; names.forEach(n => res[n] = { t: [], w: [], bad: 0 });
       for (let r = 0; r < runs; r++) for (const n of names) {     // alternate the variants so slow drift and warm-up hit all of them alike
         const x = await load(b, pg.files[n]);
@@ -89,7 +90,7 @@ async function decodeOnce(b, which) {
         const used = R.w.length && R.w.every(w => w >= 1), none = R.w.every(w => w === 0);
         if (n === 'plain' || n === 'blocked') ok(n, n === 'plain' ? none : true, 'used WebAssembly');
         if (n === 'blocked' && !none) console.log('  note ' + pg.name + ': this browser does not refuse WebAssembly under a policy without wasm-unsafe-eval, so the fallback was not exercised here (the page still opened)');
-        if (n === 'wasm' || n === 'allowed') ok(n, used, 'the WebAssembly decoder did not run');
+        if (n === 'wasm' || n === 'allowed' || n === 'carried') ok(n, used, 'the WebAssembly decoder did not run');
       }
       const base = med(res.plain.t);
       console.log('  ' + pg.name + ' (' + runs + ' loads each, alternating; ms until the unpacked page starts, smaller is better)');

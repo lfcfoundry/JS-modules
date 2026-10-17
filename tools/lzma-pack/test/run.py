@@ -346,5 +346,24 @@ def t_wasm_missing():
 
 check("--wasm without the built decoder file says how to build it", t_wasm_missing)
 
+def t_csp_token():
+    a = pack.allow_wasm
+    tok = "'wasm-unsafe-eval'"
+    got = a('<meta http-equiv="Content-Security-Policy" content="script-src \'unsafe-inline\'; img-src data:">')
+    assert got == '<meta http-equiv="Content-Security-Policy" content="script-src \'unsafe-inline\' ' + tok + '; img-src data:">', got   # added, everything else untouched
+    assert a(got) == got, "adding twice changed the policy"
+    assert a("<meta http-equiv='content-security-policy' content=\"script-src 'self'\">").count(tok) == 1, "case or quote style missed"
+    d = a('<meta http-equiv="Content-Security-Policy" content="default-src \'self\' data:">')
+    assert "default-src 'self' data:; script-src 'self' data: " + tok in d, d   # no script-src: one made from default-src, so nothing else gets looser
+    n = a('<meta http-equiv="Content-Security-Policy" content="script-src \'none\'">')
+    assert "script-src " + tok in n and "'none'" not in n, n
+    plain = '<base href="x/"><meta name="viewport" content="script-src"><meta http-equiv="Content-Security-Policy" content="img-src data:">'
+    assert a(plain) == plain, "a policy with nothing about scripts, or other tags, must not change"
+    page, info = pack.pack(b"<!doctype html><title>t</title><p>hi</p>", head='<meta http-equiv="Content-Security-Policy" content="script-src \'unsafe-inline\'">', check_node=False)
+    assert tok.encode() in page, "the packed page does not carry the token"
+
+
+check("a --head page policy gets 'wasm-unsafe-eval' in script-src, and nothing else changes", t_csp_token)
+
 print("lzma-pack: %d passed, %d failed, %d skipped" % (passed, failed, skipped))
 sys.exit(1 if failed else 0)
