@@ -6,12 +6,12 @@
   // one column per key (a "shape"); arrays as lengths plus one flattened column. Each numeric column then goes through the
   // core's byte shuffle and LZ4/deflate stage. Anything irregular falls back to a plain tagged encoding.
 
-  var JSO_VERSION = 2;                            // 2: a record column list starts with a directory of sizes so one column can be read alone; version 1 files are still read
+  var JSO_VERSION = 3;                            // 2: a record column list starts with a directory of sizes so one column can be read alone; version 1 files are still read
   var T_UNDEF = 0, T_NULL = 1, T_FALSE = 2, T_TRUE = 3, T_INT = 4, T_F64 = 5, T_STR = 6, T_STR16 = 7, T_ARR = 8, T_OBJ = 9, T_OBJ0 = 10,
     T_COLS = 11, T_BIGINT = 12, T_DATE = 13, T_TYPED = 14, T_ABUF = 15, T_MAP = 16, T_SET = 17, T_REF = 18, T_REGEX = 19;
   var CT_CONST = 0, CT_INT = 1, CT_DEC = 2, CT_F32 = 3, CT_F64 = 4, CT_BOOL = 5, CT_STRD = 6, CT_STRR = 7, CT_NULLABLE = 8,
-    CT_ARRAYS = 9, CT_TUPLE = 10, CT_RECORDS = 11, CT_ANY = 12, CT_TEMPLATE = 13, CT_REFS = 14, CT_REFRECS = 15;
-  var MIN_COLUMN = 16, MAX_TEMPLATES = 32, MAX_SLOTS = 32, MAX_SHAPES = 16, MAX_FUSED_KEYS = 64, MAX_DEPTH = 400, RAW_LIMIT = 48, DEFAULT_MAX_ITEMS = 100000000;
+    CT_ARRAYS = 9, CT_TUPLE = 10, CT_RECORDS = 11, CT_ANY = 12, CT_TEMPLATE = 13, CT_REFS = 14, CT_REFRECS = 15, CT_TIMES = 16, CT_FSST = 17, CT_PCO = 18;
+  var MIN_COLUMN = 16, MAX_TEMPLATES = 32, MAX_SLOTS = 32, MAX_SHAPES = 16, MAX_FUSED_KEYS = 64, MAX_DEPTH = 400, RAW_LIMIT = 48, PCO_MIN = 4096, DEFAULT_MAX_ITEMS = 100000000;
   var TYPED_CTORS = [Uint8Array, Int8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array];
   var G = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : {};
   var OP = Object.prototype, TEXT_ENC = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null, TEXT_DEC = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { ignoreBOM: true }) : null;
@@ -19,6 +19,27 @@
   var P10 = [1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000, 10000000000];
   var CAN_EVAL = (function () { try { return new Function('return 1')() === 1; } catch (e) { return false; } })();
   var GEN_CACHE = {}, GEN_COUNT = 0, GEN_LIMIT = 500;                 // generated helpers, kept per layout; forgotten all at once past 500 so odd inputs cannot grow it forever
+  // Number columns taken from a small pool of Float64Arrays that pack() hands back when it is done, so a second pack of similar data allocates (and has zeroed) no new column memory.
+  // The pool keeps at most POOL_MAX bytes between calls; freeBuffers() empties it, pack(x, {pool: false}) leaves it alone.
+  var POOL = [], POOL_BYTES = 0, POOL_MAX = 48000000, POOL_ON = true;
+  function takeF64(n) {
+    var best = -1, bl = Infinity, i, a, l;
+    if (POOL_ON) for (i = 0; i < POOL.length; i++) { l = POOL[i].length; if (l >= n && l < bl && l <= n * 2) { best = i; bl = l; } }
+    if (best < 0) return new Float64Array(n);
+    a = POOL.splice(best, 1)[0]; POOL_BYTES -= a.byteLength;
+    return a.length === n ? a : a.subarray(0, n);
+  }
+  function giveF64(cols) {
+    var i, c, a;
+    if (!POOL_ON) return;
+    for (i = 0; i < cols.length; i++) {
+      c = cols[i];
+      if (!(c instanceof Float64Array) || c.byteOffset !== 0 || c.buffer.byteLength < 4096 || POOL_BYTES + c.buffer.byteLength > POOL_MAX || POOL.length >= 16) continue;
+      a = c.length === c.buffer.byteLength / 8 ? c : new Float64Array(c.buffer);
+      POOL.push(a); POOL_BYTES += a.byteLength;
+    }
+  }
+  function freeBuffers() { POOL = []; POOL_BYTES = 0; }
   function genStore(sig, f) { if (GEN_COUNT >= GEN_LIMIT) { GEN_CACHE = {}; LEARNED = {}; GEN_COUNT = 0; } GEN_CACHE[sig] = f; GEN_COUNT++; }
 
   function jfail(m) { throw new Error('MemoryCompressionJSO: ' + m); }
@@ -132,6 +153,8 @@
     this.mode = opts && opts.mode === 'small' ? 'small' : 'fast';
     this.level = opts && opts.level;
     this.refs = !!(opts && opts.refs);
+    this.pco = opts && opts.pco ? pcoCodec(opts.pco) : null;             // opt-in: number columns of 4096 or more may be stored by Pcodec when that is smaller (needs memory-compression-jso-pco.js)
+    this.fsst = !!(opts && opts.fsst);                                  // opt-in: text columns may be stored as FSST codes (any one string readable alone); costs training time
     this.patterns = !(opts && opts.patterns === false);                 // text patterns on by default; off saves time on text-heavy data at the cost of size
     this.float32 = !!(opts && opts.float32);                       // opt-in and lossy: columns of fractions that need 8 bytes each are kept in 4
     this.seen = this.refs ? new Map() : null;
@@ -142,11 +165,15 @@
     if (opts && opts.wasm === false) this.mcOpts.wasm = false;
     this.blobBytes = 0;
   }
-  Enc.prototype.blob = function (t, name) {      // t: a typed array. Raw when tiny, else packed by the core when that is smaller
+  function pcoCodec(x) {                         // the add-on's codec object, checked once
+    if (typeof x.compress !== 'function' || typeof x.decompress !== 'function') jfail('the pco option must be the object from memory-compression-jso-pco.js (load() or loadSync())');
+    return x;
+  }
+  Enc.prototype.blob = function (t, name, pre) {      // t: a typed array. Raw when tiny, else packed by the core when that is smaller (pre: that packed form, when the caller already made it)
     var o = this.blobs, raw = t.length * t.BYTES_PER_ELEMENT, packed, start = o.pos();
     if (raw < RAW_LIMIT) { o.u8(0); rawPut(o, t); }
     else {
-      packed = MC.pack(t, this.mcOpts);
+      packed = pre || MC.pack(t, this.mcOpts);
       if (packed.length < raw) { o.u8(1); o.varint(packed.length); o.bytes(packed); }
       else { o.u8(2); rawPut(o, t); }
     }
@@ -316,10 +343,32 @@
     this.blob(kind, 'nulls');
     if (m > 0) this.column(compact, m);
   };
-  Enc.prototype.intData = function (vals, n, min, max) {      // CT_INT body: width, base, packed offsets. Caller checked max - min < 2^32
-    var range = max - min, w = range < 256 ? 1 : range < 65536 ? 2 : 4, i, t = w === 1 ? new Uint8Array(n) : w === 2 ? new Uint16Array(n) : new Uint32Array(n);
+  // CT_INT body: width, base, packed offsets. Caller checked max - min < 2^32. With a tag (CT_INT, or CT_DEC with its scale e) this writes the tag too, and
+  // a column of 4096 or more is also tried with Pcodec when the pco option is on: the smaller one is kept.
+  Enc.prototype.intData = function (vals, n, min, max, tag, e) {
+    var range = max - min, w = range < 256 ? 1 : range < 65536 ? 2 : 4, i, t = w === 1 ? new Uint8Array(n) : w === 2 ? new Uint16Array(n) : new Uint32Array(n), pre = null, src, c = this.ctl;
     for (i = 0; i < n; i++) t[i] = vals[i] - min;
-    this.ctl.u8(w); this.ctl.zigzag(min); this.blob(t, 'ints');
+    if (tag !== undefined) {
+      if (this.pco && n >= PCO_MIN) {
+        pre = MC.pack(t, this.mcOpts);
+        if (min >= -2147483648 && max <= 2147483647) { src = new Int32Array(n); for (i = 0; i < n; i++) src[i] = vals[i]; }
+        else if (vals instanceof Float64Array) src = vals;
+        else { src = new Float64Array(n); for (i = 0; i < n; i++) src[i] = vals[i]; }
+        if (this.pcoStore(src, n, tag === CT_DEC ? e : 0, Math.min(pre.length, n * t.BYTES_PER_ELEMENT))) return;
+      }
+      c.u8(tag); if (tag === CT_DEC) c.u8(e);
+    }
+    c.u8(w); c.zigzag(min); this.blob(t, 'ints', pre);
+  };
+  // Pcodec for one number column: src is an Int32Array or Float64Array of n whole numbers (or doubles). Written only when smaller than plainLen. False writes nothing.
+  Enc.prototype.pcoStore = function (src, n, e, plainLen) {
+    var kind = src instanceof Int32Array ? 2 : 0, bytes, c = this.ctl;
+    try { bytes = this.pco.compress(kind, src); } catch (err) { return false; }
+    if (!bytes || bytes.length === 0 || bytes.length >= plainLen) return false;
+    this.needsV3 = true;
+    c.u8(CT_PCO); c.u8(e); c.u8(kind); c.varint(bytes.length); this.blobs.bytes(bytes);
+    if (this.report) this.report.push({ path: this.path, part: 'pcodec', count: n, rawBytes: n * src.BYTES_PER_ELEMENT, bytes: bytes.length });
+    return true;
   };
   function scaleDecimals(vals, n, p) {                  // whole numbers = value * p, only when dividing by p gives every value back exactly
     var t = new Float64Array(n), i, x, y;
@@ -327,9 +376,9 @@
     return t;
   }
   Enc.prototype.numbers = function (vals, n, allInt, f32, min, max, neg0) {
-    var c = this.ctl, i, e, p, x, y, ints, ok, t, lo, hi;
+    var c = this.ctl, i, e, p, x, y, ints, ok, t, lo, hi, pre = null;
     if (allInt && (min <= -4503599627370496 || max >= 4503599627370496)) allInt = false;        // whole numbers beyond 2^52 stay plain doubles
-    if (allInt && max - min < 4294967296) { c.u8(CT_INT); this.intData(vals, n, min, max); return; }
+    if (allInt && max - min < 4294967296) { this.intData(vals, n, min, max, CT_INT); return; }
     if (!allInt && !neg0 && min === min && max - min < 1e15 && min > -1e15 && max < 1e15) {     // decimals such as 12.34 or 0.125: scaled to whole numbers
       ok = false;
       for (e = 1; e <= 10 && !ok; e++) {                                    // pick the smallest scale that is exact for a sample, then check all
@@ -342,7 +391,7 @@
         ints = scaleDecimals(vals, n, p);
         if (ints) {
           lo = Math.round(min * p); hi = Math.round(max * p);
-          if (hi < 4503599627370496 && lo > -4503599627370496 && hi - lo < 4294967296 && (hi - lo < 65536 || !f32)) { c.u8(CT_DEC); c.u8(e); this.intData(ints, n, lo, hi); return; }
+          if (hi < 4503599627370496 && lo > -4503599627370496 && hi - lo < 4294967296 && (hi - lo < 65536 || !f32)) { this.intData(ints, n, lo, hi, CT_DEC, e); return; }
           break;
         }
         if (e >= 3) break;
@@ -351,7 +400,11 @@
     if (f32 || (this.float32 && !allInt && min > -3e38 && max < 3e38)) { t = new Float32Array(n); for (i = 0; i < n; i++) t[i] = vals[i]; c.u8(CT_F32); this.blob(t, 'f32'); return; }
     if (vals instanceof Float64Array) t = vals;
     else { t = new Float64Array(n); for (i = 0; i < n; i++) t[i] = vals[i]; }
-    c.u8(CT_F64); this.blob(t, 'f64');
+    if (this.pco && n >= PCO_MIN) {
+      pre = MC.pack(t, this.mcOpts);
+      if (this.pcoStore(t, n, 0, Math.min(pre.length, n * 8))) return;
+    }
+    c.u8(CT_F64); this.blob(t, 'f64', pre);
   };
   Enc.prototype.bools = function (vals, n) {
     var bits = new Uint8Array((n + 7) >> 3), i;
@@ -380,6 +433,7 @@
     }
     pre = joinText(vals, n);
     if (n >= 32 && this.patterns && pre && pre.ascii && this.template(vals, n, pre)) return;
+    if (this.fsst && pre && this.fsstColumn(vals, n, pre)) return;
     c.u8(CT_STRR); this.rawStrings(vals, n, pre);
   };
   // the lengths and the joined UTF-8 text of a list of strings (kept for the writer so it is made once); null when it is too long for one piece
@@ -408,7 +462,7 @@
     return lits;
   }
   // ---- the pattern scan: JavaScript below, and the same loop in WebAssembly (wasm/jso-kernels.c) when the page allows it
-  var TRIE_NODES = 1024, KERNELS_B64 = /*KW:BEGIN*/'AGFzbQEAAAABEwFgDn9/f39/f39/f39/f39/AX8DAgEABQYBARCAgAEGDQJ/AUGAKAt/AEGAKAsHIwMGbWVtb3J5AgAIdHBsX3NjYW4AAAtfX2hlYXBfYmFzZQMBCoAEAf0DAwx/AX4BfwJAIAIgA04NACAAQQFqIQ4gBUGABGohDwNAQQAhEAJAIAQgASACQQJ0aigCACAEaiIRTw0AIAcgAkEDdGohEkEAIRNBACEQIAQhFANAAkACQCAAIBRqIhUtAAAiFkFQakEJSw0AIBEgFEEBaiIXIBEgF0sbIhhBf2ohGUIAIRogFCEXAkADQCAaQgp+IBZBUGqtfCEaAkAgGSAXRw0AIBghGwwCCyAOIBdqIRYgF0EBaiIbIRcgFi0AACIWQVBqQQpJDQALCwJAIBsgFGsiF0EPTA0AIAIhAwwGCwJAIBMgCEgNACACIQMMBgsCQCAPIBBBggRsai8BACIWDQAgAiEDDAYLIBIgEyADbEEDdGogGro5AwACQCAXIAogE0ECdCIZaiIUKAIATg0AIBQgFzYCAAsCQCAXIAsgGWoiGSgCAEwNACAZIBc2AgALAkAgF0ECSA0AIBUtAABBMEcNACAMIBNqQQE6AAALIBNBAWohEwwBCwJAIAUgEEGCBGxqIBZBAXRqLwEAIhYNACACIQMMBQsgFEEBaiEbCyAWwSEQIBshFCAbIBFJDQALCwJAIAYgEGosAAAiF0EATg0AIAIhAwwCCyAJIAJqIBc6AAAgESEEIAJBAWoiAiADRw0ACyARIQQLIA0gBDYCBCANIAM2AgAgAws='/*KW:END*/, KW = null, KW_STATE = 0;
+  var TRIE_NODES = 1024, KERNELS_B64 = /*KW:BEGIN*/'AGFzbQEAAAABJARgDn9/f39/f39/f39/f39/AX9gAAF/YAF/AGAFf39/f38BfwMGBQABAgMDBQYBARCAgAEGDwJ/AUGA8ggLfwBBgPIICwdeBwZtZW1vcnkCAAh0cGxfc2NhbgAACGZzc3RfdGJsAAEJZnNzdF9pbml0AAIPZnNzdF9lbmNvZGVfY29sAAMPZnNzdF9kZWNvZGVfY29sAAQLX19oZWFwX2Jhc2UDAQrJGAX9AwMMfwF+AX8CQCACIANODQAgAEEBaiEOIAVBgARqIQ8DQEEAIRACQCAEIAEgAkECdGooAgAgBGoiEU8NACAHIAJBA3RqIRJBACETQQAhECAEIRQDQAJAAkAgACAUaiIVLQAAIhZBUGpBCUsNACARIBRBAWoiFyARIBdLGyIYQX9qIRlCACEaIBQhFwJAA0AgGkIKfiAWQVBqrXwhGgJAIBkgF0cNACAYIRsMAgsgDiAXaiEWIBdBAWoiGyEXIBYtAAAiFkFQakEKSQ0ACwsCQCAbIBRrIhdBD0wNACACIQMMBgsCQCATIAhIDQAgAiEDDAYLAkAgDyAQQYIEbGovAQAiFg0AIAIhAwwGCyASIBMgA2xBA3RqIBq6OQMAAkAgFyAKIBNBAnQiGWoiFCgCAE4NACAUIBc2AgALAkAgFyALIBlqIhkoAgBMDQAgGSAXNgIACwJAIBdBAkgNACAVLQAAQTBHDQAgDCATakEBOgAACyATQQFqIRMMAQsCQCAFIBBBggRsaiAWQQF0ai8BACIWDQAgAiEDDAULIBRBAWohGwsgFsEhECAbIRQgGyARSQ0ACwsCQCAGIBBqLAAAIhdBAE4NACACIQMMAgsgCSACaiAXOgAAIBEhBCACQQFqIgIgA0cNAAsgESEECyANIAQ2AgQgDSADNgIAIAMLCABBgIiAgAAL7w4GAn8BfgJ/AX4BfwV+QYCAeCEBA0AgAUGImoiAAGpCfzcDACABQYCaiIAAakJ/NwMAIAFBEGoiAQ0AC0GAfiEBQYCeiIAAIQIDQCACQgA3AwAgAUGAnoiAAGpBADoAACABQYCciIAAakEAOwEAIAFBgLCIgABqQQA6AAAgAUGBnoiAAGpBADoAACACQQhqQgA3AwAgAUGBsIiAAGpBADoAACACQRBqIQIgAUECaiIBDQALQYBgIQEDQCABQYjQiIAAakJ/NwMAIAFBgNCIgABqQn83AwAgAUEQaiIBDQALAkAgAEEBSA0AIACtIQNBhIiAgAAhBEGBiICAACEFQgAhBgNAAkACQCAGpyIHQQlsQYCIgIAAai0AACICDQAgB0GAroiAAGogAjoAACAHQQN0QYCeiIAAakIANwMADAELIAKtIghCA4MhCUIAIQpCACELAkAgAkEESQ0AIAhCA4ZC4A+DIQxCACEIIAQhAUIAIQpCACELA0AgATEAACAIQhh8hiABQX9qMQAAIAhCEHyGIAFBfmoxAAAgCEIIfIYgAUF9ajEAACAIhiALhISEhCELIAFBBGohASAKQgR8IQogDCAIQiB8IghSDQALCwJAIAlQDQAgCkIDhiEIIAUgCqdqIQEDQCABMQAAIAiGIAuEIQsgAUEBaiEBIAhCCHwhCCAJQn98IglCAFINAAsLIAdBgK6IgABqIAI6AAAgB0EDdEGAnoiAAGogCzcDACACQQFHDQAgC6dB/wFxIgFBgNCIgABqIAY8AAAgAUGAmoiAAGpBAToAAAsgBUEJaiEFIARBCWohBCAGQgF8IgYgA1INAAsgAEEBSA0AIABBAXEhBUEAIQECQCAAQQFGDQAgAEH+////B3EhB0EAIQFBgJ6IgAAhAgNAAkAgAUGAroiAAGotAABBAkcNACACLwEAQQF0QYCagIAAaiABOwEACwJAIAFBga6IgABqLQAAQQJHDQAgAkEIai8BAEEBdEGAmoCAAGogAUEBajsBAAsgAkEQaiECIAcgAUECaiIBRw0ACwsCQCAFRQ0AIAFBgK6IgABqLQAAQQJHDQAgAUEDdEGAnoiAAGovAQBBAXRBgJqAgABqIAE7AQALIABBAUgNAEEAIQUDQAJAIAVBgK6IgABqLQAAQQhHDQAgBUGAnIiAAGpBADoAAAJAIAVBA3RBgJ6IgABqKAIAQeHJBGxBB3ZB/h9xQYCwiIAAaiICLwEAIgFB//8DRg0AA0AgAUGAnIiAAGoiBy0AACICQX9qIQEgAg0ACyAHIAVBAWo6AAAMAQsgAiAFOwEACyAFQQFqIgUgAEcNAAtBACEFA0ACQCAFQYCuiIAAai0AAEEHRw0AIAVBgJyIgABqQQA6AAACQCAFQQN0QYCeiIAAaigCAEHhyQRsQQd2Qf4fcUGAsIiAAGoiAi8BACIBQf//A0YNAANAIAFBgJyIgABqIgctAAAiAkF/aiEBIAINAAsgByAFQQFqOgAADAELIAIgBTsBAAsgBUEBaiIFIABHDQALQQAhBQNAAkAgBUGAroiAAGotAABBBkcNACAFQYCciIAAakEAOgAAAkAgBUEDdEGAnoiAAGooAgBB4ckEbEEHdkH+H3FBgLCIgABqIgIvAQAiAUH//wNGDQADQCABQYCciIAAaiIHLQAAIgJBf2ohASACDQALIAcgBUEBajoAAAwBCyACIAU7AQALIAVBAWoiBSAARw0AC0EAIQUDQAJAIAVBgK6IgABqLQAAQQVHDQAgBUGAnIiAAGpBADoAAAJAIAVBA3RBgJ6IgABqKAIAQeHJBGxBB3ZB/h9xQYCwiIAAaiICLwEAIgFB//8DRg0AA0AgAUGAnIiAAGoiBy0AACICQX9qIQEgAg0ACyAHIAVBAWo6AAAMAQsgAiAFOwEACyAFQQFqIgUgAEcNAAtBACEFA0ACQCAFQYCuiIAAai0AAEEERw0AIAVBgJyIgABqQQA6AAACQCAFQQN0QYCeiIAAaigCAEHhyQRsQQd2Qf4fcUGAsIiAAGoiAi8BACIBQf//A0YNAANAIAFBgJyIgABqIgctAAAiAkF/aiEBIAINAAsgByAFQQFqOgAADAELIAIgBTsBAAsgBUEBaiIFIABHDQALQQAhBQNAAkAgBUGAroiAAGotAABBA0cNACAFQYCciIAAakEAOgAAAkAgBUEDdEGAnoiAAGooAgBB4ckEbEEHdkH+H3FBgLCIgABqIgIvAQAiAUH//wNGDQADQCABQYCciIAAaiIHLQAAIgJBf2ohASACDQALIAcgBUEBajoAAAwBCyACIAU7AQALIAVBAWoiBSAARw0ACwtBACEFQYCagIAAIQcDQAJAIAVBgJqIgABqLQAARQ0AQQAhASAFQYDQiIAAaiEAA0ACQCAHIAFqIgIvAQBB//8DRw0AIAIgAC0AADsBAAsCQCACQYAEaiICLwEAQf//A0cNACACIAAtAAA7AQALIAFBgAhqIgFBgIAIRw0ACwsgB0ECaiEHIAVBAWoiBUGAAkcNAAsLhAQDCn8BfgN/QQAhBSAEQQA2AgACQCACRQ0AQQAhBkEAIQUDQCAGQQJ0IQdBACEIAkAgASAGQQFqIgZBAnQiCWooAgAiCiABIAdqKAIAIgdGDQAgCiAHayELIAMgBWohDCAAIAdqIQ1BACEOQQAhCANAIA0gDmopAAAhDwJAIAsgDmsiEEEHSw0AIA9CfyAQQQN0rYZCf4WDIQ8LAkACQAJAIA+nIhFB4ckEbEEHdkH+H3FBgLCIgABqLwEAIhJB//8DRg0AA0ACQCAQIBJB//8DcSIHQYCuiIAAai0AACIKSQ0AQn9CfyAKQQN0rYZCf4UgCkEIRhsgD4MgB0EDdEGAnoiAAGopAwBRDQMLIAdBgJyIgABqLQAAIgdBf2ohEiAHDQALCwJAIBFB//8DcUEBdEGAmoCAAGovAQAiB0H//wNGDQAgECAHQYCuiIAAai0AACIKSQ0AIAwgCGogBzoAACAIQQFqIQgMAgsCQCARQf8BcSIHQYCaiIAAai0AAEUNACAMIAhqIAdBgNCIgABqLQAAOgAAQQEhCiAIQQFqIQgMAgsgDCAIaiIHQf8BOgAAQQEhCiAHQQFqIA88AAAgCEECaiEIDAELIAwgCGogEjoAACAIQQFqIQgLIAogDmoiDiALSQ0ACwsgBCAJaiAIIAVqIgU2AgAgBiACRw0ACwsgBQvHAQEGf0EAIQUgBEEANgIAAkAgAkUNAEEAIQVBACEGA0ACQCABIAZBAnRqKAIAIgcgASAGQQFqIgZBAnQiCGooAgAiCU8NAANAAkACQCAAIAdqLQAAIgpB/wFHDQAgAyAFaiAAIAdBAWoiB2otAAA6AAAgBUEBaiEFDAELIAMgBWogCkEDdEGAnoiAAGopAwA3AAAgBSAKQYCuiIAAai0AAGohBQsgB0EBaiIHIAlJDQALCyAEIAhqIAU2AgAgBiACRw0ACwsgBQs='/*KW:END*/, KW = null, KW_STATE = 0;
   function b64bytes(t) {
     var bin = typeof atob === 'function' ? atob(t) : Buffer.from(t, 'base64').toString('binary'), u = new Uint8Array(bin.length), i;
     for (i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
@@ -474,9 +528,90 @@
     }
     out[0] = n; out[1] = p; return n;
   }
+  // Dates and times written as text ('2025-03-05T04:15:00Z'): the 3 to 7 numbers of the date and time can become one number (days, minutes, seconds or milliseconds
+  // since 1970-01-01), which changes slowly in sorted data and so packs much smaller than separate month, day, hour columns. Only when every row is a real date.
+  var TS_WIDTH = [4, 2, 2, 2, 2, 2, 3], TS_SEP = ['-', '-', 'T', ':', ':', '.'];
+  function tsGroup(lits, R, minL, maxL) {                 // how many leading numbers form a date-time (0, 3, 5, 6 or 7), judged from the text between them and their fixed widths
+    var g, j, ok;
+    for (g = 7; g >= 3; g--) {
+      if (g === 4 || g > R) continue;
+      ok = true;
+      for (j = 0; j < g && ok; j++) if (minL[j] !== TS_WIDTH[j] || maxL[j] !== TS_WIDTH[j]) ok = false;
+      for (j = 1; j < g && ok; j++) if (lits[j] !== (j === 3 && lits[3] === ' ' ? ' ' : TS_SEP[j - 1])) ok = false;
+      if (ok) return g;
+    }
+    return 0;
+  }
+  function daysFromCivil(y, m, d) {
+    var era, yoe, doy;
+    if (m <= 2) y--;
+    era = Math.floor(y / 400); yoe = y - era * 400;
+    doy = Math.floor((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1;
+    return era * 146097 + yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy - 719468;
+  }
+  var DIM = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  // the numbers of the date-time in slotsAll (slot j of row i at j * n + i) as one column, or null when a row is not a real date and time or when one number would cost more than the
+  // separate ones (made-up dates that cycle through months, days and hours pack to almost nothing as separate columns): each is priced at the bytes of its range or of its
+  // biggest step from the row before, whichever is smaller.
+  function widthOf(x) { return x === 0 ? 0 : x < 256 ? 1 : x < 65536 ? 2 : x < 4294967296 ? 4 : 8; }
+  function tsPack(g, f, n) {
+    var out = new Float64Array(n), i, j, y, mo, d, h = 0, mi = 0, sec = 0, days, v, x, mn = [], mx = [], dm = [], cost = 0, own, tmin = Infinity, tmax = -Infinity, tdm = 0, mask = 0;
+    while ((n >> (mask + 1)) > 1024) mask++;
+    mask = (1 << mask) - 1;
+    for (j = 0; j < g; j++) { mn.push(Infinity); mx.push(-Infinity); dm.push(0); }
+    for (i = 0; i < n; i++) {
+      y = f[i]; mo = f[n + i]; d = f[2 * n + i];
+      if (mo < 1 || mo > 12 || d < 1 || d > (mo === 2 && y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0) ? 29 : DIM[mo - 1])) return null;
+      days = daysFromCivil(y, mo, d);
+      if (g === 3) v = days;
+      else {
+        h = f[3 * n + i]; mi = f[4 * n + i];
+        if (h > 23 || mi > 59) return null;
+        if (g === 5) v = days * 1440 + h * 60 + mi;
+        else {
+          sec = f[5 * n + i];
+          if (sec > 59) return null;
+          v = days * 86400 + h * 3600 + mi * 60 + sec;
+          if (g === 7) v = v * 1000 + f[6 * n + i];
+        }
+      }
+      out[i] = v;
+      if ((i & mask) !== 0) continue;                        // the price is judged from about 1000 rows spread over the column
+      if (v < tmin) tmin = v; if (v > tmax) tmax = v;
+      if (i > 0) { x = v - out[i - 1]; if (x < 0) x = -x; if (x > tdm) tdm = x; }
+      for (j = 0; j < g; j++) {
+        x = f[j * n + i]; if (x < mn[j]) mn[j] = x; if (x > mx[j]) mx[j] = x;
+        if (i > 0) { x -= f[j * n + i - 1]; if (x < 0) x = -x; if (x > dm[j]) dm[j] = x; }
+      }
+    }
+    for (j = 0; j < g; j++) cost += mx[j] === mn[j] ? 0 : Math.min(widthOf(mx[j] - mn[j]), widthOf(dm[j] * 2));
+    own = tmax === tmin ? 0 : Math.min(widthOf(tmax - tmin), widthOf(tdm * 2));
+    return own <= cost ? out : null;
+  }
+  // back to the separate numbers, one Int32Array per slot; the calendar part is worked out once per distinct day (sorted data repeats days)
+  function tsUnpack(g, ts, n) {
+    var cY = new Int32Array(n), cM = new Int32Array(n), cD = new Int32Array(n), cH = g >= 5 ? new Int32Array(n) : null, cI = g >= 5 ? new Int32Array(n) : null, cS = g >= 6 ? new Int32Array(n) : null, cF = g === 7 ? new Int32Array(n) : null;
+    var per = g === 3 ? 1 : g === 5 ? 1440 : g === 6 ? 86400 : 86400000, i, v, days, rest, last = -1e18, y = 0, m = 0, d = 0, z, era, doe, yoe, doy, mp, ms, ra = ts.mode === 3 ? null : ts.a, cv = ts.mode === 3 ? ts.d : 0;
+    for (i = 0; i < n; i++) {
+      v = ra ? ra[i] : cv;
+      days = Math.floor(v / per); rest = (v - days * per) | 0;
+      if (days !== last) {
+        last = days; z = days + 719468; era = Math.floor(z / 146097); doe = (z - era * 146097) | 0;
+        yoe = ((doe - ((doe / 1460) | 0) + ((doe / 36524) | 0) - ((doe / 146096) | 0)) / 365) | 0;
+        doy = doe - (365 * yoe + (yoe >> 2) - ((yoe / 100) | 0)); mp = ((5 * doy + 2) / 153) | 0;
+        d = doy - (((153 * mp + 2) / 5) | 0) + 1; m = mp < 10 ? mp + 3 : mp - 9; y = yoe + era * 400 + (m <= 2 ? 1 : 0);
+      }
+      cY[i] = y; cM[i] = m; cD[i] = d;
+      if (g === 3) continue;
+      if (g === 7) { ms = rest % 1000; rest = (rest - ms) / 1000 | 0; cF[i] = ms; }
+      if (g === 5) { cH[i] = (rest / 60) | 0; cI[i] = rest % 60; continue; }
+      cH[i] = (rest / 3600) | 0; cI[i] = ((rest % 3600) / 60) | 0; cS[i] = rest % 60;
+    }
+    return g === 3 ? [cY, cM, cD] : g === 5 ? [cY, cM, cD, cH, cI] : g === 6 ? [cY, cM, cD, cH, cI, cS] : [cY, cM, cD, cH, cI, cS, cF];
+  }
   Enc.prototype.template = function (vals, n, pre) {
     var b = pre.bytes, lens = pre.lens, lits0 = tplOf(vals[0]), R, tpls, j, t, i, widths, L, c = this.ctl, nt, total = b.length, tr, kw = null, buf, off, at;
-    var next, term, slotsAll, tid, minL, maxL, lead, out, bb, ll, row, p, r;
+    var next, term, slotsAll, tid, minL, maxL, lead, out, bb, ll, row, p, r, g, ts;
     if (!lits0 || lits0.length < 2 || lits0.length > MAX_SLOTS + 1) return false;
     R = lits0.length - 1; tpls = [lits0];
     if (this.mcOpts.wasm !== false && n >= 4096 && (kw = kwGet())) {          // the helper's memory holds the bytes, lengths, numbers and tree; below 4096 rows the copy-in costs more than it saves
@@ -513,11 +648,147 @@
     widths = [];
     for (j = 0; j < R; j++) { if (!lead[j]) widths.push(0); else if (minL[j] === maxL[j]) widths.push(minL[j]); else return false; }
     nt = tpls.length;
+    if (nt === 1 && (g = tsGroup(tpls[0], R, minL, maxL)) && (ts = tsPack(g, slotsAll, n))) {
+      this.usedTimes = true;
+      c.u8(CT_TIMES); c.u8(g); c.varint(R);
+      for (j = 0; j <= R; j++) c.str(tpls[0][j]);
+      for (j = g; j < R; j++) c.varint(widths[j]);
+      this.column(ts, n);
+      for (j = g; j < R; j++) this.column(slotsAll.subarray(j * n, (j + 1) * n), n);
+      return true;
+    }
     c.u8(CT_TEMPLATE); c.varint(nt); c.varint(R);
     for (t = 0; t < nt; t++) for (j = 0; j <= R; j++) c.str(tpls[t][j]);
     for (j = 0; j < R; j++) c.varint(widths[j]);
     if (nt > 1) this.blob(tid, 'template-ids');
     for (j = 0; j < R; j++) this.column(slotsAll.subarray(j * n, (j + 1) * n), n);
+    return true;
+  };
+  // ================================================================ FSST (short strings, each readable alone)
+  // After Boncz, Neumann and Leis, "FSST: Fast Random Access String Compression", VLDB 2020. A table of up to 255 symbols (1 to 8 bytes) learned from the column; a string becomes one
+  // byte per symbol and code 255 means "the next byte is literal", so any one string can be read without the others. The table is trained here in JavaScript; the wasm kernel (when
+  // present, 4,096 strings and up) encodes and decodes whole columns with the same codes.
+  var FS_ESC = 255, FS_ROUNDS = 5, FS_SAMPLE = 16384;
+  function FsTable(symbols) {
+    var b, i, sy = symbols;
+    this.symbols = sy; this.byFirst = []; this.len = 0;
+    for (b = 0; b < 256; b++) this.byFirst.push([]);
+    for (i = 0; i < sy.length; i++) this.byFirst[sy[i][0]].push(i);
+    for (b = 0; b < 256; b++) this.byFirst[b].sort(function (x, y) { return sy[y].length - sy[x].length; });
+  }
+  FsTable.prototype.match = function (s, pos, end) {                       // the code of the longest symbol at pos, or -1; the symbol's length goes in this.len
+    var c = this.byFirst[s[pos]], syms = this.symbols, k, sym, L, j;
+    for (k = 0; k < c.length; k++) {
+      sym = syms[c[k]]; L = sym.length;
+      if (pos + L > end) continue;
+      j = 1; while (j < L && s[pos + j] === sym[j]) j++;
+      if (j === L) { this.len = L; return c[k]; }
+    }
+    return -1;
+  };
+  function fsKey(u8) { var s = '', i; for (i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return s; }
+  function fsConcat(a, b) { var o = new Uint8Array(a.length + b.length); o.set(a); o.set(b, a.length); return o; }
+  function fsTrain(bytes, offs, n) {                                       // a table from a random sample of the strings (a regular step lines up with repeating data and misses most of the variety)
+    var data = [], total = offs[n], keep = total > FS_SAMPLE ? FS_SAMPLE / total : 1, rs = 2463534242, i, g, r, table = new FsTable([]), cnt, m, s, pos, end, c, sym, k, prev, e;
+    var count1, count2, cand, out, seen, u, kk, ks, cs, k2;
+    for (i = 0; i < n; i++) {
+      rs ^= rs << 13; rs ^= rs >>> 17; rs ^= rs << 5;
+      if (keep < 1 && (rs >>> 0) / 4294967296 >= keep) continue;
+      if (offs[i + 1] > offs[i]) data.push(bytes.subarray(offs[i], offs[i + 1]));
+    }
+    if (!data.length) return table;
+    for (g = 1; g <= FS_ROUNDS; g++) {
+      m = Math.max(1, Math.round(data.length * (g === FS_ROUNDS ? 1 : (8 + 30 * g) / 128)));        // later rounds use more of the sample
+      count1 = {}; count2 = {};
+      for (i = 0; i < m; i++) {
+        s = data[(i * 7919) % data.length]; pos = 0; end = s.length; prev = null;
+        while (pos < end) {
+          c = table.match(s, pos, end);
+          if (c < 0) { sym = s.subarray(pos, pos + 1); pos += 1; } else { sym = table.symbols[c]; pos += sym.length; }
+          k = fsKey(sym); count1[k] = (count1[k] || 0) + 1;
+          if (prev !== null && prev.sym.length + sym.length <= 8) { k2 = prev.k + '\u0100' + k; e = count2[k2]; if (e) e.n++; else count2[k2] = { n: 1, a: prev.sym, b: sym }; }
+          prev = { k: k, sym: sym };
+        }
+      }
+      cand = [];
+      for (kk in count1) { u = new Uint8Array(kk.length); for (i = 0; i < kk.length; i++) u[i] = kk.charCodeAt(i); cand.push({ sym: u, gain: count1[kk] * u.length }); }
+      for (kk in count2) { e = count2[kk]; cs = fsConcat(e.a, e.b); cand.push({ sym: cs, gain: e.n * cs.length }); }
+      cand.sort(function (x, y) { return y.gain - x.gain || x.sym.length - y.sym.length; });
+      seen = {}; out = [];
+      for (i = 0; i < cand.length && out.length < 255; i++) { ks = fsKey(cand[i].sym); if (seen[ks]) continue; seen[ks] = 1; out.push(cand[i].sym); }
+      table = new FsTable(out);
+    }
+    return table;
+  }
+  function fsEncodeJS(table, bytes, offs, n) {                             // { codes, coff }: all codes back to back and n + 1 offsets into them
+    var coff = new Uint32Array(n + 1), codes = new Uint8Array(offs[n] * 2 + 8), o = 0, i, pos, end, c;
+    for (i = 0; i < n; i++) {
+      pos = offs[i]; end = offs[i + 1];
+      while (pos < end) {
+        c = table.match(bytes, pos, end);
+        if (c >= 0) { codes[o++] = c; pos += table.len; } else { codes[o++] = FS_ESC; codes[o++] = bytes[pos++]; }
+      }
+      coff[i + 1] = o;
+    }
+    return { codes: codes.subarray(0, o), coff: coff };
+  }
+  function fsLoadKernel(kw, symbols) {                                     // the helper keeps one table at a time
+    var tp = kw.x.fsst_tbl(), m = new Uint8Array(kw.mem.buffer), i, j, s;
+    for (i = 0; i < symbols.length; i++) { s = symbols[i]; m[tp + i * 9] = s.length; for (j = 0; j < s.length; j++) m[tp + i * 9 + 1 + j] = s[j]; }
+    kw.x.fsst_init(symbols.length);
+  }
+  function fsEncodeKernel(kw, table, bytes, offs, n) {                     // null when the helper's memory cannot hold the column
+    var total = offs[n], al = function (x) { return (x + 15) & ~15; }, srcP = kw.base, offP = al(srcP + total + 16), dstP = al(offP + (n + 1) * 4), ooP = al(dstP + total * 2 + 16), end = ooP + (n + 1) * 4, o, mem;
+    if (!kwRoom(end - kw.base + 64)) return null;
+    mem = new Uint8Array(kw.mem.buffer);
+    mem.set(bytes.subarray(0, total), srcP); mem.fill(0, srcP + total, srcP + total + 16);
+    new Uint32Array(kw.mem.buffer, offP, n + 1).set(offs.subarray(0, n + 1));
+    fsLoadKernel(kw, table.symbols);
+    o = kw.x.fsst_encode_col(srcP, offP, n, dstP, ooP) >>> 0;
+    return { codes: new Uint8Array(kw.mem.buffer, dstP, o).slice(), coff: new Uint32Array(kw.mem.buffer, ooP, n + 1).slice() };
+  }
+  function utf8Len(s) {
+    var n = 0, i, c, l = s.length;
+    for (i = 0; i < l; i++) { c = s.charCodeAt(i); n += c < 128 ? 1 : c < 2048 ? 2 : (c & 0xFC00) === 0xD800 ? (i++, 4) : 3; }
+    return n;
+  }
+  function narrow(lens, n) {                                               // the smallest unsigned array that holds the lengths
+    var max = 0, i, t;
+    for (i = 0; i < n; i++) if (lens[i] > max) max = lens[i];
+    t = max < 256 ? new Uint8Array(n) : max < 65536 ? new Uint16Array(n) : new Uint32Array(n);
+    for (i = 0; i < n; i++) t[i] = lens[i];
+    return t;
+  }
+  Enc.prototype.packedSize = function (t) {                                // what blob() would store for this array
+    var raw = t.length * t.BYTES_PER_ELEMENT, p;
+    if (raw < RAW_LIMIT) return raw + 1;
+    p = MC.pack(t, this.mcOpts);
+    return (p.length < raw ? p.length : raw) + 6;
+  };
+  // A text column with no pattern and no small dictionary, stored as FSST codes when that is smaller than the joined text (pack option fsst: true). False writes nothing.
+  Enc.prototype.fsstColumn = function (vals, n, pre) {
+    var bytes = pre.bytes, total, offs, i, table, enc, kw = null, textLens, codeLens, fsSize, textSize, c = this.ctl, ns, j, s;
+    if (!bytes || bytes.length === 0 || n < 512) return false;
+    total = bytes.length;
+    offs = new Uint32Array(n + 1);
+    if (pre.ascii) for (i = 0; i < n; i++) offs[i + 1] = offs[i] + pre.lens[i];
+    else for (i = 0; i < n; i++) offs[i + 1] = offs[i] + utf8Len(vals[i]);
+    if (offs[n] !== total) return false;
+    table = fsTrain(bytes, offs, n);
+    ns = table.symbols.length;
+    if (ns === 0) return false;
+    if (this.mcOpts.wasm !== false && n >= 4096 && (kw = kwGet())) enc = fsEncodeKernel(kw, table, bytes, offs, n);
+    if (!enc) enc = fsEncodeJS(table, bytes, offs, n);
+    codeLens = new Uint32Array(n); for (i = 0; i < n; i++) codeLens[i] = enc.coff[i + 1] - enc.coff[i];
+    fsSize = 1 + ns * 5 + this.packedSize(narrow(codeLens, n)) + this.packedSize(enc.codes);
+    textSize = this.packedSize(narrow(pre.lens, n)) + this.packedSize(bytes);
+    if (fsSize > textSize) return false;
+    this.needsV3 = true;
+    c.u8(CT_FSST); c.varint(ns);
+    for (j = 0; j < ns; j++) { s = table.symbols[j]; c.u8(s.length); c.bytes(s); }
+    c.varint(total);
+    this.lengths(codeLens, n);
+    this.blob(enc.codes, 'fsst-codes');
     return true;
   };
   Enc.prototype.rawStrings = function (vals, n, pre) {         // lengths (UTF-16 units) as numbers, then the joined text in pieces of at most 64M characters
@@ -621,6 +892,7 @@
     c.u8(CT_RECORDS); c.varint(1); c.varint(nk);
     for (j = 0; j < nk; j++) { if (wellFormed(keys[j])) { c.u8(0); c.str(keys[j]); } else { c.u8(1); this.str16(keys[j]); } }
     this.dirColumns(cols, n, keys, path);
+    giveF64(cols);
     return true;
   };
   // refs: true. Objects are numbered in the order they are written. A column whose values are all objects written before is just their numbers;
@@ -764,19 +1036,19 @@
     if (f) return f;
     if (CAN_EVAL) {
       src = 'var r=[],i,o,k,p,v;';
-      for (j = 0; j < nk; j++) src += 'var c' + j + '=new ' + (types[j] === 'n' ? 'Float64Array' : 'Array') + '(n);r.push(c' + j + ');';
+      for (j = 0; j < nk; j++) src += 'var c' + j + '=' + (types[j] === 'n' ? 'T(n)' : 'new Array(n)') + ';r.push(c' + j + ');';
       src += 'for(i=0;i<n;i++){o=rows[i];if(typeof o!=="object"||o===null||Object.getPrototypeOf(o)!==OP)return -1;k=0;for(p in o){if(p!==keys[k++])return -1;}if(k!==' + nk + ')return -1;';
       for (j = 0; j < nk; j++) {
         if (types[j] === 'n') src += 'v=o[' + JSON.stringify(keys[j]) + '];if(typeof v!=="number")return ' + (-(2 + j)) + ';c' + j + '[i]=v;';
         else src += 'c' + j + '[i]=o[' + JSON.stringify(keys[j]) + '];';
       }
       src += '}return r;';
-      f = new Function('rows', 'n', 'keys', 'OP', src);
-      f = (function (g) { return function (rows, n, ks) { return g(rows, n, ks, OP); }; })(f);
+      f = new Function('rows', 'n', 'keys', 'OP', 'T', src);
+      f = (function (g) { return function (rows, n, ks) { return g(rows, n, ks, OP, takeF64); }; })(f);
     } else {
       f = function (rows, n, ks) {
         var r = [], i, jj, o, k, p, v;
-        for (jj = 0; jj < nk; jj++) r.push(types[jj] === 'n' ? new Float64Array(n) : new Array(n));
+        for (jj = 0; jj < nk; jj++) r.push(types[jj] === 'n' ? takeF64(n) : new Array(n));
         for (i = 0; i < n; i++) {
           o = rows[i];
           if (typeof o !== 'object' || o === null || Object.getPrototypeOf(o) !== OP) return -1;
@@ -903,6 +1175,7 @@
     this.c = ctl; this.bl = blobs; this.keys = []; this.depth = 0; this.refs = null; this.ver = JSO_VERSION;
     this.budget = opts && opts.maxItems !== undefined ? opts.maxItems : DEFAULT_MAX_ITEMS;
     this.wasm = opts && opts.wasm === false ? false : undefined;
+    this.pco = opts && opts.pco ? pcoCodec(opts.pco) : null;
   }
   Dec.prototype.spend = function (n) { this.budget -= n; if (this.budget < 0) jfail('the data asks for more than maxItems values; pass a bigger maxItems if it is yours'); };
   Dec.prototype.blob = function (Ctor, n) {
@@ -998,9 +1271,10 @@
   // A column is returned as {n, mode, a, d}: mode 0 a[i] is the value, 1 a[i] === 1 is the value, 2 d[a[i]], 3 every value is d.
   // full() gives a plain array of the values.
   function Col(n, mode, a, d) { this.n = n; this.mode = mode; this.a = a; this.d = d; }
-  Col.prototype.get = function (i) { var m = this.mode; return m === 0 ? this.a[i] : m === 1 ? this.a[i] === 1 : m === 2 ? this.d[this.a[i]] : this.d; };
+  Col.prototype.get = function (i) { var m = this.mode; if (m === 4) return fsGet(this.a, i); return m === 0 ? this.a[i] : m === 1 ? this.a[i] === 1 : m === 2 ? this.d[this.a[i]] : this.d; };
   Col.prototype.full = function () {
     var n = this.n, a = this.a, d = this.d, out, i, m = this.mode;
+    if (m === 4) return fsAll(a, n);
     if (m === 0 && Array.isArray(a)) return a;
     out = new Array(n);
     if (m === 0) for (i = 0; i < n; i++) out[i] = a[i];
@@ -1025,6 +1299,15 @@
         e = c.u8(); if (e > 10) jfail('bad scale'); p = P10[e];
         col = this.intCol(n); a = col.a; t = new Float64Array(n);
         if (col.mode === 3) { for (i = 0; i < n; i++) t[i] = col.d / p; } else for (i = 0; i < n; i++) t[i] = a[i] / p;
+        return new Col(n, 0, t, null);
+      case CT_PCO:
+        e = c.u8(); k = c.u8(); m = c.varint();
+        if (e > 10 || (k !== 0 && k !== 2)) jfail('bad Pcodec column');
+        a = this.bl.take(m);
+        if (!this.pco) jfail('this file stores a number column with Pcodec; load memory-compression-jso-pco.js and pass its codec as the pco option');
+        try { t = this.pco.decompress(k, a, n); } catch (err) { jfail('a Pcodec column is damaged'); }
+        if (!(t instanceof (k === 2 ? Int32Array : Float64Array)) || t.length !== n) jfail('a Pcodec column is damaged');
+        if (e > 0) { p = P10[e]; a = new Float64Array(n); for (i = 0; i < n; i++) a[i] = t[i] / p; t = a; }
         return new Col(n, 0, t, null);
       case CT_F32: return new Col(n, 0, this.blob(Float32Array, n), null);
       case CT_F64: return new Col(n, 0, this.blob(Float64Array, n), null);
@@ -1074,12 +1357,126 @@
         for (i = 0; i < n; i++) { j = col.get(i); if (j !== Math.floor(j) || j < 0 || j >= this.refs.length || this.refs[j] === RESERVED) jfail('bad reference'); out[i] = this.refs[j]; }
         return new Col(n, 0, out, null);
       case CT_TEMPLATE: return this.template(n);
+      case CT_TIMES: return this.times(n);
+      case CT_FSST: return this.fsst(n);
       case CT_ANY:
         out = new Array(n); this.spend(n);
         for (i = 0; i < n; i++) out[i] = this.value();
         return new Col(n, 0, out, null);
       default: jfail('unknown column type ' + ct);
     }
+  };
+  // The text of a whole date-time column straight from its numbers (nothing in between): the calendar part once per distinct day (a small cache), 'hh:mm:' from a table of 1440,
+  // ':ss' from 60, '.mmm' from 1000. The tables are filled with push, not by writing into new Array(n): WebKit keeps the second kind of array in a slow "has holes" form (2 times slower here).
+  function buildTimes(n, L, g, ts) {
+    var out = new Array(n), per = g === 3 ? 1 : g === 5 ? 1440 : g === 6 ? 86400 : 86400000, ra = ts.mode === 3 ? null : ts.a, cv = ts.mode === 3 ? ts.d : 0;
+    var hm = [], sc = [], fr = [], k, i, v, days, rest, day = '', z, era, doe, yoe, doy, mp, y, m, d, sec, ms;
+    var tags = new Float64Array(4096).fill(NaN), strs = new Array(4096).fill(''), slot, last = NaN;
+    if (g >= 5) for (k = 0; k < 1440; k++) hm.push(pad((k / 60) | 0, 2) + L[4] + pad(k % 60, 2) + L[5]);
+    if (g >= 6) for (k = 0; k < 60; k++) sc.push(pad(k, 2) + L[6]);
+    if (g === 7) for (k = 0; k < 1000; k++) fr.push(pad(k, 3) + L[7]);
+    for (i = 0; i < n; i++) {
+      v = ra ? ra[i] : cv;
+      if (v - v !== 0) jfail('bad date pattern');
+      days = Math.floor(v / per);
+      if (days !== last) {
+        last = days; slot = days & 4095;
+        if (tags[slot] === days) day = strs[slot];
+        else {
+          z = days + 719468; era = Math.floor(z / 146097); doe = (z - era * 146097) | 0;
+          yoe = ((doe - ((doe / 1460) | 0) + ((doe / 36524) | 0) - ((doe / 146096) | 0)) / 365) | 0;
+          doy = doe - (365 * yoe + (yoe >> 2) - ((yoe / 100) | 0)); mp = ((5 * doy + 2) / 153) | 0;
+          d = doy - (((153 * mp + 2) / 5) | 0) + 1; m = mp < 10 ? mp + 3 : mp - 9; y = yoe + era * 400 + (m <= 2 ? 1 : 0);
+          day = L[0] + pad(y, 4) + L[1] + pad(m, 2) + L[2] + pad(d, 2) + L[3];
+          tags[slot] = days; strs[slot] = day;
+        }
+      }
+      if (g === 3) { out[i] = day; continue; }
+      rest = (v - days * per) | 0;
+      if (g === 5) { out[i] = day + hm[rest]; continue; }
+      if (g === 7) { ms = rest % 1000; sec = (rest - ms) / 1000 | 0; } else sec = rest;
+      k = (sec / 60) | 0;
+      out[i] = g === 7 ? day + hm[k] + sc[sec - k * 60] + fr[ms] : day + hm[k] + sc[sec - k * 60];
+    }
+    return out;
+  }
+  // FSST column, read side. a = { syms, symLen, codes, coff, raw, scratch, wasm }: a string is decoded when asked for
+  function fsGet(f, i) {
+    var from = f.coff[i], to = f.coff[i + 1], codes = f.codes, syms = f.syms, out = f.scratch, o = 0, k, c, sy, j, str;
+    if ((to - from) * 8 + 8 > out.length) out = f.scratch = new Uint8Array((to - from) * 8 + 64);
+    for (k = from; k < to; k++) {
+      c = codes[k];
+      if (c === FS_ESC) out[o++] = codes[++k];
+      else { sy = syms[c]; for (j = 0; j < sy.length; j++) out[o++] = sy[j]; }
+    }
+    if (o < 24) { str = ''; for (j = 0; j < o; j++) { c = out[j]; if (c > 127) return TEXT_DEC.decode(out.subarray(0, o)); str += String.fromCharCode(c); } return str; }
+    return TEXT_DEC.decode(out.subarray(0, o));
+  }
+  function fsAll(f, n) {                                                   // every string: all the bytes are decoded at once (by the wasm helper for 4,096 strings and up), then cut into strings
+    var res = new Array(n), i, kw = null, al = function (x) { return (x + 15) & ~15; }, codesP, coffP, outP, ooP, end, u = null, ooff = null, joined, b, e, k, c, sy, j, o, codes = f.codes, coff = f.coff, syms = f.syms;
+    if (f.wasm !== false && n >= 4096 && (kw = kwGet())) {
+      codesP = kw.base; coffP = al(codesP + codes.length + 16); outP = al(coffP + (n + 1) * 4); ooP = al(outP + f.raw + 64); end = ooP + (n + 1) * 4;
+      if (kwRoom(end - kw.base + 64)) {
+        new Uint8Array(kw.mem.buffer).set(codes, codesP);
+        new Uint32Array(kw.mem.buffer, coffP, n + 1).set(coff);
+        fsLoadKernel(kw, syms);
+        if ((kw.x.fsst_decode_col(codesP, coffP, n, outP, ooP) >>> 0) !== f.raw) jfail('FSST column decodes to the wrong size');
+        u = new Uint8Array(kw.mem.buffer, outP, f.raw); ooff = new Uint32Array(kw.mem.buffer, ooP, n + 1);
+      }
+    }
+    if (!u) {
+      u = new Uint8Array(f.raw + 8); ooff = new Uint32Array(n + 1); o = 0;
+      for (i = 0; i < n; i++) {
+        e = coff[i + 1];
+        for (k = coff[i]; k < e; k++) {
+          c = codes[k];
+          if (c === FS_ESC) u[o++] = codes[++k];
+          else { sy = syms[c]; for (j = 0; j < sy.length; j++) u[o++] = sy[j]; }
+        }
+        ooff[i + 1] = o;
+      }
+    }
+    joined = TEXT_DEC.decode(u.subarray(0, f.raw));
+    if (joined.length === f.raw) { for (i = 0; i < n; i++) res[i] = joined.substring(ooff[i], ooff[i + 1]); return res; }          // plain ASCII: one character a byte
+    for (i = 0; i < n; i++) { b = ooff[i]; e = ooff[i + 1]; res[i] = e === b ? '' : TEXT_DEC.decode(u.subarray(b, e)); }
+    return res;
+  }
+  Dec.prototype.fsst = function (n) {
+    var c = this.c, ns = c.varint(), syms = [], symLen = [], i, l, raw, lens, coff, total = 0, codes, k, e, dec = 0, a, kq;
+    if (ns < 1 || ns > 255) jfail('bad FSST table');
+    this.spend(n);
+    for (i = 0; i < ns; i++) { l = c.u8(); if (l < 1 || l > 8) jfail('bad FSST table'); syms.push(c.take(l)); symLen.push(l); }
+    raw = c.varint();
+    if (raw > 67108864) jfail('FSST column is too big');
+    lens = this.lengthCol(n); coff = new Uint32Array(n + 1);
+    for (i = 0; i < n; i++) { total += lens.mode === 3 ? lens.d : lens.a[i]; if (total > 134217728) jfail('FSST column is too big'); coff[i + 1] = total; }
+    codes = this.blob(Uint8Array, total);
+    for (i = 0; i < n; i++) {                                              // every code names a symbol (or is a literal escape with its byte), and the decoded size adds up
+      k = coff[i]; e = coff[i + 1];
+      while (k < e) {
+        a = codes[k++];
+        if (a === FS_ESC) { if (k >= e) jfail('bad FSST codes'); k++; dec++; }
+        else if (a >= ns) jfail('bad FSST codes');
+        else dec += symLen[a];
+      }
+    }
+    if (dec !== raw) jfail('FSST column decodes to the wrong size');
+    a = { syms: syms, symLen: symLen, codes: codes, coff: coff, raw: raw, scratch: new Uint8Array(256), wasm: this.wasm };
+    if (this.lazyText && this.depth === 1) return new Col(n, 4, a, null);
+    return new Col(n, 0, fsAll(a, n), null);
+  };
+  Dec.prototype.times = function (n) {
+    var c = this.c, g = c.u8(), R = c.varint(), L = [], widths = [], cols, ts, j;
+    if ((g !== 3 && g !== 5 && g !== 6 && g !== 7) || R < g || R > MAX_SLOTS) jfail('bad date pattern');
+    this.spend(n * (R + 1));
+    for (j = 0; j <= R; j++) L.push(c.str());
+    for (j = 0; j < R; j++) { if (j < g) widths.push(TS_WIDTH[j]); else { widths.push(c.varint()); if (widths[j] === 1 || widths[j] > 15) jfail('bad date pattern'); } }
+    ts = this.column(n);
+    if (ts.mode !== 0 && ts.mode !== 3) jfail('bad date pattern');
+    if (R === g && n >= 2048) return new Col(n, 0, buildTimes(n, L, g, ts), null);
+    cols = tsUnpack(g, ts, n).map(function (a) { var k, x = a[0]; for (k = 1; k < n && a[k] === x; k++); return k === n ? new Col(n, 3, null, x) : new Col(n, 0, a, null); });   // a number that never changes becomes part of the text
+    for (j = g; j < R; j++) cols.push(this.column(n));
+    return new Col(n, 0, buildTemplate(n, [L], R, widths, null, cols), null);
   };
   Dec.prototype.template = function (n) {
     var c = this.c, nt = c.varint(), R = c.varint(), tpls = [], widths = [], tid = null, cols = [], t, j, i, L, w;
@@ -1236,7 +1633,8 @@
     opts = opts || {};
     if (!TEXT_ENC) jfail('this environment has no TextEncoder');
     var e = new Enc(opts), ctlBytes, flags = 0, head, stored, packedCtl = null, ctlRaw, out, p, crc;
-    e.value(value);
+    POOL_ON = opts.pool !== false;
+    try { e.value(value); } finally { POOL_ON = true; }
     ctlRaw = e.ctl.done();
     if (ctlRaw.length >= 256) {
       packedCtl = MC.pack(ctlRaw, e.mcOpts);
@@ -1245,7 +1643,7 @@
     stored = packedCtl || ctlRaw;
     if (e.refs) flags |= 1; if (packedCtl) flags |= 2; if (opts.check) flags |= 4;
     var blobsLen = e.blobs.size();
-    head = new Out(); head.u8(0x4D); head.u8(0x4A); head.u8(JSO_VERSION); head.u8(flags);
+    head = new Out(); head.u8(0x4D); head.u8(0x4A); head.u8(e.usedTimes || e.needsV3 ? 3 : 2); head.u8(flags);
     head.varint(ctlRaw.length); head.varint(stored.length);
     out = new Uint8Array(head.p + stored.length + blobsLen + (flags & 4 ? 4 : 0));
     out.set(head.done(), 0); p = head.p; out.set(stored, p); p += stored.length; p = e.blobs.copyTo(out, p);
@@ -1308,7 +1706,7 @@
       var x = cols[q], sub;
       if (x) return x;
       sub = new Dec(new In(ctlBuf, offC[q], offC[q] + dirC[q]), new In(blobBuf, offB[q], offB[q] + dirB[q]), vopts);
-      sub.ver = d.ver; sub.spend(n);
+      sub.ver = d.ver; sub.lazyText = true; sub.spend(n);
       x = sub.column(n);
       if (sub.c.p !== sub.c.end || sub.bl.p !== sub.bl.end) jfail('a column does not match its directory entry');
       cols[q] = x; getter = null;
@@ -1324,7 +1722,14 @@
       } else getter = function (i) { var o = {}, q; for (q = 0; q < nk; q++) define(o, keys[q], cols[q].get(i)); return o; };
       return getter;
     }
-    function colBytes(x) { return x.mode === 3 ? 0 : x.a.byteLength !== undefined ? x.a.byteLength : x.a.length * 8; }
+    function colBytes(x) {                                          // about: 8 bytes a slot, plus a byte a character for text
+      var t, i, a = x.a;
+      if (x.mode === 3) return 0;
+      if (x.mode === 4) return a.codes.byteLength + a.coff.byteLength;
+      if (a.byteLength !== undefined) return a.byteLength;
+      t = a.length * 8; if (typeof a[0] === 'string') for (i = 0; i < a.length; i++) t += a[i].length;
+      return t;
+    }
     return {
       length: n, keys: keys.slice(), lazy: lazy,
       get: function (i) { if (i < 0 || i >= n || i !== Math.floor(i)) return undefined; return (getter || makeGetter())(i); },

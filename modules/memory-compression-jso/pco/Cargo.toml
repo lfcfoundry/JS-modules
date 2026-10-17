@@ -1,0 +1,19 @@
+[package]
+name = "mcjso-pco"
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+description = "Pcodec (pco 1.0.4) behind a tiny C interface, for memory-compression-jso-pco.js"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+pco = { version = "=1.0.4", default-features = false }
+
+[profile.release]
+opt-level = "z"
+lto = true
+panic = "abort"
+codegen-units = 1
+strip = true
