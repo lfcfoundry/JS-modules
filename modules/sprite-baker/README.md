@@ -1,8 +1,8 @@
 # sprite-baker
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** 29 Node checks; Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; Firefox 158 per the 2026-10-15 task-board note and Firefox 157 on 2026-10-17 (`tests/firefox.js`): alphaMask and toSheet work. Not run: WebKitGTK, a phone.
+**Tested in:** Node 22, ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5 (byte-identical pictures and timings in all five; not run: a phone)
 
 The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
