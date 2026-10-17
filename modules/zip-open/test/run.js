@@ -54,15 +54,16 @@ t('Excel: a cell far off to the right or down does not blow up memory', async fu
   var t0 = Date.now(), r = await U.expand(u8(x), 'wide.xlsx');
   assert.ok(Date.now() - t0 < 2000); assert.ok(r.files[0].text.length < 20000, 'size ' + r.files[0].text.length);
 });
+var bomb300cache; function bomb300() { return bomb300cache || (bomb300cache = zlib.deflateRawSync(Buffer.alloc(300e6))); }   // 300 MB of zeros squeezed once and shared by the two bomb checks (about 0.7 s each time)
 t('hostile: bomb that claims to be small', async function () {
-  var big = zlib.deflateRawSync(Buffer.alloc(300e6)), t0 = Date.now();
+  var big = bomb300(), t0 = Date.now();
   var z = Z.makeZip([{ name: 'a.csv', raw: big, data: csv, usize: 100, crc: 0 }, { name: 'b.csv', data: csv }]);
   var r = await U.expand(u8(z), 'bomb.zip');
   assert.deepEqual(r.files.map(function (f) { return f.name; }), ['b.csv']); assert.ok(r.notes.some(function (q) { return /more than it says|damaged/.test(q); }));
   assert.ok(Date.now() - t0 < 5000, 'took ' + (Date.now() - t0));
 });
 t('hostile: bomb that tells the truth about being huge', async function () {
-  var big = zlib.deflateRawSync(Buffer.alloc(300e6)), z = Z.makeZip([{ name: 'a.csv', raw: big, usize: 300e6, crc: 0 }, { name: 'b.csv', data: csv }]);
+  var big = bomb300(), z = Z.makeZip([{ name: 'a.csv', raw: big, usize: 300e6, crc: 0 }, { name: 'b.csv', data: csv }]);
   var r = await U.expand(u8(z), 'bomb.zip');
   assert.deepEqual(r.files.map(function (f) { return f.name; }), ['b.csv']); assert.ok(r.notes.some(function (q) { return /too large/.test(q); }));
 });

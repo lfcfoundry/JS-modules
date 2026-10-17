@@ -35,7 +35,7 @@
 <script>
 
 var $ = function (id) { return document.getElementById(id); };
-var note = SlowNote.start({ key: 'slow-note-demo', quietMs: 1500, header: 'slow-note demo', context: function () { return ' [demo]'; }, marks: { 'the demo script began': 0 } });
+var note = SlowNote.start({ key: 'slow-note-demo', quietMs: /fast/.test(location.hash) ? 500 : 1500, perKindMs: /fast/.test(location.hash) ? 300 : 1000, header: 'slow-note demo', context: function () { return ' [demo]'; }, marks: { 'the demo script began': 0 } });
 function show() { var n = note.count(); $('count').textContent = n ? n + ' slow or broken moment' + (n === 1 ? '' : 's') + ' noted on this device.' : 'Nothing noted yet. That is good news.'; $('out').textContent = note.text(); }
 note.onChange(show); show();
 var s = note.supports; $('sup').textContent = 'This browser can see: errors ' + (s.error ? 'yes' : 'no') + ', slow taps ' + (s['slow tap'] ? 'yes' : 'no') + ', slow frames ' + (s['slow frame'] ? 'yes' : 'no') + '.';

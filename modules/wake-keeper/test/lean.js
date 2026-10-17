@@ -12,7 +12,7 @@ const PARTS = ['idle', 'status', 'callbacks', 'inject'];
 const py = (...a) => cp.spawnSync('python3', [path.join(dir, 'lean.py'), ...a], { encoding: 'utf8' });
 let bad = 0, cases = 0, n = 0;
 const note = (ok, what, why) => { cases++; if (!ok) bad++; console.log((ok ? 'ok   ' : 'FAIL ') + what + (ok ? '' : '\n       ' + why)); };
-const build = (without, nc) => { const out = path.join(tmp, 'wk-' + (++n) + '.js'), r = py('--without', without.join(','), '-o', out, ...(nc ? ['--no-comments'] : [])); assert.strictEqual(r.status, 0, r.stderr); cp.execFileSync(process.execPath, ['--check', out]); return require(out); };
+const build = (without, nc) => { const out = path.join(tmp, 'wk-' + (++n) + '.js'), r = py('--without', without.join(','), '-o', out, ...(nc ? ['--no-comments'] : [])); assert.strictEqual(r.status, 0, r.stderr); new (require('vm').Script)(fs.readFileSync(out, 'utf8'), { filename: out }); return require(out); };
 (async () => {
   const t0 = Date.now(), l = py('--list').stdout.split('\n').filter(Boolean).map(s => s.split(/\s+/)[0]);
   note(JSON.stringify(l) === JSON.stringify(PARTS), 'the parts are ' + PARTS.join(', '), l.join(','));

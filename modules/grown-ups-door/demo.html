@@ -35,7 +35,7 @@
 <script>
 
 var $ = function (id) { return document.getElementById(id); }, n1 = 0, n2 = 0, fast = /fast/.test(location.hash);
-var door = GrownUpsDoor.attach({ guard: '#reset, #save, #more', holdMs: fast ? 400 : 3000, openMs: fast ? 1500 : 120000, texts: { itemName: 'Apple', targetName: 'Basket', drag: 'Drag the apple into the basket. Or tap the apple, then tap the basket.' } });
+var door = GrownUpsDoor.attach({ guard: '#reset, #save, #more', holdMs: fast ? 400 : 3000, openMs: fast ? 500 : 120000, texts: { itemName: 'Apple', targetName: 'Basket', drag: 'Drag the apple into the basket. Or tap the apple, then tap the basket.' } });
 $('reset').onclick = function () { $('n1').textContent = ++n1; };
 $('save').onclick = function () { $('n2').textContent = ++n2; };
 function st() { $('state').textContent = door.isOpen() ? 'open' : 'locked'; }

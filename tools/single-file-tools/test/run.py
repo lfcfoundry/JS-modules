@@ -478,7 +478,7 @@ def t_bytes_page_shape():
 def t_best_key():
     import random
     lz = pk._lzma_helpers()
-    for seed, size, bias in ((1, 3000, None), (2, 5000, 60), (3, 800, 0), (4, 4000, 92)):
+    for seed, size, bias in ((1, 1200, None), (2, 1500, 60), (3, 400, 0), (4, 1200, 92)):   # each size is tried against all 256 keys the slow way, so keep them small
         rnd = random.Random(seed)
         data = bytes(rnd.randrange(256) if bias is None or rnd.random() < 0.8 else bias for _ in range(size))
         slow = min(range(256), key=lambda k: len(lz.js_escape(bytes(b ^ k for b in data))))
