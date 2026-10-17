@@ -206,6 +206,17 @@ def js_escape(bs):
     return bytes(out)
 
 
+def best_key(blob):
+    """The XOR key (0-255) that leaves the fewest bytes needing a JavaScript escape: the same answer as trying all 256 keys with js_escape (the first key wins a tie),
+    but counted from byte and byte-pair tallies, so a 200 KB payload takes milliseconds instead of seconds. Escaped: NUL, CR, LF, quote and backslash, plus a '<' followed by '/' or '!'."""
+    from collections import Counter
+    one = Counter(blob)
+    two = Counter(zip(blob, blob[1:]))
+    def extra(k):
+        return 3 * one[0 ^ k] + one[10 ^ k] + one[13 ^ k] + one[34 ^ k] + one[92 ^ k] + 3 * (two[(60 ^ k, 47 ^ k)] + two[(60 ^ k, 33 ^ k)])
+    return min(range(256), key=extra)
+
+
 def find_minifier(which):
     """terser or esbuild: the environment variable TERSER / ESBUILD (a full path), then PATH, then node_modules/.bin here and in the parent folders."""
     import os
@@ -354,7 +365,7 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
             raise SystemExit("--wasm: the wasm decoder takes lc + lp up to 4")
     blob = z + wasm_bytes
     if encoding == "bytes":
-        key = min(range(256), key=lambda k: len(js_escape(bytes(b ^ k for b in blob))))
+        key = best_key(blob)
         payload = js_escape(bytes(b ^ key for b in blob))
         read = ("var T=%s,i=0,z=new Uint8Array(s.length),c;for(;i<s.length;i++){c=s.charCodeAt(i);z[i]=(c<256?c:128+T.indexOf(c))^%d}" % (json.dumps(CP1252_HI, separators=(",", ":")), key))
         meta = b'<meta charset="windows-1252">'

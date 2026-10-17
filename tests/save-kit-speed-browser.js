@@ -35,7 +35,7 @@ function battery(src, oldSrc) {
       var a = kits.new.kit.load(), b = kits.old.kit.load(); a.seen = b.seen = 0;
       out[sizes[z][0] + ' loads the same save'] = String(JSON.stringify(a) === JSON.stringify(b));
     }
-    for (op = 0; op < 2; op++) for (r = 0; r < 7; r++) for (who in (r % 2 ? { old: 1, new: 1 } : { new: 1, old: 1 })) {
+    for (op = 0; op < 2; op++) for (r = 0; r < (O ? 7 : 3); r++) for (who in (r % 2 ? { old: 1, new: 1 } : { new: 1, old: 1 })) {
       if (!kits[who]) continue;
       var k = sizes[z][0] + ' ' + (op ? 'load' : 'save') + ' ' + who, fn = op ? function () { kits[who].kit.load(); } : function () { kits[who].kit.save(s); }, v = round(fn, n);
       if (r > 0 && (best[k] === undefined || v < best[k])) best[k] = v;   // round 0 warms up

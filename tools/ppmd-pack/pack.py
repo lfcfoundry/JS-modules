@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd-pack: turn one HTML file into a smaller self-unpacking HTML file with PPMd.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
-Version 1.1.0 (API 1)
+Version 1.1.1 (API 1)
 
   python3 tools/ppmd-pack/pack.py INPUT.html OUTPUT.html [--title T] [--head HTML] [--encoding bytes|base64] [--order N] [--mem BYTES] [--tune] [--compare]
                                   [--minifier auto|terser|esbuild|none] [--minify-page] [--bg auto|none|COLOR] [--wasm] [--skip-node-check]
@@ -211,7 +211,7 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
         wasm_bytes = WASM_DECODER.read_bytes()
     blob = z + wasm_bytes
     if encoding == "bytes":
-        key = min(range(256), key=lambda k: len(lz.js_escape(bytes(b ^ k for b in blob))))
+        key = lz.best_key(blob)
         payload = lz.js_escape(bytes(b ^ key for b in blob))
         read = ("var T=%s,i=0,z=new Uint8Array(s.length),c;for(;i<s.length;i++){c=s.charCodeAt(i);z[i]=(c<256?c:128+T.indexOf(c))^%d}" % (json.dumps(lz.CP1252_HI, separators=(",", ":")), key))
         meta = b'<meta charset="windows-1252">'
