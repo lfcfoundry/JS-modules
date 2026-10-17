@@ -1,8 +1,8 @@
 # cartoon-3d-kit
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node checks; no real browser run recorded (its demo page loads in Firefox through `tests/firefox.js`: Firefox 158 per the 2026-10-15 note, Firefox 157 on 2026-10-17).
+**Tested in:** Chromium 155.0.8059.39-1, Firefox 158.0 and WebKitGTK 2.52.6, one at a time (2026-10-17): the demo page loads, skins switch, a tap makes its effects and cleans them up; in Chromium also the pop number's contrast as drawn, reduced motion and forced colors. Node: 82 checks. Not tested: GNOME Web (Epiphany) 46.5, a phone.
 
 Run the check (offline, no browser, under a second): `node modules/cartoon-3d-kit/test/run.js`
 
