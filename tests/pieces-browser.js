@@ -33,6 +33,20 @@ check('test-isolation', async (b) => {
   return 'the real save stayed "REAL" while the page wrote "TEST" under the prefix; clear touched only its own keys';
 });
 
+check('test-isolation: fresh, seed, snippet and property-style use', async (b) => {
+  const p = await open(b, 'tools/test-isolation/test/install.html');
+  const r = await p.evaluate(() => window.__result);
+  ok(r.installOk && r.staleGone && r.seededSave === 'REAL', JSON.stringify(r));
+  ok(r.realSaveAfterWrite === 'REAL' && r.testCopyStored === 'TEST/N' && r.keys === '["newkey","opt","save"]' && r.restored, JSON.stringify(r));
+  ok(r.snippetRealSave === 'REAL' && r.snippetStored === 'T2/O2' && r.snippetKeys === '["other","save"]', JSON.stringify(r));
+  ok(r.snippetLen > 1000 && r.snippetLen < 2600, 'snippet length ' + r.snippetLen);
+  const q = await open(b, 'tools/test-isolation/test/probe.html'); const a = await q.evaluate(() => window.__result);
+  const want = { objectKeys: '["a"]', inOperator: 'true/false', jsonStringify: '{"a":"1"}', propertyRead: '1', propertyWrite: 'getItem=2 stored=2', propertyDelete: 'after delete getItem=null', length: 1, realUntouched: true };
+  for (const k of Object.keys(want)) ok(a[k] === want[k], k + ' gave ' + JSON.stringify(a[k]) + ', wanted ' + JSON.stringify(want[k]));
+  ok(!p.errs.length && !q.errs.length, p.errs[0] || q.errs[0]);
+  return 'fresh removes old test keys, seed copies the real values in, the inline snippet and property-style use (read, write, in, delete, Object.keys, JSON.stringify) behave like a real Storage; the real save stayed REAL';
+});
+
 /* ---- runner ---- */
 async function open(b, rel, w, h) {
   const p = await b.newPage(); p.errs = [];

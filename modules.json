@@ -444,7 +444,7 @@
     },
     {
       "id": "test-isolation",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "summary": "Puts a prefix in front of every localStorage key on a test page, so a speed test or random-play run never touches the real saved game.",
       "folder": "tools/test-isolation",
