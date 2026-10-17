@@ -44,6 +44,8 @@ var steps = [
   ['speed-lab', 'node', ['tools/speed-lab/test/run.js']],
   ['gif-writer', 'node', ['modules/gif-writer/test/run.js']],
   ['zip-open', 'node', ['modules/zip-open/test/run.js']],
+  ['memory-compression', 'node', ['modules/memory-compression/test/run.js']],
+  ['memory-compression no wasm', 'node', ['modules/memory-compression/test/run.js', '--js-only']],
   ['river-layout', 'node', ['modules/river-layout/test/run.js']],
   ['walker-sim', 'node', ['modules/walker-sim/test/run.js']],
   ['walker-sim minified', 'node', ['modules/walker-sim/test/run.js', 'modules/walker-sim/walker-sim.min.js']],

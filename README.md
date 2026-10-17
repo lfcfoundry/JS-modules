@@ -89,6 +89,7 @@ Open zip and Excel files safely, draw flow charts, write animated GIFs and simul
 |---|---|---|---|
 | [gif-writer](modules/gif-writer/README.md) | Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation). | `GifWriter` | 1.0.0 · API 1 |
 | [zip-open](modules/zip-open/README.md) | Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note. | `ZipOpen` | 1.0.0 · API 1 |
+| [memory-compression](modules/memory-compression/README.md) | Keeps big arrays, coordinates and records packed in memory and brings them back exactly: a 120 MB scene shrinks to 52% (41% in small mode) and restores in about 175 ms, against 525 ms with lz4js and 1.2 s with fflate. | `MemoryCompression` | 1.0.0 · API 1 |
 | [river-layout](modules/river-layout/README.md) | Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer. | `RiverLayout` | 1.0.0 · API 1 |
 | [walker-sim](modules/walker-sim/README.md) | Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 6 million walkers a second). | `WalkerSim` | 2.0.0 · API 2 |
 
@@ -206,7 +207,7 @@ The games' own art, characters, text, sounds and secret content stay in Apple Pr
 ```
 npm i playwright-core
 CHROMIUM=/path/to/chrome node tests/run.js      # CHROMIUM is required: the browser tests refuse to run without it and print the real Chromium version (see Test browsers below)
-npm run test:kits                               # slow-note, spotlight-tour, speed-lab, test-isolation, gif-writer, zip-open, river-layout, walker-sim, frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in, webkit-driver (needs python3 and Playwright for Python for the browser parts)
+npm run test:kits                               # slow-note, spotlight-tour, speed-lab, test-isolation, gif-writer, zip-open, memory-compression, river-layout, walker-sim, frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in, webkit-driver (needs python3 and Playwright for Python for the browser parts)
 ```
 
 29 checks: maths and save logic in Node, the browser pieces (curtains, hold-press, fly-to-mini, probes, governor, sticker text) in Chromium. For humans and AI helpers: read [AGENTS.md](AGENTS.md), [llms.txt](llms.txt) and [modules.json](modules.json). What changed in each version: [CHANGELOG.md](CHANGELOG.md) (and a `CHANGELOG.md` in every module and tool folder).
