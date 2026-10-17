@@ -78,4 +78,29 @@ const code = G.lzw(big, 8); ok(code.length > 100, 'LZW runs over a long stream t
   for (const mc of [2, 3, 4, 5]) for (let rep = 0; rep < 8; rep++) { const n = 2 + Math.floor(rr() * 20000), a = new Uint8Array(n); let i = 0; while (i < n) { const v = (rr() * (1 << mc)) | 0, l = 1 + Math.floor(rr() * (rr() < 0.2 ? 500 : 6)); for (let q = 0; q < l && i < n; q++) a[i++] = v; } runs++; if (Buffer.compare(Buffer.from(G.lzw(a, mc, true)), Buffer.from(G.lzw(a, mc))) !== 0) diff++; }
   ok(diff === 0, 'LZW run shortcut gives the same bytes as the plain coder on ' + runs + ' inputs (' + diff + ' differ)');
 }
+// Fixed scenes whose palettes and GIF bytes were recorded from version 1.0.0 (before the faster palette search); 1.1.0 and later must match them exactly.
+function goldenHashes(G) {
+  const crypto = require('crypto'); let sd = 12345; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const hash = (x) => crypto.createHash('sha256').update(typeof x === 'string' ? x : Buffer.from(x)).digest('hex').slice(0, 16);
+  const scene = (kind, w, h, n) => { const out = []; for (let f = 0; f < n; f++) { const a = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < w * h; i++) { const x = i % w, y = (i / w) | 0; let r, g, b;
+      if (kind === 'lattice') { r = ((rr() * 16) | 0) * 17; g = ((rr() * 16) | 0) * 17; b = ((rr() * 16) | 0) * 17; }      // 4096 colors, all equally common: many ties
+      else if (kind === 'noise') { r = rr() * 256; g = rr() * 256; b = rr() * 256; }
+      else if (kind === 'smooth') { r = x * 255 / w + f * 3 + rr() * 5; g = y * 255 / h + rr() * 3; b = ((x ^ y) & 255) * 0.5 + rr() * 6; }
+      else { const q = (rr() * 7) | 0; r = q * 36; g = 255 - q * 31; b = q * 9; }                                        // 7 colors
+      a[i * 4] = r; a[i * 4 + 1] = g; a[i * 4 + 2] = b; a[i * 4 + 3] = 255; } out.push(a); } return out; };
+  const res = [];
+  for (const [kind, w, h, n, mc] of [['lattice', 90, 70, 3, 255], ['noise', 120, 90, 2, 255], ['smooth', 160, 120, 4, 255], ['smooth', 160, 120, 2, 40], ['few', 64, 48, 2, 255], ['lattice', 50, 40, 2, 3]]) {
+    const pics = scene(kind, w, h, n), pal = G.makePalette(pics, mc); res.push(hash(JSON.stringify(pal)));
+    const enc = G.createEncoder(w, h, pal, {}); pics.forEach((p, i) => enc.add(p, 40 + i)); res.push(hash(enc.finish()));
+  }
+  // a hand-made palette with equal greens and equal distances, so the nearest-color tie rule decides
+  const tp = []; for (let i = 0; i < 60; i++) tp.push([(i * 37) % 256, (i % 5) * 50, (i * 91) % 256]);
+  const pics = scene('lattice', 70, 50, 2), enc = G.createEncoder(70, 50, tp, {}); pics.forEach((p, i) => enc.add(p, 30 + i)); res.push(hash(enc.finish()));
+  return res;
+}
+{
+  const got = goldenHashes(G), want = ["d13b7242aa86702a","cb99c400a18f2a30","710a5ab80d3fe07a","dbc250c79ac33851","ba2308747618c43e","420f628132808bec","67e5b86bb17ca357","70bb22cc137c8805","ad94477792e96c58","f3ec721b27d82bf6","2fae469763b3a7cb","e6dbfddbca69f469","d91c32be86da9da6"], bad = got.filter((h, i) => h !== want[i]).length;
+  ok(bad === 0, 'palettes and GIF bytes of 7 fixed scenes match what version 1.0.0 wrote (' + bad + ' of ' + want.length + ' differ)');
+}
 if (fails) { console.log(fails + ' FAILED'); process.exit(1); } else console.log('gif-writer: all passed');
