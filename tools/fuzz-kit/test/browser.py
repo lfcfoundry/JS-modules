@@ -54,6 +54,29 @@ with sync_playwright() as p:
     # 7. the junk-text check and the dead-page guard run on a real page too
     r = mod.run_seed(br, app_url, adapter, 1, 120, junk_text=True)
     check("--junk-text: the clean example app shows no NaN or undefined", r["fails"] == [], r["fails"][:1])
+    # a page frozen by an endless loop inside an operation is reported as hung within a few seconds (the start call must return at once for this to work)
+    import time
+    hang_adapter = adapter.replace("{ name: 'tap', weight: 6, run: function () { app.tap(); } },", "{ name: 'tap', weight: 6, run: function () { app.tap(); } }, { name: 'freeze', weight: 1, run: function () { for (;;); } },")
+    t0 = time.time(); r = mod.run_seed(br, app_url, hang_adapter, 1, 200, seed_secs=3, hang_trace=True)
+    check("a frozen page is reported as hung, naming the operation, within a few seconds", bool(r["fails"]) and r["fails"][0]["op"] == "hung" and "freeze" in r["fails"][0]["what"] and time.time() - t0 < 20, (r["fails"][:1], round(time.time() - t0, 1)))
+    br.close()
+
+# 7b. Fuzzer.Input.pickVisible: picks only visible, enabled controls, spreads over them, honors a skip test, and says null when none is visible
+with sync_playwright() as p:
+    br = p.chromium.launch(); pg = br.new_page()
+    pg.set_content('<!doctype html><meta charset=utf-8><body>' + ''.join('<button id=b%d%s>b%d</button>' % (i, ' style="display:none"' if i % 5 else '', i) for i in range(50)) + '<button id=dis disabled>x</button>')
+    pg.evaluate((ROOT / "src" / "fuzz-core.js").read_text() + "\n;0")
+    r = pg.evaluate("""() => {
+      var F = Fuzzer, I = F.Input, rnd = F.mulberry32(5), c = { int: function (n) { return Math.floor(rnd() * n); }, pick: function (a) { return a[Math.floor(rnd() * a.length)]; } };
+      var out = {}, cnt = {}, k, e;
+      for (k = 0; k < 2000; k++) { e = I.pickVisible(c); cnt[e.id] = (cnt[e.id] || 0) + 1; }
+      out.ids = Object.keys(cnt).sort(); out.min = Math.min.apply(null, Object.values(cnt));
+      var c2 = {}; for (k = 0; k < 500; k++) { e = I.pickVisible(c, null, function (el) { return el.id === 'b0'; }, { tries: 1 }); c2[e.id] = 1; }
+      out.skipWorks = !c2.b0; out.fallbackReached = Object.keys(c2).length >= 8;
+      document.querySelectorAll('button').forEach(function (b) { b.hidden = true; }); out.noneVisible = I.pickVisible(c) === null;
+      return out; }""")
+    check("pickVisible: only the 10 visible, enabled buttons are ever picked, each often", r["ids"] == sorted("b%d" % i for i in range(0, 50, 5)) and r["min"] > 100, r)
+    check("pickVisible: a skip test is honored (with one try it falls back to another visible control), and null when nothing is visible", r["skipWorks"] and r["fallbackReached"] and r["noneVisible"], r)
     br.close()
 
 # 8. the stripped copy of the app has no test handle, and still runs

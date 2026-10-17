@@ -12,7 +12,7 @@ window.__fuzzConfig = function (seed) {
   return {
     seed: seed,
     ops: [
-      { name: 'click-control', weight: 6, run: function (c) { var l = I.clickables(); if (l.length) c.pick(l).click(); } },
+      { name: 'click-control', weight: 6, run: function (c) { var e = I.pickVisible(c); if (e) e.click(); } },
       { name: 'tap-near-middle', weight: 4, run: function (c) {
         var n = 1 + c.int(10), k, x, y, t;
         for (k = 0; k < n; k++) {

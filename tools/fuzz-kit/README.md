@@ -1,11 +1,11 @@
 # fuzz-kit
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
 **Test it:**
-- `node tools/fuzz-kit/test/run.js` runs the engine, the input helpers, the in-page driver and the Puppeteer runner's own logic against fake pages (no browser; 180 checks).
+- `node tools/fuzz-kit/test/run.js` runs the engine, the input helpers, the in-page driver and the Puppeteer runner's own logic against fake pages (no browser; 201 checks).
 - `python3 tools/fuzz-kit/test/runner_fakes.py` runs the Playwright runner's own logic against a fake page (no browser; 38 checks).
-- `python3 tools/fuzz-kit/test/browser.py` runs the real thing in Chromium (Playwright for Python).
+- `python3 tools/fuzz-kit/test/browser.py` runs the real thing in Chromium (Playwright for Python; 16 checks).
 
 This kit also replaces two older tools that were retired from this repository: `fuzz-play` (its real-input, CPU-throttle and "junk text" ideas were merged in; see [What came from where](#what-came-from-where)) and `marionette-lite` (replaced by the [stock Firefox recipe](#stock-firefox-with-preferences-a-ten-line-recipe) below).
 
@@ -47,7 +47,7 @@ Both runners take the same options and print the same lines.
 
 | Option | What it does |
 |---|---|
-| `--seeds 1-20`, `--ops 400`, `--viewport 412x892` | Which seeds, how many operations each, the page size. |
+| `--seeds 1-20`, `--ops 400`, `--viewport 412x892` | Which seeds, how many operations each, the page size. `--seeds` takes ranges and comma lists: `1-5,9,20-22`. |
 | `--browser` | Playwright: `chromium` (default), `firefox` (Playwright's own patched Firefox), `webkit`. Puppeteer: `chrome` (default) or `firefox` (stock Firefox over WebDriver BiDi). |
 | `--shrink` (`--shrink-tries 200`, `--shrink-secs 30`) | When a seed fails, replay it and cut it down. Prints the short operation list and the script to paste into `run(0, { script })`. Stops at the try cap or the time cap and says so. If the failure does not repeat on replay, it says so plainly and does not shrink. |
 | `--seed-secs 120` | Hang guard. A seed with no answer after this long is reported as **hung** and its browser context is closed (killed). A page stuck in an endless loop cannot be asked what it was doing; add `--hang-trace` (every operation name is sent to the runner, which is slower) and the report names the last operation. |
@@ -59,6 +59,11 @@ Both runners take the same options and print the same lines.
 | `--mobile` | Phone-style page: touch on and the mobile viewport flag (Chromium and WebKit in Playwright; Chrome in Puppeteer). |
 | `--init "JS"` | JavaScript that runs before the page's own scripts, for example to start from a saved game: `--init "localStorage.setItem('save','{...}')"`. |
 | `--allow-navigation` | A single-page app that changes its path is not "leaving the page". |
+| `--jobs N` | Run seeds in N browsers at once (separate processes, about 350 MB of memory each). Lines are printed as each seed finishes. Helps when one seed takes more than about a second: on a deliberately slow adapter 16 seeds took 12.0 s with 1 job, 6.7 s with 2 and 4.7 s with 4 in Chromium. On the demo it is not needed, and Firefox gained little on 4 cores (20 s down to 16 s). It spends a little more compute (each browser start costs about 0.5 s of CPU) to save waiting. |
+| `--swarm 0.3` | Swarm testing on even seeds: each operation is left out of that seed's run with this chance, so rarely reached states get reached. See [Swarm testing](#swarm-testing-and-the-end-of-run-check). Not for every run: it finds the common bug less often. |
+| `--check-repeat` | Before the run, play seed 1 twice in the same page and once in a fresh page and say in plain words whether the app repeats exactly (same fingerprint), or where it does not (a random number in an operation, an app that is not reset). |
+| `--replay FILE` | Replay a recorded script on its seed: a `seed-N-findings.json` from `--bundle --shrink`, or a JSON list of steps. |
+| `--executable PATH` | The browser to start. Both runners have it now (Playwright's was Puppeteer-only). |
 
 **A dead page never reads as green.** If the page crashes, is closed, opens a new tab or window, or moves off the start page (anything except a `#fragment` change), the seed fails with a `page-guard` finding, even if the run itself returned normally. The Puppeteer runner also dismisses `alert`/`confirm` boxes so they cannot freeze a page for ever.
 
@@ -81,11 +86,21 @@ The Puppeteer runner finds the browser through `--executable`, else the `FIREFOX
 | `afterFail` | `function (c)`: put the app back in a sane place so the run can continue. If it throws, that is reported as a finding with the operation name `afterFail`. |
 | `tailLength`, `maxFails` | Defaults 40 and 5. The run stops at `maxFails` findings. |
 
+Two more optional fields: `swarm` (`true`, or a number from 0 to 1: the chance each operation is left out of a run) and `final` (`function (c)`: a check that runs once, after the last operation of a run that played to its end). See [Swarm testing and the end-of-run check](#swarm-testing-and-the-end-of-run-check). The result also has `hash`, a short fingerprint of everything the run did.
+
 Run options: `stopAt: k` (stop after operation k), `record: true` (also return a replayable `script`), `script` (replay one), `perOp: true` (see below), `firstOnly: true`, `onOp(c)` (called before every operation).
 
 `c` has `rand()`, `int(n)`, `pick(array)`, `chance(p)`, `seed`, `i`, `op`. Use `c`'s random functions for everything random in your operations, or runs stop being reproducible.
 
 If something unexpected goes wrong inside the engine, `run()` still returns the findings collected so far, plus one with the operation name `engine`.
+
+## Swarm testing and the end-of-run check
+
+**`swarm: true`** (or `swarm: 0.3`, the chance each operation is left out; `true` means 0.5): each seed uses only a random part of your operations (at least one stays on; weights still shape the mix among those on; an operation with weight 0 never turns on). The same seed always picks the same part, the result names it in `swarm`, and a recorded script replays whatever was on. Why: a bug that needs, say, "buy" without "sell" is rarely reached when every operation is always on. On a model app, a bug the normal mix never reached in 600 seeds was found by 15 to 40 swarm seeds. Why not always: a bug that needs many kinds of operations in the same run is found less often, so use swarm on some seeds (the runners' `--swarm 0.3` applies it to even seeds only) and keep the rest normal.
+
+**`final: function (c) { return '' or a message or a list }`**: runs once after the last operation, only when the run played to its end (not with `stopAt`, not after `maxFails` findings). A message is a finding named `final`; a throw is a finding; it may be async. Use it for properties that only make sense at the end: "undo everything, redo everything, the autosave matches", "save and reload gives the same state". The shrinker understands it: a script that only fails at the end shrinks to the operations that make the end-state wrong (in the tests, exactly five increments).
+
+**`hash`** in every result is a fingerprint of the operation names and your `state` labels, in order. The same seed must give the same hash; the runners' `--check-repeat` compares them for you and says so plainly.
 
 ## Shrinking a failure to the shortest replay
 
@@ -113,6 +128,7 @@ if (r.fails.length) {
 - `pointer(target, type, x, y, kind, opts)`: a synthetic pointer event in client pixels. A real browser throws `NotFoundError` when a page calls `setPointerCapture(e.pointerId)` with an id no real pointer has, and the fuzzer would report that as a false finding. By default this helper swallows exactly that error for the pointer ids it made up (not other errors, not other ids); `opts.pointerId` changes the id (default 1), `opts.captureGuard: false` turns the guard off, and `Fuzzer.Input.unguardCapture()` puts the browser's own method back. The guard patches `Element.prototype.setPointerCapture` and `releasePointerCapture` in the page under test; for fully real pointers use `--real-input`.
 - `visible(el, opts)`: could a person use it now? Not disabled, not hidden (`display`, the `hidden` attribute, `visibility`), not zero-size, and not covered by another element at its center. Something scrolled out of view counts as visible. `{ covering: false }` skips the covering test.
 - `clickables(selector, skip, opts)`: visible controls. The default list is buttons, checkboxes, radios, selects and ranges. **Links are not included** (clicking one can leave the page or open a tab); ask for them with `{ links: true }` or by putting `a[href]` in your own selector. `skip(el)` excludes more (file pickers, downloads).
+- `pickVisible(c, selector, skip, opts)`: one random visible control, found by trying random candidates first (`opts.tries`, default 12), then the full list if every try missed, so the answer is still uniform. Returns `null` when nothing is visible. About 12 times cheaper than `clickables()` on a busy page, because only the few candidates tried are measured; the example adapters use it for "click anything visible".
 - `canvasPoint(canvas, lx, ly, logicalW, logicalH)` and `junk(c)` (values to damage saved data with) are unchanged.
 
 `Fuzzer.Invariants.noJunkText({ skip, words, root })` returns an invariant that fails when the visible text (`innerText` of the body) shows `NaN`, `undefined` or `[object ...]` as whole words. `skip` is a list of phrases or regular expressions removed first (the words "Infinity War" would trip a check for `Infinity`, which is why `Infinity` is not on the default list; add it with `words: ['Infinity']`).
@@ -172,10 +188,10 @@ I confirmed that these projects exist, but I did not install or benchmark gremli
 - **The adapter is the work.** Good invariants are what find real bugs. Start with: numbers are finite, state is one of the known states, counters never go negative or backwards, a saved-and-reloaded save equals itself, and liveness.
 - **Fuzzing runs your page.** Skip controls that download files, open file pickers or navigate away (`Fuzzer.Input.clickables(selector, skip)` has a skip callback; links are left out by default).
 - **Browser status, plainly.**
-  - The engine, the input helpers, the driver and the Puppeteer runner's logic are checked in Node against fakes. The Playwright runner's logic is checked against a fake page in Python. `test/browser.py` runs the example app in Chromium through Playwright for Python.
-  - **The Puppeteer runner and Firefox are manual runs.** No automatic test starts Puppeteer or Firefox. Earlier notes say the demo gave the same findings in Chromium and in Firefox through Puppeteer; that was a hand run, not a test you can repeat with one command.
-  - The runner features added on 2026-10-15 (`--shrink`, the hang guard, `--bundle`, `--real-input`, `--throttle`, `--init`, `--mobile` and the dead-page guard) were checked against fake pages only when they were written. The extra checks in `test/browser.py` for `--shrink`, `--bundle` and `--junk-text` were written but not run at that time. The real-input path in a real browser, the hang guard on a really frozen page and the touch/mobile flags are the least certain parts; run `test/browser.py` and a hand run in Firefox before trusting them.
-  - Playwright drives its own patched Firefox, not stock Firefox; stock Firefox goes through Puppeteer over WebDriver BiDi. Nothing here has been run on a phone.
+  - Automatic checks: the engine, the input helpers, the driver and the Puppeteer runner's logic run in Node against fakes (201 checks); the Playwright runner's logic runs in Python against a fake page (38); `test/browser.py` runs the example app in Chromium through Playwright for Python (16), including a page that really freezes and `pickVisible` on a real page.
+  - **Real runs by hand, 2026-10-17** (the Puppeteer runner has no automatic test that starts a real browser): stock **Firefox 157.0.1** (over WebDriver BiDi), **Chromium 153** (not ungoogled) and Chromium 141 each gave the same results for the clean demo (seeds 1 to 5), the planted bug found and shrunk to the same three steps (seeds 1 to 3: 222, 93 and 322 operations down to 3), `--bundle` and `--init`, `--real-input`, the hang guard on a frozen page, `--check-repeat`, `--replay`, `--swarm` and comma seed lists. The same seed gives the same game in all three engines. Two real bugs came out of those runs and are fixed in 1.1.0: the hang guard never fired on a really frozen page (the run started inside the start call, so it never returned), and `--real-input` failed on every seed in Firefox because Firefox over WebDriver BiDi does not know the key name `Space` (the Puppeteer runner now sends a plain space).
+  - The cloud runs use Firefox 157 and Chromium 153 as stand-ins for the newest builds (see the project notes `firefox-in-cloud-tests-recipe`). **Still unchecked:** WebKit, Firefox 158 or newer, ungoogled Chromium, a phone, and `--mobile` in Firefox (it runs, but touch was not verified). `--throttle` in Firefox is refused with a plain message.
+  - Playwright drives its own patched Firefox, not stock Firefox; stock Firefox goes through Puppeteer over WebDriver BiDi.
 - **`--throttle` is Chromium only.** `--mobile` is not available in Firefox through Puppeteer.
 
 ## For AI agents
