@@ -5,7 +5,7 @@ What changed in each version, newest first, in plain words. The numbers are expl
 ## 1.1.0 · API 1 · 2026-10-16
 `QualityGovernor` no longer ignores very slow devices. Before, a frame gap over 100 ms was treated as a pause and never counted, so a phone under 10 frames a second was never stepped down; now four long frames in a row count as a slow device. In a simulation with fake frame times a 6.7 fps phone is stepped down after about 15 seconds and a 1 fps phone after about 102 seconds (it still counts 100 frames before it decides). New option `stepUp: false` (only ever steps down) and new `lock()` / `unlock()` keep a level the player picked. A single stall still changes nothing.
 
-Tested in: Node checks and a simulated 3 frames-a-second device; browser versions for this release: not recorded. Not run: a real slow phone.
+Tested in: ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/frame-kit-browser.js: the 67 checks of test/run.js pass inside the page in each browser, 4 of 4, and about 92 to 94 real animation frames in 1.5 s feed FrameMeter, EvenDt and QualityGovernor without an error in each; 67 Node checks). Not run: a real slow phone, Safari itself
 
 ## 1.0.0 · API 1 · 2026-10-16
 First labeled version. Nothing in the code changed; everything under "Before version labels" is already in it.
