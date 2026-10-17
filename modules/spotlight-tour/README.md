@@ -1,10 +1,10 @@
 # spotlight-tour
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node checks where the piece has any; Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK 2.52.6 through `tools/webkit-driver`; key down/up and touch were sent as page events or the mouse). Not run: GNOME Web (Epiphany) 46.5, a phone.
+**Tested in:** Firefox 158.0 (reports 158.0b5), ungoogled Chromium 155.0.8059.39-1, WebKitGTK MiniBrowser 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, in a real browser (tests/pieces-browser.js, 2026-10-17); Chromium 155 timings for the scroll numbers; not tried on a real phone, Safari or with a screen reader
 
-A short guided look at the parts of a page: one dimmed layer, one bright window over the current part (measured live, so it follows scrolling and resizing), and a card beside it with Skip, Back and Next. It remembers that a visitor has seen it, and it can hand out a finishing gift once, only to people who reach the end. 11.4 KB including its own stylesheet (4.4 KB gzipped), no dependencies. Cut from Apple Press's first-time tour, with the game's own steps taken out.
+A short guided look at the parts of a page: one dimmed layer, one bright window over the current part (measured live, so it follows scrolling, resizing and the page reflowing), and a card beside it with Skip, Back and Next. It remembers that a visitor has seen it, and it can hand out a finishing gift once, only to people who reach the end. 12.6 KB including its own stylesheet (4.9 KB gzipped), no dependencies. Cut from Apple Press's first-time tour, with the game's own steps taken out.
 
 **Test it:** `node modules/spotlight-tour/test/run.js` (5 checks on where the window and card go) and `node tests/pieces-browser.js` (the whole tour in Firefox 158 and ungoogled Chromium 155: opens once, window over the part, Back, Skip, Escape, Tab, `#tour`, the gift, scrolling to a far part, blocked storage). **Try it:** `demo.html`.
 
@@ -29,7 +29,7 @@ tour.start();           // always (a "Show me around" button)
 - **`maybeStart` options:** `autoStart()` (return false to hold it back, for example for a player with a saved game), `forceHash` (default `#tour`, for testing), `blockHash` (a RegExp of addresses that must never show it).
 - **Other options:** `texts` (`next`, `back`, `skip`, `welcome`, `done`, `step(i, n)`), `topOffset` (room for a sticky bar when scrolling a tall part into view, default 120), `scroll: false`, `still` (true to turn the sliding off; it is off already for "reduce motion"), `onStep(i, step)`, `onClose(finished)`, `storage`, `root`.
 - **Methods:** `start`, `maybeStart`, `seen`, `giftGiven`, `reset`, `isOpen`, `goTo(n)`, `close`, `destroy`.
-- **Keyboard:** Escape skips; Tab stays on the card's buttons; focus goes back to what had it when the tour closes. The card is a labelled modal dialog. Colors come from `--stt-bg`, `--stt-text`, `--stt-accent` and follow the dark color scheme.
+- **Keyboard:** Escape skips; Tab stays on the card's buttons; focus goes back to what had it when the tour closes. The card is a native modal `<dialog>` (opened with `showModal`): it sits in the browser's top layer, so a page's own pop-ups cannot cover it, the page behind cannot take keyboard focus, and the browser's own close request (Escape, the Android back button) ends the tour. `tour.element` is that `<dialog>`; it is open when `tour.element.open` is true. A browser without `<dialog>` gets a fixed full-screen layer instead (not tested). Colors come from `--stt-bg`, `--stt-text`, `--stt-accent` and follow the dark color scheme.
 - `SpotlightTour.layout(targetBox, cardSize, viewSize, margin)` is the placing maths on its own: the card goes below the part, else above it, else at the bottom with the window shrunk to fit above it; a part with less than 20 pixels showing counts as no part.
 
 ## Why
@@ -38,7 +38,7 @@ A first visit is the one time you can explain a page, and a long tour gets skipp
 ## Limits
 - One tour at a time; it does not stack with other pop-ups, so close yours before starting it.
 - The bright window is a rectangle around the part's box (6 pixels larger), and the part itself cannot be clicked while the tour is open.
-- A part inside a scrolling box (not the page) is not scrolled into view; only page scrolling is done.
+- A part inside a scrolling box is scrolled into view (nearest edge), and the window follows the part when the page reflows (an image loads, a block above grows). A part that moves by animation is followed only as fast as the browser reports size changes.
 - Text is set as plain text (`textContent`), so no HTML or links inside steps.
 - Not tried with a screen reader or on a real phone.
 

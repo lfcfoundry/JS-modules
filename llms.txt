@@ -23,7 +23,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 
 ## Games: First visit and grown-ups
 - [grown-ups-door](https://github.com/lfcfoundry/JS-modules/blob/main/modules/grown-ups-door/README.md): A hold-then-drag task a young child will not finish, in front of the buttons and links a grown-up should press (a speed bump, not security). Version 1.0.0, API 1.
-- [spotlight-tour](https://github.com/lfcfoundry/JS-modules/blob/main/modules/spotlight-tour/README.md): A first-time tour: one dimmed layer, a bright window over the current part, Skip and Back, remembers who saw it and gives a finishing gift once. Version 1.0.0, API 1.
+- [spotlight-tour](https://github.com/lfcfoundry/JS-modules/blob/main/modules/spotlight-tour/README.md): A first-time tour: one dimmed layer, a bright window over the current part, Skip and Back, remembers who saw it and gives a finishing gift once. Version 1.1.0, API 1.
 
 ## Games: Looks and effects
 - [stage-curtains](https://github.com/lfcfoundry/JS-modules/blob/main/modules/stage-curtains/README.md): Velvet stage curtains that slide shut over a page, then fly open. (global StageCurtains) Version 1.1.0, API 1.

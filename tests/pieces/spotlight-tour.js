@@ -4,7 +4,7 @@ check('spotlight-tour', async (b) => {
   const p = await open(b, 'modules/spotlight-tour/demo.html');
   const clr = () => p.evaluate(() => { localStorage.removeItem('spotlight-tour-demo'); localStorage.removeItem('spotlight-tour-demo-gift'); });
   await clr(); await p.reload(); await sleep(300);
-  const shown = () => p.evaluate(() => !document.querySelector('.stt').hidden);
+  const shown = () => p.evaluate(() => document.querySelector('.stt').open);
   const txt = (s) => p.evaluate((q) => document.querySelector(q).textContent, s);
   const done = [];
   // 1. a new visitor sees it once, and it is not "seen" until it is closed
@@ -13,7 +13,7 @@ check('spotlight-tour', async (b) => {
   await p.click('.stt-next'); await sleep(350);
   ok((await txt('.stt-n')) === 'Step 1 of 5' && (await p.evaluate(() => document.querySelector('.stt-back').hidden)), 'step 1 of 5 / Back should be hidden');
   // the bright window sits over the target
-  const geo = await p.evaluate(() => { const h = document.querySelector('.stt-hole').getBoundingClientRect(), t = document.querySelector('#big').getBoundingClientRect(), c = document.querySelector('.stt-card').getBoundingClientRect(); return { h: [h.left, h.top, h.right, h.bottom], t: [t.left, t.top, t.right, t.bottom], c: [c.left, c.top, c.right, c.bottom] }; });
+  const geo = await p.evaluate(() => { const h = document.querySelector('.stt[open] .stt-hole').getBoundingClientRect(), t = document.querySelector('#big').getBoundingClientRect(), c = document.querySelector('.stt-card').getBoundingClientRect(); return { h: [h.left, h.top, h.right, h.bottom], t: [t.left, t.top, t.right, t.bottom], c: [c.left, c.top, c.right, c.bottom] }; });
   ok(geo.h[0] <= geo.t[0] + 1 && geo.h[1] <= geo.t[1] + 1 && geo.h[2] >= geo.t[2] - 1 && geo.h[3] >= geo.t[3] - 1, 'the window does not cover the part ' + JSON.stringify(geo));
   ok(geo.c[1] >= geo.h[3] - 1 || geo.c[3] <= geo.h[1] + 1, 'the card covers the window ' + JSON.stringify(geo));
   await p.click('.stt-next'); await sleep(350); ok(!(await p.evaluate(() => document.querySelector('.stt-back').hidden)), 'Back should show from step 2');
@@ -37,9 +37,25 @@ check('spotlight-tour', async (b) => {
   await sleep(600); ok(await p.evaluate(() => gifts === 1), 'the gift was given twice'); done.push('finish gives the gift once; a second finish does not');
   // 5. the last parts: a far-down target scrolls into view and is inside the window
   await p.evaluate(() => tour.start()); await p.evaluate(() => tour.goTo(4)); await sleep(400);
-  const far = await p.evaluate(() => { const t = document.querySelector('#bottom').getBoundingClientRect(), h = document.querySelector('.stt-hole').getBoundingClientRect(); return { top: t.top, bottom: t.bottom, vh: innerHeight, hTop: h.top, hBottom: h.bottom }; });
+  const far = await p.evaluate(() => { const t = document.querySelector('#bottom').getBoundingClientRect(), h = document.querySelector('.stt[open] .stt-hole').getBoundingClientRect(); return { top: t.top, bottom: t.bottom, vh: innerHeight, hTop: h.top, hBottom: h.bottom }; });
   ok(far.top >= 0 && far.bottom <= far.vh && far.hTop <= far.top + 1 && far.hBottom >= far.bottom - 1, 'the far part is not in view and covered: ' + JSON.stringify(far));
   await p.evaluate(() => tour.close()); done.push('scrolls to a far-down part');
+  // 7. 1.1.0: the window stays on the part while scrolling and when the page reflows; a part in a scrolling box is brought into view; the card is above everything and the page behind is inert
+  const covers = (sel) => p.evaluate((q) => { const t = document.querySelector(q).getBoundingClientRect(), h = document.querySelector('.stt[open] .stt-hole').getBoundingClientRect(); return h.top <= t.top + 1 && h.bottom >= t.bottom - 1 && h.left <= t.left + 1 && h.right >= t.right - 1 && t.top >= 0 && t.bottom <= innerHeight; }, sel);
+  await p.evaluate(() => { tour.start(); tour.goTo(3); }); await sleep(450);
+  ok(await covers('#shop'), 'the window is not on the shop before scrolling');
+  await p.evaluate(() => window.scrollBy(0, 40)); await sleep(60);
+  ok(await covers('#shop'), 'the window trailed the part right after a scroll (it should stay on it)');
+  await p.evaluate(() => { const d = document.createElement('div'); d.id = 'pushdown'; d.style.height = '120px'; document.body.insertBefore(d, document.getElementById('shop')); }); await sleep(300);
+  ok(await covers('#shop'), 'the window did not follow the part when the page reflowed');
+  const inert = await p.evaluate(() => { const c = document.createElement('div'); c.style.cssText = 'position:fixed;inset:0;z-index:2147483647'; document.body.appendChild(c); const k = document.querySelector('.stt-card').getBoundingClientRect(), top = document.elementFromPoint(k.left + k.width / 2, k.top + 10), on = document.querySelector('.stt').contains(top); c.remove(); document.getElementById('big').focus(); return { on, bgFocus: document.activeElement === document.getElementById('big') }; });
+  ok(inert.on, 'the card was covered by a page element with a huge z-index'); ok(!inert.bgFocus, 'the page behind took the keyboard focus');
+  await p.evaluate(() => { tour.close(); document.getElementById('pushdown').remove(); });
+  await p.evaluate(() => { const b = document.createElement('div'); b.id = 'sbox'; b.style.cssText = 'height:100px;overflow:auto;border:1px solid #888;margin:8px 0'; b.innerHTML = '<div style="height:700px;position:relative"><span id="sbt" style="position:absolute;top:600px;left:10px;padding:6px">deep inside</span></div>'; document.getElementById('shop').after(b); window.t2 = SpotlightTour.create({ storage: null, steps: [{ target: '#sbt', title: 'Inside a box', text: 'x' }] }); window.t2.start(); }); await sleep(450);
+  const inb = await p.evaluate(() => { const bx = document.getElementById('sbox').getBoundingClientRect(), t = document.getElementById('sbt').getBoundingClientRect(); return { scrolled: document.getElementById('sbox').scrollTop > 0, inBox: t.top >= bx.top - 1 && t.bottom <= bx.bottom + 1 }; });
+  ok(inb.scrolled && inb.inBox, 'a part inside a scrolling box was not brought into view: ' + JSON.stringify(inb));
+  ok(await covers('#sbt'), 'the window is not on the part inside the scrolling box');
+  await p.evaluate(() => { window.t2.destroy(); document.getElementById('sbox').remove(); }); done.push('window stays on the part while scrolling and when the page reflows; a part in a scrolling box is scrolled into view; card above a max z-index element; page behind not focusable');
   // 6. a storage that throws does not break it
   const safe = await p.evaluate(() => { const t = SpotlightTour.create({ steps: [{ title: 'a', text: 'b' }], storage: { getItem() { throw new Error('x'); }, setItem() { throw new Error('x'); } }, key: 'k' }); const r = t.maybeStart(); t.close(); t.destroy(); return r; });
   ok(safe === true, 'blocked storage broke the tour');

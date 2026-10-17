@@ -50,7 +50,7 @@ Show a new player around, and keep small children away from the buttons that mat
 | Module | One line | Global | Version |
 |---|---|---|---|
 | [grown-ups-door](modules/grown-ups-door/README.md) | A hold-then-drag task a young child will not finish, in front of the buttons and links a grown-up should press (a speed bump, not security). | `GrownUpsDoor` | 1.0.0 · API 1 |
-| [spotlight-tour](modules/spotlight-tour/README.md) | A first-time tour: one dimmed layer, a bright window over the current part, Skip and Back, remembers who saw it and gives a finishing gift once. | `SpotlightTour` | 1.0.0 · API 1 |
+| [spotlight-tour](modules/spotlight-tour/README.md) | A first-time tour: one dimmed layer, a bright window over the current part, Skip and Back, remembers who saw it and gives a finishing gift once. | `SpotlightTour` | 1.1.0 · API 1 |
 
 #### Looks and effects
 
