@@ -87,7 +87,7 @@ Open zip and Excel files safely, draw flow charts, write animated GIFs and simul
 
 | Module | One line | Global | Version |
 |---|---|---|---|
-| [gif-writer](modules/gif-writer/README.md) | Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation). | `GifWriter` | 1.0.0 · API 1 |
+| [gif-writer](modules/gif-writer/README.md) | Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation). | `GifWriter` | 1.1.0 · API 1 |
 | [zip-open](modules/zip-open/README.md) | Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note. | `ZipOpen` | 1.0.0 · API 1 |
 | [memory-compression](modules/memory-compression/README.md) | Keeps big arrays, coordinates and records packed in memory and brings them back exactly: a 120 MB scene shrinks to 52% (41% in small mode) and restores in about 175 ms, against 525 ms with lz4js and 1.2 s with fflate. | `MemoryCompression` | 1.1.0 · API 1 |
 | [memory-compression-jso](modules/memory-compression-jso/README.md) | Keeps big lists of plain JavaScript objects packed in memory and brings every value back exactly: 300,000 link objects shrink to 14% of their JSON text (35% for msgpackr with records) and unpack in about 73 ms (122 ms for msgpackr with records); text patterns, columns for shared objects and a view that opens in 0.06 ms are new in 1.1.0. | `MemoryCompressionJSO` | 1.1.1 · API 1 |

@@ -4,7 +4,7 @@
  * are left transparent, and every picture is compressed the moment it is added.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   var pal = GifWriter.makePalette([rgba1, rgba2], 255);          // rgba: Uint8ClampedArray from ctx.getImageData(...).data
  *   var enc = GifWriter.createEncoder(width, height, pal, { loop: true });
@@ -32,21 +32,22 @@
   /** Up to maxColors colors that stand for the pictures. */
   function makePalette(pictures, maxColors) {
     maxColors = Math.min(255, maxColors || 255);
-    var HB = 16, HS = 1 << HB, mask = 0xffffff, attempt, uniq = 0, keys, cnts, p, i;
+    var HB = 16, HS = 1 << HB, mask = 0xffffff, attempt, uniq = 0, p, i;
     var total = 0; for (p = 0; p < pictures.length; p++) total += pictures[p].length >> 2;
     var stride = total > 1000000 ? 2 : 1;   // big pictures: look at every other pixel (the colors that matter come in runs and areas, so the palette barely changes; the histogram is the largest steady cost)
+    var tbl;   // one table of pairs: [color + 1, count] (0 = empty slot), so a lookup touches one cache line
     for (attempt = 0; attempt < 6; attempt++) {
-      keys = new Int32Array(HS).fill(-1); cnts = new Int32Array(HS); uniq = 0;
+      tbl = new Int32Array(HS * 2); uniq = 0;
       var cap = HS * 0.4;
       for (p = 0; p < pictures.length && uniq <= cap; p++) {
         var w = words(pictures[p]), n = w.length, last = -2, lastSlot = 0;
         for (i = 0; i < n; i += stride) {
           var col = rgbOf(w[i]) & mask;
-          if (col === last) { cnts[lastSlot]++; continue; }
-          var h = Math.imul(col, 0x9e3779b1) >>> (32 - HB);
-          while (keys[h] !== -1 && keys[h] !== col) h = (h + 1) & (HS - 1);
-          if (keys[h] === -1) { keys[h] = col; uniq++; if (uniq > cap) break; }
-          cnts[h]++; last = col; lastSlot = h;
+          if (col === last) { tbl[lastSlot]++; continue; }
+          var h = Math.imul(col, 0x9e3779b1) >>> (32 - HB), c1 = col + 1, e = tbl[h * 2];
+          while (e !== 0 && e !== c1) { h = (h + 1) & (HS - 1); e = tbl[h * 2]; }
+          if (e === 0) { tbl[h * 2] = c1; uniq++; if (uniq > cap) break; }
+          lastSlot = h * 2 + 1; tbl[lastSlot]++; last = col;
         }
       }
       if (uniq <= cap) break;
@@ -54,32 +55,51 @@
       if (attempt === 0) { HB = 20; HS = 1 << HB; } else if (attempt === 1) { HB = 22; HS = 1 << HB; } else mask = attempt === 2 ? 0xfefefe : attempt === 3 ? 0xfcfcfc : 0xf8f8f8;
     }
     var R = new Uint8Array(uniq), G = new Uint8Array(uniq), B = new Uint8Array(uniq), C = new Float64Array(uniq), u = 0;
-    for (i = 0; i < HS; i++) if (keys[i] !== -1) { R[u] = keys[i] >> 16; G[u] = (keys[i] >> 8) & 255; B[u] = keys[i] & 255; C[u] = cnts[i]; u++; }
-    keys = cnts = null;
+    for (i = 0; i < HS; i++) if (tbl[i * 2] !== 0) { var kc = tbl[i * 2] - 1; R[u] = kc >> 16; G[u] = (kc >> 8) & 255; B[u] = kc & 255; C[u] = tbl[i * 2 + 1]; u++; }
+    tbl = null;
     if (uniq <= maxColors) { var exact = []; for (i = 0; i < uniq; i++) exact.push([R[i], G[i], B[i]]); return exact; }
 
-    /* median cut: boxes are ranges of `order`; the box with the widest spread (times the square root of its pixels) is cut where half its pixels lie */
-    var order = new Int32Array(uniq), sortKey = new Int32Array(uniq);
+    /* median cut: boxes are ranges of `order`; the box with the widest spread (times the square root of its pixels) is cut where half its pixels lie.
+       The cut is found without sorting: count the pixels of the box per channel value, find the value where the running total reaches half, and
+       break ties inside that value by color number, which is exactly where a sort on (value, color number) would put the cut. */
+    var order = new Int32Array(uniq), scratch = new Int32Array(uniq), wsum = new Float64Array(256), num = new Int32Array(256);
     for (i = 0; i < uniq; i++) order[i] = i;
     var chans = [R, G, B], boxes = [];
-    var stats = function (lo, hi) {
-      var r0 = 255, r1 = 0, g0 = 255, g1 = 0, b0 = 255, b1 = 0, tot = 0;
-      for (var q = lo; q < hi; q++) { var o = order[q], r = R[o], g = G[o], b = B[o]; if (r < r0) r0 = r; if (r > r1) r1 = r; if (g < g0) g0 = g; if (g > g1) g1 = g; if (b < b0) b0 = b; if (b > b1) b1 = b; tot += C[o]; }
+    var mkBox = function (lo, hi, r0, r1, g0, g1, b0, b1, tot) {
       var dr = r1 - r0, dg = g1 - g0, db = b1 - b0, mx = Math.max(dr, dg, db);
       return { lo: lo, hi: hi, ch: dr >= dg && dr >= db ? 0 : dg >= db ? 1 : 2, score: hi - lo < 2 ? 0 : mx * Math.sqrt(tot), tot: tot };
     };
-    boxes.push(stats(0, uniq));
+    var r0 = 255, r1 = 0, g0 = 255, g1 = 0, b0 = 255, b1 = 0, tot0 = 0;
+    for (i = 0; i < uniq; i++) { var rr = R[i], gg = G[i], bb = B[i]; if (rr < r0) r0 = rr; if (rr > r1) r1 = rr; if (gg < g0) g0 = gg; if (gg > g1) g1 = gg; if (bb < b0) b0 = bb; if (bb > b1) b1 = bb; tot0 += C[i]; }
+    boxes.push(mkBox(0, uniq, r0, r1, g0, g1, b0, b1, tot0));
     while (boxes.length < maxColors) {
       var bi = -1, bs = 0, q;
       for (q = 0; q < boxes.length; q++) if (boxes[q].score > bs) { bs = boxes[q].score; bi = q; }
       if (bi < 0) break;
-      var bx = boxes[bi], ch = chans[bx.ch];
-      for (q = bx.lo; q < bx.hi; q++) sortKey[q] = (ch[order[q]] << 21) | order[q];
-      sortKey.subarray(bx.lo, bx.hi).sort();
-      for (q = bx.lo; q < bx.hi; q++) order[q] = sortKey[q] & 0x1fffff;
-      var run = 0, cut = bx.lo + 1;
-      for (q = bx.lo; q < bx.hi - 1; q++) { run += C[order[q]]; cut = q + 1; if (run >= bx.tot / 2) break; }
-      boxes.splice(bi, 1, stats(bx.lo, cut), stats(cut, bx.hi));
+      var bx = boxes[bi], ch = chans[bx.ch], size = bx.hi - bx.lo, v, o2, half = bx.tot / 2, run = 0, below = 0;
+      wsum.fill(0); num.fill(0);
+      for (q = bx.lo; q < bx.hi; q++) { o2 = order[q]; v = ch[o2]; wsum[v] += C[o2]; num[v]++; }
+      for (v = 0; v < 256; v++) { if (num[v] && run + wsum[v] >= half) break; run += wsum[v]; below += num[v]; }
+      var m = num[v], g = scratch.subarray(0, m), gn = 0, pl;
+      for (q = bx.lo; q < bx.hi; q++) { o2 = order[q]; if (ch[o2] === v) g[gn++] = o2; }
+      g.sort();
+      for (pl = 0; pl < m; pl++) { run += C[g[pl]]; if (run >= half) break; }
+      if (below + pl + 1 > size - 1) pl--;   // a box is never cut at its end: the last color always goes to the upper half
+      var T = pl >= 0 ? g[pl] : -1, a = bx.lo, b2 = 0, cut = bx.lo + below + pl + 1, tmp = scratch;
+      /* split the box into two halves, and measure both halves on the way (their color ranges and pixel totals) */
+      var lr0 = 255, lr1 = 0, lg0 = 255, lg1 = 0, lb0 = 255, lb1 = 0, lt = 0, ur0 = 255, ur1 = 0, ug0 = 255, ug1 = 0, ub0 = 255, ub1 = 0, ut = 0;
+      for (q = bx.lo; q < bx.hi; q++) {
+        o2 = order[q]; var v2 = ch[o2], cr3 = R[o2], cg3 = G[o2], cb3 = B[o2];
+        if (v2 < v || (v2 === v && o2 <= T)) {
+          order[a++] = o2; lt += C[o2];
+          if (cr3 < lr0) lr0 = cr3; if (cr3 > lr1) lr1 = cr3; if (cg3 < lg0) lg0 = cg3; if (cg3 > lg1) lg1 = cg3; if (cb3 < lb0) lb0 = cb3; if (cb3 > lb1) lb1 = cb3;
+        } else {
+          tmp[b2++] = o2; ut += C[o2];
+          if (cr3 < ur0) ur0 = cr3; if (cr3 > ur1) ur1 = cr3; if (cg3 < ug0) ug0 = cg3; if (cg3 > ug1) ug1 = cg3; if (cb3 < ub0) ub0 = cb3; if (cb3 > ub1) ub1 = cb3;
+        }
+      }
+      for (q = 0; q < b2; q++) order[a + q] = tmp[q];
+      boxes.splice(bi, 1, mkBox(bx.lo, cut, lr0, lr1, lg0, lg1, lb0, lb1, lt), mkBox(cut, bx.hi, ur0, ur1, ug0, ug1, ub0, ub1, ut));
     }
     var K = boxes.length, cr = new Float64Array(K), cg = new Float64Array(K), cb = new Float64Array(K);
     boxes.forEach(function (bx2, k) {
@@ -87,14 +107,35 @@
       for (var q2 = bx2.lo; q2 < bx2.hi; q2++) { var o = order[q2], c = C[o]; r += R[o] * c; g += G[o] * c; b += B[o] * c; t += c; }
       cr[k] = r / t; cg[k] = g / t; cb[k] = b / t;
     });
-    /* a few rounds of k-means (each color to its nearest center, centers to the pixel-weighted mean); the same eye-weighted distance as the encoder uses */
-    var rounds = uniq * K <= 6e7 ? 2 : uniq * K <= 3e8 ? 1 : 0, assign = new Int32Array(uniq);
+    /* a few rounds of k-means (each color to its nearest center, centers to the pixel-weighted mean); the same eye-weighted distance as the encoder uses.
+       The centers are kept in a list sorted by green and each color looks outward from its own green value, stopping as soon as the green part alone
+       (4 * difference squared, which is part of the sum) is already larger than the best distance found: the same winner as looking at every center,
+       and when two centers are equally near, the one with the lower number wins. */
+    var rounds = uniq * K <= 6e7 ? 2 : uniq * K <= 3e8 ? 1 : 0, byG = new Int32Array(K), gv = new Float64Array(K), rv = new Float64Array(K), bv = new Float64Array(K);
     for (var it = 0; it < rounds; it++) {
-      var sr = new Float64Array(K), sg = new Float64Array(K), sb = new Float64Array(K), st = new Float64Array(K);
+      var sr = new Float64Array(K), sg = new Float64Array(K), sb = new Float64Array(K), st = new Float64Array(K), k2;
+      for (k2 = 0; k2 < K; k2++) byG[k2] = k2;
+      byG.sort(function (x, y) { return cg[x] - cg[y] || x - y; });
+      for (k2 = 0; k2 < K; k2++) { gv[k2] = cg[byG[k2]]; rv[k2] = cr[byG[k2]]; bv[k2] = cb[byG[k2]]; }
       for (i = 0; i < uniq; i++) {
-        var r2 = R[i], g2 = G[i], b2 = B[i], best = 0, bd = 1e18;
-        for (var k2 = 0; k2 < K; k2++) { var dr2 = cr[k2] - r2, dg2 = cg[k2] - g2, db2 = cb[k2] - b2, dd = dr2 * dr2 * 2 + dg2 * dg2 * 4 + db2 * db2 * 3; if (dd < bd) { bd = dd; best = k2; } }
-        assign[i] = best; var c2 = C[i]; sr[best] += r2 * c2; sg[best] += g2 * c2; sb[best] += b2 * c2; st[best] += c2;
+        var r2 = R[i], g2 = G[i], b2 = B[i], best = 0, bd = 1e18, dr2, dg2, db2, dd, kk, gap;
+        var lo2 = 0, hi2 = K;   // find the first sorted center whose green is not below g2
+        while (lo2 < hi2) { var mid = (lo2 + hi2) >> 1; if (gv[mid] < g2) lo2 = mid + 1; else hi2 = mid; }
+        var down = lo2 - 1, up = lo2;
+        while (down >= 0 || up < K) {
+          if (down < 0 || (up < K && gv[up] - g2 <= g2 - gv[down])) {
+            dg2 = gv[up] - g2; gap = dg2 * dg2 * 4;
+            if (gap > bd) { up = K; continue; }   // every center further out on this side is further still
+            dr2 = rv[up] - r2; db2 = bv[up] - b2; kk = up++;
+          } else {
+            dg2 = gv[down] - g2; gap = dg2 * dg2 * 4;
+            if (gap > bd) { down = -1; continue; }
+            dr2 = rv[down] - r2; db2 = bv[down] - b2; kk = down--;
+          }
+          dd = dr2 * dr2 * 2 + gap + db2 * db2 * 3;
+          if (dd < bd || (dd === bd && byG[kk] < best)) { bd = dd; best = byG[kk]; }
+        }
+        var c2 = C[i]; sr[best] += r2 * c2; sg[best] += g2 * c2; sb[best] += b2 * c2; st[best] += c2;
       }
       for (var k3 = 0; k3 < K; k3++) if (st[k3] > 0) { cr[k3] = sr[k3] / st[k3]; cg[k3] = sg[k3] / st[k3]; cb[k3] = sb[k3] / st[k3]; }
     }
@@ -177,6 +218,10 @@
     var pal = palette.slice(0, 255), TRANS = 255, frames = [], n = width * height, prevIdx = null, prevRaw = null, bufIdx = null, chg = null;
     var PR = new Int32Array(255), PG = new Int32Array(255), PB = new Int32Array(255), NP = pal.length, j;
     for (j = 0; j < NP; j++) { PR[j] = pal[j][0]; PG[j] = pal[j][1]; PB[j] = pal[j][2]; }
+    var SI = new Int32Array(NP), SR = new Int32Array(NP), SG = new Int32Array(NP), SB = new Int32Array(NP);   // the palette sorted by green (equal greens by number)
+    for (j = 0; j < NP; j++) SI[j] = j;
+    SI.sort(function (x, y) { return PG[x] - PG[y] || x - y; });
+    for (j = 0; j < NP; j++) { SR[j] = PR[SI[j]]; SG[j] = PG[SI[j]]; SB[j] = PB[SI[j]]; }
     var CAP = 1 << 20, ck = new Int32Array(CAP).fill(-1), cv = new Uint8Array(CAP), used = 0;
     var L1 = 1 << 14, l1k = new Int32Array(L1).fill(-1), l1v = new Uint8Array(L1);   // a small table that stays in the processor cache, in front of the big one
     var nearest = function (col) {
@@ -187,8 +232,25 @@
     var nearestSlow = function (col) {
       var h = Math.imul(col, 0x9e3779b1) >>> 12;
       while (ck[h] !== -1) { if (ck[h] === col) return cv[h]; h = (h + 1) & (CAP - 1); }
-      var r = col >> 16, g = (col >> 8) & 255, b = col & 255, best = 0, bd = 1e9;
-      for (var q = 0; q < NP; q++) { var dr = PR[q] - r, dg = PG[q] - g, db = PB[q] - b, dd = dr * dr * 2 + dg * dg * 4 + db * db * 3; if (dd < bd) { bd = dd; best = q; if (!dd) break; } }
+      var r = col >> 16, g = (col >> 8) & 255, b = col & 255, best = 0, bd = 1e9, lo = 0, hi = NP, dg, gap, dd, at;
+      /* the palette is kept sorted by green; look outward from this color's green and stop on a side as soon as the green part alone (4 * difference
+         squared, part of the sum) beats the best so far: the same answer as looking at every entry, and for equal distances the lower number wins */
+      while (lo < hi) { var mid = (lo + hi) >> 1; if (SG[mid] < g) lo = mid + 1; else hi = mid; }
+      var down = lo - 1, up = lo;
+      while (down >= 0 || up < NP) {
+        if (down < 0 || (up < NP && SG[up] - g <= g - SG[down])) {
+          dg = SG[up] - g; gap = dg * dg * 4;
+          if (gap > bd) { up = NP; continue; }
+          at = up++;
+        } else {
+          dg = SG[down] - g; gap = dg * dg * 4;
+          if (gap > bd) { down = -1; continue; }
+          at = down--;
+        }
+        var dr = SR[at] - r, db = SB[at] - b;
+        dd = dr * dr * 2 + gap + db * db * 3;
+        if (dd < bd || (dd === bd && SI[at] < best)) { bd = dd; best = SI[at]; }
+      }
       if (used > CAP * 0.6) { ck.fill(-1); used = 0; h = Math.imul(col, 0x9e3779b1) >>> 12; while (ck[h] !== -1) h = (h + 1) & (CAP - 1); }
       ck[h] = col; cv[h] = best; used++;
       return best;
