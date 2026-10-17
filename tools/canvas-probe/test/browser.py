@@ -63,6 +63,31 @@ with sync_playwright() as p:
     check("real canvas: writing width empties the save stack", r2["afterResize"]["openContextsNow"] == 0 and r2["afterResize"]["leakFrames"] == 0, r2["afterResize"])
     check("real canvas: getImageData without willReadFrequently is flagged once, with it is not", r2["readback"]["getImageDataWithoutWillReadFrequently"] == 1, r2["readback"])
     check("real canvases: painted area is per canvas (full fill of a small canvas next to a big one reads 1)", r2["area"]["median"] == 1, r2["area"])
+    r3 = pg.evaluate("""() => {
+      var out = {}, orig = { fill: CanvasRenderingContext2D.prototype.fill, drawImage: CanvasRenderingContext2D.prototype.drawImage };
+      var off = CanvasProbe.install({ keep: 10 });
+      var cv = document.createElement('canvas'); cv.width = 60; cv.height = 40; var x = cv.getContext('2d'), img = document.createElement('canvas'); img.width = 20; img.height = 20;
+      x.filter = 'blur(1px)'; x.drawImage(img, 0, 0); x.filter = 'none'; off.frame(); out.offCostly = off.report().costlyDraws; off.uninstall();
+      var probe = CanvasProbe.install({ keep: 10, deep: true });
+      for (var f = 0; f < 3; f++) {
+        x.filter = 'blur(1px)'; x.drawImage(img, 0, 0); x.filter = 'none';
+        x.shadowBlur = 6; x.shadowColor = '#000'; x.fillRect(0, 0, 10, 10); x.shadowBlur = 0;
+        x.globalCompositeOperation = 'lighter'; x.beginPath(); x.rect(0, 0, 5, 5); x.fill(); x.globalCompositeOperation = 'source-over';
+        x.drawImage(img, 30, 0);
+        probe.frame();
+      }
+      out.costly = probe.report().costlyDraws; out.text = probe.text();
+      out.pass = probe.check({ callsPerFrame: 100, withFilter: 1, withShadow: 1, withBlendMode: 1 });
+      out.fail = probe.check({ withFilter: 0 });
+      probe.uninstall();
+      out.restored = CanvasRenderingContext2D.prototype.fill === orig.fill && CanvasRenderingContext2D.prototype.drawImage === orig.drawImage;
+      return out;
+    }""")
+    check("real context: deep mode off gives no costly-draw numbers", r3["offCostly"] is None, r3["offCostly"])
+    check("real context: filtered, shadowed and blended draws are counted per frame", r3["costly"]["withFilter"]["median"] == 1 and r3["costly"]["withShadow"]["median"] == 1 and r3["costly"]["withBlendMode"]["median"] == 1, r3["costly"])
+    check("real context: the text says deep mode is on", "Deep mode is on" in r3["text"], r3["text"])
+    check("real context: check() passes within the limits and fails over them", r3["pass"]["ok"] and not r3["fail"]["ok"], [r3["pass"], r3["fail"]])
+    check("real context: uninstall puts fill and drawImage back after deep mode", r3["restored"])
     check("no page errors", not errs, errs)
     br.close()
 print("FAILED %d" % fails if fails else "all passed")

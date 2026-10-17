@@ -27,7 +27,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lzma-pack](tools/lzma-pack/README.md) | 1.0.0 · API 1 | [changelog](tools/lzma-pack/CHANGELOG.md) |
 | [ppmd-pack](tools/ppmd-pack/README.md) | 1.0.0 · API 1 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
 | [fuzz-kit](tools/fuzz-kit/README.md) | 1.0.0 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
-| [canvas-probe](tools/canvas-probe/README.md) | 1.0.0 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
+| [canvas-probe](tools/canvas-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
 | [storage-probe](tools/storage-probe/README.md) | 1.0.0 · API 1 | [changelog](tools/storage-probe/CHANGELOG.md) |
 
 ## Changes since labels began
@@ -37,3 +37,4 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-16 · **fly-to-mini** 1.2.0 · API 1: New opt-in options: pass the sticky bar as an element (it follows the bar's size), a visible-amount callback, hysteresis so scrolling at the edge stops flip-flopping, keyboard focus follows the visible button, a short fade under reduced motion, and a blink method for the mini. The flying copy no longer has duplicate ids and now shows canvas pictures. destroy() clears all timers.
 - 2026-10-16 · **fly-to-mini** 1.1.0 · API 1: New optional `engine: 'transition'` uses the browser's View Transitions API for the move (with the same arc, tilt and squash). The flight is still the default, and browsers without the API use it automatically. Nothing existing changes. Not yet judged by eye on a phone or in Firefox.
 - 2026-10-16 · **env-probes** 1.1.0 · API 1: Faster clock and canvas checks. New: canvasNoise() says how big canvas noise is, framed() says whether the page sits inside another page, capabilities() lists which newer browser features work, plus hover, any-hover and reduced-transparency questions. explain() now says so when saving is blocked inside a frame. The demo is now a one-button device check page with a copy-report button. Everything old answers the same as before.
+- 2026-10-16 · **canvas-probe** 1.1.0 · API 1: The probe now slows the game less (about 40 to 60 percent less extra time per frame in a Chromium test) because it reads the transform once per draw. New: probe.check(limits) gives a pass or fail with plain-words problems (leaks, restore without save, source overhang, growing paths, and a calls-per-frame ceiling); the report has a per-frame total of calls; and install({ deep: true }) counts draws made with a filter, a shadow or a blend mode. README now explains the rejected-style-write and method-name limits and says to run games with their quality governor off while the probe is on.

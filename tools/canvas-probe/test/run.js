@@ -238,5 +238,78 @@ check('the text explains the fix', /willReadFrequently: true/.test(q.text()), q.
 q.uninstall();
 check('getImageData still runs through the wrapper', wrfNo.log[wrfNo.log.length - 1] === 'getImageData');
 
+// ---- 1.1.0: per-frame total, check(limits), deep mode, one matrix read per draw ----
+// a total per frame is not the sum of per-call medians: three methods busy in 2 of 5 frames each have median 0 but every frame holds 4 calls
+q = fresh(); x = mk(50, 50);
+for (i = 0; i < 5; i++) {
+  if (i < 2) { x.fillRect(0, 0, 1, 1); x.fillRect(0, 0, 1, 1); x.fillRect(0, 0, 1, 1); x.fillRect(0, 0, 1, 1); }
+  else if (i < 4) { x.clearRect(0, 0, 1, 1); x.clearRect(0, 0, 1, 1); x.clearRect(0, 0, 1, 1); x.clearRect(0, 0, 1, 1); }
+  else { x.strokeRect(0, 0, 1, 1); x.strokeRect(0, 0, 1, 1); x.strokeRect(0, 0, 1, 1); x.strokeRect(0, 0, 1, 1); }
+  q.frame();
+}
+r = q.report();
+check('report has the per-frame total of wrapped calls', r.callsPerFrame.median === 4 && r.callsPerFrame.max === 4, r.callsPerFrame);
+check('the sum of per-call medians would have said 0 here', r.calls.fillRect.median + r.calls.clearRect.median + r.calls.strokeRect.median === 0, r.calls);
+check('the text gives the total', /Calls per frame: 4 in all/.test(q.text()), q.text());
+check('check: a ceiling on the per-frame total fails when the median is over it', (function () { var v = q.check({ callsPerFrame: 3 }); return !v.ok && v.problems.length === 1 && /median 4/.test(v.problems[0]); })(), q.check({ callsPerFrame: 3 }));
+check('check: at or under the ceiling passes', q.check({ callsPerFrame: 4 }).ok === true && q.check({ callsPerFrame: 4 }).problems.length === 0);
+check('check: no ceiling given means calls are not judged', q.check().ok === true);
+check('check: the 95th percentile ceiling is separate', !q.check({ callsPerFrameP95: 3 }).ok && q.check({ callsPerFrameP95: 4 }).ok);
+check('check: null and Infinity switch a limit off', q.check({ callsPerFrame: null }).ok && q.check({ callsPerFrame: Infinity }).ok);
+q.uninstall();
+
+var v;
+// check(): the defaults are the five things a test wants to be zero
+q = fresh(); x = mk(50, 50);
+check('check: no frames recorded is a problem, not a pass', (function () { var v = q.check(); return !v.ok && /No frames/.test(v.problems[0]); })());
+for (i = 0; i < 3; i++) { x.save(); x.fillRect(0, 0, 5, 5); x.restore(); q.frame(); }
+check('check: a clean run passes with the default limits', q.check().ok === true, q.check());
+x.save(); q.frame();
+v = q.check(); check('check: an unmatched save is a problem', !v.ok && v.problems.length === 1 && /unmatched save/.test(v.problems[0]), v);
+check('check: leakFrames can allow it', q.check({ leakFrames: 5 }).ok === true);
+x.restore(); q.frame(); x.restore(); q.frame();
+v = q.check({ leakFrames: 5 }); check('check: restore with nothing to restore is a problem', !v.ok && /nothing to restore/.test(v.problems[0]), v);
+check('check: restoreWithoutSave can allow it', q.check({ leakFrames: 5, restoreWithoutSave: 1 }).ok === true);
+q.reset(); x.drawImage(img, 0, 0, 120, 60, 0, 0, 120, 60); q.frame();
+v = q.check(); check('check: a source overhang is a problem', !v.ok && /sticks out/.test(v.problems[0]), v);
+check('check: sourceOverhang can allow it', q.check({ sourceOverhang: 1 }).ok === true);
+q.uninstall(); q = fresh(); x = mk(50, 50);
+for (i = 0; i < 4; i++) { x.rect(0, 0, 5, 5); x.rect(1, 1, 5, 5); q.frame(); }
+v = q.check(); check('check: a growing path is a problem', !v.ok && /no beginPath/.test(v.problems[0]), v);
+check('check: several problems come back together', (function () { x.save(); q.frame(); var w = q.check({ callsPerFrame: 1 }); return !w.ok && w.problems.length === 3; })(), q.check({ callsPerFrame: 1 }));
+q.uninstall();
+check('check: a probe that could not start fails instead of throwing', (function () { var d = CanvasProbe.install({ prototypes: 5 }); var w = d.check(); return !w.ok && /could not start/.test(w.problems[0]); })());
+
+// deep mode: off by default, counts draws with a filter, a shadow or a blend mode when on
+function deepCtx() { var d = mk(40, 40); d.s.globalCompositeOperation = 'source-over'; d.s.filter = 'none'; d.s.shadowBlur = 0; return d; }
+q = fresh(); x = deepCtx();
+x.filter = 'blur(2px)'; x.drawImage(img, 0, 0); q.frame();
+check('deep off: no costly-draw numbers, and the report says so', q.report().costlyDraws === null && q.report().deep === false && !/Deep mode/.test(q.text()), q.report().costlyDraws);
+check('deep off: asking check() for a costly-draw limit says what is missing', (function () { var w = q.check({ withFilter: 0 }); return !w.ok && /deep: true/.test(w.problems[0]); })());
+q.uninstall();
+q = CanvasProbe.install({ prototypes: [P], canvasPrototypes: [CP], keep: 10, deep: true }); x = deepCtx();
+for (i = 0; i < 3; i++) {
+  x.filter = 'blur(2px)'; x.drawImage(img, 0, 0); x.fill(); x.filter = 'none';
+  x.shadowBlur = 8; x.fillRect(0, 0, 5, 5); x.fillText('a', 0, 0); x.shadowBlur = 0;
+  x.globalCompositeOperation = 'lighter'; x.stroke(); x.globalCompositeOperation = 'source-over';
+  x.drawImage(img, 0, 0);                                    // plain: counted nowhere
+  q.frame();
+}
+r = q.report().costlyDraws;
+check('deep on: draws with a filter, a shadow and a blend mode are counted per frame', r.withFilter.median === 2 && r.withShadow.median === 2 && r.withBlendMode.median === 1, r);
+check('deep on: the text says so and gives the numbers', /Deep mode is on/.test(q.text()) && /filter was set: 2 per frame/.test(q.text()), q.text());
+check('deep on: check() can cap them', !q.check({ withFilter: 1 }).ok && q.check({ withFilter: 2, withShadow: 2, withBlendMode: 1 }).ok, q.check({ withFilter: 1 }));
+check('deep on: a context with no filter or blend properties is not counted and does not throw', (function () { var bare = new Fake(5, 5); bare.s = {}; bare.drawImage(img, 0, 0); return true; })());
+q.uninstall();
+
+// one matrix read per drawImage (getTransform makes a new object every time)
+q = fresh(); x = mk(40, 40);
+var reads = 0, origGT = P.getTransform; P.getTransform = function () { reads++; return origGT.call(this); };
+x.drawImage(img, 0, 0); x.drawImage(img, 0, 0, 10, 10); x.drawImage(img, 0, 0, 20, 20, 0, 0, 10, 10); x.fillRect(0, 0, 5, 5);
+P.getTransform = origGT;
+check('one matrix read per drawImage and fillRect', reads === 4, reads);
+check('the painted area still comes out right after the change', (function () { q.frame(); return q.report().paintedArea.median > 0; })());
+q.uninstall();
+
 console.log((fail ? 'FAILED ' : 'all passed: ') + pass + ' checks' + (fail ? ', ' + fail + ' failed' : ''));
 process.exit(fail ? 1 : 0);
