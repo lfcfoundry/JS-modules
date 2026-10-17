@@ -1,8 +1,8 @@
 # webkit-driver
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** WebKitGTK 2.52.6 (17 real checks and 7 pretend-driver checks pass; plus the five Apple Press piece checks, the four Netflow Map demos and the idle-core same-answers run through tests/webkit-shim.js) and GNOME Web 46.5 (the real checks that apply to it pass). Not run: Firefox 158 and ungoogled Chromium 155 (this driver does not drive them) and Netflow Map's own 82-check suite.
+**Tested in:** WebKitGTK 2.52.6 (19 real checks and 7 pretend-driver checks pass; all five Apple Press piece checks pass) and GNOME Web 46.5 (the 14 real checks that apply pass; all five piece checks pass, grown-ups-door included). Not run: Firefox 158 and ungoogled-chromium 155 (the driver does not drive them)
 
 **Test it:** `node tools/webkit-driver/test/run.js` (pretend driver, no browser, 7 checks) and `node tools/webkit-driver/test/webkit.js` (a real WebKitGTK 2.52.6, 17 checks, about 5 seconds; `node tools/webkit-driver/test/webkit.js epiphany` does the same in GNOME Web 46.5, about 8 seconds).
 
