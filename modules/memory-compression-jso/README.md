@@ -1,8 +1,8 @@
 # memory-compression-jso
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Node 22.22.0 (31 checks with and without WebAssembly, and the long random test); Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time, a fresh page for each data set; not run: a phone, a real Netflow Map scene
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (the speed table below; tests in Node, normal, no-wasm, no-eval and full fuzz)
 
 Keeps a big pile of plain JavaScript objects (a list of 300,000 links, 100,000 scene items, an API answer, a log) packed in memory as a few megabytes of bytes, and brings every value back exactly. It is the object version of [memory-compression](../memory-compression/README.md): arrays of objects are stored as columns, and the columns go through that module's float-aware packing. One file, no dependencies, works offline, about 206 KB with comments (the core and its small optional WebAssembly helpers are inside); the optional Pcodec add-on is a second file, `memory-compression-jso-pco.js` (441 KB, because the 327 KB Pcodec program is inside it as text).
 
@@ -42,6 +42,7 @@ Numbers (whole numbers, decimals, 32-bit and 64-bit floats, `NaN`, infinities, `
 - Each column picks the cheapest way to hold its values: one repeated value, whole numbers in the narrowest width, decimals such as 12.34 or 0.25 as whole numbers with a scale (so 0.25 steps cost 1 or 2 bytes each, not 8), 32-bit floats when that loses nothing, plain 64-bit floats, a yes/no bit each, a dictionary for repeated text, joined text, and arrays of small fixed-length arrays (such as `[lat, lng]`) as one column per position.
 - The number columns then go through [memory-compression](../memory-compression/README.md) (byte shuffle, column difference, then LZ4 in fast mode or deflate in small mode), which is where the float savings come from.
 - **Text patterns (new in 1.1.0).** When most strings in a column look alike (`'user' + number + '@example.org'`), the text between the numbers is kept once and each number goes into a number column. Up to 32 patterns per column. For big columns a 608-byte WebAssembly helper walks the bytes; the plain-JavaScript loop does the same work and writes the same bytes.
+- **Sorted text (new in 1.3.0).** Rows that share their start with the row above store only the new end: about 31 to 41% smaller on word lists and file paths, kept only when 15% or more is saved (section below).
 - **Dates and times (new in 1.2.0).** A text column of ISO dates (`2025-03-05T04:15:00Z`, with milliseconds, `2025-03-05`, or a space instead of the `T`) is stored as one number per row (days, minutes, seconds or milliseconds since 1970) instead of six, and rebuilt as the same text. Every row is checked to be a real date (no 30 February, no 24:00); one row that is not keeps the whole column on the older pattern path. Sorted timestamps become tiny differences, so files are 13 to 31% smaller (smaller is better, table below).
 - **Shared objects by column (new in 1.1.0).** With `refs: true`, a column whose values are objects that were already written (links pointing at nodes) is stored as a column of ids, not value by value.
 - Anything that does not fit a pattern (mixed types, odd objects) is written in a general form, value by value, so every input works; it is just bigger and slower there (see "What it is not").
@@ -169,6 +170,33 @@ Sizes, packing and unpacking of a text column of ISO dates, 1.1.1 against 1.2.0.
 | GNOME Web 46.5 | 8.3 ms | 6.5 ms | 2.5 ms | **3.3 ms** |
 
 With milliseconds (20,000 rows) unpacking goes 2.9 to 1.6 ms in Firefox, 2.2 to 1.4 ms in Chromium, and **3.2 to 5.2 ms** in WebKitGTK (**3.0 to 4.8 ms** in GNOME Web); packing goes 10.4 to 6.8 ms in WebKitGTK. Unpacking dates is about 1.5 to 2 times faster in Firefox and Chromium and about 1.4 to 1.7 times **slower** in the two WebKit browsers for the same file-size win; random dates unpack faster everywhere (WebKitGTK 4.3 to 3.6 ms). WebKit is slow here because it builds the date text with more string-joining work per row than the old way; a first attempt at a fix (tables made without holes) recovered part of it. A date column is used only when one number is expected to cost no more than the separate ones: the made-up cyclic dates of the `api-users` test set stay as before (155.4 KB, same speed), and a steady one-per-hour column also stays as before.
+
+### Sorted text, stored as "what is shared with the row above" (front coding, `front`, 1.3.0)
+When a text column is sorted (words, file paths, city names, IDs in order), each row starts with the same letters as the row before. 1.3.0 stores, for each row, how many leading characters it shares with the row above and then only the new end (`/usr/share/doc/pkg1/` then `a.txt`). It is on by default, tried only when the first 1,024 neighbors share a quarter of their characters, judged on the first 2,048 rows of a big column, and **kept only when the column comes out at least 15% smaller** (a smaller win is not worth the extra time to read it back). `{ front: false }` turns it off. The cut never falls between the two halves of an emoji; plain ASCII text is handled directly on the bytes. A file that uses it says format 4 and 1.2.x refuses it with "made by a newer version"; every other file is written exactly as before. The price: those columns take about 1.3 to 1.8 times as long to pack and about 1.2 to 2.2 times as long to read. Medians of 5 alternating rounds, one browser at a time, fresh page per set; the data are real file paths from `/usr` and `/opt` and the word list of the common license texts.
+
+**40,000 sorted file paths** (beside a number column): 421038 bytes with 1.2.0, **247037 bytes** with 1.3.0 (**-41.3%**, smaller is better).
+
+| Browser | Unpack 1.2.0 to 1.3.0 (smaller is better) | Pack 1.2.0 to 1.3.0 (smaller is better) |
+|---|---|---|
+| Firefox 158.0 | 13.95 ms to 19.86 ms | 17.9 ms to 27.9 ms |
+| Chromium 155.0.8059.39-1 | 7.60 ms to 9.54 ms | 20.7 ms to 27.8 ms |
+| WebKitGTK 2.52.6 | 5.67 ms to 7.33 ms | 19.0 ms to 25.3 ms |
+| GNOME Web 46.5 | 6.14 ms to 9.57 ms | 20.5 ms to 26.5 ms |
+
+**30,695 sorted words** (beside a number column): 196618 bytes with 1.2.0, **136196 bytes** with 1.3.0 (**-30.7%**, smaller is better).
+
+| Browser | Unpack 1.2.0 to 1.3.0 (smaller is better) | Pack 1.2.0 to 1.3.0 (smaller is better) |
+|---|---|---|
+| Firefox 158.0 | 3.13 ms to 4.55 ms | 4.8 ms to 6.2 ms |
+| Chromium 155.0.8059.39-1 | 2.31 ms to 3.49 ms | 4.5 ms to 6.0 ms |
+| WebKitGTK 2.52.6 | 3.62 ms to 5.50 ms | 7.1 ms to 10.3 ms |
+| GNOME Web 46.5 | 3.23 ms to 7.23 ms | 7.3 ms to 9.3 ms |
+
+**Date text (whole milliseconds, 20,000 rows), unpack 1.2.0 to 1.3.0 (smaller is better):** Firefox 158.0 2.93 to 2.87 ms, Chromium 155.0.8059.39-1 1.64 to 1.65 ms, WebKitGTK 2.52.6 4.62 to 2.46 ms, GNOME Web 46.5 5.77 to 2.77 ms. Whole seconds: Firefox 158.0 2.49 to 2.09 ms, Chromium 155.0.8059.39-1 1.08 to 1.27 ms, WebKitGTK 2.52.6 1.92 to 1.85 ms, GNOME Web 46.5 2.15 to 2.08 ms (no change beyond noise).
+
+Unsorted file paths (the same 40,000 shuffled) are left alone: the file is byte for byte the same as 1.2.0 and packing costs Firefox 158.0 21.9 to 24.1 ms, Chromium 155.0.8059.39-1 36.1 to 36.5 ms, WebKitGTK 2.52.6 27.0 to 31.0 ms, GNOME Web 46.5 29.5 to 30.5 ms for the quick look that rejects the column.
+
+**Date fix (1.3.0).** Milliseconds dates were slower to rebuild in WebKit than in the other engines because one loop mixed arithmetic with joining text, which JavaScriptCore runs about 3 times slower than a loop that only joins. 1.3.0 does it in two passes (numbers first, then a generated join loop). Fusing the dictionary lookup into the text splitter was also tried; it measured as noise (-0.4% to +2.9% pack time) and was not kept.
 
 ### Short, varied text kept as FSST codes (`fsst: true`, 1.2.0)
 FSST (a text compressor from the VLDB 2020 paper by Boncz, Neumann and Leis) learns up to 255 common pieces of text from the column itself (a piece is 1 to 8 bytes: " Street", "ville", "@exam") and writes each string as a short list of piece numbers. Two things follow: the column is about half the size of the same text packed the old way, and **one string can be read without restoring the others**, so a `view()` keeps such a column at about a third of its restored size. It is off unless you pass `{ fsst: true }`, because training costs time when packing. Each text column is tried both ways and the smaller is kept; columns that are patterns (`user7@example.org`) or small dictionaries (`'flow'`, `'stock'`) keep their own, smaller way. A text file with an FSST column says format 3.
@@ -401,6 +429,7 @@ Measured against msgpackr 2.1.0 (with and without records, and with bundled stri
 | `level` | deflate effort 0 to 9 in small mode | 4 |
 | `refs` | `true` keeps shared objects shared and allows cycles (lists of objects are still stored by column) | off |
 | `check` | `true` adds a checksum that `unpack()` verifies | off |
+| `front` | `false` turns off front coding of sorted text columns (kept only when 15% or more smaller; those columns pack 1.3 to 1.8 times and read 1.2 to 2.2 times slower) | on |
 | `fsst` | `true` also tries FSST codes for text columns (smaller, any one string readable alone; slower to pack) | off |
 | `pco` | the object from `MemoryCompressionJSOPco.load()` or `.loadSync()`: number columns of 4,096 or more are also tried with Pcodec and the smaller is kept (also pass it to `unpack` and `view` for files that used it) | off |
 | `patterns` | `false` skips the text-pattern step (bigger result, faster to pack text-heavy data) | on |
@@ -421,6 +450,7 @@ Also: `freeBuffers()` (gives back the arrays kept between packs), `ready()` (a p
 - **Hostile input is safe to read.** Every count and size is checked against what is possible, damaged or cut-off data throws, and a flipped byte either throws or (without `check: true`) changes a value. The test file cuts data at every length and flips every byte.
 - **`new Function` is used for speed.** Where a page policy blocks it (tested in Node with `--disallow-code-generation-from-strings`), plain loops do the same work and the bytes are identical, but packing is 1.1 to 1.3 times slower and unpacking 1.2 to 3.3 times slower.
 - **Very large inputs.** `maxItems` stops an unpack that would make more than 100 million values (change it if the data is yours).
+- **Format 4 (1.3.0).** A file that holds a front-coded text column says format 4 and 1.2.x refuses it with "made by a newer version"; use `front: false` to keep files readable by 1.2.x. 1.3.0 reads formats 1 to 4.
 - **Format 3 (1.2.0).** A file that holds a date column, an FSST text column or a Pcodec number column says format 3 and 1.1.x refuses it with the message "made by a newer version"; every other file still says format 2 and opens in 1.1.x. 1.2.0 reads formats 1, 2 and 3.
 - **Format.** The first two bytes are `MJ`, then a version byte; a file written by 1.0.0 is read by 1.1.0 (checked with a stored 1.0.0 file), but a 1.1.0 file is format 2 and 1.0.0 cannot read it. It is not compatible with `memory-compression`'s container (different magic).
 
@@ -431,6 +461,7 @@ msgpackr and cbor-x (record extension: repeated object layouts written once; gen
 - Use `pack`/`unpack` for a big array of similar objects you want to keep small in memory or save; `view()` to read single items from a packed array; `mode: 'small'` for anything restored rarely.
 - Use `{ refs: true }` for a graph where links hold the node objects; `view()` for reading a little from a lot. Do not use it for tiny values (under about 16 items it is the general form and not much smaller than JSON), for streaming, or for data with class instances you need back as classes.
 - Await `MemoryCompressionJSO.ready()` once at start-up. Check `packed.length`; irregular data gives up only about 60%.
+- Sorted text (words, file paths) is front coded by itself (`front`, about 30 to 40% smaller, slower to read); pass `{ front: false }` for the fastest read or to keep files readable by 1.2.x.
 - `{ fsst: true }` for big columns of names, paths or log lines (about half the size, one string readable alone, 2 to 6 times slower to pack); skip it for patterns and repeating values, which already have a smaller way (it chooses by itself).
 - Number-heavy data that is packed rarely and kept for long (sensor logs, prices, coordinates): load `memory-compression-jso-pco.js`, `await MemoryCompressionJSOPco.load()` and pass the result as `pco` to `pack`, `unpack` and `view` (up to 67% smaller, 1.2 to 3.5 times slower to pack). Treat a `null` from `load()` as "not available" and carry on without it.
 - To re-run the comparison: `bench/README.md`.

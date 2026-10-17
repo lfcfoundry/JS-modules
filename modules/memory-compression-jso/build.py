@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 1.2.0 (API 1)
+# Version 1.3.0 (API 1)
 """Builds memory-compression-jso.js: header + the packing core (copied from ../memory-compression/memory-compression.js) + src/jso-layer.js.
 Run:  python3 modules/memory-compression-jso/build.py   (after changing the core or the layer)"""
 import os, re, sys

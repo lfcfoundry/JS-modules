@@ -2,7 +2,7 @@
  * memory-compression-jso-pco.js: an optional add-on for memory-compression-jso. It lets big number columns be stored with Pcodec when that is smaller.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  *
  * Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (https://github.com/pcodec/pcodec, Apache-2.0, notice in pco/NOTICE-pco.txt).
  * This file holds pco 1.0.4 as a 327 KB WebAssembly program (built from pco/ with pco/build.sh), so loading it adds about 436 KB of text to a page.
@@ -81,5 +81,5 @@
       WebAssembly.compile(bytes64()).then(function (m) { mod = m; resolve(make(m)); }, function () { resolve(null); });
     });
   }
-  return { load: load, loadSync: loadSync, available: available, version: '1.2.0' };
+  return { load: load, loadSync: loadSync, available: available, version: '1.3.0' };
 });
