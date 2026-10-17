@@ -1,8 +1,8 @@
 # frame-kit
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/frame-kit-browser.js: the 67 checks of test/run.js pass inside the page in each browser, 4 of 4, and about 92 to 94 real animation frames in 1.5 s feed FrameMeter, EvenDt and QualityGovernor without an error in each; 67 Node checks). Not run: a real slow phone, Safari itself
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/small-lean-browser.js: 0 failures in each of the four; Chromium and Firefox used the real CloseWatcher with the real Escape key and the browser's own wake lock; WebKitGTK and GNOME Web have no CloseWatcher, so 3 back-close situations say 'not available', and they refuse the wake lock request (NotAllowedError), so their 6 wake-keeper situations ran with a stand-in lock). Not run: a phone, Safari itself; node modules/frame-kit/test/lean.js 27 of 27, 67 older Node checks
 
 Test everything (Node only, offline, about a second): `node modules/frame-kit/test/run.js` (run from the repository root; it exits non-zero on any failure).
 Browser check of the example (Playwright for Python, Chromium already installed): `python3 modules/frame-kit/test/check-example.py`.
@@ -180,6 +180,29 @@ Pauses: a tab that was hidden and comes back, or a device that slept, shows up a
 A hitch is a frame longer than 50 ms **and** more than twice the average of the three frames before it, so a steady 30 fps game is "smooth". It is called "the game" when your own update and draw took at least 60% of that gap, otherwise "the device" (the browser, the graphics driver or power saving).
 
 Tap delays: a tap whose timestamp is up to `tapSlackMs` (default 50 ms) after the frame time (the event arrived during the frame) counts as 0 ms instead of being dropped, which used to nudge the median up; a larger mismatch is dropped and counted in `tapsDropped`.
+
+## Lean builds of EvenDt and QualityGovernor (new in 1.2.0)
+
+`even-dt.js` and `quality-governor.js` stay the full files. `python3 modules/frame-kit/lean.py --file even-dt --without options,stats,refreshRule --no-comments -o even-dt.js` and `python3 modules/frame-kit/lean.py --file quality-governor --without options,control,errors,flipGuard,stats,stallRules,graceStart --no-comments -o quality-governor.js` write copies without those parts (`--list` names them for the `--file` you give; `--sizes` prints bytes, gzipped bytes and, when `terser` is installed, minified bytes).
+
+| File | Part | What cutting it does |
+|---|---|---|
+| even-dt | `options` | the constructor options; fixed values (minGap 2, maxGap 60, window 40, warmup 12, refreshEvery 8, maxMultiple 3, tolerance 0.3, payback 0.04) |
+| even-dt | `stats` | `period`, `drift` and `reset()` |
+| even-dt | `refreshRule` | takes the median again on every frame once the window is full, which is what Fancy Banana's own code does; the full file takes it again on every 8th accepted gap |
+| quality-governor | `options` | the constructor options; fixed values (5 levels, slow above 22 ms, fast below 18.5 ms and so on) |
+| quality-governor | `control` | `enabled`, `stepUp`, `locked`, `lock()`, `unlock()`, `hold()`, `force()` |
+| quality-governor | `errors` | `onError`, `lastError` and the try/catch around `onChange` |
+| quality-governor | `flipGuard` | the up-and-down limit (`flipLimit`, `flipWindow`, `flips`, `gaveUp`, `resetGuard()`) |
+| quality-governor | `stats` | `average` |
+| quality-governor | `stallRules` | a gap over 100 ms only ends the slow streak and is never measured, as in Fancy Banana's code; the full file also ends the fast streak, and counts four long gaps in a row as a slow device |
+| quality-governor | `graceStart` | the first change is allowed from time 0, as in Fancy Banana's code; the full file waits from the first frame |
+
+Three parts (`refreshRule`, `stallRules`, `graceStart`) swap in Fancy Banana's rule instead of removing code, so the two lean builds give Fancy's exact answers. The full files do not: on the 26 frame series of `test/series.js` (50,011 frames: steady 60 and 120 Hz, jitter, a 30 Hz phone, an 80 ms stall, a hidden-tab gap, a long slow stretch then fast, and more) the full EvenDt returns a different number on 42,604 frames (25 series; median difference 0.026 ms, 99th percentile 1.35 ms, largest 8.8 ms) and the full QualityGovernor changes level differently in 9 of 78 runs. Feed a lean governor `gov.frame(0, t)` for a hidden or non-play frame, as Fancy does.
+
+Fancy Banana's set: EvenDt 985 bytes minified (506 gzipped) against 1,536 (662) for the whole file, 36% and 24% smaller; QualityGovernor 1,342 (575) against 3,688 (1,240), 64% and 54% smaller (lower is smaller). Together 2,327 bytes minified against 5,224. Fancy's own inline code is about 378 and 630 bytes.
+
+`node modules/frame-kit/test/lean.js` (about 2.5 s) builds both files in every single cut and in Fancy's set (with and without comments) and compares them with a verbatim copy of Fancy's code (`test/reference-frame.js`) on all 26 series: Fancy's set must give 0 different frame steps and 0 different level changes, in the governor with the clock starting at 0, 8,000 and 123,456.7 ms. `node tests/small-lean-browser.js` repeats that comparison inside a real browser. `lean.py` edits nothing: change the two files and keep their `//@begin` / `//@else` / `//@end` marker lines balanced.
 
 ## How it differs from existing open source
 

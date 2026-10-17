@@ -1,8 +1,8 @@
 # wake-keeper
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node: 42 checks pass (rerun 2026-10-17). navigator.wakeLock exists in Firefox 158.0 (feature check only). Not run: a real wake lock in any test browser, a phone
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/small-lean-browser.js: 0 failures in each of the four; Chromium and Firefox used the real CloseWatcher with the real Escape key and the browser's own wake lock; WebKitGTK and GNOME Web have no CloseWatcher, so 3 back-close situations say 'not available', and they refuse the wake lock request (NotAllowedError), so their 6 wake-keeper situations ran with a stand-in lock). Not run: a phone, Safari itself; node modules/wake-keeper/test/lean.js 12 of 12, 42 older Node checks
 
 Keeps a phone or tablet screen awake **only while a game really wants it**. About 7 KB, no dependencies.
 
@@ -41,6 +41,21 @@ new PadNav({ onInput: function () { wk.poke(); } }).start();   // controller pla
 HoldPress.attach(button, { onPress: function () { wk.poke(); } });   // a long hold keeps the screen awake
 ```
 Without this, a player who only uses a controller, or holds a button for a minute, would see the screen dim after `idleMs`, because none of that input is a tap or a key press.
+
+## Lean build: ship only what a game uses (new in 1.1.0)
+
+`wake-keeper.js` stays the full file. `python3 modules/wake-keeper/lean.py --without idle,status,callbacks,inject --no-comments -o wakekeeper.js` writes a copy without those parts (`--list` names all four, `--sizes` prints bytes, gzipped bytes and, when `terser` is installed, minified bytes). What you keep behaves as in the full file; what you cut is simply missing. The parts:
+
+| Part | What cutting it removes |
+|---|---|
+| `idle` | the release after `idleMs` without input, and `poke()`, `watchInput()` and `idle`; the lock is then held for as long as `want(true)` stands |
+| `status` | `held` and `refusals` |
+| `callbacks` | the `onChange` and `onRefused` options |
+| `inject` | the `nav`, `doc` and `now` options (fakes for tests); the page's own navigator, document and clock are used |
+
+`refusalBackoffMs` is never cut: Fancy Banana's set (all four cut) keeps `create({ refusalBackoffMs: 8000 })`, `want()`, `destroy()` and `supported`. That set is 1,417 bytes minified, 660 gzipped, against 2,648 and 1,105 for the whole file (46% and 40% smaller; lower is smaller). Fancy's own inline code is about 566 bytes, so the lean build is about 2.5 times that.
+
+`node modules/wake-keeper/test/lean.js` builds the full file, Fancy's set (with and without comments) and each part cut on its own, and runs the situation table from `tests/small-lean-battery.js` on each, with a fake navigator, document and clock (about 1.6 s): run starts (lock requested), tab hidden (released, nothing requested), tab back (requested again), run ends (released), request refused (no new request for 8 s, then one more that works), lock released by the browser (requested again the next time the game asks), no wake lock (nothing happens, no error). `node tests/small-lean-browser.js` runs the same table in a real browser on the page's own `navigator.wakeLock`; where the browser has none it says "not available", and where the browser refuses the request it runs with a stand-in lock and says so on the line. `lean.py` edits nothing: change `wake-keeper.js` and keep its `//@begin` / `//@else` / `//@end` marker lines balanced.
 
 ## Why
 The raw API is three lines, but a game that grabs the lock on load and never lets go drains the battery on a title screen or a forgotten tab. The core rules (release when hidden, ask again when visible, one lock at a time, show when it is held) follow MDN and the specification. Releasing after a quiet spell and the refusal wait are this module's own additions, not platform rules.
