@@ -80,4 +80,18 @@ t('SVG: boxes, curves, tag chips; no bad numbers; text is escaped', () => {
   ok(/^<svg /.test(svg) && /<\/svg>$/.test(svg) && !/NaN|undefined/.test(svg), 'svg shape'); ok(svg.indexOf('A &lt;b&gt; &amp; &quot;c&quot;') >= 0 && svg.indexOf('<b>') < 0, 'not escaped'); ok((svg.match(/from Page/g) || []).length === R.info.tags, 'chip per tag end');
   return Math.round(svg.length / 1024) + ' KB';
 });
+t('bundle: off is the old picture; on, links that start together share stops; links still connect; same input, same picture', () => {
+  const g = graph(story(1000, 3)), a = NL.layout(g, { dir: 'TB', rows: 'story' }), z = NL.layout(g, { dir: 'TB', rows: 'story', bundle: false });
+  ok(fp(a) === fp(z), 'bundle:false changed the picture'); const b = NL.layout(g, { dir: 'TB', rows: 'story', bundle: true }), c = NL.layout(g, { dir: 'TB', rows: 'story', bundle: true });
+  ok(b.info.stops < a.info.stops, 'stops ' + a.info.stops + ' to ' + b.info.stops); ok(fp(b) === fp(c), 'not the same twice');
+  b.edges.forEach((e) => { if (e.pts && e.pts.length) e.pts.forEach((q) => ok(isFinite(q[0]) && isFinite(q[1]), 'bad point')); });
+  const d = graph(dag(1000, 1999, 6)), r1 = NL.layout(d, { dir: 'TB' }), r2 = NL.layout(d, { dir: 'TB', bundle: true });
+  ok(r2.info.stops < r1.info.stops * 0.8, 'random map ' + r1.info.stops + ' to ' + r2.info.stops);
+  return 'story order ' + a.info.stops + ' to ' + b.info.stops + ' stops, loop-free random map ' + r1.info.stops + ' to ' + r2.info.stops;
+});
+t('SVG taper: forward links are filled shapes that narrow; off keeps strokes; no bad numbers', () => {
+  const R = NL.layout(graph(story(120, 2)), { dir: 'TB' }), plain = NL.toSvg(R), tap = NL.toSvg(R, { taper: true });
+  ok(!/NaN|undefined/.test(tap), 'bad number'); ok((tap.match(/ fill="#6b7a90" opacity="0.85"/g) || []).length > 50, 'no shapes'); ok(plain.indexOf(' fill="#6b7a90" opacity') < 0, 'plain drawing changed'); ok(tap.length > plain.length, 'taper should add points');
+  return Math.round(tap.length / 1024) + ' KB against ' + Math.round(plain.length / 1024) + ' KB';
+});
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);

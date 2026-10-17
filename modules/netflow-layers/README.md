@@ -1,12 +1,12 @@
 # netflow-layers
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node 22 checks (13, about 0.4 s); the demo check passes in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, same numbers in each (gold links 5 to 2, stand-in stops 1,456 to 205, 7 columns; tests/flow-demos.js, 2026-10-17; 7 to 19 s per browser including start-up); not run: Netflow Map itself with the module swapped in
+**Tested in:** Node 22 checks (15, about 0.4 s); the demo check (now also bundle and taper) passes in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, same numbers in each (stops 1,456 to 205 with tags, to 1,356 with bundle; taper SVG 277,577 to 563,821 characters; 7 columns), 3 to 7 s each including start-up (tests/flow-demos.js, 2026-10-17)
 
 Lays out a graph in rows (a layered, Sugiyama-style drawing): top to bottom or left to right, with long links drawn as tags, rows in the order of the story, a column for the pages every route passes, and tall maps cut into columns. It is the layered engine of Netflow Map, which draws Flow, Top-down, Spine, Lanes, Arc and Matrix from it. About 24 KB, no dependencies. Works in a browser (global `NetflowLayers`) and in Node (`module.exports`).
 
-**Test it:** `node modules/netflow-layers/test/run.js` (13 checks, about 0.4 s). **Try it:** `demo.html` (type links, the picture redraws).
+**Test it:** `node modules/netflow-layers/test/run.js` (15 checks, about 0.4 s). **Try it:** `demo.html` (type links, the picture redraws).
 
 ## Use
 ```js
@@ -26,6 +26,7 @@ Your input is never changed: the result holds copies of your nodes and links wit
 - `opts.tagLen`: a number (for example 8): links longer than this many rows become `kind: "tag"` (a stub and a name at each end), with no stand-in stops. `0` = off (default).
 - `opts.spine`: `true` puts the nodes marked `choke: true` in one line.
 - `opts.better`: `true` adds six more rounds of reordering; never worse, a little slower.
+- `opts.bundle`: `true` lets links that start at the same page share one run of stand-in stops (as far as the longest goes), and links that end at the same page and are alone at their start share one run from the end upward. Fewer stops and fewer crossings on maps without tags; about the same where tags already removed the long links.
 - `opts.wrap`: `true` (with `dir: "TB"`) cuts a map more than 2.2 times taller than wide into columns side by side; links between columns become tags.
 - `opts.lanes`: `true` puts nodes with the same `lane` number in their own band. `opts.prev`: `{ id: 0-1 order from the last drawing }` keeps the order stable. `gapNode`, `gapLayer`, `maxVertices` (default 90,000 stops, then it throws an error with `tooBig: true`).
 
@@ -39,7 +40,8 @@ Returns `{ nodes, edges, pos, order, lanes, width, height, crossings, rows, rule
 ## What it does that is different
 - **Story order** makes "going back" honest: on a 5,002-page story, links drawn as back or sideways drop from 1,027 to 97 (the real loops).
 - **Tags** replace the stand-in stops of very long links: 33,087 stops become 11 on that story, and a 20,000-page story that is refused as too big draws in about 0.4 s.
-- **The must-pass column, columns for tall maps and harder untangling** are one switch each, all off by default. With everything off the drawing is exactly Netflow Map's older one (13 checks, 8 pinned fingerprints made by the app's own engine).
+- **Bundling** lets links that share a page share their stops: on a 5,002-page story with the shortest-route rows, stand-in stops go 33,087 to 30,654 and crossings 1,216 to 1,065 (about 12% fewer); on a loop-free random map of 1,000 pages stops go 531 to 326 (39% fewer). With tags on there is little left to bundle. In `toSvg`, `taper: true` draws forward links as shapes that narrow from 5 px to 1 px, so direction shows without arrowheads.
+- **The must-pass column, columns for tall maps and harder untangling** are one switch each, all off by default. With everything off the drawing is exactly Netflow Map's older one (15 checks, 8 pinned fingerprints made by the app's own engine).
 
 ## Numbers (Node 22, median of 5 builds, 2026-10-17; story-shaped test maps; smaller is better in every column)
 These are from Netflow Map's full build path, which first folds straight runs of pages into one box, so page counts differ a little from feeding the module the raw map. The drawing code is the same (8 pinned fingerprints from the app's own engine match). Full tables: Netflow Map `docs/TOPDOWN.md`.

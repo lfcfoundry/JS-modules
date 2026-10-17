@@ -54,6 +54,8 @@ Wake > Saved</textarea>
 <label><input type="checkbox" id="spine"> Must-pass pages in one column</label>
 <label><input type="checkbox" id="better"> Untangle harder</label>
 <label><input type="checkbox" id="wrap"> Cut a tall map into columns</label>
+<label><input type="checkbox" id="bundle"> Bundle links that share a start or an end</label>
+<label><input type="checkbox" id="taper"> Taper links</label>
 <button id="big" type="button">Make a long story</button></p>
 <p id="msg" class="note"></p><div class="out" id="out"></div>
 <script src="netflow-layers.js"></script>
@@ -75,8 +77,8 @@ function draw() {
     var first = NetflowLayers.layout(g, { dir: $('dir').value });
     var rowSize = {}; first.nodes.forEach(function (n) { rowSize[n.layer] = (rowSize[n.layer] || 0) + 1; });
     g.nodes.forEach(function (n, i) { n.choke = rowSize[first.nodes[i].layer] === 1; });   /* alone in its row: shown as a must-pass page */
-    var R = NetflowLayers.layout(g, { dir: $('dir').value, rows: $('story').checked ? 'story' : 'route', tagLen: $('tags').checked ? 8 : 0, spine: $('spine').checked, better: $('better').checked, wrap: $('wrap').checked });
-    $('out').innerHTML = NetflowLayers.toSvg(R);
+    var R = NetflowLayers.layout(g, { dir: $('dir').value, rows: $('story').checked ? 'story' : 'route', tagLen: $('tags').checked ? 8 : 0, spine: $('spine').checked, better: $('better').checked, wrap: $('wrap').checked, bundle: $('bundle').checked });
+    $('out').innerHTML = NetflowLayers.toSvg(R, { taper: $('taper').checked });
     $('msg').textContent = R.nodes.length + ' pages, ' + R.edges.length + ' links, ' + R.info.rows + ' rows, ' + R.info.stops + ' stand-in stops, ' + R.info.tags + ' tags, ' + (R.info.back + R.info.flat + R.info.goldTags) + ' gold (back or sideways) links, ' + R.crossings + ' crossings, ' + R.info.columns + ' column(s); drawn in ' + Math.round(performance.now() - t0) + ' ms.';
   } catch (e) { $('out').textContent = ''; $('msg').textContent = e.tooBig ? 'Too big for a layered drawing: turn on tags.' : String(e.message || e); }
 }
@@ -92,7 +94,7 @@ function longStory() {
   }
   $('t').value = lines.join('\n');
 }
-['t', 'dir', 'story', 'tags', 'spine', 'better', 'wrap'].forEach(function (i) { $(i).addEventListener('input', draw); $(i).addEventListener('change', draw); });
+['t', 'dir', 'story', 'tags', 'spine', 'better', 'wrap', 'bundle', 'taper'].forEach(function (i) { $(i).addEventListener('input', draw); $(i).addEventListener('change', draw); });
 $('big').addEventListener('click', function () { longStory(); draw(); });
 draw();
 </script>
