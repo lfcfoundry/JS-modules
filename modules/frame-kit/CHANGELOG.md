@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
 ## 1.1.0 · API 1 · 2026-10-16
-QualityGovernor no longer ignores very slow devices: four long frames in a row (over 100 ms) now count as a slow device instead of a pause, so a phone under about 10 frames a second is finally stepped down. New option stepUp: false (only ever steps down) and new lock() / unlock() for a level the player picked. Single stalls still change nothing.
+`QualityGovernor` no longer ignores very slow devices. Before, a frame gap over 100 ms was treated as a pause and never counted, so a phone under 10 frames a second was never stepped down; now four long frames in a row count as a slow device. In a simulation with fake frame times a 6.7 fps phone is stepped down after about 15 seconds and a 1 fps phone after about 102 seconds (it still counts 100 frames before it decides). New option `stepUp: false` (only ever steps down) and new `lock()` / `unlock()` keep a level the player picked. A single stall still changes nothing.
 
 ## 1.0.0 · API 1 · 2026-10-16
 First labeled version. Nothing in the code changed; everything under "Before version labels" is already in it.
