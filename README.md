@@ -18,7 +18,7 @@ Keep a player's progress safe and let them move it between devices.
 
 | Module | One line | Global | Version |
 |---|---|---|---|
-| [save-kit](modules/save-kit/README.md) | Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. | `SaveKit` | 1.0.0 · API 1 |
+| [save-kit](modules/save-kit/README.md) | Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. | `SaveKit` | 1.1.0 · API 1 |
 
 #### Device and browser adaptation
 

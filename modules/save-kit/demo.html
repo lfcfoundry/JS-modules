@@ -42,5 +42,6 @@
   document.getElementById('export').onclick = function () { store.exportCode(state).then(function (c) { box.value = c; msg.textContent = 'Code made (' + c.length + ' characters).'; }); };
   document.getElementById('import').onclick = function () { store.importCode(box.value).then(function (s) { state = s; show(); store.save(state); msg.textContent = 'Loaded!'; }, function (m) { msg.textContent = m; }); };
   store.autosave(function () { return state; }); show();
+  store.onOtherTab(function (other) { store.pause(true); msg.textContent = other ? 'Another tab saved a score of ' + other.score + '. Saving is paused here; reload this page.' : 'Another tab cleared the save. Saving is paused here; reload this page.'; });   // try it: open this page in two tabs and press +1 in one
 </script>
 <footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
