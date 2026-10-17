@@ -365,5 +365,19 @@ def t_csp_token():
 
 check("a --head page policy gets 'wasm-unsafe-eval' in script-src, and nothing else changes", t_csp_token)
 
+def t_best_key():
+    import random
+    for seed, size, bias in ((1, 1200, None), (2, 1500, 60), (3, 400, 0), (4, 1200, 92), (5, 1200, 47), (6, 800, 33)):   # each is tried against all 256 keys the slow way, so keep them small
+        rnd = random.Random(seed)
+        data = bytes(rnd.randrange(256) if bias is None or rnd.random() < 0.8 else bias for _ in range(size))
+        if seed >= 5:   # lots of '<' next to the byte that makes it an escape
+            data = bytes(60 if i % 2 == 0 and rnd.random() < 0.5 else b for i, b in enumerate(data)) + b"<"
+        slow = min(range(256), key=lambda k: len(pack.js_escape(bytes(b ^ k for b in data))))
+        assert pack.best_key(data) == slow, "fast key search disagrees with trying every key (seed %d)" % seed
+    assert pack.best_key(b"") in range(256)
+
+
+check("bytes mode: the fast key search picks the same XOR key as trying all 256 with js_escape", t_best_key)
+
 print("lzma-pack: %d passed, %d failed, %d skipped" % (passed, failed, skipped))
 sys.exit(1 if failed else 0)

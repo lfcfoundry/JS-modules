@@ -53,7 +53,8 @@ function battery(src, oldSrc) {
   var timeIt = function (fn) { var t = performance.now(); fn(); return performance.now() - t; };
   for (name in big) {
     var pals = {}; ['new', 'old'].forEach(function (v) { if (v === 'old' && !O) return; var M = v === 'new' ? G : O; best = { p: 1e9, e: 1e9 };
-      for (rep = 0; rep < 3; rep++) {
+      for (rep = 0; rep < (O ? 3 : 1); rep++) {   // best of 3 when two versions are compared (OLD=...); one run when only the new file is timed (the timings are only for reading)
+
         t0 = timeIt(function () { pals[v] = M.makePalette(big[name], 255); }); if (t0 < best.p) best.p = t0;
         t0 = timeIt(function () { encode(M, 640, 480, pals[v], big[name]); }); if (t0 < best.e) best.e = t0;
         if (O) { var M2 = v === 'new' ? O : G; M2.makePalette(big[name], 255); }   // the other version runs in between, so neither always goes first

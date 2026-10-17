@@ -42,7 +42,7 @@
 <script src="speed-lab.js"></script>
 <script>
 
-var $ = function (id) { return document.getElementById(id); }, fast = /fast/.test(location.hash), stubborn = /stubborn/.test(location.hash);
+var $ = function (id) { return document.getElementById(id); }, fast = /fast/.test(location.hash), stubborn = /stubborn/.test(location.hash), tiny = /tiny/.test(location.hash);   // #tiny: steps of 120 ms, only for the test that checks a card that cannot be closed (the answer does not depend on frame counts)
 var sc = $('scene'), i, h = '';
 for (i = 0; i < 160; i++) h += '<i class="dot" style="left:' + (i * 37 % 100) + '%;top:' + (i * 53 % 20) + '%;animation-delay:-' + (i % 24) / 10 + 's"></i>';
 for (i = 0; i < 6; i++) h += '<i class="glow" style="left:' + (i * 17) + '%;top:' + (20 + i * 9) + '%;animation-delay:-' + i / 2 + 's"></i>';
@@ -51,7 +51,7 @@ var still = '#scene *{animation-play-state:paused!important}';
 $('showcard').onclick = function () { $('card').hidden = false; };
 $('cardx').onclick = function () { $('card').hidden = true; };
 window.lab = SpeedLab.panel({
-  title: 'Speed test', scene: '#scene', bar: '#bar', stepMs: fast ? 400 : 2500, warmMs: fast ? 100 : 1100, settleMs: fast ? 50 : 250, coverTries: fast ? 3 : 50, coverWaitMs: fast ? 20 : 300,
+  title: 'Speed test', scene: '#scene', bar: '#bar', stepMs: tiny ? 120 : fast ? 400 : 2500, warmMs: tiny ? 30 : fast ? 100 : 1100, settleMs: tiny ? 20 : fast ? 50 : 250, coverTries: fast ? 3 : 50, coverWaitMs: fast ? 20 : 300,
   header: 'speed-lab demo | ' + new Date().toLocaleString(),
   covers: [{ name: 'the demo card', test: function () { return !$('card').hidden; }, close: function () { if (!stubborn) $('card').hidden = true; } }],
   steps: [
