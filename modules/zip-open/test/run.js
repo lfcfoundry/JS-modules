@@ -114,4 +114,22 @@ t('read(): the bytes of any listed entry, checked, and textExt picks which files
   assert.ok(/too large/.test((await U.read(z, by['img/a.png'], 3)).skip));
   assert.equal((await U.expand(z, 'x.zip', { textExt: /\.dat$/ })).files[0].text, 'abc');
 });
+t('crc32: the standard check value, and the same answer as a plain bit-by-bit CRC for every length and start position', function () {
+  assert.equal(U.crc32(Buffer.from('123456789')), 0xcbf43926);
+  assert.equal(U.crc32(new Uint8Array(0)), 0);
+  var table = new Int32Array(256), i, k, c;
+  for (i = 0; i < 256; i++) { c = i; for (k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1; table[i] = c; }
+  var plain = function (b) { var r = -1; for (var q = 0; q < b.length; q++) r = (r >>> 8) ^ table[(r ^ b[q]) & 255]; return (r ^ -1) >>> 0; };
+  var sd = 7, rnd = function () { return (sd = (sd * 16807) % 2147483647) & 255; };
+  var buf = new Uint8Array(400); for (i = 0; i < buf.length; i++) buf[i] = rnd();
+  var bad = 0, tried = 0;
+  for (var off = 0; off < 9; off++) for (var len = 0; len < 90; len++) { var v = buf.subarray(off, off + len); tried++; if (U.crc32(v) !== plain(v)) bad++; }
+  var big = new Uint8Array(70001); for (i = 0; i < big.length; i++) big[i] = rnd() ^ (i >> 5);
+  tried++; if (U.crc32(big) !== plain(big)) bad++;
+  tried++; if (U.crc32(big.subarray(3)) !== plain(big.subarray(3))) bad++;
+  tried++; if (U.crc32(Buffer.from(big)) !== plain(big)) bad++;
+  tried++; if (U.crc32(Array.prototype.slice.call(buf, 0, 50)) !== plain(buf.subarray(0, 50))) bad++;   // a plain array still works
+  if (zlib.crc32) { tried++; if (U.crc32(big) !== zlib.crc32(big)) bad++; }
+  assert.equal(bad, 0, bad + ' of ' + tried + ' differ');
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); });
