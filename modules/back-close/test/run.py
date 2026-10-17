@@ -7,6 +7,16 @@ Set FIREFOX_PATH to a Firefox binary to run with firefox. Exits 1 if any check f
 import os, sys
 from playwright.sync_api import sync_playwright
 
+def real_chromium(p, **kw):
+    """Start the Chromium named in CHROMIUM (the build from the test-browsers branch), never Playwright's own stock one, and print its real version."""
+    exe = os.environ.get("CHROMIUM")
+    if not exe:
+        print("skipped: set CHROMIUM=/path/to/chrome (the ungoogled Chromium from the test-browsers branch); this test does not fall back to Playwright's own Chromium"); sys.exit(2)
+    br = p.chromium.launch(executable_path=exe, **kw)
+    print("browser: Chromium " + br.version + " (" + exe + ")")
+    return br
+
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 PAGE = 'file://' + os.path.join(HERE, 'page.html')
 fails, count = [], 0
@@ -26,7 +36,7 @@ def main():
         if which == 'firefox':
             browser = p.firefox.launch(headless=True, executable_path=os.environ.get('FIREFOX_PATH'))
         else:
-            browser = p.chromium.launch(headless=True)
+            browser = real_chromium(p, headless=True)
         ctx = browser.new_context()
         ctx.route('**/*', lambda r: r.abort() if r.request.url.startswith('http') else r.continue_())
         pg = ctx.new_page()

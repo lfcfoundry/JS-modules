@@ -5,6 +5,16 @@ Python 3 + Playwright for Python with Chromium; no network. Counts only: never j
 Copyright (c) 2026 LFC Foundry. MIT License."""
 import os, pathlib, sys
 from playwright.sync_api import sync_playwright
+
+def real_chromium(p, **kw):
+    """Start the Chromium named in CHROMIUM (the build from the test-browsers branch), never Playwright's own stock one, and print its real version."""
+    exe = os.environ.get("CHROMIUM")
+    if not exe:
+        print("skipped: set CHROMIUM=/path/to/chrome (the ungoogled Chromium from the test-browsers branch); this test does not fall back to Playwright's own Chromium"); sys.exit(2)
+    br = p.chromium.launch(executable_path=exe, **kw)
+    print("browser: Chromium " + br.version + " (" + exe + ")")
+    return br
+
 SRC = (pathlib.Path(__file__).resolve().parent.parent / "src" / "canvas-probe.js").read_text()
 fails = 0
 def check(name, ok, extra=""):
@@ -17,7 +27,7 @@ window.origFill = CanvasRenderingContext2D.prototype.fillRect;
 window.origStyle = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'fillStyle').set;
 </script>"""
 with sync_playwright() as p:
-    br = p.chromium.launch(args=["--disable-gpu"], executable_path=os.environ.get("CHROMIUM") or None); pg = br.new_page(); errs = []
+    br = real_chromium(p, args=["--disable-gpu"]); pg = br.new_page(); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.set_content(PAGE); pg.add_script_tag(content=SRC)
     r = pg.evaluate("""() => {
