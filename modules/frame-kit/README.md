@@ -1,6 +1,6 @@
 # frame-kit
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
 Test everything (Node only, offline, about a second): `node modules/frame-kit/test/run.js` (run from the repository root; it exits non-zero on any failure).
 Browser check of the example (Playwright for Python, Chromium already installed): `python3 modules/frame-kit/test/check-example.py`.
@@ -107,6 +107,7 @@ How `next()` works: gaps of `minGap` or less and `maxGap` or more are returned u
 | `.level` | Current level, `0` (full quality) to `levels - 1` (lightest). |
 | `.average` | The smoothed frame gap in ms, for a debug overlay. |
 | `.force(n)` | Jump to level `n` (clamped). Restarts the streaks, the delay clock and the flip-flop guard, and calls `onChange` if the level changed. |
+| `.lock()` / `.unlock()` | `lock()` freezes the level (the player picked one); `frame()` does nothing until `unlock()`, which restarts the streaks. Read `.locked`. |
 | `.hold()` | Drop the current slow and fast streaks. Call it while frames are not representative (menu open, tab hidden). |
 | `.flips` | How many quick reversals (a step up, then a step down soon after) the flip-flop guard has seen. |
 | `.gaveUp` | `true` once the guard has given up on a level: the governor stays below it. |
@@ -131,7 +132,9 @@ The flip-flop guard: hysteresis stops quick flapping, but not a slow loop (the l
 | `downDelay` | `3000` | Minimum ms since the last change before stepping down. |
 | `fastMs` | `10000` | Fast time in a row (ms) needed to step up. |
 | `upDelay` | `10000` | Minimum ms since the last change before stepping up. |
-| `maxGap` | `100` | Gaps above this (ms) are ignored, and end the fast streak. |
+| `maxGap` | `100` | Gaps above this (ms) are ignored, and end the fast streak, unless there are `stallRun` of them in a row. |
+| `stallRun` | `4` | This many gaps over `maxGap` in a row mean a device that is always that slow (under about 10 frames a second), not a pause, so they are measured and the governor steps down. One to three stray stalls still change nothing. Before 1.1.0 such a device was ignored for ever. |
+| `stepUp` | `true` | `false`: only ever steps down, never back up by itself (what a game wants if it must not undo a level behind the player's back). Pair it with `lock()` / `force()` for the player's own choice. |
 | `flipLimit` | `0` | Quick reversals on one level before the governor gives up on it. `0` (the default) leaves the guard off; `3` is a good value to turn it on. |
 | `flipWindow` | `30000` | A step down this soon (ms) after a step up to the same level is a reversal. |
 | `enabled` | `true` | Start enabled or frozen. |
@@ -260,7 +263,7 @@ Differences from the original game code, on purpose: `EvenDt` recomputes the med
 - Do not weaken a test to make it pass. If a bound in a test looks wrong, read the matching sentence in "Limits and gotchas" first; those bounds are documented behavior.
 - Keep American English, no personal names beyond the copyright holder, and no game art or story from the source game.
 
-Related: [`fx-governor`](../fx-governor/README.md) in this repository also steps effects down when a device cannot keep up, but never steps back up. `QualityGovernor` here steps back up after a calm spell. Pick the one that matches the behavior you want.
+Related: [`fx-governor`](../fx-governor/README.md) in this repository also steps effects down when a device cannot keep up, but never steps back up, and it judges whole windows of seconds instead of a smoothed gap. `QualityGovernor` with `stepUp: false` and `lock()` gives the same never-back-up behavior on the frame-kit side; pick the one that matches how you want to measure.
 
 ---
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry

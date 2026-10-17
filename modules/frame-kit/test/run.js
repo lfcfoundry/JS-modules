@@ -588,6 +588,32 @@ test('QualityGovernor: the stall is seen from the clock too, and hold() ends the
   assert(h.level === 2, 'hold() restarts the fast total, got ' + h.level);
 });
 
+test('QualityGovernor: a device that is always slower than maxGap now steps down; isolated stalls still change nothing', function () {
+  const first = function (gap, o) { let at = null, x = 1000; const g = new QualityGovernor(Object.assign({ levels: 3, onChange: () => { if (at === null) at = x - 1000; } }, o || {}));
+    for (; x < 121000 && at === null; x += gap) g.frame(gap, x); return at; };
+  assert(first(150) !== null && first(150) < 20000, '6.7 fps: ' + first(150));
+  assert(first(1000) !== null, '1 fps never stepped down');
+  assert(first(150, { stallRun: 1000000 }) === null, 'stallRun huge = the old blind spot');
+  const log = [], gov = new QualityGovernor({ levels: 3, onChange: l => log.push(l) });
+  let x = 1000; for (let i = 0; i < 3000; i++) { const gap = (i % 200 >= 198) ? 300 : 16.7; x += gap; gov.frame(gap, x); }   // two long gaps in a row, over and over
+  assert(log.length === 0, 'isolated stalls changed the level: ' + log.join(','));
+});
+
+test('QualityGovernor: stepUp:false only ever steps down', function () {
+  const log = [], gov = new QualityGovernor({ levels: 3, stepUp: false, onChange: l => log.push(l) });
+  let t = drive(gov, () => 40, 0, 20000); assert(gov.level === 2, 'bottom first, got ' + gov.level);
+  drive(gov, () => 16, t, t + 120000); assert(gov.level === 2 && log.join() === '1,2', 'stayed down: ' + log.join());
+  const up = new QualityGovernor({ levels: 3 }); t = drive(up, () => 40, 0, 20000); drive(up, () => 16, t, t + 60000); assert(up.level < 2, 'default still steps up');
+});
+
+test('QualityGovernor: lock() freezes the level, unlock() lets it move again from a clean count', function () {
+  const log = [], gov = new QualityGovernor({ levels: 3, onChange: l => log.push(l) });
+  assert(gov.lock() === gov && gov.locked);
+  let t = drive(gov, () => 40, 0, 30000); assert(gov.level === 0 && log.length === 0, 'locked but moved');
+  gov.unlock(); assert(!gov.locked);
+  drive(gov, () => 40, t, t + 30000); assert(gov.level === 2, 'moves after unlock, got ' + gov.level);
+});
+
 test('QualityGovernor: a throwing onChange never leaves a half-changed state or escapes frame()', function () {
   const errs = []; let calls = 0;
   const gov = new QualityGovernor({ levels: 3, onChange: () => { calls++; throw new Error('bad callback'); }, onError: e => errs.push(e.message) });

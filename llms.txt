@@ -10,8 +10,8 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 
 ## Games: Device and browser adaptation
 - [env-probes](https://github.com/lfcfoundry/JS-modules/blob/main/modules/env-probes/README.md): Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. (global EnvProbes) Version 1.1.0, API 1.
-- [fx-governor](https://github.com/lfcfoundry/JS-modules/blob/main/modules/fx-governor/README.md): Steps visual effects down when the device cannot keep up; never back up behind the player. (global FxGovernor) Version 1.0.0, API 1.
-- [frame-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/frame-kit/README.md): Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. (global EvenDt, QualityGovernor, JobPump, FrameMeter) Version 1.0.0, API 1.
+- [fx-governor](https://github.com/lfcfoundry/JS-modules/blob/main/modules/fx-governor/README.md): Steps visual effects down when the device cannot keep up; never back up behind the player. (global FxGovernor) Version 1.1.0, API 1.
+- [frame-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/frame-kit/README.md): Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. (global EvenDt, QualityGovernor, JobPump, FrameMeter) Version 1.1.0, API 1.
 
 ## Games: Controls
 - [hold-press](https://github.com/lfcfoundry/JS-modules/blob/main/modules/hold-press/README.md): Hold-to-repeat for buttons that survives Android Chrome pointercancel. (global HoldPress) Version 1.0.0, API 1.

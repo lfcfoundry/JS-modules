@@ -10,11 +10,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [save-kit](modules/save-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.0.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
-| [fx-governor](modules/fx-governor/README.md) | 1.0.0 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
+| [fx-governor](modules/fx-governor/README.md) | 1.1.0 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 · API 1 | [changelog](modules/fly-to-mini/CHANGELOG.md) |
 | [sticker-text](modules/sticker-text/README.md) | 1.0.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.0.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
-| [frame-kit](modules/frame-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
+| [frame-kit](modules/frame-kit/README.md) | 1.1.0 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.2.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.0.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.0.0 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
@@ -32,6 +32,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-16 · **fx-governor** 1.1.0 · API 1: Very slow devices are no longer missed: three long gaps in a row now count as a slow device, not a pause. A window under half the line steps down after one window instead of two (new option severe, 0 turns it off). choose() with an unknown name no longer locks, and release('full') sets the level and hands control back. README now shows a Try full effects again button and how to remember the level between visits.
+- 2026-10-16 · **frame-kit** 1.1.0 · API 1: QualityGovernor no longer ignores very slow devices: four long frames in a row (over 100 ms) now count as a slow device instead of a pause, so a phone under about 10 frames a second is finally stepped down. New option stepUp: false (only ever steps down) and new lock() / unlock() for a level the player picked. Single stalls still change nothing.
 - 2026-10-16 · **fly-to-mini** 1.2.0 · API 1: New opt-in options: pass the sticky bar as an element (it follows the bar's size), a visible-amount callback, hysteresis so scrolling at the edge stops flip-flopping, keyboard focus follows the visible button, a short fade under reduced motion, and a blink method for the mini. The flying copy no longer has duplicate ids and now shows canvas pictures. destroy() clears all timers.
 - 2026-10-16 · **fly-to-mini** 1.1.0 · API 1: New optional `engine: 'transition'` uses the browser's View Transitions API for the move (with the same arc, tilt and squash). The flight is still the default, and browsers without the API use it automatically. Nothing existing changes. Not yet judged by eye on a phone or in Firefox.
 - 2026-10-16 · **env-probes** 1.1.0 · API 1: Faster clock and canvas checks. New: canvasNoise() says how big canvas noise is, framed() says whether the page sits inside another page, capabilities() lists which newer browser features work, plus hover, any-hover and reduced-transparency questions. explain() now says so when saving is blocked inside a frame. The demo is now a one-button device check page with a copy-report button. Everything old answers the same as before.
