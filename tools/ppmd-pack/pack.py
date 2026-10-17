@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd-pack: turn one HTML file into a smaller self-unpacking HTML file with PPMd.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
-Version 1.0.1 (API 1)
+Version 1.0.2 (API 1)
 
   python3 tools/ppmd-pack/pack.py INPUT.html OUTPUT.html [--title T] [--head HTML] [--encoding bytes|base64] [--order N] [--mem BYTES] [--tune] [--compare]
                                   [--minifier auto|terser|esbuild|none] [--minify-page] [--bg auto|none|COLOR] [--skip-node-check]
@@ -163,6 +163,7 @@ def decoder_source():
 
 def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False, bg="auto", check_node=True, minify_pg=False,
          order=None, mem=None, compare=False, jobs=None):
+    head = lz.allow_wasm(head)   # every page policy carries 'wasm-unsafe-eval' in script-src
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:

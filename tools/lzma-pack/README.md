@@ -1,8 +1,8 @@
 # lzma-pack
 
-**Version 1.1.0 · API 1**
+**Version 1.1.1 · API 1**
 
-**Tested in:** Node 22.22.0 (340 lzma-decode checks, 23 lzma-pack checks); tests/lzma-wasm-browser.js one browser at a time on 2026-10-17: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; tools/lzma-pack/test/browser.py in ungoogled-chromium 155.0.8059.39-1
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/lzma-wasm-browser.js, a policy given without the token came out carrying it and the WebAssembly decoder ran in all four); 24 packer checks pass. Not run: a phone or Safari itself
 
 Turns one HTML file into one smaller, self-unpacking HTML file using LZMA, and checks a hash of the result before running it. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader).
 
@@ -36,7 +36,7 @@ python3 tools/lzma-pack/pack.py tools/lzma-pack/example/app.html tools/lzma-pack
 | Option | Meaning |
 |---|---|
 | `--title T` | Title of the wrapper page. |
-| `--head HTML` | Extra HTML for the wrapper's head, for example a Content-Security-Policy meta tag. |
+| `--head HTML` | Extra HTML for the wrapper's head, for example a Content-Security-Policy meta tag. A Content-Security-Policy meta tag in it gets `'wasm-unsafe-eval'` added to its `script-src` (or a `script-src` built from its `default-src` when there is none); nothing else in the policy changes, and a page with no policy gets none. |
 | `--encoding bytes\|base64` | `bytes` (default): smallest, stored raw, wrapper declared windows-1252. `base64`: about a third bigger, safe on any server or editor. |
 | `--tune` | Try lc 0-4 and pb 0-2 and keep the smallest result (slower). |
 | `--bg auto\|none\|COLOR` | Color behind the "Opening..." line. `auto` (default) reads it from the input: an inline `<body style>`, the last `html`/`body`/`:root` rule that sets a background (a `var(--name)` is looked up), or a `theme-color` meta tag; white if none is found. `none` shows nothing. Or a plain color such as `#101018`, `rgb(16,16,24)` or `black`. |
@@ -65,7 +65,7 @@ Time from opening the file until the unpacked page starts (milliseconds, median 
 
 The saving is 14 to 30 ms on a desktop; a phone is not measured. Whether 4.5 KB for 14 to 30 ms is worth it is the game owner's call; a game that is already close to a size limit should keep the default.
 
-What the page needs: `'wasm-unsafe-eval'` in the `script-src` of the wrapper's Content-Security-Policy (the `--head` option; the packer prints a note when `--head` sets a policy without it). Chromium and Firefox refuse WebAssembly without it and the page then simply uses the JavaScript decoder (checked in both with a policy that lacks the word: the page still opened and no WebAssembly instance was made). WebKitGTK 2.52.6 and GNOME Web 46.5 did not refuse WebAssembly under that policy, so the fallback was not exercised there; it is exercised in Node by the packer's own check below. Pages without any policy need nothing.
+What the page needs: `'wasm-unsafe-eval'` in the `script-src` of the wrapper's Content-Security-Policy (the `--head` option; the packer adds it for you to every policy it finds there, so every packed page carries it). Chromium and Firefox refuse WebAssembly without it and the page then simply uses the JavaScript decoder (checked in both with a policy that lacks the word, made by cutting the token out of a packed page: the page still opened and no WebAssembly instance was made). WebKitGTK 2.52.6 and GNOME Web 46.5 did not refuse WebAssembly under that policy, so the fallback was not exercised there; it is exercised in Node by the packer's own check below. Pages without any policy need nothing.
 
 The self-check runs the page's loader four times in Node: with a WebAssembly that counts its calls (the decoder must run exactly once and return the exact length), with no WebAssembly at all, with WebAssembly whose compile step throws (as a refusing policy does), and with a decoder that returns a wrong length. All four must write the input page back. A damaged `lzma-decode.wasm` is therefore caught at pack time instead of silently making every page slow.
 
