@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License.
   // ================================================================ the object layer
   // Everything below needs only the packing core above (MC). Layout of a packed value:
   //   'M' 'J' version flags | [crc32] | control bytes (tags, counts, key names; packed when large) | blob area (packed numeric columns)

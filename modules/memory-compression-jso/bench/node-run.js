@@ -1,4 +1,5 @@
 'use strict';
+// Copyright (c) 2026 LFC Foundry. MIT License.
 // Usage: node node-run.js [dataset-regex] [contender-regex] [reps]
 var path = require('path'), D = require('../test/data.js');
 var DEP = process.env.JSO_DEPS || '/tmp/jso-deps/node_modules/';          // where `npm i` put the libraries (see bench/README.md)

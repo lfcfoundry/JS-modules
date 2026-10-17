@@ -1,4 +1,5 @@
 'use strict';
+// Copyright (c) 2026 LFC Foundry. MIT License.
 // Runs bench/jso-bench.html in ONE browser from the `browsers` branch and prints markdown tables with the real browser version on line 1.
 // Usage: node bench/browser-run.js firefox|chromium|webkit [quick|full] [dataset-regex] [contender-regex]
 // Needs: /tmp/fp-deps (puppeteer-core), FIREFOX= and CHROMIUM= paths from install.sh, tools/webkit-driver from JS-modules.
