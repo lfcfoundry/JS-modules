@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Chromium (version not recorded) and Firefox 155 (13 browser checks, at the cut from Apple Press); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`. Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
+
 Keeps one open copy of a page "in charge", so two tabs (or two copies of a game) do not overwrite each other's saved data. About 8 KB with its comments, no dependencies.
 
 ## Use

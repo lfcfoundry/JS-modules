@@ -2,6 +2,8 @@
 
 **Version 1.1.0 · API 1**
 
+**Tested in:** Node checks and a simulated 3 frames-a-second device; browser versions for this release: not recorded. Not run: a real slow phone.
+
 Test everything (Node only, offline, about a second): `node modules/frame-kit/test/run.js` (run from the repository root; it exits non-zero on any failure).
 Browser check of the example (Playwright for Python, Chromium already installed): `python3 modules/frame-kit/test/check-example.py`.
 

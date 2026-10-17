@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Node checks; the demo page in Firefox 158 and ungoogled Chromium 155, one at a time (`tests/flow-demos.js`, 2026-10-17). Not run: WebKitGTK, a phone.
+
 Simulates random walkers on a network (where do they end up, how long does it take, what does it cost), with the exact odds worked out by arithmetic so you can check the simulation against them. About 39 KB (12.3 KB gzipped), no dependencies. Cut from Net Flow Map.
 
 **Test it:** `node modules/walker-sim/test/run.js` (distributions, exact solver, batches, what-if sweeps; about 1 s). **Try it:** `demo.html`.

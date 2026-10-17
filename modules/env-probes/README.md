@@ -2,6 +2,8 @@
 
 **Version 1.1.0 · API 1**
 
+**Tested in:** Node checks; the speed figures were measured in Chromium (version not recorded). Firefox for this release: not recorded (Firefox 157 ran `tests/firefox.js` on 2026-10-17: 5 passed). Not run: Firefox privacy-profile test, WebKitGTK, a phone.
+
 Tiny checks for browsers that quietly change what your page can do. About 8 KB minified (about 3.2 KB gzipped), no dependencies. Open `demo.html` for the one-button device check page. Never throws, in a page, a Worker or Node.
 
 ```js

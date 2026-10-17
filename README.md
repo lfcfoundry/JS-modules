@@ -212,11 +212,16 @@ npm run test:kits                               # slow-note, spotlight-tour, spe
 
 ### Test browsers
 
-Browser checks run in **Firefox 158** (the stress test) and **ungoogled Chromium 155**, on Linux. Results in this repository's docs name the exact browser and version, for example "Firefox 158" or "Chromium 155 (ungoogled)". Older stand-ins (Chromium 141 and 153, Firefox 157) are retired; numbers in the docs that were measured on them still say so, and are not re-measured unless a change needs it. Rules for anyone running the tests:
+Browser checks run only in the browsers kept on the `browsers` branch of the private knowledge-base repository: **Firefox 158** (the stress test), **ungoogled Chromium 155** and **WebKitGTK 2.52.6** (GNOME Web 46.5), on Linux. The branch can change (a version updated, a browser added or removed), so read its README before each run and use what it says then. Every result in this repository's docs names the exact browser and version, for example "Firefox 158" or "Chromium 155 (ungoogled)".
+
+**Every module and tool says which browsers its release was tested in.** The newest release's list is the **Tested in** line near the top of its README; each release's list is the **Tested in** line in its `CHANGELOG.md` entry. A line names each browser with its version, says "not recorded" where the old records do not show it, and says what was not run. Older builds (Chromium 141 and 153, Firefox 155 and 157) were stand-ins before this rule; entries that were tested on them still say so, and are not re-measured unless a change needs it. `versions.py set ... --tested "..."` writes the line; see [tools/versions/README.md](tools/versions/README.md).
+
+Rules for anyone running the tests:
 
 - Run one browser at a time. Two at once make timing checks flaky.
 - Point the test at the browser you installed: `CHROMIUM=/path/to/chrome` for the Chromium checks, `FIREFOX_PATH` (and `GECKODRIVER_PATH` for [firefox-stand-in](tools/firefox-stand-in/README.md)) for Firefox. A bare run that falls back to some other build gives unfair timing numbers, so say which one ran.
-- Not covered yet: WebKit and Safari, and real phones (the Pixel and an iPhone). A passing desktop run is not a phone result.
+- WebKitGTK and GNOME Web can only be driven through WebDriver (Playwright and Puppeteer cannot); the recipe is in the branch README.
+- Not covered yet: Safari itself, and real phones (the Pixel and an iPhone). A passing desktop run is not a phone result.
 
 ## More from LFC Foundry
 

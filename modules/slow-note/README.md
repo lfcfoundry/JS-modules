@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Node checks where the piece has any; Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK through WebDriver, page at least 447 px wide). Not run: GNOME Web (Epiphany) 46.5, a phone. In WebKitGTK an error on a page opened from `file://` is noted only as "Script error." (over http it has the full text), and long frames are not seen (no Long Animation Frames).
+
 A short note, kept only on the player's device, of the slow and broken moments a page lived through: errors, rejected promises, taps the browser calls slow and long frames. The player can copy it as plain text and paste it into a message when "it felt slow". 9.7 KB (3.7 KB gzipped), no dependencies. Cut from Apple Press.
 
 **Test it:** `node modules/slow-note/test/run.js` (7 checks on the log, about 0.2 s) and `node tests/pieces-browser.js` (a real page in Firefox 158 and ungoogled Chromium 155). **Try it:** `demo.html`.
@@ -35,7 +37,8 @@ note.onChange(function (count) { label.textContent = count + " moments noted."; 
 
 ## Limits
 - It cannot see graphics-chip cost: a game can drop frames while the browser reports nothing slow. The demo and `speed-lab` are for that.
-- Event timing needs a recent browser (Chromium and Firefox have it; Safari support was not checked). Without it, only errors are noted.
+- Event timing needs a recent browser (Chromium 155, Firefox 158 and WebKitGTK 2.52.6 have it; Safari itself was not checked). Without it, only errors are noted. Long frames are seen only in Chromium 155 (Firefox 158 and WebKitGTK 2.52.6 have no Long Animation Frames).
+- **WebKit hides the text of errors on pages opened from `file://`.** The note still records that an error happened, but WebKitGTK 2.52.6 says only "Script error." with no file or line; from a web address (`http://`) it gives the full message and line (checked with the demo page).
 - The note lives in `localStorage`: clearing site data clears it, and in a privacy window it is kept in memory only until the page closes.
 - A note says what happened, not why. It adds the browser's own numbers and your `context`, nothing deeper.
 

@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Node checks; Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; its demo page loads without errors in Firefox (`tests/firefox.js`: Firefox 158 per the 2026-10-15 task-board note, Firefox 157 on 2026-10-17). Not run: WebKitGTK, a phone.
+
 Die-cut "sticker" lettering for logos and titles in plain HTML and CSS: no images, scales with `font-size`. About 2 KB JS + CSS.
 
 ```html

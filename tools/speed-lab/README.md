@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Node checks where the piece has any; Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK through WebDriver, page at least 447 px wide). Not run: GNOME Web (Epiphany) 46.5, a phone.
+
 A one-button speed test for a page, run on the device that has the problem. You describe the comparison as data: steps, each measured for a few seconds (nothing moving, everything moving, everything moving with one part switched off). It runs them one after another, keeps the thing you are measuring in view and uncovered, redoes a step that was disturbed, and says the answer in plain sentences with a table you can copy and paste into a message. 17.9 KB (6.6 KB gzipped), no dependencies. Cut from Apple Press's phone speed test, with the game's own steps taken out.
 
 **Test it:** `node tools/speed-lab/test/run.js` (8 checks on the numbers and the answer) and `node tests/pieces-browser.js` (a real run in Firefox 158 and ungoogled Chromium 155: five steps, a covering card closed and reported, an unclosable card marking steps disturbed). **Try it:** `demo.html` (about 30 seconds; add `#fast` to the address for 4 seconds).

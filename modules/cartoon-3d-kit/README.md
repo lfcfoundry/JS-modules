@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Node checks; no real browser run recorded (its demo page loads in Firefox through `tests/firefox.js`: Firefox 158 per the 2026-10-15 note, Firefox 157 on 2026-10-17).
+
 Run the check (offline, no browser, under a second): `node modules/cartoon-3d-kit/test/run.js`
 
 ## What it is

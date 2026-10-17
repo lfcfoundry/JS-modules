@@ -16,6 +16,9 @@ Reading it: **same API number as your copy = you can drop the new file in. A hig
 ## Changelogs
 Every module and tool has a `CHANGELOG.md` in its folder: newest version first, one or two plain sentences each (what a user would notice, not how it was done). `set` requires `--note` and writes the entry with today's US Eastern date. The root [CHANGELOG.md](../../CHANGELOG.md) is generated: where each module stands, plus the changes since labels began. `check` fails if a changelog is missing, if its newest entry is not the current version, or if the root one is stale. History before 2026-10-16 sits under "Before version labels" in each changelog, rebuilt from the commit log, the task board and the 2026-10-15 audit.
 
+## Which browsers tested a release
+Every changelog entry ends with a `Tested in:` line, and the module's README repeats the newest one as `**Tested in:**` under the version line. It names each browser with its version (the test browsers are the ones on the `browsers` branch: Firefox, ungoogled Chromium, WebKitGTK), says what was not run, and says "not recorded" where nobody wrote it down. `set` without `--tested` writes "not recorded" and reminds you.
+
 ## Where it lives
 `modules.json` is the source of truth (`version` and `api` next to each `id`). The script copies it into:
 1. the module's header comment (`Version 1.2.3 (API 1)`), so a single copied file carries it;
@@ -29,6 +32,8 @@ Every module and tool has a `CHANGELOG.md` in its folder: newest version first, 
 python3 tools/versions/versions.py list                 # every label
 python3 tools/versions/versions.py check                # do all copies agree? (exit 1 if not)
 python3 tools/versions/versions.py set fly-to-mini 1.2.0 --note "What changed, in plain words."   # change one label everywhere and add the changelog entry
+python3 tools/versions/versions.py set fly-to-mini 1.2.0 --tested "Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6" --note "..."   # also records which browsers tested the release
+python3 tools/versions/versions.py tested fly-to-mini 1.2.0 "WebKitGTK 2.52.6, Firefox 158"   # write or fix one entry's Tested in line
 python3 tools/versions/versions.py changelog            # rebuild the root CHANGELOG.md
 python3 tools/versions/versions.py init                 # labels 1.0.0 on anything that has none
 python3 tools/versions/test/run.py                      # the tool's own checks (a temp repository, under a second)

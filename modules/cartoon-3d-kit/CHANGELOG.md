@@ -5,6 +5,8 @@ What changed in each version, newest first, in plain words. The numbers are expl
 ## 1.0.0 · API 1 · 2026-10-16
 First labeled version. Nothing in the code changed; everything under "Before version labels" is already in it.
 
+Tested in: Node checks; no real browser run recorded (its demo page loads in Firefox through `tests/firefox.js`: Firefox 158 per the 2026-10-15 note, Firefox 157 on 2026-10-17).
+
 ## Before version labels
 
 - Early October 2026: First version: a written style guide and demo for the glossy "toy" look in plain CSS and SVG (no code to import).

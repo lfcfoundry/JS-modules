@@ -5,8 +5,12 @@ What changed in each version, newest first, in plain words. The numbers are expl
 ## 1.1.0 · API 1 · 2026-10-16
 New `buyPlan(base, risePct, owned, discount, money, mode, cap)`: the whole "Buy x1 / x10 / Max" switch in one call, cut from Apple Press. It says how many copies a tap buys, what they cost together and whether the money covers it, and Max never buys more than 100 copies at once (changeable) so one stray tap cannot empty the pile. Its price is the sum of the single prices, so it matches pressing x1 repeatedly: in 540 test cases it matched in all 540, while `costOfMany` (one rounding for the whole bundle) differed in 421 of them, by up to 56. Nothing existing changes. 29 checks, 4 of them new.
 
+Tested in: 29 Node checks (4 of them new, for `buyPlan`); no browser was needed.
+
 ## 1.0.0 · API 1 · 2026-10-16
 First labeled version. Nothing in the code changed; everything under "Before version labels" is already in it.
+
+Tested in: Node checks only; no browser was used.
 
 ## Before version labels
 

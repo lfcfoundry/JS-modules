@@ -2,6 +2,8 @@
 
 **Version 1.1.0 · API 1**
 
+**Tested in:** Chromium 153 and Firefox 157 (the bytes page unpacks from `file://` and from a server that sends no charset, 2026-10-17). Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
+
 Shrinking a game that is one HTML file with fonts and pictures inside it. These are the steps used for the owner's single-file games, each optional (`build-example.sh` runs them all).
 
 | Tool | Does | Needs |

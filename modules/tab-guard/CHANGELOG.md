@@ -5,6 +5,8 @@ What changed in each version, newest first, in plain words. The numbers are expl
 ## 1.0.0 · API 1 · 2026-10-16
 First labeled version. Nothing in the code changed; everything under "Before version labels" is already in it.
 
+Tested in: Chromium (version not recorded) and Firefox 155 (13 browser checks, at the cut from Apple Press); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`. Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
+
 ## Before version labels
 
 - 2026-10-14: First version: one open copy of a game at a time (Web Locks), cut from Apple Press 1.27.

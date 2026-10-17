@@ -2,6 +2,8 @@
 
 **Version 1.1.0 · API 1**
 
+**Tested in:** Node checks and a simulated 3 frames-a-second device; browser versions for this release: not recorded. Not run: a real slow phone.
+
 Steps visual effects down by itself when the device cannot keep up, and **never steps back up behind the player's back**. About 6.4 KB with comments.
 
 ```js

@@ -2,6 +2,8 @@
 
 **Version 1.2.0 · API 1**
 
+**Tested in:** 33 Node checks; the demo ran clean in Chromium 141, Chromium 153 and Firefox 157. Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
+
 When a big element scrolls away, a copy of its small stand-in **flies** from it to the sticky mini version, and back again when you scroll up. A shared-element transition for scrolling, with an arc, a tilt and a squash. About 7.4 KB minified (3.1 KB gzipped); the commented source is about 18 KB.
 
 ## Quick start

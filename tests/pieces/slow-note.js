@@ -9,7 +9,8 @@ check('slow-note', async (b) => {
   let n = await p.evaluate(() => note.count()); ok(n === 1, 'the error was not noted: ' + n);
   await sleep(1100); await p.click('#rej'); await sleep(200);
   const e = await p.evaluate(() => note.entries().map(x => x[1] + ' | ' + x[2]));
-  ok(e.length === 2 && /^error \| .*demo error/.test(e[0]) && /\[demo\]$/.test(e[0]), JSON.stringify(e));
+  const webkit = await p.evaluate(() => /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Firefox/.test(navigator.userAgent));   // WebKit hides the text of errors on pages opened from file:// ("Script error."); over http it says "demo error"
+  ok(e.length === 2 && (webkit ? /^error \| Script error/ : /^error \| .*demo error/).test(e[0]) && /\[demo\]$/.test(e[0]), JSON.stringify(e));
   ok(/^error \| promise: demo rejection/.test(e[1]), JSON.stringify(e));
   let said = 'errors and rejections noted';
   if (sup['slow tap'] || sup['slow frame']) {
@@ -26,6 +27,6 @@ check('slow-note', async (b) => {
   ok(copied === 'boolean', 'copy did not answer true or false');
   await p.evaluate(() => note.clear()); n = await p.evaluate(() => note.count()); ok(n === 0, 'clear left ' + n);
   await p.evaluate(() => localStorage.removeItem('slow-note-demo'));
-  const unexpected = p.errs.filter(x => !/demo error|demo rejection/.test(x)); ok(!unexpected.length, unexpected[0]);
+  const unexpected = p.errs.filter(x => !/demo error|demo rejection|Script error/.test(x)); ok(!unexpected.length, unexpected[0]);
   return said + '; kept across a reload';
 });

@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Chromium only at build (version not recorded; 105 checks); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; Firefox 157.0.1 through the Firefox stand-in (105 checks pass, 2026-10-17). Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a real controller, a phone.
+
 Tests (offline): `node modules/pad-nav/test/run.js` (fake pads and a tiny fake DOM, no browser, under a second) and `python3 modules/pad-nav/test/run.py` (about 3 seconds, needs Playwright for Python and an installed Chromium).
 
 ## What it is

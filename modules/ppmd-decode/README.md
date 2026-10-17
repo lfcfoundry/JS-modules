@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** 118 Node checks; a Chromium page check (version not recorded); decode speed measured in ungoogled Chromium 155 and Firefox 158 (Firefox timing is noisy); cold start measured in Chromium 141 on 2026-10-16. Not run: WebKitGTK, a phone.
+
 A PPMd decoder (the "var.H" flavor that 7-Zip calls PPMd7) in plain ES5 JavaScript, one function, no dependencies. PPMd predicts each byte from the bytes before it. On the web-page samples I measured (see Numbers) it came out about 10% smaller than LZMA, at the price of a bigger decoder and slower unpacking. Use it to unpack PPMd data in the browser or in Node, for example the page data in a single-file app that a packer squeezed. The matching encoder is [`tools/ppmd-pack/ppmd7_encode.py`](../../tools/ppmd-pack/ppmd7_encode.py).
 
 **Test it:** `node modules/ppmd-decode/test/run.js` (Node only, offline, about 3 seconds). It decodes streams written by the C reference encoder and must match them byte for byte.

@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Chromium (version not recorded; 14 browser checks); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; the real Fancy the Banana page (original, packed, packed and minified) loaded the same in Firefox 158 and ungoogled Chromium 155 (a load check, not a play-through, noted 2026-10-15). Not run: WebKitGTK, a phone.
+
 Turns one HTML file into one smaller, self-unpacking HTML file using LZMA, and checks a hash of the result before running it. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader).
 
 **Test it:** `python3 tools/lzma-pack/test/run.py` (Python 3 and Node.js, no browser, a few seconds) and `python3 tools/lzma-pack/test/browser.py` (Playwright for Python with Chromium; offline). The decoder it embeds is tested separately: `node modules/lzma-decode/test/run.js`.

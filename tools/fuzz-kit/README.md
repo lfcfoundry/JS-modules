@@ -2,6 +2,8 @@
 
 **Version 1.1.0 · API 1**
 
+**Tested in:** Real runs by hand on 2026-10-17: stock Firefox 157.0.1 (over WebDriver BiDi), Chromium 153 and Chromium 141, with the same results; automatic checks: 201 engine checks in Node, 38 in Python, 16 browser checks in Chromium through Playwright for Python (version not recorded). Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
+
 **Test it:**
 - `node tools/fuzz-kit/test/run.js` runs the engine, the input helpers, the in-page driver and the Puppeteer runner's own logic against fake pages (no browser; 201 checks).
 - `python3 tools/fuzz-kit/test/runner_fakes.py` runs the Playwright runner's own logic against a fake page (no browser; 38 checks).

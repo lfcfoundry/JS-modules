@@ -22,7 +22,9 @@ Every module and tool has a label like `1.2.3 · API 1` (classic major.minor.pat
 ## Run the tests
 `npm i playwright-core && CHROMIUM=/path/to/chrome node tests/run.js`
 
-Test browsers are **Firefox 158** and **ungoogled Chromium 155** (Linux). Do not use Chromium 141 or 153 or Firefox 157 for new results. Run one browser at a time (two at once make timing flaky), point the tests at the install with `CHROMIUM`, `FIREFOX_PATH` and `GECKODRIVER_PATH`, and label every result with the browser and version that ran. Say so when WebKit or a real phone was not checked. Keep the browser files out of this repository.
+Test **only** with the browsers on the `browsers` branch of the private knowledge-base repository: **Firefox 158**, **ungoogled Chromium 155** and **WebKitGTK 2.52.6** (GNOME Web 46.5), on Linux. Read that branch's README before each test run, because versions may be updated and a browser may be added or removed; follow what it says then. Do not use Chromium 141 or 153 or Firefox 157 for new results. Run one browser at a time (two at once make timing flaky), point the tests at the install with `CHROMIUM`, `FIREFOX_PATH` and `GECKODRIVER_PATH` (WebKitGTK and GNOME Web only through WebDriver), and label every result with the browser and version that ran. Say so when a browser or a real phone was not checked. Keep the browser files out of this repository.
+
+**Every release records its browsers.** Run `versions.py set <id> X.Y.Z --tested "Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6" --note "..."`: the `--tested` text becomes the **Tested in** line of the changelog entry and of the module's README. Name each browser with its version, say what was not run, and write "not recorded" only when it truly is not known. Left out, the line says "not recorded" and the command reminds you. If you test an older release later, `versions.py tested <id> X.Y.Z "..."` fixes that entry's line.
 
 ## Adding a module
 1. Make `modules/<name>/` with the file(s), `README.md` (what it does, quick start, API, how it differs from existing open source, limits, a "For AI agents" section), `demo.html`, and a `test/` folder.
