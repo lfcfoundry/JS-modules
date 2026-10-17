@@ -32,6 +32,7 @@ var steps = [
   ['save-kit', 'node', ['modules/save-kit/test/run.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
   ['idle-core', 'node', ['modules/idle-core/test/run.js']],
+  ['idle-core minified', 'node', ['modules/idle-core/test/run.js', 'modules/idle-core/idle-core.min.js']],
   ['lzma-pack python', 'python3', ['tools/lzma-pack/test/run.py']],
   ['ppmd-pack python', 'python3', ['tools/ppmd-pack/test/run.py']],
   ['single-file-tools', 'python3', ['tools/single-file-tools/test/run.py']],
@@ -52,6 +53,7 @@ var steps = [
   ['firefox-stand-in', 'python3', ['tools/firefox-stand-in/test/run.py'], true, true],   // optional: skipped (exit code 2) when Selenium, Firefox or geckodriver is missing
   ['flow demos', 'node', ['tests/flow-demos.js'], true, true],   // optional like the next one (needs puppeteer-core and CHROMIUM or FIREFOX)
   ['apple press pieces', 'node', ['tests/pieces-browser.js'], true, true],   // optional like the one above (slow-note, grown-ups-door, spotlight-tour, speed-lab, test-isolation in a real browser)
+  ['idle-core same answers', 'node', ['tests/idle-core-browser.js'], true, true],   // optional like the ones above (one fixed set of calls in Node and in each browser)
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fifth item: optional, skipped when puppeteer-core or Firefox is missing (exit code 2)
 ];
 var failed = 0;

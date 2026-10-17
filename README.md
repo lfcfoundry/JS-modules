@@ -70,7 +70,7 @@ The numbers behind idle and clicker games.
 
 | Module | One line | Global | Version |
 |---|---|---|---|
-| [idle-core](modules/idle-core/README.md) | Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. | `IdleCore` | 1.1.0 · API 1 |
+| [idle-core](modules/idle-core/README.md) | Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. | `IdleCore` | 1.2.0 · API 1 |
 
 #### Size and packaging
 
