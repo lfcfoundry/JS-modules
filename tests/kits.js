@@ -1,4 +1,4 @@
-// Runs the per-module tests of every module with its own test/ folder, plus lzma-pack, single-file-tools, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in and the house-rule hooks.
+// Runs the per-module tests of every module with its own test/ folder, plus lzma-pack, single-file-tools, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in, webkit-driver and the house-rule hooks.
 // Needs node and python3; the browser parts need Playwright for Python with Chromium. The Firefox step (tests/firefox.js) runs only if puppeteer-core and Firefox are found. Use --quick to skip browser parts.
 var cp = require('child_process'), path = require('path');
 var root = path.resolve(__dirname, '..');
@@ -10,6 +10,7 @@ var steps = [
   ['ppmd-decode', 'node', ['modules/ppmd-decode/test/run.js']],
   ['fuzz-kit engine', 'node', ['tools/fuzz-kit/test/run.js']],
   ['canvas-probe', 'node', ['tools/canvas-probe/test/run.js']],
+  ['webkit-driver', 'node', ['tools/webkit-driver/test/run.js']],
   ['wake-keeper', 'node', ['modules/wake-keeper/test/run.js']],
   ['stage-curtains', 'node', ['modules/stage-curtains/test/run.js']],
   ['fly-to-mini', 'node', ['modules/fly-to-mini/test/run.js']],
@@ -47,6 +48,7 @@ var steps = [
   ['fuzz-kit browser', 'python3', ['tools/fuzz-kit/test/browser.py'], true],
   ['canvas-probe browser', 'python3', ['tools/canvas-probe/test/browser.py'], true],
   ['storage-probe browser', 'python3', ['tools/storage-probe/test/run.py'], true],
+  ['webkit-driver webkit', 'node', ['tools/webkit-driver/test/webkit.js'], true, true],   // optional: the real WebKitGTK check skips itself (exit 0 with a note) when WebKitWebDriver is missing
   ['firefox-stand-in', 'python3', ['tools/firefox-stand-in/test/run.py'], true, true],   // optional: skipped (exit code 2) when Selenium, Firefox or geckodriver is missing
   ['flow demos', 'node', ['tests/flow-demos.js'], true, true],   // optional like the next one (needs puppeteer-core and CHROMIUM or FIREFOX)
   ['apple press pieces', 'node', ['tests/pieces-browser.js'], true, true],   // optional like the one above (slow-note, grown-ups-door, spotlight-tour, speed-lab, test-isolation in a real browser)

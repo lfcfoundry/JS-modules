@@ -419,6 +419,16 @@
       "category": "testing"
     },
     {
+      "id": "webkit-driver",
+      "version": "1.0.0",
+      "api": 1,
+      "summary": "Drives WebKitGTK or GNOME Web from Node with no dependencies, using the call names of Playwright and Puppeteer (goto, evaluate, waitForFunction, mouse, keyboard, screenshot, console errors), so a test written for them can also run in WebKit.",
+      "folder": "tools/webkit-driver",
+      "readme": "tools/webkit-driver/README.md",
+      "side": "games",
+      "category": "testing"
+    },
+    {
       "id": "test-isolation",
       "version": "1.0.0",
       "api": 1,
@@ -467,7 +477,7 @@
       },
       {
         "id": "story-diff",
-        "summary": "Says in plain words what one edit did to a story, such as \"Add page \u201cThe Cellar\u201d\".",
+        "summary": "Says in plain words what one edit did to a story, such as \"Add page “The Cellar”\".",
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-diff/README.md",
         "side": "stories",
         "category": "data"
@@ -542,11 +552,6 @@
           "use": "Let players hold a button, or play with a gamepad."
         },
         {
-          "id": "players",
-          "title": "First visit and grown-ups",
-          "use": "Show a new player around, and keep small children away from the buttons that matter."
-        },
-        {
           "id": "looks",
           "title": "Looks and effects",
           "use": "Curtains, flying elements, lettering and 3D-looking sprites, plus a written style guide."
@@ -565,6 +570,11 @@
           "id": "files",
           "title": "Files, charts and simulation",
           "use": "Open zip and Excel files safely, draw flow charts, write animated GIFs and simulate random walkers."
+        },
+        {
+          "id": "players",
+          "title": "First visit and grown-ups",
+          "use": "Show a new player around, and keep small children away from the buttons that matter."
         }
       ],
       "tools": [

@@ -2,12 +2,11 @@
 // Browser checks for test-isolation, slow-note, grown-ups-door, spotlight-tour and speed-lab. Copyright (c) 2026 LFC Foundry. MIT License.
 // Opens each piece in a real browser, one browser at a time. Needs puppeteer-core.
 // Run: CHROMIUM=/path/to/chrome FIREFOX=/path/to/firefox node tests/pieces-browser.js   (either one or both), or WEBKIT=1 node tests/pieces-browser.js for WebKitGTK
-// (WEBKIT=epiphany for GNOME Web) through WebDriver (tests/webdriver-browser.js). Exit code 2 (skipped) when nothing can run.
+// (WEBKIT=epiphany for GNOME Web) through WebDriver (tests/webkit-shim.js and tools/webkit-driver). Exit code 2 (skipped) when nothing can run.
 const pp = (() => { try { return require('puppeteer-core'); } catch (e) { return null; } })();
 const root = require('path').resolve(__dirname, '..') + '/';
-const wd = require('./webdriver-browser.js');
+const wd = require('./webkit-shim.js');   // WebKitGTK / GNOME Web through tools/webkit-driver
 const exes = [['chromium', process.env.CHROMIUM], ['firefox', process.env.FIREFOX], ['webkit', process.env.WEBKIT]].filter(x => x[1] && (pp || x[0] === 'webkit'));
-if (process.env.WEBKIT) wd.ensureDisplay();
 if (!exes.length) { console.log('skipped: needs puppeteer-core and CHROMIUM and/or FIREFOX set to a browser path'); process.exit(2); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const ok = (c, m) => { if (!c) throw new Error(m || 'check failed'); };

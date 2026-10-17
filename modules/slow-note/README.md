@@ -2,7 +2,7 @@
 
 **Version 1.0.0 · API 1**
 
-**Tested in:** Node checks where the piece has any; Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK through WebDriver, page at least 447 px wide). Not run: GNOME Web (Epiphany) 46.5, a phone. In WebKitGTK an error on a page opened from `file://` is noted only as "Script error." (over http it has the full text), and long frames are not seen (no Long Animation Frames).
+**Tested in:** Node checks where the piece has any; Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK 2.52.6 through `tools/webkit-driver`; key down/up and touch were sent as page events or the mouse). Not run: GNOME Web (Epiphany) 46.5, a phone. In WebKitGTK an error on a page opened from `file://` is noted only as "Script error." (over http it has the full text), and long frames are not seen (no Long Animation Frames).
 
 A short note, kept only on the player's device, of the slow and broken moments a page lived through: errors, rejected promises, taps the browser calls slow and long frames. The player can copy it as plain text and paste it into a message when "it felt slow". 9.7 KB (3.7 KB gzipped), no dependencies. Cut from Apple Press.
 

@@ -2,7 +2,7 @@
 
 **Version 1.0.0 · API 1**
 
-**Tested in:** Node checks; the demo page in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time (`tests/flow-demos.js`, 2026-10-17; WebKitGTK through WebDriver). Not run: GNOME Web (Epiphany) 46.5, a phone.
+**Tested in:** Node checks; the demo page in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time (`tests/flow-demos.js`, 2026-10-17; WebKitGTK 2.52.6 through `tools/webkit-driver`). Not run: GNOME Web (Epiphany) 46.5, a phone.
 
 Simulates random walkers on a network (where do they end up, how long does it take, what does it cost), with the exact odds worked out by arithmetic so you can check the simulation against them. About 39 KB (12.3 KB gzipped), no dependencies. Cut from Net Flow Map.
 

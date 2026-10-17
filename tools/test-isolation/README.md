@@ -2,7 +2,7 @@
 
 **Version 1.0.0 · API 1**
 
-**Tested in:** Node checks where the piece has any; Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK through WebDriver, page at least 447 px wide). Not run: GNOME Web (Epiphany) 46.5, a phone.
+**Tested in:** Node checks where the piece has any; Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK 2.52.6 through `tools/webkit-driver`; key down/up and touch were sent as page events or the mouse). Not run: GNOME Web (Epiphany) 46.5, a phone.
 
 Keeps a test page away from the player's real saved game. It swaps `localStorage` (and `sessionStorage` if you ask) for a copy that puts a prefix in front of every key, so a test page, a speed test or a random-play run can never read or overwrite the real keys. 4.7 KB, no dependencies. Cut from Apple Press, where a speed-test page once wrote into a real saved game on a phone.
 

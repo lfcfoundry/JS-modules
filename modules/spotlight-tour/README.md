@@ -2,7 +2,7 @@
 
 **Version 1.0.0 · API 1**
 
-**Tested in:** Node checks where the piece has any; Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK through WebDriver, page at least 447 px wide). Not run: GNOME Web (Epiphany) 46.5, a phone.
+**Tested in:** Node checks where the piece has any; Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK 2.52.6 through `tools/webkit-driver`; key down/up and touch were sent as page events or the mouse). Not run: GNOME Web (Epiphany) 46.5, a phone.
 
 A short guided look at the parts of a page: one dimmed layer, one bright window over the current part (measured live, so it follows scrolling and resizing), and a card beside it with Skip, Back and Next. It remembers that a visitor has seen it, and it can hand out a finishing gift once, only to people who reach the end. 11.4 KB including its own stylesheet (4.4 KB gzipped), no dependencies. Cut from Apple Press's first-time tour, with the game's own steps taken out.
 
