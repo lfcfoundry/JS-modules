@@ -1,0 +1,24 @@
+/*!
+ * memory-compression-jso.js: keep big piles of plain JavaScript objects packed in memory, and bring them back exactly, fast.
+ * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
+ * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
+ * Version 1.1.0 (API 1)
+ *
+ * What it gives you (plain JavaScript, no dependencies, works offline, one file)
+ *  - pack(value) / unpack(bytes): any JSON-like value (and Date, Map, Set, typed arrays, BigInt, RegExp, undefined, NaN, -0) to a small
+ *    Uint8Array and back to a deep copy that is equal in every way JSON-like data can be. Arrays of objects are stored as columns
+ *    (one per key), not as repeated text, so a list of 300,000 link objects becomes a few megabytes and is rebuilt in tens of milliseconds.
+ *  - view(bytes): for a packed array of objects that you keep packed. Read one object (get(i)), one field (field(i, key)) or a whole
+ *    column as a typed array (column(key)) without making the other objects. Opens in well under a millisecond: columns are restored
+ *    only when first read, and release() lets them go again.
+ *  - Text that follows a pattern ('user' + number + '@example.org', '2025-03-05T04:15:00Z') is stored as the pattern once plus a number
+ *    column; a small WebAssembly helper scans big text columns (the plain-JavaScript loop gives the same bytes). pack(x, {patterns: false}) skips it.
+ *  - refs: true now stores lists of shared objects by column too (links that point at the very node objects), not value by value.
+ *  - float32: true (opt-in, lossy) keeps fraction columns in 4 bytes per value instead of 8 (relative error at most about 6e-8).
+ *  - Built on memory-compression.js (its code is inside this file), so the numeric columns get its byte shuffle, delta and LZ4/deflate stage.
+ *
+ * Notes
+ *  - Own enumerable string keys only; class instances come back as plain objects; shared references are copied and a cycle is an error
+ *    unless you pass refs: true.
+ *  - Reading never trusts its input: every count and size is checked, and unpack() refuses to make more than opts.maxItems values.
+ */
