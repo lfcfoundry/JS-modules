@@ -1,5 +1,6 @@
-/* Copyright (c) 2026 LFC Foundry. MIT License. Checks the distributions and the Monte Carlo walkers of walker-sim against exact answers. Run: node modules/walker-sim/test/run.js */
-const S = require('../walker-sim.js');
+/* Copyright (c) 2026 LFC Foundry. MIT License. Checks the distributions and the Monte Carlo walkers of walker-sim against exact answers. Run: node modules/walker-sim/test/run.js [walker-sim.min.js] */
+const path = require('path');
+const S = require(path.resolve(process.argv[2] || path.join(__dirname, '..', 'walker-sim.js')));   // another copy (for example walker-sim.min.js) can be given as the first argument
 let bad = 0; const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) bad++; };
 
 // 1. each distribution has the mean and variance it claims (200k draws)
@@ -76,4 +77,107 @@ ok(sl.snapshot().endpoints[0].share > 0.99, 'walkers escape a loop');
   const shares = sd.snapshot().endpoints.map(e => e.share); ok(Math.abs(shares[0] - 0.5) < 0.03 && Math.abs(shares[0] + shares[1] - 1) < 1e-9, 'a fair fork splits about half and half: ' + shares.map(x => x.toFixed(3)));
   ok(S.exactEndpoints(Pd, {}).p.every(p => Math.abs(p - 0.5) < 1e-12), 'the exact odds of the fair fork are exactly half each');
 }
-console.log(bad ? bad + ' FAILED' : 'walker-sim: all passed'); process.exit(bad ? 1 : 0);
+
+// ---- 2.0.0 ----
+const mkg = (n, edges, start) => S.graph({ links: edges.map(([from, to, weight]) => ({ from, to, weight })), start });
+const run = (P, cfg) => { const q = S.create(P, cfg); q.run(1e9, 1e9); return q; };
+
+// an item whose ways on all weigh 0 has no way on: the walkers stop there, as the exact solver says
+{
+  const Pz = mkg(0, [['s', 'a', 1], ['s', 'b', 1], ['a', 'x', 1], ['a', 'y', 1], ['b', 'z', 1]], 's');
+  const wz = Float64Array.from(Pz.w); for (let e = 0; e < Pz.m; e++) if (Pz.nodes[Pz.from[e]].id === 'a') wz[e] = 0;
+  const cz = { seed: 4, trials: 400, arrivals: { dist: 'fixed', a: 100 }, rule: 'weights', weights: wz }, rz = run(Pz, cz).snapshot(), exz = S.exactEndpoints(Pz, cz);
+  const share = id => rz.endpoints.find(e => e.id === id).share;
+  ok(Math.abs(rz.stuckShare - 0.5) < 0.02 && share('x') === 0 && share('y') === 0 && Math.abs(exz.stuck - 0.5) < 1e-12 && Math.abs(share('z') - exz.p[exz.ends.map(v => Pz.nodes[v].id).indexOf('z')]) < 0.02,
+    'walkers stop at an item whose ways on all weigh 0: stuck ' + rz.stuckShare.toFixed(3) + ' (exact ' + exz.stuck.toFixed(3) + '), x and y get none');
+}
+// the exact solver goes round a loop until it settles, or solves it directly, and says which
+{
+  const Pl = mkg(0, [['s', 'a', 1], ['a', 's', 9999], ['a', 'e', 1]], 's'), xl = S.exactEndpoints(Pl, { rule: 'weights', weights: Pl.w });
+  ok(xl.converged && Math.abs(xl.p[0] - 1) < 1e-9 && xl.error < 1e-9, 'a loop that needs about 20,000 rounds still gives exactly 1: ' + xl.p[0] + ' (' + xl.method + ', error ' + xl.error.toExponential(1) + ')');
+  const Pc = mkg(0, [['s', 'a', 1], ['s', 'e', 1], ['a', 'b', 1], ['b', 'a', 1]], 's'), xc = S.exactEndpoints(Pc, { rule: 'weights', weights: Pc.w });
+  ok(Math.abs(xc.p[0] - 0.5) < 1e-12 && Math.abs(xc.stuck - 0.5) < 1e-12 && xc.converged, 'a loop with no way out holds half the walkers: ends ' + xc.p[0] + ', stuck ' + xc.stuck);
+  // 30 random loopy networks against walking the chain forward one step at a time
+  let seedv = 11; const rnd = () => (seedv = (Math.imul(seedv, 1664525) + 1013904223) >>> 0) / 4294967296; let worstL = 0, methods = new Set();
+  for (let t = 0; t < 12; t++) {
+    const nT = 8 + Math.floor(rnd() * 25), nE = 2 + Math.floor(rnd() * 4), links = [];
+    for (let i = 0; i < nT; i++) { const d = 1 + Math.floor(rnd() * 3); for (let q = 0; q < d; q++) links.push({ from: 't' + i, to: rnd() < 0.15 ? 'e' + Math.floor(rnd() * nE) : 't' + Math.floor(rnd() * nT), weight: 1 + Math.floor(rnd() * 9) }); }
+    for (let q = 0; q < nE; q++) links.push({ from: 't0', to: 'e' + q, weight: 0.01 });
+    const Pr = S.graph({ links, start: 't0' }), xr = S.exactEndpoints(Pr, { rule: 'weights', weights: Pr.w });
+    let x = new Float64Array(Pr.n), y = new Float64Array(Pr.n); x[Pr.start] = 1; const res = new Float64Array(Pr.n), sw = new Float64Array(Pr.n);
+    for (let e = 0; e < Pr.m; e++) sw[Pr.from[e]] += Pr.w[e];
+    for (let it = 0; it < 200000; it++) {
+      y.fill(0); let live = 0;
+      for (let v = 0; v < Pr.n; v++) { if (!x[v]) continue; const a = Pr.outStart[v], b = Pr.outStart[v + 1]; if (a === b) { res[v] += x[v]; continue; } for (let k = a; k < b; k++) { const e = Pr.outEdge[k]; y[Pr.to[e]] += x[v] * Pr.w[e] / sw[v]; } live += x[v]; }
+      const tmp = x; x = y; y = tmp; if (live < 1e-15) break;
+    }
+    xr.ends.forEach((v, k) => { worstL = Math.max(worstL, Math.abs(res[v] - xr.p[k])); }); methods.add(xr.method);
+  }
+  ok(worstL < 1e-9, '12 loopy networks: the exact odds match walking the chain forward, worst gap ' + worstL.toExponential(1));
+}
+// every walker's step count is kept (no 100,000-sample limit), and the exact average steps and cost can be compared with
+{
+  const cs = { seed: 9, trials: 3000, arrivals: { dist: 'fixed', a: 100 }, rule: 'weights', weights: P.w, linkCost: { dist: 'lognormal', a: 5, b: 2 }, dwell: { dist: 'exponential', a: 3 } };
+  const q = run(P, cs), rs = q.snapshot(), exs = S.exactEndpoints(P, cs);
+  ok(rs.walkers === 300000 && rs.steps.bins.reduce((a, b) => a + b, 0) === 300000, 'the step table holds all 300,000 walkers, not a sample of 100,000');
+  const se = Math.sqrt(rs.cost.sd * rs.cost.sd / rs.cost.n);
+  ok(Math.abs(rs.stepStats.mean - exs.meanSteps) < 0.02 && exs.meanCost !== null && Math.abs(rs.cost.mean - exs.meanCost) < 4 * se + 0.05, `exact average steps ${exs.meanSteps.toFixed(4)} (simulated ${rs.stepStats.mean.toFixed(4)}) and cost ${exs.meanCost.toFixed(3)} (simulated ${rs.cost.mean.toFixed(3)} ± ${se.toFixed(3)})`);
+  ok(S.exactEndpoints(P, { rule: 'weights', weights: P.w }).meanCost === null && S.exactEndpoints(P, { rule: 'weights', weights: P.w, dwell: { dist: 'pareto', a: 1, b: 0.5 } }).meanCost === null, 'no cost set means no exact cost; a distribution with no average (pareto, shape 0.5) gives null, not a wrong number');
+  ok(Math.abs(S.exactEndpoints(P, { rule: 'weights', weights: P.w, linkCost: { dist: 'fixed', a: 2 } }).meanCost - 2 * S.exactEndpoints(P, { rule: 'weights', weights: P.w }).meanSteps) < 1e-9, 'a fixed cost of 2 per step costs exactly twice the steps');
+}
+// runs can be split across threads: the same trials in any order, in any number of pieces, count the same
+{
+  const full = { seed: 21, trials: 4000, arrivals: { dist: 'poisson', a: 12 }, linkWeight: { dist: 'gamma', a: P.w, b: Float64Array.from(P.w, w => w * 0.5) }, linkCost: { dist: 'lognormal', a: 5, b: 2 }, rule: 'weights', weights: P.w };
+  const whole = run(P, full), parts = [[0, 1500], [1500, 2600], [2600, 4000]].map(([a, b]) => run(P, Object.assign({}, full, { firstTrial: a, trials: b })).export());
+  const merged = S.merge(P, full, parts.slice().reverse()), A = whole.snapshot(), B = merged.snapshot();
+  const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+  ok(A.walkers === B.walkers && A.stuck === B.stuck && A.trials === B.trials && same(A.endpoints.map(e => e.count), B.endpoints.map(e => e.count)) && same(A.endpoints.map(e => e.perTrial.p50), B.endpoints.map(e => e.perTrial.p50)) && same(A.endpoints.map(e => e.perTrial.p95), B.endpoints.map(e => e.perTrial.p95)),
+    'three pieces added up in reverse order give the same walkers, stuck, end counts and per-trial percentiles as one run (' + A.walkers + ' walkers)');
+  ok(same(A.stepStats, B.stepStats) && same(A.steps, B.steps) && same(Array.from(A.visits), Array.from(B.visits)) && same(Array.from(A.moves), Array.from(B.moves)), 'step counts, visits and moves are identical too');
+  let dv = 0; A.endpoints.forEach((e, k) => { dv = Math.max(dv, Math.abs(e.lo - B.endpoints[k].lo), Math.abs(e.hi - B.endpoints[k].hi)); }); ok(dv < 1e-12, 'the 95% ranges agree to ' + dv.toExponential(1) + ' (the sums of shares add in another order)');
+  ok(Math.abs(A.cost.mean - B.cost.mean) < 0.05 * A.cost.mean, 'cost samples are thinned in their own order, so the cost average agrees only closely: ' + A.cost.mean.toFixed(3) + ' and ' + B.cost.mean.toFixed(3));
+}
+// stop when precise enough
+{
+  const cp = { seed: 3, trials: 100000, arrivals: { dist: 'fixed', a: 100 }, rule: 'weights', weights: P.w, precision: 0.005 };
+  const rp = run(P, cp).snapshot(), half = Math.max.apply(null, rp.endpoints.map(e => (e.hi - e.lo) / 2));
+  ok(rp.stoppedEarly && rp.trials < 100000 && rp.walkers >= 2000 && half < 0.005, `with precision 0.005 the run stopped after ${rp.trials} of ${rp.planned} trials (${rp.walkers} walkers), widest half-range ${half.toFixed(4)}`);
+  const sl = S.create(P, cp); while (!sl.run(7, 1e9).done); ok(sl.snapshot().trials === rp.trials && JSON.stringify(sl.snapshot().endpoints.map(e => e.count)) === JSON.stringify(rp.endpoints.map(e => e.count)), 'it stops at the same trial however the run is cut into slices');
+  const rnone = run(P, Object.assign({}, cp, { precision: 0, trials: 300 })).snapshot(); ok(!rnone.stoppedEarly && rnone.trials === 300, 'without precision it runs the whole plan');
+}
+// the what-if sweep starts from the full answer; it must not carry stale answers into a loop that has just been closed
+{
+  const Pt = mkg(0, [['s', 'a', 1], ['a', 'b', 1], ['b', 'a', 1], ['b', 'e', 1], ['a', 'e', 1]], 's'), ct = { rule: 'weights', weights: Pt.w };
+  const swt = S.sweep(Pt, ct, { what: 'links', top: 10 }), closes = swt.rows.filter(r => r.to === 'e');
+  ok(swt.converged && closes.length === 2, 'the sweep reports whether it settled');
+  const both = S.exactEndpoints(Pt, { rule: 'weights', weights: Float64Array.from(Pt.w, (w, e) => Pt.nodes[Pt.to[e]].id === 'e' ? 0 : w) });
+  ok(both.p[0] === 0 && Math.abs(both.stuck - 1) < 1e-12, 'with both ways out gone the exact answer is 0 ends, all stuck');
+  const swi = S.sweep(Pt, ct, { what: 'items', top: 10 }); ok(swi.rows.every(r => r.after.every(Number.isFinite)), 'sweep rows are numbers');
+  const Pg2 = mkg(0, [['s', 'a', 3], ['s', 'b', 1], ['a', 'x', 2], ['a', 'y', 2], ['b', 'y', 1], ['b', 'z', 3], ['a', 'b', 1]], 's');
+  const cg = { rule: 'weights', weights: Pg2.w }, swg = S.sweep(Pg2, cg, { what: 'items', top: 10 });
+  let off = 0;
+  swg.rows.forEach(row => { const w2 = Float64Array.from(Pg2.w); for (let e = 0; e < Pg2.m; e++) if (Pg2.nodes[Pg2.to[e]].id === row.id) w2[e] = 0; const x2 = S.exactEndpoints(Pg2, { rule: 'weights', weights: w2 }); row.after.forEach((v, k) => { if (Math.abs(v - x2.p[k]) > 1e-10) off++; }); });
+  ok(swg.rows.length >= 2 && off === 0, 'every sweep row (' + swg.rows.length + ') equals a fresh exact solve of the network without that item');
+}
+// the 'curious' rule is repeatable and every walker finishes
+{
+  const pc = run(P, { seed: 2, trials: 200, rule: 'curious', weights: P.w, arrivals: { dist: 'fixed', a: 50 } }).snapshot(), pc2 = run(P, { seed: 2, trials: 200, rule: 'curious', weights: P.w, arrivals: { dist: 'fixed', a: 50 } }).snapshot();
+  ok(pc.walkers === 10000 && JSON.stringify(pc.endpoints.map(e => e.count)) === JSON.stringify(pc2.endpoints.map(e => e.count)) && pc.endpoints.reduce((a, e) => a + e.count, 0) + pc.stuck === 10000, 'the curious rule: repeatable, and every walker is an end or stuck');
+  const pf = run(P, { seed: 2, trials: 100, rule: 'first', weights: P.w, arrivals: { dist: 'fixed', a: 50 } }).snapshot(); ok(pf.endpoints.reduce((a, e) => a + e.count, 0) + pf.stuck === 5000, 'the first rule runs');
+}
+// the menu of distribution names is a separate file
+{
+  ok(S.DISTS === undefined && S.DRAW.poisson && S.DRAW.normal, 'the core has the random numbers and no menu text');
+  const menuFile = path.join(path.dirname(path.resolve(process.argv[2] || path.join(__dirname, '..', 'walker-sim.js'))), 'walker-sim-menu.js');
+  delete require.cache[require.resolve(menuFile)]; const M = require(menuFile);
+  ok(M.DISTS.length === 16 && M.DIST_BY.poisson.discrete === true && M.DISTS.every(d => S.DRAW[d.id] || d.id === 'empirical'), 'walker-sim-menu.js adds DISTS and DIST_BY: ' + M.DISTS.length + ' kinds, each with a draw function');
+}
+// real threads: two worker_threads each run half the trials, the exports travel by structured clone, and the sum equals one run
+(async () => {
+  const { Worker } = require('worker_threads'), file = path.resolve(process.argv[2] || path.join(__dirname, '..', 'walker-sim.js'));
+  const wcfg = { seed: 21, trials: 3000, rule: 'weights', arrivals: { dist: 'fixed', a: 100 } }, links = P.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight })), done = [];
+  const code = 'const { parentPort, workerData: d } = require("worker_threads"); const S = require(d.file); const P = S.graph({ links: d.links, start: "s" }); const q = S.create(P, Object.assign({ weights: P.w }, d.cfg)); q.run(1e9, 1e9); parentPort.postMessage(q.export());';
+  await Promise.all([[0, 1500], [1500, 3000]].map(([a, b]) => new Promise((res, rej) => { const w = new Worker(code, { eval: true, workerData: { file, links, cfg: Object.assign({}, wcfg, { firstTrial: a, trials: b }) } }); w.on('message', x => { done.push([a, x]); res(); }); w.on('error', rej); })));
+  const one = run(P, Object.assign({ weights: P.w }, wcfg)).snapshot(), joined = S.merge(P, Object.assign({ weights: P.w }, wcfg), done.sort((x, y) => x[0] - y[0]).map(x => x[1])).snapshot();
+  ok(JSON.stringify(one.endpoints.map(e => e.count)) === JSON.stringify(joined.endpoints.map(e => e.count)) && one.walkers === joined.walkers, 'two worker threads, each half of the trials, add up to the counts of one run (' + one.walkers + ' walkers)');
+})().catch(e => ok(false, 'worker threads: ' + e)).then(() => { console.log(bad ? bad + ' FAILED' : 'walker-sim: all passed'); process.exit(bad ? 1 : 0); });

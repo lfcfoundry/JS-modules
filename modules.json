@@ -292,10 +292,10 @@
     },
     {
       "id": "walker-sim",
-      "version": "1.0.0",
-      "api": 1,
+      "version": "2.0.0",
+      "api": 2,
       "global": "WalkerSim",
-      "summary": "Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 1.75 million walkers a second).",
+      "summary": "Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 6 million walkers a second).",
       "file": "modules/walker-sim/walker-sim.js",
       "readme": "modules/walker-sim/README.md",
       "demo": "modules/walker-sim/demo.html",

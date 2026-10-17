@@ -28,6 +28,7 @@ var steps = [
   ['zip-open', 'node', ['modules/zip-open/test/run.js']],
   ['river-layout', 'node', ['modules/river-layout/test/run.js']],
   ['walker-sim', 'node', ['modules/walker-sim/test/run.js']],
+  ['walker-sim minified', 'node', ['modules/walker-sim/test/run.js', 'modules/walker-sim/walker-sim.min.js']],
   ['pad-nav node', 'node', ['modules/pad-nav/test/run.js']],
   ['save-kit', 'node', ['modules/save-kit/test/run.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
@@ -54,6 +55,7 @@ var steps = [
   ['flow demos', 'node', ['tests/flow-demos.js'], true, true],   // optional like the next one (needs puppeteer-core and CHROMIUM or FIREFOX)
   ['apple press pieces', 'node', ['tests/pieces-browser.js'], true, true],   // optional like the one above (slow-note, grown-ups-door, spotlight-tour, speed-lab, test-isolation in a real browser)
   ['idle-core same answers', 'node', ['tests/idle-core-browser.js'], true, true],   // optional like the ones above (one fixed set of calls in Node and in each browser)
+  ['walker-sim same answers', 'node', ['tests/walker-sim-browser.js'], true, true],   // optional like the one above (walks, exact odds, sweeps and split runs in Node and in each browser, with timings)
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fifth item: optional, skipped when puppeteer-core or Firefox is missing (exit code 2)
 ];
 var failed = 0;
