@@ -302,7 +302,7 @@
     },
     {
       "id": "storage-probe",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "summary": "Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report.",
       "folder": "tools/storage-probe",

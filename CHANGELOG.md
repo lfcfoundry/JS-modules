@@ -28,10 +28,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [ppmd-pack](tools/ppmd-pack/README.md) | 1.0.0 · API 1 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
 | [fuzz-kit](tools/fuzz-kit/README.md) | 1.0.0 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
-| [storage-probe](tools/storage-probe/README.md) | 1.0.0 · API 1 | [changelog](tools/storage-probe/CHANGELOG.md) |
+| [storage-probe](tools/storage-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/storage-probe/CHANGELOG.md) |
 
 ## Changes since labels began
 
+- 2026-10-16 · **storage-probe** 1.1.0 · API 1: The page now also checks IndexedDB (the Story Editor keeps its file memory there), and on the second press it says how often and since when this copy was pressed and that its saved data survived. Two new buttons: Measure free saved-data space (how many entries, the biggest ones, how much room is left) and Save a second copy of this page (one press instead of saving the page twice by hand, handy on a phone). The test now waits for the page instead of sleeping, so it takes about 2 seconds instead of 6, and it has 12 more checks.
 - 2026-10-16 · **fx-governor** 1.1.0 · API 1: Very slow devices are no longer missed: three long gaps in a row now count as a slow device, not a pause. A window under half the line steps down after one window instead of two (new option severe, 0 turns it off). choose() with an unknown name no longer locks, and release('full') sets the level and hands control back. README now shows a Try full effects again button and how to remember the level between visits.
 - 2026-10-16 · **frame-kit** 1.1.0 · API 1: QualityGovernor no longer ignores very slow devices: four long frames in a row (over 100 ms) now count as a slow device instead of a pause, so a phone under about 10 frames a second is finally stepped down. New option stepUp: false (only ever steps down) and new lock() / unlock() for a level the player picked. Single stalls still change nothing.
 - 2026-10-16 · **fly-to-mini** 1.2.0 · API 1: New opt-in options: pass the sticky bar as an element (it follows the bar's size), a visible-amount callback, hysteresis so scrolling at the edge stops flip-flopping, keyboard focus follows the visible button, a short fade under reduced motion, and a blink method for the mini. The flying copy no longer has duplicate ids and now shows canvas pictures. destroy() clears all timers.

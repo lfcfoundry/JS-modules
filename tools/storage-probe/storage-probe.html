@@ -51,7 +51,7 @@
 <main>
   <h1>Do pages opened from different files share saved data?</h1>
   <p>Press the button. Then save this same page a second time (under another name, or in another folder), open that copy, and press its button too. Each copy tells you what it can see of the other. Pressing the button again in the same copy is fine.</p>
-  <p><button id="go" type="button">Run the check</button> <button id="copy" class="plain" type="button" hidden>Copy the report</button></p>
+  <p><button id="go" type="button">Run the check</button> <button id="copy" class="plain" type="button" hidden>Copy the report</button> <button id="dl" class="plain" type="button" hidden>Save a second copy of this page</button> <button id="space" class="plain" type="button" hidden>Measure free saved-data space</button></p>
   <div id="verdict" role="status"></div>
   <ul id="facts"></ul>
   <pre id="report" hidden></pre>
@@ -65,6 +65,8 @@
   function norm(h) { return String(h).split('#')[0].split('?')[0]; }
   var me = norm(location.href), facts = [], live = [], cur = null, shown = false, runId = 0, lockState = '';
   function $(id) { return document.getElementById(id); }
+  var SRC = '';   /* this page's own source, taken before anything is shown, so a second copy can be saved with one press */
+  document.addEventListener('DOMContentLoaded', function () { try { var parts = [], n; for (n = document.firstChild; n; n = n.nextSibling) parts.push(n.nodeType === 10 ? '<!doctype html>' : n.nodeType === 8 ? '<!--' + n.data + '-->' : n.outerHTML); SRC = parts.join('\n'); } catch (e) { SRC = ''; } });
   function read() { try { var o = JSON.parse(localStorage.getItem(KEY) || '{}'); return o && typeof o.copies === 'object' && o.copies ? o : { copies: {} }; } catch (e) { return { copies: {} }; } }
   function ago(ms) {
     var s = Math.max(0, Math.round(ms / 1000)), m, h;
@@ -77,7 +79,7 @@
   function renderReport() {
     var r = $('report');
     r.hidden = false; r.textContent = 'storage-probe report\n' + JSON.stringify(cur, null, 1) + '\n\n' + facts.join('\n');
-    $('copy').hidden = false;
+    $('copy').hidden = false; $('dl').hidden = false; $('space').hidden = false;
   }
   function fact(text) {
     facts.push(text); var li = document.createElement('li'); li.textContent = text; $('facts').appendChild(li);
@@ -126,7 +128,9 @@
     for (k in byCopy) others.push({ copy: k, at: byCopy[k] });
     others.sort(function (a, b) { return b.at - a.at; });
     legacy.forEach(function (l) { delete s.copies[l]; });
-    s.copies[me] = { at: now, n: ((s.copies[me] && s.copies[me].n) || 0) + 1 };
+    var prev = s.copies[me];
+    if (prev && prev.n) fact('This copy has been pressed ' + prev.n + ' time(s) before; the first time was ' + ago(now - (prev.first || prev.at)) + '. Its entry is still here, so saved data has survived since then.');
+    s.copies[me] = { at: now, n: ((prev && prev.n) || 0) + 1, first: (prev && prev.first) || now };
     try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { fact('Writing the entry failed: ' + e.message); }
     if (bc) try { bc.postMessage({ from: me }); } catch (e) { /* closed */ }
     out.others = others.map(function (o) { return o.copy; });
@@ -168,6 +172,27 @@
         }));
       }
     } else { fact('Web Locks: not available in this browser.'); out.locks = 'missing'; }
+    pend.push(new Promise(function (done) {   /* IndexedDB: the same question as for localStorage (the Story Editor keeps its file memory there) */
+      function end(t) { out.idb = t; say('IndexedDB: ' + t); done(); }
+      try {
+        var rq = indexedDB.open('storage-probe', 1);
+        rq.onupgradeneeded = function () { rq.result.createObjectStore('kv'); };
+        rq.onerror = function () { end('not available here (' + (rq.error && rq.error.name) + ').'); };
+        rq.onsuccess = function () {
+          var db = rq.result, tx, st, g;
+          try {
+            tx = db.transaction('kv', 'readwrite'); st = tx.objectStore('kv'); g = st.get('copies');
+            g.onsuccess = function () {
+              var c = g.result || {}, seen = [], k;
+              for (k in c) if (norm(k) !== me) seen.push(norm(k));
+              c[me] = { at: Date.now() }; st.put(c, 'copies');
+              tx.oncomplete = function () { db.close(); end(seen.length ? 'shared: this copy can see ' + seen.length + ' other file(s) there too.' : 'nothing seen from other files yet (press the button in the other copy too).'); };
+            };
+            tx.onerror = tx.onabort = function () { db.close(); end('could not be written (' + (tx.error && tx.error.name) + ').'); };
+          } catch (e) { db.close(); end('could not be used (' + (e && e.name) + ').'); }
+        };
+      } catch (e) { end('not available here (' + (e && e.name) + ').'); }
+    }));
     fact('Close-gesture API (CloseWatcher, for the phone back swipe): ' + (typeof window.CloseWatcher === 'function' ? 'available' : 'missing') + '.');
     if (navigator.storage && navigator.storage.estimate) {
       pend.push(navigator.storage.estimate().then(function (e) {
@@ -197,6 +222,28 @@
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { select(); });
     else select();
     function select() { var rg = document.createRange(); rg.selectNodeContents($('report')); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg); b.textContent = 'Selected: copy it by hand'; }
+  });
+  $('dl').addEventListener('click', function () {
+    if (!SRC) { fact('Could not read this page\'s own source, so no copy was made. Save the page twice by hand.'); return; }
+    var a = document.createElement('a'), u = URL.createObjectURL(new Blob([SRC], { type: 'text/html' }));
+    a.href = u; a.download = 'storage-probe-copy.html'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 2000);
+    fact('A second copy was saved as storage-probe-copy.html (look in your downloads). Open it, press its button, then come back and press this one again.');
+  });
+  $('space').addEventListener('click', function () {
+    var b = $('space'), K = 'storage-probe:fill', used = 0, n = 0, big = [], i, k, v, lo = 0, hi = 20971520, mid;
+    b.disabled = true; b.textContent = 'Measuring...';
+    setTimeout(function () {   /* lets the label show before the work starts */
+      try {
+        for (i = 0; i < localStorage.length; i++) { k = localStorage.key(i); v = localStorage.getItem(k) || ''; used += k.length + v.length; n++; big.push([k, k.length + v.length]); }
+        big.sort(function (x, y) { return y[1] - x[1]; });
+        while (hi - lo > 1024) { mid = (lo + hi) >> 1; try { localStorage.setItem(K, new Array(mid + 1).join('x')); lo = mid; } catch (e) { hi = mid; } finally { try { localStorage.removeItem(K); } catch (e2) { /* ignore */ } } }
+        cur.space = { entries: n, usedChars: used, freeChars: lo };
+        fact('Saved data (localStorage) in this browser for pages like this one: ' + n + ' entr' + (n === 1 ? 'y' : 'ies') + ', about ' + Math.round(used / 1024) + ' KB used, about ' + (lo / 1048576).toFixed(1) + ' million more characters free. ' +
+          (big.length ? 'Largest: ' + big.slice(0, 3).map(function (e) { return e[0] + ' (' + Math.round(e[1] / 1024) + ' KB)'; }).join(', ') + '. ' : '') +
+          'If pages from different files share this space (see the verdict), their saves count against one limit, so each game needs its own key prefix.');
+      } catch (e) { fact('Could not measure the space (' + (e && e.name) + ').'); }
+      b.disabled = false; b.textContent = 'Measure free saved-data space';
+    }, 30);
   });
   window.__probe = { run: run, read: read };
 })();
