@@ -1,8 +1,8 @@
 # ppmd-pack
 
-**Version 1.0.2 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** 24 packer checks pass (3 need tools not present here and are skipped, as before); the policy rewrite is lzma-pack's, shared, and ran in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5 through tests/lzma-wasm-browser.js
+**Tested in:** Node 22 (30 checks), ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5 (page open times and the page-that-forbids-WebAssembly fallback); not run: a phone, Safari itself
 
 Turns one HTML file into one smaller, self-unpacking HTML file using PPMd (the "PPMd7" / variant H compressor that 7-Zip offers), and checks a hash of the result before running it. It is the heavier sibling of [`lzma-pack`](../lzma-pack/README.md): the same wrapper page and options, a stronger compressor for text and code, and a bigger, slower decoder. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader). The encoder is pure Python; nothing is compiled and nothing is downloaded.
 
@@ -81,8 +81,29 @@ The example page is only 2.7 KB, so the packed copies are bigger than the origin
 | `--compare` | Also build the LZMA packer's page for the same input (raw LZMA, lc=4 lp=0 pb=0, preset 9 extreme) and print both payloads and both net page sizes (payload plus loader). |
 | `--bg auto\|none\|COLOR` | Color behind the "Opening..." line, exactly as in lzma-pack. |
 | `--minify-page` | First minify the page's own inline scripts (needs terser or esbuild), then pack. Off by default. |
+| `--wasm` | Off by default. Also ship the WebAssembly PPMd decoder (9,317 bytes, stored raw behind the PPMd data): the loader tries it first and uses the JavaScript decoder if it is missing, refused or wrong. See "Optional WebAssembly loader" below. |
 | `--skip-node-check` | Do not run the packed page's own decoder in Node after packing (see below). |
 | `--minifier auto\|terser\|esbuild\|none` | Finds `terser` or `esbuild` on the PATH, in a `node_modules/.bin`, or from the `TERSER` / `ESBUILD` environment variable. Without one the loader is about 22 KB (the decoder is embedded as written). |
+
+## Optional WebAssembly loader (`--wasm`)
+
+`--wasm` writes a loader that tries the WebAssembly PPMd decoder first (`modules/ppmd-decode/wasm/ppmd7.wasm`) and falls back to the JavaScript decoder, which is always in the page too. It is off by default because it costs file size: the program cannot be PPMd-packed itself, so the page grows by about 9.7 KB (the 9,317-byte program plus about 380 bytes of loader). In return the page finishes unpacking about 1.5 to 2 times sooner.
+
+Measured on the Apple Press page (2026.10.17.1445, 703,049 bytes; PPMd order 12, 8 MB), default `bytes` encoding, terser loader, each page opened fresh in one browser at a time, **time from the start of the page to the unpacked page being ready** (median of 5 runs; **lower is better**; "times faster" = PPMd without `--wasm` divided by PPMd with it, **higher is better**). The LZMA pages come from `tools/lzma-pack` for the same input, with and without its own `--wasm`:
+
+| Page | Size (bytes, smaller is better) | Chromium 155 (ms) | Firefox 158 (ms) | WebKitGTK 2.52.6 (ms) | GNOME Web 46.5 (ms) |
+|---|---:|---:|---:|---:|---:|
+| LZMA | 191,584 | 106 | 89 | 120 | 119 |
+| LZMA, `--wasm` | 196,119 | 64 | 74 | 86 | 114 |
+| PPMd | 188,602 | 313 | 313 | 392 | 376 |
+| PPMd, `--wasm` | 198,362 | 194 | 204 | 184 | 182 |
+| PPMd `--wasm`: times faster than PPMd | | 1.6x | 1.5x | 2.1x | 2.1x |
+
+Plain takeaway: `--wasm` makes a PPMd page open 1.5 to 2.1 times faster, but it still opens 1.6 to 3 times slower than the LZMA page, and with it the PPMd page is 6.8 KB **bigger** than the LZMA page instead of 3.0 KB smaller. So for a page like this one, LZMA (with or without `--wasm`) is the better choice on both counts; PPMd with `--wasm` is for a page where PPMd's smaller data wins by more than the 9.7 KB (here PPMd saves 3.0 KB over LZMA, so the page would have to be about three times bigger, roughly 2 MB) and the opening time is acceptable. The numbers move by about 10 to 20% from run to run (the run lists are in the research folder).
+
+What the page needs: `'wasm-unsafe-eval'` in the `script-src` of the wrapper's Content-Security-Policy (the `--head` option; the packer adds it to every policy it finds there). On a page whose policy forbids WebAssembly the loader simply uses the JavaScript decoder (checked in all four browsers: the page opened in 317 to 438 ms, the same as a plain PPMd page).
+
+The self-check runs the page's loader four times in Node: with a WebAssembly that counts its calls (the decoder must run exactly once and report done), with no WebAssembly at all, with WebAssembly whose compile step throws (as a refusing policy does), and with a decoder that answers wrongly (the page must fall back and still unpack). The compressed PPMd bytes are checked against their hash before either decoder runs, and the unpacked page is checked after, as without `--wasm`. `--wasm` refuses a model memory that would not fit in one WebAssembly memory (1 GB with the page).
 
 ## What the packer checks
 

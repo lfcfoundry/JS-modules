@@ -398,7 +398,7 @@
     },
     {
       "id": "ppmd-pack",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "api": 1,
       "summary": "Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data.",
       "folder": "tools/ppmd-pack",
