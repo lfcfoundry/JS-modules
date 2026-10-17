@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 1.3.0 (API 1)
+# Version 1.4.0 (API 1)
 """Builds memory-compression-jso.js: header + the packing core (copied from ../memory-compression/memory-compression.js) + src/jso-layer.js.
 Run:  python3 modules/memory-compression-jso/build.py   (after changing the core or the layer)"""
 import os, re, sys
@@ -11,11 +11,11 @@ marker = "})(typeof self !== 'undefined' ? self : this, function () {\n"
 i = core.index(marker) + len(marker)
 j = core.rindex('});')
 body = core[i:j]
-layer = open(os.path.join(here, 'src', 'jso-layer.js')).read()
+layer = open(os.path.join(here, 'src', 'picker.js')).read() + open(os.path.join(here, 'src', 'jso-layer.js')).read() + open(os.path.join(here, 'src', 'keeper.js')).read()
 head = open(os.path.join(here, 'src', 'header.txt')).read()
 out = head + """(function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.MemoryCompressionJSO = factory();
+  else { root.MemoryCompressionJSO = factory(); if (!root.MemoryCompression) root.MemoryCompression = root.MemoryCompressionJSO.core; }
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
@@ -27,7 +27,8 @@ out = head + """(function (root, factory) {
   return {
     pack: pack, unpack: unpack, view: view, freeBuffers: freeBuffers,
     ready: MC.ready, accelerated: MC.accelerated,
-    core: MC
+    keeper: keeper, heap: heapInfo, profile: profile, estimateBytes: estimateBytes,
+    core: MC, picker: PK
   };
 });
 """

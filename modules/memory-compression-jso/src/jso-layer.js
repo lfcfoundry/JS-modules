@@ -6,12 +6,12 @@
   // one column per key (a "shape"); arrays as lengths plus one flattened column. Each numeric column then goes through the
   // core's byte shuffle and LZ4/deflate stage. Anything irregular falls back to a plain tagged encoding.
 
-  var JSO_VERSION = 4;                            // 2: a record column list starts with a directory of sizes so one column can be read alone; version 1 files are still read
+  var JSO_VERSION = 5;                            // 2: a record column list starts with a directory of sizes so one column can be read alone; version 1 files are still read
   var T_UNDEF = 0, T_NULL = 1, T_FALSE = 2, T_TRUE = 3, T_INT = 4, T_F64 = 5, T_STR = 6, T_STR16 = 7, T_ARR = 8, T_OBJ = 9, T_OBJ0 = 10,
     T_COLS = 11, T_BIGINT = 12, T_DATE = 13, T_TYPED = 14, T_ABUF = 15, T_MAP = 16, T_SET = 17, T_REF = 18, T_REGEX = 19;
   var CT_CONST = 0, CT_INT = 1, CT_DEC = 2, CT_F32 = 3, CT_F64 = 4, CT_BOOL = 5, CT_STRD = 6, CT_STRR = 7, CT_NULLABLE = 8,
-    CT_ARRAYS = 9, CT_TUPLE = 10, CT_RECORDS = 11, CT_ANY = 12, CT_TEMPLATE = 13, CT_REFS = 14, CT_REFRECS = 15, CT_TIMES = 16, CT_FSST = 17, CT_PCO = 18, CT_FRONT = 19;
-  var MIN_COLUMN = 16, MAX_TEMPLATES = 32, MAX_SLOTS = 32, MAX_SHAPES = 16, MAX_FUSED_KEYS = 64, MAX_DEPTH = 400, RAW_LIMIT = 48, PCO_MIN = 4096, DEFAULT_MAX_ITEMS = 100000000;
+    CT_ARRAYS = 9, CT_TUPLE = 10, CT_RECORDS = 11, CT_ANY = 12, CT_TEMPLATE = 13, CT_REFS = 14, CT_REFRECS = 15, CT_TIMES = 16, CT_FSST = 17, CT_PCO = 18, CT_FRONT = 19, CT_ADAPT = 20, CT_STRDP = 21;
+  var MIN_COLUMN = 16, MAX_TEMPLATES = 32, MAX_SLOTS = 32, MAX_SHAPES = 16, MAX_FUSED_KEYS = 64, MAX_DEPTH = 400, RAW_LIMIT = 48, ADAPT_MIN = 1024, DEFAULT_MAX_ITEMS = 100000000;
   var TYPED_CTORS = [Uint8Array, Int8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array];
   var G = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : {};
   var OP = Object.prototype, TEXT_ENC = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null, TEXT_DEC = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { ignoreBOM: true }) : null;
@@ -151,9 +151,9 @@
   function Enc(opts) {
     this.ctl = new Out(); this.blobs = new Chunks();
     this.mode = opts && opts.mode === 'small' ? 'small' : 'fast';
+    this.picker = opts && opts.mode === 'balanced' ? opts.picker !== false : this.mode === 'small' ? !(opts && opts.picker === false) : !!(opts && opts.picker);     // fast: off unless asked; balanced and small: on
     this.level = opts && opts.level;
     this.refs = !!(opts && opts.refs);
-    this.pco = opts && opts.pco ? pcoCodec(opts.pco) : null;             // opt-in: number columns of 4096 or more may be stored by Pcodec when that is smaller (needs memory-compression-jso-pco.js)
     this.front = !(opts && opts.front === false);                       // text columns that share long starts with the row before (sorted words, paths) may be stored as 'start length + new end'
     this.fsst = !!(opts && opts.fsst);                                  // opt-in: text columns may be stored as FSST codes (any one string readable alone); costs training time
     this.patterns = !(opts && opts.patterns === false);                 // text patterns on by default; off saves time on text-heavy data at the cost of size
@@ -165,10 +165,6 @@
     this.mcOpts = { mode: this.mode }; if (this.level !== undefined) this.mcOpts.level = this.level;
     if (opts && opts.wasm === false) this.mcOpts.wasm = false;
     this.blobBytes = 0;
-  }
-  function pcoCodec(x) {                         // the add-on's codec object, checked once
-    if (typeof x.compress !== 'function' || typeof x.decompress !== 'function') jfail('the pco option must be the object from memory-compression-jso-pco.js (load() or loadSync())');
-    return x;
   }
   Enc.prototype.blob = function (t, name, pre) {      // t: a typed array. Raw when tiny, else packed by the core when that is smaller (pre: that packed form, when the caller already made it)
     var o = this.blobs, raw = t.length * t.BYTES_PER_ELEMENT, packed, start = o.pos();
@@ -345,31 +341,59 @@
     if (m > 0) this.column(compact, m);
   };
   // CT_INT body: width, base, packed offsets. Caller checked max - min < 2^32. With a tag (CT_INT, or CT_DEC with its scale e) this writes the tag too, and
-  // a column of 4096 or more is also tried with Pcodec when the pco option is on: the smaller one is kept.
+  // a column of 1024 or more is also tried with the number picker when it is on: the smaller one is kept.
   Enc.prototype.intData = function (vals, n, min, max, tag, e) {
     var range = max - min, w = range < 256 ? 1 : range < 65536 ? 2 : 4, i, t = w === 1 ? new Uint8Array(n) : w === 2 ? new Uint16Array(n) : new Uint32Array(n), pre = null, src, c = this.ctl;
     for (i = 0; i < n; i++) t[i] = vals[i] - min;
     if (tag !== undefined) {
-      if (this.pco && n >= PCO_MIN) {
+      if (this.picker && n >= ADAPT_MIN) {
         pre = MC.pack(t, this.mcOpts);
-        if (min >= -2147483648 && max <= 2147483647) { src = new Int32Array(n); for (i = 0; i < n; i++) src[i] = vals[i]; }
-        else if (vals instanceof Float64Array) src = vals;
+        if (vals instanceof Float64Array) src = vals;
         else { src = new Float64Array(n); for (i = 0; i < n; i++) src[i] = vals[i]; }
-        if (this.pcoStore(src, n, tag === CT_DEC ? e : 0, Math.min(pre.length, n * t.BYTES_PER_ELEMENT))) return;
+        if (this.altStore(src, n, tag === CT_DEC ? e : 0, Math.min(pre.length, n * t.BYTES_PER_ELEMENT))) return;
       }
       c.u8(tag); if (tag === CT_DEC) c.u8(e);
     }
     c.u8(w); c.zigzag(min); this.blob(t, 'ints', pre);
   };
-  // Pcodec for one number column: src is an Int32Array or Float64Array of n whole numbers (or doubles). Written only when smaller than plainLen. False writes nothing.
-  Enc.prototype.pcoStore = function (src, n, e, plainLen) {
-    var kind = src instanceof Int32Array ? 2 : 0, bytes, c = this.ctl;
-    try { bytes = this.pco.compress(kind, src); } catch (err) { return false; }
-    if (!bytes || bytes.length === 0 || bytes.length >= plainLen) return false;
-    this.needsV3 = true;
-    c.u8(CT_PCO); c.u8(e); c.u8(kind); c.varint(bytes.length); this.blobs.bytes(bytes);
-    if (this.report) this.report.push({ path: this.path, part: 'pcodec', count: n, rawBytes: n * src.BYTES_PER_ELEMENT, bytes: bytes.length });
+  // A number column stored by the number picker: src is a Float64Array of n whole numbers (or doubles). Written only when smaller than plainLen. False writes nothing.
+  Enc.prototype.altStore = function (src, n, e, plainLen) {
+    var ab, c = this.ctl, t0 = this.report ? performance.now() : 0;
+    ab = this.adaptBytes(src);
+    if (this.report && ab) this.report.push({ path: this.path, part: 'picker (time to try)', count: n, ms: Math.round((performance.now() - t0) * 100) / 100 });
+    if (!ab || ab.bytes.length >= plainLen) return false;
+    this.needsV5 = true;
+    c.u8(CT_ADAPT); c.u8(e); c.u8(ab.z); c.varint(ab.bytes.length); this.blobs.bytes(ab.bytes);
+    if (this.report) this.report.push({ path: this.path, part: 'picker', count: n, rawBytes: n * 8, bytes: ab.bytes.length });
     return true;
+  };
+  // The codes of a text dictionary through the number picker: written only when smaller than the plain index column (a dictionary of names in a sorted or clustered order shrinks a lot).
+  Enc.prototype.dictCodes = function (idx, n, m, dict) {
+    var pre = MC.pack(idx, this.mcOpts), plain = Math.min(pre.length, n * idx.BYTES_PER_ELEMENT), ab, c = this.ctl;
+    ab = this.adaptBytes(Float64Array.from(idx));
+    if (!ab || ab.bytes.length >= plain) return false;
+    this.needsV5 = true;
+    c.u8(CT_STRDP); c.varint(m); this.rawStrings(dict, m); c.u8(ab.z); c.varint(ab.bytes.length); this.blobs.bytes(ab.bytes);
+    if (this.report) this.report.push({ path: this.path, part: 'picker (dictionary codes)', count: n, rawBytes: n * idx.BYTES_PER_ELEMENT, bytes: ab.bytes.length });
+    return true;
+  };
+  // The chooser's bytes for a Float64Array. In small mode the general compressor also gets a go at them, and at a version without the byte-coded ways (which it can still shrink).
+  Enc.prototype.adaptBytes = function (src) {
+    var a = PK, small = this.mode === 'small', best, z = 0, p, ne, probe, got, plain;
+    try {
+      if (src.length >= 32768) {                    // a long column is first tried on its first 8,192 numbers; if the chooser gains under 5% there, the rest is not tried
+        probe = src.subarray(0, 8192); got = a.pack(probe, { sample: true });
+        if (small) { p = MC.pack(got, this.mcOpts); if (p.length < got.length) got = p; }
+        plain = MC.pack(probe, this.mcOpts);
+        if (got.length > plain.length * 0.95) return null;
+      }
+      best = a.pack(src, { sample: !small });
+      if (small) {
+        p = MC.pack(best, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
+        ne = a.pack(src, { sample: false, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
+      }
+    } catch (err) { return null; }
+    return { bytes: best, z: z };
   };
   function scaleDecimals(vals, n, p) {                  // whole numbers = value * p, only when dividing by p gives every value back exactly
     var t = new Float64Array(n), i, x, y;
@@ -401,9 +425,9 @@
     if (f32 || (this.float32 && !allInt && min > -3e38 && max < 3e38)) { t = new Float32Array(n); for (i = 0; i < n; i++) t[i] = vals[i]; c.u8(CT_F32); this.blob(t, 'f32'); return; }
     if (vals instanceof Float64Array) t = vals;
     else { t = new Float64Array(n); for (i = 0; i < n; i++) t[i] = vals[i]; }
-    if (this.pco && n >= PCO_MIN) {
+    if (this.picker && n >= ADAPT_MIN) {
       pre = MC.pack(t, this.mcOpts);
-      if (this.pcoStore(t, n, 0, Math.min(pre.length, n * 8))) return;
+      if (this.altStore(t, n, 0, Math.min(pre.length, n * 8))) return;
     }
     c.u8(CT_F64); this.blob(t, 'f64', pre);
   };
@@ -429,6 +453,7 @@
       }
       if (seen) {
         m = dict.length; if (m <= 256) idx = new Uint8Array(idx);
+        if (this.picker && n >= ADAPT_MIN && m >= 2 && this.dictCodes(idx, n, m, dict)) return;
         c.u8(CT_STRD); c.varint(m); this.rawStrings(dict, m); this.blob(idx, 'dict-index'); return;
       }
     }
@@ -1233,7 +1258,6 @@
     this.c = ctl; this.bl = blobs; this.keys = []; this.depth = 0; this.refs = null; this.ver = JSO_VERSION;
     this.budget = opts && opts.maxItems !== undefined ? opts.maxItems : DEFAULT_MAX_ITEMS;
     this.wasm = opts && opts.wasm === false ? false : undefined;
-    this.pco = opts && opts.pco ? pcoCodec(opts.pco) : null;
   }
   Dec.prototype.spend = function (n) { this.budget -= n; if (this.budget < 0) jfail('the data asks for more than maxItems values; pass a bigger maxItems if it is yours'); };
   Dec.prototype.blob = function (Ctor, n) {
@@ -1358,13 +1382,18 @@
         col = this.intCol(n); a = col.a; t = new Float64Array(n);
         if (col.mode === 3) { for (i = 0; i < n; i++) t[i] = col.d / p; } else for (i = 0; i < n; i++) t[i] = a[i] / p;
         return new Col(n, 0, t, null);
-      case CT_PCO:
+      case CT_PCO: jfail('this file has a number column written with Pcodec (module 1.2.0 or 1.3.0 with its add-on), which this module no longer supports; read it with 1.3.0');
+      case CT_ADAPT:
+        this.spend(n);
         e = c.u8(); k = c.u8(); m = c.varint();
-        if (e > 10 || (k !== 0 && k !== 2)) jfail('bad Pcodec column');
+        if (e > 10 || k > 1) jfail('bad adaptive column');
         a = this.bl.take(m);
-        if (!this.pco) jfail('this file stores a number column with Pcodec; load memory-compression-jso-pco.js and pass its codec as the pco option');
-        try { t = this.pco.decompress(k, a, n); } catch (err) { jfail('a Pcodec column is damaged'); }
-        if (!(t instanceof (k === 2 ? Int32Array : Float64Array)) || t.length !== n) jfail('a Pcodec column is damaged');
+        if (!PK.available()) jfail('this file stores a number column with the number picker, which needs a little-endian machine');
+        try {
+          if (k) a = MC.unpack(a, { maxSize: m * 64 + n * 16 + 4096, wasm: this.wasm });
+          t = PK.unpack(a, n);
+        } catch (err) { jfail('an adaptive number column is damaged'); }
+        if (!(t instanceof Float64Array) || t.length !== n) jfail('an adaptive number column is damaged');
         if (e > 0) { p = P10[e]; a = new Float64Array(n); for (i = 0; i < n; i++) a[i] = t[i] / p; t = a; }
         return new Col(n, 0, t, null);
       case CT_FRONT:
@@ -1414,6 +1443,14 @@
         d = this.rawStrings(m);
         a = this.blob(m <= 256 ? Uint8Array : m <= 65536 ? Uint16Array : Uint32Array, n);
         for (i = 0; i < n; i++) if (a[i] >= m) jfail('dictionary index out of range');
+        return new Col(n, 2, a, d);
+      case CT_STRDP:
+        m = c.varint(); this.spend(m); this.spend(n); if (m > n || m < 2) jfail('bad dictionary column');
+        d = this.rawStrings(m); k = c.u8(); e = c.varint(); if (k > 1) jfail('bad dictionary column');
+        t = this.bl.take(e);
+        try { if (k) t = MC.unpack(t, { maxSize: e * 64 + n * 16 + 4096, wasm: this.wasm }); t = PK.unpack(t, n); } catch (err) { jfail('a dictionary column is damaged'); }
+        a = new (m <= 256 ? Uint8Array : m <= 65536 ? Uint16Array : Uint32Array)(n);
+        for (i = 0; i < n; i++) { if (!(t[i] >= 0 && t[i] < m)) jfail('dictionary index out of range'); a[i] = t[i]; }
         return new Col(n, 2, a, d);
       case CT_STRR: return new Col(n, 0, this.rawStrings(n), null);
       case CT_NULLABLE:
@@ -1803,7 +1840,7 @@
     stored = packedCtl || ctlRaw;
     if (e.refs) flags |= 1; if (packedCtl) flags |= 2; if (opts.check) flags |= 4;
     var blobsLen = e.blobs.size();
-    head = new Out(); head.u8(0x4D); head.u8(0x4A); head.u8(e.usedFront ? 4 : e.usedTimes || e.needsV3 ? 3 : 2); head.u8(flags);
+    head = new Out(); head.u8(0x4D); head.u8(0x4A); head.u8(e.needsV5 ? 5 : e.usedFront ? 4 : e.usedTimes || e.needsV3 ? 3 : 2); head.u8(flags);
     head.varint(ctlRaw.length); head.varint(stored.length);
     out = new Uint8Array(head.p + stored.length + blobsLen + (flags & 4 ? 4 : 0));
     out.set(head.done(), 0); p = head.p; out.set(stored, p); p += stored.length; p = e.blobs.copyTo(out, p);
