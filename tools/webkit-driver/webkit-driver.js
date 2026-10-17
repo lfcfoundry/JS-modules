@@ -2,7 +2,7 @@
  * webkit-driver.js: drive WebKitGTK (or GNOME Web) from Node with the same small page controls Playwright and Puppeteer give.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  *
  * Why: Playwright and Puppeteer cannot drive WebKitGTK (Playwright only drives its own patched WebKit build). WebKitGTK ships its own
  * WebDriver (`WebKitWebDriver`). This file speaks the W3C WebDriver protocol to it over plain HTTP, with no packages.
@@ -86,21 +86,40 @@ function servePages(root) {
 
 /** Runs in the page: plays an action list as DOM events (used when the driver has no actions). Pointer position is where the last pointerMove left it. */
 function synthInput(job) {
-  var at = job.at, down = job.down;
+  var at = job.at, down = job.down, pe = typeof PointerEvent === 'function';   // pointer events come first, as a real mouse sends them, so pages that listen to either kind see the same press
+  var cap = window.__wdCap;   // pointer capture: a page that calls setPointerCapture gets the following pointer events on that element wherever the pointer goes, as in a real browser
+  if (!cap && pe) {
+    cap = window.__wdCap = { el: null };
+    var P = Element.prototype, set = P.setPointerCapture, rel = P.releasePointerCapture, has = P.hasPointerCapture;
+    var ev = function (type) { return new PointerEvent(type, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: true }); };
+    cap.drop = function () { var el = cap.el; cap.el = null; if (el) el.dispatchEvent(ev('lostpointercapture')); };
+    P.setPointerCapture = function (id) { if (id !== 1) return set.apply(this, arguments); if (!this.isConnected) throw new DOMException('The element is not connected', 'InvalidStateError'); if (cap.el !== this) { cap.drop(); cap.el = this; this.dispatchEvent(ev('gotpointercapture')); } };
+    P.releasePointerCapture = function (id) { if (id === 1) { if (cap.el === this) cap.drop(); } else return rel.apply(this, arguments); };
+    P.hasPointerCapture = function (id) { return id === 1 ? cap.el === this : has.apply(this, arguments); };
+  }
   var fire = function (type, ext) {
-    var t = document.elementFromPoint(at.x, at.y) || document.body, o = { clientX: at.x, clientY: at.y, bubbles: true, cancelable: true, button: 0, buttons: down ? 1 : 0, view: window };
+    var e, t = (cap && cap.el && cap.el.isConnected && type !== 'click' && type !== 'wheel' ? cap.el : document.elementFromPoint(at.x, at.y)) || document.body, o = { clientX: at.x, clientY: at.y, bubbles: true, cancelable: true, button: 0, buttons: down ? 1 : 0, view: window };
+    if (/^(mousedown|mouseup|click)$/.test(type)) o.detail = clicks.n;   // a mouse click counts 1, 2, ...; only a click made by the keyboard has 0, and pages tell them apart by it
     for (var k in ext) o[k] = ext[k];
-    t.dispatchEvent(type === 'wheel' ? new WheelEvent(type, o) : new MouseEvent(type, o));
+    if (/^pointer/.test(type)) { o.pointerId = 1; o.pointerType = 'mouse'; o.isPrimary = true; o.width = 1; o.height = 1; o.pressure = o.buttons ? 0.5 : 0; e = new PointerEvent(type, o); }
+    else e = type === 'wheel' ? new WheelEvent(type, o) : new MouseEvent(type, o);
+    t.dispatchEvent(e); e.wdTarget = t; return e;
   };
+  var clicks = window.__wdClicks || (window.__wdClicks = { n: 0, t: 0, x: 0, y: 0 }), skip = false;   // a cancelled pointerdown hides the mouse events that follow it until the pointer is released, as in a real browser
   job.a.forEach(function (src) {
     src.actions.forEach(function (x) {
-      if (x.type === 'pointerMove') { at = { x: x.x, y: x.y }; fire('mousemove', {}); }
-      else if (x.type === 'pointerDown') { down = true; fire('mousedown', {}); }
-      else if (x.type === 'pointerUp') { fire('mouseup', {}); down = false; fire('click', { buttons: 0 }); }
+      if (x.type === 'pointerMove') { at = { x: x.x, y: x.y }; if (pe) fire('pointermove', {}); if (!skip) fire('mousemove', {}); }
+      else if (x.type === 'pointerDown') { clicks.n = (Date.now() - clicks.t < 500 && Math.abs(at.x - clicks.x) < 6 && Math.abs(at.y - clicks.y) < 6) ? clicks.n + 1 : 1; clicks.t = Date.now(); clicks.x = at.x; clicks.y = at.y;
+        down = true; skip = pe && fire('pointerdown', {}).defaultPrevented;
+        if (!skip) { var md = fire('mousedown', {}), f = md.defaultPrevented ? null : md.wdTarget.closest && md.wdTarget.closest('a[href],button,input,select,textarea,summary,[tabindex]');   // the click moves the focus to what was pressed, or away from the old field
+          try { if (f && !f.disabled) f.focus({ preventScroll: true }); else if (!md.defaultPrevented && document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); } catch (er) { /* not focusable */ } } }
+      else if (x.type === 'pointerUp') { if (pe) fire('pointerup', { buttons: 0 }); if (!skip) fire('mouseup', {}); if (cap) cap.drop(); skip = false; down = false; fire('click', { buttons: 0 }); }
       else if (x.type === 'scroll') { at = { x: x.x, y: x.y }; fire('wheel', { deltaX: x.deltaX, deltaY: x.deltaY }); }
       else if (x.type === 'keyDown' || x.type === 'keyUp') {
         var names = { '\uE007': 'Enter', '\uE004': 'Tab', '\uE00C': 'Escape', '\uE003': 'Backspace', '\uE017': 'Delete', '\uE012': 'ArrowLeft', '\uE013': 'ArrowUp', '\uE014': 'ArrowRight', '\uE015': 'ArrowDown', '\uE011': 'Home', '\uE010': 'End', '\uE00E': 'PageUp', '\uE00F': 'PageDown', '\uE008': 'Shift', '\uE009': 'Control', '\uE00A': 'Alt', '\uE03D': 'Meta' };
-        (document.activeElement || document.body).dispatchEvent(new KeyboardEvent(x.type === 'keyDown' ? 'keydown' : 'keyup', { key: names[x.value] || x.value, bubbles: true, cancelable: true }));
+        var tgt = document.activeElement || document.body, key = names[x.value] || x.value, ke = new KeyboardEvent(x.type === 'keyDown' ? 'keydown' : 'keyup', { key: key, bubbles: true, cancelable: true });
+        tgt.dispatchEvent(ke);   // what a browser does with a key nobody cancelled: Enter presses a focused button or link, Space presses a button when it is released
+        if (!ke.defaultPrevented && tgt.matches && ((key === 'Enter' && x.type === 'keyDown' && tgt.matches('button,a[href],summary,input[type=button],input[type=submit]')) || (key === ' ' && x.type === 'keyUp' && tgt.matches('button,summary,input[type=button],input[type=submit]'))) && !tgt.disabled) tgt.click();
       }
     });
   });
@@ -215,4 +234,4 @@ async function launch(opts) {
   } catch (e) { if (site) site.close(); killAll(); throw e; }
 }
 
-module.exports = { launch: launch, call: call, wrapScript: wrapScript, keyChar: keyChar, version: '1.1.0' };
+module.exports = { launch: launch, call: call, wrapScript: wrapScript, keyChar: keyChar, version: '1.2.0' };

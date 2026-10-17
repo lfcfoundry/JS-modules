@@ -2,7 +2,7 @@
 
 **Version 1.0.0 · API 1**
 
-**Tested in:** Node checks where the piece has any; Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK 2.52.6 through `tools/webkit-driver`; key down/up and touch were sent as page events or the mouse). Not run: GNOME Web (Epiphany) 46.5, a phone. In WebKitGTK an error on a page opened from `file://` is noted only as "Script error." (over http it has the full text), and long frames are not seen (no Long Animation Frames).
+**Tested in:** Node checks; tests/pieces-browser.js slow-note one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1 (errors, rejections, slow tap and slow frame seen), Firefox 158.0 and WebKitGTK 2.52.6 (errors, rejections and slow tap seen; kept across a reload). GNOME Web (Epiphany) 46.5: errors and rejections noted; the slow-tap part is not checked there (its WebDriver refuses clicks and the driver sends script events, which the browser does not time as taps). Not run: a phone, Safari itself.
 
 A short note, kept only on the player's device, of the slow and broken moments a page lived through: errors, rejected promises, taps the browser calls slow and long frames. The player can copy it as plain text and paste it into a message when "it felt slow". 9.7 KB (3.7 KB gzipped), no dependencies. Cut from Apple Press.
 
