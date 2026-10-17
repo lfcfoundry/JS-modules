@@ -1,8 +1,8 @@
 # gif-writer
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node checks; the demo page in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time (`tests/flow-demos.js`, 2026-10-17; WebKitGTK 2.52.6 through `tools/webkit-driver`). Not run: GNOME Web (Epiphany) 46.5, a phone.
+**Tested in:** Node 22.22.0 module test (all passed) and tests/gif-writer-browser.js, one browser at a time: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, each writing the same bytes as 1.0.0 for 30 fixed fingerprints. Not run: a phone.
 
 Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 16 KB (5.9 KB gzipped), no dependencies. Cut from Netflow Map's GIF maker.
 
@@ -37,6 +37,7 @@ A GIF of a game or a chart is mostly still: a background with something moving o
 
 ## Limits
 - At most 255 colors plus one transparent entry (the GIF format allows 256). Photos will look posterized and dithering is not done.
+- Making the palette takes time in proportion to the number of different colors in the pictures you pass, not to how many pictures follow: 30 pictures of 640 x 480 with 7 colors take about 30 ms; 30 smooth photo-like pictures with about 513,000 colors take about 0.4 s in Node (smaller is better). Pass a few pictures, not all, to keep it quick.
 - The palette is fixed once you create the encoder. If later pictures bring colors the palette never saw, they are matched to the nearest palette color.
 - Frame delays are rounded to hundredths of a second, and browsers commonly show very short delays (10 ms or less) slower than asked.
 - All compressed pictures stay in memory until `finish()`.
