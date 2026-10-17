@@ -2,7 +2,7 @@
  * memory-compression-jso.js: keep big piles of plain JavaScript objects packed in memory, and bring them back exactly, fast.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.1 (API 1)
+ * Version 1.2.0 (API 1)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file)
  *  - pack(value) / unpack(bytes): any JSON-like value (and Date, Map, Set, typed arrays, BigInt, RegExp, undefined, NaN, -0) to a small
@@ -13,6 +13,13 @@
  *    only when first read, and release() lets them go again.
  *  - Text that follows a pattern ('user' + number + '@example.org', '2025-03-05T04:15:00Z') is stored as the pattern once plus a number
  *    column; a small WebAssembly helper scans big text columns (the plain-JavaScript loop gives the same bytes). pack(x, {patterns: false}) skips it.
+ *  - Dates and times written as text ('2025-03-05T04:15:00Z', '2025-03-05', with milliseconds, with a space instead of the T) become one number each and come back as
+ *    the same text; a row that is not a real date keeps the pattern path. Files with such a column say format 3 (older copies refuse them with a clear message).
+ *  - Number columns come from a small pool of arrays handed back after each pack (at most 48 MB kept), so repeated packs allocate less;
+ *    freeBuffers() empties the pool, pack(x, {pool: false}) leaves it alone.
+ *  - fsst: true (opt-in): a column of short, varied text (names, paths, log lines) is stored as FSST codes, about half the size of the joined text, and a single
+ *    string is read back alone (view() keeps such a column at about a third of its restored size). A 3 KB WebAssembly helper speeds up big columns; plain JavaScript gives the same bytes.
+ *  - pco (opt-in, needs the add-on file memory-compression-jso-pco.js): number columns of 4,096 values or more are also tried with Pcodec and the smaller one is kept.
  *  - refs: true now stores lists of shared objects by column too (links that point at the very node objects), not value by value.
  *  - float32: true (opt-in, lossy) keeps fraction columns in 4 bytes per value instead of 8 (relative error at most about 6e-8).
  *  - Built on memory-compression.js (its code is inside this file), so the numeric columns get its byte shuffle, delta and LZ4/deflate stage.

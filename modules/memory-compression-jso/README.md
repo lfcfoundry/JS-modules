@@ -1,12 +1,12 @@
 # memory-compression-jso
 
-**Version 1.1.1 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Node 22; Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (research thread's runs of 1.1.0 build, same bytes)
+**Tested in:** Node 22.22.0 (31 checks with and without WebAssembly, and the long random test); Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time, a fresh page for each data set; not run: a phone, a real Netflow Map scene
 
-Keeps a big pile of plain JavaScript objects (a list of 300,000 links, 100,000 scene items, an API answer, a log) packed in memory as a few megabytes of bytes, and brings every value back exactly. It is the object version of [memory-compression](../memory-compression/README.md): arrays of objects are stored as columns, and the columns go through that module's float-aware packing. One file, no dependencies, works offline, about 174 KB with comments (55 KB gzipped; the core and its two small optional WebAssembly helpers are inside).
+Keeps a big pile of plain JavaScript objects (a list of 300,000 links, 100,000 scene items, an API answer, a log) packed in memory as a few megabytes of bytes, and brings every value back exactly. It is the object version of [memory-compression](../memory-compression/README.md): arrays of objects are stored as columns, and the columns go through that module's float-aware packing. One file, no dependencies, works offline, about 206 KB with comments (the core and its small optional WebAssembly helpers are inside); the optional Pcodec add-on is a second file, `memory-compression-jso-pco.js` (441 KB, because the 327 KB Pcodec program is inside it as text).
 
-**Test it:** `node modules/memory-compression-jso/test/run.js` (26 checks, about 4 s; `--js-only` runs without WebAssembly; `FULL=1` runs 10 times more random cases). **Try it:** `demo.html`. **Rebuild the file:** `python3 modules/memory-compression-jso/build.py`.
+**Test it:** `node modules/memory-compression-jso/test/run.js` (31 checks, about 4 s; `--js-only` runs without WebAssembly; `FULL=1` runs 10 times more random cases). **Try it:** `demo.html`. **Rebuild the file:** `python3 modules/memory-compression-jso/build.py`.
 
 ## Quick start
 ```js
@@ -42,6 +42,7 @@ Numbers (whole numbers, decimals, 32-bit and 64-bit floats, `NaN`, infinities, `
 - Each column picks the cheapest way to hold its values: one repeated value, whole numbers in the narrowest width, decimals such as 12.34 or 0.25 as whole numbers with a scale (so 0.25 steps cost 1 or 2 bytes each, not 8), 32-bit floats when that loses nothing, plain 64-bit floats, a yes/no bit each, a dictionary for repeated text, joined text, and arrays of small fixed-length arrays (such as `[lat, lng]`) as one column per position.
 - The number columns then go through [memory-compression](../memory-compression/README.md) (byte shuffle, column difference, then LZ4 in fast mode or deflate in small mode), which is where the float savings come from.
 - **Text patterns (new in 1.1.0).** When most strings in a column look alike (`'user' + number + '@example.org'`), the text between the numbers is kept once and each number goes into a number column. Up to 32 patterns per column. For big columns a 608-byte WebAssembly helper walks the bytes; the plain-JavaScript loop does the same work and writes the same bytes.
+- **Dates and times (new in 1.2.0).** A text column of ISO dates (`2025-03-05T04:15:00Z`, with milliseconds, `2025-03-05`, or a space instead of the `T`) is stored as one number per row (days, minutes, seconds or milliseconds since 1970) instead of six, and rebuilt as the same text. Every row is checked to be a real date (no 30 February, no 24:00); one row that is not keeps the whole column on the older pattern path. Sorted timestamps become tiny differences, so files are 13 to 31% smaller (smaller is better, table below).
 - **Shared objects by column (new in 1.1.0).** With `refs: true`, a column whose values are objects that were already written (links pointing at nodes) is stored as a column of ids, not value by value.
 - Anything that does not fit a pattern (mixed types, odd objects) is written in a general form, value by value, so every input works; it is just bigger and slower there (see "What it is not").
 - Packing builds small generated functions per object layout (with `new Function`; plain loops are used where that is blocked), which is what makes both directions fast on repeated layouts.
@@ -146,6 +147,89 @@ What the Node tables say, in plain words:
 - **Speed in fast mode is about the same as 1.0.0** (differences are inside the 30% noise) and the same class as msgpackr with records. avsc (which needs a schema) packs fastest on four of the five big sets (this module is 1.2 to 1.6 times slower there; on the map features this module packs 1.3 times faster); this module unpacks faster than avsc on the links (1.9 times) and the scene items (1.2 times), and is even or up to 1.5 times slower on the other three.
 - **Small mode packs faster than 1.0.0 on text-heavy sets** (events 174 to 117 ms, scene items 145 to 114 ms, users 96 to 82 ms) and is smaller still.
 - **Where it is not the best:** on the 50,000 user records (lots of short text) msgpackr with records unpacks 1.9 times faster (38 ms against 73 ms) and avsc packs 1.6 times faster (41 ms against 64 ms); the file is 7.5 times smaller than either.
+
+### Dates and times (1.2.0)
+Sizes, packing and unpacking of a text column of ISO dates, 1.1.1 against 1.2.0. Browser rows are 20,000 rows, median of 15 alternating rounds; Node rows are 50,000 rows, best of 9. **Smaller is better in every column.**
+
+| Data | Size 1.1.1 | Size 1.2.0 | Smaller by |
+|---|---:|---:|---:|
+| Sorted log timestamps, whole seconds (Node, 50,000) | 49.6 KB | 39.3 KB | 21% |
+| Sorted log timestamps, milliseconds (Node, 50,000) | 134.5 KB | 117.3 KB | 13% |
+| Random dates and times in one year (Node, 50,000) | 241.5 KB | 181.2 KB | 25% |
+| Random dates only, 5 years (Node, 50,000) | 127.2 KB | 88.0 KB | 31% |
+| One timestamp every hour, steady (Node, 50,000) | 87.2 KB | 87.2 KB | 0% (kept as before) |
+| Sorted log timestamps, whole seconds (browsers, 20,000) | 20.4 KB | 15.9 KB | 22% |
+| Random dates only (browsers, 20,000) | 51.9 KB | 35.8 KB | 31% |
+
+| Browser (20,000 sorted log timestamps, whole seconds) | Pack 1.1.1 | Pack 1.2.0 | Unpack 1.1.1 | Unpack 1.2.0 |
+|---|---:|---:|---:|---:|
+| Firefox 158.0 | 3.6 ms | 3.8 ms | 2.7 ms | 1.4 ms |
+| ungoogled Chromium 155.0.8059.39-1 | 4.9 ms | 4.9 ms | 1.6 ms | 1.3 ms |
+| WebKitGTK 2.52.6 | 6.9 ms | 6.0 ms | 2.3 ms | **3.6 ms** |
+| GNOME Web 46.5 | 8.3 ms | 6.5 ms | 2.5 ms | **3.3 ms** |
+
+With milliseconds (20,000 rows) unpacking goes 2.9 to 1.6 ms in Firefox, 2.2 to 1.4 ms in Chromium, and **3.2 to 5.2 ms** in WebKitGTK (**3.0 to 4.8 ms** in GNOME Web); packing goes 10.4 to 6.8 ms in WebKitGTK. Unpacking dates is about 1.5 to 2 times faster in Firefox and Chromium and about 1.4 to 1.7 times **slower** in the two WebKit browsers for the same file-size win; random dates unpack faster everywhere (WebKitGTK 4.3 to 3.6 ms). WebKit is slow here because it builds the date text with more string-joining work per row than the old way; a first attempt at a fix (tables made without holes) recovered part of it. A date column is used only when one number is expected to cost no more than the separate ones: the made-up cyclic dates of the `api-users` test set stay as before (155.4 KB, same speed), and a steady one-per-hour column also stays as before.
+
+### Short, varied text kept as FSST codes (`fsst: true`, 1.2.0)
+FSST (a text compressor from the VLDB 2020 paper by Boncz, Neumann and Leis) learns up to 255 common pieces of text from the column itself (a piece is 1 to 8 bytes: " Street", "ville", "@exam") and writes each string as a short list of piece numbers. Two things follow: the column is about half the size of the same text packed the old way, and **one string can be read without restoring the others**, so a `view()` keeps such a column at about a third of its restored size. It is off unless you pass `{ fsst: true }`, because training costs time when packing. Each text column is tried both ways and the smaller is kept; columns that are patterns (`user7@example.org`) or small dictionaries (`'flow'`, `'stock'`) keep their own, smaller way. A text file with an FSST column says format 3.
+
+Same data in every browser, 20,000 rows unless it says 100,000 (smaller is better for every column except "reads", where it says). The kernel is a 3 KB WebAssembly program for the learning-free parts (turning text into codes and back) used at 4,096 rows and up; the "JavaScript only" columns are the same bytes without it.
+
+| Data | File, plain | File, FSST | Smaller by | Restored size, plain | Restored size, FSST | Smaller by |
+|---|---:|---:|---:|---:|---:|---:|
+| Names and cities | 180.5 KB | 89.3 KB | 51% | 555 KB | 166 KB | 70% |
+| Invented words | 119.4 KB | 56.8 KB | 52% | 323 KB | 122 KB | 62% |
+| File paths | 247.1 KB | 110.3 KB | 55% | 645 KB | 180 KB | 72% |
+| Log messages | 234.5 KB | 153.9 KB | 34% | 875 KB | 225 KB | 74% |
+| Names and cities, 100,000 rows | 902.0 KB | 423.8 KB | 53% | 2,777 KB | 810 KB | 71% |
+| Item labels ("Item 12 flow") | 0.5 KB | 0.5 KB | not used (the pattern is smaller) | 449 KB | 449 KB | 0% |
+
+| Names and cities, 20,000 rows | Pack plain | Pack FSST (kernel) | Pack FSST (JavaScript only) | Unpack plain | Unpack FSST (kernel) | Unpack FSST (JavaScript only) | Open and read the first field, plain | Open and read the first field, FSST |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Firefox 158.0 | 4.1 ms | 18.3 ms | 28.7 ms | 4.8 ms | 6.1 ms | 7.2 ms | 4.75 ms | **0.53 ms** |
+| ungoogled Chromium 155.0.8059.39-1 | 5.5 ms | 17.2 ms | 25.2 ms | 1.8 ms | 2.2 ms | 4.0 ms | 1.11 ms | **0.74 ms** |
+| WebKitGTK 2.52.6 | 5.6 ms | 18.7 ms | 24.6 ms | 2.1 ms | 2.1 ms | 3.7 ms | 1.14 ms | **0.71 ms** |
+| GNOME Web 46.5 | 5.3 ms | 19.0 ms | 23.5 ms | 2.0 ms | 2.2 ms | 3.1 ms | 1.60 ms | **0.60 ms** |
+| Node 22.22.0 | 4.3 ms | 17.2 ms | 25.8 ms | 2.0 ms | 2.3 ms | 5.1 ms | 1.10 ms | **0.67 ms** |
+
+At 100,000 names and cities the kernel unpacks in 8.4 ms in Chromium against 26.5 ms in JavaScript (3.2 times faster), 8.3 ms against 21.0 ms in WebKitGTK, 27.5 ms against 37.8 ms in Firefox (1.4 times faster). Reading one string alone takes 0.15 to 0.55 microseconds in every browser. **What it costs:** packing is 1.9 to 6.4 times slower (the learning step: 5 rounds over a 16 KB random sample); unpacking everything is 1.0 to 1.6 times slower than the plain way; the gain is size, memory and the ability to read one string. It does not beat the old way where the same whole values repeat (country names in 100,000 rows: those stay a dictionary, chosen automatically).
+
+The kernel needs a page that allows WebAssembly (`'wasm-unsafe-eval'`); without it, or with `{ wasm: false }`, the JavaScript does the same work and writes the same bytes (checked). Kernel source: `wasm/jso-kernels.c`; rebuild with `wasm/build.sh` (clang 18.1.3) then `wasm/embed.py` and `build.py`; 3,323 bytes, sha256 starting 57424e85, identical when built again in a different folder.
+
+### Number columns stored by Pcodec (optional add-on, `pco`, 1.2.0)
+[Pcodec](https://github.com/pcodec/pcodec) (version 1.0.4, Apache-2.0, by Martin Loncaric and contributors) is a number compressor made for columns of numbers that drift, grow or wander: timestamps, sensor readings, prices. It is a 327 KB program, so it is **not inside** `memory-compression-jso.js`. Load the second file only on pages that want it:
+```js
+MemoryCompressionJSOPco.load().then(function (pco) {                 // pco is null if WebAssembly is missing or blocked: then everything stays as before
+  var packed = MemoryCompressionJSO.pack(rows, { pco: pco });         // each number column of 4,096 or more values is also tried with Pcodec; the smaller is kept
+  var back = MemoryCompressionJSO.unpack(packed, { pco: pco });       // (view() takes the same option)
+});
+```
+Decimals are turned into whole numbers first (as always), and Pcodec codes the whole numbers; columns that fit 32 bits use its 32-bit mode. A column that Pcodec does not make smaller is written the old way and costs nothing but the time to try. A file that used Pcodec says format 3 and needs the add-on to open: without it, `unpack` and `view` throw "this file stores a number column with Pcodec; load memory-compression-jso-pco.js and pass its codec as the pco option". A file whose columns did not use Pcodec opens without the add-on. The add-on does not change anything for a page that never loads it. On a page that forbids WebAssembly (checked in Chromium 155 and Firefox 158 with a policy that has no `'wasm-unsafe-eval'`) `load()` and `loadSync()` give `null`, and packing carries on the old way with format 2 files.
+
+Fast mode, 100,000 rows unless it says otherwise, same sets in each browser. **Smaller is better for every column.**
+
+| Data | File, plain | File, Pcodec | Smaller by |
+|---|---:|---:|---:|
+| Sensor readings (time, 3 one-decimal and two-decimal columns, 2 five-decimal coordinates) | 1,537.3 KB | 508.5 KB | 67% |
+| Price ticks (two-decimal price, volume, side) | 289.1 KB | 154.2 KB | 47% |
+| Random coordinates (3 full-precision doubles) | 1,677.6 KB | 1,200.2 KB | 28% |
+| 100,000 links | 2,640.2 KB | 2,207.6 KB | 16% |
+| 100,000 log events | 837.0 KB | 638.4 KB | 24% |
+| 20,000 map features | 1,803.5 KB | 1,362.8 KB | 24% |
+| 20,000 user records | 308.2 KB | 276.2 KB | 10% |
+| 50,000 scene items | 1,077.6 KB | 1,035.4 KB | 4% |
+
+| Browser | Sensor readings: pack plain | pack Pcodec | unpack plain | unpack Pcodec | 100,000 links: pack plain | pack Pcodec | unpack plain | unpack Pcodec |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Firefox 158.0 | 22.6 ms | 51.6 ms | 14.5 ms | **7.9 ms** | 32.8 ms | 86.8 ms | 12.0 ms | 14.5 ms |
+| ungoogled Chromium 155.0.8059.39-1 | 20.7 ms | 46.4 ms | 15.0 ms | **13.8 ms** | 30.0 ms | 85.7 ms | 14.5 ms | 17.6 ms |
+| WebKitGTK 2.52.6 | 37 ms | 63 ms | 26 ms | **13 ms** | 40 ms | 97 ms | 18 ms | 19 ms |
+| GNOME Web 46.5 | 35 ms | 66 ms | 27 ms | **12 ms** | 43 ms | 124 ms | 21 ms | 28 ms |
+| Node 22.22.0 | 18.8 ms | 54.6 ms | 22.6 ms | **15.1 ms** | 28.9 ms | 93.0 ms | 17.9 ms | 22.7 ms |
+
+(The WebKit timer counts whole milliseconds, so those cells are rough.) **What it costs:** packing is 1.2 to 3.5 times slower (the add-on tries each big number column, then keeps the smaller); unpacking ranges from 2.3 times faster (sensor readings in GNOME Web) to 1.8 times slower (100,000 log events in Chromium). Starting the add-on takes 5.6 to 11 ms (compiling the program on the spot; `load()` does it without blocking and took 5.8 to 8 ms). Where the same block of values repeats (a column that is the same 997 ids over and over), the old way is smaller and is kept: Pcodec cannot find repeats, the block packer can.
+
+Add-on source: `pco/src/lib.rs` (Pcodec behind a tiny C interface; it also refuses any file that would make more or fewer numbers than the column holds), `pco/Cargo.toml` and `pco/Cargo.lock` (pco pinned to 1.0.4), rebuild with `pco/build.sh` (needs Rust and `rustup target add wasm32-unknown-unknown`; rustc 1.97.0; the result is 326,822 bytes with sha256 starting 888a66a7, the same bytes when built again in a different folder) then `python3 pco/embed.py`. The Pcodec license text is in `pco/NOTICE-pco.txt`.
 
 ### A graph where links hold the node objects (`refs: true`)
 100,000 items and 300,000 links that point at the item objects themselves (not copies); JSON text of the same, with the links copied, is 101.6 MB. Same rules: smaller is better in every column.
@@ -317,8 +401,11 @@ Measured against msgpackr 2.1.0 (with and without records, and with bundled stri
 | `level` | deflate effort 0 to 9 in small mode | 4 |
 | `refs` | `true` keeps shared objects shared and allows cycles (lists of objects are still stored by column) | off |
 | `check` | `true` adds a checksum that `unpack()` verifies | off |
+| `fsst` | `true` also tries FSST codes for text columns (smaller, any one string readable alone; slower to pack) | off |
+| `pco` | the object from `MemoryCompressionJSOPco.load()` or `.loadSync()`: number columns of 4,096 or more are also tried with Pcodec and the smaller is kept (also pass it to `unpack` and `view` for files that used it) | off |
 | `patterns` | `false` skips the text-pattern step (bigger result, faster to pack text-heavy data) | on |
 | `float32` | `true` keeps columns of fractions in 4 bytes per value (lossy: relative error at most about 6e-8; values beyond 3e38 stay 8 bytes) | off |
+| `pool` | `false` does not reuse number-column arrays between packs (they are otherwise kept for the next pack, at most 48 MB; `freeBuffers()` empties them) | on |
 | `wasm` | `false` forces plain JavaScript | use WebAssembly if available |
 | `report` | an array that is filled with what each part took (path, bytes before and after, milliseconds) | none |
 
@@ -326,7 +413,7 @@ Measured against msgpackr 2.1.0 (with and without records, and with bundled stri
 
 `view(bytes, opts)` for a packed array of 16 or more objects that all have the same keys returns `{ length, keys, lazy, get(i), field(i, key), column(key), toArray(), loaded(), release(), memory() }`. A file made by 1.1.0 opens without restoring anything (`lazy` is true) and restores a column on first read; a file made by 1.0.0 is restored at open, as before.
 
-Also: `ready()` (a promise), `accelerated()` (is the WebAssembly helper in use), and `core` (the memory-compression module inside, for typed arrays and bytes). Errors are `Error` objects whose message starts with `MemoryCompressionJSO:` and say what is wrong in plain words.
+Also: `freeBuffers()` (gives back the arrays kept between packs), `ready()` (a promise), `accelerated()` (is the WebAssembly helper in use), and `core` (the memory-compression module inside, for typed arrays and bytes). Errors are `Error` objects whose message starts with `MemoryCompressionJSO:` and say what is wrong in plain words.
 
 ## Good to know
 - **Exact.** `pack` then `unpack` gives a value that is equal in every way the tests check (see the table of values above); the same bytes come out with and without WebAssembly (checked).
@@ -334,13 +421,16 @@ Also: `ready()` (a promise), `accelerated()` (is the WebAssembly helper in use),
 - **Hostile input is safe to read.** Every count and size is checked against what is possible, damaged or cut-off data throws, and a flipped byte either throws or (without `check: true`) changes a value. The test file cuts data at every length and flips every byte.
 - **`new Function` is used for speed.** Where a page policy blocks it (tested in Node with `--disallow-code-generation-from-strings`), plain loops do the same work and the bytes are identical, but packing is 1.1 to 1.3 times slower and unpacking 1.2 to 3.3 times slower.
 - **Very large inputs.** `maxItems` stops an unpack that would make more than 100 million values (change it if the data is yours).
+- **Format 3 (1.2.0).** A file that holds a date column, an FSST text column or a Pcodec number column says format 3 and 1.1.x refuses it with the message "made by a newer version"; every other file still says format 2 and opens in 1.1.x. 1.2.0 reads formats 1, 2 and 3.
 - **Format.** The first two bytes are `MJ`, then a version byte; a file written by 1.0.0 is read by 1.1.0 (checked with a stored 1.0.0 file), but a 1.1.0 file is format 2 and 1.0.0 cannot read it. It is not compatible with `memory-compression`'s container (different magic).
 
 ## Prior art
-msgpackr and cbor-x (record extension: repeated object layouts written once; generated decoders), avsc (Avro, schema-compiled code), Apache Arrow and Flechette (columnar tables), ALP (SIGMOD 2024: decimal doubles stored as scaled whole numbers; used here in a simple form), FSST (VLDB 2020, text tables; not used yet), CLP, Denum and LogPrism (log compression: text patterns plus number columns, which is what 1.1.0's text patterns do in a simple form), BtrBlocks and Vortex (pick an encoding per column from a sample; cascading encodings), Pcodec (arXiv 2502.06112, number modes; not used yet), Blosc (byte shuffle, through memory-compression). The format and code are this repository's own.
+msgpackr and cbor-x (record extension: repeated object layouts written once; generated decoders), avsc (Avro, schema-compiled code), Apache Arrow and Flechette (columnar tables), ALP (SIGMOD 2024: decimal doubles stored as scaled whole numbers; used here in a simple form), FSST (VLDB 2020, text tables; used as the opt-in `fsst` option, with its own 3 KB WebAssembly kernel and a JavaScript port), CLP, Denum and LogPrism (log compression: text patterns plus number columns, which is what 1.1.0's text patterns do in a simple form), BtrBlocks and Vortex (pick an encoding per column from a sample; cascading encodings), Pcodec (arXiv 2502.06112, number modes; used through the optional add-on file, Apache-2.0), Blosc (byte shuffle, through memory-compression). The format and code are this repository's own.
 
 ## For AI agents
 - Use `pack`/`unpack` for a big array of similar objects you want to keep small in memory or save; `view()` to read single items from a packed array; `mode: 'small'` for anything restored rarely.
 - Use `{ refs: true }` for a graph where links hold the node objects; `view()` for reading a little from a lot. Do not use it for tiny values (under about 16 items it is the general form and not much smaller than JSON), for streaming, or for data with class instances you need back as classes.
 - Await `MemoryCompressionJSO.ready()` once at start-up. Check `packed.length`; irregular data gives up only about 60%.
+- `{ fsst: true }` for big columns of names, paths or log lines (about half the size, one string readable alone, 2 to 6 times slower to pack); skip it for patterns and repeating values, which already have a smaller way (it chooses by itself).
+- Number-heavy data that is packed rarely and kept for long (sensor logs, prices, coordinates): load `memory-compression-jso-pco.js`, `await MemoryCompressionJSOPco.load()` and pass the result as `pco` to `pack`, `unpack` and `view` (up to 67% smaller, 1.2 to 3.5 times slower to pack). Treat a `null` from `load()` as "not available" and carry on without it.
 - To re-run the comparison: `bench/README.md`.
