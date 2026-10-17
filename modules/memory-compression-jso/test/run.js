@@ -6,9 +6,18 @@ var args = process.argv.slice(2), JS_ONLY = args.indexOf('--js-only') >= 0, modP
 var J = require(path.resolve(modPath)), FULL = !!process.env.FULL;
 var WASM = JS_ONLY ? { wasm: false } : {};
 var passed = 0, failed = 0;
+// the message first: some browsers leave it out of the stack text
+function why(e) { var m = String(e && e.message || e), st = String(e && e.stack || ''); return (st.indexOf(m) >= 0 ? st : m + '\n' + st).split('\n').slice(0, 4).join('\n   '); }
 function t(name, fn) {
   var t0 = Date.now();
-  try { fn(); passed++; console.log('  ok  ' + name + ' (' + (Date.now() - t0) + ' ms)'); } catch (e) { failed++; console.log('FAIL ' + name + '\n   ' + (e && e.stack || e).split('\n').slice(0, 4).join('\n   ')); }
+  try { fn(); passed++; console.log('  ok  ' + name + ' (' + (Date.now() - t0) + ' ms)'); } catch (e) { failed++; console.log('FAIL ' + name + '\n   ' + why(e)); }
+}
+var later = [];
+function tAsync(name, fn) {      // a check that waits for promises; run after the plain ones
+  later.push(function () {
+    var t0 = Date.now();
+    return Promise.resolve().then(fn).then(function () { passed++; console.log('  ok  ' + name + ' (' + (Date.now() - t0) + ' ms)'); }, function (e) { failed++; console.log('FAIL ' + name + '\n   ' + why(e)); });
+  });
 }
 function same(a, b, label) { var e = D.same(a, b); if (e) throw new Error((label || 'values differ') + ': ' + e); }
 function opt(o) { return Object.assign({}, WASM, o || {}); }
@@ -197,7 +206,7 @@ t('date-time columns: one number per timestamp, exact text back, bad dates fall 
       var step = k === 'minutes' ? 90000 : k === 'day' ? 129600000 : 1500, sorted = many(n, function (i) { return fmts[k](new Date(start + i * step + Math.floor(r() * 1000)), i); });
       var rand = many(n, function (i) { return fmts[k](new Date(Date.UTC(1900, 0, 1) + Math.floor(r() * 6e12)), i); });
       var same1 = many(n, function (i) { return fmts[k](new Date(start), i); });
-      [sorted, rand, same1].forEach(function (col, w) { ['fast', 'small'].forEach(function (m) { var p = rt(col, { mode: m }, 'dates ' + k + ' ' + n + ' ' + m + ' ' + w); if (k !== 'tail' && w === 0) assert(p[2] === 3, 'uses the date column: ' + k + ' ' + n + ' ' + m + ' ' + w); }); });
+      [sorted, rand, same1].forEach(function (col, w) { ['fast', 'small'].forEach(function (m) { var p = rt(col, { mode: m }, 'dates ' + k + ' ' + n + ' ' + m + ' ' + w); if (k !== 'tail' && w === 0) assert(p[2] >= 3, 'uses the date column: ' + k + ' ' + n + ' ' + m + ' ' + w); }); });
     });
   });
   var edge = ['0000-02-29', '1600-02-29', '1900-01-01', '2000-02-29', '2024-02-29', '2100-12-31', '9999-12-31', '1970-01-01', '1969-12-31', '0001-01-01'];
@@ -215,6 +224,99 @@ t('date-time columns: one number per timestamp, exact text back, bad dates fall 
   same(grows, J.unpack(new Uint8Array(gold), opt()), 'a file made by 1.1.0');
   var cut = J.pack(sorted, opt({ check: false })); for (var q = 0; q < cut.length; q += 7) throwsJ(function () { J.unpack(cut.subarray(0, q), opt()); }, 'cut at ' + q);
   if (!JS_ONLY) { var wp = J.pack(sorted, {}), jp = J.pack(sorted, { wasm: false }); assert.deepStrictEqual(Buffer.from(wp), Buffer.from(jp), 'same bytes with and without WebAssembly'); }
+});
+var ADAPT = J.picker;
+t('number picker: every kind of number column comes back bit for bit', function () {
+  var r = D.rng(31), g = function () { var a = 0, i; for (i = 0; i < 12; i++) a += r(); return a - 6; }, E = Number.EPSILON, shapes = {
+    constant: function (n) { return many(n, function () { return 42; }); }, ids: function (n) { return many(n, function (i) { return i; }); },
+    steps: function (n) { var t = 1e9; return many(n, function () { return (t += 1 + Math.floor(r() * 3)); }); }, runs: function (n) { return many(n, function (i) { return Math.floor(i / 50) % 7; }); },
+    dictionary: function (n) { return many(n, function () { return [3, 17, 99, 1000][Math.floor(r() * 4)]; }); }, outliers: function (n) { return many(n, function () { return r() < 0.03 ? Math.floor(1e9 * r()) : Math.floor(r() * 100); }); },
+    factor: function (n) { return many(n, function () { return 5 * Math.floor(r() * 1000) + 7; }); }, price: function (n) { var p = 100; return many(n, function () { p = Math.max(1, p + g() * 0.4); return Math.round(p * 100) / 100; }); },
+    noisy: function (n) { return many(n, function () { return 34 + r() * 3; }); },
+    nearMiss: function (n) { return many(n, function (i) { var d = Math.round((10 + g()) * 1000) / 1000; return i % 3 ? d : d * (1 + E * Math.floor(r() * 5)); }); },
+    special: function (n) { return many(n, function (i) { return [NaN, Infinity, -Infinity, -0, 0, 5e-324, 1e300, -1e300, Number.MAX_VALUE, 1.5, 0.1][i % 11]; }); },
+    huge: function (n) { return many(n, function () { return (r() - 0.5) * Math.pow(2, 60); }); }, big: function (n) { return many(n, function () { return Math.floor((r() - 0.5) * Math.pow(2, 50)); }); }
+  }, names = Object.keys(shapes), sizes = [1, 2, 64, 300, 8192, 8193, 17000], q, z, a, back, bytes, i, opts = [{}, { sample: false }, { noEntropy: true }], o;
+  for (q = 0; q < names.length; q++) for (z = 0; z < sizes.length; z++) {
+    if (sizes[z] === 17000 && q % 4) continue; a = Float64Array.from(shapes[names[q]](sizes[z])); o = opts[(q + z) % 3];
+    bytes = ADAPT.pack(a, o); back = ADAPT.unpack(bytes, a.length);
+    for (i = 0; i < a.length; i++) if (!Object.is(a[i], back[i]) && !(a[i] !== a[i] && back[i] !== back[i])) throw new Error(names[q] + ' ' + sizes[z] + ' value ' + i + ': ' + a[i] + ' came back ' + back[i]);
+  }
+  var lab = []; ADAPT.pack(Float64Array.from(shapes.nearMiss(9000)), { labels: lab }); assert(lab.length === 2 && /^ALP/.test(lab[0]), 'decimals with float noise use the decimal way: ' + lab);
+  var nm = Float64Array.from(shapes.nearMiss(20000)); assert(ADAPT.pack(nm).length < nm.length * 8 * 0.45, 'near misses cost less than half of plain doubles');
+  assert.strictEqual(ADAPT.available(), true);
+  throwsJ(function () { ADAPT.unpack(ADAPT.pack(Float64Array.from([1, 2, 3])), 4); }, 'a wrong count');
+});
+t('number picker: balanced and small modes, format 5, off switch, view, damaged files', function () {
+  var r = D.rng(41), rows = many(6000, function (i) { var d = Math.round((37 + (r() - 0.5)) * 1e4) / 1e4; return { id: i, lat: i % 2 ? d : d * (1 + Number.EPSILON * Math.floor(r() * 6)), price: Math.round(r() * 1e4) / 100, t: 1.7e9 + i * 2 + Math.floor(r() * 3), n: 'n' + i }; });
+  var plain = J.pack(rows, opt()), ap = J.pack(rows, opt({ mode: 'balanced' })), small = J.pack(rows, opt({ mode: 'small' })), rep = [];
+  assert.strictEqual(plain[2] < 5, true, 'the default mode never writes format 5'); assert.strictEqual(ap[2], 5, 'a file that used the picker says format 5'); assert(ap.length < plain.length * 0.7, 'at least 30% smaller: ' + ap.length + ' against ' + plain.length);
+  same(rows, J.unpack(ap, opt()), 'round trip'); same(rows, J.unpack(small, opt()), 'small mode round trip'); assert(small.length <= J.pack(rows, opt({ mode: 'small', picker: false })).length, 'small mode is no bigger than without the picker');
+  J.pack(rows, opt({ mode: 'balanced', report: rep })); assert(rep.some(function (x) { return x.part === 'picker'; }), 'the report names the picker');
+  assert.deepStrictEqual(Buffer.from(J.pack(rows, opt({ mode: 'balanced', picker: false }))), Buffer.from(plain), 'picker: false writes the plain file');
+  assert.deepStrictEqual(Buffer.from(J.pack(rows, opt({ picker: true })).subarray(0, 3)), Buffer.from(ap.subarray(0, 3)), 'picker: true asks for it in the default mode');
+  var few = rows.slice(0, 1000); assert.deepStrictEqual(Buffer.from(J.pack(few, opt({ mode: 'balanced' }))), Buffer.from(J.pack(few, opt())), 'under 1,024 rows it is not tried');
+  var v = J.view(ap, opt()); same(rows[77], v.get(77), 'view get'); assert.strictEqual(v.field(5000, 'lat'), rows[5000].lat);
+  var cut = J.pack(rows.slice(0, 1500), opt({ mode: 'balanced' })), q, i2, copy;
+  for (q = 0; q < cut.length; q += 97) throwsJ(function () { J.unpack(cut.subarray(0, q), opt()); }, 'cut at ' + q);
+  for (i2 = 0; i2 < cut.length; i2 += 29) { copy = Uint8Array.from(cut); copy[i2] ^= 0x5A; try { J.unpack(copy, opt()); } catch (e) { assert(/MemoryCompression|Invalid|RangeError|data is cut/.test(String(e)), 'a clean error: ' + e); } }
+});
+t('number picker: damaged blocks give clean errors and finish quickly', function () {
+  var r = D.rng(51), a = Float64Array.from(many(3000, function (i) { return i % 2 ? Math.round(r() * 1e5) / 100 : r(); })), b = ADAPT.pack(a), k, x, t0 = Date.now(), clean = 0;
+  for (k = 0; k < 300; k++) {
+    x = Uint8Array.from(b); x[Math.floor(r() * x.length)] ^= 1 << Math.floor(r() * 8);
+    try { ADAPT.unpack(x, 3000); clean++; } catch (e) { assert(/^Error: MemoryCompressionJSO:/.test(String(e)), 'a clean error: ' + e); }
+  }
+  for (k = 0; k < b.length; k += 53) throwsJ(function () { ADAPT.unpack(b.subarray(0, k), 3000); }, 'cut at ' + k);
+  assert(Date.now() - t0 < 5000, 'no hang');
+});
+t('number picker: dictionary codes of text columns, profile()', function () {
+  var cities = many(300, function (i) { return 'City number ' + i; }), rows = many(8000, function (i) { return { city: cities[Math.floor(i / 25) % 300], k: i }; }), plain = J.pack(rows, opt()), bal = J.pack(rows, opt({ mode: 'balanced' })), rep = [];
+  same(rows, J.unpack(bal, opt()), 'round trip'); assert(bal.length < plain.length * 0.95, 'codes in runs shrink: ' + bal.length + ' against ' + plain.length);
+  J.pack(rows, opt({ mode: 'balanced', report: rep })); assert(rep.some(function (x) { return x.part === 'picker (dictionary codes)'; }), 'the report names it');
+  var cut = J.pack(rows.slice(0, 1500), opt({ mode: 'balanced' })), q, copy;
+  for (q = 0; q < cut.length; q += 61) throwsJ(function () { J.unpack(cut.subarray(0, q), opt()); }, 'cut at ' + q);
+  for (q = 0; q < cut.length; q += 23) { copy = Uint8Array.from(cut); copy[q] ^= 0x5A; try { J.unpack(copy, opt()); } catch (e) { assert(/MemoryCompression|Invalid|RangeError|data is cut/.test(String(e)), 'a clean error: ' + e); } }
+  var p = J.profile(rows, opt({ mode: 'balanced' }), 1); assert(p.bytes === bal.length && p.packMs > 0 && p.unpackMs >= 0 && p.parts.length > 3 && p.format === 5, 'profile gives sizes, times and parts (a browser that rounds its clock to 1 ms can read a fast unpack as 0)');
+});
+t('keeper: holds data packed, restores on demand, lets go of the least recently used copies under a budget', function () {
+  var r = D.rng(61), rows = many(4000, function (i) { return { id: i, from: Math.floor(r() * 977), w: Math.round(r() * 1000) / 100, name: 'link ' + i }; }), levels = [], K = J.keeper(opt({ budget: 250000, onPressure: function (l) { levels.push(l); } })), h, m, v, col, freed;
+  assert.strictEqual(typeof J.keeper, 'function'); assert.strictEqual(J.core && typeof J.core.pack, 'function'); h = K.hold('layout', rows); assert(h.packed > 0 && h.heap > h.packed * 3, 'packed is much smaller than the live objects: ' + h.packed + ' against ' + h.heap);
+  m = K.memory(); assert.strictEqual(m.restored, 0, 'nothing restored after hold'); assert.strictEqual(m.items.layout.rows, 4000); assert.strictEqual(K.level(), 0);
+  col = K.column('layout', 'from'); assert(col.length === 4000 && col[7] === rows[7].from, 'one column without restoring the objects'); assert(K.memory().restored < h.heap / 3, 'only that column is counted');
+  v = K.get('layout'); same(rows, v, 'get is exact'); assert.strictEqual(K.get('layout'), v, 'get keeps the restored copy'); assert(K.memory().restored >= h.heap * 0.9);
+  assert.strictEqual(K.level(), 2, 'over budget when the restored copy is in memory'); assert(levels.indexOf(2) >= 0, 'onPressure was told');
+  freed = K.trim(0); assert(freed > 0 && K.memory().restored === 0, 'trim lets go of the restored copy'); assert.strictEqual(K.level(), 0); assert.strictEqual(levels[levels.length - 1], 0);
+  same(rows, K.get('layout'), 'restores again after a trim');
+  K.hold('a', [1, 2, 3]); K.hold('b', { x: 'y' }); K.get('a'); K.get('b'); K.get('layout'); K.touch('a');
+  K.release('b'); assert.strictEqual(K.memory().items.b.restored, 0); K.release(); assert.strictEqual(K.memory().restored, 0, 'release() with no name lets go of everything');
+  assert.deepStrictEqual(K.names().sort(), ['a', 'b', 'layout']); K.drop('a'); assert.strictEqual(K.has('a'), false); throwsJ(function () { K.get('a'); }, 'a dropped name');
+  var small = J.keeper(opt({ budget: 50000 })), s1 = many(3000, function (i) { return { a: i, b: 'x' + i }; }); small.hold('one', s1); small.hold('two', s1.map(function (o) { return { a: o.a + 1, b: o.b }; }));
+  small.get('one'); small.get('two'); assert(small.memory().items.one.restored === 0, 'the least recently used copy was let go first: ' + JSON.stringify(small.memory().items));
+  var hp = J.heap(); assert(hp && 'source' in hp); assert(J.estimateBytes([{ a: 1.5, s: 'abcd' }]) > 40);
+});
+t('keeper: shared objects (refs), pin, calibrate, restore estimates', function () {
+  var shared = { tag: 'shared' }, rows = many(300, function (i) { return { id: i, s: shared, n: { k: i % 7 } }; }), K = J.keeper(opt({ refs: true, budget: 1e9 })), a, v, m;
+  K.hold('layout', rows); a = K.get('layout'); assert(a[0].s === a[299].s, 'refs: true passes through hold: shared objects stay shared'); same(rows, a, 'refs round trip');
+  K.release('layout'); K.hold('nr', rows, { refs: false }); assert(K.get('nr')[0].s !== K.get('nr')[1].s, 'a per-call option overrides the keeper option');
+  K.release(); m = K.memory(); assert.strictEqual(m.items.layout.restoreMsMeasured, true, 'a restore was timed'); assert(m.items.layout.restoreMs >= 0 && m.items.nr.restoreMs >= 0);
+  K.hold('fresh', rows); assert.strictEqual(K.memory().items.fresh.restoreMsMeasured, false, 'a new item has an estimate, marked as not measured');
+  var f0 = K.hold('p', rows).heap; assert.strictEqual(K.calibrate(), 1); K.calibrate(2.5); assert.strictEqual(K.hold('p2', rows).heap, Math.round(f0 * 2.5), 'calibrate scales the live size'); throwsJ(function () { K.calibrate(0); }, 'calibrate(0)'); throwsJ(function () { K.calibrate('x'); }, 'calibrate(text)');
+  K.get('p'); assert.strictEqual(K.memory().factor, 2.5); assert.strictEqual(K.memory().items.p.restored, Math.round(f0 * 2.5));
+  var small = J.keeper(opt({ budget: 400000 })), big = many(3000, function (i) { return { a: i, b: 'x' + i }; });
+  small.hold('scene', big); small.hold('layout', big); small.hold('third', big); small.pin('scene'); small.get('scene'); small.get('layout'); small.get('third');
+  assert(small.memory().items.scene.restored > 0 && small.memory().items.layout.restored === 0, 'a pinned item is never the one let go of: ' + JSON.stringify(small.memory().items));
+  assert.strictEqual(small.release('scene'), false, 'release() skips a pinned item'); small.release(); assert(small.memory().items.scene.restored > 0); assert.strictEqual(small.trim(0), 0, 'trim leaves pinned items'); assert.strictEqual(small.drop('scene'), false);
+  assert.strictEqual(small.pin('scene'), 2); assert.strictEqual(small.unpin('scene'), 1); assert.strictEqual(small.release('scene'), false, 'pinned twice, unpinned once: still pinned'); small.unpin('scene'); assert.strictEqual(small.release('scene'), true); assert.strictEqual(small.memory().items.scene.restored, 0);
+  small.pin('scene'); assert.strictEqual(small.release('scene', true), true, 'force lets go of a pinned item'); assert.strictEqual(small.drop('scene', true), true);
+});
+tAsync('keeper: restore() gives the same value as get(), once for many callers, in slices', function () {
+  var rows = many(2000, function (i) { return { id: i, name: 'n' + i, w: i / 8 }; }), K = J.keeper(opt()), p1, p2;
+  K.hold('layout', rows); p1 = K.restore('layout'); p2 = K.restore('layout'); assert.strictEqual(p1, p2, 'two callers share one restore');
+  return p1.then(function (v) {
+    same(rows, v, 'restored value'); assert.strictEqual(K.get('layout'), v, 'get() returns the restored copy'); assert.strictEqual(K.memory().items.layout.restoredBy === 'slices', true);
+    return K.restore('layout');
+  }).then(function (v2) { same(rows, v2, 'restore of a restored item'); K.hold('layout', rows.slice(0, 50)); K.release('layout'); return K.restore('layout'); }).then(function (v3) { assert.strictEqual(v3.length, 50, 'sees the newest held value'); K.hold('small', [1, 2, 3]); return K.restore('small').then(function (v4) { same([1, 2, 3], v4); assert.strictEqual(K.memory().items.small.restoredBy, 'page', 'not an array of objects: restored on the page, one step later'); }); }).then(function () { K.drop('layout'); return K.restore('layout').then(function () { throw new Error('should reject'); }, function (e) { assert(/nothing is held/.test(e.message)); }); });
 });
 t('front coding: sorted text shares its starts, exact back, off switch, damaged files refused', function () {
   var r = D.rng(77), words = many(6000, function () { var w = '', k = 3 + Math.floor(r() * 9), q; for (q = 0; q < k; q++) w += String.fromCharCode(97 + Math.floor(r() * (q < 2 ? 6 : 26))); return w; }).sort();
@@ -259,61 +361,6 @@ t('fsst: text columns stored as codes, each string readable alone', function () 
   var flips = 0, bad = 0, i2, copy;
   for (i2 = 0; i2 < cut.length; i2 += 13) { copy = Uint8Array.from(cut); copy[i2] ^= 0x55; flips++; try { J.unpack(copy, opt()); } catch (e) { bad++; assert(/MemoryCompression|Invalid|RangeError|data is cut/.test(String(e)), 'a clean error: ' + e); } }
   assert(flips > 20);
-});
-var PCO = null; try { PCO = require(path.join(path.dirname(path.resolve(modPath)), 'memory-compression-jso-pco.js')).loadSync(); } catch (e) { PCO = null; }
-t('pcodec add-on: number columns stored by Pcodec when smaller, exact every time', function () {
-  if (!PCO) { console.log('      (WebAssembly missing here: skipped)'); return; }
-  var r = D.rng(99), n = 6000, tm = 1.7e9, walk = 0;
-  var rows = many(n, function (i) { tm += Math.floor(r() * 3000); walk += r() - 0.5; return { t: tm, id: i * 7 + 3, v: Math.round(walk * 1000) / 1000, noise: r() * 1000, big: Math.floor(r() * 4e12), small: Math.floor(r() * 50), rep: i % 3 }; });
-  var plain = J.pack(rows, opt()), pk = J.pack(rows, opt({ pco: PCO }));
-  assert.strictEqual(pk[2], 3, 'a file that used Pcodec says format 3'); assert(pk.length < plain.length * 0.9, 'Pcodec is at least 10% smaller here: ' + pk.length + ' against ' + plain.length);
-  same(rows, J.unpack(pk, opt({ pco: PCO })), 'round trip');
-  var rep = []; J.pack(rows, opt({ pco: PCO, report: rep })); var used = rep.filter(function (x) { return x.part === 'pcodec'; });
-  assert(used.length >= 3 && used.length < 7, 'it is picked per column, not for all of them: ' + used.length + ' of 7');
-  assert.deepStrictEqual(Buffer.from(J.pack(rows, opt({ pco: null }))), Buffer.from(plain), 'pco: null (add-on missing) writes the plain file');
-  var small = many(4095, function (i) { return { a: i * 1.37 + r() }; }); assert.deepStrictEqual(Buffer.from(J.pack(small, opt({ pco: PCO }))), Buffer.from(J.pack(small, opt())), 'under 4096 rows Pcodec is not tried');
-  var block = many(997, function () { return Math.floor(r() * 5000); }), ids = many(20000, function (i) { return { from: block[i % 997] }; }), pi = J.pack(ids, opt({ pco: PCO })); assert.deepStrictEqual(Buffer.from(pi), Buffer.from(J.pack(ids, opt())), 'a column that repeats an earlier block keeps the plain way (the block packer finds repeats, Pcodec cannot)'); assert.strictEqual(pi[2], 2, 'and say format 2 (older copies read it)');
-  var v = J.view(pk, opt({ pco: PCO })); same(rows[5], v.get(5), 'view get'); assert.strictEqual(v.field(4000, 'noise'), rows[4000].noise); same(rows.map(function (o) { return o.v; }), Array.from(v.column('v')), 'view column of scaled decimals');
-  var thrown = null; try { J.unpack(pk, opt()); } catch (e) { thrown = e; } assert(thrown && /Pcodec/.test(String(thrown.message)) && /pco option/.test(String(thrown.message)), 'a clear message when the add-on is missing: ' + thrown);
-  thrown = null; try { J.view(pk, opt()).get(1); } catch (e) { thrown = e; } assert(thrown && /Pcodec/.test(String(thrown.message)), 'view says it too');
-  same(rows.slice(0, 20), J.unpack(J.pack(rows.slice(0, 20), opt({ pco: PCO })), opt()), 'files that did not use it open without the add-on');
-  throwsJ(function () { J.pack(rows, opt({ pco: {} })); }, 'a pco option that is not the add-on');
-});
-t('pcodec add-on: special numbers, 32-bit edges, sizes from 4,096 to a million', function () {
-  if (!PCO) return;
-  var r = D.rng(5), specials = [NaN, Infinity, -Infinity, -0, 0, 5e-324, 1.7976931348623157e308, -1.7976931348623157e308, 0.1, 1 / 3];
-  var dbl = many(5000, function (i) { return i % 500 === 7 ? specials[(i / 500 | 0) % specials.length] : r() * 1e6; });
-  var pk = J.pack({ d: dbl }, opt({ pco: PCO })); same({ d: dbl }, J.unpack(pk, opt({ pco: PCO })), 'doubles with NaN, infinities, -0 and 5e-324');
-  var edge = many(5000, function (i) { return i % 3 === 0 ? -2147483648 : i % 3 === 1 ? 2147483647 : Math.floor(r() * 4e9) - 2e9; }), e2 = J.unpack(J.pack(edge, opt({ pco: PCO })), opt({ pco: PCO })); same(edge, e2, '32-bit edges');
-  var wide = many(5000, function (i) { return i % 2 ? -3000000000 - i : 3000000000 + i * 1000; }); same(wide, J.unpack(J.pack(wide, opt({ pco: PCO })), opt({ pco: PCO })), 'whole numbers past 32 bits');
-  var bits = many(5000, function () { return r() < 0.5 ? 0 : 1; }); same(bits, J.unpack(J.pack(bits, opt({ pco: PCO })), opt({ pco: PCO })), 'zeros and ones');
-  [4096, 4097, 16384, FULL ? 1000000 : 200000].forEach(function (m) {
-    var a = many(m, function (i) { return Math.round((Math.sin(i / 50) * 1000 + r() * 10) * 100) / 100; });
-    same({ a: a }, J.unpack(J.pack({ a: a }, opt({ pco: PCO })), opt({ pco: PCO })), m + ' decimals');
-    var b = many(m, function (i) { return 1700000000 + i * 3 + Math.floor(r() * 3); }); same(b, J.unpack(J.pack(b, opt({ pco: PCO })), opt({ pco: PCO })), m + ' whole numbers');
-  });
-  var cells = many(5000, function (i) { return { v: i % 9 === 0 ? null : r() * 77 }; }); same(cells, J.unpack(J.pack(cells, opt({ pco: PCO })), opt({ pco: PCO })), 'inside a column that has nulls');
-});
-t('pcodec add-on: damaged or hostile input is refused', function () {
-  if (!PCO) return;
-  var r = D.rng(11), rows = many(5000, function (i) { return { a: Math.round(r() * 1e6) / 100, b: i * 3 + Math.floor(r() * 4) }; }), pk = J.pack(rows, opt({ pco: PCO, check: true }));
-  var q, i2, copy, bad = 0, flips = 0;
-  for (q = 0; q < pk.length; q += 97) throwsJ(function () { J.unpack(pk.subarray(0, q), opt({ pco: PCO })); }, 'cut at ' + q);
-  for (i2 = 0; i2 < pk.length - 4; i2 += 211) { copy = Uint8Array.from(pk); copy[i2] ^= 0x41; flips++; throwsJ(function () { J.unpack(copy, opt({ pco: PCO })); }, 'flip at ' + i2); }
-  var nocheck = J.pack(rows, opt({ pco: PCO }));
-  for (i2 = 0; i2 < nocheck.length; i2 += 53) { copy = Uint8Array.from(nocheck); copy[i2] ^= 0xA5; try { J.unpack(copy, opt({ pco: PCO })); } catch (e) { bad++; assert(/MemoryCompression|Invalid|RangeError|data is cut|Pcodec|bad|checksum/.test(String(e)), 'a clean error: ' + e); } }
-  var big = new Float64Array(8192); for (q = 0; q < big.length; q++) big[q] = r() * 100;
-  var raw = PCO.compress(0, big);
-  assert.strictEqual(PCO.decompress(0, raw, 8192).length, 8192);
-  assert.throws(function () { PCO.decompress(0, raw, 4096); }, 'more numbers than the caller allows');
-  assert.throws(function () { PCO.decompress(0, raw, 16384); }, 'fewer numbers than the caller expects');
-  assert.throws(function () { PCO.decompress(2, raw, 8192); }, 'the wrong number kind');
-  assert.throws(function () { PCO.decompress(0, raw.subarray(0, raw.length >> 1), 8192); }, 'cut data');
-  assert.throws(function () { PCO.decompress(0, new Uint8Array(40), 8192); }, 'not Pcodec data');
-  assert.throws(function () { PCO.decompress(0, raw, 0); }, 'zero count');
-  assert.throws(function () { PCO.decompress(0, raw, 1e12); }, 'absurd count');
-  assert.throws(function () { PCO.compress(2, big); }, 'wrong array type');
-  PCO.release(); assert.strictEqual(PCO.decompress(0, raw, 8192)[17], big[17], 'works again after release()');
 });
 t('refs: columns of records and of references, shared and circular', function () {
   var nodes = many(300, function (i) { return { id: i, label: 'n' + i, x: i * 0.5, on: i % 2 === 0 }; });
@@ -404,5 +451,7 @@ t('fuzz: random values of every supported kind round-trip exactly', function () 
   assert.strictEqual(seeds, count);
 });
 
-console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
-process.exit(failed ? 1 : 0);
+later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
+  console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
+  process.exit(failed ? 1 : 0);
+});
