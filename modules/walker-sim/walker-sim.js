@@ -5,7 +5,7 @@
  * check against; what-if sweeps. Names and help texts for the random-number kinds are in the optional walker-sim-menu.js.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.0.0 (API 2)
+ * Version 2.1.0 (API 2)
  *
  *   var P = WalkerSim.graph({ links: [{ from: "start", to: "a", weight: 3 }, { from: "start", to: "b", weight: 1 }] });
  *   var sim = WalkerSim.create(P, { seed: 7, trials: 10000 }); sim.run(1e9, 1e9);   // run(max trials, max milliseconds)
@@ -18,6 +18,8 @@
   else root.WalkerSim = factory();
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
+
+  var kernelMaker = null;     // set by walker-sim-wasm.js through useKernel
 
   /* ---------------------------------------------------------------- random numbers */
   function mix32(a, b) {
@@ -48,6 +50,8 @@
       return t ^ (t >>> 14);
     };
     var u = function () { return (next() >>> 0) / 4294967296; };
+    u.reseed = function (x) { s = x | 0; };
+    u.state = function () { return s; };
     var slow = function (hz, iz) {
       for (;;) {
         var x = hz * ZW[iz];
@@ -209,16 +213,63 @@
       default: return { mean: NaN, variance: NaN };
     }
   }
+  /* Draws with the numbers that depend only on a, b and c worked out once (the logs and roots below used to be worked out again at every draw).
+     Same numbers out for the same random numbers in. Only the kinds that spent most of their time on that are here; the others use DRAW as before. */
+  var PREP = {
+    lognormal: function (a, b) {
+      if (!(a > 0)) return function () { return 0; };
+      var s2 = Math.log(1 + (b / a) * (b / a)), mu = Math.log(a) - s2 / 2, sd = Math.sqrt(s2);
+      return function (r) { return Math.exp(mu + sd * r.normal()); };
+    },
+    gamma: function (a, b) {
+      if (!(a > 0)) return function () { return 0; };
+      if (!(b > 0)) return function () { return a; };
+      var k = (a / b) * (a / b), th = b * b / a;
+      if (k < 1) return function (r) { return gammaShape(r, k) * th; };
+      var d = k - 1 / 3, c = 1 / Math.sqrt(9 * d);
+      return function (r) {
+        for (;;) {
+          var x, v;
+          do { x = r.normal(); v = 1 + c * x; } while (v <= 0);
+          v = v * v * v;
+          var u = r() || 1e-300;
+          if (u < 1 - 0.0331 * x * x * x * x) return d * v * th;
+          if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v * th;
+        }
+      };
+    },
+    weibull: function (a, b) {
+      if (!(a > 0 && b > 0)) return function () { return 0; };
+      var ib = 1 / b;
+      return function (r) { return a * Math.pow(-Math.log(r() || 1e-300), ib); };
+    },
+    pareto: function (a, b) {
+      if (!(a > 0 && b > 0)) return function () { return 0; };
+      var ib = 1 / b;
+      return function (r) { return a / Math.pow(r() || 1e-300, ib); };
+    },
+    geometric: function (a) {
+      if (!(a > 1)) return function () { return 1; };
+      var lq = Math.log(1 - 1 / a);
+      return function (r) { return Math.max(1, Math.ceil(Math.log(r() || 1e-300) / lq)); };
+    }
+  };
   /** spec: { dist, a, b, c, values } with numbers, or arrays per element for a, b, c. Returns draw(rng, i). */
   function drawer(spec) {
     if (!spec || !spec.dist) return null;
-    var f = DRAW[spec.dist], A = spec.a, B = spec.b, C = spec.c, V = spec.values;
+    var f = DRAW[spec.dist], A = spec.a, B = spec.b, C = spec.c, V = spec.values, pf = PREP[spec.dist];
     if (spec.dist === 'empirical') {
       if (!V || !V.length) return null;
       return function (r) { return V[Math.floor(r() * V.length)]; };
     }
     if (!f) return null;
     var arr = function (x, i) { return x !== null && x !== undefined && typeof x === 'object' ? x[i] : x; };
+    if (pf) {
+      var obj = function (x) { return x !== null && x !== undefined && typeof x === 'object'; };
+      if (!obj(A) && !obj(B) && !obj(C)) { var one = pf(A, B, C); return function (r) { return one(r); }; }
+      var cache = [];
+      return function (r, i) { var g = cache[i]; if (!g) g = cache[i] = pf(arr(A, i), arr(B, i), arr(C, i)); return g(r); };
+    }
     return function (r, i) { return f(r, arr(A, i), arr(B, i), arr(C, i)); };
   }
 
@@ -319,6 +370,23 @@
       }
     };
     if (weightsFixed) buildCum(makeRng(1));
+    // A lookup table per item: the first 8 bits of the random number pick the way on directly, and only the few slices that cross a boundary between two
+    // ways on fall back to the scan (255). Same way on as the scan gives, so the counts do not change.
+    var LUT = null, LB = 8, LN = 1 << LB;
+    if (weightsFixed && (rule === 'weights' || rule === 'uniform' || rule === 'softmax')) {
+      LUT = new Uint8Array(n * LN);
+      for (var lv = 0; lv < n; lv++) {
+        var la = os[lv], lb = os[lv + 1];
+        if (halt[lv] || lb === la) continue;
+        if (lb - la > 254) { LUT.fill(255, lv * LN, lv * LN + LN); continue; }
+        var ls = la;
+        for (var lj = 0; lj < LN; lj++) {
+          var llo = lj / LN, lhi = (lj + 1) / LN;
+          while (cumN[ls] <= llo) ls++;
+          LUT[lv * LN + lj] = cumN[ls] >= lhi ? ls - la : 255;
+        }
+      }
+    }
     var viaTable = rule !== 'first' && rule !== 'curious';       // those two pick their way on one item at a time (pickEdge); the rest scan cumN
     var st = {
       P: P, cfg: cfg, T: T, trial: first, first: first, nTrials: 0, K: K, ends: ends, epOf: epOf, walkers: 0, stuck: 0, stoppedEarly: false,
@@ -365,16 +433,54 @@
       for (v = 0; v < n; v++) st.visits[v] = startCount[v];
       for (k = 0; k < m; k++) { st.moves[oe[k]] = movesCsr[k]; st.visits[tg[k]] += movesCsr[k]; }
     }
+    var shared = makeRng(0), hand = null;
+    // An optional faster walker (walker-sim-wasm.js) takes over the same loop with the same numbers once a run has walked wasmAfter walkers (20,000 unless cfg.wasmAfter says otherwise:
+    // setting it up costs about as much as walking that many). It works in copies of the arrays the loop counts in, so what was counted so far is copied over.
+    var wantHand = kernelMaker !== null && LUT !== null && viaTable && !dCost && !dDwell && cfg.wasm !== false && srcs.length === 1 && cap <= 100000, handAfter = cfg.wasmAfter >= 0 ? +cfg.wasmAfter : 20000;
+    st.engine = 'js';
+    function attachHand() {
+      wantHand = false;
+      hand = kernelMaker({ n: n, m: m, K: K, cap: cap, os: os, tg: tg, halt: halt, epOf: epOf, lut: LUT, cumN: cumN });
+      if (!hand) return;
+      hand.moves.set(movesCsr); hand.tab.set(st.stepTab.a);
+      movesCsr = hand.moves; st.stepTab.a = hand.tab; trialCounts = hand.counts; st.engine = 'wasm';
+    }
+    // The walkers of one trial for the common case (fixed weights, one start, no costs): the generator's state sits in a local variable (the same numbers as rng() gives),
+    // and a lookup table per item picks the way on from the first 8 bits of the random number (255 = a boundary falls in that slice: scan like the loop below does).
+    function walkPlain(rng, count, start) {
+      var lLut = LUT, lOs = os, lCum = cumN, lTg = tg, lHalt = halt, lMoves = movesCsr, lTab = st.stepTab.a, lEp = epOf, lCap = cap, s0 = rng.state(), stuck = 0;
+      for (var wk = 0; wk < count; wk++) {
+        var v = start, steps = 0, sl, t, e;
+        while (lHalt[v] === 0 && steps < lCap) {
+          sl = lOs[v];
+          s0 = (s0 + 0x6d2b79f5) | 0;
+          t = Math.imul(s0 ^ (s0 >>> 15), 1 | s0);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          t = t ^ (t >>> 14);
+          if (lLut !== null) { e = lLut[(v << LB) + (t >>> (32 - LB))]; if (e !== 255) { sl += e; lMoves[sl]++; v = lTg[sl]; steps++; continue; } }
+          var r = (t >>> 0) / 4294967296;
+          while (lCum[sl] <= r) sl++;
+          lMoves[sl]++; v = lTg[sl]; steps++;
+        }
+        lTab[steps]++;
+        if (isEnd[v]) trialCounts[lEp[v]]++; else stuck++;
+      }
+      rng.reseed(s0);
+      return stuck;
+    }
     st.run = function (maxTrials, budgetMs) {
       var t0 = Date.now(), done = 0;
       if (!srcs.length) { st.trial = T; return { done: true, trials: st.nTrials }; }
       while (st.trial < T && done < maxTrials && (Date.now() - t0 < budgetMs || done === 0)) {
-        var rng = rngFor(seed, st.trial);
+        if (wantHand && st.walkers >= handAfter) attachHand();
+        var rng = shared; rng.reseed(mix32(seed | 0, st.trial | 0));
         if (!weightsFixed) buildCum(rng);
         var count = Math.max(0, Math.round(dArr(rng, 0)));
         if (st.walkers + count > maxWalkers) count = Math.max(0, maxWalkers - st.walkers);
         var k, stuckHere = 0, plain = viaTable && !dCost && !dDwell;
         for (k = 0; k < K; k++) trialCounts[k] = 0;
+        var inLoop = 0;
+        if (plain && srcs.length === 1) { startCount[srcs[0].v] += count; stuckHere = (hand ? hand.walk : walkPlain)(rng, count, srcs[0].v); inLoop = count; count = 0; }     // the common case; count comes back below
         for (var wk = 0; wk < count; wk++) {
           var s = srcs[0].v;
           if (srcs.length > 1) { var xr = rng() * tot, si = 0; while (si < srcs.length - 1 && srcCum[si] < xr) si++; s = srcs[si].v; }
@@ -406,6 +512,7 @@
             if (dCost || dDwell) { var ce = st.epCosts[ep]; ce.n = (ce.n || 0) + 1; pushSample(ce, ce.n, EPCOST_CAP, cost); }
           } else stuckHere++;
         }
+        count += inLoop;
         st.walkers += count; st.stuck += stuckHere;
         for (k = 0; k < K; k++) {
           var tc = trialCounts[k];
@@ -754,6 +861,13 @@
   }
   function indeg(P, v) { return P.inStart[v + 1] - P.inStart[v]; }
 
+  /** The standard deviation of one draw of a distribution spec for element i, or NaN when it has none. */
+  function specSd(spec, i) {
+    var V = spec.values, pick = function (x) { return x !== null && x !== undefined && typeof x === 'object' ? x[i] : x; };
+    if (spec.dist === 'empirical') { if (!V || !V.length) return NaN; var mu = 0, q = 0, j; for (j = 0; j < V.length; j++) mu += V[j]; mu /= V.length; for (j = 0; j < V.length; j++) q += (V[j] - mu) * (V[j] - mu); return Math.sqrt(q / V.length); }
+    var v = moments(spec.dist, pick(spec.a), pick(spec.b), pick(spec.c)).variance;
+    return isFinite(v) ? Math.sqrt(Math.max(0, v)) : NaN;
+  }
   /** The average of one draw of a distribution spec for element i (a link or an item), or NaN when it has no average. */
   function specMean(spec, i) {
     var d = spec.dist, V = spec.values;
@@ -854,5 +968,38 @@
     return { ok: true, what: what, ends: base.ends.map(function (v) { return P.nodes[v].id; }), before: Array.prototype.slice.call(base.p), beforeStuck: base.stuck, rows: rows, partial: cand.length > rows.length, converged: allConverged };
   }
 
-  return { graph: graph, DRAW: DRAW, moments: moments, drawer: drawer, makeRng: makeRng, rngFor: rngFor, lgamma: lgamma, create: create, merge: merge, exactEndpoints: exactEndpoints, exactSummary: exactSummary, sweep: sweep, wilson: wilson, quantile: quantile };
+  /**
+   * Which link weights matter most? For every link with walkers on it: how far each end's odds move per unit of that weight (exact, from the same solve as exactEndpoints,
+   * no re-solving per link). Rows: { e, from, to, d: [change in each end's odds per +1 on the weight], reach: sum of absolute changes }, biggest reach first.
+   * If cfg.linkWeight says how unsure each weight is, sd gives the spread of every end's odds that this causes (delta method). With linkWeight the odds are at the average weights.
+   * opts: { top } (default 40 rows; all links are still used for sd). Needs what exactEndpoints needs, but linkWeight is allowed here.
+   * The walkers' visits are counted within stepCap steps (default 400), so for networks where most walkers need more steps than that the numbers are low.
+   */
+  function sensitivity(P, cfg, opts) {
+    opts = opts || {}; cfg = cfg || {};
+    var spec = cfg.linkWeight && cfg.linkWeight.dist ? cfg.linkWeight : null, plainCfg = Object.assign({}, cfg), e0;
+    delete plainCfg.linkWeight;
+    if (spec) {     // the odds are worked out at the average of every weight
+      var wm = new Float64Array(P.m);
+      for (e0 = 0; e0 < P.m; e0++) { wm[e0] = specMean(spec, e0); if (!isFinite(wm[e0])) return { ok: false, reason: 'A link weight has no average, so there is no middle to work out the odds at.', rows: [] }; }
+      plainCfg.weights = wm;
+    }
+    var x = exactEndpoints(P, plainCfg);
+    if (!x || (cfg.rule || 'weights') !== 'weights') return { ok: false, reason: 'The sensitivity table needs the weighted choice (rule weights) and ends that are items with no way on.', rows: [] };
+    var K = x.K, n = P.n, m = P.m, Su = new Float64Array(n), e, q, u, t, rows = [], vr = spec ? new Float64Array(K) : null;
+    for (e = 0; e < m; e++) Su[P.from[e]] += x.weights[e];
+    for (e = 0; e < m; e++) {
+      u = P.from[e]; t = P.to[e];
+      if (!(x.visits[u] > 0) || !(Su[u] > 0)) continue;
+      var d = new Float64Array(K), reach = 0, f = x.visits[u] / Su[u], sd = vr ? specSd(spec, e) : 0;
+      for (q = 0; q < K; q++) { d[q] = f * (x.c[t * K + q] - x.c[u * K + q]); reach += Math.abs(d[q]); if (vr) vr[q] += d[q] * d[q] * sd * sd; }
+      rows.push({ e: e, from: P.nodes[u].id, to: P.nodes[t].id, d: Array.prototype.slice.call(d), reach: reach });
+    }
+    rows.sort(function (a, b) { return b.reach - a.reach; });
+    var out = { ok: true, ends: x.ends.map(function (v) { return P.nodes[v].id; }), p: Array.prototype.slice.call(x.p), rows: rows.slice(0, opts.top || 40), converged: x.converged };
+    if (vr) out.sd = Array.prototype.map.call(vr, Math.sqrt);
+    return out;
+  }
+
+  return { graph: graph, DRAW: DRAW, moments: moments, drawer: drawer, makeRng: makeRng, rngFor: rngFor, lgamma: lgamma, create: create, merge: merge, exactEndpoints: exactEndpoints, exactSummary: exactSummary, sweep: sweep, sensitivity: sensitivity, useKernel: function (f) { kernelMaker = typeof f === 'function' ? f : null; }, wilson: wilson, quantile: quantile };
 }));

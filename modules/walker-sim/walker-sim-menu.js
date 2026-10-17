@@ -3,7 +3,7 @@
  * Optional: walker-sim.js draws all the numbers without it. Load walker-sim.js first; this file adds WalkerSim.DISTS and WalkerSim.DIST_BY.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.0.0 (API 2)
+ * Version 2.1.0 (API 2)
  */
 
 (function (root, factory) {

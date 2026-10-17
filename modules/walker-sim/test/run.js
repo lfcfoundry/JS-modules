@@ -166,6 +166,63 @@ const run = (P, cfg) => { const q = S.create(P, cfg); q.run(1e9, 1e9); return q;
   const pf = run(P, { seed: 2, trials: 100, rule: 'first', weights: P.w, arrivals: { dist: 'fixed', a: 50 } }).snapshot(); ok(pf.endpoints.reduce((a, e) => a + e.count, 0) + pf.stuck === 5000, 'the first rule runs');
 }
 // the menu of distribution names is a separate file
+// 2.1.0: faster main loop and cost draws give the same counts as 2.0.0 for the same seed (pinned from 2.0.0)
+const pinLinks = []; for (let i = 0; i < 300; i++) { pinLinks.push({ from: 's', to: 'm' + i, weight: 1 + i % 5 }, { from: 'm' + i, to: 'e' + (i % 6), weight: 2 + i % 3 }); if (i % 7 === 0) pinLinks.push({ from: 'm' + i, to: 'm' + ((i * 5 + 1) % 300), weight: 1 }); if (i % 11 === 0) pinLinks.push({ from: 'm' + i, to: 's', weight: 1 }); }
+const Pw = S.graph({ links: pinLinks, start: 's' }), pins = {
+    plain: [{ rule: 'weights', trials: 300, arrivals: { dist: 'fixed', a: 200 } }, '9648,10280,10089,9799,10098,10086', 0],
+    softmax: [{ rule: 'softmax', temp: 2, trials: 300, arrivals: { dist: 'fixed', a: 200 } }, '9640,10287,10014,9660,10159,10240', 0],
+    capped: [{ rule: 'weights', stepCap: 2, trials: 300, arrivals: { dist: 'fixed', a: 200 } }, '9084,9519,9540,9243,9386,9587', 3641],
+    costs: [{ rule: 'weights', trials: 300, arrivals: { dist: 'poisson', a: 150 }, linkCost: { dist: 'lognormal', a: 5, b: 2 }, dwell: { dist: 'gamma', a: 2, b: 1 } }, '7231,7650,7563,7254,7414,7657', 0] };
+  for (const k in pins) {
+    const sw = S.create(Pw, Object.assign({ seed: 11, weights: Pw.w }, pins[k][0])); sw.run(1e9, 1e9); const rw = sw.snapshot();
+    ok(rw.endpoints.map(e => e.count).join() === pins[k][1] && rw.stuck === pins[k][2], 'same counts as 2.0.0 (' + k + ', one item with 300 ways on): ' + rw.endpoints.map(e => e.count).join());
+  }
+// 2.1.0: sensitivity() against finite differences, and the spread from uncertain weights against exact re-solves
+{
+  const links = []; let q = 7; const rn = () => (q = (Math.imul(q, 1664525) + 1013904223) >>> 0) / 4294967296;
+  for (let i = 0; i < 40; i++) { links.push({ from: 's', to: 'a' + i, weight: 1 + Math.floor(rn() * 5) }); for (let j = 0; j < 3; j++) links.push({ from: 'a' + i, to: rn() < 0.1 ? 'a' + Math.floor(rn() * 40) : 'e' + Math.floor(rn() * 8), weight: 1 + Math.floor(rn() * 5) }); }
+  const Ps = S.graph({ links, start: 's' }), sc = { rule: 'weights', weights: Ps.w }, sn = S.sensitivity(Ps, sc, { top: 12 });
+  let worst = 0;
+  for (const row of sn.rows) {
+    const h = 1e-4, up = Float64Array.from(Ps.w), dn = Float64Array.from(Ps.w); up[row.e] += h; dn[row.e] -= h;
+    const a = S.exactEndpoints(Ps, { rule: 'weights', weights: up }), b = S.exactEndpoints(Ps, { rule: 'weights', weights: dn });
+    for (let k = 0; k < row.d.length; k++) worst = Math.max(worst, Math.abs((a.p[k] - b.p[k]) / (2 * h) - row.d[k]));
+  }
+  ok(sn.ok && sn.rows.length === 12 && sn.rows[0].reach >= sn.rows[11].reach && worst < 1e-7, 'sensitivity matches finite differences on the 12 biggest links (worst gap ' + worst.toExponential(1) + ')');
+  const cv = 0.3, su = S.sensitivity(Ps, { rule: 'weights', linkWeight: { dist: 'gamma', a: Array.from(Ps.w), b: Array.from(Ps.w, w => w * cv) } }), rg = S.makeRng(5), dg = S.drawer({ dist: 'gamma', a: 1, b: cv }), T = 300, mean = new Float64Array(su.p.length), sq = new Float64Array(su.p.length);
+  for (let t = 0; t < T; t++) { const r = S.exactEndpoints(Ps, { rule: 'weights', weights: Float64Array.from(Ps.w, w => w * dg(rg, 0)) }); for (let k = 0; k < mean.length; k++) { mean[k] += r.p[k] / T; sq[k] += r.p[k] * r.p[k] / T; } }
+  let worstR = 0; for (let k = 0; k < mean.length; k++) worstR = Math.max(worstR, Math.abs(su.sd[k] / Math.sqrt(sq[k] - mean[k] * mean[k]) - 1));
+  ok(su.sd && worstR < 0.2, 'spread of every end\'s odds from weight uncertainty is within ' + (worstR * 100).toFixed(0) + '% of 300 exact re-solves');
+  ok(!S.sensitivity(Ps, { rule: 'uniform' }).ok, 'sensitivity says so in plain words when the choice is not weighted');
+}
+
+// 2.1.0: the optional WebAssembly loop gives the same counts, and is only used when it can be
+{
+  const fs = require('fs'), file0 = path.resolve(process.argv[2] || path.join(__dirname, '..', 'walker-sim.js')), isMin = /\.min\.js$/.test(file0);
+  const wf = path.join(path.dirname(file0), isMin ? 'walker-sim-with-wasm.min.js' : 'walker-sim-wasm.js');
+  if (!fs.existsSync(wf)) ok(true, 'no WebAssembly file beside this copy (' + path.basename(wf) + '), skipped');
+  else {
+    const W = require(wf), PW = W.graph({ links: pinLinks, start: 's' });
+    ok(typeof W.wasm === 'boolean', 'WalkerSim.wasm says whether WebAssembly is usable here: ' + W.wasm);
+    for (const k in pins) {
+      const a = W.create(PW, Object.assign({ seed: 11, weights: PW.w }, pins[k][0])), b = W.create(PW, Object.assign({ seed: 11, weights: PW.w, wasm: false }, pins[k][0]));
+      a.run(1e9, 1e9); b.run(1e9, 1e9);
+      const ra = a.snapshot(), rb = b.snapshot(), want = (k === 'plain' || k === 'softmax' || k === 'capped') && W.wasm ? 'wasm' : 'js';
+      ok(ra.endpoints.map(e => e.count).join() === pins[k][1] && ra.stuck === pins[k][2] && JSON.stringify(ra.steps) === JSON.stringify(rb.steps) && a.engine === want && b.engine === 'js', 'the WebAssembly file gives the 2.0.0 counts (' + k + ', ran on ' + a.engine + '; wasm: false runs on ' + b.engine + ')');
+    }
+    const a = W.create(PW, { seed: 5, trials: 400, weights: PW.w, arrivals: { dist: 'fixed', a: 60 } }); let g = 0; while (!a.run(37, 1e9).done && g++ < 1e4);
+    const b = W.create(PW, { seed: 5, trials: 400, weights: PW.w, arrivals: { dist: 'fixed', a: 60 }, wasm: false }); b.run(1e9, 1e9);
+    ok(JSON.stringify(a.export()) === JSON.stringify(b.export()), 'cut into batches of 37 trials, the WebAssembly run exports exactly what the JavaScript run does');
+    if (!isMin) {     // a page that forbids WebAssembly (or a browser without it): loading the file changes nothing
+      const keep = global.WebAssembly; global.WebAssembly = undefined;
+      for (const f of [wf, path.join(path.dirname(wf), 'walker-sim.js')]) delete require.cache[require.resolve(f)];
+      const N0 = require(wf), pn = N0.graph({ links: pinLinks, start: 's' }), sn = N0.create(pn, Object.assign({ seed: 11, weights: pn.w }, pins.plain[0])); sn.run(1e9, 1e9);
+      global.WebAssembly = keep;
+      ok(N0.wasm === false && sn.engine === 'js' && sn.snapshot().endpoints.map(e => e.count).join() === pins.plain[1], 'without WebAssembly the file does nothing and the counts are still the 2.0.0 counts');
+    }
+  }
+}
+
 {
   ok(S.DISTS === undefined && S.DRAW.poisson && S.DRAW.normal, 'the core has the random numbers and no menu text');
   const menuFile = path.join(path.dirname(path.resolve(process.argv[2] || path.join(__dirname, '..', 'walker-sim.js'))), 'walker-sim-menu.js');
