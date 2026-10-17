@@ -142,6 +142,61 @@ check('the fixtures include memory that is not a multiple of 4', cases.some((c) 
   const t0 = process.hrtime.bigint(), r = attempt(() => ppmd7Decode(c.src, 5e12, 12, 65536));
   check('an impossible result size is an Error', ourError(r) && ms(t0) < 500, r.err && r.err.message); }
 
+// 10b. the optional WebAssembly add-on (ppmd-decode-wasm.js): same bytes, same errors, and a quiet fallback to the JavaScript decoder
+{ const WASM_FILE = path.join(__dirname, '..', 'ppmd-decode-wasm.js');
+  const W = require(WASM_FILE);
+  check('the add-on exports ppmd7DecodeWasm with fromProps, wasm and engine', typeof W === 'function' && W.name === 'ppmd7DecodeWasm' && typeof W.fromProps === 'function' && typeof W.wasm === 'boolean' && typeof W.engine === 'string');
+  check('WebAssembly is usable in this Node', W.wasm === true);
+  let allSame = true, notWasm = '';
+  for (const c of cases) {
+    const r = attempt(() => W(c.src, c.m.size, c.m.order, c.m.mem));
+    if (!(r.ok && same(r.value, c.raw))) allSame = false;
+    if (c.m.size > 0 && W.engine !== 'wasm') notWasm += ' ' + c.m.name;
+  }
+  check('every fixture decodes to the same bytes through the add-on (' + cases.length + ' fixtures)', allSame);
+  check('...and the add-on, not the JavaScript decoder, did the work' + (notWasm ? ' (not: ' + notWasm + ')' : ''), !notWasm);
+  const pm = byName('page-30k-o12'), propsBlob = Uint8Array.from([pm.m.order, pm.m.mem & 255, (pm.m.mem >> 8) & 255, (pm.m.mem >> 16) & 255, (pm.m.mem >>> 24) & 255]);
+  check('fromProps gives the same bytes', same(W.fromProps(pm.src, pm.m.size, propsBlob), pm.raw));
+  // damaged copies: both decoders must end the same way (the same Error text, or the same bytes)
+  const r = rng(98765), picks = [byName('js-5000'), byName('html-100'), byName('page-12k-m2048'), byName('page-30k-o12')];
+  let agree = 0, errs = 0, disagree = '';
+  for (let i = 0; i < 160; i++) {
+    const c = picks[i % picks.length], bad = Uint8Array.from(c.src), mode = i % 4;
+    let size = c.m.size, order = c.m.order, mem = c.m.mem;
+    if (mode === 0) { bad[1 + ((r() * (bad.length - 1)) | 0)] ^= 1 + ((r() * 255) | 0); }
+    else if (mode === 1) { for (let k = 0; k < 4; k++) bad[1 + ((r() * (bad.length - 1)) | 0)] = (r() * 256) | 0; }
+    else if (mode === 2) { size = c.m.size + 1 + ((r() * 400) | 0); }
+    else { mem = Math.max(2048, c.m.mem + 1 + ((r() * 3000) | 0)); order = 2 + ((r() * 30) | 0); }
+    const a = attempt(() => ppmd7Decode(bad, size, order, mem)), b = attempt(() => W(bad, size, order, mem));
+    if (!a.ok) errs++;
+    if (a.ok ? (b.ok && same(a.value, b.value)) : (!b.ok && a.err.message === b.err.message)) agree++; else disagree += ' #' + i;
+  }
+  check('160 damaged or mismatched copies: the add-on and the JavaScript decoder end the same way (' + errs + ' ended in an Error)' + (disagree ? ' (differ:' + disagree + ')' : ''), agree === 160);
+  const c = byName('js-5000'), good = [c.src, c.m.size, c.m.order, c.m.mem];
+  let sameText = true, badList = '';
+  for (const [label, i, v] of [['order 1', 2, 1], ['order 65', 2, 65], ['order 2.5', 2, 2.5], ['memSize 100', 3, 100], ['memSize NaN', 3, NaN], ['memSize 2^31', 3, 2147483648], ['outSize -1', 1, -1], ['outSize 1.5', 1, 1.5]]) {
+    const a = good.slice(); a[i] = v;
+    const ra = attempt(() => ppmd7Decode.apply(null, a)), rb = attempt(() => W.apply(null, a));
+    if (ra.ok || rb.ok || ra.err.message !== rb.err.message) { sameText = false; badList += ' ' + label; }
+  }
+  check('bad arguments throw the same Error text through the add-on' + (badList ? ' (differ:' + badList + ')' : ''), sameText);
+  check('a first byte that is not 0 and a result size of 0 behave like the JavaScript decoder', !attempt(() => W(Uint8Array.from([1, 0, 0, 0, 0, 0, 0]), 10, 12, 1 << 20)).ok && W(new Uint8Array(0), 0, 12, 1 << 20).length === 0 && W.engine === 'js');
+  const okMax = attempt(() => W(c.src, c.m.size, c.m.order, c.m.mem, { maxSize: c.m.size - 1 }));
+  check('maxSize smaller than outSize throws', ourError(okMax));
+  const t0 = process.hrtime.bigint(), big = attempt(() => W(c.src, 5e12, 12, 65536));
+  check('an impossible result size is an Error, not a crash (' + ms(t0).toFixed(0) + ' ms)', ourError(big) && ms(t0) < 1500, big.err && big.err.message);
+  // pages that forbid WebAssembly, or browsers without it: loading still works and every call goes to the JavaScript decoder
+  const text = fs.readFileSync(FILE, 'utf8'), head = text.slice(0, text.indexOf('\nif (typeof module')), addon = fs.readFileSync(WASM_FILE, 'utf8');
+  for (const [label, wa] of [['no WebAssembly object', undefined], ['WebAssembly blocked by the page policy', { Module: function () { throw new Error('blocked by policy'); }, Instance: function () { throw new Error('blocked'); }, Memory: function () { throw new Error('blocked'); } }]]) {
+    const ctx = vm.createContext({ atob: globalThis.atob, Uint8Array, Math, Error, WebAssembly: wa });
+    vm.runInContext('"use strict";' + head, ctx);
+    vm.runInContext(addon, ctx);
+    const pc = byName('page-30k-o12');
+    const out = ctx.ppmd7DecodeWasm(pc.src, pc.m.size, pc.m.order, pc.m.mem);
+    check('fallback (' + label + '): loads, wasm is false, engine is js, bytes are right', ctx.ppmd7DecodeWasm.wasm === false && ctx.ppmd7DecodeWasm.engine === 'js' && same(new Uint8Array(out), pc.raw));
+  }
+  check('the add-on file is plain ASCII with the MIT header line', !/[^\x00-\x7F]/.test(addon) && /Copyright \(c\) 2026 LFC Foundry\. MIT License/.test(addon.slice(0, 1500))); }
+
 // 11. no global variables are left behind, in Node or in a bare context
 { check('Node: no new globals after all of the above', Object.getOwnPropertyNames(globalThis).sort().join('|') === globalsBefore);
   const text = fs.readFileSync(FILE, 'utf8'), at = text.indexOf('\nif (typeof module');
