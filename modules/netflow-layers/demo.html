@@ -1,0 +1,98 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : netflow-layers demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>netflow-layers demo</title>
+<style>body{font:16px/1.45 system-ui,sans-serif;max-width:64rem;margin:0 auto;padding:1rem}h1{font-size:1.4rem}button,input,select,textarea{font:inherit}textarea{width:100%;box-sizing:border-box;font-family:ui-monospace,monospace}label{display:inline-block;margin:.2rem .9rem .2rem 0}.out{overflow:auto;border:1px solid #8884;border-radius:.5rem;max-height:34rem;padding:.5rem;margin-top:.5rem}.note{color:#667;font-size:.9rem}</style>
+<h1>netflow-layers demo</h1>
+<p>One link per line: <code>From &gt; To</code>. The first page is the start. Turn the choices on and off and watch the picture change. "Make a long story" fills the box with 600 pages.</p>
+<textarea id="t" rows="10" spellcheck="false">Wake > Path
+Wake > Boat
+Path > Door
+Path > Cave
+Boat > Door
+Boat > Storm
+Cave > Door
+Cave > Tide
+Door > Hall
+Hall > Stairs
+Hall > Cellar
+Cellar > Hall
+Cellar > Lens
+Lens > Stairs
+Stairs > Lamp
+Lamp > Light
+Lamp > Dark
+Light > Saved
+Dark > Wake
+Wake > Saved</textarea>
+<p><label>Direction <select id="dir"><option value="TB">Top to bottom</option><option value="LR">Left to right</option></select></label>
+<label><input type="checkbox" id="story"> Story order</label>
+<label><input type="checkbox" id="tags"> Tags for long links (over 8 rows)</label>
+<label><input type="checkbox" id="spine"> Must-pass pages in one column</label>
+<label><input type="checkbox" id="better"> Untangle harder</label>
+<label><input type="checkbox" id="wrap"> Cut a tall map into columns</label>
+<button id="big" type="button">Make a long story</button></p>
+<p id="msg" class="note"></p><div class="out" id="out"></div>
+<script src="netflow-layers.js"></script>
+<script>
+'use strict';
+var $ = function (i) { return document.getElementById(i); };
+function parse(text) {
+  var ids = [], seen = {}, edges = [];
+  text.split('\n').forEach(function (ln) {
+    var m = /^(.+?)\s*>\s*(.+?)\s*$/.exec(ln); if (!m) return;
+    [m[1], m[2]].forEach(function (x) { if (!seen[x]) { seen[x] = 1; ids.push(x); } }); edges.push({ from: m[1], to: m[2] });
+  });
+  /* a page every route passes: here, a page that is the only way into everything below it is not worked out; the demo marks pages that have no sibling in their row afterwards */
+  return { root: ids[0], nodes: ids.map(function (x) { return { id: x, label: x, w: 120, h: 40 }; }), edges: edges };
+}
+function draw() {
+  var g = parse($('t').value), t0 = performance.now();
+  try {
+    var first = NetflowLayers.layout(g, { dir: $('dir').value });
+    var rowSize = {}; first.nodes.forEach(function (n) { rowSize[n.layer] = (rowSize[n.layer] || 0) + 1; });
+    g.nodes.forEach(function (n, i) { n.choke = rowSize[first.nodes[i].layer] === 1; });   /* alone in its row: shown as a must-pass page */
+    var R = NetflowLayers.layout(g, { dir: $('dir').value, rows: $('story').checked ? 'story' : 'route', tagLen: $('tags').checked ? 8 : 0, spine: $('spine').checked, better: $('better').checked, wrap: $('wrap').checked });
+    $('out').innerHTML = NetflowLayers.toSvg(R);
+    $('msg').textContent = R.nodes.length + ' pages, ' + R.edges.length + ' links, ' + R.info.rows + ' rows, ' + R.info.stops + ' stand-in stops, ' + R.info.tags + ' tags, ' + (R.info.back + R.info.flat + R.info.goldTags) + ' gold (back or sideways) links, ' + R.crossings + ' crossings, ' + R.info.columns + ' column(s); drawn in ' + Math.round(performance.now() - t0) + ' ms.';
+  } catch (e) { $('out').textContent = ''; $('msg').textContent = e.tooBig ? 'Too big for a layered drawing: turn on tags.' : String(e.message || e); }
+}
+function longStory() {
+  var s = 5, r = function () { s = (s + 0x6d2b79f5) | 0; var x = Math.imul(s ^ (s >>> 15), 1 | s); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+  var lines = [], id = 0, cur = id++, chokes = [cur];
+  while (id < 600) {
+    var b = 2 + Math.floor(r() * 3), ends = [];
+    for (var i = 0; i < b; i++) { var d = 1 + Math.floor(r() * 3), p = cur; for (var j = 0; j < d; j++) { var v = id++; lines.push('Page ' + p + ' > Page ' + v); p = v; } ends.push(p); }
+    var m = id++; ends.forEach(function (e) { lines.push('Page ' + e + ' > Page ' + m); });
+    if (r() < 0.2) lines.push('Page ' + m + ' > Page ' + chokes[Math.floor(r() * chokes.length)]);
+    cur = m; chokes.push(m);
+  }
+  $('t').value = lines.join('\n');
+}
+['t', 'dir', 'story', 'tags', 'spine', 'better', 'wrap'].forEach(function (i) { $(i).addEventListener('input', draw); $(i).addEventListener('change', draw); });
+$('big').addEventListener('click', function () { longStory(); draw(); });
+draw();
+</script>
