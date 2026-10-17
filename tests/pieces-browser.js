@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Browser checks for test-isolation, slow-note, grown-ups-door, spotlight-tour and speed-lab. Copyright (c) 2026 LFC Foundry. MIT License.
+// Browser checks for test-isolation, slow-note, grown-ups-door, env-probes, spotlight-tour and speed-lab. Copyright (c) 2026 LFC Foundry. MIT License.
 // Opens each piece in a real browser, one browser at a time. Needs puppeteer-core.
 // Run: CHROMIUM=/path/to/chrome FIREFOX=/path/to/firefox node tests/pieces-browser.js   (either one or both), or WEBKIT=1 node tests/pieces-browser.js for WebKitGTK
 // (WEBKIT=epiphany for GNOME Web) through WebDriver (tests/webkit-shim.js and tools/webkit-driver). Exit code 2 (skipped) when nothing can run.
@@ -58,7 +58,7 @@ async function open(b, rel, w, h) {
 }
 module.exports = { check, open, sleep, ok, root };
 (async () => {
-  try { for (const f of ['slow-note', 'grown-ups-door', 'spotlight-tour', 'speed-lab']) { const q = root + 'tests/pieces/' + f + '.js'; if (require('fs').existsSync(q)) require(q); } } catch (e) { console.log('could not load a check file: ' + e.message); process.exit(1); }
+  try { for (const f of ['slow-note', 'grown-ups-door', 'env-probes', 'spotlight-tour', 'speed-lab']) { const q = root + 'tests/pieces/' + f + '.js'; if (require('fs').existsSync(q)) require(q); } } catch (e) { console.log('could not load a check file: ' + e.message); process.exit(1); }
   let allFails = 0;
   for (const [kind, exe] of exes) {
     const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })

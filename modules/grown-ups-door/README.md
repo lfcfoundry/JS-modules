@@ -2,7 +2,7 @@
 
 **Version 1.0.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time, in a real browser (`tests/pieces-browser.js`, 2026-10-17; WebKitGTK 2.52.6 through `tools/webkit-driver`; key down/up and touch were sent as page events or the mouse). Not run: GNOME Web (Epiphany) 46.5, a phone.
+**Tested in:** tests/pieces-browser.js grown-ups-door one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 and WebKitGTK 2.52.6, all passed (hold, early lift, slide off, keyboard, tap-then-tap, guarded link). Not run: GNOME Web (Epiphany) 46.5, because its WebDriver refuses clicks and the driver then sends only mouse events while the door listens for pointer events (the hold never starts); a phone. There is no Node test for this module.
 
 A short task that a young child will not finish, placed in front of the buttons and links a grown-up should press (start over, save and load, links to other sites). Press and hold a round button for 3 seconds, then drag the item into the target (or tap the item, then the target; the keyboard works too). Once passed, the guarded controls stay open for 2 minutes. 15 KB (5.2 KB gzipped), no dependencies, adds its own small stylesheet. Cut from Apple Press, with the apple art made replaceable.
 
