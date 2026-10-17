@@ -53,6 +53,7 @@ var steps = [
   ['walker-sim minified', 'node', ['modules/walker-sim/test/run.js', 'modules/walker-sim/walker-sim.min.js']],
   ['pad-nav node', 'node', ['modules/pad-nav/test/run.js']],
   ['save-kit', 'node', ['modules/save-kit/test/run.js']],
+  ['save-kit lean', 'node', ['modules/save-kit/test/lean.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
   ['idle-core', 'node', ['modules/idle-core/test/run.js']],
   ['idle-core minified', 'node', ['modules/idle-core/test/run.js', 'modules/idle-core/idle-core.min.js']],

@@ -6,6 +6,7 @@ One row per module or piece of work. Update your row in its own small commit bef
 |---|---|---|---|
 | `modules/lzma-decode` + `tools/lzma-pack` | done | first session | decoder, packer, 140 decoder checks against Python's lzma, 14 browser checks |
 | `modules/lzma-decode` WebAssembly add-on + `tools/lzma-pack --wasm` | done 2026-10-17 | JS-modules thread | optional lzma-decode-wasm.js (4,087 bytes, 2.0x as fast in Chromium and Firefox, 1.5x in WebKit), pack.py --wasm (off by default, +4.5 KB), 340 + 23 Node checks, 4-browser timing test |
+| `modules/save-kit` 1.2.0 | done 2026-10-17 | JS-modules thread | for Fancy and Apple Press: old-code endings (hex8, plain36), backup/damaged slot names, afterValidate hook, stamp name, lean.py (29% smaller for their sets); 43 + 15 Node checks, 4-browser check |
 | `frame-kit` | done | first session | EvenDt, QualityGovernor, JobPump; 35 checks |
 | `fuzz-kit` | done | first session | seeded fuzzer, Playwright and Puppeteer runners, hook stripper; 21 engine checks, 9 browser checks |
 | `sprite-baker` | done | first session | software 3D rasterizer for baked sprites; 29 checks |

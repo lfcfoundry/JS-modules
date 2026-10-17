@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -18,6 +18,11 @@
  *  - twoTap(): "tap again to confirm" helper for destructive buttons (pop-up confirm() is often unavailable).
  *  - onOtherTab(cb): tells you when another tab of the same game wrote a save (so an old tab can stop overwriting a newer one).
  *  - persist(): asks the browser not to delete this site's storage when space runs low. Resolves true/false, never rejects.
+ *  - Options added in 1.2.0 (all off unless given; they let a game that already has saves in the wild move to save-kit without breaking them):
+ *    codeCheck ('hex8' = 8 hex characters, 'plain36' = base 36 without leading zeros, for codes written before save-kit), backupKey (name of the backup slot),
+ *    damagedKey (keeps main-slot text that could not be used), readBackupWithoutMain:false (an empty main slot never brings back a leftover backup),
+ *    afterValidate(clean, raw) (the game's own checks after the schema), stamp (name of the timestamp field, default 'seen').
+ *    modules/save-kit/lean.py makes a smaller file without the parts a game does not use.
  *  - Options added in 1.1.0 (all off unless given): version + migrate (upgrade old saves), skipUnchangedMs (fewer storage writes),
  *    compactCodes (shorter codes: leaves out `seen` and fields equal to their default).
  *
@@ -39,11 +44,13 @@
   'use strict';
 
   var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
-  var DEFAULT_MAX_BYTES = 262144;     // biggest unpacked save a code may hold: 256 KiB
   var DEFAULT_MAX_KEYS = 1000;        // most names kept in one 'counts' field
+//@begin codes
+  var DEFAULT_MAX_BYTES = 262144;     // biggest unpacked save a code may hold: 256 KiB
   var TOO_BIG = 'That code is too big to open. Copy only the code and try again.';
   var DAMAGED = 'That code is damaged.';
   var INCOMPLETE = 'That code is not complete. Copy the whole code and try again.';
+//@end
 
   function bag() { return Object.create(null); }
   function isNum(v) { return typeof v === 'number' && isFinite(v) && v >= 0; }
@@ -56,6 +63,7 @@
     return { type: m[1] || 'raw', max: m[2] ? +m[2] : undefined };
   }
 
+//@begin raw
   // Copies JSON-plain data into fresh plain objects, leaving out __proto__/constructor/prototype keys. Throws if nested too deep.
   function scrub(v, depth) {
     if (depth > 32) throw new Error('too deep');
@@ -66,6 +74,7 @@
     Object.keys(v).forEach(function (k) { if (!BAD_KEYS[k]) out[k] = scrub(v[k], depth + 1); });
     return out;
   }
+//@end
 
   // Rebuilds one field's value from untrusted data; `d` is the default used when the value is missing or broken.
   function cleanField(spec, v, d) {
@@ -85,7 +94,9 @@
           if (typeof n === 'number' && isFinite(n) && n > 0) { out[k] = Math.min(Math.floor(n), spec.max || 1e6); kept++; }
         });
         return out;
+//@begin raw
       case 'raw': try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { try { return scrub(JSON.parse(JSON.stringify(d)), 0); } catch (e2) { return d; } }   // a fresh copy of the default, never the default object itself
+//@end
       default: return d;
     }
   }
@@ -111,22 +122,29 @@
     return Object.keys(v).every(function (k) { return isNum(v[k]); });
   }
 
+//@begin codes
   // ---- codes ----
-  function checksum(t) {   // FNV-1a, 32 bit, base 36
+  // FNV-1a, 32 bit. style: 'padded36' (default, always 7 base-36 characters, so words pasted after a code are not swallowed), 'plain36' (base 36 with
+  // no leading zeros, 1 to 7 characters) or 'hex8' (8 hex characters). The last two exist to read and write the codes of games that predate save-kit.
+  function checksum(t, style) {
     var h = 0x811c9dc5;
     for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-    return ('0000000' + h.toString(36)).slice(-7);   // always 7 characters, so words pasted after a code are not swallowed
+    return style === 'hex8' ? ('00000000' + h.toString(16)).slice(-8) : style === 'plain36' ? h.toString(36) : ('0000000' + h.toString(36)).slice(-7);
   }
   // Base64 without padding, URL-safe. Uses the browser's own Uint8Array.toBase64/fromBase64 when it has them (Chrome 140, Firefox 133,
   // Safari 18.2), else the loops below.
   function toB64(bytes) {
+//@begin nativeBase64
     try { if (typeof bytes.toBase64 === 'function') return bytes.toBase64({ alphabet: 'base64url' }).replace(/=+$/, ''); } catch (e) {}
+//@end
     var bin = '';
     for (var i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
   function fromB64(t) {
+//@begin nativeBase64
     try { if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(t, { alphabet: 'base64url' }); } catch (e) {}
+//@end
     var bin = atob(t.replace(/-/g, '+').replace(/_/g, '/'));
     var out = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
@@ -141,6 +159,7 @@
     var out = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
     return new Response(out).arrayBuffer().then(function (b) { return new Uint8Array(b); });
   }
+//@begin streamLimit
   // Unpacks deflate-raw bytes, reading the output in pieces; gives up (rejects TOO_BIG) as soon as the output passes `limit`,
   // so a tiny code that expands about 1000 to 1 is cut off early instead of filling memory.
   function inflate(bytes, limit) {
@@ -163,7 +182,15 @@
       pump();
     });
   }
+//@else
+//@   function inflate(bytes, limit) {   // simple form: unpacks it all, then checks the size (a tiny hostile code can briefly fill memory)
+//@     var p;
+//@     try { p = new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer(); } catch (e) { return Promise.reject(DAMAGED); }
+//@     return p.then(function (b) { return b.byteLength > limit ? Promise.reject(TOO_BIG) : new Uint8Array(b); }, function () { return Promise.reject(DAMAGED); });
+//@   }
+//@end
   function escapeRe(t) { return t.replace(/[.*+?^${}()|[\]\\\/-]/g, '\\$&'); }
+//@end
 
   // ---- the store ----
   // create({ key, schema, defaults, soundKeys, prefix, storage, maxCodeBytes, maxCodeChars, backupEveryMs })
@@ -176,17 +203,32 @@
     var key = o.key, schema = o.schema || {}, defaults = o.defaults || {}, prefix = o.prefix || 'SK1';
     var storage = o.storage || null;
     if (!storage) { try { storage = typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { storage = null; } }   // touching localStorage can throw when storage is blocked
+//@begin codes
     var maxBytes = o.maxCodeBytes > 0 ? o.maxCodeBytes : DEFAULT_MAX_BYTES;
     var maxChars = o.maxCodeChars > 0 ? o.maxCodeChars : Math.ceil(maxBytes * 4 / 3) + 1024;
+//@end
     var kinds = function (t) { return Object.keys(schema).filter(function (k) { return norm(schema[k]).type === t; }); };
     var soundKeys = o.soundKeys || kinds('num').concat(kinds('int'));
     var countKeys = kinds('counts');
-    var re = new RegExp(escapeRe(prefix) + '([zp])\\.([A-Za-z0-9_-]+)\\.([0-9a-z]{7})');
+//@begin codes
+    var re = new RegExp(escapeRe(prefix) + '([zp])\\.([A-Za-z0-9_-]+)\\.');
+    var style = o.codeCheck;
+//@end
     var off = false, backupAt = 0, backupEvery = o.backupEveryMs == null ? 60000 : o.backupEveryMs;
+//@begin migrate
     var version = o.version > 0 ? Math.floor(o.version) : 0, migrate = typeof o.migrate === 'function' ? o.migrate : null;
-    var skipMs = o.skipUnchangedMs > 0 ? o.skipUnchangedMs : 0, compact = !!o.compactCodes;
+//@end
+//@begin skipUnchanged
+    var skipMs = o.skipUnchangedMs > 0 ? o.skipUnchangedMs : 0;
     var lastProbe = null, lastWriteAt = 0, lastSeen;   // for skipUnchangedMs: the last written text (with seen = 0), when, and its seen
+//@end
+//@begin compact
+    var compact = !!o.compactCodes;
+//@end
+    var stamp = o.stamp || 'seen', bak = o.backupKey || key + '-backup', damaged = o.damagedKey || '', after = typeof o.afterValidate === 'function' ? o.afterValidate : null;
+    var orphan = o.readBackupWithoutMain !== false;   // false: a missing main slot never brings back a leftover backup
 
+//@begin migrate
     // Runs the game's migrate(save, fromVersion) on a save written with a lower `version` (no `v` counts as 0); a migrate that
     // throws or returns a non-object leaves the save as it was. The save is a copy, so migrate may change it freely.
     function upgrade(raw) {
@@ -196,6 +238,9 @@
       try { var r = migrate(JSON.parse(JSON.stringify(raw)), from); return isObj(r) ? r : raw; } catch (e) { return raw; }
     }
     function copyOf(x) { var c = {}; Object.keys(x).forEach(function (k) { c[k] = x[k]; }); return c; }
+//@else
+//@     function upgrade(raw) { return raw; }
+//@end
 
     // How many fields hold a broken number (numbers in soundKeys, and values inside counts fields).
     function badFields(x) {
@@ -205,23 +250,42 @@
       return n;
     }
     function soundState(x) { return isObj(x) && badFields(x) === 0; }
-    function readSlot(slot) {
+    function textOf(slot) { try { return storage.getItem(slot); } catch (e) { return undefined; } }   // null = empty slot, undefined = storage refused
+    function parseSlot(t) {
       try {
-        var x = JSON.parse(storage.getItem(slot) || 'null');
+        var x = JSON.parse(t || 'null');
         if (isObj(x)) return x;
       } catch (e) {}
       return null;
     }
+    function readSlot(slot) { return parseSlot(textOf(slot)); }
+    // Schema check, then the game's own afterValidate(clean, raw) if there is one: it may change `clean` in place, return a replacement object, or return
+    // false/null to refuse the save. A hook that throws is ignored (the schema-checked state is used). Returns null when refused.
+    function finish(raw) {
+      var c = validate(schema, defaults, upgrade(raw)), r;
+      if (!after) return c;
+      try { r = after(c, raw); } catch (e) { return c; }
+      return r === false || r === null ? null : isObj(r) ? r : c;
+    }
     var api = {
       validate: function (input) { return validate(schema, defaults, input); },
       // Returns a clean state rebuilt from the better slot (the main slot unless the backup has fewer broken numbers), else null.
+      // With damagedKey, main-slot text that was not used (unreadable, refused by afterValidate, or worse than the backup) is copied there first.
       load: function () {
         try {
-          var a = readSlot(key), b = null;
-          if (!a || badFields(a) > 0) b = readSlot(key + '-backup');   // a sound main slot can never lose to the backup, so only read the backup when it could matter
-          if (!a && !b) return null;
-          var pick = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a);
-          return validate(schema, defaults, upgrade(pick));
+          var mt = textOf(key), a = parseSlot(mt), b = null, first, second, out = null, used = null;
+          if (mt === null && !orphan) return null;
+          if (!a || badFields(a) > 0) b = readSlot(bak);   // a sound main slot can never lose to the backup, so only read the backup when it could matter
+          if (a || b) {
+            first = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a);
+            out = finish(first); used = first;
+            if (!out) {   // refused by afterValidate: try the other slot
+              second = first === a ? (b || readSlot(bak)) : a;
+              out = second ? finish(second) : null; used = second;
+            }
+          }
+          if (damaged && mt && (!a || used !== a)) { try { storage.setItem(damaged, mt); } catch (e) {} }
+          return out;
         } catch (e) { return null; }
       },
       // Writes the state. Returns false (and writes nothing) if a number is broken, saving is switched off, or storage fails.
@@ -232,24 +296,36 @@
         try {
           if (off || !storage || !soundState(state)) return false;
           var now = Date.now(), probe = null;
+//@begin migrate
           if (version) state.v = version;
+//@end
+//@begin skipUnchanged
           if (skipMs) {
-            state.seen = 0; probe = JSON.stringify(state);
-            if (force !== true && probe === lastProbe && now - lastWriteAt < skipMs) { state.seen = lastSeen; return true; }
+            state[stamp] = 0; probe = JSON.stringify(state);
+            if (force !== true && probe === lastProbe && now - lastWriteAt < skipMs) { state[stamp] = lastSeen; return true; }
           }
-          state.seen = now;
+//@end
+          state[stamp] = now;
           var txt = JSON.stringify(state);
           storage.setItem(key, txt);
+//@begin skipUnchanged
           lastProbe = probe; lastWriteAt = now; lastSeen = now;
+//@end
           if (Date.now() - backupAt > backupEvery) {
-            try { storage.setItem(key + '-backup', txt); backupAt = Date.now(); } catch (e) { /* storage full: the main slot is safe */ }
+            try { storage.setItem(bak, txt); backupAt = Date.now(); } catch (e) { /* storage full: the main slot is safe */ }
           }
           return true;
-        } catch (e) { lastProbe = null; return false; }
+        } catch (e) {
+//@begin skipUnchanged
+          lastProbe = null;
+//@end
+          return false;
+        }
       },
       forceBackupNext: function () { backupAt = 0; },
       // Switches saving off (true) or on (false). Used while a loaded save waits for a page reload, so the old game can't overwrite it.
       pause: function (v) { off = v !== false; },
+//@begin autosave
       // Calls getState() and saves: every `every` ms, on pagehide, and when the page is hidden. A getState() that throws is skipped.
       autosave: function (getState, every) {
         var tick = function (force) { var s; try { s = getState(); } catch (e) { return; } api.save(s, force === true); };
@@ -259,23 +335,29 @@
         if (typeof window !== 'undefined') { window.addEventListener('pagehide', onLeave); document.addEventListener('visibilitychange', onHide); }
         return function stop() { clearInterval(iv); if (typeof window !== 'undefined') { window.removeEventListener('pagehide', onLeave); document.removeEventListener('visibilitychange', onHide); } };
       },
+//@end
+//@begin codes
       // -> Promise<string> like 'SK1z.<data>.<check>' (z = squeezed, p = plain; whichever is shorter). Rejects with a message (string)
       //    when there is no state, a number is broken, or the save is bigger than maxCodeBytes. Never throws.
       exportCode: function (state) {
         try {
           if (!isObj(state)) return Promise.reject('There is nothing to make a code from yet.');
           if (!soundState(state)) return Promise.reject('A number in the game is broken, so no code was made. Reload the page and try again.');
-          try { state.seen = Date.now(); } catch (e) {}
+          try { state[stamp] = Date.now(); } catch (e) {}
           var body = state;
+//@begin compact
           if (compact) {   // only the schema's fields that differ from their default (and `seen` only if the schema lists it)
             body = {};
             Object.keys(schema).forEach(function (k) { if (has(state, k) && !(has(defaults, k) && JSON.stringify(state[k]) === JSON.stringify(defaults[k]))) body[k] = state[k]; });
           }
+//@end
+//@begin migrate
           if (version) { if (body === state) body = copyOf(state); body.v = version; }
+//@end
           var raw = new TextEncoder().encode(JSON.stringify(body));
           if (raw.length > maxBytes) return Promise.reject('This save is too big to turn into a code.');
           var plain = toB64(raw);
-          var done = function (flag, d) { return prefix + flag + '.' + d + '.' + checksum(d); };
+          var done = function (flag, d) { return prefix + flag + '.' + d + '.' + checksum(d, style); };
           if (!canSqueeze()) return Promise.resolve(done('p', plain));
           return deflate(raw).then(function (b) { var z = toB64(b); return z.length < plain.length ? done('z', z) : done('p', plain); }, function () { return done('p', plain); });
         } catch (e) { return Promise.reject('This save could not be turned into a code.'); }
@@ -289,7 +371,8 @@
           var flat = t.replace(/\s+/g, '');
           var m = re.exec(flat);
           if (!m) return Promise.reject(flat.indexOf(prefix) >= 0 ? INCOMPLETE : 'That is not a save code for this game.');
-          if (checksum(m[2]) !== m[3]) return Promise.reject(INCOMPLETE);
+          var want = checksum(m[2], style);
+          if (flat.substr(m.index + m[0].length, want.length) !== want) return Promise.reject(INCOMPLETE);
           var bytes;
           try { bytes = fromB64(m[2]); } catch (e) { return Promise.reject(DAMAGED); }
           var get;
@@ -298,10 +381,14 @@
           return get.then(function (b) {
             var x = JSON.parse(new TextDecoder().decode(b));
             if (!soundState(x)) throw 0;
-            return validate(schema, defaults, upgrade(x));
+            x = finish(x);
+            if (!x) throw 0;
+            return x;
           }).catch(function (e) { throw typeof e === 'string' ? e : DAMAGED; });
         } catch (e) { return Promise.reject(DAMAGED); }
       },
+//@end
+//@begin onOtherTab
       // Calls cb(cleanState, event) when ANOTHER tab of this site changes the save (the browser never tells the tab that wrote it), or
       // cb(null, event) when it removed the save. Use it to stop an old tab from overwriting newer progress: pause(true) and offer a reload.
       // Returns a function that stops listening. Does nothing outside a browser.
@@ -312,12 +399,14 @@
           if (e.storageArea && storage && e.storageArea !== storage) return;
           var x = null, clean = null;
           try { x = e.newValue == null ? null : JSON.parse(e.newValue); } catch (err) {}
-          try { if (isObj(x)) clean = validate(schema, defaults, upgrade(x)); } catch (err) {}
+          try { if (isObj(x)) clean = finish(x); } catch (err) {}
           try { cb(clean, e); } catch (err) {}
         }
         window.addEventListener('storage', on);
         return function () { window.removeEventListener('storage', on); };
       },
+//@end
+//@begin persist
       // Asks the browser not to delete this site's storage when space runs low (and, in Safari, after a long time unvisited). Resolves
       // true if storage is now (or already was) persistent, false if refused or unsupported; never rejects. The browser may say no.
       persist: function () {
@@ -327,22 +416,29 @@
         } catch (e) {}
         return Promise.resolve(false);
       },
+//@end
+//@begin stageImport
       // Stores an imported state for the next page load: keeps the current game in `<key>-before-load`, pauses saving.
       // Call location.reload() afterwards. Returns false if storage refused.
       stageImport: function (imported, currentState) {
         try {
-          imported.seen = Date.now();
+          imported[stamp] = Date.now();
           if (currentState) storage.setItem(key + '-before-load', JSON.stringify(currentState));
-          off = true; lastProbe = null;
+          off = true;
+//@begin skipUnchanged
+          lastProbe = null;
+//@end
           storage.setItem(key, JSON.stringify(imported));
-          storage.setItem(key + '-backup', JSON.stringify(imported));
+          storage.setItem(bak, JSON.stringify(imported));
           return true;
         } catch (e) { off = false; return false; }
       }
+//@end
     };
     return api;
   }
 
+//@begin twoTap
   // twoTap(fn, ms, onArm, onDisarm) -> a click handler: the first call arms (and calls onArm), a second call within ms runs fn.
   function twoTap(fn, ms, onArm, onDisarm) {
     var armed = null;
@@ -352,6 +448,16 @@
       fn.apply(this, arguments); return true;
     };
   }
+//@end
 
-  return { create: create, validate: validate, isSound: isSound, checksum: checksum, toBase64Url: toB64, fromBase64Url: fromB64, twoTap: twoTap, bag: bag, has: has };
+  return {
+    create: create, validate: validate, isSound: isSound,
+//@begin codes
+    checksum: checksum, toBase64Url: toB64, fromBase64Url: fromB64,
+//@end
+//@begin twoTap
+    twoTap: twoTap,
+//@end
+    bag: bag, has: has
+  };
 });
