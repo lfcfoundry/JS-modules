@@ -1,8 +1,8 @@
 # sprite-baker
 
-**Version 1.4.0 · API 1**
+**Version 1.5.0 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/sprite-baker-fancy-browser.js: all 5 cases equal Fancy's filler in each browser and in Node; 108 Node checks pass). Not run: a phone, Safari itself, Fancy's own 22 pictures (Fancy checks those after it swaps)
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/sprite-baker-fancy-browser.js with and without LEAN=1: all 5 cases equal Fancy's filler byte for byte in each browser, 8 of 8 runs); node modules/sprite-baker/test/lean.js 14 of 14 builds, 210 comparisons and the 266 Fancy scenes identical on every set that cuts two or more parts; 108 Node checks. Not run: a phone, Safari itself
 
 The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
@@ -131,6 +131,24 @@ Screen conventions: pixels, x right, y **down**, z toward the viewer (larger z i
   ```
 
 **Sharp on high-density screens.** The module bakes exactly the pixel size you ask for. If the sprite is drawn at 96 CSS pixels, bake it at `Math.round(96 * devicePixelRatio)` pixels (for example 288 on a 3x phone) and draw it with the 96 CSS pixel size, otherwise the browser upscales it and it looks soft or blocky. The size ceiling above still applies.
+
+## Lean builds: ship only the parts a game uses (new in 1.5.0)
+
+`sprite-baker.js` stays the full file. `python3 modules/sprite-baker/lean.py --without ramps,mesh,rotation,shapes,baking,sheets --no-comments -o spritebaker.js` writes a copy without those parts (`--list` names all seven; `--sizes` prints bytes, gzipped bytes and, when `terser` is installed, minified bytes). What you keep behaves exactly as in the full file, so the triangle filler draws the same bytes; what you cut is simply missing (`SpriteBaker.sphere` is `undefined`). `--no-comments` drops every comment and leaves a one-line header with the version and the cut list. Some parts need others: cutting `mesh` or `rotation` also cuts `baking`, and cutting `baking` also cuts `sheets`; the script says so.
+
+| Part | What it holds | Cut alone, minified bytes saved (of 18,364) | Gzipped bytes saved (of 8,080) |
+| --- | --- | --- | --- |
+| `ramps` | `material()`, `bakeRamp()`, raw `[[t, r, g, b], ...]` ramps (a game then passes materials that already carry a `lut`) | 1,166 | 433 |
+| `shapes` | `sphere`, `rod`, `capsule`, `torus` | 1,682 | 705 |
+| `sheets` | `alphaMask`, `hit`, `toSheet` | 1,704 | 605 |
+| `baking` | `bakeSprite`, `bakeRoll`, `baker`, `downsample`, `outline`, `toImageData`, `toCanvas` (also cuts `sheets`) | 5,922 | 2,366 |
+| `rotation` | `rotationMatrix`, `rotateAxis`, `rotateX` (also cuts `baking`, `sheets`) | 6,644 | 2,660 |
+| `mesh` | `mesh()` (also cuts `baking`, `sheets`) | 7,803 | 3,168 |
+| `checks` | argument checks for callers who pass bad data; a NaN triangle is still skipped | 820 | 356 |
+
+The part that is always kept is the fill: `Rast`, `tri` (plain, picture and ridge) and `drawMesh`. Sizes are the output of `terser -c passes=2 -m` 5.51.2 (smaller is better). A game that draws only meshes it builds itself and brings its own ramps (Fancy Banana) keeps 6,992 bytes minified (3,438 gzipped): 62% smaller than the whole file. Keeping `ramps` as well is 8,157 bytes (3,894 gzipped).
+
+`node modules/sprite-baker/test/lean.js` builds every single cut, Fancy's set and the everything-cut build (each also without comments where it matters), checks the exports, compares every part that is kept with the full file, and draws the 266 scenes of `test/fancy-scenes.js` through the lean filler byte for byte (about 3 s). `LEAN=1 node tests/sprite-baker-fancy-browser.js` does the same in a real browser. `lean.py` edits nothing: change `sprite-baker.js` and keep its `//@begin` / `//@else` / `//@end` marker lines balanced.
 
 ## How it differs from existing open source
 
