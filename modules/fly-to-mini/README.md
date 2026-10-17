@@ -1,8 +1,8 @@
 # fly-to-mini
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-When a big element scrolls away, a copy of its small stand-in **flies** from it to the sticky mini version, and back again when you scroll up. A shared-element transition for scrolling, with an arc, a tilt and a squash. About 7 KB.
+When a big element scrolls away, a copy of its small stand-in **flies** from it to the sticky mini version, and back again when you scroll up. A shared-element transition for scrolling, with an arc, a tilt and a squash. About 7.4 KB minified (3.1 KB gzipped); the commented source is about 18 KB.
 
 ## Quick start
 ```html
@@ -11,7 +11,7 @@ When a big element scrolls away, a copy of its small stand-in **flies** from it 
 var fly = FlyToMini.create({
   big: document.querySelector('#apple'),         // watched with IntersectionObserver
   mini: document.querySelector('#miniButton'),   // small sticky version, hidden until `on`
-  topInset: 56,                                  // height in px of your sticky bar (see below)
+  bar: document.querySelector('#bar'),           // your sticky bar; its height is measured and followed (or use topInset: 56)
   onChange: function (on) { bar.classList.toggle('mini-on', on); }
 });
 </script>
@@ -24,7 +24,7 @@ var fly = FlyToMini.create({
 ```
 
 ## API
-`FlyToMini.create(options)` returns `{ set(on, animate), stop(), destroy(), isMini }`.
+`FlyToMini.create(options)` returns `{ set(on, animate), stop(), alert(), destroy(), isMini }`.
 
 | Option | Default | What it does |
 |---|---|---|
@@ -35,15 +35,24 @@ var fly = FlyToMini.create({
 | `content` | the mini's first child | The element that is cloned and flown. Give it a self-contained look: it is drawn outside the mini. |
 | `host` | `document.body` | Where the flying copy is placed (a fixed layer). |
 | `topInset` | 130 | Pixels at the top of the window that count as covered, usually your sticky bar. The big element counts as "away" when less than half of it is visible below this line. 130 suits one specific game; set your own bar height (the demo uses 56). `0` means no inset. |
+| `bar` | none | Your sticky bar as an element. The module measures its height for the "covered" line and watches the bar's size (with `ResizeObserver`, where it exists), so it stays right when the bar changes. Beats `topInset`. |
+| `onVisible(ratio)` | none | Called with how much of `big` is visible below the covered line (0 to 1) on every report. Use it to pause effects when little of the scene shows. An error thrown inside is printed and ignored. |
+| `steps` | none | A list of extra ratios between 0 and 1 at which `onVisible` should be called (for example `[0.25, 0.75]`). The module always reports at 0, 0.5 and 1. |
+| `hysteresis` | 0 | Leave "away" at under half visible, but come back only above half plus this margin (for example `0.1` means 60%). Stops flights from starting back and forth when scrolling stops right at the edge. Capped at 0.4. |
+| `keepFocus` | off | If the button that is about to hide had keyboard focus, move focus to the one that is showing once the move is done. Focus anywhere else is left alone. |
+| `reducedFade` | off | Where the flight is skipped (reduced motion, or your `canAnimate` says no), fade the arriving element in over 150 ms instead of nothing. Not used on the very first report. |
+| `alertGapMs` / `alertMs` | 3500 / 1800 | For `alert()`: the shortest time between two alerts, and how long the `.mini-alert` class stays on. When animation is off the class stays 1200 ms longer. |
 | `canAnimate()` | reduced-motion check | Return false to skip the flight (the state still changes). The default returns false when the system asks for reduced motion. If you pass your own function, it replaces the default, so include that check yourself. |
 | `downMs` / `upMs` | 440 / 400 | Flight lengths. |
 | `arc` | 18 | Pixels the copy rises on its way. |
 | `engine` | `'flight'` | `'transition'` lets the browser's View Transitions API do the move instead (see below). Where `document.startViewTransition` is missing it quietly uses the flight. |
 | `transitionName` | `'fly-to-mini'` | The `view-transition-name` used by that engine. Only letters, digits, `_` and `-` are kept. Change it if your page already uses the name. |
 
-**CSS class names the module uses.** `.flying` is added to `big` while its copy is in the air (hide the big art with it). `.mini-fly` is the flying copy's layer. `.landed` is added to the element that was reached, for 400 ms. The module sets no styles on these names; they are hooks for your CSS.
+**CSS class names the module uses.** `.mini-alert` is added to the mini by `alert()` (see below). `.flying` is added to `big` while its copy is in the air (hide the big art with it). `.mini-fly` is the flying copy's layer. `.landed` is added to the element that was reached, for 400 ms. The module sets no styles on these names; they are hooks for your CSS.
 
-Methods: `set(on, animate)` moves to a state yourself (`animate` false skips the flight), `stop()` ends a flight where it is and removes the copy, `destroy()` also stops watching.
+Methods: `set(on, animate)` moves to a state yourself (`animate` false skips the flight), `stop()` ends a flight where it is and removes the copy, `alert()` makes the mini draw attention (returns true if it did), `destroy()` also stops watching and clears every timer.
+
+**`alert()`** adds the `.mini-alert` class to the mini for `alertMs`, so your CSS can glow or bounce it when something happens off screen. It does nothing (returns false) while the mini is not showing, while a flight is in the air, while the page is hidden, or within `alertGapMs` of the last alert. The module draws nothing itself; the demo has an example `@keyframes`.
 
 ## Optional View Transitions engine
 `engine: 'transition'` hands the move to the browser. The module names the big art and the mini's picture with the same `view-transition-name`, the browser morphs one into the other, and the module adds the same arc, tilt and squash on top (through the `rotate`, `translate` and `scale` properties, which add to the browser's own transform). `downMs` and `upMs` still set the length. No flying copy is made, so there is less code running per frame.
@@ -72,12 +81,15 @@ With `display:none` the mini has no size, so the module cannot measure where to 
 
 ## Limits
 - One pair of elements per instance.
-- The mini's first child (or `content`) is cloned, so any `id` inside it appears twice while the copy is in the air, and a `<canvas>` inside it is cloned blank. Use classes, and an `<img>` or CSS drawing, for the part that flies.
-- Reduced motion skips the flight; there is no shorter substitute animation.
-- The "away" line is half visible with no hysteresis, so jittery scrolling right at the edge can start flights back and forth (interrupted flights resume from where they were, so it only looks busy).
-- If the mini has keyboard focus when your `onChange` hides it, focus is lost. Moving focus is your page's job.
+- The mini's first child (or `content`) is cloned. Since 1.2.0 the copy loses its `id` attributes and each `<canvas>` in it gets a still picture of the original's current pixels (WebGL canvases that were not created with `preserveDrawingBuffer` may copy blank). Style the part that flies with classes.
+- Reduced motion skips the flight; turn on `reducedFade` for a short fade instead.
+- The "away" line is half visible. With `hysteresis` left at 0, jittery scrolling right at the edge can start flights back and forth (interrupted flights resume from where they were, so it only looks busy).
+- Focus: without `keepFocus`, focus on a button that your `onChange` hides is lost. With it, the module moves focus for you.
 - Needs `IntersectionObserver` and `requestAnimationFrame`. Without `IntersectionObserver` it calls `onChange(true)` once and never flies.
 - Tested with a fake DOM in Node (`test/run.js`) and with the demo in Chromium (both engines). Not measured on phones.
+
+## What changed in 1.2.0
+Nothing you already use behaves differently, except that the flying copy no longer carries duplicate `id` attributes and now shows canvas pictures. New and opt-in: `bar`, `onVisible` and `steps`, `hysteresis`, `keepFocus`, `reducedFade`, `alert()`. Fixed: `destroy()` now clears the landed-pop timers, and the newest observer report is used when several arrive at once. All of these came from the game Apple Press, which had its own copy of this code.
 
 ## Prior art
 - **View Transitions API** (built in, Chrome 111+, Firefox 144+): morphs a named element between two page states. It is one transition at a time and the page waits on your update callback; it does not follow a sticky target that keeps moving while the page scrolls. Good for a state change you trigger; this module reacts to scroll position. It is available here as the optional `engine: 'transition'`, with the trade-offs listed above.
@@ -87,7 +99,7 @@ With `display:none` the mini has no size, so the module cannot measure where to 
 
 ## For AI agents
 - Copy `fly-to-mini.js` (keep the MIT header). No dependencies. It can be `require`d in Node; `create()` returns an inert object there.
-- Wire it with `big`, `mini`, `topInset` (your sticky bar's height) and an `onChange` that toggles a class on the bar. Add the CSS `.flying .your-art { opacity: 0 }`.
+- Wire it with `big`, `mini`, `bar` (your sticky bar element; or `topInset` as a number) and an `onChange` that toggles a class on the bar. `hysteresis: 0.1`, `keepFocus: true` and `reducedFade: true` are good additions for a game. Add the CSS `.flying .your-art { opacity: 0 }`.
 - Hide the mini with `display:none` or `visibility:hidden`; both work. Do not add your own reduced-motion check unless you pass `canAnimate`.
 - Do not build a second timer or try/catch around it; the failsafe is inside. Node checks: `node modules/fly-to-mini/test/run.js`. The browser demo is `demo.html`.
 
