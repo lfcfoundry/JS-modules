@@ -47,9 +47,13 @@ var PAGE = 'data:text/html,<title>t</title><body style="margin:0"><button id=b s
       ok(await p2.evaluate(function () { return document.title; }) === '2', 'two clicks at the same spot are both delivered');
     } finally { await b2.close(); }
     // a run that is killed with SIGTERM leaves no browser process behind
+    var pids = function () { return String(cp.spawnSync('pgrep', ['-x', 'WebKitWebDriver']).stdout || '').split('\n').filter(Boolean); }, before = pids();
     var kid = cp.spawn(process.execPath, ['-e', "require(" + JSON.stringify(path.join(__dirname, '..', 'webkit-driver.js')) + ").launch({}).then(function(){console.log('up');setInterval(function(){},1000)})"], { stdio: ['ignore', 'pipe', 'ignore'] });
-    await new Promise(function (r) { kid.stdout.on('data', function () { r(); }); }); kid.kill('SIGTERM'); await sleep(1500);
-    ok(cp.spawnSync('pgrep', ['-x', 'WebKitWebDriver']).status === 1, 'killing a run with SIGTERM leaves no WebKitWebDriver behind');
+    await new Promise(function (r) { kid.stdout.on('data', function () { r(); }); }); kid.kill('SIGTERM');
+    // wait until the killed run's driver is gone (up to 8 s) instead of sleeping a fixed time; drivers that were already running before it do not count
+    var left = [], until = Date.now() + 8000;
+    do { await sleep(50); left = pids().filter(function (p) { return before.indexOf(p) < 0; }); } while (left.length && Date.now() < until);
+    ok(left.length === 0, 'killing a run with SIGTERM leaves no WebKitWebDriver behind');
   }
   console.log(fails ? fails + ' FAILED' : 'webkit checks passed (' + b.version + ')'); process.exit(fails ? 1 : 0);
 })().catch(function (e) { console.log('FAIL ' + (e && e.stack || e)); process.exit(1); });

@@ -4,7 +4,10 @@
 const assert = require('assert'), path = require('path');
 const root = path.resolve(__dirname, '..'), M = (m, f) => path.join(root, 'modules', m, f);
 let pass = 0, fail = 0;
-async function t(name, fn) { if (process.env.ONLY && !new RegExp(process.env.ONLY).test(name)) return; try { await fn(); pass++; console.log('  ok   ' + name); } catch (e) { fail++; console.log('  FAIL ' + name + '\n       ' + String(e && e.stack || e).split('\n').slice(0, 3).join('\n       ')); } }
+// wait until the fly-to-mini flight has really ended in the state we expect (mini bar on or off, no flying copy, view-transition name or injected style rule left), then two painted frames; replaces fixed 0.9 to 1.2 s sleeps
+const settled = async (p, on) => { await p.waitForFunction(on => document.getElementById('bar').classList.contains('mini-on') === on && !document.querySelector('.mini-fly') && !(document.querySelector('style[data-fly-to-mini]') || { textContent: '' }).textContent && ![...document.querySelectorAll('#big,#big *,#mini,#mini *')].some(e => e.style.viewTransitionName), on, { timeout: 5000 }); await p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))); };
+const took = [];   // [name, ms] for every check, so the slowest can be listed at the end
+async function t(name, fn) { if (process.env.ONLY && !new RegExp(process.env.ONLY).test(name)) return; const t0 = Date.now(); try { await fn(); pass++; took.push([name, Date.now() - t0]); console.log('  ok   ' + name); } catch (e) { fail++; took.push([name, Date.now() - t0]); console.log('  FAIL ' + name + '\n       ' + String(e && e.stack || e).split('\n').slice(0, 3).join('\n       ')); } }
 
 (async () => {
   console.log('idle-core (node)');
@@ -168,24 +171,24 @@ async function t(name, fn) { if (process.env.ONLY && !new RegExp(process.env.ONL
     const p = await open('fly-to-mini');
     const cls = () => p.evaluate(() => document.getElementById('bar').classList.contains('mini-on'));
     assert.strictEqual(await cls(), false);
-    await p.evaluate(() => window.scrollTo(0, 900)); await p.waitForTimeout(900); assert.strictEqual(await cls(), true);
-    await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(900); assert.strictEqual(await cls(), false);
+    await p.evaluate(() => window.scrollTo(0, 900)); await settled(p, true); assert.strictEqual(await cls(), true);
+    await p.evaluate(() => window.scrollTo(0, 0)); await settled(p, false); assert.strictEqual(await cls(), false);
     assert.strictEqual(await p.evaluate(() => document.querySelectorAll('.mini-fly').length), 0, 'no flying copy left behind'); await p.context().close();
   });
   await t('fly-to-mini: a flight cut short by scrolling back ends cleanly', async () => {
     const p = await open('fly-to-mini');
-    await p.evaluate(() => window.scrollTo(0, 900)); await p.waitForTimeout(150); await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(1200);
+    await p.evaluate(() => window.scrollTo(0, 900)); await p.waitForTimeout(150); await p.evaluate(() => window.scrollTo(0, 0)); await settled(p, false);
     assert.strictEqual(await p.evaluate(() => document.getElementById('bar').classList.contains('mini-on')), false);
     assert.strictEqual(await p.evaluate(() => document.querySelectorAll('.mini-fly').length), 0); await p.context().close();
   });
   await t('fly-to-mini: the View Transitions engine moves the mini in and out and leaves nothing behind', async () => {
     const p = await open('fly-to-mini'); await p.goto(p.url() + '?engine=transition'); await p.waitForTimeout(300);
     const left = () => p.evaluate(() => [document.querySelectorAll('.mini-fly').length, [...document.querySelectorAll('#big,#big *,#mini,#mini *')].filter(e => e.style.viewTransitionName).length, document.querySelector('style[data-fly-to-mini]') ? document.querySelector('style[data-fly-to-mini]').textContent : '']);
-    await p.evaluate(() => window.scrollTo(0, 260)); await p.waitForTimeout(900);
+    await p.evaluate(() => window.scrollTo(0, 260)); await settled(p, true);
     assert.strictEqual(await p.evaluate(() => document.getElementById('bar').classList.contains('mini-on')), true); assert.deepStrictEqual(await left(), [0, 0, '']);
-    await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(900);
+    await p.evaluate(() => window.scrollTo(0, 0)); await settled(p, false);
     assert.strictEqual(await p.evaluate(() => document.getElementById('bar').classList.contains('mini-on')), false); assert.deepStrictEqual(await left(), [0, 0, '']);
-    await p.evaluate(() => window.scrollTo(0, 260)); await p.waitForTimeout(100); await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(60); await p.evaluate(() => window.scrollTo(0, 260)); await p.waitForTimeout(1100);
+    await p.evaluate(() => window.scrollTo(0, 260)); await p.waitForTimeout(100); await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(60); await p.evaluate(() => window.scrollTo(0, 260)); await settled(p, true);
     assert.strictEqual(await p.evaluate(() => document.getElementById('bar').classList.contains('mini-on')), true, 'a zigzag ends on the last direction'); assert.deepStrictEqual(await left(), [0, 0, '']); await p.context().close();
   });
   await t('sticker-text applies a ring and the data attribute', async () => {
@@ -197,5 +200,6 @@ async function t(name, fn) { if (process.env.ONLY && !new RegExp(process.env.ONL
     assert.ok(await p.evaluate(() => s.owned.Helper === 1)); assert.deepStrictEqual(p.errs, []); await p.context().close();
   });
   await browser.close();
-  console.log('\n' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
+  console.log('\n' + pass + ' passed, ' + fail + ' failed; slowest: ' + took.sort((a, b) => b[1] - a[1]).slice(0, 5).map(x => x[0].slice(0, 40) + ' ' + (x[1] / 1000).toFixed(1) + ' s').join(', '));
+  process.exit(fail ? 1 : 0);
 })();

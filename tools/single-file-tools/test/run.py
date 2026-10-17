@@ -378,7 +378,9 @@ const fs = require('fs'); const j = JSON.parse(fs.readFileSync(0, 'utf8'));
     const win = c.old ? {} : { DecompressionStream, Response, Blob };
     try { new Function('window', 'document', 'atob', 'Blob', 'Response', 'DecompressionStream', 'Uint8Array', c.script)(win, doc, atob, Blob, Response, DecompressionStream, Uint8Array); }
     catch (e) { out.push({ threw: String(e) }); continue; }
-    await new Promise(r => setTimeout(r, 400));
+    // wait until the loader has done something (written the page, changed the message or hidden the spinner), not a fixed 400 ms; then 50 ms more so a late extra write would still show
+    for (let i = 0; i < 600 && written === null && els.m.textContent === 'Opening' && els.n.style.display === undefined; i++) await new Promise(r => setTimeout(r, 5));
+    await new Promise(r => setTimeout(r, 50));
     out.push({ written, message: els.m.textContent, hidden: els.n.style.display });
   }
   process.stdout.write(JSON.stringify(out));

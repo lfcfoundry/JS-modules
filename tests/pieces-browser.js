@@ -52,8 +52,10 @@ module.exports = { check, open, sleep, ok, root };
     console.log('Browser: ' + await b.version());
     let fails = 0;
     for (const [name, fn] of checks) {
-      try { const r = await fn(b); console.log('  ok   ' + name + (r ? ': ' + r : '')); }
-      catch (e) { fails++; console.log('  FAIL ' + name + ': ' + String(e && e.message || e).split('\n')[0]); }
+      const t0 = Date.now(), took = () => ' (' + ((Date.now() - t0) / 1000).toFixed(1) + ' s)';   // time every check first: where the seconds go
+      // (running the checks side by side in separate pages of one browser was tried: two of them hung until the 180 s protocol timeout, because pages that are not in front are throttled)
+      try { const r = await fn(b); console.log('  ok   ' + name + took() + (r ? ': ' + r : '')); }
+      catch (e) { fails++; console.log('  FAIL ' + name + took() + ': ' + String(e && e.message || e).split('\n')[0]); }
     }
     await b.close(); console.log(fails ? fails + ' FAILED' : 'all browser checks passed'); allFails += fails;
   }
