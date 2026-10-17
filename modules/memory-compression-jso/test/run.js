@@ -7,7 +7,8 @@ var J = require(path.resolve(modPath)), FULL = !!process.env.FULL;
 var WASM = JS_ONLY ? { wasm: false } : {};
 var passed = 0, failed = 0;
 function t(name, fn) {
-  try { fn(); passed++; console.log('  ok  ' + name); } catch (e) { failed++; console.log('FAIL ' + name + '\n   ' + (e && e.stack || e).split('\n').slice(0, 4).join('\n   ')); }
+  var t0 = Date.now();
+  try { fn(); passed++; console.log('  ok  ' + name + ' (' + (Date.now() - t0) + ' ms)'); } catch (e) { failed++; console.log('FAIL ' + name + '\n   ' + (e && e.stack || e).split('\n').slice(0, 4).join('\n   ')); }
 }
 function same(a, b, label) { var e = D.same(a, b); if (e) throw new Error((label || 'values differ') + ': ' + e); }
 function opt(o) { return Object.assign({}, WASM, o || {}); }
@@ -207,13 +208,30 @@ t('date-time columns: one number per timestamp, exact text back, bad dates fall 
     var p = rt(col, null, 'bad date ' + s); assert.notStrictEqual(p[2], 3, 'not stored as a date column: ' + s);
   });
   var sorted = many(5000, function (i) { return new Date(start + i * 1500).toISOString().slice(0, 19) + 'Z'; });
-  var withDates = J.pack(sorted, opt()), plain = J.pack(sorted, opt({ patterns: false }));
+  var withDates = J.pack(sorted, opt()), plain = J.pack(sorted, opt({ patterns: false, front: false }));
   assert(withDates.length < 5000 * 0.9, 'sorted timestamps take under a byte each, took ' + withDates.length); assert(withDates.length < plain.length / 4, 'much smaller than stored as text');
   assert.strictEqual(J.pack(many(200, function (i) { return 'x' + i; }), opt())[2], 2, 'files with no date column still say format 2, so older readers open them');
   var gold = Buffer.from('TUoCBC0tCzwLAQIAAmlkAAJhdIOAgIAAvYCAgACJgICAAMyDgIAAAQEABjwAFAE8ALAJAgABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6OwGMA01DAQEAALAJgIBAAf4C/gUyMDI1LTAxLTMxVDIzOjU5OjUwWhQAEzcUAIAyLTAxVDAwOgMAHjQUAC8xMRQAAB44FAAuMjUUAC8zMhQAAB45FAAuNDYUACw1MxQANDE6MMgABbQAPTE6MMgAPTE6McgAPTE6MsgAPTE6MsgAPTE6M8gAPTE6NMgAPTE6NMgAPTE6NcgAPTI6MMgAPTI6McgAPTI6McgAPTI6MsgAPTI6M8gAPTI6M8gAPTI6NMgAPTI6NcgAPTI6NcgAPTM6MMgAPTM6McgAPTM6MsgAPTM6MsgAPTM6M8gAPTM6NMgAPTM6NMgAPTM6NcgAPTQ6MMgAPTQ6MMgAPTQ6McgAPTQ6MsgAPTQ6M8gAPTQ6M8gAPTQ6NMgAPTQ6NcgAPTQ6NcgAPTU6MMgATDU6MTLkAj01OjHIAD01OjLIAD01OjPIAD01OjTIAD01OjTIAD01OjXIAD02OjDIAD02OjDIAD02OjHIAD02OjLIAD02OjLIAD02OjPIAFA2OjQzWgIAAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5OjvW1obM', 'base64'), grows = many(60, function (i) { return { id: i, at: new Date(Date.UTC(2025, 0, 31, 23, 59, 50) + i * 7000).toISOString().slice(0, 19) + 'Z' }; });
   same(grows, J.unpack(new Uint8Array(gold), opt()), 'a file made by 1.1.0');
   var cut = J.pack(sorted, opt({ check: false })); for (var q = 0; q < cut.length; q += 7) throwsJ(function () { J.unpack(cut.subarray(0, q), opt()); }, 'cut at ' + q);
   if (!JS_ONLY) { var wp = J.pack(sorted, {}), jp = J.pack(sorted, { wasm: false }); assert.deepStrictEqual(Buffer.from(wp), Buffer.from(jp), 'same bytes with and without WebAssembly'); }
+});
+t('front coding: sorted text shares its starts, exact back, off switch, damaged files refused', function () {
+  var r = D.rng(77), words = many(6000, function () { var w = '', k = 3 + Math.floor(r() * 9), q; for (q = 0; q < k; q++) w += String.fromCharCode(97 + Math.floor(r() * (q < 2 ? 6 : 26))); return w; }).sort();
+  var rows = words.map(function (w, i) { return { id: i, word: w }; });
+  var p = rt(rows, null, 'sorted words'), off = J.pack(rows, opt({ front: false }));
+  assert.strictEqual(p[2], 4, 'a file with a front-coded column says format 4'); assert(p.length < off.length * 0.8, 'at least 20% smaller than the joined text: ' + p.length + ' against ' + off.length);
+  assert.strictEqual(off[2], 2, 'front: false keeps older readers working'); same(rows, J.unpack(off, opt()), 'off switch');
+  same(rows, J.view(p, opt()).toArray(), 'view'); assert.strictEqual(J.view(p, opt()).field(4321, 'word'), words[4321]);
+  var paths = many(3000, function (i) { return '/usr/share/doc/pkg' + ((i / 20) | 0) + '/files/' + String(i % 20) + '-é日.txt'; }).sort();
+  same(paths, J.unpack(J.pack(paths, opt()), opt()), 'paths with accents');
+  var emoji = many(500, function (i) { return '😀😀😀' + ['a', 'b', '😀'][i % 3] + i; }).sort(), pe = J.pack(emoji, opt()); same(emoji, J.unpack(pe, opt()), 'prefixes that end inside a surrogate pair');
+  var odd = many(400, function (i) { return i === 200 ? 'lone \uD800 high' : 'prefix-shared-' + String(i).padStart(4, '0'); }); same(odd, J.unpack(J.pack(odd, opt()), opt()), 'a lone surrogate keeps the plain way');
+  var rand = many(2000, function () { return Math.floor(r() * 1e9).toString(36) + 'x'; }); assert.deepStrictEqual(Buffer.from(J.pack(rand, opt())), Buffer.from(J.pack(rand, opt({ front: false }))), 'unsorted text does not use it');
+  var same_ = many(300, function (i) { return i % 3 ? 'same text here ' + (i >> 4) : ''; }).sort(); same(same_, J.unpack(J.pack(same_, opt()), opt()), 'duplicates and empty strings');
+  var cut = J.pack(rows.slice(0, 600), opt({ check: false })), q, i2, copy;
+  for (q = 0; q < cut.length; q += 41) throwsJ(function () { J.unpack(cut.subarray(0, q), opt()); }, 'cut at ' + q);
+  for (i2 = 0; i2 < cut.length; i2 += 17) { copy = Uint8Array.from(cut); copy[i2] ^= 0x5A; try { J.unpack(copy, opt()); } catch (e) { assert(/MemoryCompression|Invalid|RangeError|data is cut/.test(String(e)), 'a clean error: ' + e); } }
 });
 t('fsst: text columns stored as codes, each string readable alone', function () {
   var r = D.rng(11), first = ['Anna', 'Bruno', 'Chen', 'Dara', 'Elif', 'Farid', 'Gita', 'Hugo', 'Ines', 'Jun'], last = ['Okafor', 'Petrov', 'Quinn', 'Rossi', 'Silva', 'Tanaka', 'Ueda', 'Vargas'], city = ['Lagos', 'Oslo', 'Quito', 'Hanoi', 'Lima', 'Turin', 'Cork', 'Perth'];
