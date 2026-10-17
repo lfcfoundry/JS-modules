@@ -7,6 +7,8 @@ This repository is meant to be read, copied from and extended by people and AI h
 2. Copy the single `.js` file into the project (keep its MIT header). No install step, no dependencies.
 3. Wire it up with the snippet at the top of the file or in the README, and open the module's `demo.html` to see it working.
 
+**WebAssembly is allowed** (owner's policy from 2026-10-17): a page may add `'wasm-unsafe-eval'` to `script-src` and nothing else in its policy changes. A module with a WebAssembly helper keeps its source, a rebuild step and a plain-JS fallback, and ships a copy without WebAssembly too, so the developer can choose.
+
 ## Changing this repository
 - Keep every module **free of dependencies** and, where it makes sense, **one file** (`frame-kit` is four small files that each work alone). Use ES5-compatible syntax (`var`, no build step), with the UMD wrapper at the top level (browser global + `module.exports`).
 - Never throw out of a probe or a save; return a safe fallback.
