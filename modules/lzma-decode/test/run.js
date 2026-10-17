@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License.
-   Tests for lzma-decode: compares the decoder with Python's own lzma module (liblzma) on many inputs and settings.
+   Tests for lzma-decode and its optional WebAssembly add-on: compares the decoders with Python's own lzma module (liblzma) on many inputs and settings.
    Run: node modules/lzma-decode/test/run.js   (needs python3 on the PATH; no network, no packages) */
 'use strict';
 const { execFileSync } = require('child_process');
@@ -74,5 +74,59 @@ jobs.forEach((j, i) => {
   threw = false; try { lzmaDecode.file(new Uint8Array(5)); } catch (e) { threw = true; } check('a tiny file is refused', threw);
   // speed: decode 1.5 MB in well under 2 seconds
   const k = jobs.findIndex((x) => x.n === 1500000); const raw2 = Uint8Array.from(Buffer.from(out[k].raw, 'hex')); const t0 = Date.now(); lzmaDecode(raw2, 1500000); const ms = Date.now() - t0; check('1.5 MB decodes in under 2 s (took ' + ms + ' ms)', ms < 2000); }
+
+// ---- the optional WebAssembly add-on (lzma-decode-wasm.js): same bytes, same errors, falls back by itself ----
+{
+  const wasmPath = path.join(__dirname, '..', 'lzma-decode-wasm.js');
+  const lzmaWasm = require(wasmPath);
+  const same = (a, b) => a && b && a.length === b.length && Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0;
+  check('wasm add-on found WebAssembly', lzmaWasm.available === true);
+  let nWasm = 0, nJs = 0;
+  jobs.forEach((j, i) => {
+    const raw = Uint8Array.from(Buffer.from(out[i].raw, 'hex')), o = { lc: j.p[0], lp: j.p[1], pb: j.p[2] }, label = `${j.kind} n=${j.n} lc=${j.p[0]} lp=${j.p[1]} pb=${j.p[2]}`;
+    let got = null, err = '';
+    try { got = lzmaWasm(raw, j.n, o); } catch (e) { err = e.message; }
+    check('wasm add-on, raw ' + label, same(got, j.data), err);
+    if (lzmaWasm.engine === 'wasm') nWasm++; else nJs++;
+    check('wasm add-on engine ' + label, lzmaWasm.engine === (o.lc + o.lp <= 4 ? 'wasm' : 'js'), lzmaWasm.engine);
+    const fb = Uint8Array.from(Buffer.from(out[i].alone, 'hex'));
+    check('wasm add-on, file ' + label, same(lzmaWasm.file(fb, j.n), j.data));
+    { let e1 = '', e2 = ''; try { lzmaDecode.file(fb); } catch (e) { e1 = e.message; } try { lzmaWasm.file(fb); } catch (e) { e2 = e.message; } check('wasm add-on, file without a size is refused with the JS message ' + label, e1 !== '' && e1 === e2, e2); }
+  });
+  check('wasm add-on took the wasm path for every liblzma job (liblzma itself only makes lc + lp up to 4)', nWasm > 20 && nJs === 0, nWasm + '/' + nJs);
+  const own = lzmaWasm(Uint8Array.from(Buffer.from(out[0].raw, 'hex')), jobs[0].n, { lc: jobs[0].p[0], lp: jobs[0].p[1], pb: jobs[0].p[2] });
+  check('wasm add-on result stands alone (own buffer of exactly its size)', own.buffer.byteLength === own.length && own.byteOffset === 0);
+  // damaged and cut-short streams: both decoders must agree, either the same bytes or the same error
+  { const j = jobs.find((x) => x.kind === 'text' && x.n === 30000 && x.p[0] === 4); const i = jobs.indexOf(j); const raw = Uint8Array.from(Buffer.from(out[i].raw, 'hex')), o = { lc: 4, lp: 0, pb: 0 };
+    const run = (f, buf, n, oo) => { try { return { v: f(buf, n, oo || o) }; } catch (e) { return { e: e.message }; } };
+    let agree = 0, bad = 0, r = rng(7);
+    for (let t = 0; t < 400; t++) {
+      const buf = raw.slice(); const flips = 1 + ((r() * 3) | 0); for (let k = 0; k < flips; k++) buf[(r() * buf.length) | 0] ^= 1 + ((r() * 255) | 0);
+      const cut = t % 4 === 0 ? buf.subarray(0, (r() * buf.length) | 0) : buf, n = t % 7 === 0 ? j.n + 500 : j.n;
+      const a = run(lzmaDecode, cut, n), b = run(lzmaWasm, cut, n);
+      if ((a.e !== undefined && a.e === b.e) || (a.v && b.v && same(a.v, b.v))) agree++; else { bad++; if (bad < 4) console.log('  differs at trial ' + t + ': JS ' + (a.e || 'ok') + ' / wasm ' + (b.e || 'ok')); }
+    }
+    check('400 damaged or cut-short streams: wasm add-on and JS decoder agree on the bytes or the error (' + agree + ' agree)', bad === 0);
+    let msg = ''; try { lzmaWasm(raw.subarray(0, raw.length >> 1), j.n, o); } catch (e) { msg = e.message; } check('wasm add-on: a cut-short stream throws the JS decoder\'s error', /ended early|before the start/.test(msg), msg);
+    const t1 = Date.now(); msg = ''; try { lzmaWasm(new Uint8Array(8), 64 << 20, o); } catch (e) { msg = e.message; } const ms1 = Date.now() - t1;
+    check('wasm add-on: cut stream with a 64 MB claim fails fast (took ' + ms1 + ' ms)', /ended early/.test(msg) && ms1 < 800, msg);
+    msg = ''; try { lzmaWasm(raw, j.n, { lc: 4, lp: 0, pb: 0, maxSize: j.n - 1 }); } catch (e) { msg = e.message; } check('wasm add-on: maxSize below the size is refused', /maxSize/.test(msg), msg);
+    check('wasm add-on: maxSize equal to the size decodes', same(lzmaWasm(raw, j.n, { lc: 4, lp: 0, pb: 0, maxSize: j.n }), j.data));
+    msg = ''; try { lzmaWasm(raw, j.n, { lc: 9 }); } catch (e) { msg = e.message; } check('wasm add-on: lc 9 is refused with the JS message', /lc 0-8/.test(msg), msg);
+    msg = ''; try { lzmaWasm(raw, 4e9, { maxSize: 1 << 20 }); } catch (e) { msg = e.message; } check('wasm add-on: a 4 GB claim with maxSize is an Error', /maxSize/.test(msg), msg);
+    { const o2 = { lc: 3, lp: 2, pb: 1 }, a = run(lzmaDecode, raw, j.n, o2), b = run(lzmaWasm, raw, j.n, o2);     // lc + lp above 4: handed to the JS decoder (liblzma cannot make such a stream, so this is garbage in, same garbage out)
+      check('wasm add-on: lc + lp above 4 goes to the JS decoder and agrees', lzmaWasm.engine === 'js' && ((a.e !== undefined && a.e === b.e) || (a.v && b.v && same(a.v, b.v)))); }
+    check('wasm add-on: zero-size result', lzmaWasm(raw, 0, o).length === 0);
+  }
+  // a page that forbids WebAssembly (or an old browser): the add-on loads, says so, and decodes with the JS decoder
+  { const saved = globalThis.WebAssembly; delete require.cache[require.resolve(wasmPath)]; globalThis.WebAssembly = undefined;
+    let nw; try { nw = require(wasmPath); } finally { globalThis.WebAssembly = saved; delete require.cache[require.resolve(wasmPath)]; }
+    const j = jobs.find((x) => x.kind === 'text' && x.n === 30000 && x.p[0] === 4); const raw = Uint8Array.from(Buffer.from(out[jobs.indexOf(j)].raw, 'hex'));
+    check('without WebAssembly: available is false', nw.available === false);
+    check('without WebAssembly: still decodes (JS decoder)', same(nw(raw, j.n, { lc: 4, lp: 0, pb: 0 }), j.data) && nw.engine === 'js'); }
+  // speed (information only): 1.5 MB, warm, median of 5
+  { const k = jobs.findIndex((x) => x.n === 1500000), raw2 = Uint8Array.from(Buffer.from(out[k].raw, 'hex')), med = (f) => { const a = []; for (let i = 0; i < 5; i++) { const t = process.hrtime.bigint(); f(); a.push(Number(process.hrtime.bigint() - t) / 1e6); } return a.sort((x, y) => x - y)[2]; };
+    const tj = med(() => lzmaDecode(raw2, 1500000)), tw = med(() => lzmaWasm(raw2, 1500000)); console.log(`  info: 1.5 MB warm decode, median of 5: JS ${tj.toFixed(1)} ms, wasm ${tw.toFixed(1)} ms (smaller is better)`); }
+}
 console.log(`lzma-decode: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
