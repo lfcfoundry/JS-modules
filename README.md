@@ -89,7 +89,7 @@ Open zip and Excel files safely, draw flow charts, write animated GIFs and simul
 |---|---|---|---|
 | [gif-writer](modules/gif-writer/README.md) | Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation). | `GifWriter` | 1.0.0 · API 1 |
 | [zip-open](modules/zip-open/README.md) | Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note. | `ZipOpen` | 1.0.0 · API 1 |
-| [memory-compression](modules/memory-compression/README.md) | Keeps big arrays, coordinates and records packed in memory and brings them back exactly: a 120 MB scene shrinks to 52% (41% in small mode) and restores in about 175 ms, against 525 ms with lz4js and 1.2 s with fflate. | `MemoryCompression` | 1.0.0 · API 1 |
+| [memory-compression](modules/memory-compression/README.md) | Keeps big arrays, coordinates and records packed in memory and brings them back exactly: a 120 MB scene shrinks to 52% (41% in small mode) and restores in about 175 ms, against 525 ms with lz4js and 1.2 s with fflate. | `MemoryCompression` | 1.1.0 · API 1 |
 | [river-layout](modules/river-layout/README.md) | Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer. | `RiverLayout` | 1.0.0 · API 1 |
 | [walker-sim](modules/walker-sim/README.md) | Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 6 million walkers a second). | `WalkerSim` | 2.0.0 · API 2 |
 

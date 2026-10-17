@@ -236,6 +236,16 @@ t('WebAssembly and plain JavaScript give the same bytes (compressed output, not 
     if (bytes.length >= 4) { var lv = [1, 2, 3, 4, 6, 9][k % 6]; same(FP.deflate(bytes, { level: lv, wasm: false }), FP.deflate(bytes, { level: lv }), 'deflate level ' + lv + ' case ' + k); same(FP.inflate(zlib.deflateRawSync(bytes), { size: bytes.length, wasm: false }), FP.inflate(zlib.deflateRawSync(bytes), { size: bytes.length }), 'inflate case ' + k); }
   }
 });
+t('small mode on shuffled planes: WebAssembly and plain JavaScript give the same bytes, past block edges too', function () {
+  if (JS_ONLY || !FP.accelerated()) { console.log('  (skipped: WebAssembly not on)'); return; }
+  var r = rng(77), n = 28 * 40000, src = new Uint8Array(n), i, o;
+  for (i = 0; i < n; i++) { var c = i % 28; src[i] = c < 8 ? 0 : c < 12 ? (i / 28 * (c - 7)) & 255 : c < 16 ? (r() * 3) | 0 : (r() * 256) | 0; }
+  [3, 4, 6].forEach(function (lv) {
+    o = { mode: 'small', level: lv, width: 28 };
+    var a = FP.pack(src, Object.assign({ wasm: false }, o)), b = FP.pack(src, o);
+    same(a, b, 'pack small level ' + lv); same(FP.unpack(a), src, 'round trip level ' + lv);
+  });
+});
 t('unpack into a buffer you already have', function () {
   var r = rng(17), a = makeFloats(r, 'f32', 30000, 0), target = new Float32Array(a.length), got = FP.unpack(FP.pack(a), { into: target });
   assert.strictEqual(got, target); same(target, a, 'into');

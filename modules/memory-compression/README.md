@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1 and WebKitGTK 2.52.6, one at a time: the full benchmark page (79 of 79 self-checks pass in each, every result restored byte for byte), a comparison page against fflate, pako, lz4js, lz4-wasm, zstd-wasm and CompressionStream, and the demo page; the demo page also in GNOME Web (Epiphany) 46.5 (both rows restored byte for byte at 8 MB and 32 MB). Node 22.22.0: 23 checks, with and without WebAssembly. Not run: the benchmark page in GNOME Web 46.5, a phone, a real Net Flow Map scene.
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (2026-10-17): the demo page (both rows restored byte for byte at 8 MB and 32 MB; small-mode pack at 32 MB took 432 ms in Firefox, 300 ms in Chromium, 338 ms in WebKitGTK and 299 ms in GNOME Web); Chromium 155 also the repo test run. Node 22.22.0: 24 checks with and without WebAssembly, the long fuzz, and the WebAssembly file rebuilt from source (byte-identical). Not run: the full benchmark page, a phone.
 
 Holds big data (floats, coordinates, records, text) packed in memory and brings it back fast and exactly. About 91 KB with comments (a 22 KB WebAssembly helper is part of that, and it is optional), no dependencies, works offline.
 
@@ -40,6 +40,8 @@ var buf = new Uint8Array(v.chunkBytes); v.read(5, buf);   // or into a buffer yo
 
 ## Numbers
 Measured on this machine (4 cores), best of several runs, MB/s counted on the original size; every result was unpacked and compared byte for byte. Cell = size as a share of the original, pack speed, restore speed. Full tables for Node and for each browser are in the review (`REVIEW.md`). Floats here are the hard kind: noisy coordinates, decimals and random walks.
+
+**Version 1.1.0 changed small mode only** (the tables below were measured on 1.0.0): on the same 16 MB sets it packs 1.7 times faster overall (49 to 84 MB/s) and ends 0.6 points smaller overall (55.4% to 54.8%); float and record sets are 0.5 to 2.9 points smaller except random-walk floats, which are 0.5 to 0.9 points bigger. Restore speed and fast mode did not change.
 
 | 16 MB of... | memory-compression fast | memory-compression small | lz4js | fflate level 6 | pako level 6 |
 |---|---|---|---|---|---|
