@@ -8,7 +8,7 @@ Collects every character in the file (typed directly, written as \\uXXXX / \\u{.
 then subsets each @font-face with fontTools and re-embeds it as woff2.
 
     pip install fonttools brotli
-    python3 optfonts.py in.html out.html [--report] [--features kern,liga,tnum] [--extra "ñéü"] [--format woff2|woff]
+    python3 optfonts.py in.html out.html [--report] [--costs] [--features kern,liga,tnum] [--extra "ñéü"] [--format woff2|woff]
 
 Layout features kept by default: kerning, ligatures, accents, required forms and tabular digits (tnum). Pass --features to change.
 Only works on @font-face rules whose src is a data: URL with base64 data and that name font-family in single quotes.
@@ -18,6 +18,10 @@ Font licenses: the copyright and license records of each font (name IDs 0, 13 an
 into a /*! ... */ comment in front of the @font-face rule. If a font is under the SIL Open Font License a warning is printed: subsetting
 counts as modifying the font, every copy you ship has to keep the notice, and a font with a Reserved Font Name must be renamed.
 --format woff writes woff (zlib) instead of woff2, for when the brotli module is not installed.
+--report also lists, per font, the characters the page prints that the font does not have (the browser shows those in another font).
+--costs also measures what each layout feature costs in bytes, per font (the font is subset again once per feature, so it takes longer),
+so you can drop a feature from --features for a font where it is expensive and you do not need it.
+The data: URL's type and the format() hint are rewritten to match the bytes that are written (font/woff2 or font/woff).
 """
 import re, sys, io, base64, html, argparse
 
@@ -70,10 +74,43 @@ def comment_safe(t):
     return t.replace('*/', '* /').replace('<', '(').replace('>', ')')[:700]
 
 
-def optimize(s, extra='', features=None, fmt='woff2', warn=None, rep=None):
-    """Returns (new_html, bytes_before, bytes_after). warn(text) is called for license warnings; rep.append(text) gets report lines."""
+def subset_bytes(raw, keep, features, fmt):
+    """The font bytes (fmt: woff2 or woff) holding only the code points in keep and the layout features in features."""
     from fontTools.ttLib import TTFont
     from fontTools.subset import Subsetter, Options
+    f = TTFont(io.BytesIO(raw), recalcTimestamp=False)
+    o = Options(); o.flavor = fmt; o.layout_features = list(features); o.notdef_outline = True
+    o.name_IDs = NAME_IDS; o.hinting = False; o.glyph_names = False; o.legacy_kern = True; o.drop_tables += ['DSIG']
+    sb = Subsetter(o); sb.populate(unicodes=keep); sb.subset(f)
+    out = io.BytesIO(); f.flavor = fmt; f.save(out)
+    return out.getvalue()
+
+
+MIME = {'woff2': 'font/woff2', 'woff': 'font/woff'}
+
+
+def retype(rule, fmt):
+    """The @font-face rule with its data: URL type and its format() hint saying fmt, so the label agrees with the bytes."""
+    rule = re.sub(r'data:[^;,)]*;base64,', 'data:' + MIME[fmt] + ';base64,', rule)
+    return re.sub(r'format\(\s*([\'"])[^\'"]*\1\s*\)', "format('" + fmt + "')", rule)
+
+
+def missing_chars(s, extra, cmap):
+    """Characters the page itself prints (typed, escaped or as entities; not the ASCII and typographic extras that are always added)
+    that this font has no glyph for, as a sorted list of code points."""
+    page_only = collect_chars(s, extra) - ALWAYS - set(range(0x20, 0x7f))
+    return sorted(u for u in page_only if u not in cmap)
+
+
+def fmt_chars(cps, limit=20):
+    shown = ' '.join('U+%04X %s' % (u, chr(u)) if u > 0x20 else 'U+%04X' % u for u in cps[:limit])
+    return shown + (' ... and %d more' % (len(cps) - limit) if len(cps) > limit else '')
+
+
+def optimize(s, extra='', features=None, fmt='woff2', warn=None, rep=None, costs=False):
+    """Returns (new_html, bytes_before, bytes_after). warn(text) is called for license warnings; rep.append(text) gets report lines
+    (including, per font, the characters it lacks and, with costs=True, what each layout feature costs in bytes)."""
+    from fontTools.ttLib import TTFont
     features = features or []
     need = collect_chars(s, extra)
     totals = [0, 0]
@@ -91,13 +128,18 @@ def optimize(s, extra='', features=None, fmt='woff2', warn=None, rep=None):
         family, copyright_text, license_text, license_url = font_notice(f)
         cm = f.getBestCmap()
         keep = sorted(u for u in need if u in cm)
-        o = Options(); o.flavor = fmt; o.layout_features = features; o.notdef_outline = True
-        o.name_IDs = NAME_IDS; o.hinting = False; o.glyph_names = False; o.legacy_kern = True; o.drop_tables += ['DSIG']
-        sb = Subsetter(o); sb.populate(unicodes=keep); sb.subset(f)
-        out = io.BytesIO(); f.flavor = fmt; f.save(out); nb = out.getvalue()
+        nb = subset_bytes(raw, keep, features, fmt)
         totals[0] += len(raw); totals[1] += len(nb)
         rep.append('%s: %d -> %d bytes, %d characters kept (of %d in the font)' % (fam.group(1), len(raw), len(nb), len(keep), len(cm)))
-        new_rule = m.group(0).replace(b64.group(1), base64.b64encode(nb).decode())
+        lack = missing_chars(s, extra, cm)
+        if lack:
+            rep.append('  the page prints %d character%s this font does not have (the browser shows %s in another font): %s'
+                       % (len(lack), '' if len(lack) == 1 else 's', 'it' if len(lack) == 1 else 'them', fmt_chars(lack)))
+        if costs:
+            for ft in features:
+                less = len(subset_bytes(raw, keep, [x for x in features if x != ft], fmt))
+                rep.append('  feature %s costs %d bytes' % (ft, len(nb) - less) if len(nb) != less else '  feature %s costs 0 bytes (the font has none of it)' % ft)
+        new_rule = retype(m.group(0).replace(b64.group(1), base64.b64encode(nb).decode()), fmt)
         if not (copyright_text or license_text or license_url):
             warn("WARNING: font '%s' has no copyright or license text in its name table. Check its license yourself and credit it in your page." % fam.group(1))
             return new_rule
@@ -117,6 +159,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description='Cut every base64 font in an HTML file down to the characters it can show.')
     ap.add_argument('src'); ap.add_argument('dst')
     ap.add_argument('--report', action='store_true')
+    ap.add_argument('--costs', action='store_true', help='measure the bytes each layout feature costs, per font (slower)')
     ap.add_argument('--features', default='ccmp,locl,mark,mkmk,kern,liga,clig,calt,rlig,rclt,rvrn,curs,tnum')
     ap.add_argument('--extra', default='')
     ap.add_argument('--format', default='woff2', choices=['woff2', 'woff'], help='woff2 needs the brotli module; woff does not')
@@ -133,10 +176,10 @@ def main(argv=None):
     features = [f for f in a.features.split(',') if f]
     s = open(a.src, encoding='utf-8').read()
     rep = []
-    s2, before, after = optimize(s, a.extra, features, a.format, lambda t: print(t, file=sys.stderr), rep)
+    s2, before, after = optimize(s, a.extra, features, a.format, lambda t: print(t, file=sys.stderr), rep, a.costs)
     open(a.dst, 'w', encoding='utf-8').write(s2)
     print('fonts: %d -> %d bytes of font data (file %d -> %d)' % (before, after, len(s), len(s2)))
-    if a.report:
+    if a.report or a.costs:
         print('\n'.join(rep))
 
 
