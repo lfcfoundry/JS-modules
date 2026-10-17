@@ -7,17 +7,22 @@ A label is a classic number plus an API number:   1.2.3 · API 1
   - API n: always equals the major number. It is shown on its own so that "can I drop in the new file?" reads as one small number:
     same API as your copy = safe, higher API = read the README first.
 
+Every module and tool also has a CHANGELOG.md in its folder (newest entry first, plain words), and the root CHANGELOG.md lists the latest
+version of each plus recent changes. Entries look like:   ## 1.2.0 · API 1 · 2026-10-16
+
 The label lives in modules.json (the source of truth), and is copied by this script into the module's header comment (so a single copied
 file carries it), the first lines of its README, the root README tables, the front page and llms.txt.
 
   python3 tools/versions/versions.py list                 print every label
   python3 tools/versions/versions.py check [--staged]     every copy agrees? (--staged: also warn when staged code has no new version)
-  python3 tools/versions/versions.py set ID X.Y.Z         change one label everywhere
+  python3 tools/versions/versions.py set ID X.Y.Z --note "what changed, in plain words"
+                                                          change one label everywhere and add its CHANGELOG.md entry
+  python3 tools/versions/versions.py changelog            rebuild the root CHANGELOG.md
   python3 tools/versions/versions.py init                 first-time labels for entries that have none (1.0.0)
 
 Run from anywhere inside the repository, or point it elsewhere with --root DIR (the tests do).
 """
-import json, os, re, subprocess, sys
+import datetime, json, os, re, subprocess, sys
 
 SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 HEAD_LINES = 15
@@ -38,6 +43,72 @@ def entries(reg):
     for kind in ("modules", "tools"):
         for e in reg.get(kind, []):
             yield kind, e
+
+
+ENTRY = re.compile(r"^## (\d+\.\d+\.\d+) \u00b7 API (\d+) \u00b7 (\d{4}-\d{2}-\d{2})\s*$")
+CL_INTRO = ("What changed in each version, newest first, in plain words. The numbers are explained in "
+            "[tools/versions/README.md](%stools/versions/README.md): the API number goes up only when someone using an older copy could be affected.")
+FIRST_NOTE = "First labeled version. Nothing in the code changed; everything under \"Before version labels\" is already in it."
+
+
+def today():
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+    except Exception:
+        return datetime.date.today().isoformat()
+
+
+def changelog_rel(root, e):
+    return entry_dir(e, root) + "/CHANGELOG.md"
+
+
+def changelog_entries(text):
+    """[(version, api, date, body)] from the labeled entries, newest first as written."""
+    out, cur = [], None
+    for line in text.split("\n"):
+        m = ENTRY.match(line)
+        if m:
+            cur = [m.group(1), m.group(2), m.group(3), []]
+            out.append(cur)
+        elif line.startswith("## "):
+            cur = None
+        elif cur is not None:
+            cur[3].append(line)
+    return [(v, a, d, " ".join(x.strip() for x in b if x.strip())) for v, a, d, b in out]
+
+
+def add_changelog_entry(root, e, v, note, date=None):
+    rel = changelog_rel(root, e)
+    entry = "## %s \u00b7 API %s \u00b7 %s\n%s\n" % (v, v.split(".")[0], date or today(), note.strip())
+    path = os.path.join(root, rel)
+    if os.path.exists(path):
+        t = rd(root, rel)
+        i = t.find("\n## ")
+        t = (t[:i + 1] + entry + "\n" + t[i + 1:]) if i >= 0 else (t.rstrip("\n") + "\n\n" + entry)
+    else:
+        up = "../" * (entry_dir(e, root).count("/") + 1)
+        t = "# %s changelog\n\n%s\n\n%s" % (e["id"], CL_INTRO % up, entry)
+    wr(root, rel, t)
+
+
+def root_changelog(root, reg):
+    rows, recent = [], []
+    for kind, e in entries(reg):
+        rel = changelog_rel(root, e)
+        rows.append("| [%s](%s) | %s | [changelog](%s) |" % (e["id"], os.path.dirname(rel) + "/README.md", label(e["version"]) if e.get("version") else "-", rel))
+        if os.path.exists(os.path.join(root, rel)):
+            for v, a, d, body in changelog_entries(rd(root, rel)):
+                if not body.startswith("First labeled version"):
+                    recent.append((d, e["id"], v, a, body))
+    recent.sort(key=lambda r: (r[0], r[1], r[2]), reverse=True)
+    lines = ["# Changelog", "",
+             "Every module and tool keeps its own `CHANGELOG.md` (in its folder), newest first, in plain words. This page lists where each one stands and the "
+             "changes made since version labels began on 2026-10-16. Older history is in each module's changelog under \"Before version labels\".", "",
+             "How to read a label: `1.2.3 \u00b7 API 1`. The API number goes up only when someone using an older copy could be affected; see [tools/versions/README.md](tools/versions/README.md).", "",
+             "| Module or tool | Version | History |", "|---|---|---|"] + rows + ["", "## Changes since labels began", ""]
+    lines += ["- %s \u00b7 **%s** %s \u00b7 API %s: %s" % r for r in recent] or ["- (none yet)"]
+    return "\n".join(lines) + "\n"
 
 
 def label(v):
@@ -206,6 +277,7 @@ def apply(root, reg):
             n = set_readme(t, v)
             if n != t:
                 wr(root, rp, n)
+    wr(root, "CHANGELOG.md", root_changelog(root, reg))
     for rel, fn in (("README.md", set_root_readme), ("index.html", set_index), ("llms.txt", set_llms)):
         if os.path.exists(os.path.join(root, rel)):
             t = rd(root, rel)
@@ -240,6 +312,13 @@ def check(root, reg):
             m = re.search(r"\bversion:\s*'(\d+\.\d+\.\d+)'", rd(root, f))   # a module that also exposes its version in code (sprite-baker)
             if m and m.group(1) != v:
                 bad.append("%s: %s exposes version '%s' in code but modules.json says %s" % (i, f, m.group(1), v))
+        cl = changelog_rel(root, e)
+        if not os.path.exists(os.path.join(root, cl)):
+            bad.append("%s: %s is missing" % (i, cl))
+        else:
+            ce = changelog_entries(rd(root, cl))
+            if not ce or ce[0][0] != v:
+                bad.append("%s: the newest entry in %s is %s, but modules.json says %s (run versions.py set ID %s --note \"...\")" % (i, cl, ce[0][0] if ce else "missing", v, v))
         rp = e.get("readme")
         if rp:
             h = readme_version(rd(root, rp))
@@ -252,6 +331,11 @@ def check(root, reg):
         t = rd(root, "README.md")
         if re.search(r"^\| \[%s\]\(" % re.escape(i), t, re.M) and (" " + label(v) + " |") not in t:
             bad.append("%s: the README table does not show %s" % (i, label(v)))
+    if os.path.exists(os.path.join(root, "CHANGELOG.md")):
+        if rd(root, "CHANGELOG.md") != root_changelog(root, reg):
+            bad.append("CHANGELOG.md (the root one) is out of date: run versions.py changelog")
+    else:
+        bad.append("CHANGELOG.md (the root one) is missing: run versions.py changelog")
     return bad
 
 
@@ -311,14 +395,24 @@ def main(argv):
             print("versions: all labels agree." if not bad else "versions: %d problem(s)." % len(bad))
         return 1 if bad else 0
     if cmd == "set":
-        if len(argv) != 3 or not SEMVER.match(argv[2]):
-            sys.exit("usage: versions.py set ID X.Y.Z")
+        note = None
+        if "--note" in argv:
+            k = argv.index("--note")
+            note = " ".join(argv[k + 1:]).strip()
+            argv = argv[:k]
+        if len(argv) != 3 or not SEMVER.match(argv[2]) or not note:
+            sys.exit('usage: versions.py set ID X.Y.Z --note "what changed, in plain words"')
         e = next((x for _, x in entries(reg) if x["id"] == argv[1]), None)
         if not e:
             sys.exit("versions: no module or tool called " + argv[1])
         e["version"] = argv[2]
+        add_changelog_entry(root, e, argv[2], note)
         apply(root, reg)
-        print("%s is now %s" % (argv[1], label(argv[2])))
+        print("%s is now %s (changelog entry added)" % (argv[1], label(argv[2])))
+        return 0
+    if cmd == "changelog":
+        wr(root, "CHANGELOG.md", root_changelog(root, reg))
+        print("CHANGELOG.md written")
         return 0
     if cmd == "init":
         n = 0
@@ -326,6 +420,8 @@ def main(argv):
             if not e.get("version"):
                 e["version"] = "1.0.0"
                 n += 1
+                if not os.path.exists(os.path.join(root, changelog_rel(root, e))):
+                    add_changelog_entry(root, e, "1.0.0", FIRST_NOTE, "2026-10-16")
         apply(root, reg)
         print("labelled %d entries" % n)
         return 0

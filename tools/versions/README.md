@@ -13,6 +13,9 @@ One command keeps every module's and tool's version label the same everywhere.
 
 Reading it: **same API number as your copy = you can drop the new file in. A higher API number = read the module's README ("What changed" or "Limits") first.** Docs-only, test-only and example-only changes keep the label.
 
+## Changelogs
+Every module and tool has a `CHANGELOG.md` in its folder: newest version first, one or two plain sentences each (what a user would notice, not how it was done). `set` requires `--note` and writes the entry with today's US Eastern date. The root [CHANGELOG.md](../../CHANGELOG.md) is generated: where each module stands, plus the changes since labels began. `check` fails if a changelog is missing, if its newest entry is not the current version, or if the root one is stale. History before 2026-10-16 sits under "Before version labels" in each changelog, rebuilt from the commit log, the task board and the 2026-10-15 audit.
+
 ## Where it lives
 `modules.json` is the source of truth (`version` and `api` next to each `id`). The script copies it into:
 1. the module's header comment (`Version 1.2.3 (API 1)`), so a single copied file carries it;
@@ -25,7 +28,8 @@ Reading it: **same API number as your copy = you can drop the new file in. A hig
 ```
 python3 tools/versions/versions.py list                 # every label
 python3 tools/versions/versions.py check                # do all copies agree? (exit 1 if not)
-python3 tools/versions/versions.py set fly-to-mini 1.2.0   # change one label everywhere
+python3 tools/versions/versions.py set fly-to-mini 1.2.0 --note "What changed, in plain words."   # change one label everywhere and add the changelog entry
+python3 tools/versions/versions.py changelog            # rebuild the root CHANGELOG.md
 python3 tools/versions/versions.py init                 # labels 1.0.0 on anything that has none
 python3 tools/versions/test/run.py                      # the tool's own checks (a temp repository, under a second)
 ```
