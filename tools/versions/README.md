@@ -40,3 +40,6 @@ Everything started at 1.0.0 with API 1, except `sprite-baker` (1.2.0, as it alre
 
 ---
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
+
+## What a changelog note must say
+Plain words, and numbers wherever there is something to count. Each improvement says how much (for example "3 times faster, 1.8 s instead of 5.4 s", "23 percent smaller") and where it was measured; each new feature says what it does and whether it is on by default; each fix says what went wrong before and what happens now. Say "not measured" rather than guess. The rule applies to the `--note` you pass to `versions.py set`.
