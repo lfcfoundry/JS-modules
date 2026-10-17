@@ -3,7 +3,7 @@
 /* Fancy Banana's even-frame-steps and quality-governor code, copied VERBATIM from game.js (build 2026.10.17.0249) so a JS-modules change can be tested
    for identical answers on the same frame-time series. Only this header, stub game state and module.exports are added.
    Stubs: state ('play'), document.hidden (false), save options (opt('saver') = 0), toast (records messages), fxMax / ART.lite / resize / render (recorded in `log`).
-   Copyright (c) 2026 LFC Foundry. MIT licensed. Use: const F = require('./reference-frame.js'); F.reset(); F.evenDt(ms) -> ms; F.govStep(ri, t) changes F.get() = { qLvl, dprMax, lite, fxMax, log }. */
+   Copyright (c) 2026 LFC Foundry. MIT License. Use: const F = require('./reference-frame.js'); F.reset(); F.evenDt(ms) -> ms; F.govStep(ri, t) changes F.get() = { qLvl, dprMax, lite, fxMax, log }. */
 var state = 'play', document = { hidden: false }, log = [], fxMax = 70, ART = { lite: false }, saverOn = 0, hints = [];
 function opt(k) { return k === 'saver' ? saverOn : 0; }
 function toast(msg) { hints.push(msg); }
