@@ -1,4 +1,4 @@
-/* even-dt: smooths the uneven frame gaps a browser reports by snapping them to the screen's learned refresh period. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.1.0 (API 1) */
+/* even-dt: smooths the uneven frame gaps a browser reports by snapping them to the screen's learned refresh period. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.2.0 (API 1) */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.EvenDt = factory();
@@ -41,7 +41,9 @@
    * 2 so that duplicate callbacks and rounding artifacts are still ignored on
    * normal screens.
    */
+//@begin options
   function pick(v, d) { return v === undefined || v === null ? d : v; }
+//@end
 
   /**
    * @param {object} [opts]
@@ -55,6 +57,7 @@
    * @param {number} [opts.payback=0.04]   Fraction of the owed drift paid back per frame (0 = never, 1 = at once).
    */
   function EvenDt(opts) {
+//@begin options
     var o = opts || {};
     this.minGap = pick(o.minGap, 2);
     this.maxGap = pick(o.maxGap, 60);
@@ -64,13 +67,19 @@
     this.maxMultiple = pick(o.maxMultiple, 3);
     this.tolerance = pick(o.tolerance, 0.3);
     this.payback = pick(o.payback, 0.04);
+//@else
+//@    this.minGap = 2; this.maxGap = 60; this.window = 40; this.warmup = 12; this.refreshEvery = 8; this.maxMultiple = 3; this.tolerance = 0.3; this.payback = 0.04;
+//@end
     this._gaps = [];
     this._sorted = [];
+//@begin refreshRule
     this._since = 0;
+//@end
     this._period = 0;
     this._drift = 0;
   }
 
+//@begin stats
   /** The learned screen period in ms, or 0 while still warming up. */
   Object.defineProperty(EvenDt.prototype, 'period', { get: function () { return this._period; }, configurable: true });
 
@@ -85,6 +94,7 @@
     this._drift = 0;
     return this;
   };
+//@end
 
   /**
    * Feed one raw frame gap in ms; get back the smoothed gap in ms.
@@ -98,8 +108,12 @@
     g.push(ri);
     if (g.length > this.window) g.shift();
     if (g.length < this.warmup) return ri;
+//@begin refreshRule
     if (!this._period || ++this._since >= this.refreshEvery) {
       this._since = 0;
+//@else
+//@    if (!this._period || g.length % this.refreshEvery === 0) {
+//@end
       var s = this._sorted;
       s.length = g.length;
       for (var i = 0; i < g.length; i++) s[i] = g[i];

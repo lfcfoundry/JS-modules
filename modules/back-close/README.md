@@ -1,8 +1,8 @@
 # back-close
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Node: 30 checks pass (7 new). Module browser suite passes in ungoogled Chromium 155.0.8059.39-1. Not run: that browser suite in Firefox 158.0, WebKitGTK and GNOME Web (no geckodriver on the browsers branch; no driver for the others), a phone. CloseWatcher itself is absent in WebKitGTK 2.52.6
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/small-lean-browser.js: 0 failures in each of the four; Chromium and Firefox used the real CloseWatcher with the real Escape key and the browser's own wake lock; WebKitGTK and GNOME Web have no CloseWatcher, so 3 back-close situations say 'not available', and they refuse the wake lock request (NotAllowedError), so their 6 wake-keeper situations ran with a stand-in lock). Not run: a phone, Safari itself; node modules/back-close/test/lean.js 12 of 12, 30 older Node checks
 
 Makes a phone's back swipe (or back button) close the top panel instead of leaving the page. About 7 KB, no dependencies.
 
@@ -48,6 +48,21 @@ A native `<dialog>` opened with `showModal()` and a `popover` element already ta
 
 ## Make the panel a proper dialog
 The demo shows the pattern: give the panel `role="dialog"`, `aria-modal="true"` and a label (`aria-labelledby`), move keyboard focus into it when it opens, and return focus to the button that opened it when it closes. back-close does none of this for you.
+
+## Lean build: ship only what a game uses (new in 1.2.0)
+
+`back-close.js` stays the full file. `python3 modules/back-close/lean.py --without history,element,closeRoute,supported --no-comments -o backclose.js` writes a copy without those parts (`--list` names all four, `--sizes` prints bytes, gzipped bytes and, when `terser` is installed, minified bytes). What you keep behaves as in the full file; what you cut is simply missing. The parts:
+
+| Part | What cutting it removes |
+|---|---|
+| `history` | the history fallback (`historyFallback`) for browsers without CloseWatcher |
+| `element` | `BackClose.watch(el, ...)`, `isShown`, `attributes` and the MutationObserver; `watchWhen` stays |
+| `closeRoute` | `handle.close()` (it then returns false) |
+| `supported` | `BackClose.supported` (`handle.supported` stays) |
+
+Fancy Banana's set (all four cut, so only `watchWhen(isOpen, close)` and the handle's `sync()` and `destroy()` remain): 842 bytes minified, 415 gzipped, against 2,467 and 1,067 for the whole file (66% and 61% smaller; lower is smaller). Fancy's own inline code is about 255 bytes, so the lean build is about 3.3 times that, in exchange for being shared and tested.
+
+`node modules/back-close/test/lean.js` builds the full file, Fancy's set (with and without comments), each part cut on its own and the no-CloseWatcher case, and runs the situation table from `tests/small-lean-battery.js` on each (about 1 s): panel opens (a watcher is made), closes by its own button (the watcher is destroyed and your close function is not called), a back request closes the newest panel and the other one stays closable, no CloseWatcher (nothing happens, no error). `node tests/small-lean-browser.js` runs the same table in a real browser with the browser's own CloseWatcher and the real Escape key; where the browser has no CloseWatcher it says "not available" for the three situations that need one. `lean.py` edits nothing: change `back-close.js` and keep its `//@begin` / `//@else` / `//@end` marker lines balanced.
 
 ## Why
 On a phone, a pop-up that does not respond to the back gesture sends the player out of the game or to the previous site. `CloseWatcher` is the browser's own "close request" channel (the Escape key, the Android back gesture and other platform close gestures all go through it), so one hook covers them.

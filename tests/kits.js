@@ -23,6 +23,7 @@ var onlyRe = value('--only') || process.env.KITS_ONLY;
 var retry = process.env.KITS_RETRY !== '0';
 var steps = [
   ['frame-kit', 'node', ['modules/frame-kit/test/run.js']],
+  ['frame-kit lean', 'node', ['modules/frame-kit/test/lean.js']],
   ['sprite-baker', 'node', ['modules/sprite-baker/test/run.js']],
   ['sprite-baker lean', 'node', ['modules/sprite-baker/test/lean.js']],
   ['lzma-decode', 'node', ['modules/lzma-decode/test/run.js']],
@@ -31,6 +32,7 @@ var steps = [
   ['canvas-probe', 'node', ['tools/canvas-probe/test/run.js']],
   ['webkit-driver', 'node', ['tools/webkit-driver/test/run.js']],
   ['wake-keeper', 'node', ['modules/wake-keeper/test/run.js']],
+  ['wake-keeper lean', 'node', ['modules/wake-keeper/test/lean.js']],
   ['stage-curtains', 'node', ['modules/stage-curtains/test/run.js']],
   ['fly-to-mini', 'node', ['modules/fly-to-mini/test/run.js']],
   ['sticker-text', 'node', ['modules/sticker-text/test/run.js']],
@@ -39,6 +41,7 @@ var steps = [
   ['fx-governor', 'node', ['modules/fx-governor/test/run.js']],
   ['hold-press', 'node', ['modules/hold-press/test/run.js']],
   ['back-close node', 'node', ['modules/back-close/test/run.js']],
+  ['back-close lean', 'node', ['modules/back-close/test/lean.js']],
   ['slow-note', 'node', ['modules/slow-note/test/run.js']],
   ['spotlight-tour', 'node', ['modules/spotlight-tour/test/run.js']],
   ['test-isolation', 'node', ['tools/test-isolation/test/run.js']],
@@ -84,6 +87,7 @@ var steps = [
   ['zip-open checksums', 'node', ['tests/zip-open-crc-browser.js'], true, true],   // optional like the one above (the checksum against a plain bit-by-bit CRC in Node and in each browser, with timings)
   ['sprite-baker Fancy pixels', 'node', ['tests/sprite-baker-fancy-browser.js'], true, true],   // optional like the one above (Fancy Banana's own filler against sprite-baker, byte for byte, in Node and in each browser, with timings)
   ['save-kit speed', 'node', ['tests/save-kit-speed-browser.js'], true, true],   // optional like the one above (one game-sized save and load, new file against an older one with OLD=, in Node and in each browser)
+  ['small lean browser', 'node', ['tests/small-lean-browser.js'], true, true],   // optional: back-close, wake-keeper, even-dt and quality-governor lean builds in each browser (about 3 s per browser)
   ['frame-kit browser', 'node', ['tests/frame-kit-browser.js'], true, true],   // optional like the one above (the 67 checks of modules/frame-kit/test/run.js run inside each browser, plus about 1.5 s of real animation frames)
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fourth item: a browser step (left out by --quick, run one at a time); fifth: counts as skipped, not failed, when it exits with code 2
 ].map(function (s) { return { name: s[0], cmd: s[1], args: s[2], browser: !!s[3], skippable: !!s[4], always: !!s[5] }; });

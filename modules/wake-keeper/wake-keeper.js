@@ -2,7 +2,7 @@
  * wake-keeper.js: keep the screen awake only while a game really wants it.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   var wk = WakeKeeper.create({ idleMs: 60000, onRefused: function (err) { ... } });
  *   wk.want(true);    // playing: ask for the lock      wk.want(false);  // paused, card open, title screen: give it back
@@ -30,36 +30,78 @@
 
   function create(opts) {
     opts = opts || {};
+//@begin inject
     var nav = opts.nav || (typeof navigator !== 'undefined' ? navigator : null);
     var doc = opts.doc || (typeof document !== 'undefined' ? document : null);
+//@else
+//@    var nav = typeof navigator !== 'undefined' ? navigator : null;
+//@    var doc = typeof document !== 'undefined' ? document : null;
+//@end
+//@begin idle
     var setT = opts.setTimeout || (typeof setTimeout !== 'undefined' ? setTimeout.bind(typeof self !== 'undefined' ? self : this) : null);
     var clearT = opts.clearTimeout || (typeof clearTimeout !== 'undefined' ? clearTimeout.bind(typeof self !== 'undefined' ? self : this) : null);
     var idleMs = opts.idleMs > 0 ? opts.idleMs : 60000;
+//@end
+//@begin inject
     var now = typeof opts.now === 'function' ? opts.now : function () { return Date.now(); };
+//@else
+//@    var now = function () { return Date.now(); };
+//@end
     var backoffMs = opts.refusalBackoffMs >= 0 ? opts.refusalBackoffMs : 20000;
     var supported = !!(nav && nav.wakeLock && typeof nav.wakeLock.request === 'function');
-    var wanted = false, idle = false, sentinel = null, pending = false, timer = null, refusals = 0, gen = 0;
-    var blockedUntil = 0, dead = false, watchers = [];
+    var wanted = false, sentinel = null, pending = false, gen = 0;
+//@begin idle
+    var idle = false, timer = null;
+//@end
+//@begin status
+    var refusals = 0;
+//@end
+    var blockedUntil = 0, dead = false;
+//@begin idle
+    var watchers = [];
+//@end
+//@begin idle
     var api = { supported: supported, want: want, poke: poke, destroy: destroy, watchInput: watchInput };
+//@else
+//@    var api = { supported: supported, want: want, destroy: destroy };
+//@end
+//@begin status
     Object.defineProperty(api, 'held', { get: function () { return !!sentinel; } });
     Object.defineProperty(api, 'refusals', { get: function () { return refusals; } });
+//@end
+//@begin idle
     Object.defineProperty(api, 'idle', { get: function () { return idle; } });
+//@end
 
     function visible() { return !doc || doc.visibilityState !== 'hidden'; }
+//@begin callbacks
     function note() { if (typeof opts.onChange === 'function') { try { opts.onChange(!!sentinel); } catch (e) { /* the page's callback failed */ } } }
+//@else
+//@    function note() {}
+//@end
 
     function release() {
       var s = sentinel; sentinel = null; gen++;
       if (s) { try { var r = s.release(); if (r && r.catch) r.catch(function () {}); } catch (e) { /* already released */ } note(); }
     }
+//@begin idle
     function startIdle() { if (timer && clearT) clearT(timer); timer = setT ? setT(function () { timer = null; idle = true; release(); }, idleMs) : null; }
+//@end
     function acquire() {
-      if (dead || !supported || sentinel || pending || !wanted || idle || !visible() || now() < blockedUntil) return;
+      if (dead || !supported || sentinel || pending || !wanted ||
+//@begin idle
+        idle ||
+//@end
+        !visible() || now() < blockedUntil) return;
       pending = true; var my = ++gen;
       var p; try { p = nav.wakeLock.request('screen'); } catch (e) { p = Promise.reject(e); }
       Promise.resolve(p).then(function (s) {
         pending = false;
-        if (dead || my !== gen || !wanted || idle || !visible()) {                                            // the situation changed while we waited
+        if (dead || my !== gen || !wanted ||
+//@begin idle
+          idle ||
+//@end
+          !visible()) {                                            // the situation changed while we waited
           try { var r = s.release(); if (r && r.catch) r.catch(function () {}); } catch (e) { /* ignore */ }
           acquire();                                                                                          // still wanted? ask again (no-op if not)
           return;
@@ -71,8 +113,13 @@
         pending = false;
         if (dead) return;
         if (my !== gen) { acquire(); return; }                       // an old request failed after the situation changed: ask afresh, do not count it
-        refusals++; blockedUntil = now() + backoffMs;
+//@begin status
+        refusals++;
+//@end
+        blockedUntil = now() + backoffMs;
+//@begin callbacks
         if (typeof opts.onRefused === 'function') { try { opts.onRefused(err); } catch (e) { /* the page's callback failed */ } }
+//@end
       });
     }
 
@@ -80,12 +127,25 @@
       if (dead) return;
       on = !!on; if (on === wanted) { if (on) acquire(); return; }
       wanted = on; blockedUntil = 0;                                 // a real change of wish ends any refusal wait
-      if (on) { idle = false; startIdle(); acquire(); }
-      else { if (timer && clearT) { clearT(timer); timer = null; } release(); }
+      if (on) {
+//@begin idle
+        idle = false; startIdle();
+//@end
+        acquire();
+      }
+      else {
+//@begin idle
+        if (timer && clearT) { clearT(timer); timer = null; }
+//@end
+        release();
+      }
     }
+//@begin idle
     function poke() { if (dead || !wanted) return; idle = false; startIdle(); acquire(); }
+//@end
     function onVis() { if (dead || !doc) return; if (doc.visibilityState === 'hidden') release(); else { blockedUntil = 0; acquire(); } }
     if (doc && doc.addEventListener) doc.addEventListener('visibilitychange', onVis);
+//@begin idle
     // Pokes for you on pointer, touch and key events (at most once a second). Returns a function that stops it. Never throws.
     function watchInput(target, events) {
       var names = events || ['pointerdown', 'touchstart', 'keydown'], last = -1e12, on = [];
@@ -97,10 +157,17 @@
       watchers.push(stop);
       return stop;
     }
+//@end
     function destroy() {
-      dead = true; wanted = false; if (timer && clearT) { clearT(timer); timer = null; } release();
+      dead = true; wanted = false;
+//@begin idle
+      if (timer && clearT) { clearT(timer); timer = null; }
+//@end
+      release();
       if (doc && doc.removeEventListener) doc.removeEventListener('visibilitychange', onVis);
+//@begin idle
       for (var i = 0; i < watchers.length; i++) watchers[i](); watchers = [];
+//@end
     }
     return api;
   }
