@@ -24,6 +24,7 @@ var retry = process.env.KITS_RETRY !== '0';
 var steps = [
   ['frame-kit', 'node', ['modules/frame-kit/test/run.js']],
   ['sprite-baker', 'node', ['modules/sprite-baker/test/run.js']],
+  ['sprite-baker lean', 'node', ['modules/sprite-baker/test/lean.js']],
   ['lzma-decode', 'node', ['modules/lzma-decode/test/run.js']],
   ['ppmd-decode', 'node', ['modules/ppmd-decode/test/run.js']],
   ['fuzz-kit engine', 'node', ['tools/fuzz-kit/test/run.js']],
