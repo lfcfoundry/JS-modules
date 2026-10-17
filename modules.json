@@ -238,7 +238,7 @@
     },
     {
       "id": "cartoon-3d-kit",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "api": 1,
       "summary": "A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG.",
       "file": "modules/cartoon-3d-kit/STYLE-GUIDE.md",

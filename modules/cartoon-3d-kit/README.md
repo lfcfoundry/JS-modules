@@ -1,8 +1,8 @@
 # cartoon-3d-kit
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Chromium 155.0.8059.39-1, Firefox 158.0 and WebKitGTK 2.52.6, one at a time (2026-10-17): the demo page loads, skins switch, a tap makes its effects and cleans them up; in Chromium also the pop number's contrast as drawn, reduced motion and forced colors. Node: 82 checks. Not tested: GNOME Web (Epiphany) 46.5, a phone.
+**Tested in:** Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (2026-10-17): the new crowd page (crowd-check.js: heroes painted and moving in baked mode, 12 and 48 live heroes, no page errors), and the earlier demo page in the first three. Node: 105 checks. Timing in Chromium 155 only. Not tested: a phone.
 
 Run the check (offline, no browser, under a second): `node modules/cartoon-3d-kit/test/run.js`
 
@@ -12,6 +12,7 @@ A written style guide plus a working demo for the soft, glossy "toy" look in pla
 
 - [`STYLE-GUIDE.md`](STYLE-GUIDE.md): the full guide, 11 sections, every number from working code.
 - [`demo.html`](demo.html): a logo lockup, a character on a scene you can tap (squash, pop number, confetti, ring, eyes that follow the pointer) and four re-skin buttons. Open it by double-click.
+- [`crowd-demo.html`](crowd-demo.html): the optional baked-crowd path from guide section 3.11: 1, 12 or 48 heroes drawn either as live page copies or baked once onto a canvas, with the bob, aura, blink and wiggle in both. Open it by double-click.
 
 ## What to copy
 

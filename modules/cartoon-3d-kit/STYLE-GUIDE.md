@@ -231,6 +231,24 @@ The idle motion (bob, aura pulse, blink, wiggle) is cheap for one hero and adds 
 - **Do not merge bob and wiggle onto one element** to save a layer: it was 56% worse (425 ms). `will-change` on the moving layers gave no gain (275 ms), and `content-visibility:auto` on each stage only about 5% (259 ms).
 These numbers come from one test browser and were not measured on phones, Firefox or WebKitGTK.
 
+### 3.11 Baked crowds (optional)
+For dozens of characters on one screen there is a second way: draw each hero once into a picture, then draw those pictures on one `<canvas>` every frame, instead of keeping one animated element tree per hero. The page version stays the default (it is what the squash, pop number, confetti and eye-following in section 5 are built on); this is the opt-in path for crowds. `crowd-demo.html` has both side by side and switches between them.
+
+Measured the same way as section 3.10 (Chromium 155, headless, median of three 5-second runs, browser work per second, lower is better; the page copies here are 90 px wide, so compare only inside this table, not with section 3.10):
+
+| Heroes | Live page copies | Baked canvas, 60 per second | Baked canvas, 30 per second |
+|---|---|---|---|
+| 12 | 191 ms | 182 ms (about the same) | **117 ms (39% less)** |
+| 48 | 346 ms | 357 ms (about the same) | **227 ms (34% less)** |
+
+So the gain comes from drawing at 30 per second; at 60 per second the canvas did not beat the page copies in this browser. Bob, blink, wiggle and aura are all kept (blink swaps to a second baked picture with the eyes shut, wiggle turns the picture, the aura and ground shadow sit on a second canvas behind the heroes that is redrawn about 12 times a second, because its pulse is slow). The recipe, in order:
+1. Write the hero as plain SVG text with every color spelled out (a picture made from SVG text cannot see the page's CSS variables), once with open eyes and once with the eyes group squashed to `scale(1 .08)` around its center.
+2. Load each as an `Image` from a `data:image/svg+xml` URL, draw it once into an off-screen canvas of the size it will be shown at (times `devicePixelRatio`, at most 2), and bake the aura (a radial gradient) and the soft ground shadow the same way.
+3. One `requestAnimationFrame` loop clears the canvas, then for each hero draws the picture at its own bob offset (a plain `drawImage`; only while wiggling, rotate first), choosing the shut-eyes picture when the blink time is up. Give every hero its own time offset so they do not move together. Skip the draw when the canvas is off-screen (`IntersectionObserver`) or the tab is hidden (`requestAnimationFrame` already stops), and draw once and stop when reduced motion is on.
+4. Bake again when the skin or the size changes.
+
+What you give up: no eye-following, no tap squash, pop number or confetti unless you draw them by hand on the canvas; every skin needs its own bake; the code is about 90 lines against none. Not measured: phones, Firefox or WebKitGTK cost (all four test browsers do draw it correctly; `test/crowd-check.js`). Timing script: `test/cost-crowd.js`.
+
 ---
 
 ## 4. Logo: sticker lettering plus a mini hero

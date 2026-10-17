@@ -1,0 +1,151 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : Cartoon 3D style kit: baked crowd demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="only light">
+<title>Cartoon 3D kit: baked crowd</title>
+<style>
+:root{--bg:#edf1f2;--panel:#fbfcfc;--fg:#162226;--muted:#55656b;--line:#d0dadd;--display:'Bricolage Grotesque',system-ui,-apple-system,'Segoe UI',sans-serif;--body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;color-scheme:only light}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:400 16px/1.5 var(--body);padding:1rem}
+.demo{max-width:26rem;margin:0 auto;display:grid;gap:.8rem}
+h1{margin:0;font:800 1.3rem/1.2 var(--display)}p{margin:0;color:var(--muted);font-size:.9rem}
+.row{display:flex;gap:.5rem;flex-wrap:wrap}
+button{padding:.4rem .8rem;border-radius:999px;border:1px solid var(--line);background:var(--panel);font:700 .85rem var(--body);color:var(--fg);cursor:pointer}
+button[aria-pressed="true"]{background:var(--fg);color:var(--panel)}
+#crowd{position:relative;background:linear-gradient(#b5d6e8,#eef5f1);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-height:6rem}
+#crowd canvas{display:block;width:100%}
+#crowd canvas.back{position:absolute;left:0;top:0}
+.live{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+.cell{position:relative;width:100%;aspect-ratio:1}
+.cell .aura,.cell .ground,.cell .bob{position:absolute}
+.cell .aura{inset:-14%;border-radius:50%;opacity:.22;animation:aura 3.2s ease-in-out infinite}
+.cell .ground{left:20%;right:20%;bottom:1%;height:6%;border-radius:50%;background:rgba(0,0,0,.26);filter:blur(3px)}
+.cell .bob{inset:0;animation:bob 3.4s ease-in-out infinite}
+.cell svg{display:block;width:100%;height:100%;transform-origin:50% 90%;animation:wiggle 9s ease-in-out 3s infinite}
+.cell .eyes{transform-box:fill-box;transform-origin:50% 50%;animation:blink 4.6s infinite;animation-delay:var(--b,0s)}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2%)}}
+@keyframes aura{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@keyframes blink{0%,90%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}}
+@keyframes wiggle{0%,86%,100%{transform:rotate(0)}88%{transform:rotate(-5deg)}90%{transform:rotate(5deg)}92%{transform:rotate(-3deg)}94%{transform:rotate(2deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+#note{font-size:.82rem}
+</style></head><body>
+<div class="demo">
+<h1>Baked crowd</h1>
+<p>The guide's section 3.11 in one page: the same hero, drawn many times, either as live page copies (the default way, one animated element tree each) or baked once into pictures and drawn on one canvas. Both modes move the bob, aura pulse, blink and wiggle.</p>
+<div class="row" id="modes"><button data-mode="baked" aria-pressed="true">Baked canvas</button><button data-mode="live" aria-pressed="false">Live page copies</button></div>
+<div class="row" id="counts"><button data-n="1">1</button><button data-n="12" aria-pressed="true">12</button><button data-n="48">48</button></div>
+<div class="row" id="rates"><button data-fps="60">60 per second</button><button data-fps="30" aria-pressed="true">30 per second</button></div>
+<div class="row" id="skins"><button data-skin="red" aria-pressed="true">Red</button><button data-skin="gold">Gold</button><button data-skin="violet">Violet</button><button data-skin="ice">Ice</button></div>
+<div id="crowd"></div>
+<p id="note"></p>
+</div>
+<script>
+// each skin: [hi, mid, lo, glow, pop, label] (the same list as demo.html; test/run.js checks it against the guide table)
+var SK={red:['#e6685b','#c4372c','#86231b','#c4372c','#c4372c','#ffffff'],gold:['#fff3b0','#f2b705','#a86a00','#ffd23f','#a86a00','#2a120d'],violet:['#c8b6ff','#5b3bd1','#1d0f5c','#9a7cf5','#5b3bd1','#ffffff'],ice:['#ffffff','#35c7e0','#0b3a63','#7df9ff','#0b3a63','#2a120d']};
+var opt={mode:'baked',n:12,fps:30,skin:'red'},crowd=document.getElementById('crowd'),note=document.getElementById('note');
+// the URL hash can preset the options, e.g. crowd-demo.html#mode=live&n=48 (the timing script uses this)
+location.hash.slice(1).split('&').forEach(function(kv){var p=kv.split('=');if(p[0]in opt&&p[1])opt[p[0]]=p[0]==='n'||p[0]==='fps'?+p[1]:p[1]});
+var calm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// the hero as plain SVG text with every color written out (a picture loaded from SVG text cannot see the page's CSS variables)
+function heroSvg(v,closed){
+  var eyes=closed?' transform="translate(0 104) scale(1 .08) translate(0 -104)"':'';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs>'
+  +'<radialGradient id="gBody" cx="36%" cy="30%" r="82%"><stop offset="0" stop-color="'+v[0]+'"/><stop offset=".5" stop-color="'+v[1]+'"/><stop offset="1" stop-color="'+v[2]+'"/></radialGradient>'
+  +'<radialGradient id="gShade" cx="72%" cy="88%" r="62%"><stop offset="0" stop-opacity=".4"/><stop offset="1" stop-opacity="0"/></radialGradient>'
+  +'<linearGradient id="gShine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>'
+  +'<radialGradient id="gRim" cx="70%" cy="50%" r="60%"><stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
+  +'<clipPath id="bodyClip"><path d="M100 50c40 0 70 30 70 72 0 30-26 54-70 54s-70-24-70-54c0-42 30-72 70-72Z"/></clipPath></defs>'
+  +'<path d="M100 50c40 0 70 30 70 72 0 30-26 54-70 54s-70-24-70-54c0-42 30-72 70-72Z" fill="url(#gBody)"/>'
+  +'<g clip-path="url(#bodyClip)"><rect width="200" height="200" fill="url(#gShade)"/><ellipse cx="158" cy="122" rx="14" ry="44" transform="rotate(-14 158 122)" fill="url(#gRim)"/></g>'
+  +'<ellipse cx="62" cy="92" rx="12" ry="27" transform="rotate(16 62 92)" fill="url(#gShine)" opacity=".7"/><circle cx="56" cy="62" r="4.5" fill="#fff" opacity=".8"/>'
+  +'<g><ellipse cx="60" cy="126" rx="9" ry="5.5" fill="#ff6f86" opacity=".42"/><ellipse cx="140" cy="126" rx="9" ry="5.5" fill="#ff6f86" opacity=".42"/>'
+  +'<g class="eyes"'+eyes+'><ellipse cx="79" cy="104" rx="11" ry="13" fill="#fff" stroke="#2a120d" stroke-width="2.2"/><ellipse cx="121" cy="104" rx="11" ry="13" fill="#fff" stroke="#2a120d" stroke-width="2.2"/>'
+  +'<circle cx="79" cy="106" r="6.4" fill="#1d1410"/><circle cx="121" cy="106" r="6.4" fill="#1d1410"/><circle cx="81.6" cy="103" r="2.3" fill="#fff"/><circle cx="123.6" cy="103" r="2.3" fill="#fff"/></g>'
+  +'<path d="M85 134q15 14 30 0" stroke="#2a120d" stroke-width="4.5" stroke-linecap="round" fill="none"/></g>'
+  +'<path d="M100 52q-1.5-21 12-36" stroke="#5b3f27" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M106 32c12-22 42-24 54-12-10 18-36 24-54 12Z" fill="#3f7d4c"/></svg>';
+}
+
+var raf=0,io=null,seen=true,stopped=false;
+function clear(){stopped=true;cancelAnimationFrame(raf);if(io)io.disconnect();crowd.innerHTML=''}
+
+function live(){
+  var v=SK[opt.skin],g=document.createElement('div');g.className='live';
+  for(var i=0;i<opt.n;i++){var c=document.createElement('div'),d=-(i*437%3000)/1000+'s';c.className='cell';c.style.setProperty('--b',d);
+    c.innerHTML='<span class="aura" style="background:radial-gradient(circle,'+v[3]+' 0,transparent 66%);animation-delay:'+d+'"></span><span class="ground"></span><span class="bob" style="animation-delay:'+d+'">'+heroSvg(v,false).replace('<svg ','<svg style="animation-delay:'+(3-i*437%3000/1000)+'s" ')+'</span>';
+    g.appendChild(c)}
+  crowd.appendChild(g);note.textContent='Live page copies: '+opt.n+' animated element trees.';
+}
+
+function load(svg){return new Promise(function(ok,no){var im=new Image();im.onload=function(){ok(im)};im.onerror=no;im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)})}
+function layer(w,h,fn){var c=document.createElement('canvas');c.width=w;c.height=h;fn(c.getContext('2d'));return c}
+
+function baked(){
+  var v=SK[opt.skin],cols=4,dpr=Math.min(2,window.devicePixelRatio||1),cw=Math.max(240,Math.floor(crowd.clientWidth)),cell=cw/cols,rows=Math.ceil(opt.n/cols);
+  var s=Math.round(cell*dpr),back=document.createElement('canvas'),cv=document.createElement('canvas');
+  [back,cv].forEach(function(c){c.width=Math.round(cw*dpr);c.height=rows*s;c.style.height=(rows*cell)+'px';crowd.appendChild(c)});back.className='back';
+  var g=cv.getContext('2d'),gb=back.getContext('2d'),lastBack=-1e9;stopped=false;
+  Promise.all([load(heroSvg(v,false)),load(heroSvg(v,true))]).then(function(im){
+    if(stopped)return;
+    // baked once, here: the open-eyed and the blinking picture, the aura, and the soft ground shadow
+    var open=layer(s,s,function(x){x.drawImage(im[0],0,0,s,s)}),shut=layer(s,s,function(x){x.drawImage(im[1],0,0,s,s)});
+    var A=Math.round(s*1.28),aura=layer(A,A,function(x){var r=A/2,gr=x.createRadialGradient(r,r,0,r,r,r*0.66*1.4142);gr.addColorStop(0,v[3]);gr.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=gr;x.fillRect(0,0,A,A)});
+    var shadow=layer(s,s,function(x){x.filter='blur('+(3*s/192)+'px)';x.fillStyle='rgba(0,0,0,.26)';x.beginPath();x.ellipse(s/2,s*.97,s*.3,s*.03,0,0,6.2832);x.fill()});
+    var wig=[[0,0],[.86,0],[.88,-5],[.90,5],[.92,-3],[.94,2],[1,0]];
+    function wiggle(u){for(var i=1;i<wig.length;i++)if(u<=wig[i][0]){var a=wig[i-1],b=wig[i];return a[1]+(b[1]-a[1])*(u-a[0])/(b[0]-a[0])}return 0}
+    // the aura and the shadow sit on their own canvas behind the heroes and are redrawn about 12 times a second: the pulse is slow, so nobody sees the difference, and it saves the most expensive part of every frame
+    function backdrop(t){
+      gb.clearRect(0,0,back.width,back.height);
+      for(var i=0;i<opt.n;i++){
+        var ph=i*437%3000,x=(i%cols)*cell*dpr,y=Math.floor(i/cols)*s,p=((t+ph)%3200)/3200,pulse=1+.07*(.5-.5*Math.cos(p*6.2832));
+        gb.globalAlpha=.22;gb.drawImage(aura,x+s/2-A*pulse/2,y+s/2-A*pulse/2,A*pulse,A*pulse);gb.globalAlpha=1;
+        gb.drawImage(shadow,x,y);
+      }
+    }
+    function frame(t){
+      if(t-lastBack>80){lastBack=t;backdrop(t)}
+      g.clearRect(0,0,cv.width,cv.height);
+      for(var i=0;i<opt.n;i++){
+        var ph=i*437%3000,x=(i%cols)*cell*dpr,y=Math.floor(i/cols)*s,u46=((t+ph)%4600)/4600,k=((t+ph)%3400)/3400;
+        var bob=-.02*s*(.5-.5*Math.cos(k*6.2832)),ang=calm?0:wiggle(((t+ph+6000)%9000)/9000);
+        var pic=(u46>.92&&u46<.97)?shut:open;
+        if(!ang)g.drawImage(pic,x,y+bob);   // almost always: no turn, a plain copy of the picture
+        else{g.save();g.translate(x+s/2,y+bob+s*.9);g.rotate(ang*Math.PI/180);g.drawImage(pic,-s/2,-s*.9);g.restore()}
+      }
+    }
+    function loop(t){raf=requestAnimationFrame(loop);if(!seen)return;if(opt.fps===30&&(loop.n=(loop.n||0)+1)%2)return;frame(t)}
+    frame(0);
+    if(!calm){io=window.IntersectionObserver?new IntersectionObserver(function(e){seen=e[0].isIntersecting}):null;if(io)io.observe(cv);raf=requestAnimationFrame(loop)}
+    note.textContent='Baked canvas: 2 pictures, 1 aura and 1 shadow baked once; '+opt.n+' heroes drawn at '+opt.fps+' per second, the aura and shadow behind them about 12 per second'+(calm?' (still, reduced motion)':'')+'.';
+  });
+}
+
+function run(){clear();if(opt.mode==='live')live();else baked();
+  [].forEach.call(document.querySelectorAll('button'),function(b){var k=b.dataset.mode?'mode':b.dataset.n?'n':b.dataset.fps?'fps':'skin',val=b.dataset.mode||b.dataset.n||b.dataset.fps||b.dataset.skin;b.setAttribute('aria-pressed',String(String(opt[k])===val))})}
+[].forEach.call(document.querySelectorAll('button'),function(b){b.onclick=function(){var d=b.dataset;if(d.mode)opt.mode=d.mode;if(d.n)opt.n=+d.n;if(d.fps)opt.fps=+d.fps;if(d.skin)opt.skin=d.skin;run()}});
+run();
+</script><footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
+</body></html>
