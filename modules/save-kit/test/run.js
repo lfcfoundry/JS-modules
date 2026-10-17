@@ -8,7 +8,16 @@
  */
 'use strict';
 const assert = require('assert'), path = require('path'), cp = require('child_process'), zlib = require('zlib');
-const S = require('../save-kit.js');
+// SAVEKIT_FILE=/path/to/save-kit-lean.js and SAVEKIT_WITHOUT=autosave,codes tell the checks to run against a lean build (modules/save-kit/lean.py): checks that
+// need a part that was cut are skipped (and counted), every other check must pass unchanged.
+const S = require(process.env.SAVEKIT_FILE ? path.resolve(process.env.SAVEKIT_FILE) : '../save-kit.js');
+const WITHOUT = (process.env.SAVEKIT_WITHOUT || '').split(',').filter(Boolean);
+const NEEDS = [   // [test name pattern, the lean.py parts the check needs]
+  [/code|squeez|bomb|checksum|base64|prefix|pasted|limits/i, ['codes']], [/bomb|cut off early|cut early/i, ['streamLimit']], [/native base64/i, ['nativeBase64']], [/autosave|getState/i, ['autosave']], [/onOtherTab/, ['onOtherTab']],
+  [/persist\(\)/, ['persist']], [/stageImport/, ['stageImport']], [/migrate/, ['migrate']], [/skipUnchangedMs/, ['skipUnchanged']], [/compactCodes/, ['compact']], [/raw/i, ['raw']], [/twoTap/, ['twoTap']],
+];
+const skippedByLean = (name) => NEEDS.some(([re, parts]) => re.test(name) && parts.some(x => WITHOUT.includes(x)));
+let skipped = 0;
 
 // ---- load the old file, if git can show it -------------------------------------------------------------------------------------------
 const OLD_REF = process.env.OLD_REF || '4271ecb28a068f29d6e0dec43ee92f3b87ced050';
@@ -26,11 +35,13 @@ if (OLD_REF !== 'none') {
 
 let pass = 0, fail = 0, caught = 0, oldTried = 0;
 async function test(name, fn) {
+  if (skippedByLean(name)) { skipped++; return; }
   try { await fn(S); pass++; console.log('  ok   ' + name); }
   catch (e) { fail++; console.log('  FAIL ' + name + '\n       ' + String(e && e.stack || e).split('\n').slice(0, 3).join('\n       ')); }
 }
 // A regression check: passes on the new file; must fail on the old one.
 async function regress(name, fn) {
+  if (skippedByLean(name)) { skipped++; return; }
   let ok = true;
   try { await fn(S); } catch (e) { ok = false; fail++; console.log('  FAIL ' + name + '\n       ' + String(e && e.stack || e).split('\n').slice(0, 3).join('\n       ')); }
   if (!ok) return;
@@ -116,7 +127,7 @@ function countUnpacked(counter) {
     try {
       const k = K.create({ key: 'g', schema });
       assert.strictEqual(k.load(), null); assert.strictEqual(k.save({ score: 1 }), false);
-      assert.strictEqual(k.stageImport({ score: 1 }), false);
+      if (k.stageImport) assert.strictEqual(k.stageImport({ score: 1 }), false);
     } finally { if (had) Object.defineProperty(globalThis, 'localStorage', had); else delete globalThis.localStorage; }
   });
 
@@ -380,8 +391,8 @@ function countUnpacked(counter) {
     seenFrom.length = 0; assert.strictEqual(k.load().coins, 7); assert.deepStrictEqual(seenFrom, []);   // already version 2: migrate not called
     const old = 'GM1p.' + b64url(Buffer.from('{"gold":3}')); const code = old + '.' + K.checksum(b64url(Buffer.from('{"gold":3}')));
     assert.strictEqual((await k.importCode(code)).coins, 3);
-    const bad = K.create({ key: 'b', schema: sc, storage: mem(), version: 2, migrate() { throw new Error('x'); } });
-    bad.stageImport({ gold: 1 }); assert.strictEqual(bad.load().gold, 1); assert.strictEqual(bad.load().coins, undefined);      // the throwing migrate left the save as it was
+    const bs = mem(), bad = K.create({ key: 'b', schema: sc, storage: bs, version: 2, migrate() { throw new Error('x'); } });
+    bs._d.b = JSON.stringify({ gold: 1 }); assert.strictEqual(bad.load().gold, 1); assert.strictEqual(bad.load().coins, undefined);      // the throwing migrate left the save as it was
     assert.strictEqual(K.create({ key: 'n', schema: sc, storage: mem(), migrate }).save({ gold: 1 }), true);   // migrate without version does nothing
   });
   await test('onOtherTab: hears a save written by another tab, a removal, and stops when asked; ignores other keys', async K => {
@@ -415,7 +426,104 @@ function countUnpacked(counter) {
     } finally { if (had) Object.defineProperty(globalThis, 'navigator', had); else delete globalThis.navigator; }
   });
 
+
+  // ---------- 7. options added in 1.2.0 (all off unless given): old-code endings, slot names, damaged slot, own checks, stamp name ----------
+  const fancyFnv = str => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return ('00000000' + h.toString(16)).slice(-8); };   // Fancy the Banana's own check, copied from its source
+  const apFnv = str => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };   // Apple Press's: base 36, no padding
+  const oldCode = (prefix, flag, obj, fnv) => { const raw = Buffer.from(JSON.stringify(obj)), d = b64url(flag === 'z' ? zlib.deflateRawSync(raw) : raw); return prefix + flag + '.' + d + '.' + fnv(d); };
+  await test('codeCheck "hex8": writes Fancy\'s 8-hex ending, reads Fancy\'s old codes (z and p), and the default style refuses them', async K => {
+    const st = mem(), k = K.create({ key: 'g', schema, storage: st, prefix: 'BF1', codeCheck: 'hex8' }), plain = K.create({ key: 'g', schema, storage: st, prefix: 'BF1' });
+    const s0 = { score: 7, level: 3, sound: 1, name: 'ab', owned: { a: 2 } };
+    for (const flag of ['z', 'p']) {
+      const code = oldCode('BF1', flag, s0, fancyFnv), got = await k.importCode(code);
+      assert.strictEqual(got.score, 7); assert.strictEqual(got.owned.a, 2);
+      await assert.rejects(plain.importCode(code), /not complete/);
+    }
+    const mine = await k.exportCode(Object.assign({}, s0));
+    const m = /^(BF1[zp])\.([A-Za-z0-9_-]+)\.([0-9a-f]{8})$/.exec(mine);   // Fancy's own pattern, whole text
+    assert.ok(m && fancyFnv(m[2]) === m[3], 'Fancy would accept this ending: ' + mine);
+    assert.strictEqual((await k.importCode('please load ' + mine + ' thanks')).score, 7);
+    await assert.rejects(k.importCode(mine.slice(0, -1)), /not complete/);
+  });
+  await test('codeCheck "plain36": writes no leading zeros, reads Apple Press\'s short and full endings, ignores words after the code', async K => {
+    const k = K.create({ key: 'g', schema, storage: mem(), prefix: 'AP1', codeCheck: 'plain36' });
+    let shortSeen = false, fullSeen = false;
+    for (let i = 0; i < 400 && !(shortSeen && fullSeen); i++) {
+      const s0 = { score: i, level: 1, sound: 1, name: 'n' + i, owned: {} }, code = oldCode('AP1', 'p', s0, apFnv), tail = code.split('.')[2];
+      if (tail.length < 7) shortSeen = true; else fullSeen = true;
+      const got = await k.importCode('my save: ' + code + ' bye');
+      assert.strictEqual(got.score, i);
+      const mine = await k.exportCode(Object.assign({}, s0)), mt = mine.split('.')[2];
+      assert.ok(mt === apFnv(mine.split('.')[1]) && !/^0/.test(mt), 'the written ending has no leading zeros: ' + mt);
+    }
+    assert.ok(shortSeen && fullSeen, 'the sample held both short and 7-character endings');
+    const d = oldCode('AP1', 'p', { score: 1, level: 1, sound: 1, name: '', owned: {} }, apFnv).split('.')[1];
+    await assert.rejects(k.importCode('AP1p.' + d + '.0' + apFnv(d)), /not complete/);   // a padded ending is not what Apple Press wrote
+    await assert.rejects(k.importCode('AP1p.' + d + '.' + apFnv(d).slice(0, -1)), /not complete/);
+    await assert.rejects(k.importCode('AP1p.' + d + '.'), /not complete/);
+  });
+  await test('the default code ending is unchanged: 7 base-36 characters, as in 1.1.0', async K => {
+    const k = K.create({ key: 'g', schema, storage: mem(), prefix: 'SK1' });
+    for (let i = 0; i < 20; i++) assert.ok(/^SK1[zp]\.[A-Za-z0-9_-]+\.[0-9a-z]{7}$/.test(await k.exportCode({ score: i, level: 1, sound: 1, name: 'x', owned: {} })));
+    assert.strictEqual(K.checksum('abc'), K.checksum('abc', 'padded36')); assert.strictEqual(K.checksum('abc', 'hex8').length, 8);
+  });
+  await test('backupKey: the backup lives under the given name, is read from it, and stageImport writes it too', async K => {
+    const st = mem(), k = K.create({ key: 'bf1', schema, storage: st, backupKey: 'bf1-bak' });
+    k.save({ score: 1 }); k.forceBackupNext(); k.save({ score: 2 });
+    assert.ok(st._d['bf1-bak'] && !('bf1-backup' in st._d)); assert.strictEqual(JSON.parse(st._d['bf1-bak']).score, 2);
+    st._d.bf1 = '{broken'; assert.strictEqual(k.load().score, 2);
+    assert.ok(k.stageImport({ score: 9 }, { score: 5 }) && JSON.parse(st._d['bf1-bak']).score === 9 && !('bf1-backup' in st._d) && JSON.parse(st._d['bf1-before-load']).score === 5);
+    const dflt = K.create({ key: 'zz', schema, storage: st }); dflt.save({ score: 3 }); assert.ok('zz-backup' in st._d);
+  });
+  await test('readBackupWithoutMain:false: an empty main slot never brings back a leftover backup; a damaged one still falls back to it', async K => {
+    const st = mem(); st._d['g-backup'] = JSON.stringify({ score: 4 });
+    assert.strictEqual(K.create({ key: 'g', schema, storage: st }).load().score, 4);   // the 1.1.0 behavior stays the default
+    const k = K.create({ key: 'g', schema, storage: st, readBackupWithoutMain: false });
+    assert.strictEqual(k.load(), null);
+    st._d.g = 'not json'; assert.strictEqual(k.load().score, 4);
+    st._d.g = JSON.stringify({ score: 8 }); assert.strictEqual(k.load().score, 8);
+  });
+  await test('damagedKey: main-slot text that is not used is kept aside; used text is not copied; off by default', async K => {
+    const st = mem(), k = K.create({ key: 'g', schema, storage: st, damagedKey: 'g-damaged' });
+    st._d.g = JSON.stringify({ score: 5 }); k.load(); assert.ok(!('g-damaged' in st._d), 'a good main slot is not copied');
+    k.load(); st._d.g = '{cut off'; st._d['g-backup'] = JSON.stringify({ score: 3 });
+    assert.strictEqual(k.load().score, 3); assert.strictEqual(st._d['g-damaged'], '{cut off');
+    delete st._d['g-backup']; st._d.g = '[1,2]'; assert.strictEqual(k.load(), null); assert.strictEqual(st._d['g-damaged'], '[1,2]');
+    st._d.g = JSON.stringify({ score: -1 }); st._d['g-backup'] = JSON.stringify({ score: 6 }); assert.strictEqual(k.load().score, 6); assert.strictEqual(st._d['g-damaged'], JSON.stringify({ score: -1 }));
+    const st2 = mem(); st2._d.g = '{cut off'; K.create({ key: 'g', schema, storage: st2 }).load(); assert.ok(!('g-damaged' in st2._d));
+    const full = { getItem: k2 => st2._d[k2] ?? null, setItem() { throw new Error('full'); } };
+    assert.doesNotThrow(() => K.create({ key: 'g', schema, storage: full, damagedKey: 'g-damaged' }).load());   // a full storage never makes load() throw
+  });
+  await test('afterValidate(clean, raw): runs on load, importCode and onOtherTab; may change in place, return a replacement or refuse; a throw is ignored', async K => {
+    const calls = []; let mode = 'edit';
+    const hook = (clean, raw) => { calls.push([clean.score, raw.score]); if (mode === 'edit') { clean.score = Math.min(clean.score, 100); return; } if (mode === 'replace') return Object.assign({}, clean, { score: 42 }); if (mode === 'refuse') return raw.score > 50 ? false : undefined; if (mode === 'null') return null; throw new Error('boom'); };
+    const st = mem(), k = K.create({ key: 'g', schema, storage: st, prefix: 'GM1', afterValidate: hook });
+    st._d.g = JSON.stringify({ score: 500 }); assert.strictEqual(k.load().score, 100); assert.deepStrictEqual(calls[0], [500, 500]);
+    assert.strictEqual((await k.importCode(await K.create({ key: 'x', schema, storage: mem(), prefix: 'GM1' }).exportCode({ score: 900, level: 1, sound: 1, name: '', owned: {} }))).score, 100);
+    mode = 'replace'; assert.strictEqual(k.load().score, 42);
+    mode = 'refuse'; st._d['g-backup'] = JSON.stringify({ score: 7 }); assert.strictEqual(k.load().score, 7, 'main refused: the backup is tried'); st._d['g-backup'] = JSON.stringify({ score: 70 }); assert.strictEqual(k.load(), null, 'both refused');
+    st._d.g = JSON.stringify({ score: 9 }); delete st._d['g-backup']; assert.strictEqual(k.load().score, 9);
+    const code = await K.create({ key: 'x', schema, storage: mem(), prefix: 'GM1' }).exportCode({ score: 80, level: 1, sound: 1, name: '', owned: {} });
+    await assert.rejects(k.importCode(code), /damaged/);
+    mode = 'null'; assert.strictEqual(k.load(), null);
+    mode = 'throw'; assert.strictEqual(k.load().score, 9); assert.strictEqual((await k.importCode(code)).score, 80);
+    // onOtherTab goes through the hook too
+    const had = Object.getOwnPropertyDescriptor(globalThis, 'window'), L = {};
+    globalThis.window = { addEventListener: (t, f) => { L[t] = f; }, removeEventListener() {} };
+    try { mode = 'edit'; let got; k.onOtherTab(c => { got = c; }); L.storage({ key: 'g', newValue: JSON.stringify({ score: 700 }) }); assert.strictEqual(got.score, 100); }
+    finally { if (had) Object.defineProperty(globalThis, 'window', had); else delete globalThis.window; }
+  });
+  await test('stamp: the timestamp is written under the given name (not `seen`), in saves, codes and staged imports, and the schema may list it', async K => {
+    const st = mem(), sc = Object.assign({ savedAt: 'num' }, schema), k = K.create({ key: 'g', schema: sc, storage: st, stamp: 'savedAt', skipUnchangedMs: 60000, prefix: 'BF1' });
+    const state = { score: 1 }; k.save(state);
+    assert.strictEqual(typeof state.savedAt, 'number'); assert.ok(!('seen' in state)); assert.ok(!('seen' in JSON.parse(st._d.g)));
+    assert.strictEqual(k.load().savedAt, state.savedAt);
+    const w = st._d.g; k.save(state); assert.strictEqual(st._d.g, w, 'skipUnchangedMs works with the renamed stamp');
+    const code = await k.exportCode({ score: 2 }); const back = await k.importCode(code); assert.strictEqual(typeof back.savedAt, 'number');
+    if (k.stageImport) { k.stageImport({ score: 3 }, null); assert.strictEqual(typeof JSON.parse(st._d.g).savedAt, 'number'); }
+  });
+
   const extra = OLD ? '; the old file was caught by ' + caught + ' of ' + oldTried + ' regression checks' : '; old file not available for comparison';
-  console.log('save-kit: ' + pass + ' passed, ' + fail + ' failed' + extra);
+  console.log('save-kit' + (WITHOUT.length ? ' (lean build without ' + WITHOUT.join(', ') + ')' : '') + ': ' + pass + ' passed, ' + fail + ' failed' + (skipped ? ', ' + skipped + ' skipped (they need a cut part)' : '') + extra);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('save-kit: crashed: ' + (e && e.stack || e)); process.exit(1); });
