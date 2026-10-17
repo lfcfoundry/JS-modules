@@ -37,7 +37,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 
 ## Games: Size and packaging
 - [lzma-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/lzma-decode/README.md): Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. (global lzmaDecode) Version 1.1.0, API 1.
-- [ppmd-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/ppmd-decode/README.md): A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. (global ppmd7Decode) Version 1.0.0, API 1.
+- [ppmd-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/ppmd-decode/README.md): A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. (global ppmd7Decode) Version 1.1.0, API 1.
 
 ## Games: Files, charts and simulation
 - [gif-writer](https://github.com/lfcfoundry/JS-modules/blob/main/modules/gif-writer/README.md): Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation). Version 1.1.0, API 1.
