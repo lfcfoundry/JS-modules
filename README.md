@@ -29,6 +29,7 @@ Make a game behave on slow phones, privacy-focused browsers and power-saving scr
 | [env-probes](modules/env-probes/README.md) | Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. | `EnvProbes` | 1.1.0 · API 1 |
 | [fx-governor](modules/fx-governor/README.md) | Steps visual effects down when the device cannot keep up; never back up behind the player. | `FxGovernor` | 1.1.0 · API 1 |
 | [frame-kit](modules/frame-kit/README.md) | Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. | `EvenDt`, `QualityGovernor`, `JobPump`, `FrameMeter` | 1.1.0 · API 1 |
+| [slow-note](modules/slow-note/README.md) | Keeps a short note, only on the device, of the errors, slow taps and long frames a page had; copyable as plain text, nothing is sent anywhere. | `SlowNote` | 1.0.0 · API 1 |
 
 #### Controls
 
@@ -41,6 +42,15 @@ Let players hold a button, or play with a gamepad.
 | [tab-guard](modules/tab-guard/README.md) | Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. | `TabGuard` | 1.0.0 · API 1 |
 | [wake-keeper](modules/wake-keeper/README.md) | Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. | `WakeKeeper` | 1.0.0 · API 1 |
 | [back-close](modules/back-close/README.md) | Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). | `BackClose` | 1.0.0 · API 1 |
+
+#### First visit and grown-ups
+
+Show a new player around, and keep small children away from the buttons that matter.
+
+| Module | One line | Global | Version |
+|---|---|---|---|
+| [grown-ups-door](modules/grown-ups-door/README.md) | A hold-then-drag task a young child will not finish, in front of the buttons and links a grown-up should press (a speed bump, not security). | `GrownUpsDoor` | 1.0.0 · API 1 |
+| [spotlight-tour](modules/spotlight-tour/README.md) | A first-time tour: one dimmed layer, a bright window over the current part, Skip and Back, remembers who saw it and gives a finishing gift once. | `SpotlightTour` | 1.0.0 · API 1 |
 
 #### Looks and effects
 
@@ -60,7 +70,7 @@ The numbers behind idle and clicker games.
 
 | Module | One line | Global | Version |
 |---|---|---|---|
-| [idle-core](modules/idle-core/README.md) | Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. | `IdleCore` | 1.0.0 · API 1 |
+| [idle-core](modules/idle-core/README.md) | Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. | `IdleCore` | 1.1.0 · API 1 |
 
 #### Size and packaging
 
@@ -143,6 +153,8 @@ For building and testing. Not shipped inside a game or story.
 | [canvas-probe](tools/canvas-probe/README.md) | Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area. | 1.1.0 · API 1 |
 | [storage-probe](tools/storage-probe/README.md) | Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report. | 1.1.0 · API 1 |
 | [firefox-stand-in](tools/firefox-stand-in/README.md) | Runs a Playwright-for-Python test in stock Firefox (through Selenium and geckodriver) without rewriting it; says plainly which calls it supports and stops with a clear message on the rest. | 1.0.0 · API 1 |
+| [test-isolation](tools/test-isolation/README.md) | Puts a prefix in front of every localStorage key on a test page, so a speed test or random-play run never touches the real saved game. | 1.0.0 · API 1 |
+| [speed-lab](tools/speed-lab/README.md) | One-button speed test run on the device: compares your page with parts switched off, keeps the scene in view and uncovered, and says the answer in plain sentences with a copyable table. | 1.0.0 · API 1 |
 
 #### For the story editor
 
@@ -193,7 +205,7 @@ The games' own art, characters, text, sounds and secret content stay in Apple Pr
 ```
 npm i playwright-core
 CHROMIUM=/path/to/chrome node tests/run.js      # CHROMIUM optional if Playwright finds a browser (see Test browsers below)
-npm run test:kits                               # gif-writer, zip-open, river-layout, walker-sim, frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in (needs python3 and Playwright for Python for the browser parts)
+npm run test:kits                               # slow-note, spotlight-tour, speed-lab, test-isolation, gif-writer, zip-open, river-layout, walker-sim, frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in (needs python3 and Playwright for Python for the browser parts)
 ```
 
 29 checks: maths and save logic in Node, the browser pieces (curtains, hold-press, fly-to-mini, probes, governor, sticker text) in Chromium. For humans and AI helpers: read [AGENTS.md](AGENTS.md), [llms.txt](llms.txt) and [modules.json](modules.json). What changed in each version: [CHANGELOG.md](CHANGELOG.md) (and a `CHANGELOG.md` in every module and tool folder).

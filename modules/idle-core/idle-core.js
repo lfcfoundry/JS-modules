@@ -2,11 +2,13 @@
  * idle-core.js: the small maths every idle / clicker game ends up needing, tested.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *  upgradeCost(base, risePct, owned, discount)   price of the next copy: base * (1 + rise/100)^owned * discount, rounded up
  *  costOfMany(base, risePct, owned, n, discount) price of the next n copies in one sum (the "buy 10" button)
  *  maxAffordable(base, risePct, owned, money, discount)  how many copies the money buys (the "buy max" button)
+ *  buyPlan(base, risePct, owned, discount, money, mode, cap)  what one tap on a "Buy x1 / x10 / Max" switch does right now:
+ *                                                { n copies, total price (each copy rounded up, as buying one at a time), can: money covers it }
  *  milestoneMult(owned, [10,25,50])              owning 10 doubles each copy's output, 25 doubles again, 50 once more (x8)
  *  milestoneLeft(owned, [..])                    copies to go until the next doubling (0 when all reached)
  *  RateBook(computeFn)                           memoized rates: recomputed only after invalidate() (call it on every purchase)
@@ -98,6 +100,22 @@
     for (i = 0; i < 8 && n > 0 && cost(n) > money; i++) n--;          // the estimate can be one too high ...
     for (i = 0; i < 8 && cost(n + 1) <= money; i++) n++;              // ... or one too low
     return n;
+  }
+
+  // What one tap on a "Buy x1 / x10 / Max" switch would do now. mode: 1, 10 (or any count) or 'max' (0 also means max).
+  // A count buys exactly that many and says can:false when the money falls short. Max buys as many as the money covers and never more
+  // than cap at once (default 100, so one stray tap cannot empty the pile); with money for none it points at one copy and says can:false.
+  // Unlike costOfMany the price here is the sum of the single prices (each one rounded up), so it matches buying one at a time.
+  function buyPlan(base, risePct, owned, discount, money, mode, cap) {
+    var m = Math.min(LIMIT, Math.max(0, safe(money, 0))), c = Math.max(1, Math.min(1000, Math.floor(safe(cap, 100)))), isMax = mode === 'max' || mode === 0;
+    var want = isMax ? c : Math.max(1, Math.min(c, Math.floor(safe(mode, 1)))), n = 0, total = 0, first = upgradeCost(base, risePct, owned, discount), k, p;
+    for (k = 0; k < want; k++) {
+      p = k === 0 ? first : upgradeCost(base, risePct, safe(owned, 0) + k, discount);
+      if (isMax && total + p > m) break;
+      total = limit(total + p); n++;
+    }
+    if (isMax) return n ? { n: n, total: total, can: true } : { n: 1, total: first, can: false };
+    return { n: n, total: total, can: m >= total };
   }
 
   var DEFAULT_MILESTONES = [10, 25, 50];
@@ -287,7 +305,7 @@
     return h > 0 ? h + 'h ' + m + 'm' : (m > 0 ? m + ' min' : sec + ' sec');
   }
 
-  return { upgradeCost: upgradeCost, costOfMany: costOfMany, maxAffordable: maxAffordable, milestoneMult: milestoneMult, milestoneLeft: milestoneLeft,
+  return { upgradeCost: upgradeCost, costOfMany: costOfMany, maxAffordable: maxAffordable, buyPlan: buyPlan, milestoneMult: milestoneMult, milestoneLeft: milestoneLeft,
     RateBook: RateBook, tickEarnings: tickEarnings, awayEarnings: awayEarnings, awayClock: awayClock, BoostQueue: BoostQueue,
     stageIndex: stageIndex, stageProgress: stageProgress, formatBig: formatBig, formatRate: formatRate, formatTime: formatTime,
     safe: safe, LIMIT: LIMIT };

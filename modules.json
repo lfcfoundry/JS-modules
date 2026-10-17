@@ -106,7 +106,7 @@
     },
     {
       "id": "idle-core",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "global": "IdleCore",
       "summary": "Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format.",
@@ -303,6 +303,48 @@
       "formats": "browser global, CommonJS (module.exports)",
       "side": "games",
       "category": "files"
+    },
+    {
+      "id": "slow-note",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "SlowNote",
+      "summary": "Keeps a short note, only on the device, of the errors, slow taps and long frames a page had; copyable as plain text, nothing is sent anywhere.",
+      "file": "modules/slow-note/slow-note.js",
+      "readme": "modules/slow-note/README.md",
+      "demo": "modules/slow-note/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "adaptation"
+    },
+    {
+      "id": "grown-ups-door",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "GrownUpsDoor",
+      "summary": "A hold-then-drag task a young child will not finish, in front of the buttons and links a grown-up should press (a speed bump, not security).",
+      "file": "modules/grown-ups-door/grown-ups-door.js",
+      "readme": "modules/grown-ups-door/README.md",
+      "demo": "modules/grown-ups-door/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "players"
+    },
+    {
+      "id": "spotlight-tour",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "SpotlightTour",
+      "summary": "A first-time tour: one dimmed layer, a bright window over the current part, Skip and Back, remembers who saw it and gives a finishing gift once.",
+      "file": "modules/spotlight-tour/spotlight-tour.js",
+      "readme": "modules/spotlight-tour/README.md",
+      "demo": "modules/spotlight-tour/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "players"
     }
   ],
   "tools": [
@@ -373,6 +415,26 @@
       "summary": "Runs a Playwright-for-Python test in stock Firefox (through Selenium and geckodriver) without rewriting it; says plainly which calls it supports and stops with a clear message on the rest.",
       "folder": "tools/firefox-stand-in",
       "readme": "tools/firefox-stand-in/README.md",
+      "side": "games",
+      "category": "testing"
+    },
+    {
+      "id": "test-isolation",
+      "version": "1.0.0",
+      "api": 1,
+      "summary": "Puts a prefix in front of every localStorage key on a test page, so a speed test or random-play run never touches the real saved game.",
+      "folder": "tools/test-isolation",
+      "readme": "tools/test-isolation/README.md",
+      "side": "games",
+      "category": "testing"
+    },
+    {
+      "id": "speed-lab",
+      "version": "1.0.0",
+      "api": 1,
+      "summary": "One-button speed test run on the device: compares your page with parts switched off, keeps the scene in view and uncovered, and says the answer in plain sentences with a copyable table.",
+      "folder": "tools/speed-lab",
+      "readme": "tools/speed-lab/README.md",
       "side": "games",
       "category": "testing"
     }
@@ -478,6 +540,11 @@
           "id": "controls",
           "title": "Controls",
           "use": "Let players hold a button, or play with a gamepad."
+        },
+        {
+          "id": "players",
+          "title": "First visit and grown-ups",
+          "use": "Show a new player around, and keep small children away from the buttons that matter."
         },
         {
           "id": "looks",

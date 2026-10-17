@@ -19,6 +19,10 @@ var steps = [
   ['fx-governor', 'node', ['modules/fx-governor/test/run.js']],
   ['hold-press', 'node', ['modules/hold-press/test/run.js']],
   ['back-close node', 'node', ['modules/back-close/test/run.js']],
+  ['slow-note', 'node', ['modules/slow-note/test/run.js']],
+  ['spotlight-tour', 'node', ['modules/spotlight-tour/test/run.js']],
+  ['test-isolation', 'node', ['tools/test-isolation/test/run.js']],
+  ['speed-lab', 'node', ['tools/speed-lab/test/run.js']],
   ['gif-writer', 'node', ['modules/gif-writer/test/run.js']],
   ['zip-open', 'node', ['modules/zip-open/test/run.js']],
   ['river-layout', 'node', ['modules/river-layout/test/run.js']],
@@ -45,6 +49,7 @@ var steps = [
   ['storage-probe browser', 'python3', ['tools/storage-probe/test/run.py'], true],
   ['firefox-stand-in', 'python3', ['tools/firefox-stand-in/test/run.py'], true, true],   // optional: skipped (exit code 2) when Selenium, Firefox or geckodriver is missing
   ['flow demos', 'node', ['tests/flow-demos.js'], true, true],   // optional like the next one (needs puppeteer-core and CHROMIUM or FIREFOX)
+  ['apple press pieces', 'node', ['tests/pieces-browser.js'], true, true],   // optional like the one above (slow-note, grown-ups-door, spotlight-tour, speed-lab, test-isolation in a real browser)
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fifth item: optional, skipped when puppeteer-core or Firefox is missing (exit code 2)
 ];
 var failed = 0;

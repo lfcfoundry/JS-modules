@@ -1,0 +1,6 @@
+# slow-note changelog
+
+What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
+
+## 1.0.0 · API 1 · 2026-10-17
+New module, cut from Apple Press's slow-moment note. It keeps the last 30 slow or broken moments of a page on the device only (errors, rejected promises, taps the browser measured at 104 ms or more, frames of 100 ms or more) and copies them as plain text for a player to paste into a message; nothing is sent anywhere. It listens for events only, so a note costs about 1 microsecond (Node 22) and nothing runs while the page is smooth. 9.7 KB (3.7 KB gzipped); web-vitals 6.2.3's attribution build, which does a different job, is 15.7 KB. Checked 2026-10-17: ungoogled Chromium 155 sees errors, slow taps and slow frames; Firefox 158 sees errors and slow taps (it has no Long Animation Frames). Changed from the Apple Press original, which was built into the game: the storage key, report header, start-up marks and the "where" tag added to each note (`context`) are options, `createLog` works without a page, and `supports` says what the browser can see. 7 checks on the log plus a real-browser check.

@@ -1,0 +1,6 @@
+# speed-lab changelog
+
+What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
+
+## 1.0.0 · API 1 · 2026-10-17
+New tool, cut from Apple Press's phone speed test. One button runs a comparison on the device (nothing moving, everything moving, parts switched off) and writes the answer in plain sentences with a copyable table: frames per second, time lost to late frames, stutters over 50 ms, the slowest 5% of frames, how much of the scene was showing. Steps are data (`id`, `label`, `role`, `css`, `setup`). Safeguards from bad runs: it scrolls so half the scene shows under the sticky bar, closes anything covering it, redoes a disturbed step up to 3 times, and warns about heat. At the defaults a 5-step run takes about 30 seconds. Changed from the Apple Press original, which was hard-wired to the game: the steps, the covers, the sticky bar and the scene are options. 17.9 KB (6.6 KB gzipped). 8 checks on the numbers and the answer, plus a real run in Firefox 158 and ungoogled Chromium 155 (five steps, a covering card closed and reported, an unclosable card marking steps disturbed).

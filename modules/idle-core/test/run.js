@@ -199,5 +199,39 @@ t('formatTime shows days and survives NaN', function () {
   assert.strictEqual(I.formatTime(7980), '2h 13m'); assert.strictEqual(I.formatTime(40), '40 sec'); assert.strictEqual(I.formatTime(125), '2 min'); assert.strictEqual(I.formatTime(0), '0 sec');
 });
 
+t('buyPlan: one copy, exact counts and the can flag', function () {
+  var one = I.buyPlan(100, 10, 0, 1, 99, 1); assert.deepStrictEqual(one, { n: 1, total: 100, can: false });
+  assert.deepStrictEqual(I.buyPlan(100, 10, 0, 1, 100, 1), { n: 1, total: 100, can: true });
+  var ten = I.buyPlan(100, 10, 0, 1, 1e9, 10); assert.strictEqual(ten.n, 10); assert.strictEqual(ten.can, true);
+  var short = I.buyPlan(100, 10, 0, 1, ten.total - 1, 10); assert.strictEqual(short.n, 10); assert.strictEqual(short.total, ten.total); assert.strictEqual(short.can, false);
+});
+t('buyPlan totals equal buying one at a time, in every case of a grid (costOfMany does not)', function () {
+  var cases = 0, differ = 0;
+  [10, 15, 100, 333, 1000].forEach(function (base) { [5, 10, 15, 20].forEach(function (rise) { [1, 0.9, 0.4].forEach(function (disc) { [0, 3, 17].forEach(function (own) { [2, 10, 100].forEach(function (n) {
+    var sum = 0, k; for (k = 0; k < n; k++) sum += I.upgradeCost(base, rise, own + k, disc);
+    var plan = I.buyPlan(base, rise, own, disc, Infinity, n, 100);
+    assert.strictEqual(plan.total, sum, [base, rise, disc, own, n].join(' ')); assert.strictEqual(plan.n, n);
+    cases++; if (I.costOfMany(base, rise, own, n, disc) !== sum) differ++;
+  }); }); }); }); });
+  assert.strictEqual(cases, 540); assert.ok(differ > 0, 'costOfMany rounds the bundle once, so it differs from single purchases in some cases (' + differ + ' of ' + cases + ')');
+});
+t('buyPlan max: as many as the money covers, capped, never zero copies', function () {
+  var R = rng(21), i;
+  for (i = 0; i < 300; i++) {
+    var base = 1 + Math.floor(R() * 2000), rise = 1 + Math.floor(R() * 25), owned = Math.floor(R() * 40), disc = R() < 0.3 ? 0.5 + R() / 2 : null, money = Math.floor(Math.pow(10, R() * 9));
+    var n = 0, total = 0, c; while (n < 100 && total + (c = I.upgradeCost(base, rise, owned + n, disc)) <= money) { total += c; n++; }
+    var plan = I.buyPlan(base, rise, owned, disc, money, 'max');
+    if (n) assert.deepStrictEqual(plan, { n: n, total: total, can: true }); else assert.deepStrictEqual(plan, { n: 1, total: I.upgradeCost(base, rise, owned, disc), can: false });
+    assert.deepStrictEqual(I.buyPlan(base, rise, owned, disc, money, 0), plan);
+  }
+  assert.strictEqual(I.buyPlan(10, 1, 0, 1, 1e12, 'max').n, 100); assert.strictEqual(I.buyPlan(10, 1, 0, 1, 1e12, 'max', 5).n, 5);
+  assert.strictEqual(I.buyPlan(10, 1, 0, 1, 1e12, 'max', 1e9).n, 1000);
+});
+t('buyPlan: broken numbers do not escape', function () {
+  var p = I.buyPlan(NaN, NaN, -3, NaN, NaN, NaN, NaN); assert.ok(isFinite(p.total) && p.n >= 1);
+  assert.strictEqual(I.buyPlan(15, 15, 0, 1, NaN, 10).can, false);
+  var big = I.buyPlan(15, 50, 5000, 1, 1e300, 100); assert.ok(isFinite(big.total) && big.total <= I.LIMIT);
+});
+
 console.log(fail ? fail + ' FAILED, ' + pass + ' passed' : 'all ' + pass + ' passed');
 process.exit(fail ? 1 : 0);

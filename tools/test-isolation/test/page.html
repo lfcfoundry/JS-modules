@@ -1,0 +1,4 @@
+<!doctype html><meta charset="utf-8"><title>test-isolation browser check</title>
+<script>window.__real = window.localStorage; window.__real.setItem('save', 'REAL');</script>
+<script src="../test-isolation.js"></script>
+<script>window.__r = TestIsolation.install({ prefix: 'speedtest:', names: ['localStorage', 'sessionStorage'] });</script>

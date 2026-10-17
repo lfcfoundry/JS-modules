@@ -1,0 +1,44 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : grown-ups-door demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>grown-ups-door demo</title>
+<style>body{font:16px/1.45 system-ui,sans-serif;max-width:56rem;margin:0 auto;padding:1rem}h1{font-size:1.4rem}button,input,select,textarea{font:inherit}button{padding:.5rem .9rem;border-radius:.5rem;cursor:pointer}textarea{width:100%;box-sizing:border-box;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace}.row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:.6rem 0}.out{margin:.8rem 0;padding:.6rem .8rem;border:1px solid #8886;border-radius:.5rem;overflow:auto}table{border-collapse:collapse}td,th{padding:.2rem .6rem;border-bottom:1px solid #8884;text-align:right}td:first-child,th:first-child{text-align:left}.note{opacity:.75;font-size:.9rem}.bad{color:#b00020}@media(prefers-color-scheme:dark){.bad{color:#ff8a80}}</style>
+<h1>grown-ups-door demo</h1>
+<p>These controls are guarded. Press one: a short task asks for a grown-up first. Hold the round button for 3 seconds, then drag the apple into the basket (or tap the apple, then the basket; the keyboard works too). After that all three stay open for 2 minutes.</p>
+<div class="row"><button id="reset">Start over</button><button id="save">Save &amp; load</button><a id="more" href="https://github.com/lfcfoundry" target="_blank" rel="noopener" data-door-name="LFC Foundry">More games from LFC Foundry</a></div>
+<p>Start over pressed: <b id="n1">0</b> times. Save &amp; load pressed: <b id="n2">0</b> times. Door: <b id="state">locked</b>.</p>
+<p class="note">Open for 2 minutes after a pass. It is a speed bump for small children, not security: a determined older child, or anyone who can read the page, can get past it.</p>
+<script src="grown-ups-door.js"></script>
+<script>
+
+var $ = function (id) { return document.getElementById(id); }, n1 = 0, n2 = 0, fast = /fast/.test(location.hash);
+var door = GrownUpsDoor.attach({ guard: '#reset, #save, #more', holdMs: fast ? 400 : 3000, openMs: fast ? 1500 : 120000, texts: { itemName: 'Apple', targetName: 'Basket', drag: 'Drag the apple into the basket. Or tap the apple, then tap the basket.' } });
+$('reset').onclick = function () { $('n1').textContent = ++n1; };
+$('save').onclick = function () { $('n2').textContent = ++n2; };
+function st() { $('state').textContent = door.isOpen() ? 'open' : 'locked'; }
+setInterval(st, 250); document.addEventListener('click', function () { setTimeout(st, 0); }, true);
+</script>
+<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
