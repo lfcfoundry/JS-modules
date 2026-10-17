@@ -2,6 +2,11 @@
 
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-10-17
+Sorted text columns (file paths, word lists) are stored as the part shared with the row above plus the new end: about 41% smaller on 40,000 file paths and 31% on 30,695 words (smaller is better), kept only when a column gains 15% or more, off with front: false; those columns take about 1.3 to 1.8 times as long to pack and read. ISO date text now unpacks about 1.9 times faster in WebKitGTK and GNOME Web with millisecond stamps (4.6 to 2.5 ms and 5.8 to 2.8 ms per 20,000 rows). Files that use the new way say format 4 and older copies refuse them.
+
+Tested in: Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (the speed table below; tests in Node, normal, no-wasm, no-eval and full fuzz)
+
 ## 1.2.0 · API 1 · 2026-10-17
 New: dates and times as text become one number. A column of ISO dates (2025-03-05T04:15:00Z, with milliseconds, date only, or with a space) is stored as one number per row instead of six and comes back as the same text; a row that is not a real date keeps the old way. Files are smaller (smaller is better): 20,000 sorted log timestamps 20.4 KB to 15.9 KB (22% smaller), 20,000 random dates 51.9 KB to 35.8 KB (31% smaller), 50,000 random dates and times 241.5 KB to 181.2 KB (25% smaller). A steady one-per-hour column stays at about 87 KB (0% change). Unpacking 20,000 sorted timestamps is faster in Firefox 158.0 (2.7 ms to 1.4 ms) and ungoogled Chromium 155 (1.6 ms to 1.3 ms) but slower in WebKitGTK 2.52.6 (2.3 ms to 3.6 ms) and GNOME Web 46.5 (2.5 ms to 3.3 ms); packing in WebKitGTK is 1.15 to 1.5 times faster (6.9 ms to 6.0 ms). A date column is used only when one number is expected to cost no more than the separate ones.
 New: number-column arrays are reused between packs (at most 48 MB kept; pack(x, {pool: false}) turns it off, freeBuffers() empties it). Measured: 300,000 links pack about 1 to 6% faster in Node (85.0 ms to 79.6 ms, median of 41 alternating runs); no other set moved by more than the noise of about 5%.
