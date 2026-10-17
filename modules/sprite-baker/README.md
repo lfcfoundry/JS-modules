@@ -1,8 +1,8 @@
 # sprite-baker
 
-**Version 1.3.0 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Node 22, ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5 (byte-identical pictures and timings in all five; not run: a phone)
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/sprite-baker-fancy-browser.js: all 5 cases equal Fancy's filler in each browser and in Node; 108 Node checks pass). Not run: a phone, Safari itself, Fancy's own 22 pictures (Fancy checks those after it swaps)
 
 The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
@@ -75,6 +75,12 @@ Screen conventions: pixels, x right, y **down**, z toward the viewer (larger z i
 
 - `SB.material(stops, opts)`: `stops` is `[[t, r, g, b], ...]`, t ascending in 0..1, baked to a 256-entry LUT. Options scale the lighting terms: `specular` (1), `bounce` (1), `pool` (1), `rimLight` (1), `edge` (0.88; 1 means no silhouette darkening). A raw stops array is accepted anywhere a material is.
 - `SB.bakeRamp(stops)`: just the `Uint8Array(768)` LUT.
+- **Pictures and ridges (1.4.0, both off unless given).** `SB.material(stops, { texture, ridge })`. They need 8-number vertices `[x, y, z, nx, ny, nz, u, v]`; `drawMesh` makes them (u = row / nu, v = column / nv * 2 pi, or the u and v your mesh function returned as a 7th and 8th number); a triangle with 6-number vertices draws without them.
+  - `texture: { w, h, data, uClamp: true, vWrap: 2 * Math.PI, shadeBase: 0.66, shadeWrap: 0.5 }`: `data` is RGBA bytes (not premultiplied), `w * h * 4` of them. Each pixel looks the picture up at (u, v) with bilinear weights by alpha; u is clamped along the body (`uClamp: false` wraps it instead); v wraps once per `vWrap`. The paint color is multiplied by `shadeBase + shadeWrap * wrap` and blended over the shaded color by its alpha. The highlight is dialed down where there is paint (x 0.55 under strong red, otherwise x (1 - 0.8 * alpha)).
+  - `ridge: { freq: 5, dark: -0.86, darkScale: 0.93, lit, litAdd: 0.06 }`: faint grooves. With `r = cos(freq * v)`: `r < dark` multiplies the light value by `darkScale`; only when `lit` is given, `r > lit` adds `litAdd`. It is applied before the edge darkening and the ramp lookup; the picture is applied after the ramp lookup and before the highlight.
+  - **Your own ramp.** A plain object with `lut` (a `Uint8Array(768)` you made yourself, for example rounded down instead of to the nearest) plus `specular`, `bounce`, `pool`, `rimLight` and `edge` is accepted as it is.
+  - **Cost.** Materials without a picture or ridge take the old loop (one extra check per triangle). The pictured path is its own function, about 4,100 bytes minified (1,700 gzipped) of the file.
+- `drawMesh(..., { pose })`: `pose(p)` is called on every vertex after the roll turn and before the scale, with a fresh `{ x, y, z, nx, ny, nz }`; return the changed point (or change `p` and return nothing).
 
 **Drawing**
 
