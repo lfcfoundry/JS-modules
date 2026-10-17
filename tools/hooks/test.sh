@@ -160,6 +160,13 @@ echo more > m.txt; git add m.txt; bad -m "New and bad" --author="Someone Else <e
 say "a new bad commit on that branch is stopped" 1 "$(push origin feature)"
 git reset -q --hard HEAD~1
 say "deleting a remote branch passes" 0 "$(push origin :feature)"
+# a commit the remote already holds on another branch (for example a merge GitHub made) is not judged again when it first reaches this branch
+say "(setup) an older tip on a remote branch" 0 "$(push origin main~1:refs/heads/topic)"
+git checkout -q -b topic main; echo t > t.txt; git add t.txt; git commit -q -m "Topic good" >/dev/null 2>&1
+say "an existing branch picking up a bad commit that another remote branch already holds passes" 0 "$(push origin topic)"
+echo u > u.txt; git add u.txt; bad -m "Topic bad" --author="Someone Else <else@example.com>"
+say "a new bad commit on it is still stopped" 1 "$(push origin topic)"; unseen "  the old commit is not named" out.txt "Old and bad"
+git reset -q --hard HEAD~1; git checkout -q main
 
 # the author allow-list (tools/hooks/authors.txt): a copy of the hooks with one extra person listed, and Claude listed on purpose
 cd "$tmp" && mkdir hooks2 && cp "$here"/* hooks2/ && printf 'JNFoo <%s>\nPat Doe <pat@example.com>\nClaude <noreply@anthropic.com>\n' "$MAIL" > hooks2/authors.txt
