@@ -1,4 +1,4 @@
-/* quality-governor: steps a quality level up or down from how long frames really take, with hysteresis. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.1.0 (API 1) */
+/* quality-governor: steps a quality level up or down from how long frames really take, with hysteresis. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.2.0 (API 1) */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.QualityGovernor = factory();
@@ -81,9 +81,16 @@
    */
   function QualityGovernor(opts) {
     var o = opts || {};
+//@begin options
     this.levels = Math.max(1, pick(o.levels, 5) | 0);
+//@else
+//@    this.levels = 5;
+//@end
     this.onChange = typeof o.onChange === 'function' ? o.onChange : null;
+//@begin errors
     this.onError = typeof o.onError === 'function' ? o.onError : null;
+//@end
+//@begin options
     this.expectedPeriod = pick(o.expectedPeriod, BASE_PERIOD);
     this.slowAbove = pick(o.slowAbove, this.expectedPeriod * SLOW_RATIO);
     this.fastBelow = pick(o.fastBelow, this.expectedPeriod * FAST_RATIO);
@@ -93,61 +100,100 @@
     this.fastMs = pick(o.fastMs, 10000);
     this.upDelay = pick(o.upDelay, 10000);
     this.maxGap = pick(o.maxGap, 100);
+//@else
+//@    this.expectedPeriod = BASE_PERIOD; this.slowAbove = 22; this.fastBelow = 18.5; this.smoothing = 0.06; this.slowFrames = 100; this.downDelay = 3000; this.fastMs = 10000; this.upDelay = 10000; this.maxGap = 100;
+//@end
+//@begin flipGuard
     this.flipLimit = Math.max(0, pick(o.flipLimit, 0) | 0);
     this.flipWindow = pick(o.flipWindow, 30000);
+//@end
+//@begin stallRules
     this.stallRun = Math.max(1, pick(o.stallRun, 4) | 0);   // this many long gaps in a row are a slow device, not a stall
+//@end
+//@begin control
     this.stepUp = pick(o.stepUp, true);   // false: only ever steps down (a game that must not undo the player's choice behind their back)
     this.locked = false;   // lock(): the player picked a level; automatic steps stop until unlock()
+//@end
+//@begin stallRules
     this._run = 0;
+//@end
+//@begin control
     this.enabled = pick(o.enabled, true);
+//@end
+//@begin errors
     this.lastError = null;   // the last error thrown by onChange, if any
+//@end
+//@begin options
     this._level = Math.min(this.levels - 1, Math.max(0, pick(o.level, 0) | 0));
+//@else
+//@    this._level = 0;
+//@end
     this._ema = this.expectedPeriod;
     this._slow = 0;
     this._fast = 0;
+//@begin graceStart
     this._changedAt = null;   // time of the last change; set to the first frame's time so the start-up counts as a grace period
+//@else
+//@    this._changedAt = 0;
+//@end
     this._lastNow = null;
+//@begin flipGuard
     this._pen = [];           // quick reversals seen per level (index = the level that was too heavy)
     this._flips = 0;          // all reversals seen
     this._minLevel = 0;       // the lightest-to-heaviest limit: the governor will not step up above this level
     this._upTo = -1;          // level reached by the last automatic step up (-1 = last change was not one)
     this._upAt = 0;           // time of that step
     this._resetGuard();
+//@end
   }
 
   /** Current quality level, 0 (full) .. levels-1 (lightest). */
   Object.defineProperty(QualityGovernor.prototype, 'level', { get: function () { return this._level; }, configurable: true });
 
+//@begin stats
   /** The smoothed frame gap in ms (for a debug overlay). */
   Object.defineProperty(QualityGovernor.prototype, 'average', { get: function () { return this._ema; }, configurable: true });
+//@end
 
+//@begin flipGuard
   /** How many quick reversals (up, then down again soon) the flip-flop guard has seen. */
   Object.defineProperty(QualityGovernor.prototype, 'flips', { get: function () { return this._flips; }, configurable: true });
 
   /** True when the flip-flop guard has given up on at least one level: the governor will not step up past it. force() or resetGuard() clears this. */
   Object.defineProperty(QualityGovernor.prototype, 'gaveUp', { get: function () { return this._minLevel > 0; }, configurable: true });
+//@end
 
+//@begin flipGuard
   QualityGovernor.prototype._resetGuard = function () {
     this._pen.length = 0;
     for (var i = 0; i < this.levels; i++) this._pen.push(0);
     this._flips = 0; this._minLevel = 0; this._upTo = -1;
   };
+//@end
 
+//@begin control
   /** Freeze the level (the player chose it) until unlock(). */
   QualityGovernor.prototype.lock = function () { this.locked = true; return this; };
   QualityGovernor.prototype.unlock = function () { this.locked = false; this._slow = 0; this._fast = 0; return this; };
+//@end
 
+//@begin flipGuard
   /** Forget the reversals and the give-ups, so every level may be tried again. */
   QualityGovernor.prototype.resetGuard = function () { this._resetGuard(); return this; };
+//@end
 
+//@begin control
   /** Call when frames are not representative (menu open, tab hidden): drops the current slow and fast streaks. */
   QualityGovernor.prototype.hold = function () { this._slow = 0; this._fast = 0; return this; };
+//@end
 
+//@begin flipGuard
   /* how many times longer the wait before stepping up INTO level `a` is: 1, 2, 4 ... after each quick reversal on it */
   QualityGovernor.prototype._wait = function (a) {
     var p = this._pen[a] | 0;
     return p > 0 ? Math.pow(2, Math.min(p, 10)) : 1;
   };
+//@end
 
   /**
    * Feed one frame.
@@ -155,15 +201,25 @@
    * @param {number} nowMs Current time in ms from any steady clock (rAF timestamp, performance.now()).
    */
   QualityGovernor.prototype.frame = function (gapMs, nowMs) {
+//@begin control
     if (!this.enabled || this.locked) return;
+//@end
+//@begin graceStart
     if (this._changedAt === null) this._changedAt = nowMs;
+//@end
+//@begin stallRules
     var last = this._lastNow;
+//@end
     this._lastNow = nowMs;
+//@begin stallRules
     // A long stall (hidden tab, sleep, a freeze) ends both streaks: "10 s fast in a row" cannot include it.
     var long = gapMs > this.maxGap || (last !== null && nowMs - last > this.maxGap);
     this._run = long ? this._run + 1 : 0;
     var stalled = long && this._run < this.stallRun;
     if (!(gapMs > 0) || stalled) { this._slow = 0; if (stalled) this._fast = 0; return; }
+//@else
+//@    if (!(gapMs > 0) || gapMs > this.maxGap) { this._slow = 0; return; }
+//@end
     this._ema += (gapMs - this._ema) * this.smoothing;
     if (this._ema > this.slowAbove) {
       this._slow++;
@@ -174,12 +230,26 @@
     }
     if (this._slow >= this.slowFrames && this._level < this.levels - 1 && nowMs - this._changedAt > this.downDelay) {
       this._move(this._level + 1, nowMs, 1);
-    } else if (this.stepUp && this._level > this._minLevel) {
+    } else if (
+//@begin control
+      this.stepUp &&
+//@end
+//@begin flipGuard
+      this._level > this._minLevel
+//@else
+//@      this._level > 0
+//@end
+    ) {
+//@begin flipGuard
       var m = this._wait(this._level - 1);
+//@else
+//@      var m = 1;
+//@end
       if (this._fast > this.fastMs * m && nowMs - this._changedAt > this.upDelay * m) this._move(this._level - 1, nowMs, -1);
     }
   };
 
+//@begin control
   /**
    * Jump to a level (clamped to 0..levels-1), for example from a user setting
    * such as a battery saver. Streaks and the average restart, the
@@ -191,10 +261,12 @@
     this._move(to, this._lastNow === null ? null : this._lastNow, 0);
     return this;
   };
+//@end
 
   /* kind: 1 = automatic step down, -1 = automatic step up, 0 = force(). All state is final before onChange is called. */
   QualityGovernor.prototype._move = function (to, now, kind) {
     var from = this._level;
+//@begin flipGuard
     if (kind === 0) {
       this._resetGuard();
     } else if (kind < 0) {
@@ -207,21 +279,28 @@
       }
       this._upTo = -1;
     }
+//@end
     this._level = to;
     this._changedAt = now;
     this._slow = 0;
     this._fast = 0;
     if (to > from) this._ema = this.expectedPeriod;   // after a step down the average starts over; after a step up it is kept
     if (to !== from && this.onChange) {
+//@begin errors
       try { this.onChange(to, from); } catch (err) { this._fail(err); }
+//@else
+//@      this.onChange(to, from);
+//@end
     }
   };
 
+//@begin errors
   QualityGovernor.prototype._fail = function (err) {
     this.lastError = err;
     if (this.onError) { try { this.onError(err); } catch (e) { /* ignore */ } return; }
     if (typeof setTimeout === 'function') setTimeout(function () { throw err; }, 0);   // still visible in the console, but the frame loop is not hurt
   };
+//@end
 
   return QualityGovernor;
 });
