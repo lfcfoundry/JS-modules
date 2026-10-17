@@ -5,6 +5,8 @@ What changed in each version, newest first, in plain words. The numbers are expl
 ## 1.0.0 · API 1 · 2026-10-16
 First labeled version. Nothing in the code changed; everything under "Before version labels" is already in it.
 
+Tested in: 118 Node checks; a Chromium page check (version not recorded); decode speed measured in ungoogled Chromium 155 and Firefox 158 (Firefox timing is noisy); cold start measured in Chromium 141 on 2026-10-16. Not run: WebKitGTK, a phone.
+
 ## Before version labels
 
 - 2026-10-15: New module: a PPMd (7-Zip's PPMd7) decoder in one ES5 function, checked byte for byte against the C reference encoder.

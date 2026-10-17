@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Chromium (version not recorded) and Firefox 155 (11 browser checks, at the cut from Apple Press); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; Firefox 157.0.1 through the Firefox stand-in (11 checks, 2026-10-17). Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
+
 Makes a phone's back swipe (or back button) close the top panel instead of leaving the page. About 7 KB, no dependencies.
 
 **Test it:** `node modules/back-close/test/run.js` (fake CloseWatcher and fake history, 23 checks) and `python3 modules/back-close/test/run.py` (real browser, Escape key).

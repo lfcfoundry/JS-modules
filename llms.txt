@@ -12,6 +12,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [env-probes](https://github.com/lfcfoundry/JS-modules/blob/main/modules/env-probes/README.md): Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. (global EnvProbes) Version 1.1.0, API 1.
 - [fx-governor](https://github.com/lfcfoundry/JS-modules/blob/main/modules/fx-governor/README.md): Steps visual effects down when the device cannot keep up; never back up behind the player. (global FxGovernor) Version 1.1.0, API 1.
 - [frame-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/frame-kit/README.md): Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. (global EvenDt, QualityGovernor, JobPump, FrameMeter) Version 1.1.0, API 1.
+- [slow-note](https://github.com/lfcfoundry/JS-modules/blob/main/modules/slow-note/README.md): Keeps a short note, only on the device, of the errors, slow taps and long frames a page had; copyable as plain text, nothing is sent anywhere. Version 1.0.0, API 1.
 
 ## Games: Controls
 - [hold-press](https://github.com/lfcfoundry/JS-modules/blob/main/modules/hold-press/README.md): Hold-to-repeat for buttons that survives Android Chrome pointercancel. (global HoldPress) Version 1.0.0, API 1.
@@ -20,15 +21,19 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [wake-keeper](https://github.com/lfcfoundry/JS-modules/blob/main/modules/wake-keeper/README.md): Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. (global WakeKeeper) Version 1.0.0, API 1.
 - [back-close](https://github.com/lfcfoundry/JS-modules/blob/main/modules/back-close/README.md): Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). (global BackClose) Version 1.0.0, API 1.
 
+## Games: First visit and grown-ups
+- [grown-ups-door](https://github.com/lfcfoundry/JS-modules/blob/main/modules/grown-ups-door/README.md): A hold-then-drag task a young child will not finish, in front of the buttons and links a grown-up should press (a speed bump, not security). Version 1.0.0, API 1.
+- [spotlight-tour](https://github.com/lfcfoundry/JS-modules/blob/main/modules/spotlight-tour/README.md): A first-time tour: one dimmed layer, a bright window over the current part, Skip and Back, remembers who saw it and gives a finishing gift once. Version 1.0.0, API 1.
+
 ## Games: Looks and effects
 - [stage-curtains](https://github.com/lfcfoundry/JS-modules/blob/main/modules/stage-curtains/README.md): Velvet stage curtains that slide shut over a page, then fly open. (global StageCurtains) Version 1.0.0, API 1.
 - [fly-to-mini](https://github.com/lfcfoundry/JS-modules/blob/main/modules/fly-to-mini/README.md): A big element scrolls away and a copy flies to its sticky mini version (and back). (global FlyToMini) Version 1.2.0, API 1.
-- [sticker-text](https://github.com/lfcfoundry/JS-modules/blob/main/modules/sticker-text/README.md): Die-cut sticker lettering in plain CSS text-shadow rings, no images. (global StickerText) Version 1.0.0, API 1.
+- [sticker-text](https://github.com/lfcfoundry/JS-modules/blob/main/modules/sticker-text/README.md): Die-cut sticker lettering in plain CSS text-shadow rings, no images. (global StickerText) Version 1.1.0, API 1.
 - [sprite-baker](https://github.com/lfcfoundry/JS-modules/blob/main/modules/sprite-baker/README.md): Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. (global SpriteBaker) Version 1.2.0, API 1.
 - [cartoon-3d-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/cartoon-3d-kit/README.md): A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG. Version 1.0.0, API 1.
 
 ## Games: Game math
-- [idle-core](https://github.com/lfcfoundry/JS-modules/blob/main/modules/idle-core/README.md): Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. (global IdleCore) Version 1.0.0, API 1.
+- [idle-core](https://github.com/lfcfoundry/JS-modules/blob/main/modules/idle-core/README.md): Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. (global IdleCore) Version 1.2.0, API 1.
 
 ## Games: Size and packaging
 - [lzma-decode](https://github.com/lfcfoundry/JS-modules/blob/main/modules/lzma-decode/README.md): Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. (global lzmaDecode) Version 1.0.0, API 1.
@@ -38,7 +43,7 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [gif-writer](https://github.com/lfcfoundry/JS-modules/blob/main/modules/gif-writer/README.md): Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation). Version 1.0.0, API 1.
 - [zip-open](https://github.com/lfcfoundry/JS-modules/blob/main/modules/zip-open/README.md): Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note. Version 1.0.0, API 1.
 - [river-layout](https://github.com/lfcfoundry/JS-modules/blob/main/modules/river-layout/README.md): Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer. Version 1.0.0, API 1.
-- [walker-sim](https://github.com/lfcfoundry/JS-modules/blob/main/modules/walker-sim/README.md): Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 1.75 million walkers a second). Version 1.0.0, API 1.
+- [walker-sim](https://github.com/lfcfoundry/JS-modules/blob/main/modules/walker-sim/README.md): Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 6 million walkers a second). Version 2.0.0, API 2.
 
 ## Story editor: Story data (in https://github.com/lfcfoundry/story-editor, generated from the Story Editor's sources)
 - [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md): Create, clean, search, import and export interactive stories as JSON, with a JSON Schema. Twine import lives in twine-import.
@@ -65,14 +70,16 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [canvas-probe](https://github.com/lfcfoundry/JS-modules/blob/main/tools/canvas-probe/README.md): Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area. Version 1.1.0, API 1.
 - [storage-probe](https://github.com/lfcfoundry/JS-modules/blob/main/tools/storage-probe/README.md): Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report. Version 1.1.0, API 1.
 - [firefox-stand-in](https://github.com/lfcfoundry/JS-modules/blob/main/tools/firefox-stand-in/README.md): Runs a Playwright-for-Python test in stock Firefox (through Selenium and geckodriver) without rewriting it; says plainly which calls it supports and stops with a clear message on the rest. Version 1.0.0, API 1.
-- [webkit-driver](https://github.com/lfcfoundry/JS-modules/blob/main/tools/webkit-driver/README.md) 1.0.0 · API 1: Drives WebKitGTK or GNOME Web from Node with no dependencies, using the call names of Playwright and Puppeteer (goto, evaluate, waitForFunction, mouse, keyboard, screenshot, console errors), so a test written for them can also run in WebKit.
+- [test-isolation](https://github.com/lfcfoundry/JS-modules/blob/main/tools/test-isolation/README.md): Puts a prefix in front of every localStorage key on a test page, so a speed test or random-play run never touches the real saved game. Version 1.0.0, API 1.
+- [speed-lab](https://github.com/lfcfoundry/JS-modules/blob/main/tools/speed-lab/README.md): One-button speed test run on the device: compares your page with parts switched off, keeps the scene in view and uncovered, and says the answer in plain sentences with a copyable table. Version 1.0.0, API 1.
+- [webkit-driver](https://github.com/lfcfoundry/JS-modules/blob/main/tools/webkit-driver/README.md) 1.0.0 · API 1: Drives WebKitGTK or GNOME Web from Node with no dependencies, using the call names of Playwright and Puppeteer (goto, evaluate, waitForFunction, mouse, keyboard, screenshot, console errors), so a test written for them can also run in WebKit. Version 1.1.0, API 1.
 
 ## Tools for the story editor: Size and packaging
 - [zip-page](https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md): Wrap a finished HTML page into a smaller page that unzips itself, with a pure-JS inflater fallback.
 
 ## Tools for the story editor: Testing
 - [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md): Tiered test runner and a Playwright-style API over WebDriver BiDi for stock Firefox; seeded random-story generator.
-- [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md): A guide and a small helper for keeping two implementations of one rule set from drifting apart: seeded random inputs, a side-by-side comparison, a field table and a time limit.
+- [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md): A guide and a helper (about 7.2 KB minified) for keeping two implementations of one rule set from drifting apart: seeded random inputs, a side-by-side comparison (also for async functions), shrinking a failing input to a small one, a field table and a time limit; runs in browsers too.
 
 ## Tools for the story editor: Working with an AI helper
 - [ai-collab-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md): A written process and templates for a person and an AI assistant building software together.
@@ -81,4 +88,4 @@ Grouped by what each piece does: Games, Story editor, Tools. Every entry in modu
 - [README](https://github.com/lfcfoundry/JS-modules/blob/main/README.md): overview and install
 - [AGENTS.md](https://github.com/lfcfoundry/JS-modules/blob/main/AGENTS.md): rules for AI assistants editing this repo
 - [modules.json](https://github.com/lfcfoundry/JS-modules/blob/main/modules.json): index with files, globals and demo paths
-- Test browsers: Firefox 158 and ungoogled Chromium 155 (Linux), one at a time; label results with the exact version. Chromium 141 and 153 and Firefox 157 are retired. WebKit and real phones are not checked yet. See the Tests section of the README and AGENTS.md.
+- Test browsers: only those on the `browsers` branch of the private knowledge-base repository: Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 (Linux), one at a time; re-read that branch's README before each run and label results with the exact version. Chromium 141 and 153 and Firefox 157 are retired. Every module's README and changelog entry has a "Tested in" line naming the browsers used. Real phones and Safari itself are not checked yet. See the Tests section of the README and AGENTS.md.

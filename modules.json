@@ -92,7 +92,7 @@
     },
     {
       "id": "sticker-text",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "global": "StickerText",
       "summary": "Die-cut sticker lettering in plain CSS text-shadow rings, no images.",
@@ -106,7 +106,7 @@
     },
     {
       "id": "idle-core",
-      "version": "1.0.0",
+      "version": "1.2.0",
       "api": 1,
       "global": "IdleCore",
       "summary": "Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format.",
@@ -292,10 +292,10 @@
     },
     {
       "id": "walker-sim",
-      "version": "1.0.0",
-      "api": 1,
+      "version": "2.0.0",
+      "api": 2,
       "global": "WalkerSim",
-      "summary": "Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 1.75 million walkers a second).",
+      "summary": "Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 6 million walkers a second).",
       "file": "modules/walker-sim/walker-sim.js",
       "readme": "modules/walker-sim/README.md",
       "demo": "modules/walker-sim/demo.html",
@@ -303,6 +303,48 @@
       "formats": "browser global, CommonJS (module.exports)",
       "side": "games",
       "category": "files"
+    },
+    {
+      "id": "slow-note",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "SlowNote",
+      "summary": "Keeps a short note, only on the device, of the errors, slow taps and long frames a page had; copyable as plain text, nothing is sent anywhere.",
+      "file": "modules/slow-note/slow-note.js",
+      "readme": "modules/slow-note/README.md",
+      "demo": "modules/slow-note/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "adaptation"
+    },
+    {
+      "id": "grown-ups-door",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "GrownUpsDoor",
+      "summary": "A hold-then-drag task a young child will not finish, in front of the buttons and links a grown-up should press (a speed bump, not security).",
+      "file": "modules/grown-ups-door/grown-ups-door.js",
+      "readme": "modules/grown-ups-door/README.md",
+      "demo": "modules/grown-ups-door/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "players"
+    },
+    {
+      "id": "spotlight-tour",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "SpotlightTour",
+      "summary": "A first-time tour: one dimmed layer, a bright window over the current part, Skip and Back, remembers who saw it and gives a finishing gift once.",
+      "file": "modules/spotlight-tour/spotlight-tour.js",
+      "readme": "modules/spotlight-tour/README.md",
+      "demo": "modules/spotlight-tour/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "players"
     }
   ],
   "tools": [
@@ -378,11 +420,31 @@
     },
     {
       "id": "webkit-driver",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "summary": "Drives WebKitGTK or GNOME Web from Node with no dependencies, using the call names of Playwright and Puppeteer (goto, evaluate, waitForFunction, mouse, keyboard, screenshot, console errors), so a test written for them can also run in WebKit.",
       "folder": "tools/webkit-driver",
       "readme": "tools/webkit-driver/README.md",
+      "side": "games",
+      "category": "testing"
+    },
+    {
+      "id": "test-isolation",
+      "version": "1.0.0",
+      "api": 1,
+      "summary": "Puts a prefix in front of every localStorage key on a test page, so a speed test or random-play run never touches the real saved game.",
+      "folder": "tools/test-isolation",
+      "readme": "tools/test-isolation/README.md",
+      "side": "games",
+      "category": "testing"
+    },
+    {
+      "id": "speed-lab",
+      "version": "1.0.0",
+      "api": 1,
+      "summary": "One-button speed test run on the device: compares your page with parts switched off, keeps the scene in view and uncovered, and says the answer in plain sentences with a copyable table.",
+      "folder": "tools/speed-lab",
+      "readme": "tools/speed-lab/README.md",
       "side": "games",
       "category": "testing"
     }
@@ -457,7 +519,7 @@
       },
       {
         "id": "contract-kit",
-        "summary": "A guide and a small helper for keeping two implementations of one rule set from drifting apart: seeded random inputs, a side-by-side comparison, a field table and a time limit.",
+        "summary": "A guide and a helper (about 7.2 KB minified) for keeping two implementations of one rule set from drifting apart: seeded random inputs, a side-by-side comparison (also for async functions), shrinking a failing input to a small one, a field table and a time limit; runs in browsers too.",
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md",
         "side": "stories",
         "category": "testing"
@@ -508,6 +570,11 @@
           "id": "files",
           "title": "Files, charts and simulation",
           "use": "Open zip and Excel files safely, draw flow charts, write animated GIFs and simulate random walkers."
+        },
+        {
+          "id": "players",
+          "title": "First visit and grown-ups",
+          "use": "Show a new player around, and keep small children away from the buttons that matter."
         }
       ],
       "tools": [

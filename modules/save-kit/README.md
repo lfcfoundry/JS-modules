@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Node checks with a fake storage; no real browser run recorded for the module itself (its demo page loads in Firefox through `tests/firefox.js`: Firefox 158 per the 2026-10-15 note, Firefox 157 on 2026-10-17).
+
 Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 17 KB with its comments, no dependencies.
 
 ## Use

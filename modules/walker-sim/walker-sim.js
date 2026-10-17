@@ -1,10 +1,11 @@
 /*!
  * walker-sim.js: simulate random walkers on a network, with exact odds to check against. No dependencies.
- * Seeded and repeatable (trial t of seed s always draws the same numbers, however the run is cut into batches), with a menu of
- * distributions for how many walkers arrive, how uncertain each link is and what each link costs; 95% ranges; what-if sweeps.
+ * Seeded and repeatable (trial t of seed s always draws the same numbers, however the run is cut into batches or shared between threads), with 16
+ * kinds of random number for how many walkers arrive, how uncertain each link is and what each link costs; 95% ranges; exact odds, steps and cost to
+ * check against; what-if sweeps. Names and help texts for the random-number kinds are in the optional walker-sim-menu.js.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 2.0.0 (API 2)
  *
  *   var P = WalkerSim.graph({ links: [{ from: "start", to: "a", weight: 3 }, { from: "start", to: "b", weight: 1 }] });
  *   var sim = WalkerSim.create(P, { seed: 7, trials: 10000 }); sim.run(1e9, 1e9);   // run(max trials, max milliseconds)
@@ -144,27 +145,6 @@
       if (V <= h - lgamma(k + 1) - lgamma(n - k + 1) + (k - m) * lpq) return k;
     }
   }
-  /** name, plain-words help, whether it gives whole numbers, and what its three numbers mean. */
-  var DISTS = [
-    { id: 'fixed', name: 'Fixed value', discrete: false, blurb: 'Always the same number.', params: [{ k: 'a', label: 'Value' }] },
-    { id: 'normal', name: 'Normal (Gaussian)', discrete: false, blurb: 'A bell curve around an average. Good for measurements and errors.', params: [{ k: 'a', label: 'Average' }, { k: 'b', label: 'Spread (standard deviation)' }] },
-    { id: 'lognormal', name: 'Lognormal', discrete: false, blurb: 'Never negative and skewed to the high side. Good for sizes, durations and prices.', params: [{ k: 'a', label: 'Average' }, { k: 'b', label: 'Spread (standard deviation)' }] },
-    { id: 'poisson', name: 'Poisson', discrete: true, blurb: 'Counts of things that happen independently at an average rate: arrivals, calls, defects.', params: [{ k: 'a', label: 'Average count' }] },
-    { id: 'binomial', name: 'Binomial', discrete: true, blurb: 'How many of a fixed number of tries succeed.', params: [{ k: 'a', label: 'Number of tries' }, { k: 'b', label: 'Chance each time (0 to 1)' }] },
-    { id: 'negbinomial', name: 'Negative binomial', discrete: true, blurb: 'Counts that vary more than Poisson (bursty arrivals).', params: [{ k: 'a', label: 'Average count' }, { k: 'b', label: 'Spread (standard deviation)' }] },
-    { id: 'geometric', name: 'Geometric', discrete: true, blurb: 'How many tries until the first success.', params: [{ k: 'a', label: 'Average number of tries (1 or more)' }] },
-    { id: 'exponential', name: 'Exponential', discrete: false, blurb: 'Waiting times when events are independent.', params: [{ k: 'a', label: 'Average' }] },
-    { id: 'gamma', name: 'Gamma', discrete: false, blurb: 'Never negative; a flexible shape for durations and amounts.', params: [{ k: 'a', label: 'Average' }, { k: 'b', label: 'Spread (standard deviation)' }] },
-    { id: 'weibull', name: 'Weibull', discrete: false, blurb: 'Lifetimes and delays; the shape says whether failures speed up or slow down.', params: [{ k: 'a', label: 'Typical size (scale)' }, { k: 'b', label: 'Shape (1 acts like exponential)' }] },
-    { id: 'beta', name: 'Beta', discrete: false, blurb: 'A rate or share between 0 and 1 you are unsure about.', params: [{ k: 'a', label: 'Average (0 to 1)' }, { k: 'b', label: 'Spread (standard deviation)' }] },
-    { id: 'uniform', name: 'Uniform', discrete: false, blurb: 'Anything between a lowest and a highest value is equally likely.', params: [{ k: 'a', label: 'Lowest' }, { k: 'b', label: 'Highest' }] },
-    { id: 'triangular', name: 'Triangular', discrete: false, blurb: 'A best guess with a lowest and a highest possible value.', params: [{ k: 'a', label: 'Lowest' }, { k: 'b', label: 'Most likely' }, { k: 'c', label: 'Highest' }] },
-    { id: 'pareto', name: 'Pareto', discrete: false, blurb: 'A few huge values and many small ones (wealth, sizes of cities).', params: [{ k: 'a', label: 'Smallest value' }, { k: 'b', label: 'Shape (bigger = lighter tail)' }] },
-    { id: 'dunif', name: 'Whole-number uniform', discrete: true, blurb: 'Any whole number from a lowest to a highest, equally likely (a die roll).', params: [{ k: 'a', label: 'Lowest' }, { k: 'b', label: 'Highest' }] },
-    { id: 'empirical', name: 'Resample from the data', discrete: false, blurb: 'Pick at random from the numbers in a column.', params: [] }
-  ];
-  var DIST_BY = {}; DISTS.forEach(function (d) { DIST_BY[d.id] = d; });
-
   var DRAW = {
     fixed: function (r, a) { return a; },
     normal: function (r, a, b) { return a + (b > 0 ? b : 0) * r.normal(); },
@@ -263,15 +243,45 @@
     for (i = 0; i < vals.length; i++) { var k = Math.min(bins - 1, Math.floor((vals[i] - lo) / w)); b[k]++; }
     return { lo: lo, hi: hi, bins: b };
   }
+  /* Whole numbers are kept as a table of how many times each value came up (exact, and nothing to sort), values past the table in a short list. */
+  var TAB_MAX = 65536;
+  function tabAdd(t, x) {
+    if (x >= TAB_MAX) { (t.over || (t.over = [])).push(x); return; }
+    if (x >= t.a.length) { var b = new Float64Array(Math.min(TAB_MAX, Math.max(x + 1, t.a.length * 2))); b.set(t.a); t.a = b; }
+    t.a[x]++;
+  }
+  function tabCount(t) { var s = t.over ? t.over.length : 0; for (var i = 0; i < t.a.length; i++) s += t.a[i]; return s; }
+  function tabNth(t, idx) {   // the idx-th smallest value (0-based)
+    var acc = 0, i, a = t.a;
+    for (i = 0; i < a.length; i++) { acc += a[i]; if (acc > idx) return i; }
+    return t.over[idx - acc];
+  }
+  function tabQuantile(t, total, q) {
+    if (!total) return NaN;
+    var pos = (total - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos), x = tabNth(t, lo);
+    return hi === lo ? x : x + (tabNth(t, hi) - x) * (pos - lo);
+  }
+  function tabMerge(t, u) {
+    var i;
+    if (u.a.length > t.a.length) { var b = new Float64Array(u.a.length); b.set(t.a); t.a = b; }
+    for (i = 0; i < u.a.length; i++) t.a[i] += u.a[i];
+    if (u.over) for (i = 0; i < u.over.length; i++) (t.over || (t.over = [])).push(u.over[i]);
+  }
+  function tabCopy(t) { return { a: t.a.slice(), over: t.over ? t.over.slice() : null }; }
+  function tabSort(t) { if (t.over) t.over.sort(function (a, b) { return a - b; }); }
   /**
-   * cfg: { seed, trials, stepCap, sources: [{v, w}], targets: [v] | null, arrivals: spec, rule: 'weights'|'uniform'|'first'|'curious'|'softmax',
-   *        temp, weights: Float64Array(m) base weights, linkWeight: spec | null, linkCost: spec | null, dwell: spec | null, maxWalkers }
+   * cfg: { seed, trials, firstTrial, stepCap, sources: [{v, w}], targets: [v] | null, arrivals: spec, rule: 'weights'|'uniform'|'first'|'curious'|'softmax',
+   *        temp, weights: Float64Array(m) base weights, linkWeight: spec | null, linkCost: spec | null, dwell: spec | null, maxWalkers,
+   *        precision, minWalkers }
+   * trials is the last trial number plus one (the plan); firstTrial (default 0) lets one run be shared between several sims, see export() and merge().
+   * precision: stop early once the widest 95% range (half its width, as a share of walkers, 0.005 = 0.5 points) is under it, after minWalkers (default 2000).
    */
   function create(P, cfg) {
     cfg = cfg || {};
-    var n = P.n, m = P.m, seed = cfg.seed === undefined ? 1 : cfg.seed | 0, T = Math.max(1, cfg.trials | 0), cap = cfg.stepCap || 400;
+    var n = P.n, m = P.m, seed = cfg.seed === undefined ? 1 : cfg.seed | 0, T = Math.max(1, cfg.trials | 0), cap = Math.min(2e6, cfg.stepCap || 400);
+    var first = Math.max(0, Math.min(T, cfg.firstTrial | 0));
     var rule = cfg.rule || 'weights', temp = cfg.temp > 0 ? cfg.temp : 1;
-    var maxWalkers = cfg.maxWalkers || 5e6;
+    var maxWalkers = cfg.maxWalkers || 5e6, precision = cfg.precision > 0 ? +cfg.precision : 0, minWalkers = cfg.minWalkers > 0 ? +cfg.minWalkers : 2000;
     var base = cfg.weights || P.w;
     var srcs = (cfg.sources && cfg.sources.length ? cfg.sources : P.start >= 0 ? [{ v: P.start, w: 1 }] : []).filter(function (s) { return s.v >= 0 && s.v < n && s.w > 0; });
     var srcCum = [], tot = 0;
@@ -284,6 +294,10 @@
     var dArr = drawer(cfg.arrivals || { dist: 'fixed', a: 1 }), dW = drawer(cfg.linkWeight), dCost = drawer(cfg.linkCost), dDwell = drawer(cfg.dwell);
     var W = new Float64Array(m), cum = new Float64Array(m), nodeTot = new Float64Array(n);
     var weightsFixed = !dW;
+    var os = P.outStart, oe = P.outEdge;
+    // The walkers step through "slots": the ways out of item v sit at os[v]..os[v+1]-1. cumN is the cumulative odds of each slot out of 1, tg the item it leads to.
+    var cumN = new Float64Array(m), tg = new Int32Array(m), halt = new Uint8Array(n), movesCsr = new Float64Array(m), startCount = new Float64Array(n);
+    for (i = 0; i < m; i++) tg[i] = P.to[oe[i]];
     var buildCum = function (rng) {
       for (var e = 0; e < m; e++) {
         var w = rule === 'uniform' || rule === 'first' ? 1 : (dW ? dW(rng, e) : base[e]);
@@ -291,121 +305,182 @@
         W[e] = w;
       }
       for (var v = 0; v < n; v++) {
-        var a = P.outStart[v], b = P.outStart[v + 1], s = 0, mx = 0, k;
-        if (rule === 'softmax') { for (k = a; k < b; k++) if (W[P.outEdge[k]] > mx) mx = W[P.outEdge[k]]; }
+        var a = os[v], b = os[v + 1], s = 0, mx = 0, k;
+        if (rule === 'softmax') { for (k = a; k < b; k++) if (W[oe[k]] > mx) mx = W[oe[k]]; }
         for (k = a; k < b; k++) {
-          var ww = W[P.outEdge[k]];
+          var ww = W[oe[k]];
           if (rule === 'softmax') ww = Math.exp((ww - mx) / temp);
           s += ww; cum[k] = s;
         }
         nodeTot[v] = s;
+        halt[v] = isEnd[v] || !(s > 0) ? 1 : 0;      // an item whose ways on all weigh 0 has no way on: walkers stop there and count as stuck
+        for (k = a; k < b; k++) cumN[k] = s > 0 ? cum[k] / s : 1;
+        if (b > a) cumN[b - 1] = Infinity;            // the last slot always catches what rounding leaves
       }
     };
     if (weightsFixed) buildCum(makeRng(1));
+    var viaTable = rule !== 'first' && rule !== 'curious';       // those two pick their way on one item at a time (pickEdge); the rest scan cumN
     var st = {
-      P: P, cfg: cfg, T: T, trial: 0, K: K, ends: ends, epOf: epOf, walkers: 0, stuck: 0,
+      P: P, cfg: cfg, T: T, trial: first, first: first, nTrials: 0, K: K, ends: ends, epOf: epOf, walkers: 0, stuck: 0, stoppedEarly: false,
       visits: new Float64Array(n), moves: new Float64Array(m), epCount: new Float64Array(K), epSum: new Float64Array(K), epSumSq: new Float64Array(K), epShareSum: new Float64Array(K), epShareSq: new Float64Array(K), shareTrials: 0,
-      epPerTrial: [], epCosts: [], costs: [], costSeen: 0, steps: [], stepSeen: 0, trace: [], nextTrace: 10, lastRng: null, startedAt: 0, busyMs: 0
+      epPerTrial: [], epCosts: [], costs: [], costSeen: 0, stepTab: { a: new Float64Array(cap + 1), over: null }, trace: [], nextTrace: 10, lastRng: null, startedAt: 0, busyMs: 0
     };
-    for (i = 0; i < K; i++) { st.epPerTrial.push([]); st.epCosts.push([]); }
-    var seen = new Int32Array(n).fill(-1), stamp = 0, trialCounts = new Float64Array(K), EP_CAP = 4000, COST_CAP = 100000, STEP_CAP = 100000, EPCOST_CAP = 5000;
+    for (i = 0; i < K; i++) { st.epPerTrial.push({ a: new Float64Array(16), over: null }); st.epCosts.push([]); }
+    var seen = new Int32Array(n).fill(-1), stamp = 0, trialCounts = new Float64Array(K), COST_CAP = 100000, EPCOST_CAP = 5000;
+    var sampState = (seed ^ 0x5bd1e995) >>> 0;       // its own random numbers for thinning the cost samples, so the walkers' numbers are never touched
+    function sampler() { sampState = (Math.imul(sampState, 1664525) + 1013904223) >>> 0; return sampState / 4294967296; }
 
-    function pickEdge(v, rng) {
-      var a = P.outStart[v], b = P.outStart[v + 1], od = b - a, k;
-      if (rule === 'first') return P.outEdge[a];
-      if (rule === 'uniform') return P.outEdge[a + Math.floor(rng() * od)];
+    function pickEdge(v, rng) {   // only for the rules 'first' and 'curious'; returns a slot index
+      var a = os[v], b = os[v + 1], od = b - a, k;
+      if (rule === 'first') return a;
       if (rule === 'curious') {
         var cnt = 0, sum = 0;
-        for (k = a; k < b; k++) if (seen[P.to[P.outEdge[k]]] !== stamp) { cnt++; sum += cum[k] - (k > a ? cum[k - 1] : 0); }
+        for (k = a; k < b; k++) if (seen[tg[k]] !== stamp) { cnt++; sum += cum[k] - (k > a ? cum[k - 1] : 0); }
         if (cnt && cnt < od) {
-          if (!(sum > 0)) { var skip = Math.floor(rng() * cnt); for (k = a; k < b; k++) if (seen[P.to[P.outEdge[k]]] !== stamp && skip-- === 0) return P.outEdge[k]; }
+          if (!(sum > 0)) { var skip = Math.floor(rng() * cnt); for (k = a; k < b; k++) if (seen[tg[k]] !== stamp && skip-- === 0) return k; }
           var x = rng() * sum;
-          for (k = a; k < b; k++) if (seen[P.to[P.outEdge[k]]] !== stamp) { x -= cum[k] - (k > a ? cum[k - 1] : 0); if (x <= 0) return P.outEdge[k]; }
-          return P.outEdge[b - 1];
+          for (k = a; k < b; k++) if (seen[tg[k]] !== stamp) { x -= cum[k] - (k > a ? cum[k - 1] : 0); if (x <= 0) return k; }
+          return b - 1;
         }
       }
-      var t = nodeTot[v];
-      if (!(t > 0)) return P.outEdge[a + Math.floor(rng() * od)];
-      var r = rng() * t, lo = a, hi = b - 1;
+      var r = rng() * nodeTot[v], lo = a, hi = b - 1;
       while (lo < hi) { var mid = (lo + hi) >> 1; if (cum[mid] > r) hi = mid; else lo = mid + 1; }
-      return P.outEdge[lo];
+      return lo;
     }
-    function pushSample(arr, seenN, cap, x, rng) {
-      if (arr.length < cap) arr.push(x);
-      else { var j = Math.floor(rng() * seenN); if (j < cap) arr[j] = x; }
+    function pushSample(arr, seenN, capN, x) {
+      if (arr.length < capN) arr.push(x);
+      else { var j = Math.floor(sampler() * seenN); if (j < capN) arr[j] = x; }
+    }
+    function rangeOf(k) {   // the 95% range of end k's share
+      var cnt = st.epCount[k], wl = wilson(cnt, st.walkers), share = st.walkers ? cnt / st.walkers : 0, lo = wl[0], hi = wl[1];
+      if (!weightsFixed && st.shareTrials >= 30) {
+        var smean = st.epShareSum[k] / st.shareTrials, ssd = Math.sqrt(Math.max(0, st.epShareSq[k] / st.shareTrials - smean * smean) * st.shareTrials / (st.shareTrials - 1));
+        var hw = 1.96 * ssd / Math.sqrt(st.shareTrials); lo = Math.min(lo, share - hw); hi = Math.max(hi, share + hw);
+      }
+      return [Math.max(0, lo), Math.min(1, hi)];
+    }
+    function widest() { var w = 0; for (var k = 0; k < K; k++) { var r = rangeOf(k); if ((r[1] - r[0]) / 2 > w) w = (r[1] - r[0]) / 2; } return w; }
+    function refreshTotals() {   // visits and moves are kept as counts of slots used; the item totals follow from them
+      var v, k;
+      for (v = 0; v < n; v++) st.visits[v] = startCount[v];
+      for (k = 0; k < m; k++) { st.moves[oe[k]] = movesCsr[k]; st.visits[tg[k]] += movesCsr[k]; }
     }
     st.run = function (maxTrials, budgetMs) {
       var t0 = Date.now(), done = 0;
-      if (!srcs.length) { st.trial = T; return { done: true, trials: st.trial }; }
+      if (!srcs.length) { st.trial = T; return { done: true, trials: st.nTrials }; }
       while (st.trial < T && done < maxTrials && (Date.now() - t0 < budgetMs || done === 0)) {
         var rng = rngFor(seed, st.trial);
         if (!weightsFixed) buildCum(rng);
         var count = Math.max(0, Math.round(dArr(rng, 0)));
         if (st.walkers + count > maxWalkers) count = Math.max(0, maxWalkers - st.walkers);
-        var k;
+        var k, stuckHere = 0, plain = viaTable && !dCost && !dDwell;
         for (k = 0; k < K; k++) trialCounts[k] = 0;
         for (var wk = 0; wk < count; wk++) {
           var s = srcs[0].v;
           if (srcs.length > 1) { var xr = rng() * tot, si = 0; while (si < srcs.length - 1 && srcCum[si] < xr) si++; s = srcs[si].v; }
-          stamp++;
-          var v = s, steps = 0, cost = 0;
-          seen[v] = stamp; st.visits[v]++;
-          if (dDwell && !isEnd[v]) cost += dDwell(rng, v);
-          while (!isEnd[v] && steps < cap) {
-            var e = pickEdge(v, rng);
-            st.moves[e]++;
-            if (dCost) cost += dCost(rng, e);
-            v = P.to[e]; steps++;
-            seen[v] = stamp; st.visits[v]++;
+          startCount[s]++;
+          var v = s, steps = 0, cost = 0, sl;
+          if (plain) {                          // the common case: a walker is a loop over cumulative odds and nothing else
+            while (!halt[v] && steps < cap) {
+              sl = os[v]; var r = rng();
+              while (cumN[sl] <= r) sl++;
+              movesCsr[sl]++; v = tg[sl]; steps++;
+            }
+          } else {
+            stamp++; seen[v] = stamp;
             if (dDwell && !isEnd[v]) cost += dDwell(rng, v);
+            while (!halt[v] && steps < cap) {
+              if (viaTable) { sl = os[v]; var r2 = rng(); while (cumN[sl] <= r2) sl++; } else sl = pickEdge(v, rng);
+              movesCsr[sl]++;
+              if (dCost) cost += dCost(rng, oe[sl]);
+              v = tg[sl]; steps++;
+              seen[v] = stamp;
+              if (dDwell && !isEnd[v]) cost += dDwell(rng, v);
+            }
           }
-          st.walkers++;
-          st.stepSeen++; pushSample(st.steps, st.stepSeen, STEP_CAP, steps, rng);
-          if (dCost || dDwell) { st.costSeen++; pushSample(st.costs, st.costSeen, COST_CAP, cost, rng); }
+          st.stepTab.a[steps]++;
+          if (dCost || dDwell) { st.costSeen++; pushSample(st.costs, st.costSeen, COST_CAP, cost); }
           if (isEnd[v]) {
             var ep = epOf[v];
             trialCounts[ep]++;
-            if (dCost || dDwell) { var ce = st.epCosts[ep]; ce.n = (ce.n || 0) + 1; pushSample(ce, ce.n, EPCOST_CAP, cost, rng); }
-          } else st.stuck++;
+            if (dCost || dDwell) { var ce = st.epCosts[ep]; ce.n = (ce.n || 0) + 1; pushSample(ce, ce.n, EPCOST_CAP, cost); }
+          } else stuckHere++;
         }
-        var nz = 0;
-        for (k = 0; k < K; k++) { st.epCount[k] += trialCounts[k]; st.epSum[k] += trialCounts[k]; st.epSumSq[k] += trialCounts[k] * trialCounts[k]; if (count > 0) { var sh = trialCounts[k] / count; st.epShareSum[k] += sh; st.epShareSq[k] += sh * sh; } nz++; }
+        st.walkers += count; st.stuck += stuckHere;
+        for (k = 0; k < K; k++) {
+          var tc = trialCounts[k];
+          st.epCount[k] += tc; st.epSum[k] += tc; st.epSumSq[k] += tc * tc;
+          if (count > 0) { var sh = tc / count; st.epShareSum[k] += sh; st.epShareSq[k] += sh * sh; }
+          tabAdd(st.epPerTrial[k], tc);
+        }
         if (count > 0) st.shareTrials++;
-        for (k = 0; k < K; k++) { var pa = st.epPerTrial[k]; pa.n = (pa.n || 0) + 1; pushSample(pa, pa.n, EP_CAP, trialCounts[k], rng); }
-        st.trial++; done++;
+        st.trial++; st.nTrials++; done++;
+        if (precision && st.walkers >= minWalkers && (st.nTrials & 7) === 0 && widest() < precision) { st.stoppedEarly = true; st.trial = T; }
         if (st.walkers >= st.nextTrace || st.trial === T) {
-          var row = { walkers: st.walkers, trial: st.trial, shares: [] };
+          var row = { walkers: st.walkers, trial: st.nTrials, shares: [] };
           for (k = 0; k < K; k++) row.shares.push(st.walkers ? st.epCount[k] / st.walkers : 0);
           st.trace.push(row); st.nextTrace = Math.ceil(st.walkers * 1.25) + 5;
         }
         if (st.walkers >= maxWalkers) { st.trial = T; break; }
       }
+      refreshTotals();
       st.busyMs += Date.now() - t0;
-      return { done: st.trial >= T, trials: st.trial };
+      return { done: st.trial >= T, trials: st.nTrials };
+    };
+    /** Everything counted so far, as plain arrays and numbers that can be sent to another thread (structured clone) and added up with add() or merge(). */
+    st.export = function () {
+      return {
+        trials: st.nTrials, walkers: st.walkers, stuck: st.stuck, shareTrials: st.shareTrials, startCount: startCount.slice(), moves: movesCsr.slice(),
+        epCount: st.epCount.slice(), epSum: st.epSum.slice(), epSumSq: st.epSumSq.slice(), epShareSum: st.epShareSum.slice(), epShareSq: st.epShareSq.slice(),
+        steps: tabCopy(st.stepTab), perTrial: st.epPerTrial.map(tabCopy), costs: st.costs.slice(), costSeen: st.costSeen, epCosts: st.epCosts.map(function (c) { var a = c.slice(); a.n = c.n || 0; return a; })
+      };
+    };
+    /** Add what another sim (same graph and set-up, other trials) counted. Counts, shares, visits and moves come out exactly as if one sim had run all the trials. */
+    st.add = function (x) {
+      var k;
+      st.nTrials += x.trials; st.walkers += x.walkers; st.stuck += x.stuck; st.shareTrials += x.shareTrials;
+      for (k = 0; k < n; k++) startCount[k] += x.startCount[k];
+      for (k = 0; k < m; k++) movesCsr[k] += x.moves[k];
+      for (k = 0; k < K; k++) { st.epCount[k] += x.epCount[k]; st.epSum[k] += x.epSum[k]; st.epSumSq[k] += x.epSumSq[k]; st.epShareSum[k] += x.epShareSum[k]; st.epShareSq[k] += x.epShareSq[k]; tabMerge(st.epPerTrial[k], x.perTrial[k]); }
+      tabMerge(st.stepTab, x.steps);
+      var seenN = st.costSeen + x.costSeen;
+      x.costs.forEach(function (c, j) { pushSample(st.costs, st.costSeen + j + 1, COST_CAP, c); });
+      st.costSeen = seenN;
+      for (k = 0; k < K; k++) { var src = x.epCosts[k], dst = st.epCosts[k], base0 = dst.n || 0; src.forEach(function (c, j) { pushSample(dst, base0 + j + 1, EPCOST_CAP, c); }); dst.n = base0 + (src.n || 0); }
+      st.trial = Math.min(T, st.trial + x.trials);
+      var row = { walkers: st.walkers, trial: st.nTrials, shares: [] };
+      for (k = 0; k < K; k++) row.shares.push(st.walkers ? st.epCount[k] / st.walkers : 0);
+      st.trace = [row];
+      refreshTotals();
+      return st;
     };
     /** A plain copy of the results so far (typed arrays are copied, so the next batch does not change what you hold). */
     st.snapshot = function () {
       var W0 = st.walkers || 1, eps = [], k;
       for (k = 0; k < K; k++) {
-        var cnt = st.epCount[k], wl = wilson(cnt, st.walkers), share = st.walkers ? cnt / st.walkers : 0, tr = st.epPerTrial[k].slice().sort(function (a, b) { return a - b; });
-        var mean = st.trial ? st.epSum[k] / st.trial : 0, sd = st.trial > 1 ? Math.sqrt(Math.max(0, st.epSumSq[k] / st.trial - mean * mean) * st.trial / (st.trial - 1)) : 0;
-        var smean = st.shareTrials ? st.epShareSum[k] / st.shareTrials : 0, ssd = st.shareTrials > 1 ? Math.sqrt(Math.max(0, st.epShareSq[k] / st.shareTrials - smean * smean) * st.shareTrials / (st.shareTrials - 1)) : 0;
-        var lo = wl[0], hi = wl[1];
-        if (!weightsFixed && st.shareTrials >= 30) { var hw = 1.96 * ssd / Math.sqrt(st.shareTrials); lo = Math.min(lo, share - hw); hi = Math.max(hi, share + hw); }
-        var cs = st.epCosts[k].slice().sort(function (a, b) { return a - b; });
+        var cnt = st.epCount[k], share = st.walkers ? cnt / st.walkers : 0, pt = st.epPerTrial[k], ptn = tabCount(pt);
+        tabSort(pt);
+        var mean = st.nTrials ? st.epSum[k] / st.nTrials : 0, sd = st.nTrials > 1 ? Math.sqrt(Math.max(0, st.epSumSq[k] / st.nTrials - mean * mean) * st.nTrials / (st.nTrials - 1)) : 0;
+        var rg = rangeOf(k), cs = st.epCosts[k].slice().sort(function (a, b) { return a - b; });
         eps.push({
-          v: st.ends[k], id: P.nodes[st.ends[k]].id, count: cnt, share: share, lo: Math.max(0, lo), hi: Math.min(1, hi),
-          perTrial: { mean: mean, sd: sd, p5: quantile(tr, 0.05), p50: quantile(tr, 0.5), p95: quantile(tr, 0.95) },
+          v: st.ends[k], id: P.nodes[st.ends[k]].id, count: cnt, share: share, lo: rg[0], hi: rg[1],
+          perTrial: { mean: mean, sd: sd, p5: tabQuantile(pt, ptn, 0.05), p50: tabQuantile(pt, ptn, 0.5), p95: tabQuantile(pt, ptn, 0.95) },
           cost: cs.length ? { n: st.epCosts[k].n, mean: cs.reduce(function (a, b) { return a + b; }, 0) / cs.length, p5: quantile(cs, 0.05), p50: quantile(cs, 0.5), p95: quantile(cs, 0.95) } : null
         });
       }
       var out = {
-        trials: st.trial, planned: T, walkers: st.walkers, stuck: st.stuck, stuckShare: st.walkers ? st.stuck / st.walkers : 0,
+        trials: st.nTrials, planned: T, stoppedEarly: st.stoppedEarly, walkers: st.walkers, stuck: st.stuck, stuckShare: st.walkers ? st.stuck / st.walkers : 0,
         endpoints: eps, visits: st.visits.map(function (x) { return x / W0; }), moves: st.moves.map(function (x) { return x / W0; }),
-        steps: histogram(st.steps, 40, true), stepStats: null, cost: null, trace: st.trace.slice(), busyMs: st.busyMs, weightsFixed: weightsFixed, rule: rule
+        steps: null, stepStats: null, cost: null, trace: st.trace.slice(), busyMs: st.busyMs, weightsFixed: weightsFixed, rule: rule
       };
-      var ss = st.steps.slice().sort(function (a, b) { return a - b; });
-      if (ss.length) out.stepStats = { mean: ss.reduce(function (a, b) { return a + b; }, 0) / ss.length, p5: quantile(ss, 0.05), p50: quantile(ss, 0.5), p95: quantile(ss, 0.95), max: ss[ss.length - 1] };
+      var sa = st.stepTab.a, sn = tabCount(st.stepTab), lo = -1, hi = -1, sum = 0, j;
+      for (j = 0; j < sa.length; j++) if (sa[j]) { if (lo < 0) lo = j; hi = j; sum += j * sa[j]; }
+      if (sn) {   // every walker's step count is in the table, so these are exact (the cost samples below are not)
+        var nb = Math.min(40, hi - lo + 1), hb = new Array(nb).fill(0), wd = (hi - lo) / nb;
+        if (hi === lo) hb = [sn]; else for (j = lo; j <= hi; j++) if (sa[j]) hb[Math.min(nb - 1, Math.floor((j - lo) / wd))] += sa[j];
+        out.steps = { lo: lo, hi: hi, bins: hb };
+        out.stepStats = { mean: sum / sn, p5: tabQuantile(st.stepTab, sn, 0.05), p50: tabQuantile(st.stepTab, sn, 0.5), p95: tabQuantile(st.stepTab, sn, 0.95), max: hi };
+      } else out.steps = { lo: 0, hi: 0, bins: [] };
       if (st.costs.length) {
         var cc = st.costs.slice().sort(function (a, b) { return a - b; }), mean2 = cc.reduce(function (a, b) { return a + b; }, 0) / cc.length;
         var v2 = cc.reduce(function (a, b) { return a + (b - mean2) * (b - mean2); }, 0) / Math.max(1, cc.length - 1);
@@ -415,7 +490,12 @@
     };
     return st;
   }
-
+  /** Add up the exports of several sims that ran different trial ranges of the same set-up (for example one per Web Worker). Returns a sim whose snapshot() reads like one run. */
+  function merge(P, cfg, exports) {
+    var all = create(P, cfg);
+    exports.forEach(function (x) { all.add(x); });
+    return all;
+  }
 
   /* ---------------------------------------------------------------- plain input: a list of links -> the compact graph the walkers use */
   var BAD_IDS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
@@ -453,7 +533,6 @@
     return P;
   }
   function outdeg(P, v) { return P.outStart[v + 1] - P.outStart[v]; }
-  /** Breadth-first distances from `root` (never entering `skip`); -1 where not reached. */
   /** Breadth-first distances from `root` (never entering `skip`); -1 where not reached. */
   function bfs(P, root, skip) {
     var d = new Int32Array(P.n).fill(-1);
@@ -522,48 +601,183 @@
       act = nxt;
       if (mass < 1e-13) break;
     }
+    for (var li = 0; li < act.length; li++) visits[act[li]] += x[act[li]];      // walkers still going when the step cap hits have arrived at their item too
     return { visits: visits, moves: moves };
+  }
+  /** Groups of items that can all reach each other through ways with a chance above 0 (Tarjan, without recursion). Each group is listed after every group it can reach. */
+  function loopGroups(P, p, inSet) {
+    var n = P.n, idx = new Int32Array(n).fill(-1), low = new Int32Array(n), on = new Uint8Array(n), ptr = new Int32Array(n), stack = [], call = [], groups = [], counter = 0, r, v, w, e, u, g;
+    for (r = 0; r < n; r++) {
+      if (!inSet[r] || idx[r] >= 0) continue;
+      idx[r] = low[r] = counter++; stack.push(r); on[r] = 1; ptr[r] = P.outStart[r]; call.push(r);
+      while (call.length) {
+        v = call[call.length - 1];
+        if (ptr[v] < P.outStart[v + 1]) {
+          e = P.outEdge[ptr[v]++];
+          if (!(p[e] > 0)) continue;
+          w = P.to[e];
+          if (!inSet[w]) continue;
+          if (idx[w] < 0) { idx[w] = low[w] = counter++; stack.push(w); on[w] = 1; ptr[w] = P.outStart[w]; call.push(w); }
+          else if (on[w] && idx[w] < low[v]) low[v] = idx[w];
+        } else {
+          call.pop();
+          if (call.length) { u = call[call.length - 1]; if (low[v] < low[u]) low[u] = low[v]; }
+          if (low[v] === idx[v]) { g = []; do { w = stack.pop(); on[w] = 0; g.push(w); } while (w !== v); groups.push(g); }
+        }
+      }
+    }
+    return groups;
+  }
+  /**
+   * Solves the loops directly instead of going round them again and again: the items are split into groups that can reach each other, the groups are
+   * handled from the ends backwards, and each group (a loop of up to maxLoop items) is solved by elimination. Fills c; false when a group is too big.
+   */
+  function solveLoops(P, p, c, K, ord, maxLoop) {
+    var n = P.n, inSet = new Uint8Array(n), pos = new Int32Array(n).fill(-1), i, j, q, k, e, w, pe;
+    ord.forEach(function (v) { inSet[v] = 1; });
+    var groups = loopGroups(P, p, inSet), gi;
+    for (gi = 0; gi < groups.length; gi++) if (groups[gi].length > maxLoop) return false;
+    for (gi = 0; gi < groups.length; gi++) {
+      var g = groups[gi], s = g.length, v;
+      if (s === 1) {
+        v = g[0];
+        var acc = new Float64Array(K), self = 0;
+        for (k = P.outStart[v]; k < P.outStart[v + 1]; k++) {
+          e = P.outEdge[k]; pe = p[e]; w = P.to[e];
+          if (!(pe > 0)) continue;
+          if (w === v) self += pe; else for (q = 0; q < K; q++) acc[q] += pe * c[w * K + q];
+        }
+        for (q = 0; q < K; q++) c[v * K + q] = self < 1 ? acc[q] / (1 - self) : 0;
+        continue;
+      }
+      var A = new Float64Array(s * s), B = new Float64Array(s * K);
+      for (j = 0; j < s; j++) pos[g[j]] = j;
+      for (j = 0; j < s; j++) {
+        v = g[j]; A[j * s + j] += 1;
+        for (k = P.outStart[v]; k < P.outStart[v + 1]; k++) {
+          e = P.outEdge[k]; pe = p[e]; w = P.to[e];
+          if (!(pe > 0)) continue;
+          if (pos[w] >= 0) A[j * s + pos[w]] -= pe; else for (q = 0; q < K; q++) B[j * K + q] += pe * c[w * K + q];
+        }
+      }
+      for (var col = 0; col < s; col++) {
+        var piv = col, best = Math.abs(A[col * s + col]), r;
+        for (r = col + 1; r < s; r++) if (Math.abs(A[r * s + col]) > best) { best = Math.abs(A[r * s + col]); piv = r; }
+        if (!(best > 1e-300)) { for (j = 0; j < s; j++) pos[g[j]] = -1; return false; }
+        if (piv !== col) {
+          for (j = 0; j < s; j++) { var t1 = A[col * s + j]; A[col * s + j] = A[piv * s + j]; A[piv * s + j] = t1; }
+          for (q = 0; q < K; q++) { var t2 = B[col * K + q]; B[col * K + q] = B[piv * K + q]; B[piv * K + q] = t2; }
+        }
+        var inv = 1 / A[col * s + col];
+        for (r = col + 1; r < s; r++) {
+          var f = A[r * s + col] * inv;
+          if (f === 0) continue;
+          A[r * s + col] = 0;
+          for (j = col + 1; j < s; j++) A[r * s + j] -= f * A[col * s + j];
+          for (q = 0; q < K; q++) B[r * K + q] -= f * B[col * K + q];
+        }
+      }
+      for (var row = s - 1; row >= 0; row--) {
+        for (q = 0; q < K; q++) {
+          var xv = B[row * K + q];
+          for (j = row + 1; j < s; j++) xv -= A[row * s + j] * B[j * K + q];
+          B[row * K + q] = xv / A[row * s + row];
+        }
+      }
+      for (j = 0; j < s; j++) { for (q = 0; q < K; q++) c[g[j] * K + q] = Math.max(0, B[j * K + q]); pos[g[j]] = -1; }
+    }
+    return true;
   }
   /**
    * Absorbing chain with K end classes: classOf(item with no way on) gives its class 0..K-1. Returns c (n * K: the chance of
-   * finishing in each class from each item), start (the mix over the seeds), visits and moves.
+   * finishing in each class from each item), start (the mix over the seeds), visits and moves (unless o.noSpread), and how well it went:
+   * converged (true when another round would move nothing by more than 1e-9), error (about how far the answers may still be off), method ('sweeps' or 'loops').
+   * Rounds are tried first (o.sweeps, default 500); a loop that needs more is solved directly (groups of up to o.maxLoop items, default 2500).
+   * o.warm: the c of a similar problem to start from (faster for what-if runs, where only a few ways change).
    */
   function absorb(P, imp, o, classOf, K) {
     o = o || {};
-    var n = P.n, m = P.m, cap = o.cap || 400;
+    var n = P.n, m = P.m, cap = o.cap || 400, maxSweeps = o.sweeps || 500;
     var sumw = new Float64Array(n), p = new Float64Array(m), i, k, e;
     for (e = 0; e < m; e++) sumw[P.from[e]] += P.w[e];
     for (e = 0; e < m; e++) p[e] = sumw[P.from[e]] > 0 ? P.w[e] / sumw[P.from[e]] : 0;
-    var c = new Float64Array(n * K);
-    for (i = 0; i < n; i++) if (!outdeg(P, i)) { var ci = classOf(i); if (ci >= 0 && ci < K) c[i * K + ci] = 1; }
+    var reach = new Uint8Array(n), bq = new Int32Array(n), qh = 0, qt = 0;    // items that can finish at all: they reach an end through ways with a chance above 0
+    for (i = 0; i < n; i++) if (!outdeg(P, i)) { reach[i] = 1; bq[qt++] = i; }
+    while (qh < qt) {
+      var v0 = bq[qh++];
+      for (k = P.inStart[v0]; k < P.inStart[v0 + 1]; k++) { e = P.inEdge[k]; var u0 = P.from[e]; if (!reach[u0] && p[e] > 0) { reach[u0] = 1; bq[qt++] = u0; } }
+    }
+    var c = new Float64Array(n * K), q;
+    if (o.warm) c.set(o.warm);
+    if (!imp.order) {   // the items with a way on, farthest from the start first; the same for every what-if, so it is worked out once
+      imp.order = [];
+      for (i = 0; i < n; i++) if (outdeg(P, i)) imp.order.push(i);
+      imp.order.sort(function (a, b) { return imp.depth[b] - imp.depth[a] || a - b; });
+    }
     var ord = [];
-    for (i = 0; i < n; i++) if (outdeg(P, i)) ord.push(i);
-    ord.sort(function (a, b) { return imp.depth[b] - imp.depth[a] || a - b; });
+    for (i = 0; i < n; i++) {
+      if (outdeg(P, i)) { if (!reach[i]) for (q = 0; q < K; q++) c[i * K + q] = 0; }
+      else { for (q = 0; q < K; q++) c[i * K + q] = 0; var ci = classOf(i); if (ci >= 0 && ci < K) c[i * K + ci] = 1; }
+    }
+    for (i = 0; i < imp.order.length; i++) if (reach[imp.order[i]]) ord.push(imp.order[i]);
     var acc = new Float64Array(K);
-    for (var sweep = 0; sweep < 500; sweep++) {
-      var delta = 0;
-      for (var oi = 0; oi < ord.length; oi++) {
-        var v = ord[oi], q;
+    function sweepOnce() {
+      var delta = 0, oi, v, k, e, q, tK, pe, d;
+      for (oi = 0; oi < ord.length; oi++) {
+        v = ord[oi];
         for (q = 0; q < K; q++) acc[q] = 0;
         for (k = P.outStart[v]; k < P.outStart[v + 1]; k++) {
           e = P.outEdge[k];
-          var tK = P.to[e] * K, pe = p[e];
+          tK = P.to[e] * K; pe = p[e];
           for (q = 0; q < K; q++) acc[q] += pe * c[tK + q];
         }
-        var d = 0;
+        d = 0;
         for (q = 0; q < K; q++) { d += Math.abs(acc[q] - c[v * K + q]); c[v * K + q] = acc[q]; }
         if (d > delta) delta = d;
       }
-      if (delta < 1e-12) break;
+      return delta;
     }
-    var seeds = seedsOf(P, o), sp = spread(P, p, seeds, cap), start = new Float64Array(K);
-    seeds.forEach(function (s) { for (var q = 0; q < K; q++) start[q] += s.mass * c[s.v * K + q]; });
-    return { c: c, K: K, start: start, visits: sp.visits, moves: sp.moves, p: p };
+    var delta = Infinity, prev = Infinity, sweeps = 0, method = 'sweeps', converged, error;
+    while (sweeps < maxSweeps) { prev = delta; delta = sweepOnce(); sweeps++; if (delta < 1e-12) break; }
+    function leftover() { var rho = prev > 0 && prev < Infinity ? delta / prev : 1; return rho < 1 ? delta * rho / (1 - rho) : 1; }
+    if (delta < 1e-12) { converged = true; error = delta; }
+    else if (solveLoops(P, p, c, K, ord, o.maxLoop || 2500)) { method = 'loops'; delta = sweepOnce(); converged = delta < 1e-9; error = delta; }
+    else {   // a loop too big to solve directly: keep going round for a while and say how far it got
+      var t0 = Date.now(), budget = o.budgetMs || 2000;
+      while (Date.now() - t0 < budget && delta >= 1e-12) { for (var rep = 0; rep < 25 && delta >= 1e-12; rep++) { prev = delta; delta = sweepOnce(); sweeps++; } }
+      converged = delta < 1e-12; error = converged ? delta : leftover();
+    }
+    var seeds = seedsOf(P, o), start = new Float64Array(K), sp = null;
+    seeds.forEach(function (s) { for (var q2 = 0; q2 < K; q2++) start[q2] += s.mass * c[s.v * K + q2]; });
+    if (!o.noSpread) sp = spread(P, p, seeds, cap);
+    return { c: c, K: K, start: start, visits: sp && sp.visits, moves: sp && sp.moves, p: p, converged: converged, error: error, method: method, sweeps: sweeps };
   }
   function indeg(P, v) { return P.inStart[v + 1] - P.inStart[v]; }
 
+  /** The average of one draw of a distribution spec for element i (a link or an item), or NaN when it has no average. */
+  function specMean(spec, i) {
+    var d = spec.dist, V = spec.values;
+    var pick = function (x) { return x !== null && x !== undefined && typeof x === 'object' ? x[i] : x; };
+    if (d === 'empirical') { if (!V || !V.length) return NaN; var s = 0; for (var j = 0; j < V.length; j++) s += V[j]; return s / V.length; }
+    var a = pick(spec.a), b = pick(spec.b), c = pick(spec.c);
+    switch (d) {
+      case 'lognormal': case 'gamma': case 'exponential': case 'negbinomial': case 'poisson': if (!(a > 0)) return 0; break;
+      case 'weibull': case 'pareto': if (!(a > 0 && b > 0)) return 0; break;
+      case 'binomial': a = Math.floor(a); if (!(a > 0) || !(b > 0)) return 0; if (b >= 1) return a; break;
+      case 'beta': if (!(a > 0)) return 0; if (!(a < 1)) return 1; break;
+      case 'triangular': if (!(c > a)) return a; break;
+      case 'dunif': a = Math.ceil(a); b = Math.floor(b); if (b < a) return a; break;
+    }
+    var mean = moments(d, a, b, c).mean;
+    return isFinite(mean) ? mean : NaN;
+  }
+
   /* ---------------------------------------------------------------- exact answers to compare with, and what-if sweeps */
-  /** Exact end odds for the same set-up when that is possible (fixed weights, weights or uniform choice, ends are the items with no way on). */
+  /**
+   * Exact end odds for the same set-up when that is possible (fixed weights, weights or uniform choice, ends are the items with no way on).
+   * Also: meanSteps (average steps per walker, with the step cap), meanCost (average cost per walker when linkCost or dwell is set; null if one of them has no average),
+   * and converged / error / method from absorb(), so a number that did not settle says so.
+   */
   function exactEndpoints(P, cfg) {
     cfg = cfg || {};
     var rule = cfg.rule || 'weights';
@@ -581,16 +795,24 @@
     var tot = 0; srcs.forEach(function (s) { tot += s.w; });
     var seeds = srcs.map(function (s) { return { id: P.nodes[s.v].id, mass: s.w / (tot || 1) }; });
     var imp = { depth: bfs(Q, Q.start, -1) };
-    var r = absorb(Q, imp, { sources: seeds, cap: cfg.stepCap || 400 }, function (v) { return epOf[v]; }, K);
+    var so = cfg.solver || {}, r = absorb(Q, imp, { sources: seeds, cap: cfg.stepCap || 400, sweeps: so.sweeps, maxLoop: so.maxLoop, budgetMs: so.budgetMs }, function (v) { return epOf[v]; }, K);
     var got = 0; for (i = 0; i < K; i++) got += r.start[i];
-    return { ends: ends, p: r.start, stuck: Math.max(0, 1 - got), visits: r.visits, moves: r.moves, weights: w, Q: Q, imp: imp, epOf: epOf, seeds: seeds, K: K };
+    var meanSteps = 0, e; for (e = 0; e < P.m; e++) meanSteps += r.moves[e];
+    var meanCost = null, hasL = cfg.linkCost && cfg.linkCost.dist, hasD = cfg.dwell && cfg.dwell.dist;
+    if (hasL || hasD) {
+      meanCost = 0;
+      if (hasL) for (e = 0; e < P.m && meanCost !== null; e++) { var ml = specMean(cfg.linkCost, e); meanCost = isFinite(ml) ? meanCost + r.moves[e] * ml : null; }
+      if (hasD) for (i = 0; i < n && meanCost !== null; i++) if (P.outStart[i + 1] !== P.outStart[i]) { var md = specMean(cfg.dwell, i); meanCost = isFinite(md) ? meanCost + r.visits[i] * md : null; }
+    }
+    return { ends: ends, p: r.start, stuck: Math.max(0, 1 - got), visits: r.visits, moves: r.moves, weights: w, Q: Q, imp: imp, epOf: epOf, seeds: seeds, K: K, c: r.c,
+      meanSteps: meanSteps, meanCost: meanCost, converged: r.converged, error: r.error, method: r.method };
   }
 
   /** Exact odds without the heavy insides, safe to send between threads. */
   function exactSummary(P, cfg) {
     var x = exactEndpoints(P, cfg);
     if (!x) return null;
-    return { ends: x.ends.map(function (v) { return P.nodes[v].id; }), p: Array.prototype.slice.call(x.p), stuck: x.stuck, visits: x.visits, moves: x.moves };
+    return { ends: x.ends.map(function (v) { return P.nodes[v].id; }), p: Array.prototype.slice.call(x.p), stuck: x.stuck, visits: x.visits, moves: x.moves, meanSteps: x.meanSteps, meanCost: x.meanCost, converged: x.converged, error: x.error, method: x.method };
   }
 
   function tv(a, sa, b, sb) {
@@ -601,12 +823,13 @@
   /**
    * What if this item (or link) were gone? Ranks the busiest items or links by how far the end odds move.
    * opts: { what: 'items' | 'links', top, budgetMs }. Rows: { kind, v | e, shift, stuck, after: [odds], before: [odds] }.
+   * Each what-if starts from the answer for the full network (only a few ways change, so it settles in fewer rounds); converged says whether every one settled.
    */
   function sweep(P, cfg, opts) {
     opts = opts || {};
     var base = exactEndpoints(P, cfg);
     if (!base) return { ok: false, reason: 'The what-if sweep needs fixed link weights, a weighted or even choice, and ends that are items with no way on.', rows: [] };
-    var what = opts.what === 'links' ? 'links' : 'items', top = opts.top || 40, t0 = Date.now(), budget = opts.budgetMs || 8000, rows = [], cand = [], i, e;
+    var what = opts.what === 'links' ? 'links' : 'items', top = opts.top || 40, t0 = Date.now(), budget = opts.budgetMs || 8000, rows = [], cand = [], i, e, allConverged = base.converged;
     var isSrc = new Set((cfg.sources || []).map(function (s) { return s.v; }));
     if (P.start >= 0 && !(cfg.sources && cfg.sources.length)) isSrc.add(P.start);
     if (what === 'items') {
@@ -621,14 +844,15 @@
       if (Date.now() - t0 > budget) break;
       var w2 = Float64Array.from(base.weights), c = cand[ci];
       if (what === 'items') { for (e = 0; e < P.m; e++) if (P.to[e] === c) w2[e] = 0; } else w2[c] = 0;
-      var Q2 = Object.assign({}, P, { w: w2 }), r = absorb(Q2, base.imp, { sources: base.seeds, cap: cfg.stepCap || 400 }, function (v) { return base.epOf[v]; }, base.K);
+      var Q2 = Object.assign({}, P, { w: w2 }), r = absorb(Q2, base.imp, { sources: base.seeds, cap: cfg.stepCap || 400, warm: base.c, noSpread: true }, function (v) { return base.epOf[v]; }, base.K);
+      if (!r.converged) allConverged = false;
       var got = 0; for (i = 0; i < base.K; i++) got += r.start[i];
       var stuck = Math.max(0, 1 - got);
       rows.push(what === 'items' ? { kind: 'item', v: c, id: P.nodes[c].id, shift: tv(base.p, base.stuck, r.start, stuck), stuck: stuck, after: Array.prototype.slice.call(r.start) } : { kind: 'link', e: c, from: P.nodes[P.from[c]].id, to: P.nodes[P.to[c]].id, shift: tv(base.p, base.stuck, r.start, stuck), stuck: stuck, after: Array.prototype.slice.call(r.start) });
     }
     rows.sort(function (a, b) { return b.shift - a.shift; });
-    return { ok: true, what: what, ends: base.ends.map(function (v) { return P.nodes[v].id; }), before: Array.prototype.slice.call(base.p), beforeStuck: base.stuck, rows: rows, partial: cand.length > rows.length };
+    return { ok: true, what: what, ends: base.ends.map(function (v) { return P.nodes[v].id; }), before: Array.prototype.slice.call(base.p), beforeStuck: base.stuck, rows: rows, partial: cand.length > rows.length, converged: allConverged };
   }
 
-  return { graph: graph, DISTS: DISTS, DIST_BY: DIST_BY, DRAW: DRAW, moments: moments, drawer: drawer, makeRng: makeRng, rngFor: rngFor, lgamma: lgamma, create: create, exactEndpoints: exactEndpoints, exactSummary: exactSummary, sweep: sweep, wilson: wilson, quantile: quantile };
+  return { graph: graph, DRAW: DRAW, moments: moments, drawer: drawer, makeRng: makeRng, rngFor: rngFor, lgamma: lgamma, create: create, merge: merge, exactEndpoints: exactEndpoints, exactSummary: exactSummary, sweep: sweep, wilson: wilson, quantile: quantile };
 }));

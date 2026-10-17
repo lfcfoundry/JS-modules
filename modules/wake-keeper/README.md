@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Node checks with a fake wake lock; no real browser run recorded (its demo page loads in Firefox through `tests/firefox.js`: Firefox 158 per the 2026-10-15 note, Firefox 157 on 2026-10-17). Not run: a phone.
+
 Keeps a phone or tablet screen awake **only while a game really wants it**. About 7 KB, no dependencies.
 
 **Test it:** `node modules/wake-keeper/test/run.js` (fake browser, 42 checks).

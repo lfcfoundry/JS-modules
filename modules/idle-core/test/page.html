@@ -1,0 +1,29 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : idle-core browser check
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><title>idle-core test page</title></head>
+<body><p>idle-core test page for tests/idle-core-browser.js. It loads idle-core.js, or idle-core.min.js with ?min.</p>
+<script>document.write('<script src="../idle-core' + (location.search.indexOf('min') >= 0 ? '.min' : '') + '.js"><\/script>');</script>
+</body></html>

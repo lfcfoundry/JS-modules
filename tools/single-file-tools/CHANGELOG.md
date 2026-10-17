@@ -5,8 +5,12 @@ What changed in each version, newest first, in plain words. The numbers are expl
 ## 1.1.0 · API 1 · 2026-10-16
 Packer: `--encoding bytes` makes a file you hand out about 23 percent smaller (210 KB instead of 272 KB on a 1 MB test game; it works from a double-clicked file, not from a server that forces utf-8 such as GitHub Pages), and Zopfli now defaults to 15 passes, about 3 times faster than the old 60 (1.8 s instead of 5.4 s) for 30 bytes more output, with `--fast` (1.0 s) and `--best`. Pictures: ones with a style inside are now handled (the test game's two biggest pictures were skipped before, saving 45 bytes; now the step saves about 3.6 KB after compression), ones with a script inside or no end are left alone and listed, and `--report` shows the real size saved after compression. Fonts: `--report` lists characters a font lacks, `--costs` shows what each layout feature costs in bytes, and the font type label now says woff2. README has the measured numbers and says which packer to pick.
 
+Tested in: Chromium 153 and Firefox 157 (the bytes page unpacks from `file://` and from a server that sends no charset, 2026-10-17). Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
+
 ## 1.0.0 · API 1 · 2026-10-16
 First labeled version. Nothing in the code changed; everything under "Before version labels" is already in it.
+
+Tested in: Python checks; browser used for the packed pages at 1.0.0: not recorded.
 
 ## Before version labels
 

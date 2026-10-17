@@ -20,14 +20,20 @@ var steps = [
   ['fx-governor', 'node', ['modules/fx-governor/test/run.js']],
   ['hold-press', 'node', ['modules/hold-press/test/run.js']],
   ['back-close node', 'node', ['modules/back-close/test/run.js']],
+  ['slow-note', 'node', ['modules/slow-note/test/run.js']],
+  ['spotlight-tour', 'node', ['modules/spotlight-tour/test/run.js']],
+  ['test-isolation', 'node', ['tools/test-isolation/test/run.js']],
+  ['speed-lab', 'node', ['tools/speed-lab/test/run.js']],
   ['gif-writer', 'node', ['modules/gif-writer/test/run.js']],
   ['zip-open', 'node', ['modules/zip-open/test/run.js']],
   ['river-layout', 'node', ['modules/river-layout/test/run.js']],
   ['walker-sim', 'node', ['modules/walker-sim/test/run.js']],
+  ['walker-sim minified', 'node', ['modules/walker-sim/test/run.js', 'modules/walker-sim/walker-sim.min.js']],
   ['pad-nav node', 'node', ['modules/pad-nav/test/run.js']],
   ['save-kit', 'node', ['modules/save-kit/test/run.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
   ['idle-core', 'node', ['modules/idle-core/test/run.js']],
+  ['idle-core minified', 'node', ['modules/idle-core/test/run.js', 'modules/idle-core/idle-core.min.js']],
   ['lzma-pack python', 'python3', ['tools/lzma-pack/test/run.py']],
   ['ppmd-pack python', 'python3', ['tools/ppmd-pack/test/run.py']],
   ['single-file-tools', 'python3', ['tools/single-file-tools/test/run.py']],
@@ -47,6 +53,9 @@ var steps = [
   ['webkit-driver webkit', 'node', ['tools/webkit-driver/test/webkit.js'], true, true],   // optional: the real WebKitGTK check skips itself (exit 0 with a note) when WebKitWebDriver is missing
   ['firefox-stand-in', 'python3', ['tools/firefox-stand-in/test/run.py'], true, true],   // optional: skipped (exit code 2) when Selenium, Firefox or geckodriver is missing
   ['flow demos', 'node', ['tests/flow-demos.js'], true, true],   // optional like the next one (needs puppeteer-core and CHROMIUM or FIREFOX)
+  ['apple press pieces', 'node', ['tests/pieces-browser.js'], true, true],   // optional like the one above (slow-note, grown-ups-door, spotlight-tour, speed-lab, test-isolation in a real browser)
+  ['idle-core same answers', 'node', ['tests/idle-core-browser.js'], true, true],   // optional like the ones above (one fixed set of calls in Node and in each browser)
+  ['walker-sim same answers', 'node', ['tests/walker-sim-browser.js'], true, true],   // optional like the one above (walks, exact odds, sweeps and split runs in Node and in each browser, with timings)
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fifth item: optional, skipped when puppeteer-core or Firefox is missing (exit code 2)
 ];
 var failed = 0;

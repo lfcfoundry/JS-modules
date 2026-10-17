@@ -2,11 +2,19 @@
  * idle-core.js: the small maths every idle / clicker game ends up needing, tested.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.2.0 (API 1)
  *
  *  upgradeCost(base, risePct, owned, discount)   price of the next copy: base * (1 + rise/100)^owned * discount, rounded up
  *  costOfMany(base, risePct, owned, n, discount) price of the next n copies in one sum (the "buy 10" button)
  *  maxAffordable(base, risePct, owned, money, discount)  how many copies the money buys (the "buy max" button)
+ *  buyPlan(base, risePct, owned, discount, money, mode, cap)  what one tap on a "Buy x1 / x10 / Max" switch does right now:
+ *                                                { n copies, total price (each copy rounded up, as buying one at a time), can: money covers it }
+ *                                                (mode may be a number, a numeric string such as '10', or 'max' in any case)
+ *  etaSec(cost, money, ratePerSec)               seconds until the money covers the cost (0 now, Infinity with no income)
+ *  paybackSec(cost, rateGain)                    seconds of the extra income needed to earn the cost back (lower = better buy)
+ *  prestigeGain(lifetime, scale, root, mult)     points from a root curve: floor(mult * (lifetime / scale) ^ (1 / root)), steady against rounding
+ *  prestigeNeeded(points, scale, root, mult)     the lifetime total at which that many points are first earned
+ *  fastForward(step, secs, { chunk, budgetMs })  runs the game's own step(dt) over a long gap in chunks, stops at a time budget; { simulated, skipped }
  *  milestoneMult(owned, [10,25,50])              owning 10 doubles each copy's output, 25 doubles again, 50 once more (x8)
  *  milestoneLeft(owned, [..])                    copies to go until the next doubling (0 when all reached)
  *  RateBook(computeFn)                           memoized rates: recomputed only after invalidate() (call it on every purchase)
@@ -18,7 +26,7 @@
  *  stageIndex(total, thresholds)                 which stage a running total belongs to
  *  stageProgress(total, thresholds, i)           0..1 through stage i
  *  formatBig(n) / formatRate(n) / formatTime(s)  1,234 -> 1.5M -> 2.25B ... 1Sx -> 1.23e24, "2h 13m", "2d 5h"
- *  safe(n, fallback)                             n when it is a finite number, else the fallback (default 0)
+ *  safe(n, fallback)                             n when it is a finite number (or a numeric string such as '12'), else the fallback (default 0)
  *
  * Costs, rates and away income never come back as Infinity or NaN: a value past LIMIT (1e300) is held at LIMIT.
  */
@@ -32,11 +40,12 @@
   var DAY_SEC = 86400;
 
   // ---- small guards -------------------------------------------------------------------------------------------------
-  function safe(n, fallback) { return typeof n === 'number' && isFinite(n) ? n : (fallback === undefined ? 0 : fallback); }
+  function num(n) { return typeof n === 'string' && n.trim() !== '' ? Number(n) : n; }          // '12' -> 12; anything else is left alone
+  function safe(n, fallback) { n = num(n); return typeof n === 'number' && isFinite(n) ? n : (fallback === undefined ? 0 : fallback); }
   function limit(n) { return n !== n ? 0 : (n > LIMIT ? LIMIT : (n < -LIMIT ? -LIMIT : n)); }   // NaN -> 0, +-Infinity -> +-LIMIT
   function toNum(n) { if (typeof n === 'number') return n; try { return Number(n); } catch (e) { return NaN; } }
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
-  function pctOf(p) { if (typeof p !== 'number' || p !== p) return 50; return p < 0 ? 0 : (p > 100 ? 100 : p); }   // 0..100, default 50
+  function pctOf(p) { p = num(p); if (typeof p !== 'number' || p !== p) return 50; return p < 0 ? 0 : (p > 100 ? 100 : p); }   // 0..100, default 50
   function capOf(c) { return Math.max(0, safe(c, 8 * 3600)); }
 
   // Round up, but first forgive floating-point noise: 121.00000000000001 is the price 121, not 122.
@@ -100,6 +109,23 @@
     return n;
   }
 
+  // What one tap on a "Buy x1 / x10 / Max" switch would do now. mode: 1, 10 (or any count) or 'max' (0 also means max).
+  // A count buys exactly that many and says can:false when the money falls short. Max buys as many as the money covers and never more
+  // than cap at once (default 100, so one stray tap cannot empty the pile); with money for none it points at one copy and says can:false.
+  // Unlike costOfMany the price here is the sum of the single prices (each one rounded up), so it matches buying one at a time.
+  function buyPlan(base, risePct, owned, discount, money, mode, cap) {
+    var m = Math.min(LIMIT, Math.max(0, safe(money, 0))), c = Math.max(1, Math.min(1000, Math.floor(safe(cap, 100))));
+    var isMax = String(mode).toLowerCase() === 'max' || mode === 0, want = isMax ? c : Math.max(1, Math.min(c, Math.floor(safe(mode, 1))));
+    var a = priceArgs(base, risePct, owned, discount), r = 1 + a.p, raw = firstPrice(a), n = 0, total = 0, first = roundUp(limit(raw)), k, p;
+    for (k = 0; k < want; k++) {                                   // each next price is the last one times the growth: no Math.pow per copy
+      p = k === 0 ? first : roundUp(limit(raw *= r));
+      if (isMax && total + p > m) break;
+      total = limit(total + p); n++;
+    }
+    if (isMax) return n ? { n: n, total: total, can: true } : { n: 1, total: first, can: false };
+    return { n: n, total: total, can: m >= total };
+  }
+
   var DEFAULT_MILESTONES = [10, 25, 50];
   function milestoneMult(owned, milestones) {
     var m = 1; (milestones || DEFAULT_MILESTONES).forEach(function (n) { if (owned >= n) m *= 2; }); return m;
@@ -111,9 +137,14 @@
   }
 
   // Rates: whatever compute() returns is cleaned (a number, or the numbers inside an object or array, never NaN or Infinity).
+  // An object or array comes back as a cleaned copy, so a frozen result is fine and your own object is never changed.
   function cleanRates(v) {
     if (typeof v === 'number') return limit(v);
-    if (v && typeof v === 'object') Object.keys(v).forEach(function (k) { if (typeof v[k] === 'number') v[k] = limit(v[k]); });
+    if (v && typeof v === 'object') {
+      var out = Array.isArray(v) ? [] : {}, ks = Object.keys(v), i;
+      for (i = 0; i < ks.length; i++) out[ks[i]] = typeof v[ks[i]] === 'number' ? limit(v[ks[i]]) : v[ks[i]];
+      return out;
+    }
     return v;
   }
   function RateBook(compute) {
@@ -126,12 +157,14 @@
   function tickEarnings(dtSec, opts) {
     opts = opts || {};
     var grace = Math.max(0, safe(opts.graceSec, 5)), pct = pctOf(opts.percent), cap = capOf(opts.capSec);
+    dtSec = num(dtSec);
     if (!(dtSec > 0)) return 0;
     return limit(dtSec > grace ? grace + Math.min(dtSec - grace, cap) * pct / 100 : dtSec);
   }
   function awayEarnings(ratePerSec, awaySec, opts) {
     opts = opts || {};
     var pct = pctOf(opts.percent), cap = capOf(opts.capSec);
+    ratePerSec = num(ratePerSec); awaySec = num(awaySec);
     if (!(awaySec > 0) || !(ratePerSec > 0)) return 0;
     return limit(ratePerSec * Math.min(awaySec, cap) * pct / 100);
   }
@@ -206,20 +239,29 @@
         if (!a) { s.active = id; return 'start'; }
         return a === id ? 'more' : 'next';
       },
-      // Counts the running boost down. Returns { ended: id|null, started: id|null } for UI messages.
+      // Counts the running boost down; a step longer than the boost carries its leftover into the next one waiting.
+      // Returns { ended: id|null, endedAll: [ids], started: id|null } for UI messages: ended is the first boost that ran out,
+      // endedAll every one, started the boost that began during this step and is still running (null if none, or it ran out too).
       // A zero, negative or NaN step changes nothing (it can never grow a boost or erase one).
       tick: function (dt) {
-        var res = { ended: null, started: null }, a = current();
+        var res = { ended: null, endedAll: [], started: null }, a, w, spend, guard = s.order.length + 2;
         dt = dt > 0 ? dt : 0;
-        if (!a) {
-          var waiting = nextAfter('');
-          if (waiting) { s.active = waiting; res.started = waiting; a = waiting; } else { s.active = ''; return res; }
-        }
-        s.time[a] = Math.max(0, s.time[a] - dt);
-        if (s.time[a] === 0) {
-          res.ended = a; drop(a);
-          var next = nextAfter(a);
-          s.active = next; if (next) res.started = next;
+        while (guard-- > 0) {
+          a = current();
+          if (!a) {
+            w = nextAfter('');
+            if (!w) { s.active = ''; break; }
+            s.active = a = w; res.started = w;
+          }
+          spend = Math.min(dt, s.time[a]);
+          s.time[a] = spend >= s.time[a] ? 0 : s.time[a] - spend;
+          dt -= spend;
+          if (s.time[a] > 0) break;
+          if (res.ended === null) res.ended = a;
+          res.endedAll.push(a); drop(a);
+          if (res.started === a) res.started = null;
+          s.active = '';
+          if (!(dt > 0)) { w = nextAfter(a); s.active = w; if (w) res.started = w; break; }
         }
         return res;
       }
@@ -255,26 +297,26 @@
     }
     return String(n);
   }
-  var nf0 = null, nf1 = null;
-  try { nf0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }); nf1 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }); } catch (e) { nf0 = nf1 = null; }
-  function commas(n, digits) {                                     // n >= 0 and < 1e21
-    if (nf0) return (digits ? nf1 : nf0).format(n);
-    var f = Math.round(n * (digits ? 10 : 1)) / (digits ? 10 : 1), p = String(f).split('.');
-    return p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (p[1] ? '.' + p[1] : '');
+  // Thousands separators by hand (en-US look): no Intl, so the first call costs nothing and every call is 3 to 9 times faster.
+  function group(t) { var out = '', i = t.length; while (i > 3) { out = ',' + t.slice(i - 3, i) + out; i -= 3; } return t.slice(0, i) + out; }
+  function decimals(a, digits) {                                   // a >= 0 and < 1e6: "1,234.6", at most `digits` decimals, no trailing zeros
+    var k = digits === 2 ? 100 : 10, t = String(Math.round(a * k) / k), d = t.indexOf('.');
+    return d < 0 ? group(t) : group(t.slice(0, d)) + t.slice(d);
   }
   function formatBig(n) {
     n = toNum(n);
     if (n !== n) return '0';
     if (n === Infinity || n === -Infinity) return String(n);
-    var a = Math.floor(Math.abs(n)), out = a >= 1e6 ? short(a) : commas(a, 0);
+    var a = Math.floor(Math.abs(n)), out = a >= 1e6 ? short(a) : group(String(a));
     return n < 0 && a > 0 ? '-' + out : out;
   }
+  // Rates keep one decimal, two below 1 (0.04 stays 0.04), and a value that rounds up to a million reads 1M.
   function formatRate(n) {
     n = toNum(n);
     if (n !== n) return '0';
     if (n === Infinity || n === -Infinity) return String(n);
-    var a = Math.abs(n), out = a >= 1e6 ? short(a) : commas(a, 1);
-    return n < 0 && Math.round(a * 10) > 0 ? '-' + out : out;
+    var a = Math.abs(n), k = a < 1 ? 100 : 10, r = Math.round(a * k) / k, out = r >= 1e6 ? short(r) : decimals(a, a < 1 ? 2 : 1);
+    return n < 0 && r > 0 ? '-' + out : out;
   }
   function formatTime(sec) {
     sec = toNum(sec);
@@ -287,8 +329,49 @@
     return h > 0 ? h + 'h ' + m + 'm' : (m > 0 ? m + ' min' : sec + ' sec');
   }
 
-  return { upgradeCost: upgradeCost, costOfMany: costOfMany, maxAffordable: maxAffordable, milestoneMult: milestoneMult, milestoneLeft: milestoneLeft,
+  // ---- planning helpers ---------------------------------------------------------------------------------------------
+  // Seconds until money covers cost at ratePerSec: 0 when it already does, Infinity with no income.
+  function etaSec(cost, money, ratePerSec) {
+    cost = safe(cost, 0); money = safe(money, 0); ratePerSec = safe(ratePerSec, 0);
+    return money >= cost ? 0 : (ratePerSec > 0 ? (cost - money) / ratePerSec : Infinity);
+  }
+  // Seconds of the extra income (rateGain per second) needed to earn the cost back; lower is a better buy. Infinity when it adds nothing.
+  function paybackSec(cost, rateGain) {
+    cost = Math.max(0, safe(cost, 0)); rateGain = safe(rateGain, 0);
+    return rateGain > 0 ? cost / rateGain : Infinity;
+  }
+  // Prestige points from lifetime earnings on a root curve: floor(mult * (lifetime / scale) ^ (1 / root)).
+  // Cookie Clicker is scale 1e12, root 3; AdVenture Capitalist is scale 1e15, root 2, mult 150. A tiny nudge (1e-9) keeps a cube root
+  // that lands a hair under a whole number (1e15 / 1e12 -> 9.99999...) from losing a point.
+  function curveArgs(scale, root, mult) {
+    scale = safe(scale, 1); root = safe(root, 2); mult = safe(mult, 1);
+    return { scale: scale > 0 ? scale : 1, root: root > 0 ? root : 2, mult: mult > 0 ? mult : 0 };
+  }
+  function prestigeGain(lifetime, scale, root, mult) {
+    var c = curveArgs(scale, root, mult), x = Math.max(0, Math.min(LIMIT, safe(lifetime, 0)));
+    return limit(Math.floor(c.mult * Math.pow(x / c.scale, 1 / c.root) + 1e-9));
+  }
+  // The lifetime total at which `points` are first earned (the other way round); Infinity-safe, 0 for no points.
+  function prestigeNeeded(points, scale, root, mult) {
+    var c = curveArgs(scale, root, mult), p = Math.max(0, safe(points, 0));
+    return p === 0 ? 0 : limit(c.scale * Math.pow(p / (c.mult || 1e-300), c.root));
+  }
+  // Catch-up for long gaps: runs your own step(dt) in chunks (default 5 s) until `secs` are done or budgetMs (default 100) of real time is used.
+  // Returns { simulated, skipped } in seconds; pay the skipped part with the flat awayEarnings model.
+  function fastForward(step, secs, opts) {
+    opts = opts || {};
+    var left = Math.max(0, safe(secs, 0)), done = 0, chunk = Math.max(0.05, safe(opts.chunk, 5)), budget = Math.max(0, safe(opts.budgetMs, 100)), t0 = Date.now(), dt;
+    if (typeof step !== 'function') return { simulated: 0, skipped: left };
+    while (left > 0) {
+      dt = Math.min(chunk, left); step(dt); left -= dt; done += dt;
+      if (Date.now() - t0 > budget) break;
+    }
+    return { simulated: done, skipped: left > 1e-9 ? left : 0 };
+  }
+
+  return { upgradeCost: upgradeCost, costOfMany: costOfMany, maxAffordable: maxAffordable, buyPlan: buyPlan, milestoneMult: milestoneMult, milestoneLeft: milestoneLeft,
     RateBook: RateBook, tickEarnings: tickEarnings, awayEarnings: awayEarnings, awayClock: awayClock, BoostQueue: BoostQueue,
     stageIndex: stageIndex, stageProgress: stageProgress, formatBig: formatBig, formatRate: formatRate, formatTime: formatTime,
+    etaSec: etaSec, paybackSec: paybackSec, prestigeGain: prestigeGain, prestigeNeeded: prestigeNeeded, fastForward: fastForward,
     safe: safe, LIMIT: LIMIT };
 });

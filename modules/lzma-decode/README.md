@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** 140 Node checks against Python's `lzma`; the 14 `lzma-pack` browser checks in Chromium (version not recorded); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; the Fancy the Banana load check in Firefox 158 and ungoogled Chromium 155 (see lzma-pack). Not run: WebKitGTK, a phone.
+
 A small LZMA1 decoder in about 135 lines of JavaScript with ES5 syntax (one ES2015 method, see Limits): readable, commented, tested against Python's own `lzma` module. Use it to unpack LZMA data in the browser, which can only unpack gzip and deflate natively. The matching packer is [`tools/lzma-pack`](../../tools/lzma-pack/README.md).
 
 **Test it:** `node modules/lzma-decode/test/run.js` (needs `python3` on the PATH; offline).

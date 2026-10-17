@@ -77,7 +77,7 @@ async function t(name, fn) { if (process.env.ONLY && !new RegExp(process.env.ONL
 
   console.log('sticker-text (node)');
   const ST = require(M('sticker-text', 'sticker-text.js'));
-  await t('ringShadow makes 48 zero-blur offsets', () => { const s = ST.ringShadow('#fff7e3'); assert.strictEqual(s.split(',').length, 48); assert.ok(/ 0 #fff7e3/.test(s)); });
+  await t('ringShadow makes 32 zero-blur offsets', () => { const s = ST.ringShadow('#fff7e3'); assert.strictEqual(s.split(',').length, 32); assert.ok(/ 0 #fff7e3/.test(s)); });
 
   console.log('browser modules (Chromium)');
   let chromium;
@@ -188,8 +188,8 @@ async function t(name, fn) { if (process.env.ONLY && !new RegExp(process.env.ONL
     assert.strictEqual(await p.evaluate(() => document.getElementById('bar').classList.contains('mini-on')), true, 'a zigzag ends on the last direction'); assert.deepStrictEqual(await left(), [0, 0, '']); await p.context().close();
   });
   await t('sticker-text applies a ring and the data attribute', async () => {
-    const p = await open('sticker-text'); const r = await p.evaluate(() => { const a = document.getElementById('a'); return [a.getAttribute('data-t'), a.style.getPropertyValue('--st-ring').split(',').length, getComputedStyle(a, '::before').textShadow.split('rgb').length - 1]; });
-    assert.strictEqual(r[0], 'Bloop'); assert.strictEqual(r[1], 48); assert.ok(r[2] >= 40); await p.context().close();
+    const p = await open('sticker-text'); const r = await p.evaluate(() => { const a = document.getElementById('a'); return [a.getAttribute('data-t'), getComputedStyle(a).getPropertyValue('--st-ring').split(',').length, getComputedStyle(a, '::before').textShadow.split('rgb').length - 1]; });
+    assert.strictEqual(r[0], 'Bloop'); assert.strictEqual(r[1], 32); assert.ok(r[2] >= 30); await p.context().close();
   });
   await t('idle-core demo runs a tick and buys an upgrade', async () => {
     const p = await open('idle-core'); await p.evaluate(() => { s.count = 100; draw(); }); await p.click('#shop button'); await p.waitForTimeout(250);

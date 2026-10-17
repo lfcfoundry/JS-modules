@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. Drives a real WebKitGTK (or GNOME Web with `epiphany`) through webkit-driver.js: about 10 checks, 5 seconds.
  *   node test/webkit.js [webkitgtk|epiphany]      Skips with a note when WebKitWebDriver is not installed. Never run it while another browser is running. */
 'use strict';
-var WD = require('../webkit-driver.js'), kind = process.argv[2] || 'webkitgtk', fails = 0;
+var WD = require('../webkit-driver.js'), fs = require('fs'), os = require('os'), path = require('path'), cp = require('child_process'), kind = process.argv[2] || 'webkitgtk', fails = 0;
 function ok(c, t) { if (c === false) fails++; console.log((c === true ? 'ok   ' : c === false ? 'FAIL ' : 'note ') + t); }
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 var PAGE = 'data:text/html,<title>t</title><body style="margin:0"><button id=b style="position:absolute;left:100px;top:100px;width:80px;height:40px" onclick="document.title=%27clicked%27">x</button><div style="position:absolute;left:300px;top:300px;width:200px;height:200px;background:red"></div>';
@@ -31,5 +31,25 @@ var PAGE = 'data:text/html,<title>t</title><body style="margin:0"><button id=b s
     ok(vp[0] === 800 && vp[1] === 500, 'the page area is resized to ' + vp.join('x'));
     var png = await p.screenshot(); ok(png.length > 500 && png[1] === 0x50, 'a screenshot is a PNG (' + png.length + ' bytes)');
   } finally { await b.close(); }
+  if (kind === 'webkitgtk') {
+    // second browser: the served-page option (errors while the page loads), the three emulation options, and a click at the spot it is already at
+    var dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wkd-site-'));
+    fs.writeFileSync(path.join(dir, 'e.html'), '<!doctype html><html><head><title>e</title></head><body><button id=b style="position:absolute;left:5px;top:5px;width:100px;height:60px" onclick="document.title=(+document.title||0)+1">x</button><script>console.error("load-time console error"); throw new Error("load-time boom");</script></body></html>');
+    var b2 = await WD.launch({ width: 600, height: 400, serve: dir, deviceScaleFactor: 2, colorScheme: 'dark', reducedMotion: true });
+    try {
+      var errs2 = [], p2 = b2.page; p2.on('pageerror', function (e) { errs2.push(e.message); }); p2.on('console', function (m) { errs2.push(m.text()); });
+      await p2.goto('file://' + dir + '/e.html'); await p2.evaluate(function () { return 1; });
+      ok(errs2.some(function (e) { return /load-time console error/.test(e); }) && errs2.some(function (e) { return /load-time boom/.test(e); }), 'serve: errors thrown while the page loads are reported with their real text');
+      var em = await p2.evaluate(function () { return [devicePixelRatio, matchMedia('(prefers-color-scheme: dark)').matches, matchMedia('(prefers-reduced-motion: reduce)').matches, innerWidth, innerHeight]; });
+      ok(em[0] === 2 && em[1] === true && em[2] === true, 'deviceScaleFactor 2, colorScheme dark and reducedMotion are seen by the page');
+      ok(em[3] === 600 && em[4] === 400, 'the page area is still 600x400 at scale 2');
+      await p2.mouse.click(30, 30); await p2.mouse.click(30, 30); await sleep(100);
+      ok(await p2.evaluate(function () { return document.title; }) === '2', 'two clicks at the same spot are both delivered');
+    } finally { await b2.close(); }
+    // a run that is killed with SIGTERM leaves no browser process behind
+    var kid = cp.spawn(process.execPath, ['-e', "require(" + JSON.stringify(path.join(__dirname, '..', 'webkit-driver.js')) + ").launch({}).then(function(){console.log('up');setInterval(function(){},1000)})"], { stdio: ['ignore', 'pipe', 'ignore'] });
+    await new Promise(function (r) { kid.stdout.on('data', function () { r(); }); }); kid.kill('SIGTERM'); await sleep(1500);
+    ok(cp.spawnSync('pgrep', ['-x', 'WebKitWebDriver']).status === 1, 'killing a run with SIGTERM leaves no WebKitWebDriver behind');
+  }
   console.log(fails ? fails + ' FAILED' : 'webkit checks passed (' + b.version + ')'); process.exit(fails ? 1 : 0);
 })().catch(function (e) { console.log('FAIL ' + (e && e.stack || e)); process.exit(1); });

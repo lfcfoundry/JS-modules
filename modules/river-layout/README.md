@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Node checks; the demo page in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, one at a time (`tests/flow-demos.js`, 2026-10-17; WebKitGTK 2.52.6 through `tools/webkit-driver`). Not run: GNOME Web (Epiphany) 46.5, a phone.
+
 Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 27 KB (8.9 KB gzipped), no dependencies. Cut from Net Flow Map.
 
 **Test it:** `node modules/river-layout/test/run.js` (12 checks, about 0.2 s). **Try it:** `demo.html` (type links, the chart redraws).

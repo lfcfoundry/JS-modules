@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Node checks; Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; Firefox 158 per the 2026-10-15 task-board note and Firefox 157 on 2026-10-17 (`tests/firefox.js`): tap is one click, hold repeats, release adds no click. Not run: WebKitGTK, a phone.
+
 "Hold to keep pressing" for a button or any element, on mouse, touch and pen. About 9 KB, no dependencies.
 
 **Test it:** `node modules/hold-press/test/run.js` (fake touch and pointer events and a fake clock, 17 checks, no browser).

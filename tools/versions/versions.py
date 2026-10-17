@@ -15,8 +15,11 @@ file carries it), the first lines of its README, the root README tables, the fro
 
   python3 tools/versions/versions.py list                 print every label
   python3 tools/versions/versions.py check [--staged]     every copy agrees? (--staged: also warn when staged code has no new version)
-  python3 tools/versions/versions.py set ID X.Y.Z --note "what changed, in plain words"
-                                                          change one label everywhere and add its CHANGELOG.md entry
+  python3 tools/versions/versions.py set ID X.Y.Z [--tested "Firefox 158, ungoogled Chromium 155"] --note "what changed, in plain words"
+                                                          change one label everywhere and add its CHANGELOG.md entry; --tested says which
+                                                          browsers (with versions) the release was tested in ("not recorded" when left out)
+  python3 tools/versions/versions.py tested ID X.Y.Z "Firefox 158, ..."
+                                                          write or fix the "Tested in" line of an existing entry (and the README line when it is the newest)
   python3 tools/versions/versions.py changelog            rebuild the root CHANGELOG.md
   python3 tools/versions/versions.py init                 first-time labels for entries that have none (1.0.0)
 
@@ -90,6 +93,58 @@ def add_changelog_entry(root, e, v, note, date=None):
         up = "../" * (entry_dir(e, root).count("/") + 1)
         t = "# %s changelog\n\n%s\n\n%s" % (e["id"], CL_INTRO % up, entry)
     wr(root, rel, t)
+
+
+TESTED = "Tested in:"
+
+
+def tested_text(body_lines):
+    for line in body_lines:
+        if line.startswith(TESTED):
+            return line[len(TESTED):].strip()
+    return None
+
+
+def set_tested_entry(text, v, tested):
+    """Write or replace the 'Tested in:' line of the entry for version v. Returns the new text, or None when there is no such entry."""
+    lines = text.split("\n")
+    start = next((i for i, l in enumerate(lines) if ENTRY.match(l) and ENTRY.match(l).group(1) == v), None)
+    if start is None:
+        return None
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    new = "%s %s" % (TESTED, tested.strip())
+    for i in range(start + 1, end):
+        if lines[i].startswith(TESTED):
+            lines[i] = new
+            return "\n".join(lines)
+    last = max([i for i in range(start + 1, end) if lines[i].strip()] or [start])
+    lines[last + 1:last + 1] = ["", new]
+    return "\n".join(lines)
+
+
+def set_readme_tested(text, tested):
+    lines = text.split("\n")
+    new = "**Tested in:** " + tested.strip()
+    for i, line in enumerate(lines[:12]):
+        if line.startswith("**Tested in:**"):
+            lines[i] = new
+            return "\n".join(lines)
+    for i, line in enumerate(lines[:8]):
+        if README_LINE.match(line):
+            lines[i + 1:i + 1] = ["", new]
+            return "\n".join(lines)
+    return text
+
+
+def set_tested(root, e, v, tested):
+    rel = changelog_rel(root, e)
+    t = set_tested_entry(rd(root, rel), v, tested)
+    if t is None:
+        sys.exit("versions: %s has no changelog entry for %s" % (e["id"], v))
+    wr(root, rel, t)
+    rp = e.get("readme")
+    if rp and v == e.get("version") and os.path.exists(os.path.join(root, rp)):
+        wr(root, rp, set_readme_tested(rd(root, rp), tested))
 
 
 def root_changelog(root, reg):
@@ -394,8 +449,22 @@ def main(argv):
         if bad or "--staged" not in argv:
             print("versions: all labels agree." if not bad else "versions: %d problem(s)." % len(bad))
         return 1 if bad else 0
+    if cmd == "tested":
+        if len(argv) != 4 or not SEMVER.match(argv[2]):
+            sys.exit('usage: versions.py tested ID X.Y.Z "Firefox 158, ungoogled Chromium 155"')
+        e = next((x for _, x in entries(reg) if x["id"] == argv[1]), None)
+        if not e:
+            sys.exit("versions: no module or tool called " + argv[1])
+        set_tested(root, e, argv[2], argv[3])
+        wr(root, "CHANGELOG.md", root_changelog(root, reg))
+        print("%s %s: tested line written" % (argv[1], argv[2]))
+        return 0
     if cmd == "set":
-        note = None
+        note, tested = None, None
+        if "--tested" in argv:
+            k = argv.index("--tested")
+            tested = argv[k + 1] if k + 1 < len(argv) else None
+            del argv[k:k + 2]
         if "--note" in argv:
             k = argv.index("--note")
             note = " ".join(argv[k + 1:]).strip()
@@ -407,8 +476,9 @@ def main(argv):
             sys.exit("versions: no module or tool called " + argv[1])
         e["version"] = argv[2]
         add_changelog_entry(root, e, argv[2], note)
+        set_tested(root, e, argv[2], tested or "not recorded.")
         apply(root, reg)
-        print("%s is now %s (changelog entry added)" % (argv[1], label(argv[2])))
+        print("%s is now %s (changelog entry added%s)" % (argv[1], label(argv[2]), "" if tested else "; tested-in line says 'not recorded', add --tested next time"))
         return 0
     if cmd == "changelog":
         wr(root, "CHANGELOG.md", root_changelog(root, reg))

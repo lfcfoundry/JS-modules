@@ -5,12 +5,13 @@
 // Exit code 2 (skipped) when puppeteer-core or both browser paths are missing.
 const pp = (() => { try { return require('puppeteer-core'); } catch (e) { return null; } })();
 const root = require('path').resolve(__dirname, '..') + '/';
-const exes = [['chromium', process.env.CHROMIUM], ['firefox', process.env.FIREFOX]].filter(x => x[1]);
-if (!pp || !exes.length) { console.log('skipped: needs puppeteer-core and CHROMIUM and/or FIREFOX set to a browser path'); process.exit(2); }
+const wd = require('./webkit-shim.js');   // WebKitGTK / GNOME Web through tools/webkit-driver
+const exes = [['chromium', process.env.CHROMIUM], ['firefox', process.env.FIREFOX], ['webkit', process.env.WEBKIT]].filter(x => x[1] && (pp || x[0] === 'webkit'));
+if (!exes.length) { console.log('skipped: needs puppeteer-core and CHROMIUM and/or FIREFOX set to a browser path'); process.exit(2); }
 (async()=>{
   let allFails=0;
  for (const [kind, exe] of exes) {
- const b = kind==='firefox' ? await pp.launch({browser:'firefox',executablePath:exe,headless:true,protocol:'webDriverBiDi'}) : await pp.launch({executablePath:exe,headless:true,args:['--no-sandbox','--disable-gpu']});
+ const b = kind==='webkit' ? await wd.launch(exe==='epiphany'?'epiphany':'webkitgtk') : kind==='firefox' ? await pp.launch({browser:'firefox',executablePath:exe,headless:true,protocol:'webDriverBiDi'}) : await pp.launch({executablePath:exe,headless:true,args:['--no-sandbox','--disable-gpu']});
  console.log('Browser:',await b.version());
  let fails=0;const T=async(n,f)=>{try{const r=await f();console.log('  ok  ',n,r||'');}catch(e){fails++;console.log('  FAIL',n,String(e&&e.message||e).split('\n')[0]);}};
  const open=async(m)=>{const p=await b.newPage();p.errs=[];p.on('pageerror',e=>p.errs.push(String(e.message||e)));p.on('console',m=>{if(m.type()==='error')p.errs.push('console: '+m.text());});await p.setViewport({width:412,height:800});await p.goto('file://'+root+'modules/'+m+'/demo.html');return p;};

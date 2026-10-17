@@ -2,6 +2,8 @@
 
 **Version 1.1.0 · API 1**
 
+**Tested in:** Chromium 141 (94 Node checks and 18 browser checks pass) and Chromium 153 (real canvas). Not run: Firefox, ungoogled Chromium 155, WebKitGTK, a phone.
+
 **Test it:** `node tools/canvas-probe/test/run.js` (fake canvas, no browser, 94 checks) and `python3 tools/canvas-probe/test/browser.py` (Playwright for Python with Chromium, a real canvas, 18 checks; all pass in Chromium 141).
 
 ## What it is

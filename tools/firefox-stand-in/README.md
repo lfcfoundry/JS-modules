@@ -2,6 +2,8 @@
 
 **Version 1.0.0 · API 1**
 
+**Tested in:** Firefox 157.0.1 only (19 checks of the stand-in itself, about 7 seconds, and the test files listed in its README, 2026-10-17); not yet repeated on Firefox 158. Not run: ungoogled Chromium 155, WebKitGTK.
+
 Run a Playwright-for-Python test in **stock Firefox** without rewriting it. Playwright cannot drive the Firefox you download from Mozilla (it needs its own patched build, which some environments cannot fetch), so tests written for Playwright could only run in Chromium. `run-in-firefox.py` serves the test's `from playwright.sync_api import sync_playwright` from `pwfirefox.py`, a small copy of the Playwright calls this repository's tests use, driving Firefox through Selenium and geckodriver.
 
 ```

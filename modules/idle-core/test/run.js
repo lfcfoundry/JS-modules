@@ -37,7 +37,7 @@ t('upgradeCost never returns Infinity or NaN', function () {
   });
 });
 t('safe(n, fallback)', function () {
-  assert.strictEqual(I.safe(5), 5); assert.strictEqual(I.safe(NaN), 0); assert.strictEqual(I.safe(Infinity, 7), 7); assert.strictEqual(I.safe('5', 1), 1); assert.strictEqual(I.safe(undefined), 0);
+  assert.strictEqual(I.safe(5), 5); assert.strictEqual(I.safe(NaN), 0); assert.strictEqual(I.safe(Infinity, 7), 7); assert.strictEqual(I.safe('5', 1), 5); assert.strictEqual(I.safe('abc', 1), 1); assert.strictEqual(I.safe('', 1), 1); assert.strictEqual(I.safe(' ', 1), 1); assert.strictEqual(I.safe(true, 1), 1); assert.strictEqual(I.safe(undefined), 0);
 });
 
 console.log('buy many / buy max');
@@ -189,14 +189,127 @@ t('formatBig handles NaN, negatives, Infinity, strings', function () {
   assert.strictEqual(I.formatBig('1500000'), '1.5M'); assert.strictEqual(I.formatBig({}), '0');
   assert.strictEqual(I.formatBig(1234), '1,234'); assert.strictEqual(I.formatBig(1500000), '1.5M'); assert.strictEqual(I.formatBig(1.234e24), '1.23e24'); assert.strictEqual(I.formatBig(2.5e9), '2.5B');
 });
-t('formatRate handles NaN and negatives, keeps one decimal', function () {
-  assert.strictEqual(I.formatRate(NaN), '0'); assert.strictEqual(I.formatRate(-3e6), '-3M'); assert.strictEqual(I.formatRate(-2.5), '-2.5'); assert.strictEqual(I.formatRate(-0.01), '0');
+t('formatRate handles NaN and negatives, keeps one decimal (two below 1)', function () {
+  assert.strictEqual(I.formatRate(NaN), '0'); assert.strictEqual(I.formatRate(-3e6), '-3M'); assert.strictEqual(I.formatRate(-2.5), '-2.5'); assert.strictEqual(I.formatRate(-0.01), '-0.01'); assert.strictEqual(I.formatRate(-0.004), '0'); assert.strictEqual(I.formatRate(0.04), '0.04'); assert.strictEqual(I.formatRate(0.5), '0.5'); assert.strictEqual(I.formatRate(0.999), '1'); assert.strictEqual(I.formatRate(999999.96), '1M'); assert.strictEqual(I.formatRate(999999.94), '999,999.9');
   assert.strictEqual(I.formatRate(1234.56), '1,234.6'); assert.strictEqual(I.formatRate(9.99996e23), '1.00e24'); assert.strictEqual(I.formatRate(Infinity), 'Infinity');
 });
 t('formatTime shows days and survives NaN', function () {
   assert.strictEqual(I.formatTime(400000), '4d 15h'); assert.strictEqual(I.formatTime(86400), '1d 0h'); assert.strictEqual(I.formatTime(86399), '23h 59m');
   assert.strictEqual(I.formatTime(NaN), '0 sec'); assert.strictEqual(I.formatTime(-5), '0 sec'); assert.strictEqual(I.formatTime(undefined), '0 sec'); assert.strictEqual(I.formatTime(Infinity), 'Infinity');
   assert.strictEqual(I.formatTime(7980), '2h 13m'); assert.strictEqual(I.formatTime(40), '40 sec'); assert.strictEqual(I.formatTime(125), '2 min'); assert.strictEqual(I.formatTime(0), '0 sec');
+});
+
+t('buyPlan: one copy, exact counts and the can flag', function () {
+  var one = I.buyPlan(100, 10, 0, 1, 99, 1); assert.deepStrictEqual(one, { n: 1, total: 100, can: false });
+  assert.deepStrictEqual(I.buyPlan(100, 10, 0, 1, 100, 1), { n: 1, total: 100, can: true });
+  var ten = I.buyPlan(100, 10, 0, 1, 1e9, 10); assert.strictEqual(ten.n, 10); assert.strictEqual(ten.can, true);
+  var short = I.buyPlan(100, 10, 0, 1, ten.total - 1, 10); assert.strictEqual(short.n, 10); assert.strictEqual(short.total, ten.total); assert.strictEqual(short.can, false);
+});
+t('buyPlan totals equal buying one at a time, in every case of a grid (costOfMany does not)', function () {
+  var cases = 0, differ = 0;
+  [10, 15, 100, 333, 1000].forEach(function (base) { [5, 10, 15, 20].forEach(function (rise) { [1, 0.9, 0.4].forEach(function (disc) { [0, 3, 17].forEach(function (own) { [2, 10, 100].forEach(function (n) {
+    var sum = 0, k; for (k = 0; k < n; k++) sum += I.upgradeCost(base, rise, own + k, disc);
+    var plan = I.buyPlan(base, rise, own, disc, Infinity, n, 100);
+    assert.strictEqual(plan.total, sum, [base, rise, disc, own, n].join(' ')); assert.strictEqual(plan.n, n);
+    cases++; if (I.costOfMany(base, rise, own, n, disc) !== sum) differ++;
+  }); }); }); }); });
+  assert.strictEqual(cases, 540); assert.ok(differ > 0, 'costOfMany rounds the bundle once, so it differs from single purchases in some cases (' + differ + ' of ' + cases + ')');
+});
+t('buyPlan max: as many as the money covers, capped, never zero copies', function () {
+  var R = rng(21), i;
+  for (i = 0; i < 300; i++) {
+    var base = 1 + Math.floor(R() * 2000), rise = 1 + Math.floor(R() * 25), owned = Math.floor(R() * 40), disc = R() < 0.3 ? 0.5 + R() / 2 : null, money = Math.floor(Math.pow(10, R() * 9));
+    var n = 0, total = 0, c; while (n < 100 && total + (c = I.upgradeCost(base, rise, owned + n, disc)) <= money) { total += c; n++; }
+    var plan = I.buyPlan(base, rise, owned, disc, money, 'max');
+    if (n) assert.deepStrictEqual(plan, { n: n, total: total, can: true }); else assert.deepStrictEqual(plan, { n: 1, total: I.upgradeCost(base, rise, owned, disc), can: false });
+    assert.deepStrictEqual(I.buyPlan(base, rise, owned, disc, money, 0), plan);
+  }
+  assert.strictEqual(I.buyPlan(10, 1, 0, 1, 1e12, 'max').n, 100); assert.strictEqual(I.buyPlan(10, 1, 0, 1, 1e12, 'max', 5).n, 5);
+  assert.strictEqual(I.buyPlan(10, 1, 0, 1, 1e12, 'max', 1e9).n, 1000);
+});
+t('buyPlan: broken numbers do not escape', function () {
+  var p = I.buyPlan(NaN, NaN, -3, NaN, NaN, NaN, NaN); assert.ok(isFinite(p.total) && p.n >= 1);
+  assert.strictEqual(I.buyPlan(15, 15, 0, 1, NaN, 10).can, false);
+  var big = I.buyPlan(15, 50, 5000, 1, 1e300, 100); assert.ok(isFinite(big.total) && big.total <= I.LIMIT);
+});
+
+console.log('1.2.0: numbers given as text, copies, carry-over');
+t('numbers given as text (from a form or a save) work like numbers', function () {
+  assert.deepStrictEqual(I.buyPlan(15, 15, 3, 1, 1e6, '10'), I.buyPlan(15, 15, 3, 1, 1e6, 10));
+  assert.deepStrictEqual(I.buyPlan(15, 15, 3, 1, 1e6, 'MAX'), I.buyPlan(15, 15, 3, 1, 1e6, 'max'));
+  assert.deepStrictEqual(I.buyPlan(15, 15, 3, 1, 1e6, 'Max', '5'), I.buyPlan(15, 15, 3, 1, 1e6, 'max', 5));
+  assert.strictEqual(I.costOfMany(15, 15, 3, '10'), I.costOfMany(15, 15, 3, 10));
+  assert.strictEqual(I.maxAffordable(15, 15, 3, '5000'), I.maxAffordable(15, 15, 3, 5000));
+  assert.strictEqual(I.upgradeCost(15, 15, '3'), I.upgradeCost(15, 15, 3));
+  assert.strictEqual(I.awayEarnings('10', '100'), 500); assert.strictEqual(I.tickEarnings('105'), 5 + 50);
+  assert.strictEqual(I.buyPlan(15, 15, 3, 1, 1e6, 'abc').n, 1);                   // text that is not a number still means 1
+});
+t('RateBook cleans a copy: a frozen result works and your own object is not changed', function () {
+  var own = Object.freeze({ a: NaN, b: Infinity, c: 7, d: 'x' }), book = I.RateBook(function () { return own; }), got = book.get();
+  assert.strictEqual(got.a, 0); assert.strictEqual(got.b, I.LIMIT); assert.strictEqual(got.c, 7); assert.strictEqual(got.d, 'x'); assert.ok(Number.isNaN(own.a));
+  assert.strictEqual(book.get(), got);                                              // still remembered until invalidate()
+  var arr = I.RateBook(function () { return [1, NaN, 3]; }).get(); assert.ok(Array.isArray(arr)); assert.deepStrictEqual(arr, [1, 0, 3]);
+  assert.strictEqual(I.RateBook(function () { return NaN; }).get(), 0); assert.strictEqual(I.RateBook(function () { return null; }).get(), null);
+});
+t('a long boost step carries its leftover into the next boost', function () {
+  function mk() { var q = I.BoostQueue({ a: { secs: 20, max: 60 }, b: { secs: 20, max: 60 }, c: { secs: 20, max: 60 } }); q.give('a'); q.give('b'); q.give('c'); return q; }
+  var q = mk(), r = q.tick(30); assert.strictEqual(q.state.time.b, 10); assert.strictEqual(q.active, 'b');
+  assert.strictEqual(r.ended, 'a'); assert.deepStrictEqual(r.endedAll, ['a']); assert.strictEqual(r.started, 'b');
+  q = mk(); r = q.tick(50); assert.deepStrictEqual(r.endedAll, ['a', 'b']); assert.strictEqual(r.ended, 'a'); assert.strictEqual(r.started, 'c'); assert.strictEqual(q.state.time.c, 10);
+  q = mk(); r = q.tick(1e9); assert.deepStrictEqual(r.endedAll, ['a', 'b', 'c']); assert.strictEqual(r.started, null); assert.strictEqual(q.active, ''); assert.deepStrictEqual(q.state.order, []);
+  q = mk(); q.tick(30); q.tick(5); assert.strictEqual(q.state.time.b, 5);            // small steps still count one boost at a time
+  var one = I.BoostQueue({ a: { secs: 20 } }); one.give('a'); r = one.tick(25); assert.strictEqual(r.ended, 'a'); assert.strictEqual(r.started, null);
+});
+console.log('1.2.0: Max and thousands separators against references');
+t('buyPlan Max by multiplication equals buying one at a time (count and can), total within 1e-13', function () {
+  var r = rng(7), worst = 0, bad = 0, i;
+  for (i = 0; i < 3000; i++) {
+    var base = Math.floor(r() * 5000) + 1, rise = [1, 5, 7, 10, 15, 25, 100][Math.floor(r() * 7)], owned = Math.floor(r() * 400), disc = r() < 0.3 ? r() + 0.1 : 1, money = Math.pow(10, r() * 15) * base;
+    var n = 0, total = 0;
+    for (var k = 0; k < 100; k++) { var c = I.upgradeCost(base, rise, owned + k, disc); if (total + c > money) break; total += c; n++; }
+    var plan = I.buyPlan(base, rise, owned, disc, money, 'max');
+    if (n === 0) { assert.strictEqual(plan.can, false); continue; }
+    assert.strictEqual(plan.n, n, [base, rise, owned, disc, money].join()); assert.strictEqual(plan.can, true);
+    var rel = Math.abs(plan.total - total) / total; if (rel > worst) worst = rel; if (plan.total !== total) bad++;
+  }
+  assert.ok(worst < 1e-13, 'worst relative gap ' + worst);
+});
+t('formatBig and formatRate match Intl.NumberFormat for whole numbers under a million', function () {
+  var nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }), nf1 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }), r = rng(11), i, v;
+  for (i = 0; i < 20000; i++) { v = Math.floor(r() * 1e6); assert.strictEqual(I.formatBig(v), nf.format(v)); }
+  for (i = 0; i < 20000; i++) { v = Math.floor(r() * 1e6 * 10) / 10 + 1; assert.strictEqual(I.formatRate(v), nf1.format(v), String(v)); }
+  [0, 1, 12, 999, 1000, 1234, 99999, 100000, 999999].forEach(function (x) { assert.strictEqual(I.formatBig(x), nf.format(x)); });
+});
+
+console.log('1.2.0: planning helpers');
+t('etaSec and paybackSec', function () {
+  assert.strictEqual(I.etaSec(100, 40, 3), 20); assert.strictEqual(I.etaSec(100, 100, 3), 0); assert.strictEqual(I.etaSec(100, 400, 0), 0);
+  assert.strictEqual(I.etaSec(100, 40, 0), Infinity); assert.strictEqual(I.etaSec(100, 40, -2), Infinity); assert.strictEqual(I.etaSec(100, 40, '2'), 30);
+  assert.strictEqual(I.etaSec(NaN, NaN, NaN), 0);
+  assert.strictEqual(I.paybackSec(300, 5), 60); assert.strictEqual(I.paybackSec(300, 0), Infinity); assert.strictEqual(I.paybackSec(300, -1), Infinity); assert.strictEqual(I.paybackSec(-5, 2), 0);
+  [NaN, Infinity, 'x', null, undefined].forEach(function (v) { assert.ok(!Number.isNaN(I.etaSec(v, v, v)) && !Number.isNaN(I.paybackSec(v, v))); });
+});
+t('prestigeGain follows the known curves, and round trips with prestigeNeeded', function () {
+  assert.strictEqual(I.prestigeGain(1e12, 1e12, 3), 1); assert.strictEqual(I.prestigeGain(1e15, 1e12, 3), 10);            // Cookie Clicker: the cube root of 1000 is 9.999...
+  assert.strictEqual(I.prestigeGain(8e12, 1e12, 3), 2); assert.strictEqual(I.prestigeGain(0, 1e12, 3), 0); assert.strictEqual(I.prestigeGain(-5, 1e12, 3), 0);
+  assert.strictEqual(I.prestigeGain(1e15, 1e15, 2, 150), 150); assert.strictEqual(I.prestigeGain(4e15, 1e15, 2, 150), 300);   // AdVenture Capitalist
+  assert.strictEqual(I.prestigeGain(1e6, 1e6, 7 / 50), 1);
+  var r = rng(3), i;
+  for (i = 0; i < 15000; i++) {
+    var root = [2, 3, 4, 1 / 0.14][i % 4], scale = Math.pow(10, Math.floor(r() * 12)), mult = i % 5 === 0 ? 150 : 1, pts = 1 + Math.floor(r() * 200000);
+    assert.strictEqual(I.prestigeGain(I.prestigeNeeded(pts, scale, root, mult), scale, root, mult), pts, [pts, scale, root, mult].join());
+  }
+  assert.strictEqual(I.prestigeNeeded(0, 1e12, 3), 0); assert.ok(ok(I.prestigeNeeded(1e300, 1, 9, 1)) && ok(I.prestigeGain(Infinity, 1, 2)));
+  [NaN, 'x', null, undefined, -3, 0].forEach(function (v) { assert.ok(ok(I.prestigeGain(1e9, v, v, v)) && ok(I.prestigeNeeded(5, v, v, v))); });
+});
+t('fastForward runs the game step in chunks and stops at a time budget', function () {
+  var calls = 0, total = 0, out = I.fastForward(function (dt) { calls++; total += dt; }, 3600, { chunk: 5 });
+  assert.strictEqual(calls, 720); assert.ok(Math.abs(total - 3600) < 1e-6); assert.strictEqual(out.skipped, 0); assert.ok(Math.abs(out.simulated - 3600) < 1e-6);
+  calls = 0; total = 0; out = I.fastForward(function (dt) { calls++; total += dt; }, 12, { chunk: 5 }); assert.strictEqual(calls, 3); assert.ok(Math.abs(total - 12) < 1e-9);
+  var spin = 0; out = I.fastForward(function () { var t = Date.now(); while (Date.now() - t < 2) spin++; }, 1e6, { chunk: 1, budgetMs: 20 });
+  assert.ok(out.skipped > 0 && out.simulated > 0 && out.simulated < 100, 'simulated ' + out.simulated);
+  assert.deepStrictEqual(I.fastForward(null, 60), { simulated: 0, skipped: 60 }); assert.deepStrictEqual(I.fastForward(function () {}, NaN), { simulated: 0, skipped: 0 });
+  assert.deepStrictEqual(I.fastForward(function () { throw new Error('x'); }, 0), { simulated: 0, skipped: 0 });
 });
 
 console.log(fail ? fail + ' FAILED, ' + pass + ' passed' : 'all ' + pass + ' passed');

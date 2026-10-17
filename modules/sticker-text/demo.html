@@ -30,6 +30,13 @@
 <div class="size"><span id="a">Bloop</span><br><span class="sticker-pill" style="font-size:.4em">Press</span></div>
 <p>Change <code>--st-fill</code> for another color:</p>
 <div class="size"><span id="b" style="--st-fill:linear-gradient(180deg,#fff3a0,#f2b705 55%,#8a5600);--st-edge:#5b3a00">Gold</span></div>
+<p>A long title now wraps (resize the window), and <code>white-space: pre-line</code> keeps line breaks:</p>
+<div class="size" style="max-width:9em"><span id="c" style="white-space:pre-line">Big sticker title that wraps</span></div>
+<p>Text changed by script follows by itself with <code>StickerText.watch</code>; class <code>st-flat</code> drops the soft shadow and <code>st-stroke</code> uses one text stroke (faster; sharp corners in Chrome):</p>
+<div class="size"><span id="d">0</span> <span id="e" class="st-flat">Flat</span> <span id="f" class="st-flat st-stroke">Fast</span></div>
 <script src="sticker-text.js"></script>
-<script>StickerText.apply(document.getElementById('a')); StickerText.apply(document.getElementById('b'), { outline: '#fffdf2' });</script>
+<script>StickerText.apply(document.getElementById('a')); StickerText.apply(document.getElementById('b'), { outline: '#fffdf2' });
+StickerText.apply(document.getElementById('c'));
+StickerText.watch(document.getElementById('d')); var n = 0; setInterval(function () { document.getElementById('d').textContent = ++n; }, 1000);
+StickerText.apply(document.getElementById('e')); StickerText.apply(document.getElementById('f'));</script>
 <footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
