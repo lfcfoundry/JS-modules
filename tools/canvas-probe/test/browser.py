@@ -3,7 +3,7 @@ Checks that the wrapped real CanvasRenderingContext2D still draws the right pixe
 save() leak and an overhanging drawImage source are caught, and that uninstall() puts the real methods back.
 Python 3 + Playwright for Python with Chromium; no network. Counts only: never judge milliseconds with the probe on.
 Copyright (c) 2026 LFC Foundry. MIT License."""
-import pathlib, sys
+import os, pathlib, sys
 from playwright.sync_api import sync_playwright
 SRC = (pathlib.Path(__file__).resolve().parent.parent / "src" / "canvas-probe.js").read_text()
 fails = 0
@@ -17,7 +17,7 @@ window.origFill = CanvasRenderingContext2D.prototype.fillRect;
 window.origStyle = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'fillStyle').set;
 </script>"""
 with sync_playwright() as p:
-    br = p.chromium.launch(args=["--disable-gpu"]); pg = br.new_page(); errs = []
+    br = p.chromium.launch(args=["--disable-gpu"], executable_path=os.environ.get("CHROMIUM") or None); pg = br.new_page(); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.set_content(PAGE); pg.add_script_tag(content=SRC)
     r = pg.evaluate("""() => {

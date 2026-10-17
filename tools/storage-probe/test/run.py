@@ -33,7 +33,7 @@ def main():
     shutil.copy(SRC, os.path.join(a, 'probe.html')); shutil.copy(SRC, os.path.join(b, 'probe-copy.html'))
     with sync_playwright() as p:
         try:
-            br = p.firefox.launch(headless=True, executable_path=os.environ.get('FIREFOX_PATH')) if which == 'firefox' else p.chromium.launch(headless=True)
+            br = p.firefox.launch(headless=True, executable_path=os.environ.get('FIREFOX_PATH')) if which == 'firefox' else p.chromium.launch(headless=True, executable_path=os.environ.get('CHROMIUM') or None)
         except Exception as e:
             # Playwright's Firefox driver needs its own patched Firefox build; a stock Firefox exits at once.
             print('storage-probe (%s): SKIPPED, the browser would not start (%s)' % (which, str(e).splitlines()[0]))
