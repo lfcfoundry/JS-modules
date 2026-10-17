@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39, Firefox 158.0 and WebKitGTK 2.52.6 (one at a time): the timings above, and a check with a real second page (storage events across tabs), real compression, migrate and write counts; 35 Node checks with a fake storage. The real-browser check and the demo page were run again on this build (2026-10-17) in the same three browsers and in GNOME Web (Epiphany) 46.5 (storage events across tabs, code lengths 116 to 48 characters, migrate, 1 write instead of 40, demo page without errors), and the whole repo run in ungoogled Chromium 155 passed. Not tested: a real second browser window, Safari itself, a real phone, persist() after a real user answer.
+**Tested in:** Node 22.22.0 (43 save-kit checks, 15 lean builds); tests/save-kit-browser.js one browser at a time on 2026-10-17, full file and two lean builds, 13 checks each: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5. Not run: a real second tab for onOtherTab (unchanged apart from the new hook), a phone.
 
 Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 22 KB with its comments, about 11 KB minified (4.8 KB gzipped), no dependencies.
 
@@ -46,14 +46,50 @@ Many save helpers just `JSON.stringify` into storage. This one assumes the data 
 | `version`, `migrate` | `version: 2` stamps every save and code with `v: 2`. When a save with a lower `v` (or none) is loaded or imported, `migrate(copyOfOldSave, fromVersion)` is called first and its returned object is then checked as usual. A `migrate` that throws leaves the save as it was. | off |
 | `skipUnchangedMs` | If every field is the same as in the last write (only `seen` differs), `save()` returns `true` without touching storage until this many ms have passed. Pages that hide or close still write. Idle games that read `seen` for the time away should pick a small value (the stored `seen` can be this old). | `0` (every save writes, as before) |
 | `compactCodes` | `exportCode` leaves out fields equal to their default and a `seen` the schema does not list. Opens in any 1.x of save-kit. Only safe if a field's default never changes later (a code made while `sound` was on and defaulted to 1 would turn it on again after the default flips to 0). | `false` |
+| `codeCheck` | The ending of a save code. `'padded36'` (default): 7 base-36 characters. `'plain36'`: base 36 without leading zeros, 1 to 7 characters (Apple Press's old codes). `'hex8'`: 8 hex characters (Fancy the Banana's old codes). It is used to write and to read, and the same FNV-1a hash is behind all three, so only the look of the ending differs. Words pasted after a code are still ignored. | `'padded36'` |
+| `backupKey` | Name of the backup slot. | `<key>-backup` |
+| `damagedKey` | If the main slot has text that `load()` could not use (unreadable, refused by `afterValidate`, or worse than the backup), the text is copied to this slot first, so it can be looked at later. Off unless given. | off |
+| `readBackupWithoutMain` | `false`: when the main slot does not exist, `load()` returns `null` and never brings back a leftover backup. A main slot that exists but is damaged still falls back to the backup. | `true` |
+| `afterValidate` | `function (clean, raw)` called at the end of `load()`, `importCode()` and `onOtherTab()` with the schema-checked save and the untrusted object as read. Change `clean` in place, return a replacement object, or return `false`/`null` to refuse the save (`load()` then tries the other slot, `importCode()` says "damaged"). A hook that throws is ignored. For rules the schema cannot say (nested objects, rules between fields). | off |
+| `stamp` | Name of the timestamp field written on every save, code and staged import. | `'seen'` |
 | `maxCodeBytes` | Biggest save a code may unpack to, and the biggest one `exportCode` will write | 262144 (256 KiB) |
 | `maxCodeChars` | Longest pasted text `importCode` will look at (the text around the code counts too) | `maxCodeBytes` x 4/3 + 1024 (350549) |
 
 `importCode` reads the unpacked data in pieces and stops as soon as it passes `maxCodeBytes`, so a code that expands 1000 to 1 is cut off early. It rejects with a short message (a string), never an exception. Raise the two limits only if your saves are really large.
 
+## Lean builds: leave out what a game does not use (new in 1.2.0)
+
+`save-kit.js` stays the full file. `python3 modules/save-kit/lean.py --without autosave,twoTap,persist` writes `save-kit-lean.js` without those parts (`--list` names every part). A part you keep behaves exactly as in the full file; a method you cut is simply missing (`kit.autosave` is `undefined`). Minify the result with your own minifier as usual. Every single cut, and the two sets below, run through the same checks as the full file (`node modules/save-kit/test/lean.js`, 15 builds); the checks that need a cut part are skipped.
+
+Minified size with terser 5.36.0 (`-c passes=2 -m`), in bytes, smaller is better:
+
+| Build | Minified | Cut from the full file |
+|---|---|---|
+| 1.1.0 full (for reference) | 8,336 | |
+| 1.2.0 full | 8,894 | the new options added 558 bytes |
+| Set for Fancy the Banana (keeps codes and `onOtherTab`) | 6,341 | -2,553 (29% smaller) |
+| Set for Apple Press (keeps codes and `stageImport`) | 6,281 | -2,613 (29% smaller) |
+| Core only (`load`, `save`, `validate`, counts; no codes) | 2,967 | -5,927 |
+
+What each part costs when cut from the full 1.2.0 file alone (bytes saved, higher is better): `codes` 3,551 (export/import and everything only they use), `autosave` 505, `onOtherTab` 431, `raw` 387, `migrate` 342 (`version` + `migrate`), `persist` 235, `nativeBase64` 220 (the plain base64 loops stay), `stageImport` 205, `twoTap` 185, `streamLimit` 173 (a simpler unpacker that checks the size only after unpacking, so a hostile tiny code can briefly fill memory), `skipUnchanged` 162, `compact` 142.
+
+Set for Fancy: `--without autosave,twoTap,persist,stageImport,migrate,skipUnchanged,compact,raw,nativeBase64,streamLimit`. Set for Apple Press: `--without autosave,twoTap,persist,onOtherTab,migrate,skipUnchanged,compact,raw,nativeBase64`. The codes part is about 3.5 KB of the file because it also does what a game's own code usually skips: stops a hostile code as soon as it passes the size limit, picks the shorter of squeezed and plain, and uses the browser's own base64 when it has it.
+
+## Moving a game that already has saves (new in 1.2.0)
+
+The options above exist so that saves and codes already on players' devices keep working. For example, a game whose codes end in 8 hex characters, whose backup is `bf1-bak` and which keeps broken text in `bf1-damaged`:
+
+```js
+SaveKit.create({ key: 'bf1', prefix: 'BF1', schema: ..., defaults: ...,
+  codeCheck: 'hex8', backupKey: 'bf1-bak', damagedKey: 'bf1-damaged', readBackupWithoutMain: false, stamp: 'savedAt',
+  afterValidate: function (clean, raw) { /* the game's own rules; return false to refuse the save */ } });
+```
+
+A game whose codes end in base 36 without padding uses `codeCheck: 'plain36'`. What the options do not do: they do not change what a save looks like inside (field names and the order the fields are written in come from your schema and your state object), so check an old save and an old code of your own through the new code before shipping. The two games this was made for will run that check on their saves.
+
 ## Good to know
 - **Counts have no prototype.** A `counts` field comes back as `Object.create(null)`, so `owned.hasOwnProperty('a')` fails. Use `SaveKit.has(owned, 'a')`, `'a' in owned`, or `Object.keys(owned)`. This is on purpose: a name like `constructor` can never reach a real prototype.
-- **`seen` is stamped on every save and export** (a `Date.now()` timestamp written into the stored data) and is **removed again by `load()`/`validate()`** unless your schema lists it (for example `seen: 'num'`). Idle games that need the time away should list it.
+- **`seen` (or the name you give `stamp`) is stamped on every save and export** (a `Date.now()` timestamp written into the stored data) and is **removed again by `load()`/`validate()`** unless your schema lists it (for example `seen: 'num'`). Idle games that need the time away should list it.
 - **`flag` uses its default** when the field is missing or broken, so a new on-by-default setting (`defaults: { sound: 1 }`) stays on for players who saved before it existed. A saved `0` stays `0`.
 - **Failing safely:** `create()`, `load()`, `save()`, `exportCode()`, `importCode()` and `autosave()` never throw. `save(null)` returns `false`; `exportCode(null)` rejects with a message; a `getState()` that throws is skipped for that tick.
 - **Saving mutates your state object** by adding `seen` (and `v` when you set `version`). Hand it a copy if that matters.
@@ -80,7 +116,7 @@ Generic storage wrappers (for example [localForage](https://localforage.github.i
 - After `importCode` succeeds call `stageImport(clean, currentState)` then `location.reload()`; do not call `save()` in between (saving is paused).
 - Use `SaveKit.has(counts, name)` for counts objects. Do not add a second "save codes" module: the candidate "save codes" module on the task board is already covered by save-kit (base64url, FNV-1a checksum, `deflate-raw` with plain fallback, size limits).
 - Several tabs: call `kit.onOtherTab` once and `kit.pause(true)` there; add `version`/`migrate` the first time a schema field is renamed.
-- Run the checks with `node modules/save-kit/test/run.js` (plain Node, no browser). `OLD_REF=<commit>` compares against an older file; `OLD_REF=none` skips that.
+- Run the checks with `node modules/save-kit/test/run.js` (plain Node, no browser). `OLD_REF=<commit>` compares against an older file; `OLD_REF=none` skips that. `node modules/save-kit/test/lean.js` checks the lean builds; `tests/save-kit-browser.js` runs the new options in a real browser (see the file's first lines). `lean.py` edits nothing: change `save-kit.js` and keep its `//@begin` / `//@else` / `//@end` marker lines balanced (a part is cut by removing the lines between them).
 
 ---
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
