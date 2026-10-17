@@ -77,11 +77,14 @@ Packages for interactive stories. They live with the [Story Editor](https://gith
 
 #### Story data
 
-Create, clean and save stories in one shared file format.
+Create, clean, import and save stories in one shared file format.
 
 | Package | One line |
 |---|---|
-| [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md) | Create, clean, import and export interactive stories as JSON, with a JSON Schema. |
+| [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md) | Create, clean, search, import and export interactive stories as JSON, with a JSON Schema. Twine import lives in twine-import. |
+| [twine-import](https://github.com/lfcfoundry/story-editor/blob/main/packages/twine-import/README.md) | Reads Twine stories (Twine 2 HTML, Twee 3, Twine 1) and turns SugarCube and Harlowe code into rules, with a plain-words report. |
+| [story-outline](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-outline/README.md) | Turns an indented outline into pages and choices, or into a whole branching story. |
+| [story-diff](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-diff/README.md) | Says in plain words what one edit did to a story, such as "Add page “The Cellar”". |
 
 #### Checking
 
@@ -138,11 +141,12 @@ For building and testing. Not shipped inside a game or story.
 |---|---|
 | [zip-page](https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md) | Wrap a finished HTML page into a smaller page that unzips itself, with a pure-JS inflater fallback. |
 
-**Testing.** Run tests on stock Firefox and generate random stories.
+**Testing.** Run tests on stock Firefox, generate random stories and keep two implementations in step.
 
 | Package | One line |
 |---|---|
 | [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md) | Tiered test runner and a Playwright-style API over WebDriver BiDi for stock Firefox; seeded random-story generator. |
+| [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md) | A guide and a small helper for keeping two implementations of one rule set from drifting apart: seeded random inputs, a side-by-side comparison, a field table and a time limit. |
 
 **Working with an AI helper.** A written process for a person and an AI assistant building software together.
 

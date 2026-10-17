@@ -328,8 +328,29 @@
     "packages": [
       {
         "id": "story-format",
-        "summary": "Create, clean, import and export interactive stories as JSON, with a JSON Schema.",
+        "summary": "Create, clean, search, import and export interactive stories as JSON, with a JSON Schema. Twine import lives in twine-import.",
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md",
+        "side": "stories",
+        "category": "data"
+      },
+      {
+        "id": "twine-import",
+        "summary": "Reads Twine stories (Twine 2 HTML, Twee 3, Twine 1) and turns SugarCube and Harlowe code into rules, with a plain-words report.",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/twine-import/README.md",
+        "side": "stories",
+        "category": "data"
+      },
+      {
+        "id": "story-outline",
+        "summary": "Turns an indented outline into pages and choices, or into a whole branching story.",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-outline/README.md",
+        "side": "stories",
+        "category": "data"
+      },
+      {
+        "id": "story-diff",
+        "summary": "Says in plain words what one edit did to a story, such as \"Add page “The Cellar”\".",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-diff/README.md",
         "side": "stories",
         "category": "data"
       },
@@ -365,6 +386,13 @@
         "id": "qa-kit",
         "summary": "Tiered test runner and a Playwright-style API over WebDriver BiDi for stock Firefox; seeded random-story generator.",
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md",
+        "side": "stories",
+        "category": "testing"
+      },
+      {
+        "id": "contract-kit",
+        "summary": "A guide and a small helper for keeping two implementations of one rule set from drifting apart: seeded random inputs, a side-by-side comparison, a field table and a time limit.",
+        "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md",
         "side": "stories",
         "category": "testing"
       },
@@ -429,7 +457,7 @@
         {
           "id": "data",
           "title": "Story data",
-          "use": "Create, clean and save stories in one shared file format."
+          "use": "Create, clean, import and save stories in one shared file format."
         },
         {
           "id": "checking",
@@ -456,7 +484,7 @@
         {
           "id": "testing",
           "title": "Testing",
-          "use": "Run tests on stock Firefox and generate random stories."
+          "use": "Run tests on stock Firefox, generate random stories and keep two implementations in step."
         },
         {
           "id": "ai-helper",
