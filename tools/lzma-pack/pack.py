@@ -28,6 +28,7 @@ import argparse, base64, json, lzma, pathlib, re, shutil, subprocess, sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 DECODER = HERE.parent.parent / "modules" / "lzma-decode" / "lzma-decode.js"
+WASM_DECODER = HERE.parent.parent / "modules" / "lzma-decode" / "wasm" / "lzma-decode.wasm"   # for --wasm
 # What a browser makes of the bytes 0x80-0x9F when a page is read as windows-1252 (the WHATWG table; the five gaps map to the same-numbered control characters)
 CP1252_HI = [8364, 129, 8218, 402, 8222, 8230, 8224, 8225, 710, 8240, 352, 8249, 338, 141, 381, 143, 144, 8216, 8217, 8220, 8221, 8226, 8211, 8212, 732, 8482, 353, 8250, 339, 157, 382, 376]
 
@@ -110,30 +111,48 @@ def opening_style(bg, html):
 # Runs the page's two scripts exactly as shipped, in a bare Node sandbox, and reports what the loader did. Reads JSON on stdin.
 NODE_HARNESS = r"""
 const fs = require('fs'), vm = require('vm');
-const j = JSON.parse(fs.readFileSync(0, 'utf8')), q = [];
-const doc = { written: null, body: { textContent: '' }, open() {}, write(t) { this.written = (this.written === null ? '' : this.written) + t; }, close() {} };
-const ctx = vm.createContext({ document: doc, setTimeout(f) { q.push(f); return 0; }, atob: globalThis.atob, TextDecoder: TextDecoder });
-vm.runInContext('var window = this;', ctx);
-const out = { ok: false, reason: '' };
-try {
-  j.scripts.forEach(function (s) { vm.runInContext(s, ctx); });
-  while (q.length) q.shift()();
-  if (doc.body.textContent) out.reason = 'the loader showed its error message: ' + doc.body.textContent.slice(0, 60);
-  else if (doc.written === null) out.reason = 'the loader never wrote the page';
-  else if (doc.written !== j.expected) out.reason = 'the unpacked page differs from the input (' + doc.written.length + ' vs ' + j.expected.length + ' characters)';
-  else if (vm.runInContext('typeof s + typeof lzmaDecode + typeof ' + j.name, ctx) !== 'undefinedundefinedundefined') out.reason = 'the loader left a global variable behind';
-  else out.ok = true;
-} catch (e) { out.reason = 'the loader threw: ' + String(e && e.message || e).slice(0, 120); }
-process.stdout.write(JSON.stringify(out));
+const j = JSON.parse(fs.readFileSync(0, 'utf8')), results = [];
+// modes: 'plain' = the sandbox as it is (no WebAssembly at all); with a wasm page also 'wasm' (a counting WebAssembly), 'blocked' (WebAssembly there, but
+// compiling is refused, as a Content-Security-Policy without wasm-unsafe-eval does) and 'broken' (the wasm decoder returns a wrong length)
+function run(mode) {
+  const q = [], stats = { instances: 0, calls: 0, last: null };
+  const doc = { written: null, body: { textContent: '' }, open() {}, write(t) { this.written = (this.written === null ? '' : this.written) + t; }, close() {} };
+  const sandbox = { document: doc, setTimeout(f) { q.push(f); return 0; }, atob: globalThis.atob, TextDecoder: TextDecoder };
+  if (mode !== 'plain') {
+    const Real = WebAssembly;
+    sandbox.WebAssembly = {
+      Module: mode === 'blocked' ? function () { throw new Real.CompileError('refused by the page policy'); } : Real.Module,
+      Instance: function (m, i) {
+        const r = new Real.Instance(m, i); stats.instances++;
+        return { exports: { memory: r.exports.memory, __heap_base: r.exports.__heap_base, lzma_decode() { stats.calls++; stats.last = r.exports.lzma_decode.apply(null, arguments); return mode === 'broken' ? stats.last + 1 : stats.last; } } };
+      }
+    };
+  }
+  const ctx = vm.createContext(sandbox);
+  vm.runInContext('var window = this;', ctx);
+  const out = { mode, ok: false, reason: '', wasmCalls: stats.calls, wasmInstances: stats.instances, wasmResult: null };
+  try {
+    j.scripts.forEach(function (s) { vm.runInContext(s, ctx); });
+    while (q.length) q.shift()();
+    out.wasmCalls = stats.calls; out.wasmInstances = stats.instances; out.wasmResult = stats.last;
+    if (doc.body.textContent) out.reason = 'the loader showed its error message: ' + doc.body.textContent.slice(0, 60);
+    else if (doc.written === null) out.reason = 'the loader never wrote the page';
+    else if (doc.written !== j.expected) out.reason = 'the unpacked page differs from the input (' + doc.written.length + ' vs ' + j.expected.length + ' characters)';
+    else if (vm.runInContext('typeof s + typeof lzmaDecode + typeof ' + j.name, ctx) !== 'undefinedundefinedundefined') out.reason = 'the loader left a global variable behind';
+    else out.ok = true;
+  } catch (e) { out.reason = 'the loader threw: ' + String(e && e.message || e).slice(0, 120); }
+  return out;
+}
+j.modes.forEach(function (m) { results.push(run(m)); });
+process.stdout.write(JSON.stringify(results));
 """
-
 
 def cp1252_text(bs):
     """What a browser makes of the page bytes when the page is read as windows-1252 (every byte is one character)."""
     return "".join(chr(b) if b < 128 or b >= 160 else chr(CP1252_HI[b - 128]) for b in bs)
 
 
-def node_roundtrip(page, data):
+def node_roundtrip(page, data, wasm=False):
     """Run the packed page's own scripts in Node and compare with the input. Returns 'ok', or 'skipped' when Node is not installed."""
     node = shutil.which("node")
     if not node:
@@ -146,16 +165,21 @@ def node_roundtrip(page, data):
     text = data.decode("utf-8")
     if text.startswith("﻿"):
         text = text[1:]   # the loader's TextDecoder drops a byte order mark
-    payload = json.dumps({"scripts": scripts, "expected": text, "name": PAYLOAD_NAME}, ensure_ascii=False).encode("utf-8")
+    modes = ["plain", "wasm", "blocked", "broken"] if wasm else ["plain"]   # a --wasm page must work with the wasm decoder AND fall back to the JavaScript one
+    payload = json.dumps({"scripts": scripts, "expected": text, "name": PAYLOAD_NAME, "modes": modes}, ensure_ascii=False).encode("utf-8")
     try:
         r = subprocess.run([node, "-e", NODE_HARNESS], input=payload, capture_output=True, timeout=600)
     except subprocess.TimeoutExpired:
         raise SystemExit("self-check failed: the packed page's decoder did not finish in Node within 10 minutes")
     if r.returncode != 0:
         raise SystemExit("the Node check could not run: " + r.stderr.decode("utf-8", "replace")[:300])
-    res = json.loads(r.stdout.decode("utf-8"))
-    if not res["ok"]:
-        raise SystemExit("self-check failed with the page's own JavaScript decoder: " + res["reason"])
+    for res in json.loads(r.stdout.decode("utf-8")):
+        if not res["ok"]:
+            raise SystemExit("self-check failed with the page's own JavaScript decoder (%s): %s" % (res["mode"], res["reason"]))
+        if res["mode"] == "wasm" and not (res["wasmCalls"] == 1 and res["wasmResult"] == len(data)):
+            raise SystemExit("self-check failed: the page unpacked, but not with the WebAssembly decoder (calls %d, result %s)" % (res["wasmCalls"], res["wasmResult"]))
+        if res["mode"] in ("blocked", "plain") and res["wasmCalls"]:
+            raise SystemExit("self-check failed: the WebAssembly decoder ran although WebAssembly was refused")
     return "ok"
 
 
@@ -261,7 +285,7 @@ def decoder_source():
     return s
 
 
-def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False, bg="auto", check_node=True, minify_pg=False):
+def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False, bg="auto", check_node=True, minify_pg=False, wasm=False):
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:
@@ -283,20 +307,38 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
     for b in data:
         chk = (chk * 31 + b) & 0xFFFFFFFF
     dec = decoder_source()
+    wasm_bytes = b""
+    if wasm:   # the wasm decoder rides behind the LZMA stream in the same payload; it cannot be LZMA-packed itself, so it adds its full size to the page
+        if not WASM_DECODER.exists():
+            raise SystemExit("--wasm needs %s (build it with modules/lzma-decode/wasm/build.sh)" % WASM_DECODER)
+        wasm_bytes = WASM_DECODER.read_bytes()
+        if lc + lp > 4:
+            raise SystemExit("--wasm: the wasm decoder takes lc + lp up to 4")
+        if re.search(r"content-security-policy", head, re.I) and "wasm-unsafe-eval" not in head:
+            print("note: --head sets a Content-Security-Policy without 'wasm-unsafe-eval' in script-src. Chromium and Firefox then refuse the WebAssembly decoder and "
+                  "the page falls back to the (slower) JavaScript decoder; add 'wasm-unsafe-eval' to script-src to use it.", file=sys.stderr)
+    blob = z + wasm_bytes
     if encoding == "bytes":
-        key = min(range(256), key=lambda k: len(js_escape(bytes(b ^ k for b in z))))
-        payload = js_escape(bytes(b ^ key for b in z))
+        key = min(range(256), key=lambda k: len(js_escape(bytes(b ^ k for b in blob))))
+        payload = js_escape(bytes(b ^ key for b in blob))
         read = ("var T=%s,i=0,z=new Uint8Array(s.length),c;for(;i<s.length;i++){c=s.charCodeAt(i);z[i]=(c<256?c:128+T.indexOf(c))^%d}" % (json.dumps(CP1252_HI, separators=(",", ":")), key))
         meta = b'<meta charset="windows-1252">'
     elif encoding == "base64":
-        payload = base64.b64encode(z)
+        payload = base64.b64encode(blob)
         read = "var i=0,z=Uint8Array.from(atob(s),function(c){return c.charCodeAt(0)});"
         meta = b'<meta charset="utf-8">'
     else:
         raise SystemExit("--encoding must be bytes or base64")
     # The loader copies the payload into a local variable and deletes the global at once; the decoder and every other name live inside the timer function.
-    src = ("setTimeout(function(){" + dec + "var s=" + PAYLOAD_NAME + ";delete window." + PAYLOAD_NAME + ";" + read + "var o,h=0,t;"
-           "try{o=lzmaDecode(z,%d,{lc:%d,lp:%d,pb:%d});for(i=0;i<o.length;i++)h=(h*31+o[i])>>>0;if(h!=%d)throw 0;t=new TextDecoder().decode(o);document.open();document.write(t);document.close()}"
+    # With --wasm the loader tries the WebAssembly decoder first (copy the stream and the module bytes apart, run it, accept only the exact length) and
+    # uses the JavaScript decoder when that throws or returns anything else, e.g. on a page whose policy refuses WebAssembly.
+    zs = "z.subarray(0,%d)" % len(z) if wasm else "z"
+    wfun = ("function W(){var x=new WebAssembly.Instance(new WebAssembly.Module(z.subarray(%d)),{}).exports,m=x.memory,a=x.__heap_base.value,b=a+(%d+15&-16),n=b+%d+16,r;"
+            "n>m.buffer.byteLength&&m.grow(Math.ceil((n-m.buffer.byteLength)/65536));new Uint8Array(m.buffer).set(%s,a);"
+            "r=x.lzma_decode(a,%d,b,%d,%d,%d,%d);if(r==%d)return new Uint8Array(m.buffer,b,r)}" % (len(z), len(z), len(data), zs, len(z), len(data), lc, lp, pb, len(data))) if wasm else ""
+    first = ("try{o=W()}catch(e){}o=o||" if wasm else "o=")
+    src = ("setTimeout(function(){" + dec + wfun + "var s=" + PAYLOAD_NAME + ";delete window." + PAYLOAD_NAME + ";" + read + "var o,h=0,t;"
+           "try{" + first + "lzmaDecode(" + zs + ",%d,{lc:%d,lp:%d,pb:%d});for(i=0;i<o.length;i++)h=(h*31+o[i])>>>0;if(h!=%d)throw 0;t=new TextDecoder().decode(o);document.open();document.write(t);document.close()}"
            "catch(e){document.body.textContent=\"This file was changed (maybe opened and saved as text, or cut short). Please download it again and open the file itself in a browser.\"}},30)") % (len(data), lc, lp, pb, chk)
     loader = minify(src, minifier)
     title_html = ("<title>" + title.replace("&", "&amp;").replace("<", "&lt;") + "</title>").encode("ascii", "xmlcharrefreplace") if title else b""
@@ -310,8 +352,8 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
     if back != data:
         raise SystemExit("self-check failed: the compressed data does not unpack to the input")
     # self-check 2, with what actually ships: run the page's own scripts (JavaScript decoder, byte reader and hash) in Node
-    node = node_roundtrip(page, data) if check_node else "off"
-    return page, {"lc": lc, "lp": lp, "pb": pb, "compressed": len(z), "loader": len(loader), "encoding": encoding, "node": node, "bg": op[0] if op else "none", "page": page_note}
+    node = node_roundtrip(page, data, wasm) if check_node else "off"
+    return page, {"lc": lc, "lp": lp, "pb": pb, "compressed": len(z), "wasm": len(wasm_bytes), "loader": len(loader), "encoding": encoding, "node": node, "bg": op[0] if op else "none", "page": page_note}
 
 
 def main():
@@ -322,12 +364,13 @@ def main():
     ap.add_argument("--minifier", default="auto", choices=["auto", "terser", "esbuild", "none"])
     ap.add_argument("--bg", default="auto", help="background color of the 'Opening...' line: auto (read it from the input), none, or a color like #101018")
     ap.add_argument("--minify-page", action="store_true", help="first minify the page's own inline classic scripts (terser or esbuild needed); top-level names are kept")
+    ap.add_argument("--wasm", action="store_true", help="also ship the WebAssembly LZMA decoder (about 4 KB, raw): the page tries it first and falls back to the JavaScript decoder. Off by default; the page then needs wasm-unsafe-eval in its Content-Security-Policy")
     ap.add_argument("--skip-node-check", action="store_true", help="do not run the packed page's own decoder in Node after packing")
     a = ap.parse_args()
     data = pathlib.Path(a.input).read_bytes()
-    page, info = pack(data, a.title, a.head, a.encoding, a.minifier, a.tune, a.bg, not a.skip_node_check, a.minify_page)
+    page, info = pack(data, a.title, a.head, a.encoding, a.minifier, a.tune, a.bg, not a.skip_node_check, a.minify_page, a.wasm)
     pathlib.Path(a.output).write_bytes(page)
-    print("%s: %d bytes -> %d bytes (%.1f%%)  [lzma lc=%d lp=%d pb=%d, payload %d, loader %d, %s, opening bg %s, node check %s]" % (a.output, len(data), len(page), 100.0 * len(page) / max(1, len(data)), info["lc"], info["lp"], info["pb"], info["compressed"], info["loader"], info["encoding"], info["bg"], info["node"]))
+    print("%s: %d bytes -> %d bytes (%.1f%%)  [lzma lc=%d lp=%d pb=%d, payload %d, %sloader %d, %s, opening bg %s, node check %s]" % (a.output, len(data), len(page), 100.0 * len(page) / max(1, len(data)), info["lc"], info["lp"], info["pb"], info["compressed"], ("wasm decoder %d, " % info["wasm"]) if info["wasm"] else "", info["loader"], info["encoding"], info["bg"], info["node"]))
     if info.get("page"):
         print("page minifier: " + info["page"])
 
