@@ -1,3 +1,4 @@
+// Real-browser checks for grown-ups-door, run by tests/pieces-browser.js. Copyright (c) 2026 LFC Foundry. MIT License.
 const { check, open, sleep, ok } = require('../pieces-browser.js');
 check('grown-ups-door', async (b) => {
   const p = await open(b, 'modules/grown-ups-door/demo.html#fast');

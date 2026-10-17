@@ -1,3 +1,4 @@
+// Real-browser checks for speed-lab, run by tests/pieces-browser.js. Copyright (c) 2026 LFC Foundry. MIT License.
 const { check, open, sleep, ok } = require('../pieces-browser.js');
 check('speed-lab', async (b) => {
   const done = [];

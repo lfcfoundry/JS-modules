@@ -1,3 +1,4 @@
+// Real-browser checks for slow-note, run by tests/pieces-browser.js. Copyright (c) 2026 LFC Foundry. MIT License.
 const { check, open, sleep, ok } = require('../pieces-browser.js');
 check('slow-note', async (b) => {
   const p = await open(b, 'modules/slow-note/demo.html');

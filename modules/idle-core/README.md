@@ -36,7 +36,7 @@ q.tick(1);                          // counts down the running boost
 
 ### The Buy x1 / x10 / Max switch: `buyPlan`
 `buyPlan(base, risePct, owned, discount, money, mode, cap)` is the whole switch in one call. `mode` is `1`, `10` (any count) or `'max'`. It returns `{ n, total, can }`: how many copies one tap buys, what they cost together, and whether the money covers it.
-- A count buys exactly that many and says `can: false` when the money falls short (the button stays grey; nothing is bought part-way).
+- A count buys exactly that many and says `can: false` when the money falls short (the button stays gray; nothing is bought part-way).
 - `'max'` buys as many as the money covers, **never more than `cap`** (default 100) so one stray tap cannot empty the pile. With money for none it points at one copy and says `can: false`, so the button can still show a price.
 - Unlike `costOfMany`, `total` is the sum of the single prices, each rounded up on its own. That is what a player pays pressing x1 ten times, so the switch never charges a different amount than buying one at a time. In a check of 540 cases (5 base prices, 4 rises, 3 discounts, 3 starting counts, 3 sizes) `buyPlan` matched buying one at a time in all 540; `costOfMany` differed in 421 of them, by up to 56. Use `costOfMany` when you want the closed-form bundle price for very large counts, and `buyPlan` for a button.
 - The choice (x1, x10, Max) is yours to keep; Apple Press keeps it in `localStorage`.

@@ -1,3 +1,4 @@
+// Real-browser checks for spotlight-tour, run by tests/pieces-browser.js. Copyright (c) 2026 LFC Foundry. MIT License.
 const { check, open, sleep, ok } = require('../pieces-browser.js');
 check('spotlight-tour', async (b) => {
   const p = await open(b, 'modules/spotlight-tour/demo.html');
