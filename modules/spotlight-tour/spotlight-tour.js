@@ -1,9 +1,9 @@
 /*!
  * spotlight-tour.js: a short guided look at the parts of a page. One dimmed layer, one bright window measured live over the current part, a card beside it. No dependencies.
- * Skip and Back buttons, Escape skips, a first-time memory ("seen") and a separate memory for a finishing gift that is given once, only to people who reach the end.
+ * A native modal dialog (above the page's own pop-ups, the page behind is inert). Skip and Back buttons, Escape skips, a first-time memory ("seen") and a separate memory for a finishing gift that is given once, only to people who reach the end.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   var tour = SpotlightTour.create({
  *     key: "mygame-tour", giftKey: "mygame-tourgift",
@@ -20,9 +20,9 @@
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   var uid = 0;
-  var CSS = '.stt{position:fixed;inset:0;z-index:2147481000;font:16px/1.4 system-ui,sans-serif}.stt[hidden]{display:none}' +
-    '.stt-hole{position:absolute;border-radius:12px;box-shadow:0 0 0 9999px rgba(8,10,20,.68),0 0 0 3px var(--stt-accent,#ffd24a);transition:left .25s,top .25s,width .25s,height .25s;pointer-events:none}' +
-    '.stt.still .stt-hole{transition:none}.stt.nohole .stt-hole{display:none}.stt.nohole{background:rgba(8,10,20,.68)}' +
+  var CSS = '.stt{position:fixed;inset:0;z-index:2147481000;margin:0;padding:0;border:0;width:100%;height:100%;max-width:none;max-height:none;overflow:visible;background:none;color:inherit;font:16px/1.4 system-ui,sans-serif}.stt::backdrop{background:none}.stt:not([open]){display:none}' +
+    '.stt-hole{position:absolute;border-radius:12px;box-shadow:0 0 0 9999px rgba(8,10,20,.68),0 0 0 3px var(--stt-accent,#ffd24a);left:0;top:0;transition:transform .25s,width .25s,height .25s;pointer-events:none}' +
+    '.stt.still .stt-hole,.stt.moving .stt-hole{transition:none}.stt.nohole .stt-hole{display:none}.stt.nohole{background:rgba(8,10,20,.68)}' +
     '.stt-card{position:absolute;box-sizing:border-box;width:min(calc(100vw - 24px),22rem);background:var(--stt-bg,#fffdf8);color:var(--stt-text,#222);border-radius:16px;padding:14px 16px 12px;box-shadow:0 10px 36px rgba(0,0,0,.4)}' +
     '.stt-n{margin:0 0 2px;font-size:.8rem;opacity:.65}.stt-t{margin:0 0 4px;font-size:1.15rem;font-weight:800}.stt-x{margin:0 0 10px}' +
     '.stt-b{display:flex;gap:8px;align-items:center;justify-content:flex-end}.stt-b button{padding:.55rem .95rem;border:0;border-radius:10px;font:inherit;font-weight:700;cursor:pointer;background:#e8eaf0;color:inherit}' +
@@ -60,8 +60,8 @@
     function put(k) { try { if (k && store) store.setItem(k, '1'); } catch (e) { /* storage blocked: it will show again next time */ } }
     var styleEl = doc.getElementById('stt-style');
     if (!styleEl) { styleEl = doc.createElement('style'); styleEl.id = 'stt-style'; styleEl.textContent = CSS; (doc.head || doc.documentElement).appendChild(styleEl); }
-    var el = doc.createElement('div');
-    el.className = 'stt'; el.hidden = true; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', id + 't');
+    var el = doc.createElement('dialog');
+    el.className = 'stt'; el.setAttribute('aria-labelledby', id + 't');
     el.innerHTML = '<div class="stt-hole"></div><div class="stt-card"><p class="stt-n"></p><h2 class="stt-t" id="' + id + 't"></h2><p class="stt-x"></p>' +
       '<div class="stt-b"><button type="button" class="stt-skip"></button><button type="button" class="stt-back"></button><button type="button" class="stt-next"></button></div></div>';
     var q = function (s) { return el.querySelector(s); };
@@ -70,18 +70,22 @@
     (opts.root || doc.body).appendChild(el);
 
     function targetOf(st) { try { return typeof st.target === 'function' ? st.target() : st.target ? doc.querySelector(st.target) : null; } catch (e) { return null; } }
+    var cs = null, raf = 0, mt = 0, ro = window.ResizeObserver ? new ResizeObserver(function () { place(); }) : null;
+    function sched() { el.classList.add('moving'); clearTimeout(mt); mt = setTimeout(function () { el.classList.remove('moving'); }, 150); place(); }
     function place() {
       if (!open) return;
       var st = steps[i], tg = targetOf(st), box = tg ? tg.getBoundingClientRect() : null;
-      var L = layout(box, { w: card.offsetWidth, h: card.offsetHeight }, { w: window.innerWidth, h: window.innerHeight }, 12);
+      var L = layout(box, cs || (cs = { w: card.offsetWidth, h: card.offsetHeight }), { w: window.innerWidth, h: window.innerHeight }, 12);
       el.classList.toggle('nohole', !L.hole);
-      if (L.hole) { hole.style.left = L.hole.l + 'px'; hole.style.top = L.hole.t + 'px'; hole.style.width = L.hole.w + 'px'; hole.style.height = L.hole.h + 'px'; }
+      if (L.hole) { hole.style.transform = 'translate(' + L.hole.l + 'px,' + L.hole.t + 'px)'; hole.style.width = L.hole.w + 'px'; hole.style.height = L.hole.h + 'px'; }
       card.style.left = L.x + 'px'; card.style.top = L.y + 'px';
     }
     function show(n) {
-      i = n;
+      i = n; cs = null;
       var st = steps[n], tg = targetOf(st), vh = window.innerHeight, top = opts.topOffset === undefined ? 120 : opts.topOffset;
-      if (tg && opts.scroll !== false) {   // bring the part into view (leaving room for a sticky bar), then place the window over it
+      if (ro) { ro.disconnect(); ro.observe(doc.documentElement); if (tg) ro.observe(tg); }   // follow the page when it reflows (an image loads, a block above grows)
+      if (tg && opts.scroll !== false) {   // bring the part into view (first inside any scrolling box, then on the page, leaving room for a sticky bar), then place the window over it
+        try { tg.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* not an element */ }
         var qd = tg.getBoundingClientRect(), abs = qd.top + window.pageYOffset, tall = qd.height > vh * 0.5;
         window.scrollTo(0, Math.max(0, tall ? abs - top : abs - (vh - qd.height) / 2));
       }
@@ -95,9 +99,10 @@
       try { nextB.focus({ preventScroll: true }); } catch (e) { /* hidden */ }
       if (typeof opts.onStep === 'function') try { opts.onStep(n, st); } catch (e) { /* the page's code must not break the tour */ }
     }
+    function shut() { if (ro) ro.disconnect(); if (el.close) { if (el.open) el.close(); } else el.removeAttribute('open'); }
     function close(finished) {
       if (!open) return;
-      open = false; el.hidden = true; put(opts.key);
+      open = false; shut(); put(opts.key);
       var giveGift = finished === true && !get(opts.giftKey);
       if (giveGift) put(opts.giftKey);
       if (returnTo && returnTo.focus) { try { returnTo.focus({ preventScroll: true }); } catch (e) { /* gone */ } }
@@ -117,7 +122,8 @@
         e.preventDefault(); bs[(k + (e.shiftKey ? bs.length - 1 : 1)) % bs.length].focus();
       }
     });
-    on(window, 'resize', place); on(window, 'scroll', place, { passive: true });
+    on(el, 'cancel', function (e) { e.preventDefault(); close(false); });   // the browser's own close request (for example the Android back gesture)
+    on(window, 'resize', function () { cs = null; place(); }); on(window, 'scroll', sched, { passive: true, capture: true });
 
     function start() {
       if (open || destroyed) return false;
@@ -125,7 +131,7 @@
       if (!steps || !steps.length) return false;
       returnTo = doc.activeElement; open = true;
       var reduce = false; try { reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) || (typeof opts.still === 'function' ? !!opts.still() : !!opts.still); } catch (e) { /* no matchMedia */ }
-      el.classList.toggle('still', reduce); el.hidden = false;
+      el.classList.toggle('still', reduce); if (el.showModal) el.showModal(); else el.setAttribute('open', '');
       show(0); return true;
     }
     return {
@@ -144,7 +150,7 @@
       /** Forget that the tour and the gift were seen. */
       reset: function (what) { try { if (store) { if (what !== 'gift') store.removeItem(opts.key); if (what === 'gift' || what === 'all') store.removeItem(opts.giftKey); } } catch (e) { /* blocked */ } },
       isOpen: function () { return open; }, goTo: function (n) { if (open && n >= 0 && n < steps.length) show(n); }, close: function () { close(false); },
-      destroy: function () { destroyed = true; open = false; offs.forEach(function (f) { f(); }); if (el.parentNode) el.parentNode.removeChild(el); }
+      destroy: function () { destroyed = true; open = false; if (ro) ro.disconnect(); offs.forEach(function (f) { f(); }); if (el.parentNode) el.parentNode.removeChild(el); }
     };
   }
 
