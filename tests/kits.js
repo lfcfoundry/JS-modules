@@ -1,4 +1,4 @@
-// Runs the per-module tests of every module with its own test/ folder, plus lzma-pack, single-file-tools, fuzz-kit, canvas-probe, storage-probe and the house-rule hooks.
+// Runs the per-module tests of every module with its own test/ folder, plus lzma-pack, single-file-tools, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in and the house-rule hooks.
 // Needs node and python3; the browser parts need Playwright for Python with Chromium. The Firefox step (tests/firefox.js) runs only if puppeteer-core and Firefox are found. Use --quick to skip browser parts.
 var cp = require('child_process'), path = require('path');
 var root = path.resolve(__dirname, '..');
@@ -39,13 +39,14 @@ var steps = [
   ['fuzz-kit browser', 'python3', ['tools/fuzz-kit/test/browser.py'], true],
   ['canvas-probe browser', 'python3', ['tools/canvas-probe/test/browser.py'], true],
   ['storage-probe browser', 'python3', ['tools/storage-probe/test/run.py'], true],
+  ['firefox-stand-in', 'python3', ['tools/firefox-stand-in/test/run.py'], true, true],   // optional: skipped (exit code 2) when Selenium, Firefox or geckodriver is missing
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fifth item: optional, skipped when puppeteer-core or Firefox is missing (exit code 2)
 ];
 var failed = 0;
 steps.forEach(function (s) {
   if (quick && s[3]) { console.log('skip  ' + s[0]); return; }
   var r = cp.spawnSync(s[1], s[2], { cwd: root, encoding: 'utf8' });
-  if (s[4] && r.status === 2) { console.log('skip  ' + s[0] + ' (needs puppeteer-core and Firefox; see tests/firefox.js)'); return; }
+  if (s[4] && r.status === 2) { console.log('skip  ' + s[0] + ' (an optional tool is missing; see that step\'s README or tests/firefox.js)'); return; }
   var ok = r.status === 0;
   if (!ok) failed++;
   console.log((ok ? 'ok    ' : 'FAIL  ') + s[0] + (ok ? '' : '\n' + (r.stdout || '') + (r.stderr || '')));

@@ -29,6 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [fuzz-kit](tools/fuzz-kit/README.md) | 1.1.0 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
 | [storage-probe](tools/storage-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/storage-probe/CHANGELOG.md) |
+| [firefox-stand-in](tools/firefox-stand-in/README.md) | 1.0.0 · API 1 | [changelog](tools/firefox-stand-in/CHANGELOG.md) |
 
 ## Changes since labels began
 

@@ -128,6 +128,7 @@ For building and testing. Not shipped inside a game or story.
 | [fuzz-kit](tools/fuzz-kit/README.md) | Seeded, reproducible random-input fuzzer engine with weighted operations, invariants, liveness checks and failure shrinking; Playwright and Puppeteer runners with real input and CPU throttling; stock-Firefox recipe; test-hook stripper. | 1.1.0 · API 1 |
 | [canvas-probe](tools/canvas-probe/README.md) | Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area. | 1.1.0 · API 1 |
 | [storage-probe](tools/storage-probe/README.md) | Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report. | 1.1.0 · API 1 |
+| [firefox-stand-in](tools/firefox-stand-in/README.md) | Runs a Playwright-for-Python test in stock Firefox (through Selenium and geckodriver) without rewriting it; says plainly which calls it supports and stops with a clear message on the rest. | 1.0.0 · API 1 |
 
 #### For the story editor
 
@@ -177,7 +178,7 @@ The games' own art, characters, text, sounds and secret content stay in Apple Pr
 ```
 npm i playwright-core
 CHROMIUM=/path/to/chrome node tests/run.js      # CHROMIUM optional if Playwright finds a browser
-npm run test:kits                               # frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma, fuzz-kit, canvas-probe, storage-probe (needs python3 and Playwright for Python for the browser parts)
+npm run test:kits                               # frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in (needs python3 and Playwright for Python for the browser parts)
 ```
 
 28 checks: maths and save logic in Node, the browser pieces (curtains, hold-press, fly-to-mini, probes, governor, sticker text) in Chromium. For humans and AI helpers: read [AGENTS.md](AGENTS.md), [llms.txt](llms.txt) and [modules.json](modules.json). What changed in each version: [CHANGELOG.md](CHANGELOG.md) (and a `CHANGELOG.md` in every module and tool folder).

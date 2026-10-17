@@ -309,6 +309,16 @@
       "readme": "tools/storage-probe/README.md",
       "side": "games",
       "category": "testing"
+    },
+    {
+      "id": "firefox-stand-in",
+      "version": "1.0.0",
+      "api": 1,
+      "summary": "Runs a Playwright-for-Python test in stock Firefox (through Selenium and geckodriver) without rewriting it; says plainly which calls it supports and stops with a clear message on the rest.",
+      "folder": "tools/firefox-stand-in",
+      "readme": "tools/firefox-stand-in/README.md",
+      "side": "games",
+      "category": "testing"
     }
   ],
   "related": {
