@@ -9,7 +9,7 @@ pip install selenium
 export FIREFOX_PATH=/path/to/firefox GECKODRIVER_PATH=/path/to/geckodriver      # or have both on the PATH
 python3 tools/firefox-stand-in/run-in-firefox.py modules/pad-nav/test/run.py   # the test file, then its own arguments
 ```
-A banner on stderr says which Firefox ran (`pwfirefox: Firefox 157.0.1`), so label the result with it. In cloud sessions Firefox 157 comes from conda-forge (see the project notes `firefox-in-cloud-tests-recipe`). Tests: `python3 tools/firefox-stand-in/test/run.py` (19 checks, about 7 seconds; exits 2 with a message when Selenium, Firefox or geckodriver is missing).
+A banner on stderr says which Firefox ran (`pwfirefox: Firefox 157.0.1`), so label the result with it. The test browser is Firefox 158 (see the Tests section of the main README); the checks below were run on Firefox 157.0.1 before that switch and are not yet repeated on 158. Tests: `python3 tools/firefox-stand-in/test/run.py` (19 checks, about 7 seconds; exits 2 with a message when Selenium, Firefox or geckodriver is missing).
 
 ## Should this test use it? (read this first)
 It is a stand-in, not Playwright. Use it only when it fits the task at hand:

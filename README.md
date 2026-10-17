@@ -177,11 +177,19 @@ The games' own art, characters, text, sounds and secret content stay in Apple Pr
 
 ```
 npm i playwright-core
-CHROMIUM=/path/to/chrome node tests/run.js      # CHROMIUM optional if Playwright finds a browser
+CHROMIUM=/path/to/chrome node tests/run.js      # CHROMIUM optional if Playwright finds a browser (see Test browsers below)
 npm run test:kits                               # frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in (needs python3 and Playwright for Python for the browser parts)
 ```
 
-28 checks: maths and save logic in Node, the browser pieces (curtains, hold-press, fly-to-mini, probes, governor, sticker text) in Chromium. For humans and AI helpers: read [AGENTS.md](AGENTS.md), [llms.txt](llms.txt) and [modules.json](modules.json). What changed in each version: [CHANGELOG.md](CHANGELOG.md) (and a `CHANGELOG.md` in every module and tool folder).
+29 checks: maths and save logic in Node, the browser pieces (curtains, hold-press, fly-to-mini, probes, governor, sticker text) in Chromium. For humans and AI helpers: read [AGENTS.md](AGENTS.md), [llms.txt](llms.txt) and [modules.json](modules.json). What changed in each version: [CHANGELOG.md](CHANGELOG.md) (and a `CHANGELOG.md` in every module and tool folder).
+
+### Test browsers
+
+Browser checks run in **Firefox 158** (the stress test) and **ungoogled Chromium 155**, on Linux. Results in this repository's docs name the exact browser and version, for example "Firefox 158" or "Chromium 155 (ungoogled)". Older stand-ins (Chromium 141 and 153, Firefox 157) are retired; numbers in the docs that were measured on them still say so, and are not re-measured unless a change needs it. Rules for anyone running the tests:
+
+- Run one browser at a time. Two at once make timing checks flaky.
+- Point the test at the browser you installed: `CHROMIUM=/path/to/chrome` for the Chromium checks, `FIREFOX_PATH` (and `GECKODRIVER_PATH` for [firefox-stand-in](tools/firefox-stand-in/README.md)) for Firefox. A bare run that falls back to some other build gives unfair timing numbers, so say which one ran.
+- Not covered yet: WebKit and Safari, and real phones (the Pixel and an iPhone). A passing desktop run is not a phone result.
 
 ## More from LFC Foundry
 
