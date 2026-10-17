@@ -126,8 +126,8 @@ For building and testing. Not shipped inside a game or story.
 | Tool | One line | Version |
 |---|---|---|
 | [fuzz-kit](tools/fuzz-kit/README.md) | Seeded, reproducible random-input fuzzer engine with weighted operations, invariants, liveness checks and failure shrinking; Playwright and Puppeteer runners with real input and CPU throttling; stock-Firefox recipe; test-hook stripper. | 1.0.0 · API 1 |
-| [canvas-probe](tools/canvas-probe/README.md) | Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area. | 1.0.0 · API 1 |
-| [storage-probe](tools/storage-probe/README.md) | Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report. | 1.0.0 · API 1 |
+| [canvas-probe](tools/canvas-probe/README.md) | Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area. | 1.1.0 · API 1 |
+| [storage-probe](tools/storage-probe/README.md) | Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report. | 1.1.0 · API 1 |
 
 #### For the story editor
 

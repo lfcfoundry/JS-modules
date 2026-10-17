@@ -1,8 +1,8 @@
 # canvas-probe
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Test it:** `node tools/canvas-probe/test/run.js` (fake canvas, no browser, 67 checks) and `python3 tools/canvas-probe/test/browser.py` (Playwright for Python with Chromium, a real canvas, 13 checks; the last four were added 2026-10-15 and have not been run yet).
+**Test it:** `node tools/canvas-probe/test/run.js` (fake canvas, no browser, 94 checks) and `python3 tools/canvas-probe/test/browser.py` (Playwright for Python with Chromium, a real canvas, 18 checks; all pass in Chromium 141).
 
 ## What it is
 
@@ -18,7 +18,12 @@ A test-build-only counter for a canvas 2D game. It wraps the drawing methods of 
 - **Path without `beginPath()`:** counts `rect`, `arc`, `ellipse`, `moveTo`, `lineTo` and the other path calls since the last `beginPath()` on each context, and flags a path that grew in each of the last 3 frames (`opts.pathGrowFrames`) with no `beginPath()` in between. That is the classic leak where a redraw gets slower after minutes and looks fine on screen.
 - **Readback:** `getImageData` on a context created without `{ willReadFrequently: true }`. The probe remembers the options of every context created after it was installed; for older contexts it asks `getContextAttributes()` where the browser has it (Chrome 73, Firefox 117) and stays silent if it cannot tell. The option helps canvases you read back often; on a canvas shown on screen it can slow drawing, so treat the flag as a hint.
 
-It counts; it does not time. Wrapping every call makes drawing slower, so never judge milliseconds with it on, and never ship it. If its own bookkeeping fails, the original call still runs.
+- **Costly draws (opt-in, `deep: true`):** draws made while a `filter`, a shadow (`shadowBlur` above 0) or a blend mode other than `source-over` is set. These are the usual hidden cost on phones; the plain counts only show the style writes, not the draws that pay for them. It is off by default because reading the three properties adds about 170 ns to every draw.
+- **Total calls per frame:** one number per frame, the sum of every wrapped call. Its median is what a call budget should be compared with (the sum of the per-method medians can be far lower than any real frame when different calls peak on different frames).
+
+It counts; it does not time. Wrapping every call makes drawing slower (about 420 ns per wrapped call in a Chromium test, so a frame of 5,500 calls took 2.3 ms longer), so never judge milliseconds with it on, and never ship it. If its own bookkeeping fails, the original call still runs.
+
+**Run the game with its quality governor off while the probe is on.** A governor such as `QualityGovernor` or `FxGovernor` sees the slower frames the probe causes and steps quality down, so you would be measuring a lower-quality game than the one you ship.
 
 ## Quick start
 
@@ -31,6 +36,7 @@ It counts; it does not time. Wrapping every call makes drawing slower, so never 
   // later, in a test or the console:
   console.log(probe.text());      // plain words
   var r = probe.report();         // the same as numbers
+  var v = probe.check({ callsPerFrame: 620 });   // { ok, problems }: pass or fail for a test run
   probe.uninstall();              // puts the original methods back
 </script>
 ```
@@ -42,9 +48,11 @@ Keep it out of the shipped file the way you keep other test code out: load it on
 | Call | Meaning |
 |---|---|
 | `CanvasProbe.install(opts)` | Wraps the prototypes and returns the probe. It never throws: a method it cannot wrap (a frozen prototype) is listed in `report().skipped`, and if it cannot start at all you get a probe whose `text()` says so. `opts.keep` (default 240) is how many frames the per-frame numbers cover. `opts.prototypes` is an array of context prototypes to wrap (default: the 2D and offscreen 2D contexts). `opts.canvasPrototypes` is the same for canvases (default: `HTMLCanvasElement` and `OffscreenCanvas`; used for size writes and `getContext` options). `opts.auto` calls `frame()` from `requestAnimationFrame` for you, for games you cannot edit; the first frame is recorded on the first animation frame after install, never at install. `opts.mainCanvas` (a canvas, or a function that gets a canvas and returns true) names the main canvas. `opts.pathGrowFrames` (default 3). |
+| `CanvasProbe.install({ deep: true })` | Also counts draws made with a filter, a shadow or a non-default blend mode (see above). `text()` says when deep mode is on. |
 | `probe.frame()` | Closes the current frame: stores its counts and checks for open `save()` calls. Call it once per drawn frame. |
-| `probe.report()` | Numbers: `frames`, `kept`, `calls`, `saveRestore`, `drawImage`, `styleWrites`, `paintedArea` (the main canvas, with its `canvas` size), `paintedAreaOther`, `pathWithoutBeginPath`, `readback`, `skipped`. |
+| `probe.report()` | Numbers: `frames`, `kept`, `deep`, `calls`, `callsPerFrame` (the per-frame total), `saveRestore`, `drawImage`, `styleWrites`, `paintedArea` (the main canvas, with its `canvas` size), `paintedAreaOther`, `pathWithoutBeginPath`, `readback`, `costlyDraws` (`null` unless `deep: true`), `skipped`. |
 | `probe.text()` | The same in plain words, with the median, 95th percentile and worst. Before the first `frame()` it says to call `frame()`. |
+| `probe.check(limits)` | Pass or fail for a test run: `{ ok, problems }`, where `problems` is a list of plain-words sentences. With no limits it fails on any frame that ended with an unmatched `save()` (`leakFrames`, default 0), any `restore()` with nothing to restore (`restoreWithoutSave`, 0), any `drawImage` source that sticks out (`sourceOverhang`, 0) and any frame with a growing path (`growingPathFrames`, 0). Add `callsPerFrame` (a ceiling for the median of the per-frame total) and `callsPerFrameP95` for a call budget, and, with `deep: true`, `withFilter`, `withShadow` and `withBlendMode` (ceilings for the median draws per frame). `null` or `Infinity` switches a limit off. With no frames recorded it fails and says to call `frame()`. |
 | `probe.reset()` | Forgets everything counted so far, including each context's save depth (use it after the game's loading screen). Creation options stay known. |
 | `probe.forget(ctx)` | Tells the probe a context was thrown away, so an open `save()` on it stops counting. Needed only where `WeakRef` is missing; elsewhere dropped contexts are noticed on their own. |
 | `probe.uninstall()` | Restores every original method and accessor. |
@@ -63,6 +71,8 @@ If you know a tool that already does this, tell the owner so the prior-art note 
 
 ## Limits
 
+- **A rejected style write looks like a repeat.** Writing a value the browser ignores (`font = 'bogus'`, `globalAlpha = NaN`) leaves the old value in place, so the probe counts it as a repeat. In a Chromium test, 5 of 9 writes were counted as repeats and only 2 really were. The probe cannot tell the two apart without extra reads.
+- **The wrapped methods look different.** `ctx.drawImage.length` reads 0 instead of 3, `name` reads "value", and `toString()` shows source code instead of `[native code]`. Only code that checks for native functions would notice.
 - Counts only. It cannot see GPU work, presentation stalls or a frozen compositor; use a profile for those.
 - It wraps the prototype, so a game that grabs `ctx.drawImage` into a variable before the probe is installed bypasses the wrapper. Install it before the game's script runs.
 - `getTransform` is used when present to scale areas and shrink checks; without it the transform is treated as identity.
@@ -70,13 +80,14 @@ If you know a tool that already does this, tell the owner so the prior-art note 
 - Without `WeakRef` (very old browsers) the probe keeps a plain reference to every context that holds an open `save()` until it is restored, reset or forgotten.
 - Writing `canvas.width` is seen only for canvases whose 2D context was created after the probe was installed, or that called `save()` after it. Install it first.
 - The path-growth flag is a guess from the call counts: a path that legitimately gets longer for several frames in a row with no `beginPath()` would be flagged too.
-- Tested in Chromium (real canvas) and with a fake context in Node. Not yet run in Firefox or on Android.
+- Tested in Chromium 141 (real canvas) and with a fake context in Node. Not yet run in Firefox or on Android.
 
 ## For AI agents
 
 - Load it only in test builds. Never add it to a shipped file.
 - Install it before the game script, call `probe.frame()` once per drawn frame (or pass `auto: true`), play for a few seconds, then read `probe.text()`.
 - Use the numbers as a baseline to compare before and after a change. Do not use them as timings.
+- To turn the numbers into a test, use `probe.check({ callsPerFrame: <ceiling> })` and fail the run when `ok` is false; print `problems`.
 - Treat "slow leak", "source rectangle sticks out" and "a path that kept growing with no beginPath()" as bugs to fix. Treat style repeats, painted area and the `getImageData` hint as things to check, not failures.
 - Read the painted area of the main canvas first; the other-canvases line is for finding a buffer that is repainted too often.
 - Copyright (c) 2026 LFC Foundry. MIT License.

@@ -9,6 +9,7 @@
  *   // ... later:
  *   console.log(probe.text());                  // plain words
  *   var r = probe.report();                     // the same, as numbers
+ *   var v = probe.check({ callsPerFrame: 620 }); // { ok, problems }: pass or fail for a test run (see check() below)
  *   probe.uninstall();
  *
  * It reports, per frame (median, 95th percentile and worst of the last `keep` frames):
@@ -23,6 +24,7 @@
  *   - painted area: the area of every drawImage and fillRect (clipped to the canvas) divided by that canvas's own area
  *     ("overdraw"), with the main on-screen canvas on its own line
  *   - paths that keep growing because beginPath() is missing, and getImageData on a context made without willReadFrequently
+ *   - with install({ deep: true }): draws made while a filter, a shadow or a non-default blend mode is set (off by default: it adds about 170 ns per draw)
  *
  * Counts of problems (leaks, overhangs, growing paths ...) are totals since the last reset(); the per-frame numbers cover the
  * last `keep` frames. It counts; it does not time. Wrapping every call makes drawing slower, so never judge milliseconds with
@@ -79,16 +81,17 @@
     return { deref: function () { return o; } };
   }
 
-  // The device-pixel area that a w x h rectangle at (x, y) covers on this context's canvas, after its transform, clipped to the canvas.
-  function rectArea(ctx, x, y, w, h) {
-    var t = ctx.getTransform ? ctx.getTransform() : { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
-    var xs = [], ys = [], i, px, py, cx = [x, x + w, x, x + w], cy = [y, y, y + h, y + h];
-    for (i = 0; i < 4; i++) { px = t.a * cx[i] + t.c * cy[i] + t.e; py = t.b * cx[i] + t.d * cy[i] + t.f; xs.push(px); ys.push(py); }
+  // The device-pixel area that a w x h rectangle at (x, y) covers on this context's canvas, after the transform t, clipped to the canvas.
+  function rectArea(ctx, t, x, y, w, h) {
+    var x1 = x + w, y1 = y + h, a = t.a, b = t.b, c = t.c, d = t.d, e = t.e, f = t.f;
+    var p0 = a * x + c * y + e, p1 = a * x1 + c * y + e, p2 = a * x + c * y1 + e, p3 = a * x1 + c * y1 + e;
+    var q0 = b * x + d * y + f, q1 = b * x1 + d * y + f, q2 = b * x + d * y1 + f, q3 = b * x1 + d * y1 + f;
     var cw = ctx.canvas ? ctx.canvas.width : 0, ch = ctx.canvas ? ctx.canvas.height : 0;
-    var x0 = Math.max(0, Math.min.apply(null, xs)), x1 = Math.min(cw, Math.max.apply(null, xs));
-    var y0 = Math.max(0, Math.min.apply(null, ys)), y1 = Math.min(ch, Math.max.apply(null, ys));
-    return x1 > x0 && y1 > y0 ? (x1 - x0) * (y1 - y0) : 0;
+    var x0 = Math.max(0, Math.min(p0, p1, p2, p3)), xe = Math.min(cw, Math.max(p0, p1, p2, p3));
+    var y0 = Math.max(0, Math.min(q0, q1, q2, q3)), ye = Math.min(ch, Math.max(q0, q1, q2, q3));
+    return xe > x0 && ye > y0 ? (xe - x0) * (ye - y0) : 0;
   }
+  var IDENT = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
 
   function num(v) { return typeof v === 'number' && v > 0 && isFinite(v) ? v : 0; }
   // The size of a drawImage source as [width, height]; [0, 0] means "not known (yet)".
@@ -105,6 +108,7 @@
     return {
       frame: function () {}, reset: function () {}, forget: function () {}, uninstall: function () {}, calls: CALLS.slice(), styles: STYLES.slice(),
       report: function () { return { frames: 0, kept: 0, calls: {}, installFailed: msg, skipped: [], paintedArea: none }; },
+      check: function () { return { ok: false, problems: ['Canvas probe could not start: ' + msg] }; },
       text: function () { return 'Canvas probe could not start: ' + msg; }
     };
   }
@@ -115,15 +119,15 @@
 
   function build(opts) {
     var keep = opts.keep || 240, protos = opts.prototypes || defaultPrototypes(), canvasProtos = opts.canvasPrototypes || defaultCanvasPrototypes();
-    var growAfter = opts.pathGrowFrames || 3;
+    var growAfter = opts.pathGrowFrames || 3, deep = !!opts.deep;
     var restoreList = [], skipped = [], rafId = 0, installed = true, frameNo = 0;
     var states, openList, cur, ring, prevPath, maxDepth, totals;
     var meta = makeStore();         // creation options per context; kept across reset()
     var canvasCtx = makeStore();    // canvas -> its 2D context, so a width/height write can find the context
 
     function fresh() {
-      return { calls: {}, nine: 0, overBoth: 0, overOne: 0, unknown: 0, small: 0, writes: 0, same: 0, readback: 0, leaks: 0, pathGrowing: 0,
-        mainArea: 0, mainSize: '', others: 0, otherMax: 0, touched: [], pathTouched: [] };
+      return { calls: {}, total: 0, nine: 0, overBoth: 0, overOne: 0, unknown: 0, small: 0, writes: 0, same: 0, readback: 0, leaks: 0, pathGrowing: 0,
+        mainArea: 0, mainSize: '', others: 0, otherMax: 0, touched: [], pathTouched: [], filt: 0, shad: 0, blend: 0 };
     }
     function reset() {
       cur = fresh(); ring = []; openList = []; prevPath = []; maxDepth = 0; states = makeStore();
@@ -159,8 +163,8 @@
       } catch (e) { return false; }
     }
     // adds painted device pixels to this context's canvas for the frame in progress
-    function paint(ctx, x, y, w, h) {
-      var a = rectArea(ctx, x, y, w, h), s = getState(ctx), c = ctx.canvas;
+    function paint(ctx, t, x, y, w, h) {
+      var a = rectArea(ctx, t, x, y, w, h), s = getState(ctx), c = ctx.canvas;
       if (s.frame !== frameNo) { s.frame = frameNo; s.area = 0; cur.touched.push(s); }
       s.area += a; s.canvas = c; s.w = c ? c.width : 0; s.h = c ? c.height : 0;
     }
@@ -168,6 +172,7 @@
     function auditDraw(ctx, a) {
       var img = a[0], n = a.length;
       if (!img) return;
+      var t = ctx.getTransform ? ctx.getTransform() : IDENT;   // read once: each read makes a new matrix object
       var sz = sourceSize(img), iw = sz[0], ih = sz[1], known = iw > 0 && ih > 0;
       var sx = 0, sy = 0, sw = iw, sh = ih, dx, dy, dw, dh;
       if (!known) cur.unknown++;
@@ -178,10 +183,9 @@
         var ox = sx + sw > iw + 0.5 || sx < -0.5, oy = sy + sh > ih + 0.5 || sy < -0.5;
         if (ox && oy) cur.overBoth++; else if (ox || oy) cur.overOne++;
       }
-      var t = ctx.getTransform ? ctx.getTransform() : { a: 1, b: 0, c: 0, d: 1 };
       var kx = Math.sqrt(t.a * t.a + t.b * t.b), ky = Math.sqrt(t.c * t.c + t.d * t.d);
       if (sw > 0 && sh > 0 && Math.abs(dw) * kx / sw < 0.5 && Math.abs(dh) * ky / sh < 0.5) cur.small++;
-      paint(ctx, dx, dy, dw, dh);
+      paint(ctx, t, dx, dy, dw, dh);
     }
 
     // a path call: count it since the last beginPath()
@@ -202,12 +206,25 @@
     }
     function rememberCanvas(ctx) { var c = ctx.canvas; if (c && !canvasCtx.get(c)) canvasCtx.set(c, ctx); }
 
+    // deep mode: draws made while a filter, a shadow or a non-default blend mode is switched on, the usual hidden cost on phones.
+    // Off by default: reading the three properties adds about 170 ns to every draw.
+    function costly(ctx) {
+      var f = ctx.filter, g = ctx.globalCompositeOperation;
+      if (f && f !== 'none') cur.filt++;
+      if (ctx.shadowBlur > 0) cur.shad++;
+      if (g && g !== 'source-over') cur.blend++;
+    }
     var handlers = {
       drawImage: function (ctx, a) { auditDraw(ctx, a); },
-      fillRect: function (ctx, a) { paint(ctx, a[0], a[1], a[2], a[3]); },
+      fillRect: function (ctx, a) { paint(ctx, ctx.getTransform ? ctx.getTransform() : IDENT, a[0], a[1], a[2], a[3]); },
       beginPath: function (ctx) { var s = getState(ctx); s.pathCalls = 0; s.begunFrame = frameNo; },
       getImageData: onRead
     };
+    if (deep) {
+      handlers.drawImage = function (ctx, a) { costly(ctx); auditDraw(ctx, a); };
+      handlers.fillRect = function (ctx, a) { costly(ctx); paint(ctx, ctx.getTransform ? ctx.getTransform() : IDENT, a[0], a[1], a[2], a[3]); };
+      handlers.fill = handlers.stroke = handlers.fillText = handlers.strokeText = costly;
+    }
 
     function define(proto, name, desc) {
       try { Object.defineProperty(proto, name, desc); return true; } catch (e) { skipped.push(name); return false; }   // frozen or odd prototype
@@ -271,7 +288,7 @@
         CALLS.forEach(function (name) {
           var isPath = PATH[name] === 1, h = handlers[name];
           wrapMethod(proto, name, function (ctx, a) {
-            cur.calls[name] = (cur.calls[name] || 0) + 1;
+            cur.calls[name] = (cur.calls[name] || 0) + 1; cur.total++;
             if (isPath) onPath(ctx);
             if (h) h(ctx, a);
           });
@@ -348,7 +365,7 @@
       for (i = ring.length - 1; i >= 0; i--) if (ring[i].mainSize) { lastSize = ring[i].mainSize; break; }
       var main = stats(pick(function (r) { return round(r.mainArea); })); main.canvas = lastSize;
       return {
-        frames: totals.frames, kept: ring.length, calls: calls,
+        frames: totals.frames, kept: ring.length, deep: deep, calls: calls, callsPerFrame: stats(pick(function (r) { return r.total; })),
         saveRestore: { deepest: maxDepth, openContextsNow: countOpen(), leakFrames: totals.leakFrames, restoreWithoutSave: totals.underflows },
         drawImage: {
           nineArgument: stats(pick(function (r) { return r.nine; })),
@@ -362,6 +379,7 @@
         paintedAreaOther: { canvasesPerFrame: stats(pick(function (r) { return r.others; })), busiest: stats(pick(function (r) { return round(r.otherMax); })) },
         pathWithoutBeginPath: { longestPath: totals.longestPath, growingNow: ring.length ? ring[ring.length - 1].pathGrowing : 0, framesWithGrowingPath: totals.pathGrowFrames },
         readback: { getImageDataWithoutWillReadFrequently: totals.readback, perFrame: stats(pick(function (r) { return r.readback; })) },
+        costlyDraws: !deep ? null : { withFilter: stats(pick(function (r) { return r.filt; })), withShadow: stats(pick(function (r) { return r.shad; })), withBlendMode: stats(pick(function (r) { return r.blend; })) },
         skipped: skipped.slice()
       };
     }
@@ -372,7 +390,7 @@
       o.push('Canvas probe: ' + r.kept + ' frames kept (' + r.frames + ' seen since the last reset). Per-frame numbers: median, then 95th percentile and worst of the kept frames.');
       var parts = [];
       for (k in r.calls) { c = r.calls[k]; if (c.median || c.max) parts.push(k + ' ' + c.median + (c.max > c.median ? ' (95th ' + c.p95 + ', worst ' + c.max + ')' : '')); }
-      o.push('Calls per frame: ' + (parts.join(', ') || 'none') + '.');
+      o.push('Calls per frame: ' + r.callsPerFrame.median + ' in all (95th ' + r.callsPerFrame.p95 + ', worst ' + r.callsPerFrame.max + '); by method: ' + (parts.join(', ') || 'none') + '.');
       var s = r.saveRestore;
       o.push('save()/restore(), totals since reset: ' + (s.leakFrames ? s.leakFrames + ' frame(s) ended with an unmatched save() on ' + s.openContextsNow + ' context(s) now: a slow leak.' : 'balanced at the end of every frame.') +
         (s.restoreWithoutSave ? ' ' + s.restoreWithoutSave + ' restore() call(s) had nothing to restore.' : '') + ' Deepest nesting ' + s.deepest + '.');
@@ -388,10 +406,40 @@
       var p = r.pathWithoutBeginPath;
       if (p.framesWithGrowingPath) o.push('Paths: ' + p.framesWithGrowingPath + ' frame(s) had a path that kept growing with no beginPath() (longest ' + p.longestPath + ' calls): a missing beginPath() slows the game down over time.');
       else if (p.longestPath) o.push('Paths: no path grew without beginPath(); the longest was ' + p.longestPath + ' calls.');
+      if (r.costlyDraws) { var cd = r.costlyDraws; o.push('Deep mode is on. Draws made while a filter was set: ' + cd.withFilter.median + ' per frame (95th ' + cd.withFilter.p95 + ', worst ' + cd.withFilter.max + '); with a shadow: ' + cd.withShadow.median + ' (95th ' + cd.withShadow.p95 + '); with a blend mode other than the default: ' + cd.withBlendMode.median + ' (95th ' + cd.withBlendMode.p95 + '). These are the draws that cost the most on phones.'); }
       var rb = r.readback;
       if (rb.getImageDataWithoutWillReadFrequently) o.push('getImageData: ' + rb.getImageDataWithoutWillReadFrequently + ' call(s) on a canvas made without { willReadFrequently: true } (median ' + rb.perFrame.median + ' per frame). If you read pixels back often, create that canvas with the option; it can slow drawing on a canvas shown on screen.');
       if (r.skipped.length) o.push('Could not wrap (frozen or missing): ' + r.skipped.join(', ') + '.');
       return o.join('\n');
+    }
+
+    // Pass or fail for a test run. limits (all optional): callsPerFrame / callsPerFrameP95 (ceilings for the median / 95th percentile of the per-frame total of
+    // wrapped calls), leakFrames, restoreWithoutSave, sourceOverhang, growingPathFrames (all default 0), and withFilter / withShadow / withBlendMode
+    // (ceilings for the median draws per frame, need deep: true). null or Infinity switches one off. Returns { ok, problems } with plain-words problems.
+    function check(limits) {
+      var L = limits || {}, r = report(), bad = [];
+      function lim(k, d) { var v = L[k]; return v === undefined ? d : v; }
+      function on(v) { return typeof v === 'number' && isFinite(v); }
+      if (!r.kept) return { ok: false, problems: ['No frames were recorded: call probe.frame() once per frame.'] };
+      var c = lim('callsPerFrame', null), c95 = lim('callsPerFrameP95', null);
+      if (on(c) && r.callsPerFrame.median > c) bad.push('Canvas calls per frame: median ' + r.callsPerFrame.median + ', over the limit of ' + c + '.');
+      if (on(c95) && r.callsPerFrame.p95 > c95) bad.push('Canvas calls per frame: 95th percentile ' + r.callsPerFrame.p95 + ', over the limit of ' + c95 + '.');
+      var lf = lim('leakFrames', 0), sr = r.saveRestore;
+      if (on(lf) && sr.leakFrames > lf) bad.push(sr.leakFrames + ' frame(s) ended with an unmatched save() (a slow leak); the limit is ' + lf + '.');
+      var rs = lim('restoreWithoutSave', 0);
+      if (on(rs) && sr.restoreWithoutSave > rs) bad.push(sr.restoreWithoutSave + ' restore() call(s) had nothing to restore; the limit is ' + rs + '.');
+      var so = lim('sourceOverhang', 0), oh = r.drawImage.sourceOverhangBothAxes + r.drawImage.sourceOverhangOneAxis;
+      if (on(so) && oh > so) bad.push(oh + ' drawImage call(s) read a source rectangle that sticks out of the bitmap; the limit is ' + so + '.');
+      var gp = lim('growingPathFrames', 0), pw = r.pathWithoutBeginPath.framesWithGrowingPath;
+      if (on(gp) && pw > gp) bad.push(pw + ' frame(s) had a path that kept growing with no beginPath(); the limit is ' + gp + '.');
+      var deepKeys = { withFilter: 'a filter', withShadow: 'a shadow', withBlendMode: 'a blend mode' }, k, v;
+      for (k in deepKeys) {
+        v = lim(k, null);
+        if (!on(v)) continue;
+        if (!r.costlyDraws) bad.push('The limit ' + k + ' needs the probe installed with deep: true.');
+        else if (r.costlyDraws[k].median > v) bad.push('Draws made with ' + deepKeys[k] + ' set: median ' + r.costlyDraws[k].median + ' per frame, over the limit of ' + v + '.');
+      }
+      return { ok: !bad.length, problems: bad };
     }
 
     function uninstall() {
@@ -405,7 +453,7 @@
       // the first frame is recorded on the first tick, not at install, so there is no empty first frame
       try { rafId = requestAnimationFrame(function tick() { if (!installed) return; frame(); rafId = requestAnimationFrame(tick); }); } catch (e) { skipped.push('auto'); }
     }
-    return { frame: frame, report: report, text: text, reset: reset, forget: forget, uninstall: uninstall, calls: CALLS.slice(), styles: STYLES.slice() };
+    return { frame: frame, report: report, text: text, check: check, reset: reset, forget: forget, uninstall: uninstall, calls: CALLS.slice(), styles: STYLES.slice() };
   }
 
   return { install: install };

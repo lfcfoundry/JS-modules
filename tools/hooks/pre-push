@@ -3,7 +3,9 @@
 # Backstop for the commit-time hooks. Git runs this just before a push, with the pushed refs on standard input, and it applies the same
 # message, author and committer rules (tools/hooks/house-rules.sh) to EVERY commit that is about to leave this clone. That catches what
 # commit-msg never sees: commits rewritten by a rebase, commits copied by cherry-pick, and commits made before the hooks were installed.
-# Only commits the remote does not have yet are checked, so old history already on the remote is not re-judged.
+# Only commits the remote does not have yet are checked, so old history already on the remote is not re-judged. That includes a commit another remote
+# branch already holds (for example the merge commit GitHub makes for a merged pull request, whose committer is GitHub): it is not judged again when it
+# first reaches the branch you push.
 # Like every local hook, "git push --no-verify" skips it. Install once per clone: sh tools/hooks/install.sh
 here=$(dirname "$0"); [ -f "$here/house-rules.sh" ] || here="$(git rev-parse --show-toplevel)/tools/hooks"
 . "$here/house-rules.sh" || { echo "pre-push: cannot read house-rules.sh next to this hook" >&2; exit 1; }
@@ -13,7 +15,7 @@ HR_PREFIX="    - "; bad=0; checked=0; shown=0
 while read -r lref lsha rref rsha; do
   case "$lsha" in *[!0]*) ;; *) continue ;; esac                      # deleting a branch or tag: nothing is sent
   case "$rsha" in
-    *[!0]*) if git cat-file -e "$rsha^{commit}" 2>/dev/null; then range="$rsha..$lsha"; else range="$lsha --not --remotes"; fi ;;   # existing branch
+    *[!0]*) if git cat-file -e "$rsha^{commit}" 2>/dev/null; then range="$lsha --not $rsha --remotes"; else range="$lsha --not --remotes"; fi ;;   # existing branch
     *) range="$lsha --not --remotes" ;;                                # new branch: what no known remote branch has yet
   esac
   for sha in $(git rev-list $range 2>/dev/null); do
