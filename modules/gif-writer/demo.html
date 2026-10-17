@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : gif-writer demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gif-writer demo</title>
+<style>body{font:16px/1.45 system-ui,sans-serif;max-width:56rem;margin:0 auto;padding:1rem}h1{font-size:1.4rem}button,input,select,textarea{font:inherit}button{padding:.5rem .9rem;border-radius:.5rem;cursor:pointer}textarea{width:100%;box-sizing:border-box;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace}.row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:.6rem 0}.out{margin:.8rem 0;padding:.6rem .8rem;border:1px solid #8886;border-radius:.5rem;overflow:auto}table{border-collapse:collapse}td,th{padding:.2rem .6rem;border-bottom:1px solid #8884;text-align:right}td:first-child,th:first-child{text-align:left}.note{opacity:.75;font-size:.9rem}.bad{color:#b00020}@media(prefers-color-scheme:dark){.bad{color:#ff8a80}}</style>
+<h1>gif-writer demo</h1>
+<p>Draws a ball bouncing over a gradient on a canvas, turns the pictures into an animated GIF in your browser and shows it. Only the pixels that moved are stored from picture to picture.</p>
+<div class="row"><label>Pictures <input id="n" type="number" min="2" max="120" value="30" style="width:5rem"></label><label>Size <select id="sz"><option value="320x200">320 x 200</option><option value="640x400" selected>640 x 400</option><option value="960x600">960 x 600</option></select></label><button id="go">Make the GIF</button></div>
+<div class="out" id="out">Press the button.</div>
+<script src="gif-writer.js"></script>
+<script>
+
+var $ = function (id) { return document.getElementById(id); };
+function frame(ctx, w, h, k, n) {
+  var g = ctx.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#1b3a5c'); g.addColorStop(1, '#7a2e5c');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  var t = k / n, x = w * (0.12 + 0.76 * Math.abs(2 * t - 1)), y = h * (0.8 - 0.6 * Math.abs(Math.sin(t * Math.PI * 2)));
+  ctx.fillStyle = '#ffd24a'; ctx.beginPath(); ctx.arc(x, y, h * 0.08, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = (h * 0.07) + 'px system-ui,sans-serif'; ctx.fillText('picture ' + (k + 1) + ' of ' + n, 12, h * 0.1);
+}
+$('go').onclick = function () {
+  var n = Math.max(2, Math.min(120, +$('n').value | 0)), d = $('sz').value.split('x'), w = +d[0], h = +d[1];
+  var c = document.createElement('canvas'); c.width = w; c.height = h; var ctx = c.getContext('2d', { willReadFrequently: true }), pics = [], k;
+  for (k = 0; k < n; k++) { frame(ctx, w, h, k, n); pics.push(ctx.getImageData(0, 0, w, h).data); }
+  var t0 = performance.now(), pal = GifWriter.makePalette(pics.filter(function (_, i) { return i % Math.ceil(n / 6) === 0; }), 255), enc = GifWriter.createEncoder(w, h, pal, { loop: true });
+  for (k = 0; k < n; k++) enc.add(pics[k], 60);
+  var bytes = enc.finish(), ms = performance.now() - t0, url = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
+  $('out').innerHTML = '<img alt="the animated GIF" src="' + url + '" style="max-width:100%"><p>' + n + ' pictures, ' + w + ' x ' + h + ': <b>' + (bytes.length / 1024).toFixed(1) + ' KB</b> in <b>' + ms.toFixed(0) + ' ms</b> (the same pictures as raw pixels: ' + (n * w * h * 4 / 1048576).toFixed(1) + ' MB). <a download="bounce.gif" href="' + url + '">Save it</a></p>';
+};
+</script>
+<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>

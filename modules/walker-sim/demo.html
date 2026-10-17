@@ -1,0 +1,61 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : walker-sim demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>walker-sim demo</title>
+<style>body{font:16px/1.45 system-ui,sans-serif;max-width:56rem;margin:0 auto;padding:1rem}h1{font-size:1.4rem}button,input,select,textarea{font:inherit}button{padding:.5rem .9rem;border-radius:.5rem;cursor:pointer}textarea{width:100%;box-sizing:border-box;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace}.row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:.6rem 0}.out{margin:.8rem 0;padding:.6rem .8rem;border:1px solid #8886;border-radius:.5rem;overflow:auto}table{border-collapse:collapse}td,th{padding:.2rem .6rem;border-bottom:1px solid #8884;text-align:right}td:first-child,th:first-child{text-align:left}.note{opacity:.75;font-size:.9rem}.bad{color:#b00020}@media(prefers-color-scheme:dark){.bad{color:#ff8a80}}</style>
+<h1>walker-sim demo</h1>
+<p>Walkers start at the first item and pick a way on in proportion to the weights, until they reach an item with no way on. One link per line: <code>From &gt; To : weight</code>. The table sets the walkers' result beside the exact odds worked out by arithmetic.</p>
+<textarea id="t" rows="9" spellcheck="false">start > a : 3
+start > b : 1
+a > win : 2
+a > lose : 2
+a > b : 1
+b > lose : 1
+b > draw : 3</textarea>
+<div class="row"><label>Walkers <select id="n"><option>1000</option><option selected>100000</option><option>1000000</option></select></label><label>Seed <input id="seed" type="number" value="7" style="width:5rem"></label><button id="go">Run</button></div>
+<p id="msg" class="note"></p><div class="out" id="out"></div>
+<script src="walker-sim.js"></script>
+<script>
+
+var $ = function (id) { return document.getElementById(id); };
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function pct(x) { return (100 * x).toFixed(2) + '%'; }
+function run() {
+  var links = [], first = null;
+  $('t').value.split('\n').forEach(function (line) { var m = /^\s*(.+?)\s*>\s*(.+?)\s*:\s*([0-9.]+)\s*$/.exec(line); if (m) { links.push({ from: m[1], to: m[2], weight: +m[3] }); if (first === null) first = m[1]; } });
+  if (!links.length) { $('out').textContent = ''; $('msg').textContent = 'Type at least one link.'; return; }
+  try {
+    var P = WalkerSim.graph({ links: links, start: first }), N = +$('n').value, per = 100, cfg = { seed: +$('seed').value | 0, trials: Math.max(1, N / per), rule: 'weights', weights: P.w, arrivals: { dist: 'dunif', a: per, b: per } };
+    var t0 = performance.now(), sim = WalkerSim.create(P, cfg); sim.run(1e9, 1e9); var r = sim.snapshot(), ms = performance.now() - t0, ex = WalkerSim.exactEndpoints(P, cfg);
+    var h = '<table><tr><th>Ends at</th><th>Walkers</th><th>Exact</th><th>Gap</th><th>95% range</th></tr>';
+    r.endpoints.forEach(function (e, k) { var x = ex ? ex.p[k] : null; h += '<tr><td>' + esc(e.id) + '</td><td>' + pct(e.share) + '</td><td>' + (x === null ? 'n/a' : pct(x)) + '</td><td>' + (x === null ? '' : pct(Math.abs(e.share - x))) + '</td><td>' + pct(e.lo) + ' to ' + pct(e.hi) + '</td></tr>'; });
+    $('out').innerHTML = h + '</table>';
+    $('msg').textContent = r.walkers + ' walkers in ' + ms.toFixed(0) + ' ms (about ' + Math.round(r.walkers / Math.max(ms, 1) * 1000).toLocaleString() + ' walkers a second).' + (r.stuck ? ' ' + r.stuck + ' walkers got stuck in a loop and are not counted.' : '');
+  } catch (e) { $('out').innerHTML = '<span class="bad">' + esc(e.message) + '</span>'; $('msg').textContent = ''; }
+}
+$('go').onclick = run; run();
+</script>
+<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>

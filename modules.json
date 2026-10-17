@@ -247,6 +247,62 @@
       "dependencies": "none",
       "side": "games",
       "category": "looks"
+    },
+    {
+      "id": "gif-writer",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "GifWriter",
+      "summary": "Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation).",
+      "file": "modules/gif-writer/gif-writer.js",
+      "readme": "modules/gif-writer/README.md",
+      "demo": "modules/gif-writer/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "files"
+    },
+    {
+      "id": "zip-open",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "ZipOpen",
+      "summary": "Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note.",
+      "file": "modules/zip-open/zip-open.js",
+      "readme": "modules/zip-open/README.md",
+      "demo": "modules/zip-open/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "files"
+    },
+    {
+      "id": "river-layout",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "RiverLayout",
+      "summary": "Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer.",
+      "file": "modules/river-layout/river-layout.js",
+      "readme": "modules/river-layout/README.md",
+      "demo": "modules/river-layout/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "files"
+    },
+    {
+      "id": "walker-sim",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "WalkerSim",
+      "summary": "Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 1.75 million walkers a second).",
+      "file": "modules/walker-sim/walker-sim.js",
+      "readme": "modules/walker-sim/README.md",
+      "demo": "modules/walker-sim/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "files"
     }
   ],
   "tools": [
@@ -349,7 +405,7 @@
       },
       {
         "id": "story-diff",
-        "summary": "Says in plain words what one edit did to a story, such as \"Add page “The Cellar”\".",
+        "summary": "Says in plain words what one edit did to a story, such as \"Add page \u201cThe Cellar\u201d\".",
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-diff/README.md",
         "side": "stories",
         "category": "data"
@@ -437,6 +493,11 @@
           "id": "size",
           "title": "Size and packaging",
           "use": "Unpack a smaller file inside the game. The tools that pack it are under Tools."
+        },
+        {
+          "id": "files",
+          "title": "Files, charts and simulation",
+          "use": "Open zip and Excel files safely, draw flow charts, write animated GIFs and simulate random walkers."
         }
       ],
       "tools": [

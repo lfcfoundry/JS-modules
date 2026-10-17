@@ -71,6 +71,17 @@ Unpack a smaller file inside the game. The tools that pack it are under Tools.
 | [lzma-decode](modules/lzma-decode/README.md) | Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. | `lzmaDecode` | 1.0.0 · API 1 |
 | [ppmd-decode](modules/ppmd-decode/README.md) | A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. | `ppmd7Decode` | 1.0.0 · API 1 |
 
+#### Files, charts and simulation
+
+Open zip and Excel files safely, draw flow charts, write animated GIFs and simulate random walkers.
+
+| Module | One line | Global | Version |
+|---|---|---|---|
+| [gif-writer](modules/gif-writer/README.md) | Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation). | `GifWriter` | 1.0.0 · API 1 |
+| [zip-open](modules/zip-open/README.md) | Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note. | `ZipOpen` | 1.0.0 · API 1 |
+| [river-layout](modules/river-layout/README.md) | Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer. | `RiverLayout` | 1.0.0 · API 1 |
+| [walker-sim](modules/walker-sim/README.md) | Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 1.75 million walkers a second). | `WalkerSim` | 1.0.0 · API 1 |
+
 ### Story editor
 
 Packages for interactive stories. They live with the [Story Editor](https://github.com/lfcfoundry/story-editor) they are generated from, under `packages/`.
@@ -182,7 +193,7 @@ The games' own art, characters, text, sounds and secret content stay in Apple Pr
 ```
 npm i playwright-core
 CHROMIUM=/path/to/chrome node tests/run.js      # CHROMIUM optional if Playwright finds a browser (see Test browsers below)
-npm run test:kits                               # frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in (needs python3 and Playwright for Python for the browser parts)
+npm run test:kits                               # gif-writer, zip-open, river-layout, walker-sim, frame-kit, sprite-baker, pad-nav, tab-guard, back-close, lzma, fuzz-kit, canvas-probe, storage-probe, firefox-stand-in (needs python3 and Playwright for Python for the browser parts)
 ```
 
 29 checks: maths and save logic in Node, the browser pieces (curtains, hold-press, fly-to-mini, probes, governor, sticker text) in Chromium. For humans and AI helpers: read [AGENTS.md](AGENTS.md), [llms.txt](llms.txt) and [modules.json](modules.json). What changed in each version: [CHANGELOG.md](CHANGELOG.md) (and a `CHANGELOG.md` in every module and tool folder).
