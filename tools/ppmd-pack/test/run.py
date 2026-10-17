@@ -424,5 +424,73 @@ def t_csp_token():
 check("a --head page policy gets 'wasm-unsafe-eval' in script-src; a page without one gets no policy", t_csp_token)
 
 
+# ---- --wasm: the WebAssembly decoder rides behind the PPMd data -------------------------------------------------------------------
+WASM_FILE = pack.WASM_DECODER
+
+
+def t_wasm_page():
+    plain, pinfo = pack.pack(APP, check_node=False)
+    page, info = pack.pack(APP, wasm=True)     # runs the page in Node four ways: plain, with WebAssembly, with WebAssembly refused, with a decoder that answers wrongly
+    assert info["node"] in ("ok", "skipped") and info["wasm"] == WASM_FILE.stat().st_size, info
+    assert info["compressed"] == pinfo["compressed"], "the PPMd data must not change"
+    assert len(page) - len(plain) >= info["wasm"] and len(page) - len(plain) < info["wasm"] + 700, (len(page), len(plain), info["wasm"])   # the program plus a few hundred bytes of loader
+
+
+check("--wasm: the page carries the program, passes the four-way Node check, and the PPMd data is unchanged", t_wasm_page)
+
+
+def t_wasm_off_is_unchanged():
+    a, _ = pack.pack(APP, check_node=False)
+    b, _ = pack.pack(APP, check_node=False, wasm=False)
+    assert a == b and b"WebAssembly" not in a.split(b"</script>")[1]
+
+
+check("without --wasm the page has no WebAssembly code in its loader", t_wasm_off_is_unchanged)
+
+
+def t_wasm_base64():
+    page, info = pack.pack(APP, encoding="base64", wasm=True)
+    assert info["node"] in ("ok", "skipped")
+
+
+check("--wasm works with --encoding base64 too", t_wasm_base64)
+
+
+def t_wasm_limits():
+    try:
+        pack.pack(APP, check_node=False, wasm=True, mem=1100 * MB if "MB" in globals() else 1100 * 1048576)
+    except SystemExit as e:
+        assert "1 GB" in str(e), e
+    else:
+        raise AssertionError("a model memory over 1 GB was accepted with --wasm")
+
+
+check("--wasm refuses a model memory that would not fit in one WebAssembly memory", t_wasm_limits)
+
+
+def t_wasm_csp_token():
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        page, info = pack.pack(APP, check_node=False, wasm=True, head='<meta http-equiv="Content-Security-Policy" content="script-src \'unsafe-inline\'">')
+    assert b"script-src 'unsafe-inline' 'wasm-unsafe-eval'" in page, "the --wasm page's policy does not carry the token"
+    assert err.getvalue() == "", err.getvalue()   # the packer adds the token itself, so there is nothing to warn about
+    err2 = io.StringIO()
+    with contextlib.redirect_stderr(err2):
+        again, info = pack.pack(APP, check_node=False, wasm=True, head='<meta http-equiv="Content-Security-Policy" content="script-src \'unsafe-inline\' \'wasm-unsafe-eval\'">')
+    assert err2.getvalue() == "" and again.count(b"wasm-unsafe-eval") == 1, "a policy that already has the token must not get it twice"
+
+
+check("--wasm: a --head policy without wasm-unsafe-eval gets it added (quietly), and one that has it is left as it is", t_wasm_csp_token)
+
+
+def t_wasm_damaged():
+    page, _ = pack.pack(APP, encoding="base64", check_node=False, wasm=True)
+    i = page.index(pack.PAYLOAD_NAME.encode() + b'="') + len(pack.PAYLOAD_NAME) + 30
+    bad = page[:i] + (b"A" if page[i:i + 1] != b"A" else b"B") + page[i + 1:]
+    raises(lambda: pack.node_roundtrip(bad, APP, True), "self-check failed")
+
+
+needs_node("--wasm: a damaged payload fails the Node round trip (the PPMd data is checked before either decoder runs)", t_wasm_damaged)
+
 print("ppmd-pack: %d passed, %d failed, %d skipped" % (passed, failed, skipped))
 sys.exit(1 if failed else 0)
