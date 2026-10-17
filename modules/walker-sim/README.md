@@ -1,10 +1,10 @@
 # walker-sim
 
-**Version 2.0.0 · API 2**
+**Version 2.1.0 · API 2**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time: the same-answers and timing run (tests/walker-sim-browser.js, readable and minified file; WebKit through tools/webkit-driver) and, in the first three, the demo page (tests/flow-demos.js); 70 Node checks in Node 22. Not run: the demo page in GNOME Web, a phone.
+**Tested in:** Node 22 (84 checks, for the readable file, the minified file and the joined file); Firefox 158.0 (reports 158.0b5), ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, in a real browser (tests/walker-sim-browser.js, 2026-10-17). Not run: the demo page in GNOME Web, a phone
 
-Simulates random walkers on a network (where do they end up, how long does it take, what does it cost), with the exact odds worked out by arithmetic so you can check the simulation against them. No dependencies. Cut from Net Flow Map. 51 KB readable (with its notes), or 26 KB as `walker-sim.min.js` (10.2 KB gzipped, against 39 KB and 12.3 KB for 1.0.0). The plain-words names for the random-number kinds are an optional 4 KB file, `walker-sim-menu.js` (1.5 KB gzipped), that a settings page loads and a script does not.
+Simulates random walkers on a network (where do they end up, how long does it take, what does it cost), with the exact odds worked out by arithmetic so you can check the simulation against them. No dependencies. Cut from Net Flow Map. 61 KB readable (with its notes), or 31 KB as `walker-sim.min.js` (12.1 KB gzipped, against 26 KB and 10.6 KB for 2.0.0, and 39 KB and 12.3 KB for 1.0.0). The plain-words names for the random-number kinds are an optional 4 KB file, `walker-sim-menu.js` (1.5 KB gzipped), that a settings page loads and a script does not.
 
 **Test it:** `node modules/walker-sim/test/run.js` (distributions, exact solver, loops, batches and split runs, what-if sweeps; about 2 s; add `modules/walker-sim/walker-sim.min.js` to check the minified file). `node tests/walker-sim-browser.js` runs one fixed set of walks and exact solves in Node and in a real browser and compares the answers (`CHROMIUM=...`, `FIREFOX=...` or `WEBKIT=1`, one at a time). **Try it:** `demo.html`.
 
@@ -27,6 +27,7 @@ var exact = WalkerSim.exactEndpoints(P, { rule: "weights", weights: P.w });   //
 - **Exact average steps and cost:** `exactEndpoints` also gives `meanSteps` and, when `linkCost` or `dwell` is set, `meanCost` (`null` when one of the distributions has no average, such as a Pareto with shape 1 or less), so the simulation's step and cost numbers can be checked the way the odds are.
 - **Loops:** the exact solver goes round until the answers stop moving; a loop that needs more rounds than that is solved directly (up to 2,500 items in one tangle, a few hundred milliseconds). Every exact result carries `converged`, `error` and `method` (`'sweeps'` or `'loops'`), so a number that did not settle says so. In 1.0.0 it stopped silently after 500 rounds: on a 2,000-item network with 10% loops it reported that 0.02% of walkers reach an end, where the truth is 100% (now 100.000%, 0.4 s). A loop with no way out holds its walkers, and the answer says `stuck`.
 - **What-if sweep:** `WalkerSim.sweep(P, cfg, { what: "items" | "links", top })` ranks which item or link, if removed, moves the end odds most.
+- **Which weights matter (new in 2.1.0):** `WalkerSim.sensitivity(P, cfg, { top })` tells, for every link, how far each end's odds move for one more unit of that link's weight (exact, from the same solve as `exactEndpoints`; 501 links in about 2 to 3 ms). Rows come biggest first as `{ from, to, d: [per end], reach }`. Give it `linkWeight` (the same uncertainty menu the simulation uses) and it also returns `sd`, the spread of every end's odds that this uncertainty causes, in about 2 ms; the simulation needs about 850 ms (3,000 trials) to show the same spread. It checks out against finite differences to 1e-12 and, for `sd`, against 300 exact re-solves (within 7%). Needs the `weights` rule.
 - `graph` throws a plain-words error for an unknown start item, and rejects item names such as `__proto__`.
 
 ### Sharing a run between threads
@@ -50,6 +51,9 @@ A made-up network of 200 items and 587 links, 23 ends, 100 walkers per trial. Th
 
 1.0.0 took 29 ms for 100,000 walkers and 301 ms for 1,000,000 (about 1.8 times slower). A 95% range misses about 1 end in 20 by design. In the browsers, 1,000,000 walkers took 204 ms in ungoogled Chromium 155, 314 ms in Firefox 158 and 128 ms in WebKitGTK 2.52.6, against 343, 473 and 275 ms for 1.0.0 (one browser at a time; a fresh page each, so the first run includes warm-up). Two worker threads did 2,000,000 walkers in about half the time in all three (below).
 
+2.1.0 gives the same counts for the same seed and is faster: 1,000,000 walkers take 80 ms in Node (192 ms for 2.0.0, 2.4 times faster), 102 ms in ungoogled Chromium 155 (was 238), 115 ms in Firefox 158 (was 381), 62 ms in WebKitGTK 2.52.6 (was 141) and 53 ms in GNOME Web 46.5 (was 139), middle of 9 runs on a busy cloud machine. Runs with uncertain weights are 1.2 to 1.8 times faster, runs with random costs or waits 1.2 to 1.6 times (Gamma and Weibull costs barely change: 1.03 times).
+
+
 | 2,000,000 walkers | one thread | 2 workers | 4 workers |
 |---|---|---|---|
 | ungoogled Chromium 155 | 474 ms | 246 ms | 219 ms |
@@ -57,6 +61,15 @@ A made-up network of 200 items and 587 links, 23 ends, 100 walkers per trial. Th
 | WebKitGTK 2.52.6 | 244 ms | 151 ms | 178 ms |
 
 These ran on a 4-core cloud machine, include starting the workers and adding the pieces up, and gave identical counts to one thread in every case.
+
+### Optional: the WebAssembly loop (walker-sim-wasm.js)
+Two ways to use walker-sim, your choice: `walker-sim.js` alone (the default, plain JavaScript, works under any page policy), or `walker-sim.js` plus `walker-sim-wasm.js` (or the two joined in `walker-sim-with-wasm.min.js`). The counts are exactly the same either way; only the speed differs.
+
+- What it does: the walking loop runs as a 1 KB WebAssembly program. After a run's first 20,000 walkers (change with `cfg.wasmAfter`) it takes over, so small runs never pay for setting it up. `cfg.wasm = false` keeps one run on JavaScript; `sim.engine` says which loop a run used (`'js'` or `'wasm'`).
+- How much faster than the plain 2.1.0 file, 1,000,000 walkers (middle of 9 runs): Node 80 to 44 ms (1.8 times), ungoogled Chromium 155 110 to 52 ms (2.1 times), Firefox 158 111 to 52 ms (2.1 times), WebKitGTK 2.52.6 82 to 65 ms (1.3 times), GNOME Web 46.5 50 to 52 ms (no gain). So it is for Chrome-type and Firefox pages with big runs. Runs of one walker per trial do not gain (1.0 to 1.1 times); runs with costs, waits or uncertain weights do not use it.
+- What it needs: a page that allows WebAssembly (the policy word is `wasm-unsafe-eval`). Where the page forbids it, or the browser has none, loading the file does nothing: `WalkerSim.wasm` is `false` and everything runs on the JavaScript loop (checked in all four browsers with a page that forbids it; Firefox also prints a console message about the blocked WebAssembly).
+- Size: `walker-sim-wasm.min.js` is 3,968 bytes (2,039 gzipped); the joined file is 34,807 bytes (13,857 gzipped); the plain `walker-sim.min.js` is 30,839 bytes (12,141 gzipped).
+- Source: `wasm/walker-sim.c`; `wasm/build.sh` builds `wasm/walker-sim.wasm` (966 bytes, needs clang with the wasm32 target) and `wasm/embed.py` puts it into `walker-sim-wasm.js`.
 
 ## Why
 When a result comes from a simulation you want to know that the simulation is right. Where the odds can be worked out exactly (fixed weights), you get both and can compare. Where they cannot (uncertain weights, costs, waiting), the simulation is the only answer and the 95% ranges say how far to trust it.
@@ -75,3 +88,5 @@ When a result comes from a simulation you want to know that the simulation is ri
 
 ## For AI agents
 Build the graph once with `graph`, run `create(...).run(...)` for the simulation, and call `exactEndpoints` first: if it returns odds, show the simulation next to them and say how far apart they are, and say so when `converged` is false. Always set `seed` so the user can repeat a run. Do not report a simulated number without its 95% range. For a big run use `precision` to stop early, or share the trials between workers with `firstTrial` / `trials`, `export()` and `merge()`. A settings page that lists the random-number kinds loads `walker-sim-menu.js` after `walker-sim.js`; a script does not need it. Rebuild the minified file with `TERSER=/path/to/terser node modules/walker-sim/test/make-min.js` after any change.
+
+Use `walker-sim.js` alone unless the user's page allows WebAssembly and the runs are big (100,000 walkers or more); then add `walker-sim-wasm.js` (or use `walker-sim-with-wasm.min.js`) for about twice the speed in Chromium and Firefox. Never rely on it: results are identical without it.
