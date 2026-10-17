@@ -3,7 +3,7 @@
  * Uses CloseWatcher, which is also what the Escape key and the desktop close gestures go through.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  *
  *   var panelBack = BackClose.watch(panel, function () { closePanel(); });   // panel: any element that uses the `hidden` attribute
  *   closeButton.onclick = function () { panelBack.close(); };                // optional: the X button and pad B take the same route
@@ -36,11 +36,14 @@
   'use strict';
 
   function hasCW(needObserver) { return typeof CloseWatcher === 'function' && (!needObserver || typeof MutationObserver === 'function'); }
+//@begin history
   function hasHistory(needObserver) {
     return typeof window !== 'undefined' && (!needObserver || typeof MutationObserver === 'function') && !!window.history &&
       typeof window.history.pushState === 'function' && typeof window.history.back === 'function' && typeof window.addEventListener === 'function';
   }
+//@end
 
+//@begin history
   // history fallback, shared by all panels: one popstate listener, a stack of the entries we pushed
   var stack = [], ignore = 0, listening = false;
   function sync() {
@@ -66,78 +69,133 @@
     else r.done = true;                                        // buried under a newer panel: skipped when the user reaches it
     sync();
   }
+//@end
 
+//@begin element
   // watch(el, close, opts): the panel is an element; it counts as shown while `isShown(el)` says so (default: no `hidden` attribute and in the page)
   // and the element is watched for changes of the attributes in `opts.attributes` (default ['hidden']).
   function watch(el, close, opts) { return make(el, close, opts, null); }
+//@end
   // watchWhen(isOpen, close, opts): for panels that are not an element (a canvas drawing, several panels at once). Nothing is watched:
   // call handle.sync() whenever isOpen() may have changed and the watcher is armed or removed to match.
   function watchWhen(isOpen, close, opts) { return make(null, close, opts, typeof isOpen === 'function' ? isOpen : null); }
 
   function make(el, close, opts, openFn) {
-    var useFallback = !!(opts && opts.historyFallback), userShown = opts && typeof opts.isShown === 'function' ? opts.isShown : null;
+//@begin history
+    var useFallback = !!(opts && opts.historyFallback);
+//@end
+//@begin element
+    var userShown = opts && typeof opts.isShown === 'function' ? opts.isShown : null;
+//@end
+//@begin element
     var attrs = opts && opts.attributes && opts.attributes.length ? opts.attributes : ['hidden'], needMO = !!el;
+//@else
+//@    var needMO = false;
+//@end
     var known = typeof close === 'function' && (el ? true : !!openFn);
-    var mode = !known ? 'none' : hasCW(needMO) ? 'closewatcher' : useFallback && hasHistory(needMO) ? 'history' : 'none';
+    var mode = !known ? 'none' : hasCW(needMO) ? 'closewatcher'
+//@begin history
+      : useFallback && hasHistory(needMO) ? 'history'
+//@end
+      : 'none';
     var handle = { supported: mode !== 'none', mode: mode, destroy: function () {}, close: function () { return false; }, sync: function () {} };
     function shown() {
       try {
         if (openFn) return !!openFn();
+//@begin element
         if (!el || el.isConnected === false) return false;
         return userShown ? !!userShown(el) : !el.hidden;
+//@else
+//@        return false;
+//@end
       } catch (e) { return false; }
     }
     if (mode === 'none') {                                     // no back-swipe support here, but handle.close() still runs your close function
+//@begin closeRoute
       handle.close = function () {
         if (!known || !shown()) return false;
         try { close(); } catch (e) { /* the page's close function failed */ }
         return true;
       };
+//@end
       return handle;
     }
-    var cw = null, rec = null, mo = null, destroyed = false;
+    var cw = null, destroyed = false;
+//@begin history
+    var rec = null;
+//@end
+//@begin element
+    var mo = null;
+//@end
 
     function run() {                                           // the page's close function, then arm again if it stayed open
       try { close(); } catch (e) { /* the page's close function failed; do not trap the user */ }
       if (!destroyed && shown()) arm();
     }
     function arm() {
-      if (destroyed || cw || rec || !shown()) return;
+      if (destroyed || cw ||
+//@begin history
+        rec ||
+//@end
+        !shown()) return;
       if (mode === 'closewatcher') {
         try { cw = new CloseWatcher(); } catch (e) { cw = null; return; }
         cw.onclose = function () { cw = null; run(); };
       } else {
+//@begin history
         var r = { done: false, onBack: function () {
           if (rec === r) rec = null;
           if (r.done || !shown()) backOne();                   // an entry whose panel is already closed: step over it
           else run();
         } };
         if (push(r)) rec = r;
+//@end
       }
     }
     function disarm() {
       if (cw) { try { cw.destroy(); } catch (e) { /* already gone */ } cw = null; }
+//@begin history
       if (rec) { var r = rec; rec = null; unpush(r); }
+//@end
     }
     function sync() { if (destroyed) return; if (shown()) arm(); else disarm(); }
+//@begin element
     if (el) {
       mo = new MutationObserver(sync);
       mo.observe(el, { attributes: true, attributeFilter: attrs });
     }
+//@end
     arm();
     handle.sync = sync;
-    handle.destroy = function () { destroyed = true; if (mo) mo.disconnect(); mo = null; disarm(); };
+    handle.destroy = function () {
+      destroyed = true;
+//@begin element
+      if (mo) mo.disconnect(); mo = null;
+//@end
+      disarm();
+    };
     // one route for every way to close: the on-screen X, the controller B button and the back swipe all end up in your close function
+//@begin closeRoute
     handle.close = function () {
       if (destroyed || !shown()) return false;
       if (cw) { try { cw.requestClose(); return true; } catch (e) { /* fall through to the direct call */ } }
+//@begin history
       else if (rec && stack[stack.length - 1] === rec) { try { window.history.back(); return true; } catch (e) { /* fall through */ } }
+//@end
       run(); return true;
     };
+//@end
     return handle;
   }
 
-  var api = { watch: watch, watchWhen: watchWhen };
+  var api = {
+//@begin element
+    watch: watch,
+//@end
+    watchWhen: watchWhen
+  };
+//@begin supported
   Object.defineProperty(api, 'supported', { enumerable: true, get: function () { return hasCW(true); } });
+//@end
   return api;
 });
