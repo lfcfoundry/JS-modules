@@ -89,6 +89,7 @@
     return g;
   }
 
+  function mix(h, str) { for (var k = 0; k < str.length; k++) h = imul(h ^ str.charCodeAt(k), 16777619); return imul(h ^ 0xFF, 16777619); }   // FNV-1a over a text; 0xFF ends the text
   function weightOf(o) { return o.weight === undefined ? 1 : o.weight; }
   function checkWeights(ops) {
     var total = 0, k, w;
@@ -121,6 +122,14 @@
     bind(R);
     var replay = runOpts.script, perOp = !!(runOpts.perOp || replay), record = !!runOpts.record && !perOp;
     var S = mulberry32((seedInt ^ 0x9E3779B9) | 0), script = [], count = replay ? replay.length : nOps;
+    var active = ops, activeTotal = total, swarmNames = null, hash = 2166136261 | 0, ended = false;
+    if (cfg.swarm && !replay) {   // swarm testing: this run uses only a random part of the operations, so rarely-reached states are reached
+      var W = mulberry32((seedInt ^ 0x5BD1E995) | 0), off = typeof cfg.swarm === 'number' ? cfg.swarm : 0.5, k0;
+      active = ops.filter(function (o) { return weightOf(o) > 0 && W() >= off; });
+      if (!active.length) { var live0 = ops.filter(function (o) { return weightOf(o) > 0; }); active = [live0[Math.floor(W() * live0.length)]]; }
+      activeTotal = 0; for (k0 = 0; k0 < active.length; k0++) activeTotal += weightOf(active[k0]);
+      swarmNames = active.map(function (o) { return o.name; });
+    }
     var onErr = null, onRej = null, live = cfg.liveness, liveEvery = live && (live.every || 25);
     if (cfg.errors !== false && typeof root.addEventListener === 'function') {
       onErr = function (e) { winErr.push('error: ' + e.message); };
@@ -128,8 +137,8 @@
       root.addEventListener('error', onErr); root.addEventListener('unhandledrejection', onRej);
     }
     function choose() {
-      var r = R() * total, k, last = ops[0];
-      for (k = 0; k < ops.length; k++) { var w = weightOf(ops[k]); if (w > 0) last = ops[k]; r -= w; if (r < 0) return ops[k]; }
+      var r = R() * activeTotal, k, last = active[0];
+      for (k = 0; k < active.length; k++) { var w = weightOf(active[k]); if (w > 0) last = active[k]; r -= w; if (r < 0) return active[k]; }
       return last;   // only reached by rounding; never an operation with weight 0
     }
     function fail(what, opName) { fails.push({ i: c.i, op: opName, what: what, tail: tail.slice() }); }
@@ -181,7 +190,7 @@
       return everyHooks();
     }
     function iteration() {
-      if (i >= count) return STOP;
+      if (i >= count) { ended = true; return STOP; }
       c.i = i; var op, sub = 0;
       if (replay) {
         op = ops.filter(function (o) { return o.name === replay[i].op; })[0]; sub = replay[i].s;
@@ -197,7 +206,8 @@
       var threw = false;
       return when(guarded(function () { return op.run(c); }, function (e) { threw = true; fail('threw ' + errText(e, 400), op.name); }), function () {
         opsDone++;
-        if (cfg.state) { try { var sv = String(cfg.state(c)); visited[sv] = (visited[sv] || 0) + 1; } catch (e) { fail('state threw ' + errText(e, 300), op.name); } }
+        hash = mix(hash, op.name);
+        if (cfg.state) { try { var sv = String(cfg.state(c)); visited[sv] = (visited[sv] || 0) + 1; hash = mix(hash, sv); } catch (e) { fail('state threw ' + errText(e, 300), op.name); } }
         var bad = [];
         (cfg.invariants || []).forEach(function (inv) { try { var r = inv(c, pre); if (r) { if (Array.isArray(r)) bad = bad.concat(r.filter(Boolean)); else bad.push(String(r)); } } catch (e) { bad.push('invariant threw ' + errText(e, 200)); } });
         if (winErr.length) bad.push('window ' + winErr.splice(0).slice(0, 3).join(' | '));
@@ -211,14 +221,23 @@
     }
 
     function cleanup() { if (onErr) { root.removeEventListener('error', onErr); root.removeEventListener('unhandledrejection', onRej); onErr = null; } }
+    function finalCheck() {   // optional end-of-run property (undo everything and compare, save and reload and compare...); runs only when the run played to its end
+      if (!cfg.final || !ended || full() || (runOpts.firstOnly && fails.length)) return null;
+      c.op = 'final';
+      return when(guarded(function () { return cfg.final(c); }, function (e) { return 'final threw ' + errText(e, 300); }), function (r) {
+        var bad = Array.isArray(r) ? r.filter(Boolean) : r ? [String(r)] : [];
+        if (bad.length) fail(bad.join('; '), 'final');
+      });
+    }
     function finish() {
       cleanup();
-      var out = { seed: seed, ops: opsDone, fails: fails, visited: visited };
+      var out = { seed: seed, ops: opsDone, fails: fails, visited: visited, hash: (hash >>> 0).toString(16) };
+      if (swarmNames) out.swarm = swarmNames;
       if (perOp || record) out.script = script;
       if (skipped) out.skipped = skipped;   // a replayed script named operations this fuzzer does not have
       return out;
     }
-    return drive(iteration).then(null, function (e) {   // anything unexpected still returns the findings collected so far
+    return drive(iteration).then(finalCheck).then(null, function (e) {   // anything unexpected still returns the findings collected so far
       fails.push({ i: c.i, op: 'engine', what: 'run aborted: ' + errText(e, 300), tail: tail.slice() });
     }).then(finish, function (e) { cleanup(); throw e; });
   }
@@ -243,16 +262,26 @@
     function replay(s) { tries++; return make().run(0, { script: s, firstOnly: true }); }
     return replay(script).then(function (base) {
       if (!base.fails.length) return { script: script, finding: null, tries: tries, from: from, note: 'the script does not fail when replayed' };
-      var key = sig(base.fails[0]);
+      var key = sig(base.fails[0]), best = base.fails[0], seen = {};
       script = script.slice(0, base.fails[0].i + 1);   // nothing after the first failure matters
-      function still(s) { if (over()) return Promise.resolve(false); return replay(s).then(function (r) { return r.fails.length > 0 && sig(r.fails[0]) === key; }); }
+      function ident(s) { var k = s.length, parts = new Array(k); while (k--) parts[k] = s[k].op + ':' + s[k].s; return parts.join(','); }
+      // A candidate that fails the same way is cut at its failing operation too, and a candidate seen before is not replayed again.
+      function still(s) {
+        if (over()) return Promise.resolve(null);
+        var id = ident(s);
+        if (seen[id] !== undefined) return Promise.resolve(seen[id]);
+        return replay(s).then(function (r) {
+          var hit = r.fails.length > 0 && sig(r.fails[0]) === key ? { script: s.slice(0, r.fails[0].i + 1), finding: r.fails[0] } : false;
+          seen[id] = hit; return hit;
+        });
+      }
       var n = 2;
-      function firstThatFails(cands) {   // index of the first candidate that still fails, or -1
+      function firstThatFails(cands) {   // { index, hit } of the first candidate that still fails, or null
         var k = 0;
         return drive(function () {
-          if (k >= cands.length) return -1;
+          if (k >= cands.length) return null;
           var kk = k++;
-          return still(cands[kk].s).then(function (ok) { return ok ? kk : CONT; });
+          return still(cands[kk].s).then(function (h) { return h ? { index: kk, hit: h } : CONT; });
         });
       }
       return drive(function () {
@@ -261,13 +290,13 @@
         if (opts.pieces) for (k = 0; k < script.length; k += size) cands.push({ s: script.slice(k, k + size), sub: true });
         for (k = 0; k < script.length; k += size) { if (opts.pieces && n === 2) break; cands.push({ s: script.slice(0, k).concat(script.slice(k + size)), sub: false }); }
         cands = cands.filter(function (x) { return x.s.length > 0; });
-        return firstThatFails(cands).then(function (hit) {
-          if (hit >= 0) { script = cands[hit].s; n = cands[hit].sub ? 2 : Math.max(n - 1, 2); return CONT; }
+        return firstThatFails(cands).then(function (f) {
+          if (f) { script = f.hit.script; best = f.hit.finding; n = cands[f.index].sub ? 2 : Math.max(n - 1, 2); return CONT; }
           if (n >= script.length) return STOP;
           n = Math.min(script.length, n * 2); return CONT;
         });
-      }).then(function () { return replay(script); }).then(function (last) {
-        var out = { script: script, finding: last.fails[0] || null, tries: tries, from: from };
+      }).then(function () {
+        var out = { script: script, finding: best, tries: tries, from: from };
         if (stopped) out.stopped = stopped;
         return out;
       });
@@ -329,6 +358,14 @@
     clickables: function (selector, skip, opts) {
       var sel = selector || (opts && opts.links ? DEFAULT_SELECTOR + ', a[href]' : DEFAULT_SELECTOR);
       return Array.prototype.filter.call(document.querySelectorAll(sel), function (el) { return FuzzInput.visible(el, opts) && !(skip && skip(el)); });
+    },
+    // One random visible control, found by trying random candidates first: much cheaper than clickables() on a page with many controls, because
+    // only the few candidates tried are measured (clickables measures every control on every call). Falls back to the full list when the tries
+    // (opts.tries, default 12) all miss, so the answer is still uniform over the visible controls. Returns null when none is visible.
+    pickVisible: function (c, selector, skip, opts) {
+      var all = document.querySelectorAll(selector || (opts && opts.links ? DEFAULT_SELECTOR + ', a[href]' : DEFAULT_SELECTOR)), n = all.length, tries = (opts && opts.tries) || 12, k, el, list;
+      for (k = 0; n && k < tries; k++) { el = all[c.int(n)]; if (FuzzInput.visible(el, opts) && !(skip && skip(el))) return el; }
+      list = FuzzInput.clickables(selector, skip, opts); return list.length ? c.pick(list) : null;
     },
     // x, y in CLIENT pixels. These are synthetic events: a page that calls setPointerCapture(e.pointerId) would normally get a NotFoundError
     // (no real pointer has that id), which would be a false finding. By default that one error is swallowed for the ids this helper made up

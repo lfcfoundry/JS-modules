@@ -15,7 +15,7 @@ window.__fuzzConfig = function (seed) {
       { name: 'pause-button', weight: 2, run: function () { document.getElementById('pause').click(); } },
       { name: 'restart', weight: 1, run: function () { document.getElementById('restart').click(); } },
       { name: 'wait', weight: 5, run: function (c) { app.step(1 + c.int(250)); } },
-      { name: 'click-anything-visible', weight: 2, run: function (c) { var l = I.clickables(); if (l.length) c.pick(l).click(); } }
+      { name: 'click-anything-visible', weight: 2, run: function (c) { var e = I.pickVisible(c); if (e) e.click(); } }
     ].concat(Fuzzer.Real.ops()),   // real mouse and keyboard moves when the runner is started with --real-input (an empty list otherwise)
     invariants: [
       function () { return app.st.coins >= 0 ? '' : 'coins went negative: ' + app.st.coins; },

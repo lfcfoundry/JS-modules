@@ -4,10 +4,11 @@
 //   node runner/fuzz_puppeteer.mjs URL ADAPTER.js [--seeds 1-20] [--ops 400] [--browser chrome|firefox] [--executable /path/to/browser] [--viewport 412x892]
 //       [--shrink] [--shrink-tries 200] [--shrink-secs 30] [--seed-secs 120] [--bundle DIR] [--throttle 4] [--real-input] [--junk-text] [--junk-skip "a,b"]
 //       [--ignore-console REGEX]... [--allow-console-errors] [--allow-navigation] [--hang-trace] [--init "JS"] [--mobile]
+//       [--jobs 4] [--swarm 0.3] [--check-repeat] [--replay FILE]   (what they do: see the top of runner/fuzz_playwright.py)
 // Same options, behavior and output as runner/fuzz_playwright.py (read the top of that file for what each one does). Differences: --throttle needs Chrome
 // (Firefox has no CPU throttling over WebDriver BiDi); the browser path comes from --executable, else the FIREFOX variable (for --browser firefox) or the CHROME variable (for --browser chrome).
 // Needs: npm install puppeteer (and, for Firefox, `npx puppeteer browsers install firefox`, or --executable). This runner is run by hand; no automatic test starts a real browser with it.
-import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath, pathToFileURL } from 'node:url';
+import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath, pathToFileURL } from 'node:url'; import { spawn } from 'node:child_process';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const core = fs.readFileSync(path.join(here, '..', 'src', 'fuzz-core.js'), 'utf8');
 const driver = fs.readFileSync(path.join(here, 'page-driver.js'), 'utf8');
@@ -50,7 +51,7 @@ async function saveBundle(page, dir, seed, r, gone) {   // screenshot, saved-dat
 }
 async function doReal(page, req, vp) {
   const ok = realRequest(req, vp.width, vp.height); if (!ok) return;
-  if (ok.t === 'click') await page.mouse.click(ok.x, ok.y); else if (ok.t === 'move') await page.mouse.move(ok.x, ok.y); else await page.keyboard.press(ok.key);
+  if (ok.t === 'click') await page.mouse.click(ok.x, ok.y); else if (ok.t === 'move') await page.mouse.move(ok.x, ok.y); else await page.keyboard.press(ok.key === 'Space' ? ' ' : ok.key);   // Firefox over WebDriver BiDi does not know the name "Space" (found in a Firefox 157 run); a single space works everywhere
 }
 async function pump(page, deadline, vp) {   // wait for the page's answer; carry out real-input requests; throw Hung when the deadline passes
   for (;;) {
@@ -85,6 +86,7 @@ export async function runSeed(browser, url, adapter, seed, ops, viewport = { wid
     await page.evaluate(core + '\n;0'); await page.evaluate(driver + '\n;0'); await page.evaluate(adapter + '\n;0');
     st.armed = true;
     const drv = { shrink: o.shrink, shrinkTries: o.shrinkTries, shrinkSecs: o.shrinkSecs, junkText: o.junkText, junkSkip: o.junkSkip, real: o.realInput, trace: o.hangTrace };
+    for (const k of ['swarm', 'repeat', 'script']) if (o[k]) drv[k] = o[k];   // only when asked for, so the plain call is unchanged
     if (stopAt !== null && stopAt !== undefined) drv.stopAt = stopAt;
     await page.evaluate((s, n, d) => window.__fuzzStart(s, n, d), seed, ops, drv);
     r = await pump(page, Date.now() + o.seedSecs * 1000 + (o.shrink ? (o.shrinkSecs + 5) * 1000 : 0), viewport);
@@ -107,39 +109,83 @@ export async function runSeed(browser, url, adapter, seed, ops, viewport = { wid
 // The browser path is chosen per browser: the FIREFOX variable is for Firefox only (it used to be passed to Chrome too).
 export const pickExecutable = (browserName, flagValue, env) => flagValue || (browserName === 'firefox' ? env.FIREFOX : env.CHROME) || undefined;
 
+export function parseSeeds(spec) {   // '1-5,9,12-14' -> [1,2,3,4,5,9,12,13,14]
+  const out = [];
+  for (const part of String(spec).split(',')) { const [a, b] = part.trim().split('-').map(Number); for (let k = a; k <= (b || a); k++) out.push(k); }
+  return out;
+}
+export function repeatReport(first, again) {   // plain words for --check-repeat. first: the run that also repeated in the same page; again: the same seed in a fresh page
+  const samePage = first.repeat && first.repeat.same, freshSame = first.hash === again.hash && first.fails.length === again.fails.length;
+  if (samePage && freshSame) return [true, `repeat check: the app repeats exactly (seed ${first.seed} gave fingerprint ${first.hash} three times). Shrinking can be trusted.`];
+  const why = !freshSame ? 'the same seed gave a different run in a fresh page, so the app depends on time or hidden randomness (stop its clock, seed its random generator, drive time with a step function)'
+    : "the same seed gave a different run the second time in the same page, so the adapter's __fuzzConfig does not reset the app fully (--shrink would then fail to repeat the failure)";
+  return [false, 'repeat check: NOT REPEATABLE: ' + why + '.'];
+}
+function printSeed(seed, r, bundle) {
+  if (r.fails.length) {
+    console.log(` FAIL seed ${seed}: ${r.fails.length} finding(s) after ${r.ops} ops`);
+    for (const f of r.fails.slice(0, 3)) console.log('      ', JSON.stringify({ ...f, tail: f.tail.slice(-14) }).slice(0, 700));
+    for (const l of shrinkLines(r.shrunk)) console.log(l);
+    for (const n of r.bundleNotes || []) console.log('       bundle:', n);
+    if (bundle) console.log('       bundle saved in', bundle);
+  } else console.log(` ok   seed ${seed}: ${r.ops} ops ${r.secs.toFixed(1)}s visited=${JSON.stringify(r.visited)}`);
+}
+function runJobs(argv, seeds, jobs, bundle) {   // child processes, one browser each; their per-seed answers come back as JSON lines
+  const base = []; for (let i = 0; i < argv.length; i++) { if (argv[i] === '--seeds' || argv[i] === '--jobs') { i++; continue; } if (argv[i] === '--check-repeat') continue; base.push(argv[i]); }
+  const chunks = Array.from({ length: jobs }, (_, j) => seeds.filter((_, i) => i % jobs === j)).filter(c => c.length);
+  let bad = 0, total = 0;
+  return Promise.all(chunks.map(ch => new Promise(res => {
+    const pr = spawn(process.execPath, [fileURLToPath(import.meta.url), ...base, '--seeds', ch.join(','), '--jobs', '1', '--json-lines'], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let buf = '';
+    pr.stdout.on('data', d => { buf += d; let k; while ((k = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, k).trim(); buf = buf.slice(k + 1);
+      if (line.startsWith('{')) { const m = JSON.parse(line); total += m.r.ops; bad += m.r.fails.length ? 1 : 0; printSeed(m.seed, m.r, bundle); } else if (line) console.log(line); } });
+    pr.on('close', res);
+  }))).then(() => ({ bad, total }));
+}
 async function main() {
   const argv = process.argv.slice(2);
-  const flags = new Set(['--shrink', '--real-input', '--junk-text', '--allow-console-errors', '--allow-navigation', '--hang-trace', '--mobile']);
+  const flags = new Set(['--shrink', '--real-input', '--junk-text', '--allow-console-errors', '--allow-navigation', '--hang-trace', '--mobile', '--check-repeat', '--json-lines']);
   const pos = argv.filter((x, i) => !x.startsWith('--') && !(i > 0 && argv[i - 1].startsWith('--') && !flags.has(argv[i - 1])));
   const opt = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 ? argv[i + 1] : d; };
   const optAll = n => argv.reduce((acc, x, i) => (x === '--' + n && argv[i + 1] !== undefined ? acc.concat(argv[i + 1]) : acc), []);
   const has = n => argv.includes('--' + n);
   const [url, adapterPath] = pos;
   if (!url || !adapterPath) { console.error('usage: node runner/fuzz_puppeteer.mjs URL ADAPTER.js [--seeds 1-20] [--ops 400] [--browser chrome|firefox] [--executable PATH] [--shrink] [--seed-secs 120] [--bundle DIR] (see the top of this file)'); process.exit(2); }
-  const adapter = fs.readFileSync(adapterPath, 'utf8'), [s0, s1] = opt('seeds', '1-10').split('-').map(Number), ops = +opt('ops', 400), [vw, vh] = opt('viewport', '412x892').split('x').map(Number);
+  const adapter = fs.readFileSync(adapterPath, 'utf8'), ops = +opt('ops', 400), [vw, vh] = opt('viewport', '412x892').split('x').map(Number);
   const browserName = opt('browser', 'chrome'), throttle = +opt('throttle', 1);
   if (throttle > 1 && browserName !== 'chrome') { console.error('--throttle works only with --browser chrome (Firefox over WebDriver BiDi has no CPU throttling).'); process.exit(2); }
   const ignoreConsole = optAll('ignore-console');
   for (const p of ignoreConsole) { try { new RegExp(p); } catch (e) { console.error(`--ignore-console ${JSON.stringify(p)} is not a valid regular expression`); process.exit(2); } }
   const kw = { shrink: has('shrink'), shrinkTries: +opt('shrink-tries', DEFAULTS.shrinkTries), shrinkSecs: +opt('shrink-secs', DEFAULTS.shrinkSecs), seedSecs: +opt('seed-secs', DEFAULTS.seedSecs), throttle, realInput: has('real-input'), junkText: has('junk-text'),
-    junkSkip: opt('junk-skip', '').split(',').filter(Boolean), ignoreConsole, allowConsoleErrors: has('allow-console-errors'), allowNavigation: has('allow-navigation'), bundle: opt('bundle', null), hangTrace: has('hang-trace'), init: opt('init', null), mobile: has('mobile') };
+    junkSkip: opt('junk-skip', '').split(',').filter(Boolean), ignoreConsole, allowConsoleErrors: has('allow-console-errors'), allowNavigation: has('allow-navigation'), bundle: opt('bundle', null), hangTrace: has('hang-trace'), init: opt('init', null), mobile: has('mobile'), swarm: +opt('swarm', 0) };
+  let seeds = parseSeeds(opt('seeds', '1-10')); const jobs = +opt('jobs', 1), jsonLines = has('json-lines'), t0 = Date.now();
+  if (opt('replay', null)) {
+    const data = JSON.parse(fs.readFileSync(opt('replay'), 'utf8')), script = data && data.shrunk && data.shrunk.script ? data.shrunk.script : data;
+    if (!Array.isArray(script)) { console.error('--replay: ' + opt('replay') + ' has no recorded script (a --bundle findings file needs a shrunk script: run with --shrink --bundle)'); process.exit(2); }
+    if (data && data.seed !== undefined) seeds = [data.seed]; else seeds = seeds.slice(0, 1);
+    kw.script = script;
+  }
+  if (jobs > 1 && seeds.length > 1 && !has('check-repeat')) {
+    const { bad, total } = await runJobs(argv, seeds, jobs, kw.bundle);
+    console.log(`fuzz: ${seeds.length} seeds, ${total} ops, ${bad} seeds with findings, wall ${Math.round((Date.now() - t0) / 1000)}s, ${jobs} browsers at once`); process.exit(bad ? 1 : 0);
+  }
   const { default: puppeteer } = await import('puppeteer');
   const executablePath = pickExecutable(browserName, opt('executable', undefined), process.env);
   const browser = await puppeteer.launch({ browser: browserName, executablePath, headless: true, args: browserName === 'chrome' ? ['--no-sandbox'] : [] });
-  let bad = 0, total = 0; const t0 = Date.now();
-  for (let seed = s0; seed <= (s1 || s0); seed++) {
+  let bad = 0, total = 0;
+  if (has('check-repeat')) {
+    const first = await runSeed(browser, url, adapter, seeds[0], ops, { width: vw, height: vh }, null, { ...kw, repeat: true }), again = await runSeed(browser, url, adapter, seeds[0], ops, { width: vw, height: vh }, null, kw);
+    const [good, line] = repeatReport(first, again); console.log(' ' + line); if (!good) bad++;
+  }
+  for (const seed of seeds) {
     const r = await runSeed(browser, url, adapter, seed, ops, { width: vw, height: vh }, null, kw);
     total += r.ops;
-    if (r.fails.length) {
-      bad++; console.log(` FAIL seed ${seed}: ${r.fails.length} finding(s) after ${r.ops} ops`);
-      for (const f of r.fails.slice(0, 3)) console.log('      ', JSON.stringify({ ...f, tail: f.tail.slice(-14) }).slice(0, 700));
-      for (const l of shrinkLines(r.shrunk)) console.log(l);
-      for (const n of r.bundleNotes || []) console.log('       bundle:', n);
-      if (kw.bundle) console.log('       bundle saved in', kw.bundle);
-    } else console.log(` ok   seed ${seed}: ${r.ops} ops ${r.secs.toFixed(1)}s visited=${JSON.stringify(r.visited)}`);
+    if (jsonLines) { console.log(JSON.stringify({ seed, r })); continue; }
+    if (r.fails.length) bad++;
+    printSeed(seed, r, kw.bundle);
   }
   await browser.close();
-  console.log(`fuzz: ${(s1 || s0) - s0 + 1} seeds, ${total} ops, ${bad} seeds with findings, wall ${Math.round((Date.now() - t0) / 1000)}s`);
+  if (!jsonLines) console.log(`fuzz: ${seeds.length} seeds, ${total} ops, ${bad} seeds with findings, wall ${Math.round((Date.now() - t0) / 1000)}s`);
   process.exit(bad ? 1 : 0);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await main();

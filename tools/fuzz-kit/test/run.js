@@ -185,6 +185,60 @@ const S = '/*TEST_HOOK_START*/', E = '/*TEST_HOOK_END*/';
     check('onOp is called before every operation', calls.join() === '0x,1x,2x,3x', calls);
   });
 
+  // ===== fuzz-kit 1.1.0: swarm, final, hash, shrinker clean-up (each check passes on the new engine and fails on the old one) =====
+  await section('swarm, final, hash and shrinker clean-up', async () => {
+  const mk = (extra, hits) => Object.assign({ seed: 4, errors: false, ops: ['a', 'b', 'c', 'd', 'e', 'f'].map((n, i) => ({ name: n, weight: 1 + i % 2, run: () => { if (hits) hits[n] = (hits[n] || 0) + 1; } })) }, extra || {});
+    // swarm
+    let r = await new Fuzzer(mk({ swarm: true })).run(200);
+    check('swarm: the result names the operations that were on', Array.isArray(r.swarm) && r.swarm.length >= 1 && r.swarm.length <= 6, r.swarm);
+    const hits = {}; await new Fuzzer(mk({ swarm: true }, hits)).run(200);
+    check('swarm: only the named operations run', Object.keys(hits).every(k => r.swarm.indexOf(k) >= 0) && Object.keys(hits).length === r.swarm.length, { hits, on: r.swarm });
+    const again = await new Fuzzer(mk({ swarm: true })).run(200);
+    check('swarm: the same seed gives the same subset and the same fingerprint', JSON.stringify(again.swarm) === JSON.stringify(r.swarm) && again.hash === r.hash);
+    const subsets = new Set(); for (let s = 1; s <= 30; s++) subsets.add(JSON.stringify((await new Fuzzer(mk({ seed: s, swarm: true })).run(5)).swarm));
+    check('swarm: different seeds leave out different operations', subsets.size > 8, subsets.size);
+    r = await new Fuzzer(mk({ swarm: 0.999 })).run(50); check('swarm: even when almost everything is off, one operation stays on', r.swarm.length === 1 && r.ops === 50, r.swarm);
+    r = await new Fuzzer(mk({ swarm: 0 })).run(50); check('swarm: 0 is the same as off', r.swarm === undefined);
+    const plain = await new Fuzzer(mk()).run(100), off = await new Fuzzer(mk({ swarm: false })).run(100);
+    check('swarm off: no swarm field and the same run as before', plain.swarm === undefined && plain.hash === off.hash);
+    const z = {}; await new Fuzzer({ seed: 1, errors: false, swarm: true, ops: [{ name: 'on', run: () => { z.on = 1; } }, { name: 'zero', weight: 0, run: () => { z.zero = 1; } }] }).run(30);
+    check('swarm: an operation with weight 0 is never switched on', !z.zero && z.on);
+    // a recorded script replays whatever was on, swarm or not
+    const rec = await new Fuzzer(mk({ swarm: true })).run(60, { record: true });
+    const rep = await new Fuzzer(mk({ swarm: true })).run(0, { script: rec.script });
+    check('swarm: a recorded script replays the same operations', rep.ops === 60 && rep.hash === rec.hash, { a: rep.hash, b: rec.hash });
+    // the mix among the operations that are on follows their weights
+    for (let sd = 1; sd < 200; sd++) {
+      const cnt = {}, cfg = { seed: sd, errors: false, swarm: true, ops: [{ name: 'a', weight: 1, run: () => { cnt.a = (cnt.a || 0) + 1; } }, { name: 'b', weight: 1, run: () => { cnt.b = (cnt.b || 0) + 1; } }, { name: 'c', weight: 100, run: () => { cnt.c = (cnt.c || 0) + 1; } }] };
+      const out = await new Fuzzer(cfg).run(600);
+      if (out.swarm.length === 2 && out.swarm.indexOf('c') < 0) { check('swarm: weights still shape the mix of the operations that are on', cnt.a > 200 && cnt.b > 200, cnt); break; }
+      if (sd === 199) check('swarm: found a seed that leaves c out', false);
+    }
+    // final
+    let seenFinal = 0;
+    r = await new Fuzzer(mk({ final: (c) => { seenFinal++; return c.i === 29 ? 'ended at ' + c.i : ''; } })).run(30);
+    check('final: runs once, after the last operation, and its message is a finding named final', seenFinal === 1 && r.fails.length === 1 && r.fails[0].op === 'final' && r.fails[0].what === 'ended at 29', r.fails);
+    seenFinal = 0; await new Fuzzer(mk({ final: () => { seenFinal++; return ''; } })).run(30, { stopAt: 10 });
+    check('final: does not run when the run was stopped early with stopAt', seenFinal === 0);
+    r = await new Fuzzer(mk({ final: () => { throw new Error('boom'); } })).run(10); check('final: a throw is a finding', r.fails.length === 1 && /final threw/.test(r.fails[0].what), r.fails);
+    r = await new Fuzzer(mk({ final: () => Promise.resolve(['one', '', 'two']) })).run(10); check('final: may be async and may return a list', r.fails.length === 1 && r.fails[0].what === 'one; two', r.fails);
+    r = await new Fuzzer(mk({ invariants: [() => 'bad'], maxFails: 1, final: () => 'late' })).run(10); check('final: skipped when the run already hit maxFails', r.fails.every(f => f.op !== 'final'));
+    // final with the shrinker: only a long enough script fails at the end
+    let n = 0; const mkF = () => { n = 0; return new Fuzzer({ seed: 2, errors: false, ops: [{ name: 'inc', run: () => { n++; } }, { name: 'skip', run: () => { } }], final: () => n >= 5 ? 'five or more incs' : '' }); };
+    const rr = await mkF().run(60, { record: true }); check('final: finding recorded', rr.fails.length === 1 && rr.script.length === 60);
+    const sh = await Fuzzer.shrink(mkF, rr.script, {}); check('final: shrinks to exactly five incs', sh.script.length === 5 && sh.script.every(e => e.op === 'inc') && sh.finding && sh.finding.op === 'final', { len: sh.script.length, f: sh.finding });
+    // fingerprint
+    const h1 = (await new Fuzzer(mk({ seed: 1 })).run(100)).hash, h1b = (await new Fuzzer(mk({ seed: 1 })).run(100)).hash, h2 = (await new Fuzzer(mk({ seed: 2 })).run(100)).hash;
+    check('hash: same seed same fingerprint, other seed other fingerprint', typeof h1 === 'string' && h1 === h1b && h1 !== h2, { h1, h1b, h2 });
+    let flip = 0; const hs = []; for (let k = 0; k < 2; k++) hs.push((await new Fuzzer(mk({ seed: 1, state: () => 's' + (flip++ % 7) })).run(40)).hash);
+    check('hash: notices when the app state labels differ between two runs of one seed', hs[0] !== hs[1], hs);
+    // shrinker: same result as before, never more tries
+    let m = 0; const mkS = () => { m = 0; return new Fuzzer({ seed: 9, errors: false, ops: [{ name: 'inc', weight: 3, run: () => { m++; } }, { name: 'reset', weight: 1, run: () => { m = 0; } }, { name: 'noop', weight: 4, run: () => { } }], invariants: [() => m >= 8 ? 'eight' : ''] }); };
+    const recS = await mkS().run(400, { record: true }); const s2 = await Fuzzer.shrink(mkS, recS.script, {});
+    check('shrink: the result is still 1-minimal (eight incs in a row)', s2.script.length === 8 && s2.script.every(e => e.op === 'inc') && s2.finding && s2.finding.what === 'eight', { len: s2.script.length });
+    check('shrink: the finding belongs to the shrunk script (its index is the last operation)', s2.finding.i === s2.script.length - 1, s2.finding.i);
+  });
+
   // ---- a tiny fake page for the input helpers ----
   function withFakeDom(body) {
     const g = globalThis, saved = {}, names = ['document', 'getComputedStyle', 'Element', 'KeyboardEvent', 'PointerEvent', 'innerWidth', 'innerHeight'];
@@ -384,7 +438,7 @@ const S = '/*TEST_HOOK_START*/', E = '/*TEST_HOOK_END*/';
         super(); this.u = 'file:///game.html'; this.isGone = false; this.calls = []; this.screens = [];
         const page = this;
         this.sb = { console: { debug: (m) => page.emit('console', { type: () => 'debug', text: () => m }), error: (m) => page.emit('console', { type: () => 'error', text: () => m }), log() { } } };
-        this.sb.window = this.sb; this.sb.__hostEmit = (name, arg) => { if (name === 'framenavigated') { page.u = arg; page.emit('framenavigated', page.frame); } else page.emit(name, arg); };
+        this.sb.setTimeout = setTimeout; this.sb.window = this.sb; this.sb.__hostEmit = (name, arg) => { if (name === 'framenavigated') { page.u = arg; page.emit('framenavigated', page.frame); } else page.emit(name, arg); };
         vm.createContext(this.sb); this.frame = { url: () => page.u };
         this.mouse = { click: async (x, y) => { page.calls.push(['click', x, y]); }, move: async (x, y) => { page.calls.push(['move', x, y]); } };
         this.keyboard = { press: async (k) => { page.calls.push(['press', k]); } };
