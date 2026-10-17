@@ -2,7 +2,7 @@
  * pad-nav.js: gamepad (Gamepad API) navigation for ordinary on-screen DOM menus and panels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   var pn = new PadNav({ getScope: function () { return openPanel; }, hintEl: hintDiv, onBack: closePanel });
  *   pn.start();   // or call pn.step() once per frame from your own loop
@@ -39,6 +39,13 @@
  *   wakeMs              a scope that opens within this long of pad use gets focus immediately, default 8000
  *   scroll              keep the focused element visible with scrollIntoView, default true
  *   requireStandard     only read pads whose mapping is 'standard', default true
+ *   nextRule            'center' (default) or 'edges': how the next button is chosen. 'center' scores the distance between centers
+ *                       (sideways drift costs 2.5x). 'edges' first looks for a button that sits directly in line (its edge overlaps the
+ *                       focused button's across the direction of travel) and takes the nearest of those; with none in line it falls back to
+ *                       'center'. On regular grids both pick the same button; they differ on menus with mixed widths.
+ *   onInput(pad)        any pad input (button or stick direction), at most every inputMs: for example onInput: function () { wk.poke(); }
+ *                       (WakeKeeper) so controller play keeps the screen awake
+ *   inputMs             minimum ms between onInput calls, default 250
  *
  * step() never throws: getGamepads (which throws a SecurityError when the page disables the feature) and every callback
  * above are wrapped, and the error goes to onError and pn.lastError.
@@ -80,6 +87,10 @@
     this.wakeMs = num(o.wakeMs, 8000);
     this.scroll = o.scroll !== false;
     this.requireStandard = o.requireStandard !== false;
+    this.nextRule = o.nextRule === 'edges' ? 'edges' : 'center';
+    this.onInput = typeof o.onInput === 'function' ? o.onInput : null;
+    this.inputMs = num(o.inputMs, 250);
+    this.inputAt = -Infinity;  // time of the latest onInput call
 
     this.prev = {};            // last frame's pressed state, for edge detection
     this.rep = {};             // per direction: when the next repeat is due
@@ -117,9 +128,28 @@
     this.setHint(false, '');
   }
 
-  /** Pure helper: index of the nearest rect from `from` in direction 'l','r','u' or 'd', or -1. Rects are {left, top, width, height}. */
-  PadNav.nearest = function (from, rects, dir) {
+  /**
+   * Pure helper: index of the nearest rect from `from` in direction 'l','r','u' or 'd', or -1. Rects are {left, top, width, height}.
+   * rule 'center' (default): distance between centers, sideways drift costs 2.5x. rule 'edges': a rect directly in line (its edges
+   * overlap `from` across the direction, and it starts beyond `from`'s edge) wins, the nearest edge first and the larger overlap on a tie;
+   * with none in line it falls back to 'center'.
+   */
+  PadNav.nearest = function (from, rects, dir, rule) {
     var cx = from.left + from.width / 2, cy = from.top + from.height / 2, best = -1, bs = Infinity, i, p, dx, dy, along, across, score;
+    if (rule === 'edges') {
+      var fr = from.left + from.width, fb = from.top + from.height, bg = Infinity, bo = -1, gap, ov;
+      for (i = 0; i < rects.length; i++) {
+        p = rects[i]; dx = p.left + p.width / 2 - cx; dy = p.top + p.height / 2 - cy;
+        along = dir === 'l' ? -dx : dir === 'r' ? dx : dir === 'u' ? -dy : dy;
+        if (along < 4) continue;
+        if (dir === 'd') { gap = p.top - fb; ov = Math.min(p.left + p.width, fr) - Math.max(p.left, from.left); }
+        else if (dir === 'u') { gap = from.top - (p.top + p.height); ov = Math.min(p.left + p.width, fr) - Math.max(p.left, from.left); }
+        else if (dir === 'r') { gap = p.left - fr; ov = Math.min(p.top + p.height, fb) - Math.max(p.top, from.top); }
+        else { gap = from.left - (p.left + p.width); ov = Math.min(p.top + p.height, fb) - Math.max(p.top, from.top); }
+        if (ov > 0 && gap >= -1 && (gap < bg || (gap === bg && ov > bo))) { bg = gap; bo = ov; best = i; }
+      }
+      if (best >= 0) return best;
+    }
     for (i = 0; i < rects.length; i++) {
       p = rects[i]; dx = p.left + p.width / 2 - cx; dy = p.top + p.height / 2 - cy;
       along = dir === 'l' ? -dx : dir === 'r' ? dx : dir === 'u' ? -dy : dy;
@@ -226,6 +256,7 @@
     if (inPad) {
       this.lastUsed = now;
       if (typeof inPad.id === 'string') this.useId = inPad.id;
+      if (this.onInput && now - this.inputAt >= this.inputMs) { this.inputAt = now; this.hook(this.onInput, 'onInput', inPad); }
       if (!this.awake) { this.awake = true; this.hintAt = now; this.hook(this.onUse, 'onUse', inPad); }
     }
 
@@ -377,8 +408,12 @@
     for (i = 0; i < l.length; i++) {
       el = l[i];
       if (el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true' || (el.closest && el.closest('[inert]'))) continue;
-      if (!el.getClientRects().length) continue;                         // display:none on it or an ancestor, or not rendered
-      if (getComputedStyle(el).visibility === 'hidden') continue;
+      if (typeof el.checkVisibility === 'function') {                    // one call instead of two: display:none anywhere above, or visibility:hidden
+        if (!el.checkVisibility(PadNav.VISIBLE)) continue;
+      } else {                                                           // older browsers
+        if (!el.getClientRects().length) continue;                       // display:none on it or an ancestor, or not rendered
+        if (getComputedStyle(el).visibility === 'hidden') continue;
+      }
       if (this.filter && this.hook(this.filter, 'filter', el) === false) continue;
       o.push(el);
     }
@@ -404,7 +439,7 @@
     var cur = this.ringEl, rects = [], map = [], i, r, j;
     r = cur.getBoundingClientRect();
     for (i = 0; i < cands.length; i++) if (cands[i] !== cur) { rects.push(cands[i].getBoundingClientRect()); map.push(cands[i]); }
-    j = PadNav.nearest(r, rects, dir);
+    j = PadNav.nearest(r, rects, dir, this.nextRule);
     if (j >= 0) this.focus(map[j]);
     else if (vertical) this.scrollScope(scope, dir);   // nothing further that way (no wrap): a tall scope scrolls instead
   };
@@ -511,6 +546,7 @@
   PadNav.DEFAULT_SELECTOR = 'button, a[href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])';
   PadNav.BUTTONS = { a: 0, b: 1, start: 9, up: 12, down: 13, left: 14, right: 15 };   // Gamepad API 'standard' mapping
   PadNav.DIRS = ['l', 'r', 'u', 'd'];
+  PadNav.VISIBLE = { checkVisibilityCSS: true, visibilityProperty: true };   // both spellings: older Chrome knew the first, newer browsers the second
   PadNav.DEFAULT_NAMES = { dpad: 'D-pad', a: 'A', b: 'B', start: 'Start' };
   if (Object.freeze) Object.freeze(PadNav.DEFAULT_NAMES);   // shared by every instance
   PadNav.pressed = function (g, n) { return !!(g.buttons[n] && g.buttons[n].pressed); };

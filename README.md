@@ -37,11 +37,11 @@ Let players hold a button, or play with a gamepad.
 
 | Module | One line | Global | Version |
 |---|---|---|---|
-| [hold-press](modules/hold-press/README.md) | Hold-to-repeat for buttons that survives Android Chrome pointercancel. | `HoldPress` | 1.0.0 · API 1 |
-| [pad-nav](modules/pad-nav/README.md) | Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. | `PadNav` | 1.0.0 · API 1 |
-| [tab-guard](modules/tab-guard/README.md) | Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. | `TabGuard` | 1.0.0 · API 1 |
+| [hold-press](modules/hold-press/README.md) | Hold-to-repeat for buttons that survives Android Chrome pointercancel. | `HoldPress` | 1.1.0 · API 1 |
+| [pad-nav](modules/pad-nav/README.md) | Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. | `PadNav` | 1.1.0 · API 1 |
+| [tab-guard](modules/tab-guard/README.md) | Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. | `TabGuard` | 1.1.0 · API 1 |
 | [wake-keeper](modules/wake-keeper/README.md) | Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. | `WakeKeeper` | 1.0.0 · API 1 |
-| [back-close](modules/back-close/README.md) | Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). | `BackClose` | 1.0.0 · API 1 |
+| [back-close](modules/back-close/README.md) | Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). | `BackClose` | 1.1.0 · API 1 |
 
 #### First visit and grown-ups
 

@@ -1,8 +1,8 @@
 # pad-nav
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Chromium only at build (version not recorded; 105 checks); Chromium 141 (headless, Linux) in the 2026-10-15 full run of `npm run test:kits` and `tests/run.js`; Firefox 157.0.1 through the Firefox stand-in (105 checks pass, 2026-10-17). Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a real controller, a phone.
+**Tested in:** Node: 112 checks pass (18 new). Module browser suite passes in ungoogled Chromium 155.0.8059.39-1. Candidate search compared old and new (same answers, 847 of 1000) in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5. Not run: that browser suite in Firefox 158.0, WebKitGTK and GNOME Web, a real controller, a phone
 
 Tests (offline): `node modules/pad-nav/test/run.js` (fake pads and a tiny fake DOM, no browser, under a second) and `python3 modules/pad-nav/test/run.py` (about 3 seconds, needs Playwright for Python and an installed Chromium).
 
@@ -100,6 +100,9 @@ var pn = new PadNav({
 | `wakeMs` | `8000` | A scope that opens within this long of pad use gets the focus ring on its first button (or the one remembered for it) right away. Later than that, the first direction press shows it. |
 | `scroll` | `true` | After each focus change call `scrollIntoView({ block: 'nearest', inline: 'nearest' })`. |
 | `requireStandard` | `true` | Read only pads whose `mapping` is `'standard'`. |
+| `nextRule` | `'center'` | How the next button is chosen. `'center'` (as before) scores the distance between centers, sideways drift costing 2.5 times. `'edges'` first takes the nearest button that sits directly in line (its edge overlaps the focused button's across the direction of travel); with none in line it falls back to `'center'`. See "Which rule" below. |
+| `onInput(pad)` | none | Any pad input (a button or a stick direction), at most every `inputMs`. For controller play that keeps the screen awake: `onInput: function () { wk.poke(); }` with [wake-keeper](../wake-keeper/README.md). Throwing is caught and goes to `onError` (`where` is `onInput`). |
+| `inputMs` | `250` | Fewest milliseconds between `onInput` calls. `0` reports every frame that has input. |
 
 Methods:
 
@@ -107,7 +110,7 @@ Methods:
 - `start()` polls with `requestAnimationFrame`; `stop()` stops. `start()` returns the instance.
 - `destroy()` stops, removes the blur and `gamepaddisconnected` listeners, clears the ring, hides the hint.
 - `focus(el)` puts the ring on an element yourself. `clearRing()` removes it.
-- `PadNav.nearest(fromRect, rects, 'l' | 'r' | 'u' | 'd')` is the pure direction chooser: it returns an index into `rects` or `-1`. Rects are `{ left, top, width, height }`.
+- `PadNav.nearest(fromRect, rects, 'l' | 'r' | 'u' | 'd', rule?)` is the pure direction chooser (`rule` is `'center'` or `'edges'`): it returns an index into `rects` or `-1`. Rects are `{ left, top, width, height }`.
 - Other pure helpers, usable without a DOM: `PadNav.stick(x, y, was, press, release, out?)` (the stick press and release state machine), `PadNav.rangeNext(value, min, max, step, dir)`, `PadNav.nextOption(options, index)` and `PadNav.labelsFor(padId)`.
 
 Button map (Gamepad API "standard" mapping): 12 up, 13 down, 14 left, 15 right, axes 0 and 1 (left stick), 0 = A, 1 = B, 9 = Start. With several pads connected, their inputs are merged.
@@ -115,7 +118,8 @@ Button map (Gamepad API "standard" mapping): 12 up, 13 down, 14 left, 15 right, 
 Behavior details worth knowing:
 
 - Presses are edge-detected. A held direction moves immediately, again after `repeatDelay`, then every `repeatRate`. A missed frame moves once, not several times.
-- Distance is measured between element centers: `distance along the direction + 2.5 x sideways drift`, ignoring anything less than 4 px in that direction. There is no wrapping; at an edge the focus stays. If nothing is further up or down, the scope scrolls by half its height instead (and a scope with a single reachable element scrolls the same way).
+- Which rule (`nextRule`): measured on 2,000 random menus of 3 to 6 rows with 1 to 3 buttons of mixed widths (59,981 presses), the two rules choose a different button in 21.2% of presses. When a button sat directly in line, `'center'` jumped past it to one that was not in line in 5.4% of those presses (2,467 of 45,538); `'edges'` never does. On regular grids (8,496 presses) they always agree. `'edges'` is opt-in because the default has shipped; it is a pure improvement only for menus with mixed widths. Not tried with real players.
+- Distance is measured between element centers (rule `'center'`): `distance along the direction + 2.5 x sideways drift`, ignoring anything less than 4 px in that direction. There is no wrapping; at an edge the focus stays. If nothing is further up or down, the scope scrolls by half its height instead (and a scope with a single reachable element scrolls the same way).
 - The stick counts along its stronger axis only, so a diagonal push does not move twice. The D-pad buttons are independent.
 - A stick direction starts above `deadzone` and ends only below `release`. Between the two it keeps its state, so a stick wobbling between 0.4 and 0.5 holds one direction instead of pressing it again every other frame. Each pad has its own state.
 - Slider adjust mode: A (after `onA`) adds `adjustClass` and shows "Left/Right: change    A or B: done". Left and right move the value by the input's `step` (default 1, `any` means one hundredth of the range) and clamp at `min` and `max`; the key repeat timing applies. Each change fires `input` and then `change`, the way the keyboard does. Up and down do nothing while adjusting. A or B leaves the mode; that B does not call `onBack`. Moving the ring elsewhere, losing the scope or unplugging also leaves it.
@@ -124,8 +128,19 @@ Behavior details worth knowing:
 - An outside function that throws (`getPads`, `getScope`, `filter`, `onA`, `onBack`, `onStart`, `onUse`, `onDisconnect`, `hintText`) is caught. `getPads` failing means nothing is known, so nothing changes that frame. A failing `getScope` means no scope; a failing `filter` keeps the element; a failing `onA` still allows the click; a failing `hintText` falls back to the default text.
 - When the ring is not showing (first use, a new scope after a long idle, or after the focused element lost focus), the first direction press only shows it, on the element that already has focus if that is reachable, else the one remembered for this scope, else the first one. A with no ring does the same, except that a scope with exactly one reachable element clicks it.
 - Each scope remembers its last focused element, so closing a sub-panel returns to the button that opened it.
-- Reachable means: matches the selector, not `:disabled`, not `aria-disabled="true"`, not inside `[inert]`, rendered (not `display: none`), not `visibility: hidden`, and passing `filter`.
+- Reachable means: matches the selector, not `:disabled`, not `aria-disabled="true"`, not inside `[inert]`, rendered (not `display: none`), not `visibility: hidden`, and passing `filter`. Where the browser has `element.checkVisibility()` (Chromium 155 and Firefox 158 measured) one call checks the last two; older browsers use the earlier two-step check with the same answer.
 - The hint is written to the DOM only when it changes, and nothing at all is shown before the first pad input.
+
+## Making it smaller (optional)
+The file is 13,091 bytes minified (4,776 gzip) with esbuild. Two big parts can be cut if a game does not use them:
+
+| Cut | Minified / gzip saved |
+| --- | --- |
+| Hint text and button names (`hintEl`, `hintText`, `labels`, `PadNav.labelsFor`) | 1,826 / 672 |
+| Slider and drop-down support (`formControls`, `rangeNext`, `nextOption`, `decimals`, adjust mode) | 1,862 / 661 |
+| Both | 3,688 / 1,346 (9,403 / 3,430 left, 28% smaller) |
+
+`node modules/pad-nav/test/lite.js [hint] [forms] [--write FILE]` makes the cut copy (both cuts by default) and proves it still loads, wakes the ring, moves it right twice and presses the button. Each cut is an exact text match, so if `pad-nav.js` changes and a cut no longer fits, the script stops and names it. A cut copy is not a released version; check which options you pass.
 
 ## How it differs from existing open source
 
@@ -155,7 +170,7 @@ I searched for these alternatives briefly, not exhaustively. Other gamepad-to-fo
 - Android: an old report (2016, Samsung Internet) says a Bluetooth controller's B button can act as the browser's Back key. I could not confirm that it still happens. One real-phone check settles it: on an Android phone with a Bluetooth pad, press B on a page with `onBack` set and see whether the browser also goes back or closes a panel (for example one managed by `back-close`). If it does, B would fire both; until someone checks, do not assume either way.
 - The stick thresholds (`deadzone` 0.45, `release` 0.35) are reasonable defaults, not tuned on real worn sticks. Raise `deadzone` or lower `release` if your players report drifting or sticky directions.
 - Left stick only (axes 0 and 1); the right stick, triggers and other buttons do nothing.
-- Spatial choice has no hard cone: a distant straight neighbor can lose to a nearby diagonal one if the diagonal is much closer. Equal scores go to the element earlier in document order.
+- With the default rule the choice has no hard cone: a distant straight neighbor can lose to a nearby diagonal one if the diagonal is much closer (`nextRule: 'edges'` prefers one that is in line). Equal scores go to the element earlier in document order.
 - No nested sections, no wrap-around, no per-element overrides, no shadow DOM piercing (`querySelectorAll` does not see into shadow roots) and no iframes.
 - Candidates are re-queried on every directional press (not every frame), which is fine for menus and not meant for thousands of elements. `getScope` or `scopeSelector` runs every frame while a pad is connected.
 - Focus uses a class plus `element.focus({ preventScroll: true })`, so a screen reader follows the real focus. The ring is only visible if you write CSS for `.pad-focus` (and `.pad-adjust` for a slider in adjust mode); `:focus-visible` is not relied on.

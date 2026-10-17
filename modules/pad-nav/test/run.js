@@ -303,6 +303,58 @@ console.log('7. hint role and button names');
   check('names are shared and frozen by default', Object.isFrozen(PadNav.DEFAULT_NAMES));
 })();
 
+// ---------------------------------------------------------------- 7b. nextRule, checkVisibility, onInput
+console.log('7b. nextRule edges, checkVisibility, onInput');
+(function () {
+  function R(l, t, w, hh) { return { left: l, top: t, width: w, height: hh }; }
+  // a wide button on top, a narrow one below-left of its center and a narrow one below-right: down from the wide one
+  var wide = R(0, 0, 300, 40), under = [R(0, 60, 60, 40), R(240, 60, 60, 40)];
+  check('center rule: down from a wide button picks the one nearer its center line (tie goes to the first)', PadNav.nearest(wide, under, 'd') >= 0);
+  // in-line case: a short button to the right on the same row beats a closer-by-center one on the next row
+  var from = R(0, 0, 100, 40), cand = [R(130, 4, 60, 32), R(60, 50, 40, 40)];
+  check('edges: right goes to the button on the same row, not the one that is mostly below', PadNav.nearest(from, cand, 'r', 'edges') === 0);
+  // a button that overlaps in line but is farther away must lose to a nearer one in line
+  var near = [R(300, 0, 40, 40), R(120, 0, 40, 40)];
+  check('edges: the nearest edge in line wins', PadNav.nearest(from, near, 'r', 'edges') === 1);
+  // nothing in line: falls back to the center rule
+  var diag = [R(150, 100, 40, 40)];
+  check('edges: with none in line it falls back to the center rule', PadNav.nearest(from, diag, 'r', 'edges') === PadNav.nearest(from, diag, 'r'));
+  check('edges: nothing in that direction gives -1', PadNav.nearest(from, [R(-200, 0, 40, 40)], 'r', 'edges') === -1);
+  check('edges: up and left mirror down and right', PadNav.nearest(R(0, 200, 100, 40), [R(10, 100, 40, 40), R(300, 190, 40, 40)], 'u', 'edges') === 0 && PadNav.nearest(R(300, 0, 100, 40), [R(100, 5, 40, 40), R(310, 100, 40, 40)], 'l', 'edges') === 0);
+  check('edges: a larger overlap wins when the gap is equal', PadNav.nearest(R(0, 0, 100, 100), [R(120, 80, 40, 40), R(120, 10, 40, 60)], 'r', 'edges') === 1);
+  check('unknown rule is the default center rule', PadNav.nearest(from, cand, 'r', 'bogus') === PadNav.nearest(from, cand, 'r'));
+  check('nextRule defaults to center, accepts edges, ignores anything else', make({}).pn.nextRule === 'center' && make({ nextRule: 'edges' }).pn.nextRule === 'edges' && make({ nextRule: 'x' }).pn.nextRule === 'center');
+  // moving with nextRule edges through step(): row of three, then a tall button below the first
+  var kids = row(3); kids[1].top = 0; kids[0].top = 0; kids[2].top = 0;
+  var e = make({ nextRule: 'edges' }, kids); e.tap('right'); e.tap('right');
+  check('edges rule moves through a row like the default', e.ring() === 'b1', e.ring());
+
+  // checkVisibility is used when the element has it (and getClientRects is then not needed)
+  var seen = [], vis = row(3);
+  vis.forEach(function (el, i) { el.checkVisibility = function (o) { seen.push(o && o.checkVisibilityCSS && o.visibilityProperty ? 'ok' : 'bad'); return i !== 1; }; el.getClientRects = function () { throw new Error('should not be called'); }; });
+  var v = make({}, vis); v.tap('right'); v.tap('right');
+  check('checkVisibility hides b1 and both option spellings are passed', v.ring() === 'b2' && seen.length > 0 && seen.every(function (x) { return x === 'ok'; }), v.ring() + ' ' + seen.join());
+  // without it, the old path still hides display:none elements
+  var old = row(3); old[1].getClientRects = function () { return []; };
+  var o2 = make({}, old); o2.tap('right'); o2.tap('right');
+  check('without checkVisibility the old path still skips a hidden button', o2.ring() === 'b2', o2.ring());
+
+  // onInput
+  var n = 0, ii = make({ onInput: function (pad) { n++; ii.log.push('in:' + (pad === ii.pad)); } });
+  ii.hold(['right']); ii.tick(0); ii.tick(50); ii.tick(50);
+  check('onInput fires on pad input, at most once per 250 ms', n === 1 && ii.log[0] === 'in:true', n + ' ' + ii.log.join());
+  ii.tick(400);
+  check('onInput fires again after the gap', n === 2, n);
+  ii.hold([]); ii.tick(1000);
+  check('no input, no onInput', n === 2, n);
+  var jj = 0, ij = make({ onInput: function () { jj++; }, inputMs: 0 }); ij.hold(['right']); ij.tick(); ij.tick(); ij.tick();
+  check('inputMs 0 reports every frame with input', jj === 3, jj);
+  var thr = make({ onInput: function () { throw new Error('page bug'); } }); thr.hold(['right']); var tt = false; try { thr.tick(); thr.tick(); } catch (x) { tt = true; }
+  check('a throwing onInput does not break step()', !tt);
+  var st = make({ onInput: function () { st.log.push('input'); }, onUse: function () { st.log.push('use'); } }); st.hold(['right']); st.tick();
+  check('onInput comes before onUse on the first input', st.log.join() === 'input,use', st.log.join());
+})();
+
 // ---------------------------------------------------------------- 8. loader and house rules
 console.log('8. UMD wrapper and house rules');
 var src = fs.readFileSync(FILE, 'utf8');

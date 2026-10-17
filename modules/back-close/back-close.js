@@ -3,7 +3,7 @@
  * Uses CloseWatcher, which is also what the Escape key and the desktop close gestures go through.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   var panelBack = BackClose.watch(panel, function () { closePanel(); });   // panel: any element that uses the `hidden` attribute
  *   closeButton.onclick = function () { panelBack.close(); };                // optional: the X button and pad B take the same route
@@ -19,6 +19,12 @@
  * show the panel from a tap; not tried on a real iPhone. Without the option, browsers without CloseWatcher get
  * { supported: false } and your normal close controls still work.
  *
+ * Panels that are not toggled with `hidden`: BackClose.watch(panel, closeFn, { isShown: function (el) { return el.classList.contains('open'); },
+ * attributes: ['class'] }) decides "shown" your way and watches those attributes instead. Panels that are not an element at all (drawn on a
+ * canvas, or several panels that one back swipe should close together):
+ *   var back = BackClose.watchWhen(function () { return anyPanelOpen(); }, function () { closeAllPanels(); });
+ *   // call back.sync() whenever panels open or close; it arms or removes the watcher to match (back.close() and back.destroy() work as above)
+ *
  * Several panels open at once: the most recently shown one closes first. Panels shown without a tap or key in
  * between (for example by a timer) can be grouped by the browser and close together on one back swipe; show a panel
  * from a user action where you can. For a native <dialog> or popover you need none of this: the browser already routes close requests to them.
@@ -29,9 +35,9 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  function hasCW() { return typeof CloseWatcher === 'function' && typeof MutationObserver === 'function'; }
-  function hasHistory() {
-    return typeof window !== 'undefined' && typeof MutationObserver === 'function' && !!window.history &&
+  function hasCW(needObserver) { return typeof CloseWatcher === 'function' && (!needObserver || typeof MutationObserver === 'function'); }
+  function hasHistory(needObserver) {
+    return typeof window !== 'undefined' && (!needObserver || typeof MutationObserver === 'function') && !!window.history &&
       typeof window.history.pushState === 'function' && typeof window.history.back === 'function' && typeof window.addEventListener === 'function';
   }
 
@@ -61,13 +67,29 @@
     sync();
   }
 
-  function watch(el, close, opts) {
-    var useFallback = !!(opts && opts.historyFallback);
-    var mode = !el || typeof close !== 'function' ? 'none' : hasCW() ? 'closewatcher' : useFallback && hasHistory() ? 'history' : 'none';
-    var handle = { supported: mode !== 'none', mode: mode, destroy: function () {}, close: function () { return false; } };
+  // watch(el, close, opts): the panel is an element; it counts as shown while `isShown(el)` says so (default: no `hidden` attribute and in the page)
+  // and the element is watched for changes of the attributes in `opts.attributes` (default ['hidden']).
+  function watch(el, close, opts) { return make(el, close, opts, null); }
+  // watchWhen(isOpen, close, opts): for panels that are not an element (a canvas drawing, several panels at once). Nothing is watched:
+  // call handle.sync() whenever isOpen() may have changed and the watcher is armed or removed to match.
+  function watchWhen(isOpen, close, opts) { return make(null, close, opts, typeof isOpen === 'function' ? isOpen : null); }
+
+  function make(el, close, opts, openFn) {
+    var useFallback = !!(opts && opts.historyFallback), userShown = opts && typeof opts.isShown === 'function' ? opts.isShown : null;
+    var attrs = opts && opts.attributes && opts.attributes.length ? opts.attributes : ['hidden'], needMO = !!el;
+    var known = typeof close === 'function' && (el ? true : !!openFn);
+    var mode = !known ? 'none' : hasCW(needMO) ? 'closewatcher' : useFallback && hasHistory(needMO) ? 'history' : 'none';
+    var handle = { supported: mode !== 'none', mode: mode, destroy: function () {}, close: function () { return false; }, sync: function () {} };
+    function shown() {
+      try {
+        if (openFn) return !!openFn();
+        if (!el || el.isConnected === false) return false;
+        return userShown ? !!userShown(el) : !el.hidden;
+      } catch (e) { return false; }
+    }
     if (mode === 'none') {                                     // no back-swipe support here, but handle.close() still runs your close function
       handle.close = function () {
-        if (!el || typeof close !== 'function' || el.hidden || el.isConnected === false) return false;
+        if (!known || !shown()) return false;
         try { close(); } catch (e) { /* the page's close function failed */ }
         return true;
       };
@@ -75,7 +97,6 @@
     }
     var cw = null, rec = null, mo = null, destroyed = false;
 
-    function shown() { return !el.hidden && el.isConnected !== false; }
     function run() {                                           // the page's close function, then arm again if it stayed open
       try { close(); } catch (e) { /* the page's close function failed; do not trap the user */ }
       if (!destroyed && shown()) arm();
@@ -98,9 +119,13 @@
       if (cw) { try { cw.destroy(); } catch (e) { /* already gone */ } cw = null; }
       if (rec) { var r = rec; rec = null; unpush(r); }
     }
-    mo = new MutationObserver(function () { if (el.hidden) disarm(); else arm(); });
-    mo.observe(el, { attributes: true, attributeFilter: ['hidden'] });
+    function sync() { if (destroyed) return; if (shown()) arm(); else disarm(); }
+    if (el) {
+      mo = new MutationObserver(sync);
+      mo.observe(el, { attributes: true, attributeFilter: attrs });
+    }
     arm();
+    handle.sync = sync;
     handle.destroy = function () { destroyed = true; if (mo) mo.disconnect(); mo = null; disarm(); };
     // one route for every way to close: the on-screen X, the controller B button and the back swipe all end up in your close function
     handle.close = function () {
@@ -112,7 +137,7 @@
     return handle;
   }
 
-  var api = { watch: watch };
-  Object.defineProperty(api, 'supported', { enumerable: true, get: hasCW });
+  var api = { watch: watch, watchWhen: watchWhen };
+  Object.defineProperty(api, 'supported', { enumerable: true, get: function () { return hasCW(true); } });
   return api;
 });
