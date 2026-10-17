@@ -386,10 +386,29 @@ EXPORT int inflate_raw(const u8 *src, int n, u8 *dst, int dn) {
 static int dh[1 << 15];
 static unsigned short dpv[32768];
 static u32 dlf[286], ddf[30];
-static int dcov, dextra, dhas, dprevLen, dprevDist, dskip, dip, dmiss, dready = 0;
+static int dcov, dextra, dhas, dprevLen, dprevDist, dskip, dip, dmiss, dready = 0, dadapt = 0, dminLen = 3, dprobeAt = 0;
+static int lgT[513];
 static u8 LSYMt[259], DSYMLOt[512];
+/* Shuffled planes: a byte plane that varies little (low order-0 entropy) makes short matches a bad deal, because a literal there costs
+ * only a few bits while a match costs about 20. df_run() samples 512 bytes every 4096 and raises the shortest match it takes to
+ * 28 / (entropy + 0.6), at most 32; planes at 6 bits or more keep 3. Integer maths only, so the JavaScript copy gives the same bytes. */
+static int lg256(int c) {   /* floor(log2(c) * 256), by repeated squaring */
+  int l = 31 - __builtin_clz((unsigned)c), frac = 0; u64 x = (u64)c << (16 - l);
+  for (int i = 0; i < 8; i++) { x = (x * x) >> 16; if (x >= 131072) { x >>= 1; frac = frac * 2 + 1; } else frac *= 2; }
+  return l * 256 + frac;
+}
+static int probe_minlen(const u8 *p, int n) {
+  if (n < 512) return 3;
+  unsigned short h[256]; for (int i = 0; i < 256; i++) h[i] = 0;
+  for (int i = 0; i < 512; i++) h[p[i]]++;
+  int s = 0; for (int i = 0; i < 256; i++) s += lgT[h[i]];
+  int H = 2304 - (s >> 9);
+  if (H >= 1536) return 3;
+  int ml = (28 * 256) / (H + 154); return ml < 3 ? 3 : ml > 32 ? 32 : ml;
+}
 static void df_tables(void) {
   if (dready) return;
+  for (int c = 1; c <= 512; c++) lgT[c] = c * lg256(c);
   for (int i = 0; i < 29; i++) for (int j = LBASE[i]; j < (i < 28 ? LBASE[i + 1] : 259); j++) LSYMt[j] = (u8)i;
   LSYMt[258] = 28;
   for (int i = 0; i < 30; i++) for (int j = DBASE[i]; j < (i < 29 ? DBASE[i + 1] : 32769); j++) { int di = j <= 256 ? j - 1 : 256 + ((j - 1) >> 7); if (di < 512) DSYMLOt[di] = (u8)i; }
@@ -400,11 +419,11 @@ EXPORT u32 *df_lf(void) { return dlf; }
 EXPORT u32 *df_df(void) { return ddf; }
 EXPORT int df_cov(void) { return dcov; }
 EXPORT int df_extra(void) { return dextra; }
-EXPORT void df_init(int hbits) {
+EXPORT void df_init(int hbits, int adapt) {
   df_tables();
   for (int i = 0; i < (1 << hbits); i++) dh[i] = -1;
   for (int i = 0; i < 32768; i++) dpv[i] = 0;
-  dip = 0; dcov = 0; dhas = 0; dprevLen = 0; dprevDist = 0; dskip = 0; dmiss = 0;
+  dadapt = adapt; dminLen = 3; dprobeAt = 0; dip = 0; dcov = 0; dhas = 0; dprevLen = 0; dprevDist = 0; dskip = 0; dmiss = 0;
 }
 #define TOKMATCH(dist, len) ((int)0x80000000u | (((dist) - 1) << 8) | ((len) - 3))
 /* Runs until `limit` tokens are made (checked between steps) or the input ends. Returns the number of tokens; df_cov() is how many
@@ -449,14 +468,15 @@ EXPORT int df_run(const u8 *src, int n, int level, int *toks, int limit, int hbi
   while (ip < n) {
     if (nt >= limit && !hasPrev) break;
     if (miss > 32 && !hasPrev && (ip & 7) != 0 && ip < lim) { toks[nt++] = src[ip]; dlf[src[ip]]++; ip++; dcov = ip; continue; }
-    int bestLen = 2, best = 0;
+    if (dadapt && ip >= dprobeAt) { dminLen = probe_minlen(src + ip, n - ip); dprobeAt = ip + 4096; }
+    int bestLen = 2, best = 0, minLen = dminLen, hmask = minLen >= 4 ? -1 : 0xFFFFFF;
     if (ip < lim) {
-      u32 h = ((ld32(src + ip) & 0xFFFFFFu) * 2654435761u) >> shift;
+      u32 h = ((ld32(src + ip) & (u32)hmask) * 2654435761u) >> shift;
       int cand = dh[h]; dpv[ip & 32767] = (cand >= 0 && ip - cand < 32768) ? (unsigned short)(ip - cand) : 0; dh[h] = ip;
       int maxLen = n - ip; if (maxLen > 258) maxLen = 258;
       int tries = miss > 32 ? 1 : (hasPrev && prevLen >= 32) ? chainMax >> 2 : chainMax;
       if (hasPrev && prevLen >= nice) tries = 0;
-      if (hasPrev) bestLen = prevLen;
+      if (hasPrev) bestLen = prevLen; else if (minLen > 3) bestLen = minLen - 1;
       while (cand >= 0 && tries-- > 0) {
         int dist = ip - cand;
         if (dist > 32767) break;
@@ -485,7 +505,7 @@ EXPORT int df_run(const u8 *src, int n, int level, int *toks, int limit, int hbi
         int ls = LSYMt[prevLen], ds = dsym(prevDist);
         toks[nt++] = TOKMATCH(prevDist, prevLen); dlf[257 + ls]++; ddf[ds]++; dextra += LEXT[ls] + DEXT[ds];
         int endp = ip - 1 + prevLen; dcov = endp; ip++;
-        while (ip < endp) { if (ip < lim) { u32 t3 = ((ld32(src + ip) & 0xFFFFFFu) * 2654435761u) >> shift; int pp = dh[t3]; dpv[ip & 32767] = (pp >= 0 && ip - pp < 32768) ? (unsigned short)(ip - pp) : 0; dh[t3] = ip; } ip++; }
+        while (ip < endp) { if (ip < lim) { u32 t3 = ((ld32(src + ip) & (u32)hmask) * 2654435761u) >> shift; int pp = dh[t3]; dpv[ip & 32767] = (pp >= 0 && ip - pp < 32768) ? (unsigned short)(ip - pp) : 0; dh[t3] = ip; } ip++; }
         hasPrev = 0;
         continue;
       }
@@ -496,7 +516,7 @@ EXPORT int df_run(const u8 *src, int n, int level, int *toks, int limit, int hbi
         int ls = LSYMt[bestLen], ds = dsym(best);
         toks[nt++] = TOKMATCH(best, bestLen); dlf[257 + ls]++; ddf[ds]++; dextra += LEXT[ls] + DEXT[ds];
         int endp = ip + bestLen; ip++;
-        while (ip < endp) { if (ip < lim) { u32 t3 = ((ld32(src + ip) & 0xFFFFFFu) * 2654435761u) >> shift; int pp = dh[t3]; dpv[ip & 32767] = (pp >= 0 && ip - pp < 32768) ? (unsigned short)(ip - pp) : 0; dh[t3] = ip; } ip++; }
+        while (ip < endp) { if (ip < lim) { u32 t3 = ((ld32(src + ip) & (u32)hmask) * 2654435761u) >> shift; int pp = dh[t3]; dpv[ip & 32767] = (pp >= 0 && ip - pp < 32768) ? (unsigned short)(ip - pp) : 0; dh[t3] = ip; } ip++; }
       } else { toks[nt++] = src[ip]; dlf[src[ip]]++; ip++; }
       dcov = ip;
     }
