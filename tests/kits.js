@@ -87,6 +87,7 @@ var steps = [
   ['zip-open checksums', 'node', ['tests/zip-open-crc-browser.js'], true, true],   // optional like the one above (the checksum against a plain bit-by-bit CRC in Node and in each browser, with timings)
   ['sprite-baker Fancy pixels', 'node', ['tests/sprite-baker-fancy-browser.js'], true, true],   // optional like the one above (Fancy Banana's own filler against sprite-baker, byte for byte, in Node and in each browser, with timings)
   ['save-kit speed', 'node', ['tests/save-kit-speed-browser.js'], true, true],   // optional like the one above (one game-sized save and load, new file against an older one with OLD=, in Node and in each browser)
+  ['memory-compression-jso browser', 'node', ['tests/memory-compression-jso-browser.js'], true, true],   // optional: the module's own 36 checks inside each browser page (about 6 to 8 s per browser)
   ['small lean browser', 'node', ['tests/small-lean-browser.js'], true, true],   // optional: back-close, wake-keeper, even-dt and quality-governor lean builds in each browser (about 3 s per browser)
   ['frame-kit browser', 'node', ['tests/frame-kit-browser.js'], true, true],   // optional like the one above (the 67 checks of modules/frame-kit/test/run.js run inside each browser, plus about 1.5 s of real animation frames)
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fourth item: a browser step (left out by --quick, run one at a time); fifth: counts as skipped, not failed, when it exits with code 2

@@ -1,12 +1,12 @@
 # memory-compression-jso
 
-**Version 1.3.0 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (the speed table below; tests in Node, normal, no-wasm, no-eval and full fuzz)
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (the module's own 36 checks inside each browser page, one browser at a time, 36 of 36 passed in all four, 5 to 8 s each; number columns, restore and single reads measured in each earlier; tests in Node: normal, no-wasm, no-eval, long fuzz)
 
-Keeps a big pile of plain JavaScript objects (a list of 300,000 links, 100,000 scene items, an API answer, a log) packed in memory as a few megabytes of bytes, and brings every value back exactly. It is the object version of [memory-compression](../memory-compression/README.md): arrays of objects are stored as columns, and the columns go through that module's float-aware packing. One file, no dependencies, works offline, about 206 KB with comments (the core and its small optional WebAssembly helpers are inside); the optional Pcodec add-on is a second file, `memory-compression-jso-pco.js` (441 KB, because the 327 KB Pcodec program is inside it as text).
+Keeps a big pile of plain JavaScript objects (a list of 300,000 links, 100,000 scene items, an API answer, a log) packed in memory as a few megabytes of bytes, and brings every value back exactly. It is the object version of [memory-compression](../memory-compression/README.md): arrays of objects are stored as columns, and the columns go through that module's float-aware packing. One file, no dependencies, works offline, 264,415 bytes with comments (the core, the number chooser, the keeper and the small WebAssembly helpers are all inside; the plain-JavaScript fallback gives the same bytes when a page blocks WebAssembly). It also sets `MemoryCompression` (the core alone) unless a page already has one. The plain `memory-compression` module is not renamed, aliased or retired: it stays as the small core for pages that only pack bytes (renaming or aliasing is a later decision, after the profiling pass).
 
-**Test it:** `node modules/memory-compression-jso/test/run.js` (31 checks, about 4 s; `--js-only` runs without WebAssembly; `FULL=1` runs 10 times more random cases). **Try it:** `demo.html`. **Rebuild the file:** `python3 modules/memory-compression-jso/build.py`.
+**Test it:** `node modules/memory-compression-jso/test/run.js` (36 checks, about 5 s; `--js-only` runs without WebAssembly; `FULL=1` runs 10 times more random cases). **Try it:** `demo.html`. **Rebuild the file:** `python3 modules/memory-compression-jso/build.py`.
 
 ## Quick start
 ```js
@@ -224,40 +224,77 @@ At 100,000 names and cities the kernel unpacks in 8.4 ms in Chromium against 26.
 
 The kernel needs a page that allows WebAssembly (`'wasm-unsafe-eval'`); without it, or with `{ wasm: false }`, the JavaScript does the same work and writes the same bytes (checked). Kernel source: `wasm/jso-kernels.c`; rebuild with `wasm/build.sh` (clang 18.1.3) then `wasm/embed.py` and `build.py`; 3,323 bytes, sha256 starting 57424e85, identical when built again in a different folder.
 
-### Number columns stored by Pcodec (optional add-on, `pco`, 1.2.0)
-[Pcodec](https://github.com/pcodec/pcodec) (version 1.0.4, Apache-2.0, by Martin Loncaric and contributors) is a number compressor made for columns of numbers that drift, grow or wander: timestamps, sensor readings, prices. It is a 327 KB program, so it is **not inside** `memory-compression-jso.js`. Load the second file only on pages that want it:
-```js
-MemoryCompressionJSOPco.load().then(function (pco) {                 // pco is null if WebAssembly is missing or blocked: then everything stays as before
-  var packed = MemoryCompressionJSO.pack(rows, { pco: pco });         // each number column of 4,096 or more values is also tried with Pcodec; the smaller is kept
-  var back = MemoryCompressionJSO.unpack(packed, { pco: pco });       // (view() takes the same option)
-});
-```
-Decimals are turned into whole numbers first (as always), and Pcodec codes the whole numbers; columns that fit 32 bits use its 32-bit mode. A column that Pcodec does not make smaller is written the old way and costs nothing but the time to try. A file that used Pcodec says format 3 and needs the add-on to open: without it, `unpack` and `view` throw "this file stores a number column with Pcodec; load memory-compression-jso-pco.js and pass its codec as the pco option". A file whose columns did not use Pcodec opens without the add-on. The add-on does not change anything for a page that never loads it. On a page that forbids WebAssembly (checked in Chromium 155 and Firefox 158 with a policy that has no `'wasm-unsafe-eval'`) `load()` and `loadSync()` give `null`, and packing carries on the old way with format 2 files.
+### Number columns picked one block at a time (`mode: 'balanced'` or `'small'`, 1.4.0)
+In the default `fast` mode a number column goes straight to the byte packer. In `balanced` and `small` mode each block of 8,192 numbers is tried several ways on a sample and the smallest is written: constant, offset and width, differences, runs, a small table of values, a few big exceptions, a shared divisor, entropy coding, decimals stored as whole numbers (a value that is off by float noise, such as 0.30000000000000004, is stored as its distance from the decimal), the raw 8 bytes, and byte planes (the same byte of every number together, each plane stored the cheapest way). Text columns whose codes are numbers go through the same chooser. Columns under 1,024 values, and columns the chooser gains less than 5% on in a first trial, keep the old way and cost almost nothing. Every kind is checked on read: damaged blocks give a clean error, never wrong numbers. `small` mode also tries deflate over the result and keeps whichever is smallest.
 
-Fast mode, 100,000 rows unless it says otherwise, same sets in each browser. **Smaller is better for every column.**
+100,000 numbers per column, `fast` against `balanced`. **Smaller is better.** The sizes are identical in all four browsers and Node.
 
-| Data | File, plain | File, Pcodec | Smaller by |
+| Column | `fast` | `balanced` | Change |
 |---|---:|---:|---:|
-| Sensor readings (time, 3 one-decimal and two-decimal columns, 2 five-decimal coordinates) | 1,537.3 KB | 508.5 KB | 67% |
-| Price ticks (two-decimal price, volume, side) | 289.1 KB | 154.2 KB | 47% |
-| Random coordinates (3 full-precision doubles) | 1,677.6 KB | 1,200.2 KB | 28% |
-| 100,000 links | 2,640.2 KB | 2,207.6 KB | 16% |
-| 100,000 log events | 837.0 KB | 638.4 KB | 24% |
-| 20,000 map features | 1,803.5 KB | 1,362.8 KB | 24% |
-| 20,000 user records | 308.2 KB | 276.2 KB | 10% |
-| 50,000 scene items | 1,077.6 KB | 1,035.4 KB | 4% |
+| ids 0, 1, 2 ... | 1,635 B | 121 B | -92.6% |
+| timestamps rising by 1 to 3 | 71,052 B | 20,548 B | -71.1% |
+| prices with 2 decimals | 132,045 B | 97,214 B | -26.4% |
+| coordinates with 5 decimals | 117,243 B | 81,760 B | -30.3% |
+| temperatures with 1 decimal | 96,969 B | 54,325 B | -44.0% |
+| 4 decimals plus float noise | 621,672 B | 242,229 B | -61.0% |
+| random doubles | 359,742 B | 359,742 B | 0.0% (nothing to find; kept as is) |
 
-| Browser | Sensor readings: pack plain | pack Pcodec | unpack plain | unpack Pcodec | 100,000 links: pack plain | pack Pcodec | unpack plain | unpack Pcodec |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Firefox 158.0 | 22.6 ms | 51.6 ms | 14.5 ms | **7.9 ms** | 32.8 ms | 86.8 ms | 12.0 ms | 14.5 ms |
-| ungoogled Chromium 155.0.8059.39-1 | 20.7 ms | 46.4 ms | 15.0 ms | **13.8 ms** | 30.0 ms | 85.7 ms | 14.5 ms | 17.6 ms |
-| WebKitGTK 2.52.6 | 37 ms | 63 ms | 26 ms | **13 ms** | 40 ms | 97 ms | 18 ms | 19 ms |
-| GNOME Web 46.5 | 35 ms | 66 ms | 27 ms | **12 ms** | 43 ms | 124 ms | 21 ms | 28 ms |
-| Node 22.22.0 | 18.8 ms | 54.6 ms | 22.6 ms | **15.1 ms** | 28.9 ms | 93.0 ms | 17.9 ms | 22.7 ms |
+Time, in milliseconds, **lower is better**, median of 5 rounds in each browser, one browser at a time. The pack time is the cost: the chooser tries many ways.
 
-(The WebKit timer counts whole milliseconds, so those cells are rough.) **What it costs:** packing is 1.2 to 3.5 times slower (the add-on tries each big number column, then keeps the smaller); unpacking ranges from 2.3 times faster (sensor readings in GNOME Web) to 1.8 times slower (100,000 log events in Chromium). Starting the add-on takes 5.6 to 11 ms (compiling the program on the spot; `load()` does it without blocking and took 5.8 to 8 ms). Where the same block of values repeats (a column that is the same 997 ids over and over), the old way is smaller and is kept: Pcodec cannot find repeats, the block packer can.
+| Browser | timestamps unpack fast / balanced | timestamps pack fast / balanced | prices unpack | prices pack | float-noise unpack | float-noise pack |
+|---|---:|---:|---:|---:|---:|---:|
+| Firefox 158.0 | 1.2 / 2.9 | 1.4 / 60.0 | 1.5 / 4.8 | 1.9 / 58.3 | 1.0 / 4.2 | 1.9 / 115.7 |
+| ungoogled Chromium 155.0.8059.39-1 | 1.3 / 4.7 | 1.3 / 88.4 | 1.6 / 6.8 | 2.2 / 87.8 | 0.9 / 7.6 | 2.5 / 175.2 |
+| WebKitGTK 2.52.6 | 1.4 / 2.8 | 1.1 / 52.0 | 4.7 / 4.5 | 5.0 / 59.0 | 1.2 / 4.9 | 1.9 / 106.7 |
+| GNOME Web 46.5 | 1.5 / 2.9 | 1.3 / 48.3 | 4.3 / 5.1 | 5.0 / 61.0 | 1.8 / 5.2 | 1.8 / 108.3 |
 
-Add-on source: `pco/src/lib.rs` (Pcodec behind a tiny C interface; it also refuses any file that would make more or fewer numbers than the column holds), `pco/Cargo.toml` and `pco/Cargo.lock` (pco pinned to 1.0.4), rebuild with `pco/build.sh` (needs Rust and `rustup target add wasm32-unknown-unknown`; rustc 1.97.0; the result is 326,822 bytes with sha256 starting 888a66a7, the same bytes when built again in a different folder) then `python3 pco/embed.py`. The Pcodec license text is in `pco/NOTICE-pco.txt`.
+**Whole lists of objects, Node 22, `fast` / `balanced` / `small`** (size smaller is better; times lower is better; results come back exactly in every case):
+
+| Data | Size KB fast | balanced | small | Pack ms fast / balanced / small | Unpack ms fast / balanced / small |
+|---|---:|---:|---:|---|---|
+| 300,000 links | 7,670 | 6,409 (-16.4%) | 6,396 (-16.6%) | 87 / 2,116 / 6,917 | 68 / 248 / 254 |
+| 100,000 graph nodes | 2,050 | 1,733 (-15.5%) | 1,701 (-17.0%) | 65 / 568 / 1,642 | 38 / 55 / 63 |
+| 200,000 log events | 1,631 | 1,176 (-27.9%) | 1,102 (-32.5%) | 64 / 589 / 2,864 | 36 / 44 / 46 |
+| 50,000 user records | 746 | 614 (-17.7%) | 578 (-22.6%) | 53 / 372 / 1,138 | 42 / 41 / 39 |
+| 20,000 map features | 1,761 | 1,363 (-22.6%) | 1,356 (-23.0%) | 30 / 361 / 892 | 30 / 41 / 154 |
+
+**Plain takeaway:** `balanced` makes number-heavy data 15 to 28% smaller and reads it back 1.0 to 3.6 times slower, but packing takes 7 to 24 times longer. Use it for data that is packed once and kept (a layout parked while memory is tight); keep `fast` for data packed over and over. Packing speed is the next thing to profile and cut.
+
+### Keeping data packed under memory pressure (`keeper`, 1.4.0)
+`keeper(opts)` holds named values packed, restores them when asked and lets go of the restored copies when a budget is passed or `trim()` is called, least recently used first. `opts.budget` is the most bytes it may hold (packed bytes plus restored copies; 0 means no limit), `opts.onPressure(level, memory)` is called when the level changes (0 fine, 1 at 70% of the budget, 2 at or over it), and every other option (`mode`, `refs`, `fsst`, ...) is used when packing.
+```js
+var K = MemoryCompressionJSO.keeper({ budget: 600e6, mode: 'balanced', refs: true, onPressure: function (level, mem) { /* 0, 1 or 2 */ } });
+K.hold('layout', layout);                 // packs it; let go of your own copy
+K.pin('scene'); /* draw */ K.unpin('scene');   // while pinned, never trimmed or released
+K.restore('layout').then(function (layout) { /* restored in slices; the page stayed free */ });
+K.trim(); K.release();                    // let go of restored copies (the packed bytes stay)
+```
+| Call | What it does |
+|---|---|
+| `hold(name, value, opts?)` | packs and keeps the packed form; returns `{ packed, heap }` (heap = estimated live size). Per-call `opts` override the keeper's (`refs: true` passes through) |
+| `get(name)` | the value, restored now (the page waits) and kept; `view(name)` and `column(name, key)` read parts without making the objects |
+| `restore(name, { sliceMs: 8 }?)` | a promise of the same value, restored in slices of about 8 ms so the page stays free (a packed array of objects: columns one at a time, then objects 512 at a time); anything else is restored in one step on the page |
+| `pin(name)`, `unpin(name)` | counts; a pinned item is skipped by `trim()`, the budget, `release()` and `drop()` (pass `true` as the second argument of `release` or `drop` to force) |
+| `calibrate(factor)` | multiply the live size of restored data by a measured factor (a browser page can cost 2.5 times what a plain heap count says); no argument reads it |
+| `memory()` | `{ packed, restored, total, budget, factor, items: { name: { packed, restored, rows, pinned, restoreMs, restoreMsMeasured, restoredBy } } }`; `restoreMs` is measured after the first restore and guessed from the packed size before |
+| `trim(target?)`, `release(name?)`, `drop(name)`, `level()`, `names()`, `has()`, `touch()` | housekeeping |
+| `bytes(name)`, `adopt(name, bytes, heap?)` | take the packed bytes out (to unpack in your own worker) or keep bytes packed elsewhere |
+| `heap()` | what the browser tells: `usedJSHeap` and `jsHeapLimit` in Chromium only, `deviceMemoryGB` where offered; Firefox and Safari tell nothing, so the keeper's own count (`memory()`) is what to rely on |
+
+`MemoryCompressionJSO.estimateBytes(value)` guesses the live size of a value (usually within a third). `MemoryCompressionJSO.profile(value, opts, repeats)` returns `{ bytes, packMs, unpackMs, format, parts }` where `parts` says which column took how long and how many bytes: the starting point for speeding up packing.
+
+**Reading single items while packed** (300,000 links, 7.85 MB packed; `view()`): opening takes 0.0 to 0.14 ms; the first read opens the columns (36 to 115 ms); each read after that takes 0.2 to 0.7 microseconds in all four browsers (the first study's 220 microseconds per link was the cold cost); reading one field with `field(i, key)` takes 0.05 to 0.4 microseconds.
+
+**Getting the value back without freezing the page** (300,000 links, median of 3, one browser at a time; **lower is better**):
+
+| Browser | `get()`: page frozen for | `restore()`: finished after | `restore()`: longest freeze |
+|---|---:|---:|---:|
+| Firefox 158.0 | 76 ms | 138 ms | 26 ms |
+| ungoogled Chromium 155.0.8059.39-1 | 68 ms | 109 ms | 31 ms |
+| WebKitGTK 2.52.6 | 54 ms | 81 ms | 21 ms |
+| GNOME Web 46.5 | 53 ms | 91 ms | 21 ms |
+
+A worker was tried first and dropped: unpacking in a worker and sending the objects back froze the page for 187 to 299 ms (the copy of the finished objects runs on the page) and took 5 to 10 times longer in all (Chromium 155). To restore elsewhere, take `bytes(name)` to your own worker and send back typed arrays, not objects. A packed value that is not an array of objects (a layout object holding a few arrays) is restored in one step; hold its arrays as separate items to get the slices.
 
 ### A graph where links hold the node objects (`refs: true`)
 100,000 items and 300,000 links that point at the item objects themselves (not copies); JSON text of the same, with the links copied, is 101.6 MB. Same rules: smaller is better in every column.
@@ -425,13 +462,13 @@ Measured against msgpackr 2.1.0 (with and without records, and with bundled stri
 `pack(value, opts)` returns a `Uint8Array`.
 | Option | Meaning | Default |
 |---|---|---|
-| `mode` | `'fast'` (LZ4-class) or `'small'` (deflate, about 15 to 25% smaller, 2 to 3 times slower to pack) | `'fast'` |
+| `mode` | `'fast'` (LZ4-class), `'balanced'` (fast core plus the number chooser) or `'small'` (chooser plus deflate, smallest, slowest to pack) | `'fast'` |
+| `picker` | `true` turns the number chooser on in `fast` mode; `false` turns it off in `balanced` or `small` | per mode |
 | `level` | deflate effort 0 to 9 in small mode | 4 |
 | `refs` | `true` keeps shared objects shared and allows cycles (lists of objects are still stored by column) | off |
 | `check` | `true` adds a checksum that `unpack()` verifies | off |
 | `front` | `false` turns off front coding of sorted text columns (kept only when 15% or more smaller; those columns pack 1.3 to 1.8 times and read 1.2 to 2.2 times slower) | on |
 | `fsst` | `true` also tries FSST codes for text columns (smaller, any one string readable alone; slower to pack) | off |
-| `pco` | the object from `MemoryCompressionJSOPco.load()` or `.loadSync()`: number columns of 4,096 or more are also tried with Pcodec and the smaller is kept (also pass it to `unpack` and `view` for files that used it) | off |
 | `patterns` | `false` skips the text-pattern step (bigger result, faster to pack text-heavy data) | on |
 | `float32` | `true` keeps columns of fractions in 4 bytes per value (lossy: relative error at most about 6e-8; values beyond 3e38 stay 8 bytes) | off |
 | `pool` | `false` does not reuse number-column arrays between packs (they are otherwise kept for the next pack, at most 48 MB; `freeBuffers()` empties them) | on |
@@ -439,6 +476,8 @@ Measured against msgpackr 2.1.0 (with and without records, and with bundled stri
 | `report` | an array that is filled with what each part took (path, bytes before and after, milliseconds) | none |
 
 `unpack(bytes, opts)` returns the value. `opts.maxItems` (default 100,000,000) is the most values it will make and `opts.maxSize` (default 1 GiB) the biggest column it will allocate; both stop a hostile or damaged input before it can use all memory. `opts.wasm` as above.
+
+Also `keeper(opts)`, `profile(value, opts, repeats)`, `estimateBytes(value)` and `heap()`: see Keeping data packed under memory pressure above.
 
 `view(bytes, opts)` for a packed array of 16 or more objects that all have the same keys returns `{ length, keys, lazy, get(i), field(i, key), column(key), toArray(), loaded(), release(), memory() }`. A file made by 1.1.0 opens without restoring anything (`lazy` is true) and restores a column on first read; a file made by 1.0.0 is restored at open, as before.
 
@@ -450,12 +489,13 @@ Also: `freeBuffers()` (gives back the arrays kept between packs), `ready()` (a p
 - **Hostile input is safe to read.** Every count and size is checked against what is possible, damaged or cut-off data throws, and a flipped byte either throws or (without `check: true`) changes a value. The test file cuts data at every length and flips every byte.
 - **`new Function` is used for speed.** Where a page policy blocks it (tested in Node with `--disallow-code-generation-from-strings`), plain loops do the same work and the bytes are identical, but packing is 1.1 to 1.3 times slower and unpacking 1.2 to 3.3 times slower.
 - **Very large inputs.** `maxItems` stops an unpack that would make more than 100 million values (change it if the data is yours).
+- **Format 5 (1.4.0).** A file with a chooser-coded number column or text-dictionary codes says format 5; 1.3.x refuses it with "made by a newer version". Files made in `fast` mode with default settings keep saying 2, 3 or 4 and still open in older versions. 1.4.0 reads formats 1 to 5. A file that used the Pcodec add-on (1.2.0 or 1.3.0) is refused with a plain message; read it with 1.3.0.
 - **Format 4 (1.3.0).** A file that holds a front-coded text column says format 4 and 1.2.x refuses it with "made by a newer version"; use `front: false` to keep files readable by 1.2.x. 1.3.0 reads formats 1 to 4.
-- **Format 3 (1.2.0).** A file that holds a date column, an FSST text column or a Pcodec number column says format 3 and 1.1.x refuses it with the message "made by a newer version"; every other file still says format 2 and opens in 1.1.x. 1.2.0 reads formats 1, 2 and 3.
+- **Format 3 (1.2.0).** A file that holds a date column, or an FSST text column says format 3 and 1.1.x refuses it with the message "made by a newer version"; every other file still says format 2 and opens in 1.1.x. 1.2.0 reads formats 1, 2 and 3.
 - **Format.** The first two bytes are `MJ`, then a version byte; a file written by 1.0.0 is read by 1.1.0 (checked with a stored 1.0.0 file), but a 1.1.0 file is format 2 and 1.0.0 cannot read it. It is not compatible with `memory-compression`'s container (different magic).
 
 ## Prior art
-msgpackr and cbor-x (record extension: repeated object layouts written once; generated decoders), avsc (Avro, schema-compiled code), Apache Arrow and Flechette (columnar tables), ALP (SIGMOD 2024: decimal doubles stored as scaled whole numbers; used here in a simple form), FSST (VLDB 2020, text tables; used as the opt-in `fsst` option, with its own 3 KB WebAssembly kernel and a JavaScript port), CLP, Denum and LogPrism (log compression: text patterns plus number columns, which is what 1.1.0's text patterns do in a simple form), BtrBlocks and Vortex (pick an encoding per column from a sample; cascading encodings), Pcodec (arXiv 2502.06112, number modes; used through the optional add-on file, Apache-2.0), Blosc (byte shuffle, through memory-compression). The format and code are this repository's own.
+msgpackr and cbor-x (record extension: repeated object layouts written once; generated decoders), avsc (Avro, schema-compiled code), Apache Arrow and Flechette (columnar tables), ALP (SIGMOD 2024: decimal doubles stored as scaled whole numbers; used here in a simple form), FSST (VLDB 2020, text tables; used as the opt-in `fsst` option, with its own 3 KB WebAssembly kernel and a JavaScript port), CLP, Denum and LogPrism (log compression: text patterns plus number columns, which is what 1.1.0's text patterns do in a simple form), BtrBlocks and Vortex (pick an encoding per column from a sample; cascading encodings), Blosc (byte shuffle, through memory-compression). The format and code are this repository's own.
 
 ## For AI agents
 - Use `pack`/`unpack` for a big array of similar objects you want to keep small in memory or save; `view()` to read single items from a packed array; `mode: 'small'` for anything restored rarely.
@@ -463,5 +503,5 @@ msgpackr and cbor-x (record extension: repeated object layouts written once; gen
 - Await `MemoryCompressionJSO.ready()` once at start-up. Check `packed.length`; irregular data gives up only about 60%.
 - Sorted text (words, file paths) is front coded by itself (`front`, about 30 to 40% smaller, slower to read); pass `{ front: false }` for the fastest read or to keep files readable by 1.2.x.
 - `{ fsst: true }` for big columns of names, paths or log lines (about half the size, one string readable alone, 2 to 6 times slower to pack); skip it for patterns and repeating values, which already have a smaller way (it chooses by itself).
-- Number-heavy data that is packed rarely and kept for long (sensor logs, prices, coordinates): load `memory-compression-jso-pco.js`, `await MemoryCompressionJSOPco.load()` and pass the result as `pco` to `pack`, `unpack` and `view` (up to 67% smaller, 1.2 to 3.5 times slower to pack). Treat a `null` from `load()` as "not available" and carry on without it.
+- Number-heavy data that is packed once and kept (sensor logs, prices, coordinates, a parked layout): `mode: 'balanced'` (15 to 28% smaller on objects, up to 92% on a column; packing 7 to 24 times slower). For memory pressure: `keeper({ budget })` with `hold`, `restore`, `pin`, `trim`; read `memory()` for sizes and restore times.
 - To re-run the comparison: `bench/README.md`.

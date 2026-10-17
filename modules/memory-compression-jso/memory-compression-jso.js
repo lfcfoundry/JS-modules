@@ -2,9 +2,9 @@
  * memory-compression-jso.js: keep big piles of plain JavaScript objects packed in memory, and bring them back exactly, fast.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.4.0 (API 1)
  *
- * What it gives you (plain JavaScript, no dependencies, works offline, one file)
+ * What it gives you (plain JavaScript, no dependencies, works offline, one file; also sets MemoryCompression, the core alone, when a page has none)
  *  - pack(value) / unpack(bytes): any JSON-like value (and Date, Map, Set, typed arrays, BigInt, RegExp, undefined, NaN, -0) to a small
  *    Uint8Array and back to a deep copy that is equal in every way JSON-like data can be. Arrays of objects are stored as columns
  *    (one per key), not as repeated text, so a list of 300,000 link objects becomes a few megabytes and is rebuilt in tens of milliseconds.
@@ -19,7 +19,11 @@
  *    freeBuffers() empties the pool, pack(x, {pool: false}) leaves it alone.
  *  - fsst: true (opt-in): a column of short, varied text (names, paths, log lines) is stored as FSST codes, about half the size of the joined text, and a single
  *    string is read back alone (view() keeps such a column at about a third of its restored size). A 3 KB WebAssembly helper speeds up big columns; plain JavaScript gives the same bytes.
- *  - pco (opt-in, needs the add-on file memory-compression-jso-pco.js): number columns of 4,096 values or more are also tried with Pcodec and the smaller one is kept.
+ *  - mode: 'balanced' / 'small' (or picker: true): each block of 8,192 numbers is tried several ways on a sample and the smallest is kept (offsets, differences, runs, tables, decimals as
+ *    whole numbers, byte planes ...): 15 to 28% smaller objects, up to 92% smaller columns; packing is slower, reading about the same. Plain JavaScript gives the same bytes.
+ *  - front coding: sorted text (words, paths) is stored as what it shares with the row above (on by default, front: false turns it off).
+ *  - keeper({budget}): holds named values packed, restores them (get, or restore() in slices so the page stays free), pins what is being drawn, trims least recently used
+ *    copies under a budget, and reports memory() with restore-time estimates. profile() times pack/unpack and lists where the time goes.
  *  - refs: true now stores lists of shared objects by column too (links that point at the very node objects), not value by value.
  *  - float32: true (opt-in, lossy) keeps fraction columns in 4 bytes per value instead of 8 (relative error at most about 6e-8).
  *  - Built on memory-compression.js (its code is inside this file), so the numeric columns get its byte shuffle, delta and LZ4/deflate stage.
@@ -31,7 +35,7 @@
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.MemoryCompressionJSO = factory();
+  else { root.MemoryCompressionJSO = factory(); if (!root.MemoryCompression) root.MemoryCompression = root.MemoryCompressionJSO.core; }
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
@@ -1054,6 +1058,480 @@
   };
   })();
 
+  // ================================================================ the number picker
+  // Every block of 8,192 numbers picks its own way: whole numbers (one repeated value, offset + bit packing, differences, runs, a small dictionary, a few big outliers kept aside,
+  // a common factor, or a byte-coded bucket table), decimals (ALP: 12.34 as the whole number 1234; float noise such as 1.8630000000000002 is kept as a tiny distance from the decimal
+  // guess), and other doubles (their front bits, a dictionary of doubles, or byte planes: each of the 8 bytes of every double coded on its own). Anything that fits none is stored
+  // as plain doubles, so every input comes back bit for bit (NaN, infinities, -0 and 5e-324 included). Plain JavaScript; used for number columns in the balanced and small modes.
+  var PK = (function () {
+    var LE = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;        // the bit tricks below assume the usual little-endian memory layout
+    function pfail(m) { throw new Error('MemoryCompressionJSO: ' + m); }
+
+    // ---------------------------------------------------------------- bytes in and out
+    var NOBYTES = new Uint8Array(0);
+    function Wr() { this.b = NOBYTES; this.n = 0; this.dv = null; }              // nothing is allocated until the first byte is written
+    Wr.prototype.need = function (k) {
+      var nb;
+      if (this.n + k > this.b.length) { nb = new Uint8Array(Math.max(this.b.length * 2, this.n + k, 64)); nb.set(this.b.subarray(0, this.n)); this.b = nb; this.dv = null; }
+    };
+    Wr.prototype.u8 = function (v) { this.need(1); this.b[this.n++] = v; };
+    Wr.prototype.vi = function (x) { this.need(10); while (x >= 128) { this.b[this.n++] = (x % 128) | 128; x = Math.floor(x / 128); } this.b[this.n++] = x; };
+    Wr.prototype.zi = function (x) { this.vi(x < 0 ? -2 * x - 1 : 2 * x); };
+    Wr.prototype.bytes = function (u8) { this.need(u8.length); this.b.set(u8, this.n); this.n += u8.length; };
+    Wr.prototype.f64 = function (v) {
+      this.need(8); if (!this.dv) this.dv = new DataView(this.b.buffer);
+      this.dv.setFloat64(this.n, v, true); this.n += 8;
+    };
+    Wr.prototype.out = function () { return this.b.subarray(0, this.n); };
+    function Rd(u8) { this.b = u8; this.p = 0; this.dv = new DataView(u8.buffer, u8.byteOffset, u8.length); }
+    Rd.prototype.u8 = function () { if (this.p >= this.b.length) pfail('the data is cut off'); return this.b[this.p++]; };
+    Rd.prototype.vi = function () {
+      var x = 0, m = 1, c, k = 0;
+      do { if (this.p >= this.b.length || k++ >= 8) pfail('the data is cut off or damaged'); c = this.b[this.p++]; x += (c & 127) * m; m *= 128; } while (c & 128);
+      return x;
+    };
+    Rd.prototype.zi = function () { var z = this.vi(); return z % 2 ? -(z + 1) / 2 : z / 2; };
+    Rd.prototype.f64 = function () { if (this.p + 8 > this.b.length) pfail('the data is cut off'); var v = this.dv.getFloat64(this.p, true); this.p += 8; return v; };
+    Rd.prototype.bytes = function (k) {
+      if (!(k >= 0) || this.p + k > this.b.length) pfail('the data is cut off or damaged');
+      var o = this.b.subarray(this.p, this.p + k); this.p += k; return o;
+    };
+
+    // ---------------------------------------------------------------- bit packing (values below 2^32)
+    function bwOf(maxv) { return maxv <= 0 ? 0 : 32 - Math.clz32(maxv >>> 0) + (maxv > 4294967295 ? 99 : 0); }
+    function bpWrite(w, a, n, bw) {
+      var words, o, pos = 0, i, v, idx, off;
+      if (!bw) return;
+      words = Math.ceil(n * bw / 32) + 1; o = new Uint32Array(words);
+      for (i = 0; i < n; i++) {
+        v = a[i] >>> 0; idx = pos >>> 5; off = pos & 31;
+        o[idx] |= v << off; if (off + bw > 32) o[idx + 1] |= v >>> (32 - off);
+        pos += bw;
+      }
+      w.bytes(new Uint8Array(o.buffer, 0, Math.ceil(n * bw / 8)));
+    }
+    function bpRead(r, n, bw) {
+      var out = new Uint32Array(n), bytes, src, tmp, mask, pos = 0, i, idx, off, v;
+      if (!bw) return out;
+      if (bw > 32) pfail('bad bit width');
+      bytes = Math.ceil(n * bw / 8); src = r.bytes(bytes); tmp = new Uint32Array(Math.ceil(bytes / 4) + 1);
+      new Uint8Array(tmp.buffer).set(src); mask = bw === 32 ? 0xFFFFFFFF : (1 << bw) - 1;
+      for (i = 0; i < n; i++) {
+        idx = pos >>> 5; off = pos & 31; v = tmp[idx] >>> off;
+        if (off + bw > 32) v |= tmp[idx + 1] << (32 - off);
+        out[i] = (v & mask) >>> 0; pos += bw;
+      }
+      return out;
+    }
+
+    // ---------------------------------------------------------------- rANS entropy coding of bytes (static table, 12-bit frequencies)
+    var SB = 12, M = 1 << SB, RL = 1 << 23;
+    function ransEncode(syms, freq, cum) {
+      var out = new Uint8Array(syms.length * 2 + 64), p = out.length, x = RL, i, s, f, xmax, k;
+      for (i = syms.length - 1; i >= 0; i--) {
+        s = syms[i]; f = freq[s]; xmax = ((RL >>> SB) << 8) * f;
+        while (x >= xmax) { out[--p] = x & 255; x = x >>> 8; }
+        x = (Math.floor(x / f) << SB) + (x % f) + cum[s];
+      }
+      for (k = 3; k >= 0; k--) out[--p] = (x >>> (8 * k)) & 255;
+      return out.subarray(p);
+    }
+    function ransDecode(bytes, n, freq, cum, slot) {
+      var out = new Uint8Array(n), len = bytes.length, p = 4, x, i, m, s;
+      if (len < 4) pfail('bad entropy data');
+      x = (bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24) >>> 0;
+      for (i = 0; i < n; i++) {
+        m = x & (M - 1); s = slot[m]; out[i] = s; x = freq[s] * (x >>> SB) + m - cum[s];
+        while (x < RL) { if (p >= len) pfail('bad entropy data'); x = ((x << 8) | bytes[p++]) >>> 0; }
+      }
+      return out;
+    }
+    function normFreq(cnt, n) {
+      var f = new Uint16Array(256), tot = 0, big = 0, i;
+      for (i = 0; i < 256; i++) if (cnt[i]) { f[i] = Math.max(1, Math.floor(cnt[i] * M / n)); tot += f[i]; if (cnt[i] > cnt[big]) big = i; }
+      f[big] += M - tot;
+      if (f[big] < 1) pfail('bad frequencies');
+      return f;
+    }
+    function writeTable(w, freq) {
+      var bm = new Uint8Array(32), i;
+      for (i = 0; i < 256; i++) if (freq[i]) bm[i >> 3] |= 1 << (i & 7);
+      w.bytes(bm); for (i = 0; i < 256; i++) if (freq[i]) w.vi(freq[i] - 1);
+    }
+    function readTable(r) {              // the frequency table, checked: it must add up to exactly 4096
+      var bm = r.bytes(32), freq = new Uint16Array(256), cum = new Uint16Array(257), slot = new Uint8Array(M), i, tot = 0, v;
+      for (i = 0; i < 256; i++) if ((bm[i >> 3] >> (i & 7)) & 1) { v = r.vi() + 1; tot += v; if (tot > M) pfail('bad frequencies'); freq[i] = v; }
+      if (tot !== M) pfail('bad frequencies');
+      for (i = 0; i < 256; i++) { cum[i + 1] = cum[i] + freq[i]; slot.fill(i, cum[i], cum[i + 1]); }
+      return { freq: freq, cum: cum, slot: slot };
+    }
+
+    // ---------------------------------------------------------------- whole numbers (a Float64Array of whole numbers, each below 2^52 in size)
+    var IS = { RAW: 0, CONST: 1, FOR: 2, DELTA: 3, RLE: 4, DICT: 5, PFOR: 6, DIV: 7, ENT: 8 }, MAX_DEPTH = 4;
+    function range(a) { var mn = Infinity, mx = -Infinity, i, v; for (i = 0; i < a.length; i++) { v = a[i]; if (v < mn) mn = v; if (v > mx) mx = v; } return [mn, mx]; }
+    function gapsOf(pos) { var g = new Float64Array(pos.length), prev = -1, k; for (k = 0; k < pos.length; k++) { g[k] = pos[k] - prev - 1; prev = pos[k]; } return g; }
+    function encIntWith(sch, a, depth, opt, mm) {      // bytes, or null when this way does not apply (mm: the smallest and largest value, when the caller already has them)
+      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist;
+      w.u8(sch);
+      if (sch === IS.RAW) { for (i = 0; i < n; i++) w.f64(a[i]); return w.out(); }
+      if (!mm) mm = range(a);
+      mn = mm[0]; mx = mm[1];
+      if (sch === IS.CONST) { if (mn !== mx) return null; w.zi(mn); return w.out(); }
+      if (sch === IS.FOR) {
+        rng = mx - mn; if (rng > 4294967295) return null;
+        bw = bwOf(rng); res = new Uint32Array(n); for (i = 0; i < n; i++) res[i] = a[i] - mn;
+        w.zi(mn); w.u8(bw); bpWrite(w, res, n, bw); return w.out();
+      }
+      if (sch === IS.ENT) {
+        rng = mx - mn; if (rng >= 549755813888 || n < 64) return null;
+        bw = rng < 1 ? 0 : Math.floor(Math.log2(rng)) + 1; sh = Math.max(0, bw - 8); div = Math.pow(2, sh);
+        syms = new Uint8Array(n); low = new Uint32Array(n); cnt = new Uint32Array(256);
+        for (i = 0; i < n; i++) { x = a[i] - mn; y = Math.floor(x / div); syms[i] = y; low[i] = x - y * div; cnt[y]++; }
+        freq = normFreq(cnt, n); cum = new Uint16Array(257); for (i = 0; i < 256; i++) cum[i + 1] = cum[i] + freq[i];
+        w.zi(mn); w.u8(sh); writeTable(w, freq);
+        rb = ransEncode(syms, freq, cum); w.vi(rb.length); w.bytes(rb); bpWrite(w, low, n, sh); return w.out();
+      }
+      if (depth <= 0) return null;
+      if (sch === IS.DELTA) {
+        if (n < 4) return null;
+        d = new Float64Array(n - 1); for (i = 1; i < n; i++) { x = a[i] - a[i - 1]; d[i - 1] = x < 0 ? -2 * x - 1 : 2 * x; }
+        w.zi(a[0]); w.bytes(encInts(d, depth - 1, opt)); return w.out();
+      }
+      if (sch === IS.DIV) {
+        g = 0;
+        for (i = 1; i < n && g !== 1; i++) { x = Math.abs(a[i] - a[0]); y = g; while (y) { t = x % y; x = y; y = t; } g = x; }
+        if (g < 2) return null;
+        d = new Float64Array(n); for (i = 0; i < n; i++) d[i] = (a[i] - a[0]) / g;
+        w.zi(a[0]); w.vi(g); w.bytes(encInts(d, depth - 1, opt)); return w.out();
+      }
+      if (sch === IS.RLE) {
+        vals = []; runs = []; i = 0;
+        while (i < n) { j = i + 1; while (j < n && a[j] === a[i]) j++; vals.push(a[i]); runs.push(j - i - 1); i = j; if (vals.length * 2 > n) return null; }
+        w.vi(vals.length); w.bytes(encInts(Float64Array.from(vals), depth - 1, opt)); w.bytes(encInts(Float64Array.from(runs), depth - 1, opt)); return w.out();
+      }
+      if (sch === IS.DICT) {
+        m = new Map(); lim = Math.min(n / 2, 65536);
+        for (i = 0; i < n; i++) { m.set(a[i], 0); if (m.size > lim) return null; }
+        keys = Array.from(m.keys()).sort(function (p, q2) { return p - q2; }); keys.forEach(function (k, ix) { m.set(k, ix); });
+        codes = new Float64Array(n); for (i = 0; i < n; i++) codes[i] = m.get(a[i]);
+        w.vi(keys.length); w.bytes(encInts(Float64Array.from(keys), depth - 1, opt)); w.bytes(encInts(codes, depth - 1, opt)); return w.out();
+      }
+      if (sch === IS.PFOR) {
+        if (n < 16) return null;
+        res = new Float64Array(n); for (i = 0; i < n; i++) res[i] = a[i] - mn;
+        hist = new Uint32Array(34);                                                // how many values need 0, 1, 2 ... 32 bits (33: more than 32)
+        for (i = 0; i < n; i++) { x = res[i]; hist[x > 4294967295 ? 33 : x <= 0 ? 0 : 32 - Math.clz32(x)]++; }
+        q = Math.floor(n * 0.92) + 1; x = 0; for (bw = 0; bw < 33; bw++) { x += hist[bw]; if (x >= q) break; }   // the narrowest width that holds at least 92% of the values
+        lim = bw >= 32 ? 4294967295 : Math.pow(2, bw) - 1; pos = []; hi = []; low = new Uint32Array(n);
+        for (i = 0; i < n; i++) {
+          if (res[i] > lim) { pos.push(i); hi.push(Math.floor(res[i] / (lim + 1))); low[i] = res[i] % (lim + 1); } else low[i] = res[i];
+        }
+        if (!pos.length || bw >= 32) return null;
+        w.zi(mn); w.u8(bw); w.vi(pos.length); bpWrite(w, low, n, bw); w.bytes(encInts(gapsOf(pos), depth - 1, opt)); w.bytes(encInts(Float64Array.from(hi), depth - 1, opt)); return w.out();
+      }
+      return null;
+    }
+    function sampleOf(a) {                 // a quarter of the values as 4 contiguous slices spread over the array (10% as 10 slices chose badly for decimals: 12% bigger files)
+      var n = a.length, k = 4, len = Math.max(64, Math.floor(n * 0.25 / k)), out, s, from;
+      if (len * k >= n) return a;
+      out = new Float64Array(len * k);
+      for (s = 0; s < k; s++) { from = Math.floor((n - len) * s / (k - 1)); out.set(a.subarray(from, from + len), s * len); }
+      return out;
+    }
+    var INT_ORDER = [IS.CONST, IS.FOR, IS.DELTA, IS.RLE, IS.DICT, IS.PFOR, IS.DIV, IS.ENT, IS.RAW];
+    function encInts(a, depth, opt) {
+      var n = a.length, order = INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, i, sub, mm = range(a);
+      if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
+      if (opt.sample && n > 4096) {        // choose the top way on a sample, then encode only with it
+        s = sampleOf(a); sub = { noEntropy: opt.noEntropy, sample: false }; e = range(s);
+        for (i = 0; i < order.length; i++) { e = tryInt(order[i], s, depth, sub, null); if (e && e.length < bs) { bs = e.length; pick = order[i]; } }
+        e = tryInt(pick, a, depth, opt, mm); if (e) return e;
+      }
+      for (i = 0; i < order.length; i++) { e = tryInt(order[i], a, depth, opt, mm); if (e && (!best || e.length < best.length)) best = e; }
+      return best;
+    }
+    function tryInt(sch, a, depth, opt, mm) { try { return encIntWith(sch, a, depth, opt, mm); } catch (e) { return null; } }
+    function decInts(r, n, depth) {
+      var sch = r.u8(), out = new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div;
+      if (depth > MAX_DEPTH) pfail('data nested too deep');
+      if (sch === IS.RAW) { for (i = 0; i < n; i++) out[i] = r.f64(); return out; }
+      if (sch === IS.CONST) { out.fill(r.zi()); return out; }
+      if (sch === IS.FOR) { mn = r.zi(); bw = r.u8(); res = bpRead(r, n, bw); for (i = 0; i < n; i++) out[i] = res[i] + mn; return out; }
+      if (sch === IS.ENT) {
+        mn = r.zi(); sh = r.u8(); if (sh > 40) pfail('bad shift'); t = readTable(r); rl = r.vi();
+        syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot); low = bpRead(r, n, sh); div = Math.pow(2, sh);
+        for (i = 0; i < n; i++) out[i] = syms[i] * div + low[i] + mn;
+        return out;
+      }
+      if (sch === IS.DELTA) {
+        if (n < 1) pfail('bad column');
+        out[0] = r.zi(); d = decInts(r, n - 1, depth + 1); c = out[0];
+        for (i = 1; i < n; i++) { z = d[i - 1]; c += z % 2 ? -(z + 1) / 2 : z / 2; out[i] = c; }
+        return out;
+      }
+      if (sch === IS.DIV) { b = r.zi(); g = r.vi(); d = decInts(r, n, depth + 1); for (i = 0; i < n; i++) out[i] = d[i] * g + b; return out; }
+      if (sch === IS.RLE) {
+        m = r.vi(); if (m > n) pfail('bad run count');
+        vals = decInts(r, m, depth + 1); runs = decInts(r, m, depth + 1); o = 0;
+        for (k = 0; k < m; k++) { c = runs[k] + 1; if (!(c >= 1) || o + c > n) pfail('bad run lengths'); out.fill(vals[k], o, o + c); o += c; }
+        if (o !== n) pfail('bad run lengths');
+        return out;
+      }
+      if (sch === IS.DICT) {
+        m = r.vi(); if (m > n || m > 65536) pfail('bad dictionary');
+        keys = decInts(r, m, depth + 1); codes = decInts(r, n, depth + 1);
+        for (i = 0; i < n; i++) { c = codes[i]; if (!(c >= 0 && c < m)) pfail('bad dictionary code'); out[i] = keys[c]; }
+        return out;
+      }
+      if (sch === IS.PFOR) {
+        mn = r.zi(); bw = r.u8(); ne = r.vi(); if (ne > n || bw > 31) pfail('bad outliers');
+        low = bpRead(r, n, bw); gaps = decInts(r, ne, depth + 1); hi = decInts(r, ne, depth + 1); lim1 = Math.pow(2, bw);
+        for (i = 0; i < n; i++) out[i] = low[i] + mn;
+        p = -1; for (k = 0; k < ne; k++) { p += gaps[k] + 1; if (!(p >= 0 && p < n)) pfail('bad outlier position'); out[p] += hi[k] * lim1; }
+        return out;
+      }
+      pfail('unknown way ' + sch);
+    }
+
+    // ---------------------------------------------------------------- doubles: ALP with near misses, ALP-RD, dictionary of doubles, byte planes
+    var F10 = [], MAXI = 2251799813685248, f64a = new Float64Array(2), u32a = new Uint32Array(f64a.buffer), HI = LE ? 1 : 0, LO = LE ? 0 : 1, i0;
+    for (i0 = 0; i0 <= 22; i0++) F10.push(Number('1e' + i0));
+    function alpTry(x, e, f) { var d = Math.round(x * F10[e] / F10[f]); if (Math.abs(d) > MAXI) return null; return d * F10[f] / F10[e] === x && !(x === 0 && 1 / x < 0) ? d : null; }
+    function alpParams(a) {                // look at 32 values, rank (e, f) by estimated bits
+      var n = a.length, step = Math.max(1, Math.floor(n / 32)), s = [], i, e, f, ex, mn, mx, d, bits, c, bc = 1e18, best = [0, 0], k;
+      for (i = 0; i < n && s.length < 32; i += step) s.push(a[i]);
+      for (e = 0; e <= 18; e++) for (f = 0; f <= e; f++) {
+        ex = 0; mn = Infinity; mx = -Infinity;
+        for (k = 0; k < s.length; k++) { d = alpTry(s[k], e, f); if (d === null) ex++; else { if (d < mn) mn = d; if (d > mx) mx = d; } }
+        bits = mx >= mn ? Math.log2(mx - mn + 1) : 0; c = (s.length - ex) * bits + ex * 80;
+        if (c < bc) { bc = c; best = [e, f]; }
+      }
+      return best;
+    }
+    // The distance, in last-place steps, between the bit patterns of two doubles with the same sign: an exact small whole number, or null when it is more than 2^20 away.
+    function bitDistance(v, pred) {
+      var hv, lv, hp, lp, r;
+      f64a[0] = v; hv = u32a[HI]; lv = u32a[LO]; f64a[0] = pred; hp = u32a[HI]; lp = u32a[LO];
+      if ((hv >>> 31) !== (hp >>> 31)) return null;
+      r = (hv - hp) * 4294967296 + (lv - lp);
+      return r >= -1048576 && r <= 1048576 ? r : null;
+    }
+    function addDistance(pred, r) {        // the double whose bit pattern is r steps from pred's
+      var h, l;
+      f64a[0] = pred; h = u32a[HI]; l = u32a[LO] + r;
+      if (l >= 4294967296) { l -= 4294967296; h = (h + 1) >>> 0; } else if (l < 0) { l += 4294967296; h = (h - 1) >>> 0; }
+      u32a[HI] = h; u32a[LO] = l; return f64a[0];
+    }
+    function encALP(a, depth, opt) {       // decimals as whole numbers; a value that is NOT exactly a decimal is stored as its distance in last-place steps from the decimal guess
+      var n = a.length, ef = alpParams(a), e = ef[0], f = ef[1], ints = new Float64Array(n), pos = [], near = [], raw = [], last = 0, i, v, d, code, d0, r, w;
+      for (i = 0; i < n; i++) {
+        v = a[i]; d = alpTry(v, e, f);
+        if (d !== null) { ints[i] = d; last = d; continue; }
+        pos.push(i); code = 0; d0 = Math.round(v * F10[e] / F10[f]) + 0;              // + 0 turns -0 into +0 so the encoder and the decoder guess the same value
+        if (isFinite(d0) && Math.abs(d0) <= MAXI) {
+          r = bitDistance(v, d0 * F10[f] / F10[e]);
+          if (r !== null) code = (r >= 0 ? 2 * r : -2 * r - 1) + 1;
+          if (code) { ints[i] = d0; last = d0; } else ints[i] = last;
+        } else ints[i] = last;
+        near.push(code); if (!code) raw.push(v);
+      }
+      if (pos.length * 2 > n) return null;
+      w = new Wr(); w.u8(e); w.u8(f); w.vi(pos.length); w.bytes(encInts(ints, depth, opt));
+      if (pos.length) {
+        w.bytes(encInts(gapsOf(pos), depth - 1, opt)); w.bytes(encInts(Float64Array.from(near), depth - 1, opt));
+        for (i = 0; i < raw.length; i++) w.f64(raw[i]);
+      }
+      return w.out();
+    }
+    function decALP(r, n, depth) {
+      var e = r.u8(), f = r.u8(), ne = r.vi(), ints, out = new Float64Array(n), i, gaps, near, at, p, k, c, q, z;
+      if (e > 22 || f > e || ne > n) pfail('bad decimal column');
+      ints = decInts(r, n, depth + 1);
+      for (i = 0; i < n; i++) out[i] = ints[i] * F10[f] / F10[e];
+      if (ne) {
+        gaps = decInts(r, ne, depth + 1); near = decInts(r, ne, depth + 1); at = new Uint32Array(ne); p = -1;
+        for (k = 0; k < ne; k++) { p += gaps[k] + 1; if (!(p >= 0 && p < n)) pfail('bad exception position'); at[k] = p; }
+        for (k = 0; k < ne; k++) {
+          c = near[k]; q = at[k];
+          if (c === 0) out[q] = r.f64();
+          else { if (!(c >= 1 && c <= 2097153)) pfail('bad near miss'); z = c - 1; out[q] = addDistance(out[q], z % 2 ? -(z + 1) / 2 : z / 2); }
+        }
+      }
+      return out;
+    }
+    function splitHiLo(a, n) {
+      var hiA = new Uint32Array(n), loA = new Uint32Array(n), i;
+      for (i = 0; i < n; i++) { f64a[0] = a[i]; hiA[i] = u32a[HI]; loA[i] = u32a[LO]; }
+      return [hiA, loA];
+    }
+    function encRD(a, depth, opt) {        // front p bits (a dictionary of up to 8 values, the rest as exceptions) and the back bits packed
+      var n = a.length, hl = splitHiLo(a, n), hiA = hl[0], loA = hl[1], bestP = 16, bc = 1e18, p, cnt, i, k, vals, top, tot, c, dict, idx, codes = new Uint32Array(n), pos = [], raw = [], w, lowBits, mask, hiLow = new Uint32Array(n), step = Math.max(1, n >> 8);
+      for (p = 4; p <= 16; p++) {
+        cnt = new Map(); for (i = 0; i < n; i += step) { k = hiA[i] >>> (32 - p); cnt.set(k, (cnt.get(k) || 0) + 1); }
+        vals = Array.from(cnt.values()); top = vals.slice().sort(function (x, y) { return y - x; }).slice(0, 8).reduce(function (s, v) { return s + v; }, 0); tot = vals.reduce(function (s, v) { return s + v; }, 0);
+        c = (64 - p) + 3 + (tot - top) / tot * (p + 16); if (c < bc) { bc = c; bestP = p; }
+      }
+      p = bestP; cnt = new Map(); for (i = 0; i < n; i++) { k = hiA[i] >>> (32 - p); cnt.set(k, (cnt.get(k) || 0) + 1); }
+      dict = Array.from(cnt.entries()).sort(function (x, y) { return y[1] - x[1]; }).slice(0, 8).map(function (q) { return q[0]; });
+      idx = new Map(); dict.forEach(function (k2, ix) { idx.set(k2, ix); });
+      for (i = 0; i < n; i++) { k = hiA[i] >>> (32 - p); if (idx.has(k)) codes[i] = idx.get(k); else { codes[i] = 0; pos.push(i); raw.push(k); } }
+      lowBits = 32 - p; mask = lowBits >= 32 ? 0xFFFFFFFF : (1 << lowBits) - 1; for (i = 0; i < n; i++) hiLow[i] = (hiA[i] & mask) >>> 0;
+      w = new Wr(); w.u8(p); w.u8(dict.length); dict.forEach(function (k2) { w.vi(k2); }); w.vi(pos.length);
+      bpWrite(w, codes, n, dict.length > 1 ? bwOf(dict.length - 1) : 0); bpWrite(w, hiLow, n, lowBits); bpWrite(w, loA, n, 32);
+      if (pos.length) { w.bytes(encInts(gapsOf(pos), depth - 1, opt)); raw.forEach(function (k2) { w.vi(k2); }); }
+      return w.out();
+    }
+    function decRD(r, n, depth) {
+      var p = r.u8(), nd = r.u8(), dict = [], i, ne, lowBits, codes, hiLow, lo, out = new Float64Array(n), front = new Uint32Array(n), gaps, q, k;
+      if (p < 4 || p > 16 || nd > 8) pfail('bad column');
+      for (i = 0; i < nd; i++) dict.push(r.vi());
+      ne = r.vi(); if (ne > n) pfail('bad exception count');
+      lowBits = 32 - p; codes = bpRead(r, n, nd > 1 ? bwOf(nd - 1) : 0); hiLow = bpRead(r, n, lowBits); lo = bpRead(r, n, 32);
+      for (i = 0; i < n; i++) front[i] = dict[codes[i]] || 0;
+      if (ne) { gaps = decInts(r, ne, depth + 1); q = -1; for (k = 0; k < ne; k++) { q += gaps[k] + 1; if (!(q >= 0 && q < n)) pfail('bad exception position'); front[q] = r.vi(); } }
+      for (i = 0; i < n; i++) { u32a[HI] = ((front[i] << lowBits) | hiLow[i]) >>> 0; u32a[LO] = lo[i]; out[i] = f64a[0]; }
+      return out;
+    }
+    function encFDict(a, depth, opt) {
+      var n = a.length, m = new Map(), i, k, keys, codes, w;
+      for (i = 0; i < n; i++) { k = a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]; if (!m.has(k)) m.set(k, m.size); if (m.size > n / 2 || m.size > 65536) return null; }
+      keys = Array.from(m.keys()); codes = new Float64Array(n);
+      for (i = 0; i < n; i++) codes[i] = m.get(a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]);
+      w = new Wr(); w.vi(keys.length); for (i = 0; i < keys.length; i++) w.f64(keys[i] === '-0' ? -0 : keys[i]);
+      w.bytes(encInts(codes, depth, opt)); return w.out();
+    }
+    function decFDict(r, n, depth) {
+      var m = r.vi(), keys = [], i, codes, out = new Float64Array(n), c;
+      if (m > n || m > 65536) pfail('bad dictionary');
+      for (i = 0; i < m; i++) keys.push(r.f64());
+      codes = decInts(r, n, depth + 1);
+      for (i = 0; i < n; i++) { c = codes[i]; if (!(c >= 0 && c < m)) pfail('bad dictionary code'); out[i] = keys[c]; }
+      return out;
+    }
+    function entropyBytes(q, n) {          // a quick estimate of what rANS would write for these bytes: the order-0 entropy plus the table
+      var c = new Uint32Array(256), i, bits = 0, used = 0, v;
+      for (i = 0; i < n; i++) c[q[i]]++;
+      for (i = 0; i < 256; i++) { v = c[i]; if (v) { used++; bits -= v * Math.log2(v / n); } }
+      return bits / 8 + used * 1.5 + 36;
+    }
+    function planeDiff(p, n) { var d = new Uint8Array(n), i; d[0] = p[0]; for (i = 1; i < n; i++) d[i] = (p[i] - p[i - 1]) & 255; return d; }
+    function planeMode(p, n) {             // 1 constant, 0 stored, 2 rANS, 3 rANS of byte differences: by estimate, so only one coder runs per plane
+      var cnt = new Uint32Array(256), i, used = 0, d, e2, e3;
+      for (i = 0; i < n; i++) cnt[p[i]]++;
+      for (i = 0; i < 256; i++) if (cnt[i]) used++;
+      if (used === 1) return { mode: 1, est: 2 };
+      e2 = entropyBytes(p, n); d = planeDiff(p, n); e3 = entropyBytes(d, n);
+      if (Math.min(e2, e3) >= n) return { mode: 0, est: n + 1 };
+      return e3 < e2 ? { mode: 3, est: e3 + 1, d: d } : { mode: 2, est: e2 + 1 };
+    }
+    function planeBytes(p, n, pm) {        // one byte plane, written the way planeMode chose
+      var w = new Wr(), q = pm.mode === 3 ? pm.d : p, c, freq, cum, i, rb, body;
+      if (pm.mode === 1) { w.u8(1); w.u8(p[0]); return w.out(); }
+      if (pm.mode === 0) { w.u8(0); w.bytes(p); return w.out(); }
+      c = new Uint32Array(256); for (i = 0; i < n; i++) c[q[i]]++;
+      freq = normFreq(c, n); cum = new Uint16Array(257); for (i = 0; i < 256; i++) cum[i + 1] = cum[i] + freq[i];
+      writeTable(w, freq); rb = ransEncode(q, freq, cum); w.vi(rb.length); w.bytes(rb);
+      if (w.n + 1 >= n) { w = new Wr(); w.u8(0); w.bytes(p); return w.out(); }          // the estimate was too hopeful: store the plane
+      body = w.out(); w = new Wr(); w.u8(pm.mode); w.bytes(body); return w.out();
+    }
+    function encPlanes(a) {                // byte planes of the doubles (like OpenZL's transpose_split); variant 1 first XORs every value with the one before it; the variant and each plane's way are picked by estimate
+      var n = a.length, best = null, variant, planes, b, i, lo, hi, l2, h2, pl, ph, w, pms, est, bestEst = 1e18, bestPlanes = null, bestPms = null, bestVar = 0;
+      for (variant = 0; variant < 2; variant++) {
+        planes = []; for (b = 0; b < 8; b++) planes.push(new Uint8Array(n));
+        pl = 0; ph = 0;
+        for (i = 0; i < n; i++) {
+          f64a[0] = a[i]; lo = u32a[LO]; hi = u32a[HI];
+          if (variant) { l2 = lo; h2 = hi; lo = (lo ^ pl) >>> 0; hi = (hi ^ ph) >>> 0; pl = l2; ph = h2; }
+          planes[0][i] = lo & 255; planes[1][i] = (lo >>> 8) & 255; planes[2][i] = (lo >>> 16) & 255; planes[3][i] = lo >>> 24;
+          planes[4][i] = hi & 255; planes[5][i] = (hi >>> 8) & 255; planes[6][i] = (hi >>> 16) & 255; planes[7][i] = hi >>> 24;
+        }
+        pms = []; est = 0; for (b = 0; b < 8; b++) { pms.push(planeMode(planes[b], n)); est += pms[b].est; }
+        if (est < bestEst) { bestEst = est; bestPlanes = planes; bestPms = pms; bestVar = variant; }
+      }
+      w = new Wr(); w.u8(bestVar); for (b = 0; b < 8; b++) w.bytes(planeBytes(bestPlanes[b], n, bestPms[b]));
+      return w.out();
+    }
+    function decPlanes(r, n) {
+      var variant = r.u8(), planes = [], b, mode, t, p, rl, i, lo, hi, pl = 0, ph = 0, out = new Float64Array(n);
+      if (variant > 1) pfail('bad column');
+      for (b = 0; b < 8; b++) {
+        mode = r.u8();
+        if (mode === 1) { planes.push(new Uint8Array(n).fill(r.u8())); continue; }
+        if (mode === 0) { planes.push(r.bytes(n).slice()); continue; }
+        if (mode !== 2 && mode !== 3) pfail('bad column');
+        t = readTable(r); rl = r.vi(); p = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot);
+        if (mode === 3) for (i = 1; i < n; i++) p[i] = (p[i - 1] + p[i]) & 255;
+        planes.push(p);
+      }
+      for (i = 0; i < n; i++) {
+        lo = (planes[0][i] | (planes[1][i] << 8) | (planes[2][i] << 16) | (planes[3][i] << 24)) >>> 0; hi = (planes[4][i] | (planes[5][i] << 8) | (planes[6][i] << 16) | (planes[7][i] << 24)) >>> 0;
+        if (variant) { lo = (lo ^ pl) >>> 0; hi = (hi ^ ph) >>> 0; pl = lo; ph = hi; }
+        u32a[LO] = lo; u32a[HI] = hi; out[i] = f64a[0];
+      }
+      return out;
+    }
+
+    // ---------------------------------------------------------------- one block of numbers, and a whole column
+    var CS = { INTS: 0, ALP: 1, RD: 2, RAWF: 3, FDICT: 4, PLANES: 5 }, CHUNK = 8192, NAMES = ['INTS', 'ALP', 'RD', 'RAWF', 'FDICT', 'PLANES'];
+    function isIntegral(a) { var i, v; for (i = 0; i < a.length; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return false; } return true; }
+    function rawDoubles(a) { var w = new Wr(), i; for (i = 0; i < a.length; i++) w.f64(a[i]); return w.out(); }
+    function encChunk(a, depth, opt) {
+      var cands = [], best = null, bs = -1, k, e, w;
+      if (isIntegral(a)) cands.push([CS.INTS, function () { return encInts(a, depth, opt); }]);
+      else {
+        cands.push([CS.ALP, function () { return encALP(a, depth, opt); }]); cands.push([CS.RD, function () { return encRD(a, depth, opt); }]); cands.push([CS.FDICT, function () { return encFDict(a, depth, opt); }]);
+        if (!opt.noEntropy) cands.push([CS.PLANES, function () { return encPlanes(a); }]);
+        cands.push([CS.RAWF, function () { return rawDoubles(a); }]);
+      }
+      for (k = 0; k < cands.length; k++) {
+        if (cands[k][0] === CS.RAWF) continue;                                    // plain doubles are written last, only when nothing else is smaller
+        try { e = cands[k][1](); } catch (err) { e = null; }
+        if (e && (!best || e.length < best.length)) { best = e; bs = cands[k][0]; }
+      }
+      if (!best || best.length >= a.length * 8) { best = rawDoubles(a); bs = CS.RAWF; }
+      w = new Wr(); w.u8(bs); w.bytes(best); return w.out();
+    }
+    function decChunk(r, n) {
+      var id = r.u8(), out, i;
+      if (id === CS.INTS) return decInts(r, n, 0);
+      if (id === CS.ALP) return decALP(r, n, 0);
+      if (id === CS.RD) return decRD(r, n, 0);
+      if (id === CS.FDICT) return decFDict(r, n, 0);
+      if (id === CS.PLANES) return decPlanes(r, n);
+      if (id !== CS.RAWF) pfail('unknown way ' + id);
+      out = new Float64Array(n); for (i = 0; i < n; i++) out[i] = r.f64(); return out;
+    }
+    function describe(part) {              // the name of the top way of one block, e.g. "ALP>DELTA", "INTS:RLE", "PLANES"
+      var r = new Rd(part), id = r.u8(), names = ['RAW', 'CONST', 'FOR', 'DELTA', 'RLE', 'DICT', 'PFOR', 'DIV', 'ENT'];
+      if (id === CS.INTS) return 'INTS:' + names[r.u8()];
+      if (id === CS.ALP) { r.u8(); r.u8(); r.vi(); return 'ALP>' + names[r.u8()]; }
+      return NAMES[id];
+    }
+    // pack(values, opts): values is a Float64Array (or any array of numbers). opts.sample (default true): choose each block's top way on a quarter of it, which is much faster;
+    // opts.noEntropy: leave out the byte-coded ways (used to give a general compressor something it can still shrink); opts.labels: an array that receives one label per block.
+    function pack(values, opts) {
+      var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy) }, w = new Wr(), i, part;
+      w.vi(n); w.vi(CHUNK);
+      for (i = 0; i < n; i += CHUNK) {
+        part = encChunk(a.subarray(i, Math.min(n, i + CHUNK)), 3, o);
+        w.vi(part.length); w.bytes(part);
+        if (opts && opts.labels) opts.labels.push(describe(part));
+      }
+      return w.out();
+    }
+    // unpack(bytes, count): the Float64Array, exactly as it was packed. count is checked against the data. Damaged or cut data throws an Error whose message starts with MemoryCompressionJSO:.
+    function unpack(bytes, count) {
+      var r = new Rd(bytes), n = r.vi(), c = r.vi(), out, i, len, c2;
+      if (n !== count || c < 1 || c > 1048576) pfail('the data does not match the column');
+      out = new Float64Array(n);
+      for (i = 0; i < n; i += c) { len = r.vi(); c2 = Math.min(c, n - i); out.set(decChunk(new Rd(r.bytes(len)), c2), i); }
+      return out;
+    }
+    function available() { return LE; }
+    function available() { return LE; }
+    return { pack: pack, unpack: unpack, available: available };
+  })();
+
   // ================================================================ the object layer
   // Everything below needs only the packing core above (MC). Layout of a packed value:
   //   'M' 'J' version flags | [crc32] | control bytes (tags, counts, key names; packed when large) | blob area (packed numeric columns)
@@ -1062,12 +1540,12 @@
   // one column per key (a "shape"); arrays as lengths plus one flattened column. Each numeric column then goes through the
   // core's byte shuffle and LZ4/deflate stage. Anything irregular falls back to a plain tagged encoding.
 
-  var JSO_VERSION = 4;                            // 2: a record column list starts with a directory of sizes so one column can be read alone; version 1 files are still read
+  var JSO_VERSION = 5;                            // 2: a record column list starts with a directory of sizes so one column can be read alone; version 1 files are still read
   var T_UNDEF = 0, T_NULL = 1, T_FALSE = 2, T_TRUE = 3, T_INT = 4, T_F64 = 5, T_STR = 6, T_STR16 = 7, T_ARR = 8, T_OBJ = 9, T_OBJ0 = 10,
     T_COLS = 11, T_BIGINT = 12, T_DATE = 13, T_TYPED = 14, T_ABUF = 15, T_MAP = 16, T_SET = 17, T_REF = 18, T_REGEX = 19;
   var CT_CONST = 0, CT_INT = 1, CT_DEC = 2, CT_F32 = 3, CT_F64 = 4, CT_BOOL = 5, CT_STRD = 6, CT_STRR = 7, CT_NULLABLE = 8,
-    CT_ARRAYS = 9, CT_TUPLE = 10, CT_RECORDS = 11, CT_ANY = 12, CT_TEMPLATE = 13, CT_REFS = 14, CT_REFRECS = 15, CT_TIMES = 16, CT_FSST = 17, CT_PCO = 18, CT_FRONT = 19;
-  var MIN_COLUMN = 16, MAX_TEMPLATES = 32, MAX_SLOTS = 32, MAX_SHAPES = 16, MAX_FUSED_KEYS = 64, MAX_DEPTH = 400, RAW_LIMIT = 48, PCO_MIN = 4096, DEFAULT_MAX_ITEMS = 100000000;
+    CT_ARRAYS = 9, CT_TUPLE = 10, CT_RECORDS = 11, CT_ANY = 12, CT_TEMPLATE = 13, CT_REFS = 14, CT_REFRECS = 15, CT_TIMES = 16, CT_FSST = 17, CT_PCO = 18, CT_FRONT = 19, CT_ADAPT = 20, CT_STRDP = 21;
+  var MIN_COLUMN = 16, MAX_TEMPLATES = 32, MAX_SLOTS = 32, MAX_SHAPES = 16, MAX_FUSED_KEYS = 64, MAX_DEPTH = 400, RAW_LIMIT = 48, ADAPT_MIN = 1024, DEFAULT_MAX_ITEMS = 100000000;
   var TYPED_CTORS = [Uint8Array, Int8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array];
   var G = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : {};
   var OP = Object.prototype, TEXT_ENC = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null, TEXT_DEC = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { ignoreBOM: true }) : null;
@@ -1207,9 +1685,9 @@
   function Enc(opts) {
     this.ctl = new Out(); this.blobs = new Chunks();
     this.mode = opts && opts.mode === 'small' ? 'small' : 'fast';
+    this.picker = opts && opts.mode === 'balanced' ? opts.picker !== false : this.mode === 'small' ? !(opts && opts.picker === false) : !!(opts && opts.picker);     // fast: off unless asked; balanced and small: on
     this.level = opts && opts.level;
     this.refs = !!(opts && opts.refs);
-    this.pco = opts && opts.pco ? pcoCodec(opts.pco) : null;             // opt-in: number columns of 4096 or more may be stored by Pcodec when that is smaller (needs memory-compression-jso-pco.js)
     this.front = !(opts && opts.front === false);                       // text columns that share long starts with the row before (sorted words, paths) may be stored as 'start length + new end'
     this.fsst = !!(opts && opts.fsst);                                  // opt-in: text columns may be stored as FSST codes (any one string readable alone); costs training time
     this.patterns = !(opts && opts.patterns === false);                 // text patterns on by default; off saves time on text-heavy data at the cost of size
@@ -1221,10 +1699,6 @@
     this.mcOpts = { mode: this.mode }; if (this.level !== undefined) this.mcOpts.level = this.level;
     if (opts && opts.wasm === false) this.mcOpts.wasm = false;
     this.blobBytes = 0;
-  }
-  function pcoCodec(x) {                         // the add-on's codec object, checked once
-    if (typeof x.compress !== 'function' || typeof x.decompress !== 'function') jfail('the pco option must be the object from memory-compression-jso-pco.js (load() or loadSync())');
-    return x;
   }
   Enc.prototype.blob = function (t, name, pre) {      // t: a typed array. Raw when tiny, else packed by the core when that is smaller (pre: that packed form, when the caller already made it)
     var o = this.blobs, raw = t.length * t.BYTES_PER_ELEMENT, packed, start = o.pos();
@@ -1401,31 +1875,59 @@
     if (m > 0) this.column(compact, m);
   };
   // CT_INT body: width, base, packed offsets. Caller checked max - min < 2^32. With a tag (CT_INT, or CT_DEC with its scale e) this writes the tag too, and
-  // a column of 4096 or more is also tried with Pcodec when the pco option is on: the smaller one is kept.
+  // a column of 1024 or more is also tried with the number picker when it is on: the smaller one is kept.
   Enc.prototype.intData = function (vals, n, min, max, tag, e) {
     var range = max - min, w = range < 256 ? 1 : range < 65536 ? 2 : 4, i, t = w === 1 ? new Uint8Array(n) : w === 2 ? new Uint16Array(n) : new Uint32Array(n), pre = null, src, c = this.ctl;
     for (i = 0; i < n; i++) t[i] = vals[i] - min;
     if (tag !== undefined) {
-      if (this.pco && n >= PCO_MIN) {
+      if (this.picker && n >= ADAPT_MIN) {
         pre = MC.pack(t, this.mcOpts);
-        if (min >= -2147483648 && max <= 2147483647) { src = new Int32Array(n); for (i = 0; i < n; i++) src[i] = vals[i]; }
-        else if (vals instanceof Float64Array) src = vals;
+        if (vals instanceof Float64Array) src = vals;
         else { src = new Float64Array(n); for (i = 0; i < n; i++) src[i] = vals[i]; }
-        if (this.pcoStore(src, n, tag === CT_DEC ? e : 0, Math.min(pre.length, n * t.BYTES_PER_ELEMENT))) return;
+        if (this.altStore(src, n, tag === CT_DEC ? e : 0, Math.min(pre.length, n * t.BYTES_PER_ELEMENT))) return;
       }
       c.u8(tag); if (tag === CT_DEC) c.u8(e);
     }
     c.u8(w); c.zigzag(min); this.blob(t, 'ints', pre);
   };
-  // Pcodec for one number column: src is an Int32Array or Float64Array of n whole numbers (or doubles). Written only when smaller than plainLen. False writes nothing.
-  Enc.prototype.pcoStore = function (src, n, e, plainLen) {
-    var kind = src instanceof Int32Array ? 2 : 0, bytes, c = this.ctl;
-    try { bytes = this.pco.compress(kind, src); } catch (err) { return false; }
-    if (!bytes || bytes.length === 0 || bytes.length >= plainLen) return false;
-    this.needsV3 = true;
-    c.u8(CT_PCO); c.u8(e); c.u8(kind); c.varint(bytes.length); this.blobs.bytes(bytes);
-    if (this.report) this.report.push({ path: this.path, part: 'pcodec', count: n, rawBytes: n * src.BYTES_PER_ELEMENT, bytes: bytes.length });
+  // A number column stored by the number picker: src is a Float64Array of n whole numbers (or doubles). Written only when smaller than plainLen. False writes nothing.
+  Enc.prototype.altStore = function (src, n, e, plainLen) {
+    var ab, c = this.ctl, t0 = this.report ? performance.now() : 0;
+    ab = this.adaptBytes(src);
+    if (this.report && ab) this.report.push({ path: this.path, part: 'picker (time to try)', count: n, ms: Math.round((performance.now() - t0) * 100) / 100 });
+    if (!ab || ab.bytes.length >= plainLen) return false;
+    this.needsV5 = true;
+    c.u8(CT_ADAPT); c.u8(e); c.u8(ab.z); c.varint(ab.bytes.length); this.blobs.bytes(ab.bytes);
+    if (this.report) this.report.push({ path: this.path, part: 'picker', count: n, rawBytes: n * 8, bytes: ab.bytes.length });
     return true;
+  };
+  // The codes of a text dictionary through the number picker: written only when smaller than the plain index column (a dictionary of names in a sorted or clustered order shrinks a lot).
+  Enc.prototype.dictCodes = function (idx, n, m, dict) {
+    var pre = MC.pack(idx, this.mcOpts), plain = Math.min(pre.length, n * idx.BYTES_PER_ELEMENT), ab, c = this.ctl;
+    ab = this.adaptBytes(Float64Array.from(idx));
+    if (!ab || ab.bytes.length >= plain) return false;
+    this.needsV5 = true;
+    c.u8(CT_STRDP); c.varint(m); this.rawStrings(dict, m); c.u8(ab.z); c.varint(ab.bytes.length); this.blobs.bytes(ab.bytes);
+    if (this.report) this.report.push({ path: this.path, part: 'picker (dictionary codes)', count: n, rawBytes: n * idx.BYTES_PER_ELEMENT, bytes: ab.bytes.length });
+    return true;
+  };
+  // The chooser's bytes for a Float64Array. In small mode the general compressor also gets a go at them, and at a version without the byte-coded ways (which it can still shrink).
+  Enc.prototype.adaptBytes = function (src) {
+    var a = PK, small = this.mode === 'small', best, z = 0, p, ne, probe, got, plain;
+    try {
+      if (src.length >= 32768) {                    // a long column is first tried on its first 8,192 numbers; if the chooser gains under 5% there, the rest is not tried
+        probe = src.subarray(0, 8192); got = a.pack(probe, { sample: true });
+        if (small) { p = MC.pack(got, this.mcOpts); if (p.length < got.length) got = p; }
+        plain = MC.pack(probe, this.mcOpts);
+        if (got.length > plain.length * 0.95) return null;
+      }
+      best = a.pack(src, { sample: !small });
+      if (small) {
+        p = MC.pack(best, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
+        ne = a.pack(src, { sample: false, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
+      }
+    } catch (err) { return null; }
+    return { bytes: best, z: z };
   };
   function scaleDecimals(vals, n, p) {                  // whole numbers = value * p, only when dividing by p gives every value back exactly
     var t = new Float64Array(n), i, x, y;
@@ -1457,9 +1959,9 @@
     if (f32 || (this.float32 && !allInt && min > -3e38 && max < 3e38)) { t = new Float32Array(n); for (i = 0; i < n; i++) t[i] = vals[i]; c.u8(CT_F32); this.blob(t, 'f32'); return; }
     if (vals instanceof Float64Array) t = vals;
     else { t = new Float64Array(n); for (i = 0; i < n; i++) t[i] = vals[i]; }
-    if (this.pco && n >= PCO_MIN) {
+    if (this.picker && n >= ADAPT_MIN) {
       pre = MC.pack(t, this.mcOpts);
-      if (this.pcoStore(t, n, 0, Math.min(pre.length, n * 8))) return;
+      if (this.altStore(t, n, 0, Math.min(pre.length, n * 8))) return;
     }
     c.u8(CT_F64); this.blob(t, 'f64', pre);
   };
@@ -1485,6 +1987,7 @@
       }
       if (seen) {
         m = dict.length; if (m <= 256) idx = new Uint8Array(idx);
+        if (this.picker && n >= ADAPT_MIN && m >= 2 && this.dictCodes(idx, n, m, dict)) return;
         c.u8(CT_STRD); c.varint(m); this.rawStrings(dict, m); this.blob(idx, 'dict-index'); return;
       }
     }
@@ -2289,7 +2792,6 @@
     this.c = ctl; this.bl = blobs; this.keys = []; this.depth = 0; this.refs = null; this.ver = JSO_VERSION;
     this.budget = opts && opts.maxItems !== undefined ? opts.maxItems : DEFAULT_MAX_ITEMS;
     this.wasm = opts && opts.wasm === false ? false : undefined;
-    this.pco = opts && opts.pco ? pcoCodec(opts.pco) : null;
   }
   Dec.prototype.spend = function (n) { this.budget -= n; if (this.budget < 0) jfail('the data asks for more than maxItems values; pass a bigger maxItems if it is yours'); };
   Dec.prototype.blob = function (Ctor, n) {
@@ -2414,13 +2916,18 @@
         col = this.intCol(n); a = col.a; t = new Float64Array(n);
         if (col.mode === 3) { for (i = 0; i < n; i++) t[i] = col.d / p; } else for (i = 0; i < n; i++) t[i] = a[i] / p;
         return new Col(n, 0, t, null);
-      case CT_PCO:
+      case CT_PCO: jfail('this file has a number column written with Pcodec (module 1.2.0 or 1.3.0 with its add-on), which this module no longer supports; read it with 1.3.0');
+      case CT_ADAPT:
+        this.spend(n);
         e = c.u8(); k = c.u8(); m = c.varint();
-        if (e > 10 || (k !== 0 && k !== 2)) jfail('bad Pcodec column');
+        if (e > 10 || k > 1) jfail('bad adaptive column');
         a = this.bl.take(m);
-        if (!this.pco) jfail('this file stores a number column with Pcodec; load memory-compression-jso-pco.js and pass its codec as the pco option');
-        try { t = this.pco.decompress(k, a, n); } catch (err) { jfail('a Pcodec column is damaged'); }
-        if (!(t instanceof (k === 2 ? Int32Array : Float64Array)) || t.length !== n) jfail('a Pcodec column is damaged');
+        if (!PK.available()) jfail('this file stores a number column with the number picker, which needs a little-endian machine');
+        try {
+          if (k) a = MC.unpack(a, { maxSize: m * 64 + n * 16 + 4096, wasm: this.wasm });
+          t = PK.unpack(a, n);
+        } catch (err) { jfail('an adaptive number column is damaged'); }
+        if (!(t instanceof Float64Array) || t.length !== n) jfail('an adaptive number column is damaged');
         if (e > 0) { p = P10[e]; a = new Float64Array(n); for (i = 0; i < n; i++) a[i] = t[i] / p; t = a; }
         return new Col(n, 0, t, null);
       case CT_FRONT:
@@ -2470,6 +2977,14 @@
         d = this.rawStrings(m);
         a = this.blob(m <= 256 ? Uint8Array : m <= 65536 ? Uint16Array : Uint32Array, n);
         for (i = 0; i < n; i++) if (a[i] >= m) jfail('dictionary index out of range');
+        return new Col(n, 2, a, d);
+      case CT_STRDP:
+        m = c.varint(); this.spend(m); this.spend(n); if (m > n || m < 2) jfail('bad dictionary column');
+        d = this.rawStrings(m); k = c.u8(); e = c.varint(); if (k > 1) jfail('bad dictionary column');
+        t = this.bl.take(e);
+        try { if (k) t = MC.unpack(t, { maxSize: e * 64 + n * 16 + 4096, wasm: this.wasm }); t = PK.unpack(t, n); } catch (err) { jfail('a dictionary column is damaged'); }
+        a = new (m <= 256 ? Uint8Array : m <= 65536 ? Uint16Array : Uint32Array)(n);
+        for (i = 0; i < n; i++) { if (!(t[i] >= 0 && t[i] < m)) jfail('dictionary index out of range'); a[i] = t[i]; }
         return new Col(n, 2, a, d);
       case CT_STRR: return new Col(n, 0, this.rawStrings(n), null);
       case CT_NULLABLE:
@@ -2859,7 +3374,7 @@
     stored = packedCtl || ctlRaw;
     if (e.refs) flags |= 1; if (packedCtl) flags |= 2; if (opts.check) flags |= 4;
     var blobsLen = e.blobs.size();
-    head = new Out(); head.u8(0x4D); head.u8(0x4A); head.u8(e.usedFront ? 4 : e.usedTimes || e.needsV3 ? 3 : 2); head.u8(flags);
+    head = new Out(); head.u8(0x4D); head.u8(0x4A); head.u8(e.needsV5 ? 5 : e.usedFront ? 4 : e.usedTimes || e.needsV3 ? 3 : 2); head.u8(flags);
     head.varint(ctlRaw.length); head.varint(stored.length);
     out = new Uint8Array(head.p + stored.length + blobsLen + (flags & 4 ? 4 : 0));
     out.set(head.done(), 0); p = head.p; out.set(stored, p); p += stored.length; p = e.blobs.copyTo(out, p);
@@ -2961,9 +3476,200 @@
     };
   }
 
+  // ================================================================ keeper: named data that is held packed, restored on demand and let go of when memory is tight
+  // heapInfo(): what the page can tell about memory. Firefox and Safari tell nothing, so the keeper's own accounting (memory()) is what to rely on there.
+  function heapInfo() {
+    var m = typeof performance !== 'undefined' && performance && performance.memory, d = typeof navigator !== 'undefined' && navigator ? navigator.deviceMemory : undefined;
+    return { usedJSHeap: m ? m.usedJSHeapSize : null, jsHeapLimit: m ? m.jsHeapSizeLimit : null, deviceMemoryGB: d || null, source: m ? 'performance.memory' : 'none' };
+  }
+  // estimateBytes(value): roughly how many bytes the value takes as live JavaScript objects (an estimate, usually within a third): 16 bytes of header and 8 per property or element,
+  // 8 per number that is not a small whole number, strings by length, typed arrays exactly. Arrays of 200 or more objects are sampled.
+  function estimateBytes(value) {
+    var seen = new Set();
+    function walk(v, depth) {
+      var t = typeof v, b, k, i, n, keys, step, sum;
+      if (t === 'number') return v === (v | 0) ? 0 : 8;
+      if (t === 'string') return 16 + v.length;
+      if (t === 'bigint') return 16;
+      if (v === null || t !== 'object' || depth > 40) return 0;
+      if (seen.has(v)) return 0;
+      seen.add(v);
+      if (ArrayBuffer.isView(v)) return 16 + v.byteLength;
+      if (Array.isArray(v)) {
+        n = v.length; b = 16 + 8 * n; step = n >= 200 ? Math.floor(n / 100) : 1; sum = 0;
+        for (i = 0, k = 0; i < n; i += step, k++) sum += walk(v[i], depth + 1);
+        return b + (step > 1 ? sum * step : sum);
+      }
+      if (v instanceof Map || v instanceof Set) { b = 32; v.forEach(function (x, y) { b += 16 + walk(x, depth + 1) + (v instanceof Map ? walk(y, depth + 1) : 0); }); return b; }
+      keys = Object.keys(v); b = 16 + 8 * keys.length;
+      for (i = 0; i < keys.length; i++) b += walk(v[keys[i]], depth + 1);
+      return b;
+    }
+    return Math.round(walk(value, 0));
+  }
+  // ---- restoring in slices: a packed array of objects is opened as a view, one column at a time, then the objects are made a few thousand at a time, with the page free in between.
+  // (A worker was tried: the finished objects have to be copied back to the page, which stalled it longer than unpacking on the page did, so there is none.)
+  var yieldChannel = null;
+  function later(fn) {
+    if (typeof MessageChannel === 'function') {
+      if (!yieldChannel) { yieldChannel = new MessageChannel(); yieldChannel.queue = []; yieldChannel.port1.onmessage = function () { var f = yieldChannel.queue.shift(); if (f) f(); }; }
+      yieldChannel.queue.push(fn); yieldChannel.port2.postMessage(0);
+    } else setTimeout(fn, 0);
+  }
+  function unpackInSlices(bytes, popts, sliceMs) {      // a promise of the unpacked value, or null when the bytes are not a packed array of objects that share their keys
+    var vw, keys, n, out, q = 0, i = 0, g;
+    try { vw = view(bytes, popts); } catch (e) { return null; }
+    keys = vw.keys; n = vw.length; out = new Array(n);
+    return new Promise(function (resolve, reject) {
+      function step() {
+        var t0 = performance.now(), j;
+        try {
+          while (q < keys.length) { vw.field(0, keys[q++]); if (performance.now() - t0 >= sliceMs) { later(step); return; } }
+          if (!g) g = vw.get;
+          while (i < n) {
+            for (j = 0; j < 512 && i < n; j++, i++) out[i] = g(i);
+            if (i < n && performance.now() - t0 >= sliceMs) { later(step); return; }
+          }
+        } catch (e) { reject(e); return; }
+        vw.release(); resolve(out);
+      }
+      later(step);
+    });
+  }
+
+  // keeper(opts): opts.budget (bytes the keeper may hold, packed and restored together; 0 = no limit), opts.onPressure(level, memory) called when a level changes,
+  // and any pack option (mode, picker, fsst, front, refs, wasm ...) used when packing. Methods: hold, get, restore, view, column, touch, has, drop, release, trim, pin, unpin,
+  // calibrate, memory, level, names, adopt, bytes.
+  function keeper(opts) {
+    var items = new Map(), clock = 0, o = opts || {}, budget = o.budget > 0 ? o.budget : 0, lastLevel = 0, K, packOpts = {}, k, factor = 1, rate = 40, rateKnown = false;
+    for (k in o) if (k !== 'budget' && k !== 'onPressure') packOpts[k] = o[k];
+    function need(name) { var e = items.get(name); if (!e) jfail('nothing is held under the name ' + name); return e; }
+    function restoredOf(e) { return Math.round(((e.value !== undefined ? e.heap : 0) + (e.view ? e.view.memory().restored : 0)) * factor); }
+    function restoreMsOf(e) { return e.restoreMs !== undefined ? e.restoreMs : Math.round(e.bytes.length / 1e6 * rate * 10) / 10; }
+    function noteRestore(e, ms) {              // remembers how long a restore took, and uses it to guess for the items not yet restored
+      e.restoreMs = Math.round(ms * 10) / 10;
+      if (e.bytes.length > 100000) { rate = rateKnown ? (rate + ms / (e.bytes.length / 1e6)) / 2 : ms / (e.bytes.length / 1e6); rateKnown = true; }
+    }
+    function totals() {
+      var packed = 0, restored = 0, list = {};
+      items.forEach(function (e, name) {
+        var r = restoredOf(e); packed += e.bytes.length; restored += r;
+        list[name] = { packed: e.bytes.length, restored: r, rows: e.rows, used: e.used, pinned: e.pins, restoreMs: restoreMsOf(e), restoreMsMeasured: e.restoreMs !== undefined, restoredBy: e.by };
+      });
+      return { packed: packed, restored: restored, total: packed + restored, budget: budget, factor: factor, items: list };
+    }
+    function levelOf(t) {
+      var lv = 0, h = heapInfo();
+      if (budget) lv = t.total >= budget ? 2 : t.total >= budget * 0.7 ? 1 : 0;
+      if (h.usedJSHeap && h.jsHeapLimit) lv = Math.max(lv, h.usedJSHeap >= h.jsHeapLimit * 0.8 ? 2 : h.usedJSHeap >= h.jsHeapLimit * 0.6 ? 1 : 0);
+      return lv;
+    }
+    function letGo(e) { e.value = undefined; if (e.view) { e.view.release(); e.view = null; } }
+    function trimTo(target, keep) {      // let go of restored copies, least recently used first, until the total is at or under target; pinned items stay
+      var t = totals(), freed = 0, order = [];
+      items.forEach(function (e, name) { if (name !== keep && !e.pins && restoredOf(e) > 0) order.push(e); });
+      order.sort(function (a, b) { return a.used - b.used; });
+      order.forEach(function (e) {
+        var r;
+        if (t.total - freed <= target) return;
+        r = restoredOf(e); letGo(e); freed += r;
+      });
+      return freed;
+    }
+    function check(keep) {
+      var t = totals(), lv;
+      if (budget && t.total > budget) { trimTo(budget, keep); t = totals(); }
+      lv = levelOf(t);
+      if (lv !== lastLevel) { lastLevel = lv; if (typeof o.onPressure === 'function') o.onPressure(lv, t); }
+    }
+    function install(e, name, v, ms, by) {
+      e.value = v; e.used = ++clock; e.by = by; noteRestore(e, ms); check(name);
+      return v;
+    }
+    K = {
+      hold: function (name, value, popts) {            // packs value and keeps only the packed form: the caller lets go of its own copy
+        var e = items.get(name) || { name: name, pins: 0 }, po = {}, kk;
+        for (kk in packOpts) po[kk] = packOpts[kk]; if (popts) for (kk in popts) po[kk] = popts[kk];
+        e.bytes = pack(value, po); e.value = undefined; e.view = null; e.heap = estimateBytes(value); e.rows = Array.isArray(value) ? value.length : undefined; e.used = ++clock;
+        e.restoreMs = undefined; e.by = undefined; e.opts = po;
+        items.set(name, e); check(name);
+        return { packed: e.bytes.length, heap: Math.round(e.heap * factor) };
+      },
+      adopt: function (name, bytes, restoredHeap) {     // keeps bytes packed elsewhere (made by pack(), perhaps in a worker); restoredHeap is the live size of the value they hold, if known
+        var e = items.get(name) || { name: name, pins: 0 };
+        e.bytes = bytes; e.value = undefined; e.view = null; e.heap = restoredHeap > 0 ? restoredHeap : bytes.length * 6; e.rows = undefined; e.used = ++clock; e.restoreMs = undefined; e.by = undefined; e.opts = {};
+        items.set(name, e); check(name);
+        return { packed: bytes.length, heap: Math.round(e.heap * factor) };
+      },
+      bytes: function (name) { return need(name).bytes; },       // the packed bytes themselves (to hand to another worker or to store)
+      has: function (name) { return items.has(name); },
+      names: function () { return Array.from(items.keys()); },
+      touch: function (name) { need(name).used = ++clock; },
+      get: function (name) {                           // the value, restored now (the page waits) the first time and kept until released or trimmed
+        var e = need(name), t0;
+        if (e.value === undefined) { t0 = performance.now(); install(e, name, unpack(e.bytes, packOpts), performance.now() - t0, 'page'); }
+        else { e.used = ++clock; check(name); }
+        return e.value;
+      },
+      restore: function (name, ropts) {                // a promise of the value, restored in slices of about ropts.sliceMs (default 8) so the page stays free; same value as get()
+        var e = items.get(name), b, t0, ms = ropts && ropts.sliceMs > 0 ? ropts.sliceMs : 8, sl;
+        if (!e) return Promise.reject(new Error('MemoryCompressionJSO: nothing is held under the name ' + name));
+        if (e.value !== undefined) { e.used = ++clock; return Promise.resolve(e.value); }
+        if (e.pending) return e.pending;
+        b = e.bytes; t0 = performance.now();
+        sl = unpackInSlices(b, packOpts, ms);
+        e.pending = (sl ? sl.then(function (v) { return { v: v, by: 'slices' }; }) : new Promise(function (res, rej) { later(function () { try { res({ v: unpack(b, packOpts), by: 'page' }); } catch (x) { rej(x); } }); })).then(function (r) {
+          e.pending = null;
+          if (items.get(name) !== e || e.bytes !== b) return items.has(name) ? K.restore(name, ropts) : r.v;       // replaced or dropped meanwhile
+          if (e.value !== undefined) return e.value;
+          return install(e, name, r.v, performance.now() - t0, r.by);
+        }, function (err) { e.pending = null; throw err; });
+        return e.pending;
+      },
+      view: function (name) {                          // a view over the packed bytes (a packed array of 16 or more objects): columns open one at a time
+        var e = need(name);
+        if (!e.view) e.view = view(e.bytes, packOpts);
+        e.used = ++clock; return e.view;
+      },
+      column: function (name, key) { var v = K.view(name), c = v.column(key); check(name); return c; },
+      pin: function (name) { var e = need(name); e.pins++; return e.pins; },        // while pinned (a count: pin twice, unpin twice) the item is never trimmed or released by the keeper
+      unpin: function (name) { var e = need(name); if (e.pins > 0) e.pins--; return e.pins; },
+      drop: function (name, force) { var e = items.get(name); if (e && e.pins && !force) return false; items.delete(name); return true; },
+      release: function (name, force) {                // lets go of the restored copy (and opened columns); the packed bytes stay. Pinned items stay unless force is true
+        var e;
+        if (name === undefined) { items.forEach(function (x) { if (!x.pins || force) letGo(x); }); return true; }
+        e = need(name); if (e.pins && !force) return false;
+        letGo(e); return true;
+      },
+      trim: function (target) { var f = trimTo(target === undefined ? budget : target); check(); return f; },
+      calibrate: function (f) {                        // the number to multiply the live size of restored data by (a browser page can cost 2.5 times what a plain heap count says); no argument = read it
+        if (f === undefined) return factor;
+        if (typeof f !== 'number' || !(f > 0) || f > 100) jfail('calibrate() needs a number above 0 (and at most 100)');
+        factor = f; check(); return factor;
+      },
+      memory: function () { return totals(); },
+      level: function () { return levelOf(totals()); },
+      heap: heapInfo
+    };
+    return K;
+  }
+
+  // profile(value, opts, repeats): times pack and unpack of a value and lists where the pack time and bytes go (the report option, column by column). For finding the slow part.
+  function profile(value, opts, repeats) {
+    var o = {}, kk, rep = [], best = 1e18, bestU = 1e18, bytes, i, t0, r = repeats > 0 ? repeats : 3;
+    if (opts) for (kk in opts) o[kk] = opts[kk];
+    for (i = 0; i < r; i++) {
+      t0 = performance.now(); bytes = pack(value, o); t0 = performance.now() - t0; if (t0 < best) best = t0;
+      t0 = performance.now(); unpack(bytes, o); t0 = performance.now() - t0; if (t0 < bestU) bestU = t0;
+    }
+    o.report = rep; pack(value, o);
+    return { bytes: bytes.length, packMs: Math.round(best * 100) / 100, unpackMs: Math.round(bestU * 100) / 100, format: bytes[2], parts: rep };
+  }
+
   return {
     pack: pack, unpack: unpack, view: view, freeBuffers: freeBuffers,
     ready: MC.ready, accelerated: MC.accelerated,
-    core: MC
+    keeper: keeper, heap: heapInfo, profile: profile, estimateBytes: estimateBytes,
+    core: MC, picker: PK
   };
 });

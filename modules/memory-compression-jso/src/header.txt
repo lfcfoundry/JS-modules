@@ -2,9 +2,9 @@
  * memory-compression-jso.js: keep big piles of plain JavaScript objects packed in memory, and bring them back exactly, fast.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.4.0 (API 1)
  *
- * What it gives you (plain JavaScript, no dependencies, works offline, one file)
+ * What it gives you (plain JavaScript, no dependencies, works offline, one file; also sets MemoryCompression, the core alone, when a page has none)
  *  - pack(value) / unpack(bytes): any JSON-like value (and Date, Map, Set, typed arrays, BigInt, RegExp, undefined, NaN, -0) to a small
  *    Uint8Array and back to a deep copy that is equal in every way JSON-like data can be. Arrays of objects are stored as columns
  *    (one per key), not as repeated text, so a list of 300,000 link objects becomes a few megabytes and is rebuilt in tens of milliseconds.
@@ -19,7 +19,11 @@
  *    freeBuffers() empties the pool, pack(x, {pool: false}) leaves it alone.
  *  - fsst: true (opt-in): a column of short, varied text (names, paths, log lines) is stored as FSST codes, about half the size of the joined text, and a single
  *    string is read back alone (view() keeps such a column at about a third of its restored size). A 3 KB WebAssembly helper speeds up big columns; plain JavaScript gives the same bytes.
- *  - pco (opt-in, needs the add-on file memory-compression-jso-pco.js): number columns of 4,096 values or more are also tried with Pcodec and the smaller one is kept.
+ *  - mode: 'balanced' / 'small' (or picker: true): each block of 8,192 numbers is tried several ways on a sample and the smallest is kept (offsets, differences, runs, tables, decimals as
+ *    whole numbers, byte planes ...): 15 to 28% smaller objects, up to 92% smaller columns; packing is slower, reading about the same. Plain JavaScript gives the same bytes.
+ *  - front coding: sorted text (words, paths) is stored as what it shares with the row above (on by default, front: false turns it off).
+ *  - keeper({budget}): holds named values packed, restores them (get, or restore() in slices so the page stays free), pins what is being drawn, trims least recently used
+ *    copies under a budget, and reports memory() with restore-time estimates. profile() times pack/unpack and lists where the time goes.
  *  - refs: true now stores lists of shared objects by column too (links that point at the very node objects), not value by value.
  *  - float32: true (opt-in, lossy) keeps fraction columns in 4 bytes per value instead of 8 (relative error at most about 6e-8).
  *  - Built on memory-compression.js (its code is inside this file), so the numeric columns get its byte shuffle, delta and LZ4/deflate stage.
