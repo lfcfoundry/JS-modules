@@ -51,7 +51,7 @@ var still = '#scene *{animation-play-state:paused!important}';
 $('showcard').onclick = function () { $('card').hidden = false; };
 $('cardx').onclick = function () { $('card').hidden = true; };
 window.lab = SpeedLab.panel({
-  title: 'Speed test', scene: '#scene', bar: '#bar', stepMs: fast ? 400 : 4500, warmMs: fast ? 100 : 1100, settleMs: fast ? 50 : 250, coverTries: fast ? 3 : 50, coverWaitMs: fast ? 20 : 300,
+  title: 'Speed test', scene: '#scene', bar: '#bar', stepMs: fast ? 400 : 2500, warmMs: fast ? 100 : 1100, settleMs: fast ? 50 : 250, coverTries: fast ? 3 : 50, coverWaitMs: fast ? 20 : 300,
   header: 'speed-lab demo | ' + new Date().toLocaleString(),
   covers: [{ name: 'the demo card', test: function () { return !$('card').hidden; }, close: function () { if (!stubborn) $('card').hidden = true; } }],
   steps: [

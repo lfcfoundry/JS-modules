@@ -454,7 +454,7 @@
     },
     {
       "id": "speed-lab",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "summary": "One-button speed test run on the device: compares your page with parts switched off, keeps the scene in view and uncovered, and says the answer in plain sentences with a copyable table.",
       "folder": "tools/speed-lab",
