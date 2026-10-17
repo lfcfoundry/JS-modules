@@ -2,6 +2,11 @@
 
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
+## 1.1.2 · API 1 · 2026-10-17
+Faster packing with the same pages: choosing the XOR key that needs the fewest escapes (bytes mode) no longer tries all 256 keys over the whole payload; it counts single bytes and byte pairs once. Choosing the key for a 190 KB payload went from 6.9 s to 0.04 s (172 times faster; lower is better) and picks the same key (a new check compares it with the old way on 6 test payloads); packing a 38 KB page went from 0.53 s to 0.06 s and the output file is identical. The tool's own test went from 2.2 s to about 1 s
+
+Tested in: Python 3 tests of the packer (lzma-pack 25 checks, ppmd-pack 30 checks); the packed page is byte for byte the same as before on a 38 KB sample, so the earlier browser results (ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5) still stand; not rerun in a browser, not run on a phone
+
 ## 1.1.1 · API 1 · 2026-10-17
 Every page policy given with --head now carries 'wasm-unsafe-eval' in script-src, the one addition the project allows. Before: the packer only printed a warning when --head set a policy without it, and the page quietly fell back to the slower JavaScript decoder (the first decode took about 2.1x as long in Chromium and 1.7x as long in Firefox without WebAssembly; measured on a 569,513-byte game page). After: the packer adds the token itself (4 of 4 browsers ran the WebAssembly decoder from a policy given without it); a policy with no script-src but a default-src gets a script-src built from the default-src sources plus the token, a policy that says nothing about scripts is left alone, and a page with no --head policy still gets none. Nothing else in the policy changes.
 

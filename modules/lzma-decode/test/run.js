@@ -43,7 +43,14 @@ for (const kind of kinds) for (const n of sizes) { const p = params[(seed++) % p
 for (const p of params) jobs.push({ kind: 'text', n: 30000, p, seed: 99, data: makeData('text', 30000, 99) });
 jobs.push({ kind: 'big-random-ish', n: 1500000, p: [4, 0, 0], seed: 5, data: makeData('mixed', 1500000, 5) });   // a long distance past the 1 MB dictionary tested below via text
 const input = JSON.stringify(jobs.map((j) => ({ data: hex(j.data), lc: j.p[0], lp: j.p[1], pb: j.p[2] })));
-const out = JSON.parse(execFileSync('python3', ['-c', PY], { input, maxBuffer: 1 << 29 }).toString());
+// The streams come from Python's own xz compressor, which takes about 1 s for the 1.5 MB job. Its answer for a given input never has to change for these checks (any valid
+// stream will do), so it is kept in the temp folder under a hash of the script and the input and reused on the next run. NO_FIXTURE_CACHE=1 turns that off.
+const crypto = require('crypto'), fs = require('fs'), os = require('os'), cacheFile = require('path').join(os.tmpdir(), 'js-modules-lzma-decode-fixtures-' + crypto.createHash('sha1').update(PY).update(input).digest('hex').slice(0, 16) + '.json');
+let out;
+try { if (process.env.NO_FIXTURE_CACHE) throw 0; out = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); } catch (e) {
+  out = JSON.parse(execFileSync('python3', ['-c', PY], { input, maxBuffer: 1 << 29 }).toString());
+  try { fs.writeFileSync(cacheFile + '.' + process.pid, JSON.stringify(out)); fs.renameSync(cacheFile + '.' + process.pid, cacheFile); } catch (e2) { /* a read-only temp folder: no cache */ }
+}
 jobs.forEach((j, i) => {
   const raw = Uint8Array.from(Buffer.from(out[i].raw, 'hex')), label = `${j.kind} n=${j.n} lc=${j.p[0]} lp=${j.p[1]} pb=${j.p[2]}`;
   let got = null, err = '';

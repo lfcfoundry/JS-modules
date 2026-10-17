@@ -14,7 +14,7 @@ const PARTS = { 'even-dt': ['options', 'stats', 'refreshRule'], 'quality-governo
 const FULL = { 'even-dt': require('../even-dt.js'), 'quality-governor': require('../quality-governor.js') };
 let bad = 0, cases = 0, n = 0;
 const note = (ok, what, why) => { cases++; if (!ok) bad++; console.log((ok ? 'ok   ' : 'FAIL ') + what + (ok ? '' : '\n       ' + why)); };
-const build = (file, without, nc) => { const out = path.join(tmp, file + '-' + (++n) + '.js'), r = py('--file', file, '--without', without.join(','), '-o', out, ...(nc ? ['--no-comments'] : [])); assert.strictEqual(r.status, 0, r.stderr); cp.execFileSync(process.execPath, ['--check', out]); return load(out); };
+const build = (file, without, nc) => { const out = path.join(tmp, file + '-' + (++n) + '.js'), r = py('--file', file, '--without', without.join(','), '-o', out, ...(nc ? ['--no-comments'] : [])); assert.strictEqual(r.status, 0, r.stderr); new (require('vm').Script)(fs.readFileSync(out, 'utf8'), { filename: out }); return load(out); };
 const t0 = Date.now();
 
 for (const file of Object.keys(PARTS)) {

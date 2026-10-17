@@ -68,7 +68,7 @@ sets.forEach((set, i) => {
     try {
       const b = py('--without', set.join(','), '-o', file).status === 0 && (!nc || py('--without', set.join(','), '--no-comments', '-o', file).status === 0);
       assert(b, 'lean.py failed');
-      cp.execFileSync(process.execPath, ['--check', file]);
+      new (require('vm').Script)(fs.readFileSync(file, 'utf8'), { filename: file });
       const L = require(file), got = battery(L, cut, label); compared += got;
       const stub = []; const chk = (name, ok, d) => { if (!ok) stub.push(name + (d ? ' (' + d + ')' : '')); };
       if (set.length > 1) { require('./fancy-scenes.js')(FULL, L, chk); assert(stub.length === 0, 'Fancy scenes: ' + stub.join('; ')); scenes = ', 266 Fancy scenes identical'; }   // the 266 scenes through the lean Rast, tri and drawMesh

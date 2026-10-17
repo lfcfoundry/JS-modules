@@ -18,7 +18,7 @@ check('speed-lab', async (b) => {
   ok(/Copied|Select the text/.test(copied), 'copy button said ' + copied); done.push('copy button answers');
   await p.close();
   // 2. a card that cannot be closed: every step is marked disturbed after three tries, and the answer says so
-  p = await open(b, 'tools/speed-lab/demo.html#fast,stubborn');
+  p = await open(b, 'tools/speed-lab/demo.html#fast,stubborn,tiny');
   await p.click('#showcard'); await p.click('[data-speed-lab-panel] [data-go]');
   await p.waitForFunction(() => !document.querySelector('[data-speed-lab-panel] [data-out]').hidden, { timeout: 90000 });
   const s = await p.evaluate(() => { const x = lab.result(); return { bad: x.steps.map(s => s.bad), tries: x.steps.map(s => s.tries), v: x.verdict[0].text }; });
@@ -33,10 +33,10 @@ check('speed-lab', async (b) => {
   // 4. a cold first step (slow only the first time it is measured): it is measured again, and the answer says so
   await calm(p);
   const c = await p.evaluate(() => { var calls = 0; window.__burn = false; (function spin() { if (window.__burn) { var t = performance.now(); while (performance.now() - t < 30); } requestAnimationFrame(spin); })();
-    return SpeedLab.run({ scene: '#scene', bar: '#bar', stepMs: 700, warmMs: 100, settleMs: 30, steps: [{ id: 'A', role: 'baseline', label: 'Idle', setup: () => { window.__burn = calls++ === 0; return () => { window.__burn = false; }; } }, { id: 'B', role: 'load', label: 'Busy' }, { id: 'Z', role: 'heat', label: 'Idle again' }] }).then(x => ({ again: x.steps[0].again, calls, fps: x.steps.map(s => Math.round(s.fps)), v: x.verdict.map(l => l.text).join(' ') })); });
+    return SpeedLab.run({ scene: '#scene', bar: '#bar', stepMs: 500, warmMs: 100, settleMs: 30, steps: [{ id: 'A', role: 'baseline', label: 'Idle', setup: () => { window.__burn = calls++ === 0; return () => { window.__burn = false; }; } }, { id: 'B', role: 'load', label: 'Busy' }, { id: 'Z', role: 'heat', label: 'Idle again' }] }).then(x => ({ again: x.steps[0].again, calls, fps: x.steps.map(s => Math.round(s.fps)), v: x.verdict.map(l => l.text).join(' ') })); });
   ok(c.again === true && c.calls === 2 && c.fps[0] > 45 && /second time|too hopeful/.test(c.v), JSON.stringify(c)); done.push('a slow first baseline is measured again and the answer says so');
   // 5. a load that is slow only the first time (a one-off): measured again, not blamed; a load that is slow every time: measured twice, still blamed
-  const o = await p.evaluate(() => { var calls = 0; const mk = (b) => ({ scene: '#scene', bar: '#bar', stepMs: 700, warmMs: 100, settleMs: 30, steps: [{ id: 'A', role: 'baseline', label: 'Idle' }, { id: 'B', role: 'load', label: 'Busy', setup: () => { window.__burn = b(); return () => { window.__burn = false; }; } }, { id: 'Z', role: 'heat', label: 'Idle again' }] });
+  const o = await p.evaluate(() => { var calls = 0; const mk = (b) => ({ scene: '#scene', bar: '#bar', stepMs: 500, warmMs: 100, settleMs: 30, steps: [{ id: 'A', role: 'baseline', label: 'Idle' }, { id: 'B', role: 'load', label: 'Busy', setup: () => { window.__burn = b(); return () => { window.__burn = false; }; } }, { id: 'Z', role: 'heat', label: 'Idle again' }] });
     return SpeedLab.run(mk(() => calls++ === 0)).then(x => ({ calls, again: x.steps[1].again, first: Math.round(x.steps[1].first.fps), fps: Math.round(x.steps[1].fps), v: x.verdict.map(l => l.text).join(' ') })).then(one => SpeedLab.run(mk(() => true)).then(x => ({ one, always: { again: x.steps[1].again, fps: Math.round(x.steps[1].fps), v: x.verdict.map(l => l.text).join(' ') } }))); });
   ok(o.one.again && o.one.calls === 2 && o.one.first < 45 && o.one.fps > 50 && /one-off slowdown/.test(o.one.v) && /did not make this device stutter/.test(o.one.v), JSON.stringify(o.one));
   ok(o.always.again && o.always.fps < 45 && /slow both times/.test(o.always.v) && /DID make this device stutter/.test(o.always.v), JSON.stringify(o.always)); done.push('a one-off slow load step is measured again and not blamed; a load that is slow every time still is');
