@@ -291,6 +291,20 @@
       "category": "files"
     },
     {
+      "id": "memory-compression-jso",
+      "version": "1.1.0",
+      "api": 1,
+      "global": "MemoryCompressionJSO",
+      "summary": "Keeps big lists of plain JavaScript objects packed in memory and brings every value back exactly: 300,000 link objects shrink to 14% of their JSON text (35% for msgpackr with records) and unpack in about 73 ms (122 ms for msgpackr with records); text patterns, columns for shared objects and a view that opens in 0.06 ms are new in 1.1.0.",
+      "file": "modules/memory-compression-jso/memory-compression-jso.js",
+      "readme": "modules/memory-compression-jso/README.md",
+      "demo": "modules/memory-compression-jso/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "files"
+    },
+    {
       "id": "river-layout",
       "version": "1.0.0",
       "api": 1,
