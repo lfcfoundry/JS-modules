@@ -6,11 +6,11 @@
   // one column per key (a "shape"); arrays as lengths plus one flattened column. Each numeric column then goes through the
   // core's byte shuffle and LZ4/deflate stage. Anything irregular falls back to a plain tagged encoding.
 
-  var JSO_VERSION = 3;                            // 2: a record column list starts with a directory of sizes so one column can be read alone; version 1 files are still read
+  var JSO_VERSION = 4;                            // 2: a record column list starts with a directory of sizes so one column can be read alone; version 1 files are still read
   var T_UNDEF = 0, T_NULL = 1, T_FALSE = 2, T_TRUE = 3, T_INT = 4, T_F64 = 5, T_STR = 6, T_STR16 = 7, T_ARR = 8, T_OBJ = 9, T_OBJ0 = 10,
     T_COLS = 11, T_BIGINT = 12, T_DATE = 13, T_TYPED = 14, T_ABUF = 15, T_MAP = 16, T_SET = 17, T_REF = 18, T_REGEX = 19;
   var CT_CONST = 0, CT_INT = 1, CT_DEC = 2, CT_F32 = 3, CT_F64 = 4, CT_BOOL = 5, CT_STRD = 6, CT_STRR = 7, CT_NULLABLE = 8,
-    CT_ARRAYS = 9, CT_TUPLE = 10, CT_RECORDS = 11, CT_ANY = 12, CT_TEMPLATE = 13, CT_REFS = 14, CT_REFRECS = 15, CT_TIMES = 16, CT_FSST = 17, CT_PCO = 18;
+    CT_ARRAYS = 9, CT_TUPLE = 10, CT_RECORDS = 11, CT_ANY = 12, CT_TEMPLATE = 13, CT_REFS = 14, CT_REFRECS = 15, CT_TIMES = 16, CT_FSST = 17, CT_PCO = 18, CT_FRONT = 19;
   var MIN_COLUMN = 16, MAX_TEMPLATES = 32, MAX_SLOTS = 32, MAX_SHAPES = 16, MAX_FUSED_KEYS = 64, MAX_DEPTH = 400, RAW_LIMIT = 48, PCO_MIN = 4096, DEFAULT_MAX_ITEMS = 100000000;
   var TYPED_CTORS = [Uint8Array, Int8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array];
   var G = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : {};
@@ -154,6 +154,7 @@
     this.level = opts && opts.level;
     this.refs = !!(opts && opts.refs);
     this.pco = opts && opts.pco ? pcoCodec(opts.pco) : null;             // opt-in: number columns of 4096 or more may be stored by Pcodec when that is smaller (needs memory-compression-jso-pco.js)
+    this.front = !(opts && opts.front === false);                       // text columns that share long starts with the row before (sorted words, paths) may be stored as 'start length + new end'
     this.fsst = !!(opts && opts.fsst);                                  // opt-in: text columns may be stored as FSST codes (any one string readable alone); costs training time
     this.patterns = !(opts && opts.patterns === false);                 // text patterns on by default; off saves time on text-heavy data at the cost of size
     this.float32 = !!(opts && opts.float32);                       // opt-in and lossy: columns of fractions that need 8 bytes each are kept in 4
@@ -433,6 +434,7 @@
     }
     pre = joinText(vals, n);
     if (n >= 32 && this.patterns && pre && pre.ascii && this.template(vals, n, pre)) return;
+    if (this.front && pre && pre.bytes && n >= 64 && this.frontColumn(vals, n, pre)) return;
     if (this.fsst && pre && this.fsstColumn(vals, n, pre)) return;
     c.u8(CT_STRR); this.rawStrings(vals, n, pre);
   };
@@ -764,6 +766,62 @@
     if (raw < RAW_LIMIT) return raw + 1;
     p = MC.pack(t, this.mcOpts);
     return (p.length < raw ? p.length : raw) + 6;
+  };
+  // Front coding: each string stores how many UTF-16 units it shares with the string before it and then only its new end. Wins on sorted words, file paths and
+  // other text whose neighbors start alike; tried only when the first 1,024 neighbors share a quarter of their characters, and kept only when at least 15% smaller than the joined text (a smaller win is not worth the extra time to read it back).
+  Enc.prototype.frontColumn = function (vals, n, pre) {
+    var i, j, a, b, m, k, pa, pb, shared = 0, total = 0, P, S, pre2, frontSize, textSize, c = this.ctl, ss = n < 1025 ? n : 1025;
+    for (i = 1; i < ss; i++) {
+      a = vals[i - 1]; b = vals[i]; m = a.length < b.length ? a.length : b.length;
+      for (j = 0; j < m && a.charCodeAt(j) === b.charCodeAt(j); j++);
+      shared += j; total += b.length;
+    }
+    if (shared * 4 < total) return false;
+    if (pre.ascii && pre.bytes.length < 134217728) return this.frontBytes(n, pre);          // plain ASCII: the same work straight on the bytes, no new strings
+    P = new Uint32Array(n); S = new Array(n); S[0] = vals[0];
+    for (i = 1; i < n; i++) {
+      a = vals[i - 1]; b = vals[i]; m = a.length < b.length ? a.length : b.length;
+      for (j = 0; j < m && a.charCodeAt(j) === b.charCodeAt(j); j++);
+      if (j > 0 && j < b.length && (b.charCodeAt(j - 1) & 0xFC00) === 0xD800) j--;               // never cut between the two halves of a pair
+      P[i] = j; S[i] = j ? b.substring(j) : b;
+    }
+    k = n > 4096 ? 2048 : n;                                  // big columns are judged on their first 2,048 rows so the decision costs little
+    if (k < n) {
+      pa = joinText(vals.slice(0, k), k); pb = joinText(S.slice(0, k), k);
+      if (!pa || !pa.bytes || !pb || !pb.bytes) return false;
+      frontSize = this.packedSize(narrow(P.subarray(0, k), k)) + this.packedSize(narrow(pb.lens, k)) + this.packedSize(pb.bytes);
+      textSize = this.packedSize(narrow(pa.lens, k)) + this.packedSize(pa.bytes);
+      if (frontSize * 100 > textSize * 85) return false;
+      pre2 = joinText(S, n);
+      if (!pre2 || !pre2.bytes) return false;
+    } else {
+      pre2 = joinText(S, n);
+      if (!pre2 || !pre2.bytes) return false;
+      frontSize = this.packedSize(narrow(P, n)) + this.packedSize(narrow(pre2.lens, n)) + this.packedSize(pre2.bytes);
+      textSize = this.packedSize(narrow(pre.lens, n)) + this.packedSize(pre.bytes);
+      if (frontSize * 100 > textSize * 85) return false;
+    }
+    this.usedFront = true;
+    c.u8(CT_FRONT); this.lengths(P, n); this.rawStrings(S, n, pre2);
+    return true;
+  };
+  Enc.prototype.frontBytes = function (n, pre) {              // the front-coding step for ASCII text (one byte per character), judged on the first 2,048 rows when the column is large
+    var bytes = pre.bytes, lens = pre.lens, P = new Uint32Array(n), L2 = new Uint32Array(n), out = new Uint8Array(bytes.length), i, j, m, l, o = 0, po = 0, w = 0, e, k = n > 4096 ? 2048 : n, frontSize, textSize, c = this.ctl;
+    for (i = 0; i < n; i++) {
+      l = lens[i]; j = 0;
+      if (i > 0) { m = lens[i - 1] < l ? lens[i - 1] : l; while (j < m && bytes[po + j] === bytes[o + j]) j++; }
+      P[i] = j; L2[i] = l - j;
+      for (e = o + l, j += o; j < e; j++) out[w++] = bytes[j];
+      po = o; o += l;
+      if (i + 1 === k) {                                       // judged here, so a column that will not win stops after its first rows
+        frontSize = this.packedSize(narrow(P.subarray(0, k), k)) + this.packedSize(narrow(L2.subarray(0, k), k)) + this.packedSize(out.subarray(0, w));
+        textSize = this.packedSize(narrow(lens.subarray(0, k), k)) + this.packedSize(bytes.subarray(0, o));
+        if (frontSize * 100 > textSize * 85) return false;
+      }
+    }
+    this.usedFront = true;
+    c.u8(CT_FRONT); this.lengths(P, n); this.rawStrings(null, n, { lens: L2, bytes: out.subarray(0, w), ascii: true });
+    return true;
   };
   // A text column with no pattern and no small dictionary, stored as FSST codes when that is smaller than the joined text (pack option fsst: true). False writes nothing.
   Enc.prototype.fsstColumn = function (vals, n, pre) {
@@ -1291,7 +1349,7 @@
     return r;
   };
   Dec.prototype.columnBody = function (n) {
-    var c = this.c, ct = c.u8(), i, j, m, k, w, e, p, base, t, a, d, out, col, lens, flat, kinds, inner;
+    var c = this.c, ct = c.u8(), i, j, m, k, w, e, p, base, t, a, b, o, big, d, u, out, col, lens, flat, kinds, inner;
     switch (ct) {
       case CT_CONST: return new Col(n, 3, null, this.value());
       case CT_INT: return this.intCol(n);
@@ -1309,6 +1367,45 @@
         if (!(t instanceof (k === 2 ? Int32Array : Float64Array)) || t.length !== n) jfail('a Pcodec column is damaged');
         if (e > 0) { p = P10[e]; a = new Float64Array(n); for (i = 0; i < n; i++) a[i] = t[i] / p; t = a; }
         return new Col(n, 0, t, null);
+      case CT_FRONT:
+        this.spend(n);
+        if (n < 1) jfail('bad front-coded column');
+        lens = this.lengthCol(n); flat = this.rawStrings(n, true); out = new Array(n);
+        if (lens.get(0) !== 0) jfail('bad front-coded column');
+        if (!Array.isArray(flat)) {
+          t = flat.bytes; d = flat.lens; a = new Uint32Array(n + 1); w = 0;
+          for (i = 0; i < n; i++) { w += d.get(i); if (w > 4294967295) jfail('bad string lengths'); a[i + 1] = w; }                                  // a[i+1]: end of the new ends so far
+          if (w === t.length) {                                                                      // all ASCII: rebuild the whole text as bytes, decode it once
+            b = new Uint32Array(n + 1); w = 0;                                                       // b[i]: where row i starts in the rebuilt text
+            for (i = 0; i < n; i++) {
+              m = lens.get(i);
+              if (i > 0 && m > b[i] - b[i - 1]) jfail('bad front-coded column');
+              e = b[i] + m + (a[i + 1] - a[i]);
+              if (e > 134217728) jfail('a front-coded column would be too big');
+              b[i + 1] = e;
+            }
+            u = new Uint8Array(b[n]);
+            for (i = 0; i < n; i++) {
+              m = lens.get(i); o = b[i];
+              if (m > 24) u.copyWithin(o, b[i - 1], b[i - 1] + m); else for (j = 0; j < m; j++) u[o + j] = u[b[i - 1] + j];
+              for (j = a[i], k = o + m; j < a[i + 1]; j++) u[k++] = t[j];
+            }
+            big = TEXT_DEC.decode(u);
+            for (i = 0; i < n; i++) out[i] = big.substring(b[i], b[i + 1]);
+            return new Col(n, 0, out, null);
+          }
+          big = TEXT_DEC.decode(t); flat = new Array(n);
+          if (w !== big.length) jfail('bad string lengths');
+          for (i = 0; i < n; i++) { if (a[i + 1] > big.length) jfail('bad string lengths'); flat[i] = big.substring(a[i], a[i + 1]); }
+        }
+        out[0] = flat[0]; w = flat[0].length;
+        for (i = 1; i < n; i++) {
+          m = lens.get(i);
+          if (m > out[i - 1].length) jfail('bad front-coded column');
+          out[i] = m ? out[i - 1].substring(0, m) + flat[i] : flat[i];
+          w += out[i].length; if (w > 134217728) jfail('a front-coded column would be too big');         // a damaged file cannot ask for a thousand copies of a long string
+        }
+        return new Col(n, 0, out, null);
       case CT_F32: return new Col(n, 0, this.blob(Float32Array, n), null);
       case CT_F64: return new Col(n, 0, this.blob(Float64Array, n), null);
       case CT_BOOL: t = this.blob(Uint8Array, (n + 7) >> 3); a = new Uint8Array(n); for (i = 0; i < n; i++) a[i] = (t[i >> 3] >> (i & 7)) & 1; return new Col(n, 1, a, null);
@@ -1368,7 +1465,69 @@
   };
   // The text of a whole date-time column straight from its numbers (nothing in between): the calendar part once per distinct day (a small cache), 'hh:mm:' from a table of 1440,
   // ':ss' from 60, '.mmm' from 1000. The tables are filled with push, not by writing into new Array(n): WebKit keeps the second kind of array in a slow "has holes" form (2 times slower here).
+  // Two passes, like the text-pattern builder: a tight numeric pass turns each row into a day number, a minute of the day and a second (small arrays, no strings), then a
+  // generated one-line loop joins pre-built pieces. WebKit runs this about 2 times faster than one loop that does the date arithmetic and the joining together.
+  function dayText(days, L) {
+    var z = days + 719468, era = Math.floor(z / 146097), doe = (z - era * 146097) | 0, yoe = ((doe - ((doe / 1460) | 0) + ((doe / 36524) | 0) - ((doe / 146096) | 0)) / 365) | 0;
+    var doy = doe - (365 * yoe + (yoe >> 2) - ((yoe / 100) | 0)), mp = ((5 * doy + 2) / 153) | 0, d = doy - (((153 * mp + 2) / 5) | 0) + 1, m = mp < 10 ? mp + 3 : mp - 9, y = yoe + era * 400 + (m <= 2 ? 1 : 0);
+    return L[0] + pad(y, 4) + L[1] + pad(m, 2) + L[2] + pad(d, 2) + L[3];
+  }
+  function timesJoin(g) {
+    var f = GEN_CACHE['tm' + g], src;
+    if (f) return f;
+    if (CAN_EVAL) {
+      src = 'for(var i=0;i<n;i++)out[i]=DT[di[i]]' + (g >= 5 ? '+HM[mi[i]]' : '') + (g >= 6 ? '+SC[si[i]]' : '') + (g === 7 ? '+FR[fi[i]]' : '') + ';';
+      f = new Function('out', 'n', 'DT', 'di', 'HM', 'mi', 'SC', 'si', 'FR', 'fi', src);
+    } else {
+      f = function (out, n, DT, di, HM, mi, SC, si, FR, fi) {
+        var i;
+        for (i = 0; i < n; i++) out[i] = g === 3 ? DT[di[i]] : g === 5 ? DT[di[i]] + HM[mi[i]] : g === 6 ? DT[di[i]] + HM[mi[i]] + SC[si[i]] : DT[di[i]] + HM[mi[i]] + SC[si[i]] + FR[fi[i]];
+      };
+    }
+    genStore('tm' + g, f);
+    return f;
+  }
+  function buildTimesFast(n, L, g, ts, minDay, span) {
+    var per = g === 3 ? 1 : g === 5 ? 1440 : g === 6 ? 86400 : 86400000, ra = ts.mode === 3 ? null : ts.a, cv = ts.mode === 3 ? ts.d : 0;
+    var di = new Int32Array(n), mi = g >= 5 ? new Uint16Array(n) : null, si = g >= 6 ? new Uint8Array(n) : null, fi = g === 7 ? new Uint16Array(n) : null;
+    var dmap = new Int32Array(span).fill(-1), DT = [], HM = [], SC = [], FR = [], k, i, v, days, rest, sec, ms, last = NaN, id = 0, q;
+    for (i = 0; i < n; i++) {
+      v = ra ? ra[i] : cv;
+      days = Math.floor(v / per);
+      if (days !== last) {
+        last = days; q = days - minDay; id = dmap[q];
+        if (id < 0) { id = dmap[q] = DT.length; DT.push(dayText(days, L)); }
+      }
+      di[i] = id;
+      if (g >= 5) {
+        rest = (v - days * per) | 0;
+        if (g === 5) mi[i] = rest;
+        else {
+          if (g === 7) { ms = rest % 1000; sec = (rest - ms) / 1000 | 0; fi[i] = ms; } else sec = rest;
+          k = (sec / 60) | 0; mi[i] = k; si[i] = sec - k * 60;
+        }
+      }
+    }
+    if (g >= 5) for (k = 0; k < 1440; k++) HM.push(pad((k / 60) | 0, 2) + L[4] + pad(k % 60, 2) + L[5]);
+    if (g >= 6) for (k = 0; k < 60; k++) SC.push(pad(k, 2) + L[6]);
+    if (g === 7) for (k = 0; k < 1000; k++) FR.push(pad(k, 3) + L[7]);
+    var out = new Array(n);
+    timesJoin(g)(out, n, DT, di, HM, mi, SC, si, FR, fi);
+    return out;
+  }
   function buildTimes(n, L, g, ts) {
+    var per = g === 3 ? 1 : g === 5 ? 1440 : g === 6 ? 86400 : 86400000, ra = ts.mode === 3 ? null : ts.a, lo = Infinity, hi = -Infinity, i, v, span;
+    for (i = 0; i < n; i++) {
+      v = ra ? ra[i] : ts.d;
+      if (v - v !== 0) jfail('bad date pattern');
+      if (v < lo) lo = v; if (v > hi) hi = v;
+      if (!ra) break;
+    }
+    lo = Math.floor(lo / per); span = Math.floor(hi / per) - lo + 1;
+    if (span <= 262144) return buildTimesFast(n, L, g, ts, lo, span);                                         // up to about 700 years of days
+    return buildTimesSlow(n, L, g, ts);
+  }
+  function buildTimesSlow(n, L, g, ts) {
     var out = new Array(n), per = g === 3 ? 1 : g === 5 ? 1440 : g === 6 ? 86400 : 86400000, ra = ts.mode === 3 ? null : ts.a, cv = ts.mode === 3 ? ts.d : 0;
     var hm = [], sc = [], fr = [], k, i, v, days, rest, day = '', z, era, doe, yoe, doy, mp, y, m, d, sec, ms;
     var tags = new Float64Array(4096).fill(NaN), strs = new Array(4096).fill(''), slot, last = NaN;
@@ -1560,7 +1719,7 @@
     if (ct !== CT_INT) jfail('bad lengths');
     return this.intCol(n);
   };
-  Dec.prototype.rawStrings = function (n) {
+  Dec.prototype.rawStrings = function (n, raw) {                 // raw: a single UTF-8 piece comes back as {lens, bytes} so the caller can work on the bytes
     var c = this.c, lens, pieces, out = new Array(n), q = 0, pi, kind, len, cnt, bytes, big, off, i, u, end;
     this.spend(n);
     lens = this.lengthCol(n);
@@ -1569,6 +1728,7 @@
     for (pi = 0; pi < pieces; pi++) {
       cnt = c.varint(); if (q + cnt > n) jfail('bad string pieces');
       kind = c.u8(); len = c.varint(); this.spend(len);
+      if (raw && pieces === 1 && kind === 0 && cnt === n) return { lens: lens, bytes: this.blob(Uint8Array, len) };
       if (kind === 0) { bytes = this.blob(Uint8Array, len); big = TEXT_DEC.decode(bytes); }
       else if (kind === 1) { u = this.blob(Uint16Array, len); big = codesToString(u); }
       else jfail('bad text');
@@ -1643,7 +1803,7 @@
     stored = packedCtl || ctlRaw;
     if (e.refs) flags |= 1; if (packedCtl) flags |= 2; if (opts.check) flags |= 4;
     var blobsLen = e.blobs.size();
-    head = new Out(); head.u8(0x4D); head.u8(0x4A); head.u8(e.usedTimes || e.needsV3 ? 3 : 2); head.u8(flags);
+    head = new Out(); head.u8(0x4D); head.u8(0x4A); head.u8(e.usedFront ? 4 : e.usedTimes || e.needsV3 ? 3 : 2); head.u8(flags);
     head.varint(ctlRaw.length); head.varint(stored.length);
     out = new Uint8Array(head.p + stored.length + blobsLen + (flags & 4 ? 4 : 0));
     out.set(head.done(), 0); p = head.p; out.set(stored, p); p += stored.length; p = e.blobs.copyTo(out, p);
