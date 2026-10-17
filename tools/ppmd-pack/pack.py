@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd-pack: turn one HTML file into a smaller self-unpacking HTML file with PPMd.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
-Version 1.0.0 (API 1)
+Version 1.0.1 (API 1)
 
   python3 tools/ppmd-pack/pack.py INPUT.html OUTPUT.html [--title T] [--head HTML] [--encoding bytes|base64] [--order N] [--mem BYTES] [--tune] [--compare]
                                   [--minifier auto|terser|esbuild|none] [--minify-page] [--bg auto|none|COLOR] [--skip-node-check]
@@ -124,16 +124,16 @@ def node_roundtrip(page, data):
     text = data.decode("utf-8")
     if text.startswith("﻿"):
         text = text[1:]   # the loader's TextDecoder drops a byte order mark
-    payload = json.dumps({"scripts": scripts, "expected": text, "name": PAYLOAD_NAME}, ensure_ascii=False).encode("utf-8")
+    payload = json.dumps({"scripts": scripts, "expected": text, "name": PAYLOAD_NAME, "modes": ["plain"]}, ensure_ascii=False).encode("utf-8")
     try:
         r = subprocess.run([node, "-e", NODE_HARNESS], input=payload, capture_output=True, timeout=900)
     except subprocess.TimeoutExpired:
         raise SystemExit("self-check failed: the packed page's decoder did not finish in Node within 15 minutes")
     if r.returncode != 0:
         raise SystemExit("the Node check could not run: " + r.stderr.decode("utf-8", "replace")[:300])
-    res = json.loads(r.stdout.decode("utf-8"))
-    if not res["ok"]:
-        raise SystemExit("self-check failed with the page's own JavaScript decoder: " + res["reason"])
+    for res in json.loads(r.stdout.decode("utf-8")):   # the shared harness answers with one result per mode; ppmd-pack asks for "plain" only
+        if not res["ok"]:
+            raise SystemExit("self-check failed with the page's own JavaScript decoder: " + res["reason"])
     return "ok"
 
 
