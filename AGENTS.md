@@ -41,6 +41,9 @@ Test **only** with the browsers on the `browsers` branch of the private knowledg
 2. Add it to `modules.json` (with `short`, at most 100 characters, a `category` and a `side`; `file` is what gets measured for the size), then run `python3 tools/versions/versions.py sizes`: it writes the root README tables and the "All at a glance" index, and the sizes on the front page. Add it to `llms.txt` and `index.html` by hand (a line each), and to `tests/kits.js` if it has its own tests. `versions.py check` fails when a row has no size, the tables or the front page are stale, or a label disagrees.
 3. Only add something that is not already well covered by open source, and say so honestly in the README. Where this repository already has something close, link it and say how they differ.
 
+## Netflow Map engine updates
+Owner's rule (2026-10-18): every significant update to the Netflow Map engine also ships here as a new version of `modules/netflow-engine`, separate from the Sankey, layout and network-map add-ons (`netflow-sankey`, `netflow-layers` and later ones) that plug into it. The engine never depends on an add-on. `modules/netflow-engine/README.md` holds the plan; its version stays 0.x while it is a placeholder.
+
 ## Working with other sessions
 Several AI sessions and people may push to this repository. Before you start, `git fetch` and read `TASKS.md`; put your row in it and push that small commit first. Rebase or merge on the latest `main` before you push, never force-push, and do not rewrite another session's files without saying so in the commit message.
 
