@@ -101,4 +101,30 @@ t('advanced pieces: layered, mapPlaceLine and mapCrossPairs are exported and lay
   ok(fp(a) === fp(b), 'layered() and layout() differ');
   ok(NL.mapCrossPairs([[0, 1], [1, 0]]) === 1, 'one crossing expected');
 });
+// 1.3.0: spread 'wide' (more room for wide screens, more like a tree). 'tight' or nothing is the old picture.
+const overlaps = (R) => { let c = 0; const ns = R.nodes; for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) { const p = ns[i], q = ns[j]; if (p.x < q.x + q.w - 1e-6 && q.x < p.x + p.w - 1e-6 && p.y < q.y + q.h - 1e-6 && q.y < p.y + p.h - 1e-6) c++; } return c; };
+t("spread 'tight' (and no spread) is the old picture: the same fingerprints as before, both ways, all four maps", () => {
+  Object.keys(PIN).forEach((k) => { const [m, d] = k.split('|'); const got = fp(NL.layout(graph(MAPS[m]), { dir: d, spread: 'tight' })); ok(got === PIN[k], k + ' with spread tight changed: ' + got); const odd = fp(NL.layout(graph(MAPS[m]), { dir: d, spread: 'anything else' })); ok(odd === PIN[k], k + ' with an unknown spread changed'); });
+});
+t("spread 'wide': no two boxes touch and every number is finite, with every other option on or off, both ways, three sizes", () => {
+  const variants = [{}, { spine: true }, { rows: 'story' }, { tagLen: 3 }, { bundle: true }, { better: true }, { wrapRows: 6, dir: 'TB' }, { gapNode: 10, gapLayer: 50 }]; let n = 0;
+  [['story', story(12, 1)], ['story', story(40, 2)], ['dag', dag(150, 300, 3)]].forEach(([, m]) => ['LR', 'TB'].forEach((dir) => variants.forEach((v) => {
+    const R = NL.layout(graph(m), Object.assign({ dir, spread: 'wide' }, v)); n++;
+    ok(R.nodes.every((b) => [b.x, b.y, b.w, b.h].every(Number.isFinite)), 'a number is not finite'); ok(overlaps(R) === 0, overlaps(R) + ' boxes overlap (' + dir + ' ' + JSON.stringify(v) + ')');
+  })));
+  return n + ' pictures';
+});
+t("spread 'wide' gives more room: sideways gaps grow top to bottom (width), rows grow left to right (width) and the same map draws the same way twice", () => {
+  const m = MAPS['story 120'], a = NL.layout(graph(m), { dir: 'TB' }), b = NL.layout(graph(m), { dir: 'TB', spread: 'wide' }), b2 = NL.layout(graph(m), { dir: 'TB', spread: 'wide' });
+  ok(b.width > a.width * 1.15 && Math.abs(b.height - a.height) < 1e-6, 'top to bottom: width ' + a.width + ' -> ' + b.width + ', height ' + a.height + ' -> ' + b.height);
+  const c = NL.layout(graph(m), { dir: 'LR' }), d = NL.layout(graph(m), { dir: 'LR', spread: 'wide' });
+  ok(d.width > c.width * 1.15 && d.height > c.height, 'left to right: ' + c.width + 'x' + c.height + ' -> ' + d.width + 'x' + d.height); ok(fp(b) === fp(b2), 'two runs differ');
+  return 'top to bottom ' + Math.round(a.width) + ' -> ' + Math.round(b.width) + ' wide; left to right ' + Math.round(c.width) + ' -> ' + Math.round(d.width);
+});
+t("spread 'wide': a box that leads to several boxes sits over the middle of them", () => {
+  const ids = ['r', 'a', 'b', 'c', 'a1', 'a2', 'a3', 'a4'], E = [['r', 'a'], ['r', 'b'], ['r', 'c'], ['a', 'a1'], ['a', 'a2'], ['a', 'a3'], ['a', 'a4']];
+  const g = { root: 'r', nodes: ids.map((id) => ({ id, w: 100, h: 40 })), edges: E.map(([from, to]) => ({ from, to })) }, at = (R, id) => { const n = R.nodes.find((x) => x.id === id); return n.x + n.w / 2; };
+  const R = NL.layout(g, { dir: 'TB', spread: 'wide' }); ok(Math.abs(at(R, 'r') - (at(R, 'a') + at(R, 'c')) / 2) < 1, 'root at ' + at(R, 'r') + ', middle of its children ' + (at(R, 'a') + at(R, 'c')) / 2);
+  ok(Math.abs(at(R, 'a') - (at(R, 'a1') + at(R, 'a4')) / 2) < 1, 'a at ' + at(R, 'a') + ', middle of its children ' + (at(R, 'a1') + at(R, 'a4')) / 2);
+});
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);

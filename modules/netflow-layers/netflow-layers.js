@@ -2,7 +2,7 @@
  * netflow-layers.js: lay out a graph in rows (a Sugiyama-style layered drawing): top to bottom or left to right, with long links as tags, story order, a column for the pages every route passes, and tall maps cut into columns. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  *
  *   var R = NetflowLayers.layout({ nodes: [{ id: "start", w: 140, h: 44 }, { id: "a", w: 140, h: 44 }], edges: [{ from: "start", to: "a" }], root: "start" }, { dir: "TB" });
  *   svgElement.innerHTML = NetflowLayers.toSvg(R);          // or draw R.nodes and R.edges yourself (see README)
@@ -101,7 +101,10 @@
    *   better: true    crossing reduction with the middle value and neighbor swaps on big maps too,
    *   bundle: true    links that start at the same page share one run of stops (as far as the longest goes); links that end at the same page and are
    *                   alone at their start share one run from the end upward,
-   *   wrapRows: R     a tall map is cut every R rows into columns side by side (links between columns become tags).
+   *   wrapRows: R     a tall map is cut every R rows into columns side by side (links between columns become tags),
+   *   spread: 'wide'  more room for wide screens and more like a tree: siblings get more space on the sideways axis (2.4 times the gap top to bottom, 1.4 times left to right),
+   *                   the space between rows is 1.7 times as wide left to right (unchanged top to bottom), and a box that leads to several boxes sits over the middle of them
+   *                   instead of over their weighted average. 'tight' (or nothing) is the old picture exactly.
    */
   function layered(G, opts) {
     opts = opts || {};
@@ -280,7 +283,7 @@
     }
     best.forEach(function (list, k) { L[k] = list; list.forEach(function (v, i) { v.pos = i; }); });
     var across = function (v) { return v.dummy ? 0 : LR ? v.node.h : v.node.w; };
-    var gapN = opts.gapNode !== undefined ? opts.gapNode : LR ? 22 : 28, gapD = 12;
+    var wide = opts.spread === 'wide', gapN = (opts.gapNode !== undefined ? opts.gapNode : LR ? 22 : 28) * (wide ? (LR ? 1.4 : 2.4) : 1), gapD = 12 * (wide ? (LR ? 1.3 : 2) : 1);
     var gapOf = function (a, b) { return (across(a) + across(b)) / 2 + (a.dummy || b.dummy ? gapD : gapN) + (opts.lane && laneOf(a) !== laneOf(b) ? 40 : 0); };
     L.forEach(function (list) {
       var c2 = 0;
@@ -294,7 +297,11 @@
         var ns = nb[v.idx], s = 0, sw = 0;
         ns.forEach(function (o) { s += o[0].c * o[1]; sw += o[1]; });
         if (isChoke(v)) { want.push(0); wt.push(1000); }
-        else { want.push(sw ? s / sw : v.c); wt.push(sw ? sw + (v.dummy ? 2 : 0) : 0.2); }
+        else {
+          var mid = sw ? s / sw : v.c;
+          if (wide && sw && !v.dummy && ns.length > 1) { var lo = Infinity, hi = -Infinity; ns.forEach(function (o) { lo = Math.min(lo, o[0].c); hi = Math.max(hi, o[0].c); }); mid = (lo + hi) / 2; }   // wide: over the middle of its neighbors, like a tree
+          want.push(mid); wt.push(sw ? sw + (v.dummy ? 2 : 0) : 0.2);
+        }
         if (i) gaps.push(gapOf(list[i - 1], v));
       });
       var xs = mapPlaceLine(want, wt, gaps);
@@ -320,7 +327,7 @@
       });
       vert.forEach(function (v) { v.c += shift[laneOf(v)]; });
     }
-    var gapL = opts.gapLayer !== undefined ? opts.gapLayer : LR ? 80 : 64, depthOf = [], at2 = 0;
+    var gapL = (opts.gapLayer !== undefined ? opts.gapLayer : LR ? 80 : 64) * (wide && LR ? 1.7 : 1), depthOf = [], at2 = 0;
     for (var k6 = 0; k6 < nL; k6++) {
       var mm = 0;
       L[k6].forEach(function (v) { if (!v.dummy) mm = Math.max(mm, LR ? v.node.w : v.node.h); });
@@ -377,6 +384,7 @@
     var edges = graph.edges.map(function (e) { var c = {}; for (var k in e) c[k] = e[k]; if (c.count === undefined) c.count = 1; return c; });
     var G = { nodes: nodes, edges: edges };
     var base = { dir: opts.dir === 'TB' ? 'TB' : 'LR', root: graph.root, prev: opts.prev, spine: !!opts.spine, rows: opts.rows === 'story' ? 'story' : undefined, tagLen: opts.tagLen > 1 ? opts.tagLen : 0, better: !!opts.better, bundle: !!opts.bundle };
+    if (opts.spread === 'wide') base.spread = 'wide';
     if (opts.gapNode !== undefined) base.gapNode = opts.gapNode;
     if (opts.gapLayer !== undefined) base.gapLayer = opts.gapLayer;
     if (opts.maxVertices !== undefined) base.maxVertices = opts.maxVertices;
@@ -441,5 +449,5 @@
     return out.join('\n');
   }
 
-  return { version: '1.2.0', layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
+  return { version: '1.3.0', layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
 }));
