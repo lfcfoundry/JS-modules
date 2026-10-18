@@ -1,4 +1,4 @@
-/* frame-meter: a tiny speed meter for requestAnimationFrame games: frames a second, slowest frame, hitches with a plain-words cause, and tap-to-next-frame delay. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.2.0 (API 1) */
+/* frame-meter: a tiny speed meter for requestAnimationFrame games: frames a second, slowest frame, hitches with a plain-words cause, and tap-to-next-frame delay. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.2.1 (API 1) */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.FrameMeter = factory();
@@ -143,7 +143,7 @@
 
   /* the lines to show, first the numbers, then your own lines (for example quality), then the tap delay and the verdict */
   FrameMeter.prototype.lines = function (extra) {
-    var out = [this.fps + ' fps', 'worst ' + this.worstMs + ' ms'], i, t = this.tapMs();
+    var out = [this.fps + ' FPS', 'worst ' + this.worstMs + ' ms'], i, t = this.tapMs();
     if (extra) for (i = 0; i < extra.length; i++) out.push(extra[i]);
     if (t >= 0) out.push('tap ' + t + ' ms');
     out.push(this.verdict());

@@ -1,4 +1,4 @@
-/* quality-governor: steps a quality level up or down from how long frames really take, with hysteresis. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.2.0 (API 1) */
+/* quality-governor: steps a quality level up or down from how long frames really take, with hysteresis. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.2.1 (API 1) */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.QualityGovernor = factory();
@@ -41,7 +41,7 @@
    * If you know the expected period, pass `expectedPeriod` (for example the
    * period learned by EvenDt) and the thresholds scale with it. The governor
    * cannot tell "this screen is 30 Hz" from "this machine is struggling at
-   * 30 fps" by itself.
+   * 30 FPS" by itself.
    *
    * Usage:
    *   var gov = new QualityGovernor({
