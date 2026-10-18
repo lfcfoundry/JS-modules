@@ -1,0 +1,27 @@
+diff -ru pco-1.0.4/src/page_latent_decompressor.rs pco-1.0.4-pcodec-js/src/page_latent_decompressor.rs
+--- pco-1.0.4/src/page_latent_decompressor.rs	2006-07-24 01:21:28.000000000 +0000
++++ pco-1.0.4-pcodec-js/src/page_latent_decompressor.rs	2026-10-18 01:49:15.544026630 +0000
+@@ -22,9 +22,11 @@
+   debug_assert!(n >= 1, "read_offsets requires n >= 1");
+   let base_bit_idx = reader.bit_idx();
+   let src = reader.src;
+-  for i in 0..n {
+-    let offset_bits = offset_bits[i];
+-    let offset_bits_csum = offset_bits_csum[i];
++  // pcodec-js patch: iterate the three arrays together so no per-element bounds checks remain
++  let latents_n = &mut latents[..n];
++  let bits_n = &offset_bits[..n];
++  let csum_n = &offset_bits_csum[..n];
++  for ((latent, &offset_bits), &offset_bits_csum) in latents_n.iter_mut().zip(bits_n).zip(csum_n) {
+     let bit_idx = base_bit_idx as Bitlen + offset_bits_csum;
+     let byte_idx = bit_idx / 8;
+     let bits_past_byte = bit_idx % 8;
+@@ -35,7 +37,7 @@
+       offset_bits,
+     );
+ 
+-    latents[i] = latents[i].wrapping_add(offset);
++    *latent = latent.wrapping_add(offset);
+   }
+ 
+   let final_bit_idx = base_bit_idx + offset_bits_csum[n - 1] as usize + offset_bits[n - 1] as usize;

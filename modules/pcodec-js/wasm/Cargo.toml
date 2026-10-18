@@ -1,0 +1,35 @@
+[package]
+name = "pcodec-js"
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+description = "Pcodec (pco 1.0.4) behind a small C interface, built for pcodec-js.js"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+pco = { version = "=1.0.4", default-features = false }
+
+[features]
+default = []
+encode = []
+f64 = []
+f32 = []
+i32 = []
+u32 = []
+i64 = []
+u64 = []
+i16 = []
+u16 = []
+all-types = ["f64", "f32", "i32", "u32", "i64", "u64", "i16", "u16"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+panic = "abort"
+codegen-units = 1
+strip = true
+
+[patch.crates-io]
+pco = { path = "vendor/pco" }
