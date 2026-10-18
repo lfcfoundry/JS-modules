@@ -2,6 +2,22 @@
 
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
+## 2.0.3 · API 2 · 2026-10-18
+The WebAssembly helper now starts the first time you pack or unpack, not when the file loads. A page that loads the module but never packs saves about 5.8 MB of memory (14.96 to 9.12 MB resident in Chromium 155, lower is better; measured by the Netflow Map thread with a blank page and five fresh browsers each). A page that packs ends up the same: 22.63 MB before and 22.98 MB after packing 250,000 links. The cost moves to the first pack, which takes about 2 to 10 ms longer for 25,000 links (table below); later packs are the same within noise. Output is unchanged, byte for byte. One visible difference: `accelerated()` is `false` until the first use (it was `true` right after load); `ready()` starts the helper early if a page wants it warm, and API 2 stays because nothing a page could call changed.
+
+Tested in: ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time (2026-10-18, bench/lazy-start.js, a page whose policy allows only `script-src 'self' 'wasm-unsafe-eval'`, old and new file taking turns, 15 fresh page loads each). Node 22: object layer 41 of 41 checks, packing core 24, router 15 (2 new; the new one fails on 2.0.2).
+
+Pack of 25,000 links in ms, first pack on a fresh page, then second pack (median of 15 loads, lower is better; WebKitGTK and GNOME Web round to whole milliseconds, so gaps under about 10% are ties):
+
+| Browser | First pack, 2.0.2 / 2.0.3 | Second pack, 2.0.2 / 2.0.3 | `accelerated()` after load, 2.0.2 / 2.0.3 |
+|---|---|---|---|
+| ungoogled Chromium 155.0.8059.39-1 | 48.7 / 51.1 | 20.6 / 20.1 | true / false |
+| Firefox 158.0 | 31 / 41 | 20 / 23 | true / false |
+| WebKitGTK 2.52.6 | 35 / 39 | 24 / 19 | true / false |
+| GNOME Web 46.5 | 43 / 43 | 27 / 26 | true / false |
+
+Packed bytes are identical (652,102 B, same checksum in every load of both files) and every result round-trips exactly. After the first pack, and after `await ready()`, `accelerated()` is `true` in all four browsers. The memory numbers come from Chromium 155 only; the other three browsers were checked for behavior and time, not memory. Also tried and left out: a smaller starting memory for the helper (4 MB to 1 MB reserved) did not change resident memory (22.63 against 22.63 MB), and letting go of the helper after packing gave back only 0.8 MB.
+
 ## 2.0.2 · API 2 · 2026-10-18
 Two bugs reported by the Netflow Map team are fixed and one limit is gone. (1) Asking how much memory a held list uses, which the keeper does after view(), no longer throws "Cannot read properties of undefined" when a text column has rows where the key is missing: in the report's 60,000-object test it threw every time before and 0 times now. (2) A page whose policy allows only 'wasm-unsafe-eval' no longer logs a blocked-eval error when the module loads: 1 error per page load before, 0 now, in all four browsers. The module skips its try-it-and-see test when the page sets MEMORY_COMPRESSION_NO_EVAL = true before the file loads, or has a <meta> policy that lacks 'unsafe-eval' (a policy sent as a header cannot be read from a page, so use the switch there). (3) New: view() now also opens a packed array of fewer than 16 objects, which it used to refuse; the calls are the same, the small list is restored whole and release() does nothing. Speed did not change: packing and unpacking 60,000 links tie with 2.0.1 in all four browsers.
 

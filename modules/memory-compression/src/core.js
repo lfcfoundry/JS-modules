@@ -157,7 +157,11 @@
     W.IN = base; W.OUT = base + b; W.SCR = W.OUT + b; W.HT = W.SCR + a; W.MASK = W.HT + (1 << 19); W.TOK = W.MASK + 4096; W.chunk = chunk;
     return true;
   }
-  function wasmOn(opts) { return !wasmOff && !(opts && opts.wasm === false) && W !== null; }
+  function wasmOn(opts) {
+    if (wasmOff || (opts && opts.wasm === false)) return false;
+    if (W === null && wasmState === 'idle') wasmInit();        // started by the first pack or unpack that could use it, not when the file loads
+    return W !== null;
+  }
 
   // ---------------------------------------------------------------- deflate: decoder
   var LBASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
@@ -1034,7 +1038,6 @@
     var out = new Uint8Array(s.length); unshuffleInto(s, 0, s.length, width, out, 0); return out;
   }
 
-  wasmInit();
   return {
     pack: pack, unpack: unpack, view: view,
     lz4Compress: lz4Compress, lz4Decompress: lz4Decompress,
