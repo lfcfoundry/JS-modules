@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Browser checks for test-isolation, slow-note, grown-ups-door, env-probes, spotlight-tour and speed-lab. Copyright (c) 2026 LFC Foundry. MIT License.
 // Opens each piece in a real browser, one browser at a time. Needs puppeteer-core.
+// ONLY=speed-lab runs only the checks whose name contains that text.
 // Run: CHROMIUM=/path/to/chrome FIREFOX=/path/to/firefox node tests/pieces-browser.js   (either one or both), or WEBKIT=1 node tests/pieces-browser.js for WebKitGTK
 // (WEBKIT=epiphany for GNOME Web) through WebDriver (tests/webkit-shim.js and tools/webkit-driver). Exit code 2 (skipped) when nothing can run.
 const pp = (() => { try { return require('puppeteer-core'); } catch (e) { return null; } })();
@@ -66,6 +67,7 @@ module.exports = { check, open, sleep, ok, root };
     console.log('Browser: ' + await b.version());
     let fails = 0;
     for (const [name, fn] of checks) {
+      if (process.env.ONLY && !name.includes(process.env.ONLY)) continue;   // ONLY=speed-lab runs just that piece (the others take about 15 s together)
       const t0 = Date.now(), took = () => ' (' + ((Date.now() - t0) / 1000).toFixed(1) + ' s)';   // time every check first: where the seconds go
       // (running the checks side by side in separate pages of one browser was tried: two of them hung until the 180 s protocol timeout, because pages that are not in front are throttled)
       try { const r = await fn(b); console.log('  ok   ' + name + took() + (r ? ': ' + r : '')); }
