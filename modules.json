@@ -292,10 +292,10 @@
     },
     {
       "id": "memory-compression-jso",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "api": 1,
       "global": "MemoryCompressionJSO",
-      "summary": "Keeps big lists of plain JavaScript objects packed in memory and brings every value back exactly: 300,000 link objects shrink to 14% of their JSON text (35% for msgpackr with records) and unpack in about 73 ms (122 ms for msgpackr with records). 1.4.0 is one file for memory-tight pages: an optional per-block number chooser (balanced mode: objects 15 to 28% smaller, columns up to 92% smaller; packing 7 to 24 times slower), sorted text stored by front coding, and a keeper that holds named data packed, restores it in slices that freeze a page for 21 to 31 ms (against 53 to 76 ms in one step for 300,000 links), pins what is being drawn and trims under a budget.",
+      "summary": "Keeps big lists of plain JavaScript objects packed in memory and brings every value back exactly: 300,000 link objects shrink to 14% of their JSON text (35% for msgpackr with records) and unpack in about 73 ms (122 ms for msgpackr with records). 1.4.0 is one file for memory-tight pages: an optional per-block number chooser (balanced mode: objects 15 to 28% smaller, columns up to 92% smaller; packing 2 to 7 times slower), sorted text stored by front coding, and a keeper that holds named data packed, restores it in slices that freeze a page for 21 to 31 ms (against 53 to 76 ms in one step for 300,000 links), pins what is being drawn and trims under a budget.",
       "file": "modules/memory-compression-jso/memory-compression-jso.js",
       "readme": "modules/memory-compression-jso/README.md",
       "demo": "modules/memory-compression-jso/demo.html",

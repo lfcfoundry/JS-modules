@@ -34,7 +34,8 @@
   // (A worker was tried: the finished objects have to be copied back to the page, which stalled it longer than unpacking on the page did, so there is none.)
   var yieldChannel = null;
   function later(fn) {
-    if (typeof MessageChannel === 'function') {
+    if (typeof setImmediate === 'function') setImmediate(fn);                       // Node: a message port would keep the process from exiting
+    else if (typeof MessageChannel === 'function') {
       if (!yieldChannel) { yieldChannel = new MessageChannel(); yieldChannel.queue = []; yieldChannel.port1.onmessage = function () { var f = yieldChannel.queue.shift(); if (f) f(); }; }
       yieldChannel.queue.push(fn); yieldChannel.port2.postMessage(0);
     } else setTimeout(fn, 0);
@@ -148,6 +149,27 @@
           return install(e, name, r.v, performance.now() - t0, r.by);
         }, function (err) { e.pending = null; throw err; });
         return e.pending;
+      },
+      each: function (name, fn, eopts) {               // a promise that calls fn(objects, firstRow) for each run of rows (default 2,048 rows) of a packed array of objects, with the page free in between; the whole list is never made at once
+        var e = items.get(name), vw, n, step, at = 0, q = 0, ms = eopts && eopts.sliceMs > 0 ? eopts.sliceMs : 8;
+        if (!e) return Promise.reject(new Error('MemoryCompressionJSO: nothing is held under the name ' + name));
+        step = eopts && eopts.chunk > 0 ? Math.floor(eopts.chunk) : 2048;
+        try { vw = K.view(name); } catch (x) { return Promise.reject(x); }
+        n = vw.length; e.used = ++clock;
+        return new Promise(function (resolve, reject) {
+          function run() {
+            var t0 = performance.now();
+            try {
+              while (q < vw.keys.length) { vw.field(0, vw.keys[q++]); if (performance.now() - t0 >= ms) { later(run); return; } }       // the columns open one per step first
+              while (at < n) {
+                fn(vw.slice(at, Math.min(n, at + step)), at); at += step;
+                if (at < n && performance.now() - t0 >= ms) { later(run); return; }
+              }
+            } catch (x) { reject(x); return; }
+            check(name); resolve(n);
+          }
+          later(run);
+        });
       },
       view: function (name) {                          // a view over the packed bytes (a packed array of 16 or more objects): columns open one at a time
         var e = need(name);

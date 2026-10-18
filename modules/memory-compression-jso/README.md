@@ -1,12 +1,12 @@
 # memory-compression-jso
 
-**Version 1.4.0 · API 1**
+**Version 1.4.1 · API 1**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (the module's own 36 checks inside each browser page, one browser at a time, 36 of 36 passed in all four, 5 to 8 s each; number columns, restore and single reads measured in each earlier; tests in Node: normal, no-wasm, no-eval, long fuzz)
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (the module's own 38 checks inside each browser page, one browser at a time, 38 of 38 passed in all four, 3.6 to 4.6 s of checks each and 10 to 23 s with browser start-up, run again on the JS-modules main tree 2026-10-18; number-column and restore timings one browser at a time, from the research runs; tests in Node: normal, no-wasm, no-eval, full fuzz)
 
 Keeps a big pile of plain JavaScript objects (a list of 300,000 links, 100,000 scene items, an API answer, a log) packed in memory as a few megabytes of bytes, and brings every value back exactly. It is the object version of [memory-compression](../memory-compression/README.md): arrays of objects are stored as columns, and the columns go through that module's float-aware packing. One file, no dependencies, works offline, 264,415 bytes with comments (the core, the number chooser, the keeper and the small WebAssembly helpers are all inside; the plain-JavaScript fallback gives the same bytes when a page blocks WebAssembly). It also sets `MemoryCompression` (the core alone) unless a page already has one. The plain `memory-compression` module is not renamed, aliased or retired: it stays as the small core for pages that only pack bytes (renaming or aliasing is a later decision, after the profiling pass).
 
-**Test it:** `node modules/memory-compression-jso/test/run.js` (36 checks, about 5 s; `--js-only` runs without WebAssembly; `FULL=1` runs 10 times more random cases). **Try it:** `demo.html`. **Rebuild the file:** `python3 modules/memory-compression-jso/build.py`.
+**Test it:** `node modules/memory-compression-jso/test/run.js` (38 checks, about 5 s; `--js-only` runs without WebAssembly; `FULL=1` runs 10 times more random cases). **Try it:** `demo.html`. **Rebuild the file:** `python3 modules/memory-compression-jso/build.py`.
 
 ## Quick start
 ```js
@@ -235,7 +235,7 @@ In the default `fast` mode a number column goes straight to the byte packer. In 
 | timestamps rising by 1 to 3 | 71,052 B | 20,548 B | -71.1% |
 | prices with 2 decimals | 132,045 B | 97,214 B | -26.4% |
 | coordinates with 5 decimals | 117,243 B | 81,760 B | -30.3% |
-| temperatures with 1 decimal | 96,969 B | 54,325 B | -44.0% |
+| temperatures with 1 decimal | 96,969 B | 53,295 B | -45.0% |
 | 4 decimals plus float noise | 621,672 B | 242,229 B | -61.0% |
 | random doubles | 359,742 B | 359,742 B | 0.0% (nothing to find; kept as is) |
 
@@ -243,22 +243,22 @@ Time, in milliseconds, **lower is better**, median of 5 rounds in each browser, 
 
 | Browser | timestamps unpack fast / balanced | timestamps pack fast / balanced | prices unpack | prices pack | float-noise unpack | float-noise pack |
 |---|---:|---:|---:|---:|---:|---:|
-| Firefox 158.0 | 1.2 / 2.9 | 1.4 / 60.0 | 1.5 / 4.8 | 1.9 / 58.3 | 1.0 / 4.2 | 1.9 / 115.7 |
-| ungoogled Chromium 155.0.8059.39-1 | 1.3 / 4.7 | 1.3 / 88.4 | 1.6 / 6.8 | 2.2 / 87.8 | 0.9 / 7.6 | 2.5 / 175.2 |
-| WebKitGTK 2.52.6 | 1.4 / 2.8 | 1.1 / 52.0 | 4.7 / 4.5 | 5.0 / 59.0 | 1.2 / 4.9 | 1.9 / 106.7 |
-| GNOME Web 46.5 | 1.5 / 2.9 | 1.3 / 48.3 | 4.3 / 5.1 | 5.0 / 61.0 | 1.8 / 5.2 | 1.8 / 108.3 |
+| Firefox 158.0 | 2.2 / 4.9 | 1.8 / 17.8 | 1.3 / 4.0 | 2.0 / 15.8 | 1.1 / 4.0 | 2.2 / 36.6 |
+| ungoogled Chromium 155.0.8059.39-1 | 1.3 / 4.9 | 1.9 / 21.4 | 2.1 / 7.9 | 3.5 / 21.5 | 0.8 / 7.4 | 2.8 / 52.5 |
+| WebKitGTK 2.52.6 | 1.7 / 3.2 | 1.4 / 17.0 | 4.5 / 4.4 | 4.8 / 17.0 | 1.7 / 4.5 | 1.8 / 33.0 |
+| GNOME Web 46.5 | 1.6 / 2.8 | 1.3 / 14.6 | 5.1 / 4.4 | 5.2 / 17.0 | 1.8 / 5.0 | 1.8 / 40.0 |
 
 **Whole lists of objects, Node 22, `fast` / `balanced` / `small`** (size smaller is better; times lower is better; results come back exactly in every case):
 
 | Data | Size KB fast | balanced | small | Pack ms fast / balanced / small | Unpack ms fast / balanced / small |
 |---|---:|---:|---:|---|---|
-| 300,000 links | 7,670 | 6,409 (-16.4%) | 6,396 (-16.6%) | 87 / 2,116 / 6,917 | 68 / 248 / 254 |
-| 100,000 graph nodes | 2,050 | 1,733 (-15.5%) | 1,701 (-17.0%) | 65 / 568 / 1,642 | 38 / 55 / 63 |
-| 200,000 log events | 1,631 | 1,176 (-27.9%) | 1,102 (-32.5%) | 64 / 589 / 2,864 | 36 / 44 / 46 |
-| 50,000 user records | 746 | 614 (-17.7%) | 578 (-22.6%) | 53 / 372 / 1,138 | 42 / 41 / 39 |
-| 20,000 map features | 1,761 | 1,363 (-22.6%) | 1,356 (-23.0%) | 30 / 361 / 892 | 30 / 41 / 154 |
+| 300,000 links | 7,670 | 6,413 (-16.4%) | 6,396 (-16.6%) | 87 / 624 / 1,581 | 219 / 99 / 146 |
+| 100,000 graph nodes | 2,050 | 1,733 (-15.5%) | 1,701 (-17.0%) | 75 / 209 / 424 | 40 / 52 / 48 |
+| 200,000 log events | 1,631 | 1,175 (-28.0%) | 1,102 (-32.5%) | 76 / 204 / 345 | 33 / 39 / 35 |
+| 50,000 user records | 746 | 614 (-17.7%) | 578 (-22.5%) | 53 / 122 / 247 | 41 / 29 / 38 |
+| 20,000 map features | 1,761 | 1,367 (-22.4%) | 1,359 (-22.9%) | 26 / 106 / 333 | 29 / 35 / 45 |
 
-**Plain takeaway:** `balanced` makes number-heavy data 15 to 28% smaller and reads it back 1.0 to 3.6 times slower, but packing takes 7 to 24 times longer. Use it for data that is packed once and kept (a layout parked while memory is tight); keep `fast` for data packed over and over. Packing speed is the next thing to profile and cut.
+**Plain takeaway:** `balanced` makes number-heavy data 15 to 28% smaller; reading it back takes about the same time (0.7 to 1.7 times) and packing takes 2 to 7 times longer than `fast` (300,000 links 94 ms against 501 ms in Node). Use it for data that is packed once and kept (a layout parked while memory is tight); keep `fast` for data packed over and over. (1.4.0 packed 7 to 24 times slower; the 1.4.1 speed pass cut that, see the changelog. Columns of real-valued doubles: 4 × 200,000 values pack in about 105 ms against 336 ms in 1.4.0, same bytes. `small` mode: five 100,000-row lists pack in 1,440 ms against 2,343 ms before this pass (warm, Node), 0.003% bigger.)
 
 ### Keeping data packed under memory pressure (`keeper`, 1.4.0)
 `keeper(opts)` holds named values packed, restores them when asked and lets go of the restored copies when a budget is passed or `trim()` is called, least recently used first. `opts.budget` is the most bytes it may hold (packed bytes plus restored copies; 0 means no limit), `opts.onPressure(level, memory)` is called when the level changes (0 fine, 1 at 70% of the budget, 2 at or over it), and every other option (`mode`, `refs`, `fsst`, ...) is used when packing.
@@ -274,6 +274,7 @@ K.trim(); K.release();                    // let go of restored copies (the pack
 | `hold(name, value, opts?)` | packs and keeps the packed form; returns `{ packed, heap }` (heap = estimated live size). Per-call `opts` override the keeper's (`refs: true` passes through) |
 | `get(name)` | the value, restored now (the page waits) and kept; `view(name)` and `column(name, key)` read parts without making the objects |
 | `restore(name, { sliceMs: 8 }?)` | a promise of the same value, restored in slices of about 8 ms so the page stays free (a packed array of objects: columns one at a time, then objects 512 at a time); anything else is restored in one step on the page |
+| `each(name, fn, { chunk: 2048, sliceMs: 8 }?)` | a promise that calls `fn(objects, firstRow)` for each run of rows of a packed array of objects, with the page free in between; **the whole list is never made at once**, so only a run of objects plus the opened columns are alive: for 300,000 links 17 MB of extra live memory in Node against 66 to 68 MB for `get()` or `restore()` (lower is better), finished in 48 to 170 ms with the longest page freeze 17 to 27 ms in the four browsers. `view(name).slice(from, to)` makes just those rows |
 | `pin(name)`, `unpin(name)` | counts; a pinned item is skipped by `trim()`, the budget, `release()` and `drop()` (pass `true` as the second argument of `release` or `drop` to force) |
 | `calibrate(factor)` | multiply the live size of restored data by a measured factor (a browser page can cost 2.5 times what a plain heap count says); no argument reads it |
 | `memory()` | `{ packed, restored, total, budget, factor, items: { name: { packed, restored, rows, pinned, restoreMs, restoreMsMeasured, restoredBy } } }`; `restoreMs` is measured after the first restore and guessed from the packed size before |
@@ -479,7 +480,7 @@ Measured against msgpackr 2.1.0 (with and without records, and with bundled stri
 
 Also `keeper(opts)`, `profile(value, opts, repeats)`, `estimateBytes(value)` and `heap()`: see Keeping data packed under memory pressure above.
 
-`view(bytes, opts)` for a packed array of 16 or more objects that all have the same keys returns `{ length, keys, lazy, get(i), field(i, key), column(key), toArray(), loaded(), release(), memory() }`. A file made by 1.1.0 opens without restoring anything (`lazy` is true) and restores a column on first read; a file made by 1.0.0 is restored at open, as before.
+`view(bytes, opts)` for a packed array of 16 or more objects that all have the same keys returns `{ length, keys, lazy, get(i), field(i, key), column(key), slice(from, to), toArray(), loaded(), release(), memory() }`. A file made by 1.1.0 opens without restoring anything (`lazy` is true) and restores a column on first read; a file made by 1.0.0 is restored at open, as before.
 
 Also: `freeBuffers()` (gives back the arrays kept between packs), `ready()` (a promise), `accelerated()` (is the WebAssembly helper in use), and `core` (the memory-compression module inside, for typed arrays and bytes). Errors are `Error` objects whose message starts with `MemoryCompressionJSO:` and say what is wrong in plain words.
 
@@ -503,5 +504,5 @@ msgpackr and cbor-x (record extension: repeated object layouts written once; gen
 - Await `MemoryCompressionJSO.ready()` once at start-up. Check `packed.length`; irregular data gives up only about 60%.
 - Sorted text (words, file paths) is front coded by itself (`front`, about 30 to 40% smaller, slower to read); pass `{ front: false }` for the fastest read or to keep files readable by 1.2.x.
 - `{ fsst: true }` for big columns of names, paths or log lines (about half the size, one string readable alone, 2 to 6 times slower to pack); skip it for patterns and repeating values, which already have a smaller way (it chooses by itself).
-- Number-heavy data that is packed once and kept (sensor logs, prices, coordinates, a parked layout): `mode: 'balanced'` (15 to 28% smaller on objects, up to 92% on a column; packing 7 to 24 times slower). For memory pressure: `keeper({ budget })` with `hold`, `restore`, `pin`, `trim`; read `memory()` for sizes and restore times.
+- Number-heavy data that is packed once and kept (sensor logs, prices, coordinates, a parked layout): `mode: 'balanced'` (15 to 28% smaller on objects, up to 92% on a column; packing 2 to 7 times slower). For memory pressure: `keeper({ budget })` with `hold`, `restore`, `pin`, `trim`; read `memory()` for sizes and restore times.
 - To re-run the comparison: `bench/README.md`.
