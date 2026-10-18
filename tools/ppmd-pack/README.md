@@ -1,8 +1,8 @@
 # ppmd-pack
 
-**Version 1.1.1 · API 1**
+**Version 2.0.0 · API 2**
 
-**Tested in:** Python 3 tests of the packer (lzma-pack 25 checks, ppmd-pack 30 checks); the packed page is byte for byte the same as before on a 38 KB sample, so the earlier browser results (ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5) still stand; not rerun in a browser, not run on a phone
+**Tested in:** Python 3.13 (30 ppmd-pack checks); tests/pack-default-browser.js one browser at a time on 2026-10-18: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; a page without the wasm policy word opened in all four
 
 Turns one HTML file into one smaller, self-unpacking HTML file using PPMd (the "PPMd7" / variant H compressor that 7-Zip offers), and checks a hash of the result before running it. It is the heavier sibling of [`lzma-pack`](../lzma-pack/README.md): the same wrapper page and options, a stronger compressor for text and code, and a bigger, slower decoder. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader); the encoder is pure Python, nothing is compiled or downloaded.
 
@@ -34,7 +34,8 @@ Test it: `python3 tools/ppmd-pack/test/run.py` (Python 3 and Node.js, no browser
 | `--tune` | Try orders 4 to 32 with memory 1 to 16 MB (about 35 pure-Python encodings over all processors) and keep the smallest; never bigger than the default. Replaces `--order` and `--mem`. |
 | `--compare` | Also build the LZMA packer's page (raw LZMA, lc=4 lp=0 pb=0, preset 9 extreme) and print both payloads and both net page sizes. |
 | `--title T`, `--bg auto\|none\|COLOR`, `--minify-page` | Wrapper page title; color behind "Opening..." (as in lzma-pack); minify the page's own inline scripts first (needs terser or esbuild; off by default). |
-| `--wasm` | Off by default. Also ship the WebAssembly PPMd decoder (9,317 bytes, stored raw); the loader tries it first and falls back to the JavaScript decoder if it is missing, refused or wrong. Needs `'wasm-unsafe-eval'` in the page's policy. Refuses a model memory that would not fit in one WebAssembly memory (1 GB with the page). |
+| `--no-wasm` | Leave the WebAssembly decoder out: the page is about 9.8 KB (5.2%) smaller and always decodes in JavaScript. For pages with a tight size limit. |
+| `--wasm` | The default since 2.0.0; kept so old commands work. Ships the WebAssembly PPMd decoder (9,317 bytes, stored raw) behind the PPMd data; the loader tries it first and falls back to the JavaScript decoder if it is missing, refused or wrong. Needs `'wasm-unsafe-eval'` in the page's policy to be used. A model memory that would not fit in one WebAssembly memory (1 GB with the page) quietly leaves it out of the default and makes an explicit `--wasm` stop with an error. |
 | `--skip-node-check`, `--minifier auto\|terser\|esbuild\|none` | Skip the Node self-check below; pick the loader minifier (found on the PATH, in `node_modules/.bin`, or from `TERSER` / `ESBUILD`; without one the loader is about 22 KB). |
 
 After packing, the packer runs the page's real decoder in a bare Node sandbox; the result must equal the input page, show no error and leave no global behind. Without Node.js it says so and **nothing has verified the packed data** (PPMd is not in the Python standard library, so there is no Python-side decoder). The input must be valid UTF-8 (a leading byte order mark is dropped). The hash check on the compressed bytes runs before decoding because a re-saved or cut PPMd stream can make the lean decoder spin forever; it catches accidents, not tampering.
@@ -64,17 +65,26 @@ Where 60 KB comes from: the decoder costs 5.4 KB more than LZMA's and wins back 
 
 The data is smaller with PPMd on nine of ten files (4 to 16%; the exception is base64 audio, already dense), but the whole page is clearly smaller only on three files (3 to 4%), where LZMA's data was above about 60 KB and PPMd's gain above about 5%; on `three.min.js` it is a tie (-0.2%). Minified JavaScript gains least. `--tune` took `json_story-nodes.json` from 60,888 to 56,168 bytes (-7.8%, 18 s on two processors).
 
-**With `--wasm`** the page grows by about 9.7 KB (the 9,317-byte program plus about 380 bytes of loader) and unpacks about 1.5 to 2.1 times sooner. Apple Press page (2026.10.17.1445, 703,049 bytes; PPMd order 12, 8 MB), time from page start to unpacked page ready, median of 5 runs, one browser at a time (size in bytes: smaller is better; ms: lower is better):
+**WebAssembly first (the default since 2.0.0):** the page grows by about 9.7 KB (the 9,317-byte program plus about 380 bytes of loader) and unpacks about 1.5 to 2.1 times sooner. Apple Press page (2026.10.17.1445, 703,049 bytes; PPMd order 12, 8 MB), time from page start to unpacked page ready, median of 5 runs, one browser at a time (size in bytes: smaller is better; ms: lower is better):
 
 | Page | Size (bytes) | Chromium 155 (ms) | Firefox 158 (ms) | WebKitGTK 2.52.6 (ms) | GNOME Web 46.5 (ms) |
 |---|---:|---:|---:|---:|---:|
-| LZMA | 191,584 | 106 | 89 | 120 | 119 |
-| LZMA, `--wasm` | 196,119 | 64 | 74 | 86 | 114 |
-| PPMd | 188,602 | 313 | 313 | 392 | 376 |
-| PPMd, `--wasm` | 198,362 | 194 | 204 | 184 | 182 |
-| PPMd `--wasm`: times faster than PPMd (higher is better) | | 1.6x | 1.5x | 2.1x | 2.1x |
+| LZMA, `--no-wasm` | 191,584 | 106 | 89 | 120 | 119 |
+| LZMA, WebAssembly | 196,119 | 64 | 74 | 86 | 114 |
+| PPMd, `--no-wasm` | 188,602 | 313 | 313 | 392 | 376 |
+| PPMd, WebAssembly (default) | 198,362 | 194 | 204 | 184 | 182 |
+| PPMd WebAssembly: times faster than `--no-wasm` (higher is better) | | 1.6x | 1.5x | 2.1x | 2.1x |
 
-For this page LZMA is the better choice on both counts: PPMd with `--wasm` still opens 1.6 to 3 times slower than LZMA and is 6.8 KB **bigger** than the LZMA page, instead of 3.0 KB smaller. It pays only where PPMd's smaller data wins by more than the 9.7 KB (roughly 2 MB for a page like this) and the opening time is acceptable. Numbers move by about 10 to 20% from run to run. On a page whose policy forbids WebAssembly the loader uses the JavaScript decoder (all four browsers: the page opened in 317 to 438 ms, the same as a plain PPMd page). Not run on a phone.
+For this page LZMA is the better choice on both counts: PPMd with WebAssembly still opens 1.6 to 3 times slower than LZMA and is 6.8 KB **bigger** than the LZMA page, instead of 3.0 KB smaller. It pays only where PPMd's smaller data wins by more than the 9.7 KB (roughly 2 MB for a page like this) and the opening time is acceptable. Numbers move by about 10 to 20% from run to run. On a page whose policy forbids WebAssembly the loader uses the JavaScript decoder (all four browsers: the page opened in 317 to 438 ms, the same as a plain PPMd page). Measured again on the final 2.0.0 tools with the Pineapple Defense page (569,513 bytes; packed with the defaults and no minifier; PPMd default 170,155 bytes, `--no-wasm` 160,450 bytes; time until the unpacked page starts, median of 7, the two pages taking turns, one browser at a time; milliseconds are better when lower):
+
+| Browser | `--no-wasm` (ms) | Default (ms) | Times faster (higher is better) |
+|---|---:|---:|---:|
+| ungoogled-chromium 155.0.8059.39-1 | 256.0 | 165.0 | 1.55x |
+| Firefox 158.0 (reports 158.0b5) | 283.0 | 173.0 | 1.64x |
+| WebKitGTK 2.52.6 | 189.0 | 151.0 | 1.25x |
+| GNOME Web 46.5 | 228.0 | 185.0 | 1.23x |
+
+Not run on a phone. Browser run: `tests/pack-default-browser.js`.
 
 **Other tools** (checked October 15, 2026; I found no other tool that packs a web page with PPMd into one self-unpacking file, and no other standalone JavaScript PPMd decoder):
 

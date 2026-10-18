@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.0 · API 2 · 2026-10-18
+- Packed pages now carry the WebAssembly decoder by default (about 9.8 KB or 5% bigger, opens faster); --no-wasm gives the old smaller page. --wasm still works.
+
 ## 1.1.1 · API 1 · 2026-10-17
 - Faster packing with identical pages: key choice no longer tries every option.
 
