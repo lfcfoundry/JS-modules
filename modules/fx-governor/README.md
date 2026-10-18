@@ -6,6 +6,12 @@
 
 Steps visual effects down by itself when the device cannot keep up, and **never steps back up behind the player's back**. About 6.4 KB with comments.
 
+It counts frames over a measuring window (3 seconds by default) and works out the average FPS. If the average is under the line (36 FPS by default) for two windows in a row, it moves one level down your list of levels, for example from `full` to `lite`. A window far under the line (under 18 FPS) counts as both strikes at once. A pause, such as a hidden tab or a gap between frames longer than 250 ms, restarts the count instead of being blamed on the device. It never moves back up by itself: only the player's `choose` or `release` does.
+
+## Why it exists
+Many "adaptive quality" snippets react to a single slow frame, so one hiccup gets blamed on the device. No browser feature says "this device cannot keep up", so frame timing is the only shared signal. This module turns your effects down when the frame rate shows the device is struggling, ignores pauses, and leaves going back up to the player, so the game never changes its look behind their back.
+
+## Use
 ```js
 var gov = FxGovernor.create({ levels: ['full', 'lite', 'calm'],
   onChange: function (level) { document.body.dataset.fx = level; } });

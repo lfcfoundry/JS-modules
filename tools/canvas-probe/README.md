@@ -4,11 +4,19 @@
 
 **Tested in:** Chromium 141 (94 Node checks and 18 browser checks pass) and Chromium 153 (real canvas). Not run: Firefox, ungoogled Chromium 155, WebKitGTK, a phone.
 
+A test-build-only counter for a canvas 2D game. It wraps the drawing methods of `CanvasRenderingContext2D`, counts what the game really asks the browser to do each frame, and tells you in plain words where the work is wasteful or leaking.
+
+Once installed, it replaces each drawing method and style setting on the canvas context with a wrapper that adds one to a counter and then runs the original call. Your loop calls `probe.frame()` once per frame, which closes the counts for that frame and keeps the last few; `probe.text()` then turns the counts into plain sentences, and `probe.check()` gives a pass or fail for a test run.
+
+## Why it exists
+
+A game can look fine on screen while it quietly wastes work: a `save()` that is never matched by `restore()`, a path that grows because `beginPath()` is missing, a picture shrunk every frame. The browser's profiler shows where time goes, not these counts, and the author searched for a small library that did this from inside a page and did not find one (see "How it differs from existing tools"). It is meant for test builds, as a baseline to compare before and after a change.
+
+## Try it and test it
+
 **Test it:** `node tools/canvas-probe/test/run.js` (fake canvas, no browser, 94 checks) and `python3 tools/canvas-probe/test/browser.py` (Playwright for Python with Chromium, a real canvas, 18 checks; all pass in Chromium 141).
 
-## What it is
-
-A test-build-only counter for a canvas 2D game. It wraps the drawing methods of `CanvasRenderingContext2D`, counts what the game really asks the browser to do each frame, and tells you in plain words where the work is wasteful or leaking.
+## What it measures
 
 **What the numbers cover.** The per-frame numbers (median, 95th percentile and worst) cover the last `keep` frames. The problem totals (leak frames, `restore()` with nothing to restore, source overhangs, growing paths, readback calls, deepest nesting, and `frames` seen) cover **every frame since the last `reset()`**, not only the kept ones.
 
@@ -83,6 +91,12 @@ If you know a tool that already does this, tell the owner so the prior-art note 
 - Writing `canvas.width` is seen only for canvases whose 2D context was created after the probe was installed, or that called `save()` after it. Install it first.
 - The path-growth flag is a guess from the call counts: a path that legitimately gets longer for several frames in a row with no `beginPath()` would be flagged too.
 - Tested in Chromium 141 (real canvas) and with a fake context in Node. Not yet run in Firefox or on Android.
+
+## Prior art and credits
+
+Written for this repository. The source header of `src/canvas-probe.js` credits no outside code, and the file has no dependencies.
+- The tools named in "How it differs from existing tools" (browser developer tools, Spector.js, stats.js, proxy-based canvas recorders) were compared as ideas only; no code was taken from them.
+- The README says no small library that does this was found. If you know one, tell the owner so it can be named here.
 
 ## For AI agents
 

@@ -6,6 +6,12 @@
 
 "Hold to keep pressing" for a button or any element, on mouse, touch and pen. About 9 KB, no dependencies.
 
+It listens for a press on the element with pointer events (mouse, finger or pen) and also follows the finger directly with touch events. When the press lasts longer than a delay (400 ms by default) it calls your `onPress`, then calls it again every 200 ms by default, until the finger lifts, the page is hidden, or your `canPress` says no. After a hold it swallows the click the browser sends on release, so letting go never adds an extra press.
+
+## Why it exists
+A game button that keeps adding points while you hold it needs the repeat to last as long as the finger is down. On Android Chrome the browser can send `pointercancel` in the middle of a long press while the finger is still down, and code that listens only to pointer events stops repeating there. The click the browser sends on release would also add one extra press. This module follows the touch itself and drops that release click, so a hold lasts until the finger really lifts (see "The bug it fixes" below).
+
+## Try it and test it
 **Test it:** `node modules/hold-press/test/run.js` (fake touch, pointer and key events and a fake clock, 33 checks, no browser).
 
 ## Use

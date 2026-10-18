@@ -4,16 +4,9 @@
 
 **Tested in:** Real runs by hand on 2026-10-17: stock Firefox 157.0.1 (over WebDriver BiDi), Chromium 153 and Chromium 141, with the same results; automatic checks: 201 engine checks in Node, 38 in Python, 16 browser checks in Chromium through Playwright for Python (version not recorded). Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
 
-**Test it:**
-- `node tools/fuzz-kit/test/run.js` runs the engine, the input helpers, the in-page driver and the Puppeteer runner's own logic against fake pages (no browser; 201 checks).
-- `python3 tools/fuzz-kit/test/runner_fakes.py` runs the Playwright runner's own logic against a fake page (no browser; 38 checks).
-- `python3 tools/fuzz-kit/test/browser.py` runs the real thing in Chromium (Playwright for Python; 16 checks).
-
-This kit also replaces two older tools that were retired from this repository: `fuzz-play` (its real-input, CPU-throttle and "junk text" ideas were merged in; see [What came from where](#what-came-from-where)) and `marionette-lite` (replaced by the [stock Firefox recipe](#stock-firefox-with-preferences-a-ten-line-recipe) below).
-
-## What it is
-
 A small, seeded, reproducible random-input fuzzer for **stateful pages and games**, plus the pattern that makes such a page testable without shipping test code.
+
+How it works: it picks operations at random from your weighted list, using a seeded random number generator so one seed always gives the same sequence. It runs each operation against the live page, checks your rules after every one, and when a rule breaks it records the operation names that led there and can cut the run down to the few operations that matter. The pieces:
 
 - **`src/fuzz-core.js`**: the engine. You give it weighted *operations* (taps, key presses, menu clicks, "load a damaged save"), *invariants* (what must be true after every operation) and an optional *liveness* check (from anywhere, ordinary input must lead somewhere). One seed always gives the same sequence, and every failure carries the tail of operation names that led to it. It also has input helpers (`Fuzzer.Input`), ready-made invariants (`Fuzzer.Invariants`) and a bridge to real mouse and keyboard input (`Fuzzer.Real`). ES5 syntax, UMD (browser global `Fuzzer` plus `module.exports`), no other globals; it needs `Promise` (every browser since 2015).
 - **Shrinking**: a failing run is cut down (delta debugging) to the few operations that matter. See [Shrinking](#shrinking-a-failure-to-the-shortest-replay).
@@ -21,9 +14,18 @@ A small, seeded, reproducible random-input fuzzer for **stateful pages and games
 - **`tools/strip-test-hooks.js`** and **`tools/check-shipped.js`**: remove everything between `/*TEST_HOOK_START*/` and `/*TEST_HOOK_END*/` so the page you fuzz (with a `window.__app` test handle) and the page you ship come from one source file, and check afterwards that nothing leaked.
 - **`example/`**: a tiny app (`app.html`) with a planted bug, the adapter (`adapter.js`) you would write for your own app, and `generic-adapter.js`, an adapter with no game code at all (random clicks, taps, keys and the junk-text rule) for a first look at any click page.
 
+This kit also replaces two older tools that were retired from this repository: `fuzz-play` (its real-input, CPU-throttle and "junk text" ideas were merged in; see [What came from where](#what-came-from-where)) and `marionette-lite` (replaced by the [stock Firefox recipe](#stock-firefox-with-preferences-a-ten-line-recipe) below).
+
 ## Why it exists
 
 In the game this came from, a few hundred thousand random operations across two browsers found bugs that careful reading and scripted tests had missed: a Help window that redrew icons with the wrong data, spending that came back after a reload, a win that could be undone by bumping something. Each finding came with a seed and an operation tail, so it could be reproduced in seconds and fixed with a regression test.
+
+## Try it and test it
+
+**Test it:**
+- `node tools/fuzz-kit/test/run.js` runs the engine, the input helpers, the in-page driver and the Puppeteer runner's own logic against fake pages (no browser; 201 checks).
+- `python3 tools/fuzz-kit/test/runner_fakes.py` runs the Playwright runner's own logic against a fake page (no browser; 38 checks).
+- `python3 tools/fuzz-kit/test/browser.py` runs the real thing in Chromium (Playwright for Python; 16 checks).
 
 ## Quick start
 
@@ -195,6 +197,14 @@ I confirmed that these projects exist, but I did not install or benchmark gremli
   - Those runs used Firefox 157 and Chromium 153 as stand-ins; the project's test browsers are now Firefox 158 and ungoogled Chromium 155. **Still unchecked:** WebKit, a re-run on Firefox 158 and ungoogled Chromium 155, a phone, and `--mobile` in Firefox (it runs, but touch was not verified). `--throttle` in Firefox is refused with a plain message.
   - Playwright drives its own patched Firefox, not stock Firefox; stock Firefox goes through Puppeteer over WebDriver BiDi.
 - **`--throttle` is Chromium only.** `--mobile` is not available in Firefox through Puppeteer.
+
+## Prior art and credits
+
+- The seeded random number generator in `src/fuzz-core.js` is the small public algorithm called mulberry32, and the text hash that turns a string seed into a number (and builds the run fingerprint) is FNV-1a. Both are named in the source. The source does not credit any outside code for them.
+- Shrinking a failing run is delta debugging; the source names it and, for the optional `pieces: true` mode, the original ddmin. The idea is from Zeller and Hildebrandt (see above); the implementation is written for this repository.
+- [gremlins.js](https://github.com/marmelab/gremlins.js), [fast-check](https://github.com/dubzzz/fast-check), Playwright and Puppeteer are named in [How it differs from existing open source](#how-it-differs-from-existing-open-source) for comparison or as drivers. No code from gremlins.js or fast-check is in this kit. Playwright and Puppeteer are not bundled; the runners call them if you install them.
+- `fuzz-play` and `marionette-lite` are earlier tools from this repository, now retired; what was kept from them is listed in [What came from where](#what-came-from-where).
+- The headers of `src/fuzz-core.js`, `runner/fuzz_playwright.py`, `runner/fuzz_puppeteer.mjs`, `tools/strip-test-hooks.js` and `tools/check-shipped.js` name no other source, so apart from the public algorithms above this kit is written for this repository.
 
 ## For AI agents
 

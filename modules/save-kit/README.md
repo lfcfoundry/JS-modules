@@ -6,6 +6,12 @@
 
 Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 27 KB with its comments, about 12.7 KB minified (5.4 KB gzipped), no dependencies.
 
+How it works: you describe your save as a schema (each field's name and type). On load it reads the main slot and a backup slot and rebuilds the state field by field from the better one, so one damaged number costs only that number. On save it refuses to write when a number is broken and copies the last good save to the backup slot at most once a minute. A save code is the save packed into text with a short checksum at the end, so a code that was cut off while copying is caught.
+
+## Why it exists
+
+A game's progress lives in the browser's `localStorage`, where one bad value or one buggy save can ruin or overwrite everything, and phones close hidden pages without warning. The obvious alternative is writing `JSON.stringify` and `JSON.parse` by hand; that is smaller, but it has none of these protections (see "How it compares"). This module also gives players a way to copy their save out as text and paste it back, and it checks pasted text before trusting it.
+
 ## Use
 ```js
 var kit = SaveKit.create({ key: 'mygame', prefix: 'MG1',

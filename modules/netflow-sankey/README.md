@@ -6,6 +6,12 @@
 
 Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 34 KB (11.6 KB gzipped), no dependencies. Cut from Netflow Map. Called river-layout (global `RiverLayout`) in version 1.x.
 
+It reads your list of links, puts each item in a column by the direction of the flow, and makes each band as thick as its flow on one scale for the whole picture. A long link passes through the columns in between. It then searches for the order of items in each column that gives the fewest weighted crossings (big flows crossing big flows cost most), restarting several times within a time budget and keeping the best order. Backward links are drawn as bands under the picture, and `toSvg` draws the result as an SVG.
+
+## Why it exists
+Flow charts are read by the thick bands. If the thick ones tangle, the chart is useless, so the search spends its effort there. And data from real life has loops, which must not crash the page.
+
+## Try it and test it
 **Test it:** `node modules/netflow-sankey/test/run.js` (15 checks, about 0.3 s). **Try it:** `demo.html` (type links, the chart redraws).
 
 ## Use
@@ -61,9 +67,6 @@ Three made-up charts (64, 118 and 222 links). One yardstick for both: for every 
 | 222 | 35,454 | 61,492 | 58% | 26 ms / 7 ms |
 
 So about half the weighted crossings, at about 4 to 5 times the time (still under 30 ms). The two tools place the columns differently, so this is one yardstick on three charts, not a proof for every chart. A chart with a loop (a to b to c to a): d3-sankey throws "circular link"; netflow-sankey draws it (2 bands and 1 loop).
-
-## Why
-Flow charts are read by the thick bands. If the thick ones tangle, the chart is useless, so the search spends its effort there. And data from real life has loops, which must not crash the page.
 
 ## Limits
 - The search is a heuristic (it restarts several times within a time budget); it finds a good order, not always the best.

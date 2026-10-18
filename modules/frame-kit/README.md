@@ -4,12 +4,9 @@
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (tests/frame-kit-browser.js: the module's 67 checks inside each page plus about 1.5 s of real animation frames, 67 of 67 in all four, the badge read 60 FPS in Chromium and Firefox and 62 FPS in WebKitGTK and GNOME Web; 3 to 8 s each including start-up; Node 67 checks)
 
-Test everything (Node only, offline, about a second): `node modules/frame-kit/test/run.js` (run from the repository root; it exits non-zero on any failure).
-Browser check of the example (Playwright for Python, Chromium already installed): `python3 modules/frame-kit/test/check-example.py`.
-
-## What it is
-
 Four tiny, independent helpers for browser games and other `requestAnimationFrame` loops. Each is one file with no dependencies; use any one without the others.
+
+You call each one from your frame loop. `EvenDt` takes the median of recent frame gaps as the screen's period and snaps each gap to a whole multiple of it, paying the leftover back slowly. `QualityGovernor` keeps a smoothed average of the gap and moves a quality level down after a run of slow frames and up after a long calm stretch. `JobPump` keeps a queue of build jobs (plain functions or generators) and runs steps from it each frame until its time budget is spent. `FrameMeter` counts frames over a report interval, tracks the longest gap and flags a frame much longer than the three before it as a hitch.
 
 | Helper | File | One line |
 | --- | --- | --- |
@@ -25,6 +22,11 @@ Four tiny, independent helpers for browser games and other `requestAnimationFram
 - Procedural art, texture atlases and other bakes can take hundreds of milliseconds. Done in one go they freeze the page. `JobPump` lets you write the bake as a function or a generator and spreads it over frames.
 
 They were extracted from a real, shipped single-file browser game and rewritten to stand alone.
+
+## Try it and test it
+
+Test everything (Node only, offline, about a second): `node modules/frame-kit/test/run.js` (run from the repository root; it exits non-zero on any failure).
+Browser check of the example (Playwright for Python, Chromium already installed): `python3 modules/frame-kit/test/check-example.py`.
 
 ## Quick start
 

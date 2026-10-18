@@ -2,6 +2,11 @@
 
 One command keeps every module's and tool's version label the same everywhere.
 
+`versions.py` reads `modules.json`, which holds the one true label for each module and tool, and copies it into every place that shows it: the module's header comment, the first lines of its README, the root README tables, the front page and `llms.txt`. `set` changes one label and writes its changelog entry, and `check` fails when any copy disagrees.
+
+## Why it exists
+A label that is written by hand in several places drifts apart, and a reader cannot tell which copy is right. Keeping one source and copying it by script means a copied file, its README and the tables all say the same thing, and `check` fails the moment they do not.
+
 ## The label
 `1.2.3 · API 1`: classic major.minor.patch, plus an **API number that always equals the major**.
 
@@ -44,6 +49,9 @@ The `pre-commit` hook runs `check --staged`: it **warns** when shipped code is s
 
 ## Starting labels (2026-10-16)
 Everything started at 1.0.0 with API 1, except `sprite-baker` (1.2.0, as it already said) and `fly-to-mini` (1.1.0, for the View Transitions engine). The dated stamps on `ppmd-decode` and `ppmd-pack` (2026.10.15.xxxx) were replaced. The dated stamp format (`YYYY.MM.DD.HHMM`, US Eastern) is still used for games and for commit messages.
+
+## Prior art and credits
+Written for this repository (LFC Foundry, MIT). `versions.py` uses only Python's standard library (`datetime`, `gzip`, `json`, `os`, `re`, `subprocess`, `sys`), and its header names no outside code. The major.minor.patch numbering is the common convention; the API number that always equals the major is this repository's own rule.
 
 ---
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
