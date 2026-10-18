@@ -2,6 +2,22 @@
 
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
+## 2.0.2 · API 2 · 2026-10-18
+Two bugs reported by the Netflow Map team are fixed and one limit is gone. (1) Asking how much memory a held list uses, which the keeper does after view(), no longer throws "Cannot read properties of undefined" when a text column has rows where the key is missing: in the report's 60,000-object test it threw every time before and 0 times now. (2) A page whose policy allows only 'wasm-unsafe-eval' no longer logs a blocked-eval error when the module loads: 1 error per page load before, 0 now, in all four browsers. The module skips its try-it-and-see test when the page sets MEMORY_COMPRESSION_NO_EVAL = true before the file loads, or has a <meta> policy that lacks 'unsafe-eval' (a policy sent as a header cannot be read from a page, so use the switch there). (3) New: view() now also opens a packed array of fewer than 16 objects, which it used to refuse; the calls are the same, the small list is restored whole and release() does nothing. Speed did not change: packing and unpacking 60,000 links tie with 2.0.1 in all four browsers.
+
+Tested in: ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time (2026-10-18, bench/csp-and-speed.js, 5 page loads each under a policy of `script-src 'self' 'wasm-unsafe-eval'`, then 21 alternating rounds). Node 22: object layer 41 of 41 checks (3 new; they fail on 2.0.1), packing core 24, router 13.
+
+Blocked-eval errors per page load, and speed of the common path (60,000 links, pack / unpack ms, lower is better in every column; a control page that only calls `new Function` showed 1 error in all four browsers, so the counts mean something). WebKitGTK and GNOME Web round to whole milliseconds, so gaps under about 10% are ties.
+
+| Browser | Blocked-eval errors, 2.0.1 / 2.0.2 | Pack / unpack, 2.0.1 | Pack / unpack, 2.0.2 |
+|---|---|---|---|
+| ungoogled Chromium 155.0.8059.39-1 | 1 / 0 | 16.5 / 8.3 | 16.6 / 9.6 |
+| Firefox 158.0 | 1 / 0 | 23 / 8 | 25 / 8 |
+| WebKitGTK 2.52.6 | 1 / 0 | 29 / 9 | 29 / 8 |
+| GNOME Web 46.5 | 1 / 0 | 28 / 9 | 34 / 7 (an earlier run: 24 / 7 against 23 / 8) |
+
+Packed bytes are identical to 2.0.1 (1,553,144 B). The tool also needs puppeteer-core for Chromium and Firefox.
+
 ## 2.0.1 · API 2 · 2026-10-18
 Opening a file in fast mode is faster in Firefox 158, WebKitGTK 2.52.6 and GNOME Web 46.5 when files of other modes are also opened on the same page. Number columns open 34% to 40% faster in Firefox (counters 0.80 to 0.48 ms), user records open 21% faster in Firefox, 25% in WebKitGTK and 24% in GNOME Web, and the seven number columns of the test set open 64% faster in WebKitGTK and 65% faster in GNOME Web (16.7 to 6.0 ms and 16.6 to 5.9 ms). Chromium 155 is unchanged within noise. Packed files are identical, byte for byte, and the file grows by 846 B (276,468 to 277,314 B). What changed: three copy loops now have one copy per kind of typed array, so each loop sees one array type (Firefox slowed down when one loop saw several).
 
