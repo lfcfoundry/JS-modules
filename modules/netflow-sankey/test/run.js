@@ -170,6 +170,12 @@ t('a 1,100-item random network with links drawn straight through: the crossing c
   ok(A.simplified > 0, 'set-up: straight-through links ' + A.simplified); ok(Number.isFinite(A.crossingWeight), 'crossingWeight ' + A.crossingWeight);
   const key = (R) => JSON.stringify(R, (k, v) => k === 'ms' ? undefined : v); ok(key(A) === key(B), 'not the same twice');
 });
+// ---- 2.2.1: nothing to draw ----
+t('an empty drawing has height 0 (not -Infinity) and applies cleanly; one item alone has a finite size', () => {
+  const L = { nodes: [], edges: [], pos: {} }, R = RL.layout(L); ok(R.height === 0 && Number.isFinite(R.width), 'height ' + R.height + ' width ' + R.width);
+  RL.apply(L, R); ok(L.height === 0, 'L.height ' + L.height);
+  const one = { nodes: [{ id: 'a', label: 'A', layer: 0 }], edges: [], pos: {} }; one.pos.a = one.nodes[0]; const R1 = RL.layout(one); ok(Number.isFinite(R1.height) && Number.isFinite(R1.width), 'one item: ' + R1.height + ' x ' + R1.width);
+});
 t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier', () => {
   ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg', Object.keys(RL).sort().join());
 });

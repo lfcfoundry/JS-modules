@@ -1,8 +1,8 @@
 # netflow-sankey
 
-**Version 2.2.0 · API 2**
+**Version 2.2.1 · API 2**
 
-**Tested in:** Node 22 checks (23); the Netflow Map engine built as a module (netflow-engine 2.0.0) with this Sankey add-on made the same pictures as Netflow Map's own engine on 32 Sankey builds and 4 builds past the long-link cap (each twice the same, crossing count a real number) in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
+**Tested in:** Node 22 checks (24); the Netflow Map engine built as a module (netflow-engine 2.0.0) with this Sankey add-on made the same pictures as Netflow Map's own engine on 32 Sankey builds and 4 builds past the long-link cap in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (0 differences, 0 errors)
 
 Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 37 KB (12.9 KB gzipped), no dependencies. Cut from Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
 
