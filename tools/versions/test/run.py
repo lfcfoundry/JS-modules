@@ -14,8 +14,10 @@ def check(name, ok, extra=""):
         fail += 1
         print("FAIL " + name + " " + extra)
 
+FULL = tempfile.mkdtemp()   # stands in for /mnt/project-files/changelogs-full/JS-modules
+
 def run(root, *args):
-    p = subprocess.run([sys.executable, TOOL, "--root", root] + list(args), capture_output=True, text=True)
+    p = subprocess.run([sys.executable, TOOL, "--root", root] + list(args), capture_output=True, text=True, env=dict(os.environ, CHANGELOGS_FULL=FULL))
     return p.returncode, p.stdout + p.stderr
 
 def w(root, rel, text):
@@ -23,6 +25,9 @@ def w(root, rel, text):
 
 def r(root, rel):
     return open(os.path.join(root, rel)).read()
+
+def rf(name):
+    return open(os.path.join(FULL, name + ".md")).read()
 
 root = tempfile.mkdtemp()
 try:
@@ -59,32 +64,40 @@ try:
     rc, out = run(root, "check"); check("a stale size on the front page is caught", rc == 1 and "front page" in out, out)
     rc, out = run(root, "sizes"); check("sizes rewrites the front-page size to the README table size", rc == 0 and "index.html sizes refreshed" in out and "99.0 KB" not in r(root, "index.html") and " \u00b7 0.1 KB \u00b7 " in r(root, "index.html"), out)
     rc, out = run(root, "check"); check("the front page agrees after sizes", rc == 0, out)
-    check("init writes a CHANGELOG.md for each, and a root one", all(os.path.exists(os.path.join(root, p)) for p in ("modules/alpha/CHANGELOG.md", "modules/beta/CHANGELOG.md", "tools/gamma/CHANGELOG.md", "CHANGELOG.md")))
-    check("the first entry is the 1.0.0 baseline", "## 1.0.0 · API 1 · 2026-10-16" in r(root, "modules/alpha/CHANGELOG.md") and "(../../tools/versions/README.md)" in r(root, "modules/alpha/CHANGELOG.md"))
+    check("init writes a CHANGELOG.md for each, and a root one", all(os.path.exists(os.path.join(root, p)) for p in ("modules/alpha/CHANGELOG.md", "modules/beta/CHANGELOG.md", "tools/gamma/CHANGELOG.md", "CHANGELOG.md")) and all(os.path.exists(os.path.join(FULL, n + ".md")) for n in ("alpha", "beta", "gamma")))
+    check("the first entry is the 1.0.0 baseline", "## 1.0.0 · API 1 · 2026-10-16\n- First labeled version. Nothing in the code changed." in r(root, "modules/alpha/CHANGELOG.md") and "kept privately" in r(root, "modules/alpha/CHANGELOG.md") and "## 1.0.0 · API 1 · 2026-10-16" in rf("alpha"))
     rc, out = run(root, "set", "alpha", "2.3.4"); check("set without a note is refused", rc != 0)
-    rc, out = run(root, "set", "alpha", "2.3.4", "--note", "Renamed the `go` option to `start`."); check("set works", rc == 0 and "2.3.4 · API 2" in out, out)
+    rc, out = run(root, "set", "alpha", "2.3.4", "--short", "The go option is now called start.", "--note", "Renamed the `go` option to `start`. Seven checks changed."); check("set works", rc == 0 and "2.3.4 · API 2" in out, out)
     cl = r(root, "modules/alpha/CHANGELOG.md")
-    check("set puts the new entry above the old one", cl.index("## 2.3.4 · API 2") < cl.index("## 1.0.0") and "Renamed the `go` option" in cl)
-    check("the root changelog lists the change", "**alpha** 2.3.4 · API 2: Renamed the `go` option to `start`." in r(root, "CHANGELOG.md") and "First labeled" not in r(root, "CHANGELOG.md"))
+    check("set puts the short entry above the old one, as a plain line", cl.index("## 2.3.4 · API 2") < cl.index("## 1.0.0") and "\n- The go option is now called start.\n" in cl and "Seven checks" not in cl)
+    check("set puts the full entry in the private folder", rf("alpha").index("## 2.3.4 · API 2") < rf("alpha").index("## 1.0.0") and "Renamed the `go` option to `start`. Seven checks changed." in rf("alpha"))
+    check("the root changelog lists the short line", "**alpha** 2.3.4 · API 2: The go option is now called start." in r(root, "CHANGELOG.md") and "First labeled" not in r(root, "CHANGELOG.md") and "Seven checks" not in r(root, "CHANGELOG.md"))
     reg = json.load(open(os.path.join(root, "modules.json")))
     check("set writes version and api, next to the id", reg["modules"][0]["version"] == "2.3.4" and reg["modules"][0]["api"] == 2 and list(reg["modules"][0])[:3] == ["id", "version", "api"])
     check("set replaces rather than stacks", r(root, "llms.txt").count("Version") == 3 and r(root, "README.md").count("2.3.4") == 1 and r(root, "modules/alpha/alpha.js").count("Version") == 1)
     rc, out = run(root, "check"); check("still agrees after set", rc == 0, out)
     w(root, "modules/alpha/README.md", r(root, "modules/alpha/README.md").replace("2.3.4", "2.3.5"))
     rc, out = run(root, "check"); check("a README that disagrees is caught", rc == 1 and "alpha" in out and "2.3.5" in out, out)
-    run(root, "set", "alpha", "2.3.4", "--note", "again")
+    rc, out = run(root, "set", "alpha", "2.3.4", "--note", "Again, with `code` and more words. Second sentence.")
+    check("without --short the first sentence of --note is used, with a warning", "no --short given" in out and "- Again, with code and more words.\n" in r(root, "modules/alpha/CHANGELOG.md") and "Second sentence" not in r(root, "modules/alpha/CHANGELOG.md"), out)
     rc, out = run(root, "check"); check("set twice to the same number still agrees", rc == 0, out)
-    rc, out = run(root, "set", "alpha", "2.4.0", "--tested", "Firefox 158, ungoogled Chromium 155", "--note", "Added a thing."); check("set with --tested works", rc == 0 and "not recorded" not in out, out)
-    check("the entry carries the Tested in line", "Tested in: Firefox 158, ungoogled Chromium 155" in r(root, "modules/alpha/CHANGELOG.md").split("## 2.3.4")[0])
+    rc, out = run(root, "set", "alpha", "2.4.0", "--tested", "Firefox 158, ungoogled Chromium 155", "--short", "Added a thing.", "--note", "Added a thing with numbers."); check("set with --tested works", rc == 0 and "not recorded" not in out, out)
+    check("the full entry carries the Tested in line, the short one does not", "Tested in: Firefox 158, ungoogled Chromium 155" in rf("alpha").split("## 2.3.4")[0] and "Tested in" not in r(root, "modules/alpha/CHANGELOG.md"))
     check("the README carries the Tested in line under the version", "**Version 2.4.0 · API 2**\n\n**Tested in:** Firefox 158, ungoogled Chromium 155" in r(root, "modules/alpha/README.md"))
-    check("the root changelog repeats it", "Added a thing. Tested in: Firefox 158, ungoogled Chromium 155" in r(root, "CHANGELOG.md"))
-    rc, out = run(root, "set", "alpha", "2.4.1", "--note", "Small fix."); check("set without --tested says not recorded and reminds", rc == 0 and "not recorded" in out and "Tested in: not recorded." in r(root, "modules/alpha/CHANGELOG.md"), out)
-    rc, out = run(root, "tested", "alpha", "2.4.0", "WebKitGTK 2.52.6, Firefox 158"); check("tested rewrites an older entry only", rc == 0 and "Tested in: WebKitGTK 2.52.6, Firefox 158" in r(root, "modules/alpha/CHANGELOG.md") and "**Tested in:** not recorded." in r(root, "modules/alpha/README.md"), out)
+    check("the root changelog has the short line only", "Added a thing.\n" in r(root, "CHANGELOG.md") and "Tested in" not in r(root, "CHANGELOG.md") and "with numbers" not in r(root, "CHANGELOG.md"))
+    rc, out = run(root, "set", "alpha", "2.4.1", "--short", "Small fix.", "--note", "Small fix."); check("set without --tested says not recorded and reminds", rc == 0 and "not recorded" in out and "Tested in: not recorded." in rf("alpha"), out)
+    rc, out = run(root, "tested", "alpha", "2.4.0", "WebKitGTK 2.52.6, Firefox 158"); check("tested rewrites an older entry only", rc == 0 and "Tested in: WebKitGTK 2.52.6, Firefox 158" in rf("alpha") and "**Tested in:** not recorded." in r(root, "modules/alpha/README.md"), out)
     rc, out = run(root, "tested", "alpha", "2.4.1", "Firefox 158"); check("tested on the newest entry updates the README", rc == 0 and "**Tested in:** Firefox 158" in r(root, "modules/alpha/README.md"), out)
     rc, out = run(root, "check"); check("everything still agrees with Tested in lines", rc == 0, out)
     os.remove(os.path.join(root, "modules/beta/CHANGELOG.md")); rc, out = run(root, "check"); check("a missing changelog is caught", rc == 1 and "CHANGELOG.md is missing" in out, out)
     w(root, "modules/beta/CHANGELOG.md", r(root, "modules/alpha/CHANGELOG.md")); rc, out = run(root, "check"); check("a changelog whose newest entry disagrees is caught", rc == 1 and "newest entry" in out, out)
-    w(root, "modules/beta/CHANGELOG.md", "# beta changelog\n\n## 1.0.0 · API 1 · 2026-10-16\nFirst labeled version.\n")
+    good = "# beta changelog\n\n## 1.0.0 · API 1 · 2026-10-16\n- First labeled version. Nothing in the code changed.\n"
+    w(root, "modules/beta/CHANGELOG.md", good + "\nTested in: Firefox 158\n"); rc, out = run(root, "check"); check("a Tested in line in the short changelog is caught", rc == 1 and "private full changelog" in out, out)
+    w(root, "modules/beta/CHANGELOG.md", good.replace("Nothing in the code changed.", "x" * 241)); rc, out = run(root, "check"); check("a short line over 240 characters is caught", rc == 1 and "at most 240" in out, out)
+    w(root, "modules/beta/CHANGELOG.md", good + "- two\n- three\n- four\n- five\n"); rc, out = run(root, "check"); check("more than 4 lines for one version is caught", rc == 1 and "has 5 lines" in out, out)
+    w(root, "modules/beta/CHANGELOG.md", good)
+    os.rename(os.path.join(FULL, "beta.md"), os.path.join(FULL, "beta.off")); rc, out = run(root, "check"); check("a missing full changelog is caught when the private folder exists", rc == 1 and "no full changelog" in out, out)
+    os.rename(os.path.join(FULL, "beta.off"), os.path.join(FULL, "beta.md")); rc, out = run(root, "check"); check("with the full changelog back, it agrees again", rc == 0, out)
     w(root, "modules/beta/beta.js", r(root, "modules/beta/beta.js").replace("version: '1.0.0'", "version: '9.9.9'"))
     rc, out = run(root, "check"); check("a version exposed in code that disagrees is caught", rc == 1 and "9.9.9" in out, out)
     rc, out = run(root, "set", "nope", "1.0.0"); check("an unknown id is refused", rc != 0)
@@ -100,5 +113,6 @@ try:
     rc, out = run(root, "check"); check("a row with no size and no sizeNote is refused", rc == 1 and "beta: no size" in out, out)
 finally:
     shutil.rmtree(root, ignore_errors=True)
+    shutil.rmtree(FULL, ignore_errors=True)
 print("versions: " + ("%d FAILED" % fail if fail else "all checks passed"))
 sys.exit(1 if fail else 0)
