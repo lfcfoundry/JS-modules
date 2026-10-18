@@ -20,7 +20,7 @@ Every piece in one place, with its gzipped size in KB (smaller is better). The t
 - Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) 20.2, [fly-to-mini](modules/fly-to-mini/README.md) 6.3, [sprite-baker](modules/sprite-baker/README.md) 17.9, [stage-curtains](modules/stage-curtains/README.md) 10.3, [sticker-text](modules/sticker-text/README.md) 2.1
 - Game math: [idle-core](modules/idle-core/README.md) 7.7
 - Size and packaging: [lzma-decode](modules/lzma-decode/README.md) 3.6, [ppmd-decode](modules/ppmd-decode/README.md) 7.8
-- Files, charts and simulation: [gif-writer](modules/gif-writer/README.md) 7.3, [memory-compression](modules/memory-compression/README.md) 83.6, [netflow-layers](modules/netflow-layers/README.md) 9.1, [netflow-sankey](modules/netflow-sankey/README.md) 11.3, [pcodec-js](modules/pcodec-js/README.md) 66.6, [walker-sim](modules/walker-sim/README.md) 18.8, [zip-open](modules/zip-open/README.md) 9.3
+- Files, charts and simulation: [gif-writer](modules/gif-writer/README.md) 7.3, [memory-compression](modules/memory-compression/README.md) 84.5, [netflow-layers](modules/netflow-layers/README.md) 9.1, [netflow-sankey](modules/netflow-sankey/README.md) 11.3, [pcodec-js](modules/pcodec-js/README.md) 66.6, [walker-sim](modules/walker-sim/README.md) 18.8, [zip-open](modules/zip-open/README.md) 9.3
 
 **Story editor packages (7)**
 
@@ -126,7 +126,7 @@ Open zip and Excel files safely, draw flow charts, write animated GIFs and simul
 | Module | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [gif-writer](modules/gif-writer/README.md) | 1.1.0 | 20.3 | 7.3 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
-| [memory-compression](modules/memory-compression/README.md) | 2.0.1 | 270.8 | 83.6 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [memory-compression](modules/memory-compression/README.md) | 2.0.2 | 274.1 | 84.5 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.2.0 | 28.2 | 9.1 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.0.0 | 33.3 | 11.3 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.0.1 | 164.2 | 66.6 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
