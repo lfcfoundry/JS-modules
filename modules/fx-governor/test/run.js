@@ -44,10 +44,10 @@ t('explicit minFps 0 means never slow; explicit strikes 0 acts like 1', function
 
 // expectedPeriod
 t('expectedPeriod: a 30 Hz screen is not blamed, a real struggle still is', function () {
-  assert.deepStrictEqual(levelsOf({}, 1000, 12000, 33.3), ['lite']);                       // old behavior: 30 fps reads as slow
-  assert.deepStrictEqual(levelsOf({ expectedPeriod: 33.3 }, 1000, 12000, 33.3), []);       // line is about 18 fps
-  assert.deepStrictEqual(levelsOf({ expectedPeriod: 33.3 }, 1000, 12000, 100), ['lite']);  // 10 fps on a 30 Hz screen
-  assert.deepStrictEqual(levelsOf({ expectedPeriod: 16.67 }, 1000, 12000, 33.3), ['lite']);  // 30 fps on a 60 Hz screen is a real struggle
+  assert.deepStrictEqual(levelsOf({}, 1000, 12000, 33.3), ['lite']);                       // old behavior: 30 FPS reads as slow
+  assert.deepStrictEqual(levelsOf({ expectedPeriod: 33.3 }, 1000, 12000, 33.3), []);       // line is about 18 FPS
+  assert.deepStrictEqual(levelsOf({ expectedPeriod: 33.3 }, 1000, 12000, 100), ['lite']);  // 10 FPS on a 30 Hz screen
+  assert.deepStrictEqual(levelsOf({ expectedPeriod: 16.67 }, 1000, 12000, 33.3), ['lite']);  // 30 FPS on a 60 Hz screen is a real struggle
 });
 t('expectedPeriod sets the line to 60 percent; minFps wins when both are given; bad values are ignored', function () {
   assert.ok(Math.abs(G.create({ expectedPeriod: 1000 / 60 }).minFps - 36) < 1e-9);
@@ -61,8 +61,8 @@ t('expectedPeriod sets the line to 60 percent; minFps wins when both are given; 
 t('startAfterMs: a slow loading phase is not counted', function () {
   var slowLoad = function (opts) {
     var out = [], o = { onChange: function (l) { out.push(l); } }; for (var k in opts) o[k] = opts[k];
-    var g = G.create(o); run(g, 1000, 9000, 50);     // 8 s of 20 fps while loading
-    run(g, 9000, 20000, 16);                          // then smooth 60 fps
+    var g = G.create(o); run(g, 1000, 9000, 50);     // 8 s of 20 FPS while loading
+    run(g, 9000, 20000, 16);                          // then smooth 60 FPS
     return out;
   };
   assert.deepStrictEqual(slowLoad({}), ['lite']);                   // without warm-up, loading looks like a slow device
@@ -109,17 +109,17 @@ t('stop() ends the loop and start() after stop() works; no requestAnimationFrame
 
 // slow devices, severe windows, safer choose/release (1.1.0)
 function firstAt(gap, o) { var at = null, x = 1000, g = G.create(Object.assign({ onChange: function () { if (at === null) at = x - 1000; } }, o || {})); for (; x < 121000 && at === null; x += gap) g.frame(x); return at; }
-t('very slow devices (3 fps, 1 fps) step down; two or three pauses in a row still do not count', function () {
-  assert.ok(firstAt(300) > 0 && firstAt(300) < 15000, '3 fps ' + firstAt(300));
-  assert.ok(firstAt(1000) > 0 && firstAt(1000) < 20000, '1 fps ' + firstAt(1000));
+t('very slow devices (3 FPS, 1 FPS) step down; two or three pauses in a row still do not count', function () {
+  assert.ok(firstAt(300) > 0 && firstAt(300) < 15000, '3 FPS ' + firstAt(300));
+  assert.ok(firstAt(1000) > 0 && firstAt(1000) < 20000, '1 FPS ' + firstAt(1000));
   assert.strictEqual(firstAt(300, { longGaps: 1000000 }), null);   // the old blind spot, on request
   var out = [], g = G.create({ onChange: function (l) { out.push(l); } }), x = 1000;
   for (var i = 0; i < 400; i++) { g.frame(x); x += (i % 40 >= 38) ? 600 : 16; }   // two pauses in a row, again and again
   assert.deepStrictEqual(out, []);
 });
 t('a window under half the line steps down at once; a borderline one still needs two; severe: 0 restores the old timing', function () {
-  assert.ok(firstAt(100) <= 3200, '10 fps ' + firstAt(100));
-  assert.strictEqual(firstAt(40), 6000);                      // 25 fps: under the line, not under half of it
+  assert.ok(firstAt(100) <= 3200, '10 FPS ' + firstAt(100));
+  assert.strictEqual(firstAt(40), 6000);                      // 25 FPS: under the line, not under half of it
   assert.strictEqual(firstAt(100, { severe: 0 }), 6000);
 });
 t('choose() with an unknown name does not lock; release(level) sets the level and hands control back', function () {

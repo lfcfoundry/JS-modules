@@ -4,7 +4,7 @@
  * thing you are measuring in view and uncovered, redoes a step that was disturbed, and says the answer in plain sentences plus a table you can copy.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.1.1 (API 1)
  *
  *   SpeedLab.panel({ scene: document.querySelector("#play"), bar: "#stickyBar", steps: [
  *     { id: "A", role: "baseline", label: "Nothing moving" },
@@ -19,7 +19,7 @@
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   var f1 = function (x) { return Math.round(x * 10) / 10; }, pc = function (x) { return Math.round(x) + '%'; };
-  /** True when step a is clearly worse than step b: under 88% of the frames per second, 4 points more time lost, or 2 more big stutters. */
+  /** True when step a is clearly worse than step b: under 88% of the FPS, 4 points more time lost, or 2 more big stutters. */
   function worse(a, b) { return a.fps < b.fps * 0.88 || a.lost > b.lost + 4 || a.big > b.big + 2; }
 
   /**
@@ -54,26 +54,26 @@
     if (!base || !load) { L.push({ kind: 'warn', text: 'The comparison needs one baseline step and one load step to give an answer. The table below has the numbers.' }); return L; }
     var thin = [base, load].filter(function (r) { return r.n !== undefined && r.n < 5; })[0];
     if (thin) { L.push({ kind: 'warn', text: 'No comparison was possible: "' + thin.label + '" drew almost no frames, so the page was probably hidden, in the background or frozen. Keep this page on screen and run the test again.' }); return L; }
-    L.push({ kind: 'big', text: base.label + ': ' + Math.round(base.fps) + ' frames per second, ' + pc(base.lost) + ' of the time lost to late frames. ' + load.label + ': ' + Math.round(load.fps) + ' fps, ' + pc(load.lost) + ' lost, ' + load.big + ' big stutter' + (load.big === 1 ? '' : 's') + '.' });
+    L.push({ kind: 'big', text: base.label + ': ' + Math.round(base.fps) + ' FPS, ' + pc(base.lost) + ' of the time lost to late frames. ' + load.label + ': ' + Math.round(load.fps) + ' FPS, ' + pc(load.lost) + ' lost, ' + load.big + ' big stutter' + (load.big === 1 ? '' : 's') + '.' });
     var hurt = worse(load, base);
     if (!hurt) L.push({ kind: 'warn', text: '"' + load.label + '" did not make this device stutter in the test. If the real thing still feels choppy, the cost is probably in the graphics chip drawing the frames, which frame timing cannot see. Tell the person who built the test whether it felt choppy during the run.' });
-    else L.push({ kind: 'warn', text: '"' + load.label + '" DID make this device stutter (' + Math.round(base.fps) + ' to ' + Math.round(load.fps) + ' fps, lost time ' + pc(base.lost) + ' to ' + pc(load.lost) + '), so the test reproduces the problem.' });
+    else L.push({ kind: 'warn', text: '"' + load.label + '" DID make this device stutter (' + Math.round(base.fps) + ' to ' + Math.round(load.fps) + ' FPS, lost time ' + pc(base.lost) + ' to ' + pc(load.lost) + '), so the test reproduces the problem.' });
     var best = null;
     if (hurt) vars.forEach(function (x) {
       var better = x.fps >= load.fps + 6 || (load.lost - x.lost >= 3 && x.lost <= load.lost * 0.6) || (load.big >= 3 && x.big <= load.big / 2);
       if (!better) return;
-      L.push({ kind: 'ok', text: x.label + ' helped: ' + Math.round(load.fps) + ' to ' + Math.round(x.fps) + ' fps, lost time ' + pc(load.lost) + ' to ' + pc(x.lost) + '.' });
+      L.push({ kind: 'ok', text: x.label + ' helped: ' + Math.round(load.fps) + ' to ' + Math.round(x.fps) + ' FPS, lost time ' + pc(load.lost) + ' to ' + pc(x.lost) + '.' });
       var gain = (x.fps - load.fps) + (load.lost - x.lost); if (!best || gain > best[1]) best = [x.label, gain];
     });
     if (hurt && vars.length && !best) L.push({ kind: 'warn', text: 'None of the variants helped by itself, so the cost is not in the parts this test switches off.' });
     if (hurt && best) L.push({ kind: 'ok', text: 'Biggest help: ' + best[0] + '.' });
-    if (base.med >= 30 && base.med <= 36) L.push({ kind: 'warn', text: 'With nothing going on this device drew only about ' + Math.round(1000 / base.med) + ' frames per second. Low Power Mode or battery saver often does that. Switch it off and run the test again, because the cap limits every number here.' });
+    if (base.med >= 30 && base.med <= 36) L.push({ kind: 'warn', text: 'With nothing going on this device drew only about ' + Math.round(1000 / base.med) + ' FPS. Low Power Mode or battery saver often does that. Switch it off and run the test again, because the cap limits every number here.' });
     var cold = heat && heat.n >= 5 && worse(base, heat);
     if (base.again || cold) L.push({ kind: 'warn', text: base.again && !cold ? 'The first "' + base.label + '" step looked slower than the last one (a cold start), so it was measured a second time.' : 'The first "' + base.label + '" step is slower than the last one, so the answer above may be too hopeful. Run the test again.' });
-    if (load.first) L.push({ kind: 'warn', text: hurt ? 'The "' + load.label + '" step was measured twice and was slow both times (first pass ' + Math.round(load.first.fps) + ' fps).' : 'The first pass of "' + load.label + '" looked slow (' + Math.round(load.first.fps) + ' fps) but a second pass did not, so the first was treated as a one-off slowdown.' });
+    if (load.first) L.push({ kind: 'warn', text: hurt ? 'The "' + load.label + '" step was measured twice and was slow both times (first pass ' + Math.round(load.first.fps) + ' FPS).' : 'The first pass of "' + load.label + '" looked slow (' + Math.round(load.first.fps) + ' FPS) but a second pass did not, so the first was treated as a one-off slowdown.' });
     var tot = 0; results.forEach(function (r) { tot += r.loaf || 0; });
     if (tot) L.push({ kind: 'warn', text: 'The page itself was busy too long in ' + tot + ' moment' + (tot === 1 ? '' : 's') + ' during the test (table, last column).' });
-    if (heat && (heat.fps < base.fps * 0.85 || heat.lost > base.lost + 4)) L.push({ kind: 'warn', text: 'The device got slower over the test (' + Math.round(base.fps) + ' to ' + Math.round(heat.fps) + ' fps with nothing going on), probably from heat, so later steps are unfairly slow.' });
+    if (heat && (heat.fps < base.fps * 0.85 || heat.lost > base.lost + 4)) L.push({ kind: 'warn', text: 'The device got slower over the test (' + Math.round(base.fps) + ' to ' + Math.round(heat.fps) + ' FPS with nothing going on), probably from heat, so later steps are unfairly slow.' });
     return L;
   }
 
@@ -84,7 +84,7 @@
     if (typeof screen !== 'undefined') t.push('screen ' + screen.width + 'x' + screen.height + ' @' + (window.devicePixelRatio || 1) + 'x | window ' + innerWidth + 'x' + innerHeight);
     t.push('');
     res.verdict.forEach(function (l) { t.push(l.text); });
-    t.push('', 'step | fps | median frame ms | time lost % | late frames | big stutters (>50 ms) | slowest 5% ms | worst ms | frames | busy-page moments | busy-page ms | area showing % | tries | problem');
+    t.push('', 'step | FPS | median frame ms | time lost % | late frames | big stutters (>50 ms) | slowest 5% ms | worst ms | frames | busy-page moments | busy-page ms | area showing % | tries | problem');
     res.steps.forEach(function (r) { t.push(r.id + ' ' + r.label + ' | ' + f1(r.fps) + ' | ' + f1(r.med) + ' | ' + f1(r.lost) + ' | ' + r.late + ' | ' + r.big + ' | ' + f1(r.slow) + ' | ' + f1(r.worst) + ' | ' + r.n + ' | ' + r.loaf + ' | ' + f1(r.loafMs) + ' | ' + r.vis + ' | ' + r.tries + ' | ' + (r.bad || '')); });
     return t.join('\n');
   }
@@ -188,7 +188,7 @@
     function render(res) {
       var h = '', col = { big: '#fff', warn: '#ffd166', ok: '#7dff9a' };
       res.verdict.forEach(function (l) { h += '<div style="margin-top:6px;color:' + col[l.kind] + (l.kind === 'big' ? ';font-weight:700' : '') + '">' + esc(l.text) + '</div>'; });
-      h += '<table style="border-collapse:collapse;width:100%;margin-top:8px;font:12px/1.3 ui-monospace,monospace"><tr><td></td><td align=right>fps</td><td align=right>time lost</td><td align=right>big</td><td align=right>area showing</td></tr>';
+      h += '<table style="border-collapse:collapse;width:100%;margin-top:8px;font:12px/1.3 ui-monospace,monospace"><tr><td></td><td align=right>FPS</td><td align=right>time lost</td><td align=right>big</td><td align=right>area showing</td></tr>';
       res.steps.forEach(function (r) { h += '<tr style="border-top:1px solid #39405a"><td>' + esc(r.id + '. ' + r.label) + '</td><td align=right>' + Math.round(r.fps) + '</td><td align=right>' + pc(r.lost) + '</td><td align=right>' + r.big + '</td><td align=right>' + r.vis + '%' + (r.bad ? ' (' + esc(r.bad) + ')' : '') + '</td></tr>'; });
       q('[data-out]').innerHTML = h + '</table>'; q('[data-out]').hidden = false;
     }
