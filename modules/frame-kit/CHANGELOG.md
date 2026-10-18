@@ -2,6 +2,11 @@
 
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
+## 1.2.1 · API 1 · 2026-10-17
+The frame-rate badge from FrameMeter.lines() now reads "60 FPS" instead of "60 fps" (one word changed in the first line it returns; no numbers, timings or thresholds change, and the same "worst", "tap" and verdict lines follow). The README says FPS in its frame-rate sentences too.
+
+Tested in: ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (tests/frame-kit-browser.js: the module's 67 checks inside each page plus about 1.5 s of real animation frames, 67 of 67 in all four, the badge read 60 FPS in Chromium and Firefox and 62 FPS in WebKitGTK and GNOME Web; 3 to 8 s each including start-up; Node 67 checks)
+
 ## 1.2.0 · API 1 · 2026-10-17
 New: modules/frame-kit/lean.py writes lean copies of even-dt.js (3 parts: options, stats, refreshRule) and quality-governor.js (7 parts: options, control, errors, flipGuard, stats, stallRules, graceStart). The full files are unchanged: 1,536 and 3,688 bytes minified (662 and 1,240 gzipped), the same 67 checks pass. Fancy Banana's sets are 985 bytes minified (506 gzipped) and 1,342 (575): 36% and 24%, and 64% and 54%, smaller than the whole files (lower is smaller), against about 378 and 630 bytes for Fancy's own inline code. Three parts swap in Fancy's rule instead of removing code, so the lean builds give Fancy's exact answers: 0 different frame steps in 50,011 frames and 0 different level changes in 78 governor runs (171 level changes), on 26 frame series, in Node and in all four browsers. The full files do not: they differ on 42,604 of those frames (median 0.026 ms, 99th percentile 1.35 ms, largest 8.8 ms) and in 9 of 78 governor runs; nothing in the full files was changed to match
 
