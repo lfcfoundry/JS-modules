@@ -41,6 +41,9 @@ Where it loses:
 - No dithering and at most 255 colors plus one transparent entry (see Limits).
 
 ## Numbers (Node 22, measured 2026-10-17, against gifenc 1.0.3)
+
+> **Node numbers.** The speeds in this section were measured in Node, not in the four test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Sizes and counts are exact; only the times depend on the browser. Re-measuring in the four browsers is not done (open item on `TASKS.md`).
+
 | Test | gif-writer | gifenc 1.0.3 |
 |---|---|---|
 | 30 pictures of 640 x 400, a small ball moving over a still background | 23.3 KB in 101 ms | 159 KB in 152 ms (global palette), 165 KB in 224 ms (palette per picture) |

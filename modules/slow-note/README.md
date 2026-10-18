@@ -29,7 +29,7 @@ note.onChange(function (count) { label.textContent = count + " moments noted."; 
 - A damaged or foreign value under your key is ignored, and a full or blocked storage never throws.
 
 ## Numbers
-- One note costs about 1 microsecond (Node 22, 20,000 notes in a row), and nothing at all between events.
+- One note costs about 1 microsecond (measured in Node 22, not in a test browser, 20,000 notes in a row), and nothing at all between events.
 - **What each browser can see** (checked 2026-10-17 from `PerformanceObserver.supportedEntryTypes`): ungoogled Chromium 155: errors, slow taps and slow frames. Firefox 158: errors and slow taps; it has no Long Animation Frames, so there are no slow-frame notes there.
 
 ## Why
