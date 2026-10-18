@@ -4,7 +4,7 @@
 
 **Tested in:** Node 22 checks (20); the Netflow Map engine built as a module with this Sankey add-on made the same pictures as Netflow Map's own engine on 32 Sankey builds in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
 
-Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 34 KB (11.6 KB gzipped), no dependencies. Cut from Netflow Map. Called river-layout (global `RiverLayout`) in version 1.x.
+Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 34 KB (11.6 KB gzipped), no dependencies. Cut from Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
 
 It reads your list of links, puts each item in a column by the direction of the flow, and makes each band as thick as its flow on one scale for the whole picture. A long link passes through the columns in between. It then searches for the order of items in each column that gives the fewest weighted crossings (big flows crossing big flows cost most), restarting several times within a time budget and keeping the best order. Backward links are drawn as bands under the picture, and `toSvg` draws the result as an SVG.
 
@@ -74,7 +74,7 @@ So about half the weighted crossings, at about 4 to 5 times the time (still unde
 - The search is a heuristic (it restarts several times within a time budget); it finds a good order, not always the best.
 - Items are placed in columns by flow direction; you cannot pin an item to a chosen column.
 - No dragging or editing: it returns numbers, and `toSvg` is a simple drawing. For anything fancier draw `nodes`, `bands` and `loops` yourself.
-- The d3-sankey times above were taken with river-layout 1.0.0; 2.0.0 lays out the same kind of charts about 3.7 to 4.1 times faster (66, 102 and 194 links: 2.0, 3.2 and 4.4 ms in Node 22). Bigger charts, layout and `toSvg` together in Chromium 155: 12,600 links about 0.27 s, 31,500 links about 0.25 s (the order search does less work on very big charts, so the time does not simply grow with the links). Redraw big charts when the page is idle, not on every key press.
+- The d3-sankey times above were taken with version 1.0.0 (the earlier name of this module); 2.0.0 lays out the same kind of charts about 3.7 to 4.1 times faster (66, 102 and 194 links: 2.0, 3.2 and 4.4 ms in Node 22). Bigger charts, layout and `toSvg` together in Chromium 155: 12,600 links about 0.27 s, 31,500 links about 0.25 s (the order search does less work on very big charts, so the time does not simply grow with the links). Redraw big charts when the page is idle, not on every key press.
 
 ## Prior art and credits
 - [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3, 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape): the standard. Smaller; speed against this module in browsers is not measured; it throws on a loop, and its crossing order is not weighted by flow. d3-sankey-circular and similar forks add loops. Use d3-sankey if you already use D3 and your data has no loops. Used here only as the thing to measure against; no d3-sankey code is in this module.
