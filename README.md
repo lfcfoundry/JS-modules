@@ -11,31 +11,32 @@ Live demos: **https://lfcfoundry.github.io/JS-modules/**
 
 Every piece in one place, by name. The tables below give the version, the sizes (readable and gzipped) and what each piece does.
 
-**Modules (28)**
+**Modules & Tools (38)**
 
-- Saving and data safety: [save-kit](modules/save-kit/README.md), [tab-guard](modules/tab-guard/README.md)
 - Device and browser adaptation: [env-probes](modules/env-probes/README.md), [frame-kit](modules/frame-kit/README.md), [fx-governor](modules/fx-governor/README.md), [slow-note](modules/slow-note/README.md)
-- Controls: [back-close](modules/back-close/README.md), [hold-press](modules/hold-press/README.md), [pad-nav](modules/pad-nav/README.md), [wake-keeper](modules/wake-keeper/README.md)
-- First visit and grown-ups: [grown-ups-door](modules/grown-ups-door/README.md), [spotlight-tour](modules/spotlight-tour/README.md)
-- Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md), [fly-to-mini](modules/fly-to-mini/README.md), [sprite-baker](modules/sprite-baker/README.md), [stage-curtains](modules/stage-curtains/README.md), [sticker-text](modules/sticker-text/README.md)
-- Game math: [idle-core](modules/idle-core/README.md)
-- Size and packaging: [lzma-decode](modules/lzma-decode/README.md), [ppmd-decode](modules/ppmd-decode/README.md)
-- Files, charts and simulation: [gif-writer](modules/gif-writer/README.md), [memory-compression](modules/memory-compression/README.md), [netflow-engine](modules/netflow-engine/README.md), [netflow-layers](modules/netflow-layers/README.md), [netflow-sankey](modules/netflow-sankey/README.md), [pcodec-js](modules/pcodec-js/README.md), [walker-sim](modules/walker-sim/README.md), [zip-open](modules/zip-open/README.md)
+- Saving and data safety: [save-kit](modules/save-kit/README.md), [tab-guard](modules/tab-guard/README.md)
+- Games - Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md), [fly-to-mini](modules/fly-to-mini/README.md), [sprite-baker](modules/sprite-baker/README.md), [stage-curtains](modules/stage-curtains/README.md), [sticker-text](modules/sticker-text/README.md)
+- Games - Controls: [back-close](modules/back-close/README.md), [hold-press](modules/hold-press/README.md), [pad-nav](modules/pad-nav/README.md), [wake-keeper](modules/wake-keeper/README.md)
+- Games - Assist: [grown-ups-door](modules/grown-ups-door/README.md), [spotlight-tour](modules/spotlight-tour/README.md)
+- Games - Math: [idle-core](modules/idle-core/README.md)
+- Games - Testing: [canvas-probe](tools/canvas-probe/README.md), [firefox-stand-in](tools/firefox-stand-in/README.md), [fuzz-kit](tools/fuzz-kit/README.md), [speed-lab](tools/speed-lab/README.md), [storage-probe](tools/storage-probe/README.md), [test-isolation](tools/test-isolation/README.md), [webkit-driver](tools/webkit-driver/README.md)
+- App - Efficiency: [memory-compression](modules/memory-compression/README.md), [single-file-tools](tools/single-file-tools/README.md)
+- Model simulation: [walker-sim](modules/walker-sim/README.md)
+- Visualization: [gif-writer](modules/gif-writer/README.md), [netflow-engine](modules/netflow-engine/README.md), [netflow-layers](modules/netflow-layers/README.md), [netflow-sankey](modules/netflow-sankey/README.md)
+- Size and packaging: [lzma-decode](modules/lzma-decode/README.md), [lzma-pack](tools/lzma-pack/README.md), [pcodec-js](modules/pcodec-js/README.md), [ppmd-decode](modules/ppmd-decode/README.md), [ppmd-pack](tools/ppmd-pack/README.md), [zip-open](modules/zip-open/README.md)
 
-**Story editor packages (7)**
+**Story editor packages (10)**
 
 - Story data: [story-diff](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-diff/README.md), [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md), [story-outline](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-outline/README.md), [twine-import](https://github.com/lfcfoundry/story-editor/blob/main/packages/twine-import/README.md)
-- Checking: [story-check](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md)
-- Drawing: [story-map](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md)
-- Playing and building: [story-player](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-player/README.md)
+- Story validation: [story-check](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md)
+- Story flow: [story-map](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md)
+- Story build and distribute: [story-player](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-player/README.md)
+- Story packaging: [zip-page](https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md)
+- Story testing: [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md), [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md)
 
-**Tools (14)**
+**AI knowledge base (1)**
 
-- For games: Size and packaging: [lzma-pack](tools/lzma-pack/README.md), [ppmd-pack](tools/ppmd-pack/README.md), [single-file-tools](tools/single-file-tools/README.md)
-- For games: Testing: [canvas-probe](tools/canvas-probe/README.md), [firefox-stand-in](tools/firefox-stand-in/README.md), [fuzz-kit](tools/fuzz-kit/README.md), [speed-lab](tools/speed-lab/README.md), [storage-probe](tools/storage-probe/README.md), [test-isolation](tools/test-isolation/README.md), [webkit-driver](tools/webkit-driver/README.md)
-- For the story editor: Size and packaging: [zip-page](https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md)
-- For the story editor: Testing: [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md), [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md)
-- For the story editor: Working with an AI helper: [ai-collab-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md)
+- Working with an AI helper: [ai-collab-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md)
 
 <!-- glance:end -->
 
@@ -44,57 +45,36 @@ Every piece in one place, by name. The tables below give the version, the sizes 
 
 Grouped by what a piece does. The live page, with demos and a quick finder, is **https://lfcfoundry.github.io/JS-modules/**.
 
-**How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments) in KB; *Gzipped* is the same file gzipped, the way a web server sends it. A piece made of several files counts them together. Story Editor packages are measured on their built `global` file at Story Editor commit `abc02a1`. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes` from `modules.json`.
-
+**How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments); *Gzipped* is that file compressed. A piece marked *(tool)* is for building and testing: it is not shipped inside a game or story. Story Editor packages are measured on their built `global` file. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes`.
 Every piece has a size.
 
-### Games
-
-#### Saving and data safety
-
-Keep a player's progress safe and let them move it between devices.
-
-| Module | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
-|---|---|---:|---:|---|---|
-| [save-kit](modules/save-kit/README.md) | 1.2.1 | 26.5 | 9.1 | Safe saves in localStorage: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
-| [tab-guard](modules/tab-guard/README.md) | 1.1.0 | 9.6 | 3.4 | Keeps one tab in charge so two tabs never overwrite each other's saves. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/tab-guard/demo.html) |
+### Modules & Tools (38)
 
 #### Device and browser adaptation
 
 Make a game behave on slow phones, privacy-focused browsers and power-saving screens.
 
-| Module | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [env-probes](modules/env-probes/README.md) | 1.1.0 | 16.2 | 5.4 | Detects privacy modes that blur timers, scramble canvas reads or block storage. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/env-probes/demo.html) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 | 38.9 | 12.1 | Frame pacing for canvas games: smooth frame time, effect governor, job pump, frame meter. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/frame-kit/demo.html) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 | 6.2 | 2.5 | Steps visual effects down when the device cannot keep up; never back up mid-play. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fx-governor/demo.html) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 | 9.7 | 3.7 | A short private note of errors, slow taps and long frames, copyable as text. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/slow-note/demo.html) |
 
-#### Controls
+#### Saving and data safety
 
-Let players hold a button, or play with a gamepad.
+Keep a player's progress safe and let them move it between devices.
 
-| Module | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [back-close](modules/back-close/README.md) | 1.2.0 | 9.1 | 3.1 | Makes the phone's back swipe close the top panel instead of leaving the page. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/back-close/demo.html) |
-| [hold-press](modules/hold-press/README.md) | 1.1.0 | 13.0 | 4.1 | Hold-to-repeat buttons that survive Android Chrome's pointercancel. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/hold-press/demo.html) |
-| [pad-nav](modules/pad-nav/README.md) | 1.1.0 | 29.2 | 9.6 | Gamepad to focus: move through buttons, menus and sliders with a controller. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pad-nav/demo.html) |
-| [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 | 8.2 | 2.7 | Keeps the screen awake only while a game wants it. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/wake-keeper/demo.html) |
+| [save-kit](modules/save-kit/README.md) | 1.2.1 | 26.5 | 9.1 | Safe saves in localStorage: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
+| [tab-guard](modules/tab-guard/README.md) | 1.1.0 | 9.6 | 3.4 | Keeps one tab in charge so two tabs never overwrite each other's saves. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/tab-guard/demo.html) |
 
-#### First visit and grown-ups
+#### Games - Looks and effects
 
-Show a new player around, and keep small children away from the buttons that matter.
+Curtains, flying elements, lettering and 3D-looking sprites.
 
-| Module | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
-|---|---|---:|---:|---|---|
-| [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 | 14.8 | 5.1 | A hold-and-drag task a young child will not finish, in front of grown-up buttons. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/grown-ups-door/demo.html) |
-| [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.0 | 12.3 | 4.7 | A first-visit tour: dimmed page, bright window, Skip and Back, remembers who saw it. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/spotlight-tour/demo.html) |
-
-#### Looks and effects
-
-Curtains, flying elements, lettering and 3D-looking sprites, plus a written style guide.
-
-| Module | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 | 49.3 | 20.2 | A written style guide and demo for the soft, glossy cartoon 3D look in CSS and SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/cartoon-3d-kit/demo.html) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 | 18.1 | 6.3 | A big element scrolls away and a copy flies to its sticky mini version. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fly-to-mini/demo.html) |
@@ -102,39 +82,90 @@ Curtains, flying elements, lettering and 3D-looking sprites, plus a written styl
 | [stage-curtains](modules/stage-curtains/README.md) | 1.1.0 | 29.8 | 10.3 | Velvet stage curtains that slide shut over a page and fly open. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/stage-curtains/demo.html) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 | 5.0 | 2.1 | Die-cut sticker lettering in plain CSS, no images. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sticker-text/demo.html) |
 
-#### Game math
+#### Games - Controls
+
+Let players hold a button, or play with a gamepad.
+
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+|---|---|---:|---:|---|---|
+| [back-close](modules/back-close/README.md) | 1.2.0 | 9.1 | 3.1 | Makes the phone's back swipe close the top panel instead of leaving the page. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/back-close/demo.html) |
+| [hold-press](modules/hold-press/README.md) | 1.1.0 | 13.0 | 4.1 | Hold-to-repeat buttons that survive Android Chrome's pointercancel. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/hold-press/demo.html) |
+| [pad-nav](modules/pad-nav/README.md) | 1.1.0 | 29.2 | 9.6 | Gamepad to focus: move through buttons, menus and sliders with a controller. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pad-nav/demo.html) |
+| [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 | 8.2 | 2.7 | Keeps the screen awake only while a game wants it. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/wake-keeper/demo.html) |
+
+#### Games - Assist
+
+Show a new player around, and keep small children away from the buttons that matter.
+
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+|---|---|---:|---:|---|---|
+| [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 | 14.8 | 5.1 | A hold-and-drag task a young child will not finish, in front of grown-up buttons. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/grown-ups-door/demo.html) |
+| [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.0 | 12.3 | 4.7 | A first-visit tour: dimmed page, bright window, Skip and Back, remembers who saw it. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/spotlight-tour/demo.html) |
+
+#### Games - Math
 
 The numbers behind idle and clicker games.
 
-| Module | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [idle-core](modules/idle-core/README.md) | 1.2.0 | 22.8 | 7.7 | Tested maths for idle and clicker games: costs, buy-max, away income, number format. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/idle-core/demo.html) |
 
-#### Size and packaging
+#### Games - Testing
 
-Unpack a smaller file inside the game. The tools that pack it are under Tools.
+Test a game by playing it at random, shrinking any failure to a short replay, counting what it draws and driving real browsers.
 
-| Module | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [lzma-decode](modules/lzma-decode/README.md) | 1.1.0 | 9.3 | 3.6 | Small readable LZMA decoder (ES5), tested against Python's lzma. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/lzma-pack/example/packed-base64.html) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.1.0 | 25.6 | 7.8 | A PPMd (7-Zip PPMd7) decoder in one ES5 function: smaller than LZMA, slower to unpack. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
+| [canvas-probe](tools/canvas-probe/README.md) *(tool)* | 1.1.0 | 28.8 | 8.8 | Test-build counter for canvas 2D games: calls per frame, leaks, repeated style writes. | — |
+| [firefox-stand-in](tools/firefox-stand-in/README.md) *(tool)* | 1.0.0 | 11.0 | 4.0 | Runs a Playwright-for-Python test in stock Firefox without rewriting it. | — |
+| [fuzz-kit](tools/fuzz-kit/README.md) *(tool)* | 1.1.0 | 78.3 | 25.4 | Seeded random-input fuzzer for games, with failure shrinking and browser runners. | — |
+| [speed-lab](tools/speed-lab/README.md) *(tool)* | 1.1.1 | 20.5 | 7.4 | A one-button speed test on the device: switches parts off and says what costs time. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/speed-lab/demo.html) |
+| [storage-probe](tools/storage-probe/README.md) *(tool)* | 1.1.0 | 19.4 | 7.2 | A one-button page that says whether copies of a page share their saved data. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/storage-probe/storage-probe.html) |
+| [test-isolation](tools/test-isolation/README.md) *(tool)* | 1.1.0 | 6.5 | 2.4 | Prefixes every localStorage key on a test page so tests never touch the real save. | — |
+| [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.2.0 | 21.4 | 7.9 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
 
-#### Files, charts and simulation
+#### App - Efficiency
 
-Open zip and Excel files safely, draw flow charts, write animated GIFs and simulate random walkers.
+Keep a one-file app small and light: smaller data in memory, smaller pages on the wire.
 
-| Module | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+|---|---|---:|---:|---|---|
+| [memory-compression](modules/memory-compression/README.md) | 2.0.3 | 274.3 | 84.6 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.1.0 | 27.5 | 10.4 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
+
+#### Model simulation
+
+Simulate random walkers over a graph.
+
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+|---|---|---:|---:|---|---|
+| [walker-sim](modules/walker-sim/README.md) | 2.1.0 | 59.8 | 18.8 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
+
+#### Visualization
+
+Draw maps, flow charts and animated pictures from data.
+
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [gif-writer](modules/gif-writer/README.md) | 1.1.0 | 20.3 | 7.3 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
-| [memory-compression](modules/memory-compression/README.md) | 2.0.3 | 274.3 | 84.6 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.0.0 | 190.7 | 59.7 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.0 | 29.1 | 9.4 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.1.0 | 34.8 | 11.9 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
+
+#### Size and packaging
+
+Open zip and Excel files safely, and pack a finished page into a smaller file that unpacks itself.
+
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+|---|---|---:|---:|---|---|
+| [lzma-decode](modules/lzma-decode/README.md) | 1.1.0 | 9.3 | 3.6 | Small readable LZMA decoder (ES5), tested against Python's lzma. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/lzma-pack/example/packed-base64.html) |
+| [lzma-pack](tools/lzma-pack/README.md) *(tool)* | 1.1.2 | 26.8 | 10.3 | Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3). | — |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.0.1 | 164.2 | 66.6 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
-| [walker-sim](modules/walker-sim/README.md) | 2.1.0 | 59.8 | 18.8 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.1.0 | 25.6 | 7.8 | A PPMd (7-Zip PPMd7) decoder in one ES5 function: smaller than LZMA, slower to unpack. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
+| [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 1.1.1 | 46.8 | 14.3 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
 | [zip-open](modules/zip-open/README.md) | 1.1.0 | 26.8 | 9.3 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 
-### Story editor
+### Story editor packages (10)
 
 Packages for interactive stories. They live with the [Story Editor](https://github.com/lfcfoundry/story-editor) they are generated from, under `packages/`.
 
@@ -142,81 +173,61 @@ Packages for interactive stories. They live with the [Story Editor](https://gith
 
 Create, clean, import and save stories in one shared file format.
 
-| Package | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [story-diff](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-diff/README.md) | 1.0.0 | 6.1 | 2.0 | Says in plain words what one edit did to a story. | — |
 | [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md) | 2.0.0 | 49.4 | 14.0 | Create, clean, search, import and export interactive stories as JSON, with a schema. | — |
 | [story-outline](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-outline/README.md) | 1.0.0 | 25.7 | 7.9 | Turns an indented outline into pages and choices, or a whole branching story. | — |
 | [twine-import](https://github.com/lfcfoundry/story-editor/blob/main/packages/twine-import/README.md) | 1.0.0 | 93.4 | 25.0 | Reads Twine stories (Twine 2 HTML, Twee 3, Twine 1) and turns their code into rules. | — |
 
-#### Checking
+#### Story validation
 
 Find dead ends and endings nobody can reach before a reader does.
 
-| Package | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [story-check](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md) | 1.0.0 | 72.0 | 20.0 | Exact checker for branching stories: dead ends and endings no player can reach. | — |
 
-#### Drawing
+#### Story flow
 
 See a story's shape: maps of its pages and simulated readers.
 
-| Package | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [story-map](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md) | 1.0.0 | 60.0 | 17.8 | Layered, arc and matrix drawings of a story graph, plus simulated players. | — |
 
-#### Playing and building
+#### Story build and distribute
 
 Turn a story into a game, or play it from code or a terminal.
 
-| Package | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [story-player](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-player/README.md) | 1.0.1 | 73.3 | 24.2 | Builds one offline HTML game from a story, or plays a story from code or a terminal. | — |
 
-### Tools
+#### Story packaging
 
-For building and testing. Not shipped inside a game or story.
+Pack a finished story page into a smaller page.
 
-#### For games
-
-**Size and packaging.** Pack a finished one-file game into a smaller file.
-
-| Tool | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
-|---|---|---:|---:|---|---|
-| [lzma-pack](tools/lzma-pack/README.md) | 1.1.2 | 26.8 | 10.3 | Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3). | — |
-| [ppmd-pack](tools/ppmd-pack/README.md) | 1.1.1 | 46.8 | 14.3 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
-| [single-file-tools](tools/single-file-tools/README.md) | 1.1.0 | 27.5 | 10.4 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
-
-**Testing.** Test a game by playing it at random, or by driving Firefox from a script.
-
-| Tool | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
-|---|---|---:|---:|---|---|
-| [canvas-probe](tools/canvas-probe/README.md) | 1.1.0 | 28.8 | 8.8 | Test-build counter for canvas 2D games: calls per frame, leaks, repeated style writes. | — |
-| [firefox-stand-in](tools/firefox-stand-in/README.md) | 1.0.0 | 11.0 | 4.0 | Runs a Playwright-for-Python test in stock Firefox without rewriting it. | — |
-| [fuzz-kit](tools/fuzz-kit/README.md) | 1.1.0 | 78.3 | 25.4 | Seeded random-input fuzzer for games, with failure shrinking and browser runners. | — |
-| [speed-lab](tools/speed-lab/README.md) | 1.1.1 | 20.5 | 7.4 | A one-button speed test on the device: switches parts off and says what costs time. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/speed-lab/demo.html) |
-| [storage-probe](tools/storage-probe/README.md) | 1.1.0 | 19.4 | 7.2 | A one-button page that says whether copies of a page share their saved data. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/storage-probe/storage-probe.html) |
-| [test-isolation](tools/test-isolation/README.md) | 1.1.0 | 6.5 | 2.4 | Prefixes every localStorage key on a test page so tests never touch the real save. | — |
-| [webkit-driver](tools/webkit-driver/README.md) | 1.2.0 | 21.4 | 7.9 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
-
-#### For the story editor
-
-**Size and packaging.** Pack a finished story page into a smaller page.
-
-| Package | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [zip-page](https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md) | 1.0.0 | 6.5 | 2.7 | Shrinks a finished HTML page into a self-unzipping page. | — |
 
-**Testing.** Run tests on stock Firefox, generate random stories and keep two implementations in step.
+#### Story testing
 
-| Package | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+Run tests on stock Firefox, generate random stories and keep two implementations in step.
+
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md) | 1.1.0 | 16.3 | 5.7 | Keeps two implementations of one rule set in step: random inputs, side-by-side comparison. | — |
 | [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md) | 0.2.1 | 93.1 | 30.3 | Tiered test runner and Playwright-style API for stock Firefox, plus a random-story generator. | — |
 
-**Working with an AI helper.** A written process for a person and an AI assistant building software together.
+### AI knowledge base (1)
 
-| Package | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
+#### Working with an AI helper
+
+A written process for a person and an AI assistant building software together.
+
+| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [ai-collab-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md) | — | 13.8 | 6.3 | A written process and templates for a person and an AI assistant building software together. | — |
 <!-- tables:end -->
