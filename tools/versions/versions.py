@@ -304,7 +304,7 @@ def kb1(n):
 
 
 def sections(reg):
-    """The groups of the catalogue in display order: (section key, section title, [(group, [entries sorted by name])]). Modules, tools and story packages share one category list; a tool is marked in the tables."""
+    """The groups of the catalog in display order: (section key, section title, [(group, [entries sorted by name])]). Modules, tools and story packages share one category list; a tool is marked in the tables."""
     cats = reg.get("categories", {})
     every = [("module", e) for e in reg.get("modules", [])] + [("tool", e) for e in reg.get("tools", [])] + [("package", e) for e in reg.get("related", {}).get("packages", [])]
     out = []
