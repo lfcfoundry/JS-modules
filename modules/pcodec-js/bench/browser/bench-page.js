@@ -44,7 +44,10 @@ module.exports = async function inPage(arg) {
       decompress(kind, b, n) { if (spec.into) { const k = kind + n; const T = TA[kind]; return pc.unpack(b, { count: n, into: (scr[k] || (scr[k] = new T(n))) }); } return pc.unpack(b, { count: n, view: !!spec.view }); },
       mem: () => 0, free() {} } };
   }
-  const refWasm = await loadWasm('ours'); const refApi = oldApi(refWasm.ex);
+  // reference arrays: decoded with the old add-on wasm when given (arg.wasm.ours), else with the current reader (arg.libs.readN); either way checked against the original hash
+  let refApi;
+  if (arg.wasm.ours) refApi = oldApi((await loadWasm('ours')).ex);
+  else { const m = { exports: {} }; new Function('module', 'exports', arg.libs.readN)(m, m.exports); const pc = await m.exports.load(); refApi = { decompress(kind, b, n) { return pc.unpack(b, { count: n }); } }; }
   const raw = cols.map((c) => refApi.decompress(c.kind, c.packed, c.n));
   raw.forEach((a, i) => { if (fnv(new Uint8Array(a.buffer, a.byteOffset, a.byteLength)) !== cols[i].hash) throw new Error('reference decode mismatch ' + cols[i].name); });
   const total = cols.reduce((s, c) => s + c.n, 0), reps = arg.reps || 7;
