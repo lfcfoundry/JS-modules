@@ -10,7 +10,7 @@ function build() {
   var v = /Version (\d+\.\d+\.\d+) \(API (\d+)\)/.exec(plain);
   var head = '/*! lzma-decode-with-wasm.js: lzma-decode.js and lzma-decode-wasm.js in one file. lzmaDecode(...) here tries the WebAssembly decoder first and uses the JavaScript decoder\n' +
     ' * when WebAssembly is not usable (the page policy lacks \'wasm-unsafe-eval\', or an old browser), so it always works and gives the same bytes. lzmaDecode.plain is the JavaScript decoder alone;\n' +
-    ' * lzmaDecodeWasm is another name for lzmaDecode. Built by wasm/join.js from the two files named above: edit those, not this one.\n' +
+    ' * lzmaDecodeWasm is another name for lzmaDecode. Built by wasm/join.js from the two files named above: edit those, not this one. Copyright (c) 2026 LFC Foundry. MIT License.\n' +
     ' * Version ' + v[1] + ' (API ' + v[2] + ') */\n';
   var tail = '\n/* from here on lzmaDecode means "WebAssembly first": in a page the plain global is replaced; in Node module.exports already is the WebAssembly-first function */\n' +
     "if (typeof module === 'undefined' || !module.exports) (typeof globalThis !== 'undefined' ? globalThis : this).lzmaDecode = lzmaDecodeWasm;\n";

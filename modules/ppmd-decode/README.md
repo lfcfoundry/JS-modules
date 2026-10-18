@@ -55,7 +55,7 @@ Errors are always an `Error` whose message starts with `PPMd:` (argument out of 
 
 | File | What it is | Size (smaller is better) |
 |---|---|---|
-| `ppmd-decode-with-wasm.js` | **The default.** WebAssembly first, JavaScript fallback, in one file. | 44,170 bytes (16,011 gzipped) |
+| `ppmd-decode-with-wasm.js` | **The default.** WebAssembly first, JavaScript fallback, in one file. | 44,215 bytes (16,014 gzipped) |
 | `ppmd-decode.js` | The plain JavaScript decoder alone: one ES5 function, works under any page policy, and the part `tools/ppmd-pack` pastes into packed pages. Use it when the page must stay as small as possible. | 26,175 bytes (8,031 gzipped) |
 | `ppmd-decode-wasm.js` | The WebAssembly part alone, to load after `ppmd-decode.js` (it adds `ppmd7DecodeWasm`). The default file already holds both. | 17,164 bytes (the 9,317-byte program is stored as 12.4 KB of text) |
 
@@ -80,7 +80,7 @@ Smaller than every other PPMd decoder for browsers that I found, and about 10% s
 
 | Alternative | Size (smaller is better) | Speed on the 431 KB test page (faster is better) | Where it wins or loses |
 |---|---|---|---|
-| ppmd-decode 1.2.0 (MIT, this module) | 6,570 bytes minified in a packed page; the default file with WebAssembly is 44,170 bytes | Chromium 155 about 120 ms, Firefox 158 about 150 to 190 ms with the plain file. Default file, 400 KB page, first decode (smaller is better): 66.7 ms in Chromium 155, 67.0 in Firefox 158, 61.0 in WebKitGTK 2.52.6, 67.0 in GNOME Web 46.5 | Wins on size and having a plain JavaScript fallback; loses on speed |
+| ppmd-decode 1.2.0 (MIT, this module) | 6,570 bytes minified in a packed page; the default file with WebAssembly is 44,215 bytes | Chromium 155 about 120 ms, Firefox 158 about 150 to 190 ms with the plain file. Default file, 400 KB page, first decode (smaller is better): 66.7 ms in Chromium 155, 67.0 in Firefox 158, 61.0 in WebKitGTK 2.52.6, 67.0 in GNOME Web 46.5 | Wins on size and having a plain JavaScript fallback; loses on speed |
 | [`lzma-decode`](../lzma-decode/README.md) (MIT, same repository) | 1,896 bytes minified | Speed in browsers on this page: not measured | Wins on size and speed; its output on this page is 127,531 bytes against 115,264 here (smaller is better) |
 | [7z-wasm](https://www.npmjs.com/package/7z-wasm) 1.2.0 (LGPL plus the unRAR restriction) | 1.65 MB WebAssembly plus 83 KB glue | Chromium 55 ms, Firefox 67 ms (warm, includes command-line start-up) | Whole 7-Zip, many formats; wins on speed and formats, about 220 times larger |
 | [archive-wasm](https://www.npmjs.com/package/archive-wasm) 2.1.0 (GPL-3.0-or-later), [@exav/unpack-wasm](https://www.npmjs.com/package/@exav/unpack-wasm) 0.0.2 (MIT) | 562 KB; 2.15 MB | Not measured in browsers | libarchive and Rust [ppmd-rust](https://github.com/hasenbanck/ppmd-rust) as WebAssembly; win on formats, much larger |
