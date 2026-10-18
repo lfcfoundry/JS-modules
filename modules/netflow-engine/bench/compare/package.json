@@ -1,0 +1,6 @@
+{
+  "name": "netflow-engine-compare-bench",
+  "private": true,
+  "description": "The competitor libraries the comparison runs against. Installed only to run the bench; none of them ships with the module.",
+  "dependencies": { "cytoscape": "3.34.4", "d3": "7.9.0", "dagre": "0.8.5", "elkjs": "0.12.0" }
+}
