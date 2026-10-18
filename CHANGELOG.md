@@ -30,7 +30,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.2.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.0.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [walker-sim](modules/walker-sim/README.md) | 2.1.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
+| [walker-sim](modules/walker-sim/README.md) | 2.2.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
 | [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.0 · API 1 | [changelog](modules/spotlight-tour/CHANGELOG.md) |
@@ -47,6 +47,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-18 · **walker-sim** 2.2.0 · API 2: The default file is now walker-sim-with-wasm.js: big runs use the WebAssembly walking loop first (about 1.5 times faster in Chromium and Firefox), and the JavaScript loop when WebAssembly is not usable. Same counts either way. In WebKitGTK and GNOME Web a fresh page is about 15% to 30% slower with it; set cfg.wasm = false or copy walker-sim.js there.
 - 2026-10-18 · **ppmd-decode** 1.2.0 · API 1: The default file is now ppmd-decode-with-wasm.js: ppmd7Decode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.4 to 1.8 times faster to open a page in the four test browsers.
 - 2026-10-18 · **pcodec-js** 1.0.1 · API 1: No change to the code or to the files it writes. The build was rebuilt and checked again, and the credits and comparison were updated.
 - 2026-10-18 · **pcodec-js** 1.0.0 · API 1: First release as its own module: Pcodec, a number compressor, for web pages in one file with no build step. It needs WebAssembly.

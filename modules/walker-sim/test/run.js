@@ -199,9 +199,11 @@ const Pw = S.graph({ links: pinLinks, start: 's' }), pins = {
 // 2.1.0: the optional WebAssembly loop gives the same counts, and is only used when it can be
 {
   const fs = require('fs'), file0 = path.resolve(process.argv[2] || path.join(__dirname, '..', 'walker-sim.js')), isMin = /\.min\.js$/.test(file0);
-  const wf = path.join(path.dirname(file0), isMin ? 'walker-sim-with-wasm.min.js' : 'walker-sim-wasm.js');
+  const joined = /-with-wasm(\.min)?\.js$/.test(file0);     // the default files already carry the WebAssembly loop
+  const wf = joined ? file0 : path.join(path.dirname(file0), isMin ? 'walker-sim-with-wasm.min.js' : 'walker-sim-wasm.js');
   if (!fs.existsSync(wf)) ok(true, 'no WebAssembly file beside this copy (' + path.basename(wf) + '), skipped');
   else {
+    if (joined && !isMin) ok(fs.readFileSync(wf, 'utf8') === fs.readFileSync(path.join(path.dirname(wf), 'walker-sim.js'), 'utf8').replace(/\s+$/, '') + '\n\n' + fs.readFileSync(path.join(path.dirname(wf), 'walker-sim-wasm.js'), 'utf8'), 'walker-sim-with-wasm.js is exactly walker-sim.js followed by walker-sim-wasm.js (rebuild with test/make-min.js)');
     const W = require(wf), PW = W.graph({ links: pinLinks, start: 's' });
     ok(typeof W.wasm === 'boolean', 'WalkerSim.wasm says whether WebAssembly is usable here: ' + W.wasm);
     for (const k in pins) {
@@ -215,7 +217,7 @@ const Pw = S.graph({ links: pinLinks, start: 's' }), pins = {
     ok(JSON.stringify(a.export()) === JSON.stringify(b.export()), 'cut into batches of 37 trials, the WebAssembly run exports exactly what the JavaScript run does');
     if (!isMin) {     // a page that forbids WebAssembly (or a browser without it): loading the file changes nothing
       const keep = global.WebAssembly; global.WebAssembly = undefined;
-      for (const f of [wf, path.join(path.dirname(wf), 'walker-sim.js')]) delete require.cache[require.resolve(f)];
+      for (const f of joined ? [wf] : [wf, path.join(path.dirname(wf), 'walker-sim.js')]) delete require.cache[require.resolve(f)];
       const N0 = require(wf), pn = N0.graph({ links: pinLinks, start: 's' }), sn = N0.create(pn, Object.assign({ seed: 11, weights: pn.w }, pins.plain[0])); sn.run(1e9, 1e9);
       global.WebAssembly = keep;
       ok(N0.wasm === false && sn.engine === 'js' && sn.snapshot().endpoints.map(e => e.count).join() === pins.plain[1], 'without WebAssembly the file does nothing and the counts are still the 2.0.0 counts');
