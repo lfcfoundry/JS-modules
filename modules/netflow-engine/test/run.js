@@ -48,13 +48,22 @@ t('a start page that does not exist, an empty map and a single item do not crash
 t('use() takes layers and sankey, refuses other names, and the layered views say what is missing', () => {
   ok(E.use('layers', NL) === E, 'use returns the engine'); let msg = ''; try { E.use('chart', {}); } catch (e) { msg = e.message; } ok(/layers.*sankey/.test(msg), 'message: ' + msg);
 });
-t('the River view works with the layers add-on alone, and with the published netflow-sankey when its sk options are left out', () => {
+t('the Sankey view works with the layers add-on alone, and with the published netflow-sankey when its sk options are left out', () => {
   const S = require('../../netflow-sankey/netflow-sankey.js'), g = story(60, 7); g.start = 'n0'; E.use('layers', NL);
-  ok(E.build(copy(g), { view: 'river' }).nodes.length === 60, 'river without the sankey add-on');
-  E.use('sankey', S); ok(E.build(copy(g), { view: 'river' }).nodes.length === 60, 'river with the sankey module handed over, no sk options');
-  if (typeof S.options === 'function' && typeof S.apply === 'function') ok(E.build(copy(g), { view: 'river', sk: {} }).nodes.length === 60, 'river with sk options');
-  else { let threw = false; try { E.build(copy(g), { view: 'river', sk: {} }); } catch (e) { threw = /options/.test(e.message); } ok(threw, 'the documented gap: sk options throw while netflow-sankey lacks options/apply'); }
+  ok(E.build(copy(g), { view: 'sankey' }).nodes.length === 60, 'sankey without the sankey add-on');
+  E.use('sankey', S); ok(E.build(copy(g), { view: 'sankey' }).nodes.length === 60, 'sankey with the sankey module handed over, no sk options');
+  if (typeof S.options === 'function' && typeof S.apply === 'function') ok(E.build(copy(g), { view: 'sankey', sk: {} }).nodes.length === 60, 'sankey with sk options');
+  else { let threw = false; try { E.build(copy(g), { view: 'sankey', sk: {} }); } catch (e) { threw = /options/.test(e.message); } ok(threw, 'the documented gap: sk options throw while netflow-sankey lacks options/apply'); }
   E.use('sankey', null);
+});
+t("spread 'wide' reaches the layered drawing: wider with netflow-layers 1.3.0 or newer, the same picture with an older copy; 'tight' is always the old picture", () => {
+  const g = story(60, 7); g.start = 'n0'; E.use('layers', NL); const key = (L) => JSON.stringify(L, (k, v) => (k === 'ms' ? undefined : ArrayBuffer.isView(v) ? Array.from(v) : v));
+  ['flow', 'down', 'spine', 'lanes'].forEach((view) => {
+    const a = E.build(copy(g), { view }), t = E.build(copy(g), { view, spread: 'tight' }), w = E.build(copy(g), { view, spread: 'wide' });
+    ok(key(a) === key(t), view + ': spread tight is not the old picture');
+    if (/^1\.(?:[3-9]|\d\d)|^[2-9]\./.test(NL.version)) ok(w.width > a.width && w.nodes.length === a.nodes.length, view + ': wide is not wider (' + a.width + ' -> ' + w.width + ')'); else ok(key(w) === key(a), view + ': an older netflow-layers should ignore spread');
+  });
+  ['sankey', 'arc', 'matrix', 'network', 'shape'].forEach((view) => ok(key(E.build(copy(g), { view })) === key(E.build(copy(g), { view, spread: 'wide' })), view + ': spread should only change Flow, Top-down, Spine and Lanes'));
 });
 t('the column reader is exposed and reads numbers the way people write them', () => { ok(E.columns.num('1,234.5') === 1234.5 && E.columns.num('12%') === 12 && isNaN(E.columns.num('0x10')), 'num'); });
 t('the file has no dependencies and builds no code from text (no eval, no new Function)', () => {
