@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.0.0 · API 2**
+**Version 2.0.1 · API 2**
 
-**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (2026-10-18): the object layer's 38 checks and the new entry point's 13 checks inside each browser page, 51 of 51 passed in all four, WebAssembly on (3.2 to 3.4 s per browser for the checks). Node 22: packing core 24 checks, object layer 38, entry point 13, with and without WebAssembly. Not run: the demo pages, the benchmark pages, a phone
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (270.0 KB readable, 83.5 KB gzipped). Two small WebAssembly helpers are inside the file and optional: the plain JavaScript does the same work and writes the same bytes, only slower. Until 2.0.0 this was two modules, `memory-compression` (bytes and typed arrays) and `memory-compression-jso` (objects). They are now this one file, and the separate `-jso` module is retired.
 
@@ -621,15 +621,15 @@ Reading one column of the 300,000 links takes about 1.4 ms the first time; the f
 
 ### How it compares
 
-Much smaller than every other way I measured to keep objects (2.4 to 7.2 times smaller than avsc; 2.5 times smaller than msgpackr), and in all four browsers its unpack is faster or tied with msgpackr with records on most test sets, but the code to ship is much bigger, and on text-heavy data it can pack slower. The numbers below were measured on version 1.1.0 (the later versions changed other modes). Size: smaller is better; milliseconds: smaller is better.
+Much smaller than every other way I measured to keep objects (2.4 to 7.2 times smaller than avsc; 2.5 times smaller than msgpackr), and in all four browsers its unpack is faster or tied with msgpackr with records on most test sets, but the code to ship is much bigger, and on text-heavy data it can pack slower. The speed column was re-measured on version 2.0.1 (checked 2026-10-18, best of 12 runs, one browser at a time, order Chromium 155 / Firefox 158.0 / WebKitGTK 2.52.6 / GNOME Web 46.5; WebKitGTK and GNOME Web round timers to whole milliseconds); the sizes are from earlier versions of the same modes. Size: smaller is better; milliseconds: smaller is better.
 
-| Alternative | Code to ship, gzipped (smaller is better) | Size of 300,000 links (smaller is better) | Speed on 60,000 links, pack and unpack in ms | Features | Where it wins or loses |
+| Alternative | Code to ship, gzipped (smaller is better) | Size of 300,000 links (smaller is better) | Speed on 60,000 links, pack and unpack in ms (Chromium / Firefox / WebKitGTK / GNOME Web, smaller is better) | Features | Where it wins or loses |
 |---|---|---|---|---|---|
-| memory-compression-jso (MIT, this module) | 272 KB, about 84 KB gzipped (1.4.1, not minified, the current file) | 7.854 MB fast, 6.716 MB small | Firefox 158.0: 19.3 and 6.8. Chromium 155: 17.9 and 6.5 | No schema; exact `undefined`, `-0`, `Map`, `Set`, `BigInt`, shared objects with `refs: true`; `view()` | Wins on size and exactness; loses on download size |
-| msgpackr 2.1.0 (MIT), with records | 30 KB, 11 KB gzipped, minified | 20.005 MB | Firefox 158.0: 25 and 16. Chromium 155: 20.1 and 8.3 | Streaming; misses `-0`, `Set` and more | Wins on code size and on packing text-heavy data |
-| avsc 5.7.9 (Avro for JavaScript, MIT) | 117 KB, 34 KB gzipped, minified browser bundle | 18.767 MB | Firefox 158.0: 82 and 92. Chromium 155: 53 and 39 (an earlier run, where this module took 28 and 18, and 18 and 7) | Needs a schema; streaming; works across languages | Wins on schema evolution and cross-language use; slower in all three browsers measured |
-| cbor-x 1.6.6 (MIT), with records | 31 KB, 11 KB gzipped, minified | 20.905 MB | Not shown here | Streaming; keeps more types than msgpackr | Wins on code size |
-| `JSON.stringify` and `JSON.parse` (built in) | 0 | 57.258 MB (as text) | Not shown here | Changes `undefined`, `-0`, `Set`, `Map`, shared objects | Wins on needing nothing |
+| memory-compression-jso (MIT, this module) | 271 KB, about 84 KB gzipped (2.0.1, not minified, the current file) | 7.854 MB fast, 6.716 MB small | Fast: 15.2 and 7.1 / 14.4 and 8.5 / 22 and 6 / 19 and 5. Small: 208 and 26.8 / 141.7 and 17.6 / 134 and 22 / 115 and 21 | No schema; exact `undefined`, `-0`, `Map`, `Set`, `BigInt`, shared objects with `refs: true`; `view()` | Wins on size and exactness; loses on download size |
+| msgpackr 2.1.0 (MIT), with records | 30 KB, 11 KB gzipped, minified | 20.005 MB | 18.7 and 8.2 / 22.0 and 12.6 / 19 and 8 / 24 and 9 | Streaming; misses `-0`, `Set` and more | Wins on code size and on packing text-heavy data |
+| avsc 5.7.9 (Avro for JavaScript, MIT) | 117 KB, 34 KB gzipped, minified browser bundle | 18.767 MB | 38.1 and 31.2 / 59.6 and 94.0 / 67 and 83 / 54 and 67 | Needs a schema; streaming; works across languages | Wins on schema evolution and cross-language use; slower in all three browsers measured |
+| cbor-x 1.6.6 (MIT), with records | 31 KB, 11 KB gzipped, minified | 20.905 MB | 25.6 and 7.5 / 29.7 and 12.7 / 13 and 10 / 18 and 10 | Streaming; keeps more types than msgpackr | Wins on code size |
+| `JSON.stringify` and `JSON.parse` (built in) | 0 | 57.258 MB (as text) | 73.5 and 38.3 / 69.6 and 52.3 / 52 and 33 / 56 and 40 | Changes `undefined`, `-0`, `Set`, `Map`, shared objects | Wins on needing nothing |
 | Node's `v8.serialize` | 0 | 40.659 MB | Node only, so no browser number | Keeps nearly every type; Node only | Not usable in a browser |
 
 Where it loses:
