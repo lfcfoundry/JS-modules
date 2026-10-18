@@ -303,60 +303,52 @@ def kb1(n):
     return "%.1f" % (n / 1024.0)
 
 
-def tables(reg, root):
-    """The whole 'Pick a piece' body: the same six columns in every table, a size on every row (or n/a, with the reason listed once), groups in a fixed order, rows sorted by name."""
-    cats, notes = reg.get("categories", {}), []
+def sections(reg):
+    """The groups of the catalog in display order: (section key, section title, [(group, [entries sorted by name])]). Modules, tools and story packages share one category list; a tool is marked in the tables."""
+    cats = reg.get("categories", {})
+    every = [("module", e) for e in reg.get("modules", [])] + [("tool", e) for e in reg.get("tools", [])] + [("package", e) for e in reg.get("related", {}).get("packages", [])]
+    out = []
+    for key, sec in cats.items():
+        groups = []
+        for g in sec.get("groups", []):
+            members = sorted([e for _, e in every if e.get("category") == g["id"]], key=lambda x: x["id"])
+            if members:
+                groups.append((g, members))
+        out.append((key, sec.get("title", key), groups))
+    return out
 
-    def row(e, kind, base):
+
+def tables(reg, root):
+    """The whole 'Pick a piece' body: the same six columns in every table, a size on every row (or n/a, with the reason listed once), sections and groups in the order of modules.json, rows sorted by name."""
+    notes = []
+    tool_ids = {e["id"] for e in reg.get("tools", [])}
+
+    def row(e):
         sz = piece_sizes(root, e)
         if sz:
             size, gz = kb1(sz[0]), kb1(sz[1])
         else:
             size = gz = "n/a"
             notes.append((e["id"], e.get("sizeNote") or "no file to measure"))
-        rd_ = e.get("readme", "")
-        link = rd_ if rd_.startswith("http") else rd_
         demo = e.get("demo")
-        demo_cell = "[Demo](%s%s)" % (PAGES, demo) if demo else "—"
-        return "| [%s](%s) | %s | %s | %s | %s | %s |" % (e["id"], link, e.get("version") or "—", size, gz, e.get("short") or e.get("summary", ""), demo_cell)
-
-    def table(head, es, kind):
-        out = ["| %s | Version | Size (KB) | Gzipped (KB) | What it does | Demo |" % head, "|---|---|---:|---:|---|---|"]
-        out += [row(e, kind, root) for e in sorted(es, key=lambda x: x["id"])]
-        return out + [""]
-
-    def groups(side, kind, label, category_list, es, level_title):
-        out = []
-        for c in category_list:
-            members = [e for e in es if e.get("category") == c["id"] and e.get("side", "games") == side]
-            if not members:
-                continue
-            if level_title:
-                out += ["#### %s" % c["title"], "", c["use"], ""]
-            else:
-                out += ["**%s.** %s" % (c["title"], c["use"]), ""]
-            out += table(label, members, kind)
-        return out
+        demo_cell = "[Demo](%s%s)" % (PAGES, demo) if demo else "\u2014"
+        mark = " *(tool)*" if e["id"] in tool_ids else ""
+        return "| [%s](%s)%s | %s | %s | %s | %s | %s |" % (e["id"], e.get("readme", ""), mark, e.get("version") or "\u2014", size, gz, e.get("short") or e.get("summary", ""), demo_cell)
 
     body = ["## Pick a piece", "",
             "Grouped by what a piece does. The live page, with demos and a quick finder, is **%s**." % PAGES, "",
-            "**How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments) in KB; *Gzipped* is the same file gzipped, the way a web server sends it. A piece made of several files counts them together. "
-            "Story Editor packages are measured on their built `global` file%s. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes` from `modules.json`." % (" at Story Editor commit `%s`" % reg["related"]["storyEditorCommit"] if reg.get("related", {}).get("storyEditorCommit") else ""), "",
+            "**How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments); *Gzipped* is that file compressed. A piece marked *(tool)* is for building and testing: it is not shipped inside a game or story. "
+            "Story Editor packages are measured on their built `global` file%s. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes`." % "",
             "NA_NOTE", ""]
-    mods, tools_, pk = reg.get("modules", []), reg.get("tools", []), reg.get("related", {}).get("packages", [])
-    body += ["### Games", ""] + groups("games", "modules", "Module", cats.get("games", {}).get("modules", []), mods, True)
-    sp = [e for e in pk if e.get("category") in {c["id"] for c in cats.get("stories", {}).get("packages", [])}]
-    st = [e for e in pk if e not in sp]
-    g_sp = groups("stories", "packages", "Package", cats.get("stories", {}).get("packages", []), sp, True)
-    if g_sp:
-        body += ["### Story editor", "",
-                 "Packages for interactive stories. They live with the [Story Editor](%s) they are generated from, under `packages/`." % reg.get("related", {}).get("repository", "https://github.com/lfcfoundry/story-editor"), ""] + g_sp
-    g_tg = groups("games", "tools", "Tool", cats.get("games", {}).get("tools", []), tools_, False)
-    g_ts = groups("stories", "packages", "Package", cats.get("stories", {}).get("tools", []), st, False)
-    if g_tg or g_ts:
-        body += ["### Tools", "", "For building and testing. Not shipped inside a game or story.", ""]
-        body += (["#### For games", ""] + g_tg) if g_tg else []
-        body += (["#### For the story editor", ""] + g_ts) if g_ts else []
+    for key, title, groups in sections(reg):
+        n = sum(len(m) for _, m in groups)
+        body += ["### %s (%d)" % (title, n), ""]
+        if key == "stories":
+            body += ["Packages for interactive stories. They live with the [Story Editor](%s) they are generated from, under `packages/`." % reg.get("related", {}).get("repository", "https://github.com/lfcfoundry/story-editor"), ""]
+        for g, members in groups:
+            body += ["#### %s" % g["title"], "", g["use"], "",
+                     "| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |", "|---|---|---:|---:|---|---|"]
+            body += [row(e) for e in members] + [""]
     na = "; ".join("**%s** (%s)" % (i, n) for i, n in notes)
     text = "\n".join(body).replace("NA_NOTE", ("*n/a* means there is no script to measure: " + na + ".") if notes else "Every piece has a size.")
     return text.rstrip("\n") + "\n"
@@ -382,34 +374,13 @@ GLANCE_START, GLANCE_END = "<!-- glance:start (written by tools/versions/version
 
 
 def set_glance(text, reg, root):
-    """A short 'All at a glance' index right under the title: every module, story package and tool by name, grouped by what it is for. No sizes: the tables below give them."""
-    cats = reg.get("categories", {})
-    pk = reg.get("related", {}).get("packages", [])
+    """A short 'All at a glance' index right under the title: every module, tool and story package by name, grouped as in modules.json. No sizes: the tables below give them."""
     out = [GLANCE_START, "## All at a glance", "",
            "Every piece in one place, by name. The tables below give the version, the sizes (readable and gzipped) and what each piece does.", ""]
-
-    def line(title, cl, es, link, with_size):
-        items = []
-        for e in sorted(es, key=lambda x: x["id"]):
-            items.append("[%s](%s)" % (e["id"], link(e)))
-        return "- %s: %s" % (title, ", ".join(items)) if items else None
-
-    def block(heading, groups, es, link, with_size):
-        lines = [line(c["title"], c, [e for e in es if e.get("category") == c["id"]], link, with_size) for c in groups]
-        lines = [l for l in lines if l]
+    for key, title, groups in sections(reg):
+        lines = ["- %s: %s" % (g["title"], ", ".join("[%s](%s)" % (e["id"], e.get("readme", "")) for e in members)) for g, members in groups]
         if lines:
-            out.extend(["**%s (%d)**" % (heading, len(es)), ""] + lines + [""])
-
-    rl = lambda e: e.get("readme", "")
-    block("Modules", cats.get("games", {}).get("modules", []), reg.get("modules", []), rl, True)
-    sp = [e for e in pk if e.get("category") in {c["id"] for c in cats.get("stories", {}).get("packages", [])}]
-    block("Story editor packages", cats.get("stories", {}).get("packages", []), sp, rl, True)
-    tools_ = reg.get("tools", [])
-    stt = [e for e in pk if e not in sp]
-    n_tools = len(tools_) + len(stt)
-    tl = [line("For games: " + c["title"], c, [e for e in tools_ if e.get("category") == c["id"]], rl, True) for c in cats.get("games", {}).get("tools", [])]
-    tl += [line("For the story editor: " + c["title"], c, [e for e in stt if e.get("category") == c["id"]], rl, True) for c in cats.get("stories", {}).get("tools", [])]
-    out.extend(["**Tools (%d)**" % n_tools, ""] + [l for l in tl if l] + [""])
+            out.extend(["**%s (%d)**" % (title, sum(len(m) for _, m in groups)), ""] + lines + [""])
     out.append(GLANCE_END)
     blk = "\n".join(out)
     if GLANCE_START in text:
