@@ -341,6 +341,20 @@
       "category": "files"
     },
     {
+      "id": "netflow-engine",
+      "version": "0.1.0",
+      "api": 0,
+      "global": "NetflowEngine",
+      "summary": "Placeholder for the engine of Netflow Map as a module others can adapt: no engine code yet, only the name, the version and a status call. The README says what will come and how the Sankey, layout and network-map add-ons will plug in.",
+      "short": "Placeholder for Netflow Map's engine as an adaptable module; add-ons plug in later.",
+      "file": "modules/netflow-engine/netflow-engine.js",
+      "readme": "modules/netflow-engine/README.md",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "side": "games",
+      "category": "files"
+    },
+    {
       "id": "netflow-layers",
       "version": "1.2.0",
       "api": 1,

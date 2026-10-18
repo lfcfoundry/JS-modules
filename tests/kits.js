@@ -56,6 +56,7 @@ var steps = [
   ['pcodec-js', 'node', ['modules/pcodec-js/test/run.js']],
   ['pcodec-js SIMD reader', 'node', ['modules/pcodec-js/test/run.js', '--reader', 'pcodec-js-fast.js']],
   ['netflow-sankey', 'node', ['modules/netflow-sankey/test/run.js']],
+  ['netflow-engine', 'node', ['modules/netflow-engine/test/run.js']],
   ['netflow-layers', 'node', ['modules/netflow-layers/test/run.js']],
   ['walker-sim', 'node', ['modules/walker-sim/test/run.js']],
   ['walker-sim minified', 'node', ['modules/walker-sim/test/run.js', 'modules/walker-sim/walker-sim.min.js']],
