@@ -2,12 +2,14 @@
 """lzma-pack: turn one HTML file into a smaller self-unpacking HTML file.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
 
   python3 tools/lzma-pack/pack.py INPUT.html OUTPUT.html [--title T] [--head HTML] [--encoding bytes|base64] [--tune]
-                                  [--minifier auto|terser|esbuild|none] [--bg auto|none|COLOR] [--skip-node-check]
+                                  [--minifier auto|terser|esbuild|none] [--bg auto|none|COLOR] [--no-wasm] [--skip-node-check]
 
 The output is a tiny page that holds the LZMA-compressed input and a small decoder (modules/lzma-decode/lzma-decode.js). When opened it
 unpacks the input, checks a hash of the result, and replaces itself with it (document.write). If the hash does not match
 (for example the file was opened and saved as text, or cut short) it shows a plain message instead of running anything.
 
+--no-wasm          the page carries the WebAssembly LZMA decoder (4,087 bytes, behind the LZMA data) by default and tries it first, with the JavaScript decoder as the
+                   fallback; --no-wasm leaves it out for a page about 4.5 KB smaller that always decodes in JavaScript. (--wasm is accepted too: it is the default.)
 --encoding bytes   (default) store the compressed bytes raw and declare the page windows-1252 so each byte is one character.
                    Smallest. Works from file:// and from servers that send no charset. Does NOT work from a server that sends
                    'Content-Type: text/html; charset=utf-8' (GitHub Pages does): the header overrides the page's own charset.
@@ -333,7 +335,7 @@ def allow_wasm(head):
     return re.sub(r"<meta\b[^>]*>", fix_tag, head, flags=re.I)
 
 
-def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False, bg="auto", check_node=True, minify_pg=False, wasm=False):
+def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False, bg="auto", check_node=True, minify_pg=False, wasm=None):
     head = allow_wasm(head)   # every page policy carries 'wasm-unsafe-eval' in script-src
     try:
         text = data.decode("utf-8")
@@ -357,6 +359,8 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
         chk = (chk * 31 + b) & 0xFFFFFFFF
     dec = decoder_source()
     wasm_bytes = b""
+    if wasm is None:   # the default: WebAssembly first whenever the program is there and takes these settings; --no-wasm (wasm=False) leaves it out, --wasm (True) insists
+        wasm = WASM_DECODER.exists() and lc + lp <= 4
     if wasm:   # the wasm decoder rides behind the LZMA stream in the same payload; it cannot be LZMA-packed itself, so it adds its full size to the page
         if not WASM_DECODER.exists():
             raise SystemExit("--wasm needs %s (build it with modules/lzma-decode/wasm/build.sh)" % WASM_DECODER)
@@ -410,11 +414,12 @@ def main():
     ap.add_argument("--minifier", default="auto", choices=["auto", "terser", "esbuild", "none"])
     ap.add_argument("--bg", default="auto", help="background color of the 'Opening...' line: auto (read it from the input), none, or a color like #101018")
     ap.add_argument("--minify-page", action="store_true", help="first minify the page's own inline classic scripts (terser or esbuild needed); top-level names are kept")
-    ap.add_argument("--wasm", action="store_true", help="also ship the WebAssembly LZMA decoder (about 4 KB, raw): the page tries it first and falls back to the JavaScript decoder. Off by default; the page then needs wasm-unsafe-eval in its Content-Security-Policy")
+    ap.add_argument("--wasm", action="store_true", help="ship the WebAssembly LZMA decoder (about 4 KB, raw): the page tries it first and falls back to the JavaScript decoder. This is the default since 1.2.0 (the flag is kept so old commands work, and it insists: an error when the settings do not allow it); the page needs wasm-unsafe-eval in its Content-Security-Policy to use it")
+    ap.add_argument("--no-wasm", action="store_true", help="leave the WebAssembly decoder out: about 4.5 KB (3.0%%) smaller page that always decodes in JavaScript, for pages with a tight size limit")
     ap.add_argument("--skip-node-check", action="store_true", help="do not run the packed page's own decoder in Node after packing")
     a = ap.parse_args()
     data = pathlib.Path(a.input).read_bytes()
-    page, info = pack(data, a.title, a.head, a.encoding, a.minifier, a.tune, a.bg, not a.skip_node_check, a.minify_page, a.wasm)
+    page, info = pack(data, a.title, a.head, a.encoding, a.minifier, a.tune, a.bg, not a.skip_node_check, a.minify_page, False if a.no_wasm else (True if a.wasm else None))
     pathlib.Path(a.output).write_bytes(page)
     print("%s: %d bytes -> %d bytes (%.1f%%)  [lzma lc=%d lp=%d pb=%d, payload %d, %sloader %d, %s, opening bg %s, node check %s]" % (a.output, len(data), len(page), 100.0 * len(page) / max(1, len(data)), info["lc"], info["lp"], info["pb"], info["compressed"], ("wasm decoder %d, " % info["wasm"]) if info["wasm"] else "", info["loader"], info["encoding"], info["bg"], info["node"]))
     if info.get("page"):

@@ -35,8 +35,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
 | [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.0 · API 1 | [changelog](modules/spotlight-tour/CHANGELOG.md) |
 | [single-file-tools](tools/single-file-tools/README.md) | 1.1.0 · API 1 | [changelog](tools/single-file-tools/CHANGELOG.md) |
-| [lzma-pack](tools/lzma-pack/README.md) | 1.1.2 · API 1 | [changelog](tools/lzma-pack/CHANGELOG.md) |
-| [ppmd-pack](tools/ppmd-pack/README.md) | 1.1.1 · API 1 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
+| [lzma-pack](tools/lzma-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
+| [ppmd-pack](tools/ppmd-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
 | [fuzz-kit](tools/fuzz-kit/README.md) | 1.1.0 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
 | [storage-probe](tools/storage-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/storage-probe/CHANGELOG.md) |
@@ -48,6 +48,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-10-18 · **walker-sim** 2.2.0 · API 2: The default file is now walker-sim-with-wasm.js: big runs use the WebAssembly walking loop first (about 1.5 times faster in Chromium and Firefox), and the JavaScript loop when WebAssembly is not usable. Same counts either way. In WebKitGTK and GNOME Web a fresh page is about 15% to 30% slower with it; set cfg.wasm = false or copy walker-sim.js there.
+- 2026-10-18 · **ppmd-pack** 2.0.0 · API 2: Packed pages now carry the WebAssembly decoder by default (about 9.8 KB or 5% bigger, opens faster); --no-wasm gives the old smaller page. --wasm still works.
 - 2026-10-18 · **ppmd-decode** 1.2.0 · API 1: The default file is now ppmd-decode-with-wasm.js: ppmd7Decode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.4 to 1.8 times faster to open a page in the four test browsers.
 - 2026-10-18 · **pcodec-js** 1.0.1 · API 1: No change to the code or to the files it writes. The build was rebuilt and checked again, and the credits and comparison were updated.
 - 2026-10-18 · **pcodec-js** 1.0.0 · API 1: First release as its own module: Pcodec, a number compressor, for web pages in one file with no build step. It needs WebAssembly.
@@ -61,6 +62,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **memory-compression** 2.0.3 · API 2: Saves about 5.8 MB of memory on pages that load the module but never pack anything. The first pack takes a few milliseconds longer.
 - 2026-10-18 · **memory-compression** 2.0.2 · API 2: Two bugs fixed: asking how much memory a list uses no longer fails when some rows are missing a text value, and a page that only allows WebAssembly no longer logs a blocked-code error.
 - 2026-10-18 · **memory-compression** 2.0.1 · API 2: Opening a file in fast mode is 21% to 65% faster in Firefox, WebKitGTK and GNOME Web when files of other modes are open on the same page. Packed files are identical.
+- 2026-10-18 · **lzma-pack** 2.0.0 · API 2: Packed pages now carry the WebAssembly decoder by default (about 4.5 KB or 3% bigger, opens faster); --no-wasm gives the old smaller page. --wasm still works.
 - 2026-10-18 · **lzma-decode** 1.2.0 · API 1: The default file is now lzma-decode-with-wasm.js: lzmaDecode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.5 to 2.6 times faster to open a page in the four test browsers.
 - 2026-10-17 · **zip-open** 1.1.0 · API 1: The check on every unpacked file is about 3.9 times faster, so large zips open sooner. Same answers.
 - 2026-10-17 · **zip-open** 1.0.0 · API 1: New module: opens .zip and Excel .xlsx files in the browser or in Node with no libraries, with every problem reported in plain words. Zip bombs are refused quickly.

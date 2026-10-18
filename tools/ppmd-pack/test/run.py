@@ -200,7 +200,7 @@ needs_node("a damaged payload fails the Node round trip", t_node_catches_bad_pay
 
 def t_scrambled_payload_does_not_hang():
     # a re-saved or cut file gives the decoder garbage; the loader has none of the decoder's own checks, so the compressed bytes must be refused BEFORE decoding
-    page, _ = pack.pack(page_text(9000), encoding="base64", check_node=False)
+    page, _ = pack.pack(page_text(9000), encoding="base64", check_node=False, wasm=False)
     i = page.index(pack.PAYLOAD_NAME.encode() + b'="') + len(pack.PAYLOAD_NAME) + 2
     j = page.index(b'"</script>', i)
     mid = bytearray(page[i:j])
@@ -429,7 +429,7 @@ WASM_FILE = pack.WASM_DECODER
 
 
 def t_wasm_page():
-    plain, pinfo = pack.pack(APP, check_node=False)
+    plain, pinfo = pack.pack(APP, check_node=False, wasm=False)
     page, info = pack.pack(APP, wasm=True)     # runs the page in Node four ways: plain, with WebAssembly, with WebAssembly refused, with a decoder that answers wrongly
     assert info["node"] in ("ok", "skipped") and info["wasm"] == WASM_FILE.stat().st_size, info
     assert info["compressed"] == pinfo["compressed"], "the PPMd data must not change"
@@ -440,12 +440,16 @@ check("--wasm: the page carries the program, passes the four-way Node check, and
 
 
 def t_wasm_off_is_unchanged():
-    a, _ = pack.pack(APP, check_node=False)
-    b, _ = pack.pack(APP, check_node=False, wasm=False)
-    assert a == b and b"WebAssembly" not in a.split(b"</script>")[1]
+    a, ia = pack.pack(APP, check_node=False)
+    b, ib = pack.pack(APP, check_node=False, wasm=False)
+    c, _ = pack.pack(APP, check_node=False, wasm=True)
+    assert a == c and ia["wasm"] == WASM_FILE.stat().st_size, "the default page is not the --wasm page"
+    assert ib["wasm"] == 0 and b"WebAssembly" not in b.split(b"</script>")[1], "the --no-wasm page mentions WebAssembly"
+    huge, ih = pack.pack(APP, check_node=False, mem=1100 * 1048576)     # the model memory does not fit one WebAssembly memory: the default leaves the program out
+    assert ih["wasm"] == 0, "the default kept WebAssembly for a model memory over 1 GB"
 
 
-check("without --wasm the page has no WebAssembly code in its loader", t_wasm_off_is_unchanged)
+check("WebAssembly is the default; --no-wasm leaves it out; a model memory over 1 GB quietly leaves it out of the default", t_wasm_off_is_unchanged)
 
 
 def t_wasm_base64():

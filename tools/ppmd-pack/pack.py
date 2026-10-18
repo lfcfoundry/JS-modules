@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd-pack: turn one HTML file into a smaller self-unpacking HTML file with PPMd.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
-Version 1.1.1 (API 1)
+Version 2.0.0 (API 2)
 
   python3 tools/ppmd-pack/pack.py INPUT.html OUTPUT.html [--title T] [--head HTML] [--encoding bytes|base64] [--order N] [--mem BYTES] [--tune] [--compare]
                                   [--minifier auto|terser|esbuild|none] [--minify-page] [--bg auto|none|COLOR] [--wasm] [--skip-node-check]
@@ -29,9 +29,11 @@ The decoder must use the same order and memory as the encoder, so both are writt
 --encoding base64  store the bytes as base64 text. About a third bigger, but safe on any server and any editor.
 --bg               the color behind the 'Opening...' line shown while the page unpacks: auto (default, read from the input), none, or a color such as "#101018".
 --minify-page      first minify the page's own inline classic scripts (terser or esbuild needed), then pack.
---wasm             also ship the WebAssembly PPMd decoder (modules/ppmd-decode/wasm/ppmd7.wasm, about 9.3 KB, stored raw behind the PPMd data): the page tries it first
-                   and falls back to the JavaScript decoder, which is always in the page too. Off by default: the page grows by the size of the program, and it opens
-                   about 1.5 to 2 times faster. The page's policy must allow 'wasm-unsafe-eval' (see --head), or the JavaScript decoder is used.
+--wasm             ship the WebAssembly PPMd decoder (modules/ppmd-decode/wasm/ppmd7.wasm, about 9.3 KB, stored raw behind the PPMd data): the page tries it first
+                   and falls back to the JavaScript decoder, which is always in the page too. This is the default since 2.0.0 (the flag stays so old commands work).
+                   The page grows by the size of the program and opens about 1.5 to 2 times faster. The page's policy must allow 'wasm-unsafe-eval' (see --head),
+                   or the JavaScript decoder is used.
+--no-wasm          leave the WebAssembly decoder out: a page about 9.8 KB smaller that always decodes in JavaScript (for a tight size limit).
 
 After packing, the tool runs the page's own scripts (the shipped decoder, the byte reader and the hash) in a bare Node.js sandbox and requires the original page back,
 with no error message and no global variable left behind. That is the check that matters; it needs Node.js (without it the packer says so and the result is NOT
@@ -178,7 +180,7 @@ def decoder_source():
 
 
 def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False, bg="auto", check_node=True, minify_pg=False,
-         order=None, mem=None, compare=False, jobs=None, wasm=False):
+         order=None, mem=None, compare=False, jobs=None, wasm=None):
     head = lz.allow_wasm(head)   # every page policy carries 'wasm-unsafe-eval' in script-src
     try:
         text = data.decode("utf-8")
@@ -205,6 +207,9 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
     chk, chkz = sum31(data), sum31(z)
     dec = decoder_source()
     wasm_bytes = b""
+    if wasm is None:   # the default: WebAssembly first whenever the program is there and the memory fits one WebAssembly memory; --no-wasm (wasm=False) leaves it out, --wasm (True) insists
+        o16 = -(-(WASM_SCRATCH + len(z)) // 16) * 16
+        wasm = WASM_DECODER.exists() and -(-(o16 + len(data)) // 16) * 16 + (4 - (mem & 3)) + mem + 12 <= WASM_MAX_BYTES
     if wasm:   # the wasm decoder rides behind the PPMd stream in the same payload; it cannot be PPMd-packed itself, so it adds its full size to the page
         if not WASM_DECODER.exists():
             raise SystemExit("--wasm needs %s (build it with modules/ppmd-decode/wasm/build.sh)" % WASM_DECODER)
@@ -252,7 +257,7 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
     info = {"order": order, "mem": mem, "compressed": len(z), "wasm": len(wasm_bytes), "loader": len(loader), "encoding": encoding, "node": node,
             "bg": op[0] if op else "none", "page": page_note, "tuned": bool(tune)}
     if compare:   # the LZMA packer's page for the same input, built with the same wrapper options
-        lpage, linfo = lz.pack(data, title, head, encoding, minifier, False, bg, False, False)
+        lpage, linfo = lz.pack(data, title, head, encoding, minifier, False, bg, False, False, wasm=bool(wasm_bytes))   # the LZMA page gets the WebAssembly decoder exactly when this page does
         info["compare"] = {"lzma_payload": linfo["compressed"], "lzma_loader": linfo["loader"], "lzma_page": len(lpage),
                            "ppmd_payload": len(z), "ppmd_loader": len(loader), "ppmd_page": len(page)}
     return page, info
@@ -280,13 +285,14 @@ def main():
     ap.add_argument("--minifier", default="auto", choices=["auto", "terser", "esbuild", "none"])
     ap.add_argument("--bg", default="auto", help="background color of the 'Opening...' line: auto (read it from the input), none, or a color like #101018")
     ap.add_argument("--minify-page", action="store_true", help="first minify the page's own inline classic scripts (terser or esbuild needed); top-level names are kept")
-    ap.add_argument("--wasm", action="store_true", help="also ship the WebAssembly PPMd decoder (about 9.3 KB, raw): the page tries it first and falls back to the JavaScript decoder. Off by default; the page needs wasm-unsafe-eval in its policy to use it")
+    ap.add_argument("--wasm", action="store_true", help="ship the WebAssembly PPMd decoder (about 9.3 KB, raw): the page tries it first and falls back to the JavaScript decoder. This is the default since 1.2.0 (the flag is kept so old commands work, and it insists: an error when the memory does not fit); the page needs wasm-unsafe-eval in its policy to use it")
+    ap.add_argument("--no-wasm", action="store_true", help="leave the WebAssembly decoder out: about 9.8 KB (5.2%%) smaller page that always decodes in JavaScript, for pages with a tight size limit")
     ap.add_argument("--skip-node-check", action="store_true", help="do not run the packed page's own decoder in Node after packing")
     a = ap.parse_args()
     data = pathlib.Path(a.input).read_bytes()
     if a.tune:
         print("tuning: %d settings, one pure-Python encoding each (this takes a while)..." % len(tune_grid(len(data))), file=sys.stderr)
-    page, info = pack(data, a.title, a.head, a.encoding, a.minifier, a.tune, a.bg, not a.skip_node_check, a.minify_page, a.order, a.mem, a.compare, None, a.wasm)
+    page, info = pack(data, a.title, a.head, a.encoding, a.minifier, a.tune, a.bg, not a.skip_node_check, a.minify_page, a.order, a.mem, a.compare, None, False if a.no_wasm else (True if a.wasm else None))
     pathlib.Path(a.output).write_bytes(page)
     print("%s: %d bytes -> %d bytes (%.1f%%)  [ppmd order=%d mem=%d%s, payload %d, %sloader %d, %s, opening bg %s, node check %s]" % (
         a.output, len(data), len(page), 100.0 * len(page) / max(1, len(data)), info["order"], info["mem"], " (tuned)" if info["tuned"] else "",
