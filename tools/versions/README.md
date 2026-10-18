@@ -2,7 +2,7 @@
 
 One command keeps every module's and tool's version label the same everywhere.
 
-`versions.py` reads `modules.json`, which holds the one true label for each module and tool, and copies it into every place that shows it: the module's header comment, the first lines of its README, the root README tables, the front page and `llms.txt`. `set` changes one label and writes its changelog entry, and `check` fails when any copy disagrees.
+`versions.py` reads `modules.json`, which holds the one true label for each module and tool, and copies it into every place that shows it: the module's header comment, the first lines of its README, the root README tables, the front page and `llms.txt`. `set` changes one label and writes its changelog entries (a short one in the repo, a full one in the private folder), and `check` fails when any copy disagrees.
 
 ## Why it exists
 A label that is written by hand in several places drifts apart, and a reader cannot tell which copy is right. Keeping one source and copying it by script means a copied file, its README and the tables all say the same thing, and `check` fails the moment they do not.
@@ -19,10 +19,10 @@ A label that is written by hand in several places drifts apart, and a reader can
 Reading it: **same API number as your copy = you can drop the new file in. A higher API number = read the module's README ("What changed" or "Limits") first.** Docs-only, test-only and example-only changes keep the label.
 
 ## Changelogs
-Every module and tool has a `CHANGELOG.md` in its folder: newest version first, one or two plain sentences each (what a user would notice, not how it was done). `set` requires `--note` and writes the entry with today's US Eastern date. The root [CHANGELOG.md](../../CHANGELOG.md) is generated: where each module stands, plus the changes since labels began. `check` fails if a changelog is missing, if its newest entry is not the current version, or if the root one is stale. History before 2026-10-16 sits under "Before version labels" in each changelog, rebuilt from the commit log, the task board and the 2026-10-15 audit.
+Every module and tool has two changelogs (the owner's rule, 2026-10-18). In the repo, a short `CHANGELOG.md` in its folder for the people who use it: newest version first, one plain line per change saying what a user will notice (at most 4 lines of 240 characters per version; no tables, test runs or jargon), and a note that the full details are kept privately. The full entry, with the numbers, test runs and browsers, goes to a private folder, one file per module or tool: `/mnt/project-files/changelogs-full/JS-modules/<id>.md`, or the folder named in `$CHANGELOGS_FULL`, or `.changelogs-full/` in the repo root (git-ignored) when neither exists; the knowledge base keeps a backup of that folder. `set` takes `--short` (the line a user reads; `\n` between lines) and `--note` (the full entry), and writes both with today's US Eastern date; without `--short` it uses the first sentence of `--note` and says so. The root [CHANGELOG.md](../../CHANGELOG.md) is generated from the short entries: where each module stands, plus the changes since labels began. `check` fails if a changelog is missing, if its newest entry is not the current version, if a short entry has a `Tested in:` line, a line over 240 characters or more than 4 lines, if the full changelog (when the private folder exists) is missing or behind, or if the root one is stale. History before 2026-10-16 sits under "Before version labels" in each short changelog.
 
 ## Which browsers tested a release
-Every changelog entry ends with a `Tested in:` line, and the module's README repeats the newest one as `**Tested in:**` under the version line. It names each browser with its version (the test browsers are the ones on the `browsers` branch: Firefox, ungoogled Chromium, WebKitGTK), says what was not run, and says "not recorded" where nobody wrote it down. `set` without `--tested` writes "not recorded" and reminds you.
+Every full changelog entry (in the private folder) ends with a `Tested in:` line, and the module's README repeats the newest one as `**Tested in:**` under the version line. It names each browser with its version (the test browsers are the ones on the `browsers` branch: Firefox, ungoogled Chromium, WebKitGTK), says what was not run, and says "not recorded" where nobody wrote it down. `set` without `--tested` writes "not recorded" and reminds you.
 
 ## Where it lives
 `modules.json` is the source of truth (`version` and `api` next to each `id`). The script copies it into:
@@ -37,9 +37,9 @@ Every changelog entry ends with a `Tested in:` line, and the module's README rep
 ```
 python3 tools/versions/versions.py list                 # every label
 python3 tools/versions/versions.py check                # do all copies agree? (exit 1 if not)
-python3 tools/versions/versions.py set fly-to-mini 1.2.0 --note "What changed, in plain words."   # change one label everywhere and add the changelog entry
-python3 tools/versions/versions.py set fly-to-mini 1.2.0 --tested "Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6" --note "..."   # also records which browsers tested the release
-python3 tools/versions/versions.py tested fly-to-mini 1.2.0 "WebKitGTK 2.52.6, Firefox 158"   # write or fix one entry's Tested in line
+python3 tools/versions/versions.py set fly-to-mini 1.2.0 --short "What a user will notice." --note "Full entry with numbers."   # change one label everywhere; short entry in the repo, full entry in the private folder
+python3 tools/versions/versions.py set fly-to-mini 1.2.0 --tested "Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6" --short "..." --note "..."   # also records which browsers tested the release (in the full entry and the README)
+python3 tools/versions/versions.py tested fly-to-mini 1.2.0 "WebKitGTK 2.52.6, Firefox 158"   # write or fix one full entry's Tested in line
 python3 tools/versions/versions.py changelog            # rebuild the root CHANGELOG.md
 python3 tools/versions/versions.py sizes [--story-editor DIR]   # rewrite the tables, the index and the front-page sizes; with a clone of the Story Editor repo, measure its packages and record them in modules.json (set does the rewrite too; check fails when the tables are old, a size is missing or a description is too long)
 python3 tools/versions/versions.py init                 # labels 1.0.0 on anything that has none
@@ -57,4 +57,4 @@ Written for this repository (LFC Foundry, MIT). `versions.py` uses only Python's
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
 
 ## What a changelog note must say
-Plain words, and numbers wherever there is something to count. Each improvement says how much (for example "3 times faster, 1.8 s instead of 5.4 s", "23 percent smaller") and where it was measured; each new feature says what it does and whether it is on by default; each fix says what went wrong before and what happens now. Say "not measured" rather than guess. The rule applies to the `--note` you pass to `versions.py set`.
+Two kinds. The `--short` line is for users: plain words, what they will notice, no tables or jargon, at most 4 lines of 240 characters; a number only when it is the point ("about twice as fast"). The `--note` is the full entry for the private changelog: plain words, and numbers wherever there is something to count. Each improvement says how much (for example "3 times faster, 1.8 s instead of 5.4 s", "23 percent smaller") and where it was measured; each new feature says what it does and whether it is on by default; each fix says what went wrong before and what happens now. Say "not measured" rather than guess. The quantifying rule applies to the `--note` you pass to `versions.py set`.
