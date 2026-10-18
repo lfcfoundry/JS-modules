@@ -11,7 +11,7 @@
     for (i = 0; i < n; i++) { var a = Math.floor(r() * n), b = Math.floor(r() * n); if (a !== b) E.push([a, b]); }
     return { n: n, edges: E, layer: null };
   }
-  // Layered: one start item, then rows of equal width; every item has one or two parents in the row above, so every link joins neighbouring rows.
+  // Layered: one start item, then rows of equal width; every item has one or two parents in the row above, so every link joins neighboring rows.
   function layered(n) {
     var r = rng(2000 + n), rows = Math.max(8, Math.round(Math.sqrt(n) / 1.2)), w = Math.max(2, Math.ceil((n - 1) / rows)), E = [], layer = [0], prev = [0], id = 1, k, j;
     for (k = 1; k <= rows && id < n; k++) {
@@ -69,7 +69,7 @@
     }
   };
   // Scores (outside the timing). Network: stress, the mean squared relative gap between picture distance and link-count distance over 30 start items (lower is better, 0 is perfect after rescaling).
-  // Layered: how many pairs of links in neighbouring rows cross each other (lower is better).
+  // Layered: how many pairs of links in neighboring rows cross each other (lower is better).
   function stress() {
     var adj = [], i, k; for (i = 0; i < N; i++) adj[i] = [];
     G.edges.forEach(function (e) { adj[e[0]].push(e[1]); adj[e[1]].push(e[0]); });
