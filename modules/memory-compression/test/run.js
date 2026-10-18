@@ -4,6 +4,7 @@
 var assert = require('assert'), path = require('path'), D = require('./data.js');
 var args = process.argv.slice(2), JS_ONLY = args.indexOf('--js-only') >= 0, modPath = args.filter(function (a) { return a[0] !== '-'; })[0] || path.join(__dirname, '..', 'memory-compression.js');
 var J = require(path.resolve(modPath)).jso, FULL = !!process.env.FULL;
+if (!JS_ONLY) J.ready();      // 2.0.3 starts the helper on first use; start it now so the helper checks below run
 var WASM = JS_ONLY ? { wasm: false } : {};
 var passed = 0, failed = 0;
 // the message first: some browsers leave it out of the stack text

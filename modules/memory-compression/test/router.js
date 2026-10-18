@@ -70,4 +70,22 @@ ok('unpack() and view() refuse anything that is not packed data, with the core\'
 ok('keeper and estimateBytes work from the one file', function () {
   var k = M.keeper({ budget: 1 << 20 }); k.hold('layout', recs); assert.deepStrictEqual(k.get('layout'), recs); assert(M.estimateBytes(recs) > 0);
 });
-console.log(n + ' checks passed');
+// The WebAssembly helper starts on the first pack or unpack (2.0.3), not at load. A fresh copy is loaded so nothing has packed yet.
+var lazyReady = null;
+ok('the WebAssembly helper starts on first use: off after load, on after the first pack, same bytes as 2.0.2', function () {
+  if (typeof WebAssembly !== 'object') { console.log('  (skipped: no WebAssembly)'); return; }
+  delete require.cache[require.resolve(file)];
+  var L = require(file), d = new Uint8Array(100000).map(function (_, i) { return (i * 7 + (i >> 5)) & 255; });
+  assert.strictEqual(L.accelerated(), false, 'accelerated() is false right after load');
+  var p = L.pack(d);
+  assert.strictEqual(L.accelerated(), true, 'accelerated() is true after the first pack');
+  assert.strictEqual(require('crypto').createHash('sha256').update(p).digest('hex').slice(0, 16), '46b9cc16fa0c0ccd', 'bytes equal those from 2.0.2');
+  assert.strictEqual(p.length, 25217);
+  assert.deepStrictEqual(Buffer.from(p), Buffer.from(L.pack(d, { wasm: false })), 'same bytes without the helper');
+  lazyReady = L.ready();
+  assert.strictEqual(typeof lazyReady.then, 'function', 'ready() returns a promise');
+});
+Promise.resolve(lazyReady).then(function (v) {
+  if (lazyReady) { assert.strictEqual(v, true, 'ready() resolves true'); n++; console.log('  ok  ready() resolves true after the helper has started'); }
+  console.log(n + ' checks passed');
+});

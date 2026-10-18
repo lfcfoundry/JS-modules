@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.0.2 · API 2**
+**Version 2.0.3 · API 2**
 
-**Tested in:** not recorded.
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (270.0 KB readable, 83.5 KB gzipped). Two small WebAssembly helpers are inside the file and optional: the plain JavaScript does the same work and writes the same bytes, only slower. Until 2.0.0 this was two modules, `memory-compression` (bytes and typed arrays) and `memory-compression-jso` (objects). They are now this one file, and the separate `-jso` module is retired.
 
@@ -76,7 +76,7 @@ var v = MemoryCompression.view(held);                     // reads the table of 
 var piece = v.read(3);                                    // Uint8Array holding only piece 3, restored in about 1 ms
 var buf = new Uint8Array(v.chunkBytes); v.read(5, buf);   // or into a buffer you reuse, so nothing new is allocated
 ```
-`MemoryCompression.ready()` is a promise that resolves when the fast WebAssembly path has been chosen (a moment after page load in Chrome); calls made earlier still work, in plain JavaScript.
+`MemoryCompression.ready()` is a promise that resolves when the fast WebAssembly path has been chosen. The helper starts the first time you pack or unpack (since 2.0.3), or when you call `ready()`; `accelerated()` is `false` until then, and a page that never packs does not pay for it (about 5.8 MB less in Chromium 155). Calls made before it is ready still work, in plain JavaScript.
 
 ### Two modes
 | | `mode: 'fast'` (default) | `mode: 'small'` |
@@ -211,7 +211,7 @@ Errors are `Error` objects whose message starts with `MemoryCompression:` and sa
 ### Good to know
 - **Exact, always.** Floats are handled as bytes: NaN payloads, -0 and denormals come back bit for bit.
 - **Hostile input is safe to read.** Every read and write is bounds-checked, declared sizes are checked against what is possible (no coder here squeezes more than 1032 to 1), and results above `maxSize` are refused. Damaged or cut-off data throws; flipped bytes either throw or give back wrong bytes of the right length unless you used `check: true` (the format has no per-chunk checksum).
-- **The WebAssembly helper is optional.** A page policy without `'wasm-unsafe-eval'` (or an old browser) makes `accelerated()` return `false`; everything still works and gives the same bytes, about 1.5 to 4 times slower. Tested in Firefox 158 and ungoogled Chromium 155 with such a policy. In Chrome the helper is compiled asynchronously, so await `ready()` once at start-up for the fast path from the first call.
+- **The WebAssembly helper is optional.** A page policy without `'wasm-unsafe-eval'` (or an old browser) makes `accelerated()` return `false`; everything still works and gives the same bytes, about 1.5 to 4 times slower. Tested in Firefox 158 and ungoogled Chromium 155 with such a policy. In Chrome the helper can be compiled asynchronously, so await `ready()` once at start-up if you want the fast path from the first call; otherwise the first pack starts it.
 - **Memory while packing** is the input, the finished pieces (about the size of the final result) plus the joined result, and about 1 MiB of working space; `unpack` needs the result plus about 1 MiB (nothing extra with `into`). Packing 120 MB peaked about 59 MB lower after the pieces were joined once at the end instead of written into a buffer as big as the input.
 - **No streaming, no LZ4 frame format, no preset dictionary** for the standard formats. `gzip` output has no file name and no timestamp.
 - The format is this module's own (the first two bytes are `MC`, then a version); a container written by 1.x is read by every later 1.x.
@@ -227,7 +227,7 @@ No code from others; the ideas below are theirs. The JavaScript and the C source
 ### For AI agents
 - Use `pack`/`unpack` for typed arrays you want to keep in memory compactly or save; pass `width` equal to the record size in bytes whenever the array is rows of the same shape; use `mode: 'small'` for anything restored rarely, `'fast'` for anything restored often.
 - Keep many packed things and restore one at a time with `unpack(packed, { into: reusableBuffer })`. For one huge array, `pack` with a `chunk` of 256 KiB to 1 MiB and read pieces with `view()`.
-- Await `MemoryCompression.ready()` once at start-up. Never assume the data is smaller: random-looking floats give up only 10 to 20%; check `packed.length`.
+- Await `MemoryCompression.ready()` once at start-up if you want the fast path from the very first call (optional since 2.0.3). Never assume the data is smaller: random-looking floats give up only 10 to 20%; check `packed.length`.
 - Do not use it for what is drawn every frame. Do not add a second compression library next to it; its `deflate`/`inflate`/`gzip`/`lz4Compress` replace fflate, pako and lz4js for what they do here.
 - To rebuild the WebAssembly helper: `sh wasm/build.sh && python3 wasm/embed.py` (needs clang with the wasm32 target). The JavaScript and WebAssembly paths must stay byte-identical; the tests check that.
 
@@ -758,7 +758,7 @@ No code from others; the ideas and methods below are theirs, and the format and 
 ### For AI agents
 - Use `pack`/`unpack` for a big array of similar objects you want to keep small in memory or save; `view()` to read single items from a packed array; `mode: 'small'` for anything restored rarely.
 - Use `{ refs: true }` for a graph where links hold the node objects; `view()` for reading a little from a lot. Do not use it for tiny values (under about 16 items it is the general form and not much smaller than JSON), for streaming, or for data with class instances you need back as classes.
-- Await `MemoryCompressionJSO.ready()` once at start-up. Check `packed.length`; irregular data gives up only about 60%.
+- Await `MemoryCompressionJSO.ready()` once at start-up if you want the fast path from the very first call (optional since 2.0.3). Check `packed.length`; irregular data gives up only about 60%.
 - Sorted text (words, file paths) is front coded by itself (`front`, about 30 to 40% smaller, slower to read); pass `{ front: false }` for the fastest read or to keep files readable by 1.2.x.
 - `{ fsst: true }` for big columns of names, paths or log lines (about half the size, one string readable alone, 2 to 6 times slower to pack); skip it for patterns and repeating values, which already have a smaller way (it chooses by itself).
 - Number-heavy data that is packed once and kept (sensor logs, prices, coordinates, a parked layout): `mode: 'balanced'` (15 to 28% smaller on objects, up to 92% on a column; packing 2 to 7 times slower). For memory pressure: `keeper({ budget })` with `hold`, `restore`, `pin`, `trim`; read `memory()` for sizes and restore times.
