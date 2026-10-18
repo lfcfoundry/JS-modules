@@ -81,6 +81,24 @@ With `display:none` the mini has no size, so the module cannot measure where to 
 - A flight cut short by scrolling back starts the next one where the last one stopped.
 - If the window becomes wide and the mini disappears, the flight ends at once.
 
+## How it compares
+Larger than the two built-in options, which ship no code, but they do different jobs: neither flies a copy to a separately placed sticky mini as the page scrolls. Speed in browsers: not measured.
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
+|---|---|---|---|---|
+| View Transitions API (built in; Chrome 111+, Firefox 144+) | 0 bytes | not measured | morphs a named element between two page states; one transition at a time | Wins: nothing to ship, and the browser draws it (this module offers it as `engine: 'transition'`). Loses: the page is a frozen picture while it plays and it does not follow a sticky target that keeps moving. |
+| CSS scroll-driven animations (`animation-timeline: scroll()` / `view()`; built in) | 0 bytes | not measured | ties one element's animation to scroll position | Wins: no JavaScript. Loses: one element animates along its own path; it cannot hop to a separately placed element. Browser support differed in Firefox when this was written. |
+| FLIP: [flip-toolkit](https://github.com/aholachek/flip-toolkit) (MIT); GSAP Flip (not open source); versions not checked | not measured | not measured | record before and after positions and animate the difference | Wins on layout changes. Loses: not built for a scroll-triggered flight to a target that appears and disappears. |
+| **fly-to-mini 1.2.0** | 7.4 KB minified, 3.1 KB gzipped | not measured | arc, tilt and squash; follows a moving mini; failsafe timers; reduced-motion fade; optional View Transitions engine | see below |
+
+Where it loses:
+- It is code you ship (7.4 KB minified) where the two built-in options ship none.
+- One pair of elements per instance.
+- With `engine: 'transition'` the page freezes while it plays; the default flight leaves the page alive.
+- Not tested on phones; the look of the View Transitions engine was not judged by eye on a phone or in Firefox 144+.
+- Reduced motion skips the flight (turn on `reducedFade` for a short fade).
+- Not measured: speed in any browser, and the sizes of the other libraries.
+
 ## Limits
 - One pair of elements per instance.
 - The mini's first child (or `content`) is cloned. Since 1.2.0 the copy loses its `id` attributes and each `<canvas>` in it gets a still picture of the original's current pixels (WebGL canvases that were not created with `preserveDrawingBuffer` may copy blank). Style the part that flies with classes.
@@ -93,11 +111,16 @@ With `display:none` the mini has no size, so the module cannot measure where to 
 ## What changed in 1.2.0
 Nothing you already use behaves differently, except that the flying copy no longer carries duplicate `id` attributes and now shows canvas pictures. New and opt-in: `bar`, `onVisible` and `steps`, `hysteresis`, `keepFocus`, `reducedFade`, `alert()`. Fixed: `destroy()` now clears the landed-pop timers, and the newest observer report is used when several arrive at once. All of these came from the game Apple Press, which had its own copy of this code.
 
-## Prior art
+## Prior art and credits
 - **View Transitions API** (built in, Chrome 111+, Firefox 144+): morphs a named element between two page states. It is one transition at a time and the page waits on your update callback; it does not follow a sticky target that keeps moving while the page scrolls. Good for a state change you trigger; this module reacts to scroll position. It is available here as the optional `engine: 'transition'`, with the trade-offs listed above.
 - **CSS scroll-driven animations** (`animation-timeline: scroll()` / `view()`): tie an animation to scroll position and are excellent for shrinking headers. One element animates along its own path; it cannot hop to a separately placed element, so it does not cover a copy that leaves the big art and lands on a sticky mini. Browser support differed in Firefox when this was written, so check before relying on it.
 - **FLIP** ([flip-toolkit](https://github.com/aholachek/flip-toolkit), MIT; GSAP Flip, not open source): record the before and after positions and animate the difference. Built for layout changes, not for a scroll-triggered flight to a target that appears and disappears.
 - `@container scroll-state(stuck)` could replace the "is the bar stuck" observation in CSS, in Chromium only at the time of writing.
+
+Credits, what was taken from others:
+- View Transitions API, CSS scroll-driven animations and FLIP (the technique of recording before and after positions): used or compared as ideas; no code from flip-toolkit or GSAP.
+- The module was cut from the games of the same maker (LFC Foundry); the 1.2.0 additions came from Apple Press's own copy of this code.
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 - Copy `fly-to-mini.js` (keep the MIT header). No dependencies. It can be `require`d in Node; `create()` returns an inert object there.

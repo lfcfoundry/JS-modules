@@ -46,16 +46,38 @@ The demo page builds a 64 MB version of this in your browser and opens it: it st
 ## Why
 Players and users drop files on a page. A zip is a few hundred bytes that can claim anything. The common libraries trust the sizes in the header, or hand you everything and leave the limits to you. This one turns "it said 1 KB, it was 1 GB" into a sentence you can show.
 
+## How it compares
+Smaller than fflate and, of the ones measured, the only one that stops a lying zip by itself. Speed against the others in browsers: not measured. It opens only; it cannot write zips.
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins or loses |
+|---|---|---|---|---|
+| zip-open 1.1.0 (MIT, this module) | 27.5 KB, 9.5 KB gzipped (current file; the top of this page gives the 1.0.0 size) | Checksum check 3.9 times faster than in 1.0.0: 0.74 ms per MB in Chromium 155, 0.85 in Firefox 158, 0.7 in WebKitGTK 2.52.6 and GNOME Web 46.5 (smaller is better). Against the others in browsers: not measured | Reads zip and Excel .xlsx, limits counted on the bytes that really come out, plain-words notes | Wins on safety by default and Excel to CSV; loses on writing zips and on formats |
+| [fflate](https://github.com/101arrowz/fflate) (MIT, 0.8.3) | 33 KB, 12.6 KB gzipped | In browsers: not measured | Reads and writes zips and other formats; safety limits are left to you | On the 1 GB-of-zeros test it returned a 1,000-byte file with no error. Wins on features and on writing zips |
+| JSZip 3.10.2 (MIT or GPL-3.0-or-later) | Not measured | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |
+| zip.js | Not measured | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |
+| SheetJS | Much larger (not measured) | Not measured | Reads many spreadsheet formats | Wins on formats; this module reads only the cell values of .xlsx |
+
+Memory on the 1 GB-of-zeros zip (Node, smaller is better): about 47 MB here, about 57 MB for fflate.
+
+Where it loses:
+- Opens only; it does not create zips.
+- Reads deflate and stored entries only; other methods are skipped with a note.
+- No formulas calculated, no charts, pictures or macros, no old `.xls`.
+- Not a virus scanner.
+
 ## Limits
 - Opens, does not create. Reads deflate and stored entries; other methods are skipped with a note.
 - Zip64 is read for sizes and counts; a zip bigger than the browser can hold in memory cannot be opened (the whole file is a `Uint8Array`).
 - Spreadsheets: cell values, shared strings and dates stored with a date format become CSV text. Formulas are not calculated (the saved value is used), and charts, pictures and macros are ignored. Old `.xls` files are not supported.
 - Not a security product: it limits memory and time, it does not scan for viruses.
 
-## Prior art
-- [fflate](https://github.com/101arrowz/fflate) (MIT, 0.8.3, 33 KB / 12.6 KB gzipped): fast and complete, reads and writes zips and other formats. It leaves safety limits to you (see the table). Use it when you need to write zips or want the speed.
+## Prior art and credits
+No code from others; the ideas below are theirs. The code is written for this repository (LFC Foundry, MIT). Deflate itself comes from the platform: `DecompressionStream("deflate-raw")` in browsers and `zlib` in Node.
+- [fflate](https://github.com/101arrowz/fflate) (MIT, 0.8.3, 33 KB / 12.6 KB gzipped): compared against, not copied. Fast and complete, reads and writes zips and other formats. It leaves safety limits to you (see the table). Use it when you need to write zips or want the speed.
 - JSZip 3.10.2 (MIT or GPL-3.0-or-later) and zip.js are the other common choices. Their behavior on a lying zip was not measured here.
 - SheetJS reads many spreadsheet formats but is much larger; this module reads only the cell values of `.xlsx`.
+- The zip file format (PKWARE's published APPNOTE, including Zip64) and the Excel `.xlsx` file layout (Office Open XML, ECMA-376): the published formats, implemented from scratch.
+- CRC-32 "slicing by 8" (eight table lookups per eight bytes): a published method (Intel researchers, 2005), idea only, no code taken.
 
 ## For AI agents
 Call `expand` on the bytes of anything a user drops, show `notes` to the user, and never rewrite its limits upward to "make a big file work" without telling the user. Use `list` first if you want to show what is inside before reading it.

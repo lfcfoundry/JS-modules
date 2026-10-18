@@ -26,6 +26,27 @@ CSS has no good text stroke: `-webkit-text-stroke` straddles the glyph edge and 
 ## Accessibility
 The real text stays in the page and is what screen readers and search read. The two decorative copies use `content: attr(data-t) / ""` (empty alt text, so screen readers should skip them; a plain `content` line comes first for older browsers). In Windows high-contrast mode (`forced-colors: active`) the copies are switched off and the real text is shown in the system color. I did not test this with a real screen reader or in Windows high contrast; the behavior comes from the CSS specification and MDN.
 
+## How it compares
+Heavier to draw than a plain text stroke, but its ring stays round where Chromium's stroke gives sharp corners, and it adds a gradient fill and a hard lower edge. It ships about 4.8 KB where the built-in options ship none.
+
+Speed numbers below: 40 words whose text changes every frame, 100 px lettering, milliseconds per frame (lower is better), software drawing in a test container, so relative only, not phone speeds.
+
+| Alternative | Size (smaller is better) | Speed (lower ms per frame is better) | Features | Where it wins / loses |
+|---|---|---|---|---|
+| `-webkit-text-stroke` with `paint-order: stroke fill` (built in) | 0 bytes | the plain stroke alone: not measured. This module's `st-stroke` class uses it; with `st-flat` too: 32 ms in ungoogled-chromium 155.0.8059.39, 27 in Firefox 158.0, 35 in WebKitGTK 2.52.6 | one line of CSS; good for thin outlines | Wins on size and speed. Loses: the stroke straddles the glyph edge and chews thin letters; Chromium 155 draws sharp corners (ignores `stroke-linejoin` on HTML text). |
+| SVG `<text>` with `stroke`, `stroke-linejoin="round"` and `paint-order` (built in) | 0 bytes | not measured | the standard route, round joins | Wins on round corners with no shadows. Loses: needs SVG markup, not a class on a span. |
+| Canvas `strokeText` with `lineJoin = "round"` (built in) | 0 bytes | not measured | what canvas games already use | Wins in canvas games. Loses: no DOM text, so no selection or screen reader text. |
+| [stroketext.js](https://www.npmjs.com/package/stroketext.js) (MIT); version not read | not measured; the earlier README called it much larger | not measured | draws the stroke on a canvas behind live text | Loses on size (by that earlier note). Wins: nothing measured. |
+| **sticker-text 1.1.0** | about 4.8 KB JS + CSS minified, about 2.1 KB gzipped | default look (32 shadows): about 70 ms Chromium, 135 ms Firefox, 210 ms WebKitGTK; with `st-flat` about 40% less in Chromium and 37% less in Firefox than 1.0.0; with `st-flat st-stroke` 32, 27 and 35 ms | gradient fill, hard lower edge, soft shadow, wraps, live text, one `font-size` | see below |
+
+Where it loses:
+- The default look (32 shadows) is heavier to draw than the module's own stroke setting (`st-flat st-stroke`, close to a plain stroke): about 70 ms against 32 ms per frame in Chromium, 135 against 27 in Firefox, 210 against 35 in WebKitGTK (lower is better). Use it for a few titles, not paragraphs.
+- Against its own 1.0.0, the 1.1.0 default is about 8% slower per frame in Chromium (71 to 78 ms against 67 to 72), the price of the wrap and descender fixes; Firefox and WebKitGTK got faster (about 20% and 25%).
+- `st-stroke` draws sharp corners in Chromium.
+- Needs `sticker-text.css`; text must be plain text.
+- Not tested with a real screen reader, Windows high contrast or Safari itself.
+- Not measured: the plain built-in stroke on its own, SVG text, canvas or stroketext.js in any browser, and the size of stroketext.js.
+
 ## Limits
 - Wrapping works since 1.1.0: the copies take the element's width, `white-space` and `text-align`, so a title wraps and honors `white-space: pre-line` newlines the same way plain text would. Set `white-space: nowrap` yourself if you want one line.
 - Descenders (g, p, y, accents) keep their gradient fill since 1.1.0 (the copies got `.12em` of tail room). Not tested with every font.
@@ -34,12 +55,18 @@ The real text stays in the page and is what screen readers and search read. The 
 - Works with any font; very thin fonts need a larger outer ring (`radii`).
 - Needs `sticker-text.css`. The text must be plain text (the copy is `textContent`, so child markup is flattened in the copies).
 
-## Prior art
+## Prior art and credits
 The idea of an outline made from offset shadows is not new; the packaged recipe (three smooth rings, gradient fill, hard edge, one `font-size`) is this module's part.
 - `-webkit-text-stroke` with `paint-order: stroke fill` ([MDN](https://developer.mozilla.org/docs/Web/CSS/paint-order)): one line of CSS and good for thin outlines, supported in current browsers. For HTML text, Chromium 155 ignores `stroke-linejoin` (measured), so sharp letters can show spikes there where this ring stays round; Firefox 158 and WebKitGTK 2.52.6 round the corners. This is what the `st-stroke` class uses. Use it when you want a thin outline on text that changes often.
 - SVG `<text>` with `stroke`, `stroke-linejoin="round"` and `paint-order`: the standard route, with round joins; needs SVG markup instead of a class on a span.
 - Canvas `strokeText` with `lineJoin = "round"` ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineJoin)): what canvas games already use; no DOM text, so no selection or screen reader text.
 - [CSS-Tricks, "Adding Stroke to Web Text"](https://css-tricks.com/adding-stroke-to-web-text/) describes the shadow-ring and duplicated-text tricks; [stroketext.js](https://www.npmjs.com/package/stroketext.js) (MIT) draws the stroke on a canvas behind live text and is much larger.
+
+Credits, what was taken from others:
+- The shadow-ring outline: a known CSS trick described in [CSS-Tricks, "Adding Stroke to Web Text"](https://css-tricks.com/adding-stroke-to-web-text/); idea only, no code. The recipe in this module (one ring of 32, gradient fill, hard edge, one `font-size`) is written here.
+- `-webkit-text-stroke`, `paint-order`, SVG stroke and canvas `strokeText`: browser features used or compared as written in MDN; no code.
+- stroketext.js (MIT): compared only; no code. No fonts or images from others.
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 - Copy `sticker-text.css` and `sticker-text.js` (keep the MIT headers). No dependencies; the JS can be `require`d in Node.

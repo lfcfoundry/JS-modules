@@ -41,8 +41,24 @@ A written style guide plus a working demo for the soft, glossy "toy" look in pla
 - [`sticker-text`](../sticker-text/README.md): the lettering trick from section 4.2 as a small JS + CSS module. Use it for the title; this guide explains where the look comes from.
 - [`sprite-baker`](../sprite-baker/README.md): for canvas games. It bakes shaded shapes into sprites on the CPU. Use the same `hi / mid / lo` ramp from section 3.5 as its `SB.material` stops so SVG and canvas characters match. This kit has no canvas code of its own.
 
-## How it differs from open source
+## How it compares
+cartoon-3d-kit is a written guide with numbers, not code, so it is not a rival to the libraries below; it is the missing recipe next to them. It ships no code, so there is nothing to import, and it is the only one in this list that writes down a full character look (light, gradients, face, motion, scenery). Speed against the alternatives: not measured.
 
+| Alternative | Size (smaller is better) | Speed | Features | Where it wins / loses |
+|---|---|---|---|---|
+| Claymorphism snippets and articles | A few lines of CSS each | Not measured | One panel recipe: radius, one outer and two inset shadows | They win on being quick for cards and buttons. This guide wins for characters (face rules, gradients, motion, scenery, contrast table) |
+| SVG lighting filters (`feSpecularLighting`, `feDiffuseLighting`), built into browsers | Nothing to ship | Not measured | Physically flavored light; no art direction | Filters win on realism. The gradients here win on being light and re-coloring through five variables |
+| [Zdog](https://zzz.dog/) (MIT, version: not read) | Not measured. This kit: guide 50,520 bytes of text, demo page 20,652 bytes, crowd page 13,339 bytes | Not measured | Flat pseudo-3D engine with a scene graph, canvas or SVG | Zdog wins if you want a 3D scene. This kit wins if you want a look for ordinary 2D shapes |
+| Animate.css and Motion (MIT, versions: not read) | Not measured | Not measured | Collections of animations | They win on ready-made movement. The squash and pop timings here are numbers you can use with either |
+
+The kit's own measurements (ungoogled Chromium 155.0.8059.39-1, headless, median of three 5-second runs, browser work per second; lower is better): 12 heroes cost 191 ms as live page copies, 182 ms baked at 60 per second and 117 ms baked at 30 per second; 48 heroes cost 346, 357 and 227 ms. Firefox, WebKitGTK and GNOME Web timings: not measured.
+
+**Where it loses**
+- It is a guide, not a library: you draw your own character and copy the CSS. Nothing is installable.
+- Fewer ready-made pieces than a library: no scene graph, no animation engine, no components.
+- Timings exist for one browser (Chromium 155) only; phones: not measured.
+
+**More detail on each**
 - **Claymorphism write-ups** (many articles and snippet collections): one panel recipe, one background, one radius, one outer and two inset shadows. Good for cards and buttons. They do not describe a character: no face rules, no gradient numbers, no motion, no scenery, and usually no dark mode or contrast advice.
 - **SVG lighting filters** (`feSpecularLighting`, `feDiffuseLighting`): widely supported since 2015 and physically flavored, but they give no art direction and are heavier to re-skin. The gradient method here is lighter and re-colors by changing five variables.
 - **Zdog** draws flat-shaded pseudo-3D with its own scene graph and canvas or SVG rendering. It is a 3D engine; this guide is a look for ordinary 2D shapes.
@@ -59,6 +75,14 @@ A written style guide plus a working demo for the soft, glossy "toy" look in pla
 - The Windows forced-colors block and the Firefox keyboard-click behavior were written from the specs; they have not been checked on real screens.
 - The check (`test/run.js`) reads the skin tables as text and does not open a browser, so it does not prove how anything looks.
 - No game art, characters, brand names or fonts are included; the demo uses a generic round character. The two typefaces named in the guide are not bundled.
+
+## Prior art and credits
+- Every number in the guide was copied from a published single-file game made by LFC Foundry; its artwork, names and text are not included, and the demo uses a generic character.
+- Two typefaces are named in the guide (Bricolage Grotesque and Figtree, both under the SIL Open Font License). They are not bundled; the demo falls back to `system-ui`.
+- The contrast rule (4.5:1 for normal text) is WCAG AA from the W3C. Rule only, no code.
+- Squash and stretch is the classic animation principle; the timings here are measured from the game. Idea only.
+- Zdog, Animate.css, Motion and the claymorphism write-ups are named above for comparison only. No code from them is in this kit.
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 

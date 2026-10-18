@@ -43,14 +43,39 @@ No other module here calls it; it exists for the games and apps built from these
 ## Caching
 `timerStepMs`, `timerRounded`, `canvasReadback(Ok)`, `canvasNoise`, `framed` and `storageState`/`storageWorks` are cached after the first call. `reducedMotion`, `coarsePointer`, `anyCoarsePointer`, `contrastPreference`, `prefersReducedTransparency`, `hover`, `anyHover` and `capabilities` ask the browser each time, so they follow live changes. `report()` and `explain()` use both kinds.
 
+## How it compares
+I found no library that does this exact job. The nearest are fingerprinting libraries that look for the same browser modes for the opposite reason, so this is a small, game-focused check next to larger, broader tools.
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
+| --- | --- | --- | --- | --- |
+| **env-probes 1.1.0** (this module, MIT) | 10,969 B minified, 4,387 B gzipped (terser 5.36.0) | First call of all 13 probes, lower is faster, median of 9 fresh page loads: ungoogled Chromium 155.0.8059.39-1 5.0 ms, Firefox 158.0 4.0 ms, WebKitGTK 2.52.6 3.0 ms, GNOME Web 46.5 3.0 ms. Calling `report()` again: 0.02 to 0.07 ms (cached). Firefox and WebKit clocks show whole milliseconds, so small numbers are rough | Rounded clock, canvas read-back, storage, motion, touch, contrast, framing, feature list, plain-words `explain()` | Tells you the effect so your game keeps working. Loses: does not name the mode |
+| [CreepJS](https://github.com/abrahamjuliot/creepjs) (MIT, version not recorded) | Not measured | Not measured | Browser fingerprinting; detects privacy modes to identify users | Wins: can name the mode. Loses: built to identify users, not to keep a game working |
+| [detectIncognito](https://github.com/Joe12387/detectIncognito) (MIT, version not recorded) | Not measured | Not measured | Guesses whether the window is private | Wins: names the mode. Loses: a mode guess does not say what your page can still do |
+| [detect-gpu](https://github.com/pmndrs/detect-gpu) (MIT, version not recorded) | Not measured | Not measured | Rates the graphics chip | A different question: it says how fast the chip is, not what the browser has switched off |
+| Hand-written check (MDN `storageAvailable` pattern, `matchMedia`) | A few lines per check | Not measured | One question each, for example "can I save" | Wins: nothing to copy in for one check. Loses: you write and test every probe yourself, and clock and canvas checks are not in MDN's pattern |
+
+**Where it loses**
+- Detection is by behavior, so a future browser could round or add noise differently.
+- The clock check cannot tell a rounded clock from a very slow device (both count as rounded, the safe answer).
+- Noise detection depends on the browser changing the pixels this module draws; a browser that only noises very large canvases could pass.
+- `prefers-reduced-transparency` is Chrome and Edge 118+ only so far; elsewhere the answer is `false`.
+- The Safari 26 canvas-noise claim comes from a secondary source and is untested on a real iPhone. Not run: the Firefox privacy-profile test, a phone.
+- Not measured: sizes and speeds of the alternatives; speed on a phone.
+
 ## Limits
 Detection is by behavior, so a future browser could round differently or add noise differently. The clock check cannot tell a rounded clock from a very slow device that never saw a step in 30,000 reads (both count as rounded, which is the safe answer). Noise detection depends on the browser changing the pixels this module draws; a browser that only noises very large canvases could pass. Contrast and reduced-motion answers are only as good as the browser's media-query support (`prefers-contrast` works in all three engines; `prefers-reduced-transparency` is Chrome and Edge 118+ only so far, and the answer is `false` elsewhere). The Safari 26 claim that canvas read-back always carries noise comes from a secondary source and has not been tested on a real iPhone. `fx-governor` does not use `timerRounded`: it averages frames over seconds, which a rounded clock barely disturbs.
 
 ## Quick start
 Open `demo.html` (the device check page), press the button, and copy the report. In code: `var r = EnvProbes.report(); if (r.canvasReadback !== 'ok') skipPixelAnalysis();`.
 
-## Prior art
-Fingerprinting libraries ([CreepJS](https://github.com/abrahamjuliot/creepjs), [detectIncognito](https://github.com/Joe12387/detectIncognito)) detect these modes to identify users or guess private windows; this does the opposite: it detects the effect (not the mode) to keep your game working. [detect-gpu](https://github.com/pmndrs/detect-gpu) rates the graphics chip, a different question. The storage check follows MDN's `storageAvailable` pattern. I found no library that does this exact job.
+## Prior art and credits
+- [CreepJS](https://github.com/abrahamjuliot/creepjs) (MIT) and [detectIncognito](https://github.com/Joe12387/detectIncognito) (MIT): read as prior art for spotting these modes; this module detects the effect, not the mode. Ideas only, no code.
+- [detect-gpu](https://github.com/pmndrs/detect-gpu) (MIT): rates the graphics chip, a different question. Nothing taken.
+- MDN's `storageAvailable` pattern (MDN code examples are public domain, CC0): the storage check and its "quota error with data already stored means full" rule follow it. Pattern followed; the code here is written for this module.
+- Browser behavior it relies on, as facts: Firefox "resist fingerprinting" rounds the clock to about 16.67 ms, Tor-style setups to 100 ms, and Tor Browser asks permission on canvas read-back. The Safari 26 canvas-noise claim comes from a secondary source that this README does not name; it is untested.
+- terser 5.36.0 (BSD-2-Clause) was used only to measure the minified size; it is not part of the module.
+
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 - Load `env-probes.js` (UMD: `EnvProbes` global or `require`). Call `EnvProbes.explain()` to get sentences you can show in a help screen, or `EnvProbes.report()` for raw values.
