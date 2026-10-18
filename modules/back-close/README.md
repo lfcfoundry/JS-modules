@@ -64,6 +64,24 @@ Fancy Banana's set (all four cut, so only `watchWhen(isOpen, close)` and the han
 
 `node modules/back-close/test/lean.js` builds the full file, Fancy's set (with and without comments), each part cut on its own and the no-CloseWatcher case, and runs the situation table from `tests/small-lean-battery.js` on each (about 1 s): panel opens (a watcher is made), closes by its own button (the watcher is destroyed and your close function is not called), a back request closes the newest panel and the other one stays closable, no CloseWatcher (nothing happens, no error). `node tests/small-lean-browser.js` runs the same table in a real browser with the browser's own CloseWatcher and the real Escape key; where the browser has no CloseWatcher it says "not available" for the three situations that need one. `lean.py` edits nothing: change `back-close.js` and keep its `//@begin` / `//@else` / `//@end` marker lines balanced.
 
+## How it compares
+Bigger than the few lines a game would write by hand; I found no popular library for this. It adds one shared handle, support for panels that are not one element, and an opt-in iPhone fallback. Speed in browsers: not measured (the tests check that it works, they do not time it).
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
+|---|---|---|---|---|
+| Native `<dialog>` with `showModal()`, or a `popover` (built in) | 0 bytes | not measured | Escape, Android back (Chrome 120 and later), focus handling, backdrop | Wins: no module needed. Loses: your panel must be a `<dialog>` or `popover`; Firefox and Safari handling of the Android back button was not checked. |
+| `CloseWatcher` written by hand (built in; Fancy, the Banana keeps about 255 bytes of its own) | about 255 bytes in Fancy's case | not measured | one watcher, no `hidden`-watching, no handle | Wins on size. Loses: every game writes and tests its own arming, removal and close routing. |
+| History API pattern by hand (`pushState` then `popstate`; built in) | a few lines | not measured | works in every browser including Safari | Wins on reach. Loses: changes the history list and needs undo and stack handling written each time. |
+| A standalone `CloseWatcher` polyfill | none found (one search, not exhaustive) | not measured | not applicable | Not applicable. |
+| **back-close 1.2.0** | 2,467 bytes minified, 1,067 gzipped for the whole file; 842 and 415 for the smallest set (66% and 61% smaller, lower is smaller). | not measured | `hidden` panels, `isShown`, `watchWhen`, `close()` route, optional history fallback, lean build | see below |
+
+Where it loses:
+- The smallest set (842 bytes minified) is about 3.3 times Fancy's own inline code (about 255 bytes), in exchange for being shared and tested.
+- `CloseWatcher` is not in stable Safari or Safari on iPhone; the opt-in history fallback is not tried on a real iPhone.
+- Chrome may skip history entries added without a tap or key press; the fallback changes the address-bar history while a panel is open.
+- A native `<dialog>` or `popover` needs no module at all and is the better choice for new panels.
+- Not measured: speed in any browser.
+
 ## Why
 On a phone, a pop-up that does not respond to the back gesture sends the player out of the game or to the previous site. `CloseWatcher` is the browser's own "close request" channel (the Escape key, the Android back gesture and other platform close gestures all go through it), so one hook covers them.
 
@@ -75,11 +93,18 @@ On a phone, a pop-up that does not respond to the back gesture sends the player 
 - Several panels open at once: the newest closes first. Panels shown without a tap or key in between (for example by a timer) can be grouped by the browser and close together on one back swipe. Show panels from a user action where you can.
 - The Escape-key browser tests go through the same channel as the Android back swipe, which has not been tried on a device. Whether a Bluetooth controller's B button also acts as the browser's Back key on some Android browsers is unverified (old evidence); if it does, B may close a panel through both pad-nav and back-close at once, so test on a device.
 
-## Prior art
+## Prior art and credits
 - `<dialog>.showModal()` and `popover` (built into browsers): see above. Use them when you can.
 - `CloseWatcher` is a web standard (the WICG explainer repository was archived in August 2025 and its content merged into the HTML Standard). This module is a thin wrapper around it. I found no maintained standalone CloseWatcher polyfill (one search, not exhaustive).
 - The plain History API pattern (`pushState` when opening, `popstate` to close) works in every browser, including Safari; that is what the opt-in fallback does, with the undo-on-normal-close and stack handling written once.
 - Ariakit (a React dialog library) has an open feature request to use CloseWatcher with no decision recorded, so the wider ecosystem has not adopted it yet.
+
+Credits, what was taken from others:
+- `CloseWatcher` (HTML Standard, WICG explainer): the browser feature itself, used through its own API; idea only, no code.
+- History API `pushState` / `popstate` pattern: a common technique; idea only, no code.
+- Browser support dates came from caniuse and the WebKit blog (webkit.org/blog/18182), read, not copied.
+- First cut from Apple Press 1.27 (same maker, LFC Foundry).
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 Call `watch` once per panel at start-up, after the panel element exists, and keep the returned handle. Route every close control (X button, pad B, your own Escape handling) through `handle.close()` so there is one path. Prefer a native `<dialog>` for new panels. Turn on `historyFallback` only if iPhone back-swipe support matters, and tell the user the caveats above. Do not also push history entries for the same panel yourself.

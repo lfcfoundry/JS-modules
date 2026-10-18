@@ -30,6 +30,22 @@ door.destroy();  // remove the door and its listeners
 ## Why
 A children's game has buttons that can erase progress or leave the game for the web. A child will press anything that glows. A task that needs a 3-second hold and a drag is something most adults finish at once and most small children do not, with no reading and no math. Apple's page on the Kids category lists parental gates among its requirements, describing them as "adult-level tasks that must be completed in order to continue", with purchases and links out of the app as the examples; the page shows a plain task, a math task and a question task as gate styles. This module is the plain-task kind, and your game still has to meet whatever rules apply to where you publish it.
 
+## How it compares
+I found no maintained standalone web library for a parental gate, so the real alternatives are the two hand-written tasks games usually use. This module is larger than either, needs no reading, and is still only a speed bump. Speed in browsers: not applicable to the task (the hold is 3 seconds by design) and the code was not timed.
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
+|---|---|---|---|---|
+| A math question by hand | a few lines | not measured | needs reading and arithmetic | Wins on size. Loses: it needs reading and arithmetic, which an older child can do. |
+| "Type the word shown" by hand | a few lines | not measured | needs reading | Wins on size. Loses: same need to read. |
+| A parental-gate package from npm (the one search found a React Native package, version 0.1.1, 2023; one search, not exhaustive) | not measured | not measured | for React Native, not the web | Not usable on a web page. |
+| **grown-ups-door 1.0.0** | 15 KB as written with comments and stylesheet, 5.2 KB gzipped (minified: not measured) | not measured | hold then drag or tap, keyboard works, guarded links, pass stays open for 2 minutes, replaceable art and text | see below |
+
+Where it loses:
+- Larger than a hand-written question (15 KB as written against a few lines), and a determined older child can still get past it: a speed bump, not security.
+- Not a legal age check and not a guarantee of meeting any store's rules for children's apps.
+- Not tried with a screen reader or on a real phone; there is no Node test for this module.
+- Not measured: speed in any browser, the minified size, and the size of other approaches.
+
 ## Limits
 - Not security and not a legal compliance product (see above). Nothing is stored: the pass lives only in the page's memory, so a reload locks it again.
 - It can only guard what you point it at, and a keyboard shortcut or script in your own code that does the same thing has to be sent through `ask()` too.
@@ -37,10 +53,16 @@ A children's game has buttons that can erase progress or leave the game for the 
 - Assistive technology: the door is a labelled modal dialog and works from the keyboard; it has not been tried with a screen reader.
 - Real phones were not available for this check. Touch was driven by the browsers' own test drivers in Chromium and Firefox, not a hand on a screen.
 
-## Prior art
+## Prior art and credits
 - Apple's Kids category page (above) names parental gates as a requirement, with the example of tasks "an adult can do"; it leaves the design to you.
 - I found no maintained standalone web library for this: an npm search for "parental gate" returned a React Native package at version 0.1.1 (2023) and unrelated results (one search, not exhaustive).
 - The common alternatives are a math question or "type the word shown", which need reading. The hold-and-drag task needs neither.
+
+Credits, what was taken from others:
+- Apple's page on the Kids category: the wording "adult-level tasks that must be completed in order to continue" is quoted in "Why"; Apple's page names parental gates as a requirement and leaves the design to you. Quoted for context, no code.
+- The module is cut from Apple Press's Grown-ups door (same maker, LFC Foundry), with the apple art made replaceable.
+- The math-question and typed-word gates: common ideas, no code.
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 Attach it once, early, and guard only the controls that erase progress or leave the page. Say in the page that it is a speed bump. Do not use it to claim a game is "safe for kids" or compliant with a children's privacy law. Keep `skip` for automated tests and turn it off in the shipped page.

@@ -4,7 +4,7 @@
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/save-kit-browser.js 13 of 13 full and 13 of 13 lean in each; tests/save-kit-speed-browser.js: old and new store and load the same in each); 43 Node checks and 15 of 15 lean builds pass; 4,000 random saves give identical results old versus new. Not run: a phone, Safari itself
 
-Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 22 KB with its comments, about 11 KB minified (4.8 KB gzipped), no dependencies.
+Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 27 KB with its comments, about 12.7 KB minified (5.4 KB gzipped), no dependencies.
 
 ## Use
 ```js
@@ -25,8 +25,25 @@ Since 1.1.0:
 - `kit.save(state, true)` writes even when `skipUnchangedMs` would skip it (autosave does this by itself when the page is hidden or closed).
 - Schema types are listed at the top of `save-kit.js`.
 
-## What makes it different
-Many save helpers just `JSON.stringify` into storage. This one assumes the data is hostile or broken:
+## How it compares
+Larger than a hand-written `JSON.stringify` save, but among the alternatives listed here it is the one built for game saves: it checks every field, keeps a backup and makes copy-paste codes with a checksum. The sizes of the libraries and speed in browsers against all of them: not measured.
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
+|---|---|---|---|---|
+| Plain `JSON.stringify` and `JSON.parse` into `localStorage` (the usual hand-written way; built in) | a few lines, nothing to ship | not measured | none of the checks, backup, codes or size limits | Wins on size and simplicity. Loses: one broken value can ruin or overwrite the whole save. |
+| Storage wrappers: [localForage](https://localforage.github.io/localForage/) (Apache-2.0), store.js (MIT); versions not checked | not measured | not measured | deal with storage back-ends (localForage: IndexedDB, WebSQL, localStorage); no game-save checks, backup or codes | Wins when you need IndexedDB or large data. Loses: does not protect a game save. |
+| [lz-string](https://github.com/pieroxy/lz-string) (MIT); version not checked | not measured | not measured | URL-safe compressed text; no checksum, schema or size limit | Wins on working in browsers without `CompressionStream`. Loses: a cut-off or hostile code is not caught. |
+| [fflate](https://github.com/101arrowz/fflate) (MIT); version not checked | not measured | not measured | real deflate code that could be an old-browser fallback | Wins on old browsers (this module does not include a fallback). Loses: it is only the compression piece. |
+| **save-kit 1.2.1** | 12,725 bytes minified, 5,409 gzipped (terser 5.51.2, `-c passes=2 -m`); core only without codes 2,967 minified (terser 5.36.0, 1.2.0 file, so not comparable with the first figure) | small save (448 bytes) loads in 3.24 microseconds in ungoogled-chromium 155.0.8059.39-1, 2.6 in Firefox 158.0, 1.95 in WebKitGTK 2.52.6, 2.05 in GNOME Web 46.5 (smaller is better; compared with the alternatives: not measured) | per-field checks, backup slot, checksummed codes, size limits, other-tab notice, lean builds | see below |
+
+Where it loses:
+- It is larger than a hand-written save (see the table). The lean build below cuts the parts a game does not use.
+- It stores in `localStorage` (or any object with synchronous `getItem`/`setItem`), not IndexedDB; `localStorage` holds about 5 MiB per origin.
+- Squeezed codes need `CompressionStream`; older browsers get plain codes only and cannot open squeezed ones. There is no old-browser fallback.
+- Not encryption and not anti-cheat; a code can be edited.
+- Not measured: speed against the alternatives in any browser, and the sizes of the other libraries.
+
+What it does that a plain `JSON.stringify` save does not. Many save helpers just `JSON.stringify` into storage. This one assumes the data is hostile or broken:
 - Every field is checked **on its own** and falls back alone, so one bad number never costs the whole save. If a slot has a broken number, `load()` still rebuilds the rest from it; if both slots have problems it uses the one with fewer broken numbers.
 - `__proto__`, `constructor` and `prototype` keys are dropped (in `counts` names and anywhere inside a `raw` field); counts are capped in size and in number of names.
 - A save with a broken number is **refused**, including a broken value inside a `counts` field, so a bug cannot overwrite good progress.
@@ -106,8 +123,17 @@ A game whose codes end in base 36 without padding uses `codeCheck: 'plain36'`. W
 - The unpack limit is a safety net for one save, not a promise about memory use: the text itself can still be about 350,000 characters.
 - Code checksums catch copy mistakes, not tampering.
 
-## Prior art
+## Prior art and credits
 Generic storage wrappers (for example [localForage](https://localforage.github.io/localForage/), store.js) deal with storage back-ends, not game-save safety, backups or copyable codes. [lz-string](https://github.com/pieroxy/lz-string) makes URL-safe compressed text but has no checksum, schema or size limit; [fflate](https://github.com/101arrowz/fflate) and tiny-inflate are real deflate code that could serve as an old-browser fallback (not included). The base64url alphabet, FNV-1a checksum and raw deflate are all standard pieces; the combination for hand-pasted game saves is what this file adds.
+
+Credits, what was taken from others:
+- FNV-1a hash (Fowler, Noll and Vo): the algorithm only, written out here; no code copied.
+- base64url alphabet (RFC 4648) and raw deflate (RFC 1951, through the browser's own `CompressionStream` / `DecompressionStream`): standards used as written; no library code included.
+- `Uint8Array.toBase64` / `fromBase64`: the browser's own functions, used when present.
+- Browser facts in "Limits" were read from MDN (`StorageManager.persist()`, the `storage` event) and from webkit.org ("Updates to Storage Policy"); nothing copied.
+- The `plain36` and `hex8` code endings copy the save-code formats of Apple Press and Fancy, the Banana (same maker, LFC Foundry), so their old codes keep opening.
+- localForage, store.js, lz-string and fflate: ideas compared only, no code from them.
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 - Copy `save-kit.js` (keep its header), call `SaveKit.create({ key, prefix, schema, defaults })` once, then `load()` at start, `autosave()` after, and `exportCode`/`importCode` for a "copy your save" box.

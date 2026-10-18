@@ -4,7 +4,7 @@
 
 **Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (2026-10-17): the demo page (both rows restored byte for byte at 8 MB and 32 MB; small-mode pack at 32 MB took 432 ms in Firefox, 300 ms in Chromium, 338 ms in WebKitGTK and 299 ms in GNOME Web); Chromium 155 also the repo test run. Node 22.22.0: 24 checks with and without WebAssembly, the long fuzz, and the WebAssembly file rebuilt from source (byte-identical). Not run: the full benchmark page, a phone.
 
-Holds big data (floats, coordinates, records, text) packed in memory and brings it back fast and exactly. About 91 KB with comments (a 22 KB WebAssembly helper is part of that, and it is optional), no dependencies, works offline.
+Holds big data (floats, coordinates, records, text) packed in memory and brings it back fast and exactly. About 96 KB with comments (a 24.5 KB WebAssembly helper is part of that, and it is optional), no dependencies, works offline.
 
 **Test it:** `node modules/memory-compression/test/run.js` (23 checks, about 2.5 s; `JS_ONLY=1` runs everything without WebAssembly; `FULL=1` runs 10 times more random cases). **Try it:** `demo.html`.
 
@@ -56,7 +56,27 @@ A 120 MB scene (records, coordinates and text) in Node: kept packed it is 52% of
 - **Not a magic fix for noisy floats.** Coordinates with random low digits give up only 10 to 20% (small mode) or about 8% (fast mode). Colors, ids, flags, repeated values and smooth sequences give up 50 to 70%.
 - **Not a way to compress what is being drawn this frame.** Restoring a 120 MB scene takes 140 to 250 ms. Use it for data that sits still (other scenes, undo steps, saves, big tables), then restore it when you need it.
 
-## Compared with the alternatives
+## How it compares
+
+Smallest and fastest to restore on floats and records, about as small as fflate and pako on text, much faster to pack than they are, but a bigger download than lz4js or fzstd, and a plain LZ4 in WebAssembly can restore faster on data that does not shrink. The 120 MB scene below is the test (size: smaller is better; times in milliseconds: smaller is better; measured on 1.0.0, and 1.1.0 only changed small mode packing, so the fast row is unchanged).
+
+| Alternative | Size to ship, gzipped (smaller is better) | 120 MB scene: result size, then pack and restore time (Firefox 158 · Chromium 155) | Features | Where it wins or loses |
+|---|---|---|---|---|
+| memory-compression 1.1.0 (MIT, this module) | About 96 KB, about 33 KB gzipped (not minified; includes the optional WebAssembly helper) | Fast: 52.1%; 375 and 239 ms · 351 and 195 ms. Small: 41.3%; 3731 and 434 ms · 3407 and 351 ms | Floats and records pre-step, `view()` for pieces, LZ4 and deflate formats; no streaming | Wins on floats, records, restore speed and memory; loses on download size and streaming |
+| lz4-wasm 0.9.2 (MIT) | 29 KB, 11.6 KB gzipped | 73.6%; 849 and 312 ms · 679 and 226 ms | Plain LZ4 in WebAssembly | Restored faster in WebKitGTK 2.52.6 (123 ms against 221 ms); packs less (73.6%) |
+| zstd-wasm 0.0.27 (@bokuweb, MIT), level 3 | 270 KB, 84.5 KB gzipped | 54.0%; 1563 and 626 ms · 1519 and 627 ms | zstd, levels 1 to 22, preset dictionary | Best text size; slower; nothing for floats unless shuffled first |
+| fflate 0.8.3 (MIT), level 6 | 33 KB, 12.6 KB gzipped | 51.8%; 12979 and 1549 ms · 11146 and 1415 ms | Zip, streaming, worker threads | Smaller to ship and streams; far slower to pack and restore |
+| CompressionStream (the browser's own, deflate-raw) | 0 | 52.6%; 3682 and 439 ms · 4752 and 463 ms | Gzip, deflate; asynchronous only | Costs nothing to ship; cannot be used in the middle of a frame |
+
+pako 3.0.2, lz4js 0.2.0 and fzstd 0.1.1 are in the longer tables below. Not measured: Blosc and the float coders fpzip and ZFP (no browser build to run here).
+
+Where it loses (kept from the longer text below):
+- Noisy floats shrink only 8 to 20%; it is no magic fix.
+- Too slow to restore in the middle of a frame (140 to 250 ms for 120 MB); use it for data that sits still.
+- Bigger download than lz4js (16 KB), fzstd (8.4 KB) and fflate (33 KB) before gzip; no streaming; no preset dictionary.
+- On the 120 MB scene, lz4-wasm restored faster in WebKitGTK 2.52.6 (123 ms against 221 ms, smaller is better), and it is the fastest plain LZ4 on data that hardly shrinks (details below).
+
+### The full comparison
 I measured it against fflate 0.8.3, pako 3.0.2, lz4js 0.2.0, **lz4-wasm 0.9.2** (a WebAssembly LZ4), **@bokuweb/zstd-wasm 0.0.27** (a WebAssembly zstd), fzstd 0.1.1 (a plain-JavaScript zstd reader) and the browser's own **CompressionStream**. Same data for every one, every result restored and compared byte for byte. The full tables for each browser are in `REVIEW.md`.
 
 ### Speed and size (Node 22.22.0, 16 MB sets; cell = size · pack MB/s · restore MB/s)
@@ -93,10 +113,10 @@ Extra memory = the most the whole browser grew while packing and restoring, beyo
 - **CompressionStream** costs nothing to ship and restores 100 to 335 MB/s in these browsers, packing at 16 to 52 MB/s (faster than fflate and pako at level 6, far slower than the LZ4 class). It is asynchronous only, so it cannot be used in the middle of a frame, and it knows nothing about floats.
 
 ### Features
-| | memory-compression 1.0.0 | fflate 0.8.3 | pako 3.0.2 | lz4js 0.2.0 | lz4-wasm 0.9.2 | zstd-wasm 0.0.27 | fzstd 0.1.1 | CompressionStream |
+| | memory-compression 1.1.0 | fflate 0.8.3 | pako 3.0.2 | lz4js 0.2.0 | lz4-wasm 0.9.2 | zstd-wasm 0.0.27 | fzstd 0.1.1 | CompressionStream |
 |---|---|---|---|---|---|---|---|---|
 | License | MIT | MIT | MIT and Zlib | ISC | MIT (Apache text also shipped) | MIT | MIT | built into the browser |
-| Size to ship (gzipped) | 91 KB (31 KB); not minified, WebAssembly text is 29 KB of it | 33 KB (12.6 KB) | 45 KB (14.0 KB) | 16 KB (4.6 KB), not minified | 29 KB (11.6 KB) | 270 KB (84.5 KB) | 8.4 KB (3.9 KB) | 0 |
+| Size to ship (gzipped) | 96 KB (33 KB, version 1.1.0); not minified, the WebAssembly helper is included | 33 KB (12.6 KB) | 45 KB (14.0 KB) | 16 KB (4.6 KB), not minified | 29 KB (11.6 KB) | 270 KB (84.5 KB) | 8.4 KB (3.9 KB) | 0 |
 | Compress and decompress | both | both | both | both | both | both | decompress only | both |
 | Synchronous | yes | yes (and async with worker threads) | yes | yes | yes, after an asynchronous start | yes, after an asynchronous start | yes | no, streams only |
 | Streaming | no | yes | yes | no | no | no (simple API only) | yes | yes |
@@ -141,6 +161,14 @@ Errors are `Error` objects whose message starts with `MemoryCompression:` and sa
 - **Memory while packing** is the input, the finished pieces (about the size of the final result) plus the joined result, and about 1 MiB of working space; `unpack` needs the result plus about 1 MiB (nothing extra with `into`). Packing 120 MB peaked about 59 MB lower after the pieces were joined once at the end instead of written into a buffer as big as the input.
 - **No streaming, no LZ4 frame format, no preset dictionary** for the standard formats. `gzip` output has no file name and no timestamp.
 - The format is this module's own (the first two bytes are `MC`, then a version); a container written by 1.x is read by every later 1.x.
+
+## Prior art and credits
+No code from others; the ideas below are theirs. The JavaScript and the C source of the WebAssembly helper were written for this repository (LFC Foundry, MIT); the LZ4-class and deflate coders are written for this module.
+- **LZ4 block format**, by Yann Collet: this module reads and writes the standard format, so other LZ4 tools can read its blocks. Format only, no code taken.
+- **deflate, zlib and gzip formats** (RFC 1951, 1950 and 1952): standard formats, written from scratch, tested against Node's zlib, fflate and pako.
+- **Byte shuffle before compressing**: the idea comes from Blosc (a C library that shuffles bytes and then compresses them with LZ4 or zstd). Idea only, no code taken. Blosc was not measured.
+- **Column difference step**: a common idea for numeric tables; no code taken.
+- fflate, pako, lz4js, lz4-wasm, @bokuweb/zstd-wasm, fzstd and the browser's CompressionStream were run as comparisons only; nothing from them ships here (the test pages inline them for measuring).
 
 ## For AI agents
 - Use `pack`/`unpack` for typed arrays you want to keep in memory compactly or save; pass `width` equal to the record size in bytes whenever the array is rows of the same shape; use `mode: 'small'` for anything restored rarely, `'fast'` for anything restored often.
