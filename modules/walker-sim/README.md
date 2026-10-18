@@ -74,6 +74,21 @@ Two ways to use walker-sim, your choice: `walker-sim.js` alone (the default, pla
 ## Why
 When a result comes from a simulation you want to know that the simulation is right. Where the odds can be worked out exactly (fixed weights), you get both and can compare. Where they cannot (uncertain weights, costs, waiting), the simulation is the only answer and the 95% ranges say how far to trust it.
 
+## How it compares
+walker-sim is one package for a job that is usually done by hand: random walkers on a network, plus the exact odds to check them against. No ready-made package that does that whole job is named in the research or the changelog, so the table shows the two things people use instead. Speed against both: not measured.
+
+| Alternative | Size (smaller is better) | Speed | Features | Where it wins / loses |
+|---|---|---|---|---|
+| [d3-random](https://github.com/d3/d3-random) (ISC, 3.0.1) | Not measured. This module: 30,839 bytes minified (12.1 KB gzipped) with the walking code, 34,807 joined with the WebAssembly loop | Not measured against d3-random. This module, 1,000,000 walkers on the example network: 102 ms in ungoogled Chromium 155, 115 ms in Firefox 158, 62 ms in WebKitGTK 2.52.6, 53 ms in GNOME Web 46.5 (lower is better) | 18 distributions and a seedable generator; no network walking, no exact odds, no ranges | d3-random wins on having 18 distributions (this module has 16); size: not measured. This module wins if you need to walk a network and check the answer |
+| A hand-written loop with `Math.random()` | Smallest possible (no library) | Not measured | Not repeatable from a seed; no 95% ranges; no exact odds; cannot split a run across threads with identical counts | Wins on size and simplicity. Loses on repeatability and on knowing whether the answer is right |
+
+**Where it loses**
+- Bigger than a hand-written loop or a distribution-only library (sizes of d3-random: not measured).
+- Two distributions fewer than d3-random (16 against 18).
+- The exact odds exist only for fixed weights with the `weights` or `uniform` rule; otherwise only the simulation answers.
+- The optional WebAssembly loop gives no gain in GNOME Web 46.5 and needs a page that allows `wasm-unsafe-eval`.
+- Cost percentiles come from a sample, and very long runs (beyond a few million trials) can see overlapping random streams (see Limits).
+
 ## Limits
 - The exact odds exist only for fixed weights with the `weights` or `uniform` rule and ends that are items with no way on. Otherwise `exactEndpoints` returns `null`.
 - Walkers that loop forever are stopped at `stepCap` steps (default 400) and counted as `stuck`.
@@ -82,9 +97,16 @@ When a result comes from a simulation you want to know that the simulation is ri
 - The exact odds do not stop at `stepCap`: a walker that loops forever is `stuck` in the simulation after `stepCap` steps, but the exact solver follows it all the way. With long loops the two can differ by design; compare `stuck` and use a large `stepCap`.
 - It is a simulation of independent walkers; walkers do not block or slow each other.
 
-## Prior art
-- [d3-random](https://github.com/d3/d3-random) (ISC, 3.0.1) gives you random numbers from 18 distributions (normal, log-normal, gamma, beta, Poisson and others) and a seedable generator; it does not walk networks or solve for exact odds. This module carries its own seeded generator and the 16 distributions it needs, with fast methods for normal and exponential numbers (ziggurat).
-- The exact odds are the standard absorbing Markov chain answer, solved by arithmetic on the network, not by sampling.
+## Prior art and credits
+- [d3-random](https://github.com/d3/d3-random) (ISC, 3.0.1) gives you random numbers from 18 distributions (normal, log-normal, gamma, beta, Poisson and others) and a seedable generator; it does not walk networks or solve for exact odds. This module carries its own seeded generator and the 16 distributions it needs, with fast methods for normal and exponential numbers (ziggurat). No d3-random code is used.
+- The exact odds are the standard absorbing Markov chain answer, solved by arithmetic on the network, not by sampling. Textbook method, no code from others.
+- Ziggurat method for normal and exponential numbers: Marsaglia and Tsang, "The Ziggurat Method for Generating Random Variables" (2000), with the exact tail method of Marsaglia (1964). Published algorithm and constants; the code is written here.
+- Gamma numbers: Marsaglia and Tsang's gamma method (2000). Published algorithm; code written here.
+- The random-number generator is mulberry32, a small generator shared in the public domain by Tommy Ettinger; the source file names it but not its author or license, so this credit comes from the common publication of that code.
+- 95% ranges on the end shares use the Wilson score interval (E. B. Wilson, 1927).
+- The optional WebAssembly loop is C written for this module (`wasm/walker-sim.c`), built with clang; it repeats the JavaScript loop step for step.
+- The simulator was cut from Netflow Map (LFC Foundry's own code).
+No other code from others; the ideas above are theirs.
 
 ## For AI agents
 Build the graph once with `graph`, run `create(...).run(...)` for the simulation, and call `exactEndpoints` first: if it returns odds, show the simulation next to them and say how far apart they are, and say so when `converged` is false. Always set `seed` so the user can repeat a run. Do not report a simulated number without its 95% range. For a big run use `precision` to stop early, or share the trials between workers with `firstTrial` / `trials`, `export()` and `merge()`. A settings page that lists the random-number kinds loads `walker-sim-menu.js` after `walker-sim.js`; a script does not need it. Rebuild the minified file with `TERSER=/path/to/terser node modules/walker-sim/test/make-min.js` after any change.

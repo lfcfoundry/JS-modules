@@ -45,6 +45,26 @@ With the option on, the guard lets go of the lock when the page is about to be l
 ## Why not storage events
 A `localStorage` heartbeat needs timers and can be wrong after a crash. A lock is released by the browser itself when the page unloads, so a closed tab does not leave a stale "in use" flag behind. What happens after a hard crash of the browser process is not documented by MDN and has not been tested here; expect the same cleanup, but do not rely on it for anything that cannot be repaired.
 
+## How it compares
+Smaller than the two leader-election libraries whose sizes are known, with the one thing a game needs (take over, with callbacks); it has fewer features than they do and needs Web Locks. Speed: not measured (no loop runs; there is one lock request at start-up).
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
+| --- | --- | --- | --- | --- |
+| **tab-guard 1.1.0** (this module, MIT) | 2,769 B minified (1,154 B gzipped, esbuild) | Not measured | One copy in charge, player-chosen takeover, "other copy closed" notice, optional Back-button cache support | Wins: smaller than the libraries, built for one job. Loses: no messages between tabs, no fallback without Web Locks |
+| `tab-election` (license not checked, version not recorded) | About 5.1 KB minified (1.9 KB gzipped) | Not measured | Voluntary step-down, a queue for waiting, tab ids, messages between tabs, a fallback without Web Locks | Wins: more features and a fallback. Loses: bigger |
+| `broadcast-channel` (MIT, version not recorded) | 25.8 KB minified for everything | Not measured | Leader election plus messaging between tabs | Wins: messaging and election in one. Loses: much bigger for this job |
+| `leader-tab` (license and size not checked) | Not measured | Not measured | Leader election | Not compared further |
+| The MDN "navigator.locks leader" pattern, hand-written | A few lines | Not measured | One holder at a time | Wins: nothing to copy in. Loses: you write the twin, takeover and "other copy closed" handling yourself |
+| A `localStorage` heartbeat with `storage` events | A few lines plus a timer | Not measured | Works where Web Locks does not (plain `http://` pages) | Loses: needs timers and can be wrong after a crash, and a closed tab can leave a stale "in use" flag |
+
+**Where it loses**
+- Needs `navigator.locks` and a secure context (https, `localhost` or `file:`); a game played from plain `http://192.168.x.x` is not guarded.
+- No voluntary step-down, no queue, no tab ids or messages between tabs.
+- A frozen background tab keeps its lock, and private windows have their own lock space.
+- With `backForwardCache` off (the default), Firefox 158.0 reloads the whole page on Back (3 of 3 tries).
+- What happens after a hard browser crash is not tested. The browser suite was run in ungoogled Chromium 155.0.8059.39-1 only; not run in Firefox 158.0, WebKitGTK, GNOME Web or on a phone.
+- Not measured: speed of any of them; sizes of `leader-tab` and the hand-written ways.
+
 ## Limits
 - Needs `navigator.locks` (Chrome 69+, Firefox 96+, Safari 15.4+). Without it nothing is guarded; `start()` returns `{ supported: false, reason: 'no-web-locks' }` and calls nothing.
 - **Web Locks needs a secure context** (https, `localhost`, or a `file:` page). A game played from plain `http://192.168.x.x` on a home network has no `navigator.locks`, so nothing is guarded there: `supported` is `false` and `reason` is `'insecure-context'`. Serve it over https, or add a `storage`-event check yourself.
@@ -56,8 +76,12 @@ A `localStorage` heartbeat needs timers and can be wrong after a crash. A lock i
 - Firefox partitions some storage by top-level site in embedded frames; whether Web Locks inside a third-party frame is shared is not checked here.
 - The checks in `test/run.js` use a model of the lock manager, not a real browser. `test/run.py` runs the real thing in Chromium and Firefox.
 
-## Prior art
-Web Locks leader-election helpers exist (for example the "navigator.locks leader" pattern in the MDN guide, and libraries such as BroadcastChannel leader election). This module is the small, no-dependency version for one job: warn the older copy, let the player choose, and stop saving.
+## Prior art and credits
+- The Web Locks API (W3C specification, built into the browser): the whole guard is built on it, so the browser does the work of releasing the lock when the page unloads.
+- The "navigator.locks leader" pattern in the MDN guide (MDN code examples are public domain, CC0) and Web Locks leader-election libraries (`tab-election`, `broadcast-channel`, `leader-tab`): read as prior art for electing one tab. Ideas only, no code.
+- Cut from Apple Press 1.27, LFC Foundry's own game, so the code is the project's own.
+
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 Call `TabGuard.start` once, early, with a name that is unique to the saved game. Put your save switch-off in `onTwin`, and give the player a visible button that calls `takeOver()`. Do not call `takeOver()` automatically. Do not stop saving because `supported` is `false` or `onUnavailable` was called: that means there is no guard, not that another copy exists. Use `onFree` to change the notice to "the other copy closed, use this one?" (keep the same button). Tests: `node modules/tab-guard/test/run.js` (plain Node, fake locks); `python3 modules/tab-guard/test/run.py [firefox]` for real browsers (needs Playwright). Set `OLD_REF=none` to skip the comparison with an older file.

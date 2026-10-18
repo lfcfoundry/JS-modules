@@ -4,7 +4,7 @@
 
 **Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (the module's own 38 checks inside each browser page, one browser at a time, 38 of 38 passed in all four, 3.6 to 4.6 s of checks each and 10 to 23 s with browser start-up, run again on the JS-modules main tree 2026-10-18; number-column and restore timings one browser at a time, from the research runs; tests in Node: normal, no-wasm, no-eval, full fuzz)
 
-Keeps a big pile of plain JavaScript objects (a list of 300,000 links, 100,000 scene items, an API answer, a log) packed in memory as a few megabytes of bytes, and brings every value back exactly. It is the object version of [memory-compression](../memory-compression/README.md): arrays of objects are stored as columns, and the columns go through that module's float-aware packing. One file, no dependencies, works offline, 264,415 bytes with comments (the core, the number chooser, the keeper and the small WebAssembly helpers are all inside; the plain-JavaScript fallback gives the same bytes when a page blocks WebAssembly). It also sets `MemoryCompression` (the core alone) unless a page already has one. The plain `memory-compression` module is not renamed, aliased or retired: it stays as the small core for pages that only pack bytes (renaming or aliasing is a later decision, after the profiling pass).
+Keeps a big pile of plain JavaScript objects (a list of 300,000 links, 100,000 scene items, an API answer, a log) packed in memory as a few megabytes of bytes, and brings every value back exactly. It is the object version of [memory-compression](../memory-compression/README.md): arrays of objects are stored as columns, and the columns go through that module's float-aware packing. One file, no dependencies, works offline, 272,174 bytes with comments (the core, the number chooser, the keeper and the small WebAssembly helpers are all inside; the plain-JavaScript fallback gives the same bytes when a page blocks WebAssembly). It also sets `MemoryCompression` (the core alone) unless a page already has one. The plain `memory-compression` module is not renamed, aliased or retired: it stays as the small core for pages that only pack bytes (renaming or aliasing is a later decision, after the profiling pass).
 
 **Test it:** `node modules/memory-compression-jso/test/run.js` (38 checks, about 5 s; `--js-only` runs without WebAssembly; `FULL=1` runs 10 times more random cases). **Try it:** `demo.html`. **Rebuild the file:** `python3 modules/memory-compression-jso/build.py`.
 
@@ -405,7 +405,26 @@ view() reads on nfm-nodes (100,000 items), best of 7:
 
 Reading one column of the 300,000 links takes about 1.4 ms the first time; the first 1,000 `get(i)` calls restore every column (about 16 ms); `release()` frees them again.
 
-## Compared with the alternatives
+## How it compares
+
+Much smaller than every other way I measured to keep objects (2.4 to 7.2 times smaller than avsc; 2.5 times smaller than msgpackr), and in all four browsers its unpack is faster or tied with msgpackr with records on most test sets, but the code to ship is much bigger, and on text-heavy data it can pack slower. The numbers below were measured on version 1.1.0 (the later versions changed other modes). Size: smaller is better; milliseconds: smaller is better.
+
+| Alternative | Code to ship, gzipped (smaller is better) | Size of 300,000 links (smaller is better) | Speed on 60,000 links, pack and unpack in ms | Features | Where it wins or loses |
+|---|---|---|---|---|---|
+| memory-compression-jso (MIT, this module) | 272 KB, about 84 KB gzipped (1.4.1, not minified, the current file) | 7.854 MB fast, 6.716 MB small | Firefox 158.0: 19.3 and 6.8. Chromium 155: 17.9 and 6.5 | No schema; exact `undefined`, `-0`, `Map`, `Set`, `BigInt`, shared objects with `refs: true`; `view()` | Wins on size and exactness; loses on download size |
+| msgpackr 2.1.0 (MIT), with records | 30 KB, 11 KB gzipped, minified | 20.005 MB | Firefox 158.0: 25 and 16. Chromium 155: 20.1 and 8.3 | Streaming; misses `-0`, `Set` and more | Wins on code size and on packing text-heavy data |
+| avsc 5.7.9 (Avro for JavaScript, MIT) | 117 KB, 34 KB gzipped, minified browser bundle | 18.767 MB | Firefox 158.0: 82 and 92. Chromium 155: 53 and 39 (an earlier run, where this module took 28 and 18, and 18 and 7) | Needs a schema; streaming; works across languages | Wins on schema evolution and cross-language use; slower in all three browsers measured |
+| cbor-x 1.6.6 (MIT), with records | 31 KB, 11 KB gzipped, minified | 20.905 MB | Not shown here | Streaming; keeps more types than msgpackr | Wins on code size |
+| `JSON.stringify` and `JSON.parse` (built in) | 0 | 57.258 MB (as text) | Not shown here | Changes `undefined`, `-0`, `Set`, `Map`, shared objects | Wins on needing nothing |
+| Node's `v8.serialize` | 0 | 40.659 MB | Node only, so no browser number | Keeps nearly every type; Node only | Not usable in a browser |
+
+Where it loses:
+- A much bigger file to ship than msgpackr, cbor-x or @msgpack/msgpack.
+- On objects with many short text fields (the users set) it packs slower than msgpackr with records, up to 2.4 times slower in WebKit (kept from the notes below).
+- Not a streaming format, and class instances come back as plain objects.
+- avsc with a schema packs faster than this module on some large sets (see "What it is not" below). Speed of cbor-x, JSON and Flechette in browsers: not shown in this README.
+
+### The full comparison
 Measured against msgpackr 2.1.0 (with and without records, and with bundled strings), cbor-x 1.6.6, @msgpack/msgpack 3.1.3, notepack.io 3.0.1, avsc 5.7.9 (Avro), Node's `v8.serialize`, bson 7.3.3, Apache Arrow through @uwdata/flechette 2.7.0, zipson 0.2.12, compress-json 3.4.0, lz-string 1.5.0, jsonpack 2.0.0, and JSON text through fflate 0.8.3 and lz4js 0.2.0. In the browsers the pure-JavaScript ones: msgpackr, cbor-x, @msgpack/msgpack, avsc, lz4js and JSON.
 
 ### Which values come back exactly (Node; each value is packed inside `{ v: value }`, default settings unless the column says otherwise)
@@ -435,12 +454,12 @@ Measured against msgpackr 2.1.0 (with and without records, and with bundled stri
 "changed" means the value came back different (for example `-0` as `0`, a `Set` as an array or a plain object, `undefined` as `null`); "two copies" means the same object came out as two equal objects; "plain object" means a class instance came back as an object without its class (every library here does that). msgpackr and cbor-x have an optional `structuredClone` setting; the last two columns show what it fixes. This module returned all 18 plain-data values exactly (shared objects and cycles need `refs: true`); the closest other is `v8.serialize`, which misses only null-prototype objects but works in Node only and is 69 to 119% of the JSON text. avsc and Flechette are left out of this table because they need a schema or flat columns; with the schema inferred from the data, avsc also stored decimals as 32-bit floats until they were widened to doubles for the speed tables.
 
 ### Features
-| | memory-compression-jso 1.1.0 | msgpackr 2.1.0 | cbor-x 1.6.6 | @msgpack/msgpack 3.1.3 | avsc 5.7.9 | v8.serialize | Flechette 2.7.0 | JSON |
+| | memory-compression-jso 1.4.1 | msgpackr 2.1.0 | cbor-x 1.6.6 | @msgpack/msgpack 3.1.3 | avsc 5.7.9 | v8.serialize | Flechette 2.7.0 | JSON |
 |---|---|---|---|---|---|---|---|---|
 | License | MIT | MIT | MIT | ISC | MIT | built into Node | BSD-3-Clause | built in |
 | Needs a schema | no | no | no | no | **yes** (inferred in these tests; hand-written is faster) | no | no, but flat columns only | no |
 | Works in browsers | yes | yes | yes | yes | yes (needs a bundler) | **no** (Node only) | yes | yes |
-| Size to ship (gzipped) | 148 KB (47 KB), not minified, WebAssembly text is 29 KB of it | 30 KB (11 KB), minified | 31 KB (11 KB), minified | 22 KB (6 KB), minified | 117 KB (34 KB), minified browser bundle | 0 | 49 KB (16 KB), minified | 0 |
+| Size to ship (gzipped) | 272 KB (about 84 KB), not minified, WebAssembly text included | 30 KB (11 KB), minified | 31 KB (11 KB), minified | 22 KB (6 KB), minified | 117 KB (34 KB), minified browser bundle | 0 | 49 KB (16 KB), minified | 0 |
 | Pack and unpack are synchronous | yes | yes | yes | yes | yes | yes | yes | yes |
 | Streaming | no | yes | yes | yes | yes | no | not measured | no |
 | Floats-aware (decimals as whole numbers, byte shuffle, column difference) | **yes** | no | no | no | no | no | no | no |
@@ -490,13 +509,21 @@ Also: `freeBuffers()` (gives back the arrays kept between packs), `ready()` (a p
 - **Hostile input is safe to read.** Every count and size is checked against what is possible, damaged or cut-off data throws, and a flipped byte either throws or (without `check: true`) changes a value. The test file cuts data at every length and flips every byte.
 - **`new Function` is used for speed.** Where a page policy blocks it (tested in Node with `--disallow-code-generation-from-strings`), plain loops do the same work and the bytes are identical, but packing is 1.1 to 1.3 times slower and unpacking 1.2 to 3.3 times slower.
 - **Very large inputs.** `maxItems` stops an unpack that would make more than 100 million values (change it if the data is yours).
-- **Format 5 (1.4.0).** A file with a chooser-coded number column or text-dictionary codes says format 5; 1.3.x refuses it with "made by a newer version". Files made in `fast` mode with default settings keep saying 2, 3 or 4 and still open in older versions. 1.4.0 reads formats 1 to 5. A file that used the Pcodec add-on (1.2.0 or 1.3.0) is refused with a plain message; read it with 1.3.0.
+- **Format 5 (1.4.0).** A file with a chooser-coded number column or text-dictionary codes says format 5; 1.3.x refuses it with "made by a newer version". Files made in `fast` mode with default settings keep saying 2, 3 or 4 and still open in older versions. 1.4.0 reads formats 1 to 5. A file that used the optional extra coder of 1.2.0 or 1.3.0 is refused with a plain message; read it with 1.3.0.
 - **Format 4 (1.3.0).** A file that holds a front-coded text column says format 4 and 1.2.x refuses it with "made by a newer version"; use `front: false` to keep files readable by 1.2.x. 1.3.0 reads formats 1 to 4.
 - **Format 3 (1.2.0).** A file that holds a date column, or an FSST text column says format 3 and 1.1.x refuses it with the message "made by a newer version"; every other file still says format 2 and opens in 1.1.x. 1.2.0 reads formats 1, 2 and 3.
 - **Format.** The first two bytes are `MJ`, then a version byte; a file written by 1.0.0 is read by 1.1.0 (checked with a stored 1.0.0 file), but a 1.1.0 file is format 2 and 1.0.0 cannot read it. It is not compatible with `memory-compression`'s container (different magic).
 
-## Prior art
-msgpackr and cbor-x (record extension: repeated object layouts written once; generated decoders), avsc (Avro, schema-compiled code), Apache Arrow and Flechette (columnar tables), ALP (SIGMOD 2024: decimal doubles stored as scaled whole numbers; used here in a simple form), FSST (VLDB 2020, text tables; used as the opt-in `fsst` option, with its own 3 KB WebAssembly kernel and a JavaScript port), CLP, Denum and LogPrism (log compression: text patterns plus number columns, which is what 1.1.0's text patterns do in a simple form), BtrBlocks and Vortex (pick an encoding per column from a sample; cascading encodings), Blosc (byte shuffle, through memory-compression). The format and code are this repository's own.
+## Prior art and credits
+No code from others; the ideas and methods below are theirs, and the format and code are this repository's own (LFC Foundry, MIT). Nothing from the libraries named here ships inside the file.
+- **msgpackr and cbor-x** (MIT): the record extension idea (repeated object layouts written once, generated decoders). Idea only.
+- **avsc** (Avro for JavaScript, MIT): schema-compiled code. Idea only; used as a comparison.
+- **Apache Arrow and Flechette** (BSD-3-Clause for Flechette): columnar tables. Idea only.
+- **ALP** (SIGMOD 2024): decimal doubles stored as scaled whole numbers; used here in a simple form; idea only, no code taken.
+- **FSST** (Boncz, Neumann and Leis, VLDB 2020): the opt-in `fsst` option, written from the paper, with its own 3 KB WebAssembly kernel and a JavaScript port; no code taken from the authors.
+- **CLP, Denum and LogPrism** (log compression: text patterns plus number columns): what 1.1.0's text patterns do in a simple form. Idea only.
+- **BtrBlocks and Vortex**: pick an encoding per column from a sample; cascading encodings. Idea only.
+- **Blosc** (byte shuffle, through memory-compression, which has its own credits): idea only.
 
 ## For AI agents
 - Use `pack`/`unpack` for a big array of similar objects you want to keep small in memory or save; `view()` to read single items from a packed array; `mode: 'small'` for anything restored rarely.

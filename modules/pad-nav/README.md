@@ -142,7 +142,26 @@ The file is 13,091 bytes minified (4,776 gzip) with esbuild. Two big parts can b
 
 `node modules/pad-nav/test/lite.js [hint] [forms] [--write FILE]` makes the cut copy (both cuts by default) and proves it still loads, wakes the ring, moves it right twice and presses the button. Each cut is an exact text match, so if `pad-nav.js` changes and a cut no longer fits, the script stops and names it. A cut copy is not a released version; check which options you pass.
 
-## How it differs from existing open source
+## How it compares
+
+The libraries below are more complete at moving focus; this one is the small, panel-scoped version that reads the Gamepad API itself. Speed against the alternatives: not measured.
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
+| --- | --- | --- | --- | --- |
+| **pad-nav 1.1.0** (this module, MIT) | 13,091 B minified (4,771 B gzipped, esbuild); 9,403 B (3,430 B gzipped) with the hint text and slider support cut | Finding reachable buttons, 1000 buttons, lower is faster, old check to `checkVisibility()`: ungoogled Chromium 155.0.8059.39-1 8.1 to 3.2 ms; Firefox 158.0 4 to 1 ms; WebKitGTK 2.52.6 5 to 1 ms; GNOME Web 46.5 6 to 1 ms (timers round to 1 ms outside Chromium). Idle `step()` with no controller (measured on 1.0.0): Chromium 155.0.8059.39 1.9 µs, Firefox 158.0 0.2 µs | Reads the Gamepad API, panel scopes, focus memory, sliders and drop-downs, hint line | Wins: made for game authors; reads the Gamepad API and moves focus in your own menus. Loses: no nested sections, no wrap-around |
+| [js-spatial-navigation](https://github.com/luke-chang/js-spatial-navigation) (MPL 2.0, version not recorded) | Not measured | Not measured | Named sections, `restrict` rules, per-element overrides, cancelable events; keys, not the Gamepad API | Wins: far more complete for TV-style apps. Loses: no gamepad input |
+| [Norigin Spatial Navigation](https://github.com/NoriginMedia/norigin-spatial-navigation) (MIT, version not recorded) | Not measured | Not measured | React hooks for Smart TV apps; key and remote-control input | Wins: React, tested on TV platforms. Loses: no gamepad input |
+| [CSS Spatial Navigation](https://drafts.csswg.org/css-nav-1/) (W3C draft) | The archived WICG polyfill is about 73.5 KB unminified; a built-in feature would cost no bytes | Not measured | Focus containers, a cancelable `navbeforefocus` event; arrow keys, no gamepads | No browser had shipped it when checked (October 2026) |
+| [gamecontroller.js](https://github.com/Linie3/gamecontroller.js) (a fork) and [gamepad-navigator](https://github.com/dmahajan980/gamepad-navigator) | gamecontroller.js: about 6 KB. gamepad-navigator: not measured (browser extension) | Not measured | gamecontroller.js: an event per button, no focus movement. gamepad-navigator: navigates whole pages for users | gamecontroller.js is smaller but moves no focus; the extension is for players, not game authors |
+
+**Where it loses**
+- No nested sections, wrap-around, per-element overrides, shadow DOM or iframes.
+- The default "next button" rule can jump past a button directly in line in 5.4% of presses where one exists (random mixed-width menus, synthetic); `nextRule: 'edges'` does not.
+- Only the Gamepad API "standard" mapping, left stick only.
+- Not tried on a real controller or phone. The module browser suite ran in ungoogled Chromium 155.0.8059.39-1 only.
+- Not measured: size and speed of the alternatives; the module's speed on a phone.
+
+The longer comparison follows.
 
 Moving focus spatially is a known technique with plenty of prior art, and these projects are more complete than this one at that job:
 
@@ -179,6 +198,16 @@ I searched for these alternatives briefly, not exhaustively. Other gamepad-to-fo
 - `scrollIntoView` scrolls every scrollable ancestor, including the page, as little as it can. Turn it off with `scroll: false` if that bothers you.
 - Tested with fake pads only: the Node checks use a tiny fake DOM and the browser checks run in headless Chromium. Not tested on real hardware, Firefox or Safari.
 - The default hint text is English and mentions `Start: pause`; use `hintText` to change it. The hint is a live region (`role="status"`), so a screen reader may read it each time it appears.
+
+## Prior art and credits
+- [js-spatial-navigation](https://github.com/luke-chang/js-spatial-navigation) (Luke Chang, MPL 2.0): read (README only) as prior art for spatial focus. Idea only, no code taken.
+- [Norigin Spatial Navigation](https://github.com/NoriginMedia/norigin-spatial-navigation) (MIT): prior art for letting the developer choose corners, edges or center to pick the next button; `nextRule` offers a similar choice. Idea only, no code.
+- [CSS Spatial Navigation Level 1](https://drafts.csswg.org/css-nav-1/) (W3C CSS Working Group draft) and the archived [WICG spatial-navigation](https://github.com/WICG/spatial-navigation): prior art for counting overlap and edge gaps. Ideas only, no code.
+- [gamecontroller.js (fork)](https://github.com/Linie3/gamecontroller.js), [gamepad-navigator](https://github.com/dmahajan980/gamepad-navigator) and [gamepad_standardizer](https://www.npmjs.org/package/gamepad_standardizer) (MIT): read (READMEs only) for comparison. Nothing taken.
+- The W3C Gamepad API "standard" mapping (button numbers 0, 1, 9, 12 to 15; axes 0 and 1) is the format this module reads; see [MDN's Gamepad API guide](https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API). A specification, no code.
+- The menu code was pulled out of LFC Foundry's own single-file game, and Fancy, the Banana's controller menu code uses the same center rule, so the rule is the project's own.
+
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 

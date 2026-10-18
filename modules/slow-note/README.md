@@ -35,6 +35,24 @@ note.onChange(function (count) { label.textContent = count + " moments noted."; 
 ## Why
 "It felt slow on my phone" cannot be fixed without a hint of where. The browser already measures slow taps and long frames; this keeps the last few where the player can copy them, and sends nothing to anyone. That also means no privacy notice and no network use.
 
+## How it compares
+It does a different job from the usual tools: it keeps a short note on the player's device that the player can copy, and sends nothing. The closest named library measures page metrics for your analytics and does not catch errors or keep a note. Speed in browsers: not measured.
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
+| --- | --- | --- | --- | --- |
+| **slow-note 1.0.0** (this module, MIT) | 9.7 KB readable (3.7 KB gzipped); 6,062 B minified (2,649 B gzipped, terser 5.36.0) | Speed in browsers: not measured (it only listens for events; nothing runs while the page is smooth) | Errors, rejected promises, slow taps, long frames; kept on the device; copy as plain text | Wins: player-copyable note, nothing leaves the device. Loses: no field metrics |
+| [web-vitals](https://github.com/GoogleChrome/web-vitals) 6.2.3 (Apache-2.0) | Attribution build 15.7 KB (5.5 KB gzipped) | Not measured | Page-load and interaction metrics (CLS, FCP, INP, LCP, TTFB) handed to your callback | Wins: standard field metrics for your own analytics. Loses: no error catching, no local note |
+| Error-reporting services (Sentry and similar) | Not measured | Not measured | Send errors to a server by design | Wins: reports from many players in one place. Loses: needs a server, a privacy notice and network use |
+| A hand-written `window.onerror` handler | A few lines | Not measured | Only what you write | Wins: tiny. Loses: no slow taps or long frames, nothing kept between visits, no copy button unless you write one |
+
+**Where it loses**
+- It cannot see graphics-chip cost: a game can drop frames while the browser reports nothing slow.
+- Slow-tap notes need a recent browser. Long frames are seen only in Chromium 155; Firefox 158 and WebKitGTK 2.52.6 do not have them.
+- WebKitGTK 2.52.6 hides the text of errors on pages opened from `file://`.
+- The note lives in `localStorage`: clearing site data clears it.
+- A note says what happened, not why.
+- Not measured: speed in browsers; sizes and speeds of the alternatives. Not run: a phone, Safari itself.
+
 ## Limits
 - It cannot see graphics-chip cost: a game can drop frames while the browser reports nothing slow. The demo and `speed-lab` are for that.
 - Event timing needs a recent browser (Chromium 155, Firefox 158 and WebKitGTK 2.52.6 have it; Safari itself was not checked). Without it, only errors are noted. Long frames are seen only in Chromium 155 (Firefox 158 and WebKitGTK 2.52.6 have no Long Animation Frames).
@@ -42,9 +60,13 @@ note.onChange(function (count) { label.textContent = count + " moments noted."; 
 - The note lives in `localStorage`: clearing site data clears it, and in a privacy window it is kept in memory only until the page closes.
 - A note says what happened, not why. It adds the browser's own numbers and your `context`, nothing deeper.
 
-## Prior art
-- [web-vitals](https://github.com/GoogleChrome/web-vitals) (Apache-2.0, 6.2.3): Google's library for measuring page-load and interaction metrics (CLS, FCP, INP, LCP, TTFB). Its attribution build is 15.7 KB (5.5 KB gzipped) as one script and hands each metric to your callback so you can send it where you like. It does not catch errors and does not keep a local note. Use it when you want field metrics in your own analytics; use this when you want a note the player can copy and nothing leaves the device.
-- Error-reporting services (Sentry and similar) send data to a server by design.
+## Prior art and credits
+- [web-vitals](https://github.com/GoogleChrome/web-vitals) (Apache-2.0, 6.2.3): read as prior art for measuring interaction and page-load metrics. Not used and nothing taken. Use it when you want field metrics in your own analytics.
+- Error-reporting services (Sentry and similar): named for comparison only. Nothing taken.
+- The browser's own PerformanceObserver, Event Timing and Long Animation Frames features supply the slow-tap and long-frame readings; they are web standards, not code from others.
+- Cut from the slow-moment note in Apple Press, LFC Foundry's own game, so the code is the project's own.
+
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 Start it once, early, with a `key` that names the game and a `context` that returns the game's state in a few words. Add a "Copy note" and a "Clear note" button where players find help, and say in the page that nothing leaves the device. Do not add a network call to it.

@@ -85,13 +85,34 @@ Idle-game maths are usually copied from blog posts and re-fixed. The parts that 
 
 `node tests/idle-core-browser.js` runs one fixed set of calls in Node and in a real browser and compares the answers, for the readable and the minified file (`CHROMIUM=...`, `FIREFOX=...` or `WEBKIT=1`, one browser at a time). Counts, text and formatting were identical in every browser. Prices of about 1e9 and up differ in the last coin between engines, because `Math.pow` is not the same everywhere: Node 22, Chromium 155 and Firefox 158 are within 3e-16 of exact, WebKitGTK 2.52.6 and GNOME Web within 3e-14 (measured on 4,200 powers). So do not compare big prices between browsers for equality.
 
-## Prior art
-- **Kongregate, "The Math of Idle Games" (Anthony Pecorella):** the price formula (base times growth to the power of copies owned) and the bulk-buy and max-affordable sums used here come from it. The price rule "round up" matches how the Cookie Clicker wiki describes building prices.
+## How it compares
+idle-core is a small set of tested formulas, not a big-number library or a formatting library. It sits between writing the formulas yourself (smallest, but easy to get an edge wrong) and a big-number package (much bigger numbers, a different job).
+
+| Alternative | Size (smaller is better) | Speed | Features | Where it wins / loses |
+|---|---|---|---|---|
+| Hand-written formulas from the usual blog posts (Pecorella, "The Math of Idle Games") | Smallest (your own few lines) | Not measured | The price, bulk-buy and max-affordable sums; no rounding advice, no time-to-afford or payback formulas | Wins on size. Loses on the edges: the traps this module's tests cover (text numbers from a form, a frozen object, a long gap giving free boost time, `1000M`) |
+| `Intl.NumberFormat` (the browser's own, for numbers) | Nothing to ship | Number grouping alone, `format(12345)` (lower is better): 383 ns in ungoogled Chromium 155, 240 ns in Firefox 158, 400 ns in WebKitGTK 2.52.6; this module's grouping code: 41, 80 and 60 ns (timed in the research as the candidate for the 1.2.0 grouping; the shipped function itself: not timed in browsers). Creating the first `Intl.NumberFormat` costs 12 to 13 ms in Chromium 155 on a fresh page | Real locale support. Compact notation stops at T (1e15 reads `1000T`) | Intl wins on locales and size. This module wins on speed for plain grouping, has no start-up cost, and has game suffixes up to `Sx` |
+| [break_infinity.js](https://github.com/Patashu/break_infinity.js) (version and license: not read) and break_eternity.js | Not measured (its page states no file size) | Its page reports 2 to 16,666 times faster than decimal.js on single operations (self-reported, not checked here); against idle-core: not measured | Numbers past 1e308 (up to about 1e9e15) | They win whenever your numbers pass 1e300. This module does not handle that: it holds values at 1e300 |
+
+This module: `idle-core.min.js` is 7,530 bytes (3,178 gzipped); the readable file is 23,296 bytes.
+
+**Where it loses**
+- Not a big-number library: values past `IdleCore.LIMIT` (1e300) are held at the limit.
+- Not a locale library: numbers are shown with commas and suffixes by hand.
+- Away income is one multiplication; `fastForward` replays your own step function instead, with a time budget.
+- Prices use floating point: from about 1e12 a price can be a coin or two under the exact one, and from about 1e9 two browsers can disagree by a coin.
+- Speed against the other formula collections and against break_infinity.js: not measured.
+
+## Prior art and credits
+- **Kongregate, "The Math of Idle Games" (Anthony Pecorella; [part I](https://www.gamedeveloper.com/design/the-math-of-idle-games-part-i) and [part III](https://www.gamedeveloper.com/design/the-math-of-idle-games-part-iii)):** formulas and ideas only, no code. The price formula (base times growth to the power of copies owned) and the bulk-buy and max-affordable sums used here come from it. The price rule "round up" matches how the Cookie Clicker wiki describes building prices.
 - **Big-number libraries:** [break_infinity.js](https://github.com/Patashu/break_infinity.js) and break_eternity.js handle numbers past 1e308. idle-core does not; it holds values at 1e300 instead.
 - **Offline progress:** some games (Clicker Heroes describes this) replay the away time step by step so auto-buyers and growing income are counted. `awayEarnings` is the simple version: percent of normal speed, capped. That under-pays games whose income grows while the player is away; `fastForward` is the replay version, with a time budget.
 - **Prestige curves:** the same article lists the root curves used by Realm Grinder, AdVenture Capitalist (150 times the square root of lifetime / 1e15), Cookie Clicker (cube root of lifetime / 1e12) and Egg Inc (power 0.14); `prestigeGain` covers them with one formula.
 - **Number words:** `Intl.NumberFormat` with `notation: 'compact'` stops at `T` (1e15 reads `1000T`), which is why the suffixes here are by hand. The thousands separators are by hand too: same text as `Intl` in 4,000,000 numbers compared, and they avoid the 12 to 13 ms Chromium spends creating its first `Intl.NumberFormat` on a fresh page (Firefox 3 ms, WebKitGTK 12 ms).
-- Nothing here is new maths. It is the same few formulas, with the edges tested.
+- Game formulas used as published, no code taken: the root curves of Realm Grinder, AdVenture Capitalist, Cookie Clicker and Egg Inc, and the Clicker Heroes idea of replaying offline time (its blog post).
+- The MDN note on `performance.now()` and sleep is the reason `awayClock` uses `Date.now()`. Documentation read, nothing copied.
+- Written for LFC Foundry's own games; the Buy x1 / x10 / Max switch (`buyPlan`) was cut from Apple Press.
+- Nothing here is new maths. It is the same few formulas, with the edges tested. No code from others; the ideas above are theirs.
 
 ## Limits
 - Pure maths: no storage, no rendering, no timers. You call `tick` and save the state yourself.

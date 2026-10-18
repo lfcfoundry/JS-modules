@@ -19,10 +19,26 @@ img.src = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
 ```
 Each picture is compressed the moment you add it, so memory holds the compressed pictures, not the raw ones.
 
-## What it does that is different
+## How it compares
+Much smaller files than gifenc when most of the picture stays still, about the same size when everything changes, and bigger as code. Speed against gifenc in browsers: not measured (the only timings against gifenc are an older Node run, left in the Numbers table below).
+
+| Alternative | Size of the code (smaller is better) | Speed (faster is better) | Features | Where it wins or loses |
+|---|---|---|---|---|
+| gif-writer 1.1.0 (MIT, this module) | 20.8 KB, 7.5 KB gzipped (the current file) | Palette for a busy animation, 1.1.0 against 1.0.0 (faster is better): 1.3 times in Chromium 155, 1.7 in Firefox 158, 3.0 in WebKitGTK 2.52.6, 2.95 in GNOME Web 46.5. Against gifenc in browsers: not measured | One palette for the whole animation, only changed pixels stored, GIF89a with loop | Wins on file size for still backgrounds; loses on code size |
+| [gifenc](https://github.com/mattdesl/gifenc) (MIT, 1.0.3) | About 5.7 KB gzipped | In browsers: not measured | Palette quantizing, global or per-picture palettes, writes every pixel of every picture | Wins on code size; loses on file size for mostly still animations |
+| Your own encoder | A few hundred lines | Not measured | Whatever you write | You must test it yourself; the tests here include an independent decoder |
+
+File size, measured (smaller is better): a mostly still animation (30 pictures of 640 x 400, a small ball over a still background) is 23.3 KB here and 159 KB with gifenc (global palette); a worst case with every pixel changing is 1.09 MB here and 1.14 MB with gifenc.
+
+What is different:
 - **One palette for the whole animation**, found by median cut and then refined by k-means over the exact colors of the pictures you pass. No flicker from palettes that change between pictures.
 - **Only what moved is stored.** A pixel that did not change since the previous picture is written as transparent, and the picture is cropped to the box that did change. A still background costs almost nothing.
 - **Plain GIF89a** with a loop block; every viewer reads it.
+
+Where it loses:
+- When every pixel changes, the file is only about 5% smaller than gifenc's (smaller is better). Speed against gifenc in browsers: not measured (the Numbers table below is from Node).
+- Bigger code than gifenc.
+- No dithering and at most 255 colors plus one transparent entry (see Limits).
 
 ## Numbers (Node 22, measured 2026-10-17, against gifenc 1.0.3)
 | Test | gif-writer | gifenc 1.0.3 |
@@ -42,8 +58,11 @@ A GIF of a game or a chart is mostly still: a background with something moving o
 - Frame delays are rounded to hundredths of a second, and browsers commonly show very short delays (10 ms or less) slower than asked.
 - All compressed pictures stay in memory until `finish()`.
 
-## Prior art
-- [gifenc](https://github.com/mattdesl/gifenc) (MIT, 1.0.3): small, fast and well made, with palette quantizing and per-picture or global palettes. It writes every pixel of every picture; this module's saving comes from the transparent-unchanged-pixels step, which is why the first row of the table differs so much. Its file is about the same size gzipped (5.7 KB against 5.9 KB). Use gifenc if you need its API or the speed in the worst case.
+## Prior art and credits
+No code from others; the ideas below are theirs. The code is written for this repository (LFC Foundry, MIT).
+- [gifenc](https://github.com/mattdesl/gifenc) (MIT, 1.0.3): compared against, not copied. It is small, fast and well made, with palette quantizing and per-picture or global palettes. It writes every pixel of every picture; this module's saving comes from the transparent-unchanged-pixels step, which is why the first row of the Numbers table differs so much. Its code is smaller gzipped (5.7 KB, against 5.9 KB for 1.0.0 and 7.5 KB for 1.1.0). Use gifenc if you need its API or the speed in the worst case.
+- The GIF89a file format and its LZW compression (the format's own method): the published format, implemented from scratch.
+- Median cut (the idea of splitting the colors into boxes) and k-means (moving each palette color to the average of the colors nearest to it): textbook methods, idea only, no code taken.
 - Writing your own GIF encoder is a few hundred lines; the tests here include an independent decoder so the bytes can be trusted.
 
 ## For AI agents
