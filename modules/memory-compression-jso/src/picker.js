@@ -67,11 +67,14 @@
     // ---------------------------------------------------------------- rANS entropy coding of bytes (static table, 12-bit frequencies)
     var SB = 12, M = 1 << SB, RL = 1 << 23;
     function ransEncode(syms, freq, cum) {
-      var out = new Uint8Array(syms.length * 2 + 64), p = out.length, x = RL, i, s, f, xmax, k;
+      var out = new Uint8Array(syms.length * 2 + 64), p = out.length, x = RL, i, s, f, xm, q, k, xmax = new Float64Array(256), inv = new Float64Array(256);
+      for (s = 0; s < 256; s++) if (freq[s]) { xmax[s] = ((RL >>> SB) << 8) * freq[s]; inv[s] = 1 / freq[s]; }
       for (i = syms.length - 1; i >= 0; i--) {
-        s = syms[i]; f = freq[s]; xmax = ((RL >>> SB) << 8) * f;
-        while (x >= xmax) { out[--p] = x & 255; x = x >>> 8; }
-        x = (Math.floor(x / f) << SB) + (x % f) + cum[s];
+        s = syms[i]; f = freq[s]; xm = xmax[s];
+        while (x >= xm) { out[--p] = x & 255; x = x >>> 8; }
+        q = (x * inv[s]) | 0; k = x - q * f;                                   // x / f by multiplying with 1 / f, then corrected by one step
+        if (k >= f) { q++; k -= f; } else if (k < 0) { q--; k += f; }
+        x = (q << SB) + k + cum[s];
       }
       for (k = 3; k >= 0; k--) out[--p] = (x >>> (8 * k)) & 255;
       return out.subarray(p);
@@ -109,11 +112,16 @@
     // ---------------------------------------------------------------- whole numbers (a Float64Array of whole numbers, each below 2^52 in size)
     var IS = { RAW: 0, CONST: 1, FOR: 2, DELTA: 3, RLE: 4, DICT: 5, PFOR: 6, DIV: 7, ENT: 8 }, MAX_DEPTH = 4;
     function range(a) { var mn = Infinity, mx = -Infinity, i, v; for (i = 0; i < a.length; i++) { v = a[i]; if (v < mn) mn = v; if (v > mx) mx = v; } return [mn, mx]; }
+    function distinctFew(a, k) {      // true when the first 256 values hold more than k different ones
+      var m = new Set(), i, n = Math.min(a.length, 256);
+      for (i = 0; i < n; i++) { m.add(a[i]); if (m.size > k) return true; }
+      return false;
+    }
     function gapsOf(pos) { var g = new Float64Array(pos.length), prev = -1, k; for (k = 0; k < pos.length; k++) { g[k] = pos[k] - prev - 1; prev = pos[k]; } return g; }
-    function encIntWith(sch, a, depth, opt, mm) {      // bytes, or null when this way does not apply (mm: the smallest and largest value, when the caller already has them)
-      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist;
+    function encIntWith(sch, a, depth, opt, mm, bound) {      // bytes, or null when this way does not apply (mm: the smallest and largest value, when the caller already has them)
+      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist, seen;
       w.u8(sch);
-      if (sch === IS.RAW) { for (i = 0; i < n; i++) w.f64(a[i]); return w.out(); }
+      if (sch === IS.RAW) { w.need(n * 8 + 1); for (i = 0; i < n; i++) w.f64(a[i]); return w.out(); }
       if (!mm) mm = range(a);
       mn = mm[0]; mx = mm[1];
       if (sch === IS.CONST) { if (mn !== mx) return null; w.zi(mn); return w.out(); }
@@ -127,6 +135,10 @@
         bw = rng < 1 ? 0 : Math.floor(Math.log2(rng)) + 1; sh = Math.max(0, bw - 8); div = Math.pow(2, sh);
         syms = new Uint8Array(n); low = new Uint32Array(n); cnt = new Uint32Array(256);
         for (i = 0; i < n; i++) { x = a[i] - mn; y = Math.floor(x / div); syms[i] = y; low[i] = x - y * div; cnt[y]++; }
+        if (bound) {                                                         // a quick estimate first: if the entropy coder cannot get under the best size so far, it is not run
+          x = 0; y = 0; for (i = 0; i < 256; i++) if (cnt[i]) { y++; x -= cnt[i] * Math.log2(cnt[i] / n); }
+          if (x / 8 + y * 0.5 + n * sh / 8 > bound) return null;
+        }
         freq = normFreq(cnt, n); cum = new Uint16Array(257); for (i = 0; i < 256; i++) cum[i + 1] = cum[i] + freq[i];
         w.zi(mn); w.u8(sh); writeTable(w, freq);
         rb = ransEncode(syms, freq, cum); w.vi(rb.length); w.bytes(rb); bpWrite(w, low, n, sh); return w.out();
@@ -134,7 +146,8 @@
       if (depth <= 0) return null;
       if (sch === IS.DELTA) {
         if (n < 4) return null;
-        d = new Float64Array(n - 1); for (i = 1; i < n; i++) { x = a[i] - a[i - 1]; d[i - 1] = x < 0 ? -2 * x - 1 : 2 * x; }
+        d = new Float64Array(n - 1); y = 0; for (i = 1; i < n; i++) { x = a[i] - a[i - 1]; x = x < 0 ? -2 * x - 1 : 2 * x; d[i - 1] = x; if (x > y) y = x; }
+        if (depth < 2 && bwOf(y) > bwOf(mx - mn) && distinctFew(d, 64)) return null;       // wider than the values themselves and never repeating: differences cannot help
         w.zi(a[0]); w.bytes(encInts(d, depth - 1, opt)); return w.out();
       }
       if (sch === IS.DIV) {
@@ -150,7 +163,15 @@
         w.vi(vals.length); w.bytes(encInts(Float64Array.from(vals), depth - 1, opt)); w.bytes(encInts(Float64Array.from(runs), depth - 1, opt)); return w.out();
       }
       if (sch === IS.DICT) {
-        m = new Map(); lim = Math.min(n / 2, 65536);
+        lim = Math.min(n / 2, 65536);
+        if (mx - mn < 1048576) {                                                      // values in a narrow range: a table indexed by value is much faster than a Map
+          seen = new Int32Array(mx - mn + 1); m = 0;
+          for (i = 0; i < n; i++) { x = a[i] - mn; if (!seen[x]) { seen[x] = 1; if (++m > lim) return null; } }
+          keys = new Float64Array(m); q = 0; for (i = 0; i < seen.length; i++) if (seen[i]) { keys[q] = i + mn; seen[i] = ++q; }
+          codes = new Float64Array(n); for (i = 0; i < n; i++) codes[i] = seen[a[i] - mn] - 1;
+          w.vi(m); w.bytes(encInts(keys, depth - 1, opt)); w.bytes(encInts(codes, depth - 1, opt)); return w.out();
+        }
+        m = new Map();
         for (i = 0; i < n; i++) { m.set(a[i], 0); if (m.size > lim) return null; }
         keys = Array.from(m.keys()).sort(function (p, q2) { return p - q2; }); keys.forEach(function (k, ix) { m.set(k, ix); });
         codes = new Float64Array(n); for (i = 0; i < n; i++) codes[i] = m.get(a[i]);
@@ -182,15 +203,20 @@
     function encInts(a, depth, opt) {
       var n = a.length, order = INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, i, sub, mm = range(a);
       if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
+      if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 4th block tries all)
+        for (i = 0; i < opt.prefer.length; i++) { e = tryInt(opt.prefer[i], a, depth, opt, mm, best ? best.length : 0); if (e && (!best || e.length < best.length)) best = e; }
+        if (best) return best;
+      }
       if (opt.sample && n > 4096) {        // choose the top way on a sample, then encode only with it
         s = sampleOf(a); sub = { noEntropy: opt.noEntropy, sample: false }; e = range(s);
-        for (i = 0; i < order.length; i++) { e = tryInt(order[i], s, depth, sub, null); if (e && e.length < bs) { bs = e.length; pick = order[i]; } }
-        e = tryInt(pick, a, depth, opt, mm); if (e) return e;
+        for (i = 0; i < order.length; i++) { if (order[i] === IS.RAW) continue; e = tryInt(order[i], s, depth, sub, null, bs < 1e18 ? bs : 0); if (e && e.length < bs) { bs = e.length; pick = order[i]; } }
+        if (pick >= 0) { e = tryInt(pick, a, depth, opt, mm); if (e) return e; }
       }
-      for (i = 0; i < order.length; i++) { e = tryInt(order[i], a, depth, opt, mm); if (e && (!best || e.length < best.length)) best = e; }
+      for (i = 0; i < order.length; i++) { if (order[i] === IS.RAW) continue; e = tryInt(order[i], a, depth, opt, mm, best ? best.length : 0); if (e && (!best || e.length < best.length)) best = e; }
+      if (!best || best.length > n * 8) { e = tryInt(IS.RAW, a, depth, opt, mm); if (e && (!best || e.length < best.length)) best = e; }      // plain doubles only when nothing else is smaller
       return best;
     }
-    function tryInt(sch, a, depth, opt, mm) { try { return encIntWith(sch, a, depth, opt, mm); } catch (e) { return null; } }
+    function tryInt(sch, a, depth, opt, mm, bound) { try { return encIntWith(sch, a, depth, opt, mm, bound); } catch (e) { return null; } }
     function decInts(r, n, depth) {
       var sch = r.u8(), out = new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div;
       if (depth > MAX_DEPTH) pfail('data nested too deep');
@@ -274,6 +300,7 @@
           if (code) { ints[i] = d0; last = d0; } else ints[i] = last;
         } else ints[i] = last;
         near.push(code); if (!code) raw.push(v);
+        if (pos.length * 2 > n) return null;                  // more than half the values are not decimals: stop now
       }
       if (pos.length * 2 > n) return null;
       w = new Wr(); w.u8(e); w.u8(f); w.vi(pos.length); w.bytes(encInts(ints, depth, opt));
@@ -333,7 +360,8 @@
       return out;
     }
     function encFDict(a, depth, opt) {
-      var n = a.length, m = new Map(), i, k, keys, codes, w;
+      var n = a.length, m = new Map(), i, k, keys, codes, w, sm, step = n > 2048 ? Math.floor(n / 1024) : 0;
+      if (step) { sm = new Set(); for (i = 0; i < n; i += step) sm.add(a[i]); if (sm.size > 0.95 * Math.ceil(n / step)) return null; }       // nearly every sampled value is different: no dictionary will help
       for (i = 0; i < n; i++) { k = a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]; if (!m.has(k)) m.set(k, m.size); if (m.size > n / 2 || m.size > 65536) return null; }
       keys = Array.from(m.keys()); codes = new Float64Array(n);
       for (i = 0; i < n; i++) codes[i] = m.get(a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]);
@@ -348,51 +376,62 @@
       for (i = 0; i < n; i++) { c = codes[i]; if (!(c >= 0 && c < m)) pfail('bad dictionary code'); out[i] = keys[c]; }
       return out;
     }
-    function entropyBytes(q, n) {          // a quick estimate of what rANS would write for these bytes: the order-0 entropy plus the table
-      var c = new Uint32Array(256), i, bits = 0, used = 0, v;
-      for (i = 0; i < n; i++) c[q[i]]++;
+    function entropyOf(c, n) {             // a quick estimate of what rANS would write for bytes with these counts: the order-0 entropy plus the table
+      var i, bits = 0, used = 0, v;
       for (i = 0; i < 256; i++) { v = c[i]; if (v) { used++; bits -= v * Math.log2(v / n); } }
       return bits / 8 + used * 1.5 + 36;
     }
-    function planeDiff(p, n) { var d = new Uint8Array(n), i; d[0] = p[0]; for (i = 1; i < n; i++) d[i] = (p[i] - p[i - 1]) & 255; return d; }
     function planeMode(p, n) {             // 1 constant, 0 stored, 2 rANS, 3 rANS of byte differences: by estimate, so only one coder runs per plane
-      var cnt = new Uint32Array(256), i, used = 0, d, e2, e3;
+      var cnt = new Uint32Array(256), cd = new Uint32Array(256), i, used = 0, d, e2, e3, prev, v;
       for (i = 0; i < n; i++) cnt[p[i]]++;
       for (i = 0; i < 256; i++) if (cnt[i]) used++;
       if (used === 1) return { mode: 1, est: 2 };
-      e2 = entropyBytes(p, n); d = planeDiff(p, n); e3 = entropyBytes(d, n);
+      e2 = entropyOf(cnt, n);
+      d = new Uint8Array(n); prev = p[0]; d[0] = prev; cd[prev]++;
+      for (i = 1; i < n; i++) { v = p[i]; prev = (v - prev) & 255; d[i] = prev; cd[prev]++; prev = v; }
+      e3 = entropyOf(cd, n);
       if (Math.min(e2, e3) >= n) return { mode: 0, est: n + 1 };
-      return e3 < e2 ? { mode: 3, est: e3 + 1, d: d } : { mode: 2, est: e2 + 1 };
+      return e3 < e2 ? { mode: 3, est: e3 + 1, d: d, c: cd } : { mode: 2, est: e2 + 1, c: cnt };
     }
     function planeBytes(p, n, pm) {        // one byte plane, written the way planeMode chose
       var w = new Wr(), q = pm.mode === 3 ? pm.d : p, c, freq, cum, i, rb, body;
       if (pm.mode === 1) { w.u8(1); w.u8(p[0]); return w.out(); }
       if (pm.mode === 0) { w.u8(0); w.bytes(p); return w.out(); }
-      c = new Uint32Array(256); for (i = 0; i < n; i++) c[q[i]]++;
+      c = pm.c; if (!c) { c = new Uint32Array(256); for (i = 0; i < n; i++) c[q[i]]++; }                // the counts planeMode already made
       freq = normFreq(c, n); cum = new Uint16Array(257); for (i = 0; i < 256; i++) cum[i + 1] = cum[i] + freq[i];
       writeTable(w, freq); rb = ransEncode(q, freq, cum); w.vi(rb.length); w.bytes(rb);
       if (w.n + 1 >= n) { w = new Wr(); w.u8(0); w.bytes(p); return w.out(); }          // the estimate was too hopeful: store the plane
       body = w.out(); w = new Wr(); w.u8(pm.mode); w.bytes(body); return w.out();
     }
-    function encPlanes(a) {                // byte planes of the doubles (like OpenZL's transpose_split); variant 1 first XORs every value with the one before it; the variant and each plane's way are picked by estimate
-      var n = a.length, best = null, variant, planes, b, i, lo, hi, l2, h2, pl, ph, w, pms, est, bestEst = 1e18, bestPlanes = null, bestPms = null, bestVar = 0;
-      for (variant = 0; variant < 2; variant++) {
-        planes = []; for (b = 0; b < 8; b++) planes.push(new Uint8Array(n));
-        pl = 0; ph = 0;
-        for (i = 0; i < n; i++) {
-          f64a[0] = a[i]; lo = u32a[LO]; hi = u32a[HI];
-          if (variant) { l2 = lo; h2 = hi; lo = (lo ^ pl) >>> 0; hi = (hi ^ ph) >>> 0; pl = l2; ph = h2; }
-          planes[0][i] = lo & 255; planes[1][i] = (lo >>> 8) & 255; planes[2][i] = (lo >>> 16) & 255; planes[3][i] = lo >>> 24;
-          planes[4][i] = hi & 255; planes[5][i] = (hi >>> 8) & 255; planes[6][i] = (hi >>> 16) & 255; planes[7][i] = hi >>> 24;
-        }
-        pms = []; est = 0; for (b = 0; b < 8; b++) { pms.push(planeMode(planes[b], n)); est += pms[b].est; }
-        if (est < bestEst) { bestEst = est; bestPlanes = planes; bestPms = pms; bestVar = variant; }
+    function splitPlanes(a, n, variant) {  // the 8 byte planes of the doubles; variant 1 first XORs every value with the one before it
+      var planes = [], b, i, lo, hi, l2, h2, pl = 0, ph = 0, p0, p1, p2, p3, p4, p5, p6, p7;
+      for (b = 0; b < 8; b++) planes.push(new Uint8Array(n));
+      p0 = planes[0]; p1 = planes[1]; p2 = planes[2]; p3 = planes[3]; p4 = planes[4]; p5 = planes[5]; p6 = planes[6]; p7 = planes[7];
+      for (i = 0; i < n; i++) {
+        f64a[0] = a[i]; lo = u32a[LO]; hi = u32a[HI];
+        if (variant) { l2 = lo; h2 = hi; lo = (lo ^ pl) >>> 0; hi = (hi ^ ph) >>> 0; pl = l2; ph = h2; }
+        p0[i] = lo & 255; p1[i] = (lo >>> 8) & 255; p2[i] = (lo >>> 16) & 255; p3[i] = lo >>> 24;
+        p4[i] = hi & 255; p5[i] = (hi >>> 8) & 255; p6[i] = (hi >>> 16) & 255; p7[i] = hi >>> 24;
       }
-      w = new Wr(); w.u8(bestVar); for (b = 0; b < 8; b++) w.bytes(planeBytes(bestPlanes[b], n, bestPms[b]));
+      return planes;
+    }
+    function planeModes(planes, n) { var pms = [], b; for (b = 0; b < 8; b++) pms.push(planeMode(planes[b], n)); return pms; }
+    function estOf(pms) { var e = 0, b; for (b = 0; b < 8; b++) e += pms[b].est; return e; }
+    function encPlanes(a) {                // byte planes of the doubles (like OpenZL's transpose_split); the variant is chosen on a quarter of the block, then each plane's way by estimate
+      var n = a.length, sub = n > 4096 ? sampleOf(a) : a, m = sub.length, v0, v1, variant, spm, planes, pms = [], b, w, i, v;
+      v0 = planeModes(splitPlanes(sub, m, 0), m); v1 = planeModes(splitPlanes(sub, m, 1), m);
+      variant = estOf(v1) < estOf(v0) ? 1 : 0; spm = variant ? v1 : v0;
+      planes = splitPlanes(a, n, variant);
+      for (b = 0; b < 8; b++) {
+        if (sub === a) pms.push(spm[b]);                                             // the sample was the whole block
+        else if (spm[b].mode === 1) { v = planes[b][0]; for (i = 1; i < n && planes[b][i] === v; i++); pms.push(i < n ? planeMode(planes[b], n) : spm[b]); }   // constant in the sample: check it is constant everywhere
+        else pms.push(planeMode(planes[b], n));
+      }
+      w = new Wr(); w.u8(variant); for (b = 0; b < 8; b++) w.bytes(planeBytes(planes[b], n, pms[b]));
       return w.out();
     }
     function decPlanes(r, n) {
-      var variant = r.u8(), planes = [], b, mode, t, p, rl, i, lo, hi, pl = 0, ph = 0, out = new Float64Array(n);
+      var variant = r.u8(), planes = [], b, mode, t, p, rl, i, lo, hi, pl = 0, ph = 0, out = new Float64Array(n), o32, p0, p1, p2, p3, p4, p5, p6, p7;
       if (variant > 1) pfail('bad column');
       for (b = 0; b < 8; b++) {
         mode = r.u8();
@@ -403,10 +442,11 @@
         if (mode === 3) for (i = 1; i < n; i++) p[i] = (p[i - 1] + p[i]) & 255;
         planes.push(p);
       }
+      o32 = new Uint32Array(out.buffer); p0 = planes[0]; p1 = planes[1]; p2 = planes[2]; p3 = planes[3]; p4 = planes[4]; p5 = planes[5]; p6 = planes[6]; p7 = planes[7];
       for (i = 0; i < n; i++) {
-        lo = (planes[0][i] | (planes[1][i] << 8) | (planes[2][i] << 16) | (planes[3][i] << 24)) >>> 0; hi = (planes[4][i] | (planes[5][i] << 8) | (planes[6][i] << 16) | (planes[7][i] << 24)) >>> 0;
+        lo = (p0[i] | (p1[i] << 8) | (p2[i] << 16) | (p3[i] << 24)) >>> 0; hi = (p4[i] | (p5[i] << 8) | (p6[i] << 16) | (p7[i] << 24)) >>> 0;
         if (variant) { lo = (lo ^ pl) >>> 0; hi = (hi ^ ph) >>> 0; pl = lo; ph = hi; }
-        u32a[LO] = lo; u32a[HI] = hi; out[i] = f64a[0];
+        o32[2 * i + LO] = lo; o32[2 * i + HI] = hi;
       }
       return out;
     }
@@ -414,20 +454,24 @@
     // ---------------------------------------------------------------- one block of numbers, and a whole column
     var CS = { INTS: 0, ALP: 1, RD: 2, RAWF: 3, FDICT: 4, PLANES: 5 }, CHUNK = 8192, NAMES = ['INTS', 'ALP', 'RD', 'RAWF', 'FDICT', 'PLANES'];
     function isIntegral(a) { var i, v; for (i = 0; i < a.length; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return false; } return true; }
-    function rawDoubles(a) { var w = new Wr(), i; for (i = 0; i < a.length; i++) w.f64(a[i]); return w.out(); }
-    function encChunk(a, depth, opt) {
+    function rawDoubles(a) { var w = new Wr(), i; w.need(a.length * 8); for (i = 0; i < a.length; i++) w.f64(a[i]); return w.out(); }
+    function encChunk(a, depth, opt, only) {      // only: the ways that won earlier blocks of this column; given on most blocks so the others are not tried
       var cands = [], best = null, bs = -1, k, e, w;
       if (isIntegral(a)) cands.push([CS.INTS, function () { return encInts(a, depth, opt); }]);
       else {
-        cands.push([CS.ALP, function () { return encALP(a, depth, opt); }]); cands.push([CS.RD, function () { return encRD(a, depth, opt); }]); cands.push([CS.FDICT, function () { return encFDict(a, depth, opt); }]);
+        cands.push([CS.ALP, function () { return encALP(a, depth, opt); }]); cands.push([CS.FDICT, function () { return encFDict(a, depth, opt); }]);
         if (!opt.noEntropy) cands.push([CS.PLANES, function () { return encPlanes(a); }]);
+        cands.push([CS.RD, function () { return encRD(a, depth, opt); }]);                                  // last: it cannot be under 6 bytes a value, so it is skipped when anything before it is smaller
         cands.push([CS.RAWF, function () { return rawDoubles(a); }]);
       }
       for (k = 0; k < cands.length; k++) {
         if (cands[k][0] === CS.RAWF) continue;                                    // plain doubles are written last, only when nothing else is smaller
+        if (only && cands[k][0] !== CS.INTS && only.indexOf(cands[k][0]) < 0) continue;
+        if (cands[k][0] === CS.RD && best && best.length < a.length * 6) continue;      // this way cannot be under 6 bytes a value (4 for the back bits, at least 2 for the front)
         try { e = cands[k][1](); } catch (err) { e = null; }
         if (e && (!best || e.length < best.length)) { best = e; bs = cands[k][0]; }
       }
+      if (only && !best) return encChunk(a, depth, opt, null);                          // none of the ways that won before applies to this block: try them all
       if (!best || best.length >= a.length * 8) { best = rawDoubles(a); bs = CS.RAWF; }
       w = new Wr(); w.u8(bs); w.bytes(best); return w.out();
     }
@@ -450,10 +494,14 @@
     // pack(values, opts): values is a Float64Array (or any array of numbers). opts.sample (default true): choose each block's top way on a quarter of it, which is much faster;
     // opts.noEntropy: leave out the byte-coded ways (used to give a general compressor something it can still shrink); opts.labels: an array that receives one label per block.
     function pack(values, opts) {
-      var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy) }, w = new Wr(), i, part;
+      var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full;
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
-        part = encChunk(a.subarray(i, Math.min(n, i + CHUNK)), 3, o);
+        k++; full = !(k > 2 && k % 4 !== 0 && won.length);
+        o.prefer = full || !wonInts.length ? null : wonInts; o.top = 2;
+        part = encChunk(a.subarray(i, Math.min(n, i + CHUNK)), 2, o, full ? null : won);   // a block tries every way for the first blocks and every 4th; the rest try only the ways that have won before
+        if (won.indexOf(part[0]) < 0 && part[0] !== CS.RAWF) won.push(part[0]);
+        if (part[0] === CS.INTS && wonInts.indexOf(part[1]) < 0 && part[1] !== IS.RAW) wonInts.push(part[1]);
         w.vi(part.length); w.bytes(part);
         if (opts && opts.labels) opts.labels.push(describe(part));
       }

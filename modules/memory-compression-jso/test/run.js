@@ -270,8 +270,14 @@ t('number picker: damaged blocks give clean errors and finish quickly', function
   for (k = 0; k < b.length; k += 53) throwsJ(function () { ADAPT.unpack(b.subarray(0, k), 3000); }, 'cut at ' + k);
   assert(Date.now() - t0 < 5000, 'no hang');
 });
+t('number picker: a long column whose character changes block by block still comes back exactly', function () {
+  var r = D.rng(99), a = [], i, k, rows;
+  for (k = 0; k < 14; k++) for (i = 0; i < 8192; i++) a.push(k % 5 === 0 ? i + k * 8192 : k % 5 === 1 ? r() * 1000 : k % 5 === 2 ? Math.round(r() * 1e4) / 100 : k % 5 === 3 ? (i % 7) * 3 : (r() < 0.5 ? -0 : 5e-324 * i));
+  rows = a.map(function (v, j) { return { v: v, j: j }; });
+  [{ mode: 'balanced' }, { mode: 'small' }].forEach(function (o) { var p = J.pack(rows, opt(o)), u = J.unpack(p, opt()), q; for (q = 0; q < rows.length; q++) if (!Object.is(u[q].v, rows[q].v) || u[q].j !== q) throw new Error('block ' + (q >> 13) + ' row ' + q + ' differs in ' + o.mode); });
+});
 t('number picker: dictionary codes of text columns, profile()', function () {
-  var cities = many(300, function (i) { return 'City number ' + i; }), rows = many(8000, function (i) { return { city: cities[Math.floor(i / 25) % 300], k: i }; }), plain = J.pack(rows, opt()), bal = J.pack(rows, opt({ mode: 'balanced' })), rep = [];
+  var cities = many(300, function (i) { return 'City number ' + i; }), rr = D.rng(5), rows = many(8000, function (i) { return { city: cities[(Math.floor(i / 25) * 7 + (rr() < 0.2 ? 1 : 0)) % 300], k: i }; }), plain = J.pack(rows, opt()), bal = J.pack(rows, opt({ mode: 'balanced' })), rep = [];
   same(rows, J.unpack(bal, opt()), 'round trip'); assert(bal.length < plain.length * 0.95, 'codes in runs shrink: ' + bal.length + ' against ' + plain.length);
   J.pack(rows, opt({ mode: 'balanced', report: rep })); assert(rep.some(function (x) { return x.part === 'picker (dictionary codes)'; }), 'the report names it');
   var cut = J.pack(rows.slice(0, 1500), opt({ mode: 'balanced' })), q, copy;
@@ -317,6 +323,14 @@ tAsync('keeper: restore() gives the same value as get(), once for many callers, 
     same(rows, v, 'restored value'); assert.strictEqual(K.get('layout'), v, 'get() returns the restored copy'); assert.strictEqual(K.memory().items.layout.restoredBy === 'slices', true);
     return K.restore('layout');
   }).then(function (v2) { same(rows, v2, 'restore of a restored item'); K.hold('layout', rows.slice(0, 50)); K.release('layout'); return K.restore('layout'); }).then(function (v3) { assert.strictEqual(v3.length, 50, 'sees the newest held value'); K.hold('small', [1, 2, 3]); return K.restore('small').then(function (v4) { same([1, 2, 3], v4); assert.strictEqual(K.memory().items.small.restoredBy, 'page', 'not an array of objects: restored on the page, one step later'); }); }).then(function () { K.drop('layout'); return K.restore('layout').then(function () { throw new Error('should reject'); }, function (e) { assert(/nothing is held/.test(e.message)); }); });
+});
+tAsync('keeper: each() hands out rows a run at a time, never the whole list, and view().slice() reads a range', function () {
+  var rows = many(5000, function (i) { return { id: i, name: 'n' + (i % 40), w: i / 8 }; }), K = J.keeper(opt()), seen = [], firsts = [], vw;
+  var h = K.hold('L', rows); vw = K.view('L'); same(rows.slice(100, 130), vw.slice(100, 130), 'slice'); same(rows.slice(4990), vw.slice(4990, 9999), 'slice past the end'); assert.strictEqual(vw.slice(10, 5).length, 0, 'empty range');
+  return K.each('L', function (part, first) { firsts.push(first); assert(part.length <= 700, 'a run at a time'); seen = seen.concat(part); }, { chunk: 700 }).then(function (count) {
+    assert.strictEqual(count, 5000); same(rows, seen, 'every row once, in order'); assert.strictEqual(firsts[1], 700); assert(K.memory().items.L.restored < h.heap / 2, 'the objects were not kept: ' + K.memory().items.L.restored + ' against ' + h.heap);
+    K.hold('plain', [1, 2, 3]); return K.each('plain', function () { }).then(function () { throw new Error('should reject'); }, function (e) { assert(/view\(\)|array of objects/.test(e.message), e.message); });
+  });
 });
 t('front coding: sorted text shares its starts, exact back, off switch, damaged files refused', function () {
   var r = D.rng(77), words = many(6000, function () { var w = '', k = 3 + Math.floor(r() * 9), q; for (q = 0; q < k; q++) w += String.fromCharCode(97 + Math.floor(r() * (q < 2 ? 6 : 26))); return w; }).sort();

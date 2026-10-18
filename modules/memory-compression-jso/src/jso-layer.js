@@ -379,18 +379,23 @@
   };
   // The chooser's bytes for a Float64Array. In small mode the general compressor also gets a go at them, and at a version without the byte-coded ways (which it can still shrink).
   Enc.prototype.adaptBytes = function (src) {
-    var a = PK, small = this.mode === 'small', best, z = 0, p, ne, probe, got, plain;
+    var a = PK, small = this.mode === 'small', best, z = 0, p, ne, probe, got, got0, plain, tryNe = true, i;
     try {
       if (src.length >= 32768) {                    // a long column is first tried on its first 8,192 numbers; if the chooser gains under 5% there, the rest is not tried
-        probe = src.subarray(0, 8192); got = a.pack(probe, { sample: true });
+        probe = src.subarray(0, 8192); got = got0 = a.pack(probe, { sample: true });
         if (small) { p = MC.pack(got, this.mcOpts); if (p.length < got.length) got = p; }
         plain = MC.pack(probe, this.mcOpts);
         if (got.length > plain.length * 0.95) return null;
+        if (small) {                                // the second pass (no entropy coding, then deflate) is only worth its time when it comes close on the same 8,192 numbers
+          ne = a.pack(probe, { sample: true, noEntropy: true });
+          if (ne.length === got0.length) { for (i = 0; i < ne.length && ne[i] === got0[i]; i++); tryNe = i < ne.length; }   // the very same bytes: the second pass would only repeat the first
+          if (tryNe) { p = MC.pack(ne, this.mcOpts); tryNe = p.length < got.length * 1.02; }
+        }
       }
-      best = a.pack(src, { sample: !small });
+      best = a.pack(src, { sample: true });
       if (small) {
         p = MC.pack(best, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
-        ne = a.pack(src, { sample: false, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
+        if (tryNe) { ne = a.pack(src, { sample: true, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; } }
       }
     } catch (err) { return null; }
     return { bytes: best, z: z };
@@ -1934,6 +1939,14 @@
       column: function (key) {                                  // the values of one key: a typed array when the column is numeric, otherwise a plain array
         var q = index[key], x; if (q === undefined) return undefined; x = col(q);
         return x.mode === 0 ? x.a : x.full();
+      },
+      slice: function (from, to) {                                // the objects from row from up to (not including) row to, made now; the other rows stay packed
+        var out, g, i;
+        from = from === undefined ? 0 : Math.max(0, Math.floor(from)); to = to === undefined ? n : Math.min(n, Math.floor(to));
+        if (!(from <= to)) return [];
+        g = getter || makeGetter(); out = new Array(to - from);
+        for (i = from; i < to; i++) out[i - from] = g(i);
+        return out;
       },
       toArray: function () { var out = new Array(n), q, g = getter || makeGetter(); for (q = 0; q < n; q++) out[q] = g(q); return out; },
       loaded: function () { return keys.filter(function (k, q) { return cols[q]; }); },
