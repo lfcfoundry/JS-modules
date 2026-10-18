@@ -2,7 +2,7 @@
  * netflow-engine.js: the engine of Netflow Map as a module you can adapt: reads links, lays the map out (layered rows, arcs, matrix, shapes, force, distances), and scores it. No page, no DOM; runs on the main thread or in a worker.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 2.0.0 (API 2)
  *
  *   var L = NetflowEngine.build({ nodes: [{ id: 'a' }, { id: 'b' }], edges: [{ from: 'a', to: 'b' }] }, { view: 'network', colorBy: 'group' });   // L.nodes, L.edges: positions and sizes, ready to draw
  *   NetflowEngine.use('layers', NetflowLayers);      // optional: hand over the add-ons (they are also found on their own)
@@ -14,7 +14,7 @@
   else root.NetflowEngine = factory(null);
 }(typeof self !== 'undefined' ? self : this, function (REQ) {
   'use strict';
-  var VERSION = '1.0.0';
+  var VERSION = '2.0.0';
   var NFMColumns = (function () {
     'use strict';
 
@@ -462,7 +462,7 @@
   var NFMEngine = (function () {
     'use strict';
     var C = NFMColumns;
-    var SK = null;   // the Sankey add-on (netflow-sankey): handed over with use('sankey', impl); without it the River view keeps the plain layered picture
+    var SK = null;   // the Sankey add-on (netflow-sankey): handed over with use('sankey', impl); without it the Sankey view keeps the plain layered picture
     var MAP_W = 176, MAP_H = 56;
     var LN10 = Math.LN10;
 
@@ -2314,7 +2314,7 @@
       ['spine', 'Choke-point spine', 'Places every route to the goal must pass, held on one line.'],
       ['lanes', 'Lanes', 'One band per group; items in several groups sit in the middle.'],
       ['shape', 'Shape', 'The stretches between choke points, each named by its pattern.'],
-      ['river', 'River', 'Simulated walkers pour through; the wider the band, the more take that arrow.'],
+      ['sankey', 'Sankey', 'Simulated walkers pour through; the wider the band, the more take that arrow.'],
       ['arc', 'Arc', 'Everything on one line; arcs show the links, long arcs are long jumps.'],
       ['matrix', 'Matrix', 'A grid of who links to whom; patterns show clusters and loops.'],
       ['network', 'Network', 'Closeness on the page follows closeness in the data; for data that is not a story.']
@@ -2401,7 +2401,7 @@
       var t0 = now(), view = o.view || 'flow';
       var P = prepare(graph, o);
       var imp = importance(P);
-      var flowing = view === 'river', amounts = flowing && !!o.amounts;
+      var flowing = view === 'sankey', amounts = flowing && !!o.amounts;
       var sysFlow = [o.sizeBy, o.widthBy, o.edgeColorBy, o.colorBy].some(function (c) { return c && /^sys:(flow|visits)$/.test(c); });
       var needFlow = (flowing && !amounts) || o.colorBy === 'odds' || o.colorBy === 'heat' || o.wantFlow || sysFlow;
       var flow = null, classes = null;
@@ -2504,7 +2504,7 @@
       G.nodes.forEach(function (n) { laneOfBox[n.id] = laneIdx.get(cls[n.id]); });
       var root = P.start >= 0 ? G.groupOf[P.start] : undefined, prev = o.prev || undefined, Lr;
       /* optional layered-drawing choices (all off by default, so the picture is the old one): see layered() */
-      var LO = { rows: o.rows === 'story' ? 'story' : undefined, tagLen: o.tagLen > 1 ? o.tagLen : 0, better: !!o.better, bundle: !!o.bundle };
+      var LO = { rows: o.rows === 'story' ? 'story' : undefined, tagLen: o.tagLen > 1 ? o.tagLen : 0, better: !!o.better, bundle: !!o.bundle, spread: o.spread === 'wide' ? 'wide' : undefined };
       var withLO = function (x) { return Object.assign(x, LO); };
       /* top to bottom (and the Flow view turned that way): a map more than about twice as tall as wide can be cut into columns (o.wrap) */
       var downLanes = view === 'down' && o.downLanes && laneNames.length > 1;
@@ -2521,7 +2521,7 @@
       if (view === 'down') Lr = topDown('TB');
       else if (view === 'spine') Lr = layered(G, withLO({ dir: 'LR', root: root, prev: prev, spine: true }));
       else if (view === 'lanes' && laneNames.length > 1) Lr = layered(G, withLO({ dir: 'LR', root: root, prev: prev, lane: function (n) { return Math.max(0, laneOfBox[n.id]); } }));
-      else if (view === 'river') { Lr = layered(G, { dir: 'LR', root: root, prev: prev, gapLayer: 190, gapNode: 14 }); if (SK && o.sk) SK.apply(Lr, SK.layout(Lr, SK.options(o.sk))); }
+      else if (view === 'sankey') { Lr = layered(G, { dir: 'LR', root: root, prev: prev, gapLayer: 190, gapNode: 14 }); if (SK && o.sk) SK.apply(Lr, SK.layout(Lr, SK.options(o.sk))); }
       else if (view === 'arc') { Lr = arcLayout(G, layered(G, { dir: 'LR', root: root, prev: o.prevFlow })); }
       else if (view === 'matrix') {
         Lr = matrixLayout(G, layered(G, { dir: 'LR', root: root, prev: o.prevFlow }));
@@ -2568,7 +2568,7 @@
     /** Scores every view for the Compare table. */
     function compare(graph, o) {
       var rows = [];
-      ['flow', 'down', 'spine', 'lanes', 'river', 'arc', 'matrix', 'network'].forEach(function (v) {
+      ['flow', 'down', 'spine', 'lanes', 'sankey', 'arc', 'matrix', 'network'].forEach(function (v) {
         var oo = Object.assign({}, o, { view: v });
         try {
           var L = build(graph, oo);
@@ -2596,7 +2596,7 @@
   })();
 
   var E = NFMEngine;
-  E.version = VERSION; E.api = 1;
-  E.status = function () { return { placeholder: false, version: VERSION, api: 1, message: 'netflow-engine ' + VERSION }; };
+  E.version = VERSION; E.api = 2;
+  E.status = function () { return { placeholder: false, version: VERSION, api: 2, message: 'netflow-engine ' + VERSION }; };
   return E;
 }));

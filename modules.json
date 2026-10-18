@@ -342,8 +342,8 @@
     },
     {
       "id": "netflow-engine",
-      "version": "1.0.0",
-      "api": 1,
+      "version": "2.0.0",
+      "api": 2,
       "global": "NetflowEngine",
       "summary": "The engine of Netflow Map as a module you can copy and adapt: nine views of a map and eleven network layouts, no two items on top of each other, WebAssembly twins for Force and Distances, and a use() hand-over for the layers and Sankey add-ons; a 30,000-item network lays out in about 0.8 s.",
       "short": "Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over.",
