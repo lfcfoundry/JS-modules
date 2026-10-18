@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Node 22 checks (15, about 0.4 s); the demo check (now also bundle and taper) passes in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, same numbers in each (stops 1,456 to 205 with tags, to 1,356 with bundle; taper SVG 277,577 to 563,821 characters; 7 columns), 3 to 7 s each including start-up (tests/flow-demos.js, 2026-10-17)
+**Tested in:** Node 22 checks (16, about 0.4 s); the demo check passes in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, the same numbers as 1.1.0 in each (stops 1,456 to 205 with tags, to 1,356 with bundle; 7 columns), 1 to 7 s each including start-up; Netflow Map itself with this module swapped in (run by the Netflow Map thread): Chromium 155.0.8059.39 159 of 159 checks, Firefox 158.0 148, WebKitGTK 2.52.6 148, GNOME Web 46.5 148
 
 Lays out a graph in rows (a layered, Sugiyama-style drawing): top to bottom or left to right, with long links drawn as tags, rows in the order of the story, a column for the pages every route passes, and tall maps cut into columns. It is the layered engine of Netflow Map, which draws Flow, Top-down, Spine, Lanes, Arc and Matrix from it. About 24 KB, no dependencies. Works in a browser (global `NetflowLayers`) and in Node (`module.exports`).
 
