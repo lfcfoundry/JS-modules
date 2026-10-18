@@ -4,6 +4,7 @@
 var assert = require('assert'), zlib = require('zlib'), path = require('path');
 var args = process.argv.slice(2).filter(function (a) { return a.indexOf('--') !== 0; });
 var FP = require(path.resolve(args[0] || path.join(__dirname, '..', 'memory-compression.js'))).core;   // the packing core alone, as memory-compression 1.x was tested
+if (typeof FP.ready === 'function') FP.ready();      // 2.0.3 starts the helper on first use; start it now so the helper checks below run
 var FULL = !!process.env.FULL, JS_ONLY = !!process.env.JS_ONLY || process.argv.indexOf('--js-only') > 0, n = 0, failed = 0;
 if (JS_ONLY) { // run every check on the plain-JavaScript code only
   ['pack', 'unpack', 'lz4Compress', 'lz4Decompress'].forEach(function (k) { var f = FP[k]; FP[k] = function (a, b, c) { if (k === 'lz4Decompress') return f(a, b, Object.assign({ wasm: false }, c)); return f(a, Object.assign({ wasm: false }, b)); }; });

@@ -49,14 +49,15 @@
   function run(mb) {
     state.textContent = 'Making a ' + mb + ' MB scene...'; t.hidden = true; t.tBodies[0].innerHTML = '';
     setTimeout(function () {
-      var d = makeScene(mb), total = d.length, w = MemoryCompression.accelerated() ? ' (fast path on)' : ' (plain JavaScript path)';
+      var d = makeScene(mb), total = d.length, w;
       [['memory-compression, fast mode', { width: 28 }], ['memory-compression, small mode', { width: 28, mode: 'small' }]].forEach(function (c) {
         var packed = MemoryCompression.pack(d, c[1]), back = MemoryCompression.unpack(packed, { as: 'bytes' });
         row(c[0], packed.length, total, best(function () { MemoryCompression.pack(d, c[1]); }, 1), best(function () { MemoryCompression.unpack(packed, { as: 'bytes' }); }, 3), same(back, d));
       });
       var pk = MemoryCompression.pack(d, { width: 28 }), vw = MemoryCompression.view(pk), mid = vw.chunks >> 1, tc = best(function () { vw.read(mid); }, 5);
       one.textContent = 'Kept packed, you can also restore just one piece: chunk ' + (mid + 1) + ' of ' + vw.chunks + ' (' + (vw.chunkLength(mid) / 1048576).toFixed(1) + ' MB) comes back in ' + tc.toFixed(1) + ' ms.';
-      t.hidden = false; state.textContent = (total / 1048576).toFixed(0) + ' MB scene' + w + '. Run it again for steadier numbers.';
+      t.hidden = false; w = MemoryCompression.accelerated() ? ' (fast path on)' : ' (plain JavaScript path)';      // read after the packing: the helper starts on first use
+      state.textContent = (total / 1048576).toFixed(0) + ' MB scene' + w + '. Run it again for steadier numbers.';
     }, 30);
   }
   Array.prototype.forEach.call(document.querySelectorAll('button[data-mb]'), function (b) { b.onclick = function () { run(+b.getAttribute('data-mb')); }; });
