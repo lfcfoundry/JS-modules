@@ -4,6 +4,25 @@ What changed in each version, newest first, in plain words. The numbers are expl
 
 All speeds below were measured in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (order of the numbers: Chromium / Firefox / WebKitGTK / GNOME Web). Node was used only for pass/fail checks.
 
+## 1.0.1 · API 1 · 2026-10-18
+No change to the code or to the bytes it writes (the three JavaScript files differ from 1.0.0 only in the version label). Checked and re-measured from scratch: the three WebAssembly programs were rebuilt from the Pcodec 1.0.4 source with our 12-line patch and came out byte for byte identical to the shipped ones (same SHA-256); the credits now list what Pcodec 1.0.4 changed; the comparison with numcodecs-wasm-pco was re-run in all four browsers (tables below and in RESULTS.md section 0b).
+
+Tested in: ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
+
+Re-run of the comparison with the only other JavaScript build, numcodecs-wasm-pco 0.4.0 (converted with jco 1.39), 12 columns, 15 repeats x 3 rounds, a fresh page for each contender, one browser at a time, 0 wrong columns in every browser. Order: Chromium / Firefox / WebKitGTK / GNOME Web. Compare within this table only; this machine ran faster than the one behind the 1.0.0 numbers, and four of the 12 columns were re-downloaded from public copies of the same datasets (the sizes came out the same: smallest mode 0.23% smaller than numcodecs, as before).
+
+| Measure (12 columns) | numcodecs-wasm-pco | pcodec-js | Better | Result |
+|---|---:|---:|---|---|
+| Unpack, copy made (ms) | 12.43 / 11.67 / 10.33 / 10.33 | 12.17 / 8.67 / 8.33 / 10.33 | lower | tie (2%) / 26% faster / 19% faster / tie |
+| Unpack, view, no copy (ms) | not offered | 7.93 / 7.67 / 7.00 / 7.00 | lower | 36% / 34% / 32% / 32% faster than numcodecs with a copy |
+| Pack, plain `pack()` (ms) | 52.4 / 57 / 45 / 55 | 42.7 / 57 / 42 / 56 | lower | 19% faster / tie / 7% faster / tie |
+| Pack, `smallest` (ms) | not offered | 142.9 / 182 / 183 / 148 | lower | slower by design (tries seven settings) |
+| Start-up, reader (ms) | 8.3 / 29 / 19 / 27 | 2.7 / 6 / 2 / 3 | lower | 3 to 9 times lower |
+| Packed size, 12 columns (bytes) | 1,692,078 | `pack()` 1,793,004; `smallest` 1,688,178 | smaller | `pack()` 6.0% bigger; `smallest` 0.23% smaller |
+| Download (gzipped) | 324,006 B | reader 68,390 B | smaller | 4.7 times smaller |
+
+Browsers other than Chromium round timers to whole milliseconds, so treat gaps under 5% as ties. Raw files: `bench/browser/run-release.js` (the runner, new in this release) writes one JSON per browser.
+
 ## 1.0.0 · API 1 · 2026-10-18
 First release, as its own module: Pcodec, a number compressor, for web pages, one file, no build step. It follows an earlier add-on for the object compressor that was never published as its own file. WebAssembly is required, with no plain-JavaScript backup (Jawad's decision).
 

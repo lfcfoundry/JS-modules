@@ -1,8 +1,8 @@
 # pcodec-js
 
-**Version 1.0.0 · API 1**
+**Version 1.0.1 · API 1**
 
-**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (2026-10-18): the test page (491 checks) and the demo page (a million numbers back exactly) in each browser, then the benchmark in RESULTS.md. Node 22: 854 checks for the reader and for the SIMD reader. Not run: a phone, the build from source (the Pcodec source download was not allowed in this session, so the WebAssembly files ship as built)
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
 
 Pcodec for web pages: unpack (and optionally pack) big lists of numbers in a browser, one file, no build step, no network.
 
@@ -42,7 +42,7 @@ const tiny = pco.pack(float64Array, {smallest: true});          // pack file onl
 
 ## How it compares
 
-The same Pcodec bytes as any Pcodec, so the question is only how well each build runs in a page. The only other JavaScript build of Pcodec I could find is numcodecs-wasm-pco; this one is much smaller to download, uses a tenth of the wasm memory when streaming and unpacks as fast or faster, but packs 0% to 5% slower and its plain `pack()` is 6% larger on the 12-column set (Pcodec 1.0.4 against 1.0.2; `smallest` mode fixes that). Details and tables: `RESULTS.md`; all speeds measured in the four browsers.
+The same Pcodec bytes as any Pcodec, so the question is only how well each build runs in a page. The only other JavaScript build of Pcodec I could find is numcodecs-wasm-pco; this one is much smaller to download, uses a tenth of the wasm memory when streaming and unpacks as fast or faster, packs about level with it (0% to 5% slower in the 1.0.0 run, a tie to 19% faster in the 1.0.1 re-run) but its plain `pack()` is 6% larger on the 12-column set (Pcodec 1.0.4 against 1.0.2; `smallest` mode fixes that). Details and tables: `RESULTS.md`; all speeds measured in the four browsers.
 
 Better direction is stated in each header. Order in each cell: Chromium / Firefox / WebKitGTK / GNOME Web.
 
@@ -51,13 +51,13 @@ Better direction is stated in each header. Order in each cell: Chromium / Firefo
 | Download, unpack only (gzipped) | 324,006 B | 68,390 B | smaller |
 | Download, with packer (gzipped) | 324,006 B | 184,685 B | smaller |
 | Wasm memory, 4,000,000 numbers, streamed | not exposed | 6.8 MB (old add-on: 67.9 MB) | lower |
-| Unpack, copy made (ns per number) | 19.06 / 18.87 / 17.57 / 16.92 | 18.84 / 15.94 / 16.92 / 16.92 | lower (a tie to 16% faster) |
-| Unpack, view (ns per number) | not offered | 12.62 / 13.01 / 14.32 / 14.32 | lower |
-| Pack 12 columns (ms) | 80.6 / 90 / 89 / 84 | 85 / 90 / 93 / 88 | lower (numcodecs is 0% to 5% faster) |
+| Unpack, copy made (ns per number) | 12.13 / 11.39 / 10.08 / 10.08 | 11.88 / 8.46 / 8.13 / 10.08 | lower (a tie in Chromium and GNOME Web, 26% faster in Firefox, 19% in WebKitGTK) |
+| Unpack, view (ns per number) | not offered | 7.74 / 7.49 / 6.83 / 6.83 | lower |
+| Pack 12 columns (ms) | 52.4 / 57 / 45 / 55 | 42.7 / 57 / 42 / 56 | lower (19% faster in Chromium, 7% in WebKitGTK, a tie in Firefox and GNOME Web) |
 | Pack 39 columns, smallest mode (bytes) | 2,791,125 | 2,778,048 | smaller |
 | First unpack after load with `warm` (ms) | not offered | 2.8 / 5 / 7 / 5 | lower |
 
-Unpack rows were measured before the tuned loop (below); with it the unpack is 0% to 13% lower in the four browsers (about 6% on average), see `RESULTS.md` section 4c.
+Unpack and pack rows were re-measured for 1.0.1 (checked 2026-10-18) with the current build, the tuned loop included: 12 columns, one browser at a time, in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, 0 wrong columns. Compare numbers within a row only: this run was on a faster machine than the 1.0.0 run, and browsers other than Chromium round timers to whole milliseconds, so treat gaps under 5% as ties. The other rows are from the 1.0.0 run. Details: `CHANGELOG.md` 1.0.1 and `RESULTS.md` section 0b.
 
 
 ## Prior art and credits

@@ -2,7 +2,7 @@
  * pcodec-js.js: Pcodec (a compressor for numbers) for web pages and Node, in one file with no dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1) · reader with the SIMD program: unpacks and streams, needs WebAssembly SIMD (pcodec-js.js works everywhere)
+ * Version 1.0.1 (API 1) · reader with the SIMD program: unpacks and streams, needs WebAssembly SIMD (pcodec-js.js works everywhere)
  *
  * Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (https://github.com/pcodec/pcodec, Apache-2.0, notice in NOTICE-pcodec.txt).
  * This file holds pco 1.0.4 as WebAssembly programs (built from wasm/ with wasm/build.sh), so it writes and reads ordinary Pcodec files: any other Pcodec can open what this writes, and this opens what any other Pcodec 1.x writes.
@@ -171,5 +171,5 @@
     if (warm) p.then(function (pc) { pc.warm(typeof warm === 'number' ? warm : undefined).catch(function () {}); });
     return p;
   }
-  return { version: '1.0.0', load: load, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
+  return { version: '1.0.1', load: load, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
 });
