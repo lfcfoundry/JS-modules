@@ -2,7 +2,7 @@
  * netflow-layers.js: lay out a graph in rows (a Sugiyama-style layered drawing): top to bottom or left to right, with long links as tags, story order, a column for the pages every route passes, and tall maps cut into columns. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   var R = NetflowLayers.layout({ nodes: [{ id: "start", w: 140, h: 44 }, { id: "a", w: 140, h: 44 }], edges: [{ from: "start", to: "a" }], root: "start" }, { dir: "TB" });
  *   svgElement.innerHTML = NetflowLayers.toSvg(R);          // or draw R.nodes and R.edges yourself (see README)
@@ -99,6 +99,8 @@
    *                   instead of the shortest route from the start,
    *   tagLen: N       links that span more than N rows are not drawn through the rows between; they get kind 'tag' (a tag at each end),
    *   better: true    crossing reduction with the middle value and neighbor swaps on big maps too,
+   *   bundle: true    links that start at the same page share one run of stops (as far as the longest goes); links that end at the same page and are
+   *                   alone at their start share one run from the end upward,
    *   wrapRows: R     a tall map is cut every R rows into columns side by side (links between columns become tags).
    */
   function layered(G, opts) {
@@ -131,7 +133,31 @@
     var tagged = function (la, lb) { return (tagLen && Math.abs(lb - la) > tagLen) || (wrapR && Math.floor(la / wrapR) !== Math.floor(lb / wrapR)); };
     if (opts.rows === 'story') { storyRows(G, layer, outs, opts, byNode); maxL = 0; for (var idr in layer) if (layer[idr] > maxL) maxL = layer[idr]; }
     var dummies = 0;
-    G.edges.forEach(function (e) { var s = Math.abs(layer[e.to] - layer[e.from]); if (tagged(layer[e.from], layer[e.to])) return; if (s > 1) dummies += s - 1; });
+    /* bundling: links (forward or back) that start from the same page at the top share one run of stand-in stops, as far as the longest of
+       them goes; links that end at the same page at the bottom and are alone at their top share one run from the bottom upward.
+       Flat and tagged links are left alone. */
+    var topOf = function (e) { return layer[e.to] > layer[e.from] ? e.from : e.to; }, botOf = function (e) { return layer[e.to] > layer[e.from] ? e.to : e.from; };
+    var bundle = opts.bundle ? (function () {
+      var byTop = {}, byBot = {}, mode = new Array(G.edges.length);
+      var usable = function (e) { var la = layer[e.from], lb = layer[e.to]; return e.from !== e.to && Math.abs(lb - la) >= 2 && !tagged(la, lb); };
+      G.edges.forEach(function (e, i) { if (usable(e)) (byTop[topOf(e)] || (byTop[topOf(e)] = [])).push(i); });
+      Object.keys(byTop).forEach(function (f) { if (byTop[f].length > 1) byTop[f].forEach(function (i) { mode[i] = 'top'; }); });
+      G.edges.forEach(function (e, i) { if (usable(e) && !mode[i]) (byBot[botOf(e)] || (byBot[botOf(e)] = [])).push(i); });
+      Object.keys(byBot).forEach(function (t) { if (byBot[t].length > 1) byBot[t].forEach(function (i) { mode[i] = 'bot'; }); });
+      return { mode: mode, topTrunk: {}, botTrunk: {} };
+    })() : null;
+    if (bundle) {
+      var need = {}, count = 0;
+      G.edges.forEach(function (e, i) {
+        var s0 = Math.abs(layer[e.to] - layer[e.from]) - 1, m = bundle.mode[i];
+        if (e.from === e.to || tagged(layer[e.from], layer[e.to]) || s0 < 1) return;
+        if (m === 'top') { var ks = 't' + topOf(e); need[ks] = Math.max(need[ks] || 0, s0); }
+        else if (m === 'bot') { var kb = 'b' + botOf(e); need[kb] = Math.max(need[kb] || 0, s0); }
+        else count += s0;
+      });
+      for (var nk in need) count += need[nk];
+      dummies = count;
+    } else G.edges.forEach(function (e) { var s = Math.abs(layer[e.to] - layer[e.from]); if (tagged(layer[e.from], layer[e.to])) return; if (s > 1) dummies += s - 1; });
     if (dummies + G.nodes.length > (opts.maxVertices || 90000)) {
       var err = new Error('too big for a layered drawing (' + (dummies + G.nodes.length) + ' stops); use the Network view or filter first');
       err.tooBig = true;
@@ -141,13 +167,28 @@
     var addV = function (rec, k) { rec.layer = k; rec.idx = vert.length; vert.push(rec); (L[k] = L[k] || []).push(rec); return rec; };
     G.nodes.forEach(function (n) { n.v = addV({ id: n.id, node: n, dummy: false }, layer[n.id]); });
     var links = [];
-    G.edges.forEach(function (e) {
+    G.edges.forEach(function (e, ei0) {
       var a = byNode[e.from], b = byNode[e.to], la = layer[e.from], lb = layer[e.to];
       e.chain = [];
       if (e.from === e.to) { e.kind = 'self'; return; }
       if (la === lb) { e.kind = 'flat'; return; }
       if (tagged(la, lb)) { e.kind = 'tag'; e.tagFwd = lb > la; return; }
       e.kind = lb > la ? 'fwd' : 'back';
+      var bm = bundle ? bundle.mode[ei0] : null;
+      if (bm) {
+        var tn = byNode[topOf(e)], bn = byNode[botOf(e)], lt = Math.min(la, lb), lbm = Math.max(la, lb), nd = lbm - lt - 1, part;
+        if (bm === 'top') {
+          var tr = bundle.topTrunk[tn.id] || (bundle.topTrunk[tn.id] = []);
+          while (tr.length < nd) { var dd = addV({ dummy: true, edge: e }, lt + 1 + tr.length); links.push([tr.length ? tr[tr.length - 1] : tn.v, dd, tr.length ? 8 : 2]); tr.push(dd); }
+          part = tr.slice(0, nd); links.push([tr[nd - 1], bn.v, 2]);
+        } else {
+          var tb = bundle.botTrunk[bn.id] || (bundle.botTrunk[bn.id] = []);
+          while (tb.length < nd) { var d3 = addV({ dummy: true, edge: e }, lbm - 1 - tb.length); links.push([d3, tb.length ? tb[tb.length - 1] : bn.v, tb.length ? 8 : 2]); tb.push(d3); }
+          part = tb.slice(0, nd).reverse(); links.push([tn.v, tb[nd - 1], 2]);
+        }
+        e.chain = lb > la ? part : part.reverse();
+        return;
+      }
       var lo = Math.min(la, lb), hi = Math.max(la, lb), prevV = (lb > la ? a : b).v;
       for (var k = lo + 1; k < hi; k++) {
         var d = addV({ dummy: true, edge: e }, k);
@@ -335,7 +376,7 @@
     var nodes = graph.nodes.map(function (n) { var c = {}; for (var k in n) c[k] = n[k]; return c; });
     var edges = graph.edges.map(function (e) { var c = {}; for (var k in e) c[k] = e[k]; if (c.count === undefined) c.count = 1; return c; });
     var G = { nodes: nodes, edges: edges };
-    var base = { dir: opts.dir === 'TB' ? 'TB' : 'LR', root: graph.root, prev: opts.prev, spine: !!opts.spine, rows: opts.rows === 'story' ? 'story' : undefined, tagLen: opts.tagLen > 1 ? opts.tagLen : 0, better: !!opts.better };
+    var base = { dir: opts.dir === 'TB' ? 'TB' : 'LR', root: graph.root, prev: opts.prev, spine: !!opts.spine, rows: opts.rows === 'story' ? 'story' : undefined, tagLen: opts.tagLen > 1 ? opts.tagLen : 0, better: !!opts.better, bundle: !!opts.bundle };
     if (opts.gapNode !== undefined) base.gapNode = opts.gapNode;
     if (opts.gapLayer !== undefined) base.gapLayer = opts.gapLayer;
     if (opts.maxVertices !== undefined) base.maxVertices = opts.maxVertices;
@@ -351,13 +392,29 @@
 
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var f1 = function (x) { return Math.round(x * 10) / 10; };
-  /** A plain SVG picture of a layout() result: boxes, curved links through the stops, tags with name chips. Options: gold, line, box, boxLine, text, muted (colors). */
+  /** A plain SVG picture of a layout() result: boxes, curved links through the stops, tags with name chips. Options: gold, line, box, boxLine, text, muted (colors), taper (forward links as shapes that narrow from 5 to 1 px). */
   function toSvg(R, o) {
     o = o || {};
     var gold = o.gold || '#c98a00', line = o.line || '#6b7a90', box = o.box || '#eaf0f8', boxLine = o.boxLine || '#44546a', ink = o.text || '#222', muted = o.muted || '#667', LR = R.dir !== 'TB', out = [];
     var name = function (n) { return esc(n.label !== undefined ? n.label : n.id); }, cx = function (n) { return n.x + n.w / 2; }, cy = function (n) { return n.y + n.h / 2; };
     out.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + f1(R.width) + ' ' + f1(R.height) + '" width="' + Math.round(R.width) + '" height="' + Math.round(R.height) + '" font-family="system-ui,sans-serif">');
     var path = function (pts) { var d = 'M' + f1(pts[0][0]) + ',' + f1(pts[0][1]); for (var i = 1; i < pts.length; i++) { var a = pts[i - 1], b = pts[i]; if (LR) { var m = (b[0] - a[0]) / 2; d += ' C' + f1(a[0] + m) + ',' + f1(a[1]) + ' ' + f1(b[0] - m) + ',' + f1(b[1]) + ' ' + f1(b[0]) + ',' + f1(b[1]); } else { var q = (b[1] - a[1]) / 2; d += ' C' + f1(a[0]) + ',' + f1(a[1] + q) + ' ' + f1(b[0]) + ',' + f1(b[1] - q) + ' ' + f1(b[0]) + ',' + f1(b[1]); } } return d; };
+    /* a tapered link: the same curve as path(), drawn as a filled shape that narrows from 5 to 1 px along its length */
+    var taperPath = function (pts) {
+      var P = [], i, k, n = 12;
+      P.push(pts[0]);
+      for (i = 1; i < pts.length; i++) {
+        var a = pts[i - 1], b = pts[i], c1 = LR ? [a[0] + (b[0] - a[0]) / 2, a[1]] : [a[0], a[1] + (b[1] - a[1]) / 2], c2 = LR ? [b[0] - (b[0] - a[0]) / 2, b[1]] : [b[0], b[1] - (b[1] - a[1]) / 2];
+        for (k = 1; k <= n; k++) { var u = k / n, m = 1 - u; P.push([m * m * m * a[0] + 3 * m * m * u * c1[0] + 3 * m * u * u * c2[0] + u * u * u * b[0], m * m * m * a[1] + 3 * m * m * u * c1[1] + 3 * m * u * u * c2[1] + u * u * u * b[1]]); }
+      }
+      var cum = [0], tot = 0, Lh = [], Rh = [];
+      for (i = 1; i < P.length; i++) { tot += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); cum.push(tot); }
+      for (i = 0; i < P.length; i++) {
+        var p0 = P[Math.max(0, i - 1)], p1 = P[Math.min(P.length - 1, i + 1)], tx = p1[0] - p0[0], ty = p1[1] - p0[1], d = Math.hypot(tx, ty) || 1, h = (5 - 4 * (tot > 0 ? cum[i] / tot : 0)) / 2;
+        Lh.push([P[i][0] - ty / d * h, P[i][1] + tx / d * h]); Rh.push([P[i][0] + ty / d * h, P[i][1] - tx / d * h]);
+      }
+      return 'M' + Lh.concat(Rh.reverse()).map(function (q) { return f1(q[0]) + ',' + f1(q[1]); }).join(' L');
+    };
     R.edges.forEach(function (e) {
       var a = R.pos[e.from], b = R.pos[e.to], back = e.kind === 'back' || e.kind === 'flat' || (e.kind === 'tag' && !e.tagFwd), col = back ? gold : line, dash = back ? ' stroke-dasharray="6 4"' : '';
       if (e.kind === 'self') return;
@@ -373,6 +430,7 @@
       if (e.kind === 'fwd') pts = [LR ? [a.x + a.w, cy(a)] : [cx(a), a.y + a.h]].concat(e.pts, [LR ? [b.x, cy(b)] : [cx(b), b.y]]);
       else if (e.kind === 'back') pts = [LR ? [a.x, cy(a)] : [cx(a), a.y]].concat(e.pts.slice().reverse(), [LR ? [b.x + b.w, cy(b)] : [cx(b), b.y + b.h]]);
       else { var x = Math.max(a.x + a.w, b.x + b.w) + 30; out.push('<path d="M' + f1(a.x + a.w) + ',' + f1(cy(a)) + ' C' + f1(x) + ',' + f1(cy(a)) + ' ' + f1(x) + ',' + f1(cy(b)) + ' ' + f1(b.x + b.w) + ',' + f1(cy(b)) + '" fill="none" stroke="' + col + '" stroke-width="2"' + dash + '/>'); return; }
+      if (o.taper && e.kind === 'fwd') { out.push('<path d="' + taperPath(pts) + 'Z" fill="' + col + '" opacity="0.85"/>'); return; }
       out.push('<path d="' + path(pts) + '" fill="none" stroke="' + col + '" stroke-width="2"' + dash + ' opacity="0.85"/>');
     });
     R.nodes.forEach(function (n) {
@@ -383,5 +441,5 @@
     return out.join('\n');
   }
 
-  return { version: '1.0.0', layout: layout, toSvg: toSvg };
+  return { version: '1.1.0', layout: layout, toSvg: toSvg };
 }));
