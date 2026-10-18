@@ -6,6 +6,10 @@
 
 Run a Playwright-for-Python test in **stock Firefox** without rewriting it. Playwright cannot drive the Firefox you download from Mozilla (it needs its own patched build, which some environments cannot fetch), so tests written for Playwright could only run in Chromium. `run-in-firefox.py` serves the test's `from playwright.sync_api import sync_playwright` from `pwfirefox.py`, a small copy of the Playwright calls this repository's tests use, driving Firefox through Selenium and geckodriver.
 
+## Why it exists
+Playwright cannot drive the Firefox you download from Mozilla, so a test written for Playwright could only run in Chromium. This stand-in lets such a test run in real stock Firefox without being rewritten.
+
+## Use
 ```
 pip install selenium
 export FIREFOX_PATH=/path/to/firefox GECKODRIVER_PATH=/path/to/geckodriver      # or have both on the PATH
@@ -47,6 +51,11 @@ How it behaves, so a result can be trusted:
 - `evaluate` runs your code **in the page's own world** (through a script element), so a page global you assign is the one the page's scripts see. A string is an expression (several statements are fine; the last value is returned); a string that evaluates to a function is called with the one optional argument, like Playwright; a promise is awaited. A page with a strict Content-Security-Policy that forbids inline scripts will refuse this.
 - Keys and mouse clicks go through geckodriver's real input actions, so the page gets trusted events (`isTrusted` is true).
 - `evaluate` leaves a small `data-pw-r` attribute on the root element for a moment to carry the result back.
+
+## Prior art and credits
+- Playwright for Python: only its call names and shapes (`sync_playwright`, `launch`, `new_page`, `goto`, `evaluate` and the others listed above) are copied, so an existing test runs unchanged. No Playwright code is included.
+- Selenium and geckodriver do the driving, and Firefox is the browser; none of them is included here. `pwfirefox.py` imports Selenium (install it with `pip install selenium`) and otherwise only Python's standard library.
+- The code is written for this repository (LFC Foundry, MIT); the headers of both Python files name no outside code.
 
 ## For AI agents
 - Keep it small and honest: add a call only when a real test needs it, give it a check in `test/run.py`, and keep the plain-words `NotImplementedError` for everything else. Do not make `route()` pretend to block, or `chromium` pretend to be Chromium.

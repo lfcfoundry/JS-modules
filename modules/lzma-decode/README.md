@@ -6,6 +6,14 @@
 
 A small LZMA1 decoder in about 135 lines of JavaScript with ES5 syntax (one ES2015 method, see Limits): readable, commented, tested against Python's own `lzma` module. Use it to unpack LZMA data in the browser, which can only unpack gzip and deflate natively. The matching packer is [`tools/lzma-pack`](../../tools/lzma-pack/README.md).
 
+It reads the compressed bytes one bit at a time through a range coder with the standard LZMA probability model, and writes the result into one output buffer that also serves as the dictionary for copying earlier data forward. It was written from the published LZMA specification and takes the stream and the exact decoded length as input.
+
+## Why it exists
+
+A browser can only unpack gzip and deflate natively, so a page packed with LZMA needs a decoder that travels with it. This one is small and readable in one sitting, which suits the self-unpacking pages made by `tools/lzma-pack`; it only decodes, so it stays short.
+
+## Try it and test it
+
 **Test it:** `node modules/lzma-decode/test/run.js` (needs `python3` on the PATH; offline; also runs the WebAssembly add-on against the same data). Browser timings: `tests/lzma-wasm-browser.js`.
 
 ## Quick start

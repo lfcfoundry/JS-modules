@@ -6,6 +6,12 @@
 
 A short note, kept only on the player's device, of the slow and broken moments a page lived through: errors, rejected promises, taps the browser calls slow and long frames. The player can copy it as plain text and paste it into a message when "it felt slow". 9.7 KB (3.7 KB gzipped), no dependencies. Cut from Apple Press.
 
+It listens to what the browser already measures: script errors and rejected promises, slow taps (Event Timing) and long frames (Long Animation Frames). When one happens (not in the first 4 seconds after load, and at most one of each kind per second) it adds one line to a short list that keeps the last 30, saved in the page's `localStorage` on the player's device. `note.text()` or `note.copy()` turns the list into plain text. Nothing is sent anywhere.
+
+## Why it exists
+"It felt slow on my phone" cannot be fixed without a hint of where. The browser already measures slow taps and long frames; this keeps the last few where the player can copy them, and sends nothing to anyone. That also means no privacy notice and no network use.
+
+## Try it and test it
 **Test it:** `node modules/slow-note/test/run.js` (7 checks on the log, about 0.2 s) and `node tests/pieces-browser.js` (a real page in Firefox 158 and ungoogled Chromium 155). **Try it:** `demo.html`.
 
 ## Use
@@ -31,9 +37,6 @@ note.onChange(function (count) { label.textContent = count + " moments noted."; 
 ## Numbers
 - One note costs about 1 microsecond (measured in Node 22, not in a test browser, 20,000 notes in a row), and nothing at all between events.
 - **What each browser can see** (checked 2026-10-17 from `PerformanceObserver.supportedEntryTypes`): ungoogled Chromium 155: errors, slow taps and slow frames. Firefox 158: errors and slow taps; it has no Long Animation Frames, so there are no slow-frame notes there.
-
-## Why
-"It felt slow on my phone" cannot be fixed without a hint of where. The browser already measures slow taps and long frames; this keeps the last few where the player can copy them, and sends nothing to anyone. That also means no privacy notice and no network use.
 
 ## How it compares
 It does a different job from the usual tools: it keeps a short note on the player's device that the player can copy, and sends nothing. The closest named library measures page metrics for your analytics and does not catch errors or keep a note. Speed in browsers: not measured.

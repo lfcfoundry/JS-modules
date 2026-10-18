@@ -6,6 +6,12 @@
 
 Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 16 KB (5.9 KB gzipped), no dependencies. Cut from Netflow Map's GIF maker.
 
+It first builds one palette (the set of colors) for the whole animation from a few of your pictures, by median cut and then k-means. Each picture you add is compared with the one before it: pixels that did not change are written as transparent, the picture is cropped to the box that did change, and the result is compressed with the GIF format's own LZW method at once. `finish()` returns the bytes of a plain GIF89a file with a loop block.
+
+## Why it exists
+A GIF of a game or a chart is mostly still: a background with something moving on it. Writing only the changed box in transparent pixels is the difference between a 23 KB file and a 160 KB one.
+
+## Try it and test it
 **Test it:** `node modules/gif-writer/test/run.js` (an independent GIF decoder reads every file the writer makes and checks every pixel; about 0.2 s). **Try it:** `demo.html`.
 
 ## Use
@@ -50,9 +56,6 @@ Where it loses:
 | Worst case: 20 pictures of 640 x 400 where every pixel changes every time | 1.09 MB in 562 ms | 1.14 MB in 294 ms |
 
 So on a mostly still animation the file is about 6.8 times smaller; when everything changes the file is about 5% smaller but it takes about 1.9 times longer. Your own pictures will land between the two.
-
-## Why
-A GIF of a game or a chart is mostly still: a background with something moving on it. Writing only the changed box in transparent pixels is the difference between a 23 KB file and a 160 KB one.
 
 ## Limits
 - At most 255 colors plus one transparent entry (the GIF format allows 256). Photos will look posterized and dithering is not done.

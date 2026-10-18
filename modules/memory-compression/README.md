@@ -6,6 +6,14 @@
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (270.0 KB readable, 83.5 KB gzipped). Two small WebAssembly helpers are inside the file and optional: the plain JavaScript does the same work and writes the same bytes, only slower. Until 2.0.0 this was two modules, `memory-compression` (bytes and typed arrays) and `memory-compression-jso` (objects). They are now this one file, and the separate `-jso` module is retired.
 
+You call `MemoryCompression.pack`, and it picks the layer from what you pass. Bytes and typed arrays go to the packing core: it shuffles the bytes so similar parts sit together, takes the difference between neighbors in each column, then squeezes the result with an LZ4-class coder (fast mode) or deflate (small mode). Lists of records and other plain JavaScript values go to the object layer: it stores records by column, lets each column pick its cheapest form (repeated values, narrow whole numbers, scaled decimals, a dictionary for repeated text, text patterns, dates), and sends the number columns through the packing core. `unpack` reads the first two bytes to see which layer wrote the data and gives back the same values.
+
+## Why it exists
+
+Big scenes, undo steps, save data and large tables take a lot of memory when they are kept as they are, and the usual way to shrink them is a general compressor that treats floats and records as plain bytes. This module first rearranges the data (byte shuffle, per-column difference, records split into columns) so numbers pack better, and it brings everything back exactly. It is meant for data that sits still and is restored when needed, not for what is drawn this frame (see "What it is not" in part 1).
+
+## Try it and test it
+
 **Test it:** `node modules/memory-compression/test/core.js` (packing core, 24 checks), `test/run.js` (object layer, 38 checks) and `test/router.js` (the one entry point, 13 checks); each takes a few seconds. Add `--js-only` to run without WebAssembly and `FULL=1` for 10 times more random cases (`core.js` and `run.js`). **Try it:** `demo.html` (objects) and `demo-arrays.html` (arrays and bytes). **Rebuild the file:** `python3 modules/memory-compression/build.py`.
 
 ## One file, one entry point

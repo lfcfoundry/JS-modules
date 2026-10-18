@@ -6,6 +6,14 @@
 
 Lays out a graph in rows (a layered, Sugiyama-style drawing): top to bottom or left to right, with long links drawn as tags, rows in the order of the story, a column for the pages every route passes, and tall maps cut into columns. It is the layered engine of Netflow Map, which draws Flow, Top-down, Spine, Lanes, Arc and Matrix from it. About 28 KB (28,868 bytes; 9.3 KB gzipped), no dependencies. Works in a browser (global `NetflowLayers`) and in Node (`module.exports`).
 
+It works in three steps: it puts each page in a row (by fewest steps from the start, or in story order), then reorders the pages inside each row to cut crossings, then gives every page a place. Links that skip many rows are either given stand-in stops along the way or, with `tagLen`, drawn as short tags at each end. It returns the places and link paths as plain data, and `toSvg` can draw them.
+
+## Why it exists
+
+Netflow Map needs to draw maps of how people move through many pages, including long stories with thousands of pages, where the ordinary layered drawing makes a mess of "going back" links and very long links. This module is that drawing engine cut out of Netflow Map, with switches aimed at such maps (tags for long links, story order, a column for the pages every route passes, columns for tall maps), so other pages can use it too.
+
+## Try it and test it
+
 **Test it:** `node modules/netflow-layers/test/run.js` (16 checks, about 0.4 s). **Try it:** `demo.html` (type links, the picture redraws).
 
 ## Use

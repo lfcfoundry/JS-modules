@@ -6,6 +6,13 @@
 
 Tiny checks for browsers that quietly change what your page can do. About 11 KB minified (about 4.4 KB gzipped; measured with terser 5.36.0), no dependencies. Open `demo.html` for the one-button device check page. Never throws, in a page, a Worker or Node.
 
+Each check tests the real behavior instead of asking for a browser name: it reads `performance.now()` in a short loop to see how big its smallest step is, draws a small patch of pixels and reads them back to see if they changed, writes and removes one small storage key, and asks the browser's media queries about motion, touch and contrast. Results are plain values, and `explain()` turns them into short sentences.
+
+## Why it exists
+With a rounded clock, per-frame meters measure nothing. With scrambled canvas read-back, anything that analyzes pixels turns into noise. Tor Browser also shows a permission prompt on read-back, which is why the canvas test is not tried when the clock is rounded. Run these first and skip the code that cannot work.
+
+## The calls
+
 ```js
 EnvProbes.timerRounded();      // true: the clock is rounded (Firefox "resist fingerprinting" ~16.67 ms, Tor-style 100 ms)
 EnvProbes.timerStepMs();       // the smallest step performance.now() took, in ms (0 = it never moved)
@@ -26,9 +33,6 @@ EnvProbes.capabilities();      // { webLocks, wakeLock, closeWatcher, gamepad, c
 EnvProbes.report();            // all of the above in one object, handy in bug reports
 EnvProbes.explain();           // short plain-words sentences, e.g. "This browser rounds its clock, so frame meters should be switched off..."
 ```
-
-## Why it matters
-With a rounded clock, per-frame meters measure nothing. With scrambled canvas read-back, anything that analyzes pixels turns into noise. Tor Browser also shows a permission prompt on read-back, which is why the canvas test is not tried when the clock is rounded. Run these first and skip the code that cannot work.
 
 ## How each probe works
 - **Clock:** reads `performance.now()` in a bounded loop (at most 30,000 reads, usually under a millisecond) until it has seen three steps, and keeps the smallest. A rounded clock shows 16 ms or more on every step, so three are enough. No step at all, or a smallest step above about 8 ms, means "rounded". It never waits on `Date.now`, so it cannot stall the page. If `performance.now` is missing, the clock counts as rounded.

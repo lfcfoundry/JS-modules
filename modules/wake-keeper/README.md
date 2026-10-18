@@ -6,6 +6,13 @@
 
 Keeps a phone or tablet screen awake **only while a game really wants it**. About 7 KB, no dependencies.
 
+It asks the browser's Screen Wake Lock for a lock when you call `want(true)`, and gives it back when you call `want(false)`, when the tab is hidden, or after `idleMs` without a tap or key press (`poke()`). It asks again when the tab comes back, holds one lock at a time, and waits a while before asking again after a refusal.
+
+## Why it exists
+The raw API is three lines, but a game that grabs the lock on load and never lets go drains the battery on a title screen or a forgotten tab. The core rules (release when hidden, ask again when visible, one lock at a time, show when it is held) follow MDN and the specification. Releasing after a quiet spell and the refusal wait are this module's own additions, not platform rules.
+
+## Try it and test it
+
 **Test it:** `node modules/wake-keeper/test/run.js` (fake browser, 42 checks).
 
 ## Use
@@ -73,9 +80,6 @@ Where it loses:
 - Not tried on a phone: the real lock was used only in Chromium and Firefox in the test browsers; WebKitGTK and GNOME Web refuse the request, so a stand-in lock was used there.
 - The 60 second release and the 20 second refusal wait are choices made here, not rules.
 - Not measured: speed in any browser, and the gzipped size of NoSleep.js.
-
-## Why
-The raw API is three lines, but a game that grabs the lock on load and never lets go drains the battery on a title screen or a forgotten tab. The core rules (release when hidden, ask again when visible, one lock at a time, show when it is held) follow MDN and the specification. Releasing after a quiet spell and the refusal wait are this module's own additions, not platform rules.
 
 ## Limits
 - Needs `navigator.wakeLock` (Chrome 84+, Firefox 126+, Safari and Safari on iPhone 16.4+) and a secure context. Without it `supported` is `false` and nothing happens. Home-screen web apps on iPhone did not work from iOS 16.4 until iOS 18.4 (MDN compatibility data).
