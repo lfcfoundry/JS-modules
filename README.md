@@ -27,7 +27,7 @@ Make a game behave on slow phones, privacy-focused browsers and power-saving scr
 | Module | One line | Global | Version |
 |---|---|---|---|
 | [env-probes](modules/env-probes/README.md) | Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. | `EnvProbes` | 1.1.0 · API 1 |
-| [fx-governor](modules/fx-governor/README.md) | Steps visual effects down when the device cannot keep up; never back up behind the player. | `FxGovernor` | 1.1.0 · API 1 |
+| [fx-governor](modules/fx-governor/README.md) | Steps visual effects down when the device cannot keep up; never back up behind the player. | `FxGovernor` | 1.1.1 · API 1 |
 | [frame-kit](modules/frame-kit/README.md) | Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. | `EvenDt`, `QualityGovernor`, `JobPump`, `FrameMeter` | 1.2.1 · API 1 |
 | [slow-note](modules/slow-note/README.md) | Keeps a short note, only on the device, of the errors, slow taps and long frames a page had; copyable as plain text, nothing is sent anywhere. | `SlowNote` | 1.0.0 · API 1 |
 
@@ -157,7 +157,7 @@ For building and testing. Not shipped inside a game or story.
 | [storage-probe](tools/storage-probe/README.md) | Page that tells you in plain words whether copies of a page saved in different folders share their saved data, see each other's writes and locks; one button, copyable report. | 1.1.0 · API 1 |
 | [firefox-stand-in](tools/firefox-stand-in/README.md) | Runs a Playwright-for-Python test in stock Firefox (through Selenium and geckodriver) without rewriting it; says plainly which calls it supports and stops with a clear message on the rest. | 1.0.0 · API 1 |
 | [test-isolation](tools/test-isolation/README.md) | Puts a prefix in front of every localStorage key on a test page, so a speed test or random-play run never touches the real saved game. | 1.1.0 · API 1 |
-| [speed-lab](tools/speed-lab/README.md) | One-button speed test run on the device: compares your page with parts switched off, keeps the scene in view and uncovered, and says the answer in plain sentences with a copyable table. | 1.1.0 · API 1 |
+| [speed-lab](tools/speed-lab/README.md) | One-button speed test run on the device: compares your page with parts switched off, keeps the scene in view and uncovered, and says the answer in plain sentences with a copyable table. | 1.1.1 · API 1 |
 | [webkit-driver](tools/webkit-driver/README.md) | Drives WebKitGTK or GNOME Web from Node with no dependencies, using the call names of Playwright and Puppeteer (goto, evaluate, waitForFunction, mouse, keyboard, screenshot, console errors), so a test written for them can also run in WebKit. | 1.2.0 · API 1 |
 
 #### For the story editor
