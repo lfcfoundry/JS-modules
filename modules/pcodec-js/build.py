@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 LFC Foundry. MIT License. Version 1.0.0 (API 1)
+# Copyright (c) 2026 LFC Foundry. MIT License. Version 1.0.1 (API 1)
 # Builds the three shipped files from src/ and the WebAssembly programs in wasm/:
 #   pcodec-js.js       reader, the speed-built program (no SIMD needed)
 #   pcodec-js-fast.js  reader, the SIMD program (about 15% faster unpack on Firefox; needs a browser with WebAssembly SIMD)
@@ -14,7 +14,7 @@ def opt(name, default):
 here = os.path.dirname(os.path.abspath(__file__))
 wasm_dir = os.path.join(here, 'wasm')
 out_dir = opt('--out', here)
-version = opt('--version', '1.0.0')
+version = opt('--version', '1.0.1')
 src = open(os.path.join(here, 'src', 'pcodec-js.src.js'), encoding='utf8').read()
 warm = open(os.path.join(here, 'src', 'warm.json'), encoding='utf8').read().strip()
 pack_api = open(os.path.join(here, 'src', 'pack_api.js'), encoding='utf8').read().rstrip('\n')
