@@ -79,6 +79,13 @@ try:
     rc, out = run(root, "set", "nope", "1.0.0"); check("an unknown id is refused", rc != 0)
     rc, out = run(root, "set", "alpha", "1.2", "--note", "x"); check("a malformed number is refused", rc != 0)
     rc, out = run(root, "list"); check("list prints the labels", rc == 0 and "alpha" in out and "2.4.1 · API 2" in out, out)
+    sys.path.insert(0, os.path.join(HERE, ".."))
+    import versions as V
+    sample = ("# t\n\n## Pick a piece\n\n### Games\n\n#### Controls\n\n| Module | Size | One line |\n|---|---|---|\n| [a](m/a/README.md) | 1.5 KB · 0.5 KB gz | x |\n| [b](m/b/README.md) | n/a | y |\n\n"
+              "### Tools\n\n#### For games\n\n| Tool | One line |\n|---|---|\n| [g](t/g/README.md) | z |\n")
+    g = V.set_glance(sample)
+    check("the glance index lists modules with gzipped size, tools by name", "- Controls: [a](m/a/README.md) 0.5, [b](m/b/README.md)\n" in g and "**Modules (2)**" in g and "- For games: [g](t/g/README.md)\n" in g and g.index("## All at a glance") < g.index("## Pick a piece"), g)
+    check("the glance index is refreshed in place, not stacked", V.set_glance(g) == g and V.set_glance(g.replace("0.5, ", "9.9, ")) == g and g.count("All at a glance") == 1)
 finally:
     shutil.rmtree(root, ignore_errors=True)
 print("versions: " + ("%d FAILED" % fail if fail else "all checks passed"))
