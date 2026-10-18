@@ -1,8 +1,8 @@
 # walker-sim
 
-**Version 2.1.0 · API 2**
+**Version 2.2.0 · API 2**
 
-**Tested in:** Node 22 (84 checks, for the readable file, the minified file and the joined file); Firefox 158.0 (reports 158.0b5), ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, in a real browser (tests/walker-sim-browser.js, 2026-10-17). Not run: the demo page in GNOME Web, a phone
+**Tested in:** Node 22.22.0 (walker-sim checks on all four files); tests/wasm-default-bench.js one browser at a time on 2026-10-18: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; the default file also on a page without WebAssembly in all four
 
 Simulates random walkers on a network (where do they end up, how long does it take, what does it cost), with the exact odds worked out by arithmetic so you can check the simulation against them. No dependencies. Cut from Netflow Map. 61 KB readable (with its notes), or 31 KB as `walker-sim.min.js` (12.1 KB gzipped). The plain-words names for the random-number kinds are an optional 4 KB file, `walker-sim-menu.js` (1.5 KB gzipped), that a settings page loads and a script does not.
 
@@ -14,7 +14,7 @@ When a result comes from a simulation you want to know the simulation is right. 
 
 ## Use
 
-Copy `walker-sim.js` (or `walker-sim.min.js`); a `<script>` tag sets `WalkerSim`, or `require` it in Node.
+Copy `walker-sim-with-wasm.js` (or `walker-sim-with-wasm.min.js`), the default: a `<script>` tag sets `WalkerSim`, or `require` it in Node. Big runs use a small WebAssembly walking loop and everything else, or any page that forbids WebAssembly, uses the JavaScript loop; the counts are the same either way. Pages that must stay as small as possible copy `walker-sim.js` (or `walker-sim.min.js`), the JavaScript-only file.
 
 ```js
 var P = WalkerSim.graph({ links: [
@@ -50,14 +50,42 @@ const merged = WalkerSim.merge(P, Object.assign({ weights: P.w }, fullCfg), part
 
 Counts, shares, step counts, visits, moves and per-trial percentiles come out identical to one run; cost percentiles agree closely, not exactly. `maxWalkers` and `precision` apply inside one sim, so give each worker its own share. A Web Worker needs no second file: put the source text of `walker-sim.js` and an `onmessage` handler in a Blob.
 
-## Optional WebAssembly loop
+## WebAssembly first (the default since 2.2.0)
 
-Your choice: `walker-sim.js` alone (the default, plain JavaScript, works under any page policy), or `walker-sim.js` plus `walker-sim-wasm.js` (or the two joined in `walker-sim-with-wasm.min.js`). The counts are exactly the same either way; only the speed differs.
+Which file to copy:
 
-- The walking loop runs as a 1 KB WebAssembly program that takes over after a run's first 20,000 walkers (`cfg.wasmAfter`), so small runs never pay for setting it up. `cfg.wasm = false` keeps one run on JavaScript; `sim.engine` says which loop ran (`'js'` or `'wasm'`).
-- It needs a page that allows WebAssembly (policy word `wasm-unsafe-eval`). Otherwise loading the file does nothing: `WalkerSim.wasm` is `false` and everything runs on the JavaScript loop (checked in all four browsers with a page that forbids it; Firefox also prints a console message).
-- Size: `walker-sim-wasm.min.js` 3,968 bytes (2,039 gzipped); joined file 34,807 (13,857 gzipped); plain `walker-sim.min.js` 30,839 (12,141 gzipped).
+| File | What it is | Size (smaller is better) |
+|---|---|---|
+| `walker-sim-with-wasm.js` / `walker-sim-with-wasm.min.js` | **The default.** `walker-sim.js` followed by `walker-sim-wasm.js`: the WebAssembly loop is on from the start. | 66,418 bytes (21,502 gzipped) / 34,764 bytes (13,864 gzipped) |
+| `walker-sim.js` / `walker-sim.min.js` | JavaScript only, works under any page policy; for pages that must stay small. | 61,220 bytes (19,219 gzipped) / 30,800 bytes (12,099 gzipped) |
+| `walker-sim-wasm.js` / `walker-sim-wasm.min.js` | The WebAssembly loop alone, to load after `walker-sim.js`. The default file already holds both. | 5,197 bytes (2,435 gzipped) / 3,964 bytes (2,015 gzipped) |
+
+- The walking loop runs as a 1 KB WebAssembly program that takes over after a run's first 20,000 walkers (`cfg.wasmAfter`), so small runs never pay for setting it up. `cfg.wasm = false` keeps one run on JavaScript; `sim.engine` says which loop ran (`'js'` or `'wasm'`). The counts are exactly the same either way for the same seed.
+- It needs a page that allows WebAssembly (policy word `wasm-unsafe-eval`). Otherwise `WalkerSim.wasm` is `false` and everything runs on the JavaScript loop (checked in all four browsers with a page that forbids it; Firefox also prints a console message).
+- `walker-sim-with-wasm.js` is `walker-sim.js` followed by `walker-sim-wasm.js`, nothing else; `test/make-min.js` builds it and the minified files, and the tests fail when it is stale.
 - Source: `wasm/walker-sim.c`; `wasm/build.sh` builds `wasm/walker-sim.wasm` (966 bytes, needs clang with wasm32) and `wasm/embed.py` puts it into `walker-sim-wasm.js`.
+
+1,000,000 walkers on the README network in a freshly opened page (graph building and the WebAssembly start-up included), median of 7, the two files taking turns. **Lower milliseconds are better; a bigger "times faster" is better.**
+
+| Browser | Plain file (ms) | Default file (ms) | Times faster |
+|---|---:|---:|---:|
+| ungoogled-chromium 155.0.8059.39-1 | 88.6 | 57.6 | 1.54x |
+| Firefox 158.0 (reports 158.0b5) | 88.0 | 56.0 | 1.57x |
+| WebKitGTK 2.52.6 | 46.0 | 59.0 | 0.78x |
+| GNOME Web 46.5 | 50.0 | 58.0 | 0.86x |
+
+WebKit-family browsers are the exception, and the numbers say so plainly. In a freshly opened page the WebAssembly loop is slower there, at every size tried (milliseconds for the whole page, smaller is better; "default, cfg.wasm = false" is the default file with the loop switched off, to show the extra file itself costs about nothing):
+
+| Walkers | Browser | Plain file | Default file | Default, `cfg.wasm = false` |
+|---|---|---:|---:|---:|
+| 100,000 | WebKitGTK 2.52.6 | 14 | 22 | 18 |
+| 100,000 | GNOME Web 46.5 | 15 | 25 | 19 |
+| 1,000,000 | WebKitGTK 2.52.6 | 46 | 53 | 47 |
+| 1,000,000 | GNOME Web 46.5 | 51 | 59 | 51 |
+| 4,000,000 | WebKitGTK 2.52.6 | 142 | 160 | 144 |
+| 4,000,000 | GNOME Web 46.5 | 144 | 173 | 156 |
+
+The 2.1.0 figures for these two browsers (1.0 to 1.3 times faster) came from a page that had already run the loop several times; the first run in a new page, which is what a visitor sees, goes the other way. Chromium and Firefox gain about 1.5 times either way. A page aimed at Safari-like browsers can set `cfg.wasm = false` or copy `walker-sim.js`.
 
 ## Numbers
 
@@ -78,7 +106,7 @@ A 95% range misses about 1 end in 20 by design.
 
 **Worker threads** (2,000,000 walkers, ms, lower is better; 4-core cloud machine; includes starting the workers and adding up; counts identical to one thread): ungoogled Chromium 155 474 on one thread, 246 on 2 workers, 219 on 4; Firefox 158 589, 346, 207; WebKitGTK 2.52.6 244, 151, 178.
 
-**WebAssembly loop against the plain 2.1.0 file** (1,000,000 walkers, ms, lower is better): Node 80 to 44, ungoogled Chromium 155 110 to 52, Firefox 158 111 to 52, WebKitGTK 2.52.6 82 to 65, GNOME Web 46.5 50 to 52 (no gain). It is for Chrome-type and Firefox pages with big runs. Runs of one walker per trial do not gain (1.0 to 1.1 times); runs with costs, waits or uncertain weights do not use it.
+**WebAssembly loop against the plain 2.1.0 file, in a page that had already run the loop a few times** (1,000,000 walkers, ms, lower is better; the freshly opened page figures are in the WebAssembly section above and differ in WebKit): Node 80 to 44, ungoogled Chromium 155 110 to 52, Firefox 158 111 to 52, WebKitGTK 2.52.6 82 to 65, GNOME Web 46.5 50 to 52 (no gain). It is for Chrome-type and Firefox pages with big runs. Runs of one walker per trial do not gain (1.0 to 1.1 times); runs with costs, waits or uncertain weights do not use it.
 
 ## How it compares
 
@@ -104,8 +132,8 @@ walker-sim is one package for a job usually done by hand. No ready-made package 
 - Build the graph once with `graph`, call `exactEndpoints` first: if it returns odds, show the simulation next to them, say how far apart they are, and say so when `converged` is false.
 - Always set `seed`. Never report a simulated number without its 95% range. For a big run use `precision`, or share trials between workers (`firstTrial` / `trials`, `export()`, `merge()`).
 - Load `walker-sim-menu.js` after `walker-sim.js` only for a settings page that lists the random-number kinds.
-- Use `walker-sim.js` alone unless the page allows WebAssembly and runs are big (100,000 walkers or more); then add `walker-sim-wasm.js` (or `walker-sim-with-wasm.min.js`) for about twice the speed in Chromium and Firefox. Results are identical without it.
-- Rebuild the minified file with `TERSER=/path/to/terser node modules/walker-sim/test/make-min.js` after any change.
+- Use `walker-sim-with-wasm.js` (the default). Use `walker-sim.js` alone only when the page must stay small or never runs big simulations (100,000 walkers or more). Results are identical either way.
+- Rebuild the minified file with `TERSER=/path/to/terser node modules/walker-sim/test/make-min.js` after any change; it also rebuilds `walker-sim-with-wasm.js` (the two sources one after the other). Browser timings: `tests/wasm-default-bench.js`.
 
 ## Prior art and credits
 
