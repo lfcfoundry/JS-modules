@@ -1,0 +1,3 @@
+body{font:15px/1.4 system-ui,sans-serif;margin:16px;max-width:900px}
+canvas{width:100%;aspect-ratio:8/5;border:1px solid #8884;border-radius:8px;display:block}
+label{margin-right:12px}

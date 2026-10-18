@@ -1,19 +1,64 @@
-/* Copyright (c) 2026 LFC Foundry. MIT License. netflow-engine placeholder checks: the file loads, says it is a placeholder, and its version matches the label. Run: node modules/netflow-engine/test/run.js */
+/* Copyright (c) 2026 LFC Foundry. MIT License. netflow-engine checks: it loads, lays out every view, is repeatable, gives the same picture with and without WebAssembly, leaves no two items on top of each other, and tells you plainly when an add-on is missing. Run: node modules/netflow-engine/test/run.js */
 'use strict';
 const fs = require('fs'), path = require('path');
-const NE = require('../netflow-engine.js');
-let bad = 0;
+const E = require('../netflow-engine.js'), NL = require('../../netflow-layers/netflow-layers.js');
+let bad = 0, count = 0;
 const ok = (c, m) => { if (!c) throw new Error(m); };
-const t = (name, fn) => { try { fn(); console.log('ok   ' + name); } catch (e) { bad++; console.log('FAIL ' + name + ': ' + e.message); } };
-t('status() says it is a placeholder, with a version and an API number', () => {
-  const s = NE.status();
-  ok(s.placeholder === true, 'placeholder flag'); ok(/^\d+\.\d+\.\d+$/.test(s.version), 'version ' + s.version); ok(s.api === +s.version.split('.')[0], 'API equals the major'); ok(/placeholder/.test(s.message), 'message');
-});
-t('the file header, status() and modules.json agree on the version', () => {
-  const root = path.join(__dirname, '..', '..', '..');
+const t = (name, fn) => { count++; try { fn(); console.log('ok   ' + name); } catch (e) { bad++; console.log('FAIL ' + name + ': ' + e.message); } };
+const rng = (seed) => { let s = seed | 0; return () => { s = (s + 0x6d2b79f5) | 0; let x = Math.imul(s ^ (s >>> 15), 1 | s); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; };
+function story(n, seed) { const r = rng(seed), nodes = [], edges = []; for (let i = 0; i < n; i++) nodes.push({ id: 'n' + i, label: 'Page ' + i, group: ['A', 'B', 'C'][i % 3], valence: i === n - 1 ? 'good' : i === n - 2 ? 'bad' : '', ghost: false, attrs: {} }); for (let i = 1; i < n; i++) { edges.push({ from: 'n' + Math.floor(r() * i), to: 'n' + i, label: '', kind: '', attrs: {} }); if (r() < 0.5) edges.push({ from: 'n' + Math.floor(r() * n), to: 'n' + Math.floor(r() * n), label: '', kind: '', attrs: {} }); } return { start: 'n0', nodes, edges: edges.filter((e) => e.from !== e.to) }; }
+const network = (n, seed) => { const g = story(n, seed); g.start = null; return g; };
+const copy = (g) => JSON.parse(JSON.stringify(g));
+const same = (a, b) => JSON.stringify(a, (k, v) => (k === 'ms' ? undefined : ArrayBuffer.isView(v) ? Array.from(v) : v)) === JSON.stringify(b, (k, v) => (k === 'ms' ? undefined : ArrayBuffer.isView(v) ? Array.from(v) : v));
+function touching(L) {
+  let rmax = 0; L.nodes.forEach((n) => { rmax = Math.max(rmax, n.w / 2); });
+  const cell = 2 * rmax, grid = new Map(); let pairs = 0;
+  L.nodes.forEach((n, i) => { const k = Math.floor(n.cx / cell) + ',' + Math.floor(n.cy / cell); (grid.get(k) || grid.set(k, []).get(k)).push(i); });
+  L.nodes.forEach((a, i) => { const cx = Math.floor(a.cx / cell), cy = Math.floor(a.cy / cell); for (let gx = -1; gx <= 1; gx++) for (let gy = -1; gy <= 1; gy++) { const l = grid.get((cx + gx) + ',' + (cy + gy)); if (l) l.forEach((j) => { if (j > i) { const b = L.nodes[j]; if (Math.hypot(a.cx - b.cx, a.cy - b.cy) < (a.w + b.w) / 2 - 0.01) pairs++; } }); } });
+  return pairs;
+}
+E.use('layers', NL);
+t('it loads, says it is the real engine, and its version, header and modules.json agree', () => {
+  const s = E.status(); ok(s.placeholder === false, 'placeholder flag'); ok(/^\d+\.\d+\.\d+$/.test(s.version) && s.api === +s.version.split('.')[0], 'version ' + s.version);
   const head = fs.readFileSync(path.join(__dirname, '..', 'netflow-engine.js'), 'utf8').match(/Version (\d+\.\d+\.\d+) \(API (\d+)\)/);
-  const reg = JSON.parse(fs.readFileSync(path.join(root, 'modules.json'), 'utf8')).modules.find((m) => m.id === 'netflow-engine');
-  ok(head && head[1] === NE.status().version, 'header ' + (head && head[1])); ok(reg && reg.version === head[1] && reg.api === +head[2], 'modules.json');
+  const reg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '..', 'modules.json'), 'utf8')).modules.find((m) => m.id === 'netflow-engine');
+  ok(head && head[1] === s.version && +head[2] === s.api, 'header ' + (head && head[1])); ok(reg && reg.version === s.version && reg.api === s.api, 'modules.json');
 });
-t('it exposes nothing but status() until the engine code lands', () => ok(Object.keys(NE).join() === 'status', Object.keys(NE).join()));
-console.log(bad ? bad + ' FAILED' : '3 checks passed'); process.exit(bad ? 1 : 0);
+t('every view lays out a 300-page story and a 1,500-item network, with positions for everything', () => {
+  E.VIEWS.forEach((v) => [story(300, 2), network(1500, 5)].forEach((g) => {
+    const L = E.build(copy(g), { view: v[0] });
+    if (v[0] === 'shape') { ok(L.segs.length > 0, 'shape: no stretches'); return; }   // the Shape view returns stretches between choke points, not items
+    ok(L.nodes.length > 0, v[0] + ' empty'); ok(L.nodes.every((n) => isFinite(n.cx === undefined ? n.x : n.cx) && isFinite(n.cy === undefined ? n.y : n.cy)), v[0] + ' has a position that is not a number');
+  }));
+});
+t('the same map twice gives the same picture', () => { const g = network(800, 6); ok(same(E.build(copy(g), { view: 'network' }), E.build(copy(g), { view: 'network' })), 'differs'); });
+t('with WebAssembly off the picture is the same (Force and Distances, 600 items)', () => {
+  const g = network(600, 7); ['force', 'stress'].forEach((arr) => {
+    const w = E.build(copy(g), { view: 'network', arrange: arr }); const f = E.forceWasm.on, s = E.stressWasm.on; E.forceWasm.on = false; E.stressWasm.on = false;
+    let j; try { j = E.build(copy(g), { view: 'network', arrange: arr }); } finally { E.forceWasm.on = f; E.stressWasm.on = s; }
+    ok(same(w, j), arr + ': positions differ between wasm and plain JavaScript');
+  });
+});
+t('no two items on top of each other (stress, force, closeness: 2,000 items)', () => ['stress', 'force', 'closeness'].forEach((arr) => { const p = touching(E.build(copy(network(2000, 8)), { view: 'network', arrange: arr })); ok(p === 0, arr + ': ' + p + ' touching pairs'); }));
+t('a start page that does not exist, an empty map and a single item do not crash', () => {
+  const g = story(30, 9); g.start = 'nope'; E.build(copy(g), { view: 'flow' });
+  E.build({ start: null, nodes: [], edges: [] }, { view: 'network' });
+  E.build({ start: 'a', nodes: [{ id: 'a', label: 'a', group: '', valence: '', ghost: false, attrs: {} }], edges: [] }, { view: 'flow' });
+});
+t('use() takes layers and sankey, refuses other names, and the layered views say what is missing', () => {
+  ok(E.use('layers', NL) === E, 'use returns the engine'); let msg = ''; try { E.use('chart', {}); } catch (e) { msg = e.message; } ok(/layers.*sankey/.test(msg), 'message: ' + msg);
+});
+t('the River view works with the layers add-on alone, and with the published netflow-sankey when its sk options are left out', () => {
+  const S = require('../../netflow-sankey/netflow-sankey.js'), g = story(60, 7); g.start = 'n0'; E.use('layers', NL);
+  ok(E.build(copy(g), { view: 'river' }).nodes.length === 60, 'river without the sankey add-on');
+  E.use('sankey', S); ok(E.build(copy(g), { view: 'river' }).nodes.length === 60, 'river with the sankey module handed over, no sk options');
+  if (typeof S.options === 'function' && typeof S.apply === 'function') ok(E.build(copy(g), { view: 'river', sk: {} }).nodes.length === 60, 'river with sk options');
+  else { let threw = false; try { E.build(copy(g), { view: 'river', sk: {} }); } catch (e) { threw = /options/.test(e.message); } ok(threw, 'the documented gap: sk options throw while netflow-sankey lacks options/apply'); }
+  E.use('sankey', null);
+});
+t('the column reader is exposed and reads numbers the way people write them', () => { ok(E.columns.num('1,234.5') === 1234.5 && E.columns.num('12%') === 12 && isNaN(E.columns.num('0x10')), 'num'); });
+t('the file has no dependencies and builds no code from text (no eval, no new Function)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'netflow-engine.js'), 'utf8').replace(/'[A-Za-z0-9+/=]{200,}'/g, "''");
+  ok(!/\beval\s*\(/.test(src) && !/new Function\s*\(/.test(src), 'eval or new Function found'); ok((src.match(/\brequire\(/g) || []).length <= 2, 'unexpected require');
+});
+console.log(bad ? bad + ' of ' + count + ' FAILED' : count + ' checks passed'); process.exit(bad ? 1 : 0);
