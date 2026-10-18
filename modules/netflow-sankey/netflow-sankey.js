@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.0.0 (API 2)
+ * Version 2.1.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -122,10 +122,11 @@
   }
 
   /**
-   * layout(L, opts). L: the River drawing from the engine (L.nodes with .id .layer .label, L.edges with .from .to .flow .kind and, for long links, .pts).
+   * layout(L, opts). L: the Sankey drawing from the engine (L.nodes with .id .layer .label, L.edges with .from .to .flow .kind and, for long links, .pts).
    * opts: unweighted (order as the old picture does: every link counts the same, no restarts), justifySinks, height (picture height to aim for), nodeW (bar width), gapLayer, pad (space between bars), restarts, budgetMs, seed.
    * Returns { nodes: [{id, label, x, y, w, h, layer, flow}], bands: [{edge, from, to, x0, y0a, y0b, x1, y1a, y1b, xm}], loops: [{edge, from, to, d, w, pts}],
-   *           width, height, ky (pixels per unit of flow), crossingWeight, ms }.
+   *           width, height, ky (pixels per unit of flow), crossingWeight, order, cols, ms }.
+   * options(sk) cleans up a person's settings ({ nodeW, gap, pad, height, fixY, justify, order }) into the opts above; apply(L, r) writes a layout() result into the engine's drawing L (bar positions, picture size, L.sk).
    */
   function layout(L, opts) {
     opts = opts || {};
@@ -391,6 +392,19 @@
     return out;
   }
   /** Writes a layout result into the drawing L (bar positions, size of the picture) and keeps the rest in L.sk. */
+  function apply(L, r) {
+    var byId = {}; r.nodes.forEach(function (n) { byId[n.id] = n; });
+    var put = function (n, s) { n.x = s.x; n.y = s.y; n.w = s.w; n.h = s.h; n.cx = s.x + s.w / 2; n.cy = s.y + s.h / 2; n.layer = s.layer; };
+    L.nodes.forEach(function (n) { var s = byId[n.id]; if (!s) return; put(n, s); var p = L.pos && L.pos[n.id]; if (p && p !== n) put(p, s); n.skIn = s.inFlow; n.skOut = s.outFlow; n.skPinned = s.pinned; });
+    L.width = r.width; L.height = r.height; L.dir = 'LR';
+    L.sk = { bands: r.bands, loops: r.loops, ky: r.ky, order: r.order, cols: r.cols, crossingWeight: r.crossingWeight, ms: r.ms };
+    return L;
+  }
+  /** The look-and-place settings a person can change, cleaned up for layout(): { nodeW, gap, pad, height, fixY, justify }. */
+  function options(sk) {
+    sk = sk || {}; var num = function (v, d, lo, hi) { return typeof v === 'number' && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
+    return { nodeW: num(sk.nodeW, 14, 4, 80), gapLayer: sk.gap >= 60 ? num(sk.gap, 190, 60, 700) : undefined, autoGap: !(sk.gap >= 60), pad: num(sk.pad, 12, 2, 80), height: num(sk.height, 0, 0, 4000) || undefined, fixY: sk.fixY || {}, justifySinks: sk.justify !== false, fixedOrder: sk.order && sk.order.layers && sk.order.loops ? sk.order : undefined };
+  }
   function f(n) {   // n rounded to 2 decimals as a number; the quick way is used unless n*100 is close to a half (where only toFixed is exact)
     var t = n * 100, r = Math.round(t), e = t - r;
     if (e < 0.49 && e > -0.49 && t < 1e12 && t > -1e12) return n === 0 ? 0 : r / 100;
@@ -462,5 +476,5 @@
     return s + '</svg>';
   }
 
-  return { layoutFlows: layoutFlows, toSvg: toSvg, fromLinks: fromLinks, layout: layout, layering: layering, crossWeight: crossWeight, roundPath: roundPath, toBezier: toBezier };
+  return { layoutFlows: layoutFlows, toSvg: toSvg, fromLinks: fromLinks, layout: layout, apply: apply, options: options, layering: layering, crossWeight: crossWeight, roundPath: roundPath, toBezier: toBezier };
 }));
