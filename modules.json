@@ -120,7 +120,7 @@
     },
     {
       "id": "frame-kit",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "api": 1,
       "global": "EvenDt, QualityGovernor, JobPump, FrameMeter",
       "summary": "Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words.",

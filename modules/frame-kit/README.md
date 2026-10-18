@@ -1,8 +1,8 @@
 # frame-kit
 
-**Version 1.2.0 · API 1**
+**Version 1.2.1 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/small-lean-browser.js: 0 failures in each of the four; Chromium and Firefox used the real CloseWatcher with the real Escape key and the browser's own wake lock; WebKitGTK and GNOME Web have no CloseWatcher, so 3 back-close situations say 'not available', and they refuse the wake lock request (NotAllowedError), so their 6 wake-keeper situations ran with a stand-in lock). Not run: a phone, Safari itself; node modules/frame-kit/test/lean.js 27 of 27, 67 older Node checks
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (tests/frame-kit-browser.js: the module's 67 checks inside each page plus about 1.5 s of real animation frames, 67 of 67 in all four, the badge read 60 FPS in Chromium and Firefox and 62 FPS in WebKitGTK and GNOME Web; 3 to 8 s each including start-up; Node 67 checks)
 
 Test everything (Node only, offline, about a second): `node modules/frame-kit/test/run.js` (run from the repository root; it exits non-zero on any failure).
 Browser check of the example (Playwright for Python, Chromium already installed): `python3 modules/frame-kit/test/check-example.py`.
@@ -173,11 +173,11 @@ function frame(now) {
 }
 ```
 
-`frame(now, workMs, gapMs)` returns true when the numbers were refreshed (about twice a second). `workMs` is how long your own update and draw took in the frame that *caused* the gap, which is the frame before the one being reported: a frame that burns 120 ms makes the next callback arrive 120 ms later, and the meter should be told the 120. Passing the current frame's work instead (a common slip) makes slow game code read as "the device". `lines(extra)` gives `["58 fps", "worst 21 ms", ...extra, "tap 24 ms", "2 hitches: the device"]`; the tap line only appears after a tap, and the verdict is `smooth` when there were no hitches in the last minute. Also `fps`, `worstMs`, `tapMs()`, `hitches()` (`{count, game, device, unknown}`), `verdict()`, `pause()`, `pauses` (how many pauses were skipped), `tapsDropped` and `reset()`.
+`frame(now, workMs, gapMs)` returns true when the numbers were refreshed (about twice a second). `workMs` is how long your own update and draw took in the frame that *caused* the gap, which is the frame before the one being reported: a frame that burns 120 ms makes the next callback arrive 120 ms later, and the meter should be told the 120. Passing the current frame's work instead (a common slip) makes slow game code read as "the device". `lines(extra)` gives `["58 FPS", "worst 21 ms", ...extra, "tap 24 ms", "2 hitches: the device"]`; the tap line only appears after a tap, and the verdict is `smooth` when there were no hitches in the last minute. Also `fps`, `worstMs`, `tapMs()`, `hitches()` (`{count, game, device, unknown}`), `verdict()`, `pause()`, `pauses` (how many pauses were skipped), `tapsDropped` and `reset()`.
 
 Pauses: a tab that was hidden and comes back, or a device that slept, shows up as one huge gap. That is not a slow game, so the meter skips it: the first gap after `pause()`, after `document.hidden` was seen (read once, guarded), or a gap longer than `pauseGapMs` (default 1000 ms) is not counted as a frame, a hitch or the worst gap, the running average and the report interval start over, and a tap waiting at that moment is forgotten. The catch: a real freeze longer than `pauseGapMs` is skipped too; raise `pauseGapMs` if you want to see those.
 
-A hitch is a frame longer than 50 ms **and** more than twice the average of the three frames before it, so a steady 30 fps game is "smooth". It is called "the game" when your own update and draw took at least 60% of that gap, otherwise "the device" (the browser, the graphics driver or power saving).
+A hitch is a frame longer than 50 ms **and** more than twice the average of the three frames before it, so a steady 30 FPS game is "smooth". It is called "the game" when your own update and draw took at least 60% of that gap, otherwise "the device" (the browser, the graphics driver or power saving).
 
 Tap delays: a tap whose timestamp is up to `tapSlackMs` (default 50 ms) after the frame time (the event arrived during the frame) counts as 0 ms instead of being dropped, which used to nudge the median up; a larger mismatch is dropped and counted in `tapsDropped`.
 
@@ -247,8 +247,8 @@ None of these ideas is new, and the established tools below are better in the wa
 
 **`QualityGovernor`**
 
-- **Known limitation: a clean 30 Hz screen looks slow.** The default thresholds assume a 60 Hz screen (16.7 ms). On a screen whose normal gap is 33.3 ms the governor steps all the way down even though nothing is wrong. Pass `expectedPeriod` (for example `1000 / 30`, or the period `EvenDt` learned) and the thresholds scale with it. The governor cannot tell a 30 Hz screen from a machine struggling at 30 fps by itself; the test file demonstrates both behaviors.
-- A 120 or 144 Hz screen is treated as fast, which is correct but means it will not step down until it falls below roughly 45 fps; pass `expectedPeriod` if you want it to react at a frame rate relative to the screen.
+- **Known limitation: a clean 30 Hz screen looks slow.** The default thresholds assume a 60 Hz screen (16.7 ms). On a screen whose normal gap is 33.3 ms the governor steps all the way down even though nothing is wrong. Pass `expectedPeriod` (for example `1000 / 30`, or the period `EvenDt` learned) and the thresholds scale with it. The governor cannot tell a 30 Hz screen from a machine struggling at 30 FPS by itself; the test file demonstrates both behaviors.
+- A 120 or 144 Hz screen is treated as fast, which is correct but means it will not step down until it falls below roughly 45 FPS; pass `expectedPeriod` if you want it to react at a frame rate relative to the screen.
 - It sees the gap between frames, not why it is long. A throttled background tab, a power-saving cap, or a slow video decoder looks the same as a slow GPU. Call `hold()` or skip `frame()` while paused or hidden.
 - Changes are slow by design: at least 100 slow frames and 3 seconds to step down, 10 seconds fast and 10 seconds since the last change to step up. The grace period at the start is counted from the first `frame()` call.
 - The flip-flop guard gives up for good on a level (until `force()` or `resetGuard()`), so a device that was only temporarily busy during three quick up-and-down cycles stays one level lower than it could. Raise `flipLimit` or leave it off (`flipLimit: 0`, the default) if you prefer to keep trying. The guard needs the heavier level to cost something; it cannot tell a level that is too heavy from a device that is simply having a bad minute.
@@ -258,7 +258,7 @@ None of these ideas is new, and the established tools below are better in the wa
 
 - It cannot see graphics or presentation stalls: a frame can start on time and still be shown late. "The device" means "not your code", not a proven cause.
 - The tap delay is to the start of the next frame callback, not to the picture reaching the screen. `event.timeStamp` and the frame timestamp must come from the same clock (they do in current Chromium and Firefox; with `privacy.resistFingerprinting` both are rounded).
-- A battery-saver loop that skips frames on purpose (about 30 fps) reads as steady, not as hitches.
+- A battery-saver loop that skips frames on purpose (about 30 FPS) reads as steady, not as hitches.
 - **Coarse clocks.** Firefox with privacy protection (and some Tor-style setups) rounds time to 16.67 ms or more. Then `workMs` is mostly `0` or a whole tick, and the "game or device" call is not reliable; the frame rate, the worst gap and the hitch count still work to within one tick. (Those setups also pin frames to 60 Hz.)
 - **Hidden tabs.** See "Pauses" above: wire `visibilitychange` to `pause()` so even a short absence is skipped; without it, only gaps over `pauseGapMs` (and the guarded `document.hidden` read) are caught.
 

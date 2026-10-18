@@ -193,7 +193,7 @@ test('expectedPeriod scales thresholds for 144 Hz too', function () {
   near(gov.slowAbove, 6.944 * 22 / 16.7, 1e-9); near(gov.fastBelow, 6.944 * 18.5 / 16.7, 1e-9);
   drive(gov, () => 6.944, 0, 60000);
   assert(gov.level === 0);
-  drive(gov, () => 14, 60000, 120000);   // 144 Hz screen running at 71 fps is slow for it
+  drive(gov, () => 14, 60000, 120000);   // 144 Hz screen running at 71 FPS is slow for it
   assert(gov.level > 0, 'steps down at 14 ms on a 6.9 ms screen');
 });
 
@@ -340,10 +340,10 @@ test('real clock: default now() works and a 3 ms budget is respected within a st
 /* ---- FrameMeter ---- */
 function feed(m, gaps, work) { let now = 1000; m.frame(now); gaps.forEach((g, i) => { now += g; m.frame(now, work ? work[i] : undefined); }); return now; }
 
-test('FrameMeter: steady 60 Hz reads 60 fps, small worst, smooth', function () {
+test('FrameMeter: steady 60 Hz reads 60 FPS, small worst, smooth', function () {
   const m = new FrameMeter(); feed(m, new Array(120).fill(16.67), new Array(120).fill(4));
   near(m.fps, 60, 1.5, 'fps'); assert(m.worstMs <= 17, 'worst ' + m.worstMs); assert(m.verdict() === 'smooth');
-  assert(m.lines(['quality 0']).join('|') === m.fps + ' fps|worst ' + m.worstMs + ' ms|quality 0|smooth', m.lines(['quality 0']).join('|'));
+  assert(m.lines(['quality 0']).join('|') === m.fps + ' FPS|worst ' + m.worstMs + ' ms|quality 0|smooth', m.lines(['quality 0']).join('|'));
 });
 
 test('FrameMeter: a long frame while the game worked little is the device', function () {
@@ -591,8 +591,8 @@ test('QualityGovernor: the stall is seen from the clock too, and hold() ends the
 test('QualityGovernor: a device that is always slower than maxGap now steps down; isolated stalls still change nothing', function () {
   const first = function (gap, o) { let at = null, x = 1000; const g = new QualityGovernor(Object.assign({ levels: 3, onChange: () => { if (at === null) at = x - 1000; } }, o || {}));
     for (; x < 121000 && at === null; x += gap) g.frame(gap, x); return at; };
-  assert(first(150) !== null && first(150) < 20000, '6.7 fps: ' + first(150));
-  assert(first(1000) !== null, '1 fps never stepped down');
+  assert(first(150) !== null && first(150) < 20000, '6.7 FPS: ' + first(150));
+  assert(first(1000) !== null, '1 FPS never stepped down');
   assert(first(150, { stallRun: 1000000 }) === null, 'stallRun huge = the old blind spot');
   const log = [], gov = new QualityGovernor({ levels: 3, onChange: l => log.push(l) });
   let x = 1000; for (let i = 0; i < 3000; i++) { const gap = (i % 200 >= 198) ? 300 : 16.7; x += gap; gov.frame(gap, x); }   // two long gaps in a row, over and over

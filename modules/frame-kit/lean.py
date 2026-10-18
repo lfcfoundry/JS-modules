@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-"""Makes a smaller frame-kit by cutting out the parts a game does not use. Version 1.2.0 (API 1)
+"""Makes a smaller frame-kit by cutting out the parts a game does not use. Version 1.2.1 (API 1)
 
   python3 modules/frame-kit/lean.py --list                                  the parts that can be cut, and what each one is
   python3 modules/frame-kit/lean.py --without options,stats,refreshRule --file even-dt -o out.js     write a copy without those parts
