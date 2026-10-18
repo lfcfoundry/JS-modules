@@ -65,7 +65,7 @@ async function battery(files, runText) {
     if (!ok) bad++;
     console.log((ok ? '  ok   ' : '  FAIL ') + 'run.js in this page: ' + (r.last || 'no result') + (r.fails.length ? '\n       ' + r.fails.slice(0, 4).join('\n       ') : '') + (errs.length ? '; page error: ' + errs[0] : ''));
     const re = r.real, realOk = re.frames > 10 && re.errors.length === 0;
-    console.log((realOk ? '  ok   ' : '  FAIL ') + 'real frames: ' + re.frames + ' animation frames in about 1.5 s, meter ' + re.fps + ' fps, learned period ' + re.period + ' ms' + (re.errors.length ? '; errors: ' + re.errors[0] : ''));
+    console.log((realOk ? '  ok   ' : '  FAIL ') + 'real frames: ' + re.frames + ' animation frames in about 1.5 s, meter ' + re.fps + ' FPS, learned period ' + re.period + ' ms' + (re.errors.length ? '; errors: ' + re.errors[0] : ''));
     if (!realOk) bad++;
     if (p.close) await p.close();
     await b.close();
