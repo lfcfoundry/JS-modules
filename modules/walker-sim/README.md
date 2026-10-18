@@ -40,6 +40,9 @@ const merged = WalkerSim.merge(P, Object.assign({ weights: P.w }, fullCfg), part
 Counts, shares, step counts, visits, moves and the per-trial percentiles come out identical to one run. The cost percentiles come from a thinned sample, so they agree closely, not exactly. `maxWalkers` and `precision` apply inside one sim, so give each worker its own share. To run in a Web Worker without a second file, put the source text of `walker-sim.js` and an `onmessage` handler in a Blob and start the worker from `URL.createObjectURL`.
 
 ## Numbers (Node 22, measured 2026-10-17)
+
+> **Node numbers.** Tables and sentences that say Node were measured in Node, not in a test browser, so they are not what a visitor's browser does; read them only to compare rows with each other. Rows and sentences named for a browser (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5) were measured in that browser. Re-measuring the Node ones in the four browsers is not done (open item on `TASKS.md`).
+
 A made-up network of 200 items and 587 links, 23 ends, 100 walkers per trial. The exact odds took 0.8 ms. Times are the middle of 7 to 15 runs.
 
 | Walkers | time | walkers per second | worst gap to the exact odds (percentage points) | ends whose exact odds sit inside their 95% range |
