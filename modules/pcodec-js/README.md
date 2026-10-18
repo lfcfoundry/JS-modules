@@ -63,6 +63,7 @@ Unpack rows were measured before the tuned loop (below); with it the unpack is 0
 ## Prior art and credits
 
 - **Pcodec 1.0.4** by Martin Loncaric and contributors, Apache-2.0, https://github.com/pcodec/pcodec: the whole format and the coding inside the WebAssembly programs. One 12-line patch of ours is in `wasm/pco-1.0.4-pcodec-js.patch` (the bit-unpack loop without per-number bounds checks); the full license text and the list of crates compiled in (better_io, dtype_dispatch, half, cfg-if, zerocopy, rand_xoshiro, rand_core) are in `NOTICE-pcodec.txt`.
+- What Pcodec 1.0.4 changed (from its release notes, checked 2026-10-18), and what it means here: faster FloatMult and FloatQuant decompression (reader); FloatMult detection now always tries both methods, more reliable at a slight cost in compression (packer); mode sampling now uses Floyd's algorithm and shares logic with delta encoding (packer); slightly faster Lookback delta compression (packer; an algorithm change, so it applies in WebAssembly too); lzcnt on x64 (not used in our WebAssembly build). We have not measured these separately in the four browsers.
 - **numcodecs-wasm-pco**, the other JavaScript build, is used only as the thing to compare against and to check that both open each other's files; none of its code is here.
 - The small interface around Pcodec (`wasm/src/lib.rs`) and the JavaScript files are ours, MIT, Copyright (c) 2026 LFC Foundry.
 
