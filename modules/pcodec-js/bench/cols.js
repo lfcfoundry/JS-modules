@@ -1,4 +1,4 @@
-// Number columns for the Pcodec study: real Net Flow Map layouts and values, plus the jso test sets.
+// Number columns for the Pcodec study: real Netflow Map layouts and values, plus the jso test sets.
 'use strict';
 const NFM = '/home/claude/net-flow-map/', T = '/mnt/project-files/js-modules-research/memory-compression-jso/1.1.0/proposed-tree/';
 global.NFMColumns = require(NFM + 'src/columns.js');
