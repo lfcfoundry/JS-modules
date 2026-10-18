@@ -24,7 +24,7 @@ Every changelog entry ends with a `Tested in:` line, and the module's README rep
 1. the module's header comment (`Version 1.2.3 (API 1)`), so a single copied file carries it;
 2. the first lines of the module's README (`**Version 1.2.3 · API 1**`);
 3. a Version column in the root README tables, the front page, and a line in `llms.txt`;
-4. the root README's "Pick a piece" tables and the "All at a glance" index under the title, written whole from `modules.json`: the same six columns in every table (Name, Version, Size, Gzipped, What it does, Demo), rows sorted by name inside each group, sizes in KB with one decimal. Size is the entry's `file` (a path, a list of paths, or a folder whose .js/.mjs/.cjs files count together) as it sits in the repository, and its gzip -9 size. Every entry needs a `short` line (at most 100 characters) and a size; a piece with no script says why in `sizeNote` and shows `n/a`.
+4. the root README's "Pick a piece" tables and the "All at a glance" index under the title, written whole from `modules.json`: the same six columns in every table (Name, Version, Size, Gzipped, What it does, Demo), rows sorted by name inside each group, sizes in KB with one decimal. Size is the entry's `file` (a path, a list of paths, or a folder whose .js/.mjs/.cjs files count together) as it sits in the repository, and its gzip -9 size. Every entry needs a `short` line (at most 100 characters) and a size; a piece with no script says why in `sizeNote` and shows `n/a`. The front page (`index.html`) shows the same size after each name (`global X · 18.0 KB · docs`); `sizes` and `set` rewrite it and `check` fails when it is old.
 
 `sprite-baker` also exposes `SpriteBaker.version` in code; the check keeps it equal to the label. Other modules do not (it would cost bytes in size-critical files).
 
@@ -36,7 +36,7 @@ python3 tools/versions/versions.py set fly-to-mini 1.2.0 --note "What changed, i
 python3 tools/versions/versions.py set fly-to-mini 1.2.0 --tested "Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6" --note "..."   # also records which browsers tested the release
 python3 tools/versions/versions.py tested fly-to-mini 1.2.0 "WebKitGTK 2.52.6, Firefox 158"   # write or fix one entry's Tested in line
 python3 tools/versions/versions.py changelog            # rebuild the root CHANGELOG.md
-python3 tools/versions/versions.py sizes [--story-editor DIR]   # rewrite the tables and the index; with a clone of the Story Editor repo, measure its packages and record them in modules.json (set does the rewrite too; check fails when the tables are old, a size is missing or a description is too long)
+python3 tools/versions/versions.py sizes [--story-editor DIR]   # rewrite the tables, the index and the front-page sizes; with a clone of the Story Editor repo, measure its packages and record them in modules.json (set does the rewrite too; check fails when the tables are old, a size is missing or a description is too long)
 python3 tools/versions/versions.py init                 # labels 1.0.0 on anything that has none
 python3 tools/versions/test/run.py                      # the tool's own checks (a temp repository, under a second)
 ```
