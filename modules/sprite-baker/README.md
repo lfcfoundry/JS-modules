@@ -8,23 +8,17 @@ The version is also in code as `SpriteBaker.version`. Run the tests (offline, ab
 
 A tiny software 3D rasterizer for Canvas 2D games. You describe a few smooth parametric shapes, it shades them with a toon color ramp on the CPU (no WebGL), and it bakes the result into ordinary 2D sprites: one picture, or N pictures of the shape rolling about a fixed horizontal axis. Your game then draws those pictures with `drawImage` and never touches 3D again.
 
-How it works: each shape is turned into a grid of points, the grid is cut into small triangles, and every triangle is filled into a pixel buffer that keeps a depth value per pixel so nearer surfaces cover farther ones. Each pixel's color comes from the light direction and the color ramp you gave the part.
-
-About 985 lines of plain JavaScript (55,804 bytes with its notes), no dependencies, no build step. The core works in Node without a canvas; the browser helpers are optional.
+Each shape becomes a grid of points, the grid is cut into small triangles, and every triangle is filled into a pixel buffer that keeps a depth value per pixel, so nearer surfaces cover farther ones. Each pixel's color comes from the light direction and the color ramp you gave the part. About 985 lines of plain JavaScript (55,804 bytes with its notes), no dependencies, no build step. The core works in Node without a canvas; the browser helpers are optional.
 
 ![A capsule with five ridges baked into 16 frames, and a torus with a bead baked into 12 frames](preview.png)
 
-*What `demo.html` shows: shapes shaded by the rasterizer, baked once into frames, then played back with plain `drawImage`.*
-
 ## Why it exists
 
-It was extracted from a shipped single-file browser game that wanted glossy, rounded characters and props, but only one HTML file, no image assets and no WebGL context to manage. Baking each pose once at load time into a cached picture made the look cheap at runtime: the game only stamps pictures. The rasterizer is small enough to read in one sitting, so it is also a reasonable starting point if you want to change the shading.
+It was extracted from a shipped single-file browser game that wanted glossy, rounded characters and props with only one HTML file, no image assets and no WebGL context to manage. Each pose is baked once at load time into a cached picture, so the game only stamps pictures. The rasterizer is small enough to read in one sitting, so it is also a fair starting point if you want to change the shading. The pieces are small, readable and tested; the ideas are not new (see below).
 
-This repository is useful because the pieces are small, readable and tested, not because the ideas are new. See the comparison below.
+## Use
 
-## Quick start
-
-Browser (open the file by double-click; this is `demo.html` in miniature):
+Copy `sprite-baker.js` (browser global `SpriteBaker`, or `require` in Node). `demo.html` is the full example.
 
 ```html
 <canvas id="c" width="96" height="96"></canvas>
@@ -42,189 +36,111 @@ Browser (open the file by double-click; this is `demo.html` in miniature):
 </script>
 ```
 
-Bake one frame per tick instead of all at once (so the page keeps moving while it loads):
+To keep the page moving while it loads, use `var b = SB.baker(scene, 96, { frames: 12 })` and call `b.next()` once per tick (it returns `null` when all frames are done).
 
-```js
-var b = SB.baker(scene, 96, { frames: 12, outline: { radius: 2, color: [14, 24, 40] } }), sheet = [];
-function tick() {
-  var img = b.next();                                   // bakes ONE frame, or returns null when all are done
-  if (img) { var c = SB.toCanvas(img); if (c) sheet.push(c); setTimeout(tick, 0); }
-  else { /* sheet is ready: start the game */ }
-}
-setTimeout(tick, 0);                                    // building the meshes already happened inside baker(); frames follow, one per tick
-```
+In Node (no canvas) the result is `{ width, height, data }` with RGBA bytes: `SB.bakeSprite(scene, 32)`.
 
-Node (no canvas; the result is `{ width, height, data }` with RGBA bytes):
-
-```js
-const SB = require('./sprite-baker.js');
-const scene = [{ fn: SB.sphere(10), nu: 24, nv: 36, material: SB.material([[0, 40, 60, 120], [1, 220, 240, 255]]) }];
-const img = SB.bakeSprite(scene, 32);          // one 32 x 32 picture
-console.log(img.width, img.height, img.data.length);   // 32 32 4096
-```
+On high-density screens, bake at `Math.round(96 * devicePixelRatio)` pixels and draw at 96 CSS pixels, or the browser upscales it.
 
 ## API
 
-Screen conventions: pixels, x right, y **down**, z toward the viewer (larger z is nearer), orthographic projection.
+Pixels, x right, y **down**, z toward the viewer, orthographic. A scene is an array of parts `{ fn, nu, nv, material }` or `{ mesh, material }`; meshes are built once and reused for every frame.
 
-**Surface**
+**Baking** (these return `null` instead of throwing when nothing can be baked; handle `null`)
 
-- `new SB.Rast(w, h)`: z-buffered RGBA surface. Fields `w`, `h`, `z` (Float32Array, cleared to -1e9), `px` (Uint8ClampedArray RGBA). Methods: `setLight(x, y, z)` (or an array; direction the light comes from, normalized for you), `clear()`, `toImageData()` (a real `ImageData` if the platform has one, else a plain `{ width, height, data }`).
+- `SB.bakeSprite(scene, size, opts)`: one `{ width, height, data }`. `size` is a number, `[w, h]` or `{ width, height }`.
+- `SB.bakeRoll(scene, frames, size, opts)`: `frames` pictures, frame i turned by `i / frames` of `opts.turn` (default a full turn) about the x axis through `opts.center`. The full turn is not repeated, so it loops; all frames share one scale.
+- `SB.baker(scene, size, opts)`: the same roll in slices, returning `{ count, width, height, ss, scale, index, frame(i), next(), reset() }` (`opts` plus `frames`, default 12). `next()` bakes the picture at `index` and returns `null` after the last; `frame(i)` bakes any picture. Pictures equal `bakeRoll`'s byte for byte. If nothing can be baked, `count` is 0 and `reason` is `'size'`, `'frames'` or `'too-big'`. Meshes are built inside `baker()`, so call it in its own tick. Bad scenes (empty, bad material, bad mesh function) still throw: they are mistakes in your code.
+- `SB.toCanvas(img, opts)`: browser only; a new `<canvas>` or **`null`** (no `document`, malformed image, no 2D context). Never throws. `opts.willReadFrequently: true` asks for a plain-memory canvas.
+- Also `outline(img, radius, color)`, `downsample(rast, ss)`, `toImageData(img)`.
+- `opts`: `phi` (bakeSprite), `axis` (`[1,0,0]`; zero-length means no turn), `center` (`[0,0,0]`), `ss` (integer supersampling, 2), `maxPixels` (4,194,304), `scale`/`ox`/`oy` (auto-fit and center so the shape fits at every roll angle), `margin` (2), `light`, `cull`, `outline` (`{ radius, color: [r, g, b] }`).
+- Size ceiling: the working surface holds `width * height * ss * ss` pixels at 8 bytes each. Above `maxPixels` (about 32 MiB) `ss` is lowered until it fits (a 1024 x 1024 sprite at `ss` 4 bakes at `ss` 2); if even `ss` 1 is over, the bake returns `null`. `maxPixels: Infinity` switches it off.
 
 **Materials**
 
-- `SB.material(stops, opts)`: `stops` is `[[t, r, g, b], ...]`, t ascending in 0..1, baked to a 256-entry LUT. Options scale the lighting terms: `specular` (1), `bounce` (1), `pool` (1), `rimLight` (1), `edge` (0.88; 1 means no silhouette darkening). A raw stops array is accepted anywhere a material is.
-- `SB.bakeRamp(stops)`: just the `Uint8Array(768)` LUT.
-- **Pictures and ridges (1.4.0, both off unless given).** `SB.material(stops, { texture, ridge })`. They need 8-number vertices `[x, y, z, nx, ny, nz, u, v]`; `drawMesh` makes them (u = row / nu, v = column / nv * 2 pi, or the u and v your mesh function returned as a 7th and 8th number); a triangle with 6-number vertices draws without them.
-  - `texture: { w, h, data, uClamp: true, vWrap: 2 * Math.PI, shadeBase: 0.66, shadeWrap: 0.5 }`: `data` is RGBA bytes (not premultiplied), `w * h * 4` of them. Each pixel looks the picture up at (u, v) with bilinear weights by alpha; u is clamped along the body (`uClamp: false` wraps it instead); v wraps once per `vWrap`. The paint color is multiplied by `shadeBase + shadeWrap * wrap` and blended over the shaded color by its alpha. The highlight is dialed down where there is paint (x 0.55 under strong red, otherwise x (1 - 0.8 * alpha)).
-  - `ridge: { freq: 5, dark: -0.86, darkScale: 0.93, lit, litAdd: 0.06 }`: faint grooves. With `r = cos(freq * v)`: `r < dark` multiplies the light value by `darkScale`; only when `lit` is given, `r > lit` adds `litAdd`. It is applied before the edge darkening and the ramp lookup; the picture is applied after the ramp lookup and before the highlight.
-  - **Your own ramp.** A plain object with `lut` (a `Uint8Array(768)` you made yourself, for example rounded down instead of to the nearest) plus `specular`, `bounce`, `pool`, `rimLight` and `edge` is accepted as it is.
-  - **Cost.** Materials without a picture or ridge take the old loop (one extra check per triangle). The pictured path is its own function, about 4,100 bytes minified (1,700 gzipped) of the file.
-- `drawMesh(..., { pose })`: `pose(p)` is called on every vertex after the roll turn and before the scale, with a fresh `{ x, y, z, nx, ny, nz }`; return the changed point (or change `p` and return nothing).
+- `SB.material(stops, opts)`: `stops` is `[[t, r, g, b], ...]`, t ascending in 0..1, baked to a 256-entry LUT. `opts` scale the lighting terms: `specular`, `bounce`, `pool`, `rimLight` (1 each) and `edge` (0.88; 1 means no silhouette darkening). A raw stops array works anywhere a material does; a plain object with your own `lut` (`Uint8Array(768)`) plus those terms is accepted as is. `SB.bakeRamp(stops)` gives just the LUT.
+- Since 1.4.0, off unless given (they need the 8-number vertices `[x, y, z, nx, ny, nz, u, v]` that `drawMesh` makes): `texture: { w, h, data, uClamp: true, vWrap: 2 * Math.PI, shadeBase: 0.66, shadeWrap: 0.5 }` (RGBA bytes, not premultiplied, looked up at (u, v) with bilinear weights by alpha) and `ridge: { freq: 5, dark: -0.86, darkScale: 0.93, lit, litAdd: 0.06 }` (faint grooves from `cos(freq * v)`). The pictured path is about 4,100 bytes minified (1,700 gzipped).
 
-**Drawing**
+**Drawing and shapes**
 
-- `SB.tri(rast, a, b, c, mat, opts)`: fill one triangle. Vertices are `[x, y, z, nx, ny, nz]` in raster pixels. `opts.cull` (default -0.75, or `false`) skips triangles whose normals face well away.
-- `SB.mesh(fn, nu, nv, opts)`: sample `fn(u, v)` (u, v in 0..1) on a grid. `fn` returns `[x, y, z]` (normals by finite differences), or `[x, y, z, nx, ny, nz]`, or `{ x, y, z, nx, ny, nz }`. Returns `{ nu, nv, pos, nrm }`. `opts.flip`: `true`, `false` or `'auto'` (default, flips finite-difference normals that point inward on closed convex-ish shapes).
-- `SB.drawMesh(rast, mesh, mat, view, opts)`: transform and fill every quad as two triangles. `view = { scale, ox, oy, rot, center }` where `rot` comes from `rotationMatrix`.
+- `SB.Rast(w, h)`: z-buffered RGBA surface (`setLight`, `clear`, `toImageData`). `SB.tri(rast, a, b, c, mat, opts)` fills one triangle with vertices `[x, y, z, nx, ny, nz]`; `opts.cull` is -0.75 by default, or `false`.
+- `SB.mesh(fn, nu, nv, opts)`: samples `fn(u, v)` (u, v in 0..1) and returns `[x, y, z]`, `[x, y, z, nx, ny, nz]` or `{ x, y, z, nx, ny, nz }`; `opts.flip` is `true`, `false` or `'auto'` (default). `SB.drawMesh(rast, mesh, mat, view, opts)` takes `view = { scale, ox, oy, rot, center }`; `opts.pose(p)` runs on every vertex after the roll turn and before the scale.
+- Shapes: `sphere(radius | [rx, ry, rz], center)`, `rod(a, b, r0, r1)` (open tube), `capsule(a, b, r, { lobes, depth })` (`lobes` adds a ripple so a roll is visible), `torus(R, r, center, axis)` with axis `'z'` (default), `'y'` or `'x'`.
+- Rotation: `rotationMatrix(axis, phi)`, `rotateAxis(p, axis, phi, center)`, `rotateX(p, phi, centerOrY)`. A positive angle about x turns the top toward the viewer; a full turn is exact, so a rolled loop repeats pixel for pixel. A NaN angle or zero axis gives no turn. A triangle with a NaN or infinite number is skipped (a small hole, no damage to the depth buffer).
 
-**Shapes** (each returns an `fn(u, v)` for `mesh`)
+**Masks and sheets** (since 1.2.0; they take baked pictures, never a canvas; `null` on bad input; the size ceiling applies)
 
-- `SB.sphere(radius | [rx, ry, rz], center)`, `SB.rod(a, b, r0, r1)` (open tube), `SB.capsule(a, b, r, { lobes, depth })` (cylinder plus two caps in one surface; `lobes` adds a cosine ripple so a roll is visible), `SB.torus(R, r, center, axis)` with axis `'z'` (default), `'y'` or `'x'`.
+```js
+var mask = SB.alphaMask(SB.bakeSprite(scene, 64), { threshold: 8, color: [255, 255, 255] });
+if (mask && SB.hit(mask, mouseX - spriteX, mouseY - spriteY)) { /* pointer is on the shape, not just its box */ }
+var sheet = SB.toSheet(SB.bakeRoll(scene, 12, 96), { padding: 2, maxWidth: 1024 });   // { image, canvas, frames[i] = { x, y, w, h } }
+```
 
-**Rotation**
+`alphaMask` turns pixels with alpha above `threshold` (8) into `color` (default opaque white). `toSheet` packs pictures left to right in rows (`maxWidth` 2048, `padding` 1); `canvas` is `null` in Node or when the browser refuses, and `image` is still good.
 
-- `SB.rotationMatrix(axis, phi)`, `SB.rotateAxis(p, axis, phi, center)`, `SB.rotateX(p, phi, centerOrY)`. `p` is `[x, y, z]` or `[x, y, z, nx, ny, nz]`. A positive angle about x turns the top of a shape toward the viewer. A full turn is exact (tiny sines snap to zero), so a rolled loop repeats pixel for pixel.
+## Lean builds (since 1.5.0)
 
-**Baking**
+`sprite-baker.js` stays the full file. `python3 modules/sprite-baker/lean.py --without ramps,mesh,rotation,shapes,baking,sheets --no-comments -o spritebaker.js` writes a copy without those parts (`--list` names all seven; `--sizes` prints bytes, gzipped bytes and, if `terser` is installed, minified bytes). Kept parts behave exactly as in the full file; cut parts are simply missing. Cutting `mesh` or `rotation` also cuts `baking`, and cutting `baking` also cuts `sheets`. Always kept: `Rast`, `tri` (plain, picture and ridge) and `drawMesh`.
 
-- `SB.bakeSprite(scene, size, opts)`: one `{ width, height, data }`.
-- `SB.bakeRoll(scene, frames, size, opts)`: an array of `frames` pictures, frame i turned by `i / frames` of `opts.turn` (default a full turn) about the x axis through `opts.center`. The full turn is not repeated, so the sequence loops. All frames share one scale. Returns `null` (does not throw) when nothing can be baked: `frames` below 1, a zero or missing size, or a picture over the size ceiling even at `ss` 1. **Callers must handle `null`.**
-- `SB.baker(scene, size, opts)`: the same roll, baked in slices. It prepares the meshes, the scale and one working surface once, then bakes a frame only when asked. `opts` is the same as for `bakeRoll` plus `frames` (default 12) and `turn`. It returns `{ count, width, height, ss, scale, index, frame(i), next(), reset() }`:
-  - `frame(i)` bakes picture `i` (any order, any number of times) or returns `null` if `i` is not an integer from 0 to `count - 1`.
-  - `next()` bakes the picture at `index` and moves on; it returns `null` after the last one. `reset()` starts over.
-  - The pictures are byte for byte what `bakeRoll` returns for the same input (a test checks this). Each picture owns its pixel array.
-  - If nothing can be baked you still get an object, with `count` 0 and a `reason` (`'size'`, `'frames'` or `'too-big'`); `frame()` and `next()` return `null`. Check `count`.
-  - Building the meshes happens inside `baker()` itself, so call it in its own tick. Bad scenes (empty, a bad material, a bad mesh function) still throw, because they are mistakes in your code, not load conditions.
-- A scene is an array of parts `{ fn, nu, nv, material }` or `{ mesh, material }`. Meshes are built once and reused for every frame.
-- `size`: a number, `[w, h]` or `{ width, height }` in output pixels. `bakeSprite` also returns `null` for a zero or missing size.
-- `opts`: `phi` (bakeSprite only), `axis` (`[1,0,0]`; a zero-length axis means no turn), `center` (`[0,0,0]`), `ss` (integer supersampling, default 2), `maxPixels` (see below), `scale`/`ox`/`oy` (default: auto-fit and center so the shape fits at every roll angle), `margin` (2), `light`, `cull`, `outline` (`{ radius, color: [r, g, b] }`).
-- **Size ceiling.** The working surface holds `width * height * ss * ss` pixels at 8 bytes each. `opts.maxPixels` (default `SB.DEFAULT_MAX_PIXELS`, 4,194,304, about 32 MiB) caps that count: if you ask for more, `ss` is lowered automatically until it fits (the `baker` object tells you the `ss` it used), and if even `ss` 1 is over the ceiling the bake returns `null`. A 1024 x 1024 sprite at `ss` 4 is therefore baked at `ss` 2. Pass `maxPixels: Infinity` to switch the ceiling off.
-- Non-finite numbers: a triangle with a NaN or infinite number in it is skipped, so a custom shape that produces one bad vertex leaves a small hole instead of damaging the depth buffer. A NaN angle or a zero axis in `rotationMatrix` gives the identity (no turn), not a shrunken shape.
-- `SB.outline(img, radius, color)`, `SB.downsample(rast, ss)`, `SB.toImageData(img)` (falls back to a plain `{ width, height, data }` if the platform will not build an `ImageData`).
-- `SB.toCanvas(img, opts)`: browser only. Returns a new `<canvas>`, or **`null`** when there is no `document` (Node, a worker), the image is empty or malformed, or the browser will not give a 2D context (it can refuse a very large canvas). It never throws, so callers must handle `null`. `opts.willReadFrequently: true` asks for a plain-memory canvas (`getContext('2d', { willReadFrequently: true })`); the default is unchanged (`getContext('2d')`). Whether the flag helps drawing speed on your target phone is worth a quick A/B test with per-frame drawing included; it is meant for canvases you read back, which this module itself never does.
-
-**Masks and sheets** (new in 1.2.0). Both take baked pictures (`{ width, height, data }`, what the bakers return), never a canvas, because the module does not read canvases back. Both return `null` instead of throwing, and both honor the size ceiling (`opts.maxPixels`, default 4,194,304).
-
-- `SB.alphaMask(img, opts)`: a silhouette of a picture, for hit tests, outlines and glows. Every pixel with alpha **above** `opts.threshold` (default 8 of 255) becomes `opts.color` (`[r, g, b]`, or `[r, g, b, a]`; default opaque white) and the rest is transparent. Returns a new `{ width, height, data }`, or `null` for a bad picture, threshold or color. `SB.hit(mask, x, y)` is `true` when the pixel under that point has any alpha (`false` outside the picture or for bad input).
-
-  ```js
-  var mask = SB.alphaMask(SB.bakeSprite(scene, 64), { threshold: 8, color: [255, 255, 255] });
-  if (mask && SB.hit(mask, mouseX - spriteX, mouseY - spriteY)) { /* the pointer is on the shape, not just its box */ }
-  ```
-
-- `SB.toSheet(pictures, opts)`: packs an array of pictures into one sprite sheet, left to right in rows, starting a new row when the next picture would pass `opts.maxWidth` (default 2048). `opts.padding` (default 1) empty pixels go between pictures (not around the outer edge). Returns `{ image, canvas, frames, width, height }`: `image` is the sheet as `{ width, height, data }`, `canvas` is `SB.toCanvas(image)` (`null` in Node or when the browser refuses; the image is still good), and `frames[i]` is `{ x, y, w, h }` for `pictures[i]`, in input order. Returns `null` for an empty or bad list, a bad option, a picture wider than `maxWidth`, or a sheet over the ceiling (padding counts).
-
-  ```js
-  var sheet = SB.toSheet(SB.bakeRoll(scene, 12, 96), { padding: 2, maxWidth: 1024 });
-  if (sheet && sheet.canvas) { var f = sheet.frames[3]; g.drawImage(sheet.canvas, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h); }
-  ```
-
-**Sharp on high-density screens.** The module bakes exactly the pixel size you ask for. If the sprite is drawn at 96 CSS pixels, bake it at `Math.round(96 * devicePixelRatio)` pixels (for example 288 on a 3x phone) and draw it with the 96 CSS pixel size, otherwise the browser upscales it and it looks soft or blocky. The size ceiling above still applies.
-
-## Lean builds: ship only the parts a game uses (new in 1.5.0)
-
-`sprite-baker.js` stays the full file. `python3 modules/sprite-baker/lean.py --without ramps,mesh,rotation,shapes,baking,sheets --no-comments -o spritebaker.js` writes a copy without those parts (`--list` names all seven; `--sizes` prints bytes, gzipped bytes and, when `terser` is installed, minified bytes). What you keep behaves exactly as in the full file, so the triangle filler draws the same bytes; what you cut is simply missing (`SpriteBaker.sphere` is `undefined`). `--no-comments` drops every comment and leaves a one-line header with the version and the cut list. Some parts need others: cutting `mesh` or `rotation` also cuts `baking`, and cutting `baking` also cuts `sheets`; the script says so.
-
-| Part | What it holds | Cut alone, minified bytes saved (of 18,364) | Gzipped bytes saved (of 8,080) |
-| --- | --- | --- | --- |
-| `ramps` | `material()`, `bakeRamp()`, raw `[[t, r, g, b], ...]` ramps (a game then passes materials that already carry a `lut`) | 1,166 | 433 |
+| Part | Holds | Minified bytes saved (of 18,364) | Gzipped bytes saved (of 8,080) |
+|---|---|---|---|
+| `ramps` | `material()`, `bakeRamp()` | 1,166 | 433 |
 | `shapes` | `sphere`, `rod`, `capsule`, `torus` | 1,682 | 705 |
 | `sheets` | `alphaMask`, `hit`, `toSheet` | 1,704 | 605 |
-| `baking` | `bakeSprite`, `bakeRoll`, `baker`, `downsample`, `outline`, `toImageData`, `toCanvas` (also cuts `sheets`) | 5,922 | 2,366 |
-| `rotation` | `rotationMatrix`, `rotateAxis`, `rotateX` (also cuts `baking`, `sheets`) | 6,644 | 2,660 |
-| `mesh` | `mesh()` (also cuts `baking`, `sheets`) | 7,803 | 3,168 |
-| `checks` | argument checks for callers who pass bad data; a NaN triangle is still skipped | 820 | 356 |
+| `baking` | the bakers, `outline`, `toCanvas` | 5,922 | 2,366 |
+| `rotation` | `rotationMatrix`, `rotateAxis`, `rotateX` | 6,644 | 2,660 |
+| `mesh` | `mesh()` | 7,803 | 3,168 |
+| `checks` | argument checks | 820 | 356 |
 
-The part that is always kept is the fill: `Rast`, `tri` (plain, picture and ridge) and `drawMesh`. Sizes are the output of `terser -c passes=2 -m` 5.51.2 (smaller is better). A game that draws only meshes it builds itself and brings its own ramps (Fancy Banana) keeps 6,992 bytes minified (3,438 gzipped): 62% smaller than the whole file. Keeping `ramps` as well is 8,157 bytes (3,894 gzipped).
+Each part cut alone; sizes from `terser -c passes=2 -m` 5.51.2 (smaller is better). A game that draws only meshes it builds itself and brings its own ramps (Fancy Banana) keeps 6,992 bytes minified (3,438 gzipped), 62% smaller than the whole file; keeping `ramps` too is 8,157 bytes (3,894 gzipped).
 
-`node modules/sprite-baker/test/lean.js` builds every single cut, Fancy's set and the everything-cut build (each also without comments where it matters), checks the exports, compares every part that is kept with the full file, and draws the 266 scenes of `test/fancy-scenes.js` through the lean filler byte for byte (about 3 s). `LEAN=1 node tests/sprite-baker-fancy-browser.js` does the same in a real browser. `lean.py` edits nothing: change `sprite-baker.js` and keep its `//@begin` / `//@else` / `//@end` marker lines balanced.
+`node modules/sprite-baker/test/lean.js` builds every single cut and draws the 266 scenes of `test/fancy-scenes.js` through the lean filler byte for byte (about 3 s); `LEAN=1 node tests/sprite-baker-fancy-browser.js` does the same in a real browser. `lean.py` edits nothing; keep the `//@begin` / `//@else` / `//@end` marker lines in `sprite-baker.js` balanced.
 
 ## How it compares
-sprite-baker is a narrow tool. It gives up the range and picture quality of three.js with WebGL (use that if you can use WebGL), and in return it needs no WebGL, no asset files and no scene engine, and it loops a rolling shape exactly. Speed against the other tools below: not measured.
 
-| Alternative | Size (smaller is better) | Speed | Features | Where it wins / loses |
-|---|---|---|---|---|
-| [three.js](https://threejs.org/) with WebGL (version: not read) | Not measured | Not measured here (the details below repeat an unmeasured claim that it is far faster) | Real cameras, lights, shadows, model loaders | three.js wins on picture quality and range. This module wins when you cannot or do not want WebGL |
-| [Easel](https://www.npmjs.com/package/@xsyetopz/easel) (MIT, 0.8.0, as reported on its page; not run) | Not measured | Not measured | CPU drawing into a 2D canvas with a scene graph; sprite sheets: unverified | Look at Easel first for more than a few shapes. This module is narrower |
-| [Zdog](https://zzz.dog/) (version and license: not read) | Not measured | Not measured | Flat pseudo-3D, live animation, no per-pixel shading | Zdog wins for flat illustrated 3D. This module gives shaded surfaces and pre-rendered bitmaps |
-| Fancy Banana's own triangle filler (the game this was extracted from) | This module, minified: 18,364 bytes (8,080 gzipped); Fancy's set of parts only: 6,992 bytes (3,438 gzipped) | The picture path against Fancy's filler on the same sphere, 48 pictures (lower is better): 84.7 vs 100.2 ms in ungoogled Chromium 155, 99 vs 108 ms in Firefox 158, 85 vs 106 ms in WebKitGTK 2.52.6, 83 vs 84 ms in GNOME Web 46.5 | Same pixels: 266 scenes, 0 bytes different | The picture path is equal or faster in all four browsers; the lean build keeps the size down |
+sprite-baker is a narrow tool. It gives up the range and picture quality of three.js with WebGL (use that if you can), and in return needs no WebGL, no asset files and no scene engine, and loops a rolling shape exactly. Speed against the other tools: not measured.
 
-Baking a 24-frame, 192 px roll with an outline takes 240 ms in ungoogled Chromium 155, 293 ms in Firefox 158, 230 ms in WebKitGTK 2.52.6 and 242 ms in GNOME Web 46.5 (lower is better; version 1.3.0 timing). Size of this module: readable file 55,804 bytes; minified 18,364 bytes (8,080 gzipped, terser 5.51.2).
+| Alternative | Size (smaller is better) | Speed | Where it wins / loses |
+|---|---|---|---|
+| [three.js](https://threejs.org/) with WebGL (version: not read) | Not measured | Not measured | Wins on picture quality and range (real cameras, lights, shadows, loaders). This module wins when you cannot or do not want WebGL |
+| [Easel](https://www.npmjs.com/package/@xsyetopz/easel) (MIT, 0.8.0, as reported on its page; not run) | Not measured | Not measured | CPU drawing into a 2D canvas with a scene graph; sprite sheets: unverified. Look at Easel first for more than a few shapes |
+| [Zdog](https://zzz.dog/) (version and license: not read) | Not measured | Not measured | Wins for flat illustrated 3D, live. This module gives shaded surfaces and pre-rendered bitmaps |
+| Fancy Banana's own triangle filler (the game this came from) | This module, minified: 18,364 bytes (8,080 gzipped); Fancy's set of parts only: 6,992 bytes (3,438 gzipped) | Picture path vs Fancy's filler on the same sphere, 48 pictures (lower is better): 84.7 vs 100.2 ms in ungoogled Chromium 155, 99 vs 108 ms in Firefox 158, 85 vs 106 ms in WebKitGTK 2.52.6, 83 vs 84 ms in GNOME Web 46.5 | Same pixels: 266 scenes, 0 bytes different. Equal or faster in all four browsers |
 
-**Where it loses**
-- Less capable than WebGL; use three.js if you can use WebGL (speed against it: not measured).
-- Orthographic only: no perspective, no shadows, no texture mapping beyond the optional picture path, binary alpha.
-- Sizes of three.js, Easel and Zdog: not measured, so no size win is claimed.
-- Meant for load time, not per-frame drawing.
+Baking a 24-frame, 192 px roll with an outline takes 240 ms in ungoogled Chromium 155, 293 ms in Firefox 158, 230 ms in WebKitGTK 2.52.6 and 242 ms in GNOME Web 46.5 (lower is better; version 1.3.0 timing). Readable file 55,804 bytes; minified 18,364 bytes (8,080 gzipped, terser 5.51.2).
 
-**Details**
-Prior art is large and mostly better. Pick one of these first unless your constraints match the "Why it exists" list above.
+**Where it loses:** less capable than WebGL; orthographic only (no perspective, no shadows, no texture mapping beyond the optional picture path, binary alpha); meant for load time, not per-frame drawing; sizes of three.js, Easel and Zdog not measured, so no size win is claimed. Also named, not measured: tinygl.js (a JavaScript port of the TinyGL software renderer; as reported, unverified and not run, it needs a canvas width that is a multiple of 4), [glMatrix](https://github.com/toji/gl-matrix), Blender and older three.js CPU renderers (the [three-software-renderer](https://github.com/AVGP/three-software-renderer) port needs three.js and is slower than WebGL).
 
-- [three.js](https://threejs.org/) with WebGL is the practical way to render 3D in a browser: real cameras, lights, shadows, model loaders, and far more speed. If you can use WebGL, you can render to a canvas and `drawImage` the result as a sprite, and you will get a better picture than this. Older three.js releases also shipped CPU renderers (a canvas renderer and a software renderer); the community port [three-software-renderer](https://github.com/AVGP/three-software-renderer) keeps one alive for Node, but it needs three.js, is slower than WebGL, and its last tested three.js version listed on its page is 0.112.1.
-- [Easel](https://www.npmjs.com/package/@xsyetopz/easel) (`@xsyetopz/easel`) is the closest current cousin. As reported when this README was checked (2026-10-15; not run here): MIT, version 0.8.0 (2026-09-27), no dependencies, draws on the processor into a 2D canvas, with a three.js-style scene graph. Unverified: how it shades, how fast it is, and whether it can bake sprite sheets. It looks like a general scene engine; sprite-baker is a narrow toon baker with a looping roll and no scene graph. Look at Easel first if you want more than a few shapes.
-- **tinygl.js** is a JavaScript port of the TinyGL software renderer that needs no WebGL. As reported (unverified, not run, no project page checked): it lists a limit that the canvas width be a multiple of 4. It aims at OpenGL-style drawing, not at baked, outlined sprite frames.
-- [Tiny Renderer](https://github.com/ssloy/tinyrenderer) (ssloy) is the best place to learn how a software rasterizer works: a step-by-step course covering lines, triangles, z-buffers, perspective and shaders, with real model files. It is a tutorial in C++, not a drop-in JavaScript library, and sprite-baker is a small, narrow take on the same ideas (barycentric fill, z-buffer, per-pixel normals).
-- [Zdog](https://zzz.dog/) is a pseudo-3D engine for canvas and SVG. It draws flat, vector-style shapes (it is not a shaded rasterizer), has a friendly designer-oriented API and animates live. If you want flat illustrated 3D, use it. sprite-baker gives per-pixel shaded surfaces and pre-rendered bitmaps instead.
-- [glMatrix](https://github.com/toji/gl-matrix) is the standard fast vector and matrix library. sprite-baker has only the three small rotation helpers it needs, with no perspective, no cameras and no scene graph. If you need real 3D math, use glMatrix.
-- Blender or any offline renderer will bake far better sprite sheets (global lighting, anti-aliasing, any model). The upside of this library is that the sprites are generated at load time from a few lines of code, with no art pipeline and no asset files.
+## What it is not
 
-What is honestly not new: the barycentric triangle fill, z-buffer, wrap lighting and ramp-based toon shading are textbook. The small contribution here is the packaging: one dependency-free file, canvas-free so it is testable in Node, with a roll baker that loops exactly.
-
-## Limits and gotchas
-
-- Orthographic only. No perspective, no clipping against a near plane, no transparency, no shadows, and no texture mapping except the optional picture path (new in 1.4.0).
-- Alpha is binary inside the rasterizer. Smooth edges come from `ss` (supersampling, box filter). Raise `ss` to 3 or 4 for cleaner edges; cost grows with `ss` squared.
-- Depth is float32 and ties keep the first-drawn triangle. Fine for sprites, not for coplanar overlapping surfaces.
-- Normals from finite differences take their sign from `dP/du x dP/dv`. The default `'auto'` orientation works for closed, roughly convex shapes. For open or hollow surfaces (a tube you look into) pass `flip: true` or `false`, or return exact normals from `fn`.
-- Faces are culled when the three vertex normals' z components sum below -0.75. That suits closed meshes. For open one-sided surfaces or surfaces whose normals you supplied backwards, pass `cull: false`.
-- The bounce, pooled-shadow and right-edge rim terms point in fixed screen directions on purpose (they are part of the look); only the main light and highlight follow `light`.
-- A shape that is a surface of revolution about the roll axis (a plain sphere, a smooth capsule) looks identical in every roll frame. Give it something off-axis: ridges (`lobes`), a bead, a decal part, a ring.
-- `outline` rounds its stamp offsets to whole pixels and merges them with a maximum. The original blended fractional offsets through canvas compositing, so outlines here are a touch harder-edged. Leave a margin (auto-fit does) because outline pixels pushed past the image border are cut.
-- Speed: baking 16 frames of a 160 x 96 capsule at `ss: 2` took roughly 0.3 s in Node on a modest machine. That is a rough figure from one run, not a benchmark, and a phone will be slower. This is meant for load time, not per-frame use.
-- No worker is needed: bake in slices with `SB.baker` and `frame(i)` or `next()`, one frame per tick, so the title screen keeps moving. Slicing is the supported way to avoid a long freeze when the project does not use workers (the single-file games this was extracted from do not). The core has no DOM use, so it also runs in a classic worker (`importScripts`) if yours allows one; there `toCanvas` returns `null` and you transfer the pixel arrays instead (not tested here). The first `drawImage` of each new canvas can still cost a graphics-card upload.
-- The module never reads a canvas back: no `getImageData`, `toBlob` or `toDataURL`. Pictures live in typed arrays and go to a canvas only through `putImageData`. So Firefox's canvas read-back noise (on with resist-fingerprinting, Strict mode and private windows) cannot alter what it bakes. Only the headless-test tip below (reading a canvas with `getImageData`) would be affected.
-- Meshes are cached per part object. If you change a part's `nu`, `nv` or `fn` after it was baked, pass a new part object (or a mesh you built yourself); the old mesh is reused.
-- Thin 1 to 2 pixel details with an outline radius of 4 or more can show as a dotted halo, because the outline is stamped at 24 rounded offsets. Straight edges are fine.
-- The pinned hash in the tests depends on `Math.sin`/`Math.cos` results. They are stable across Node versions in practice, but if a platform differs in the last bit and the hash moves, check the images before blindly updating the constant.
-
-## Prior art and credits
-- The barycentric triangle fill, z-buffer, half-Lambert wrap lighting (a published lighting trick from Valve's Half-Life work) and ramp-based toon shading are textbook techniques. Idea only, no code from others.
-- [Tiny Renderer](https://github.com/ssloy/tinyrenderer) (ssloy) is the course this module's approach resembles; it is named for learning only, and no code from it is credited in the source file or notes.
-- three.js, three-software-renderer, Easel, tinygl.js, Zdog, glMatrix and Blender are named above for comparison. None of their code is in this module.
-- The rasterizer was extracted from Fancy Banana (LFC Foundry's own game), and the picture path draws the same bytes as that game's own triangle filler.
-- terser 5.51.2 was used only to measure minified sizes; no terser code is in the module.
-No code from others; the ideas above are theirs.
+- Orthographic only: no perspective, no transparency, no shadows, no texture mapping except the optional picture path. Alpha is binary inside the rasterizer; smooth edges come from `ss` (3 or 4 for cleaner edges; cost grows with `ss` squared). Depth is float32 and ties keep the first-drawn triangle: fine for sprites, not for coplanar overlapping surfaces.
+- Automatic normals suit closed, roughly convex shapes; for open or hollow surfaces pass `flip: true` or `false`, or return exact normals, and pass `cull: false` for open one-sided surfaces.
+- The bounce, pooled-shadow and right-edge rim terms point in fixed screen directions on purpose; only the main light and highlight follow `light`.
+- A surface of revolution about the roll axis (a plain sphere, a smooth capsule) looks identical in every frame. Give it something off-axis: ridges (`lobes`), a bead, a decal part, a ring.
+- `outline` rounds offsets to whole pixels, pixels pushed past the border are cut, and thin details with a radius of 4 or more can show a dotted halo.
+- Speed: 16 frames of a 160 x 96 capsule at `ss: 2` took roughly 0.3 s in Node on a modest machine (one run, not a benchmark; a phone will be slower). Bake in slices with `baker`; no worker needed. A classic worker (`importScripts`) should also work, with `toCanvas` returning `null`; not tested.
+- The module never reads a canvas back, so Firefox's canvas read-back noise cannot change what it bakes. Meshes are cached per part object: after changing `nu`, `nv` or `fn`, pass a new part object.
 
 ## For AI agents
 
-Invariants to preserve unless you are changing the look on purpose (and then update the pinned hash in `test/run.js` deliberately, after looking at the picture):
+- Keep the sampling and depth rules (pixel centers `x + 0.5`, inclusive edges with the `-1e-5` tolerance, strict `z > stored z`, `-1e9` clear value) and the shading constants in `tri` unless you are changing the look on purpose; then update the pinned hash in `test/run.js` after looking at the picture.
+- `rotationMatrix` negates the angle and snaps tiny sines and cosines to zero, so a full turn is exact. `bakeRoll` renders `i / frames * turn` for `i < frames` with one scale and one reused `Rast`. All baking paths share one internal `setup()` and `render(phi)`; the test "next() x 8 equals bakeRoll" guards it.
+- Loaders and probes do not throw (`null` or an inert `baker`); only programmer errors do. Only `toCanvas` may touch `document`; `alphaMask` and `toSheet` take pictures, never canvases.
+- Keep the file dual-loading (last line), the license header (first line), no dependencies, no game-specific art, names or palettes. Do not rename exported names.
 
-- Pixel sampling at centers (`x + 0.5`), inclusive edges with the `-1e-5` barycentric tolerance, and the strict `z > stored z` depth test with `-1e9` clear value. Do not switch to "greater or equal" or to exclusive edges: that reopens cracks or flips tie behavior.
-- The shading constants in `tri` (0.35/0.65 wrap, 0.9 and 0.16 bounce, 0.3 pool, the three highlight lobes 16/110/380 with 0.55/0.55/0.5, the 0.4 rim) are the look. Change them only deliberately.
-- `rotationMatrix` negates the angle so positive x rotation brings the top toward the viewer; it snaps tiny sines and cosines to zero so a full turn is exact. The "frame 0 equals a full-turn render" test relies on both.
-- `bakeRoll` renders angles `i / frames * turn` for `i < frames` (the end angle is not repeated), uses one scale for all frames and reuses one `Rast`.
-- Keep the file dual-loading (last line), the license header (first line), and keep it dependency-free and canvas-free at its core. Only `toCanvas` may touch `document`.
-- `alphaMask` and `toSheet` take pictures, never canvases; keep it that way (no `getImageData`). Like the bakers, they return `null` for bad input and check the ceiling before allocating.
-- Keep game-specific content out: no character art, names, or palettes from the source game. Use American English.
+## Prior art and credits
 
-- Every baking path goes through one internal `setup()` (meshes, ceiling, scale, one `Rast`) and its `render(phi)`, so `bakeSprite`, `bakeRoll` and `baker` cannot drift apart. Keep it that way: the test "next() x 8 gives frames byte-identical to bakeRoll" guards it.
-- `tri` skips any triangle with a non-finite number. Keep that check: a NaN depth never loses a depth test and corrupts the buffer.
-- Probes and loaders do not throw: `toCanvas` and the bakers return `null` (or an inert `baker`) for load conditions. Only programmer errors (empty scene, bad material or mesh) throw.
+- The barycentric triangle fill, z-buffer, half-Lambert wrap lighting (a published lighting trick from Valve's Half-Life work) and ramp-based toon shading are textbook techniques. Idea only, no code from others.
+- [Tiny Renderer](https://github.com/ssloy/tinyrenderer) (ssloy) is the course this approach resembles; named for learning only, no code from it.
+- three.js, three-software-renderer, Easel, tinygl.js, Zdog, glMatrix and Blender are named for comparison. None of their code is in this module.
+- The rasterizer was extracted from Fancy Banana (LFC Foundry's own game), and the picture path draws the same bytes as that game's own triangle filler.
+- terser 5.51.2 was used only to measure minified sizes; no terser code is in the module.
 
-Run the tests: `node modules/sprite-baker/test/run.js` (exits non-zero on failure). To check the example headless, use Playwright for Python with Chromium: open `demo.html` over `file://`, collect `console` errors and `pageerror` events, and read both baked canvases back with `getImageData` to confirm they are not blank. That read-back is the one place a canvas is read, and it is scrambled in Firefox with resist-fingerprinting, Strict mode or private windows, so do this check in Chromium (or turn that Firefox setting off).
+No code from others; the ideas above are theirs.
 
-What not to change: the exported names listed in the API section (other code may call them), and the "no dependencies, no build step" rule.
+## Full research notes
+
+The long version of this page (the full per-feature API notes, the longer write-ups of each alternative, every limit with its reasoning, and the maintainer test notes) is kept in the project's private knowledge base.
 
 ---
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
