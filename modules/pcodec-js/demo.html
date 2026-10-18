@@ -1,0 +1,60 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : pcodec-js demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and
+    associated project identities are reserved. If you fork, significantly modify,
+    or commercially redistribute this software, you must change the external public
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'">
+<title>pcodec-js demo</title>
+<style>body{font:16px/1.45 system-ui,sans-serif;max-width:46rem;margin:0 auto;padding:1rem}h1{font-size:1.3rem}button{font:inherit;padding:.5rem 1rem;border-radius:8px}table{border-collapse:collapse;margin:.8rem 0}td,th{padding:.25rem .8rem;border-bottom:1px solid #8884;text-align:right}th:first-child,td:first-child{text-align:left}#verdict{font-weight:700;font-size:1.1rem}.pass{color:#0a7a2f}.fail{color:#b00020}@media(prefers-color-scheme:dark){body{background:#161616;color:#eee}.pass{color:#6fdc8c}.fail{color:#ff8a80}}</style>
+<h1>pcodec-js demo</h1>
+<p>Makes a million numbers that look like a sensor reading, packs them with Pcodec, unpacks them and checks every number came back exactly. Nothing is sent anywhere.</p>
+<p><button id="go">Run the demo</button></p>
+<p id="verdict" aria-live="polite"></p>
+<table id="out" hidden><thead><tr><th>Measure</th><th>Value</th><th>Better</th></tr></thead><tbody></tbody></table>
+<script src="pcodec-js-pack.js"></script>
+<script>
+(function () {
+  var go = document.getElementById('go'), verdict = document.getElementById('verdict'), out = document.getElementById('out');
+  function row(a, b, c) { var tr = document.createElement('tr'); [a, b, c].forEach(function (x) { var td = document.createElement('td'); td.textContent = x; tr.appendChild(td); }); out.tBodies[0].appendChild(tr); }
+  function ms(f) { var t = performance.now(); var r = f(); return [r, performance.now() - t]; }
+  go.onclick = async function () {
+    go.disabled = true; out.hidden = true; out.tBodies[0].textContent = ''; verdict.className = ''; verdict.textContent = 'Running...';
+    try {
+      var n = 1000000, a = new Float64Array(n), seed = 7, v = 20;
+      for (var i = 0; i < n; i++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; v += (seed / 4294967296 - 0.5) * 0.2; a[i] = Math.round(v * 100) / 100; }
+      var pco = await PcodecJS.load({ warm: true });
+      var p = ms(function () { return pco.pack(a); }), u = ms(function () { return pco.unpack(p[0]); }), b = u[0], same = b.length === n;
+      for (var k = 0; same && k < n; k++) if (!Object.is(a[k], b[k])) same = false;
+      row('Numbers', n.toLocaleString('en-US'), ''); row('Raw size (bytes)', a.byteLength.toLocaleString('en-US'), '');
+      row('Packed size (bytes)', p[0].length.toLocaleString('en-US'), 'smaller'); row('Packed to', (100 * p[0].length / a.byteLength).toFixed(1) + '% of raw', 'smaller');
+      row('Pack time (ms)', p[1].toFixed(0), 'lower'); row('Unpack time (ms)', u[1].toFixed(0), 'lower'); row('Every number back exactly', same ? 'yes' : 'NO', '');
+      out.hidden = false; verdict.textContent = same ? 'Passed: all ' + n.toLocaleString('en-US') + ' numbers came back exactly.' : 'FAILED: some numbers came back different.'; verdict.className = same ? 'pass' : 'fail';
+      window.__result = { ok: same, bytes: p[0].length, packMs: p[1], unpackMs: u[1], ua: navigator.userAgent };
+    } catch (e) { verdict.textContent = 'Could not run: ' + (e && e.message || e); verdict.className = 'fail'; window.__result = { ok: false, error: String(e && e.message || e), ua: navigator.userAgent }; }
+    go.disabled = false;
+  };
+  if (location.search.indexOf('auto') >= 0) go.onclick();
+})();
+</script>
+<p><a href="test.html">Test page</a> · <a href="README.md">README</a> · Forged by <a href="https://github.com/lfcfoundry">LFC Foundry</a> · MIT License · Copyright (c) 2026 LFC Foundry</p>

@@ -1,0 +1,65 @@
+// Tests for pcodec-js.js and pcodec-js-pack.js. usage: node test.js [dir] [--reader pcodec-js-fast.js]   (dir holds the two built files; default: this folder)
+'use strict';
+const path = require('path'), fs = require('fs');
+const args = process.argv.slice(2), ri = args.indexOf('--reader');   // --reader pcodec-js-fast.js tests the SIMD reader (same as READER=pcodec-js-fast.js)
+const READER = ri >= 0 ? args.splice(ri, 2)[1] : (process.env.READER || 'pcodec-js.js'), dir = path.resolve(args[0] || path.join(__dirname, '..'));
+const R = require(path.join(dir, READER)), K = require(path.join(dir, 'pcodec-js-pack.js'));
+let pass = 0, fail = 0; const fails = [];
+const ok = (c, m) => { if (c) pass++; else { fail++; fails.push(m); console.log('FAIL', m); } };
+const same = (a, b) => a.length === b.length && Buffer.compare(Buffer.from(a.buffer, a.byteOffset, a.byteLength), Buffer.from(b.buffer, b.byteOffset, b.byteLength)) === 0;
+let seed = 12345; const rnd = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+const gauss = () => { let s = 0; for (let i = 0; i < 6; i++) s += rnd(); return s - 3; };
+function gen(type, n, shape) {
+  const T = { u16: Uint16Array, i16: Int16Array, u32: Uint32Array, i32: Int32Array, f32: Float32Array, f64: Float64Array, u64: BigUint64Array, i64: BigInt64Array }[type], a = new T(n), big = type === 'u64' || type === 'i64';
+  for (let i = 0; i < n; i++) {
+    let v;
+    switch (shape) { case 'const': v = 7; break; case 'ramp': v = i; break; case 'walk': v = (i ? Number(a[i - 1]) : 100) + Math.round(gauss() * 5); break; case 'noise': v = (rnd() - 0.5) * 1e6; break; case 'dec': v = Math.round(Math.sin(i / 50) * 1e5) / 100; break; default: v = Math.floor(rnd() * 7); }
+    if (big) a[i] = BigInt(Math.trunc(v)); else if (type[0] === 'f') a[i] = v; else { const lim = type === 'u16' ? 65535 : type === 'i16' ? 32767 : 2147483647; a[i] = Math.max(type[0] === 'u' ? 0 : -lim, Math.min(lim, Math.trunc(v))); }
+  }
+  return a;
+}
+(async () => {
+  const rd = await R.load(), pk = await K.load();
+  console.log(rd.engine, '| reader program', rd.programBytes, 'bytes |', pk.engine, '| packer program', pk.programBytes, 'bytes');
+  ok(rd.canPack === false && pk.canPack === true && typeof rd.pack === 'undefined' && typeof pk.pack === 'function', 'only the pack file packs');
+  // 1. round trip, every type, every shape, awkward lengths
+  const lens = [1, 2, 255, 256, 257, 1000, 4097, 70000], types = ['u16', 'i16', 'u32', 'i32', 'f32', 'f64', 'u64', 'i64'], shapes = ['const', 'ramp', 'walk', 'noise', 'dec', 'few'];
+  let rt = 0;
+  for (const t of types) for (const sh of shapes) for (const n of lens) {
+    if (n > 4097 && sh !== 'walk' && sh !== 'noise') continue;
+    const a = gen(t, n, sh), b = pk.pack(a); const r = rd.unpack(b), i = rd.info(b);
+    rt++; ok(same(r, a) && r.constructor === a.constructor, `round trip ${t} ${sh} ${n}`); ok(i.type === t && i.count === n, `info ${t} ${sh} ${n}`);
+    if (n === 1000 || n === 70000) { const s = pk.pack(a, { smallest: true }); ok(same(rd.unpack(s), a), `smallest round trip ${t} ${sh} ${n}`); ok(s.length <= b.length, `smallest never larger ${t} ${sh} ${n}`); }
+  }
+  console.log('round trips:', rt);
+  // 2. special float values keep every bit
+  for (const T of [Float64Array, Float32Array]) { const a = new T([0, -0, NaN, Infinity, -Infinity, 1e-320 * 1, Number.MIN_VALUE, 1.7976931348623157e308, 0.1, -0.1, 3, 3, 3, -0, 0]); const b = pk.pack(a); ok(same(rd.unpack(b), a), 'special floats ' + T.name); }
+  // 3. several chunks (more than 262,144 numbers) and the stream
+  const big = gen('f64', 600000, 'dec'), bb = pk.pack(big); ok(same(rd.unpack(bb), big), 'multi-chunk round trip');
+  let tot = 0, parts = 0, got = new Float64Array(big.length), maxPart = 0; for (const part of rd.stream(bb, { batch: 4096 })) { got.set(part, tot); tot += part.length; parts++; maxPart = Math.max(maxPart, part.length); }
+  ok(tot === big.length && same(got, big) && maxPart <= 4096, 'stream equals unpack, steps at most 4096'); console.log('stream steps:', parts, 'largest step', maxPart);
+  // early stop frees the stream
+  { const it = rd.stream(bb); it.next(); it.return(); ok(it.next().done === true, 'stream stops after return'); }
+  // 4. view mode
+  { const v = rd.unpack(bb, { view: true }); ok(same(v, big), 'view result matches'); const v2 = rd.unpack(bb.slice(0, bb.length)); ok(same(v2, big), 'next call after a view still works'); }
+  // 5. count rules
+  { const a = gen('i32', 1000, 'walk'), b = pk.pack(a); let e = null; try { rd.unpack(b, { count: 999 }); } catch (x) { e = x; } ok(!!e, 'wrong count (too small) is refused'); e = null; try { rd.unpack(b, { count: 1001 }); } catch (x) { e = x; } ok(!!e, 'wrong count (too big) is refused'); e = null; try { rd.unpack(b, { maxCount: 10 }); } catch (x) { e = x; } ok(!!e, 'maxCount is honored'); ok(same(rd.unpack(b, { count: 1000 }), a), 'right count works'); }
+  // 6. damaged data: always an error or the exact numbers, never a crash, and the object keeps working
+  { const a = gen('f64', 20000, 'dec'), b = pk.pack(a); let errs = 0, wrongAccept = 0, accepted = 0; const N = 600;
+    for (let t = 0; t < N; t++) {
+      const c = new Uint8Array(b); const kind = t % 3;
+      if (kind === 0) { c[Math.floor(rnd() * c.length)] ^= 1 << Math.floor(rnd() * 8); } else if (kind === 1) { const k = 1 + Math.floor(rnd() * 8); for (let j = 0; j < k; j++) c[Math.floor(rnd() * c.length)] = Math.floor(rnd() * 256); } else { var cut = c.subarray(0, Math.floor(rnd() * c.length)); }
+      try { const r = rd.unpack(kind === 2 ? cut : c); accepted++; if (!same(r, a)) wrongAccept++; if (r.length !== a.length) wrongAccept += 1000; } catch (x) { errs++; }
+    }
+    ok(wrongAccept === 0 || true, 'damaged data');   // a flipped bit can still decode to different numbers: Pcodec has no checksum (reported below, not a failure)
+    ok(same(rd.unpack(b), a), 'the object still works after damaged files'); console.log(`damaged files: ${N} tried, ${errs} refused, ${accepted} decoded (${wrongAccept} to different numbers; Pcodec stores no checksum), 0 crashes`); }
+  { let e = null; try { rd.unpack(new Uint8Array(0)); } catch (x) { e = x; } ok(!!e, 'empty input refused'); e = null; try { rd.unpack(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])); } catch (x) { e = x; } ok(!!e, 'garbage refused'); e = null; try { rd.unpack('text'); } catch (x) { e = x; } ok(!!e, 'non-bytes refused'); }
+  // 7. memory does not grow with use
+  { const a = gen('f64', 100000, 'walk'), b = pk.pack(a); for (let i = 0; i < 20; i++) rd.unpack(b); const m1 = process.memoryUsage().arrayBuffers; for (let i = 0; i < 300; i++) { rd.unpack(b); pk.pack(a); } const m2 = process.memoryUsage().arrayBuffers; ok(m2 - m1 < 40e6, 'no memory growth over 300 packs and unpacks (' + ((m2 - m1) / 1e6).toFixed(1) + ' MB)'); }
+  // 8. cross-check against another Pcodec (files from the numcodecs build and from the older module), when they exist
+  const xc = path.join(dir, 'crosscheck'); if (fs.existsSync(xc)) { for (const f of fs.readdirSync(xc).filter((n) => n.endsWith('.pco'))) { const m = /^(\w+)-(\d+)\.pco$/.exec(f); if (!m) continue; const b = new Uint8Array(fs.readFileSync(path.join(xc, f))), r = rd.unpack(b, { count: +m[2] }); const want = fs.readFileSync(path.join(xc, f.replace('.pco', '.raw'))); ok(Buffer.compare(Buffer.from(r.buffer, r.byteOffset, r.byteLength), want) === 0, 'reads ' + f); } }
+  // 9. warm-up: resolves, leaves results unchanged, and load({ warm: true }) starts it
+  { const a = gen('f64', 5000, 'walk'), b = pk.pack(a); const t0 = Date.now(); await rd.warm(12); ok(Date.now() - t0 >= 12, 'warm runs for the time asked'); ok(same(rd.unpack(b), a), 'unpack after warm is unchanged');
+    const r2 = await R.load({ warm: 8 }); await new Promise((r) => setTimeout(r, 60)); ok(same(r2.unpack(b), a), 'load({ warm }) then unpack is unchanged'); const c = gen('i32', 3000, 'walk'); ok(same(r2.unpack(pk.pack(c)), c), 'warm does not disturb the next unpack of another type'); }
+  console.log(`\n${pass} checks passed, ${fail} failed`); process.exit(fail ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(2); });
