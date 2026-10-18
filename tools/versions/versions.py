@@ -422,13 +422,18 @@ def set_glance(text, reg, root):
     return text
 
 
-def set_index(text, reg):
+def set_index(text, reg, root=None):
+    """Version label next to each name on the front page and, when the files can be measured, the same size as the README tables."""
     for _, e in entries(reg):
         v = e.get("version")
         if not v:
             continue
         pat = re.compile(r'(<li id="[mt]-%s">.*?<b>%s</b></a>)(?: <small class="v">[^<]*</small>)?' % (re.escape(e["id"]), re.escape(e["id"])))
         text = pat.sub(lambda m: m.group(1) + ' <small class="v">' + label(v) + "</small>", text, count=1)
+        sz = piece_sizes(root, e) if root else None
+        if sz:
+            li = re.compile(r'(<li id="[mt]-%s">(?:(?!</li>).)*?)( · )\d+(?:\.\d+)? KB( · <a href)' % re.escape(e["id"]), re.S)
+            text = li.sub(lambda m: m.group(1) + m.group(2) + kb1(sz[0]) + " KB" + m.group(3), text, count=1)
     return text
 
 
@@ -468,7 +473,7 @@ def apply(root, reg):
     for rel, fn in (("README.md", set_tables), ("index.html", set_index), ("llms.txt", set_llms)):
         if os.path.exists(os.path.join(root, rel)):
             t = rd(root, rel)
-            n = fn(t, reg, root) if fn is set_tables else fn(t, reg)
+            n = fn(t, reg, root) if fn in (set_tables, set_index) else fn(t, reg)
             if n != t:
                 wr(root, rel, n)
     # keep "version" and "api" next to the id in modules.json
@@ -529,6 +534,10 @@ def check(root, reg):
             bad.append("%s: no size recorded: run versions.py sizes --story-editor DIR (or give a \"sizeNote\")" % i)
         if e.get("version") and not SEMVER.match(e["version"]):
             bad.append("%s: version %r is not like 1.2.3" % (i, e["version"]))
+    if os.path.exists(os.path.join(root, "index.html")):
+        it = rd(root, "index.html")
+        if set_index(it, reg, root) != it:
+            bad.append("index.html: a size or label on the front page is out of date: run versions.py sizes")
     rt = rd(root, "README.md")
     if set_tables(rt, reg, root) != rt:
         bad.append("README.md: the tables or the 'All at a glance' index are out of date: run versions.py sizes")
@@ -651,6 +660,12 @@ def main(argv):
         if n != t:
             wr(root, "README.md", n)
         print("README.md tables %s" % ("refreshed" if n != t else "already current"))
+        if os.path.exists(os.path.join(root, "index.html")):
+            t = rd(root, "index.html")
+            n = set_index(t, reg, root)
+            if n != t:
+                wr(root, "index.html", n)
+            print("index.html sizes %s" % ("refreshed" if n != t else "already current"))
         return 0
     if cmd == "init":
         n = 0

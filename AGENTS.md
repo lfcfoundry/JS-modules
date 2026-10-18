@@ -15,7 +15,7 @@ This repository is meant to be read, copied from and extended by people and AI h
 - Add or update a check for every behavior you change: `tests/run.js` for the original modules, or the module's own `test/` folder (run all of those with `npm run test:kits`).
 - Keep the header on each file: `Copyright (c) 2026 LFC Foundry. MIT License`. Contributions are accepted under the same license.
 - Every HTML page here (demos, examples, tools, the front page) starts, right after `<!doctype html>`, with the LFC Foundry header comment in `tools/foundry-header.txt` (put the page's title where `{NAME}` stands; no `--` inside it). The one visible credit is a small footer line, `Forged by LFC Foundry • MIT Licensed`, at the end of each demo and tool page (not on internal test pages). Packed examples get the header added after packing, so it stays readable at the top. Commits are still authored and committed by JNFoo.
-- Do not add game art, characters, brand names or text from Apple Press. Do not add code you cannot license under MIT, and say where an idea came from in the module README ("Prior art").
+- Do not add game art, characters, brand names or text from Apple Press. Do not add code you cannot license under MIT, and say where an idea came from in the module README ("Prior art and credits").
 - Plain words in docs. Say what a thing does, then its limits.
 
 ## Version labels
@@ -35,8 +35,10 @@ Test **only** with the browsers on the `browsers` branch of the private knowledg
 **Waits that were cut (2026-10-17), each with its switch.** The Apple Press piece checks open the demos with `#fast` (grown-ups-door: door stays open 0.5 s instead of 1.5 s; slow-note: quiet time 0.5 s instead of 1.5 s) and speed-lab's stubborn-card check uses `#tiny` steps of 120 ms; the defaults of every demo are unchanged. `tests/gif-writer-browser.js` and `tests/save-kit-speed-browser.js` time one run (three rounds for save-kit) when nothing is compared and the full best-of-3 and best-of-7 when `OLD=` is given. `modules/lzma-decode/test/run.js` keeps the reference streams from Python's xz in the temp folder under a hash of the input (`NO_FIXTURE_CACHE=1` turns that off). The lzma-pack and ppmd-pack key search counts byte pairs instead of trying 256 keys (6.9 s to 0.04 s on 190 KB, same key).
 
 ## Adding a module
-1. Make `modules/<name>/` with the file(s), `README.md` (what it does, quick start, API, how it differs from existing open source, limits, a "For AI agents" section), `demo.html`, and a `test/` folder.
-2. Add it to `modules.json`, `llms.txt`, `index.html` and the README table, and to `tests/kits.js` if it has its own tests.
+1. Make `modules/<name>/` with the file(s), `README.md` (the version and **Tested in** lines at the top, what it does, quick start, API, `## How it compares` with a table against the real alternatives, `## Prior art and credits` naming every piece of code, algorithm or idea taken from someone else with its license, limits, a "For AI agents" section), `CHANGELOG.md`, `demo.html`, and a `test/` folder.
+   - Speed numbers in a README or changelog come from the four test browsers only, one at a time, with the browser and version next to each number and "smaller/lower is better" stated; Node is for pass/fail checks and byte counts. Where a number was not measured, write "not measured".
+   - When you add or change a module that competes with existing libraries, benchmark those libraries in the four browsers for the release, not only your own before and after.
+2. Add it to `modules.json` (with `short`, at most 100 characters, a `category` and a `side`; `file` is what gets measured for the size), then run `python3 tools/versions/versions.py sizes`: it writes the root README tables and the "All at a glance" index, and the sizes on the front page. Add it to `llms.txt` and `index.html` by hand (a line each), and to `tests/kits.js` if it has its own tests. `versions.py check` fails when a row has no size, the tables or the front page are stale, or a label disagrees.
 3. Only add something that is not already well covered by open source, and say so honestly in the README. Where this repository already has something close, link it and say how they differ.
 
 ## Working with other sessions
