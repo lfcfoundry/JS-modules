@@ -4,185 +4,115 @@
 
 **Tested in:** Python 3 tests of the packer (lzma-pack 25 checks, ppmd-pack 30 checks); the packed page is byte for byte the same as before on a 38 KB sample, so the earlier browser results (ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5) still stand; not rerun in a browser, not run on a phone
 
-Turns one HTML file into one smaller, self-unpacking HTML file using PPMd (the "PPMd7" / variant H compressor that 7-Zip offers), and checks a hash of the result before running it. It is the heavier sibling of [`lzma-pack`](../lzma-pack/README.md): the same wrapper page and options, a stronger compressor for text and code, and a bigger, slower decoder. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader). The encoder is pure Python; nothing is compiled and nothing is downloaded.
+Turns one HTML file into one smaller, self-unpacking HTML file using PPMd (the "PPMd7" / variant H compressor that 7-Zip offers), and checks a hash of the result before running it. It is the heavier sibling of [`lzma-pack`](../lzma-pack/README.md): the same wrapper page and options, a stronger compressor for text and code, and a bigger, slower decoder. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader); the encoder is pure Python, nothing is compiled or downloaded.
 
-`pack.py` compresses the page with PPMd and writes a wrapper page: the compressed bytes plus a minified loader built from [`modules/ppmd-decode`](../../modules/ppmd-decode/ppmd-decode.js). While it unpacks, a small "Opening..." line shows on the page's own background color (read from the input page, or given with `--bg`), so a dark game never flashes white. Opening the file checks a hash of the compressed bytes, unpacks the page, checks a hash of the result, and replaces itself with the real page. If a hash does not match (the file was opened and saved as text, or cut short), it shows a plain message instead of running anything.
-
-`ppmd7_encode.py` can also be used on its own: `encode(data, order, mem)` returns the raw 7z-style PPMd7 stream. It is a port of the public-domain C code in the 7-Zip / LZMA SDK (Ppmd7.c, Ppmd7Enc.c), and its output is **byte for byte what that C encoder writes**, checked as described below.
+`pack.py` compresses the page with PPMd and writes a wrapper page: the compressed bytes plus a minified loader built from [`modules/ppmd-decode`](../../modules/ppmd-decode/ppmd-decode.js). While it unpacks, an "Opening..." line shows on the page's own background color, so a dark game never flashes white. The loader checks a hash of the compressed bytes, unpacks, checks a hash of the result, and replaces itself with the real page; if a hash does not match (the file was re-saved as text, or cut short) it shows a plain message instead of running anything. `ppmd7_encode.py` also works on its own: `encode(data, order, mem)` returns the raw 7z-style PPMd7 stream, byte for byte what the 7-Zip C encoder writes.
 
 ## Why it exists
 
-Single-file pages and games are shipped as one HTML file, so a smaller file is a faster download. `lzma-pack` already shrinks a page; PPMd is a stronger compressor for text and code, and on the test set below its data is 4 to 16% under LZMA's. That gain costs a bigger and slower decoder in the page, so it pays off only for larger pages (the table below says where the break-even is). This is why it is its own tool next to `lzma-pack` and the Zopfli packer instead of a replacement for them.
+A single-file page or game ships as one HTML file, so a smaller file is a faster download. PPMd compresses text and code better than LZMA (4 to 16% smaller data on the test set below), but it needs a bigger and slower decoder in the page, so it pays off only for larger pages. That is why it is its own tool next to `lzma-pack` and the Zopfli packer, not a replacement for them.
 
-## Try it and test it
-
-**Test it:** `python3 tools/ppmd-pack/test/run.py` (Python 3 and Node.js, no browser, about 20 seconds) and `python3 tools/ppmd-pack/test/browser.py` (Playwright for Python with Chromium; offline). The decoder it embeds is tested separately: `node modules/ppmd-decode/test/run.js`.
-
-## Should you use it? (the honest table)
-
-Three packers exist in this repository. None is best for every file.
-
-| | Zopfli deflate ([`single-file-tools`](../single-file-tools/README.md) `pack.py`) | [`lzma-pack`](../lzma-pack/README.md) | `ppmd-pack` (this tool) |
-|---|---|---|---|
-| Decoder in the page | none: the browser unzips (`DecompressionStream`, browsers since 2023) | about 2.3 KB | about 7.3 KB (5.0 KB more than LZMA) |
-| Size of the compressed data | biggest (LZMA was 10 to 25% smaller on our games) | middle | smallest on text and code: 4 to 16% under LZMA's on our test set (table below) |
-| Unpacking time (431 KB page, in a browser) | fastest (native) | about 25 to 65 ms | about 115 to 190 ms (4 to 8 times slower than LZMA) |
-| Memory while unpacking | small | small | allocates the model memory, 1 to 16 MB by default (`--mem`), plus the page itself, and frees it afterwards |
-| Packing time | slow (Zopfli) | seconds | pure Python, about 90 to 130 KB/s; `--tune` runs about 35 encodings |
-| Use it when | pages under about 10 KB, or you want the simplest thing | pages of 10 KB and up (the usual choice) | the page holds **about 60 KB or more of compressed data**, and you can spend a few MB and about 0.1 to 0.2 s at start |
-
-Where the 60 KB comes from: the PPMd decoder costs 5.4 KB more than LZMA's, and PPMd wins back only about 5 to 15% of the data on typical text and code. 5.4 KB divided by 10% is 54 KB of LZMA data to break even; divided by 5% it is 108 KB. Below that, `lzma-pack` gives the smaller page, and it decodes faster. Packed pictures and audio (already compressed) gain nothing from either. Run `--compare` on your own file: it builds both and prints the net page sizes.
-
-## Measured on ten files
-
-Default settings (order 12, memory chosen from the input size), `--encoding bytes`, terser for the loader, each page unpacked and checked in Node. "Packed page" is the whole output file: payload plus loader plus wrapper. Rows that are not HTML (`.md`, `.js`, `.json`, `.css`) stand for the same kind of content inside a page; the packer treats any UTF-8 text the same way.
-
-| Input | Size (bytes) | LZMA packed page | PPMd packed page | Page difference | Payload difference |
-|---|---:|---:|---:|---:|---:|
-| `html_demo-frame-kit.html` | 17,425 | 8,956 | 13,240 | 4,284 (+47.8%) | 5,521 vs 6,206 (-11.0%) |
-| `html_demo-cartoon-3d-kit.html` | 20,554 | 9,866 | 14,149 | 4,283 (+43.4%) | 6,409 vs 7,100 (-9.7%) |
-| `md_readme-frame-kit.md` | 29,129 | 13,964 | 17,176 | 3,212 (+23.0%) | 9,371 vs 11,103 (-15.6%) |
-| `js_howler.min.js` | 36,173 | 11,973 | 15,735 | 3,762 (+31.4%) | 7,954 vs 9,162 (-13.2%) |
-| `html_audio-base64.html` | 80,027 | 56,895 | 61,900 | 5,005 (+8.8%) | 52,973 vs 52,959 (+0.0%) |
-| `json_story-nodes.json` | 181,527 | 64,581 | 60,888 | **-3,693 (-5.7%)** | 51,992 vs 60,435 (-14.0%) |
-| `css_bootstrap.min.css` | 232,803 | 27,504 | 30,301 | 2,797 (+10.2%) | 22,192 vs 24,304 (-8.7%) |
-| `html_banana-game.min.html` | 431,473 | 133,434 | 129,579 | **-3,855 (-2.9%)** | 118,874 vs 127,531 (-6.8%) |
-| `html_mixed-app.html` | 539,598 | 118,826 | 113,927 | **-4,899 (-4.1%)** | 103,666 vs 113,272 (-8.5%) |
-| `js_three.min.js` | 691,648 | 145,049 | 144,699 | **-350 (-0.2%)** | 133,611 vs 138,877 (-3.8%) |
-
-Read it like this: the compressed data is smaller with PPMd on nine of ten files (4 to 16%; the exception is base64 audio, which is already dense), but the whole page ends up clearly smaller only on three files (3 to 4%), the ones where LZMA's data was above about 60 KB *and* PPMd's gain was above about 5%; on `three.min.js` it is a tie (-0.2%). Minified JavaScript gains least. Page sizes change by a few bytes whenever the loader or wrapper changes; rerun `--compare` for exact numbers.
-
-`--tune` (orders 4 to 32, memory 1 to 16 MB, capped by the input size) found these extra gains over the defaults: `json_story-nodes.json` 60,888 to 56,168 bytes (-7.8%, order 6, 2 MB; 18 s on two processors) and `html_banana-game.min.html` 129,579 to 126,034 bytes (-2.7%, order 12, 8 MB; 54 s). On `html_demo-cartoon-3d-kit.html` the default was already the best (1 s). Memory is the setting that matters most for big pages; the default (a power of two at least 8 times the input, between 1 and 16 MB) was within about 1 to 5% of the best setting.
-
-**Encoder speed:** about 90 to 130 KB of input per second in pure Python 3.13 on one processor (132 KB/s over the ten files above at default settings; 91 to 107 KB/s for three large files at order 12 with 16 MB; 88 KB/s averaged over 231 runs that include tiny model memory and many restarts). A 431 KB page takes about 4 seconds; `--tune` multiplies that by the number of settings divided by your processors.
-
-## Quick start
+## Use
 
 ```
 python3 tools/ppmd-pack/pack.py mypage.html mypage.packed.html --title "My page"
 python3 tools/ppmd-pack/pack.py mypage.html mypage.packed.html --compare      # also prints the LZMA packer's sizes
 ```
 
-Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` and `example/packed-base64.html` (both unpack `example/app.html`; the license notice comment in their head is passed with `--head`, as in the [lzma-pack quick start](../lzma-pack/README.md#quick-start)):
+Open `mypage.packed.html` by double-click. Examples: `example/packed-bytes.html` and `example/packed-base64.html` (both unpack `example/app.html`; bigger than the 2.7 KB original, since the loader alone is 7.3 KB: they show the mechanism, not the saving).
 
-```
-python3 tools/ppmd-pack/pack.py tools/ppmd-pack/example/app.html tools/ppmd-pack/example/packed-bytes.html --title "ppmd-pack example" --head "$(cat license-comment.txt)"
-python3 tools/ppmd-pack/pack.py tools/ppmd-pack/example/app.html tools/ppmd-pack/example/packed-base64.html --title "ppmd-pack example" --head "$(cat license-comment.txt)" --encoding base64
-```
-
-The example page is only 2.7 KB, so the packed copies are bigger than the original (the loader alone is 7.3 KB). They show the mechanism, not the saving; see the table above for real sizes.
+Test it: `python3 tools/ppmd-pack/test/run.py` (Python 3 and Node.js, no browser, about 20 seconds) and `python3 tools/ppmd-pack/test/browser.py` (Playwright for Python with Chromium, offline; real unpack paths, a damaged payload, a re-saved file). The decoder is tested separately: `node modules/ppmd-decode/test/run.js`.
 
 ## Options
 
 | Option | Meaning |
 |---|---|
-| `--title T` | Title of the wrapper page. |
-| `--head HTML` | Extra HTML for the wrapper's head, for example a Content-Security-Policy meta tag. A Content-Security-Policy meta tag in it gets `'wasm-unsafe-eval'` added to its `script-src` (or a `script-src` built from its `default-src` when there is none); nothing else in the policy changes, and a page with no policy gets none. |
+| `--head HTML` | Extra HTML for the wrapper's head, such as a Content-Security-Policy meta tag. In such a tag the packer adds `'wasm-unsafe-eval'` to `script-src`; nothing else in the policy changes, and a page with no policy gets none. |
 | `--encoding bytes\|base64` | `bytes` (default): smallest, stored raw, wrapper declared windows-1252. `base64`: about a third bigger, safe on any server or editor. |
-| `--order N` | Model order, 2 to 64 (default 12). Higher orders help repetitive pages and cost time. |
-| `--mem BYTES` | Model memory, 2048 and up; a `K` or `M` suffix is accepted (`4M`). Default: the smallest power of two that is at least 8 times the input size, kept between 1 MB and 16 MB. **The page allocates this much memory at start** (and frees it when it is done). The decoder must use the same order and memory as the encoder, so both are written into the loader. |
-| `--tune` | Try orders 4, 6, 8, 12, 16, 24, 32 with memory 1, 2, 4, 8, 16 MB (capped by the input size) and keep the smallest result. Replaces `--order` and `--mem`. Slow: one pure-Python encoding per setting, spread over all processors. The default setting is always one of the candidates, so the result is never bigger than the default's. |
-| `--compare` | Also build the LZMA packer's page for the same input (raw LZMA, lc=4 lp=0 pb=0, preset 9 extreme) and print both payloads and both net page sizes (payload plus loader). |
-| `--bg auto\|none\|COLOR` | Color behind the "Opening..." line, exactly as in lzma-pack. |
-| `--minify-page` | First minify the page's own inline scripts (needs terser or esbuild), then pack. Off by default. |
-| `--wasm` | Off by default. Also ship the WebAssembly PPMd decoder (9,317 bytes, stored raw behind the PPMd data): the loader tries it first and uses the JavaScript decoder if it is missing, refused or wrong. See "Optional WebAssembly loader" below. |
-| `--skip-node-check` | Do not run the packed page's own decoder in Node after packing (see below). |
-| `--minifier auto\|terser\|esbuild\|none` | Finds `terser` or `esbuild` on the PATH, in a `node_modules/.bin`, or from the `TERSER` / `ESBUILD` environment variable. Without one the loader is about 22 KB (the decoder is embedded as written). |
+| `--order N` | Model order, 2 to 64 (default 12). Higher helps repetitive pages and costs time. |
+| `--mem BYTES` | Model memory, 2048 and up, `K`/`M` suffix accepted. Default: the smallest power of two at least 8 times the input, between 1 MB and 16 MB. **The page allocates this much at start** and frees it afterwards. Order and memory are written into the loader. |
+| `--tune` | Try orders 4 to 32 with memory 1 to 16 MB (about 35 pure-Python encodings over all processors) and keep the smallest; never bigger than the default. Replaces `--order` and `--mem`. |
+| `--compare` | Also build the LZMA packer's page (raw LZMA, lc=4 lp=0 pb=0, preset 9 extreme) and print both payloads and both net page sizes. |
+| `--title T`, `--bg auto\|none\|COLOR`, `--minify-page` | Wrapper page title; color behind "Opening..." (as in lzma-pack); minify the page's own inline scripts first (needs terser or esbuild; off by default). |
+| `--wasm` | Off by default. Also ship the WebAssembly PPMd decoder (9,317 bytes, stored raw); the loader tries it first and falls back to the JavaScript decoder if it is missing, refused or wrong. Needs `'wasm-unsafe-eval'` in the page's policy. Refuses a model memory that would not fit in one WebAssembly memory (1 GB with the page). |
+| `--skip-node-check`, `--minifier auto\|terser\|esbuild\|none` | Skip the Node self-check below; pick the loader minifier (found on the PATH, in `node_modules/.bin`, or from `TERSER` / `ESBUILD`; without one the loader is about 22 KB). |
 
-## Optional WebAssembly loader (`--wasm`)
+After packing, the packer runs the page's real decoder in a bare Node sandbox; the result must equal the input page, show no error and leave no global behind. Without Node.js it says so and **nothing has verified the packed data** (PPMd is not in the Python standard library, so there is no Python-side decoder). The input must be valid UTF-8 (a leading byte order mark is dropped). The hash check on the compressed bytes runs before decoding because a re-saved or cut PPMd stream can make the lean decoder spin forever; it catches accidents, not tampering.
 
-`--wasm` writes a loader that tries the WebAssembly PPMd decoder first (`modules/ppmd-decode/wasm/ppmd7.wasm`) and falls back to the JavaScript decoder, which is always in the page too. It is off by default because it costs file size: the program cannot be PPMd-packed itself, so the page grows by about 9.7 KB (the 9,317-byte program plus about 380 bytes of loader). In return the page finishes unpacking about 1.5 to 2 times sooner.
+## How it compares
 
-Measured on the Apple Press page (2026.10.17.1445, 703,049 bytes; PPMd order 12, 8 MB), default `bytes` encoding, terser loader, each page opened fresh in one browser at a time, **time from the start of the page to the unpacked page being ready** (median of 5 runs; **lower is better**; "times faster" = PPMd without `--wasm` divided by PPMd with it, **higher is better**). The LZMA pages come from `tools/lzma-pack` for the same input, with and without its own `--wasm`:
+Three packers live in this repository; none is best for every file.
 
-| Page | Size (bytes, smaller is better) | Chromium 155 (ms) | Firefox 158 (ms) | WebKitGTK 2.52.6 (ms) | GNOME Web 46.5 (ms) |
+| | Zopfli deflate ([`single-file-tools`](../single-file-tools/README.md) `pack.py`) | [`lzma-pack`](../lzma-pack/README.md) | `ppmd-pack` (this tool) |
+|---|---|---|---|
+| Decoder in the page | none: the browser unzips (`DecompressionStream`, browsers since 2023) | about 2.3 KB | about 7.3 KB (5.0 KB more than LZMA) |
+| Size of the compressed data | biggest (LZMA was 10 to 25% smaller on our games) | middle | smallest on text and code: 4 to 16% under LZMA's on our test set |
+| Unpacking time (431 KB page, in a browser) | fastest (native) | about 25 to 65 ms | about 115 to 190 ms (4 to 8 times slower than LZMA) |
+| Packing time | slow (Zopfli) | seconds | pure Python, about 90 to 130 KB/s (a 431 KB page about 4 s, a 5 MB page about a minute) |
+| Use it when | pages under about 10 KB, or you want the simplest thing | pages of 10 KB and up (the usual choice) | the page holds **about 60 KB or more of compressed data** and you can spend a few MB and about 0.1 to 0.2 s |
+
+Where 60 KB comes from: the decoder costs 5.4 KB more than LZMA's and wins back about 5 to 15% of typical text and code, so break-even is 54 KB of LZMA data at 10% and 108 KB at 5%. Packed pictures and audio gain nothing from either. Run `--compare` on your own file.
+
+**Ten test files** (default settings, `--encoding bytes`, terser loader; each page unpacked and checked in Node; "packed page" is the whole output file; bytes, smaller is better). A few rows:
+
+| Input | Size | LZMA packed page | PPMd packed page | Payload, PPMd vs LZMA |
+|---|---:|---:|---:|---:|
+| `html_demo-frame-kit.html` | 17,425 | 8,956 | 13,240 | 5,521 vs 6,206 (-11.0%) |
+| `json_story-nodes.json` | 181,527 | 64,581 | 60,888 | 51,992 vs 60,435 (-14.0%) |
+| `html_banana-game.min.html` | 431,473 | 133,434 | 129,579 | 118,874 vs 127,531 (-6.8%) |
+| `js_three.min.js` | 691,648 | 145,049 | 144,699 | 133,611 vs 138,877 (-3.8%) |
+
+The data is smaller with PPMd on nine of ten files (4 to 16%; the exception is base64 audio, already dense), but the whole page is clearly smaller only on three files (3 to 4%), where LZMA's data was above about 60 KB and PPMd's gain above about 5%; on `three.min.js` it is a tie (-0.2%). Minified JavaScript gains least. `--tune` took `json_story-nodes.json` from 60,888 to 56,168 bytes (-7.8%, 18 s on two processors).
+
+**With `--wasm`** the page grows by about 9.7 KB (the 9,317-byte program plus about 380 bytes of loader) and unpacks about 1.5 to 2.1 times sooner. Apple Press page (2026.10.17.1445, 703,049 bytes; PPMd order 12, 8 MB), time from page start to unpacked page ready, median of 5 runs, one browser at a time (size in bytes: smaller is better; ms: lower is better):
+
+| Page | Size (bytes) | Chromium 155 (ms) | Firefox 158 (ms) | WebKitGTK 2.52.6 (ms) | GNOME Web 46.5 (ms) |
 |---|---:|---:|---:|---:|---:|
 | LZMA | 191,584 | 106 | 89 | 120 | 119 |
 | LZMA, `--wasm` | 196,119 | 64 | 74 | 86 | 114 |
 | PPMd | 188,602 | 313 | 313 | 392 | 376 |
 | PPMd, `--wasm` | 198,362 | 194 | 204 | 184 | 182 |
-| PPMd `--wasm`: times faster than PPMd | | 1.6x | 1.5x | 2.1x | 2.1x |
+| PPMd `--wasm`: times faster than PPMd (higher is better) | | 1.6x | 1.5x | 2.1x | 2.1x |
 
-Plain takeaway: `--wasm` makes a PPMd page open 1.5 to 2.1 times faster, but it still opens 1.6 to 3 times slower than the LZMA page, and with it the PPMd page is 6.8 KB **bigger** than the LZMA page instead of 3.0 KB smaller. So for a page like this one, LZMA (with or without `--wasm`) is the better choice on both counts; PPMd with `--wasm` is for a page where PPMd's smaller data wins by more than the 9.7 KB (here PPMd saves 3.0 KB over LZMA, so the page would have to be about three times bigger, roughly 2 MB) and the opening time is acceptable. The numbers move by about 10 to 20% from run to run (the run lists are in the research folder).
+For this page LZMA is the better choice on both counts: PPMd with `--wasm` still opens 1.6 to 3 times slower than LZMA and is 6.8 KB **bigger** than the LZMA page, instead of 3.0 KB smaller. It pays only where PPMd's smaller data wins by more than the 9.7 KB (roughly 2 MB for a page like this) and the opening time is acceptable. Numbers move by about 10 to 20% from run to run. On a page whose policy forbids WebAssembly the loader uses the JavaScript decoder (all four browsers: the page opened in 317 to 438 ms, the same as a plain PPMd page). Not run on a phone.
 
-What the page needs: `'wasm-unsafe-eval'` in the `script-src` of the wrapper's Content-Security-Policy (the `--head` option; the packer adds it to every policy it finds there). On a page whose policy forbids WebAssembly the loader simply uses the JavaScript decoder (checked in all four browsers: the page opened in 317 to 438 ms, the same as a plain PPMd page).
+**Other tools** (checked October 15, 2026; I found no other tool that packs a web page with PPMd into one self-unpacking file, and no other standalone JavaScript PPMd decoder):
 
-The self-check runs the page's loader four times in Node: with a WebAssembly that counts its calls (the decoder must run exactly once and report done), with no WebAssembly at all, with WebAssembly whose compile step throws (as a refusing policy does), and with a decoder that answers wrongly (the page must fall back and still unpack). The compressed PPMd bytes are checked against their hash before either decoder runs, and the unpacked page is checked after, as without `--wasm`. `--wasm` refuses a model memory that would not fit in one WebAssembly memory (1 GB with the page).
+- **Built-in `DecompressionStream("brotli")`**: no decoder, 4 ms in Firefox 158; Firefox 158 only, Chromium 155 cannot do it. On the 431 KB test page Brotli's best level is 125,210 bytes, 2% under LZMA and 7.9% over PPMd.
+- **[Roadroller](https://github.com/lifthrasiir/roadroller) 2.1.0 (MIT)**: context mixing for JavaScript in size contests, decoder about 0.7 KB, but **8.4 s** in Node for the 431 KB test page (a Node figure, not measured in a test browser). Strongest for JavaScript text, but it prints text, so the file is bigger, and it is built for 1 to 30 KB inputs.
+- Smaller or different tools: [js13k-packer](https://www.npmjs.com/package/js13k-packer) (contest packaging), [RegPack](https://github.com/Siorki/RegPack) (MIT, 1 to 4 KB programs), JsExe and pnginator (deflate in a PNG), [fflate](https://www.npmjs.com/package/fflate), pako and tiny-inflate (deflate decoders 3.8 KB, 30 KB, 3.5 KB; fflate inflate only, measured; deflate is weakest on text), [lzma-js](https://www.npmjs.com/package/lzma) and [xz-decompress](https://www.npmjs.com/package/xz-decompress) (LZMA, larger decoders, slower than WebAssembly), and [7z-wasm](https://www.npmjs.com/package/7z-wasm) (whole 7-Zip as WebAssembly, 1.65 MB plus 83 KB, 55 to 67 ms; far too big for a one-file page).
 
-## What the packer checks
+PPMd sits between LZMA and context mixing: a better trade than Roadroller when the player cannot wait seconds, a worse one than LZMA or deflate when the page is small or starts often on slow phones.
 
-The packer reuses [`lzma-pack`](../lzma-pack/pack.py)'s helpers (background detection, byte escaping, minifier lookup, page minifier) by importing that file, so the two tools stay in step. After packing it checks its work:
+## What it is not
 
-1. **The shipped page, in Node.** The page's two scripts (the shipped JavaScript decoder, the byte reader and the hash) run in a bare Node sandbox and must write back the input page, show no error message and leave no global variable behind. This is the check that matters, because it runs the code the player gets. Without Node.js the packer says so on screen and **nothing has verified the packed data**; there is no second, Python-side decoder here (lzma-pack has one because Python ships an LZMA decoder; PPMd is not in the Python standard library).
-2. **The encoder itself** is tested against the 7-Zip C encoder (see "How the encoder is tested").
-
-Other things it does:
-- The input must be valid UTF-8, because the loader decodes the page as UTF-8. Anything else is refused with the offset of the first bad byte. A leading byte order mark is accepted; the unpacked page comes back without it.
-- The loader checks a hash of the **compressed bytes before it decodes anything**, then a hash of the result. Reason: the loader leaves out the decoder's own input checks (lines marked `// lean-cut`, to save space), and a PPMd stream that was re-saved or cut can make the decoder spin forever instead of failing. Checking first turns that into the plain message. The hash is a 32-bit "multiply by 31" sum: it catches accidents, not tampering.
-- The failure message is "This file was changed (maybe opened and saved as text, or cut short) or the device has too little free memory. Please download it again and open the file itself in a browser." A browser that cannot allocate the model memory also lands here.
-- The decoder is cut at the export block (`if (typeof module`), the `// lean-cut` lines are dropped, and every `throw new Error('...')` becomes `throw 0`. The tests check that no `Error(` text and no `lean-cut` line reaches the page.
-
-## How the encoder is tested
-
-- Ten fixtures in `test/fixtures/` (inputs plus the output of the real C encoder, built from the 7-Zip / LZMA SDK sources) must match byte for byte, including runs with only 2 to 4 KB of model memory so the model restarts many times. They run with no C compiler. `test/make_fixtures.py` rebuilds them from a compiled encoder.
-- With `PPMD_REF_ENCODER=/path/to/compiled-encoder`, `test/run.py` also compares 48 more settings against the real program.
-- When this tool was written, the Python encoder was compared with the C encoder on 265 cases, all byte for byte identical: 38 test files under 120 KB at orders 6, 12 and 32 with 1 MB and with 2,048 bytes of memory, three larger files (180 to 430 KB) at order 12 with 16 MB, and 34 more with odd memory sizes (3,001 to 200,003 bytes), orders 2 to 64, empty and one-byte input, and random bytes.
-- Streams are decoded by `modules/ppmd-decode` in Node (`test/run.py`), and by the loader inside a real Chromium page (`test/browser.py`).
-
-## Credit in the packed page
-
-Every packed page starts with a short HTML comment crediting Dmitry Shkarin (PPMd variant H), Igor Pavlov (the public-domain 7-Zip code this follows) and LFC Foundry (the port). PPMd is public domain, so this is a courtesy, not a legal duty. It adds about 150 bytes and players never see it.
-
-## Limits and gotchas
-
-- **Memory.** The packed page allocates `--mem` bytes when it starts (1 to 16 MB by default). That is fine for a desktop or a recent phone; on a very low-memory device the allocation can fail and the page shows the message instead. Use a smaller `--mem` (the cost is a larger file) or `lzma-pack` for such targets.
-- **Speed.** The loader runs before the page can start, and it is about 4 to 8 times slower than LZMA's: a 431 KB page took about 115 to 190 ms in a browser against 25 to 65 ms. The loader waits about 30 ms so the browser can paint the "Opening..." line first (painting is up to the browser). For a game that must open instantly on slow phones, `lzma-pack` or the Zopfli packer is the safer choice.
-- **Charset header (important).** Exactly as in lzma-pack: the `bytes` encoding declares the wrapper `windows-1252`; a server that sends `charset=utf-8` (GitHub Pages does) overrides it and the loader shows its message. Use `--encoding base64` for such servers. The browser test covers both.
-- **The file must stay byte for byte.** Opening a `bytes` copy in an editor and saving it as text corrupts it; the hash check catches this. Keep a copy of the original.
-- **It replaces the page with `document.write`.** The same notes as in lzma-pack apply: a `<base>` tag or Content-Security-Policy meta tag has to be passed with `--head`, and a strict CSP that forbids inline script blocks the loader (and one that forbids inline styles shows plain white instead of the colored "Opening..." page).
-- **The background color is a guess** (`--bg auto` reads simple CSS only).
-- **Pure Python is slow for big inputs.** A 5 MB page takes about a minute to encode; `--tune` on it takes much longer. Use the default setting for big files and `--tune` for the final build.
-- **Same order and memory on both sides.** If you use the stream elsewhere (for example with `modules/ppmd-decode` directly), pass the same `order` and `mem` you encoded with. A different value gives garbage, not an error.
-- **Little-endian machines only** (every browser target), for both the encoder and the decoder.
+- **Not for low-memory devices.** The page allocates `--mem` bytes at start (1 to 16 MB by default) and frees them afterwards; on a very low-memory device that can fail and the page shows the plain message. Use a smaller `--mem` (a larger file) or `lzma-pack`.
+- **Not instant.** The loader is about 4 to 8 times slower than LZMA's (a 431 KB page took about 115 to 190 ms in a browser against 25 to 65 ms) and waits about 30 ms so "Opening..." can paint. For a game that must open instantly on slow phones, use `lzma-pack` or the Zopfli packer.
+- **Not for servers that force `charset=utf-8`** (GitHub Pages does) with `bytes` encoding, which declares `windows-1252`: the loader shows its message. Use `--encoding base64` there.
+- **Not editable.** The file must stay byte for byte; saving a `bytes` copy as text in an editor corrupts it (the hash check catches this). Keep a copy of the original.
+- **Not friendly to strict policies.** It replaces the page with `document.write`: pass a `<base>` tag or policy meta tag with `--head`; a policy forbidding inline script blocks the loader, and one forbidding inline styles shows plain white instead of the colored "Opening..." page. The background color is a guess (`--bg auto` reads simple CSS only).
+- **Not fast for big inputs.** Pure Python: use the default setting for big files and `--tune` for the final build.
+- **Not forgiving about settings.** Elsewhere (for example `modules/ppmd-decode`) pass the same `order` and `mem` you encoded with; a different value gives garbage, not an error.
+- **Little-endian machines only** (every browser target), for the encoder and the decoder.
 
 ## For AI agents
 
-- `pack.py` loads `tools/lzma-pack/pack.py` with `importlib` and calls its helpers (`opening_style`, `js_escape`, `CP1252_HI`, `find_minifier`, `minify`, `minify_page`, `cp1252_text`, `NODE_HARNESS`, `pack`). Do not copy them here; if you rename one there, change this file. Do not edit lzma-pack from this folder's work.
-- The decoder source is `modules/ppmd-decode/ppmd-decode.js` cut at the first `\nif (typeof module`, so the file must stay ONE top-level function above the export block. `// lean-cut` lines are dropped and `throw new Error(...)` (on one line) becomes `throw 0`. `decoder_source()` stops with a message if an `Error(` or `lean-cut` is left.
-- The payload lives in a global with the long name `PAYLOAD_NAME` (`__ppmdPackedPayload_5c2e8d14`); the loader copies it into a local `s` and deletes the global. It sits in its own `<script>` so a minifier cannot fold it. Tests look for both.
-- `ppmd7_encode.py` keeps the whole model in one `bytearray` viewed as bytes, 16-bit and 32-bit words (`memoryview.cast`), with the same layout and the same allocator as the C code, so that restarts and gluing happen at exactly the same moments. Do not "simplify" the allocator: the output would stop matching the C encoder (and the decoder would diverge). The hot path searches contexts with slices and `bytes.find`, and sums with `itertools.compress`; changes should be timed on `html_banana-game.min.html`-sized input.
-- `encode_job` is module level so `--tune` can use a process pool; `pack(..., jobs=1)` forces one process.
-- `test/run.py` needs no browser. `test/browser.py` checks the real unpack path (file://, HTTP with and without a charset header), the "Opening..." page with JavaScript off, a damaged payload and a file re-saved as text. Do not use `--tune` on large inputs in tests.
+- `pack.py` loads `tools/lzma-pack/pack.py` with `importlib` and calls its helpers (`opening_style`, `js_escape`, `find_minifier`, `minify_page`, `NODE_HARNESS`, `pack` and more). Do not copy them here, and do not edit lzma-pack from this folder's work.
+- The decoder source is `modules/ppmd-decode/ppmd-decode.js` cut at the first `\nif (typeof module`, so that file must stay ONE top-level function above the export block. `// lean-cut` lines are dropped and one-line `throw new Error(...)` becomes `throw 0`; `decoder_source()` stops if an `Error(` or `lean-cut` is left.
+- `ppmd7_encode.py` keeps the whole model in one `bytearray` with the same layout and allocator as the C code. Do not "simplify" the allocator: the output would stop matching the C encoder.
+- `encode_job` is module level so `--tune` can use a process pool; `pack(..., jobs=1)` forces one process. Do not use `--tune` on large inputs in tests.
+- Encoder tests: ten fixtures in `test/fixtures/` (inputs plus the real C encoder's output) must match byte for byte, including tiny model memory so the model restarts often; `test/make_fixtures.py` rebuilds them from a compiled encoder, and `PPMD_REF_ENCODER=/path/to/compiled-encoder` makes `test/run.py` compare 48 more settings.
 
 ## Prior art and credits
 
-Credits first:
+- **PPMd variant H** is the algorithm of Dmitry Shkarin. `ppmd7_encode.py` is a port of the public-domain C code by Igor Pavlov (Ppmd7.c, Ppmd7Enc.c and Ppmd.h from the 7-Zip / LZMA SDK), itself based on Shkarin's PPMd var.H (stated in the file's header). Every packed page starts with a short HTML comment (about 150 bytes) crediting Dmitry Shkarin (PPMd variant H), Igor Pavlov (the public-domain 7-Zip code this follows) and LFC Foundry (the port); PPMd is public domain, so this is a courtesy, not a legal duty.
+- The decoder in the packed page is `modules/ppmd-decode`, written for this repository (its README has its own credits). `pack.py` loads and reuses helper functions from `tools/lzma-pack/pack.py` of this repository.
+- An optional minifier (terser or esbuild) is used on the loader if installed; no code from either is in this tool.
+- Brotli, Roadroller, js13k-packer, RegPack, JsExe, pnginator, fflate, pako, tiny-inflate, lzma-js, xz-decompress and 7z-wasm are named for comparison only; their code is not used here.
 
-- **PPMd variant H** is the compression algorithm of Dmitry Shkarin. `ppmd7_encode.py` is a port of the public-domain C code by Igor Pavlov (Ppmd7.c, Ppmd7Enc.c and Ppmd.h from the 7-Zip / LZMA SDK), which is itself based on Shkarin's PPMd var.H (this is stated in the file's header). Every packed page carries the credit described in "Credit in the packed page".
-- The decoder in the packed page is `modules/ppmd-decode`, written for this repository; see its README for its own credits.
-- `pack.py` loads and reuses helper functions from `tools/lzma-pack/pack.py`, another tool of this repository, so the wrapper page and options match.
-- An optional minifier (terser or esbuild) is used on the loader if one is installed. No code from either is in this tool.
-- The tools in the table below are named for comparison. Their code is not used here.
+## Full research notes
 
-Prior art:
-
-Checked on October 15, 2026 (details and sources for the decoder side are in [modules/ppmd-decode](../../modules/ppmd-decode/README.md)). I found no other tool that packs a web page with PPMd into one self-unpacking file, and no other standalone JavaScript PPMd decoder. The tools below are the nearby alternatives:
-
-| Tool | How it compresses | Decoder in the page | Speed in the page | Notes |
-|---|---|---|---|---|
-| **ppmd-pack (this)** | PPMd var.H (7-Zip's text compressor) | about 6.6 KB | 115 to 190 ms for a 431 KB page | 9 to 12% under LZMA on a single page; pure Python packer |
-| [lzma-pack](../lzma-pack/README.md) (this repository) | LZMA | about 2.1 KB | 25 to 65 ms | the usual choice |
-| [single-file-tools](../single-file-tools/README.md) (this repository) | Zopfli deflate | none (the browser unzips) | 3 to 4 ms in Firefox 158 and Chromium 155 | biggest output, fastest start |
-| Built-in `DecompressionStream("brotli")` | Brotli | none | 4 ms in Firefox 158 | Firefox 158 only; Chromium 155 cannot do it. On the 431 KB test page Brotli's best level is 125,210 bytes, 2% under LZMA and 7.9% over PPMd |
-| [Roadroller](https://github.com/lifthrasiir/roadroller) 2.1.0 (MIT) | Context mixing, made for JavaScript in size contests | about 0.7 KB | **8.4 s** in Node for the 431 KB test page (a Node figure, not measured in a test browser) | the strongest packer for JavaScript text (about 110 KB of information against PPMd's 115 KB here), but it prints its output as text, so the file is bigger than that, and it is built for 1 to 30 KB inputs |
-| [js13k-packer](https://www.npmjs.com/package/js13k-packer) | minify, Roadroller, zip | zip | n/a | packaging for a contest, not a decoder |
-| [RegPack](https://github.com/Siorki/RegPack) (MIT) | repeated-pattern substitution | tiny | fast | meant for 1 to 4 KB programs |
-| JsExe, pnginator | deflate inside a PNG, read back through a canvas | tiny | fast | pnginator needs an HTTP server in Chrome |
-| [fflate](https://www.npmjs.com/package/fflate), pako, tiny-inflate | deflate libraries | 3.8 KB (fflate inflate only, measured), 30 KB, 3.5 KB | fast | deflate is the weakest of these on text |
-| [lzma-js](https://www.npmjs.com/package/lzma), [xz-decompress](https://www.npmjs.com/package/xz-decompress) | LZMA | larger than ours | slower than WebAssembly | xz-decompress is a 20 KB WebAssembly wrapper |
-| [7z-wasm](https://www.npmjs.com/package/7z-wasm) | whole 7-Zip as WebAssembly | 1.65 MB plus 83 KB | 55 to 67 ms | far too big for a one-file page |
-
-What this means for choosing: PPMd sits between LZMA and context mixing. It is a better trade than Roadroller when you cannot make the player wait seconds, and a worse one than LZMA or deflate when the page is small or starts often on slow phones.
+The long version of this page (the full ten-file table with page differences, the extra `--tune` runs, the speed measurements behind the encoder figures, the step-by-step list of what the packer checks and how the encoder is tested, and the long decoder-side prior-art comparison) is kept in the project's private knowledge base. The changelog is `CHANGELOG.md` in this folder.
 
 ---
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
