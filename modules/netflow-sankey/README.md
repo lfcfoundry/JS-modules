@@ -49,6 +49,9 @@ The browser race of Netflow Map against D3 measured the app's own flow engine, n
 - **Backward links are drawn** as bands under the picture. They never stop the layout.
 
 ## Numbers (Node 22, measured 2026-10-17, against d3-sankey 0.12.3)
+
+> **Node numbers.** The speeds in this section were measured in Node, not in the four test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Sizes and counts are exact; only the times depend on the browser. Re-measuring in the four browsers is not done (open item on `TASKS.md`).
+
 Three made-up charts (64, 118 and 222 links). One yardstick for both: for every pair of links that cross, add their two flows multiplied together. Lower is better.
 
 | Links | netflow-sankey | d3-sankey | netflow-sankey as a share of d3-sankey | time (netflow-sankey / d3-sankey) |
