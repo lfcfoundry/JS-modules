@@ -1,0 +1,39 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : netflow-engine demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en-US"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src data:">
+<title>netflow-engine demo</title>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="demo/page.css"></head>
+<body>
+<h1>netflow-engine</h1>
+<p>Makes up a network and lays it out with the engine, in your browser. Nothing is sent anywhere.</p>
+<p><label>Items <select id="n"><option>300</option><option selected>3000</option><option>10000</option><option>30000</option></select></label>
+<label>Arrangement <select id="a"><option>stress</option><option>force</option><option>closeness</option><option>radial</option></select></label>
+<label><input type="checkbox" id="w" checked> WebAssembly</label> <button id="go">Lay out</button> <span id="s"></span></p>
+<canvas id="c" width="1200" height="750"></canvas>
+<script src="../netflow-layers/netflow-layers.js"></script>
+<script src="netflow-engine.js"></script>
+<script src="demo/page.js"></script></body></html>
