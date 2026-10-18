@@ -1,10 +1,10 @@
 # ppmd-decode
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Node 22, ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5 (decode checks, timings, and the page-without-WebAssembly fallback in all four browsers); not run: a phone, Safari itself
+**Tested in:** Node 22.22.0 (137 ppmd-decode checks); tests/wasm-default-bench.js one browser at a time on 2026-10-18: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; the default file also on a page without WebAssembly in all four
 
-A PPMd decoder (the "var.H" flavor that 7-Zip calls PPMd7) in plain ES5 JavaScript, one function, no dependencies. PPMd predicts each byte from the bytes before it; on the web-page samples measured here it came out about 10% smaller than LZMA, at the price of a bigger decoder and slower unpacking. Use it to unpack PPMd data in the browser or in Node, for example the page data of a single-file app that a packer squeezed. The matching encoder is [`tools/ppmd-pack/ppmd7_encode.py`](../../tools/ppmd-pack/ppmd7_encode.py).
+A PPMd decoder (the "var.H" flavor that 7-Zip calls PPMd7) that tries WebAssembly first and falls back by itself to plain ES5 JavaScript (one function), no dependencies. PPMd predicts each byte from the bytes before it; on the web-page samples measured here it came out about 10% smaller than LZMA, at the price of a bigger decoder and slower unpacking. Use it to unpack PPMd data in the browser or in Node, for example the page data of a single-file app that a packer squeezed. The matching encoder is [`tools/ppmd-pack/ppmd7_encode.py`](../../tools/ppmd-pack/ppmd7_encode.py).
 
 It rebuilds, step by step, the same prediction model the encoder used, and a range decoder (the kind 7-Zip's `.7z` format uses) turns the compressed bytes back into one byte at a time using that model's predictions. That is why it needs the same `order` and `memSize` the encoder used.
 
@@ -14,17 +14,20 @@ A single-file app or game with a smaller download needs something to unpack its 
 
 ## Use
 
+Copy `ppmd-decode-with-wasm.js`, the default file. `ppmd7Decode` in it uses WebAssembly when the page allows it and the JavaScript decoder when it does not, so the same call always works and gives the same bytes.
+
 ```html
-<script src="ppmd-decode.js"></script>
+<script src="ppmd-decode-with-wasm.js"></script>
 <script>
   // bytes: a Uint8Array with a raw PPMd7 stream (it starts with a 0 byte); size: the decoded length
   // order and memory must be the same numbers the encoder was given (here: order 16, 16 MB)
   var out = ppmd7Decode(bytes, size, 16, 16 * 1024 * 1024);
+  // ppmd7Decode.engine says which decoder did the last call: 'wasm' or 'js'
 </script>
 ```
 
 ```js
-var ppmd7Decode = require('./ppmd-decode.js');   // Node
+var ppmd7Decode = require('./ppmd-decode-with-wasm.js');   // Node
 var data = ppmd7Decode.fromProps(streamFromA7z, size, coderProps);   // coderProps: the 5-byte PPMd property blob of a .7z archive
 ```
 
@@ -38,35 +41,36 @@ Test it: `node modules/ppmd-decode/test/run.js` (Node only, offline, about 3 sec
 |---|---|
 | `ppmd7Decode(src, outSize, order, memSize, opts)` | `src` the raw stream as 7-Zip writes it (`Uint8Array`, first byte 0, no header); `outSize` the exact length of the result; `order` 2-64; `memSize` 2048-2147483616 bytes; `opts.maxSize` (optional) a ceiling for `outSize`. Returns a `Uint8Array` of exactly `outSize` bytes. |
 | `ppmd7Decode.fromProps(src, outSize, props, opts)` | The same, with `order` and `memSize` read from `props`, the 5-byte coder property blob a `.7z` archive stores for PPMd: one byte of order, then the memory size as 4 bytes, little-endian. |
-| `ppmd7DecodeWasm(...)` | Optional add-on (below): same arguments, same bytes, same errors. `.engine` is `'wasm'` or `'js'` (which one did the last call); `.wasm` says whether WebAssembly was usable at load time. |
+| `ppmd7Decode.engine`, `.wasm`, `.plain` | In the default file: `.engine` is `'wasm'` or `'js'` (which decoder did the last call); `.wasm` says whether WebAssembly was usable at load time; `.plain` is the JavaScript decoder alone. `ppmd7DecodeWasm` is another name for `ppmd7Decode`, kept for pages written for 1.1.0. |
 
 `order` and `memSize` must be **exactly** the values the encoder used. The model restarts whenever its memory fills up, so a different `memSize` gives garbage from the first restart on, not an error. Pack them next to the data. Set `maxSize` whenever the size did not come from your own packer; without it, a size field of 4 GB asks for a 4 GB result.
 
 Errors are always an `Error` whose message starts with `PPMd:` (argument out of range, `maxSize` smaller than `outSize`, first byte not 0, input that ends early, corrupt data, memory that cannot be allocated, big-endian machine). The decoder never runs for more than `outSize` symbols, so corrupt input ends quickly with an error or wrong bytes. There is no checksum in the stream; check the result yourself if you need to.
 
-### Optional WebAssembly decoder (`ppmd-decode-wasm.js`)
+### WebAssembly first (the default since 1.2.0)
 
-**`ppmd-decode.js` alone** is the default: one plain ES5 function, works under any page policy, and is what `tools/ppmd-pack` pastes into packed pages. Add **`ppmd-decode-wasm.js`** after it to get `ppmd7DecodeWasm`, which runs the same decoder as a 9.3 KB WebAssembly program:
+`ppmd7Decode` in the default file decodes with a 9.3 KB WebAssembly program and hands the call to the JavaScript decoder when it cannot: the page's Content-Security-Policy lacks `'wasm-unsafe-eval'`, the browser has no WebAssembly, the memory cannot be had, or an argument is out of range (the JavaScript decoder then does the work or throws its usual error). Either way the bytes and the error texts are the same. It needs `memSize` + about 20 KB + the compressed and result sizes inside one WebAssembly memory (at most 1 GB; bigger asks go to the JavaScript decoder).
 
-```html
-<script src="ppmd-decode.js"></script>
-<script src="ppmd-decode-wasm.js"></script>
-<script>var out = ppmd7DecodeWasm(bytes, size, 16, 16 * 1024 * 1024);</script>
-```
+### Which file to copy
 
-It needs a page that allows WebAssembly (policy word `wasm-unsafe-eval`). On a page that forbids it, in a browser without WebAssembly, when the memory cannot be had, or when an argument is out of range, the call is handed to `ppmd7Decode`, so loading the add-on is always safe. The add-on file is 16.8 KB (the 9,317-byte program is stored as 12.4 KB of text), against 26 KB for `ppmd-decode.js` before minifying. It needs `memSize` + about 20 KB + the compressed and result sizes inside one WebAssembly memory (at most 1 GB; bigger asks go to the JavaScript decoder). **`tools/ppmd-pack --wasm` uses it** (off by default): the packed page is about 9.7 KB bigger and opens 1.5 to 2.1 times sooner.
+| File | What it is | Size (smaller is better) |
+|---|---|---|
+| `ppmd-decode-with-wasm.js` | **The default.** WebAssembly first, JavaScript fallback, in one file. | 44,215 bytes (16,014 gzipped) |
+| `ppmd-decode.js` | The plain JavaScript decoder alone: one ES5 function, works under any page policy, and the part `tools/ppmd-pack` pastes into packed pages. Use it when the page must stay as small as possible. | 26,175 bytes (8,031 gzipped) |
+| `ppmd-decode-wasm.js` | The WebAssembly part alone, to load after `ppmd-decode.js` (it adds `ppmd7DecodeWasm`). The default file already holds both. | 17,164 bytes (the 9,317-byte program is stored as 12.4 KB of text) |
 
-400,000-byte page (JavaScript source files joined, packed with order 6 and 16 MB to 90,444 bytes), one browser at a time. "First decode" is a freshly opened page (median of 7 pages; Node: median of 9 fresh processes). **Lower milliseconds are better; a bigger "times faster" is better.** A repeat decode in the same page (median of 11) is 1.8 to 2.4 times faster with WebAssembly in every row.
+`ppmd-decode-with-wasm.js` is built from the other two by `node modules/ppmd-decode/wasm/join.js`; edit those, never the joined file (the tests fail when it is stale). `tools/ppmd-pack --wasm` ships the same program in a packed page (off by default until its own update).
 
-| Browser | First, JS (ms) | First, WebAssembly (ms) | Times faster |
+400,000-byte page (JavaScript source files joined, packed with order 6 and 16 MB), first decode in a freshly opened page, median of 7, the plain file and the default file taking turns, compile time of the WebAssembly module included. One browser at a time. **Lower milliseconds are better; a bigger "times faster" is better.**
+
+| Browser | Plain file (ms) | Default file (ms) | Times faster |
 |---|---:|---:|---:|
-| Node 22 | 159 | 71 | 2.2x |
-| ungoogled Chromium 155.0.8059.39-1 | 159 | 84 | 1.9x |
-| Firefox 158.0 | 143 | 80 | 1.8x |
-| WebKitGTK 2.52.6 | 175 | 75 | 2.3x |
-| GNOME Web 46.5 | 181 | 82 | 2.2x |
+| ungoogled Chromium 155.0.8059.39-1 | 112.2 | 66.7 | 1.68x |
+| Firefox 158.0 | 123.0 | 67.0 | 1.84x |
+| WebKitGTK 2.52.6 | 94.0 | 61.0 | 1.54x |
+| GNOME Web 46.5 | 95.0 | 67.0 | 1.42x |
 
-Start-up of a page that unpacks with PPMd is about half as long (about 60 to 100 ms less on this machine); the result does not change. Both decoders gave the same bytes or the same `Error` text on 15 fixtures, 160 more streams and 798 damaged copies of them (0 differences). Source: `wasm/ppmd7.c` is a line-by-line port of the JavaScript; `wasm/build.sh` (clang with the wasm32 target) builds `wasm/ppmd7.wasm` and `wasm/embed.py` puts it into `ppmd-decode-wasm.js`.
+The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all four browsers. Earlier 1.1.0 measurements of the separate add-on (Node 22: 159 to 71 ms, 2.2x; a repeat decode in the same page is 1.8 to 2.4 times faster with WebAssembly in every browser) agree with these. Both decoders gave the same bytes or the same `Error` text on 15 fixtures, 160 more streams and 798 damaged copies of them (0 differences). Source: `wasm/ppmd7.c` is a line-by-line port of the JavaScript; `wasm/build.sh` (clang with the wasm32 target) builds `wasm/ppmd7.wasm`, `wasm/embed.py` puts it into `ppmd-decode-wasm.js` and `wasm/join.js` builds the default file. Browser timings: `tests/wasm-default-bench.js`.
 
 ## How it compares
 
@@ -76,7 +80,7 @@ Smaller than every other PPMd decoder for browsers that I found, and about 10% s
 
 | Alternative | Size (smaller is better) | Speed on the 431 KB test page (faster is better) | Where it wins or loses |
 |---|---|---|---|
-| ppmd-decode 1.1.0 (MIT, this module) | 6,570 bytes minified in a packed page; the WebAssembly add-on file is 16.8 KB | Chromium 155 about 120 ms, Firefox 158 about 150 to 190 ms. With the add-on, 400 KB page, first decode: 84 ms in Chromium 155, 80 in Firefox 158, 75 in WebKitGTK 2.52.6, 82 in GNOME Web 46.5 | Wins on size and being plain JavaScript; loses on speed |
+| ppmd-decode 1.2.0 (MIT, this module) | 6,570 bytes minified in a packed page; the default file with WebAssembly is 44,215 bytes | Chromium 155 about 120 ms, Firefox 158 about 150 to 190 ms with the plain file. Default file, 400 KB page, first decode (smaller is better): 66.7 ms in Chromium 155, 67.0 in Firefox 158, 61.0 in WebKitGTK 2.52.6, 67.0 in GNOME Web 46.5 | Wins on size and having a plain JavaScript fallback; loses on speed |
 | [`lzma-decode`](../lzma-decode/README.md) (MIT, same repository) | 1,896 bytes minified | Speed in browsers on this page: not measured | Wins on size and speed; its output on this page is 127,531 bytes against 115,264 here (smaller is better) |
 | [7z-wasm](https://www.npmjs.com/package/7z-wasm) 1.2.0 (LGPL plus the unRAR restriction) | 1.65 MB WebAssembly plus 83 KB glue | Chromium 55 ms, Firefox 67 ms (warm, includes command-line start-up) | Whole 7-Zip, many formats; wins on speed and formats, about 220 times larger |
 | [archive-wasm](https://www.npmjs.com/package/archive-wasm) 2.1.0 (GPL-3.0-or-later), [@exav/unpack-wasm](https://www.npmjs.com/package/@exav/unpack-wasm) 0.0.2 (MIT) | 562 KB; 2.15 MB | Not measured in browsers | libarchive and Rust [ppmd-rust](https://github.com/hasenbanck/ppmd-rust) as WebAssembly; win on formats, much larger |
@@ -114,7 +118,7 @@ Where it loses: slower to unpack than LZMA and a decoder 5.2 KB bigger; about 2 
 
 - The decoder mirrors `Ppmd7.c` (model, sub-allocator, SEE and binary contexts) and `Ppmd7Dec.c` (symbol decoding) with the 7z range decoder. Do not "simplify" arithmetic that looks redundant: the allocator, `rescale`, `createSuccessors` and the SEE tables must match the encoder exactly, or the output drifts after thousands of correct bytes, usually without an error. The model lives in one `ArrayBuffer`; offsets are bytes, 0 means null, blocks are 12-byte units.
 - Keep `ppmd7Decode` the only top-level function, with the export block starting at a line that begins with `if (typeof module`. Keep lean-cut lines whole statements on one line, and every throw as `throw new Error('...')` on one line.
-- `ppmd-decode-wasm.js` and `wasm/ppmd7.c` must give the same bytes and the same Error texts as `ppmd-decode.js` for every input, damaged ones included. If you change the model code in one, change the other, rebuild (`wasm/build.sh`, then `python3 wasm/embed.py`) and run `node test/run.js`. Time any change in all four browsers.
+- `ppmd-decode-wasm.js` and `wasm/ppmd7.c` must give the same bytes and the same Error texts as `ppmd-decode.js` for every input, damaged ones included. If you change the model code in one, change the other, rebuild (`wasm/build.sh`, then `python3 wasm/embed.py`, then `node wasm/join.js`, which rebuilds the default file `ppmd-decode-with-wasm.js`) and run `node test/run.js`. Time any change in all four browsers.
 - Keep ES5 syntax and ASCII. Do not slow the main loop: Node should stay near 3.5 MB/s on `fb_min`-sized text.
 - `test/run.js` compares against streams from the C reference encoder (`test/fixtures`). To change them see `test/fixtures/make.js` (needs a C compiler and 7-Zip's PPMd7 sources). If `tools/ppmd-pack/ppmd7_encode.py` and `python3` are present, one more round trip runs through it.
 
