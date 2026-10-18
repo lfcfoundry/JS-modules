@@ -10,90 +10,92 @@ Live demos: **https://lfcfoundry.github.io/JS-modules/**
 
 Grouped by what a piece does. The live page, with demos and a quick finder, is **https://lfcfoundry.github.io/JS-modules/**.
 
+**Size** in the module tables is the file as it sits in this repository (readable, with comments) and the same file gzipped, the way a web server sends it. `frame-kit` counts its four pieces together, and `cartoon-3d-kit` is a style guide with no script. Each module's README gives its minified size and any lean build. The column is filled in by `python3 tools/versions/versions.py sizes`.
+
 ### Games
 
 #### Saving and data safety
 
 Keep a player's progress safe and let them move it between devices.
 
-| Module | One line | Global | Version |
-|---|---|---|---|
-| [save-kit](modules/save-kit/README.md) | Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. | `SaveKit` | 1.2.1 · API 1 |
+| Module | Size | One line | Global | Version |
+|---|---|---|---|---|
+| [save-kit](modules/save-kit/README.md) | 26.5 KB · 9.1 KB gz | Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. | `SaveKit` | 1.2.1 · API 1 |
 
 #### Device and browser adaptation
 
 Make a game behave on slow phones, privacy-focused browsers and power-saving screens.
 
-| Module | One line | Global | Version |
-|---|---|---|---|
-| [env-probes](modules/env-probes/README.md) | Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. | `EnvProbes` | 1.1.0 · API 1 |
-| [fx-governor](modules/fx-governor/README.md) | Steps visual effects down when the device cannot keep up; never back up behind the player. | `FxGovernor` | 1.1.1 · API 1 |
-| [frame-kit](modules/frame-kit/README.md) | Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. | `EvenDt`, `QualityGovernor`, `JobPump`, `FrameMeter` | 1.2.1 · API 1 |
-| [slow-note](modules/slow-note/README.md) | Keeps a short note, only on the device, of the errors, slow taps and long frames a page had; copyable as plain text, nothing is sent anywhere. | `SlowNote` | 1.0.0 · API 1 |
+| Module | Size | One line | Global | Version |
+|---|---|---|---|---|
+| [env-probes](modules/env-probes/README.md) | 16.2 KB · 5.4 KB gz | Detects privacy modes that round timers (including Firefox's 16.67 ms clock), scramble canvas read-back or block storage, and says what it found in plain words. | `EnvProbes` | 1.1.0 · API 1 |
+| [fx-governor](modules/fx-governor/README.md) | 6.2 KB · 2.5 KB gz | Steps visual effects down when the device cannot keep up; never back up behind the player. | `FxGovernor` | 1.1.1 · API 1 |
+| [frame-kit](modules/frame-kit/README.md) | 38.9 KB · 12.1 KB gz | Frame pacing for canvas games: even-dt smooths the frame time, quality-governor steps effects down and back up, job-pump spreads heavy jobs across frames, frame-meter shows frames a second, hitches and tap delay in plain words. | `EvenDt`, `QualityGovernor`, `JobPump`, `FrameMeter` | 1.2.1 · API 1 |
+| [slow-note](modules/slow-note/README.md) | 9.7 KB · 3.7 KB gz | Keeps a short note, only on the device, of the errors, slow taps and long frames a page had; copyable as plain text, nothing is sent anywhere. | `SlowNote` | 1.0.0 · API 1 |
 
 #### Controls
 
 Let players hold a button, or play with a gamepad.
 
-| Module | One line | Global | Version |
-|---|---|---|---|
-| [hold-press](modules/hold-press/README.md) | Hold-to-repeat for buttons that survives Android Chrome pointercancel. | `HoldPress` | 1.1.0 · API 1 |
-| [pad-nav](modules/pad-nav/README.md) | Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. | `PadNav` | 1.1.0 · API 1 |
-| [tab-guard](modules/tab-guard/README.md) | Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. | `TabGuard` | 1.1.0 · API 1 |
-| [wake-keeper](modules/wake-keeper/README.md) | Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. | `WakeKeeper` | 1.1.0 · API 1 |
-| [back-close](modules/back-close/README.md) | Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). | `BackClose` | 1.2.0 · API 1 |
+| Module | Size | One line | Global | Version |
+|---|---|---|---|---|
+| [hold-press](modules/hold-press/README.md) | 13.0 KB · 4.1 KB gz | Hold-to-repeat for buttons that survives Android Chrome pointercancel. | `HoldPress` | 1.1.0 · API 1 |
+| [pad-nav](modules/pad-nav/README.md) | 29.2 KB · 9.6 KB gz | Gamepad API to DOM focus: move through buttons, menus, sliders and drop-downs with a controller, no game code. | `PadNav` | 1.1.0 · API 1 |
+| [tab-guard](modules/tab-guard/README.md) | 9.6 KB · 3.4 KB gz | Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. | `TabGuard` | 1.1.0 · API 1 |
+| [wake-keeper](modules/wake-keeper/README.md) | 8.2 KB · 2.7 KB gz | Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed. | `WakeKeeper` | 1.1.0 · API 1 |
+| [back-close](modules/back-close/README.md) | 9.1 KB · 3.1 KB gz | Makes the phone back swipe or back button close the top panel instead of leaving the page (CloseWatcher, with an opt-in history fallback for browsers without it). | `BackClose` | 1.2.0 · API 1 |
 
 #### First visit and grown-ups
 
 Show a new player around, and keep small children away from the buttons that matter.
 
-| Module | One line | Global | Version |
-|---|---|---|---|
-| [grown-ups-door](modules/grown-ups-door/README.md) | A hold-then-drag task a young child will not finish, in front of the buttons and links a grown-up should press (a speed bump, not security). | `GrownUpsDoor` | 1.0.0 · API 1 |
-| [spotlight-tour](modules/spotlight-tour/README.md) | A first-time tour: one dimmed layer, a bright window over the current part, Skip and Back, remembers who saw it and gives a finishing gift once. | `SpotlightTour` | 1.1.0 · API 1 |
+| Module | Size | One line | Global | Version |
+|---|---|---|---|---|
+| [grown-ups-door](modules/grown-ups-door/README.md) | 14.8 KB · 5.1 KB gz | A hold-then-drag task a young child will not finish, in front of the buttons and links a grown-up should press (a speed bump, not security). | `GrownUpsDoor` | 1.0.0 · API 1 |
+| [spotlight-tour](modules/spotlight-tour/README.md) | 12.3 KB · 4.7 KB gz | A first-time tour: one dimmed layer, a bright window over the current part, Skip and Back, remembers who saw it and gives a finishing gift once. | `SpotlightTour` | 1.1.0 · API 1 |
 
 #### Looks and effects
 
 Curtains, flying elements, lettering and 3D-looking sprites, plus a written style guide.
 
-| Module | One line | Global | Version |
-|---|---|---|---|
-| [stage-curtains](modules/stage-curtains/README.md) | Velvet stage curtains that slide shut over a page, then fly open. | `StageCurtains` | 1.1.0 · API 1 |
-| [fly-to-mini](modules/fly-to-mini/README.md) | A big element scrolls away and a copy flies to its sticky mini version (and back). | `FlyToMini` | 1.2.0 · API 1 |
-| [sticker-text](modules/sticker-text/README.md) | Die-cut sticker lettering in plain CSS text-shadow rings, no images. | `StickerText` | 1.1.0 · API 1 |
-| [sprite-baker](modules/sprite-baker/README.md) | Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. | `SpriteBaker` | 1.5.0 · API 1 |
-| [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG. | none | 1.2.0 · API 1 |
+| Module | Size | One line | Global | Version |
+|---|---|---|---|---|
+| [stage-curtains](modules/stage-curtains/README.md) | 29.8 KB · 10.3 KB gz | Velvet stage curtains that slide shut over a page, then fly open. | `StageCurtains` | 1.1.0 · API 1 |
+| [fly-to-mini](modules/fly-to-mini/README.md) | 18.1 KB · 6.3 KB gz | A big element scrolls away and a copy flies to its sticky mini version (and back). | `FlyToMini` | 1.2.0 · API 1 |
+| [sticker-text](modules/sticker-text/README.md) | 5.0 KB · 2.1 KB gz | Die-cut sticker lettering in plain CSS text-shadow rings, no images. | `StickerText` | 1.1.0 · API 1 |
+| [sprite-baker](modules/sprite-baker/README.md) | 54.5 KB · 17.9 KB gz | Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. | `SpriteBaker` | 1.5.0 · API 1 |
+| [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | n/a | A written style guide plus demo for the soft, glossy cartoon 3D look done in plain CSS and SVG. | none | 1.2.0 · API 1 |
 
 #### Game math
 
 The numbers behind idle and clicker games.
 
-| Module | One line | Global | Version |
-|---|---|---|---|
-| [idle-core](modules/idle-core/README.md) | Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. | `IdleCore` | 1.2.0 · API 1 |
+| Module | Size | One line | Global | Version |
+|---|---|---|---|---|
+| [idle-core](modules/idle-core/README.md) | 22.8 KB · 7.7 KB gz | Tested maths for idle/clicker games: costs, buy-many and buy-max, milestones, away income, boost queue, number format. | `IdleCore` | 1.2.0 · API 1 |
 
 #### Size and packaging
 
 Unpack a smaller file inside the game. The tools that pack it are under Tools.
 
-| Module | One line | Global | Version |
-|---|---|---|---|
-| [lzma-decode](modules/lzma-decode/README.md) | Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. | `lzmaDecode` | 1.1.0 · API 1 |
-| [ppmd-decode](modules/ppmd-decode/README.md) | A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. | `ppmd7Decode` | 1.1.0 · API 1 |
+| Module | Size | One line | Global | Version |
+|---|---|---|---|---|
+| [lzma-decode](modules/lzma-decode/README.md) | 9.3 KB · 3.6 KB gz | Small readable LZMA1 decoder (ES5), tested against Python's lzma. Browsers can only unpack gzip and deflate natively. | `lzmaDecode` | 1.1.0 · API 1 |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 25.6 KB · 7.8 KB gz | A PPMd (7-Zip PPMd7) decoder in one ES5 function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but about 4 times slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip. | `ppmd7Decode` | 1.1.0 · API 1 |
 
 #### Files, charts and simulation
 
 Open zip and Excel files safely, draw flow charts, write animated GIFs and simulate random walkers.
 
-| Module | One line | Global | Version |
-|---|---|---|---|
-| [gif-writer](modules/gif-writer/README.md) | Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation). | `GifWriter` | 1.1.0 · API 1 |
-| [zip-open](modules/zip-open/README.md) | Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note. | `ZipOpen` | 1.1.0 · API 1 |
-| [memory-compression](modules/memory-compression/README.md) | Keeps big arrays, coordinates and records packed in memory and brings them back exactly: a 120 MB scene shrinks to 52% (41% in small mode) and restores in about 175 ms, against 525 ms with lz4js and 1.2 s with fflate. | `MemoryCompression` | 1.1.0 · API 1 |
-| [memory-compression-jso](modules/memory-compression-jso/README.md) | Keeps big lists of plain JavaScript objects packed in memory and brings every value back exactly: 300,000 link objects shrink to 14% of their JSON text (35% for msgpackr with records) and unpack in about 73 ms (122 ms for msgpackr with records). 1.4.0 is one file for memory-tight pages: an optional per-block number chooser (balanced mode: objects 15 to 28% smaller, columns up to 92% smaller; packing 2 to 7 times slower), sorted text stored by front coding, and a keeper that holds named data packed, restores it in slices that freeze a page for 21 to 31 ms (against 53 to 76 ms in one step for 300,000 links), pins what is being drawn and trims under a budget.| `MemoryCompressionJSO` | 1.4.1 · API 1 |
-| [netflow-sankey](modules/netflow-sankey/README.md) | Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer. | `NetflowSankey` | 2.0.0 · API 2 |
-| [netflow-layers](modules/netflow-layers/README.md) | Lays out a graph in rows (top to bottom or left to right) with story order, tags instead of very long links, a column for the pages every route passes, and tall maps cut into columns; 20,000-page maps draw in about 0.4 s. | `NetflowLayers` | 1.2.0 · API 1 |
-| [walker-sim](modules/walker-sim/README.md) | Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 6 million walkers a second). | `WalkerSim` | 2.1.0 · API 2 |
+| Module | Size | One line | Global | Version |
+|---|---|---|---|---|
+| [gif-writer](modules/gif-writer/README.md) | 20.3 KB · 7.3 KB gz | Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation). | `GifWriter` | 1.1.0 · API 1 |
+| [zip-open](modules/zip-open/README.md) | 26.8 KB · 9.3 KB gz | Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note. | `ZipOpen` | 1.1.0 · API 1 |
+| [memory-compression](modules/memory-compression/README.md) | 94.1 KB · 32.5 KB gz | Keeps big arrays, coordinates and records packed in memory and brings them back exactly: a 120 MB scene shrinks to 52% (41% in small mode) and restores in about 175 ms, against 525 ms with lz4js and 1.2 s with fflate. | `MemoryCompression` | 1.1.0 · API 1 |
+| [memory-compression-jso](modules/memory-compression-jso/README.md) | 265.8 KB · 82.3 KB gz | Keeps big lists of plain JavaScript objects packed in memory and brings every value back exactly: 300,000 link objects shrink to 14% of their JSON text (35% for msgpackr with records) and unpack in about 73 ms (122 ms for msgpackr with records). 1.4.0 is one file for memory-tight pages: an optional per-block number chooser (balanced mode: objects 15 to 28% smaller, columns up to 92% smaller; packing 2 to 7 times slower), sorted text stored by front coding, and a keeper that holds named data packed, restores it in slices that freeze a page for 21 to 31 ms (against 53 to 76 ms in one step for 300,000 links), pins what is being drawn and trims under a budget.| `MemoryCompressionJSO` | 1.4.1 · API 1 |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 33.3 KB · 11.3 KB gz | Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer. | `NetflowSankey` | 2.0.0 · API 2 |
+| [netflow-layers](modules/netflow-layers/README.md) | 28.2 KB · 9.1 KB gz | Lays out a graph in rows (top to bottom or left to right) with story order, tags instead of very long links, a column for the pages every route passes, and tall maps cut into columns; 20,000-page maps draw in about 0.4 s. | `NetflowLayers` | 1.2.0 · API 1 |
+| [walker-sim](modules/walker-sim/README.md) | 59.8 KB · 18.8 KB gz | Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 6 million walkers a second). | `WalkerSim` | 2.1.0 · API 2 |
 
 ### Story editor
 
