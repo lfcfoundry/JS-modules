@@ -5,7 +5,7 @@
  * check against; what-if sweeps. Names and help texts for the random-number kinds are in the optional walker-sim-menu.js.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.1.0 (API 2)
+ * Version 2.2.0 (API 2)
  *
  *   var P = WalkerSim.graph({ links: [{ from: "start", to: "a", weight: 3 }, { from: "start", to: "b", weight: 1 }] });
  *   var sim = WalkerSim.create(P, { seed: 7, trials: 10000 }); sim.run(1e9, 1e9);   // run(max trials, max milliseconds)

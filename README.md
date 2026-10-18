@@ -139,7 +139,7 @@ Simulate random walkers over a graph.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [walker-sim](modules/walker-sim/README.md) | 2.1.0 | 59.8 | 18.8 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
+| [walker-sim](modules/walker-sim/README.md) | 2.2.0 | 64.9 | 21.0 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
 
 #### Visualization
 

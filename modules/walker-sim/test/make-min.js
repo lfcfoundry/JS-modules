@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds walker-sim.min.js, walker-sim-wasm.min.js and walker-sim-with-wasm.min.js (the two joined) from walker-sim.js and walker-sim-wasm.js: the header comment up to its Version line, then the terser output. Copyright (c) 2026 LFC Foundry. MIT License.
+// Builds walker-sim.min.js, walker-sim-wasm.min.js, walker-sim-with-wasm.js and walker-sim-with-wasm.min.js (the last two are the two sources joined: the default files) from walker-sim.js and walker-sim-wasm.js: the header comment up to its Version line, then the terser output. Copyright (c) 2026 LFC Foundry. MIT License.
 // Run: TERSER=/path/to/terser node modules/walker-sim/test/make-min.js   (or have terser on the PATH). Then: node modules/walker-sim/test/run.js modules/walker-sim/walker-sim.min.js
 var fs = require('fs'), path = require('path'), cp = require('child_process');
 var dir = path.join(__dirname, '..'), built = {};
@@ -12,4 +12,5 @@ function build(name) {      // name.js -> name.min.js: the header comment up to 
 function write(file, text) { fs.writeFileSync(path.join(dir, file), text); console.log('wrote ' + file + ': ' + Buffer.byteLength(text) + ' bytes'); }
 write('walker-sim.min.js', build('walker-sim'));
 write('walker-sim-wasm.min.js', build('walker-sim-wasm'));
+write('walker-sim-with-wasm.js', fs.readFileSync(path.join(dir, 'walker-sim.js'), 'utf8').replace(/\s+$/, '') + '\n\n' + fs.readFileSync(path.join(dir, 'walker-sim-wasm.js'), 'utf8'));       // the default file, readable: the two sources one after the other
 write('walker-sim-with-wasm.min.js', built['walker-sim'] + built['walker-sim-wasm']);       // both in one file, for a page or a single-file app that wants the WebAssembly loop without a second script
