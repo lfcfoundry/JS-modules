@@ -59,7 +59,7 @@ Errors are always an `Error` whose message starts with `PPMd:` (argument out of 
 | `ppmd-decode.js` | The plain JavaScript decoder alone: one ES5 function, works under any page policy, and the part `tools/ppmd-pack` pastes into packed pages. Use it when the page must stay as small as possible. | 26,175 bytes (8,031 gzipped) |
 | `ppmd-decode-wasm.js` | The WebAssembly part alone, to load after `ppmd-decode.js` (it adds `ppmd7DecodeWasm`). The default file already holds both. | 17,164 bytes (the 9,317-byte program is stored as 12.4 KB of text) |
 
-`ppmd-decode-with-wasm.js` is built from the other two by `node modules/ppmd-decode/wasm/join.js`; edit those, never the joined file (the tests fail when it is stale). `tools/ppmd-pack --wasm` ships the same program in a packed page (off by default until its own update).
+`ppmd-decode-with-wasm.js` is built from the other two by `node modules/ppmd-decode/wasm/join.js`; edit those, never the joined file (the tests fail when it is stale). `tools/ppmd-pack` ships the same program in a packed page by default (`--no-wasm` leaves it out).
 
 400,000-byte page (JavaScript source files joined, packed with order 6 and 16 MB), first decode in a freshly opened page, median of 7, the plain file and the default file taking turns, compile time of the WebAssembly module included. One browser at a time. **Lower milliseconds are better; a bigger "times faster" is better.**
 

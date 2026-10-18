@@ -28,7 +28,7 @@ function build(file, i) {
   const v = {};
   const pk = (name, args, strip) => { const out = path.join(tmp, name + i + '.html'); execFileSync('python3', [root + 'tools/lzma-pack/pack.py', src, out, '--title', 'x', '--skip-node-check'].concat(args), { env: Object.assign({}, process.env), stdio: ['ignore', 'pipe', 'inherit'] }); if (strip) fs.writeFileSync(out, fs.readFileSync(out, 'latin1').replace(" 'wasm-unsafe-eval'", ''), 'latin1');   // the packer adds the token to every policy; cut it out again to see the fallback
     v[name] = out; return fs.statSync(out).size; };
-  const sizes = { plain: pk('plain', ['--head', COUNT]), wasm: pk('wasm', ['--wasm', '--head', COUNT]),
+  const sizes = { plain: pk('plain', ['--no-wasm', '--head', COUNT]), wasm: pk('wasm', ['--wasm', '--head', COUNT]),
     blocked: pk('blocked', ['--wasm', '--head', CSP_NO + COUNT], true), allowed: pk('allowed', ['--wasm', '--head', CSP_OK + COUNT]), carried: pk('carried', ['--wasm', '--head', CSP_NO + COUNT]) };   // carried: a policy without the token, as given; the packer adds it
   return { name: path.basename(path.dirname(path.resolve(file))), input: fs.statSync(file).size, files: v, sizes };
 }

@@ -266,28 +266,30 @@ def t_minify_page_needs_tool():
 check("--minify-page without a minifier says what is missing", t_minify_page_needs_tool)
 
 
-# ---- --wasm: the optional WebAssembly decoder in the loader (off by default) ---------------------------------------------------
-def t_wasm_off_by_default():
+# ---- WebAssembly first: the WebAssembly decoder rides in the loader by default (--no-wasm leaves it out) ----------------------------
+def t_wasm_on_by_default():
     for enc in ("bytes", "base64"):
         page, info = pack.pack(APP, encoding=enc, minifier="none", check_node=False)
-        assert b"WebAssembly" not in page and info["wasm"] == 0, "a default page mentions WebAssembly"
+        assert b"WebAssembly" in page and info["wasm"] == len(pack.WASM_DECODER.read_bytes()), "a default page does not carry the WebAssembly decoder"
+        off, ioff = pack.pack(APP, encoding=enc, minifier="none", check_node=False, wasm=False)
+        assert b"WebAssembly" not in off and ioff["wasm"] == 0, "wasm=False still mentions WebAssembly"
 
 
-check("--wasm is off by default: the packed page does not mention WebAssembly", t_wasm_off_by_default)
+check("WebAssembly is on by default: the packed page carries the decoder; wasm=False (--no-wasm) leaves it out entirely", t_wasm_on_by_default)
 
 
 def t_wasm_flag():
     import subprocess
     h = subprocess.run([sys.executable, str(HERE / "pack.py"), "--help"], capture_output=True, text=True).stdout
-    assert "--wasm" in h and "wasm-unsafe-eval" in h and "Off by default" in h, "the help does not explain --wasm"
+    assert "--wasm" in h and "--no-wasm" in h and "wasm-unsafe-eval" in h and "default" in h, "the help does not explain --wasm and --no-wasm"
 
 
-check("the usage text explains --wasm and the wasm-unsafe-eval policy word", t_wasm_flag)
+check("the usage text explains --wasm, --no-wasm and the wasm-unsafe-eval policy word", t_wasm_flag)
 
 
 def t_wasm_sizes():
     for enc, extra in (("bytes", 6000), ("base64", 7600)):
-        a, ia = pack.pack(APP, encoding=enc, minifier="none", check_node=False)
+        a, ia = pack.pack(APP, encoding=enc, minifier="none", check_node=False, wasm=False)
         b, ib = pack.pack(APP, encoding=enc, minifier="none", check_node=False, wasm=True)
         grew = len(b) - len(a)
         assert ib["wasm"] == len(pack.WASM_DECODER.read_bytes()) and ib["wasm"] < 4096, "the wasm size is not reported or grew past 4,096 bytes"
