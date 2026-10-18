@@ -74,6 +74,8 @@ Source: `wasm/ppmd7.c` is a line-by-line transliteration of the JavaScript, `was
 
 ## Numbers
 
+> **Node numbers.** Tables and sentences that say Node were measured in Node, not in a test browser, so they are not what a visitor's browser does; read them only to compare rows with each other. Rows and sentences named for a browser (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5) were measured in that browser. Re-measuring the Node ones in the four browsers is not done (open item on `TASKS.md`).
+
 Measured here (Node 22, Chromium 155 and Firefox 158 on a shared Linux box; the test page is a minified single-file game, 431,473 bytes, order 16, 16 MB of model memory). Timings on this machine move by 10% or more from run to run.
 
 | What | Value |

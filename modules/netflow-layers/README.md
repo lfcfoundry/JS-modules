@@ -62,6 +62,9 @@ netflow-layers is a small layered-graph drawer (28,868 bytes, no dependencies). 
 - **The must-pass column, columns for tall maps and harder untangling** are one switch each, all off by default. With everything off the drawing is exactly Netflow Map's older one (15 checks, 8 pinned fingerprints made by the app's own engine).
 
 ## Numbers (Node 22, median of 5 builds, 2026-10-17; story-shaped test maps; smaller is better in every column)
+
+> **Node numbers.** The speeds in this section were measured in Node, not in the four test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Sizes and counts are exact; only the times depend on the browser. Re-measuring in the four browsers is not done (open item on `TASKS.md`).
+
 These are from Netflow Map's full build path, which first folds straight runs of pages into one box, so page counts differ a little from feeding the module the raw map. The drawing code is the same (8 pinned fingerprints from the app's own engine match). Full tables: Netflow Map `docs/TOPDOWN.md`.
 
 | Story (5,002 pages) | Rows | Stand-in stops | Gold links | Crossings | Width x height (px) | Build time (ms) |

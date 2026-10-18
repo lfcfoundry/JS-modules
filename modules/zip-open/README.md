@@ -34,6 +34,9 @@ Every limit is counted on the bytes that really come out, not on what the zip sa
 - XML is read by a small scanner that does not load outside files or expand entities beyond the basic five.
 
 ## Numbers (Node 22, measured 2026-10-17)
+
+> **Node numbers.** The speeds in this section were measured in Node, not in the four test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Sizes and counts are exact; only the times depend on the browser. Re-measuring in the four browsers is not done (open item on `TASKS.md`).
+
 A zip of 1 GB of zeros (0.97 MB on disk) whose header says the file holds 1,000 bytes:
 
 | | result | time | memory |

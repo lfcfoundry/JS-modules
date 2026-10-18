@@ -80,6 +80,8 @@ var buf = new Uint8Array(v.chunkBytes); v.read(5, buf);   // or into a buffer yo
 | Text | about LZ4 size (40% to 56%) | about the same size as fflate and pako (25% to 38%) |
 
 ### Numbers
+
+> **Node numbers.** Tables and sentences that say Node were measured in Node, not in a test browser, so they are not what a visitor's browser does; read them only to compare rows with each other. Rows and sentences named for a browser (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5) were measured in that browser. Re-measuring the Node ones in the four browsers is not done (open item on `TASKS.md`).
 Measured on this machine (4 cores), best of several runs, MB/s counted on the original size; every result was unpacked and compared byte for byte. Cell = size as a share of the original, pack speed, restore speed. Full tables for Node and for each browser are in the review (`REVIEW.md`). Floats here are the hard kind: noisy coordinates, decimals and random walks.
 
 **Version 1.1.0 changed small mode only** (the tables below were measured on 1.0.0): on the same 16 MB sets it packs 1.7 times faster overall (49 to 84 MB/s) and ends 0.6 points smaller overall (55.4% to 54.8%); float and record sets are 0.5 to 2.9 points smaller except random-walk floats, which are 0.5 to 0.9 points bigger. Restore speed and fast mode did not change.
@@ -121,6 +123,9 @@ Where it loses (kept from the longer text below):
 I measured it against fflate 0.8.3, pako 3.0.2, lz4js 0.2.0, **lz4-wasm 0.9.2** (a WebAssembly LZ4), **@bokuweb/zstd-wasm 0.0.27** (a WebAssembly zstd), fzstd 0.1.1 (a plain-JavaScript zstd reader) and the browser's own **CompressionStream**. Same data for every one, every result restored and compared byte for byte. The full tables for each browser are in `REVIEW.md`.
 
 #### Speed and size (Node 22.22.0, 16 MB sets; cell = size · pack MB/s · restore MB/s)
+
+> **Node numbers.** The speeds in this section were measured in Node, not in the four test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Sizes and counts are exact; only the times depend on the browser. Re-measuring in the four browsers is not done (open item on `TASKS.md`).
+
 | data | mc-fast | mc-small | lz4js | lz4-wasm | zstd-wasm 1 | zstd-wasm 3 | zstd-wasm 3 + shuffle | fflate 6 | pako 6 | CompressionStream (deflate-raw) |
 |---|---|---|---|---|---|---|---|---|---|---|
 | walk32 | 56.7% · 772 · 783 | 48.8% · 69 · 479 | 99.8% · 115 · 346 | 100.4% · 828 · 1204 | 79.3% · 283 · 197 | 76.6% · 109 · 169 | 54.6% · 133 · 272 | 74.2% · 14 · 75 | 77.2% · 13 · 83 | 77.2% · 26 · 116 |
@@ -462,7 +467,7 @@ Time, in milliseconds, **lower is better**, median of 5 rounds in each browser, 
 | WebKitGTK 2.52.6 | 1.7 / 3.2 | 1.4 / 17.0 | 4.5 / 4.4 | 4.8 / 17.0 | 1.7 / 4.5 | 1.8 / 33.0 |
 | GNOME Web 46.5 | 1.6 / 2.8 | 1.3 / 14.6 | 5.1 / 4.4 | 5.2 / 17.0 | 1.8 / 5.0 | 1.8 / 40.0 |
 
-**Whole lists of objects, Node 22, `fast` / `balanced` / `small`** (size smaller is better; times lower is better; results come back exactly in every case):
+**Whole lists of objects, measured in Node 22 (not in a test browser; compare rows only), `fast` / `balanced` / `small`** (size smaller is better; times lower is better; results come back exactly in every case):
 
 | Data | Size KB fast | balanced | small | Pack ms fast / balanced / small | Unpack ms fast / balanced / small |
 |---|---:|---:|---:|---|---|
@@ -599,6 +604,9 @@ What the browser tables say: the packed size is the same in every browser and is
 Takeaway: on text-heavy data 1.1.0 costs about 1 to 4 ms more per pack at these sizes and gives a 29 to 33% smaller file; on number-heavy data (links) it is the same speed or slightly faster. `patterns: false` brings the 1.0.0 speed back everywhere.
 
 #### What keeping it costs in memory (Node, after a full garbage collection)
+
+> **Node numbers.** The speeds in this section were measured in Node, not in the four test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Memory figures are Node's heap, not a browser's. Re-measuring in the four browsers is not done (open item on `TASKS.md`).
+
 Megabytes held in memory (smaller is better); the last two columns say how many times smaller than the live objects (bigger is better).
 
 | set | live objects | packed fast | packed small | view() open | JSON text | objects / packed fast | objects / view |
