@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Node 22 checks (16, about 0.4 s); the demo check passes in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, the same numbers as 1.1.0 in each (stops 1,456 to 205 with tags, to 1,356 with bundle; 7 columns), 1 to 7 s each including start-up; Netflow Map itself with this module swapped in (run by the Netflow Map thread): Chromium 155.0.8059.39 159 of 159 checks, Firefox 158.0 148, WebKitGTK 2.52.6 148, GNOME Web 46.5 148
+**Tested in:** Node 22 checks (20); the same pictures as 1.2.0 with spread tight on 30 of 30 layouts and 30 wide layouts with no overlapping boxes, in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
 
 Lays out a graph in rows (a layered, Sugiyama-style drawing): top to bottom or left to right, with long links drawn as tags, rows in the order of the story, a column for the pages every route passes, and tall maps cut into columns. It is the layered engine of Netflow Map, which draws Flow, Top-down, Spine, Lanes, Arc and Matrix from it. About 28 KB (28,868 bytes; 9.3 KB gzipped), no dependencies. Works in a browser (global `NetflowLayers`) and in Node (`module.exports`).
 
@@ -44,6 +44,7 @@ Your input is never changed: the result holds copies of your nodes and links wit
 | `wrap` | `true` (with `dir: "TB"`) cuts a map more than 2.2 times taller than wide into columns side by side; links between columns become tags. |
 | `lanes` | `true` puts nodes with the same `lane` number in their own band. |
 | `prev` | `{ id: 0-1 order from the last drawing }` keeps the order stable. |
+| `spread` | `"wide"` gives a looser, more tree-like drawing for wide screens: boxes beside each other get 2.4 times the gap top to bottom (1.4 times left to right), rows are 1.7 times further apart left to right (same top to bottom), and a box that leads to several boxes sits over the middle of them instead of over their weighted average. `"tight"` or nothing is the older, compact drawing exactly. |
 | `gapNode`, `gapLayer`, `maxVertices` | Spacing, and the stop limit (default 90,000 stand-in stops, then it throws with `tooBig: true`). |
 
 All the switches are off by default; with everything off the drawing is exactly Netflow Map's older one (15 checks, 8 pinned fingerprints made by the app's own engine).
