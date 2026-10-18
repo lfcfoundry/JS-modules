@@ -91,7 +91,7 @@ try:
     rc, out = run(root, "set", "alpha", "1.2", "--note", "x"); check("a malformed number is refused", rc != 0)
     rc, out = run(root, "list"); check("list prints the labels", rc == 0 and "alpha" in out and "2.4.1 · API 2" in out, out)
     reg2 = json.load(open(os.path.join(root, "modules.json")))
-    check("the glance index lists modules with gzipped size, tools by name", "- First group: [alpha](modules/alpha/README.md) 0.1, [beta](modules/beta/README.md) 0.1\n" in rm and "**Modules (2)**" in rm and "[gamma](tools/gamma/README.md)" in rm and rm.index("## All at a glance") < rm.index("## Pick a piece"))
+    check("the glance index lists every piece by name, with no sizes (the tables below give them)", "- First group: [alpha](modules/alpha/README.md), [beta](modules/beta/README.md)\n" in rm and "gzipped size in KB" not in rm and "**Modules (2)**" in rm and "[gamma](tools/gamma/README.md)" in rm and rm.index("## All at a glance") < rm.index("## Pick a piece"))
     rm = r(root, "README.md"); rm2 = V0.set_tables(rm, reg2, root)
     check("the tables and the index are refreshed in place, not stacked", rm2 == rm and rm.count("All at a glance") == 1 and rm.count(V0.TABLES_START) == 1)
     reg2["modules"][1]["short"] = "x" * 101; open(os.path.join(root, "modules.json"), "w").write(json.dumps(reg2, indent=2))

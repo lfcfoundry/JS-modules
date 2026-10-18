@@ -9,33 +9,33 @@ Live demos: **https://lfcfoundry.github.io/JS-modules/**
 <!-- glance:start (written by tools/versions/versions.py) -->
 ## All at a glance
 
-Every piece in one place, with its gzipped size in KB (smaller is better). The tables below give the version, the readable size and what each piece does.
+Every piece in one place, by name. The tables below give the version, the sizes (readable and gzipped) and what each piece does.
 
 **Modules (28)**
 
-- Saving and data safety: [save-kit](modules/save-kit/README.md) 9.1, [tab-guard](modules/tab-guard/README.md) 3.4
-- Device and browser adaptation: [env-probes](modules/env-probes/README.md) 5.4, [frame-kit](modules/frame-kit/README.md) 12.1, [fx-governor](modules/fx-governor/README.md) 2.5, [slow-note](modules/slow-note/README.md) 3.7
-- Controls: [back-close](modules/back-close/README.md) 3.1, [hold-press](modules/hold-press/README.md) 4.1, [pad-nav](modules/pad-nav/README.md) 9.6, [wake-keeper](modules/wake-keeper/README.md) 2.7
-- First visit and grown-ups: [grown-ups-door](modules/grown-ups-door/README.md) 5.1, [spotlight-tour](modules/spotlight-tour/README.md) 4.7
-- Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) 20.2, [fly-to-mini](modules/fly-to-mini/README.md) 6.3, [sprite-baker](modules/sprite-baker/README.md) 17.9, [stage-curtains](modules/stage-curtains/README.md) 10.3, [sticker-text](modules/sticker-text/README.md) 2.1
-- Game math: [idle-core](modules/idle-core/README.md) 7.7
-- Size and packaging: [lzma-decode](modules/lzma-decode/README.md) 3.6, [ppmd-decode](modules/ppmd-decode/README.md) 7.8
-- Files, charts and simulation: [gif-writer](modules/gif-writer/README.md) 7.3, [memory-compression](modules/memory-compression/README.md) 84.6, [netflow-engine](modules/netflow-engine/README.md) 0.6, [netflow-layers](modules/netflow-layers/README.md) 9.1, [netflow-sankey](modules/netflow-sankey/README.md) 11.3, [pcodec-js](modules/pcodec-js/README.md) 66.6, [walker-sim](modules/walker-sim/README.md) 18.8, [zip-open](modules/zip-open/README.md) 9.3
+- Saving and data safety: [save-kit](modules/save-kit/README.md), [tab-guard](modules/tab-guard/README.md)
+- Device and browser adaptation: [env-probes](modules/env-probes/README.md), [frame-kit](modules/frame-kit/README.md), [fx-governor](modules/fx-governor/README.md), [slow-note](modules/slow-note/README.md)
+- Controls: [back-close](modules/back-close/README.md), [hold-press](modules/hold-press/README.md), [pad-nav](modules/pad-nav/README.md), [wake-keeper](modules/wake-keeper/README.md)
+- First visit and grown-ups: [grown-ups-door](modules/grown-ups-door/README.md), [spotlight-tour](modules/spotlight-tour/README.md)
+- Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md), [fly-to-mini](modules/fly-to-mini/README.md), [sprite-baker](modules/sprite-baker/README.md), [stage-curtains](modules/stage-curtains/README.md), [sticker-text](modules/sticker-text/README.md)
+- Game math: [idle-core](modules/idle-core/README.md)
+- Size and packaging: [lzma-decode](modules/lzma-decode/README.md), [ppmd-decode](modules/ppmd-decode/README.md)
+- Files, charts and simulation: [gif-writer](modules/gif-writer/README.md), [memory-compression](modules/memory-compression/README.md), [netflow-engine](modules/netflow-engine/README.md), [netflow-layers](modules/netflow-layers/README.md), [netflow-sankey](modules/netflow-sankey/README.md), [pcodec-js](modules/pcodec-js/README.md), [walker-sim](modules/walker-sim/README.md), [zip-open](modules/zip-open/README.md)
 
 **Story editor packages (7)**
 
-- Story data: [story-diff](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-diff/README.md) 2.0, [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md) 14.0, [story-outline](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-outline/README.md) 7.9, [twine-import](https://github.com/lfcfoundry/story-editor/blob/main/packages/twine-import/README.md) 25.0
-- Checking: [story-check](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md) 20.0
-- Drawing: [story-map](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md) 17.8
-- Playing and building: [story-player](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-player/README.md) 24.2
+- Story data: [story-diff](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-diff/README.md), [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md), [story-outline](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-outline/README.md), [twine-import](https://github.com/lfcfoundry/story-editor/blob/main/packages/twine-import/README.md)
+- Checking: [story-check](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md)
+- Drawing: [story-map](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md)
+- Playing and building: [story-player](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-player/README.md)
 
 **Tools (14)**
 
-- For games: Size and packaging: [lzma-pack](tools/lzma-pack/README.md) 10.3, [ppmd-pack](tools/ppmd-pack/README.md) 14.3, [single-file-tools](tools/single-file-tools/README.md) 10.4
-- For games: Testing: [canvas-probe](tools/canvas-probe/README.md) 8.8, [firefox-stand-in](tools/firefox-stand-in/README.md) 4.0, [fuzz-kit](tools/fuzz-kit/README.md) 25.4, [speed-lab](tools/speed-lab/README.md) 7.4, [storage-probe](tools/storage-probe/README.md) 7.2, [test-isolation](tools/test-isolation/README.md) 2.4, [webkit-driver](tools/webkit-driver/README.md) 7.9
-- For the story editor: Size and packaging: [zip-page](https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md) 2.7
-- For the story editor: Testing: [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md) 5.7, [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md) 30.3
-- For the story editor: Working with an AI helper: [ai-collab-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md) 6.3
+- For games: Size and packaging: [lzma-pack](tools/lzma-pack/README.md), [ppmd-pack](tools/ppmd-pack/README.md), [single-file-tools](tools/single-file-tools/README.md)
+- For games: Testing: [canvas-probe](tools/canvas-probe/README.md), [firefox-stand-in](tools/firefox-stand-in/README.md), [fuzz-kit](tools/fuzz-kit/README.md), [speed-lab](tools/speed-lab/README.md), [storage-probe](tools/storage-probe/README.md), [test-isolation](tools/test-isolation/README.md), [webkit-driver](tools/webkit-driver/README.md)
+- For the story editor: Size and packaging: [zip-page](https://github.com/lfcfoundry/story-editor/blob/main/packages/zip-page/README.md)
+- For the story editor: Testing: [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md), [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md)
+- For the story editor: Working with an AI helper: [ai-collab-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md)
 
 <!-- glance:end -->
 

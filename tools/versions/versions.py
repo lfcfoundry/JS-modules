@@ -382,17 +382,16 @@ GLANCE_START, GLANCE_END = "<!-- glance:start (written by tools/versions/version
 
 
 def set_glance(text, reg, root):
-    """A short 'All at a glance' index right under the title: every module with its gzipped size in KB, every story package and every tool, each with its gzipped size."""
+    """A short 'All at a glance' index right under the title: every module, story package and tool by name, grouped by what it is for. No sizes: the tables below give them."""
     cats = reg.get("categories", {})
     pk = reg.get("related", {}).get("packages", [])
     out = [GLANCE_START, "## All at a glance", "",
-           "Every piece in one place, with its gzipped size in KB (smaller is better). The tables below give the version, the readable size and what each piece does.", ""]
+           "Every piece in one place, by name. The tables below give the version, the sizes (readable and gzipped) and what each piece does.", ""]
 
     def line(title, cl, es, link, with_size):
         items = []
         for e in sorted(es, key=lambda x: x["id"]):
-            sz = piece_sizes(root, e) if with_size else None
-            items.append("[%s](%s)%s" % (e["id"], link(e), " %s" % kb1(sz[1]) if sz else ""))
+            items.append("[%s](%s)" % (e["id"], link(e)))
         return "- %s: %s" % (title, ", ".join(items)) if items else None
 
     def block(heading, groups, es, link, with_size):
