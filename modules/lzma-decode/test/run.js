@@ -135,5 +135,33 @@ jobs.forEach((j, i) => {
   { const k = jobs.findIndex((x) => x.n === 1500000), raw2 = Uint8Array.from(Buffer.from(out[k].raw, 'hex')), med = (f) => { const a = []; for (let i = 0; i < 5; i++) { const t = process.hrtime.bigint(); f(); a.push(Number(process.hrtime.bigint() - t) / 1e6); } return a.sort((x, y) => x - y)[2]; };
     const tj = med(() => lzmaDecode(raw2, 1500000)), tw = med(() => lzmaWasm(raw2, 1500000)); console.log(`  info: 1.5 MB warm decode, median of 5: JS ${tj.toFixed(1)} ms, wasm ${tw.toFixed(1)} ms (smaller is better)`); }
 }
+// ---- the default file, lzma-decode-with-wasm.js: lzmaDecode itself tries WebAssembly first ----
+{
+  const vm = require('vm'), joinedPath = path.join(__dirname, '..', 'lzma-decode-with-wasm.js'), joinedSrc = fs.readFileSync(joinedPath, 'utf8');
+  const sameB = (a, b) => a && b && a.length === b.length && Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0;
+  try { check('default file is exactly what wasm/join.js builds from the two sources', require('../wasm/join.js')() === joinedSrc); } catch (e) { check('default file builds', false, e.message); }
+  const J = require(joinedPath);
+  check('default file: found WebAssembly and exposes .plain', J.available === true && typeof J.plain === 'function');
+  let nW = 0, bad = 0;
+  jobs.forEach((j, i) => {
+    const raw = Uint8Array.from(Buffer.from(out[i].raw, 'hex')), o = { lc: j.p[0], lp: j.p[1], pb: j.p[2] };
+    let got = null; try { got = J(raw, j.n, o); } catch (e) { /* counted below */ }
+    if (!sameB(got, j.data)) bad++;
+    if (J.engine === 'wasm') nW++;
+    const fb = Uint8Array.from(Buffer.from(out[i].alone, 'hex'));
+    if (!sameB(J.file(fb, j.n), j.data) || !sameB(J.plain(raw, j.n, o), j.data)) bad++;
+  });
+  check('default file: all ' + jobs.length + ' jobs give the right bytes through lzmaDecode, .file and .plain (' + bad + ' wrong)', bad === 0);
+  check('default file: lzmaDecode used WebAssembly for the liblzma jobs', nW > 20, String(nW));
+  // the same file in a browser-like page: the plain global name is replaced, with and without WebAssembly (a page whose policy forbids it)
+  for (const noWasm of [false, true]) {
+    const ctx = { atob: (t) => Buffer.from(t, 'base64').toString('binary'), Uint8Array, Error, Math, WebAssembly: noWasm ? undefined : WebAssembly };
+    ctx.self = ctx; ctx.globalThis = ctx; vm.createContext(ctx); vm.runInContext(joinedSrc, ctx);
+    const k = jobs.findIndex((x) => x.kind === 'text' && x.n === 30000 && x.p[0] === 4), raw = Uint8Array.from(Buffer.from(out[k].raw, 'hex')), g = ctx.lzmaDecode;
+    const r = g(raw, jobs[k].n, { lc: 4, lp: 0, pb: 0 });
+    check('page, ' + (noWasm ? 'WebAssembly forbidden' : 'WebAssembly allowed') + ': lzmaDecode and lzmaDecodeWasm are one function, bytes right, engine ' + (noWasm ? 'js' : 'wasm'),
+      g === ctx.lzmaDecodeWasm && sameB(r, jobs[k].data) && g.engine === (noWasm ? 'js' : 'wasm') && g.available === !noWasm);
+  }
+}
 console.log(`lzma-decode: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

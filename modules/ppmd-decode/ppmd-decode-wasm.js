@@ -4,15 +4,16 @@
  * the same errors and the same order of checks, only sooner: it starts decoding without the warm-up the JavaScript version needs, and then runs the model about
  * twice as fast (numbers in README.md). It needs a page that allows WebAssembly (the policy word is wasm-unsafe-eval). When the page does not allow it, the browser
  * has no WebAssembly, the memory cannot be had, or the arguments are out of range, the call is handed to ppmd7Decode, which does the work or throws its usual error.
+ * ppmd7DecodeWasm.plain is the JavaScript decoder alone (ppmd7Decode from ppmd-decode.js).
  * ppmd7DecodeWasm.wasm says whether WebAssembly was usable at load time; ppmd7DecodeWasm.engine says which one did the last call ('wasm' or 'js').
  * Set aside memSize + about 20 KB + the compressed size + the result size inside one WebAssembly memory (at most 1 GB; bigger asks go to the JavaScript decoder).
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root). PPMd is by Dmitry Shkarin; the C code this follows is public domain (Igor Pavlov, 7-Zip).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  */
 
 (function (root, factory) {
-  var core = root.ppmd7Decode || (typeof module === 'object' && module.exports ? require('./ppmd-decode.js') : null);
+  var core = typeof ppmd7Decode === 'function' ? ppmd7Decode : root.ppmd7Decode || (typeof module === 'object' && module.exports ? require('./ppmd-decode.js') : null);     // in ppmd-decode-with-wasm.js the plain decoder sits right above
   if (typeof module === 'object' && module.exports) module.exports = factory(core);
   else root.ppmd7DecodeWasm = factory(core);
 }(typeof self !== 'undefined' ? self : this, function (ppmd7Decode) {
@@ -52,6 +53,7 @@
     ppmd7DecodeWasm.engine = 'wasm';
     return out;
   }
+  ppmd7DecodeWasm.plain = ppmd7Decode;     // the JavaScript decoder itself, for a caller that wants no WebAssembly at all
   ppmd7DecodeWasm.wasm = mod !== null;
   ppmd7DecodeWasm.engine = mod !== null ? 'wasm' : 'js';
   ppmd7DecodeWasm.fromProps = function (src, outSize, props, opts) {
