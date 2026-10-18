@@ -1,8 +1,8 @@
 # netflow-engine
 
-**Version 1.0.0 · API 1**
+**Version 2.0.0 · API 2**
 
-**Tested in:** Node 22 (10 checks, plus 225 identical-layout comparisons against Netflow Map's own engine), ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
+**Tested in:** Node 22 checks (11) and 225 identical-layout comparisons with Netflow Map's own engine; 135 builds (3 maps x 9 views x 5 option sets, tight and wide) and 6 Sankey builds with sk options identical to Netflow Map's own engine in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
 
 The engine of Netflow Map as a module you can copy and adapt. You give it a list of items and links; it works out where everything goes (as a story laid out in rows, arcs, a matrix, a shape, or as a network of any size), scores the drawing, and hands back plain numbers ready to draw. It runs with no page, so it works in a worker, in Node, or on the main thread. It reads and prepares the data into flat typed arrays, finds choke points and traffic, then places items with a layered, force or distance-based method (the heavy force and distance steps run in WebAssembly when the page allows it and in plain JavaScript when not, with identical results).
 
@@ -30,11 +30,13 @@ In Node: `const E = require('./netflow-engine.js'); E.use('layers', require('../
 
 ## Views and arrangements
 
-`NetflowEngine.VIEWS` lists the nine view ids in this order: `flow`, `down`, `spine`, `lanes`, `shape`, the Sankey view (sixth), `arc`, `matrix`, `network`. Read the Sankey view's id from `NetflowEngine.VIEWS[5][0]`; it is being renamed in a later release, so do not type it by hand. The Shape view returns `segs` and `spine` (stretches between choke points) and no `nodes`. For `network`, `arrange` picks the method: `stress` (Distances, the default for big maps), `closeness`, `force`, `radial`, `circle`, `rings`, `groups`, `grid`, `force3d`, `sphere`, `stack` (`NetflowEngine.ARRANGE_NAMES` has the names; `arrangeAdvice()` says which fits a given map). Other options: `colorBy`, `sizeBy`, `widthBy`, `edgeColorBy`, `laneBy`, `agg`, `mode`, `amounts` (see the comment above `build` in the file).
+`NetflowEngine.VIEWS` lists the nine view ids in this order: `flow`, `down`, `spine`, `lanes`, `shape`, `sankey`, `arc`, `matrix`, `network`. In 1.0.0 the sixth id had another name; 2.0.0 knows only `sankey` (an old id draws the Flow picture, like any unknown id). The Shape view returns `segs` and `spine` (stretches between choke points) and no `nodes`. For `network`, `arrange` picks the method: `stress` (Distances, the default for big maps), `closeness`, `force`, `radial`, `circle`, `rings`, `groups`, `grid`, `force3d`, `sphere`, `stack` (`NetflowEngine.ARRANGE_NAMES` has the names; `arrangeAdvice()` says which fits a given map). Other options: `colorBy`, `sizeBy`, `widthBy`, `edgeColorBy`, `laneBy`, `agg`, `mode`, `amounts` (see the comment above `build` in the file).
+
+`spread: "wide"` (Flow, Top-down, Spine and Lanes only; needs netflow-layers 1.3.0 or newer, an older copy ignores it) draws the story views looser and more like a tree for wide screens: more room beside each box, and a box over the middle of the boxes it leads to. `"tight"`, or leaving it out, is the compact picture as before. Handy as a switch next to the view list.
 
 ## Add-ons
 
-- **Layered drawing (netflow-layers 1.2.0 or newer)**: required for every story view. Found as a global `NetflowLayers`, or as `../netflow-layers/netflow-layers.js` in Node, or handed over with `NetflowEngine.use('layers', impl)`. If it is missing, the view that needs it throws a message that says so; the Network view still works.
+- **Layered drawing (netflow-layers 1.2.0 or newer; 1.3.0 for `spread: "wide"`)**: required for every story view. Found as a global `NetflowLayers`, or as `../netflow-layers/netflow-layers.js` in Node, or handed over with `NetflowEngine.use('layers', impl)`. If it is missing, the view that needs it throws a message that says so; the Network view still works.
 - **Sankey add-on**: optional (netflow-sankey 2.1.0 or newer). `NetflowEngine.use('sankey', impl)` and pass `sk` options to the Sankey view; without it the Sankey view keeps the plain layered picture. The Sankey view calls three things on the add-on: `options(sk)`, `layout(layered, options)` and `apply(layered, result)`. netflow-sankey 2.0.0 has `layout` but not `options` or `apply` (Netflow Map's own copy has all three), so with 2.0.0 handed over, a Sankey view that is given `sk` options throws "SK.options is not a function"; a Sankey view without `sk` options works. netflow-sankey 2.1.0 added the two calls, so use 2.1.0 or newer.
 - **Your own**: the engine's other parts (`separate`, `forceSim`, `networkLayout`, `communities`, `metrics`, `taskScore`) are exported so an add-on can call them. An add-on never reaches into the engine's private storage. This is the same shape the Netflow Map add-ons use.
 - `NetflowEngine.columns` is the column reader (numbers as people write them, dates, categories, small formulas); `status()` returns `{ placeholder: false, version, api }`.
