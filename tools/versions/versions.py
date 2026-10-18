@@ -262,109 +262,164 @@ def readme_version(text):
     return None
 
 
-SIZE_CELL = re.compile(r"^[\d,.]+ (?:KB|B) · [\d,.]+ (?:KB|B) gz$")
+SRC_SUFFIXES = (".js", ".mjs", ".cjs")
+PAGES = "https://lfcfoundry.github.io/JS-modules/"
+TABLES_START = "<!-- tables:start (written by tools/versions/versions.py; edit modules.json, not this) -->"
+TABLES_END = "<!-- tables:end -->"
+SHORT_MAX = 100
 
 
-def kb(n):
-    return "%.1f KB" % (n / 1024.0) if n >= 1024 else "%d B" % n
+def spec_bytes(base, spec):
+    """The bytes of a piece as it ships: `spec` is a path or a list of paths under `base`. A folder counts the script files directly in it (.js .mjs .cjs, not .min.js, not test*), together.
+    None when there is nothing to measure."""
+    data = b""
+    for f in ([spec] if isinstance(spec, str) else spec):
+        path = os.path.join(base, f)
+        if os.path.isdir(path):
+            names = sorted(n for n in os.listdir(path) if n.endswith(SRC_SUFFIXES) and not n.endswith(".min.js") and not n.startswith("test") and os.path.isfile(os.path.join(path, n)))
+            data += b"".join(open(os.path.join(path, n), "rb").read() for n in names)
+        elif os.path.isfile(path):
+            data += open(path, "rb").read()
+        else:
+            return None
+    return data or None
 
 
-def size_label(root, e):
-    """'33.3 KB · 11.6 KB gz': the module's shipped file as it sits in the repository, and gzip -9 of it. A module whose "file" is a folder (frame-kit) counts the .js files directly in it, together.
-    None when there is no script to measure (a style guide, a missing file)."""
-    f = e.get("file")
-    path = os.path.join(root, f) if f else None
-    if not path or not os.path.exists(path):
-        return None
-    if os.path.isdir(path):
-        names = sorted(n for n in os.listdir(path) if n.endswith(".js") and not n.endswith(".min.js") and os.path.isfile(os.path.join(path, n)))
-        data = b"".join(open(os.path.join(path, n), "rb").read() for n in names)
-    elif f.endswith(".js"):
-        data = open(path, "rb").read()
+def measure(data):
+    return len(data), len(gzip.compress(data, 9, mtime=0))
+
+
+def piece_sizes(root, e):
+    """(bytes, gzipped bytes) of an entry: measured from its files for a module or tool, recorded in modules.json for a story-editor package (that repo is measured with `sizes --story-editor DIR`). None when n/a."""
+    if "size" in e and "gz" in e:
+        return e["size"], e["gz"]
+    if e.get("file") and not str(e["file"]).startswith("packages/"):
+        data = spec_bytes(root, e["file"])
+        return measure(data) if data else None
+    return None
+
+
+def kb1(n):
+    return "%.1f" % (n / 1024.0)
+
+
+def tables(reg, root):
+    """The whole 'Pick a piece' body: the same six columns in every table, a size on every row (or n/a, with the reason listed once), groups in a fixed order, rows sorted by name."""
+    cats, notes = reg.get("categories", {}), []
+
+    def row(e, kind, base):
+        sz = piece_sizes(root, e)
+        if sz:
+            size, gz = kb1(sz[0]), kb1(sz[1])
+        else:
+            size = gz = "n/a"
+            notes.append((e["id"], e.get("sizeNote") or "no file to measure"))
+        rd_ = e.get("readme", "")
+        link = rd_ if rd_.startswith("http") else rd_
+        demo = e.get("demo")
+        demo_cell = "[Demo](%s%s)" % (PAGES, demo) if demo else "—"
+        return "| [%s](%s) | %s | %s | %s | %s | %s |" % (e["id"], link, e.get("version") or "—", size, gz, e.get("short") or e.get("summary", ""), demo_cell)
+
+    def table(head, es, kind):
+        out = ["| %s | Version | Size (KB) | Gzipped (KB) | What it does | Demo |" % head, "|---|---|---:|---:|---|---|"]
+        out += [row(e, kind, root) for e in sorted(es, key=lambda x: x["id"])]
+        return out + [""]
+
+    def groups(side, kind, label, category_list, es, level_title):
+        out = []
+        for c in category_list:
+            members = [e for e in es if e.get("category") == c["id"] and e.get("side", "games") == side]
+            if not members:
+                continue
+            if level_title:
+                out += ["#### %s" % c["title"], "", c["use"], ""]
+            else:
+                out += ["**%s.** %s" % (c["title"], c["use"]), ""]
+            out += table(label, members, kind)
+        return out
+
+    body = ["## Pick a piece", "",
+            "Grouped by what a piece does. The live page, with demos and a quick finder, is **%s**." % PAGES, "",
+            "**How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments) in KB; *Gzipped* is the same file gzipped, the way a web server sends it. A piece made of several files counts them together. "
+            "Story Editor packages are measured on their built `global` file%s. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes` from `modules.json`." % (" at Story Editor commit `%s`" % reg["related"]["storyEditorCommit"] if reg.get("related", {}).get("storyEditorCommit") else ""), "",
+            "NA_NOTE", ""]
+    mods, tools_, pk = reg.get("modules", []), reg.get("tools", []), reg.get("related", {}).get("packages", [])
+    body += ["### Games", ""] + groups("games", "modules", "Module", cats.get("games", {}).get("modules", []), mods, True)
+    sp = [e for e in pk if e.get("category") in {c["id"] for c in cats.get("stories", {}).get("packages", [])}]
+    st = [e for e in pk if e not in sp]
+    g_sp = groups("stories", "packages", "Package", cats.get("stories", {}).get("packages", []), sp, True)
+    if g_sp:
+        body += ["### Story editor", "",
+                 "Packages for interactive stories. They live with the [Story Editor](%s) they are generated from, under `packages/`." % reg.get("related", {}).get("repository", "https://github.com/lfcfoundry/story-editor"), ""] + g_sp
+    g_tg = groups("games", "tools", "Tool", cats.get("games", {}).get("tools", []), tools_, False)
+    g_ts = groups("stories", "packages", "Package", cats.get("stories", {}).get("tools", []), st, False)
+    if g_tg or g_ts:
+        body += ["### Tools", "", "For building and testing. Not shipped inside a game or story.", ""]
+        body += (["#### For games", ""] + g_tg) if g_tg else []
+        body += (["#### For the story editor", ""] + g_ts) if g_ts else []
+    na = "; ".join("**%s** (%s)" % (i, n) for i, n in notes)
+    text = "\n".join(body).replace("NA_NOTE", ("*n/a* means there is no script to measure: " + na + ".") if notes else "Every piece has a size.")
+    return text.rstrip("\n") + "\n"
+
+
+def set_tables(text, reg, root):
+    """Rewrite the generated tables in the root README: between the two markers, or (first time) from '## Pick a piece' up to the next '## ' heading."""
+    block = TABLES_START + "\n" + tables(reg, root) + TABLES_END
+    if TABLES_START in text:
+        a, b = text.index(TABLES_START), text.index(TABLES_END) + len(TABLES_END)
+        text = text[:a] + block + text[b:]
+    elif "\n## Pick a piece" in text:
+        a = text.index("\n## Pick a piece") + 1
+        m = re.search(r"^## (?!Pick a piece)", text[a:], re.M)
+        b = a + (m.start() if m else len(text) - a)
+        text = text[:a] + block + "\n\n" + text[b:]
     else:
-        return None
-    if not data:
-        return None
-    return "%s · %s gz" % (kb(len(data)), kb(len(gzip.compress(data, 9, mtime=0))))
-
-
-def set_root_readme(text, reg, root=None):
-    """Add or refresh a Version column in the root README's module and tool tables, and a Size column right after the name in the module tables."""
-    ents = {e["id"]: e for _, e in entries(reg)}
-    ver = {i: e.get("version") for i, e in ents.items()}
-    out, lines = [], text.split("\n")
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        if re.match(r"^\| (Module|Tool) \|", line) and i + 1 < len(lines) and lines[i + 1].startswith("|---"):
-            hdr, sep = line, lines[i + 1]
-            is_module = hdr.startswith("| Module |")
-            if not hdr.rstrip().endswith("| Version |"):
-                hdr += " Version |"
-                sep += "---|"
-            if is_module and root is not None and not hdr.startswith("| Module | Size |"):
-                hdr = hdr.replace("| Module |", "| Module | Size |", 1)
-                sep = sep.replace("|---|", "|---|---|", 1)
-            out += [hdr, sep]
-            i += 2
-            while i < len(lines) and lines[i].startswith("| ["):
-                row = lines[i]
-                m = re.match(r"^\| \[([a-z0-9-]+)\]\(", row)
-                v = ver.get(m.group(1)) if m else None
-                row = re.sub(r" \d+\.\d+\.\d+ · API \d+ \|$", "", row) if row.rstrip().endswith("|") and re.search(r" \d+\.\d+\.\d+ · API \d+ \|$", row) else row
-                if v:
-                    row = row.rstrip() + " " + label(v) + " |"
-                if is_module and root is not None and m:
-                    head = re.match(r"^(\| \[[a-z0-9-]+\]\([^)]*\)) \| (.*)$", row)
-                    if head:
-                        rest = head.group(2)
-                        cell = rest.split(" | ", 1)[0]
-                        if SIZE_CELL.match(cell) or cell == "n/a":
-                            rest = rest.split(" | ", 1)[1]
-                        row = "%s | %s | %s" % (head.group(1), size_label(root, ents[m.group(1)]) or "n/a", rest)
-                out.append(row)
-                i += 1
-            continue
-        out.append(line)
-        i += 1
-    return set_glance("\n".join(out))
+        return text
+    return set_glance(text, reg, root)
 
 
 GLANCE_START, GLANCE_END = "<!-- glance:start (written by tools/versions/versions.py) -->", "<!-- glance:end -->"
-GLANCE_ROW = re.compile(r"^\| \[([a-z0-9-]+)\]\(([^)]*)\) \| ((?:[\d.]+ KB \\u00b7 [\d.]+ KB gz)|n/a)? ?")
 
 
-def set_glance(text):
-    """A short 'all at a glance' index right under the title: every module with its gzipped size, every story package and every tool by name, built from the tables below it."""
-    lines, grp, top, groups = text.split("\n"), None, None, []
-    for line in lines:
-        if line.startswith("### "):
-            top, grp = line[4:].strip(), None
-        elif line.startswith("#### "):
-            grp = [top, line[5:].strip(), []]
-            groups.append(grp)
-        elif grp is not None:
-            m = re.match(r"^\| \[([a-z0-9-]+)\]\(([^)]*)\) \| (.*)$", line)
-            if m:
-                gz = re.match(r"^([\d.]+ KB) \u00b7 ([\d.]+) KB gz \|", m.group(3))
-                grp[2].append("[%s](%s)%s" % (m.group(1), m.group(2), " %s" % gz.group(2) if top == "Games" and gz else ""))
-    if not groups:
-        return text
+def set_glance(text, reg, root):
+    """A short 'All at a glance' index right under the title: every module with its gzipped size in KB, every story package and every tool, each with its gzipped size."""
+    cats = reg.get("categories", {})
+    pk = reg.get("related", {}).get("packages", [])
     out = [GLANCE_START, "## All at a glance", "",
-           "Every piece in one place. Numbers are gzipped KB (smaller is better); the tables below give the readable size, the version and what each piece does.", ""]
-    for kind, title in (("Games", "Modules"), ("Story editor", "Story editor packages"), ("Tools", "Tools")):
-        gs = [g for g in groups if g[0] == kind]
-        if gs:
-            out.append("**%s (%d)**" % (title, sum(len(g[2]) for g in gs)))
-            out.append("")
-            out += ["- %s: %s" % (g[1], ", ".join(g[2])) for g in gs]
-            out.append("")
+           "Every piece in one place, with its gzipped size in KB (smaller is better). The tables below give the version, the readable size and what each piece does.", ""]
+
+    def line(title, cl, es, link, with_size):
+        items = []
+        for e in sorted(es, key=lambda x: x["id"]):
+            sz = piece_sizes(root, e) if with_size else None
+            items.append("[%s](%s)%s" % (e["id"], link(e), " %s" % kb1(sz[1]) if sz else ""))
+        return "- %s: %s" % (title, ", ".join(items)) if items else None
+
+    def block(heading, groups, es, link, with_size):
+        lines = [line(c["title"], c, [e for e in es if e.get("category") == c["id"]], link, with_size) for c in groups]
+        lines = [l for l in lines if l]
+        if lines:
+            out.extend(["**%s (%d)**" % (heading, len(es)), ""] + lines + [""])
+
+    rl = lambda e: e.get("readme", "")
+    block("Modules", cats.get("games", {}).get("modules", []), reg.get("modules", []), rl, True)
+    sp = [e for e in pk if e.get("category") in {c["id"] for c in cats.get("stories", {}).get("packages", [])}]
+    block("Story editor packages", cats.get("stories", {}).get("packages", []), sp, rl, True)
+    tools_ = reg.get("tools", [])
+    stt = [e for e in pk if e not in sp]
+    n_tools = len(tools_) + len(stt)
+    tl = [line("For games: " + c["title"], c, [e for e in tools_ if e.get("category") == c["id"]], rl, True) for c in cats.get("games", {}).get("tools", [])]
+    tl += [line("For the story editor: " + c["title"], c, [e for e in stt if e.get("category") == c["id"]], rl, True) for c in cats.get("stories", {}).get("tools", [])]
+    out.extend(["**Tools (%d)**" % n_tools, ""] + [l for l in tl if l] + [""])
     out.append(GLANCE_END)
-    block = "\n".join(out)
+    blk = "\n".join(out)
     if GLANCE_START in text:
         a, b = text.index(GLANCE_START), text.index(GLANCE_END) + len(GLANCE_END)
-        return text[:a] + block + text[b:]
-    return text.replace("## Pick a piece", block + "\n\n## Pick a piece", 1)
+        return text[:a] + blk + text[b:]
+    for anchor in (TABLES_START, "## Pick a piece"):
+        if anchor in text:
+            return text.replace(anchor, blk + "\n\n" + anchor, 1)
+    return text
 
 
 def set_index(text, reg):
@@ -410,10 +465,10 @@ def apply(root, reg):
             if n != t:
                 wr(root, rp, n)
     wr(root, "CHANGELOG.md", root_changelog(root, reg))
-    for rel, fn in (("README.md", set_root_readme), ("index.html", set_index), ("llms.txt", set_llms)):
+    for rel, fn in (("README.md", set_tables), ("index.html", set_index), ("llms.txt", set_llms)):
         if os.path.exists(os.path.join(root, rel)):
             t = rd(root, rel)
-            n = fn(t, reg, root) if fn is set_root_readme else fn(t, reg)
+            n = fn(t, reg, root) if fn is set_tables else fn(t, reg)
             if n != t:
                 wr(root, rel, n)
     # keep "version" and "api" next to the id in modules.json
@@ -460,14 +515,23 @@ def check(root, reg):
             p = os.path.join(root, rel)
             if os.path.exists(p) and e["id"] in rd(root, rel) and pat not in rd(root, rel):
                 bad.append("%s: %s does not show %s" % (i, rel, label(v)))
-        t = rd(root, "README.md")
-        if re.search(r"^\| \[%s\]\(" % re.escape(i), t, re.M) and (" " + label(v) + " |") not in t:
-            bad.append("%s: the README table does not show %s" % (i, label(v)))
-        sz = size_label(root, e) if kind == "modules" else None
-        if sz and re.search(r"^\| \[%s\]\(" % re.escape(i), t, re.M) and (" | " + sz + " | ") not in t:
-            bad.append("%s: the README table shows an old size (now %s): run versions.py sizes" % (i, sz))
-    if set_glance(rd(root, "README.md")) != rd(root, "README.md"):
-        bad.append("README.md: the 'All at a glance' index is out of date: run versions.py sizes")
+        if not e.get("short"):
+            bad.append("%s: no \"short\" description in modules.json (one plain line, at most %d characters)" % (i, SHORT_MAX))
+        elif len(e["short"]) > SHORT_MAX:
+            bad.append("%s: the short description is %d characters, at most %d" % (i, len(e["short"]), SHORT_MAX))
+        if not piece_sizes(root, e) and not e.get("sizeNote"):
+            bad.append("%s: no size: the file is missing or empty (give it a \"file\", or a \"sizeNote\" saying why there is none)" % i)
+    for e in reg.get("related", {}).get("packages", []):
+        i = e["id"]
+        if not e.get("short") or len(e["short"]) > SHORT_MAX:
+            bad.append("%s: needs a \"short\" description of at most %d characters in modules.json" % (i, SHORT_MAX))
+        if not piece_sizes(root, e) and not e.get("sizeNote"):
+            bad.append("%s: no size recorded: run versions.py sizes --story-editor DIR (or give a \"sizeNote\")" % i)
+        if e.get("version") and not SEMVER.match(e["version"]):
+            bad.append("%s: version %r is not like 1.2.3" % (i, e["version"]))
+    rt = rd(root, "README.md")
+    if set_tables(rt, reg, root) != rt:
+        bad.append("README.md: the tables or the 'All at a glance' index are out of date: run versions.py sizes")
     if os.path.exists(os.path.join(root, "CHANGELOG.md")):
         if rd(root, "CHANGELOG.md") != root_changelog(root, reg):
             bad.append("CHANGELOG.md (the root one) is out of date: run versions.py changelog")
@@ -567,11 +631,26 @@ def main(argv):
         print("CHANGELOG.md written")
         return 0
     if cmd == "sizes":
+        if "--story-editor" in argv:
+            d = argv[argv.index("--story-editor") + 1]
+            for e in reg.get("related", {}).get("packages", []):
+                if e.get("file"):
+                    data = spec_bytes(d, e["file"])
+                    if not data:
+                        print("versions: %s: %s not found under %s" % (e["id"], e["file"], d))
+                        return 1
+                    e["size"], e["gz"] = measure(data)
+            try:
+                reg["related"]["storyEditorCommit"] = subprocess.run(["git", "-C", d, "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip() or None
+            except OSError:
+                pass
+            save(root, reg)
+            print("story-editor package sizes recorded in modules.json (from %s)" % (reg["related"].get("storyEditorCommit") or d))
         t = rd(root, "README.md")
-        n = set_root_readme(t, reg, root)
+        n = set_tables(t, reg, root)
         if n != t:
             wr(root, "README.md", n)
-        print("README.md size column %s" % ("refreshed" if n != t else "already current"))
+        print("README.md tables %s" % ("refreshed" if n != t else "already current"))
         return 0
     if cmd == "init":
         n = 0
