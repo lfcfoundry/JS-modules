@@ -6,6 +6,14 @@
 
 A PPMd decoder (the "var.H" flavor that 7-Zip calls PPMd7) in plain ES5 JavaScript, one function, no dependencies. PPMd predicts each byte from the bytes before it. On the web-page samples I measured (see Numbers) it came out about 10% smaller than LZMA, at the price of a bigger decoder and slower unpacking. Use it to unpack PPMd data in the browser or in Node, for example the page data in a single-file app that a packer squeezed. The matching encoder is [`tools/ppmd-pack/ppmd7_encode.py`](../../tools/ppmd-pack/ppmd7_encode.py).
 
+How it works: the decoder rebuilds, step by step, the same prediction model the encoder used, and a range decoder (the kind 7-Zip's `.7z` format uses) turns the compressed bytes back into one byte at a time using that model's predictions. That is why you must give it the same `order` and `memSize` the encoder used.
+
+## Why it exists
+
+A single-file app or game that wants a smaller download needs something to unpack the squeezed page data inside the browser. LZMA does that in a very small decoder, but PPMd compresses web-page text and code better, and I found no other PPMd decoder that is a standalone piece of JavaScript: the working ones are whole archive tools compiled to WebAssembly (see "Prior art and credits"). This module exists for the case where a few KB of plain JavaScript in one file is the constraint. [`tools/ppmd-pack`](../../tools/ppmd-pack/README.md) uses it to build self-unpacking pages.
+
+## Try it and test it
+
 **Test it:** `node modules/ppmd-decode/test/run.js` (Node only, offline, about 3 seconds). It decodes streams written by the C reference encoder and must match them byte for byte.
 
 ## Quick start

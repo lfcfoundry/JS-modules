@@ -8,6 +8,10 @@ A short task that a young child will not finish, placed in front of the buttons 
 
 **It is a speed bump, not security.** A determined older child, or anyone who can read the page, can get past it. It helps stop accidental and curious taps from a small child; it is not a legal age check and does not by itself make a game meet any store's rules for children's apps.
 
+## Why it exists
+A children's game has buttons that can erase progress or leave the game for the web. A child will press anything that glows. A task that needs a 3-second hold and a drag is something most adults finish at once and most small children do not, with no reading and no math. Apple's page on the Kids category lists parental gates among its requirements, describing them as "adult-level tasks that must be completed in order to continue", with purchases and links out of the app as the examples; the page shows a plain task, a math task and a question task as gate styles. This module is the plain-task kind, and your game still has to meet whatever rules apply to where you publish it.
+
+## Try it and test it
 **Test it:** `node tests/pieces-browser.js` (hold, early lift, sliding off, drag, tap then tap, keyboard only, Escape and focus, links, touch, and the open time running out; Firefox 158 and ungoogled Chromium 155). **Try it:** `demo.html`.
 
 ## Use
@@ -26,9 +30,6 @@ door.destroy();  // remove the door and its listeners
 - **Options:** `holdMs` (3000), `openMs` (120000: how long a pass stays good), `texts` (every sentence; `title`, `hold`, `drag`, `notNow`, `itemName`, `targetName`, `opened`, and the functions `whyButton(name)`, `whyLink(name)`, `openLink(name)`), `nameOf(el)` (what the door calls the control; default its `data-door-name`, text or aria-label), `skip` (a boolean or function that turns the door off, for automated tests), `onOpen(pending)`, `onPass(pending)`, `root` (where to put the door).
 - **Methods:** `isOpen()`, `isShown()`, `ask(control)` (show it from your own code; returns false when it is already open, so go ahead), `lock()`, `close()`, `destroy()`.
 - **Looks:** the box takes `--gud-bg`, `--gud-text` and `--gud-accent` from your page's CSS, follows the dark color scheme and the focus ring is visible. The stylesheet is added once, with class names starting `gud`.
-
-## Why
-A children's game has buttons that can erase progress or leave the game for the web. A child will press anything that glows. A task that needs a 3-second hold and a drag is something most adults finish at once and most small children do not, with no reading and no math. Apple's page on the Kids category lists parental gates among its requirements, describing them as "adult-level tasks that must be completed in order to continue", with purchases and links out of the app as the examples; the page shows a plain task, a math task and a question task as gate styles. This module is the plain-task kind, and your game still has to meet whatever rules apply to where you publish it.
 
 ## How it compares
 I found no maintained standalone web library for a parental gate, so the real alternatives are the two hand-written tasks games usually use. This module is larger than either, needs no reading, and is still only a speed bump. Speed in browsers: not applicable to the task (the hold is 3 seconds by design) and the code was not timed.

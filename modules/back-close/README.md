@@ -6,6 +6,12 @@
 
 Makes a phone's back swipe (or back button) close the top panel instead of leaving the page. About 7 KB, no dependencies.
 
+You point it at a panel and give it the function that closes that panel. While the panel is shown, it keeps one `CloseWatcher` (the browser's own close-request channel) armed on it; when the back swipe, back button or Escape key arrives, the browser hands the request to that watcher and your close function runs. When the panel is hidden, the watcher is removed again. In browsers without `CloseWatcher`, an opt-in fallback pushes one history entry while the panel is shown and closes the panel when the user steps back.
+
+## Why it exists
+On a phone, a pop-up that does not respond to the back gesture sends the player out of the game or to the previous site. `CloseWatcher` is the browser's own "close request" channel (the Escape key, the Android back gesture and other platform close gestures all go through it), so one hook covers them.
+
+## Try it and test it
 **Test it:** `node modules/back-close/test/run.js` (fake CloseWatcher and fake history, 30 checks) and `python3 modules/back-close/test/run.py` (real browser, Escape key).
 
 ## Use
@@ -81,9 +87,6 @@ Where it loses:
 - Chrome may skip history entries added without a tap or key press; the fallback changes the address-bar history while a panel is open.
 - A native `<dialog>` or `popover` needs no module at all and is the better choice for new panels.
 - Not measured: speed in any browser.
-
-## Why
-On a phone, a pop-up that does not respond to the back gesture sends the player out of the game or to the previous site. `CloseWatcher` is the browser's own "close request" channel (the Escape key, the Android back gesture and other platform close gestures all go through it), so one hook covers them.
 
 ## Limits
 - `CloseWatcher` is in Chrome and Android Chrome 126+ and Firefox 149+. Safari: Technology Preview 249 only; stable Safari 27 not confirmed (web research on 2026-10-17, not tested on a device). WebKitGTK 2.52.6 (the Linux stand-in for Safari) has none. It is not in Safari on iPhone. Elsewhere `supported` is false and nothing happens, unless you turn on the history fallback; your normal close controls and Escape handler still work.

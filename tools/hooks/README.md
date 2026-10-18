@@ -2,6 +2,13 @@
 
 Copyright (c) 2026 LFC Foundry. MIT License.
 
+Three small git hooks, `commit-msg`, `pre-commit` and `pre-push`, that check the repository's house rules each time someone commits or pushes. Each is a shell script that reads the commit message, the author and committer, and (in `pre-commit`) the added lines and new files, and compares them with the rules kept once in `house-rules.sh` and the allow-list in `authors.txt`. A wrong message or identity stops the commit or push; spelling and missing-header problems only warn.
+
+## Why it exists
+Why: these rules had to be repeated by the owner; a hook checks them every time. Claude Code's own commit reminder asks for a session line, and this hook is what stops it.
+Git does not copy hooks when it clones a repository, so these live in a tracked folder that each clone turns on once. What the hooks cannot catch is listed under "Why these are needed" below.
+
+## Turn them on
 Git does not copy hooks when it clones a repository, so these live in a tracked folder. Turn them on once per clone:
 
     sh tools/hooks/install.sh
@@ -40,7 +47,9 @@ The commit-time hooks sit on one door of a house with several.
 ## Outside contributors
 The author rule used to allow only JNFoo, which stopped an outside person who ran `install.sh` from committing under their own name. Now the rule is the allow-list above: the owner adds a person to `authors.txt` when they join. Claude and bot identities stay refused.
 
+## Prior art and credits
+- The hook mechanism is git's own (`core.hooksPath`, and the `commit-msg`, `pre-commit` and `pre-push` hook names). husky and Git LFS are named only because either may already own `core.hooksPath`; nothing is taken from them.
+- The rules are the owner's, as written in `AGENTS.md`. The scripts are plain POSIX shell with `awk`, `grep` and `sed`, written for this repository (LFC Foundry, MIT); their headers name no outside code.
+
 ## Test
 `sh tools/hooks/test.sh` builds throwaway repositories (and a throwaway bare remote) under `mktemp`, clears the git identity variables first, and runs 80 checks: 46 for `commit-msg` and `pre-commit` (messages, identities, the template and scissors skips, spelling, headers) and 34 for `pre-push` and `install.sh`. It refuses to start if the scratch folder would be inside the real repository and stops if `mktemp` or `cd` fails.
-
-Why: these rules had to be repeated by the owner; a hook checks them every time. Claude Code's own commit reminder asks for a session line, and this hook is what stops it.

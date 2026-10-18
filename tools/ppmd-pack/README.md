@@ -6,13 +6,17 @@
 
 Turns one HTML file into one smaller, self-unpacking HTML file using PPMd (the "PPMd7" / variant H compressor that 7-Zip offers), and checks a hash of the result before running it. It is the heavier sibling of [`lzma-pack`](../lzma-pack/README.md): the same wrapper page and options, a stronger compressor for text and code, and a bigger, slower decoder. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader). The encoder is pure Python; nothing is compiled and nothing is downloaded.
 
-**Test it:** `python3 tools/ppmd-pack/test/run.py` (Python 3 and Node.js, no browser, about 20 seconds) and `python3 tools/ppmd-pack/test/browser.py` (Playwright for Python with Chromium; offline). The decoder it embeds is tested separately: `node modules/ppmd-decode/test/run.js`.
-
-## What it is
-
 `pack.py` compresses the page with PPMd and writes a wrapper page: the compressed bytes plus a minified loader built from [`modules/ppmd-decode`](../../modules/ppmd-decode/ppmd-decode.js). While it unpacks, a small "Opening..." line shows on the page's own background color (read from the input page, or given with `--bg`), so a dark game never flashes white. Opening the file checks a hash of the compressed bytes, unpacks the page, checks a hash of the result, and replaces itself with the real page. If a hash does not match (the file was opened and saved as text, or cut short), it shows a plain message instead of running anything.
 
 `ppmd7_encode.py` can also be used on its own: `encode(data, order, mem)` returns the raw 7z-style PPMd7 stream. It is a port of the public-domain C code in the 7-Zip / LZMA SDK (Ppmd7.c, Ppmd7Enc.c), and its output is **byte for byte what that C encoder writes**, checked as described below.
+
+## Why it exists
+
+Single-file pages and games are shipped as one HTML file, so a smaller file is a faster download. `lzma-pack` already shrinks a page; PPMd is a stronger compressor for text and code, and on the test set below its data is 4 to 16% under LZMA's. That gain costs a bigger and slower decoder in the page, so it pays off only for larger pages (the table below says where the break-even is). This is why it is its own tool next to `lzma-pack` and the Zopfli packer instead of a replacement for them.
+
+## Try it and test it
+
+**Test it:** `python3 tools/ppmd-pack/test/run.py` (Python 3 and Node.js, no browser, about 20 seconds) and `python3 tools/ppmd-pack/test/browser.py` (Playwright for Python with Chromium; offline). The decoder it embeds is tested separately: `node modules/ppmd-decode/test/run.js`.
 
 ## Should you use it? (the honest table)
 
@@ -150,7 +154,17 @@ Every packed page starts with a short HTML comment crediting Dmitry Shkarin (PPM
 - `encode_job` is module level so `--tune` can use a process pool; `pack(..., jobs=1)` forces one process.
 - `test/run.py` needs no browser. `test/browser.py` checks the real unpack path (file://, HTTP with and without a charset header), the "Opening..." page with JavaScript off, a damaged payload and a file re-saved as text. Do not use `--tune` on large inputs in tests.
 
-## Prior art
+## Prior art and credits
+
+Credits first:
+
+- **PPMd variant H** is the compression algorithm of Dmitry Shkarin. `ppmd7_encode.py` is a port of the public-domain C code by Igor Pavlov (Ppmd7.c, Ppmd7Enc.c and Ppmd.h from the 7-Zip / LZMA SDK), which is itself based on Shkarin's PPMd var.H (this is stated in the file's header). Every packed page carries the credit described in "Credit in the packed page".
+- The decoder in the packed page is `modules/ppmd-decode`, written for this repository; see its README for its own credits.
+- `pack.py` loads and reuses helper functions from `tools/lzma-pack/pack.py`, another tool of this repository, so the wrapper page and options match.
+- An optional minifier (terser or esbuild) is used on the loader if one is installed. No code from either is in this tool.
+- The tools in the table below are named for comparison. Their code is not used here.
+
+Prior art:
 
 Checked on October 15, 2026 (details and sources for the decoder side are in [modules/ppmd-decode](../../modules/ppmd-decode/README.md)). I found no other tool that packs a web page with PPMd into one self-unpacking file, and no other standalone JavaScript PPMd decoder. The tools below are the nearby alternatives:
 

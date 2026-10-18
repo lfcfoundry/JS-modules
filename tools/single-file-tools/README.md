@@ -6,6 +6,14 @@
 
 Shrinking a game that is one HTML file with fonts and pictures inside it. These are the steps used for the owner's single-file games, each optional (`build-example.sh` runs them all).
 
+Each step reads the page as text and rewrites one kind of content. `optfonts.py` collects every character the file can show and cuts each embedded font down to those characters. `optsvg.js` tightens the inline pictures without renaming anything a style or script uses. `pack.py` squeezes the whole page with Zopfli into a small page that unpacks itself with the browser's own unzipper. `build-example.sh` runs them in that order.
+
+## Why it exists
+
+A game that is one HTML file carries its fonts, pictures and scripts inside it, so every extra byte is part of the one download. General-purpose minifiers do not know which characters a one-file game can print or which picture ids its script uses (see "Prior art and credits"), so these tools are small and conservative on purpose, and each one is optional.
+
+## The tools
+
 | Tool | Does | Needs |
 |---|---|---|
 | `optfonts.py in.html out.html` | cuts every base64 `@font-face` down to the characters the file can actually show (typed, `\uXXXX`, `\u{...}`, JavaScript surrogate pairs like `😀`, CSS escapes like `content:"\2605"`, `&entity;`), keeps kerning, ligatures and tabular digits, re-embeds as woff2. Keeps each font's copyright and license text and warns about the SIL Open Font License. `--extra "ñé"` for text loaded later, `--format woff` when brotli is missing. `--report` also lists the characters the page prints that a font lacks; `--costs` measures what each layout feature costs in bytes per font. The `data:` type and `format()` hint are rewritten to say woff2 (or woff) | `pip install fonttools brotli` |
@@ -56,11 +64,12 @@ It does not decide anything for you and it is not legal advice. Put the font's l
 ## Tests
 `python3 tools/single-file-tools/test/run.py` (Python 3; a few seconds). It builds a small fixture page with a test font made on the fly, runs each tool and checks that the glyphs the page can print survive, unused glyphs are dropped, the license records and warnings appear, SVG ids and scripts are unchanged, `build-example.sh` finds its tools from another folder, the Zopfli loader reports a damaged file and an old browser correctly (in base64 and bytes mode, including a server that forces utf-8), the skipped-picture cases, the missing-character and `--costs` reports, and the waiting page (centered "Loading…", dark default, `--bg` color, bad colors fall back, small growth, unpacked page unchanged). Cases whose tool is missing are skipped with a message: the font cases need `fonttools` (and run as woff when `brotli` is missing), the SVG and loader cases need Node.js, the SVG cases use a stand-in for svgo unless the real one is installed, and the real Zopfli command line needs `zopfli`. Nothing here opens a browser.
 
-## Prior art
+## Prior art and credits
 - **[subfont](https://www.npmjs.com/package/subfont)** (MIT) subsets the fonts a web page uses and can load them well; it works on pages served normally, not on a font already embedded as base64 in a one-file page.
 - **fontTools `pyftsubset`** is the engine `optfonts.py` calls (its docs say `--no-hinting` can cut up to about 30%, and woff2 output needs the Brotli Python module).
 - **svgo** is the engine `optsvg.js` calls; **Zopfli** is the engine `pack.py` calls. Nothing here replaces them; the value is in the safe settings and in knowing which glyphs and ids a one-file game really uses.
 - General minifiers do not know which glyphs a one-file game can print or which SVG ids its script uses. These tools are small and conservative on purpose.
+- The tools were written for this repository. `optfonts.py`, `optsvg.js` and `pack.py` call fontTools, svgo and Zopfli (the Python `zopfli` package) as outside programs; none of them is copied into this repository. `build-example.sh` also calls terser and html-minifier-terser the same way. `pack.py` in bytes mode reuses `tools/lzma-pack/pack.py` from this repository.
 
 ## Limits
 - `pack.py` needs JavaScript and a 2023+ browser, decodes before first paint, and shows base64 (or, in bytes mode, unreadable bytes) in view-source; keep a normal copy for old browsers. A browser that can run scripts but lacks `DecompressionStream` is told so; one too old to read the loader shows a note after 8 seconds. While it unpacks, the page shows a small centered "Loading…" line on `--bg` (default dark `#101018`; text color follows the background; about 145 bytes more than the old plain white page). Unlike lzma-pack there is no `auto` mode that reads your page's own color: pass `--bg` to match a light or colored game. `--bg` takes a plain color (`#hex`, `rgb(...)`, `hsl(...)` or a name); anything else falls back to the default and says so. The line sits in an inline `style`, so a strict Content-Security-Policy that forbids inline styles shows plain white instead.

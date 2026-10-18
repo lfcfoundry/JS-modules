@@ -6,9 +6,9 @@
 
 The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
-## What it is
-
 A tiny software 3D rasterizer for Canvas 2D games. You describe a few smooth parametric shapes, it shades them with a toon color ramp on the CPU (no WebGL), and it bakes the result into ordinary 2D sprites: one picture, or N pictures of the shape rolling about a fixed horizontal axis. Your game then draws those pictures with `drawImage` and never touches 3D again.
+
+How it works: each shape is turned into a grid of points, the grid is cut into small triangles, and every triangle is filled into a pixel buffer that keeps a depth value per pixel so nearer surfaces cover farther ones. Each pixel's color comes from the light direction and the color ramp you gave the part.
 
 About 985 lines of plain JavaScript (55,804 bytes with its notes), no dependencies, no build step. The core works in Node without a canvas; the browser helpers are optional.
 

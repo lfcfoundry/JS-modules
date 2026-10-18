@@ -6,6 +6,12 @@
 
 Keeps one open copy of a page "in charge", so two tabs (or two copies of a game) do not overwrite each other's saved data. About 8 KB with its comments, no dependencies.
 
+The first copy takes a Web Lock (a browser feature for sharing one named lock between tabs of the same site) and holds it as long as the page lives; the browser releases it when the page unloads. A second copy finds the lock already taken and calls your `onTwin`, so you can stop saving and tell the player. A button that calls `takeOver()` steals the lock for the copy the player chose.
+
+## Why it exists
+
+A game that saves its progress in the browser can be opened twice by accident, in two tabs or two windows. Each copy then keeps saving over the other's data. This module lets exactly one copy keep saving and gives the other a clear signal to stop. It uses the browser's lock rather than a timer-based flag in storage (see "Why not storage events").
+
 ## Use
 ```js
 var g = TabGuard.start({

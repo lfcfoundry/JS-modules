@@ -6,6 +6,13 @@
 
 The small maths every idle / clicker game ends up needing, tested. 23 KB readable (with its notes) or 7.5 KB as `idle-core.min.js` (3.2 KB gzip); pure functions (also runs in Node, no dependencies, ES5 syntax). The two files give the same answers.
 
+How it works: every function takes plain numbers and gives plain numbers back, and none of them stores, draws or runs a timer. A price is the base price times the growth rate to the power of the copies owned, rounded up. A "buy 10" or "buy max" sum is one closed-form calculation, not a loop. Time away is counted as a percent of normal income, capped, from a gap measured with the wall clock. A few small helpers (boost timers, number formatting) keep the edges from breaking.
+
+## Why it exists
+Idle-game maths are usually copied from blog posts and re-fixed. The parts that hurt are the edges: a gap in time that pays too much or too little, a boost that stacks into a runaway, a number format that shows `1000M` or `NaN`. Those are covered by tests here.
+
+## Functions at a glance
+
 | Function | What it does |
 |---|---|
 | `upgradeCost(base, risePct, owned, discount)` | price of the next copy, rounded up (floating-point noise forgiven: `upgradeCost(100, 10, 2)` is 121) |
@@ -76,9 +83,6 @@ A gap that is negative (the clock moved back) or longer than `maxSec` (default 3
 
 ## Numbers that stay numbers
 Costs, rates and away income never come back as `Infinity` or `NaN`. A value past `IdleCore.LIMIT` (1e300) is held at the limit, NaN becomes 0, and a broken input (`NaN`, a string, `undefined`) is replaced with a harmless default, so one bad value cannot stop a save (save-kit refuses to write such numbers). Percent values are clamped to 0..100; a non-number percent means the default 50.
-
-## Why it exists
-Idle-game maths are usually copied from blog posts and re-fixed. The parts that hurt are the edges: a gap in time that pays too much or too little, a boost that stacks into a runaway, a number format that shows `1000M` or `NaN`. Those are covered by tests here.
 
 ## Checks
 `node modules/idle-core/test/run.js` (Node only, 37 checks). Each of the first checks reproduces one defect from the 2026-10-15 audit; the later ones cover text numbers, the boost carry, `buyPlan` Max against buying one at a time, `formatBig` and `formatRate` against `Intl`, and 15,000 prestige round trips. Pass another copy of the file as an argument (`node modules/idle-core/test/run.js modules/idle-core/idle-core.min.js` checks the minified one). The original checks also stay in `tests/run.js`.

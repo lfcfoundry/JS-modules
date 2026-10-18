@@ -6,15 +6,15 @@
 
 Turns one HTML file into one smaller, self-unpacking HTML file using LZMA, and checks a hash of the result before running it. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader).
 
-**Test it:** `python3 tools/lzma-pack/test/run.py` (Python 3 and Node.js, no browser, a few seconds) and `python3 tools/lzma-pack/test/browser.py` (Playwright for Python with Chromium; offline). The decoder it embeds is tested separately: `node modules/lzma-decode/test/run.js`.
-
-## What it is
-
 `pack.py` compresses the page with LZMA and writes a wrapper page: the compressed bytes plus a minified loader (measured with terser on the example page: 2,340 bytes in `bytes` mode and 2,148 in `base64` mode, including the long payload name; the Opening line adds roughly 0.1 KB more) built from [`modules/lzma-decode`](../../modules/lzma-decode/README.md). While it unpacks, a small "Opening..." line shows on the page's own background color (read from the input page, or given with `--bg`), so a dark game never flashes white. Opening it unpacks the page, verifies the hash, and replaces itself with the real page. If the hash does not match (the file was opened and saved as text, or cut short), it shows a plain message instead of running anything.
 
 ## Why it exists
 
 For a single-file offline game or tool that has to stay one file, a few extra percent matter. **How much it gains depends on the file.** In the game this came from, LZMA made the file 24.7% smaller than ordinary deflate (147,730 to 111,241 bytes) with a loader of about 2.6 KB. On a page that was already squeezed with Zopfli the gain was only about 10% (249,190 to 224,251 bytes). Expect 10 to 25 percent; try both packers on your own file. (An automatic `--auto` mode that builds both and keeps the smaller one is an idea, not part of this tool.)
+
+## Try it and test it
+
+**Test it:** `python3 tools/lzma-pack/test/run.py` (Python 3 and Node.js, no browser, a few seconds) and `python3 tools/lzma-pack/test/browser.py` (Playwright for Python with Chromium; offline). The decoder it embeds is tested separately: `node modules/lzma-decode/test/run.js`.
 
 ## Quick start
 
@@ -105,6 +105,14 @@ Inside this repository, [`tools/single-file-tools`](../single-file-tools/README.
 - **The background color is a guess.** `auto` reads simple CSS only (it will not follow a color set by script). Check the first moment of a dark game once, or pass `--bg`.
 - **Character set after unpacking (reasoned, not tested).** In `bytes` mode the wrapper declares windows-1252; after `document.write` the window is the same one. If your game builds URLs with non-ASCII text in the query string, test that once in the packed copy.
 - **The packed page waits about 30 ms before it starts unpacking**, to give the browser a chance to paint the "Opening..." line first. Painting is up to the browser; it is not guaranteed.
+
+## Prior art and credits
+
+Written for this repository. The source header of `pack.py` credits no outside code, and it imports only the Python 3 standard library (`argparse`, `base64`, `json`, `lzma`, and similar).
+- The LZMA algorithm and format were designed by Igor Pavlov. Compression here is done by Python's own `lzma` module (liblzma), which is part of Python and is not copied into this repository.
+- The decoder inside every packed page is `modules/lzma-decode`, written from the published LZMA specification; its credits are in [`modules/lzma-decode`](../../modules/lzma-decode/README.md). The optional WebAssembly loader uses that module's `wasm/lzma-decode.wasm`.
+- `terser` and `esbuild` are optional outside programs that `pack.py` runs if it finds them, to shrink the loader. Nothing from them is stored in this repository.
+- The `lzma` npm package, kripken/lzma.js, Roadroller (lifthrasiir, MIT), js13k-packer and the `.xz` decoders are named in "How it differs from existing open source" for comparison only; no code was taken from them.
 
 ## For AI agents
 

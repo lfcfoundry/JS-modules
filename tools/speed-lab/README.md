@@ -6,6 +6,10 @@
 
 A one-button speed test for a page, run on the device that has the problem. You describe the comparison as data: steps, each measured for a few seconds (nothing moving, everything moving, everything moving with one part switched off). It runs them one after another, keeps the thing you are measuring in view and uncovered, redoes a step that was disturbed, and says the answer in plain sentences with a table you can copy and paste into a message. 21.1 KB (7.7 KB gzipped), no dependencies. Cut from Apple Press's phone speed test, with the game's own steps taken out.
 
+## Why it exists
+"It feels choppy on my phone" cannot be fixed by guessing. Running the same scene with parts switched off, on the phone itself, shows which part costs the frames, and the answer is a sentence a non-programmer can read. The safeguards exist because the first Apple Press run was invalid: the play area sat behind the sticky bar, so it measured something nobody could see.
+
+## Try it and test it
 **Test it:** `node tools/speed-lab/test/run.js` (12 checks on the numbers and the answer) and `node tests/pieces-browser.js` (a real run in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6: five steps, a covering card closed and reported, an unclosable card marking steps disturbed, a page that draws no frames, a hidden page, a slow first baseline and a one-off slow load measured again). **Try it:** `demo.html` (about 20 seconds; add `#fast` to the address for 4 seconds).
 
 ## Use
@@ -30,9 +34,6 @@ SpeedLab.panel({
 - **Pieces:** `SpeedLab.run(opts)` (no panel; resolves with `{ steps, verdict, text, closed }`), `SpeedLab.stat(frameGaps)`, `SpeedLab.verdict(steps)`, `SpeedLab.report(result)`. `panel` also takes `title`, `intro`, `container` and `onDone`.
 - **Keep it away from real saves:** a speed-test page is usually the game with a panel added. Put [test-isolation](../test-isolation/README.md) first on the page so the test never touches the player's saved game.
 
-## Why
-"It feels choppy on my phone" cannot be fixed by guessing. Running the same scene with parts switched off, on the phone itself, shows which part costs the frames, and the answer is a sentence a non-programmer can read. The safeguards exist because the first Apple Press run was invalid: the play area sat behind the sticky bar, so it measured something nobody could see.
-
 ## Limits
 - It measures frame timing only. A page can be slow because the graphics chip is busy while every frame still arrives on time; the answer says so when it finds no stutter.
 - A browser that rounds its clock for privacy (Firefox's resist-fingerprinting mode) holds frames at 60 and hides small stutters; pass a `notes` function that says so.
@@ -41,10 +42,13 @@ SpeedLab.panel({
 - Results vary run to run (heat, other apps); the heat step is there to show it. Run it twice before trusting a small difference.
 - The scene must be on the page and in the document flow so it can be scrolled into view.
 
-## Prior art
+## Prior art and credits
 - FPS meters such as [fps-m](https://www.npmjs.com/package/fps-m) (BSD-3-Clause, 1.1.3, 10.9 KB unpacked, "efficient and accurate FPS meter, with minimalistic UI") show a live number while you play; they do not run a comparison or give an answer.
 - Browser benchmarks such as MotionMark rate the browser on fixed scenes, not your page with parts switched off.
 - I found no small library that runs a page's own A/B comparison on the device and writes a verdict (one search, not exhaustive). Chrome DevTools and Firefox Profiler do far more, but need a computer attached to the phone.
+- Cut from Apple Press's phone speed test (same maker, LFC Foundry), with the game's own steps taken out; the steps, covers, sticky bar and scene became options.
+- The readings come from the browser's own `requestAnimationFrame` (when each frame is drawn) and, in Chromium, its Long Animation Frames report (through `PerformanceObserver`). These are web features used as written, not code from others.
+- fps-m, MotionMark, Chrome DevTools and Firefox Profiler are named for comparison only. The file has no dependencies and its header names no outside code, so no code from others is in it.
 
 ## For AI agents
 Define the baseline, the load and one variant per suspect part; keep each `css` to a single switch so the answer names one cause. Close or list every pop-up in `covers`. Ask the user to run it twice, leave the screen alone, and paste the copied text. Do not claim a fix from one run. Never point the page at the real saved game: use test-isolation.
