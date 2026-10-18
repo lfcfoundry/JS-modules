@@ -197,6 +197,30 @@ check('the fixtures include memory that is not a multiple of 4', cases.some((c) 
   }
   check('the add-on file is plain ASCII with the MIT header line', !/[^\x00-\x7F]/.test(addon) && /Copyright \(c\) 2026 LFC Foundry\. MIT License/.test(addon.slice(0, 1500))); }
 
+// 10c. the default file, ppmd-decode-with-wasm.js: ppmd7Decode itself tries WebAssembly first
+{ const JOINED = path.join(__dirname, '..', 'ppmd-decode-with-wasm.js'), joinedSrc = fs.readFileSync(JOINED, 'utf8');
+  try { check('default file is exactly what wasm/join.js builds from the two sources', require('../wasm/join.js')() === joinedSrc); } catch (e) { check('default file builds', false, e.message); }
+  const J = require(JOINED);
+  check('default file: found WebAssembly, has fromProps and .plain', J.wasm === true && typeof J.fromProps === 'function' && typeof J.plain === 'function');
+  let allSame = true, notWasm = '';
+  for (const c of cases) {
+    const r = attempt(() => J(c.src, c.m.size, c.m.order, c.m.mem));
+    if (!(r.ok && same(r.value, c.raw))) allSame = false;
+    if (c.m.size > 0 && J.engine !== 'wasm') notWasm += ' ' + c.m.name;
+    const p = attempt(() => J.plain(c.src, c.m.size, c.m.order, c.m.mem));
+    if (!(p.ok && same(p.value, c.raw))) allSame = false;
+  }
+  check('default file: all ' + cases.length + ' fixtures give the right bytes through ppmd7Decode and .plain' + (notWasm ? ' (not wasm: ' + notWasm + ')' : ''), allSame && !notWasm);
+  // in a page the plain global name is replaced; with WebAssembly forbidden the same name still decodes (JavaScript)
+  for (const [label, wa] of [['WebAssembly allowed', WebAssembly], ['no WebAssembly object', undefined], ['WebAssembly blocked by the page policy', { Module: function () { throw new Error('blocked by policy'); }, Instance: function () { throw new Error('blocked'); }, Memory: WebAssembly.Memory }]]) {
+    const ctx = vm.createContext({ atob: globalThis.atob, Uint8Array, Math, Error, WebAssembly: wa });
+    ctx.self = ctx; ctx.globalThis = ctx;
+    vm.runInContext(joinedSrc, ctx);
+    const pc = byName('page-30k-o12'), out = ctx.ppmd7Decode(pc.src, pc.m.size, pc.m.order, pc.m.mem), want = wa === WebAssembly ? 'wasm' : 'js';
+    check('page, ' + label + ': ppmd7Decode is ppmd7DecodeWasm, engine ' + want + ', bytes right', ctx.ppmd7Decode === ctx.ppmd7DecodeWasm && ctx.ppmd7Decode.engine === want && ctx.ppmd7Decode.wasm === (want === 'wasm') && same(new Uint8Array(out), pc.raw));
+  }
+}
+
 // 11. no global variables are left behind, in Node or in a bare context
 { check('Node: no new globals after all of the above', Object.getOwnPropertyNames(globalThis).sort().join('|') === globalsBefore);
   const text = fs.readFileSync(FILE, 'utf8'), at = text.indexOf('\nif (typeof module');

@@ -8,15 +8,15 @@
  *   lzmaDecodeWasm(src, outSize, opts)   same arguments and result as lzmaDecode (opts: lc, lp, pb, maxSize); the result is a Uint8Array of its own
  *   lzmaDecodeWasm.file(bytes, size, opts)   same as lzmaDecode.file
  *   lzmaDecodeWasm.available    true when this file found WebAssembly usable on this page
- *   lzmaDecodeWasm.engine       'wasm' or 'js': which decoder the last call used
+ *   lzmaDecodeWasm.engine       'wasm' or 'js': which decoder the last call used;  .plain  the JavaScript decoder alone (lzmaDecode from lzma-decode.js)
  *
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  */
 
 (function (root, factory) {
-  var core = typeof module === 'object' && module.exports ? require('./lzma-decode.js') : root.lzmaDecode;
+  var core = typeof lzmaDecode === 'function' ? lzmaDecode : typeof module === 'object' && module.exports ? require('./lzma-decode.js') : root.lzmaDecode;     // in lzma-decode-with-wasm.js the plain decoder sits right above
   var api = factory(core);
   if (typeof module === 'object' && module.exports) module.exports = api; else root.lzmaDecodeWasm = api;
 }(typeof self !== 'undefined' ? self : this, function (jsDecode) {
@@ -69,6 +69,7 @@
     return decode(bytes.subarray(14), size, { lc: lc, lp: lp, pb: pb, maxSize: opts && opts.maxSize });     // byte 13 is the always-zero first stream byte
   };
 
+  decode.plain = jsDecode;     // the JavaScript decoder itself, for a caller that wants no WebAssembly at all
   decode.available = !!mod;
   decode.engine = null;
   return decode;
