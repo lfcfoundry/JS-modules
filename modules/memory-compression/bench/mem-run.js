@@ -2,7 +2,7 @@
 // Copyright (c) 2026 LFC Foundry. MIT License.
 // What does keeping the data cost? Heap held as live objects vs as packed bytes (after a full gc), and what view() costs per read.
 // Usage: node --expose-gc bench/mem-run.js
-var D = require('../test/data.js'), J = require('../memory-compression-jso.js');
+var D = require('../test/data.js'), J = require('../memory-compression.js');
 var N = { 'nfm-links': 300000, 'nfm-nodes': 100000, 'api-users': 50000, 'events': 200000 };
 function heap() { global.gc(); global.gc(); var m = process.memoryUsage(); return m.heapUsed + m.arrayBuffers; }
 function mb(x) { return (x / 1048576).toFixed(1); }
