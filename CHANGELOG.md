@@ -20,8 +20,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [tab-guard](modules/tab-guard/README.md) | 1.1.0 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
-| [lzma-decode](modules/lzma-decode/README.md) | 1.1.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.1.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.1.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.1.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
@@ -47,6 +47,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-18 · **ppmd-decode** 1.2.0 · API 1: The default file is now ppmd-decode-with-wasm.js: ppmd7Decode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.4 to 1.8 times faster to open a page in the four test browsers.
 - 2026-10-18 · **pcodec-js** 1.0.1 · API 1: No change to the code or to the files it writes. The build was rebuilt and checked again, and the credits and comparison were updated.
 - 2026-10-18 · **pcodec-js** 1.0.0 · API 1: First release as its own module: Pcodec, a number compressor, for web pages in one file with no build step. It needs WebAssembly.
 - 2026-10-18 · **netflow-sankey** 2.2.1 · API 2: Fix: an empty drawing now has height 0 instead of -Infinity. Drawings with items are unchanged.
@@ -59,6 +60,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **memory-compression** 2.0.3 · API 2: Saves about 5.8 MB of memory on pages that load the module but never pack anything. The first pack takes a few milliseconds longer.
 - 2026-10-18 · **memory-compression** 2.0.2 · API 2: Two bugs fixed: asking how much memory a list uses no longer fails when some rows are missing a text value, and a page that only allows WebAssembly no longer logs a blocked-code error.
 - 2026-10-18 · **memory-compression** 2.0.1 · API 2: Opening a file in fast mode is 21% to 65% faster in Firefox, WebKitGTK and GNOME Web when files of other modes are open on the same page. Packed files are identical.
+- 2026-10-18 · **lzma-decode** 1.2.0 · API 1: The default file is now lzma-decode-with-wasm.js: lzmaDecode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.5 to 2.6 times faster to open a page in the four test browsers.
 - 2026-10-17 · **zip-open** 1.1.0 · API 1: The check on every unpacked file is about 3.9 times faster, so large zips open sooner. Same answers.
 - 2026-10-17 · **zip-open** 1.0.0 · API 1: New module: opens .zip and Excel .xlsx files in the browser or in Node with no libraries, with every problem reported in plain words. Zip bombs are refused quickly.
 - 2026-10-17 · **webkit-driver** 1.2.0 · API 1: Scripted input in GNOME Web now behaves like a real mouse and keyboard for pages that use pointer events, so all five piece checks pass there.
