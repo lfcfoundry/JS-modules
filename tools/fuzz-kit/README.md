@@ -4,217 +4,139 @@
 
 **Tested in:** Real runs by hand on 2026-10-17: stock Firefox 157.0.1 (over WebDriver BiDi), Chromium 153 and Chromium 141, with the same results; automatic checks: 201 engine checks in Node, 38 in Python, 16 browser checks in Chromium through Playwright for Python (version not recorded). Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
 
-A small, seeded, reproducible random-input fuzzer for **stateful pages and games**, plus the pattern that makes such a page testable without shipping test code.
+A small, seeded, reproducible random-input fuzzer for **stateful pages and games**, plus the pattern that makes such a page testable without shipping test code. No dependencies; the engine needs only `Promise`.
 
-How it works: it picks operations at random from your weighted list, using a seeded random number generator so one seed always gives the same sequence. It runs each operation against the live page, checks your rules after every one, and when a rule breaks it records the operation names that led there and can cut the run down to the few operations that matter. The pieces:
+You give it weighted *operations* (taps, key presses, menu clicks, "load a damaged save"), *invariants* (what must be true after every operation) and an optional *liveness* check (from anywhere, ordinary input must lead somewhere). A seeded random generator picks the operations, so one seed always gives the same sequence. After every operation your rules are checked; a failure carries the tail of operation names that led to it, and the run can be cut down (delta debugging) to the few operations that matter.
 
-- **`src/fuzz-core.js`**: the engine. You give it weighted *operations* (taps, key presses, menu clicks, "load a damaged save"), *invariants* (what must be true after every operation) and an optional *liveness* check (from anywhere, ordinary input must lead somewhere). One seed always gives the same sequence, and every failure carries the tail of operation names that led to it. It also has input helpers (`Fuzzer.Input`), ready-made invariants (`Fuzzer.Invariants`) and a bridge to real mouse and keyboard input (`Fuzzer.Real`). ES5 syntax, UMD (browser global `Fuzzer` plus `module.exports`), no other globals; it needs `Promise` (every browser since 2015).
-- **Shrinking**: a failing run is cut down (delta debugging) to the few operations that matter. See [Shrinking](#shrinking-a-failure-to-the-shortest-replay).
-- **`runner/fuzz_playwright.py`** and **`runner/fuzz_puppeteer.mjs`**: command-line runners. Each seed gets a fresh browser context, loads your page, injects the engine, `runner/page-driver.js` and your adapter, and prints one line per seed. A failing seed exits non-zero. Options below.
-- **`tools/strip-test-hooks.js`** and **`tools/check-shipped.js`**: remove everything between `/*TEST_HOOK_START*/` and `/*TEST_HOOK_END*/` so the page you fuzz (with a `window.__app` test handle) and the page you ship come from one source file, and check afterwards that nothing leaked.
-- **`example/`**: a tiny app (`app.html`) with a planted bug, the adapter (`adapter.js`) you would write for your own app, and `generic-adapter.js`, an adapter with no game code at all (random clicks, taps, keys and the junk-text rule) for a first look at any click page.
-
-This kit also replaces two older tools that were retired from this repository: `fuzz-play` (its real-input, CPU-throttle and "junk text" ideas were merged in; see [What came from where](#what-came-from-where)) and `marionette-lite` (replaced by the [stock Firefox recipe](#stock-firefox-with-preferences-a-ten-line-recipe) below).
+- `src/fuzz-core.js`: the engine (ES5, UMD: browser global `Fuzzer` plus `module.exports`), with input helpers (`Fuzzer.Input`), ready-made invariants (`Fuzzer.Invariants`) and a bridge to real mouse and keyboard (`Fuzzer.Real`).
+- `runner/fuzz_playwright.py` and `runner/fuzz_puppeteer.mjs`: command-line runners, a fresh browser context per seed; a failing seed exits non-zero.
+- `tools/strip-test-hooks.js` and `tools/check-shipped.js`: remove the test handle from the page you ship and check nothing leaked.
+- `example/`: a tiny app (`app.html`) with a planted bug, the adapter you would write (`adapter.js`) and `generic-adapter.js` (random clicks, taps, keys and the junk-text rule, no game code) for a first look at any click page.
 
 ## Why it exists
 
 In the game this came from, a few hundred thousand random operations across two browsers found bugs that careful reading and scripted tests had missed: a Help window that redrew icons with the wrong data, spending that came back after a reload, a win that could be undone by bumping something. Each finding came with a seed and an operation tail, so it could be reproduced in seconds and fixed with a regression test.
 
-## Try it and test it
+## Use
 
-**Test it:**
-- `node tools/fuzz-kit/test/run.js` runs the engine, the input helpers, the in-page driver and the Puppeteer runner's own logic against fake pages (no browser; 201 checks).
-- `python3 tools/fuzz-kit/test/runner_fakes.py` runs the Playwright runner's own logic against a fake page (no browser; 38 checks).
-- `python3 tools/fuzz-kit/test/browser.py` runs the real thing in Chromium (Playwright for Python; 16 checks).
-
-## Quick start
-
-1. Give your page a test handle that is stripped from the shipped copy:
+1. Give the page a test handle that is stripped from the shipped copy, and make the simulation steppable by hand (stop the real-time loop in tests; that is what makes runs repeat exactly):
    ```js
    /*TEST_HOOK_START*/
-   window.__app = { get state() { return state; }, tap: tap, step: function (n) { /* advance the simulation n ticks without waiting */ }, reset: reset };
+   window.__app = { get state() { return state; }, tap: tap, step: function (n) { /* advance n ticks */ }, reset: reset };
    /*TEST_HOOK_END*/
    ```
-   Make the simulation *steppable by hand* (stop the real-time loop in tests). That is what makes runs exactly reproducible.
-2. Write an adapter (copy `example/adapter.js`): `window.__fuzzConfig = function (seed) { return { seed, ops: [...], invariants: [...], liveness: {...} }; }`. It must also **reset the app**, because `--shrink` calls it again for every try.
+2. Write an adapter (copy `example/adapter.js`): `window.__fuzzConfig = function (seed) { return { seed, ops: [...], invariants: [...], liveness: {...} }; }`. It must also reset the app, because `--shrink` calls it again for every try.
 3. Run it:
    ```
    python3 tools/fuzz-kit/runner/fuzz_playwright.py file:///path/to/page.html tools/fuzz-kit/example/adapter.js --seeds 1-20 --ops 400 --shrink
+   node tools/fuzz-kit/runner/fuzz_puppeteer.mjs URL ADAPTER --browser firefox
    ```
-   or `node tools/fuzz-kit/runner/fuzz_puppeteer.mjs URL ADAPTER --browser firefox`. Try it on the demo: add `#bug` to the example app's URL and the fuzzer finds the planted bug within a few seeds, and `--shrink` cuts it to three operations.
 
-A finding looks like `{"i": 35, "op": "buy", "what": "coins went negative: -9", "tail": ["wait", ..., "buy"]}`. Re-run the same seed to reproduce it; use `run(n, { stopAt: 35 })` to stop in the failing state and inspect it.
+Try it on the demo: add `#bug` to the example app's URL and the fuzzer finds the planted bug within a few seeds; `--shrink` cuts it to three operations. A finding looks like `{"i": 35, "op": "buy", "what": "coins went negative: -9", "tail": ["wait", ..., "buy"]}`; re-run the same seed to reproduce it, or `run(n, { stopAt: 35 })` to stop in the failing state.
 
-## Runner options
-
-Both runners take the same options and print the same lines.
-
-| Option | What it does |
-|---|---|
-| `--seeds 1-20`, `--ops 400`, `--viewport 412x892` | Which seeds, how many operations each, the page size. `--seeds` takes ranges and comma lists: `1-5,9,20-22`. |
-| `--browser` | Playwright: `chromium` (default), `firefox` (Playwright's own patched Firefox), `webkit`. Puppeteer: `chrome` (default) or `firefox` (stock Firefox over WebDriver BiDi). |
-| `--shrink` (`--shrink-tries 200`, `--shrink-secs 30`) | When a seed fails, replay it and cut it down. Prints the short operation list and the script to paste into `run(0, { script })`. Stops at the try cap or the time cap and says so. If the failure does not repeat on replay, it says so plainly and does not shrink. |
-| `--seed-secs 120` | Hang guard. A seed with no answer after this long is reported as **hung** and its browser context is closed (killed). A page stuck in an endless loop cannot be asked what it was doing; add `--hang-trace` (every operation name is sent to the runner, which is slower) and the report names the last operation. |
-| `--bundle DIR` | For each failing seed, save `seed-N.png` (screenshot), `seed-N-storage.json` (localStorage, sessionStorage, cookie text) and `seed-N-findings.json` (findings, shrink result). A hung or dead page cannot be read, so then only the findings (and maybe a screenshot) are saved, with a note saying what is missing. IndexedDB is not dumped. |
-| `--ignore-console REGEX` (repeat), `--allow-console-errors` | A `console.error` fails a seed by default. Let a deliberate message pass with a pattern, or let all pass. |
-| `--junk-text`, `--junk-skip "Infinity War,foo"` | Also check that no `NaN`, `undefined` or `[object ...]` shows in the visible text. The skip list holds phrases that are fine. |
-| `--real-input` | Let `Fuzzer.Real.ops()` do real mouse moves, clicks and key presses through the driver (trusted events with real pointer ids). Without it those operations are not there. |
-| `--throttle 4` | CPU slowdown (slow-phone behavior). **Chromium / Chrome only** (a Chrome DevTools command). Refused for Firefox. |
-| `--mobile` | Phone-style page: touch on and the mobile viewport flag (Chromium and WebKit in Playwright; Chrome in Puppeteer). |
-| `--init "JS"` | JavaScript that runs before the page's own scripts, for example to start from a saved game: `--init "localStorage.setItem('save','{...}')"`. |
-| `--allow-navigation` | A single-page app that changes its path is not "leaving the page". |
-| `--jobs N` | Run seeds in N browsers at once (separate processes, about 350 MB of memory each). Lines are printed as each seed finishes. Helps when one seed takes more than about a second: on a deliberately slow adapter 16 seeds took 12.0 s with 1 job, 6.7 s with 2 and 4.7 s with 4 in Chromium. On the demo it is not needed, and Firefox gained little on 4 cores (20 s down to 16 s). It spends a little more compute (each browser start costs about 0.5 s of CPU) to save waiting. |
-| `--swarm 0.3` | Swarm testing on even seeds: each operation is left out of that seed's run with this chance, so rarely reached states get reached. See [Swarm testing](#swarm-testing-and-the-end-of-run-check). Not for every run: it finds the common bug less often. |
-| `--check-repeat` | Before the run, play seed 1 twice in the same page and once in a fresh page and say in plain words whether the app repeats exactly (same fingerprint), or where it does not (a random number in an operation, an app that is not reset). |
-| `--replay FILE` | Replay a recorded script on its seed: a `seed-N-findings.json` from `--bundle --shrink`, or a JSON list of steps. |
-| `--executable PATH` | The browser to start. Both runners have it now (Playwright's was Puppeteer-only). |
-
-**A dead page never reads as green.** If the page crashes, is closed, opens a new tab or window, or moves off the start page (anything except a `#fragment` change), the seed fails with a `page-guard` finding, even if the run itself returned normally. The Puppeteer runner also dismisses `alert`/`confirm` boxes so they cannot freeze a page for ever.
-
-The Puppeteer runner finds the browser through `--executable`, else the `FIREFOX` variable (only for `--browser firefox`) or the `CHROME` variable (only for `--browser chrome`).
+Tests: `node tools/fuzz-kit/test/run.js` (engine, input helpers, in-page driver and the Puppeteer runner's logic against fake pages, 201 checks), `python3 tools/fuzz-kit/test/runner_fakes.py` (Playwright runner's logic against a fake page, 38 checks) and `python3 tools/fuzz-kit/test/browser.py` (the example app in Chromium through Playwright for Python, 16 checks). Run all three after any change.
 
 ## API
 
-`new Fuzzer(cfg).run(nOps, runOpts)` returns a promise of `{ seed, ops, fails: [{ i, op, what, tail }], visited }` (plus `script` when recording).
+`new Fuzzer(cfg).run(nOps, runOpts)` returns a promise of `{ seed, ops, fails: [{ i, op, what, tail }], visited, hash }` (plus `script` when recording). `hash` is a fingerprint of the operation names and your `state` labels; the same seed must give the same hash.
 
 | `cfg` field | Meaning |
 |---|---|
-| `seed` | A number (same seed, same sequence; only the integer part counts, wrapped to 32 bits) or a string (hashed, so `'a'` and `'b'` are different runs). |
-| `ops` | `[{ name, weight (default 1), run(c) }]`. `run` may be async. A throw is a finding. Weights must be numbers 0 or more, and at least one above 0, or `new Fuzzer` throws a plain error (all-zero weights used to silently run only the first operation). |
-| `invariants` | `[function (c, pre) { return '' or a message or an array of messages }]`. Run after every operation. |
-| `before` | `function (c, op)`: whatever it returns is passed to the invariants as `pre` (for "must only grow" checks). If it throws, that is a finding and the operation still runs. |
-| `liveness` | `{ every: 25, tries: 60, signature(c), nudge(c, k) }`. Every `every` operations, up to `tries` ordinary nudges must change the signature, or it is a finding ("no progress"). |
-| `state` | `function (c)`: a label counted per operation (`visited`), so you can see which parts of the app the run reached. If it throws, that is a finding. |
-| `errors` | Default on: also fail on window `error` and `unhandledrejection` events. |
-| `every` | `[{ name, n, run(c) }]`: run something every `n` operations (a render, a save round-trip). `run` may be async and **is awaited**; a throw or a rejection is a finding named `name` (default `periodic`). |
-| `afterFail` | `function (c)`: put the app back in a sane place so the run can continue. If it throws, that is reported as a finding with the operation name `afterFail`. |
+| `seed` | A number (integer part only, wrapped to 32 bits) or a string (hashed). Same seed, same sequence. |
+| `ops` | `[{ name, weight (default 1), run(c) }]`; `run` may be async; a throw is a finding. Weights are numbers 0 or more, at least one above 0, or `new Fuzzer` throws. |
+| `invariants` | `[function (c, pre) { return '' or a message or an array of messages }]`, run after every operation. |
+| `before` | `function (c, op)`; its result is passed to invariants as `pre` (for "must only grow" checks). |
+| `liveness` | `{ every: 25, tries: 60, signature(c), nudge(c, k) }`: every `every` operations, up to `tries` ordinary nudges must change the signature, or it is a finding ("no progress"). |
+| `state` | `function (c)` returning a label counted per operation (`visited`). |
+| `errors` | Default on: also fail on window `error` and `unhandledrejection`. |
+| `every` | `[{ name, n, run(c) }]`: run something (awaited) every `n` operations, such as a render or a save round-trip. |
+| `afterFail` | `function (c)`: put the app back in a sane place so the run can go on. |
 | `tailLength`, `maxFails` | Defaults 40 and 5. The run stops at `maxFails` findings. |
+| `swarm` | `true` (0.5) or a number 0 to 1: the chance each operation is left out of that seed's run (at least one stays on). Finds bugs that need "buy without sell"; use it on some seeds only. |
+| `final` | `function (c)`: runs once after a run that played to its end, for end-state rules such as "save and reload gives the same state". |
 
-Two more optional fields: `swarm` (`true`, or a number from 0 to 1: the chance each operation is left out of a run) and `final` (`function (c)`: a check that runs once, after the last operation of a run that played to its end). See [Swarm testing and the end-of-run check](#swarm-testing-and-the-end-of-run-check). The result also has `hash`, a short fingerprint of everything the run did.
+A throw in `before`, `state`, `every`, `afterFail` or `final` is a finding.
 
-Run options: `stopAt: k` (stop after operation k), `record: true` (also return a replayable `script`), `script` (replay one), `perOp: true` (see below), `firstOnly: true`, `onOp(c)` (called before every operation).
+Run options: `stopAt: k`, `record: true` (also return a replayable `script`), `script` (replay one), `perOp: true`, `firstOnly: true`, `onOp(c)`. `c` has `rand()`, `int(n)`, `pick(array)`, `chance(p)`, `seed`, `i`, `op`. Use these for everything random, or runs stop repeating. If the engine itself fails, `run()` returns the findings so far plus one named `engine`.
 
-`c` has `rand()`, `int(n)`, `pick(array)`, `chance(p)`, `seed`, `i`, `op`. Use `c`'s random functions for everything random in your operations, or runs stop being reproducible.
-
-If something unexpected goes wrong inside the engine, `run()` still returns the findings collected so far, plus one with the operation name `engine`.
-
-## Swarm testing and the end-of-run check
-
-**`swarm: true`** (or `swarm: 0.3`, the chance each operation is left out; `true` means 0.5): each seed uses only a random part of your operations (at least one stays on; weights still shape the mix among those on; an operation with weight 0 never turns on). The same seed always picks the same part, the result names it in `swarm`, and a recorded script replays whatever was on. Why: a bug that needs, say, "buy" without "sell" is rarely reached when every operation is always on. On a model app, a bug the normal mix never reached in 600 seeds was found by 15 to 40 swarm seeds. Why not always: a bug that needs many kinds of operations in the same run is found less often, so use swarm on some seeds (the runners' `--swarm 0.3` applies it to even seeds only) and keep the rest normal.
-
-**`final: function (c) { return '' or a message or a list }`**: runs once after the last operation, only when the run played to its end (not with `stopAt`, not after `maxFails` findings). A message is a finding named `final`; a throw is a finding; it may be async. Use it for properties that only make sense at the end: "undo everything, redo everything, the autosave matches", "save and reload gives the same state". The shrinker understands it: a script that only fails at the end shrinks to the operations that make the end-state wrong (in the tests, exactly five increments).
-
-**`hash`** in every result is a fingerprint of the operation names and your `state` labels, in order. The same seed must give the same hash; the runners' `--check-repeat` compares them for you and says so plainly.
-
-## Shrinking a failure to the shortest replay
+**Shrinking.** Build a new fuzzer on a freshly reset app every time:
 
 ```js
-var make = function () { app.reset(); return new Fuzzer(cfgFor(seed)); };      // a NEW fuzzer on a freshly reset app, every time
-var r = await make().run(600, { record: true });                                 // the normal game for this seed, plus a script
-if (r.fails.length) {
-  var s = await Fuzzer.shrink(make, r.script, { maxTries: 400, maxMs: 20000 });
-  console.log(s.script.map(function (e) { return e.op; }));                      // s = { script, finding, tries, from, stopped? }
-}
+var make = function () { app.reset(); return new Fuzzer(cfgFor(seed)); };
+var r = await make().run(600, { record: true });
+if (r.fails.length) var s = await Fuzzer.shrink(make, r.script, { maxTries: 400, maxMs: 20000 });   // { script, finding, tries, from, stopped? }
 ```
 
-- **`record: true` plays exactly the game a plain run of that seed plays** and also returns the `script` (each operation plus the point in the random stream it started from). Replaying with `run(0, { script })` gives every operation the same random numbers, so a failure found by an ordinary seed goes straight to the shrinker. This is what the runners' `--shrink` uses.
-- **`perOp: true` is a different game.** It gives every operation a random stream of its own, so the same seed picks different numbers inside the operations and a failure of the plain run may not appear. It is kept for compatibility; prefer `record`. (When operations draw no random numbers, the two runs happen to match.)
-- **How it searches:** delta debugging with the "complements" only (it tries the script with one slice removed, at finer and finer slices). The original algorithm (ddmin) also tries each slice on its own; pass `pieces: true` to do that too, which can need fewer tries when the failure sits in one stretch. Both end with a script from which no single operation can be removed ("1-minimal"); the plain mode is the default so results do not change.
-- **What "the same failure" means:** the same operation name and the same message with the digits blanked (`-9` and `-4` count as equal), the **whole** message (an older version compared only the first 80 characters, which could slide onto a different bug whose message starts the same). `matchChars: 80` brings the old cutoff back; `match: function (finding) { return key; }` lets you decide. Messages the engine writes itself are cut earlier: a thrown error to 400 characters, an invariant error to 200.
-- **Caps:** `maxTries` (default 400) and `maxMs` (default none). When one stops the search, the result has `stopped: 'tries'` or `'time'` and is shorter but not guaranteed minimal. Each try costs a full replay.
-- **If the script does not fail when replayed** (the app does not reset fully, or depends on time), the result says `note: 'the script does not fail when replayed'` and changes nothing.
+`record: true` plays exactly the game a plain run plays, so an ordinary failing seed goes straight to the shrinker (prefer it to `perOp: true`, which gives each operation its own random stream). The shrinker removes slices of the script at finer sizes and ends 1-minimal; `pieces: true` also tries each slice alone. "The same failure" means the same operation name and whole message with digits blanked (`matchChars: 80` and `match(finding)` change that). `maxTries` (default 400) and `maxMs` stop the search with `stopped: 'tries'` or `'time'`. A script that does not fail on replay gets `note: 'the script does not fail when replayed'`.
 
-## Input helpers
+**Input helpers** (`Fuzzer.Input`, no app knowledge): `key(k, down, repeat, extra)` (a US-keyboard keydown or keyup to the focused element), `pointer(target, type, x, y, kind, opts)` (a synthetic pointer event; it swallows only the `NotFoundError` from `setPointerCapture` for made-up pointer ids, see `opts.pointerId`, `opts.captureGuard`), `visible(el, opts)` (could a person use it now), `clickables(selector, skip, opts)` (visible controls; links only with `{ links: true }`), `pickVisible(c, selector, skip, opts)` (one random visible control, about 12 times cheaper on a busy page), `canvasPoint(...)` and `junk(c)` (values to damage saved data with). `Fuzzer.Invariants.noJunkText({ skip, words, root })` fails when visible text shows `NaN`, `undefined` or `[object ...]` as whole words. `Fuzzer.Real.ops()` returns `real-click`, `real-move` and `real-key` under `--real-input` and an empty list otherwise, so `ops: myOps.concat(Fuzzer.Real.ops())` is always safe.
 
-`Fuzzer.Input` only builds and dispatches events; it knows nothing about your app.
+## Runner options
 
-- `key(k, down, repeat, extra)`: a keydown or keyup for `k` (`'a'`, `'Enter'`, `'ArrowLeft'`, `'Space'`). Sets `key`, `code`, `keyCode` and `which` like a US keyboard, goes to the **focused element** (`document.activeElement`, else the body) and bubbles up to `document` and `window`. `extra` can override `code`, `keyCode`, `target` and the modifier flags.
-- `pointer(target, type, x, y, kind, opts)`: a synthetic pointer event in client pixels. A real browser throws `NotFoundError` when a page calls `setPointerCapture(e.pointerId)` with an id no real pointer has, and the fuzzer would report that as a false finding. By default this helper swallows exactly that error for the pointer ids it made up (not other errors, not other ids); `opts.pointerId` changes the id (default 1), `opts.captureGuard: false` turns the guard off, and `Fuzzer.Input.unguardCapture()` puts the browser's own method back. The guard patches `Element.prototype.setPointerCapture` and `releasePointerCapture` in the page under test; for fully real pointers use `--real-input`.
-- `visible(el, opts)`: could a person use it now? Not disabled, not hidden (`display`, the `hidden` attribute, `visibility`), not zero-size, and not covered by another element at its center. Something scrolled out of view counts as visible. `{ covering: false }` skips the covering test.
-- `clickables(selector, skip, opts)`: visible controls. The default list is buttons, checkboxes, radios, selects and ranges. **Links are not included** (clicking one can leave the page or open a tab); ask for them with `{ links: true }` or by putting `a[href]` in your own selector. `skip(el)` excludes more (file pickers, downloads).
-- `pickVisible(c, selector, skip, opts)`: one random visible control, found by trying random candidates first (`opts.tries`, default 12), then the full list if every try missed, so the answer is still uniform. Returns `null` when nothing is visible. About 12 times cheaper than `clickables()` on a busy page, because only the few candidates tried are measured; the example adapters use it for "click anything visible".
-- `canvasPoint(canvas, lx, ly, logicalW, logicalH)` and `junk(c)` (values to damage saved data with) are unchanged.
+Both runners take the same options and print one line per seed. A dead page never reads as green: a crash, a closed page, a new tab or window, or a move off the start page (except a `#fragment` change) fails the seed with a `page-guard` finding. The Puppeteer runner dismisses `alert` and `confirm` boxes so they cannot freeze a page.
 
-`Fuzzer.Invariants.noJunkText({ skip, words, root })` returns an invariant that fails when the visible text (`innerText` of the body) shows `NaN`, `undefined` or `[object ...]` as whole words. `skip` is a list of phrases or regular expressions removed first (the words "Infinity War" would trip a check for `Infinity`, which is why `Infinity` is not on the default list; add it with `words: ['Infinity']`).
-
-`Fuzzer.Real` is the bridge to real input. `Fuzzer.Real.ops()` returns three operations (`real-click`, `real-move`, `real-key`) when the runner was started with `--real-input`, and an empty list otherwise, so an adapter can always write `ops: myOps.concat(Fuzzer.Real.ops())`. The page asks, the runner acts with the driver's own mouse and keyboard, and the page goes on; requests are checked (numbers inside the window, plain key names only).
-
-## Stock Firefox with preferences: a ten-line recipe
-
-This replaces the retired `marionette-lite`. It starts the **stock** Firefox (not Playwright's patched build) through Puppeteer over WebDriver BiDi and sets any preference, such as the device pixel ratio and dark mode:
-
-```js
-// npm i puppeteer     and either   npx puppeteer browsers install firefox   or pass executablePath: '/path/to/firefox'
-import puppeteer from 'puppeteer';
-const browser = await puppeteer.launch({
-  browser: 'firefox', headless: true,
-  extraPrefsFirefox: { 'layout.css.devPixelsPerPx': '2', 'ui.systemUsesDarkTheme': 1 },   // device pixel ratio 2, prefers-color-scheme: dark
-});
-const page = await browser.newPage(); await page.setViewport({ width: 412, height: 800 });
-await page.goto('file:///tmp/game.html');
-console.log(await page.evaluate(() => [innerWidth, devicePixelRatio, matchMedia('(prefers-color-scheme: dark)').matches]));
-await page.screenshot({ path: '/tmp/page.png' }); await browser.close();
-```
-Any other preference works the same way (for example `'privacy.resistFingerprinting': true` to test strict privacy mode).
-
-**Gaps:** WebDriver BiDi has no phone emulation (no touch or mobile viewport flags) and no CPU throttling, so `--mobile` and `--throttle` are not available in Firefox. Mozilla's own `marionette_driver` Python package is marked unsupported on PyPI, so it is not a way forward either. This recipe was not run when it was written (no browser was started for this change); try it once and fix the line that disagrees with your Puppeteer version.
+| Option | What it does |
+|---|---|
+| `--seeds 1-20`, `--ops 400`, `--viewport 412x892` | Seeds (`1-5,9,20-22`), operations per seed, page size. |
+| `--browser` | Playwright: `chromium` (default), `firefox` (Playwright's own patched build), `webkit`. Puppeteer: `chrome` (default) or `firefox` (stock, over WebDriver BiDi). |
+| `--executable PATH` | The browser to start. Puppeteer also reads `FIREFOX` (only with `--browser firefox`) or `CHROME` (only with `--browser chrome`). |
+| `--shrink` (`--shrink-tries 200`, `--shrink-secs 30`) | Replay a failing seed and cut it down; prints the short list and the script for `run(0, { script })`. Says so if the failure does not repeat. |
+| `--seed-secs 120`, `--hang-trace` | Hang guard: a seed with no answer is reported as hung and its context is closed. `--hang-trace` (slower) names the last operation. |
+| `--bundle DIR` | For each failing seed save `seed-N.png`, `seed-N-storage.json` (localStorage, sessionStorage, cookie text) and `seed-N-findings.json`. A hung or dead page keeps only the findings. IndexedDB is not dumped. |
+| `--ignore-console REGEX` (repeat), `--allow-console-errors` | A `console.error` fails a seed by default; let some or all pass. |
+| `--junk-text`, `--junk-skip "a,b"` | Also fail on junk text (`NaN`, `undefined`, `[object ...]`); the skip list holds phrases that are fine. |
+| `--real-input`, `--throttle 4` | Real mouse moves, clicks and key presses through the driver (trusted events). CPU slowdown (Chromium / Chrome only; refused for Firefox). |
+| `--mobile` | Touch on and the mobile viewport flag (Chromium and WebKit in Playwright; Chrome in Puppeteer; not Firefox through Puppeteer). |
+| `--init "JS"`, `--allow-navigation` | JavaScript that runs before the page's own scripts (e.g. a saved game); a single-page app that changes its path is not "leaving the page". |
+| `--jobs N` | Run seeds in N browsers at once (about 350 MB each). Helps when one seed takes more than about a second. |
+| `--swarm 0.3`, `--check-repeat`, `--replay FILE` | Swarm testing on even seeds. Play seed 1 twice in one page and once in a fresh page and say plainly whether the app repeats exactly, or where it does not. Replay a `seed-N-findings.json` or a JSON list of steps on its seed. |
 
 ## Keeping test code out of the shipped file
 
-`tools/strip-test-hooks.js` deletes everything between `/*TEST_HOOK_START*/` and `/*TEST_HOOK_END*/` and refuses unbalanced or nested markers.
+`tools/strip-test-hooks.js` deletes everything between `/*TEST_HOOK_START*/` and `/*TEST_HOOK_END*/` and refuses unbalanced or nested markers. Run it before any minifier, because a minifier removes the comment markers and the test handle would ship.
 
-**Order matters.** Run it on the source **before** any minifier. A minifier removes ordinary comments, so if it runs first, the markers are already gone, the stripper finds nothing to remove, and the test handle (`window.__app`) ships in your game. The stripper's command line prints a warning when it finds no markers, but do not rely on that: add an after-build check.
+Order: `node tools/fuzz-kit/tools/strip-test-hooks.js src/game.html build/game.html`, then your minifier, then `node tools/fuzz-kit/tools/check-shipped.js dist/game.html` (exit 1 if a marker is still there).
 
-```
-node tools/fuzz-kit/tools/strip-test-hooks.js src/game.html build/game.html     # 1. strip first
-npx html-minifier-terser ... build/game.html -o dist/game.html                  # 2. then minify
-node tools/fuzz-kit/tools/check-shipped.js dist/game.html                       # 3. fails (exit 1) if __app or a marker is still in the file you ship
-```
-`check-shipped.js` looks for `__app`, `TEST_HOOK_START` and `TEST_HOOK_END`; add your own handle names with `--word NAME`. It reads plain text, so a name built from pieces at run time is not seen.
+`check-shipped.js` looks for `__app` and the two markers (add names with `--word NAME`); a name built from pieces at run time is not seen.
 
-## What came from where
-
-- **`fuzz-play`** (retired) was a Playwright robot that played a page at random for N seconds. Merged here: `--throttle`, real `page.mouse` / `page.keyboard` moves as optional operations (`--real-input`), the `NaN` / `undefined` / `[object` visible-text check (`Fuzzer.Invariants.noJunkText`, `--junk-text`), `--init`, `--mobile`, the crash / closed-page / navigated-away guard, and its zero-config click-and-key behavior (`example/generic-adapter.js`). Not carried over: its wall-clock run length (runs here are counted in operations, which is what makes a seed repeat), the "stuck for N seconds" check (liveness covers it, with nudges), and `inpage.js` (the engine already runs inside the page, seeded).
-- **`marionette-lite`** (retired) drove Firefox through its Marionette port from Python. Replaced by the recipe above. Its safety problems (it deleted a folder you passed in, it could spin for ever when Firefox died) go away with it.
+**Stock Firefox with preferences:** start stock Firefox through Puppeteer over WebDriver BiDi (`puppeteer.launch({ browser: 'firefox', extraPrefsFirefox: { 'layout.css.devPixelsPerPx': '2', 'ui.systemUsesDarkTheme': 1 } })`) to set any preference, such as device pixel ratio or dark mode. WebDriver BiDi has no phone emulation and no CPU throttling, so `--mobile` and `--throttle` are not available in Firefox. This recipe was not run when it was written; try it once and fix the line that disagrees with your Puppeteer version.
 
 ## How it differs from existing open source
 
-- **[gremlins.js](https://github.com/marmelab/gremlins.js)** (marmelab, MIT) is the best-known monkey-testing library for web pages: it unleashes "gremlins" that click, type and scroll at random and reports console errors. It needs no knowledge of your app, which is a real strength; this kit instead asks you to describe operations and invariants for your app, which is more work and catches *logic* bugs (wrong numbers, stuck states) rather than only crashes. Use gremlins.js (or `example/generic-adapter.js`) for a quick smoke test of an ordinary website; use this for a stateful game or tool where "no console error" is far from "correct".
-- **Property-based and stateful testing libraries** such as [fast-check](https://github.com/dubzzz/fast-check) (model-based testing with commands) have the same idea with a much more capable shrinker (they also shrink the values inside each command); this kit's `Fuzzer.shrink` only removes whole operations. They are better when your logic runs in Node; this kit's contribution is the browser-page workflow: injecting into a live page, a steppable clock, fresh contexts per seed, and runners for Chromium and Firefox.
+- **[gremlins.js](https://github.com/marmelab/gremlins.js)** (marmelab, MIT): the best-known monkey-testing library for web pages. It clicks, types and scrolls at random and reports console errors, and needs no knowledge of your app. This kit asks you to describe operations and invariants, which is more work and catches logic bugs (wrong numbers, stuck states), not only crashes. Use gremlins.js (or `example/generic-adapter.js`) for a quick smoke test of an ordinary site; use this for a stateful game or tool.
+- **[fast-check](https://github.com/dubzzz/fast-check)** and other property-based and stateful testing libraries have the same idea with a much more capable shrinker (they also shrink the values inside each command); `Fuzzer.shrink` removes whole operations only. They are better when your logic runs in Node; this kit adds the browser-page workflow: injecting into a live page, a steppable clock, a fresh context per seed, runners for Chromium and Firefox.
 - **Playwright and Puppeteer** are the drivers; this kit is a layer above them.
 
-I confirmed that these projects exist, but I did not install or benchmark gremlins.js or fast-check for this comparison. The ideas here (seeded random testing with invariants, test hooks stripped at build time, delta debugging from Zeller and Hildebrandt) are well known; the value is a small, readable, tested version that works in single-file pages.
+gremlins.js and fast-check were not installed or benchmarked for this comparison (no numbers).
 
-## Limits and gotchas
+## What it is not
 
-- **Reproducibility depends on your app.** The same seed repeats only if the app has no hidden randomness or real-time dependence while fuzzing. Stop the real-time loop, seed the app's own random generator from the fuzz seed, and drive time with a `step` function. `example/generic-adapter.js` waits in real time, so it repeats the moves but not the exact game.
-- **Only whole operations are shrunk,** not the values inside them. Each shrink try calls your adapter's `__fuzzConfig(seed)` again in the same page, so that function must reset the app; timers or saved data left over from an earlier try are not cleaned up for you.
-- **The adapter is the work.** Good invariants are what find real bugs. Start with: numbers are finite, state is one of the known states, counters never go negative or backwards, a saved-and-reloaded save equals itself, and liveness.
-- **Fuzzing runs your page.** Skip controls that download files, open file pickers or navigate away (`Fuzzer.Input.clickables(selector, skip)` has a skip callback; links are left out by default).
-- **Browser status, plainly.**
-  - Automatic checks: the engine, the input helpers, the driver and the Puppeteer runner's logic run in Node against fakes (201 checks); the Playwright runner's logic runs in Python against a fake page (38); `test/browser.py` runs the example app in Chromium through Playwright for Python (16), including a page that really freezes and `pickVisible` on a real page.
-  - **Real runs by hand, 2026-10-17** (the Puppeteer runner has no automatic test that starts a real browser): stock **Firefox 157.0.1** (over WebDriver BiDi), **Chromium 153** (not ungoogled) and Chromium 141 each gave the same results for the clean demo (seeds 1 to 5), the planted bug found and shrunk to the same three steps (seeds 1 to 3: 222, 93 and 322 operations down to 3), `--bundle` and `--init`, `--real-input`, the hang guard on a frozen page, `--check-repeat`, `--replay`, `--swarm` and comma seed lists. The same seed gives the same game in all three engines. Two real bugs came out of those runs and are fixed in 1.1.0: the hang guard never fired on a really frozen page (the run started inside the start call, so it never returned), and `--real-input` failed on every seed in Firefox because Firefox over WebDriver BiDi does not know the key name `Space` (the Puppeteer runner now sends a plain space).
-  - Those runs used Firefox 157 and Chromium 153 as stand-ins; the project's test browsers are now Firefox 158 and ungoogled Chromium 155. **Still unchecked:** WebKit, a re-run on Firefox 158 and ungoogled Chromium 155, a phone, and `--mobile` in Firefox (it runs, but touch was not verified). `--throttle` in Firefox is refused with a plain message.
-  - Playwright drives its own patched Firefox, not stock Firefox; stock Firefox goes through Puppeteer over WebDriver BiDi.
-- **`--throttle` is Chromium only.** `--mobile` is not available in Firefox through Puppeteer.
-
-## Prior art and credits
-
-- The seeded random number generator in `src/fuzz-core.js` is the small public algorithm called mulberry32, and the text hash that turns a string seed into a number (and builds the run fingerprint) is FNV-1a. Both are named in the source. The source does not credit any outside code for them.
-- Shrinking a failing run is delta debugging; the source names it and, for the optional `pieces: true` mode, the original ddmin. The idea is from Zeller and Hildebrandt (see above); the implementation is written for this repository.
-- [gremlins.js](https://github.com/marmelab/gremlins.js), [fast-check](https://github.com/dubzzz/fast-check), Playwright and Puppeteer are named in [How it differs from existing open source](#how-it-differs-from-existing-open-source) for comparison or as drivers. No code from gremlins.js or fast-check is in this kit. Playwright and Puppeteer are not bundled; the runners call them if you install them.
-- `fuzz-play` and `marionette-lite` are earlier tools from this repository, now retired; what was kept from them is listed in [What came from where](#what-came-from-where).
-- The headers of `src/fuzz-core.js`, `runner/fuzz_playwright.py`, `runner/fuzz_puppeteer.mjs`, `tools/strip-test-hooks.js` and `tools/check-shipped.js` name no other source, so apart from the public algorithms above this kit is written for this repository.
+- **Reproducibility depends on your app.** The same seed repeats only if the app has no hidden randomness or real-time dependence: stop the real-time loop, seed the app's own random generator from the fuzz seed, drive time with a `step` function. `example/generic-adapter.js` waits in real time, so it repeats the moves but not the exact game.
+- **Only whole operations are shrunk,** not the values inside them. Each try calls `__fuzzConfig(seed)` again in the same page, so it must reset the app.
+- **The adapter is the work.** Start with invariants like: numbers are finite, state is a known state, counters never go negative or backwards, save-and-reload equals itself, and liveness.
+- **Fuzzing runs your page.** Skip controls that download files, open file pickers or navigate away (links are left out by default).
+- **Browser status.** Real runs by hand on 2026-10-17: stock Firefox 157.0.1 (over WebDriver BiDi), Chromium 153 (not ungoogled) and Chromium 141 gave the same results for the clean demo (seeds 1 to 5) and found and shrunk the planted bug to the same three steps (seeds 1 to 3: 222, 93 and 322 operations down to 3); the same seed gave the same game in all three. The Puppeteer runner has no automatic test that starts a real browser. Still unchecked: WebKit, Firefox 158 and ungoogled Chromium 155 (the project's test browsers), a phone, and touch with `--mobile` in Firefox. Playwright drives its own patched Firefox, not stock Firefox.
 
 ## For AI agents
 
-- Keep the engine free of app knowledge. App-specific code belongs in an adapter.
-- Never use `Math.random()` in operations; always `c.rand()`, `c.int()`, `c.pick()`, `c.chance()`.
-- When you add an invariant, first make sure it can fail: break the app on purpose (as `example/app.html#bug` does) and confirm the finding names the rule.
-- When a finding appears, reproduce it with the same seed before fixing, then add a fixed scripted check so the bug cannot return. `--shrink` gives the shortest replay.
-- Library files (`src/fuzz-core.js`, `runner/page-driver.js`, `tools/*.js`) stay ES5 with the UMD wrapper; `test/run.js` checks this. The one runtime need beyond ES5 syntax is `Promise`.
-- The runners inject scripts as strings: end an injected script with `;0`, because Playwright *calls* a string expression that evaluates to a function. In Puppeteer pass a real function to `page.evaluate`, not a string that holds a function.
-- Run all three test files after any change.
+- Keep the engine free of app knowledge; app code belongs in an adapter.
+- Never use `Math.random()` in operations; use `c.rand()`, `c.int()`, `c.pick()`, `c.chance()`.
+- Before trusting a new invariant, break the app on purpose (as `example/app.html#bug` does) and confirm the finding names the rule.
+- When a finding appears, reproduce it with the same seed before fixing, then add a fixed scripted check. `--shrink` gives the shortest replay.
+- Library files (`src/fuzz-core.js`, `runner/page-driver.js`, `tools/*.js`) stay ES5 with the UMD wrapper; `test/run.js` checks this.
+- The runners inject scripts as strings: end an injected script with `;0` (Playwright calls a string that evaluates to a function). In Puppeteer pass a real function to `page.evaluate`.
+
+## Prior art and credits
+
+- The seeded random generator in `src/fuzz-core.js` is the small public algorithm mulberry32; the text hash that turns a string seed into a number (and builds the run fingerprint) is FNV-1a. Both are named in the source, which credits no outside code for them.
+- Shrinking is delta debugging (and, for `pieces: true`, the original ddmin), from Zeller and Hildebrandt; the implementation is written for this repository.
+- gremlins.js, fast-check, Playwright and Puppeteer are named for comparison or as drivers. No code from gremlins.js or fast-check is in this kit. Playwright and Puppeteer are not bundled; the runners call them if you install them.
+- `fuzz-play` and `marionette-lite` are earlier tools from this repository, now retired. From `fuzz-play` this kit kept `--throttle`, real mouse and keyboard operations (`--real-input`), the junk-text check (`noJunkText`, `--junk-text`), `--init`, `--mobile`, the crash and navigated-away guard, and the zero-config click-and-key behavior (`example/generic-adapter.js`); its wall-clock run length and "stuck for N seconds" check were not carried over (liveness covers it). `marionette-lite` is replaced by the stock Firefox recipe above.
+- The headers of `src/fuzz-core.js`, `runner/fuzz_playwright.py`, `runner/fuzz_puppeteer.mjs`, `tools/strip-test-hooks.js` and `tools/check-shipped.js` name no other source, so apart from the public algorithms above this kit is written for this repository.
+
+## Full research notes
+
+The long version of this page (every runner option with its history, the full shrinking rules, the `--jobs` timings, the detailed browser-by-browser run notes and the two bugs found in those runs, and how the retired tools were folded in) is kept in the project's private knowledge base.
 
 ---
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry

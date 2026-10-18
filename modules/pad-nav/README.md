@@ -4,231 +4,137 @@
 
 **Tested in:** Node: 112 checks pass (18 new). Module browser suite passes in ungoogled Chromium 155.0.8059.39-1. Candidate search compared old and new (same answers, 847 of 1000) in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5. Not run: that browser suite in Firefox 158.0, WebKitGTK and GNOME Web, a real controller, a phone
 
-Gamepad navigation for ordinary on-screen DOM menus and panels, in one file with no dependencies. It reads the browser's [Gamepad API](https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API) once per frame and then:
+Gamepad navigation for ordinary on-screen DOM menus and panels, in one file with no dependencies. It reads the browser's [Gamepad API](https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API) once per frame. The D-pad or left stick moves focus to the nearest visible, enabled button in the direction pressed; A clicks it; B calls your `onBack`, Start calls your `onStart`. A on a slider (`input[type=range]`) enters adjust mode (left and right change the value one step); A on a drop-down (`select`) moves to the next option. The open panel scrolls to keep the focus in view, and a one-line hint ("D-pad: move    A: pick    B: back") appears after the pad is first used, then fades. Only the topmost open panel (the "scope") is navigable; you tell it which element that is.
 
-- the D-pad or left stick moves focus to the nearest visible, enabled button in the direction pressed,
-- A clicks the focused element,
-- B calls your `onBack`, Start calls your `onStart`,
-- A on a slider (`input[type=range]`) enters adjust mode, where left and right change the value one step; A on a drop-down (`select`) moves to the next option,
-- the open panel scrolls to keep the focused element visible,
-- a one-line hint ("D-pad: move    A: pick    B: back") appears after the pad is first used, then fades.
-
-Only the topmost open panel (the "scope") is navigable; you tell it which element that is.
-
-It is built to be left running: `step()` never throws (a page that disables the Gamepad API, or a callback of yours that fails, is caught and reported through `onError`), a worn stick resting near the press point does not flip every frame, and unplugging a controller hides the hint and ring and calls `onDisconnect`.
+It is built to be left running: `step()` never throws (failures, including in your callbacks, go to `onError`), a worn stick resting near the press point does not flip every frame, and unplugging a controller hides the hint and ring and calls `onDisconnect`.
 
 ## Why it exists
 
-It was pulled out of a single-file browser game whose menus and panels are plain HTML buttons. Controller players could flap and steer but could not get around the menus, and most game-pad libraries assume you are drawing everything on a canvas. This is the small, tested version of that menu code, with all game-specific parts removed.
+It was pulled out of a single-file browser game whose menus are plain HTML buttons. Controller players could flap and steer but could not get around the menus, and most game-pad libraries assume you draw everything on a canvas. This is the small, tested version of that menu code, with the game-specific parts removed.
 
-## Try it and test it
+## Use
 
-Tests (offline): `node modules/pad-nav/test/run.js` (fake pads and a tiny fake DOM, no browser, under a second) and `python3 modules/pad-nav/test/run.py` (about 3 seconds, needs Playwright for Python and an installed Chromium).
-
-## Quick start
-
-Save as `index.html` next to `pad-nav.js`, or open `demo.html` (double-click, no server needed).
+Copy `pad-nav.js`, or open `demo.html` (double-click, no server needed).
 
 ```html
-<style>.pad-focus { outline: 3px solid #6a3de8; }</style>
-
+<style>.pad-focus { outline: 3px solid #6a3de8; }</style>   <!-- you write the ring; the library injects no CSS -->
 <div id="menu">
   <button onclick="alert('Play')">Play</button>
   <button onclick="alert('Options')">Options</button>
-  <button onclick="alert('Quit')">Quit</button>
 </div>
 <div id="hint" hidden></div>
 
 <script src="pad-nav.js"></script>
 <script>
   var pn = new PadNav({
-    getScope: function () { return document.getElementById('menu'); },   // the open panel, or null for none
+    getScope: function () { return document.getElementById('menu'); },   // the open panel, or null
     hintEl: document.getElementById('hint'),
     onBack: function () { console.log('B pressed'); },
     onStart: function () { console.log('Start pressed'); }
   });
-  pn.start();   // or call pn.step() yourself once per frame from your own loop
+  pn.start();   // or call pn.step() once per frame from your own loop
 </script>
 ```
 
-Plug in a controller and press any button (browsers hide the pad until you do). The first press only shows the focus ring; the next ones move it.
+Plug in a controller and press any button (browsers hide the pad until you do). The first press only shows the focus ring; the next ones move it. `require('./pad-nav.js')` also works in Node (navigation needs a DOM there; the pure helpers work anywhere).
 
-The file is a small UMD wrapper: a plain `<script>` puts `PadNav` on the page, and `require('./pad-nav.js')` returns it in Node (the navigation itself needs a DOM, so in Node it is only useful with jsdom or similar; the pure helpers work anywhere).
+Tests (offline): `node modules/pad-nav/test/run.js` (fake pads and a tiny fake DOM, no browser, under a second) and `python3 modules/pad-nav/test/run.py` (about 3 seconds, needs Playwright for Python and an installed Chromium).
 
-To show "Press A" prompts only for controller players and to pause when the pad goes away:
+## Options
 
-```js
-var pn = new PadNav({
-  getScope: function () { return openPanel; },
-  hintEl: hintDiv,
-  labels: true,                                           // optional: Cross/Circle on PlayStation pads, B/A on Nintendo pads
-  onUse: function (pad) { showPadPrompts(pad.id); },     // first pad input (and the first one after an unplug)
-  onDisconnect: function () { pauseGame(); },             // no usable pad left
-  onError: function (err, where) { console.warn(where, err); }
-});
-```
-
-## API
-
-`new PadNav(options)`, all options optional:
+`new PadNav(options)`, all optional:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `getScope()` | none | Returns the element that owns the pad now (the topmost open panel) or `null` for none. Called every frame, so keep it cheap. |
-| `scopeSelector` | none | String alternative to `getScope`: the last visible match in document order is the scope. With neither option, `document.body` is the scope. |
-| `focusableSelector` | buttons, `a[href]`, inputs (not hidden), selects, textareas, `[tabindex]` except `-1` | What is reachable inside the scope. |
-| `filter(el)` | none | Return `false` to leave an element out. |
-| `onBack(scope)` | none | B pressed (edge only). Called even when there is no scope. |
-| `onStart(scope)` | none | Start pressed (edge only). Called even when there is no scope. |
-| `onA(el)` | none | A pressed on the focused element, before the click (or the slider and drop-down handling). Return `false` to cancel that. |
-| `onUse(pad)` | none | The first pad input, and the first one after an unplug. `pad` is the Gamepad object, so you can read `pad.id`. |
-| `onDisconnect()` | none | The last usable pad went away (seen on the next frame, or at once on `gamepaddisconnected`). Called once per unplug. |
-| `onError(err, where)` | none | Something threw and was swallowed. `where` names it: `getPads`, `getScope`, `filter`, `onA`, `onBack`, `onStart`, `onUse`, `onDisconnect`, `hintText`, `labels`, `click`, `adjust`, `select` or `step`. The same error repeating every frame is reported once. The latest one is also on `pn.lastError` and `pn.lastErrorWhere`. |
-| `getPads()` | `navigator.getGamepads` | Returns an array-like of gamepads. Inject a fake in tests. |
-| `deadzone` | `0.45` | Stick push (0 to 1) at which a direction starts. It is a digital threshold, not a smoothing curve. |
-| `release` | `deadzone - 0.1` (0.35) | Stick push below which a held direction lets go. The gap between the two keeps a worn stick resting near the press point from flipping every frame. Set it equal to `deadzone` to turn the gap off. Never above `deadzone`. The numbers are a starting point; tune them with a real stick. |
-| `repeatDelay` | `380` ms | How long a held direction waits before repeating. |
-| `repeatRate` | `120` ms | Time between repeats after that. |
-| `focusClass` | `'pad-focus'` | Class put on the focused element. You write the CSS (for example `.pad-focus { outline: 3px solid #6a3de8; }`): the library injects none, so without it there is no visible ring. |
-| `formControls` | `true` | A on `input[type=range]` enters adjust mode; A on a single-choice `select` cycles to the next enabled option. `false`: A always just calls `click()`, as in earlier versions. |
-| `adjustClass` | `'pad-adjust'` | Class on the slider while it is in adjust mode. You write the CSS. |
-| `hintEl` | none | Element whose text and `hidden` attribute the library sets. It gets `role="status"` (a polite live region, no visual change) unless it already has a role. |
-| `hintText` | built from the wired callbacks | String, or `function (scope, names, mode)` returning a string. `names` is `{ dpad, a, b, start }`, `mode` is `'menu'` or `'adjust'`. |
-| `labels` | off | Button names in the default hint. `true` guesses from the pad's `id` text: Cross, Circle and Options on PlayStation pads, B and A on Nintendo pads (the standard layout is by position, so the bottom button is printed B there), A, B and Start otherwise. Or an object such as `{ a: 'Jump' }` that replaces words, or `function (padId)` returning one. Off by default: the hint says A, B and Start. |
-| `hintMs` | `3500` | How long the hint stays after waking or a scope change. |
-| `guardMs` | `450` | A is ignored this long after a scope appears, so the A press that opened a panel does not also click inside it. |
-| `wakeMs` | `8000` | A scope that opens within this long of pad use gets the focus ring on its first button (or the one remembered for it) right away. Later than that, the first direction press shows it. |
-| `scroll` | `true` | After each focus change call `scrollIntoView({ block: 'nearest', inline: 'nearest' })`. |
+| `getScope()` or `scopeSelector` | none | The element that owns the pad now (topmost open panel) or `null`; called every frame, so keep it cheap. Or a selector (last visible match). With neither, `document.body`. |
+| `focusableSelector`, `filter(el)` | buttons, links, inputs, selects, textareas, `[tabindex]` except `-1` | What is reachable inside the scope; `filter` returns `false` to leave an element out. |
+| `onBack(scope)`, `onStart(scope)` | none | B / Start pressed (edge only); called even with no scope. |
+| `onA(el)` | none | A pressed, before the click or slider and drop-down handling; return `false` to cancel that. |
+| `onUse(pad)`, `onDisconnect()` | none | First pad input (and first after an unplug) / last usable pad gone (once per unplug). |
+| `onInput(pad)`, `inputMs` | none, `250` | Any pad input, at most every `inputMs` ms. Keeps the screen awake: `onInput: function () { wk.poke(); }` with [wake-keeper](../wake-keeper/README.md). |
+| `onError(err, where)` | none | A swallowed error; `where` names the callback or step that threw. A repeating error is reported once; the latest is on `pn.lastError` and `pn.lastErrorWhere`. |
+| `getPads()` | `navigator.getGamepads` | Inject a fake in tests. |
+| `deadzone`, `release` | `0.45`, `0.35` | Stick push (0 to 1) at which a direction starts / lets go; the gap keeps a worn stick from flipping every frame (equal values turn it off). Starting points, not tuned on real sticks. |
+| `repeatDelay`, `repeatRate` | `380`, `120` ms | Wait before a held direction repeats / time between repeats. |
+| `focusClass`, `adjustClass` | `'pad-focus'`, `'pad-adjust'` | Classes on the focused element / a slider in adjust mode. You write the CSS. |
+| `formControls` | `true` | A on `input[type=range]` enters adjust mode; A on a single-choice `select` cycles to the next enabled option. `false`: A just calls `click()`. |
+| `hintEl`, `hintText` | none | Element whose text and `hidden` attribute are set (gets `role="status"`); text is built from the wired callbacks, or pass a string or `function (scope, names, mode)`. |
+| `labels` | off | `true` guesses button names from the pad's `id` text (Cross, Circle, Options on PlayStation pads; B and A on Nintendo pads; A, B, Start otherwise); or `{ a: 'Jump' }`, or `function (padId)`. A guess. |
+| `hintMs`, `guardMs`, `wakeMs` | `3500`, `450`, `8000` | Hint time on screen / A ignored after a scope appears, so the press that opened a panel does not click inside it / a scope opening within this long of pad use shows the ring at once. |
+| `scroll` | `true` | `scrollIntoView({ block: 'nearest', inline: 'nearest' })` after each focus change (it scrolls every scrollable ancestor, including the page). |
 | `requireStandard` | `true` | Read only pads whose `mapping` is `'standard'`. |
-| `nextRule` | `'center'` | How the next button is chosen. `'center'` (as before) scores the distance between centers, sideways drift costing 2.5 times. `'edges'` first takes the nearest button that sits directly in line (its edge overlaps the focused button's across the direction of travel); with none in line it falls back to `'center'`. See "Which rule" below. |
-| `onInput(pad)` | none | Any pad input (a button or a stick direction), at most every `inputMs`. For controller play that keeps the screen awake: `onInput: function () { wk.poke(); }` with [wake-keeper](../wake-keeper/README.md). Throwing is caught and goes to `onError` (`where` is `onInput`). |
-| `inputMs` | `250` | Fewest milliseconds between `onInput` calls. `0` reports every frame that has input. |
+| `nextRule` | `'center'` | `'center'` scores center distance, sideways drift costing 2.5 times. `'edges'` first takes the nearest button directly in line, else falls back to `'center'`. |
 
-Methods:
+Methods: `step(nowMs?)` (once per frame; `true` if a usable pad was read; never throws), `start()` (polls with `requestAnimationFrame`, returns the instance), `stop()`, `destroy()`, `focus(el)`, `clearRing()`. Pure helpers that work without a DOM: `PadNav.nearest(fromRect, rects, 'l'|'r'|'u'|'d', rule?)` (index or `-1`; rects are `{ left, top, width, height }`), `PadNav.stick(...)`, `PadNav.rangeNext(...)`, `PadNav.nextOption(...)`, `PadNav.labelsFor(padId)`. Buttons ("standard" mapping): 12 up, 13 down, 14 left, 15 right, left stick axes 0 and 1, 0 = A, 1 = B, 9 = Start; several pads are merged.
 
-- `step(nowMs?)` call once per frame; `nowMs` defaults to `performance.now()`. Returns `true` if a usable pad was read. Never throws.
-- `start()` polls with `requestAnimationFrame`; `stop()` stops. `start()` returns the instance.
-- `destroy()` stops, removes the blur and `gamepaddisconnected` listeners, clears the ring, hides the hint.
-- `focus(el)` puts the ring on an element yourself. `clearRing()` removes it.
-- `PadNav.nearest(fromRect, rects, 'l' | 'r' | 'u' | 'd', rule?)` is the pure direction chooser (`rule` is `'center'` or `'edges'`): it returns an index into `rects` or `-1`. Rects are `{ left, top, width, height }`.
-- Other pure helpers, usable without a DOM: `PadNav.stick(x, y, was, press, release, out?)` (the stick press and release state machine), `PadNav.rangeNext(value, min, max, step, dir)`, `PadNav.nextOption(options, index)` and `PadNav.labelsFor(padId)`.
-
-Button map (Gamepad API "standard" mapping): 12 up, 13 down, 14 left, 15 right, axes 0 and 1 (left stick), 0 = A, 1 = B, 9 = Start. With several pads connected, their inputs are merged.
-
-Behavior details worth knowing:
-
-- Presses are edge-detected. A held direction moves immediately, again after `repeatDelay`, then every `repeatRate`. A missed frame moves once, not several times.
-- Which rule (`nextRule`): measured on 2,000 random menus of 3 to 6 rows with 1 to 3 buttons of mixed widths (59,981 presses), the two rules choose a different button in 21.2% of presses. When a button sat directly in line, `'center'` jumped past it to one that was not in line in 5.4% of those presses (2,467 of 45,538); `'edges'` never does. On regular grids (8,496 presses) they always agree. `'edges'` is opt-in because the default has shipped; it is a pure improvement only for menus with mixed widths. Not tried with real players.
-- Distance is measured between element centers (rule `'center'`): `distance along the direction + 2.5 x sideways drift`, ignoring anything less than 4 px in that direction. There is no wrapping; at an edge the focus stays. If nothing is further up or down, the scope scrolls by half its height instead (and a scope with a single reachable element scrolls the same way).
-- The stick counts along its stronger axis only, so a diagonal push does not move twice. The D-pad buttons are independent.
-- A stick direction starts above `deadzone` and ends only below `release`. Between the two it keeps its state, so a stick wobbling between 0.4 and 0.5 holds one direction instead of pressing it again every other frame. Each pad has its own state.
-- Slider adjust mode: A (after `onA`) adds `adjustClass` and shows "Left/Right: change    A or B: done". Left and right move the value by the input's `step` (default 1, `any` means one hundredth of the range) and clamp at `min` and `max`; the key repeat timing applies. Each change fires `input` and then `change`, the way the keyboard does. Up and down do nothing while adjusting. A or B leaves the mode; that B does not call `onBack`. Moving the ring elsewhere, losing the scope or unplugging also leaves it.
-- Drop-downs: A moves to the next enabled option (wrapping around) and fires `input` and `change`. `select.click()` is not used because it does not open the list in every browser. A long list is slow to cycle; use `onA` and return `false` to show your own picker instead. A multiple-select, checkbox, radio, link and button get a normal `click()`, which toggles checkboxes and radios natively.
-- When no usable pad is found after one was (unplugged, or `connected` turned false), the ring, the hint and the awake state are cleared and `onDisconnect` runs once. `gamepaddisconnected` triggers the same check at once. Browsers fire that event only for a pad the page has received data from. With no pad ever seen, `step()` does nothing.
-- An outside function that throws (`getPads`, `getScope`, `filter`, `onA`, `onBack`, `onStart`, `onUse`, `onDisconnect`, `hintText`) is caught. `getPads` failing means nothing is known, so nothing changes that frame. A failing `getScope` means no scope; a failing `filter` keeps the element; a failing `onA` still allows the click; a failing `hintText` falls back to the default text.
-- When the ring is not showing (first use, a new scope after a long idle, or after the focused element lost focus), the first direction press only shows it, on the element that already has focus if that is reachable, else the one remembered for this scope, else the first one. A with no ring does the same, except that a scope with exactly one reachable element clicks it.
-- Each scope remembers its last focused element, so closing a sub-panel returns to the button that opened it.
-- Reachable means: matches the selector, not `:disabled`, not `aria-disabled="true"`, not inside `[inert]`, rendered (not `display: none`), not `visibility: hidden`, and passing `filter`. Where the browser has `element.checkVisibility()` (Chromium 155 and Firefox 158 measured) one call checks the last two; older browsers use the earlier two-step check with the same answer.
-- The hint is written to the DOM only when it changes, and nothing at all is shown before the first pad input.
+How it behaves:
+- Presses are edge-detected. A held direction moves at once, again after `repeatDelay`, then every `repeatRate`. The stick counts along its stronger axis only. No wrapping; if nothing is further up or down, the scope scrolls by half its height. Distance (rule `'center'`) is `distance along the direction + 2.5 x sideways drift`, ignoring anything under 4 px that way.
+- Slider adjust mode: left and right change the value by the input's `step`, clamped, firing `input` then `change`; A or B leaves it (that B does not call `onBack`). Drop-downs: A moves to the next option (wrapping) and fires `input` and `change`; for a long list use `onA` returning `false` and show your own picker. Checkboxes, radios, links and buttons get a normal `click()`.
+- With no ring showing, the first direction press only shows it; A does the same, except that a scope with exactly one reachable element clicks it. Each scope remembers its last focus, so closing a sub-panel returns to the button that opened it. Reachable means: matches the selector, not disabled, not `aria-disabled="true"`, not in `[inert]`, rendered, not `visibility: hidden`, and passing `filter`.
+- A throwing outside function is caught (a failing `getScope` means no scope, a failing `onA` still allows the click).
+- `nextRule: 'edges'` is opt-in because the default has shipped. On 2,000 random menus of 3 to 6 rows with 1 to 3 buttons of mixed widths (59,981 presses) the two rules choose a different button in 21.2% of presses; when a button sat directly in line, `'center'` jumped past it in 5.4% of those presses (2,467 of 45,538), `'edges'` never does; on regular grids (8,496 presses) they always agree. Not tried with real players.
 
 ## Making it smaller (optional)
-The file is 13,091 bytes minified (4,776 gzip) with esbuild. Two big parts can be cut if a game does not use them:
 
-| Cut | Minified / gzip saved |
+The file is 13,091 bytes minified with esbuild. Two big parts can be cut if a game does not use them:
+
+| Cut | Minified / gzip bytes saved |
 | --- | --- |
 | Hint text and button names (`hintEl`, `hintText`, `labels`, `PadNav.labelsFor`) | 1,826 / 672 |
 | Slider and drop-down support (`formControls`, `rangeNext`, `nextOption`, `decimals`, adjust mode) | 1,862 / 661 |
 | Both | 3,688 / 1,346 (9,403 / 3,430 left, 28% smaller) |
 
-`node modules/pad-nav/test/lite.js [hint] [forms] [--write FILE]` makes the cut copy (both cuts by default) and proves it still loads, wakes the ring, moves it right twice and presses the button. Each cut is an exact text match, so if `pad-nav.js` changes and a cut no longer fits, the script stops and names it. A cut copy is not a released version; check which options you pass.
+`node modules/pad-nav/test/lite.js [hint] [forms] [--write FILE]` makes the cut copy (both cuts by default) and proves it still loads, wakes the ring, moves it right twice and presses the button. If `pad-nav.js` changes and a cut no longer fits, the script stops and names it. A cut copy is not a released version; check which options you pass.
 
 ## How it compares
 
 The libraries below are more complete at moving focus; this one is the small, panel-scoped version that reads the Gamepad API itself. Speed against the alternatives: not measured.
 
-| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
-| --- | --- | --- | --- | --- |
-| **pad-nav 1.1.0** (this module, MIT) | 13,091 B minified (4,771 B gzipped, esbuild); 9,403 B (3,430 B gzipped) with the hint text and slider support cut | Finding reachable buttons, 1000 buttons, lower is faster, old check to `checkVisibility()`: ungoogled Chromium 155.0.8059.39-1 8.1 to 3.2 ms; Firefox 158.0 4 to 1 ms; WebKitGTK 2.52.6 5 to 1 ms; GNOME Web 46.5 6 to 1 ms (timers round to 1 ms outside Chromium). Idle `step()` with no controller (measured on 1.0.0): Chromium 155.0.8059.39 1.9 µs, Firefox 158.0 0.2 µs | Reads the Gamepad API, panel scopes, focus memory, sliders and drop-downs, hint line | Wins: made for game authors; reads the Gamepad API and moves focus in your own menus. Loses: no nested sections, no wrap-around |
-| [js-spatial-navigation](https://github.com/luke-chang/js-spatial-navigation) (MPL 2.0, version not recorded) | Not measured | Not measured | Named sections, `restrict` rules, per-element overrides, cancelable events; keys, not the Gamepad API | Wins: far more complete for TV-style apps. Loses: no gamepad input |
-| [Norigin Spatial Navigation](https://github.com/NoriginMedia/norigin-spatial-navigation) (MIT, version not recorded) | Not measured | Not measured | React hooks for Smart TV apps; key and remote-control input | Wins: React, tested on TV platforms. Loses: no gamepad input |
-| [CSS Spatial Navigation](https://drafts.csswg.org/css-nav-1/) (W3C draft) | The archived WICG polyfill is about 73.5 KB unminified; a built-in feature would cost no bytes | Not measured | Focus containers, a cancelable `navbeforefocus` event; arrow keys, no gamepads | No browser had shipped it when checked (October 2026) |
-| [gamecontroller.js](https://github.com/Linie3/gamecontroller.js) (a fork) and [gamepad-navigator](https://github.com/dmahajan980/gamepad-navigator) | gamecontroller.js: about 6 KB. gamepad-navigator: not measured (browser extension) | Not measured | gamecontroller.js: an event per button, no focus movement. gamepad-navigator: navigates whole pages for users | gamecontroller.js is smaller but moves no focus; the extension is for players, not game authors |
+| Alternative | Size (smaller is better) | Features | Where it wins / loses |
+| --- | --- | --- | --- |
+| **pad-nav 1.1.0** (MIT) | 13,091 B minified (esbuild); 9,403 B (3,430 B gzipped) with the hint text and slider support cut | Gamepad API, panel scopes, focus memory, sliders and drop-downs, hint line | Made for game authors, moves focus in your own menus. No nested sections, no wrap-around. |
+| [js-spatial-navigation](https://github.com/luke-chang/js-spatial-navigation) (MPL 2.0) | Not measured | Named sections, `restrict` rules, per-element overrides, cancelable events; keys, not the Gamepad API | Far more complete for TV-style apps; no gamepad input. |
+| [Norigin Spatial Navigation](https://github.com/NoriginMedia/norigin-spatial-navigation) (MIT) | Not measured | React hooks for Smart TV apps; key and remote-control input | Wins with React and on TV platforms; no gamepad input. |
+| [CSS Spatial Navigation](https://drafts.csswg.org/css-nav-1/) (W3C draft) | The archived WICG polyfill is about 73.5 KB unminified; a built-in feature would cost no bytes | Focus containers, a cancelable `navbeforefocus` event; arrow keys, no gamepads | No browser had shipped it when checked (October 2026). |
+| [gamecontroller.js](https://github.com/Linie3/gamecontroller.js) (a fork) and [gamepad-navigator](https://github.com/dmahajan980/gamepad-navigator) | gamecontroller.js: about 6 KB. gamepad-navigator: not measured (browser extension) | gamecontroller.js: an event per button, no focus movement. gamepad-navigator: navigates whole pages for users | gamecontroller.js is smaller but moves no focus; the extension is for players, not game authors. |
 
-**Where it loses**
-- No nested sections, wrap-around, per-element overrides, shadow DOM or iframes.
-- The default "next button" rule can jump past a button directly in line in 5.4% of presses where one exists (random mixed-width menus, synthetic); `nextRule: 'edges'` does not.
-- Only the Gamepad API "standard" mapping, left stick only.
-- Not tried on a real controller or phone. The module browser suite ran in ungoogled Chromium 155.0.8059.39-1 only.
-- Not measured: size and speed of the alternatives; the module's speed on a phone.
+Speed of pad-nav, lower is faster. Finding reachable buttons among 1000 buttons, old check to `checkVisibility()`: ungoogled Chromium 155.0.8059.39-1 8.1 to 3.2 ms; Firefox 158.0 4 to 1 ms; WebKitGTK 2.52.6 5 to 1 ms; GNOME Web 46.5 6 to 1 ms (timers round to 1 ms outside Chromium). Idle `step()` with no controller (measured on 1.0.0): Chromium 155.0.8059.39 1.9 µs, Firefox 158.0 0.2 µs.
 
-The longer comparison follows.
+Where it loses: no nested sections, wrap-around, per-element overrides, shadow DOM or iframes; the default rule can jump past a button directly in line in 5.4% of presses where one exists (synthetic menus; `nextRule: 'edges'` does not); standard mapping and left stick only; not tried on a real controller or phone, and the module browser suite ran in ungoogled Chromium 155.0.8059.39-1 only. Not measured: size and speed of the alternatives; speed on a phone. Other gamepad-to-focus libraries almost certainly exist (the search was brief), so this is not a claim of novelty.
 
-Moving focus spatially is a known technique with plenty of prior art, and these projects are more complete than this one at that job:
+## What it is not
 
-- [js-spatial-navigation](https://github.com/luke-chang/js-spatial-navigation) (Luke Chang, MPL 2.0): framework-free, with named sections, `restrict` rules (stay inside a section or cross freely), per-element target overrides, cancelable events, pause and resume. It is built for TV-style apps. From its README it listens to arrow and Enter key events, not the Gamepad API.
-- [Norigin Spatial Navigation](https://github.com/NoriginMedia/norigin-spatial-navigation) (MIT): React hooks, designed for Smart TV and set-top-box apps, tested across many TV platforms. Its README describes key and remote-control navigation, not the Gamepad API.
-- The [CSS Spatial Navigation Level 1](https://drafts.csswg.org/css-nav-1/) proposal and its [explainer](https://drafts.csswg.org/css-spatial-nav-1/explainer.html): focus containers (`spatial-navigation-contain`), a `navbeforefocus` event you can cancel, and a search API, aimed at being built into browsers. The spec work now lives in the [CSS Working Group repository](https://github.com/w3c/csswg-drafts); the earlier [WICG spatial-navigation](https://github.com/WICG/spatial-navigation) repository (which held a polyfill) was archived on 2026-03-23 and says so. When this was checked (October 2026) no browser had shipped it. It centers on arrow keys; its explainer does not mention gamepads.
-- Gamepad libraries that stop at input: [gamecontroller.js (a fork)](https://github.com/Linie3/gamecontroller.js) (about 6 KB, standard layout names and an event per button, no focus movement) and [gamepad-navigator](https://github.com/dmahajan980/gamepad-navigator) (a browser extension that navigates whole pages by pad, for users rather than game authors). [gamepad_standardizer](https://www.npmjs.org/package/gamepad_standardizer) (MIT) uses SDL's controller database to fix odd layouts, which is the problem pad-nav skips (see Limits). I read their READMEs only; licenses are not all stated there.
+- **Standard mapping only.** A pad reporting any other `mapping` (including `''`) is skipped without error. Firefox has had non-standard reports for generic and older Xbox pads on Windows, and for the DualSense its D-pad showed up on an axis (fixed in Firefox 152 and 153, per its bug tracker). `requireStandard: false` tries the standard layout anyway, but the D-pad may still not arrive as buttons. The source game's hat-switch D-pad handling is not carried over.
+- **Press a button first.** Firefox shows a pad to the page only after the user touches it while the page is visible, and a button held at page load is not seen. `gamepaddisconnected` fires only for a pad the page had data from.
+- **Secure context.** Gamepad access needs `https:` or `localhost` (Firefox 81 and later returns an empty list on plain `http:`). A double-clicked `file:` page depends on the browser and was not checked on hardware. Background tabs get no pad input; cross-origin iframes may need `allow="gamepad"` (unverified).
+- **Android, unconfirmed.** An old report (2016, Samsung Internet) says a Bluetooth controller's B button can act as the browser's Back key. To settle it, press B on a page with `onBack` set and see whether the browser also goes back or closes a panel.
+- Left stick only. Only `input[type=range]` and single-choice `select` get special handling. With the default rule a distant straight neighbor can lose to a nearby diagonal one. Candidates are re-queried on every directional press (fine for menus, not thousands of elements).
+- The ring shows only if you write CSS for `.pad-focus` (and `.pad-adjust`). Focus is the real DOM focus, so a screen reader follows it; the hint is a live region it may read each time. The default hint is English and mentions `Start: pause`; use `hintText` to change it.
+- Tested with fake pads only (Node fake DOM; headless Chromium). Not tested on real hardware, Firefox or Safari.
 
-If you need nested sections, focus that moves between groups with rules, React integration, TV remotes, or a standard-track API, use one of those. A common way to combine them is to turn pad input into the key events they already understand.
+## For AI agents
 
-What is different here is narrower:
-
-- **Gamepad API input handling** is built in: standard-mapping buttons and stick, deadzone, edge detection, key repeat, merging several pads, ignoring non-standard ones.
-- **Panel-scoped.** One element owns the pad at a time (the topmost open panel), and per-scope focus memory returns you to the opener.
-- **Pad-use awareness.** Nothing shows until the pad is used; the first press only wakes the ring; a hint line appears after pad use and fades.
-- **Single-file, no framework**, aimed at small browser games and tools with a handful of HTML panels, where the rest of the game is on a canvas.
-
-I searched for these alternatives briefly, not exhaustively. Other gamepad-to-focus libraries almost certainly exist, so this is not a claim of novelty.
-
-## Limits and gotchas
-
-- Only the Gamepad API "standard" mapping is read. A controller reporting any other `mapping` (including `''`) is skipped without error, so on some browser and pad combinations the pad simply does nothing. Firefox has had non-standard reports for generic and older Xbox pads on Windows, and for the DualSense its D-pad showed up on an axis instead of buttons 12 to 15 (fixed in Firefox 152 and 153, per its bug tracker). `requireStandard: false` tries the standard layout on such a pad anyway, but the D-pad may still not arrive as buttons. The game this came from also handled a hat-switch D-pad on one axis of such pads; that is not carried over.
-- Firefox shows a pad to the page only after the user touches it while the page is visible, and a button held down when the page loads is not seen (the spec counts a press only if the button was released before). Treat "press a button first" as the rule in every browser. `gamepaddisconnected` fires only for a pad the page had data from.
-- Gamepad access needs a secure context: `https:` or `localhost`. Firefox 81 and later returns an empty list on plain `http:` pages. Whether a double-clicked `file:` page counts depends on the browser, and I have not checked it with real hardware. Background tabs do not get pad input. Inside a cross-origin iframe, browsers differ on whether the host page must add `allow="gamepad"`; embeds are unverified.
-- Android: an old report (2016, Samsung Internet) says a Bluetooth controller's B button can act as the browser's Back key. I could not confirm that it still happens. One real-phone check settles it: on an Android phone with a Bluetooth pad, press B on a page with `onBack` set and see whether the browser also goes back or closes a panel (for example one managed by `back-close`). If it does, B would fire both; until someone checks, do not assume either way.
-- The stick thresholds (`deadzone` 0.45, `release` 0.35) are reasonable defaults, not tuned on real worn sticks. Raise `deadzone` or lower `release` if your players report drifting or sticky directions.
-- Left stick only (axes 0 and 1); the right stick, triggers and other buttons do nothing.
-- With the default rule the choice has no hard cone: a distant straight neighbor can lose to a nearby diagonal one if the diagonal is much closer (`nextRule: 'edges'` prefers one that is in line). Equal scores go to the element earlier in document order.
-- No nested sections, no wrap-around, no per-element overrides, no shadow DOM piercing (`querySelectorAll` does not see into shadow roots) and no iframes.
-- Candidates are re-queried on every directional press (not every frame), which is fine for menus and not meant for thousands of elements. `getScope` or `scopeSelector` runs every frame while a pad is connected.
-- Focus uses a class plus `element.focus({ preventScroll: true })`, so a screen reader follows the real focus. The ring is only visible if you write CSS for `.pad-focus` (and `.pad-adjust` for a slider in adjust mode); `:focus-visible` is not relied on.
-- Sliders and drop-downs: only `input[type=range]` and single-choice `select` get special handling; number, date and text inputs are focused and clicked as before. Left and right are the only adjust keys, up and down are ignored while adjusting.
-- The `labels` option guesses the brand from the pad's `id` text, which is not standardized and differs between Chrome and Firefox. It is a guess; pass your own words when you know the pad.
-- `scrollIntoView` scrolls every scrollable ancestor, including the page, as little as it can. Turn it off with `scroll: false` if that bothers you.
-- Tested with fake pads only: the Node checks use a tiny fake DOM and the browser checks run in headless Chromium. Not tested on real hardware, Firefox or Safari.
-- The default hint text is English and mentions `Start: pause`; use `hintText` to change it. The hint is a live region (`role="status"`), so a screen reader may read it each time it appears.
+- A press acts once (`pressed && !previous`); held directions repeat on absolute times; missed frames queue nothing. The first direction press with no ring only shows it, and A on that frame does not click. `guardMs`: A is ignored right after a scope changes, except for the very first scope.
+- No wrap; no candidate means stay (scroll the scope on up/down). `onBack` and `onStart` fire even with a `null` scope.
+- Nothing is shown or written to the DOM before the first pad input. `step()` stays cheap with no usable pad and never throws; every outside function goes through `hook()`, and a new callback must too.
+- `PadNav.stick()` stays pure and allocation-free, with vertical winning ties. Unplugging clears the ring, hint and `awake` and calls `onDisconnect` once. Slider adjust mode ends on any ring change, scope change or unplug.
+- UMD wrapper (global `PadNav`, or `module.exports`) with `'use strict'` inside, ES5, no dependencies, the header `Copyright (c) 2026 LFC Foundry. MIT License`; American English, no game-specific names or art.
+- Run `node modules/pad-nav/test/run.js` and `python3 modules/pad-nav/test/run.py` from the repository root. Time is a virtual clock passed to `step()`; keep the repeat checks exact. Do not change without updating the tests: the 380 and 120 ms repeat defaults, 0.45 deadzone, 0.35 release, the `2.5` drift weight, the 4 px minimum, the button numbers, or the fixed layout of `test/page.html`.
 
 ## Prior art and credits
-- [js-spatial-navigation](https://github.com/luke-chang/js-spatial-navigation) (Luke Chang, MPL 2.0): read (README only) as prior art for spatial focus. Idea only, no code taken.
+
+- js-spatial-navigation (MPL 2.0): read (README only) as prior art for spatial focus. Idea only, no code taken.
 - [Norigin Spatial Navigation](https://github.com/NoriginMedia/norigin-spatial-navigation) (MIT): prior art for letting the developer choose corners, edges or center to pick the next button; `nextRule` offers a similar choice. Idea only, no code.
-- [CSS Spatial Navigation Level 1](https://drafts.csswg.org/css-nav-1/) (W3C CSS Working Group draft) and the archived [WICG spatial-navigation](https://github.com/WICG/spatial-navigation): prior art for counting overlap and edge gaps. Ideas only, no code.
-- [gamecontroller.js (fork)](https://github.com/Linie3/gamecontroller.js), [gamepad-navigator](https://github.com/dmahajan980/gamepad-navigator) and [gamepad_standardizer](https://www.npmjs.org/package/gamepad_standardizer) (MIT): read (READMEs only) for comparison. Nothing taken.
+- [CSS Spatial Navigation Level 1](https://drafts.csswg.org/css-nav-1/) (W3C CSS Working Group draft; [explainer](https://drafts.csswg.org/css-spatial-nav-1/explainer.html); work now in the [CSS Working Group repository](https://github.com/w3c/csswg-drafts)) and the archived [WICG spatial-navigation](https://github.com/WICG/spatial-navigation): prior art for counting overlap and edge gaps. Ideas only, no code.
+- [gamecontroller.js (fork)](https://github.com/Linie3/gamecontroller.js), [gamepad-navigator](https://github.com/dmahajan980/gamepad-navigator) and [gamepad_standardizer](https://www.npmjs.org/package/gamepad_standardizer) (MIT): read (READMEs only) for comparison. Nothing taken. gamepad_standardizer uses SDL's controller database to fix odd layouts, the problem pad-nav skips.
 - The W3C Gamepad API "standard" mapping (button numbers 0, 1, 9, 12 to 15; axes 0 and 1) is the format this module reads; see [MDN's Gamepad API guide](https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API). A specification, no code.
 - The menu code was pulled out of LFC Foundry's own single-file game, and Fancy, the Banana's controller menu code uses the same center rule, so the rule is the project's own.
 
 No code from others; the ideas above are theirs.
 
-## For AI agents
+## Full research notes
 
-Invariants to preserve:
-
-- Edge detection: a press acts once (`pressed && !previous`). Held directions repeat on absolute times: first at `+repeatDelay`, then each `+repeatRate`. Missed frames do not queue extra moves.
-- The first direction press when the ring is not showing only shows it; it never also moves. A on that same frame does not click.
-- `guardMs`: A is ignored right after a scope changes, except for the very first scope seen.
-- No wrap. No candidate in the direction means stay, and on up/down means scroll the scope.
-- `onBack` and `onStart` fire even with a `null` scope; direction and A need a scope.
-- Nothing is shown or written to the DOM before the first pad input, and the hint DOM is written only when it changes.
-- `step()` must stay cheap when no usable pad is connected: it returns before touching the DOM (the one exception is the single cleanup on the frame a pad is lost).
-- `step()` never throws, and every outside function goes through `hook()`. A new callback must too.
-- The stick press and release state lives in `PadNav.stick()`, which is pure and allocation-free; keep it that way and keep its tie rule (vertical wins when both axes are equal).
-- Unplugging clears the ring, the hint and `awake` and calls `onDisconnect` once; `onUse` fires when `awake` turns on.
-- Slider adjust mode ends on any ring change, scope change or unplug. B in adjust mode never reaches `onBack`.
-- The file is a UMD wrapper (browser global `PadNav`, or `module.exports`) with `'use strict'` inside it, ES5 syntax, no dependencies, and the header `Copyright (c) 2026 LFC Foundry. MIT License`, as `AGENTS.md` asks of every module. Text stays American English, with no game-specific names or art.
-
-Run the tests from the repository root: `node modules/pad-nav/test/run.js` (Node only; fake gamepads and a tiny fake DOM) and `python3 modules/pad-nav/test/run.py` (Playwright for Python plus Chromium; it never touches the network). Both print one line per section and exit non-zero on any failure. Time is a virtual clock passed to `step()`, so the repeat-timing checks are exact; keep them that way.
-
-What not to change without updating the tests: the 380 ms and 120 ms repeat defaults, the 0.45 deadzone and 0.35 default release, the `2.5` sideways-drift weight, the 4 px minimum, and the button numbers. `test/page.html` places the grid and panel with fixed positions on purpose; changing its layout changes the expected focus paths.
+The long version of this page (the longer comparison with each alternative, every behavior detail and failure case written out in full, and the list of what is different here) is kept in the project's private knowledge base.
 
 ---
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
