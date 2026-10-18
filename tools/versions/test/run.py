@@ -2,6 +2,8 @@
 """Checks for tools/versions: builds a tiny repository in a temp folder, labels it, changes a version, and breaks one copy on purpose.
 Copyright (c) 2026 LFC Foundry. MIT License.   Run: python3 tools/versions/test/run.py   (no packages, under a second)"""
 import json, os, subprocess, sys, tempfile, shutil
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import versions as V0
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.join(HERE, "..", "versions.py")
 fail = 0
@@ -24,9 +26,11 @@ def r(root, rel):
 
 root = tempfile.mkdtemp()
 try:
-    reg = {"name": "x", "modules": [{"id": "alpha", "global": "Alpha", "summary": "A.", "file": "modules/alpha/alpha.js", "readme": "modules/alpha/README.md"},
-                                    {"id": "beta", "global": "Beta", "summary": "B.", "file": "modules/beta/beta.js", "readme": "modules/beta/README.md"}],
-           "tools": [{"id": "gamma", "summary": "G.", "folder": "tools/gamma", "readme": "tools/gamma/README.md"}]}
+    reg = {"name": "x", "modules": [{"id": "alpha", "global": "Alpha", "summary": "A.", "short": "A.", "category": "c1", "demo": "modules/alpha/demo.html", "file": "modules/alpha/alpha.js", "readme": "modules/alpha/README.md"},
+                                    {"id": "beta", "global": "Beta", "summary": "B.", "short": "B.", "category": "c1", "file": "modules/beta/beta.js", "readme": "modules/beta/README.md"}],
+           "categories": {"games": {"modules": [{"id": "c1", "title": "First group", "use": "Use one."}], "tools": [{"id": "t1", "title": "Tool group", "use": "Use two."}]}, "stories": {"packages": [], "tools": [{"id": "x", "title": "Pkg group", "use": "Use three."}]}},
+           "related": {"repository": "https://example.org/se", "packages": [{"id": "pkg", "side": "stories", "short": "P.", "category": "x", "readme": "https://example.org/se/pkg.md", "sizeNote": "documents only"}]},
+           "tools": [{"id": "gamma", "summary": "G.", "short": "G.", "category": "t1", "file": ["tools/gamma/pack.py"], "folder": "tools/gamma", "readme": "tools/gamma/README.md"}]}
     w(root, "modules.json", json.dumps(reg, indent=2) + "\n")
     w(root, "modules/alpha/alpha.js", "/*!\n * alpha\n * Copyright (c) 2026 LFC Foundry. MIT License\n */\nvar Alpha = {};\n")
     w(root, "modules/beta/beta.js", "/* beta: one-line header. Copyright (c) 2026 LFC Foundry. MIT License. */\nvar Beta = { version: '1.0.0' };\n")
@@ -34,7 +38,7 @@ try:
     w(root, "modules/beta/README.md", "# beta\n\ntext\n")
     w(root, "tools/gamma/pack.py", '"""gamma. Copyright (c) 2026 LFC Foundry. MIT License\n   Version 2026.10.15.2215\n"""\n')
     w(root, "tools/gamma/README.md", "# gamma\n\ntext\n")
-    w(root, "README.md", "| Module | One line | Global |\n|---|---|---|\n| [alpha](modules/alpha/README.md) | A. | `Alpha` |\n| [beta](modules/beta/README.md) | B. | `Beta` |\n\n| Tool | One line |\n|---|---|\n| [gamma](tools/gamma/README.md) | G. |\n")
+    w(root, "README.md", "# x\n\n## Pick a piece\n\nold hand-written tables\n\n## How to use\n\ntext\n")
     w(root, "llms.txt", "- [alpha](u): A. (global Alpha)\n- [beta](u): B. (global Beta)\n- [gamma](u): G.\n")
     w(root, "index.html", '<li id="m-alpha"><a href="x"><b>alpha</b></a>: A.</li><li id="m-beta"><a href="x"><b>beta</b></a>: B.</li><li id="t-gamma"><a href="x"><b>gamma</b></a>: G.</li>')
     rc, out = run(root, "check"); check("unlabelled repo fails the check", rc == 1 and "no valid version" in out, out)
@@ -44,8 +48,11 @@ try:
     check("a one-line header gets the label inside it", "MIT License. Version 1.0.0 (API 1) */" in r(root, "modules/beta/beta.js"))
     check("a date stamp in a tool header is replaced", "Version 1.0.0 (API 1)" in r(root, "tools/gamma/pack.py") and "2026.10.15" not in r(root, "tools/gamma/pack.py"))
     check("README line goes under the title", r(root, "modules/alpha/README.md").startswith("# alpha\n\n**Version 1.0.0 · API 1**\n"))
-    check("root README tables get a column", "| Global | Version |" in r(root, "README.md") and "| 1.0.0 · API 1 |" in r(root, "README.md") and "| Tool | One line | Version |" in r(root, "README.md"))
-    check("the module table gets a Size column next to the name, the tool table does not", "| Module | Size | One line | Global | Version |" in r(root, "README.md") and "| [alpha](modules/alpha/README.md) | " in r(root, "README.md") and " B · " in r(root, "README.md") and "| Tool | One line | Version |" in r(root, "README.md"))
+    rm = r(root, "README.md")
+    check("the root README tables are written between markers, the rest is kept", V0.TABLES_START in rm and V0.TABLES_END in rm and "old hand-written" not in rm and "## How to use" in rm)
+    check("every table has the same six columns", rm.count("| Version | Size (KB) | Gzipped (KB) | What it does | Demo |") == 3 and "| Module | Version |" in rm and "| Tool | Version |" in rm)
+    check("a row has the version, sizes in KB with one decimal, the short text and the demo link", "| [alpha](modules/alpha/README.md) | 1.0.0 | 0.1 | 0.1 | A. | [Demo](" in rm and "| [gamma](tools/gamma/README.md) | 1.0.0 |" in rm)
+    check("a piece with no script says n/a once, with its reason", "*n/a* means there is no script to measure: **pkg** (documents only)." in rm and "| [pkg](https://example.org/se/pkg.md) | \u2014 | n/a | n/a | P. |" in rm)
     rc, out = run(root, "sizes"); check("sizes is a no-op when nothing changed", rc == 0 and "already current" in out, out)
     check("llms and the front page show it", "Version 1.0.0, API 1." in r(root, "llms.txt") and '<small class="v">1.0.0 · API 1</small>' in r(root, "index.html"))
     check("init writes a CHANGELOG.md for each, and a root one", all(os.path.exists(os.path.join(root, p)) for p in ("modules/alpha/CHANGELOG.md", "modules/beta/CHANGELOG.md", "tools/gamma/CHANGELOG.md", "CHANGELOG.md")))
@@ -79,13 +86,14 @@ try:
     rc, out = run(root, "set", "nope", "1.0.0"); check("an unknown id is refused", rc != 0)
     rc, out = run(root, "set", "alpha", "1.2", "--note", "x"); check("a malformed number is refused", rc != 0)
     rc, out = run(root, "list"); check("list prints the labels", rc == 0 and "alpha" in out and "2.4.1 · API 2" in out, out)
-    sys.path.insert(0, os.path.join(HERE, ".."))
-    import versions as V
-    sample = ("# t\n\n## Pick a piece\n\n### Games\n\n#### Controls\n\n| Module | Size | One line |\n|---|---|---|\n| [a](m/a/README.md) | 1.5 KB · 0.5 KB gz | x |\n| [b](m/b/README.md) | n/a | y |\n\n"
-              "### Tools\n\n#### For games\n\n| Tool | One line |\n|---|---|\n| [g](t/g/README.md) | z |\n")
-    g = V.set_glance(sample)
-    check("the glance index lists modules with gzipped size, tools by name", "- Controls: [a](m/a/README.md) 0.5, [b](m/b/README.md)\n" in g and "**Modules (2)**" in g and "- For games: [g](t/g/README.md)\n" in g and g.index("## All at a glance") < g.index("## Pick a piece"), g)
-    check("the glance index is refreshed in place, not stacked", V.set_glance(g) == g and V.set_glance(g.replace("0.5, ", "9.9, ")) == g and g.count("All at a glance") == 1)
+    reg2 = json.load(open(os.path.join(root, "modules.json")))
+    check("the glance index lists modules with gzipped size, tools by name", "- First group: [alpha](modules/alpha/README.md) 0.1, [beta](modules/beta/README.md) 0.1\n" in rm and "**Modules (2)**" in rm and "[gamma](tools/gamma/README.md)" in rm and rm.index("## All at a glance") < rm.index("## Pick a piece"))
+    rm = r(root, "README.md"); rm2 = V0.set_tables(rm, reg2, root)
+    check("the tables and the index are refreshed in place, not stacked", rm2 == rm and rm.count("All at a glance") == 1 and rm.count(V0.TABLES_START) == 1)
+    reg2["modules"][1]["short"] = "x" * 101; open(os.path.join(root, "modules.json"), "w").write(json.dumps(reg2, indent=2))
+    rc, out = run(root, "check"); check("a description over 100 characters is refused", rc == 1 and "short description is 101 characters" in out, out)
+    reg2["modules"][1]["short"] = "B."; reg2["modules"][1]["file"] = "modules/beta/missing.js"; open(os.path.join(root, "modules.json"), "w").write(json.dumps(reg2, indent=2))
+    rc, out = run(root, "check"); check("a row with no size and no sizeNote is refused", rc == 1 and "beta: no size" in out, out)
 finally:
     shutil.rmtree(root, ignore_errors=True)
 print("versions: " + ("%d FAILED" % fail if fail else "all checks passed"))
