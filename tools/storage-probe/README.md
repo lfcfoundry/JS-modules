@@ -6,7 +6,10 @@
 
 One page, one button. It tells you in plain words whether pages opened from **different files** on this device share their saved data (localStorage, locks, storage events). Save the page twice (another name or folder), open both, press the button in each.
 
-Why it exists: the Story Editor and the games are single files that people keep in several folders. Whether two copies share one save, and whether one copy can tell the other is open, decides how the autosave, the one-window guard and every storage key must be designed. This tool answers it on the reader's own phone or computer, without a developer.
+Each copy of the page writes one small entry (key `storage-probe:v1`) to localStorage that names its own address, and reads the entries other copies wrote. It also listens for the `storage` event and a `BroadcastChannel` reply, tries a Web Lock, and looks in IndexedDB, then turns what it saw into a one-sentence verdict.
+
+## Why it exists
+The Story Editor and the games are single files that people keep in several folders. Whether two copies share one save, and whether one copy can tell the other is open, decides how the autosave, the one-window guard and every storage key must be designed. This tool answers it on the reader's own phone or computer, without a developer.
 
 ## What it reports
 - Address type and origin. In Chromium the origin of a page opened from a file is the text `file://`, the same in every folder (measured 2026-10-17); other browsers may report `null`, which has not been checked.
@@ -36,8 +39,10 @@ Why it exists: the Story Editor and the games are single files that people keep 
 
 The report prints the address type, so one run also tells whether the downloaded copy opened as `file://` or as `content://`, which is not known for the Pixel 7 Pro yet.
 
-## Prior art
+## Prior art and credits
 Browser-storage test pages (MDN's Web Storage demos, storage-quota checkers) show quota for one page. None found that compares two saved copies. Checked 2026-10-14; this is a small purpose-built tool.
+
+Credits, what was taken from others: none. The page is written for this repository (LFC Foundry, MIT). It is one file that loads no script from elsewhere, its header names no outside code, and it uses only browser features (localStorage and the `storage` event, `BroadcastChannel`, Web Locks, IndexedDB, `CloseWatcher` and the storage quota report).
 
 ## Limits
 - Framed and unframed storage cannot be compared in a single run: open the page on its own, then inside the game site, and compare the two reports.

@@ -4,10 +4,6 @@
 
 **Tested in:** Node: 112 checks pass (18 new). Module browser suite passes in ungoogled Chromium 155.0.8059.39-1. Candidate search compared old and new (same answers, 847 of 1000) in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5. Not run: that browser suite in Firefox 158.0, WebKitGTK and GNOME Web, a real controller, a phone
 
-Tests (offline): `node modules/pad-nav/test/run.js` (fake pads and a tiny fake DOM, no browser, under a second) and `python3 modules/pad-nav/test/run.py` (about 3 seconds, needs Playwright for Python and an installed Chromium).
-
-## What it is
-
 Gamepad navigation for ordinary on-screen DOM menus and panels, in one file with no dependencies. It reads the browser's [Gamepad API](https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API) once per frame and then:
 
 - the D-pad or left stick moves focus to the nearest visible, enabled button in the direction pressed,
@@ -24,6 +20,10 @@ It is built to be left running: `step()` never throws (a page that disables the 
 ## Why it exists
 
 It was pulled out of a single-file browser game whose menus and panels are plain HTML buttons. Controller players could flap and steer but could not get around the menus, and most game-pad libraries assume you are drawing everything on a canvas. This is the small, tested version of that menu code, with all game-specific parts removed.
+
+## Try it and test it
+
+Tests (offline): `node modules/pad-nav/test/run.js` (fake pads and a tiny fake DOM, no browser, under a second) and `python3 modules/pad-nav/test/run.py` (about 3 seconds, needs Playwright for Python and an installed Chromium).
 
 ## Quick start
 

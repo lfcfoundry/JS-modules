@@ -6,6 +6,14 @@
 
 Die-cut "sticker" lettering for logos and titles in plain HTML and CSS: no images, scales with `font-size`. About 4.8 KB JS + CSS minified (about 2.1 KB gzipped); the files as shipped are about 9 KB with comments. (The earlier "about 2 KB" was wrong: version 1.0.0 measures about 3.8 KB minified.)
 
+The word is drawn three times in the same place: the real text, invisible, which keeps the layout and is what screen readers read; a copy behind it with a ring of 32 zero-blur shadows in the outline color; and a gradient-filled copy on top. A stacked drop-shadow adds a hard lower edge and a soft ground shadow. Sizes are in `em`, so everything scales with `font-size`.
+
+## Why it exists
+
+CSS has no good text stroke: `-webkit-text-stroke` straddles the glyph edge and chews up thin letters, and the other routes (SVG text, canvas, a script that draws behind live text) need different markup or more code (see "How it compares"). This module gives a title a die-cut sticker look with a class on a plain element.
+
+## Quick start
+
 ```html
 <link rel="stylesheet" href="sticker-text.css">
 <script src="sticker-text.js"></script>

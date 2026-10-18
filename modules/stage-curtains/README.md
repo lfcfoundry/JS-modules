@@ -6,6 +6,12 @@
 
 Velvet stage curtains that slide shut over a page, then fly open. A scene-change transition for games and shows. About 29 KB, no images (the velvet is painted with canvas).
 
+`prepare()` paints the velvet onto canvas in small slices of idle time, one canvas for each half. `close()` slides the two halves shut over the container with the browser's Web Animations, and `open()` parts them and zooms the whole thing away. Each slide writes its end position into the element itself and has a timer as a safety net, and every method returns a promise that always resolves, so your scene change is never blocked.
+
+## Why it exists
+
+A game or show that changes scenes needs something to hide the swap, and a theater curtain fits a stage look. The built-in View Transitions API makes the page wait on your update callback, which is awkward for a game still running behind it, and no ready curtain with fallbacks for stalled animations turned up (see "How it compares"). This module paints a themed curtain and leaves the page running.
+
 ## Quick start
 ```html
 <script src="stage-curtains.js"></script>

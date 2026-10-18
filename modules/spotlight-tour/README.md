@@ -6,6 +6,10 @@
 
 A short guided look at the parts of a page: one dimmed layer, one bright window over the current part (measured live, so it follows scrolling, resizing and the page reflowing), and a card beside it with Skip, Back and Next. It remembers that a visitor has seen it, and it can hand out a finishing gift once, only to people who reach the end. 12.6 KB including its own stylesheet (4.9 KB gzipped), no dependencies. Cut from Apple Press's first-time tour, with the game's own steps taken out.
 
+## Why it exists
+A first visit is the one time you can explain a page, and a long tour gets skipped. Remembering "seen" apart from "gift given" lets the tour come back on request without handing out the gift twice, and keeps the gift for people who finished. The `#tour` address lets a test force the tour without clearing storage.
+
+## Try it and test it
 **Test it:** `node modules/spotlight-tour/test/run.js` (5 checks on where the window and card go) and `node tests/pieces-browser.js` (the whole tour in Firefox 158 and ungoogled Chromium 155: opens once, window over the part, Back, Skip, Escape, Tab, `#tour`, the gift, scrolling to a far part, blocked storage). **Try it:** `demo.html`.
 
 ## Use
@@ -31,9 +35,6 @@ tour.start();           // always (a "Show me around" button)
 - **Methods:** `start`, `maybeStart`, `seen`, `giftGiven`, `reset`, `isOpen`, `goTo(n)`, `close`, `destroy`.
 - **Keyboard:** Escape skips; Tab stays on the card's buttons; focus goes back to what had it when the tour closes. The card is a native modal `<dialog>` (opened with `showModal`): it sits in the browser's top layer, so a page's own pop-ups cannot cover it, the page behind cannot take keyboard focus, and the browser's own close request (Escape, the Android back button) ends the tour. `tour.element` is that `<dialog>`; it is open when `tour.element.open` is true. A browser without `<dialog>` gets a fixed full-screen layer instead (not tested). Colors come from `--stt-bg`, `--stt-text`, `--stt-accent` and follow the dark color scheme.
 - `SpotlightTour.layout(targetBox, cardSize, viewSize, margin)` is the placing maths on its own: the card goes below the part, else above it, else at the bottom with the window shrunk to fit above it; a part with less than 20 pixels showing counts as no part.
-
-## Why
-A first visit is the one time you can explain a page, and a long tour gets skipped. Remembering "seen" apart from "gift given" lets the tour come back on request without handing out the gift twice, and keeps the gift for people who finished. The `#tour` address lets a test force the tour without clearing storage.
 
 ## How it compares
 About 27% of the size of driver.js, the closest match (8.1 KB against 30.0 KB minified with stylesheets; smaller is better), and MIT where Shepherd.js and Intro.js are AGPL-3.0, but it has far fewer features: it is made for a short first-time tour with "seen" and a finishing gift built in. Speed in browsers against the alternatives: not measured.

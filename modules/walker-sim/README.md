@@ -6,6 +6,13 @@
 
 Simulates random walkers on a network (where do they end up, how long does it take, what does it cost), with the exact odds worked out by arithmetic so you can check the simulation against them. No dependencies. Cut from Netflow Map. 61 KB readable (with its notes), or 31 KB as `walker-sim.min.js` (12.1 KB gzipped, against 26 KB and 10.6 KB for 2.0.0, and 39 KB and 12.3 KB for 1.0.0). The plain-words names for the random-number kinds are an optional 4 KB file, `walker-sim-menu.js` (1.5 KB gzipped), that a settings page loads and a script does not.
 
+How it works: each walker starts at a start item and, at every item, picks one of the ways on by a rule (by weight, evenly, first, softmax or curious) until it reaches an item with no way on or hits a step cap. The run counts where walkers end up, how many steps and how much cost they took, and puts a 95% range on each end's share. Every trial draws its numbers from the seed and the trial number, so the same seed gives the same run. Separately, the exact odds are worked out by arithmetic on the network, so the simulation can be checked against them.
+
+## Why it exists
+When a result comes from a simulation you want to know that the simulation is right. Where the odds can be worked out exactly (fixed weights), you get both and can compare. Where they cannot (uncertain weights, costs, waiting), the simulation is the only answer and the 95% ranges say how far to trust it.
+
+## Try it and test it
+
 **Test it:** `node modules/walker-sim/test/run.js` (distributions, exact solver, loops, batches and split runs, what-if sweeps; about 2 s; add `modules/walker-sim/walker-sim.min.js` to check the minified file). `node tests/walker-sim-browser.js` runs one fixed set of walks and exact solves in Node and in a real browser and compares the answers (`CHROMIUM=...`, `FIREFOX=...` or `WEBKIT=1`, one at a time). **Try it:** `demo.html`.
 
 ## Use
@@ -73,9 +80,6 @@ Two ways to use walker-sim, your choice: `walker-sim.js` alone (the default, pla
 - What it needs: a page that allows WebAssembly (the policy word is `wasm-unsafe-eval`). Where the page forbids it, or the browser has none, loading the file does nothing: `WalkerSim.wasm` is `false` and everything runs on the JavaScript loop (checked in all four browsers with a page that forbids it; Firefox also prints a console message about the blocked WebAssembly).
 - Size: `walker-sim-wasm.min.js` is 3,968 bytes (2,039 gzipped); the joined file is 34,807 bytes (13,857 gzipped); the plain `walker-sim.min.js` is 30,839 bytes (12,141 gzipped).
 - Source: `wasm/walker-sim.c`; `wasm/build.sh` builds `wasm/walker-sim.wasm` (966 bytes, needs clang with the wasm32 target) and `wasm/embed.py` puts it into `walker-sim-wasm.js`.
-
-## Why
-When a result comes from a simulation you want to know that the simulation is right. Where the odds can be worked out exactly (fixed weights), you get both and can compare. Where they cannot (uncertain weights, costs, waiting), the simulation is the only answer and the 95% ranges say how far to trust it.
 
 ## How it compares
 walker-sim is one package for a job that is usually done by hand: random walkers on a network, plus the exact odds to check them against. No ready-made package that does that whole job is named in the research or the changelog, so the table shows the two things people use instead. Speed against both: not measured.

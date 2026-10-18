@@ -6,6 +6,12 @@
 
 When a big element scrolls away, a copy of its small stand-in **flies** from it to the sticky mini version, and back again when you scroll up. A shared-element transition for scrolling, with an arc, a tilt and a squash. About 7.4 KB minified (3.1 KB gzipped); the commented source is about 18 KB.
 
+It watches the big element with `IntersectionObserver`. When the big element is mostly off screen, it makes a clone of the mini's first child, draws the clone in a fixed layer on top of the page, and moves it frame by frame (`requestAnimationFrame`) along an arc to where the mini sits, then lands it and tells your code to show the mini through `onChange`. Scrolling back up runs the same flight in reverse. Timers and a failsafe make sure the copy always lands.
+
+## Why it exists
+
+A game or page with a big picture at the top and a small sticky version in the bar needs the two to feel like the same object. Without a flight, the big one just disappears and the small one just appears. The browser's built-in tools do not cover this case: neither flies a copy to a separately placed sticky mini as the page scrolls (see "How it compares"). This module was cut from the games of the same maker, where that effect was wanted.
+
 ## Quick start
 ```html
 <script src="fly-to-mini.js"></script>

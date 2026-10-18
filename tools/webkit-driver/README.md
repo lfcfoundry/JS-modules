@@ -4,13 +4,15 @@
 
 **Tested in:** WebKitGTK 2.52.6 (19 real checks and 7 pretend-driver checks pass; all five Apple Press piece checks pass) and GNOME Web 46.5 (the 14 real checks that apply pass; all five piece checks pass, grown-ups-door included). Not run: Firefox 158 and ungoogled-chromium 155 (the driver does not drive them)
 
-**Test it:** `node tools/webkit-driver/test/run.js` (pretend driver, no browser, 7 checks) and `node tools/webkit-driver/test/webkit.js` (a real WebKitGTK 2.52.6, 17 checks, about 5 seconds; `node tools/webkit-driver/test/webkit.js epiphany` does the same in GNOME Web 46.5, about 8 seconds).
-
-## What it is
-
 A Node file with no dependencies that starts **WebKitGTK** (the WebKit engine for Linux, the nearest thing to Safari a Linux test machine can run) or **GNOME Web** and gives you the small set of page controls that Playwright and Puppeteer give: `goto`, `evaluate`, `waitForFunction`, `mouse.move/down/up/click/wheel`, `keyboard.press`, `screenshot`, `setViewport`, and `on('pageerror')` / `on('console')`.
 
-Why it exists: Playwright and Puppeteer cannot drive WebKitGTK (Playwright only drives its own patched WebKit build, which many networks do not let you download). WebKitGTK ships its own WebDriver, `WebKitWebDriver`, and this file speaks the W3C WebDriver protocol to it over plain HTTP.
+It starts `WebKitWebDriver` (the WebDriver program WebKitGTK ships) and sends it each call over plain HTTP in the W3C WebDriver protocol, then hands the answer back as the Playwright-style call result.
+
+## Why it exists
+Playwright and Puppeteer cannot drive WebKitGTK (Playwright only drives its own patched WebKit build, which many networks do not let you download). WebKitGTK ships its own WebDriver, `WebKitWebDriver`, and this file speaks the W3C WebDriver protocol to it over plain HTTP.
+
+## Try it and test it
+**Test it:** `node tools/webkit-driver/test/run.js` (pretend driver, no browser, 7 checks) and `node tools/webkit-driver/test/webkit.js` (a real WebKitGTK 2.52.6, 17 checks, about 5 seconds; `node tools/webkit-driver/test/webkit.js epiphany` does the same in GNOME Web 46.5, about 8 seconds).
 
 ## Quick start
 
@@ -59,6 +61,13 @@ It needs `WebKitWebDriver` on the machine, plus `xvfb-run` and `dbus-run-session
 - A WebGL canvas that has been shown on screen is **empty if read back in a later task** (WebKit clears it); draw and read in the same task, as the Netflow Map browser test does.
 - Never run it at the same time as another browser: timings go flaky.
 - Tested in WebKitGTK 2.52.6 and GNOME Web 46.5 (Ubuntu 24.04 packages from the `browsers` branch) with Node 22. Not run on a phone, Safari or macOS.
+
+## Prior art and credits
+- Playwright and Puppeteer: the call names (`goto`, `evaluate`, `waitForFunction`, `mouse`, `keyboard`, `screenshot`, `on('pageerror')`) are copied so an existing test needs only a new launch line. Names only, no code from them.
+- selenium-webdriver and WebdriverIO: named for comparison only (see "How it differs from what exists"). No code from them.
+- The W3C WebDriver protocol: the published standard this file speaks to `WebKitWebDriver` over plain HTTP.
+- `WebKitWebDriver`, WebKitGTK and GNOME Web are programs it starts; none of them is included here.
+- The code is written for this repository (LFC Foundry, MIT). It uses only Node's own modules (`http`, `net`, `child_process`, `fs`, `path`, `os`) and its header names no outside code.
 
 ## For AI agents
 

@@ -8,7 +8,12 @@ Pcodec for web pages: unpack (and optionally pack) big lists of numbers in a bro
 
 Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (Apache-2.0). This module is Pcodec 1.0.4 compiled to WebAssembly with a small interface designed for pages. It reads and writes ordinary Pcodec files, so anything that opens Pcodec opens these, and the other way around.
 
+You give it the bytes of a Pcodec file. It runs Pcodec's WebAssembly program (a compact compiled program the browser can run, held inside the one JavaScript file) and hands back the numbers as a typed array, such as a `Float64Array`. Packing runs the same Pcodec code the other way and writes ordinary Pcodec bytes.
+
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license (wrapper). Pcodec itself stays Apache-2.0; see `NOTICE-pcodec.txt`.
+
+## Why it exists
+Pcodec is a compressor made for lists of numbers, and a web page that wants to open (or write) such files needs it as one file with no build step and no network. The only other JavaScript build I found, numcodecs-wasm-pco, is a 324,006 B download (gzipped) against 68,390 B for the unpack-only file here (see "How it compares").
 
 ## Pick a file
 
@@ -58,7 +63,6 @@ Better direction is stated in each header. Order in each cell: Chromium / Firefo
 | First unpack after load with `warm` (ms) | not offered | 2.8 / 5 / 7 / 5 | lower |
 
 Unpack and pack rows were re-measured for 1.0.1 (checked 2026-10-18) with the current build, the tuned loop included: 12 columns, one browser at a time, in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, 0 wrong columns. Compare numbers within a row only: this run was on a faster machine than the 1.0.0 run, and browsers other than Chromium round timers to whole milliseconds, so treat gaps under 5% as ties. The other rows are from the 1.0.0 run. Details: `CHANGELOG.md` 1.0.1 and `RESULTS.md` section 0b.
-
 
 ## Prior art and credits
 

@@ -4,11 +4,19 @@
 
 **Tested in:** Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (2026-10-17): the new crowd page (crowd-check.js: heroes painted and moving in baked mode, 12 and 48 live heroes, no page errors), and the earlier demo page in the first three. Node: 105 checks. Timing in Chromium 155 only. Not tested: a phone.
 
+A written style guide plus a working demo for the soft, glossy "toy" look in plain CSS and SVG: flat vector shapes that feel like squishy 3D. There is no code library to import. The value is in the numbers, copied from a published single-file game: where the light comes from, the four gradients, the face proportions, the shadow and glow recipes, the squash-and-stretch timings and the calm background scenery.
+
+It works by writing the look down as exact numbers instead of code. You copy the color tokens and the gradient definitions into your page, draw your own silhouette in a 200 x 200 box, fill it with the body gradient, add the shade, rim and highlight layers, then place the face from the face table. A small check reads the skin tables as text and tests that every label color is readable.
+
+## Why it exists
+
+The soft, glossy toy look depends on many small numbers that have to agree: the light direction, four gradients, face proportions, shadows and animation timings. This kit keeps one set of numbers, taken from working code, so a new character or screen can match the look (see "How it compares" for the alternatives).
+
+## Try it and test it
+
 Run the check (offline, no browser, under a second): `node modules/cartoon-3d-kit/test/run.js`
 
-## What it is
-
-A written style guide plus a working demo for the soft, glossy "toy" look in plain CSS and SVG: flat vector shapes that feel like squishy 3D. There is no code library to import. The value is in the numbers, copied from a published single-file game: where the light comes from, the four gradients, the face proportions, the shadow and glow recipes, the squash-and-stretch timings and the calm background scenery.
+## What is in it
 
 - [`STYLE-GUIDE.md`](STYLE-GUIDE.md): the full guide, 11 sections, every number from working code.
 - [`demo.html`](demo.html): a logo lockup, a character on a scene you can tap (squash, pop number, confetti, ring, eyes that follow the pointer) and four re-skin buttons. Open it by double-click.

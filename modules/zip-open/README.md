@@ -6,6 +6,12 @@
 
 Opens `.zip` and Excel `.xlsx` files safely, in the browser or in Node. Text files come out as strings, every Excel sheet comes out as CSV text, and every problem is a note in plain words. About 26 KB (9.0 KB gzipped), no dependencies. Cut from Netflow Map's file opener.
 
+It reads the zip's list of entries, then unpacks each text file with the platform's own deflate (`DecompressionStream("deflate-raw")` in browsers, `zlib` in Node) and checks its checksum. Every limit is counted on the bytes that really come out, not on what the zip says about itself, so a zip bomb (a tiny file that claims a small size but unpacks to gigabytes) stops at the limit. An Excel file is a zip of XML files; a small scanner reads the cell values from them and writes each sheet as CSV text.
+
+## Why it exists
+Players and users drop files on a page. A zip is a few hundred bytes that can claim anything. The common libraries trust the sizes in the header, or hand you everything and leave the limits to you. This one turns "it said 1 KB, it was 1 GB" into a sentence you can show.
+
+## Try it and test it
 **Test it:** `node modules/zip-open/test/run.js` (15 checks, including zip bombs, bad checksums, cut-off files, lying offsets and zips inside zips; about 2.6 s). **Try it:** `demo.html` (drop a file, or press the bomb button).
 
 ## Use
@@ -45,9 +51,6 @@ A zip of 1 GB of zeros (0.97 MB on disk) whose header says the file holds 1,000 
 | fflate 0.8.3 `unzipSync` | hands back a file of 1,000 bytes with no error | 3.8 s | about 57 MB |
 
 The demo page builds a 64 MB version of this in your browser and opens it: it stops in about 0.5 s in Firefox 158 and ungoogled Chromium 155, including the time to build it.
-
-## Why
-Players and users drop files on a page. A zip is a few hundred bytes that can claim anything. The common libraries trust the sizes in the header, or hand you everything and leave the limits to you. This one turns "it said 1 KB, it was 1 GB" into a sentence you can show.
 
 ## How it compares
 Smaller than fflate and, of the ones measured, the only one that stops a lying zip by itself. Speed against the others in browsers: not measured. It opens only; it cannot write zips.
