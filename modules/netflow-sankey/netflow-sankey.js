@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.1.0 (API 2)
+ * Version 2.2.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -15,7 +15,7 @@
   else root.NetflowSankey = factory();
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-  var EPS = 1e-9;
+  var EPS = 1e-9, DUMMY_CAP = 20000;   // DUMMY_CAP: most stand-in points for long links the layout routes (the rest are drawn straight through)
   function rng(seed) { var s = seed | 0; return function () { s = (s + 0x6d2b79f5) | 0; var t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
   /** Weighted crossings between two neighboring layers: links as [posTop, posBottom, weight]. Sum of w1*w2 over crossing pairs, in n log n. */
@@ -153,13 +153,23 @@
       byId[n.id] = v; V.push(v);
     });
     var fwd = [], loops = [];
+    /* A long link gets one stand-in per layer it crosses so the layers can be ordered around it. Past DUMMY_CAP stand-ins in all, the lightest long links are drawn as one band from end to end instead (note in the result). */
+    var noDummy = new Set(), dummyWant = 0, longLinks = [], simplified = 0;
+    usable.forEach(function (ei, q) { var e = L.edges[ei], a = byId[e.from], b = byId[e.to]; if (!lay.feedback.has(q) && b.layer > a.layer + 1) { dummyWant += b.layer - a.layer - 1; longLinks.push(q); } });
+    if (dummyWant > DUMMY_CAP) {
+      var left = DUMMY_CAP;
+      longLinks.sort(function (p, q) { return L.edges[usable[q]].flow - L.edges[usable[p]].flow || p - q; }).forEach(function (q) {
+        var e = L.edges[usable[q]], need = byId[e.to].layer - byId[e.from].layer - 1;
+        if (need <= left) left -= need; else { noDummy.add(q); simplified++; }
+      });
+    }
     var segU = [], segV = [], segW = [], segEi = [];   // one segment per band piece between two neighboring layers: from bar, to bar, flow, which link
     var link = function (u, v, w, ei) { segU.push(u.ix); segV.push(v.ix); segW.push(w); segEi.push(ei); };
     usable.forEach(function (ei, q) {
       var e = L.edges[ei], a = byId[e.from], b = byId[e.to];
       if (!lay.feedback.has(q) && b.layer > a.layer) {
         var prev = a;
-        for (k = a.layer + 1; k < b.layer; k++) {
+        for (k = a.layer + 1; k < b.layer && !noDummy.has(q); k++) {
           var d = { id: null, edge: ei, pa: a, pb: b, layer: k, size: e.flow, key: (a.key + b.key) / 2, h: 0, y: 0, pos: 0, dummy: true, w: 0, x: 0, ix: V.length, pinned: false, loopOutTop: 0, loopInTop: 0 };
           V.push(d); link(prev, d, e.flow, ei); prev = d;
         }
@@ -179,6 +189,17 @@
     }
     var upO = upW, dnO = dnW;   // the weights the order search counts with
     if (opts.unweighted) { upO = new Float64Array(nUp).fill(1); dnO = new Float64Array(nDn).fill(1); }
+    /* The order search only looks at links between neighboring layers. A link drawn straight through (see above) reaches a bar further away: it stays in the lists above for stacking the band ends and placing the bars, and is left out of these. */
+    var sUpS = upS, sUpI = upI, sUpO = upO, sDnS = dnS, sDnI = dnI, sDnO = dnO;
+    if (simplified) {
+      var near = function (S, I, O) {
+        var S2 = new Int32Array(nV + 1), I2 = [], O2 = [], x, y;
+        for (x = 0; x < nV; x++) { for (y = S[x]; y < S[x + 1]; y++) if (Math.abs(layerOf[I[y]] - layerOf[x]) === 1) { I2.push(I[y]); O2.push(O[y]); } S2[x + 1] = I2.length; }
+        return [S2, Int32Array.from(I2), Float64Array.from(O2)];
+      };
+      var nu = near(upS, upI, upO), nd = near(dnS, dnI, dnO);
+      sUpS = nu[0]; sUpI = nu[1]; sUpO = nu[2]; sDnS = nd[0]; sDnI = nd[1]; sDnO = nd[2];
+    }
     var ord = [], pos = new Int32Array(nV), lenOf = new Float64Array(nL), bary = new Float64Array(nV), key2 = new Float64Array(nV), tmp = new Int32Array(nV);
     var syncPos = function () { for (var q = 0; q < nL; q++) { var list = ord[q]; lenOf[q] = list.length || 1; for (var j = 0; j < list.length; j++) pos[list[j]] = j; } };
     var lc = new Int32Array(nL);
@@ -201,14 +222,14 @@
     }
     var total = function () {
       var c = 0;
-      for (var q = 0; q + 1 < nL; q++) c += crossTyped(ord[q], pos, dnS, dnI, dnO, ord[q + 1].length + 1);
+      for (var q = 0; q + 1 < nL; q++) c += crossTyped(ord[q], pos, sDnS, sDnI, sDnO, ord[q + 1].length + 1);
       return c;
     };
     var snap = function () { return ord.map(function (l) { return l.slice(); }); };
     var restore = function (sn) { for (var q = 0; q < nL; q++) ord[q].set(sn[q]); syncPos(); };
     var sweep = function (q, goUp) {
       var list = ord[q], n = list.length, len = lenOf[q], j, e, e1, v, s, w, ww, nb, S, I, O, b, nan = false;
-      if (goUp) { S = upS; I = upI; O = upO; } else { S = dnS; I = dnI; O = dnO; }
+      if (goUp) { S = sUpS; I = sUpI; O = sUpO; } else { S = sDnS; I = sDnI; O = sDnO; }
       for (j = 0; j < n; j++) {
         v = list[j]; s = 0; w = 0;
         for (e = S[v], e1 = S[v + 1]; e < e1; e++) { nb = I[e]; ww = O[e]; s += ww * (pos[nb] + 0.5) / lenOf[layerOf[nb]]; w += ww; }
@@ -228,7 +249,7 @@
         for (j = 0; j + 1 < n; j++) {
           a = list[j]; b = list[j + 1]; before = 0; after = 0;
           for (side = 0; side < 2; side++) {
-            if (side) { S = dnS; I = dnI; O = dnO; } else { S = upS; I = upI; O = upO; }
+            if (side) { S = sDnS; I = sDnI; O = sDnO; } else { S = sUpS; I = sUpI; O = sUpO; }
             for (xs = S[a], xe = S[a + 1]; xs < xe; xs++) {
               px = pos[I[xs]];
               for (ys = S[b], ye = S[b + 1]; ys < ye; ys++) { py = pos[I[ys]]; if (px > py) before += O[xs] * O[ys]; else if (px < py) after += O[xs] * O[ys]; }
@@ -365,7 +386,7 @@
     var height = Math.max(bottom, yLane) + 30, width = colX[nL - 1] + nodeW + 30;
     var nodes = V.filter(function (v) { return !v.dummy; }).map(function (v) { return { id: v.id, label: v.node.label || v.id, x: v.x, y: v.y - v.h / 2, w: v.w, h: v.h, layer: v.layer, flow: v.size, inFlow: v.inAll, outFlow: v.outAll, pinned: !!v.pinned }; });
     var orderOut = { layers: layers.map(function (list) { return list.map(idOf); }), loops: loops.map(function (ei) { var e1 = L.edges[ei]; return nk(L.pos[e1.from]) + '>' + nk(L.pos[e1.to]); }) };
-    return { nodes: nodes, bands: bands, loops: loopOut, width: width, height: height, ky: ky, crossingWeight: crossingWeight, order: orderOut, cols: nL, ms: Date.now() - t0 };
+    return { nodes: nodes, bands: bands, loops: loopOut, width: width, height: height, simplified: simplified, note: simplified ? simplified + ' very long links are drawn as one straight-through band each, because routing all of them would make the picture too slow. The rest are laid out as usual.' : '', ky: ky, crossingWeight: crossingWeight, order: orderOut, cols: nL, ms: Date.now() - t0 };
   }
 
   /** A polyline with rounded corners, as an SVG path. */
