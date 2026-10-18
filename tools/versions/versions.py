@@ -327,7 +327,44 @@ def set_root_readme(text, reg, root=None):
             continue
         out.append(line)
         i += 1
-    return "\n".join(out)
+    return set_glance("\n".join(out))
+
+
+GLANCE_START, GLANCE_END = "<!-- glance:start (written by tools/versions/versions.py) -->", "<!-- glance:end -->"
+GLANCE_ROW = re.compile(r"^\| \[([a-z0-9-]+)\]\(([^)]*)\) \| ((?:[\d.]+ KB \\u00b7 [\d.]+ KB gz)|n/a)? ?")
+
+
+def set_glance(text):
+    """A short 'all at a glance' index right under the title: every module with its gzipped size, every story package and every tool by name, built from the tables below it."""
+    lines, grp, top, groups = text.split("\n"), None, None, []
+    for line in lines:
+        if line.startswith("### "):
+            top, grp = line[4:].strip(), None
+        elif line.startswith("#### "):
+            grp = [top, line[5:].strip(), []]
+            groups.append(grp)
+        elif grp is not None:
+            m = re.match(r"^\| \[([a-z0-9-]+)\]\(([^)]*)\) \| (.*)$", line)
+            if m:
+                gz = re.match(r"^([\d.]+ KB) \u00b7 ([\d.]+) KB gz \|", m.group(3))
+                grp[2].append("[%s](%s)%s" % (m.group(1), m.group(2), " %s" % gz.group(2) if top == "Games" and gz else ""))
+    if not groups:
+        return text
+    out = [GLANCE_START, "## All at a glance", "",
+           "Every piece in one place. Numbers are gzipped KB (smaller is better); the tables below give the readable size, the version and what each piece does.", ""]
+    for kind, title in (("Games", "Modules"), ("Story editor", "Story editor packages"), ("Tools", "Tools")):
+        gs = [g for g in groups if g[0] == kind]
+        if gs:
+            out.append("**%s (%d)**" % (title, sum(len(g[2]) for g in gs)))
+            out.append("")
+            out += ["- %s: %s" % (g[1], ", ".join(g[2])) for g in gs]
+            out.append("")
+    out.append(GLANCE_END)
+    block = "\n".join(out)
+    if GLANCE_START in text:
+        a, b = text.index(GLANCE_START), text.index(GLANCE_END) + len(GLANCE_END)
+        return text[:a] + block + text[b:]
+    return text.replace("## Pick a piece", block + "\n\n## Pick a piece", 1)
 
 
 def set_index(text, reg):
@@ -429,6 +466,8 @@ def check(root, reg):
         sz = size_label(root, e) if kind == "modules" else None
         if sz and re.search(r"^\| \[%s\]\(" % re.escape(i), t, re.M) and (" | " + sz + " | ") not in t:
             bad.append("%s: the README table shows an old size (now %s): run versions.py sizes" % (i, sz))
+    if set_glance(rd(root, "README.md")) != rd(root, "README.md"):
+        bad.append("README.md: the 'All at a glance' index is out of date: run versions.py sizes")
     if os.path.exists(os.path.join(root, "CHANGELOG.md")):
         if rd(root, "CHANGELOG.md") != root_changelog(root, reg):
             bad.append("CHANGELOG.md (the root one) is out of date: run versions.py changelog")

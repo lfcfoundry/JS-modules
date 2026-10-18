@@ -36,7 +36,7 @@ python3 tools/versions/versions.py set fly-to-mini 1.2.0 --note "What changed, i
 python3 tools/versions/versions.py set fly-to-mini 1.2.0 --tested "Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6" --note "..."   # also records which browsers tested the release
 python3 tools/versions/versions.py tested fly-to-mini 1.2.0 "WebKitGTK 2.52.6, Firefox 158"   # write or fix one entry's Tested in line
 python3 tools/versions/versions.py changelog            # rebuild the root CHANGELOG.md
-python3 tools/versions/versions.py sizes                # refresh the Size column of the root README's module tables (set does this too; check fails when a size is old)
+python3 tools/versions/versions.py sizes                # refresh the Size column of the root README's module tables and the "All at a glance" index under the title (set does this too; check fails when either is old)
 python3 tools/versions/versions.py init                 # labels 1.0.0 on anything that has none
 python3 tools/versions/test/run.py                      # the tool's own checks (a temp repository, under a second)
 ```
