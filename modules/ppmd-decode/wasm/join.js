@@ -10,7 +10,7 @@ function build() {
   var v = /Version (\d+\.\d+\.\d+) \(API (\d+)\)/.exec(plain);
   var head = '/*! ppmd-decode-with-wasm.js: ppmd-decode.js and ppmd-decode-wasm.js in one file. ppmd7Decode(...) here tries the WebAssembly decoder first and uses the JavaScript decoder\n' +
     ' * when WebAssembly is not usable (the page policy lacks \'wasm-unsafe-eval\', or an old browser), so it always works and gives the same bytes. ppmd7Decode.plain is the JavaScript decoder alone;\n' +
-    ' * ppmd7DecodeWasm is another name for ppmd7Decode. Built by wasm/join.js from the two files named above: edit those, not this one.\n' +
+    ' * ppmd7DecodeWasm is another name for ppmd7Decode. Built by wasm/join.js from the two files named above: edit those, not this one. Copyright (c) 2026 LFC Foundry. MIT License.\n' +
     ' * Version ' + v[1] + ' (API ' + v[2] + ') */\n';
   var tail = '\n/* from here on ppmd7Decode means "WebAssembly first": in a page the plain global is replaced; in Node module.exports already is the WebAssembly-first function */\n' +
     "if (typeof module === 'undefined' || !module.exports) (typeof globalThis !== 'undefined' ? globalThis : this).ppmd7Decode = ppmd7DecodeWasm;\n";

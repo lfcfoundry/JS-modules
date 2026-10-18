@@ -54,7 +54,7 @@ Set `maxSize` whenever the data or its size did not come from your own packer: a
 
 | File | What it is | Size (smaller is better) |
 |---|---|---|
-| `lzma-decode-with-wasm.js` | **The default.** WebAssembly first, JavaScript fallback, in one file. | 20,787 bytes (8,238 gzipped) |
+| `lzma-decode-with-wasm.js` | **The default.** WebAssembly first, JavaScript fallback, in one file. | 20,832 bytes (8,241 gzipped) |
 | `lzma-decode.js` | The plain JavaScript decoder alone: readable, works under any page policy, and the part `tools/lzma-pack` pastes into packed pages. Use it when the page must stay as small as possible. | 9,530 bytes (3,709 gzipped); about 1.9 KB in a packed page |
 | `lzma-decode-wasm.js` | The WebAssembly part alone, to load after `lzma-decode.js` (it adds `lzmaDecodeWasm`). The default file already holds both. | 10,433 bytes |
 
@@ -77,7 +77,7 @@ Smaller than the npm `lzma` decoder (the only other one with a size on record he
 
 | Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins or loses |
 |---|---|---|---|---|
-| lzma-decode 1.2.0 (MIT, this module) | Default file 20,787 bytes; the plain JavaScript file alone is about 1.9 KB in a packed page (1,896 bytes minified), and the WebAssembly program is 4,087 bytes | First decode of a 569,513-byte page, default file against plain file (smaller is better): 17.9 ms against 46.6 in ungoogled-chromium 155 and 24.0 against 38.0 in Firefox 158.0 | Decodes LZMA1 only, readable, tested against Python's `lzma` | Wins on size and readability; loses on features |
+| lzma-decode 1.2.0 (MIT, this module) | Default file 20,832 bytes; the plain JavaScript file alone is about 1.9 KB in a packed page (1,896 bytes minified), and the WebAssembly program is 4,087 bytes | First decode of a 569,513-byte page, default file against plain file (smaller is better): 17.9 ms against 46.6 in ungoogled-chromium 155 and 24.0 against 38.0 in Firefox 158.0 | Decodes LZMA1 only, readable, tested against Python's `lzma` | Wins on size and readability; loses on features |
 | [`lzma` on npm](https://www.npmjs.com/package/lzma) (license not checked) | 6.8 KB minified, 3.0 KB gzipped | Not measured | Compresses and decompresses | Wins if you need to compress in the browser |
 | [kripken/lzma.js](https://github.com/kripken/lzma.js) (license not checked) | Not measured | Not measured | As far as I know an Emscripten build of the C LZMA code | Not measured |
 | The browser's own API (`DecompressionStream`) | Nothing to ship | Not measured | Gzip and deflate only, no LZMA | Wins when gzip or deflate is tight enough (the Zopfli packer in [`tools/single-file-tools`](../../tools/single-file-tools/README.md), which needs no decoder at all and wins for small pages) |
