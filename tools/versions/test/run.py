@@ -45,6 +45,8 @@ try:
     check("a date stamp in a tool header is replaced", "Version 1.0.0 (API 1)" in r(root, "tools/gamma/pack.py") and "2026.10.15" not in r(root, "tools/gamma/pack.py"))
     check("README line goes under the title", r(root, "modules/alpha/README.md").startswith("# alpha\n\n**Version 1.0.0 · API 1**\n"))
     check("root README tables get a column", "| Global | Version |" in r(root, "README.md") and "| 1.0.0 · API 1 |" in r(root, "README.md") and "| Tool | One line | Version |" in r(root, "README.md"))
+    check("the module table gets a Size column next to the name, the tool table does not", "| Module | Size | One line | Global | Version |" in r(root, "README.md") and "| [alpha](modules/alpha/README.md) | " in r(root, "README.md") and " B · " in r(root, "README.md") and "| Tool | One line | Version |" in r(root, "README.md"))
+    rc, out = run(root, "sizes"); check("sizes is a no-op when nothing changed", rc == 0 and "already current" in out, out)
     check("llms and the front page show it", "Version 1.0.0, API 1." in r(root, "llms.txt") and '<small class="v">1.0.0 · API 1</small>' in r(root, "index.html"))
     check("init writes a CHANGELOG.md for each, and a root one", all(os.path.exists(os.path.join(root, p)) for p in ("modules/alpha/CHANGELOG.md", "modules/beta/CHANGELOG.md", "tools/gamma/CHANGELOG.md", "CHANGELOG.md")))
     check("the first entry is the 1.0.0 baseline", "## 1.0.0 · API 1 · 2026-10-16" in r(root, "modules/alpha/CHANGELOG.md") and "(../../tools/versions/README.md)" in r(root, "modules/alpha/CHANGELOG.md"))
