@@ -204,7 +204,25 @@ Fancy Banana's set: EvenDt 985 bytes minified (506 gzipped) against 1,536 (662) 
 
 `node modules/frame-kit/test/lean.js` (about 2.5 s) builds both files in every single cut and in Fancy's set (with and without comments) and compares them with a verbatim copy of Fancy's code (`test/reference-frame.js`) on all 26 series: Fancy's set must give 0 different frame steps and 0 different level changes, in the governor with the clock starting at 0, 8,000 and 123,456.7 ms. `node tests/small-lean-browser.js` repeats that comparison inside a real browser. `lean.py` edits nothing: change the two files and keep their `//@begin` / `//@else` / `//@end` marker lines balanced.
 
-## How it differs from existing open source
+## How it compares
+
+Each helper is a small, framework-free file; for the same job the established tools below are better when you already use their engine or framework. Speed in browsers: not measured for any of the four.
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
+| --- | --- | --- | --- | --- |
+| `EvenDt` vs [Phaser `TimeStep`](https://docs.phaser.io/api-documentation/class/core-timestep) (MIT, version not recorded) | `EvenDt`: 1,536 B minified (662 B gzipped). Phaser's: not measured (built into Phaser) | Not measured | `EvenDt` snaps to a learned screen period and passes real stalls through; Phaser averages the last 10 deltas | Phaser wins if you already use it. `EvenDt` needs `minGap` lowered on 360 Hz and faster screens |
+| `QualityGovernor` vs [drei `PerformanceMonitor`](https://drei.docs.pmnd.rs/getting-started/introduction) (MIT, version not recorded) | `QualityGovernor`: 3,688 B minified (1,240 B gzipped). drei's: not measured | Not measured | Integer levels you define, documented streak and delay rules, optional flip-flop guard, `stepUp: false`, `lock()` | drei wins inside React Three Fiber. `QualityGovernor` needs no framework but changes level slowly by design |
+| `FrameMeter` vs [Stats.js](https://github.com/mrdoob/stats.js) and similar panels (MIT, version not recorded) | `FrameMeter`: 8.8 KB readable file (3.3 KB gzipped); minified not measured. Stats.js: not measured | Not measured | Frames a second, worst gap, hitches with a game-or-device cause, tap-to-next-frame delay, plain-words text; draws nothing | Stats.js wins on a drawn graph. `FrameMeter` cannot see graphics stalls |
+| `JobPump` vs [`scheduler.yield()`](https://developer.mozilla.org/docs/Web/API/scheduler/yield) and [`requestIdleCallback`](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback) (browser features) | `JobPump`: 10.1 KB readable file (3.8 KB gzipped); minified not measured. The browser features cost no bytes | Not measured | A per-frame millisecond budget, FIFO order, generator slices | Browser features win for general page responsiveness. `JobPump` loses: no priorities, no cancelling one job, no yielding to input |
+
+**Where it loses**
+- `EvenDt` gives no smoothing to a 15 Hz or slower loop (gaps of 60 ms or more), and it lags and can slip on variable-rate screens.
+- `QualityGovernor` reacts slowly (at least 100 slow frames and 3 s to step down, 10 s to step up) and cannot tell why frames are slow.
+- `FrameMeter` does not use the Event Timing or Long Animation Frames APIs; "the device" only means "not your code".
+- `JobPump` has no priorities, no cancelling of single jobs and no yielding to input.
+- Not measured: the speed of every helper in browsers, and the sizes and speeds of all alternatives.
+
+The longer comparison follows.
 
 None of these ideas is new, and the established tools below are better in the ways stated. What is offered here is four small, readable, tested files with no framework attached. I read each source named below; where I could not read the details, it says so. I did not do an exhaustive search for vanilla-JS packages, so others may exist.
 
@@ -274,6 +292,19 @@ None of these ideas is new, and the established tools below are better in the wa
 - Closing a half-finished generator in `clear()` runs its `finally` blocks; put clean-up there.
 
 Differences from the original game code, on purpose: `EvenDt` recomputes the median every `refreshEvery` accepted gaps (the original, by a quirk of its length check, recomputed it every frame once its window was full). `QualityGovernor` measures its start-up grace period from the first frame it sees instead of from time zero, takes its levels, thresholds and effects as options and a callback instead of changing game globals, and adds an optional flip-flop guard (off by default; `flipLimit: 3` turns it on).
+
+## Prior art and credits
+- [Phaser `TimeStep`](https://docs.phaser.io/api-documentation/class/core-timestep) (MIT): read as prior art for delta smoothing. Idea only, no code.
+- [Frankforce, "frame rate delta buffering"](https://frankforce.com/frame-rate-delta-buffering/): the same core idea as `EvenDt` (set the delta to a whole number of vsync intervals and carry the leftover forward). Idea only, no code.
+- [Gaffer On Games, "Fix Your Timestep"](https://gafferongames.com/post/fix_your_timestep/): the standard reference for fixed timestep with an accumulator; named as the better fix for physics. Idea only, no code.
+- [Unity, "Fixing Time.deltaTime in Unity 2020.2"](https://unity.com/blog/engine-platform/fixing-time-deltatime-in-unity-2020-2-for-smoother-gameplay): read for comparison. Nothing taken.
+- [drei `PerformanceMonitor` and `AdaptiveDpr`](https://drei.docs.pmnd.rs/getting-started/introduction) (MIT): read for comparison (the docs page was only partly readable). Nothing taken.
+- PerfDog's "jank" rule: the idea of a relative hitch rule (a frame much longer than the frames before it) in `FrameMeter`, tuned here for a flick game. Idea only, no code.
+- Stats.js and similar panels: read for comparison. Nothing taken.
+- MDN pages on `scheduler.yield()`, `requestIdleCallback`, Event Timing and Long Animation Frames: facts only (browser support, behavior), no code. React's `scheduler` package: named, not read in detail.
+- `EvenDt` and `QualityGovernor` were extracted from a real, shipped single-file browser game of LFC Foundry (this README does not name which) and rewritten to stand alone, so that code is the project's own. `FrameMeter` and the lean builds were written for the project's own games; the lean builds are checked against a verbatim copy of Fancy, the Banana's inline code (`test/reference-frame.js`).
+
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 

@@ -57,7 +57,20 @@ First decode of the 569,513-byte Pineapple Defense page (141,872 bytes of LZMA),
 
 Smaller milliseconds are better. These are headless desktop runs on one machine; phones are not measured. A warm 1.5 MB decode in Node 22: 98.6 ms (JavaScript) to 47.3 ms (WebAssembly), 2.1x. The result is a copy that stands alone (its own buffer of exactly `outSize` bytes), so the 2x working memory of the run is freed at once. The source is `wasm/lzma-decode.c` (a line-for-line port of `lzma-decode.js`), `wasm/build.sh` rebuilds `wasm/lzma-decode.wasm` (clang with the wasm32 target; 4,087 bytes with clang 18.1.3) and `wasm/embed.py` writes it into `lzma-decode-wasm.js`; the WebAssembly file is kept under 4,096 bytes on purpose, because Chromium only compiles a module of that size or less on the main thread with the plain constructor. To put it in a packed page, see `tools/lzma-pack` (`--wasm`).
 
-## How it differs from existing open source
+## How it compares
+
+Smaller than the npm `lzma` decoder (the only other one with a size on record here) and readable in one sitting, but it only decodes. Speed against the other libraries in browsers: not measured. The long notes under the table stay as they were.
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins or loses |
+|---|---|---|---|---|
+| lzma-decode 1.1.0 (MIT, this module) | About 1.9 KB in a packed page (1,896 bytes minified); the wasm add-on is 4,087 bytes of WebAssembly | First decode of a 569,513-byte page: 40.8 ms in ungoogled-chromium 155 and 35.0 in Firefox 158.0 (smaller is better); with the add-on 20.1 and 18.0 | Decodes LZMA1 only, readable, tested against Python's `lzma` | Wins on size and readability; loses on features |
+| [`lzma` on npm](https://www.npmjs.com/package/lzma) (license not checked) | 6.8 KB minified, 3.0 KB gzipped | Not measured | Compresses and decompresses | Wins if you need to compress in the browser |
+| [kripken/lzma.js](https://github.com/kripken/lzma.js) (license not checked) | Not measured | Not measured | As far as I know an Emscripten build of the C LZMA code | Not measured |
+| The browser's own API (`DecompressionStream`) | Nothing to ship | Not measured | Gzip and deflate only, no LZMA | Wins when gzip or deflate is tight enough (the Zopfli packer in `tools/single-file-tools`) |
+
+Where it loses: it cannot compress, it does not read `.xz` (LZMA2), it has no streaming and no checksum, and lc 5 to 8 are untested (see Limits).
+
+### Longer notes
 
 - **The [`lzma` package on npm](https://www.npmjs.com/package/lzma)** (a JavaScript LZMA library that can compress as well as decompress) and **[kripken/lzma.js](https://github.com/kripken/lzma.js)** (as far as I know an Emscripten build of the C LZMA code) are the established ways to use LZMA from JavaScript. Use one of them if you need to *compress* in the browser. This decoder is smaller because it only decodes, and it is a single readable function.
 - **`.xz` (LZMA2) decoders**, including WebAssembly builds, exist for the newer container; this decodes only LZMA1.
@@ -77,6 +90,12 @@ Inside this repository, [`tools/single-file-tools`](../../tools/single-file-tool
 - No streaming and no checksum in LZMA itself: the whole result is built in memory, and corrupt input is only detected when it points outside the data or runs out.
 - lc 5-8 are accepted but untested: liblzma (what Python and xz use) only writes streams with lc + lp of 4 or less.
 - The output buffer doubles as the dictionary, so the dictionary size in a `.lzma` header is ignored.
+
+## Prior art and credits
+No code from others; the ideas below are theirs.
+- The LZMA algorithm and file format: designed by Igor Pavlov; the decoder here is written from the published LZMA specification, not copied from the LZMA SDK (public domain) or from xz/liblzma. Python's `lzma` module (liblzma) is used only to make and check test data, nothing from it ships.
+- The WebAssembly add-on (`wasm/lzma-decode.c`) is a line-for-line port of `lzma-decode.js` by this repository, built with clang 18.1.3 (LLVM); no runtime or library code from others is inside it.
+- [Roadroller](https://github.com/lifthrasiir/roadroller) (MIT, lifthrasiir), the `lzma` package on npm, [kripken/lzma.js](https://github.com/kripken/lzma.js) and [js13k-packer](https://www.npmjs.com/package/js13k-packer): named above for comparison, idea only, no code taken.
 
 ## For AI agents
 

@@ -10,7 +10,7 @@ The version is also in code as `SpriteBaker.version`. Run the tests (offline, ab
 
 A tiny software 3D rasterizer for Canvas 2D games. You describe a few smooth parametric shapes, it shades them with a toon color ramp on the CPU (no WebGL), and it bakes the result into ordinary 2D sprites: one picture, or N pictures of the shape rolling about a fixed horizontal axis. Your game then draws those pictures with `drawImage` and never touches 3D again.
 
-About 740 lines of plain JavaScript, a third of them comments, no dependencies, no build step. The core works in Node without a canvas; the browser helpers are optional.
+About 985 lines of plain JavaScript (55,804 bytes with its notes), no dependencies, no build step. The core works in Node without a canvas; the browser helpers are optional.
 
 ![A capsule with five ridges baked into 16 frames, and a torus with a bead baked into 12 frames](preview.png)
 
@@ -150,8 +150,25 @@ The part that is always kept is the fill: `Rast`, `tri` (plain, picture and ridg
 
 `node modules/sprite-baker/test/lean.js` builds every single cut, Fancy's set and the everything-cut build (each also without comments where it matters), checks the exports, compares every part that is kept with the full file, and draws the 266 scenes of `test/fancy-scenes.js` through the lean filler byte for byte (about 3 s). `LEAN=1 node tests/sprite-baker-fancy-browser.js` does the same in a real browser. `lean.py` edits nothing: change `sprite-baker.js` and keep its `//@begin` / `//@else` / `//@end` marker lines balanced.
 
-## How it differs from existing open source
+## How it compares
+sprite-baker is a narrow tool. It gives up the range and picture quality of three.js with WebGL (use that if you can use WebGL), and in return it needs no WebGL, no asset files and no scene engine, and it loops a rolling shape exactly. Speed against the other tools below: not measured.
 
+| Alternative | Size (smaller is better) | Speed | Features | Where it wins / loses |
+|---|---|---|---|---|
+| [three.js](https://threejs.org/) with WebGL (version: not read) | Not measured | Not measured here (the details below repeat an unmeasured claim that it is far faster) | Real cameras, lights, shadows, model loaders | three.js wins on picture quality and range. This module wins when you cannot or do not want WebGL |
+| [Easel](https://www.npmjs.com/package/@xsyetopz/easel) (MIT, 0.8.0, as reported on its page; not run) | Not measured | Not measured | CPU drawing into a 2D canvas with a scene graph; sprite sheets: unverified | Look at Easel first for more than a few shapes. This module is narrower |
+| [Zdog](https://zzz.dog/) (version and license: not read) | Not measured | Not measured | Flat pseudo-3D, live animation, no per-pixel shading | Zdog wins for flat illustrated 3D. This module gives shaded surfaces and pre-rendered bitmaps |
+| Fancy Banana's own triangle filler (the game this was extracted from) | This module, minified: 18,364 bytes (8,080 gzipped); Fancy's set of parts only: 6,992 bytes (3,438 gzipped) | The picture path against Fancy's filler on the same sphere, 48 pictures (lower is better): 84.7 vs 100.2 ms in ungoogled Chromium 155, 99 vs 108 ms in Firefox 158, 85 vs 106 ms in WebKitGTK 2.52.6, 83 vs 84 ms in GNOME Web 46.5 | Same pixels: 266 scenes, 0 bytes different | The picture path is equal or faster in all four browsers; the lean build keeps the size down |
+
+Baking a 24-frame, 192 px roll with an outline takes 240 ms in ungoogled Chromium 155, 293 ms in Firefox 158, 230 ms in WebKitGTK 2.52.6 and 242 ms in GNOME Web 46.5 (lower is better; version 1.3.0 timing). Size of this module: readable file 55,804 bytes; minified 18,364 bytes (8,080 gzipped, terser 5.51.2).
+
+**Where it loses**
+- Less capable than WebGL; use three.js if you can use WebGL (speed against it: not measured).
+- Orthographic only: no perspective, no shadows, no texture mapping beyond the optional picture path, binary alpha.
+- Sizes of three.js, Easel and Zdog: not measured, so no size win is claimed.
+- Meant for load time, not per-frame drawing.
+
+**Details**
 Prior art is large and mostly better. Pick one of these first unless your constraints match the "Why it exists" list above.
 
 - [three.js](https://threejs.org/) with WebGL is the practical way to render 3D in a browser: real cameras, lights, shadows, model loaders, and far more speed. If you can use WebGL, you can render to a canvas and `drawImage` the result as a sprite, and you will get a better picture than this. Older three.js releases also shipped CPU renderers (a canvas renderer and a software renderer); the community port [three-software-renderer](https://github.com/AVGP/three-software-renderer) keeps one alive for Node, but it needs three.js, is slower than WebGL, and its last tested three.js version listed on its page is 0.112.1.
@@ -166,7 +183,7 @@ What is honestly not new: the barycentric triangle fill, z-buffer, wrap lighting
 
 ## Limits and gotchas
 
-- Orthographic only. No perspective, no clipping against a near plane, no texture mapping, no transparency, no shadows.
+- Orthographic only. No perspective, no clipping against a near plane, no transparency, no shadows, and no texture mapping except the optional picture path (new in 1.4.0).
 - Alpha is binary inside the rasterizer. Smooth edges come from `ss` (supersampling, box filter). Raise `ss` to 3 or 4 for cleaner edges; cost grows with `ss` squared.
 - Depth is float32 and ties keep the first-drawn triangle. Fine for sprites, not for coplanar overlapping surfaces.
 - Normals from finite differences take their sign from `dP/du x dP/dv`. The default `'auto'` orientation works for closed, roughly convex shapes. For open or hollow surfaces (a tube you look into) pass `flip: true` or `false`, or return exact normals from `fn`.
@@ -180,6 +197,14 @@ What is honestly not new: the barycentric triangle fill, z-buffer, wrap lighting
 - Meshes are cached per part object. If you change a part's `nu`, `nv` or `fn` after it was baked, pass a new part object (or a mesh you built yourself); the old mesh is reused.
 - Thin 1 to 2 pixel details with an outline radius of 4 or more can show as a dotted halo, because the outline is stamped at 24 rounded offsets. Straight edges are fine.
 - The pinned hash in the tests depends on `Math.sin`/`Math.cos` results. They are stable across Node versions in practice, but if a platform differs in the last bit and the hash moves, check the images before blindly updating the constant.
+
+## Prior art and credits
+- The barycentric triangle fill, z-buffer, half-Lambert wrap lighting (a published lighting trick from Valve's Half-Life work) and ramp-based toon shading are textbook techniques. Idea only, no code from others.
+- [Tiny Renderer](https://github.com/ssloy/tinyrenderer) (ssloy) is the course this module's approach resembles; it is named for learning only, and no code from it is credited in the source file or notes.
+- three.js, three-software-renderer, Easel, tinygl.js, Zdog, glMatrix and Blender are named above for comparison. None of their code is in this module.
+- The rasterizer was extracted from Fancy Banana (LFC Foundry's own game), and the picture path draws the same bytes as that game's own triangle filler.
+- terser 5.51.2 was used only to measure minified sizes; no terser code is in the module.
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 

@@ -49,6 +49,24 @@ The module remembers which finger started the hold (its touch `identifier`). A s
 ## The swallowed click
 After a hold ends, the next click on the button is swallowed, for up to 700 ms after the finger lifts. It is dropped sooner when it cannot come: the finger lifted outside the button, the press was cancelled, a new press began, or the click was made by keyboard or script (`event.detail` of 0). If a hold ends early (for example `canPress` turns false) while the finger stays down, the swallow waits for the lift. If you remove the button without calling `detach()`, the window listeners and the repeat are cleaned up on the next window event or repeat.
 
+## How it compares
+Bigger than a one-purpose long-press script, smaller than a gesture suite, and it repeats while held, survives Android's `pointercancel`, and swallows the release click. Speed against the alternatives: not measured.
+
+| Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
+| --- | --- | --- | --- | --- |
+| **hold-press 1.1.0** (this module, MIT) | 4,707 B minified (1,754 B gzipped, esbuild) | Cost of one idle `pointermove` with 12 buttons attached, lower is faster: ungoogled Chromium 155.0.8059.39-1 0.075 µs, Firefox 158.0 0.65 µs, WebKitGTK 2.52.6 0.75 µs, GNOME Web 46.5 0.35 µs | Repeat while held, touch events as a fallback, one finger followed, swallowed release click, opt-in keyboard hold and `lockTouch` | Does the whole "hold to repeat" job. Loses: larger than the one-event scripts |
+| long-press-event (MIT, version not recorded) | About 1 KB | Not measured | Fires one "long press" event after a delay; no repeat, no swallowed click | Wins: smaller. Loses: no repeat |
+| Hammer.js `press` (the maintained fork is `@egjs/hammerjs`, MIT, version not recorded) | Not measured | Not measured | Part of a full gesture suite; `press` is one event and does not repeat | Wins if you already use the suite. Whether it handles Android's `pointercancel`: unverified |
+| Pointer capture plus `touch-action: none` (the browser's own, a few lines you write) | A few lines | Not measured | Often enough when the page owns the whole gesture | Wins: no library. Loses: the page cannot scroll from that button (`lockTouch: true` here does the same) |
+
+**Where it loses**
+- Larger than a single-event script such as long-press-event.
+- Touch is checked with fake events and Chromium touch emulation only. Not tried on a real Android phone or iPhone; touch `identifier` was not checked in Safari on iPhone.
+- Repeat timing is `setInterval`, not frame-locked; not for drag gestures.
+- Mouse, touch and pen by default; the keyboard hold is opt-in and there is no switch-device hold.
+- Every hold needs a plain-tap alternative.
+- Not measured: size and speed of the alternatives; speed on a phone.
+
 ## Limits
 - **Mouse, touch and pen by default.** A keyboard hold is opt-in (above); there is no switch-device hold. Without `keyboard: true`, a person using a keyboard or switch device gets the plain click only (holding Enter on a native button may repeat clicks by itself; that was not checked here, and Space does not repeat).
 - **Every hold needs a tap alternative.** Do not make a game action possible only by holding. Hold-only controls are a barrier for people who cannot keep a press, and accessibility guidance (WCAG 2.5.2, pointer cancellation) judges them strictly. Let a plain tap (or key press) do the same job, only slower.
@@ -56,10 +74,13 @@ After a hold ends, the next click on the button is swallowed, for up to 700 ms a
 - The checks here use fake events. Real Android and iPhone behavior has not been tried by them; `identifier` is stable in Chrome and Firefox touch events, and was not checked in Safari on iPhone.
 - The off-button rule uses the button's rectangle, so a round or rotated button counts its bounding box.
 
-## Prior art
-- long-press-event (MIT, about 1 KB): fires a single "long press" event after a delay; no repeat and no swallowed click.
-- Hammer.js "press" (the maintained fork is `@egjs/hammerjs`, MIT): part of a full gesture suite; "press" is one event and does not repeat. Whether Hammer.js handles the Android `pointercancel` case: **unverified**; I could not confirm or refute it.
-- The pointer-capture plus `touch-action: none` pattern is standard and often makes the touch fallback unnecessary when the page owns the whole gesture. hold-press is for buttons where the page also needs scrolling or text selection nearby.
+## Prior art and credits
+- long-press-event (MIT): read as prior art for a long press. Idea only, no code.
+- Hammer.js `press` and its maintained fork `@egjs/hammerjs` (MIT): read as prior art. Idea only, no code.
+- The pointer-capture plus `touch-action: none` pattern is standard web practice (MDN's pointer events advice: set `touch-action`, use pointer capture, treat cancel like up); the touch fallback here goes the other way and follows touch events directly.
+- WCAG 2.5.2 (Pointer Cancellation, W3C): the guidance behind the "every hold needs a tap alternative" rule. A guideline, no code.
+
+No code from others; the ideas above are theirs.
 
 ## For AI agents
 Attach once per button after it exists, call `detach()` when the button goes away, and always keep a plain tap (a normal `click` listener) that does the same action. Add the paste-in styles to the button. Do not rely on `info.mini`; it does not exist.
