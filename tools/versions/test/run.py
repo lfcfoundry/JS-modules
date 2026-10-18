@@ -28,8 +28,8 @@ root = tempfile.mkdtemp()
 try:
     reg = {"name": "x", "modules": [{"id": "alpha", "global": "Alpha", "summary": "A.", "short": "A.", "category": "c1", "demo": "modules/alpha/demo.html", "file": "modules/alpha/alpha.js", "readme": "modules/alpha/README.md"},
                                     {"id": "beta", "global": "Beta", "summary": "B.", "short": "B.", "category": "c1", "file": "modules/beta/beta.js", "readme": "modules/beta/README.md"}],
-           "categories": {"games": {"modules": [{"id": "c1", "title": "First group", "use": "Use one."}], "tools": [{"id": "t1", "title": "Tool group", "use": "Use two."}]}, "stories": {"packages": [], "tools": [{"id": "x", "title": "Pkg group", "use": "Use three."}]}},
-           "related": {"repository": "https://example.org/se", "packages": [{"id": "pkg", "side": "stories", "short": "P.", "category": "x", "readme": "https://example.org/se/pkg.md", "sizeNote": "documents only"}]},
+           "categories": {"pieces": {"title": "Pieces", "groups": [{"id": "c1", "title": "First group", "use": "Use one."}, {"id": "t1", "title": "Tool group", "use": "Use two."}]}, "stories": {"title": "Packages", "groups": [{"id": "x", "title": "Pkg group", "use": "Use three."}]}},
+           "related": {"repository": "https://example.org/se", "packages": [{"id": "pkg", "short": "P.", "category": "x", "readme": "https://example.org/se/pkg.md", "sizeNote": "documents only"}]},
            "tools": [{"id": "gamma", "summary": "G.", "short": "G.", "category": "t1", "file": ["tools/gamma/pack.py"], "folder": "tools/gamma", "readme": "tools/gamma/README.md"}]}
     w(root, "modules.json", json.dumps(reg, indent=2) + "\n")
     w(root, "modules/alpha/alpha.js", "/*!\n * alpha\n * Copyright (c) 2026 LFC Foundry. MIT License\n */\nvar Alpha = {};\n")
@@ -50,8 +50,8 @@ try:
     check("README line goes under the title", r(root, "modules/alpha/README.md").startswith("# alpha\n\n**Version 1.0.0 · API 1**\n"))
     rm = r(root, "README.md")
     check("the root README tables are written between markers, the rest is kept", V0.TABLES_START in rm and V0.TABLES_END in rm and "old hand-written" not in rm and "## How to use" in rm)
-    check("every table has the same six columns", rm.count("| Version | Size (KB) | Gzipped (KB) | What it does | Demo |") == 3 and "| Module | Version |" in rm and "| Tool | Version |" in rm)
-    check("a row has the version, sizes in KB with one decimal, the short text and the demo link", "| [alpha](modules/alpha/README.md) | 1.0.0 | 0.1 | 0.1 | A. | [Demo](" in rm and "| [gamma](tools/gamma/README.md) | 1.0.0 |" in rm)
+    check("every table has the same six columns", rm.count("| Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |") == 3 and "#### First group" in rm and "#### Tool group" in rm and "### Pieces (3)" in rm and "### Packages (1)" in rm)
+    check("a row has the version, sizes in KB with one decimal, the short text and the demo link", "| [alpha](modules/alpha/README.md) | 1.0.0 | 0.1 | 0.1 | A. | [Demo](" in rm and "| [gamma](tools/gamma/README.md) *(tool)* | 1.0.0 |" in rm)
     check("a piece with no script says n/a once, with its reason", "*n/a* means there is no script to measure: **pkg** (documents only)." in rm and "| [pkg](https://example.org/se/pkg.md) | \u2014 | n/a | n/a | P. |" in rm)
     rc, out = run(root, "sizes"); check("sizes is a no-op when nothing changed", rc == 0 and "already current" in out, out)
     check("llms and the front page show it", "Version 1.0.0, API 1." in r(root, "llms.txt") and '<small class="v">1.0.0 · API 1</small>' in r(root, "index.html"))
@@ -91,7 +91,7 @@ try:
     rc, out = run(root, "set", "alpha", "1.2", "--note", "x"); check("a malformed number is refused", rc != 0)
     rc, out = run(root, "list"); check("list prints the labels", rc == 0 and "alpha" in out and "2.4.1 · API 2" in out, out)
     reg2 = json.load(open(os.path.join(root, "modules.json")))
-    check("the glance index lists every piece by name, with no sizes (the tables below give them)", "- First group: [alpha](modules/alpha/README.md), [beta](modules/beta/README.md)\n" in rm and "gzipped size in KB" not in rm and "**Modules (2)**" in rm and "[gamma](tools/gamma/README.md)" in rm and rm.index("## All at a glance") < rm.index("## Pick a piece"))
+    check("the glance index lists every piece by name, with no sizes (the tables below give them)", "- First group: [alpha](modules/alpha/README.md), [beta](modules/beta/README.md)\n" in rm and "gzipped size in KB" not in rm and "**Pieces (3)**" in rm and "- Tool group: [gamma](tools/gamma/README.md)\n" in rm and "[gamma](tools/gamma/README.md)" in rm and rm.index("## All at a glance") < rm.index("## Pick a piece"))
     rm = r(root, "README.md"); rm2 = V0.set_tables(rm, reg2, root)
     check("the tables and the index are refreshed in place, not stacked", rm2 == rm and rm.count("All at a glance") == 1 and rm.count(V0.TABLES_START) == 1)
     reg2["modules"][1]["short"] = "x" * 101; open(os.path.join(root, "modules.json"), "w").write(json.dumps(reg2, indent=2))
