@@ -2,6 +2,11 @@
 
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-10-17
+Advanced entry points for apps that run the layered engine themselves. The module now also exports layered (the engine layout() calls), mapPlaceLine and mapCrossPairs, so an app can use the module's copy instead of carrying its own. Nothing else changes: with every option off the picture is exactly the 1.1.0 one (Netflow Map drew 1,344 test builds, 7 views x 12 option sets x 16 maps, with 0 differences against its own copy). 16 checks (was 15). The file grows by 76 bytes (28,792 to 28,868, smaller is better); an app that carries only the engine pieces pays about 5.7 KB (0.76%) more than its own copy, because layout() and toSvg() ride along.
+
+Tested in: Node 22 checks (16, about 0.4 s); the demo check passes in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, the same numbers as 1.1.0 in each (stops 1,456 to 205 with tags, to 1,356 with bundle; 7 columns), 1 to 7 s each including start-up; Netflow Map itself with this module swapped in (run by the Netflow Map thread): Chromium 155.0.8059.39 159 of 159 checks, Firefox 158.0 148, WebKitGTK 2.52.6 148, GNOME Web 46.5 148
+
 ## 1.1.0 · API 1 · 2026-10-17
 Bundling and tapered links. New option bundle: links that start at the same page share one run of stand-in stops, and links that end at the same page and are alone at their start share one run from the end upward. On a 5,002-page story with shortest-route rows stand-in stops go 33,087 to 30,654 (7% fewer) and crossings 1,216 to 1,065 (12% fewer); on a loop-free random map of 1,000 pages stops go 531 to 326 (39% fewer); on the demo's big map stops go 1,456 to 1,356 (7% fewer); smaller is better in all of these. With tags on there is little left to bundle. toSvg option taper draws forward links as shapes that narrow from 5 px to 1 px, so direction shows without arrowheads (about 80 KB against 45 KB of SVG for a 120-page story, so plain strokes stay the default). With every option off the picture is exactly the 1.0.0 one (the same 8 pinned fingerprints); 15 checks (was 13).
 

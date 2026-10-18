@@ -94,4 +94,11 @@ t('SVG taper: forward links are filled shapes that narrow; off keeps strokes; no
   ok(!/NaN|undefined/.test(tap), 'bad number'); ok((tap.match(/ fill="#6b7a90" opacity="0.85"/g) || []).length > 50, 'no shapes'); ok(plain.indexOf(' fill="#6b7a90" opacity') < 0, 'plain drawing changed'); ok(tap.length > plain.length, 'taper should add points');
   return Math.round(tap.length / 1024) + ' KB against ' + Math.round(plain.length / 1024) + ' KB';
 });
+t('advanced pieces: layered, mapPlaceLine and mapCrossPairs are exported and layout() is layered() plus the wrap rule', () => {
+  ok(typeof NL.layered === 'function' && typeof NL.mapPlaceLine === 'function' && typeof NL.mapCrossPairs === 'function', 'missing export');
+  const g = graph(story(200, 4)), G = { nodes: g.nodes.map((n) => Object.assign({}, n)), edges: g.edges.map((e) => Object.assign({ count: 1 }, e)) };
+  const a = NL.layered(G, { dir: 'TB', root: g.root, tagLen: 8 }), b = NL.layout(g, { dir: 'TB', tagLen: 8 });
+  ok(fp(a) === fp(b), 'layered() and layout() differ');
+  ok(NL.mapCrossPairs([[0, 1], [1, 0]]) === 1, 'one crossing expected');
+});
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);
