@@ -15,7 +15,7 @@ Netflow Map keeps getting faster and lighter, and those gains live in its engine
 ## Use
 
 ```html
-<script src="netflow-layers.js"></script>   <!-- only for the story views (Flow, Top-down, Spine, Lanes, River, Arc, Matrix); the Network view does not need it -->
+<script src="netflow-layers.js"></script>   <!-- only for the story views (Flow, Top-down, Spine, Lanes, Sankey, Arc, Matrix); the Network view does not need it -->
 <script src="netflow-engine.js"></script>
 ```
 ```js
@@ -30,12 +30,12 @@ In Node: `const E = require('./netflow-engine.js'); E.use('layers', require('../
 
 ## Views and arrangements
 
-`NetflowEngine.VIEWS` lists the nine views: `flow`, `down`, `spine`, `lanes`, `shape`, `river`, `arc`, `matrix`, `network`. The Shape view returns `segs` and `spine` (stretches between choke points) and no `nodes`. For `network`, `arrange` picks the method: `stress` (Distances, the default for big maps), `closeness`, `force`, `radial`, `circle`, `rings`, `groups`, `grid`, `force3d`, `sphere`, `stack` (`NetflowEngine.ARRANGE_NAMES` has the names; `arrangeAdvice()` says which fits a given map). Other options: `colorBy`, `sizeBy`, `widthBy`, `edgeColorBy`, `laneBy`, `agg`, `mode`, `amounts` (see the comment above `build` in the file).
+`NetflowEngine.VIEWS` lists the nine view ids in this order: `flow`, `down`, `spine`, `lanes`, `shape`, the Sankey view (sixth), `arc`, `matrix`, `network`. Read the Sankey view's id from `NetflowEngine.VIEWS[5][0]`; it is being renamed in a later release, so do not type it by hand. The Shape view returns `segs` and `spine` (stretches between choke points) and no `nodes`. For `network`, `arrange` picks the method: `stress` (Distances, the default for big maps), `closeness`, `force`, `radial`, `circle`, `rings`, `groups`, `grid`, `force3d`, `sphere`, `stack` (`NetflowEngine.ARRANGE_NAMES` has the names; `arrangeAdvice()` says which fits a given map). Other options: `colorBy`, `sizeBy`, `widthBy`, `edgeColorBy`, `laneBy`, `agg`, `mode`, `amounts` (see the comment above `build` in the file).
 
 ## Add-ons
 
 - **Layered drawing (netflow-layers 1.2.0 or newer)**: required for every story view. Found as a global `NetflowLayers`, or as `../netflow-layers/netflow-layers.js` in Node, or handed over with `NetflowEngine.use('layers', impl)`. If it is missing, the view that needs it throws a message that says so; the Network view still works.
-- **Sankey add-on**: optional (netflow-sankey 2.1.0 or newer). `NetflowEngine.use('sankey', impl)` and pass `sk` options to the River view; without it the River view keeps the plain layered picture. The River view calls three things on the add-on: `options(sk)`, `layout(layered, options)` and `apply(layered, result)`. netflow-sankey 2.0.0 has `layout` but not `options` or `apply` (Netflow Map's own copy has all three), so with 2.0.0 handed over, a River view that is given `sk` options throws "SK.options is not a function"; a River view without `sk` options works. netflow-sankey 2.1.0 added the two calls, so use 2.1.0 or newer.
+- **Sankey add-on**: optional (netflow-sankey 2.1.0 or newer). `NetflowEngine.use('sankey', impl)` and pass `sk` options to the Sankey view; without it the Sankey view keeps the plain layered picture. The Sankey view calls three things on the add-on: `options(sk)`, `layout(layered, options)` and `apply(layered, result)`. netflow-sankey 2.0.0 has `layout` but not `options` or `apply` (Netflow Map's own copy has all three), so with 2.0.0 handed over, a Sankey view that is given `sk` options throws "SK.options is not a function"; a Sankey view without `sk` options works. netflow-sankey 2.1.0 added the two calls, so use 2.1.0 or newer.
 - **Your own**: the engine's other parts (`separate`, `forceSim`, `networkLayout`, `communities`, `metrics`, `taskScore`) are exported so an add-on can call them. An add-on never reaches into the engine's private storage. This is the same shape the Netflow Map add-ons use.
 - `NetflowEngine.columns` is the column reader (numbers as people write them, dates, categories, small formulas); `status()` returns `{ placeholder: false, version, api }`.
 
