@@ -1,8 +1,8 @@
 # netflow-sankey
 
-**Version 2.0.0 · API 2**
+**Version 2.1.0 · API 2**
 
-**Tested in:** Node 22 checks (15, about 0.3 s); the same-pictures comparison against river-layout 1.0.0 and the timings of seven test charts in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time; the demo page drawn and edited in the same four (2026-10-17). Not run: a phone
+**Tested in:** Node 22 checks (20); the Netflow Map engine built as a module with this Sankey add-on made the same pictures as Netflow Map's own engine on 32 Sankey builds in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
 
 Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 34 KB (11.6 KB gzipped), no dependencies. Cut from Netflow Map. Called river-layout (global `RiverLayout`) in version 1.x.
 
@@ -28,6 +28,8 @@ svgElement.innerHTML = NetflowSankey.toSvg(R, { title: "Where the wages go" });
 - `bands`: `{ link, value, from, to, x0, y0a, y0b, x1, y1a, y1b, xm }` (one per link per layer step; a long link has several; `link` is the index in your list)
 - `loops`: backward links, drawn as bands under the picture (`link`, `value`, `d`, `w`, `pts`)
 - `ignored`: how many of your links were dropped (to itself, or not above 0)
+
+**For Netflow Map's engine (2.1.0):** `NetflowSankey.options(sk)` cleans up a person's settings (`nodeW`, `gap`, `pad`, `height`, `fixY`, `justify`, `order`; anything missing or out of range gets its default or the nearest limit) into the `opts` that `layout()` reads, and `NetflowSankey.apply(L, r)` writes a `layout(L, opts)` result `r` into the engine's drawing `L`: bar positions (`x, y, w, h, cx, cy, layer`, plus `skIn`, `skOut`, `skPinned`), the picture's `width` and `height`, `dir = 'LR'`, and `L.sk = { bands, loops, ky, order, cols, crossingWeight, ms }`. With netflow-engine: `NetflowEngine.use('sankey', NetflowSankey)`.
 
 `opts`: `height` (aim for this picture height), `nodeW`, `gapLayer` (space between columns), `pad` (space between bars), `restarts` and `budgetMs` (how hard to search for a good order), `seed`, `unweighted`, `justifySinks`. `toSvg` takes `colors`, `labels`, `fontSize`, `textColor`, `bandOpacity` and `title`; all text is escaped. `fromLinks`, `layout`, `layering`, `crossWeight`, `roundPath` and `toBezier` are exported for people who want the pieces.
 

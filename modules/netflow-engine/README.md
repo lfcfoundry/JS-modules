@@ -35,7 +35,7 @@ In Node: `const E = require('./netflow-engine.js'); E.use('layers', require('../
 ## Add-ons
 
 - **Layered drawing (netflow-layers 1.2.0 or newer)**: required for every story view. Found as a global `NetflowLayers`, or as `../netflow-layers/netflow-layers.js` in Node, or handed over with `NetflowEngine.use('layers', impl)`. If it is missing, the view that needs it throws a message that says so; the Network view still works.
-- **Sankey add-on**: optional. `NetflowEngine.use('sankey', impl)` and pass `sk` options to the River view; without it the River view keeps the plain layered picture. The River view calls three things on the add-on: `options(sk)`, `layout(layered, options)` and `apply(layered, result)`. **The published netflow-sankey 2.0.0 has `layout` but not `options` or `apply`** (Netflow Map's own copy has all three), so with it handed over, a River view that is given `sk` options throws "SK.options is not a function"; a River view without `sk` options works. Until netflow-sankey gains the two calls, leave `sk` out or hand over an add-on that has all three.
+- **Sankey add-on**: optional (netflow-sankey 2.1.0 or newer). `NetflowEngine.use('sankey', impl)` and pass `sk` options to the River view; without it the River view keeps the plain layered picture. The River view calls three things on the add-on: `options(sk)`, `layout(layered, options)` and `apply(layered, result)`. netflow-sankey 2.0.0 has `layout` but not `options` or `apply` (Netflow Map's own copy has all three), so with 2.0.0 handed over, a River view that is given `sk` options throws "SK.options is not a function"; a River view without `sk` options works. netflow-sankey 2.1.0 added the two calls, so use 2.1.0 or newer.
 - **Your own**: the engine's other parts (`separate`, `forceSim`, `networkLayout`, `communities`, `metrics`, `taskScore`) are exported so an add-on can call them. An add-on never reaches into the engine's private storage. This is the same shape the Netflow Map add-ons use.
 - `NetflowEngine.columns` is the column reader (numbers as people write them, dates, categories, small formulas); `status()` returns `{ placeholder: false, version, api }`.
 
@@ -66,7 +66,7 @@ The 10,000-item map is quicker than the 3,000-item one because the first big lay
 
 ## Limits
 
-- Story views need netflow-layers. The Sankey look needs an add-on with `options`, `layout` and `apply` (see above; netflow-sankey 2.0.0 does not have all three yet).
+- Story views need netflow-layers. The Sankey look needs an add-on with `options`, `layout` and `apply` (see above; netflow-sankey 2.1.0 or newer has all three).
 - It does not draw anything. Drawing (WebGL 2, plain canvas) lives in Netflow Map itself and is not part of this module.
 - Item and link records follow Netflow Map's data shape (`nodes` with `id`, `label`, `group`, `valence`, `ghost`, `attrs`; `edges` with `from`, `to`, `label`, `kind`, `attrs`, optional `weight`). Importers for CSV, JSON and other formats are in Netflow Map, not here.
 - The first layout in a fresh worker is slower than later ones (WebAssembly warm-up). Netflow Map warms its worker when idle; a page using this module can do the same by building a small map once.
