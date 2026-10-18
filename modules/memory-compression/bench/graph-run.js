@@ -4,7 +4,7 @@
 // Usage: node --expose-gc bench/graph-run.js [items=100000] [runs=3]   Prints a markdown table; every result is checked for values and for shared identity.
 var path = require('path'), v8 = require('v8'), D = require(path.join(__dirname, '../test/data.js'));
 var DEPS = process.env.JSO_DEPS || '/tmp/jso-deps/node_modules/', N = +process.argv[2] || 100000, RUNS = +process.argv[3] || 3;
-var NEW = require(path.join(__dirname, '../memory-compression-jso.js')), OLD = process.env.JSO_OLD ? require(process.env.JSO_OLD) : null;
+var NEW = require(path.join(__dirname, '../memory-compression.js')), OLD = process.env.JSO_OLD ? require(process.env.JSO_OLD) : null;
 var msgpackr = require(DEPS + 'msgpackr'), cborx = require(DEPS + 'cbor-x');
 function make(n) {
   var r = D.rng(31), nodes = [], links = [], i, g;

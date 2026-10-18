@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License.
- * jso-kernels.c: small WebAssembly helpers for memory-compression-jso (built by build.sh into jso-kernels.wasm, embedded by embed.py).
+ * jso-kernels.c: small WebAssembly helpers for memory-compression (built by build.sh into jso-kernels.wasm, embedded by embed.py).
  * Every function does exactly what the JavaScript fallback in src/jso-layer.js does, with the same results.
  * No library, no heap of its own: JavaScript puts the inputs into the module's memory and passes the addresses. */
 typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u64; typedef short i16; typedef signed char i8; typedef int i32;

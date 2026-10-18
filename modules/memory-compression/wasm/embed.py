@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-"""Puts wasm/memory-compression.wasm into memory-compression.js between the WASM:BEGIN and WASM:END markers (base64 text).
-Run after build.sh:  python3 modules/memory-compression/wasm/embed.py"""
+"""Puts wasm/memory-compression.wasm into src/core.js between the WASM:BEGIN and WASM:END markers (base64 text).
+Run after build.sh:  python3 modules/memory-compression/wasm/embed.py, then python3 modules/memory-compression/build.py"""
 import base64, os, re, sys
 here = os.path.dirname(os.path.abspath(__file__))
-js_path = os.path.join(here, '..', 'memory-compression.js')
+js_path = os.path.join(here, '..', 'src', 'core.js')
 b64 = base64.b64encode(open(os.path.join(here, 'memory-compression.wasm'), 'rb').read()).decode()
 src = open(js_path).read()
 new, n = re.subn(r"(/\*WASM:BEGIN\*/)'[^']*'(/\*WASM:END\*/)", lambda m: m.group(1) + "'" + b64 + "'" + m.group(2), src)
