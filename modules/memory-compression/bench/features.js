@@ -3,7 +3,7 @@
 // Which JavaScript values does each library bring back exactly? Every probe is packed as {v: value} and compared with the exact check used in the benchmark.
 // Usage: node bench/features.js            (needs the libraries in /tmp/jso-deps/node_modules, same as node-run.js)
 var D = require('../test/data.js');
-var DEP = process.env.JSO_DEPS || '/tmp/jso-deps/node_modules/', L = { JSO: require('../memory-compression-jso.js') };
+var DEP = process.env.JSO_DEPS || '/tmp/jso-deps/node_modules/', L = { JSO: require('../memory-compression.js') };
 function tryReq(k, m) { try { L[k] = require(DEP + m); } catch (e) { } }
 tryReq('fflate', 'fflate'); tryReq('lz4js', 'lz4js'); tryReq('msgpackr', 'msgpackr'); tryReq('cbor', 'cbor-x'); tryReq('msgpack', '@msgpack/msgpack'); tryReq('notepack', 'notepack.io'); tryReq('bson', 'bson'); L.v8 = require('v8');
 var C = require('./contenders.js')(L).filter(function (c) { return /^(jso-fast|JSON$|msgpackr$|msgpackr-records|cbor-x$|cbor-x-records|@msgpack\/msgpack|notepack\.io|v8\.serialize|bson)$/.test(c.id); });

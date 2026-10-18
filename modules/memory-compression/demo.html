@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
     ===================================================================================
-    🛠️ APPLICATION : memory-compression demo
+    🛠️ APPLICATION : memory-compression demo: objects
     🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
     📜 LICENSE : MIT License
     ===================================================================================
@@ -23,42 +23,60 @@
     product name and branding.
     ===================================================================================
     --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>memory-compression demo</title>
-<style>body{font:16px system-ui,sans-serif;max-width:42rem;margin:1rem auto;padding:0 1rem}button{font:inherit;padding:.5rem .9rem;margin:.2rem .2rem .2rem 0}table{border-collapse:collapse;width:100%;margin:.6rem 0}td,th{border-bottom:1px solid #8884;padding:.3rem .4rem;text-align:left}td.n,th.n{text-align:right}.ok{color:#0a7a2f}.bad{color:#b00020}small{opacity:.75}</style>
-<h1>memory-compression demo</h1>
-<p>Makes a pretend scene (coordinates, colors and names), squeezes it three ways, restores it, and checks every byte came back. Nothing leaves this page.</p>
-<p>Scene size: <button data-mb="8">8 MB</button><button data-mb="32">32 MB</button><button data-mb="120">120 MB</button></p>
+<title>memory-compression demo: objects</title>
+<style>body{font:16px system-ui,sans-serif;max-width:46rem;margin:1rem auto;padding:0 1rem}button{font:inherit;padding:.5rem .9rem;margin:.2rem .2rem .2rem 0}table{border-collapse:collapse;width:100%;margin:.6rem 0}td,th{border-bottom:1px solid #8884;padding:.35rem .4rem;text-align:left}.n{text-align:right;font-variant-numeric:tabular-nums}@media (prefers-color-scheme:dark){body{background:#181a1f;color:#e6e6e6}}</style>
+<h1>memory-compression demo: objects</h1>
+<p>Makes a pretend network (every link is a plain JavaScript object with ids, a weight, four coordinates, a color, a kind and a flag), keeps it as JSON text and as packed bytes, brings it back, and checks that every value came back exactly. Nothing leaves this page.</p>
+<p>Links: <button data-n="30000">30,000</button><button data-n="100000">100,000</button><button data-n="300000">300,000</button></p>
 <p id="state">Starting...</p>
-<table id="t" hidden><thead><tr><th>Way</th><th class="n">Packed size</th><th class="n">Pack</th><th class="n">Restore</th><th>Same bytes?</th></tr></thead><tbody></tbody></table>
+<table id="t" hidden><thead><tr><th>Way</th><th class="n">Size</th><th class="n">Pack</th><th class="n">Restore</th><th>Exactly the same?</th></tr></thead><tbody></tbody></table>
 <p id="one"></p>
-<p><small>Restore time is the time to get the whole scene back into memory. The first row is the one to use for live memory, the second is for smaller save files.</small></p>
+<p><small>The first row is the plain way (JSON text). The second is for live memory, the third for save files. Restore time is the time to get every object back.</small></p>
 <script src="memory-compression.js"></script>
 <script>
-  // A pretend scene: 28-byte records (x, y, size as floats; color, flags and an id as whole numbers) plus a text block.
-  function makeScene(mb) {
-    var n = Math.floor(mb * 1048576 / 28), buf = new ArrayBuffer(n * 28), dv = new DataView(buf), s = 12345, x = 0, y = 0;
-    function rnd() { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }
-    for (var i = 0; i < n; i++) { x += (rnd() - 0.5) * 4; y += (rnd() - 0.5) * 4; var o = i * 28;
-      dv.setFloat32(o, x, true); dv.setFloat32(o + 4, y, true); dv.setFloat32(o + 8, 1 + ((rnd() * 8) | 0) * 0.25, true);
-      dv.setUint32(o + 12, [0xff3366ff, 0xff66ccff, 0xffffcc33][(rnd() * 3) | 0], true); dv.setUint32(o + 16, (rnd() * 4) | 0, true); dv.setUint32(o + 20, i, true); dv.setUint32(o + 24, 0, true); }
-    return new Uint8Array(buf);
+  function makeLinks(n) {
+    var s = 11, out = [], i, kinds = ['flow', 'ref', 'dep', 'alias'], pal = [0xff3366cc, 0xffdc3912, 0xffff9900, 0xff109618, 0xff990099, 0xff0099c6];
+    function r() { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }
+    function g() { return r() + r() + r() + r() - 2; }
+    for (i = 0; i < n; i++) {
+      var f = Math.floor(i / 3), t = Math.max(0, Math.min(n / 3 - 1, r() < 0.8 ? f + Math.floor(g() * 150) : Math.floor(r() * (n / 3))));
+      out.push({ id: i, from: f, to: t, weight: Math.floor(r() * 8 + 1) * 0.25, x1: g() * 400, y1: g() * 400, x2: g() * 400, y2: g() * 400, color: pal[(f / 200 | 0) % 6], kind: kinds[Math.floor(r() * 4)], hot: r() < 0.05 });
+    }
+    return out;
   }
-  function same(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
-  function best(fn, k) { var b = 1e9; for (var i = 0; i < k; i++) { var t = performance.now(); fn(); t = performance.now() - t; if (t < b) b = t; } return b; }
-  function row(name, size, total, p, u, ok) { var tr = document.createElement('tr'); tr.innerHTML = '<td>' + name + '</td><td class="n">' + (size / 1048576).toFixed(1) + ' MB (' + (100 * size / total).toFixed(0) + '%)</td><td class="n">' + p.toFixed(0) + ' ms</td><td class="n">' + u.toFixed(0) + ' ms</td><td class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? 'yes, every byte' : 'NO') + '</td>'; t.tBodies[0].appendChild(tr); }
-  function run(mb) {
-    state.textContent = 'Making a ' + mb + ' MB scene...'; t.hidden = true; t.tBodies[0].innerHTML = '';
+  function same(a, b) {
+    var i, k;
+    if (a === b) return a !== 0 || 1 / a === 1 / b;
+    if (typeof a === 'number' && typeof b === 'number') return a !== a && b !== b;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+    if (Array.isArray(a)) { if (!Array.isArray(b) || a.length !== b.length) return false; for (i = 0; i < a.length; i++) if (!same(a[i], b[i])) return false; return true; }
+    k = Object.keys(a); if (k.length !== Object.keys(b).length) return false;
+    for (i = 0; i < k.length; i++) { if (k[i] !== Object.keys(b)[i] || !same(a[k[i]], b[k[i]])) return false; }
+    return true;
+  }
+  function best(fn, k) { var b = 1e9, v, i, t; for (i = 0; i < k; i++) { t = performance.now(); v = fn(); t = performance.now() - t; if (t < b) b = t; } return b; }
+  function row(name, size, ref, p, u, ok) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + name + '</td><td class="n">' + (size / 1048576).toFixed(2) + ' MB (' + (100 * size / ref).toFixed(1) + '%)</td><td class="n">' + p.toFixed(0) + ' ms</td><td class="n">' + u.toFixed(0) + ' ms</td><td>' + (ok ? 'yes, every value' : 'NO') + '</td>';
+    t.tBodies[0].appendChild(tr);
+  }
+  function run(n) {
+    state.textContent = 'Making ' + n.toLocaleString() + ' links...'; t.hidden = true; t.tBodies[0].innerHTML = '';
     setTimeout(function () {
-      var d = makeScene(mb), total = d.length, w = MemoryCompression.accelerated() ? ' (fast path on)' : ' (plain JavaScript path)';
-      [['memory-compression, fast mode', { width: 28 }], ['memory-compression, small mode', { width: 28, mode: 'small' }]].forEach(function (c) {
-        var packed = MemoryCompression.pack(d, c[1]), back = MemoryCompression.unpack(packed, { as: 'bytes' });
-        row(c[0], packed.length, total, best(function () { MemoryCompression.pack(d, c[1]); }, 1), best(function () { MemoryCompression.unpack(packed, { as: 'bytes' }); }, 3), same(back, d));
+      var data = makeLinks(n), text = JSON.stringify(data), ref = text.length;
+      row('JSON text (JSON.stringify / JSON.parse)', ref, ref, best(function () { return JSON.stringify(data); }, 2), best(function () { return JSON.parse(text); }, 2), same(data, JSON.parse(text)));
+      ['fast', 'small'].forEach(function (mode) {
+        var packed = MemoryCompressionJSO.pack(data, { mode: mode }), back = MemoryCompressionJSO.unpack(packed);
+        row('memory-compression (objects), ' + mode + ' mode', packed.length, ref, best(function () { return MemoryCompressionJSO.pack(data, { mode: mode }); }, mode === 'fast' ? 2 : 1), best(function () { return MemoryCompressionJSO.unpack(packed); }, 2), same(data, back));
       });
-      var pk = MemoryCompression.pack(d, { width: 28 }), vw = MemoryCompression.view(pk), mid = vw.chunks >> 1, tc = best(function () { vw.read(mid); }, 5);
-      one.textContent = 'Kept packed, you can also restore just one piece: chunk ' + (mid + 1) + ' of ' + vw.chunks + ' (' + (vw.chunkLength(mid) / 1048576).toFixed(1) + ' MB) comes back in ' + tc.toFixed(1) + ' ms.';
-      t.hidden = false; state.textContent = (total / 1048576).toFixed(0) + ' MB scene' + w + '. Run it again for steadier numbers.';
+      var pk = MemoryCompressionJSO.pack(data), tOpen = performance.now(), v = MemoryCompressionJSO.view(pk), k, got = 0, tt;
+      tOpen = performance.now() - tOpen; tt = performance.now();
+      for (k = 0; k < 1000; k++) got += v.get((k * 7919) % n).id >= 0 ? 1 : 0;
+      tt = performance.now() - tt;
+      one.textContent = 'Kept packed, view() opens in ' + tOpen.toFixed(2) + ' ms (no objects made; a column is restored the first time it is read), then reads single links without making the other objects: 1,000 links read in ' + tt.toFixed(1) + ' ms, and the whole x1 column comes out as a typed array of ' + v.column('x1').length.toLocaleString() + ' numbers.';
+      t.hidden = false; state.textContent = n.toLocaleString() + ' links' + (MemoryCompressionJSO.accelerated() ? ' (WebAssembly helper on)' : ' (plain JavaScript path)') + '. Run it again for steadier numbers.';
     }, 30);
   }
-  Array.prototype.forEach.call(document.querySelectorAll('button[data-mb]'), function (b) { b.onclick = function () { run(+b.getAttribute('data-mb')); }; });
-  MemoryCompression.ready().then(function () { run(8); });
+  Array.prototype.forEach.call(document.querySelectorAll('button[data-n]'), function (b) { b.onclick = function () { run(+b.getAttribute('data-n')); }; });
+  MemoryCompressionJSO.ready().then(function () { run(30000); });
 </script>
