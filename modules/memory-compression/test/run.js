@@ -465,6 +465,47 @@ t('fuzz: random values of every supported kind round-trip exactly', function () 
   assert.strictEqual(seeds, count);
 });
 
+t('2.0.2: memory() counts text only where a text column has rows with the key missing (it used to throw)', function () {
+  var rows = many(3000, function (i) { return { id: i, w: i % 7, kind: i % 2 ? undefined : 'a' + (i % 5) }; }), K = J.keeper(opt());
+  K.hold('x', rows); same(rows[0], K.view('x').get(0)); var got = K.get('x'); assert.strictEqual(got.length, 3000); same(rows, got);
+  var m = K.view('x').memory(); assert(m.restored > 0, 'restored ' + m.restored); assert(K.memory().total > 0);
+  var v = J.view(J.pack(rows, opt()), opt()); v.column('kind'); assert(v.memory().restored >= 3000 * 8, 'a missing key counts as a slot, no text');
+});
+t('2.0.2: view() of fewer than 16 objects works with the same calls; non-objects are still refused', function () {
+  var rows = [{ a: 1, b: 'x' }, { a: 2 }, { a: 3, b: 'z', c: [1, 2] }], v = J.view(J.pack(rows, opt()), opt());
+  assert.strictEqual(v.length, 3); assert.deepStrictEqual(v.keys, ['a', 'b', 'c']); assert.strictEqual(v.lazy, false);
+  same(rows[2], v.get(2)); assert.strictEqual(v.get(3), undefined); assert.strictEqual(v.get(-1), undefined); assert.strictEqual(v.field(0, 'b'), 'x'); assert.strictEqual(v.field(1, 'b'), undefined);
+  assert.strictEqual(v.field(0, 'constructor'), undefined); assert.strictEqual(v.field(0, '__proto__'), undefined); assert.strictEqual(v.column('nope'), undefined);
+  assert.deepStrictEqual(v.column('a'), [1, 2, 3]); same(rows.slice(1, 3), v.slice(1, 3)); assert.strictEqual(v.slice(2, 1).length, 0); same(rows, v.toArray());
+  assert.deepStrictEqual(v.loaded(), ['a', 'b', 'c']); v.release(); same(rows, v.toArray()); assert(v.memory().restored > 0 && v.memory().packed > 0);
+  assert.strictEqual(J.view(J.pack([], opt()), opt()).length, 0);
+  throwsJ(function () { J.view(J.pack([1, 2, 3], opt()), opt()); }, 'numbers'); throwsJ(function () { J.view(J.pack([{ a: 1 }, [2]], opt()), opt()); }, 'an array in the list');
+  throwsJ(function () { J.view(J.pack({ a: 1 }, opt()), opt()); }, 'one object'); throwsJ(function () { J.view(J.pack([{ a: 1 }, null], opt()), opt()); }, 'null in the list');
+  var K = J.keeper(opt()); K.hold('s', rows); same(rows[1], K.view('s').get(1)); same(rows.map(function (r) { return r.a; }), K.column('s', 'a')); K.release('s'); same(rows, K.get('s'));
+  });
+t('2.0.2: the eval probe is skipped (no blocked-eval error) with the global switch or a <meta> policy without unsafe-eval; otherwise it runs', function () {
+  var modFile = require.resolve(path.resolve(modPath)), realF = global.Function, probes = 0, saved = { doc: global.document, flag: global.MEMORY_COMPRESSION_NO_EVAL };
+  function load(doc, flag) {
+    var m; delete require.cache[modFile]; global.document = doc; global.MEMORY_COMPRESSION_NO_EVAL = flag; probes = 0;
+    global.Function = function () { if (arguments.length === 1 && arguments[0] === 'return 1') probes++; return realF.apply(this, arguments); }; global.Function.prototype = realF.prototype;
+    try { m = require(modFile); } finally { global.Function = realF; if (saved.doc === undefined) delete global.document; else global.document = saved.doc; if (saved.flag === undefined) delete global.MEMORY_COMPRESSION_NO_EVAL; else global.MEMORY_COMPRESSION_NO_EVAL = saved.flag; }
+    return m.jso;
+  }
+  function meta(content, equiv) { return { querySelectorAll: function () { return [{ getAttribute: function (k) { return k === 'http-equiv' ? (equiv || 'Content-Security-Policy') : content; } }]; } }; }
+  var rows = D.sets['nfm-links'](400);
+  try {
+    var a = load(undefined, undefined); assert.strictEqual(probes, 1, 'no switch, no policy: the probe runs');
+    var b = load(undefined, true); assert.strictEqual(probes, 0, 'global switch'); same(rows, b.unpack(b.pack(rows, opt()), opt()), 'plain loops give the same rows');
+    assert.deepStrictEqual(Array.from(a.pack(rows, opt())), Array.from(b.pack(rows, opt())), 'same bytes with and without generated loops');
+    load(meta("default-src 'none'; script-src 'self' 'wasm-unsafe-eval'"), undefined); assert.strictEqual(probes, 0, 'script-src without unsafe-eval');
+    load(meta("default-src 'self' 'wasm-unsafe-eval'"), undefined); assert.strictEqual(probes, 0, 'default-src without unsafe-eval');
+    load(meta("script-src 'self' 'unsafe-eval'"), undefined); assert.strictEqual(probes, 1, 'unsafe-eval allowed: the probe runs');
+    load(meta("img-src *"), undefined); assert.strictEqual(probes, 1, 'a policy that says nothing about scripts: the probe runs');
+    load(meta("script-src 'self'", 'refresh'), undefined); assert.strictEqual(probes, 1, 'another http-equiv is not a policy');
+    load({ querySelectorAll: function () { throw new Error('no access'); } }, undefined); assert.strictEqual(probes, 1, 'a page that cannot be read: the probe runs');
+  } finally { delete require.cache[modFile]; require(modFile); }
+});
+
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);

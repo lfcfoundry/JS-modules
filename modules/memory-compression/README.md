@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.0.1 · API 2**
+**Version 2.0.2 · API 2**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
+**Tested in:** not recorded.
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (270.0 KB readable, 83.5 KB gzipped). Two small WebAssembly helpers are inside the file and optional: the plain JavaScript does the same work and writes the same bytes, only slower. Until 2.0.0 this was two modules, `memory-compression` (bytes and typed arrays) and `memory-compression-jso` (objects). They are now this one file, and the separate `-jso` module is retired.
 
@@ -234,7 +234,7 @@ var packed = MemoryCompressionJSO.pack(links);            // a Uint8Array: about
 links = null;                                             // free the objects
 var back = MemoryCompressionJSO.unpack(packed);           // equal objects again: same values, same key order, same -0 and NaN
 ```
-Keep it packed and read single items without making the others (for a packed array of 16 or more objects that all have the same keys):
+Keep it packed and read single items without making the others (for a packed array of objects that all have the same keys; with fewer than 16 objects the list is simply restored whole, the calls are the same):
 ```js
 var v = MemoryCompressionJSO.view(packed);                // decodes the columns once, makes no objects
 v.length;  v.keys;                                        // 300000, ['id', 'from', ...]
@@ -721,7 +721,7 @@ Measured against msgpackr 2.1.0 (with and without records, and with bundled stri
 
 Also `keeper(opts)`, `profile(value, opts, repeats)`, `estimateBytes(value)` and `heap()`: see Keeping data packed under memory pressure above.
 
-`view(bytes, opts)` for a packed array of 16 or more objects that all have the same keys returns `{ length, keys, lazy, get(i), field(i, key), column(key), slice(from, to), toArray(), loaded(), release(), memory() }`. A file made by 1.1.0 opens without restoring anything (`lazy` is true) and restores a column on first read; a file made by 1.0.0 is restored at open, as before.
+`view(bytes, opts)` for a packed array of 16 or more objects that all have the same keys returns `{ length, keys, lazy, get(i), field(i, key), column(key), slice(from, to), toArray(), loaded(), release(), memory() }`. A file made by 1.1.0 opens without restoring anything (`lazy` is true) and restores a column on first read; a file made by 1.0.0 is restored at open, as before. An array of fewer than 16 objects (stored in the general form) also opens (2.0.2): the same calls, `lazy` is false, the list is restored whole because it is small, and `release()` does nothing. Anything that is not an array of plain objects is refused.
 
 Also: `freeBuffers()` (gives back the arrays kept between packs), `ready()` (a promise), `accelerated()` (is the WebAssembly helper in use), and `core` (the memory-compression module inside, for typed arrays and bytes). Errors are `Error` objects whose message starts with `MemoryCompressionJSO:` and say what is wrong in plain words.
 
@@ -729,7 +729,7 @@ Also: `freeBuffers()` (gives back the arrays kept between packs), `ready()` (a p
 - **Exact.** `pack` then `unpack` gives a value that is equal in every way the tests check (see the table of values above); the same bytes come out with and without WebAssembly (checked).
 - **Same keys, same order.** Own enumerable string keys are kept in their original order. Symbol keys and non-enumerable properties are not stored.
 - **Hostile input is safe to read.** Every count and size is checked against what is possible, damaged or cut-off data throws, and a flipped byte either throws or (without `check: true`) changes a value. The test file cuts data at every length and flips every byte.
-- **`new Function` is used for speed.** Where a page policy blocks it (tested in Node with `--disallow-code-generation-from-strings`), plain loops do the same work and the bytes are identical, but packing is 1.1 to 1.3 times slower and unpacking 1.2 to 3.3 times slower.
+- **`new Function` is used for speed.** The module does not even try it (so the page logs no blocked-eval error) when the page sets `MEMORY_COMPRESSION_NO_EVAL = true` before the file loads, or has a `<meta>` Content-Security-Policy whose `script-src` (else `default-src`) lacks `'unsafe-eval'`; a policy sent as an HTTP header cannot be read from a page, so use the switch there (2.0.2; before it, a page allowing only `'wasm-unsafe-eval'` logged one blocked-eval error per load in all four browsers). Where a page policy blocks it (tested in Node with `--disallow-code-generation-from-strings`), plain loops do the same work and the bytes are identical, but packing is 1.1 to 1.3 times slower and unpacking 1.2 to 3.3 times slower.
 - **Very large inputs.** `maxItems` stops an unpack that would make more than 100 million values (change it if the data is yours).
 - **Format 5 (1.4.0).** A file with a chooser-coded number column or text-dictionary codes says format 5; 1.3.x refuses it with "made by a newer version". Files made in `fast` mode with default settings keep saying 2, 3 or 4 and still open in older versions. 1.4.0 reads formats 1 to 5. A file that used the optional extra coder of 1.2.0 or 1.3.0 is refused with a plain message; read it with 1.3.0.
 - **Format 4 (1.3.0).** A file that holds a front-coded text column says format 4 and 1.2.x refuses it with "made by a newer version"; use `front: false` to keep files readable by 1.2.x. 1.3.0 reads formats 1 to 4.

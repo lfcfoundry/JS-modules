@@ -17,7 +17,27 @@
   var OP = Object.prototype, TEXT_ENC = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null, TEXT_DEC = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { ignoreBOM: true }) : null;
   var RE_LONE = /(?:[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF])/;
   var P10 = [1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000, 10000000000];
-  var CAN_EVAL = (function () { try { return new Function('return 1')() === 1; } catch (e) { return false; } })();
+  // Generated loops need new Function. It is not even tried (so a page that forbids it logs no blocked-eval error) when the page sets MEMORY_COMPRESSION_NO_EVAL = true
+  // before this file loads, or has a <meta> Content-Security-Policy whose script-src (else default-src) lacks 'unsafe-eval'. A CSP sent as a header cannot be read from a page: use the switch there.
+  function evalForbidden() {
+    var g = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : undefined, m, i, c, parts, j, d, s;
+    if (g && g.MEMORY_COMPRESSION_NO_EVAL === true) return true;
+    try {
+      m = g && g.document && g.document.querySelectorAll ? g.document.querySelectorAll('meta[http-equiv]') : [];
+      for (i = 0; i < m.length; i++) {
+        if (String(m[i].getAttribute('http-equiv')).toLowerCase() !== 'content-security-policy') continue;
+        parts = String(m[i].getAttribute('content') || '').split(';'); d = null; s = null;
+        for (j = 0; j < parts.length; j++) {
+          c = parts[j].trim().toLowerCase();
+          if (/^script-src(\s|$)/.test(c) && s === null) s = c; else if (/^default-src(\s|$)/.test(c) && d === null) d = c;
+        }
+        c = s !== null ? s : d;
+        if (c !== null && c.indexOf("'unsafe-eval'") < 0) return true;
+      }
+    } catch (e) { /* no page, or no access: go on to the real test */ }
+    return false;
+  }
+  var CAN_EVAL = (function () { if (evalForbidden()) return false; try { return new Function('return 1')() === 1; } catch (e) { return false; } })();
   var GEN_CACHE = {}, GEN_COUNT = 0, GEN_LIMIT = 500;                 // generated helpers, kept per layout; forgotten all at once past 500 so odd inputs cannot grow it forever
   // Number columns taken from a small pool of Float64Arrays that pack() hands back when it is done, so a second pack of similar data allocates (and has zeroed) no new column memory.
   // The pool keeps at most POOL_MAX bytes between calls; freeBuffers() empties it, pack(x, {pool: false}) leaves it alone.
@@ -1893,9 +1913,34 @@
 
   // view(): for a packed array of objects that stays packed. Nothing is restored when it opens; a column is restored the first time it is read
   // (format 2) and objects are made one at a time. release() lets go of the restored columns again.
+  // shortView(): the same calls as view() for a packed array of objects with fewer than 16 rows, which is stored in the general form and cannot open column by column.
+  // It is restored whole (it is small) and release() does nothing. Anything that is not an array of plain objects is refused as before.
+  function shortView(bytes, opts) {
+    var v = unpack(bytes, opts), keys = [], seen = Object.create(null), i, k, o, ok = Array.isArray(v), n = ok ? v.length : 0;
+    for (i = 0; ok && i < n; i++) {
+      o = v[i]; if (o === null || typeof o !== 'object' || Array.isArray(o) || Object.getPrototypeOf(o) !== Object.prototype && Object.getPrototypeOf(o) !== null) ok = false;
+      else for (k in o) if (Object.prototype.hasOwnProperty.call(o, k) && !seen[k]) { seen[k] = 1; keys.push(k); }
+    }
+    if (!ok) jfail('view() needs a packed array of objects');
+    var col = function (key) { var out = new Array(n), q; for (q = 0; q < n; q++) out[q] = v[q][key]; return out; };
+    return {
+      length: n, keys: keys.slice(), lazy: false,
+      get: function (i) { if (i < 0 || i >= n || i !== Math.floor(i)) return undefined; return v[i]; },
+      field: function (i, key) { if (!seen[key] || i < 0 || i >= n || i !== Math.floor(i)) return undefined; return v[i][key]; },
+      column: function (key) { return seen[key] ? col(key) : undefined; },
+      slice: function (from, to) {
+        from = from === undefined ? 0 : Math.max(0, Math.floor(from)); to = to === undefined ? n : Math.min(n, Math.floor(to));
+        return from <= to ? v.slice(from, to) : [];
+      },
+      toArray: function () { return v.slice(); },
+      loaded: function () { return keys.slice(); },
+      release: function () { },
+      memory: function () { return { packed: bytes.length, restored: estimateBytes(v) }; }
+    };
+  }
   function view(bytes, opts) {
     var d = open(bytes, opts), c = d.c, tag = c.u8(), n, ct, ns, nk, keys = [], cols = [], i, j, lazy, dirC = [], dirB = [], offC = [], offB = [], ctlBuf = c.b, blobBuf = d.bl.b, blobEnd = d.bl.end;
-    if (tag !== T_COLS) jfail('view() needs a packed array of 16 or more objects');
+    if (tag !== T_COLS) return shortView(bytes, opts);                // under 16 rows (or not objects): restored whole, then shown with the same calls
     n = c.varint(); d.spend(n);
     ct = c.u8();
     if (ct !== CT_RECORDS) jfail('view() needs a packed array of objects');
@@ -1938,7 +1983,7 @@
       if (x.mode === 3) return 0;
       if (x.mode === 4) return a.codes.byteLength + a.coff.byteLength;
       if (a.byteLength !== undefined) return a.byteLength;
-      t = a.length * 8; if (typeof a[0] === 'string') for (i = 0; i < a.length; i++) t += a[i].length;
+      t = a.length * 8; for (i = 0; i < a.length; i++) if (typeof a[i] === 'string') t += a[i].length;   // rows where the key is missing are undefined: count only the text
       return t;
     }
     return {
