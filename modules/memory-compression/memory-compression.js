@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.0.0 (API 2)
+ * Version 2.0.1 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -2951,8 +2951,13 @@
     if (m === 4) return fsAll(a, n);
     if (m === 0 && Array.isArray(a)) return a;
     out = new Array(n);
-    if (m === 0) for (i = 0; i < n; i++) out[i] = a[i];
-    else if (m === 1) for (i = 0; i < n; i++) out[i] = a[i] === 1;
+    if (m === 0) {                                                   // one loop per kind of array, so each loop sees one type
+      if (a instanceof Float64Array) for (i = 0; i < n; i++) out[i] = a[i];
+      else if (a instanceof Int32Array) for (i = 0; i < n; i++) out[i] = a[i];
+      else if (a instanceof Uint8Array) for (i = 0; i < n; i++) out[i] = a[i];
+      else if (a instanceof Uint16Array) for (i = 0; i < n; i++) out[i] = a[i];
+      else for (i = 0; i < n; i++) out[i] = a[i];
+    } else if (m === 1) for (i = 0; i < n; i++) out[i] = a[i] === 1;
     else if (m === 2) for (i = 0; i < n; i++) out[i] = d[a[i]];
     else for (i = 0; i < n; i++) out[i] = d;
     return out;
@@ -2972,7 +2977,9 @@
       case CT_DEC:
         e = c.u8(); if (e > 10) jfail('bad scale'); p = P10[e];
         col = this.intCol(n); a = col.a; t = new Float64Array(n);
-        if (col.mode === 3) { for (i = 0; i < n; i++) t[i] = col.d / p; } else for (i = 0; i < n; i++) t[i] = a[i] / p;
+        if (col.mode === 3) { for (i = 0; i < n; i++) t[i] = col.d / p; } else if (a instanceof Int32Array) for (i = 0; i < n; i++) t[i] = a[i] / p;
+        else if (a instanceof Float64Array) for (i = 0; i < n; i++) t[i] = a[i] / p;
+        else for (i = 0; i < n; i++) t[i] = a[i] / p;
         return new Col(n, 0, t, null);
       case CT_PCO: jfail('this file has a number column written with Pcodec (module 1.2.0 or 1.3.0 with its add-on), which this module no longer supports; read it with 1.3.0');
       case CT_ADAPT:
@@ -3339,7 +3346,9 @@
     t = this.blob(Ctor, n);
     if (base === 0) return new Col(n, 0, t, null);
     a = (base >= -2147483648 && base + (w === 4 ? 4294967295 : 65535) <= 2147483647 && w !== 4) ? new Int32Array(n) : new Float64Array(n);
-    for (i = 0; i < n; i++) a[i] = t[i] + base;
+    if (t instanceof Uint8Array) for (i = 0; i < n; i++) a[i] = t[i] + base;                  // one loop per width, so each loop sees one type of array
+    else if (t instanceof Uint16Array) for (i = 0; i < n; i++) a[i] = t[i] + base;
+    else for (i = 0; i < n; i++) a[i] = t[i] + base;
     return new Col(n, 0, a, null);
   };
   Dec.prototype.lengthCol = function (n) {

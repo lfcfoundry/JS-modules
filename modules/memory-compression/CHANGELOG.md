@@ -2,6 +2,24 @@
 
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
+## 2.0.1 · API 2 · 2026-10-18
+Opening a file in fast mode is faster in Firefox 158, WebKitGTK 2.52.6 and GNOME Web 46.5 when files of other modes are also opened on the same page. Number columns open 34% to 40% faster in Firefox (counters 0.80 to 0.48 ms), user records open 21% faster in Firefox, 25% in WebKitGTK and 24% in GNOME Web, and the seven number columns of the test set open 64% faster in WebKitGTK and 65% faster in GNOME Web (16.7 to 6.0 ms and 16.6 to 5.9 ms). Chromium 155 is unchanged within noise. Packed files are identical, byte for byte, and the file grows by 846 B (276,468 to 277,314 B). What changed: three copy loops now have one copy per kind of typed array, so each loop sees one array type (Firefox slowed down when one loop saw several).
+
+Tested in: ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
+
+Check against the other libraries, re-run for this release (60,000 links, pack and unpack in ms, lower is better, best of 12 runs, one browser at a time, bench/browser-run.js, every result round-tripped exactly). Order: Chromium / Firefox / WebKitGTK / GNOME Web; WebKitGTK and GNOME Web round to whole milliseconds.
+
+| Library (size of the 60,000 links, smaller is better) | Pack / unpack |
+|---|---|
+| memory-compression fast (1.553 MB) | 15.2 and 7.1 / 14.4 and 8.5 / 22 and 6 / 19 and 5 |
+| memory-compression small (1.302 MB) | 208 and 26.8 / 141.7 and 17.6 / 134 and 22 / 115 and 21 |
+| msgpackr with records (3.822 MB) | 18.7 and 8.2 / 22.0 and 12.6 / 19 and 8 / 24 and 9 |
+| cbor-x with records (4.002 MB) | 25.6 and 7.5 / 29.7 and 12.7 / 13 and 10 / 18 and 10 |
+| avsc (3.707 MB) | 38.1 and 31.2 / 59.6 and 94.0 / 67 and 83 / 54 and 67 |
+| JSON.stringify and JSON.parse (11.349 MB) | 73.5 and 38.3 / 69.6 and 52.3 / 52 and 33 / 56 and 40 |
+
+Fast mode is 2.5 times smaller than msgpackr with records and opens as fast or faster in every browser (a tie with cbor-x in Chromium, 7.1 against 7.5 ms). Packing is faster than msgpackr in Chromium and Firefox but 16% slower in WebKitGTK (22 against 19 ms) and 69% slower than cbor-x there (22 against 13 ms). The 2.0.1 gain over 2.0.0 comes from the takes-turns test (2.0.0 and 2.0.1 alternating, a balanced file opened in between, minimum of 14 turns); one page running both builds one after the other distorts them, so the combined table above is not used for that comparison.
+
 ## 2.0.0 · API 2 · 2026-10-17
 Two modules become one file. memory-compression (bytes and typed arrays, last 1.1.0) and memory-compression-jso (plain JavaScript objects, last 1.4.1) are now the single file memory-compression.js, and the separate memory-compression-jso module is retired. A page that loaded both now ships about 270 KB (83 KB gzipped) instead of about 360 KB (115 KB gzipped): 25% smaller and 27% smaller (smaller is better). New: one pack(), unpack() and view() that choose the layer by themselves, from the kind of thing you pass: typed arrays and bytes go to the packing core, lists of records, text and other objects go to the object layer, and a number typed array goes to the number picker with mode balanced (or all three ways compared, smallest kept, with mode small). opts.layer = 'core' or 'objects' forces a layer. Not done yet, and said plainly: the module does not look inside a typed array to guess whether the picker would win, and does not pick fast, balanced or small by size or time budget. The global MemoryCompressionJSO stays as an alias for the object layer, so code written for memory-compression-jso keeps working; files packed by 1.1.0 and 1.4.1 open unchanged (checked in Node with the old files, byte for byte). The packing code itself did not change: the same bytes come out. API 2 because the module was renamed and merged and small mode on a typed array can now answer with a smaller picker container. Tests: 24 checks for the core, 38 for the object layer and 13 for the new entry point.
 
