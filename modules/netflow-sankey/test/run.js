@@ -84,9 +84,9 @@ t('an empty or one-link input does not throw', () => {
   const R1 = RL.layoutFlows({ links: [{ from: 'a', to: 'b', value: 1 }] }); ok(R1.bands.length === 1 && R1.nodes.length === 2, 'one link');
   RL.toSvg(R0); RL.toSvg(R1);
 });
-// ---- netflow-sankey 2.0.0 is faster but must draw exactly what version 1.0.0 (the old name) drew: these hashes were made by that version (layout without the timing, then the SVG text) ----
+// ---- netflow-sankey 2.0.0 is faster but must draw exactly what version 1.0.0 (the old name) drew: these hashes were made by that version (layout without the timing and without the 2.2.0 fields simplified and note, then the SVG text) ----
 const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
-const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' ? undefined : v)) + ' ' + fnv(RL.toSvg(R)) + ' ' + fnv(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 })); };
+const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' || k === 'simplified' || k === 'note' ? undefined : v)) + ' ' + fnv(RL.toSvg(R)) + ' ' + fnv(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 })); };
 const PIN = {
   'a 7x10 network with 3 loops': '89c38031 c261bece 7570244e',
   'the same with plain (unweighted) order': '71efb5d1 66a8d0c2 4d247fa9',
@@ -153,6 +153,22 @@ t('layout(options(sk)) then apply() twice with the same settings gives the same 
   ok(key(a) === key(b), 'same twice');
   const c = RL.apply(drawing(), RL.layout(drawing(), RL.options({ gap: 220, order: a.sk.order, fixY: { b: 40 } })));
   ok(JSON.stringify(c.sk.order.layers) === JSON.stringify(a.sk.order.layers), 'order kept'); ok(Math.abs(c.nodes[1].y - 40) < 1e-6 && c.nodes[1].skPinned === true, 'b pinned at 40: ' + c.nodes[1].y);
+});
+// ---- 2.2.0: past 20,000 stand-in points the lightest very long links are drawn straight through (Netflow Map's own copy always did) ----
+t('a 400-item chain with a link from the first item to every other: capped (not 80,000 bands), says so, every link still drawn', () => {
+  const n = 400, links = []; for (let i = 1; i < n; i++) links.push({ from: 'n' + (i - 1), to: 'n' + i, value: 1 }); for (let i = 2; i < n; i++) links.push({ from: 'n0', to: 'n' + i, value: 1 });
+  const R = RL.layoutFlows({ links }); ok(R.bands.length < 30000, R.bands.length + ' bands'); ok(R.simplified === 199 && /very long links/.test(R.note), 'simplified ' + R.simplified + ': ' + R.note);
+  ok(new Set(R.bands.map((b) => b.edge)).size === links.length, 'every link drawn: ' + new Set(R.bands.map((b) => b.edge)).size + ' of ' + links.length);
+});
+t('a 30-item map is not changed by the cap (simplified 0, no note)', () => {
+  const links = []; for (let i = 1; i < 30; i++) links.push({ from: 'n' + (i - 1), to: 'n' + i, value: 1 }); for (let i = 2; i < 30; i += 3) links.push({ from: 'n0', to: 'n' + i, value: 1 });
+  const R = RL.layoutFlows({ links }); ok(R.simplified === 0 && R.note === '', 'simplified ' + R.simplified);
+});
+t('a 1,100-item random network with links drawn straight through: the crossing count is a real number and the same twice in a row (it was NaN in Netflow Map before its fix)', () => {
+  const r = rng(7), n = 1100, links = []; for (let i = 1; i < n; i++) links.push({ from: 'n' + Math.floor(r() * i), to: 'n' + i, value: 1 }); for (let k = 0; k < n * 2; k++) { const a = Math.floor(r() * n), b = Math.floor(r() * n); if (a !== b) links.push({ from: 'n' + a, to: 'n' + b, value: 1 + Math.floor(r() * 9) }); }
+  const A = RL.layoutFlows({ links }, { budgetMs: 1e9 }), B = RL.layoutFlows({ links }, { budgetMs: 1e9 });
+  ok(A.simplified > 0, 'set-up: straight-through links ' + A.simplified); ok(Number.isFinite(A.crossingWeight), 'crossingWeight ' + A.crossingWeight);
+  const key = (R) => JSON.stringify(R, (k, v) => k === 'ms' ? undefined : v); ok(key(A) === key(B), 'not the same twice');
 });
 t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier', () => {
   ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg', Object.keys(RL).sort().join());

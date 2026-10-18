@@ -1,10 +1,10 @@
 # netflow-sankey
 
-**Version 2.1.0 · API 2**
+**Version 2.2.0 · API 2**
 
-**Tested in:** Node 22 checks (20); the Netflow Map engine built as a module with this Sankey add-on made the same pictures as Netflow Map's own engine on 32 Sankey builds in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
+**Tested in:** Node 22 checks (23); the Netflow Map engine built as a module (netflow-engine 2.0.0) with this Sankey add-on made the same pictures as Netflow Map's own engine on 32 Sankey builds and 4 builds past the long-link cap (each twice the same, crossing count a real number) in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
 
-Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 34 KB (11.6 KB gzipped), no dependencies. Cut from Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
+Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 37 KB (12.9 KB gzipped), no dependencies. Cut from Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
 
 It reads your list of links, puts each item in a column by the direction of the flow, and makes each band as thick as its flow on one scale for the whole picture. A long link passes through the columns in between. It then searches for the order of items in each column that gives the fewest weighted crossings (big flows crossing big flows cost most), restarting several times within a time budget and keeping the best order. Backward links are drawn as bands under the picture, and `toSvg` draws the result as an SVG.
 
@@ -23,7 +23,7 @@ var R = NetflowSankey.layoutFlows({ links: [
 ] }, { height: 360 });
 svgElement.innerHTML = NetflowSankey.toSvg(R, { title: "Where the wages go" });
 ```
-`layoutFlows(input, opts)` returns `{ nodes, bands, loops, width, height, ky, crossingWeight, ignored, ms }`:
+`layoutFlows(input, opts)` returns `{ nodes, bands, loops, width, height, simplified, note, ky, crossingWeight, ignored, ms }` (`simplified` is how many very long links were drawn as one straight band because routing all of them would be too slow, 0 when none, and `note` is a sentence saying so; the cap is 20,000 stand-in points):
 - `nodes`: `{ id, label, x, y, w, h, layer, flow }` (the bars)
 - `bands`: `{ link, value, from, to, x0, y0a, y0b, x1, y1a, y1b, xm }` (one per link per layer step; a long link has several; `link` is the index in your list)
 - `loops`: backward links, drawn as bands under the picture (`link`, `value`, `d`, `w`, `pts`)
