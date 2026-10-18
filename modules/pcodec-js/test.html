@@ -1,0 +1,95 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : pcodec-js test page
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and
+    associated project identities are reserved. If you fork, significantly modify,
+    or commercially redistribute this software, you must change the external public
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'">
+<title>pcodec-js test page</title>
+<style>body{font:16px/1.45 system-ui,sans-serif;max-width:46rem;margin:0 auto;padding:1rem}h1{font-size:1.3rem}pre{white-space:pre-wrap;background:#f4f4f4;padding:.6rem;border-radius:6px}#verdict{font-weight:700;font-size:1.2rem}.pass{color:#0a7a2f}.fail{color:#b00020}@media(prefers-color-scheme:dark){body{background:#161616;color:#eee}pre{background:#222}.pass{color:#6fdc8c}.fail{color:#ff8a80}}</style>
+<h1>pcodec-js test page</h1>
+<p>Packs and unpacks numbers of all eight types with the three files of the module and checks every number comes back exactly. It runs by itself when the page opens and takes a few seconds. Nothing is sent anywhere.</p>
+<p id="verdict">Running...</p>
+<pre id="log"></pre>
+<p><a href="demo.html">Demo page</a> · <a href="README.md">README</a> · Forged by <a href="https://github.com/lfcfoundry">LFC Foundry</a> · MIT License · Copyright (c) 2026 LFC Foundry</p>
+<script src="pcodec-js.js"></script><script>var Reader = PcodecJS;</script>
+<script src="pcodec-js-fast.js"></script><script>var Fast = PcodecJS;</script>
+<script src="pcodec-js-pack.js"></script><script>var Packer = PcodecJS;</script>
+<script>
+(async function () {
+  var lines = [], pass = 0, fail = 0;
+  var log = function (t) { lines.push(t); document.getElementById('log').textContent = lines.join('\n'); };
+  var ok = function (c, m) { if (c) pass++; else { fail++; log('FAIL ' + m); } };
+  var same = function (a, b) { if (a.length !== b.length) return false; var x = new Uint8Array(a.buffer, a.byteOffset, a.byteLength), y = new Uint8Array(b.buffer, b.byteOffset, b.byteLength); for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return false; return true; };
+  var seed = 12345, rnd = function () { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  var TYPES = { u16: Uint16Array, i16: Int16Array, u32: Uint32Array, i32: Int32Array, f32: Float32Array, f64: Float64Array, u64: BigUint64Array, i64: BigInt64Array };
+  function gen(type, n, shape) {
+    var T = TYPES[type], a = new T(n), big = type[1] === '6' && type[0] !== 'f' && type !== 'u16' && type !== 'i16', prev = 100;
+    for (var i = 0; i < n; i++) {
+      var v;
+      if (shape === 'const') v = 7; else if (shape === 'ramp') v = i; else if (shape === 'walk') { prev += Math.round((rnd() + rnd() + rnd() - 1.5) * 10); v = prev; } else v = (rnd() - 0.5) * 1e6;
+      if (big) a[i] = BigInt(Math.trunc(v)); else if (type[0] === 'f') a[i] = v; else { var lim = type === 'u16' ? 65535 : type === 'i16' ? 32767 : 2147483647; a[i] = Math.max(type[0] === 'u' ? 0 : -lim, Math.min(lim, Math.trunc(v))); }
+    }
+    return a;
+  }
+  log('Browser: ' + navigator.userAgent);
+  try {
+    var rd = await Reader.load(), pk = await Packer.load(), fast = null;
+    try { fast = await Fast.load(); } catch (e) { log('SIMD file: skipped, this browser has no WebAssembly SIMD (' + e.message + ')'); }
+    log(rd.engine + ' | reader program ' + rd.programBytes + ' bytes | packer program ' + pk.programBytes + ' bytes' + (fast ? ' | SIMD program ' + fast.programBytes + ' bytes' : ''));
+    ok(rd.canPack === false && pk.canPack === true, 'only the pack file packs');
+    var rt = 0;
+    for (var t in TYPES) for (var sh of ['const', 'ramp', 'walk', 'noise']) for (var n of [1, 257, 4097, 20000]) {
+      var a = gen(t, n, sh), b = pk.pack(a), r = rd.unpack(b), info = rd.info(b);
+      rt++; ok(same(r, a) && r.constructor === a.constructor, 'round trip ' + t + ' ' + sh + ' ' + n); ok(info.type === t && info.count === n, 'info ' + t + ' ' + sh + ' ' + n);
+      if (fast) ok(same(fast.unpack(b), a), 'SIMD reader ' + t + ' ' + sh + ' ' + n);
+      if (n === 4097) {
+        var s = pk.pack(a, { smallest: true }); ok(same(rd.unpack(s), a) && s.length <= b.length, 'smallest ' + t + ' ' + sh);
+        var v = rd.unpack(b, { view: true }); ok(same(v, a), 'view ' + t + ' ' + sh);
+        var into = new TYPES[t](n); rd.unpack(b, { into: into }); ok(same(into, a), 'into ' + t + ' ' + sh);
+      }
+    }
+    log('round trips: ' + rt);
+    // special float values keep every bit
+    [Float64Array, Float32Array].forEach(function (T) { var a = new T([0, -0, NaN, Infinity, -Infinity, Number.MIN_VALUE, 0.1, -0.1, 3, 3, 3, -0, 0]), b = pk.pack(a); ok(same(rd.unpack(b), a), 'special values ' + T.name); });
+    // several chunks and the stream
+    var big = gen('f64', 600000, 'walk'), bb = pk.pack(big), tot = 0, got = new Float64Array(big.length), maxPart = 0;
+    ok(same(rd.unpack(bb), big), 'multi-chunk round trip');
+    for (var part of rd.stream(bb, { batch: 4096 })) { got.set(part, tot); tot += part.length; maxPart = Math.max(maxPart, part.length); }
+    ok(tot === big.length && same(got, big) && maxPart <= 4096, 'stream equals unpack, steps at most 4096');
+    // count rules and damaged files: an error or exact numbers, never a crash, and the object keeps working
+    var c = gen('i32', 1000, 'walk'), cb = pk.pack(c), e = null;
+    try { rd.unpack(cb, { count: 999 }); } catch (x) { e = x; } ok(!!e, 'wrong count is refused');
+    var d = gen('f64', 20000, 'walk'), db = pk.pack(d), refused = 0;
+    for (var k = 0; k < 120; k++) { var bad = new Uint8Array(db); bad[Math.floor(rnd() * bad.length)] ^= 1 << Math.floor(rnd() * 8); try { rd.unpack(bad); } catch (x) { refused++; } }
+    ok(same(rd.unpack(db), d), 'the object still works after damaged files'); log('damaged files: 120 tried, ' + refused + ' refused (Pcodec has no checksum, so a few can decode to other numbers)');
+    var empty = null; try { rd.unpack(new Uint8Array(0)); } catch (x) { empty = x; } ok(!!empty, 'empty input refused');
+    // warm-up and release
+    await rd.warm(12); ok(same(rd.unpack(cb), c), 'unpack after warm-up is unchanged');
+    ok(rd.memoryBytes() > 0, 'memoryBytes reports a size'); rd.release(); ok(same(rd.unpack(cb), c), 'unpack works after release');
+  } catch (x) { fail++; log('ERROR ' + (x && x.stack || x)); }
+  log(pass + ' checks passed, ' + fail + ' failed');
+  var v = document.getElementById('verdict'); v.textContent = fail ? 'FAILED: ' + fail + ' of ' + (pass + fail) + ' checks' : 'All ' + pass + ' checks passed'; v.className = fail ? 'fail' : 'pass';
+  window.__result = { pass: pass, fail: fail, lines: lines, ua: navigator.userAgent };
+})();
+</script>

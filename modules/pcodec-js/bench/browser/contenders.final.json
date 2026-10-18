@@ -1,0 +1,64 @@
+[
+ {
+  "id": "ours",
+  "label": "A ours today (1.0)",
+  "type": "old",
+  "wasm": "ours-1.0"
+ },
+ {
+  "id": "nc",
+  "label": "B numcodecs-wasm-pco via jco",
+  "type": "nc"
+ },
+ {
+  "id": "rs",
+  "label": "N pcodec-js.js (small), unpack copy",
+  "type": "lib",
+  "lib": "read",
+  "encode": false
+ },
+ {
+  "id": "rsi",
+  "label": "N pcodec-js.js (small), unpack into your array",
+  "type": "lib",
+  "lib": "read",
+  "into": true,
+  "encode": false
+ },
+ {
+  "id": "rsv",
+  "label": "N pcodec-js.js (small), unpack view",
+  "type": "lib",
+  "lib": "read",
+  "view": true,
+  "encode": false
+ },
+ {
+  "id": "rf",
+  "label": "N pcodec-js-fast.js (SIMD), unpack copy",
+  "type": "lib",
+  "lib": "fast",
+  "encode": false
+ },
+ {
+  "id": "rfv",
+  "label": "N pcodec-js-fast.js (SIMD), unpack view",
+  "type": "lib",
+  "lib": "fast",
+  "view": true,
+  "encode": false
+ },
+ {
+  "id": "pk",
+  "label": "N pcodec-js-pack.js: pack()",
+  "type": "lib",
+  "lib": "pack"
+ },
+ {
+  "id": "pks",
+  "label": "N pcodec-js-pack.js: pack({smallest})",
+  "type": "lib",
+  "lib": "pack",
+  "smallest": true
+ }
+]

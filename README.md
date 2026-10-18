@@ -11,7 +11,7 @@ Live demos: **https://lfcfoundry.github.io/JS-modules/**
 
 Every piece in one place, with its gzipped size in KB (smaller is better). The tables below give the version, the readable size and what each piece does.
 
-**Modules (26)**
+**Modules (27)**
 
 - Saving and data safety: [save-kit](modules/save-kit/README.md) 9.1, [tab-guard](modules/tab-guard/README.md) 3.4
 - Device and browser adaptation: [env-probes](modules/env-probes/README.md) 5.4, [frame-kit](modules/frame-kit/README.md) 12.1, [fx-governor](modules/fx-governor/README.md) 2.5, [slow-note](modules/slow-note/README.md) 3.7
@@ -20,7 +20,7 @@ Every piece in one place, with its gzipped size in KB (smaller is better). The t
 - Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) 20.2, [fly-to-mini](modules/fly-to-mini/README.md) 6.3, [sprite-baker](modules/sprite-baker/README.md) 17.9, [stage-curtains](modules/stage-curtains/README.md) 10.3, [sticker-text](modules/sticker-text/README.md) 2.1
 - Game math: [idle-core](modules/idle-core/README.md) 7.7
 - Size and packaging: [lzma-decode](modules/lzma-decode/README.md) 3.6, [ppmd-decode](modules/ppmd-decode/README.md) 7.8
-- Files, charts and simulation: [gif-writer](modules/gif-writer/README.md) 7.3, [memory-compression](modules/memory-compression/README.md) 83.5, [netflow-layers](modules/netflow-layers/README.md) 9.1, [netflow-sankey](modules/netflow-sankey/README.md) 11.3, [walker-sim](modules/walker-sim/README.md) 18.8, [zip-open](modules/zip-open/README.md) 9.3
+- Files, charts and simulation: [gif-writer](modules/gif-writer/README.md) 7.3, [memory-compression](modules/memory-compression/README.md) 83.5, [netflow-layers](modules/netflow-layers/README.md) 9.1, [netflow-sankey](modules/netflow-sankey/README.md) 11.3, [pcodec-js](modules/pcodec-js/README.md) 66.6, [walker-sim](modules/walker-sim/README.md) 18.8, [zip-open](modules/zip-open/README.md) 9.3
 
 **Story editor packages (7)**
 
@@ -129,6 +129,7 @@ Open zip and Excel files safely, draw flow charts, write animated GIFs and simul
 | [memory-compression](modules/memory-compression/README.md) | 2.0.0 | 270.0 | 83.5 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.2.0 | 28.2 | 9.1 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.0.0 | 33.3 | 11.3 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.0.0 | 164.2 | 66.6 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
 | [walker-sim](modules/walker-sim/README.md) | 2.1.0 | 59.8 | 18.8 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
 | [zip-open](modules/zip-open/README.md) | 1.1.0 | 26.8 | 9.3 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 
