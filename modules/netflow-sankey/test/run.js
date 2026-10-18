@@ -84,7 +84,7 @@ t('an empty or one-link input does not throw', () => {
   const R1 = RL.layoutFlows({ links: [{ from: 'a', to: 'b', value: 1 }] }); ok(R1.bands.length === 1 && R1.nodes.length === 2, 'one link');
   RL.toSvg(R0); RL.toSvg(R1);
 });
-// ---- netflow-sankey 2.0.0 is faster but must draw exactly what river-layout 1.0.0 (the old name) drew: these hashes were made by that version (layout without the timing, then the SVG text) ----
+// ---- netflow-sankey 2.0.0 is faster but must draw exactly what version 1.0.0 (the old name) drew: these hashes were made by that version (layout without the timing, then the SVG text) ----
 const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' ? undefined : v)) + ' ' + fnv(RL.toSvg(R)) + ' ' + fnv(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 })); };
 const PIN = {
@@ -95,14 +95,14 @@ const PIN = {
 };
 const fracNet = () => { const r = rng(9), links = []; for (let k = 0; k + 1 < 5; k++) for (let j = 0; j < 40; j++) { const to = k + 1 + (r() < 0.2 ? Math.min(1, 3 - k) : 0); links.push({ from: `Ünï ${k} <${j}>`, to: `Ünï ${to} <${Math.floor(r() * 40)}>`, value: Math.round((0.05 + r() * 9) * 1000) / 1000 }); }
   for (let q = 0; q < 12; q++) links.push({ from: `Ünï 4 <${q}>`, to: `Ünï ${q % 3} <${q + 1}>`, value: 2.5 }); return { links }; };
-t('same pictures as river-layout 1.0.0: layout numbers and SVG text, four networks', () => {
+t('same pictures as version 1.0.0: layout numbers and SVG text, four networks', () => {
   const got = {
     'a 7x10 network with 3 loops': fingerprint(net()),
     'the same with plain (unweighted) order': fingerprint(net(), { unweighted: true }),
     'a 5x40 network with fractional flows, long links, 12 loops and odd names': fingerprint(fracNet()),
     'a 10x25 network, fewer restarts, fixed height': fingerprint(synth(10, 25, 5, 5), { restarts: 2, height: 500 }),
   };
-  Object.keys(PIN).forEach((k) => ok(got[k] === PIN[k], k + ': ' + got[k] + ' (river-layout 1.0.0 gave ' + PIN[k] + ')'));
+  Object.keys(PIN).forEach((k) => ok(got[k] === PIN[k], k + ': ' + got[k] + ' (version 1.0.0 gave ' + PIN[k] + ')'));
 });
 t('hand edits keep the order (fixedOrder) and pinned bars (fixY) exactly as before', () => {
   const R0 = RL.layoutFlows(net(), { budgetMs: 1e9 }), R1 = RL.layoutFlows(net(), { budgetMs: 1e9, fixedOrder: R0.order });
@@ -112,10 +112,50 @@ t('hand edits keep the order (fixedOrder) and pinned bars (fixY) exactly as befo
   ok(fnv(RL.toSvg(R1)) + ' ' + fnv(RL.toSvg(R2)) === 'a387c988 4ef018d2', 'svg ' + fnv(RL.toSvg(R1)) + ' ' + fnv(RL.toSvg(R2)));
 });
 t('an item named like a stand-in bar ("d1") with a long link: its bands stack without overlapping', () => {
-  // river-layout 1.0.0 mixed up the band ends of such an item with its own stand-in bar and started a band in the wrong place
+  // version 1.0.0 mixed up the band ends of such an item with its own stand-in bar and started a band in the wrong place
   const R = RL.layoutFlows({ links: [{ from: 'd1', to: 'a', value: 5 }, { from: 'a', to: 'b', value: 5 }, { from: 'd1', to: 'b', value: 7 }, { from: 'd1', to: 'c', value: 2 }, { from: 'c', to: 'b', value: 2 }] });
   const bar = R.nodes.find((n) => n.id === 'd1'), out = R.bands.filter((b) => b.from === 'd1' && b.x0 === bar.x + bar.w).sort((p, q) => p.y0a - q.y0a);
   ok(out.length === 3, 'three bands leave d1');
   for (let i = 1; i < out.length; i++) ok(out[i].y0a >= out[i - 1].y0b - 1e-6, 'bands leaving d1 overlap');
 });
+// 2.1.0: options() and apply(), the two calls Netflow Map's Sankey view makes after layout()
+const drawing = () => {   // the shape the engine's Sankey view hands to layout(): items with a layer, links with a flow, and pos (id -> item)
+  const nodes = ['a', 'b', 'c', 'd'].map((id, i) => ({ id, label: id.toUpperCase(), layer: [0, 1, 1, 2][i] })), pos = {}; nodes.forEach((n) => { pos[n.id] = n; });
+  const edges = [['a', 'b', 6], ['a', 'c', 4], ['b', 'd', 5], ['c', 'd', 4]].map(([from, to, flow]) => ({ from, to, flow, kind: 'link' }));
+  return { nodes, edges, pos };
+};
+t('options(): settings are cleaned up and kept inside their limits', () => {
+  const d = RL.options({});
+  ok(JSON.stringify(d) === JSON.stringify({ nodeW: 14, gapLayer: undefined, autoGap: true, pad: 12, height: undefined, fixY: {}, justifySinks: true, fixedOrder: undefined }), 'defaults ' + JSON.stringify(d));
+  const o = RL.options({ nodeW: 500, gap: 20, pad: -5, height: 9999, justify: false });
+  ok(o.nodeW === 80 && o.pad === 2 && o.height === 4000 && o.justifySinks === false && o.autoGap === true && o.gapLayer === undefined, 'limits ' + JSON.stringify(o));
+  const g = RL.options({ gap: 250 }); ok(g.gapLayer === 250 && g.autoGap === false, 'gap ' + JSON.stringify(g));
+  ok(RL.options(null).nodeW === 14 && RL.options(undefined).pad === 12, 'null and undefined are fine');
+  const ord = { layers: [['a'], ['b', 'c'], ['d']], loops: [] }; ok(RL.options({ order: ord }).fixedOrder === ord, 'a saved order is passed on');
+  ok(RL.options({ order: { layers: [] } }).fixedOrder === undefined, 'half an order is dropped');
+});
+t('apply(): the picture is written into the drawing and the rest is kept in L.sk', () => {
+  const L = drawing(), R = RL.layout(L, RL.options({ nodeW: 20 })), out = RL.apply(L, R);
+  ok(out === L, 'returns the drawing it was given');
+  L.nodes.forEach((n) => { const s = R.nodes.find((x) => x.id === n.id); ok(n.x === s.x && n.y === s.y && n.w === 20 && n.h === s.h && n.layer === s.layer, n.id + ' placed'); ok(n.cx === s.x + s.w / 2 && n.cy === s.y + s.h / 2, n.id + ' center'); ok(n.skIn === s.inFlow && n.skOut === s.outFlow && n.skPinned === false, n.id + ' flows'); });
+  ok(L.width === R.width && L.height === R.height && L.dir === 'LR', 'size and direction');
+  ok(L.sk.bands === R.bands && L.sk.loops === R.loops && L.sk.ky === R.ky && L.sk.order === R.order && L.sk.cols === R.cols && L.sk.crossingWeight === R.crossingWeight, 'kept in L.sk');
+});
+t('apply(): an item that is a copy of the drawn one (pos entry) is placed too, and an item missing from the result is left alone', () => {
+  const L = drawing(); L.pos.a = Object.assign({}, L.nodes[0]); L.nodes.push({ id: 'z', label: 'Z', layer: 0 }); L.pos.z = L.nodes[4];
+  const R = RL.layout(L, RL.options({})); R.nodes = R.nodes.filter((n) => n.id !== 'z'); RL.apply(L, R);
+  ok(L.pos.a !== L.nodes[0] && L.pos.a.x === L.nodes[0].x && L.pos.a.y === L.nodes[0].y && L.pos.a.cx === L.nodes[0].cx, 'the copy matches');
+  ok(L.nodes[4].x === undefined && L.nodes[4].skIn === undefined, 'item z is not in the result and is not placed');
+});
+t('layout(options(sk)) then apply() twice with the same settings gives the same picture; a saved order keeps the order', () => {
+  const key = (L) => JSON.stringify([L.width, L.height, L.nodes.map((n) => [n.x, n.y, n.h]), L.sk.bands.length]);
+  const a = RL.apply(drawing(), RL.layout(drawing(), RL.options({ gap: 220 }))), b = RL.apply(drawing(), RL.layout(drawing(), RL.options({ gap: 220 })));
+  ok(key(a) === key(b), 'same twice');
+  const c = RL.apply(drawing(), RL.layout(drawing(), RL.options({ gap: 220, order: a.sk.order, fixY: { b: 40 } })));
+  ok(JSON.stringify(c.sk.order.layers) === JSON.stringify(a.sk.order.layers), 'order kept'); ok(Math.abs(c.nodes[1].y - 40) < 1e-6 && c.nodes[1].skPinned === true, 'b pinned at 40: ' + c.nodes[1].y);
+});
+t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier', () => {
+  ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg', Object.keys(RL).sort().join());
+});
+
 console.log(bad ? 'netflow-sankey: ' + bad + ' FAILED' : 'netflow-sankey: all passed'); process.exit(bad ? 1 : 0);
