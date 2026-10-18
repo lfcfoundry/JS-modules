@@ -668,7 +668,7 @@ Measured against msgpackr 2.1.0 (with and without records, and with bundled stri
 "changed" means the value came back different (for example `-0` as `0`, a `Set` as an array or a plain object, `undefined` as `null`); "two copies" means the same object came out as two equal objects; "plain object" means a class instance came back as an object without its class (every library here does that). msgpackr and cbor-x have an optional `structuredClone` setting; the last two columns show what it fixes. This module returned all 18 plain-data values exactly (shared objects and cycles need `refs: true`); the closest other is `v8.serialize`, which misses only null-prototype objects but works in Node only and is 69 to 119% of the JSON text. avsc and Flechette are left out of this table because they need a schema or flat columns; with the schema inferred from the data, avsc also stored decimals as 32-bit floats until they were widened to doubles for the speed tables.
 
 #### Features
-| | memory-compression-jso 1.4.1 | msgpackr 2.1.0 | cbor-x 1.6.6 | @msgpack/msgpack 3.1.3 | avsc 5.7.9 | v8.serialize | Flechette 2.7.0 | JSON |
+| | memory-compression objects 1.4.1 | msgpackr 2.1.0 | cbor-x 1.6.6 | @msgpack/msgpack 3.1.3 | avsc 5.7.9 | v8.serialize | Flechette 2.7.0 | JSON |
 |---|---|---|---|---|---|---|---|---|
 | License | MIT | MIT | MIT | ISC | MIT | built into Node | BSD-3-Clause | built in |
 | Needs a schema | no | no | no | no | **yes** (inferred in these tests; hand-written is faster) | no | no, but flat columns only | no |
