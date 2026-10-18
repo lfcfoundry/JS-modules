@@ -3,7 +3,7 @@
 // Usage: node node-run.js [dataset-regex] [contender-regex] [reps]
 var path = require('path'), D = require('../test/data.js');
 var DEP = process.env.JSO_DEPS || '/tmp/jso-deps/node_modules/';          // where `npm i` put the libraries (see bench/README.md)
-var L = { JSO: require('../memory-compression-jso.js') };
+var L = { JSO: require('../memory-compression.js') };
 if (process.env.JSO_OLD) L.JSO_OLD = require(process.env.JSO_OLD);          // an older build to compare with (for example the 1.0.0 file)
 function tryReq(k, m, pick) { try { var x = require(DEP + m); L[k] = pick ? x[pick] : x; } catch (e) { console.error('missing', m, e.message.split('\n')[0]); } }
 tryReq('fflate', 'fflate'); tryReq('lz4js', 'lz4js'); tryReq('msgpackr', 'msgpackr'); tryReq('cbor', 'cbor-x'); tryReq('msgpack', '@msgpack/msgpack'); tryReq('notepack', 'notepack.io'); tryReq('avsc', 'avsc'); tryReq('bson', 'bson');

@@ -1,10 +1,14 @@
 /*!
- * memory-compression-jso.js: keep big piles of plain JavaScript objects packed in memory, and bring them back exactly, fast.
+ * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.1 (API 1)
+ * Version 2.0.0 (API 2)
  *
- * What it gives you (plain JavaScript, no dependencies, works offline, one file; also sets MemoryCompression, the core alone, when a page has none)
+ * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
+ *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
+ *    objects, arrays of records, text and everything else go through the object layer; with mode: 'balanced' a number array goes through the number picker, and with mode: 'small'
+ *    a number array is packed both ways and the smaller result is kept. unpack() and view() read the first two bytes of the packed data to know which layer wrote it.
+ *    opts.layer: 'core' or 'objects' overrides the choice. MemoryCompressionJSO (the object layer alone) is kept so code written for memory-compression-jso keeps working.
  *  - pack(value) / unpack(bytes): any JSON-like value (and Date, Map, Set, typed arrays, BigInt, RegExp, undefined, NaN, -0) to a small
  *    Uint8Array and back to a deep copy that is equal in every way JSON-like data can be. Arrays of objects are stored as columns
  *    (one per key), not as repeated text, so a list of 300,000 link objects becomes a few megabytes and is rebuilt in tens of milliseconds.
@@ -26,7 +30,7 @@
  *    copies under a budget, and reports memory() with restore-time estimates. profile() times pack/unpack and lists where the time goes.
  *  - refs: true now stores lists of shared objects by column too (links that point at the very node objects), not value by value.
  *  - float32: true (opt-in, lossy) keeps fraction columns in 4 bytes per value instead of 8 (relative error at most about 6e-8).
- *  - Built on memory-compression.js (its code is inside this file), so the numeric columns get its byte shuffle, delta and LZ4/deflate stage.
+ *  - The packing core (byte shuffle, delta, LZ4-class and deflate coders, LZ4/deflate/zlib/gzip, crc32) is inside this file and also exported as MemoryCompression.lz4Compress, .deflate and so on.
  *
  * Notes
  *  - Own enumerable string keys only; class instances come back as plain objects; shared references are copied and a cycle is an error
