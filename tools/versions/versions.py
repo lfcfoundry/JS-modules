@@ -21,11 +21,12 @@ file carries it), the first lines of its README, the root README tables, the fro
   python3 tools/versions/versions.py tested ID X.Y.Z "Firefox 158, ..."
                                                           write or fix the "Tested in" line of an existing entry (and the README line when it is the newest)
   python3 tools/versions/versions.py changelog            rebuild the root CHANGELOG.md
+  python3 tools/versions/versions.py sizes                refresh the Size column of the root README's module tables (set does this too)
   python3 tools/versions/versions.py init                 first-time labels for entries that have none (1.0.0)
 
 Run from anywhere inside the repository, or point it elsewhere with --root DIR (the tests do).
 """
-import datetime, json, os, re, subprocess, sys
+import datetime, gzip, json, os, re, subprocess, sys
 
 SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 HEAD_LINES = 15
@@ -261,18 +262,49 @@ def readme_version(text):
     return None
 
 
-def set_root_readme(text, reg):
-    """Add or refresh a Version column in the root README's module and tool tables."""
-    ver = {e["id"]: e.get("version") for _, e in entries(reg)}
+SIZE_CELL = re.compile(r"^[\d,.]+ (?:KB|B) · [\d,.]+ (?:KB|B) gz$")
+
+
+def kb(n):
+    return "%.1f KB" % (n / 1024.0) if n >= 1024 else "%d B" % n
+
+
+def size_label(root, e):
+    """'33.3 KB · 11.6 KB gz': the module's shipped file as it sits in the repository, and gzip -9 of it. A module whose "file" is a folder (frame-kit) counts the .js files directly in it, together.
+    None when there is no script to measure (a style guide, a missing file)."""
+    f = e.get("file")
+    path = os.path.join(root, f) if f else None
+    if not path or not os.path.exists(path):
+        return None
+    if os.path.isdir(path):
+        names = sorted(n for n in os.listdir(path) if n.endswith(".js") and not n.endswith(".min.js") and os.path.isfile(os.path.join(path, n)))
+        data = b"".join(open(os.path.join(path, n), "rb").read() for n in names)
+    elif f.endswith(".js"):
+        data = open(path, "rb").read()
+    else:
+        return None
+    if not data:
+        return None
+    return "%s · %s gz" % (kb(len(data)), kb(len(gzip.compress(data, 9, mtime=0))))
+
+
+def set_root_readme(text, reg, root=None):
+    """Add or refresh a Version column in the root README's module and tool tables, and a Size column right after the name in the module tables."""
+    ents = {e["id"]: e for _, e in entries(reg)}
+    ver = {i: e.get("version") for i, e in ents.items()}
     out, lines = [], text.split("\n")
     i = 0
     while i < len(lines):
         line = lines[i]
         if re.match(r"^\| (Module|Tool) \|", line) and i + 1 < len(lines) and lines[i + 1].startswith("|---"):
             hdr, sep = line, lines[i + 1]
+            is_module = hdr.startswith("| Module |")
             if not hdr.rstrip().endswith("| Version |"):
                 hdr += " Version |"
                 sep += "---|"
+            if is_module and root is not None and not hdr.startswith("| Module | Size |"):
+                hdr = hdr.replace("| Module |", "| Module | Size |", 1)
+                sep = sep.replace("|---|", "|---|---|", 1)
             out += [hdr, sep]
             i += 2
             while i < len(lines) and lines[i].startswith("| ["):
@@ -282,6 +314,14 @@ def set_root_readme(text, reg):
                 row = re.sub(r" \d+\.\d+\.\d+ · API \d+ \|$", "", row) if row.rstrip().endswith("|") and re.search(r" \d+\.\d+\.\d+ · API \d+ \|$", row) else row
                 if v:
                     row = row.rstrip() + " " + label(v) + " |"
+                if is_module and root is not None and m:
+                    head = re.match(r"^(\| \[[a-z0-9-]+\]\([^)]*\)) \| (.*)$", row)
+                    if head:
+                        rest = head.group(2)
+                        cell = rest.split(" | ", 1)[0]
+                        if SIZE_CELL.match(cell) or cell == "n/a":
+                            rest = rest.split(" | ", 1)[1]
+                        row = "%s | %s | %s" % (head.group(1), size_label(root, ents[m.group(1)]) or "n/a", rest)
                 out.append(row)
                 i += 1
             continue
@@ -336,7 +376,7 @@ def apply(root, reg):
     for rel, fn in (("README.md", set_root_readme), ("index.html", set_index), ("llms.txt", set_llms)):
         if os.path.exists(os.path.join(root, rel)):
             t = rd(root, rel)
-            n = fn(t, reg)
+            n = fn(t, reg, root) if fn is set_root_readme else fn(t, reg)
             if n != t:
                 wr(root, rel, n)
     # keep "version" and "api" next to the id in modules.json
@@ -386,6 +426,9 @@ def check(root, reg):
         t = rd(root, "README.md")
         if re.search(r"^\| \[%s\]\(" % re.escape(i), t, re.M) and (" " + label(v) + " |") not in t:
             bad.append("%s: the README table does not show %s" % (i, label(v)))
+        sz = size_label(root, e) if kind == "modules" else None
+        if sz and re.search(r"^\| \[%s\]\(" % re.escape(i), t, re.M) and (" | " + sz + " | ") not in t:
+            bad.append("%s: the README table shows an old size (now %s): run versions.py sizes" % (i, sz))
     if os.path.exists(os.path.join(root, "CHANGELOG.md")):
         if rd(root, "CHANGELOG.md") != root_changelog(root, reg):
             bad.append("CHANGELOG.md (the root one) is out of date: run versions.py changelog")
@@ -483,6 +526,13 @@ def main(argv):
     if cmd == "changelog":
         wr(root, "CHANGELOG.md", root_changelog(root, reg))
         print("CHANGELOG.md written")
+        return 0
+    if cmd == "sizes":
+        t = rd(root, "README.md")
+        n = set_root_readme(t, reg, root)
+        if n != t:
+            wr(root, "README.md", n)
+        print("README.md size column %s" % ("refreshed" if n != t else "already current"))
         return 0
     if cmd == "init":
         n = 0
