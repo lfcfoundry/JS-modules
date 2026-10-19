@@ -1,8 +1,8 @@
 # sprite-baker
 
-**Version 1.6.0 · API 1**
+**Version 1.6.1 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/sprite-baker-wasm-browser.js, three runs each: 833 scenes, 0 differ in 12 of 12 runs, also on a page without 'wasm-unsafe-eval'); node modules/sprite-baker/test/run.js 129 checks, test/lean.js unchanged. Not run: a phone, Safari itself
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/sprite-baker-wasm-browser.js, one run each: 893 scenes, 0 differ in 4 of 4 runs, also on a page without 'wasm-unsafe-eval'); node modules/sprite-baker/test/run.js 130 checks (1 new; it fails on 1.6.0), test/lean.js unchanged. Not run: a phone, Safari itself
 
 The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
