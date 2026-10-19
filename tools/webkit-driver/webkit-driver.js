@@ -2,7 +2,7 @@
  * webkit-driver.js: drive WebKitGTK (or GNOME Web) from Node with the same small page controls Playwright and Puppeteer give.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  *
  * Why: Playwright and Puppeteer cannot drive WebKitGTK (Playwright only drives its own patched WebKit build). WebKitGTK ships its own
  * WebDriver (`WebKitWebDriver`). This file speaks the W3C WebDriver protocol to it over plain HTTP, with no packages.
@@ -247,4 +247,4 @@ async function attach(info, opts) {
   return { page: page, port: info.port, sessionId: info.sessionId, version: info.version, close: async function () { if (site) site.close(); } };
 }
 
-module.exports = { launch: launch, attach: attach, call: call, wrapScript: wrapScript, keyChar: keyChar, version: '1.2.0' };
+module.exports = { launch: launch, attach: attach, call: call, wrapScript: wrapScript, keyChar: keyChar, version: '1.3.0' };
