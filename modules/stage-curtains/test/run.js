@@ -218,9 +218,13 @@ async function ticksUntilMoving(o) {
   assert.strictEqual(s.c.isClosed, true); return n;
 }
 t('close() with nothing painted yet paints a little each frame (warmMs); warmMs: 0 paints it all at once', async function () {
-  var big = { width: 800, height: 1000 };
-  var warm = await ticksUntilMoving(big), fast = await ticksUntilMoving({ width: 800, height: 1000, warmMs: 0 });
+  var big = { width: 800, height: 1000, wasm: false };   // the JavaScript loop: slow enough here to show the slicing (the WebAssembly loop is several times faster)
+  var warm = await ticksUntilMoving(big), fast = await ticksUntilMoving({ width: 800, height: 1000, warmMs: 0, wasm: false });
   assert.ok(warm > fast + 2, 'warm took ' + warm + ' frames, all-at-once took ' + fast);
+});
+t('close() with nothing painted yet and the WebAssembly loop: warmMs slices it too, and it is ready no later than the JavaScript loop', async function () {
+  var js = await ticksUntilMoving({ width: 800, height: 1000, wasm: false }), wa = await ticksUntilMoving({ width: 800, height: 1000 });
+  assert.ok(wa <= js, 'wasm took ' + wa + ' frames, JavaScript ' + js);
 });
 t('warmMs: a very short wait still ends with the curtain closed (the rest is painted at once)', async function () {
   var n = await ticksUntilMoving({ width: 800, height: 1000, warmMs: 1 }); assert.ok(n < 400);
@@ -242,6 +246,91 @@ t('open(): a zoom that is cancelled by the browser ends the open at once, not af
   var before = ANIMS.length, el = s.c.element, op = s.c.open(), done = false; op.then(function () { done = true; });
   var last = ANIMS.slice(before).filter(function (a) { return typeof a.oncancel === 'function'; })[0]; assert.ok(last, 'the zoom has no cancel handler');
   last.oncancel(); await tick(48); assert.strictEqual(done, true, 'open() waited for the timer'); assert.strictEqual(s.body.children.indexOf(el), -1);
+});
+
+// ---- the WebAssembly velvet loop: the very same bytes as the JavaScript loop, one instance shared, and the JavaScript loop when WebAssembly cannot be used ----
+function capturingDocument() {   // a canvas whose ImageData we can read back after step() finishes
+  return { createElement: function () { var cv = { width: 0, height: 0, getContext: function () { return { createImageData: function (w, h) { cv.img = { data: new Uint8ClampedArray(w * h * 4) }; return cv.img; }, putImageData: function () { cv.put = true; } }; } }; return cv; } };
+}
+function paintBytes(SC, args, ms) {   // paints the whole velvet (step(0) at once, or slices of ms until done) and returns { bytes, engine, slices }
+  var j = SC.velvetPainter.apply(null, args), n = 0;
+  if (ms) while (!j.step(ms)) n++; else j.step(0);
+  return { bytes: j.canvas.img.data, engine: j.engine, slices: n, put: j.canvas.put, job: j };
+}
+function sameBytes(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
+function freshSC() { delete require.cache[require.resolve('../stage-curtains.js')]; return require('../stage-curtains.js'); }
+t('wasm: the default is WebAssembly, wasm: false is JavaScript, and wasmAvailable() says so', function () {
+  global.document = capturingDocument(); var SC = freshSC();
+  assert.strictEqual(SC.wasmAvailable(), true);
+  assert.strictEqual(paintBytes(SC, [212, 892, 1.25, '#b3202a', 11, false]).engine, 'wasm');
+  assert.strictEqual(paintBytes(SC, [212, 892, 1.25, '#b3202a', 11, false, false]).engine, 'js');
+});
+t('wasm: 112 curtains (8 colors x 7 sizes x stepped on and off) are byte for byte the JavaScript curtain', function () {
+  global.document = capturingDocument(); var SC = freshSC();
+  var bases = ['#b3202a', '#e2301f', '#ffd23a', '#8a1010', '#7a5cf0', '#d8d8f0', '#2f7a3a', '#ff8a2a'];
+  var geoms = [[212, 892, 1.25], [212, 892, 1], [500, 900, 1], [966, 1000, 1], [100, 300, 1 / 3], [320, 700, 2], [7, 20, 1]], n = 0, bad = [];
+  bases.forEach(function (b, bi) { geoms.forEach(function (g, gi) { [false, true].forEach(function (st) {
+    var seed = 11 + bi * 23 + gi * 17, a = paintBytes(SC, [g[0], g[1], g[2], b, seed, st, false]), c = paintBytes(SC, [g[0], g[1], g[2], b, seed, st]);
+    n++; if (a.engine !== 'js' || c.engine !== 'wasm' || !sameBytes(a.bytes, c.bytes) || !c.put) bad.push(b + ' ' + g + ' ' + st);
+  }); }); });
+  assert.strictEqual(n, 112); assert.deepStrictEqual(bad, [], 'differing curtains: ' + bad.slice(0, 3));
+});
+t('wasm: 300 random curtains (any color string, size, scale, seed, stepped) are byte for byte the JavaScript curtain', function () {
+  global.document = capturingDocument(); var SC = freshSC(), seed = 20261018, bad = [];
+  function rnd() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }
+  var named = ['#fff', 'rgb(200, 30, 60)', 'rgba(10,200,40,0.5)', 'rgb(100%, 20%, 0%)', '#ff000080', '#10101f'];
+  for (var q = 0; q < 300; q++) {
+    var col = rnd() < 0.5 ? '#' + ('00000' + Math.floor(rnd() * 16777216).toString(16)).slice(-6) : named[Math.floor(rnd() * named.length)];
+    var args = [20 + Math.floor(rnd() * 300), 30 + Math.floor(rnd() * 400), [1, 1.25, 1 / 3, 2, 1.5][Math.floor(rnd() * 5)], col, 1 + Math.floor(rnd() * 100000), rnd() < 0.5];
+    var a = paintBytes(SC, args.concat([false])), c = paintBytes(SC, args);
+    if (!sameBytes(a.bytes, c.bytes) || c.engine !== 'wasm') bad.push(args.join(','));
+  }
+  assert.deepStrictEqual(bad, [], 'differing: ' + bad.slice(0, 3));
+});
+t('wasm: painting in slices gives the same bytes, step(ms) keeps returning false until the last row, and the image is put once', function () {
+  global.document = capturingDocument(); var SC = freshSC();
+  var ref = paintBytes(SC, [300, 600, 1.25, '#b3202a', 5, false, false]), got = paintBytes(SC, [300, 600, 1.25, '#b3202a', 5, false], 0.0001);
+  assert.ok(got.slices > 20, 'one slice painted everything: ' + got.slices); assert.ok(sameBytes(ref.bytes, got.bytes)); assert.strictEqual(got.engine, 'wasm'); assert.strictEqual(got.put, true);
+  assert.strictEqual(got.job.step(0), true, 'a finished painter stays finished');
+});
+t('wasm: two painters of different sizes painted by turns (tables re-sent, memory grown) are both right', function () {
+  global.document = capturingDocument(); var SC = freshSC();
+  var A = SC.velvetPainter(200, 400, 1, '#7a5cf0', 3, false), B = SC.velvetPainter(900, 700, 1.25, '#ffd23a', 4, true), C = SC.velvetPainter(60, 90, 1, '#2f7a3a', 6, false);
+  var rA = paintBytes(SC, [200, 400, 1, '#7a5cf0', 3, false, false]).bytes, rB = paintBytes(SC, [900, 700, 1.25, '#ffd23a', 4, true, false]).bytes, rC = paintBytes(SC, [60, 90, 1, '#2f7a3a', 6, false, false]).bytes;
+  var i = 0; while (!(A.done && B.done && C.done)) { [A, B, C].forEach(function (j) { if (!j.done) j.step(0.0001); }); if (++i > 100000) assert.fail('never finished'); }
+  assert.ok(sameBytes(A.canvas.img.data, rA) && sameBytes(B.canvas.img.data, rB) && sameBytes(C.canvas.img.data, rC));
+  assert.ok(A.engine === 'wasm' && B.engine === 'wasm' && C.engine === 'wasm');
+});
+t('wasm: no WebAssembly at all gives the JavaScript curtain, same bytes', function () {
+  var saved = global.WebAssembly; global.document = capturingDocument(); var SC, a, c;
+  try { global.WebAssembly = undefined; SC = freshSC(); assert.strictEqual(SC.wasmAvailable(), false); a = paintBytes(SC, [212, 892, 1.25, '#b3202a', 11, false]); }
+  finally { global.WebAssembly = saved; }
+  c = paintBytes(freshSC(), [212, 892, 1.25, '#b3202a', 11, false, false]);
+  assert.strictEqual(a.engine, 'js'); assert.ok(sameBytes(a.bytes, c.bytes));
+});
+t('wasm: a page policy that refuses the module (Module throws) gives the JavaScript curtain, same bytes', function () {
+  var Mod = WebAssembly.Module; global.document = capturingDocument(); var a;
+  try { WebAssembly.Module = function () { throw new Error('refused by the page policy'); }; var SC = freshSC(); assert.strictEqual(SC.wasmAvailable(), false); a = paintBytes(SC, [212, 892, 1.25, '#b3202a', 11, false]); }
+  finally { WebAssembly.Module = Mod; }
+  assert.strictEqual(a.engine, 'js'); assert.ok(sameBytes(a.bytes, paintBytes(freshSC(), [212, 892, 1.25, '#b3202a', 11, false, false]).bytes));
+});
+t('wasm: if the kernel memory cannot grow mid-paint the JavaScript loop finishes the curtain, same bytes', function () {
+  global.document = capturingDocument(); var SC = freshSC(), grow = WebAssembly.Memory.prototype.grow, a;
+  try { WebAssembly.Memory.prototype.grow = function () { throw new RangeError('out of memory'); }; a = paintBytes(SC, [3000, 200, 1, '#b3202a', 2, false]); }
+  finally { WebAssembly.Memory.prototype.grow = grow; }
+  assert.strictEqual(a.engine, 'js'); assert.ok(sameBytes(a.bytes, paintBytes(SC, [3000, 200, 1, '#b3202a', 2, false, false]).bytes));
+});
+t('wasm: create({ wasm: false }) paints both halves with JavaScript', async function () {
+  var s = setup({ idle: true, opts: { wasm: false } }); var seen = [];
+  var vp = s.SC.velvetPainter; assert.strictEqual(typeof vp, 'function');
+  var r = await settle(s.c.prepare(), 15000); assert.ok(r.done && !r.threw); assert.strictEqual(s.c.isReady, true);
+});
+t('wasm: velvet.wasm in stage-curtains.js is the file wasm/velvet.wasm, and (with clang) it is what wasm/velvet.c builds', function () {
+  var cp = require('child_process'), path = require('path'), dir = path.join(__dirname, '..');
+  var emb = cp.spawnSync('python3', [path.join(dir, 'wasm', 'embed.py'), '--check'], { encoding: 'utf8' });
+  assert.strictEqual(emb.status, 0, emb.stdout + emb.stderr);
+  if (cp.spawnSync('clang', ['--version']).status === 0) { var b = cp.spawnSync('sh', [path.join(dir, 'wasm', 'build.sh'), '--check'], { encoding: 'utf8' }); assert.strictEqual(b.status, 0, b.stdout + b.stderr); }
+  else console.log('  skip clang not found: not checking the rebuild');
 });
 
 (async function () {
