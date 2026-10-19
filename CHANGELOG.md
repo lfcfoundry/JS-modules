@@ -6,7 +6,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 | Module or tool | Version | History |
 |---|---|---|
-| [stage-curtains](modules/stage-curtains/README.md) | 1.1.0 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
+| [stage-curtains](modules/stage-curtains/README.md) | 1.2.0 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
 | [save-kit](modules/save-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
@@ -48,6 +48,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-10-18 · **walker-sim** 2.2.0 · API 2: The default file is now walker-sim-with-wasm.js: big runs use the WebAssembly walking loop first (about 1.5 times faster in Chromium and Firefox), and the JavaScript loop when WebAssembly is not usable. Same counts either way. In WebKitGTK and GNOME Web a fresh page is about 15% to 30% slower with it; set cfg.wasm = false or copy walker-sim.js there.
+- 2026-10-18 · **stage-curtains** 1.2.0 · API 1: A curtain half paints about 1.4 to 1.6 times faster on a freshly loaded page (same picture) using a small WebAssembly painter. Pages with a content policy need 'wasm-unsafe-eval'; without it, plain JavaScript is used.
 - 2026-10-18 · **sprite-baker** 1.6.0 · API 1: New optional add-on sprite-baker-wasm.js fills triangles in WebAssembly with the very same pixels: baking is about 1.1 to 1.4 times faster in Chromium and Firefox, mixed in WebKit browsers. Plain JavaScript is the fallback.
 - 2026-10-18 · **ppmd-pack** 2.0.0 · API 2: Packed pages now carry the WebAssembly decoder by default (about 9.8 KB or 5% bigger, opens faster); --no-wasm gives the old smaller page. --wasm still works.
 - 2026-10-18 · **ppmd-decode** 1.2.0 · API 1: The default file is now ppmd-decode-with-wasm.js: ppmd7Decode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.4 to 1.8 times faster to open a page in the four test browsers.
