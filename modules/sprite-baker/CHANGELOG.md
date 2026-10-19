@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-10-18
+- The wasm now compiles in the background when the file loads (ready() and module() added); the compile it saves is about 1 ms. Same pictures.
+
 ## 1.6.1 · API 1 · 2026-10-18
 - Fix: the WebAssembly add-on drew drawMesh(..., null) with the wrong back-face cut (about 79 pixels per picture went missing in one game); now identical to the plain code.
 

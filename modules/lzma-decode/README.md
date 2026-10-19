@@ -1,8 +1,8 @@
 # lzma-decode
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Node 22.22.0 (346 lzma-decode checks); tests/wasm-default-bench.js one browser at a time on 2026-10-18: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; the default file also on a page without WebAssembly in all four
+**Tested in:** not recorded.
 
 An LZMA1 decoder that tries WebAssembly first and falls back by itself to a small JavaScript decoder (about 135 lines with ES5 syntax, one ES2015 method, see limits: readable, commented, tested against Python's own `lzma` module). Use it to unpack LZMA data in the browser, which can only unpack gzip and deflate natively. The matching packer is [`tools/lzma-pack`](../../tools/lzma-pack/README.md).
 
@@ -70,6 +70,12 @@ First decode of the 569,513-byte Pineapple Defense page (141,872 bytes of LZMA),
 | GNOME Web 46.5 | 38.0 | 25.0 | 1.52x |
 
 The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all four browsers. A warm 1.5 MB decode in Node 22 (a Node figure, not a browser one): 98.6 ms (JavaScript) to 47.3 ms (WebAssembly), 2.1x. The result is a copy with its own buffer of exactly `outSize` bytes, so the 2x working memory of the run is freed at once. Source: `wasm/lzma-decode.c` (a line-for-line port of `lzma-decode.js`), `wasm/build.sh` rebuilds `wasm/lzma-decode.wasm` (clang with the wasm32 target; 4,087 bytes, kept under 4,096 so Chromium compiles it on the main thread), `wasm/embed.py` puts it into `lzma-decode-wasm.js`, and `wasm/join.js` builds the default file.
+
+## Compile early (since 1.3.0)
+
+**What.** lzma-decode-wasm.js and lzma-decode-with-wasm.js start compiling the WebAssembly in the background as soon as the file loads, so the first decode only has to start it. lzmaDecodeWasm.ready() is a promise that says (true or false) whether that worked, and lzmaDecodeWasm.module() gives the compiled `WebAssembly.Module` once it is ready (else null) so a worker can be sent it with `postMessage` instead of compiling it again. Asked for before the compile is done, the code compiles on the spot as it always did, so nothing waits and the answers are the same.
+
+**Why, and how much.** Compiling the 4,087-byte program on the page costs 0.5 ms in Chromium 155, under 1 ms in Firefox 158 and WebKitGTK 2.52.6, 1 ms in GNOME Web 46.5 (median of 9 fresh pages, smaller is better; Firefox and WebKit report whole milliseconds), so for this size the saving is at most that. Loading the file plus the first use, old against new, in ms (median of 11 fresh pages, taking turns): within about 1 ms in Chromium, Firefox and both WebKit browsers; the differences go both ways, so treat it as no change you can measure. It matters more for the large programs (pcodec-js) and for handing the module to workers. Nothing is stored in the browser.
 
 ## How it compares
 

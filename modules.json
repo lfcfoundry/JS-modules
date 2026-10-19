@@ -140,7 +140,7 @@
     },
     {
       "id": "sprite-baker",
-      "version": "1.6.1",
+      "version": "1.7.0",
       "api": 1,
       "global": "SpriteBaker",
       "summary": "Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. Optional WebAssembly fill add-on (same pixels, about 1.1 to 1.4 times faster baking in Chromium and Firefox).",
@@ -210,7 +210,7 @@
     },
     {
       "id": "lzma-decode",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "api": 1,
       "global": "lzmaDecode",
       "summary": "LZMA1 decoder that uses WebAssembly first (about 1.5 to 2.6 times faster to open a page) and falls back to a small readable ES5 JavaScript decoder; tested against Python's lzma. Browsers can only unpack gzip and deflate natively.",
@@ -224,7 +224,7 @@
     },
     {
       "id": "ppmd-decode",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "api": 1,
       "global": "ppmd7Decode",
       "summary": "A PPMd (7-Zip PPMd7) decoder that uses WebAssembly first (about 1.4 to 1.8 times faster to open a page) and falls back to one ES5 JavaScript function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip.",
@@ -306,7 +306,7 @@
     },
     {
       "id": "netflow-sankey",
-      "version": "2.2.1",
+      "version": "2.3.0",
       "api": 2,
       "global": "NetflowSankey",
       "summary": "Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer.",
