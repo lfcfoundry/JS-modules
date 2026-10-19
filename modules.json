@@ -140,7 +140,7 @@
     },
     {
       "id": "sprite-baker",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "api": 1,
       "global": "SpriteBaker",
       "summary": "Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. Optional WebAssembly fill add-on (same pixels, about 1.1 to 1.4 times faster baking in Chromium and Firefox).",

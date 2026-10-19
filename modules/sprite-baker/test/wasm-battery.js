@@ -97,6 +97,25 @@
       try { W.drawMesh(G, rodM, own(2, false), { scale: 0.3, ox: 15, oy: 15 }); } catch (e) { thrown = /released/.test(e.message); }
       extra['release() frees a Rast: the next Rast is right, drawing into the released one throws (wasm), and release() on a plain Rast does nothing'] = note('release', same(H, G2) && (W.available ? thrown : !thrown) && (G2.release(), true));
     })();
+    // the last argument of drawMesh in every form the plain code accepts: null, undefined, {}, false, 0, { cull: null }, { cull: undefined }, { cull: false }, { cull: 0 }, { cull: -0.75 }.
+    // These meshes and angles have triangles that face only slightly away (a closed sphere seen from the front has none that show), so a wrong cull value changes pixels; the guard below proves it
+    (function () {
+      var forms = [null, undefined, {}, false, 0, { cull: null }, { cull: undefined }, { cull: false }, { cull: 0 }, { cull: -0.75 }], same4 = true, k, s, torus = SB.mesh(SB.torus(22, 8), 30, 20), cap = SB.mesh(SB.capsule([-20, 0, 0], [20, 0, 0], 8), 24, 20);
+      var scenesList = [[rodM, 2], [glove, 3], [glove, 0.3], [torus, 0.3], [torus, 2], [cap, 2]], sensitive = 0;
+      for (s = 0; s < scenesList.length; s++) {
+        var A = pair(100, 100), B = pair(100, 100), px;
+        SB.drawMesh(A[0], scenesList[s][0], own(0, false), view(scenesList[s][1])); SB.drawMesh(B[0], scenesList[s][0], own(0, false), view(scenesList[s][1]), { cull: 0 });
+        for (px = 0; px < A[0].px.length; px++) if (A[0].px[px] !== B[0].px[px]) { sensitive++; break; }
+        for (k = 0; k < forms.length; k++) {
+          var P = pair(100, 100);
+          SB.drawMesh(P[0], scenesList[s][0], own(0, false), view(scenesList[s][1]), forms[k]);
+          W.drawMesh(P[1], scenesList[s][0], own(0, false), view(scenesList[s][1]), forms[k]);
+          scenes++;
+          if (!same(P[0], P[1])) { same4 = false; bad.push('last argument ' + JSON.stringify(forms[k]) + ' scene ' + s); }
+        }
+      }
+      extra['drawMesh with null, undefined, {}, false, 0 or an object with cull null, undefined, false, 0 or -0.75 as last argument gives the same pixels as the plain code (on scenes where the cull value shows)'] = same4 && sensitive >= 4;
+    })();
     return { scenes: scenes, meshScenes: meshScenes, meshDiffering: meshBad, randomScenes: N, randomDiffering: rbad, differing: bad.length, names: bad.slice(0, 5), extra: extra };
   }
   if (typeof module !== 'undefined' && module.exports) module.exports = battery; else root.spriteBakerWasmBattery = battery;
