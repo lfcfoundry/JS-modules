@@ -15,13 +15,13 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
-| [sprite-baker](modules/sprite-baker/README.md) | 1.6.1 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
+| [sprite-baker](modules/sprite-baker/README.md) | 1.7.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.0 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
-| [lzma-decode](modules/lzma-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.2.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.2.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
@@ -53,9 +53,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **walker-sim** 2.2.0 · API 2: The default file is now walker-sim-with-wasm.js: big runs use the WebAssembly walking loop first (about 1.5 times faster in Chromium and Firefox), and the JavaScript loop when WebAssembly is not usable. Same counts either way. In WebKitGTK and GNOME Web a fresh page is about 15% to 30% slower with it; set cfg.wasm = false or copy walker-sim.js there.
 - 2026-10-18 · **test-runner** 1.0.0 · API 1: Shared pieces for browser checks: warm browsers that cut the start of each check from seconds to well under a second, fair timing, skipped rebuilds, a wasm-versus-JavaScript twin test, a picture gate and an automatic bisect.
 - 2026-10-18 · **stage-curtains** 1.2.0 · API 1: A curtain half paints about 1.4 to 1.6 times faster on a freshly loaded page (same picture) using a small WebAssembly painter. Pages with a content policy need 'wasm-unsafe-eval'; without it, plain JavaScript is used.
+- 2026-10-18 · **sprite-baker** 1.7.0 · API 1: The wasm now compiles in the background when the file loads (ready() and module() added); the compile it saves is about 1 ms. Same pictures.
 - 2026-10-18 · **sprite-baker** 1.6.1 · API 1: Fix: the WebAssembly add-on drew drawMesh(..., null) with the wrong back-face cut (about 79 pixels per picture went missing in one game); now identical to the plain code.
 - 2026-10-18 · **sprite-baker** 1.6.0 · API 1: New optional add-on sprite-baker-wasm.js fills triangles in WebAssembly with the very same pixels: baking is about 1.1 to 1.4 times faster in Chromium and Firefox, mixed in WebKit browsers. Plain JavaScript is the fallback.
 - 2026-10-18 · **ppmd-pack** 2.0.0 · API 2: Packed pages now carry the WebAssembly decoder by default (about 9.8 KB or 5% bigger, opens faster); --no-wasm gives the old smaller page. --wasm still works.
+- 2026-10-18 · **ppmd-decode** 1.3.0 · API 1: The wasm now compiles in the background when the file loads (ready() and module() added); the compile it saves is about 1 ms. Same bytes out.
 - 2026-10-18 · **ppmd-decode** 1.2.0 · API 1: The default file is now ppmd-decode-with-wasm.js: ppmd7Decode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.4 to 1.8 times faster to open a page in the four test browsers.
 - 2026-10-18 · **pcodec-js** 1.0.1 · API 1: No change to the code or to the files it writes. The build was rebuilt and checked again, and the credits and comparison were updated.
 - 2026-10-18 · **pcodec-js** 1.0.0 · API 1: First release as its own module: Pcodec, a number compressor, for web pages in one file with no build step. It needs WebAssembly.
@@ -72,6 +74,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **memory-compression** 2.0.2 · API 2: Two bugs fixed: asking how much memory a list uses no longer fails when some rows are missing a text value, and a page that only allows WebAssembly no longer logs a blocked-code error.
 - 2026-10-18 · **memory-compression** 2.0.1 · API 2: Opening a file in fast mode is 21% to 65% faster in Firefox, WebKitGTK and GNOME Web when files of other modes are open on the same page. Packed files are identical.
 - 2026-10-18 · **lzma-pack** 2.0.0 · API 2: Packed pages now carry the WebAssembly decoder by default (about 4.5 KB or 3% bigger, opens faster); --no-wasm gives the old smaller page. --wasm still works.
+- 2026-10-18 · **lzma-decode** 1.3.0 · API 1: The wasm now compiles in the background when the file loads (ready() and module() added); the compile it saves is under 1 ms. Same bytes out.
 - 2026-10-18 · **lzma-decode** 1.2.0 · API 1: The default file is now lzma-decode-with-wasm.js: lzmaDecode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.5 to 2.6 times faster to open a page in the four test browsers.
 - 2026-10-18 · **gif-writer** 1.2.0 · API 1: Pictures are written 1.1 to 2.3 times faster and palettes up to 1.7 times faster with WebAssembly, same colors and bytes. The palette for flat pictures is up to 11% slower in the two WebKit browsers. The fast path needs 'wasm-unsafe-eval'.
 - 2026-10-17 · **zip-open** 1.1.0 · API 1: The check on every unpacked file is about 3.9 times faster, so large zips open sooner. Same answers.

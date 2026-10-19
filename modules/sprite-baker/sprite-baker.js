@@ -1,4 +1,4 @@
-/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.6.1 (API 1) */
+/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.7.0 (API 1) */
 var SpriteBaker = (function () {
   'use strict';
 
@@ -911,7 +911,7 @@ var SpriteBaker = (function () {
 //@end
 
   return {
-    version: '1.6.1',
+    version: '1.7.0',
     Rast: Rast,
 //@begin ramps
     material: material,
