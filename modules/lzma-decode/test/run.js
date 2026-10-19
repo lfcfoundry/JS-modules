@@ -125,6 +125,18 @@ jobs.forEach((j, i) => {
       check('wasm add-on: lc + lp above 4 goes to the JS decoder and agrees', lzmaWasm.engine === 'js' && ((a.e !== undefined && a.e === b.e) || (a.v && b.v && same(a.v, b.v)))); }
     check('wasm add-on: zero-size result', lzmaWasm(raw, 0, o).length === 0);
   }
+  // compile early: a fresh process each, because the compile starts when the file loads
+  for (const [label, file] of [['lzma-decode-wasm.js', 'lzma-decode-wasm.js'], ['lzma-decode-with-wasm.js', 'lzma-decode-with-wasm.js']]) {
+    const script = "var M = WebAssembly.Module, made = 0, out = {}; if (process.env.NOCOMPILE) delete WebAssembly.compile;\n" +
+      "var L = require(" + JSON.stringify(path.join(__dirname, '..', file)) + "); out.before = L.module();\n" +
+      "L.ready().then(function (ok) { out.ready = ok; out.isModule = L.module() instanceof M; WebAssembly.Module = function () { made++; return new M(arguments[0]); };\n" +
+      "  var raw = Uint8Array.from(Buffer.from(process.env.RAW, 'hex')); var r = L(raw, +process.env.N, { lc: 4, lp: 0, pb: 0 }); out.engine = L.engine; out.made = made; out.hex = Buffer.from(r).toString('hex').length; console.log(JSON.stringify(out)); });";
+    const jj = jobs.find((x) => x.kind === 'text' && x.n === 30000 && x.p[0] === 4), rawHex = out[jobs.indexOf(jj)].raw;
+    const run = (env) => { try { return JSON.parse(require('child_process').execFileSync(process.execPath, ['-e', script], { encoding: 'utf8', env: Object.assign({}, process.env, { RAW: rawHex, N: String(jj.n) }, env) })); } catch (e) { return { error: String(e) }; } };
+    const A = run({}), B = run({ NOCOMPILE: '1' });
+    check(label + ' compile early: module() is null at first, ready() says true, the module is a WebAssembly.Module, and a decode then starts it without compiling again', A.before === null && A.ready === true && A.isModule === true && A.engine === 'wasm' && A.made === 0 && A.hex === jj.n * 2, JSON.stringify(A));
+    check(label + ' compile early: without WebAssembly.compile, ready() says false and the decode still uses wasm (compiled on the spot)', B.before === null && B.ready === false && B.engine === 'wasm' && B.hex === jj.n * 2, JSON.stringify(B));
+  }
   // a page that forbids WebAssembly (or an old browser): the add-on loads, says so, and decodes with the JS decoder
   { const saved = globalThis.WebAssembly; delete require.cache[require.resolve(wasmPath)]; globalThis.WebAssembly = undefined;
     let nw; try { nw = require(wasmPath); } finally { globalThis.WebAssembly = saved; delete require.cache[require.resolve(wasmPath)]; }

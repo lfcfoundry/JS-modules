@@ -1,8 +1,8 @@
 /*! lzma-decode-with-wasm.js: lzma-decode.js and lzma-decode-wasm.js in one file. lzmaDecode(...) here tries the WebAssembly decoder first and uses the JavaScript decoder
  * when WebAssembly is not usable (the page policy lacks 'wasm-unsafe-eval', or an old browser), so it always works and gives the same bytes. lzmaDecode.plain is the JavaScript decoder alone;
  * lzmaDecodeWasm is another name for lzmaDecode. Built by wasm/join.js from the two files named above: edit those, not this one. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.2.0 (API 1) */
-/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.2.0 (API 1) */
+ * Version 1.3.0 (API 1) */
+/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.3.0 (API 1) */
 
 /* Decodes a raw LZMA1 stream (no .lzma header) into a Uint8Array.
 
@@ -146,15 +146,15 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
  * First decode of a 572 KB page: about 2 to 4 times faster in Chromium and Firefox, about 1.5 times in WebKitGTK and GNOME Web (numbers in README.md).
  * It needs a page that allows WebAssembly (the policy word is wasm-unsafe-eval); when the page does not allow it, or the browser has no WebAssembly,
  * or the settings are lc + lp > 4, or the input is bad, the call is handed to the JavaScript decoder, so it works everywhere and throws the same errors.
- *
  *   lzmaDecodeWasm(src, outSize, opts)   same arguments and result as lzmaDecode (opts: lc, lp, pb, maxSize); the result is a Uint8Array of its own
  *   lzmaDecodeWasm.file(bytes, size, opts)   same as lzmaDecode.file
- *   lzmaDecodeWasm.available    true when this file found WebAssembly usable on this page
+ *   lzmaDecodeWasm.available    true when this file found WebAssembly usable on this page (asks the engine now)
+ *   .ready() a promise, true once the wasm compiled in the background (starts at load); .module() the compiled module or null (for postMessage to a worker)
  *   lzmaDecodeWasm.engine       'wasm' or 'js': which decoder the last call used;  .plain  the JavaScript decoder alone (lzmaDecode from lzma-decode.js)
  *
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  */
 
 (function (root, factory) {
@@ -164,13 +164,29 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
 }(typeof self !== 'undefined' ? self : this, function (jsDecode) {
   'use strict';
   if (!jsDecode) throw new Error('lzma-decode-wasm.js: load lzma-decode.js first');
-  var mod = null;
-  try {
+  var mod = null, settled = false, early = null;
+  var bin = null;     // the decoded program, kept only until it is compiled once
+  function wasmBytes() {
+    if (bin) return bin;
     var txt = atob(/*WASM:BEGIN*/'AGFzbQEAAAABEwJgB39/f39/f38Bf2ADf39/AX8DBQQAAQEBBQMBAAIGDwJ/AUHw5AULfwBB8OQFCwcmAwZtZW1vcnkCAAtsem1hX2RlY29kZQAAC19faGVhcF9iYXNlAwEKkh8E/RYBF38jgICAgABBIGsiBySAgICAAEF+IQgCQCAFIARqIglBBEsNACAGQQRLDQBBgIiAgAAhCkGABiAJdEEBdEHupICAAGpBgIiAgABrQQF1IQkDQCAKQYAIOwEAIApBAmohCiAJQX9qIgkNAAtBACEKIAdBADYCHCAHIAE2AhAgByAANgIIIAdBfzYCFEEAIQsDQEEAIQkCQCAKIAFPDQAgACAKai0AACEJCyAJIAtBCHRyIQsgCkEBaiIKQQRHDQALQQQhCiAHQQQ2AgwgByALNgIYAkACQCADDQBBACEJQQAhAAwBCyACQX9qIQxBfyAFdEF/cyENQX8gBnRBf3MhDkEIIARrIQ9BACEAQQAhEEEAIRFBACESQQAhE0EAIRQDQEF/IQggBygCDCIBIAcoAhAiFUsNAgJAAkAgBygCGCIKIAcoAhQiFkELdiAQQQV0IAAgDnEiF0EBdCIYakGAiICAAGoiBS8BACILbCIJTyIGDQAgC0GAECALa0EFdmohCwwBCyAHIAogCWsiCjYCGCAWIAlrIQkgCyALQQV2ayELCyAFIAs7AQACQCAJQf///wdLDQAgCkEIdCEKAkACQCABIBVPDQAgBygCCCABai0AACELDAELIAdBATYCHEEAIQsLIAlBCHQhCSAHIAFBAWoiATYCDCAHIAsgCnIiCjYCGAsCQAJAIAYNAAJAAkAgAA0AQQAhCwwBCyAMIABqLQAAIQsLIAsgD3YgACANcSAEdGpBgAxsQe6kgIAAaiEYQQEhCwJAAkAgEEEHSQ0AIAIgAGogEUF/c2otAAAhBSAYQYAEaiEZQQEhCyAHKAIMIRogBygCHCEbIAcoAhghHCAHKAIIIR0DQAJAAkAgCiAJQQt2IBkgBUEHdkEBcSIWQQl0aiALQQF0IghqIhcvAQAiBmwiC08NACAGQYAQIAZrQQV2aiEJQQAhBgwBCyAKIAtrIRwgCSALayELIAYgBkEFdmshCUEBIQYgHCEKCyAXIAk7AQACQAJAIAtB////B00NACALIQkMAQsgCkEIdCEKAkACQCABIBVJDQBBACEXQQEhGwwBCyAdIAFqLQAAIRcLIAtBCHQhCSABQQFqIhohASAXIApyIhwhCgsgBiAIciELAkAgFiAGRw0AIAVBAXQhBSALQYACSQ0BCwsgByAbNgIcIAcgCTYCFCAHIBw2AhggByAaNgIMIAtB/wFLDQELIAcoAgwhFyAHKAIcIRwgBygCGCEIIAcoAgghGQNAAkACQCAKIAlBC3YgGCALQQF0IgZqIhYvAQAiBWwiC08NACAFQYAQIAVrQQV2aiEJQQAhBQwBCyAKIAtrIQggCSALayELIAUgBUEFdmshCUEBIQUgCCEKCyAWIAk7AQACQAJAIAtB////B00NACALIQkMAQsgCkEIdCEKAkACQCABIBVJDQBBACEWQQEhHAwBCyAZIAFqLQAAIRYLIAtBCHQhCSABQQFqIhchASAWIApyIgghCgsgBSAGciILQYACSQ0ACyAHIBw2AhwgByAJNgIUIAcgCDYCGCAHIBc2AgwLIAIgAGogCzoAAEEAQX1BeiAQQQpJGyAQaiAQQQRJGyEQIABBAWohAAwBCwJAAkAgCiAJQQt2IBBBAXQiHEGAi4CAAGoiFi8BACIGbCIFTw0AIAZBgBAgBmtBBXZqIQYgCiELIAUhCQwBCyAHIAogBWsiCzYCGCAJIAVrIQkgBiAGQQV2ayEGCyAWIAY7AQAgByAJNgIUAkAgCUH///8HSw0AIAcgCUEIdCIJNgIUIAtBCHQhCwJAAkAgASAVTw0AIAcoAgggAWotAAAhBgwBCyAHQQE2AhxBACEGCyAHIAFBAWoiATYCDCAHIAYgC3IiCzYCGAsCQAJAIAogBUkNAAJAAkAgCyAJQQt2IBxBmIuAgABqIgYvAQAiBWwiCk8iFg0AIAVBgBAgBWtBBXZqIQkMAQsgByALIAprIgs2AhggCSAKayEKIAUgBUEFdmshCQsgBiAJOwEAAkAgCkH///8HSw0AIAtBCHQhCQJAAkAgASAVTw0AIAcoAgggAWotAAAhCwwBCyAHQQE2AhxBACELCyAKQQh0IQogByABQQFqIgE2AgwgByALIAlyIgs2AhgLAkACQCAWDQACQAJAIAsgCkELdiAQQQR0QQF0IBhqQeCLgIAAaiIGLwEAIgVsIglPIhYNACAFQYAQIAVrQQV2aiEKDAELIAcgCyAJayILNgIYIAogCWshCSAFIAVBBXZrIQoLIAYgCjsBACAHIAk2AhQCQCAJQf///wdLDQAgByAJQQh0NgIUIAtBCHQhCgJAAkAgASAVTw0AIAcoAgggAWotAAAhCQwBCyAHQQE2AhxBACEJCyAHIAFBAWo2AgwgByAJIApyNgIYCwJAIBZFDQAgEiEBIBEhCwwCCyARIABPDQcgAiAAaiIKIAogEUF/c2otAAA6AABBCUELIBBBB0kbIRAgAEEBaiEADAQLAkACQCALIApBC3YgHEGwi4CAAGoiFi8BACIGbCIJTw0AIAZBgBAgBmtBBXZqIQYgCyEFIAkhCgwBCyAHIAsgCWsiBTYCGCAKIAlrIQogBiAGQQV2ayEGCyAWIAY7AQAgByAKNgIUAkAgCkH///8HSw0AIAcgCkEIdCIKNgIUIAVBCHQhBQJAAkAgASAVTw0AIAcoAgggAWotAAAhBgwBCyAHQQE2AhxBACEGCyAHIAFBAWoiATYCDCAHIAYgBXIiBTYCGAsCQCALIAlPDQAgESEBIBIhCwwBCwJAAkAgBSAKQQt2IBxByIuAgABqIgYvAQAiC2wiCU8NACALQYAQIAtrQQV2aiELIAUhFiAJIQoMAQsgByAFIAlrIhY2AhggCiAJayEKIAsgC0EFdmshCwsgBiALOwEAIAcgCjYCFAJAIApB////B0sNACAHIApBCHQ2AhQgFkEIdCEKAkACQCABIBVPDQAgBygCCCABai0AACELDAELIAdBATYCHEEAIQsLIAcgAUEBajYCDCAHIAsgCnI2AhgLIBMgFCAFIAlJIgobIQsgFCATIAobIRQgEiETIBEhAQtBCEELIBBBB0kbIRAgB0EIakHqnICAACAXEIGAgIAAIRwMAQtBB0EKIBBBB0kbIRACQCAHQQhqIAdBCGpB5pSAgAAgFxCBgICAACIcQQMgHEEDSRtBB3RB4I6AgABqQQYQgoCAgAAiC0EESQ0AIAtBAXFBAnIgC0EBdiIKQX9qIgl0IRkCQAJAIAtBDUsNACAHQQhqIBlBAXQgC0EBdGtB4JKAgABqIAkQg4CAgAAhCgwBC0EAIQUCQCAKQQVGDQAgCkF7aiEGQQAhBSAHKAIcIRogBygCCCEbIAcoAhAhFSAHKAIUIQkgBygCDCEWIAcoAhgiFyEKA0AgCiAJQQF2IgtrIhggCiAKIAtPIgEbIQoCQAJAIAlB////D00NACAYIBcgARshFyALIQkMAQsgCkEIdCEKAkACQCAWIBVJDQBBACEXQQEhGgwBCyAbIBZqLQAAIRcLIAtBCHQhCSAWQQFqIRYgFyAKciIXIQoLIAVBAXQgAXIhBSAGQX9qIgYNAAsgByAaNgIcIAcgFzYCGCAHIAk2AhQgByAWNgIMCyAHQQhqQcaUgIAAQQQQg4CAgAAgBUEEdGohCgsgCiAZaiELCyATIRQgEiETIBEhAQsgCyAATw0DAkAgHEF+Rg0AIAAgA08NACAcQQFqIQogAiALayEJA0AgAiAAaiAJIABqQX9qLQAAOgAAIABBAWohACAKRQ0BIApBf2ohCiAAIANJDQALCyABIRIgCyERCyAAIANJDQALIAcoAhxBAEchCSAHKAIQIQEgBygCDCEKC0F/QX8gACAJGyAKIAFLGyEICyAHQSBqJICAgIAAIAgL0wMBBX8CQAJAIAAoAhAiAyAAKAIMIgRBC3YgAS8BACIFbCIGTyIHDQAgBUGAECAFa0EFdmohBQwBCyAAIAMgBmsiAzYCECAEIAZrIQYgBSAFQQV2ayEFCyAAIAY2AgwgASAFOwEAAkAgBkH///8HSw0AIAAgBkEIdCIGNgIMIANBCHQhBQJAAkAgACgCBCIDIAAoAghPDQAgACgCACADai0AACEEDAELIABBATYCFEEAIQQLIAAgA0EBajYCBCAAIAQgBXIiAzYCEAsCQCAHDQAgACABIAJBBHRqQQRqQQMQgoCAgAAPCwJAAkAgAyAGQQt2IAEvAQIiB2wiBU8iBA0AIAdBgBAgB2tBBXZqIQYMAQsgACADIAVrIgM2AhAgBiAFayEFIAcgB0EFdmshBgsgACAFNgIMIAEgBjsBAgJAIAVB////B0sNACAAIAVBCHQ2AgwgA0EIdCEDAkACQCAAKAIEIgYgACgCCE8NACAAKAIAIAZqLQAAIQUMAQsgAEEBNgIUQQAhBQsgACAGQQFqNgIEIAAgBSADcjYCEAsCQCAEDQAgACABIAJBBHRqQYQCakEDEIKAgIAAQQhqDwsgACABQYQEakEIEIKAgIAAQRBqC5oCAQh/AkACQCACDQBBASEDDAELIAAoAhAhBCAAKAIMIQUgAiEGQQEhAwNAAkACQCAEIAVBC3YgASADQQF0IgdqIggvAQAiCWwiA08NACAJQYAQIAlrQQV2aiEJQQAhCgwBCyAAIAQgA2siBDYCECAFIANrIQMgCSAJQQV2ayEJQQEhCgsgACADNgIMIAggCTsBAAJAAkAgA0H///8HTQ0AIAMhBQwBCyAAIANBCHQiBTYCDCAEQQh0IQQCQAJAIAAoAgQiAyAAKAIITw0AIAAoAgAgA2otAAAhCQwBCyAAQQE2AhRBACEJCyAAIANBAWo2AgQgACAJIARyIgQ2AhALIAogB3IhAyAGQX9qIgYNAAsLIANBfyACdGoLnwIBCH8CQCACDQBBAA8LIAAoAhAhAyAAKAIMIQRBACEFQQEhBkEAIQcDQAJAAkAgAyAEQQt2IAEgBkEBdCIIaiIJLwEAIgpsIgZPDQAgCkGAECAKa0EFdmohBEEAIQoMAQsgACADIAZrIgM2AhAgBCAGayEGIAogCkEFdmshBEEBIQoLIAAgBjYCDCAJIAQ7AQACQAJAIAZB////B00NACAGIQQMAQsgACAGQQh0IgQ2AgwgA0EIdCEDAkACQCAAKAIEIgYgACgCCE8NACAAKAIAIAZqLQAAIQkMAQsgAEEBNgIUQQAhCQsgACAGQQFqNgIEIAAgCSADciIDNgIQCyAKIAV0IAdyIQcgCiAIciEGIAIgBUEBaiIFRw0ACyAHCw=='/*WASM:END*/), bytes = new Uint8Array(txt.length);
     for (var i = 0; i < txt.length; i++) bytes[i] = txt.charCodeAt(i);
-    mod = new WebAssembly.Module(bytes);
-    new WebAssembly.Instance(mod, {});     // some engines only refuse here when the page's policy forbids WebAssembly
-  } catch (e) { mod = null; }
+    return (bin = bytes);
+  }
+  function accept(m) {     // keep m only if the page lets it start: some engines only refuse at the first Instance when the policy forbids WebAssembly
+    settled = true; bin = null;
+    try { new WebAssembly.Instance(m, {}); mod = m; } catch (e) { mod = null; }
+    return mod;
+  }
+  function ensure() {     // the first decode that finds the early compile unfinished compiles on the spot, as before
+    if (settled) return mod;
+    try { return accept(new WebAssembly.Module(wasmBytes())); } catch (e) { settled = true; bin = null; return (mod = null); }
+  }
+  /* compile early: the engine compiles on another thread as soon as this file loads; the page keeps running and the first decode only starts the module */
+  if (typeof WebAssembly !== 'object' || !WebAssembly || typeof WebAssembly.Module !== 'function') settled = true;     // no WebAssembly at all: decided now, as before
+  try {
+    early = typeof WebAssembly === 'object' && WebAssembly && typeof WebAssembly.compile === 'function'
+      ? WebAssembly.compile(wasmBytes()).then(function (m) { return settled ? mod : accept(m); }, function () { if (!settled) { settled = true; bin = null; mod = null; } return mod; }) : Promise.resolve(null);
+  } catch (e) { early = Promise.resolve(null); }
 
   function fallback(src, outSize, opts) {
     decode.engine = 'js';
@@ -180,7 +196,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
   function decode(src, outSize, opts) {
     opts = opts || {};
     var lc = opts.lc === undefined ? 4 : opts.lc, lp = opts.lp === undefined ? 0 : opts.lp, pb = opts.pb === undefined ? 0 : opts.pb;
-    if (!mod) return fallback(src, outSize, opts);
+    if (!ensure()) return fallback(src, outSize, opts);
     // anything the wasm side does not take goes to the JavaScript decoder, which also owns every error message
     if (!((lc | 0) === lc && (lp | 0) === lp && (pb | 0) === pb && lc >= 0 && lp >= 0 && lc + lp <= 4 && pb <= 4 && (outSize | 0) === outSize && outSize >= 0 && outSize < 0x40000000) ||
         src.length >= 0x40000000 || (opts.maxSize !== undefined && !(outSize <= opts.maxSize))) return fallback(src, outSize, opts);
@@ -212,7 +228,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
   };
 
   decode.plain = jsDecode;     // the JavaScript decoder itself, for a caller that wants no WebAssembly at all
-  decode.available = !!mod;
+  Object.defineProperty(decode, 'available', { get: function () { return !!ensure(); }, enumerable: true });
+  decode.ready = function () { return early.then(function () { return !!mod; }); };     // a promise: true once the early compile worked, false when WebAssembly cannot be used here
+  decode.module = function () { return mod; };     // the compiled WebAssembly.Module once ready, else null: send it to a worker with postMessage so the worker does not compile it again
   decode.engine = null;
   return decode;
 }));
