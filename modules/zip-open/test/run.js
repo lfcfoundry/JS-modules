@@ -133,4 +133,35 @@ t('crc32: the standard check value, and the same answer as a plain bit-by-bit CR
   if (zlib.crc32) { tried++; if (U.crc32(big) !== zlib.crc32(big)) bad++; }
   assert.equal(bad, 0, bad + ' of ' + tried + ' differ');
 });
+t('crc32 in WebAssembly (1.2.0): used from 1,024 bytes up, the same answer as the plain loop for every length around the switch, every start position, the 1 MB chunk edges and a big buffer', function () {
+  assert.equal(U.wasmAvailable(), true);
+  var sd = 11, rnd = function () { return (sd = (sd * 16807) % 2147483647) & 255; }, i, bad = 0, tried = 0;
+  var buf = new Uint8Array(4200); for (i = 0; i < buf.length; i++) buf[i] = rnd() ^ (i >> 3);
+  var check = function (v) { tried++; if (U.crc32(v) !== U.crc32(v, true)) bad++; };
+  for (var off = 0; off < 9; off++) for (var len = 1000; len < 1100; len++) check(buf.subarray(off, off + len));
+  for (len = 0; len < 4190; len += 37) check(buf.subarray(3, 3 + len));
+  var mb = new Uint8Array((1 << 20) * 3 + 7); for (i = 0; i < mb.length; i += 3) { mb[i] = rnd(); mb[i + 1] = i >> 9; mb[i + 2] = 1; }
+  [1 << 20, (1 << 20) - 1, (1 << 20) + 1, 2 << 20, mb.length].forEach(function (L) { check(mb.subarray(0, L)); check(mb.subarray(5, 5 + L - 5)); });
+  tried++; if (U.crc32(Buffer.from(mb)) !== (zlib.crc32 ? zlib.crc32(mb) : U.crc32(mb, true))) bad++;
+  tried++; if (U.crc32(Buffer.alloc(5000, 255)) !== U.crc32(new Uint8Array(5000).fill(255), true)) bad++;
+  tried++; if (U.crc32(Array.prototype.slice.call(mb, 0, 3000)) !== U.crc32(mb.subarray(0, 3000), true)) bad++;   // a plain array still works
+  assert.equal(bad, 0, bad + ' of ' + tried + ' differ');
+});
+t('crc32 in WebAssembly: without WebAssembly, with a module the page refuses, or with a broken Instance, the plain loop gives the same answers', function () {
+  var path = require.resolve('../zip-open.js'), saved = globalThis.WebAssembly, data = new Uint8Array(70000).map(function (_, q) { return (q * 31 + (q >> 5)) & 255; }), want = U.crc32(data, true);
+  function fresh() { delete require.cache[path]; var m = require(path); delete require.cache[path]; return m; }
+  try {
+    globalThis.WebAssembly = undefined; var a = fresh(); assert.equal(a.wasmAvailable(), false); assert.equal(a.crc32(data), want);
+    globalThis.WebAssembly = { Module: function () { throw new Error('refused by the page policy'); }, Instance: saved.Instance, Memory: saved.Memory }; var b = fresh(); assert.equal(b.wasmAvailable(), false); assert.equal(b.crc32(data), want);
+    globalThis.WebAssembly = { Module: saved.Module, Instance: function () { return { exports: { init: function () {}, __heap_base: { value: 1024 }, memory: { buffer: new ArrayBuffer(65536), grow: function () { throw new Error('no memory'); } } } }; }, Memory: saved.Memory };
+    var c = fresh(); assert.equal(c.wasmAvailable(), false); assert.equal(c.crc32(data), want);
+  } finally { globalThis.WebAssembly = saved; }
+  assert.equal(U.wasmAvailable(), true);
+});
+t('the embedded WebAssembly is what wasm/crc32.c builds (embed.py --check, and build.sh --check when clang is installed)', function () {
+  var cp = require('child_process'), dir = require('path').join(__dirname, '..', 'wasm');
+  cp.execFileSync('python3', [require('path').join(dir, 'embed.py'), '--check'], { stdio: 'pipe' });
+  var has = false; try { cp.execFileSync('clang', ['--version'], { stdio: 'pipe' }); has = true; } catch (e) { /* no clang here: the build proof is skipped */ }
+  if (has) cp.execFileSync('sh', [require('path').join(dir, 'build.sh'), '--check'], { stdio: 'pipe' });
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); });
