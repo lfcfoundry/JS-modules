@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Research runner behind the pcodec-js 1.1.0 numbers; it needs the test browsers installed (see the repository QA notes).
 'use strict';
 const http = require('http'), fs = require('fs'); const drv0 = require('/home/claude/net-flow-map/bench/driver.js');
 const drv = { open: async (w, o) => { for (let i = 0; ; i++) { try { return await drv0.open(w, o); } catch (e) { if (i >= 4) throw e; await new Promise((r) => setTimeout(r, 4000)); } } } };

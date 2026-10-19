@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Research runner behind the pcodec-js 1.1.0 numbers; it needs the test browsers installed (see the repository QA notes).
 // usage: node wtest.js chromium|firefox|webkit|epiphany out.json   (one browser; all pages from a tiny local server)
 'use strict';
 const http = require('http'), fs = require('fs'), LIB = process.env.LIBDIR || '/tmp/claude-0/pcm/t3';
@@ -13,7 +14,7 @@ const srv = http.createServer((q, r) => {
   r.writeHead(200, h); r.end(page(u));
 });
 const med = (a) => { a = a.slice().sort((x, y) => x - y); return a[a.length >> 1]; };
-// ---- in-page functions (serialised by the driver) ----
+// ---- in-page functions (serialized by the driver) ----
 async function blocking(arg) {
   const P = PcodecJS, N = arg.n, tick = () => new Promise((r) => { const c = new MessageChannel(); c.port1.onmessage = () => { c.port1.close(); r(); }; c.port2.postMessage(0); });
   let run = true, last = performance.now(), max = 0;
