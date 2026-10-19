@@ -1,8 +1,8 @@
 # sprite-baker
 
-**Version 1.5.0 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/sprite-baker-fancy-browser.js with and without LEAN=1: all 5 cases equal Fancy's filler byte for byte in each browser, 8 of 8 runs); node modules/sprite-baker/test/lean.js 14 of 14 builds, 210 comparisons and the 266 Fancy scenes identical on every set that cuts two or more parts; 108 Node checks. Not run: a phone, Safari itself
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/sprite-baker-wasm-browser.js, three runs each: 833 scenes, 0 differ in 12 of 12 runs, also on a page without 'wasm-unsafe-eval'); node modules/sprite-baker/test/run.js 129 checks, test/lean.js unchanged. Not run: a phone, Safari itself
 
 The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
@@ -78,6 +78,63 @@ var sheet = SB.toSheet(SB.bakeRoll(scene, 12, 96), { padding: 2, maxWidth: 1024 
 
 `alphaMask` turns pixels with alpha above `threshold` (8) into `color` (default opaque white). `toSheet` packs pictures left to right in rows (`maxWidth` 2048, `padding` 1); `canvas` is `null` in Node or when the browser refuses, and `image` is still good.
 
+## WebAssembly fill (since 1.6.0, optional add-on)
+
+**What it is and how it works.** `sprite-baker-wasm.js` adds one function, `SpriteBaker.wasm()`, that returns a `Rast` and a `drawMesh` used exactly like `SB.Rast` and `SB.drawMesh`, but the triangle filler and the shader run in a small WebAssembly program (7,864 bytes, built from `wasm/tri.c`). The depth and color buffers live inside the wasm memory, so a fill copies nothing; `drawMesh` writes the turned vertices straight there and calls the filler once per mesh. It does the same arithmetic as the JavaScript, operation for operation (no fused multiply-add, no fast-math), so every byte of color and depth is the same: 833 scenes are compared byte for byte in each of the four test browsers, 0 differ. Two things the wasm computes itself (the cosine of the ridge lines and the 2.2 power of the rim light) are checked against the browser's own `Math.cos` and `Math.pow`, and any result within 1e-8 of a rounding edge is redone with the browser's function, the trick the JavaScript already uses for the highlight; do not widen that margin without re-proving equality (`test/wasm-battery.js`).
+
+**Why it exists.** Baking is the one heavy loop in a game that uses this module (Fancy Banana's pictures: about half of the picture-building time). The owner's rule is that WebAssembly is the standard for heavy loops and plain JavaScript the fallback. The gain here is modest and only shortens the baking time; the fill never runs per frame, so it cannot raise the FPS.
+
+```html
+<script src="sprite-baker.js"></script>
+<script src="sprite-baker-wasm.js"></script>     <!-- the page policy needs 'wasm-unsafe-eval' in script-src, nothing else loosened -->
+<script>
+  var E = SpriteBaker.wasm();               // E.available / E.engine: true / 'wasm', or false / 'js' when WebAssembly cannot start
+  var rast = new E.Rast(140, 140);
+  E.drawMesh(rast, mesh, material, { scale: 1, ox: 70, oy: 70 });   // same arguments and the same pixels as SpriteBaker.drawMesh
+  // ... read rast.px, or hand rast.toImageData() to a canvas ...
+  rast.release();                           // optional: "done with it" (see below)
+</script>
+```
+
+In Node: `var SB = require('./sprite-baker-wasm.js')` loads `sprite-baker.js` itself and returns `SpriteBaker`.
+
+**It always works.** When the browser has no WebAssembly, the page policy lacks `'wasm-unsafe-eval'`, or the module will not start, `E.available` is `false`, `E.engine` is `'js'`, and `E.Rast` / `E.drawMesh` are SpriteBaker's own, so the code you wrote against `E` runs unchanged. A single call can also fall back by itself and draw with the plain code (same pixels): a surface over 1,048,576 pixels, a picture over 229,376 pixels (about 478 x 478), a grid over 393,216 numbers, or a material that uses a part the loaded wasm file does not have. `E.stats` counts the calls the wasm filled and the ones it handed over.
+
+**Rules to know.**
+- All `Rast`s made by one `SpriteBaker.wasm()` result share one piece of wasm memory. Making a newer `Rast` first copies the older one out into plain arrays (about 0.06 ms for 140 x 140), so every `Rast` stays correct. Read `rast.px` and `rast.z` fresh and do not keep a reference to them across the making of another `Rast`. `toImageData()` returns a copy.
+- `rast.release()` says "I am done with this one": the next `Rast` then skips that copy. It never changes a pixel; it only saves time when many small pictures are made one after another (a released `Rast` throws if you draw into it). It does nothing on a plain `Rast`.
+- The texture is copied into the wasm on every call, so a picture changed in place is seen at once.
+- `SpriteBaker.wasm(bytes)` takes another build of `tri.wasm` (for example the lean one below) instead of the one inside the file.
+
+**Speed.** Milliseconds for 48 pictures of 140 x 140 pixels, filled and shaded (lower is better); "times faster" is the plain JavaScript time divided by the wasm time (higher is better); median of three full runs per browser, range in brackets; the last column also calls `rast.release()` after each picture. Browsers one at a time, each with its version:
+
+| Browser | Picture | Plain JS (ms) | Wasm (ms) | Times faster | With `release()` |
+|---|---|---|---|---|---|
+| ungoogled-chromium 155.0.8059.39-1 | Fancy's face (picture + ridge lines) | 77.2 | 63.4 | 1.22x (1.07-1.45) | 1.20x |
+| | gold coin (ridge lines, spin pose) | 60.5 | 51 | 1.19x (1.18-1.23) | 1.23x |
+| | plain rod | 9.5 | 9.6 | 0.94x (0.76-0.99) | 1.48x |
+| | glove | 32.4 | 31 | 1.13x (0.82-1.13) | 1.25x |
+| Firefox 158.0 | Fancy's face | 79 | 59 | 1.34x (1.34-1.42) | 1.41x |
+| | gold coin | 68 | 48 | 1.40x (1.32-1.42) | 1.40x |
+| | plain rod | 13 | 10 | 1.30x (0.87-1.33) | 1.71x |
+| | glove | 39 | 29 | 1.30x (1.27-1.34) | 1.39x |
+| WebKitGTK 2.52.6 | Fancy's face | 98 | 81 | 1.15x (1.11-1.41) | 1.29x |
+| | gold coin | 65 | 76 | 0.86x (0.83-0.87) | 0.83x |
+| | plain rod | 9 | 9 | 1.00x | 1.12x |
+| | glove | 28 | 28 | 0.93x (0.90-1.00) | 1.12x |
+| GNOME Web 46.5 | Fancy's face | 92 | 79 | 1.25x (1.16-1.29) | 1.28x |
+| | gold coin | 71 | 83 | 0.86x (0.79-1.15) | 0.86x |
+| | plain rod | 8 | 8 | 1.00x | 1.29x |
+| | glove | 28 | 29 | 0.96x (0.93-0.97) | 1.00x |
+
+Plain reading: Chromium and Firefox bake 1.1 to 1.4 times as fast. The two WebKit browsers gain only on pictures with a texture (1.15 to 1.25 times) and are about 14% slower on the ridge-line coin, flat on the rod and glove. If most of your players use Safari-type browsers and your pictures have no texture, leave the add-on out. Starting the add-on (decode, compile, instantiate) takes 1 to 11 ms once. Not measured: a phone, Safari itself.
+
+**Size.** `sprite-baker-wasm.js` is 21,643 bytes (9,749 gzipped), of which the wasm file (7,864 bytes) takes 10,488 as text. A lean wasm without the picture and ridge code is 5,561 bytes: `sh modules/sprite-baker/wasm/build.sh lean tri-lean.wasm` and `python3 modules/sprite-baker/wasm/embed.py --lean tri-lean.wasm -o sprite-baker-wasm-lean.js`; a material that needs a cut part is handed to the plain code, so the pixels stay the same.
+
+**Rebuild.** `sh modules/sprite-baker/wasm/build.sh` needs clang 18 or newer with the wasm32 target (no other tool); `build.sh --check` says whether `wasm/tri.wasm` is byte for byte what `tri.c` builds, and `python3 modules/sprite-baker/wasm/embed.py` puts the file into `sprite-baker-wasm.js` (`--check` compares). The `fmod` inside `tri.c` is from musl libc (MIT license), used so `%` on decimals matches JavaScript bit for bit.
+
+Tests: `node modules/sprite-baker/test/run.js` (the add-on section runs in Node); in a real browser, one at a time: `node tests/sprite-baker-wasm-browser.js chromium|firefox|webkit|epiphany`.
+
 ## Lean builds (since 1.5.0)
 
 `sprite-baker.js` stays the full file. `python3 modules/sprite-baker/lean.py --without ramps,mesh,rotation,shapes,baking,sheets --no-comments -o spritebaker.js` writes a copy without those parts (`--list` names all seven; `--sizes` prints bytes, gzipped bytes and, if `terser` is installed, minified bytes). Kept parts behave exactly as in the full file; cut parts are simply missing. Cutting `mesh` or `rotation` also cuts `baking`, and cutting `baking` also cuts `sheets`. Always kept: `Rast`, `tri` (plain, picture and ridge) and `drawMesh`.
@@ -126,6 +183,7 @@ Baking a 24-frame, 192 px roll with an outline takes 240 ms in ungoogled Chromiu
 - Keep the sampling and depth rules (pixel centers `x + 0.5`, inclusive edges with the `-1e-5` tolerance, strict `z > stored z`, `-1e9` clear value) and the shading constants in `tri` unless you are changing the look on purpose; then update the pinned hash in `test/run.js` after looking at the picture.
 - `rotationMatrix` negates the angle and snaps tiny sines and cosines to zero, so a full turn is exact. `bakeRoll` renders `i / frames * turn` for `i < frames` with one scale and one reused `Rast`. All baking paths share one internal `setup()` and `render(phi)`; the test "next() x 8 equals bakeRoll" guards it.
 - Loaders and probes do not throw (`null` or an inert `baker`); only programmer errors do. Only `toCanvas` may touch `document`; `alphaMask` and `toSheet` take pictures, never canvases.
+- The WebAssembly fill must stay byte-identical to `tri`/`triUV`: change the JavaScript and `wasm/tri.c` together, rebuild with `wasm/build.sh`, re-embed with `wasm/embed.py`, and run `test/run.js` and `tests/sprite-baker-wasm-browser.js`; never widen the 1e-8 rounding-edge guard without re-proving equality.
 - Keep the file dual-loading (last line), the license header (first line), no dependencies, no game-specific art, names or palettes. Do not rename exported names.
 
 ## Prior art and credits
@@ -135,6 +193,7 @@ Baking a 24-frame, 192 px roll with an outline takes 240 ms in ungoogled Chromiu
 - three.js, three-software-renderer, Easel, tinygl.js, Zdog, glMatrix and Blender are named for comparison. None of their code is in this module.
 - The rasterizer was extracted from Fancy Banana (LFC Foundry's own game), and the picture path draws the same bytes as that game's own triangle filler.
 - terser 5.51.2 was used only to measure minified sizes; no terser code is in the module.
+- The WebAssembly fill (`wasm/tri.c`) carries the `fmod` of musl libc (MIT license, Copyright (c) Rich Felker et al.) and the cosine and power kernels from the fdlibm algorithms (public ideas, written again here, checked against the browser's own functions).
 
 No code from others; the ideas above are theirs.
 
