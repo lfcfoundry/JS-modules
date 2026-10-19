@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-10-18
+- New optional add-on sprite-baker-wasm.js fills triangles in WebAssembly with the very same pixels: baking is about 1.1 to 1.4 times faster in Chromium and Firefox, mixed in WebKit browsers. Plain JavaScript is the fallback.
+
 ## 1.5.0 · API 1 · 2026-10-17
 - New trimming tool writes a smaller copy without the parts a game does not use. The full file draws the same pixels as before.
 
