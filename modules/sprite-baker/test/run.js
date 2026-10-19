@@ -327,7 +327,7 @@ var frames = SB.bakeRoll(ringScene, 8, [48, 48], ringOpts);
   check('ceiling: padding counts (two 2048 x 1024 pictures stack to 2048 x 2049, over the default 4,194,304)', SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)]) === null && SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)], { padding: 0 }) !== null);
   var rolled = SB.bakeRoll(ringScene, 4, [16, 16], { ss: 1 }), sheet = SB.toSheet(rolled, { padding: 2, maxWidth: 40 });
   check('baked frames pack into a sheet (4 of 16 x 16 at maxWidth 40 and padding 2: two rows of two)', sheet && sheet.width === 34 && sheet.height === 34 && sheet.frames[2].y === 18);
-  check('version is 1.6.0', SB.version === '1.6.0');
+  check('version is 1.6.1', SB.version === '1.6.1');
 })();
 
 /* 12. 1.3.0 made the rasterizer faster without changing a single byte. These hashes were taken from 1.2.0 (the shiny material has a strong
