@@ -40,4 +40,13 @@ async function launch(kind) {
     close: () => b.close()
   };
 }
-module.exports = { launch, sleep };
+// Takes a browser a warm daemon (tools/test-runner/cli.js warm start) already holds: info is { port, sessionId, version }.
+async function attach(info) {
+  const b = await WD.attach(info), p = wrap(b.page);
+  return {
+    version: async () => 'WebKitGTK ' + info.version,
+    newPage: async () => { await p.goto('about:blank'); p.errs = []; return p; },
+    close: () => b.close()
+  };
+}
+module.exports = { launch, attach, sleep };

@@ -2,7 +2,7 @@
  * webkit-driver.js: drive WebKitGTK (or GNOME Web) from Node with the same small page controls Playwright and Puppeteer give.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  *
  * Why: Playwright and Puppeteer cannot drive WebKitGTK (Playwright only drives its own patched WebKit build). WebKitGTK ships its own
  * WebDriver (`WebKitWebDriver`). This file speaks the W3C WebDriver protocol to it over plain HTTP, with no packages.
@@ -234,4 +234,17 @@ async function launch(opts) {
   } catch (e) { if (site) site.close(); killAll(); throw e; }
 }
 
-module.exports = { launch: launch, call: call, wrapScript: wrapScript, keyChar: keyChar, version: '1.2.0' };
+/**
+ * Takes over a browser another process already started with launch() (a warm browser): attach({ port, sessionId, version }) resolves to { page, port, sessionId, version, close() },
+ * where close() only lets go (it does not end the browser). Pass `serve` to also serve a folder of pages from this process.
+ */
+async function attach(info, opts) {
+  opts = opts || {};
+  var site = null;
+  if (opts.serve) { var root = path.resolve(opts.serve === true ? process.cwd() : opts.serve); site = await servePages(root); site.root = root; }
+  var page = makePage(info.port, info.sessionId, site);
+  await call(info.port, 'GET', '/session/' + info.sessionId + '/url');   // fails at once when the session is gone
+  return { page: page, port: info.port, sessionId: info.sessionId, version: info.version, close: async function () { if (site) site.close(); } };
+}
+
+module.exports = { launch: launch, attach: attach, call: call, wrapScript: wrapScript, keyChar: keyChar, version: '1.3.0' };
