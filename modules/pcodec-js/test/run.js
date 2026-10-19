@@ -1,8 +1,6 @@
-// Tests for pcodec-js.js and pcodec-js-pack.js. usage: node test.js [dir] [--reader pcodec-js-fast.js]   (dir holds the two built files; default: this folder)
+// Tests for pcodec-js.js and pcodec-js-pack.js. usage: node test.js [dir]   (dir holds the two built files; default: this folder)
 'use strict';
-const path = require('path'), fs = require('fs');
-const args = process.argv.slice(2), ri = args.indexOf('--reader');   // --reader pcodec-js-fast.js tests the SIMD reader (same as READER=pcodec-js-fast.js)
-const READER = ri >= 0 ? args.splice(ri, 2)[1] : (process.env.READER || 'pcodec-js.js'), dir = path.resolve(args[0] || path.join(__dirname, '..'));
+const path = require('path'), fs = require('fs'), dir = path.resolve(process.argv[2] || path.join(__dirname, '..')), READER = process.env.READER || 'pcodec-js.js';
 const R = require(path.join(dir, READER)), K = require(path.join(dir, 'pcodec-js-pack.js'));
 let pass = 0, fail = 0; const fails = [];
 const ok = (c, m) => { if (c) pass++; else { fail++; fails.push(m); console.log('FAIL', m); } };
@@ -61,5 +59,16 @@ function gen(type, n, shape) {
   // 9. warm-up: resolves, leaves results unchanged, and load({ warm: true }) starts it
   { const a = gen('f64', 5000, 'walk'), b = pk.pack(a); const t0 = Date.now(); await rd.warm(12); ok(Date.now() - t0 >= 12, 'warm runs for the time asked'); ok(same(rd.unpack(b), a), 'unpack after warm is unchanged');
     const r2 = await R.load({ warm: 8 }); await new Promise((r) => setTimeout(r, 60)); ok(same(r2.unpack(b), a), 'load({ warm }) then unpack is unchanged'); const c = gen('i32', 3000, 'walk'); ok(same(r2.unpack(pk.pack(c)), c), 'warm does not disturb the next unpack of another type'); }
+  // 10. unpackAsync: same numbers as unpack, every type, with into, with bad counts; sliceMs 0 yields after every batch
+  { for (const t of types) { const a = gen(t, 20000, t === 'f32' || t === 'f64' ? 'dec' : 'walk'), b = pk.pack(a); ok(same(await rd.unpackAsync(b), a), `unpackAsync ${t}`); }
+    const a = gen('f64', 600000, 'dec'), b = pk.pack(a); ok(same(await rd.unpackAsync(b, { sliceMs: 0 }), a), 'unpackAsync multi-chunk, yields every batch');
+    const dst = new Float64Array(a.length + 5); const r = await rd.unpackAsync(b, { into: dst }); ok(r.length === a.length && same(r, a), 'unpackAsync into a larger array');
+    let e = null; try { await rd.unpackAsync(b, { count: a.length - 1 }); } catch (x) { e = x; } ok(!!e, 'unpackAsync wrong count refused'); e = null; try { await rd.unpackAsync(new Uint8Array(0)); } catch (x) { e = x; } ok(!!e, 'unpackAsync empty input refused');
+    e = null; try { await rd.unpackAsync(b, { maxCount: 1000 }); } catch (x) { e = x; } ok(!!e, 'unpackAsync maxCount refused');
+    ok(same(rd.unpack(b), a), 'the object still works after unpackAsync'); }
+  // 11. worker(): in Node there is no Worker, so the same calls run on the page
+  { const w = await R.worker(), wp = await K.worker(); ok(w.inWorker === false && w.canPack === false && wp.canPack === true, 'worker() falls back to the page when there is no Worker');
+    const a = gen('i32', 30000, 'walk'), b = await wp.pack(a, { level: 6 }); ok(same(await w.unpack(b), a), 'worker pack then unpack'); ok((await w.info(b)).count === 30000, 'worker info'); w.terminate(); wp.terminate();
+    let e = null; try { await w.unpack(new Uint8Array(3)); } catch (x) { e = x; } ok(!!e, 'worker refuses bad data'); }
   console.log(`\n${pass} checks passed, ${fail} failed`); process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });
