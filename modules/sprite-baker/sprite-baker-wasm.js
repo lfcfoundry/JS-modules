@@ -1,7 +1,9 @@
-/*! sprite-baker-wasm.js: an optional add-on for sprite-baker.js that fills the triangles in WebAssembly (built from wasm/tri.c). Copyright (c) 2026 LFC Foundry. MIT License. Version 1.6.1 (API 1)
- * Load sprite-baker.js first, then this file (in Node: require it; it loads sprite-baker.js itself and returns SpriteBaker). It adds one function:
+/*! sprite-baker-wasm.js: an optional add-on for sprite-baker.js that fills the triangles in WebAssembly (built from wasm/tri.c). Copyright (c) 2026 LFC Foundry. MIT License. Version 1.7.0 (API 1)
+ * Load sprite-baker.js first, then this file (in Node: require it; it loads sprite-baker.js itself and returns SpriteBaker). It adds three functions:
  *
  *   SpriteBaker.wasm([bytes])   returns { available, engine, Rast, drawMesh, setLight, features, stats }
+ *   SpriteBaker.wasmReady()     a promise: true once the wasm has compiled in the background (it starts when this file loads), false when it cannot
+ *   SpriteBaker.wasmModule()    the compiled WebAssembly.Module once ready, else null; send it to a worker with postMessage so the worker does not compile it again
  *
  * `Rast` and `drawMesh` are used exactly like SpriteBaker.Rast and SpriteBaker.drawMesh and give the same bytes of color and depth, pixel for pixel; only the speed differs
  * (about 1.0 to 1.8 times as fast for the fill, depending on the browser and the picture; numbers in README.md). The fill never runs per frame in a game, so it shortens the
@@ -34,11 +36,24 @@
     return { available: false, engine: 'js', Rast: SB.Rast, drawMesh: SB.drawMesh, setLight: function (r, l) { return r.setLight(l); }, features: { texture: true, ridge: true } };
   }
 
-  function make(bytes) {
+  /* compile early: the engine compiles the wasm on another thread as soon as this file loads, so the page keeps running and SpriteBaker.wasm() then only starts it. Asked for before the compile
+     is done, wasm() compiles on the spot as it always did, so nothing waits and nothing changes in what it returns. */
+  var early = null, earlyMod = null, defaultBytes = null;
+  function defaultWasm() { return defaultBytes || (defaultBytes = bytesOf(WASM_B64)); }
+  function compileEarly() {
+    if (early) return early;
+    try {
+      early = WASM_B64 && typeof WebAssembly === 'object' && WebAssembly && typeof WebAssembly.compile === 'function'
+        ? WebAssembly.compile(defaultWasm()).then(function (m) { earlyMod = m; return m; }, function () { return null; }) : Promise.resolve(null);
+    } catch (e) { early = Promise.resolve(null); }
+    return early;
+  }
+
+  function make(bytes, compiled) {
     var inst, ex, mem, buf;
     try {
       if (typeof WebAssembly !== 'object' || !WebAssembly || typeof WebAssembly.Instance !== 'function') return plainEngine();
-      inst = new WebAssembly.Instance(new WebAssembly.Module(bytes), { env: { pow: Math.pow, cos: Math.cos } });
+      inst = new WebAssembly.Instance(compiled || new WebAssembly.Module(bytes), { env: { pow: Math.pow, cos: Math.cos } });
       ex = inst.exports; mem = ex.memory; buf = mem.buffer;
       if (typeof ex.fill_mesh !== 'function' || !buf || buf.byteLength < MEM) return plainEngine();
     } catch (e) { return plainEngine(); }
@@ -150,8 +165,13 @@
 
   SB.wasm = function (bytes) {
     if (bytes) return make(bytes);
-    if (!defaultEngine) defaultEngine = WASM_B64 ? make(bytesOf(WASM_B64)) : plainEngine();
+    if (!defaultEngine) defaultEngine = WASM_B64 ? make(defaultWasm(), earlyMod) : plainEngine();
     return defaultEngine;
   };
+  /* wasmReady(): a promise that says (true or false) whether the early compile worked; wasmModule(): the compiled WebAssembly.Module once it is ready, else null (it can be sent to a worker with postMessage so
+     the worker does not compile it again) */
+  SB.wasmReady = function () { return compileEarly().then(function (m) { return !!m; }); };
+  SB.wasmModule = function () { return earlyMod; };
+  compileEarly();
   if (typeof module !== 'undefined' && module.exports) module.exports = SB;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
