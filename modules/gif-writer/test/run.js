@@ -103,4 +103,40 @@ function goldenHashes(G) {
   const got = goldenHashes(G), want = ["d13b7242aa86702a","cb99c400a18f2a30","710a5ab80d3fe07a","dbc250c79ac33851","ba2308747618c43e","420f628132808bec","67e5b86bb17ca357","70bb22cc137c8805","ad94477792e96c58","f3ec721b27d82bf6","2fae469763b3a7cb","e6dbfddbca69f469","d91c32be86da9da6"], bad = got.filter((h, i) => h !== want[i]).length;
   ok(bad === 0, 'palettes and GIF bytes of 7 fixed scenes match what version 1.0.0 wrote (' + bad + ' of ' + want.length + ' differ)');
 }
+
+/* The WebAssembly half (1.2.0): the palette search and the picture encoder give the same colors and the same bytes as the JavaScript code. */
+{
+  ok(G.wasmAvailable() === true, 'WebAssembly is available here');
+  let sd = 99; const rnd = () => (sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0) / 4294967296;
+  const pic = (kind, w, h, f) => { const a = new Uint8ClampedArray(w * h * 4); for (let i = 0; i < w * h; i++) { const x = i % w, y = (i / w) | 0; let r, g, b; if (kind === 'lattice') { r = ((rnd() * 16) | 0) * 17; g = ((rnd() * 16) | 0) * 17; b = ((rnd() * 16) | 0) * 17; } else if (kind === 'noise') { r = rnd() * 256; g = rnd() * 256; b = rnd() * 256; } else if (kind === 'smooth') { r = x * 255 / w + f * 3 + rnd() * 5; g = y * 255 / h + rnd() * 3; b = ((x ^ y) & 255) * 0.5 + rnd() * 6; } else if (kind === 'photo') { r = Math.sin(x / 37 + f / 5) * 127 + 128; g = Math.cos(y / 29 - f / 7) * 127 + 128; b = (((r | 0) + (g | 0)) >> 1) ^ ((rnd() * 8) | 0); } else if (kind === 'bands') { const bb = (((y + f * 9) / 24) | 0) % 9; r = bb * 28; g = 255 - bb * 25; b = (bb * 61) & 255; } else if (kind === 'stripes') { if ((y >> 2) & 1) { r = rnd() * 256; g = rnd() * 256; b = rnd() * 256; } else { r = 40 + (y & 3) * 50; g = 200; b = f * 30; } } else if (kind === 'ramp') { r = (i * 7) & 255; g = (i * 13 >> 3) & 255; b = (i >> 5) & 255; } else if (kind === 'anim') { const bx = (f * 7) % Math.max(1, w - 20), by = (f * 3) % Math.max(1, h - 20), ins = x >= bx && x < bx + 20 && y >= by && y < by + 20; r = ins ? 220 : x * 100 / w; g = ins ? 40 + f : y * 100 / h; b = ins ? 30 : 90; } else { const q = (rnd() * 7) | 0; r = q * 36; g = 255 - q * 31; b = q * 9; } a[i * 4] = r; a[i * 4 + 1] = g; a[i * 4 + 2] = b; a[i * 4 + 3] = 255; } return a; };
+  const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  let bad = 0, tried = 0; const names = [];
+  const palCheck = (name, pics, mc) => { tried++; if (JSON.stringify(G.makePalette(pics, mc)) !== JSON.stringify(G.makePalette(pics, mc, { wasm: false }))) { bad++; names.push(name + ' mc=' + mc); } };
+  for (const kind of ['lattice', 'noise', 'smooth', 'photo', 'ramp', 'few']) for (const mc of [1, 2, 3, 7, 40, 255, 256, undefined]) { const pics = []; for (let f = 0; f < 3; f++) pics.push(pic(kind, 90 + f, 70, f)); palCheck(kind, pics, mc); }
+  for (const kind of ['noise', 'photo', 'smooth', 'lattice']) for (const mc of [16, 255]) { const pics = []; for (let f = 0; f < 3; f++) pics.push(pic(kind, 700, 500, f)); palCheck(kind + ' big (every other pixel)', pics, mc); }
+  for (let t = 0; t < 60; t++) { const w = 1 + ((rnd() * 60) | 0), h = 1 + ((rnd() * 40) | 0), pics = [], k = 1 + ((rnd() * 4) | 0); for (let f = 0; f < k; f++) pics.push(pic(['lattice', 'noise', 'smooth', 'few', 'ramp'][(rnd() * 5) | 0], w, h, f)); palCheck('random ' + w + 'x' + h, pics, [2, 5, 16, 100, 255][(rnd() * 5) | 0]); }
+  ok(bad === 0, 'WebAssembly palette search gives the same colors as the JavaScript one on ' + tried + ' sets (' + bad + ' differ' + (names.length ? ': ' + names.slice(0, 3).join('; ') : '') + ')');
+  const encode = (w, h, pal, pics, wasm) => { const e = G.createEncoder(w, h, pal, wasm === false ? { wasm: false } : {}); pics.forEach((p, i) => e.add(p, 40 + i)); return e.finish(); };
+  bad = 0; tried = 0; const en = [];
+  const encCheck = (name, w, h, pics, mc, palette) => { tried++; const pal = palette || G.makePalette(pics, mc); if (!same(encode(w, h, pal, pics), encode(w, h, pal, pics, false))) { bad++; en.push(name); } };
+  for (const c of [['lattice', 90, 70, 3, 255], ['noise', 120, 90, 2, 255], ['smooth', 160, 120, 4, 255], ['smooth', 160, 120, 2, 40], ['few', 64, 48, 2, 255], ['lattice', 50, 40, 2, 3], ['anim', 120, 90, 12, 255], ['anim', 97, 53, 9, 255], ['photo', 200, 150, 3, 255], ['few', 1, 1, 3, 255], ['few', 3, 1, 2, 255], ['few', 1, 5, 2, 255], ['smooth', 33, 17, 3, 255], ['few', 300, 200, 2, 255], ['bands', 200, 150, 14, 255], ['bands', 64, 48, 5, 6], ['stripes', 130, 100, 3, 255], ['stripes', 400, 300, 2, 255]]) { const pics = []; for (let f = 0; f < c[3]; f++) pics.push(pic(c[0], c[1], c[2], f)); encCheck(c[0] + ' ' + c[1] + 'x' + c[2], c[1], c[2], pics, c[4]); }
+  { const pics = [pic('anim', 80, 60, 0), pic('anim', 80, 60, 1), pic('anim', 80, 60, 2)]; pics.splice(2, 0, pics[1], pics[1]); encCheck('repeated pictures', 80, 60, pics, 255); }
+  { const ties = []; for (let i = 0; i < 60; i++) ties.push([(i * 37) % 256, (i % 5) * 50, (i * 91) % 256]); encCheck('equal distances', 70, 50, [pic('lattice', 70, 50, 0), pic('lattice', 70, 50, 1)], 0, ties); }
+  { const pics = []; for (let f = 0; f < 3; f++) pics.push(pic('noise', 130, 100, f)); encCheck('a long table (resets)', 130, 100, pics, 255); }
+  ok(bad === 0, 'WebAssembly encoder writes the same GIF bytes as the JavaScript one on ' + tried + ' scenes (' + bad + ' differ' + (en.length ? ': ' + en.slice(0, 3).join('; ') : '') + ')');
+  /* without WebAssembly, with a refused module, or with a broken instance, the JavaScript code runs and writes the same bytes */
+  const path = require.resolve('../gif-writer.js'), saved = globalThis.WebAssembly, pics3 = [pic('anim', 64, 48, 0), pic('anim', 64, 48, 1), pic('anim', 64, 48, 2)], pal3 = G.makePalette(pics3, 255), want = encode(64, 48, pal3, pics3, false);
+  const fresh = () => { delete require.cache[path]; const m = require(path); delete require.cache[path]; return m; };
+  const withG = (m) => { const e = m.createEncoder(64, 48, pal3, {}); pics3.forEach((p, i) => e.add(p, 40 + i)); return e.finish(); };
+  try {
+    globalThis.WebAssembly = undefined; const a = fresh(); ok(a.wasmAvailable() === false && same(withG(a), want) && JSON.stringify(a.makePalette(pics3, 255)) === JSON.stringify(pal3), 'without WebAssembly: same palette and same bytes');
+    globalThis.WebAssembly = { Module: function () { throw new Error('refused by the page policy'); }, Instance: saved.Instance, Memory: saved.Memory }; const b = fresh(); ok(b.wasmAvailable() === false && same(withG(b), want) && JSON.stringify(b.makePalette(pics3, 255)) === JSON.stringify(pal3), 'a module the page refuses: same palette and same bytes');
+    globalThis.WebAssembly = { Module: saved.Module, Instance: function () { throw new Error('no instance'); }, Memory: saved.Memory }; const c = fresh(); ok(same(withG(c), want) && JSON.stringify(c.makePalette(pics3, 255)) === JSON.stringify(pal3), 'an instance that fails: same palette and same bytes');
+  } finally { globalThis.WebAssembly = saved; }
+  const cp = require('child_process'), dir = require('path').join(__dirname, '..', 'wasm');
+  let proof = true; try { cp.execFileSync('python3', [require('path').join(dir, 'embed.py'), '--check'], { stdio: 'pipe' }); } catch (e) { proof = false; }
+  let hasClang = true; try { cp.execFileSync('clang', ['--version'], { stdio: 'pipe' }); } catch (e) { hasClang = false; }
+  if (hasClang) { try { cp.execFileSync('sh', [require('path').join(dir, 'build.sh'), '--check'], { stdio: 'pipe' }); } catch (e) { proof = false; } }
+  ok(proof, 'the embedded WebAssembly is what wasm/gif.c builds (embed.py --check' + (hasClang ? ' and build.sh --check' : '; build.sh --check skipped, no clang here') + ')');
+}
 if (fails) { console.log(fails + ' FAILED'); process.exit(1); } else console.log('gif-writer: all passed');
