@@ -544,6 +544,25 @@
         "tools/speed-lab/speed-lab.js"
       ],
       "demo": "tools/speed-lab/demo.html"
+    },
+    {
+      "id": "test-runner",
+      "version": "1.0.0",
+      "api": 1,
+      "summary": "Shared pieces for browser checks and speed tests: warm browsers, a four-browser runner, fair timing, skip-unchanged wasm builds, a wasm-versus-JavaScript twin test, a picture fingerprint gate and an automatic bisect.",
+      "short": "Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect.",
+      "folder": "tools/test-runner",
+      "readme": "tools/test-runner/README.md",
+      "category": "testing",
+      "file": [
+        "tools/test-runner/runner.js",
+        "tools/test-runner/cli.js",
+        "tools/test-runner/warmd.js",
+        "tools/test-runner/twin.js",
+        "tools/test-runner/stamp.js",
+        "tools/test-runner/fingerprint.js",
+        "tools/test-runner/bisect.js"
+      ]
     }
   ],
   "related": {
@@ -586,7 +605,7 @@
       },
       {
         "id": "story-diff",
-        "summary": "Says in plain words what one edit did to a story, such as \"Add page \u201cThe Cellar\u201d\".",
+        "summary": "Says in plain words what one edit did to a story, such as \"Add page “The Cellar”\".",
         "short": "Says in plain words what one edit did to a story.",
         "version": "1.0.0",
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-diff/README.md",
