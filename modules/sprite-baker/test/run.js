@@ -327,7 +327,7 @@ var frames = SB.bakeRoll(ringScene, 8, [48, 48], ringOpts);
   check('ceiling: padding counts (two 2048 x 1024 pictures stack to 2048 x 2049, over the default 4,194,304)', SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)]) === null && SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)], { padding: 0 }) !== null);
   var rolled = SB.bakeRoll(ringScene, 4, [16, 16], { ss: 1 }), sheet = SB.toSheet(rolled, { padding: 2, maxWidth: 40 });
   check('baked frames pack into a sheet (4 of 16 x 16 at maxWidth 40 and padding 2: two rows of two)', sheet && sheet.width === 34 && sheet.height === 34 && sheet.frames[2].y === 18);
-  check('version is 1.5.0', SB.version === '1.5.0');
+  check('version is 1.6.0', SB.version === '1.6.0');
 })();
 
 /* 12. 1.3.0 made the rasterizer faster without changing a single byte. These hashes were taken from 1.2.0 (the shiny material has a strong
@@ -349,6 +349,55 @@ require('./fancy-scenes.js')(SB, SB, check);
 (function () {
   var mine = SB.material([[0, 10, 20, 30], [1, 250, 240, 230]], { edge: 0.5 }), texMat = { w: 4, h: 4, data: new Uint8Array(64) };
   check('material() records texture and ridge, and rejects a texture with too little data', !mine.texture && !mine.ridge && SB.material([[0, 1, 2, 3]], { texture: texMat, ridge: { freq: 3 } }).ridge.dark === -0.86 && (function () { try { SB.material([[0, 1, 2, 3]], { texture: { w: 4, h: 4, data: new Uint8Array(10) } }); } catch (e) { return /RGBA bytes/.test(e.message); } return false; })());
+})();
+
+/* 10. The optional WebAssembly fill (sprite-baker-wasm.js): the very same bytes as the plain JavaScript, a fallback for everything it cannot do, and its build files in step. */
+(function () {
+  var fs = require('fs'), path = require('path'), cp = require('child_process'), os = require('os');
+  var dir = path.join(__dirname, '..'), battery = require('./wasm-battery.js'), F = require('./reference-tri.js');
+  var SBW = require('../sprite-baker-wasm.js'), W = SBW.wasm();
+  check('the add-on returns SpriteBaker with wasm() on it, and wasm() gives one engine each time', SBW === SB && typeof SB.wasm === 'function' && SB.wasm() === W);
+  check('the add-on found WebAssembly, says engine "wasm" and has both optional parts', W.available === true && W.engine === 'wasm' && W.features.texture === true && W.features.ridge === true);
+  var r = battery(SB, F, W);
+  check('wasm fill: ' + r.meshScenes + ' mesh scenes (textured sphere with ridges, coin with lit ridge and pose, rod, ball, glove) give the same color and depth bytes as the plain JavaScript', r.meshDiffering === 0 && r.meshScenes === 26);
+  check('wasm fill: ' + r.randomScenes + ' random scenes (random vertices, odd normals, far-out picture coordinates, six ramps, picture and ridge on and off, culled or not) give the same bytes', r.randomDiffering === 0 && r.randomScenes === 800, r.names.join('; '));
+  Object.keys(r.extra).forEach(function (k) { check('wasm fill: ' + k, r.extra[k] === true); });
+  check('wasm fill: only the two over-the-limit calls went to the plain code; every other drawMesh was filled by the wasm', W.stats.js === 2 && W.stats.wasm > 3000, JSON.stringify(W.stats));
+  /* no WebAssembly, or a policy that refuses it: the result is SpriteBaker's own Rast and drawMesh */
+  (function () {
+    var saved = globalThis.WebAssembly, off;
+    try { globalThis.WebAssembly = undefined; off = SB.wasm(new Uint8Array([0, 97, 115, 109])); } finally { globalThis.WebAssembly = saved; }
+    check('no WebAssembly: available is false, engine "js", and Rast and drawMesh are SpriteBaker\'s own', off.available === false && off.engine === 'js' && off.Rast === SB.Rast && off.drawMesh === SB.drawMesh);
+    var Mod = saved.Module, refused;
+    try { saved.Module = function () { throw new Error('refused by the page policy'); }; refused = SB.wasm(new Uint8Array(8)); } finally { saved.Module = Mod; }
+    check('a policy that refuses the module: the same plain result, no throw', refused.available === false && refused.drawMesh === SB.drawMesh);
+    check('bad bytes (not a wasm module): the same plain result, no throw', SB.wasm(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])).available === false);
+    var P = new off.Rast(40, 40); off.drawMesh(P, SB.mesh(SB.sphere(14), 12, 16), WARM, { ox: 20, oy: 20 });
+    check('and the plain result draws', coverage(P.px) > 400);
+  })();
+  /* the embedded file is what wasm/tri.wasm holds, and that is what tri.c builds (when clang is here) */
+  var emb = cp.spawnSync('python3', [path.join(dir, 'wasm', 'embed.py'), '--check'], { encoding: 'utf8' });
+  check('sprite-baker-wasm.js carries the current wasm/tri.wasm', emb.status === 0, emb.stdout + emb.stderr);
+  var haveClang = cp.spawnSync('clang', ['--version']).status === 0;
+  if (haveClang) {
+    var chk = cp.spawnSync('sh', [path.join(dir, 'wasm', 'build.sh'), '--check'], { encoding: 'utf8' });
+    check('wasm/tri.wasm is byte for byte what wasm/tri.c builds (reproducible rebuild)', chk.status === 0, chk.stdout + chk.stderr);
+    /* the lean build leaves out picture and ridge code: plain materials still go through the wasm, others to the plain code, same bytes either way */
+    var tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sbw-')), lf = path.join(tmp, 'tri-lean.wasm');
+    var lb = cp.spawnSync('sh', [path.join(dir, 'wasm', 'build.sh'), 'lean', lf], { encoding: 'utf8' });
+    if (lb.status === 0) {
+      var LW = SB.wasm(fs.readFileSync(lf));
+      check('lean build: found, reports no texture and no ridge, and is smaller than the full file', LW.available && LW.features.texture === false && LW.features.ridge === false && fs.statSync(lf).size < fs.statSync(path.join(dir, 'wasm', 'tri.wasm')).size, String(fs.statSync(lf).size));
+      var lr = new LW.Rast(60, 60), pr = new SB.Rast(60, 60), lm = SB.mesh(SB.sphere(20), 20, 30), tx = SB.material([[0, 10, 20, 30], [1, 250, 240, 230]], { texture: { w: 4, h: 4, data: new Uint8Array(64).fill(180) }, ridge: { freq: 3 } });
+      LW.drawMesh(lr, lm, WARM, { ox: 30, oy: 30 }); SB.drawMesh(pr, lm, WARM, { ox: 30, oy: 30 });
+      LW.drawMesh(lr, lm, tx, { ox: 30, oy: 30 }); SB.drawMesh(pr, lm, tx, { ox: 30, oy: 30 });
+      check('lean build: a plain material is filled by wasm, a material with picture or ridge goes to the plain code, and the bytes match', LW.stats.wasm === 1 && LW.stats.js === 1 && hash({ data: lr.px }) === hash({ data: pr.px }), JSON.stringify(LW.stats));
+      fs.rmSync(tmp, { recursive: true, force: true });
+    } else check('lean build compiles', false, lb.stderr);
+  } else console.log('  skip clang not found: not checking the rebuild or the lean build');
+  /* the version is the same everywhere */
+  var head = fs.readFileSync(path.join(dir, 'sprite-baker-wasm.js'), 'utf8').split('\n')[0];
+  check('sprite-baker-wasm.js carries the module version in its header', head.indexOf('Version ' + SB.version + ' (API 1)') >= 0, head.slice(-60));
 })();
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
