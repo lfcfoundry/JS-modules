@@ -1,8 +1,8 @@
 # ppmd-decode
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Node 22.22.0 (137 ppmd-decode checks); tests/wasm-default-bench.js one browser at a time on 2026-10-18: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; the default file also on a page without WebAssembly in all four
+**Tested in:** Node 22 checks; compile-early timing in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
 
 A PPMd decoder (the "var.H" flavor that 7-Zip calls PPMd7) that tries WebAssembly first and falls back by itself to plain ES5 JavaScript (one function), no dependencies. PPMd predicts each byte from the bytes before it; on the web-page samples measured here it came out about 10% smaller than LZMA, at the price of a bigger decoder and slower unpacking. Use it to unpack PPMd data in the browser or in Node, for example the page data of a single-file app that a packer squeezed. The matching encoder is [`tools/ppmd-pack/ppmd7_encode.py`](../../tools/ppmd-pack/ppmd7_encode.py).
 
@@ -71,6 +71,12 @@ Errors are always an `Error` whose message starts with `PPMd:` (argument out of 
 | GNOME Web 46.5 | 95.0 | 67.0 | 1.42x |
 
 The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all four browsers. Earlier 1.1.0 measurements of the separate add-on (Node 22: 159 to 71 ms, 2.2x; a repeat decode in the same page is 1.8 to 2.4 times faster with WebAssembly in every browser) agree with these. Both decoders gave the same bytes or the same `Error` text on 15 fixtures, 160 more streams and 798 damaged copies of them (0 differences). Source: `wasm/ppmd7.c` is a line-by-line port of the JavaScript; `wasm/build.sh` (clang with the wasm32 target) builds `wasm/ppmd7.wasm`, `wasm/embed.py` puts it into `ppmd-decode-wasm.js` and `wasm/join.js` builds the default file. Browser timings: `tests/wasm-default-bench.js`.
+
+## Compile early (since 1.3.0)
+
+**What.** ppmd-decode-wasm.js and ppmd-decode-with-wasm.js start compiling the WebAssembly in the background as soon as the file loads, so the first decode only has to start it. ppmd7DecodeWasm.ready() is a promise that says (true or false) whether that worked, and ppmd7DecodeWasm.module() gives the compiled `WebAssembly.Module` once it is ready (else null) so a worker can be sent it with `postMessage` instead of compiling it again. Asked for before the compile is done, the code compiles on the spot as it always did, so nothing waits and the answers are the same.
+
+**Why, and how much.** Compiling the 9,317-byte program on the page costs 0.5 ms in Chromium 155, 1 ms in Firefox 158, WebKitGTK 2.52.6 and GNOME Web 46.5 (median of 9 fresh pages, smaller is better; Firefox and WebKit report whole milliseconds), so for this size the saving is at most that. Loading the file plus the first use, old against new, in ms (median of 11 fresh pages, taking turns): within about 1 ms in Chromium, Firefox and both WebKit browsers; the differences go both ways, so treat it as no change you can measure. It matters more for the large programs (pcodec-js) and for handing the module to workers. Nothing is stored in the browser.
 
 ## How it compares
 

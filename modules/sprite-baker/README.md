@@ -1,8 +1,8 @@
 # sprite-baker
 
-**Version 1.6.1 · API 1**
+**Version 1.7.0 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/sprite-baker-wasm-browser.js, one run each: 893 scenes, 0 differ in 4 of 4 runs, also on a page without 'wasm-unsafe-eval'); node modules/sprite-baker/test/run.js 130 checks (1 new; it fails on 1.6.0), test/lean.js unchanged. Not run: a phone, Safari itself
+**Tested in:** Node 22 checks; compile-early timing in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
 
 The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
@@ -134,6 +134,12 @@ Plain reading: Chromium and Firefox bake 1.1 to 1.4 times as fast. The two WebKi
 **Rebuild.** `sh modules/sprite-baker/wasm/build.sh` needs clang 18 or newer with the wasm32 target (no other tool); `build.sh --check` says whether `wasm/tri.wasm` is byte for byte what `tri.c` builds, and `python3 modules/sprite-baker/wasm/embed.py` puts the file into `sprite-baker-wasm.js` (`--check` compares). The `fmod` inside `tri.c` is from musl libc (MIT license), used so `%` on decimals matches JavaScript bit for bit.
 
 Tests: `node modules/sprite-baker/test/run.js` (the add-on section runs in Node); in a real browser, one at a time: `node tests/sprite-baker-wasm-browser.js chromium|firefox|webkit|epiphany`.
+
+## Compile early (since 1.7.0)
+
+**What.** sprite-baker-wasm.js start compiling the WebAssembly in the background as soon as the file loads, so SpriteBaker.wasm() only has to start it. SpriteBaker.wasmReady() is a promise that says (true or false) whether that worked, and SpriteBaker.wasmModule() gives the compiled `WebAssembly.Module` once it is ready (else null) so a worker can be sent it with `postMessage` instead of compiling it again. Asked for before the compile is done, the code compiles on the spot as it always did, so nothing waits and the answers are the same.
+
+**Why, and how much.** Compiling the 7,864-byte program on the page costs 0.5 ms in Chromium 155, 1 ms in Firefox 158, WebKitGTK 2.52.6 and GNOME Web 46.5 (median of 9 fresh pages, smaller is better; Firefox and WebKit report whole milliseconds), so for this size the saving is at most that. Loading the file plus the first use, old against new, in ms (median of 11 fresh pages, taking turns): within about 1 ms in Chromium, Firefox and both WebKit browsers; the differences go both ways, so treat it as no change you can measure. It matters more for the large programs (pcodec-js) and for handing the module to workers. Nothing is stored in the browser.
 
 ## Lean builds (since 1.5.0)
 
