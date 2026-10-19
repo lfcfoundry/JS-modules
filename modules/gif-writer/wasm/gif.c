@@ -74,21 +74,50 @@ i32 frame(i32 first, const u32 *w, const u32 *pr, u8 *idx, i32 *chg, i32 width, 
   return nchg;
 }
 
-/* LZW (minimum code size 8) of data[0..len), item by item (the same bytes as the run-walking coder in JavaScript gives). out has room for ceil((len + 8) * 1.51) + 64 bytes. Returns the length. */
+/* LZW (minimum code size 8) of data[0..len), walking runs of one value in a few steps like the JavaScript coder does (see lzw() there: in a run of c the table holds c, cc, ccc ... and the
+   code to emit is the longest of them, a fixed pattern). The bytes are the same as the item-by-item coder gives. out has room for ceil((len + 8) * 1.51) + 64 bytes. Returns the length. */
+static u16 rc[256][4097]; static i32 top[256]; static i32 topLen[256];
+static void reset_chains(void) { i32 q; for (q = 0; q < 256; q++) if (top[q] >= 0) { top[q] = -1; topLen[q] = 0; } }
+static void chain_of(i32 sym) { if (top[sym] < 0) { top[sym] = sym; topLen[sym] = 1; rc[sym][1] = (u16)sym; } }
 i32 lzw(const u8 *data, i32 len, u8 *out) {
   const i32 minCode = 8; i32 clearCode = 1 << minCode, eoi = clearCode + 1, next = eoi + 1, size = minCode + 1, i, o = 0; u32 cur = 0; i32 shift = 0;
-  fill_i32(hk, 16384, 0);
+  fill_i32(hk, 16384, 0); fill_i32(top, 256, -1); fill_i32(topLen, 256, 0);
 #define EMIT(code) do { cur |= (u32)(code) << shift; shift += size; while (shift >= 8) { out[o++] = (u8)(cur & 255); cur >>= 8; shift -= 8; } } while (0)
   EMIT(clearCode);
   if (len) {
     i32 prefix = data[0];
     for (i = 1; i < len; i++) {
-      i32 k = data[i]; i32 key = ((prefix << 8) | k) + 1; u32 h = ((u32)key * 0x9e3779b1u) >> 18; i32 e = hk[h];
+      i32 k = data[i];
+      if (prefix == k && k < clearCode) {   /* the lookahead symbol starts a run of k */
+        i32 j = i + 1, T, m, c = k; while (j < len && data[j] == k) j++;
+        T = j - i + 1;
+        chain_of(c); m = topLen[c];
+        while (T > m) {
+          EMIT(rc[c][m]);
+          T -= m;
+          if (next == 4096) { EMIT(clearCode); next = eoi + 1; size = minCode + 1; fill_i32(hk, 16384, 0); reset_chains(); chain_of(c); m = 1; }
+          else {
+            if (next >= (1 << size)) size++;
+            i32 rkey = (((i32)rc[c][m] << 8) | c) + 1; u32 rh = ((u32)rkey * 0x9e3779b1u) >> 18;
+            while (hk[rh] != 0) rh = (rh + 1) & 16383;
+            hk[rh] = rkey; hv[rh] = (u16)next; m++; rc[c][m] = (u16)next; top[c] = next; topLen[c] = m; next++;
+          }
+        }
+        prefix = rc[c][T];
+        i = j - 1;
+        continue;
+      }
+      i32 key = ((prefix << 8) | k) + 1; u32 h = ((u32)key * 0x9e3779b1u) >> 18; i32 e = hk[h];
       while (e != 0 && e != key) { h = (h + 1) & 16383; e = hk[h]; }
       if (e == key) { prefix = hv[h]; continue; }
       EMIT(prefix);
-      if (next == 4096) { EMIT(clearCode); next = eoi + 1; size = minCode + 1; fill_i32(hk, 16384, 0); }
-      else { if (next >= (1 << size)) size++; hk[h] = key; hv[h] = (u16)next; next++; }
+      if (next == 4096) { EMIT(clearCode); next = eoi + 1; size = minCode + 1; fill_i32(hk, 16384, 0); reset_chains(); }
+      else {
+        if (next >= (1 << size)) size++;
+        hk[h] = key; hv[h] = (u16)next;
+        if (top[k] == prefix) { i32 l2 = topLen[k] + 1; topLen[k] = l2; top[k] = next; rc[k][l2] = (u16)next; }
+        next++;
+      }
       prefix = k;
     }
     EMIT(prefix);
