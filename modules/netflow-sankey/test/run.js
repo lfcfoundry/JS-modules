@@ -176,8 +176,58 @@ t('an empty drawing has height 0 (not -Infinity) and applies cleanly; one item a
   RL.apply(L, R); ok(L.height === 0, 'L.height ' + L.height);
   const one = { nodes: [{ id: 'a', label: 'A', layer: 0 }], edges: [], pos: {} }; one.pos.a = one.nodes[0]; const R1 = RL.layout(one); ok(Number.isFinite(R1.height) && Number.isFinite(R1.width), 'one item: ' + R1.height + ' x ' + R1.width);
 });
-t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier', () => {
-  ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg', Object.keys(RL).sort().join());
+t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier, wasmAvailable', () => {
+  ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg,wasmAvailable', Object.keys(RL).sort().join());
+});
+
+// 2.3.0: the order search in WebAssembly. Same layout either way, to the last digit; plain JavaScript when WebAssembly is missing, refused, or a flow is not an ordinary number.
+const noMs = (R) => JSON.stringify(R, (k, v) => (k === 'ms' ? 0 : v));
+const dense = (nl, per, deg, seed, loops, longs) => {
+  const r = rng(seed), links = [];
+  for (let k = 0; k + 1 < nl; k++) for (let j = 0; j < per; j++) for (let q = 0; q < deg; q++) links.push({ from: `S${k} i${j}`, to: `S${k + 1} i${Math.floor(r() * per)}`, value: 1 + Math.floor(r() * r() * 40) });
+  for (let q = 0; q < loops; q++) { const a = 2 + Math.floor(r() * (nl - 2)); links.push({ from: `S${a} i${Math.floor(r() * per)}`, to: `S${Math.floor(r() * a)} i${Math.floor(r() * per)}`, value: 3 }); }
+  for (let q = 0; q < longs; q++) links.push({ from: `S0 i${Math.floor(r() * per)}`, to: `S${nl - 1} i${Math.floor(r() * per)}`, value: 2 });
+  return { links };
+};
+t('WebAssembly is available here and the order search uses it', () => { ok(RL.wasmAvailable() === true, 'wasmAvailable'); });
+t('WebAssembly layouts equal the plain JavaScript ones (48 nets: weighted and unweighted, loops, long links, three seeds)', () => {
+  let tried = 0; const bad2 = [];
+  for (const c of [[3, 3, 2, 0, 0], [4, 6, 2, 1, 0], [6, 20, 4, 2, 1], [6, 40, 4, 0, 0], [8, 40, 5, 3, 4], [8, 80, 4, 1, 3], [10, 100, 3, 4, 4], [12, 150, 2, 2, 2]]) for (const seed of [1, 2, 3]) for (const unweighted of [false, true]) {
+    const inp = dense(c[0], c[1], c[2], seed, c[3], c[4]), o = { budgetMs: 1e9, unweighted };
+    tried++; if (noMs(RL.layoutFlows(inp, Object.assign({ wasm: false }, o))) !== noMs(RL.layoutFlows(inp, o))) bad2.push(c.join('x') + '/' + seed + '/' + unweighted);
+  }
+  ok(bad2.length === 0, bad2.length + ' of ' + tried + ' differ: ' + bad2.slice(0, 3).join('; '));
+});
+t('a saved order and the engine calls give the same picture with and without WebAssembly', () => {
+  const mk = () => drawing(), a = RL.apply(mk(), RL.layout(mk(), RL.options({ gap: 220 }))), b = RL.apply(mk(), RL.layout(mk(), Object.assign(RL.options({ gap: 220 }), { wasm: false })));
+  ok(noMs(a.sk.order) === noMs(b.sk.order) && a.sk.crossingWeight === b.sk.crossingWeight, 'order or crossing weight differ');
+});
+t('flows that are not ordinary numbers (NaN, Infinity, negative, huge) take the JavaScript path and give the same answer', () => {
+  for (const v of [NaN, Infinity, -5, 1e150]) {
+    const inp = dense(5, 8, 2, 4, 1, 1); inp.links[3].value = v;
+    let a, b, ea = null, eb = null; try { a = noMs(RL.layoutFlows(inp, { wasm: false, budgetMs: 1e9 })); } catch (e) { ea = e.message; } try { b = noMs(RL.layoutFlows(inp, { budgetMs: 1e9 })); } catch (e) { eb = e.message; }
+    ok(a === b && ea === eb, 'value ' + v + ' differs');
+  }
+});
+t('without WebAssembly, with a refused module, and with an instance that fails: same layout', () => {
+  const path2 = require.resolve('../netflow-sankey.js'), saved = globalThis.WebAssembly, inp = dense(6, 20, 4, 2, 2, 1), want = noMs(RL.layoutFlows(inp, { wasm: false, budgetMs: 1e9 }));
+  const fresh = () => { delete require.cache[path2]; const m = require(path2); delete require.cache[path2]; return m; };
+  try {
+    globalThis.WebAssembly = undefined; const a = fresh(); ok(a.wasmAvailable() === false && noMs(a.layoutFlows(inp, { budgetMs: 1e9 })) === want, 'without WebAssembly');
+    globalThis.WebAssembly = { Module: function () { throw new Error('refused by the page policy'); }, Instance: saved.Instance, Memory: saved.Memory }; const b = fresh(); ok(b.wasmAvailable() === false && noMs(b.layoutFlows(inp, { budgetMs: 1e9 })) === want, 'a refused module');
+    globalThis.WebAssembly = { Module: saved.Module, Instance: function () { throw new Error('no instance'); }, Memory: saved.Memory }; const c = fresh(); ok(noMs(c.layoutFlows(inp, { budgetMs: 1e9 })) === want, 'an instance that fails');
+  } finally { globalThis.WebAssembly = saved; }
+});
+t('two layouts in a row and a bigger one after a smaller one reuse the one WebAssembly memory correctly', () => {
+  const small = dense(4, 6, 2, 1, 0, 0), big = dense(8, 80, 4, 1, 1, 3);
+  const w1 = noMs(RL.layoutFlows(small, { budgetMs: 1e9 })), w2 = noMs(RL.layoutFlows(big, { budgetMs: 1e9 })), w3 = noMs(RL.layoutFlows(small, { budgetMs: 1e9 })), w4 = noMs(RL.layoutFlows(big, { budgetMs: 1e9 }));
+  ok(w1 === w3 && w2 === w4 && w1 === noMs(RL.layoutFlows(small, { wasm: false, budgetMs: 1e9 })) && w2 === noMs(RL.layoutFlows(big, { wasm: false, budgetMs: 1e9 })), 'results changed with the memory in use');
+});
+t('the embedded WebAssembly is what wasm/order.c builds (embed.py --check and build.sh --check)', () => {
+  const cp = require('child_process'), dir = require('path').join(__dirname, '..', 'wasm');
+  cp.execFileSync('python3', [require('path').join(dir, 'embed.py'), '--check'], { stdio: 'pipe' });
+  let hasClang = true; try { cp.execFileSync('clang', ['--version'], { stdio: 'pipe' }); } catch (e) { hasClang = false; }
+  if (hasClang) cp.execFileSync('sh', [require('path').join(dir, 'build.sh'), '--check'], { stdio: 'pipe' });
 });
 
 console.log(bad ? 'netflow-sankey: ' + bad + ' FAILED' : 'netflow-sankey: all passed'); process.exit(bad ? 1 : 0);
