@@ -2,7 +2,7 @@
 
 **Version 1.2.0 · API 1**
 
-**Tested in:** Node checks (all pass; 8 new: WebAssembly palette search equal to the JavaScript one on 116 sets, encoder bytes equal on 17 scenes, three fallback cases, the embedded wasm matches wasm/gif.c); tests/gif-writer-wasm-browser.js one browser at a time, 3 passes each, in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5: 16 GIFs and 16 palettes identical in all 12 runs, also on a page without the wasm permission. Not run: a phone, Safari.
+**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5 (3 passes each, one at a time; a phone and Safari not run)
 
 Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 38 KB (15 KB gzipped, of which about 12 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map's GIF maker.
 
@@ -27,30 +27,43 @@ Each picture is compressed the moment you add it, so memory holds the compressed
 
 ## WebAssembly (since 1.2.0)
 
-**What.** The palette search (`makePalette`: color histogram, median cut, k-means) and the picture encoder (`createEncoder`: palette lookup of every pixel, comparison with the last picture, LZW coder) also exist as WebAssembly (8,892 bytes, `wasm/gif.c`), embedded in `gif-writer.js` and used first. They give the same colors and the same GIF bytes as the JavaScript code: 16 of 16 GIFs and 116 palette sets identical in Node, and 16 of 16 GIFs in 24 of 24 browser runs. `GifWriter.wasmAvailable()` says whether the browser allows it; `makePalette(pics, n, { wasm: false })` and `createEncoder(w, h, pal, { wasm: false })` force the JavaScript code.
+**What.** The palette search (`makePalette`: color histogram, median cut, k-means) and the picture encoder (`createEncoder`: palette lookup of every pixel, comparison with the last picture, LZW coder) also exist as WebAssembly (9,903 bytes, `wasm/gif.c`), embedded in `gif-writer.js` and used first. They give the same colors and the same GIF bytes as the JavaScript code: 21 encoder scenes and 116 palette sets identical in Node, and 18 of 18 GIFs in every one of 18 browser runs. `GifWriter.wasmAvailable()` says whether the browser allows it; `makePalette(pics, n, { wasm: false })` and `createEncoder(w, h, pal, { wasm: false })` force the JavaScript code.
 
-**Why.** 30 pictures of 640 x 480, median of 3 passes of 5 rounds in rotating order, JavaScript to WebAssembly in ms (lower is better; times faster, higher is better):
+**Why.** 30 pictures of 640 x 480, median of 3 passes of 5 rounds in rotating order, JavaScript to WebAssembly in ms (lower is better; times faster, higher is better). WebKit's clock moves in whole milliseconds, so quick jobs there are timed 3 to 4 in a row.
 
-| Browser | Photo palette | Photo encoding | Flat game picture palette / encoding | Small moving block encoding | First small GIF on a fresh page |
-|---|---|---|---|---|---|
-| ungoogled-chromium 155.0.8059.39-1 | 515 to 334 (1.54x) | 863 to 410 (2.10x) | 1.52x / 1.86x | 1.48x | 41.6 to 20.1 |
-| Firefox 158.0 | 613 to 321 (1.91x) | 892 to 422 (2.11x) | 1.52x / 2.17x | 1.44x | 33 to 19 |
-| WebKitGTK 2.52.6 | 503 to 347 (1.45x) | 666 to 380 (1.75x) | 1.32x / 1.66x | 1.00x | 25 to 24 |
-| GNOME Web 46.5 | 581 to 351 (1.66x) | 651 to 409 (1.59x) | 1.07x / 1.71x | 0.97x | 29 to 23 |
+Palette search:
+
+| Pictures | ungoogled-chromium 155.0.8059.39-1 | Firefox 158.0 | WebKitGTK 2.52.6 | GNOME Web 46.5 |
+|---|---|---|---|---|
+| Photo | 552 to 338 (1.63x) | 580 to 391 (1.48x) | 439 to 351 (1.25x) | 565 to 365 (1.55x) |
+| Flat game picture | 35.4 to 23.4 (1.51x) | 40.0 to 23.0 (1.74x) | 25.8 to 26.5 (0.97x) | 25.5 to 26.3 (0.97x) |
+| Small moving block | 27.7 to 19.7 (1.41x) | 28.0 to 20.0 (1.40x) | 21.8 to 20.3 (1.07x) | 19.8 to 20.8 (0.95x) |
+| Scrolling bands | 21.3 to 15.1 (1.41x) | 23.0 to 15.0 (1.53x) | 14.5 to 16.3 (0.89x) | 15.8 to 16.0 (0.99x) |
+
+Encoding:
+
+| Pictures | ungoogled-chromium 155.0.8059.39-1 | Firefox 158.0 | WebKitGTK 2.52.6 | GNOME Web 46.5 |
+|---|---|---|---|---|
+| Photo | 868 to 402 (2.16x) | 901 to 399 (2.26x) | 628 to 390 (1.61x) | 734 to 394 (1.86x) |
+| Flat game picture | 309 to 185 (1.67x) | 376 to 184 (2.04x) | 239 to 167 (1.43x) | 258 to 169 (1.53x) |
+| Small moving block | 43.9 to 29.9 (1.47x) | 38.0 to 25.0 (1.52x) | 31.0 to 28.7 (1.08x) | 31.3 to 28.3 (1.11x) |
+| Scrolling bands | 80.4 to 44.3 (1.81x) | 87.0 to 43.0 (2.02x) | 66.0 to 42.3 (1.56x) | 64.0 to 42.7 (1.50x) |
+
+A first small GIF on a fresh page (160 x 120, 4 pictures, start-up included): 44 to 21 ms in Chromium, 34 to 19 in Firefox, 25 to 24 in WebKitGTK, 28 to 24 in GNOME Web.
 
 **Rules.**
 - Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it, or if anything goes wrong at the start, the JavaScript code runs and writes the same bytes. A picture area bigger than 4,194,304 pixels also uses the JavaScript code.
 - Each encoder has its own WebAssembly memory (about 5 MB plus the pictures); it is freed with the encoder.
 - Source `wasm/gif.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
 
-**Honest limits.** Pictures that barely change (a small block moving over a still background) gain 1.0 to 1.5x in Chromium and Firefox and tie or lose 3% in the two WebKit browsers; in WebKitGTK the small-block palette search is 0.95x (20 to 21 ms, the timer rounds to 1 ms). The bytes copied into WebAssembly memory for every picture are the cost there. The `lzw()` function you can call directly is unchanged JavaScript. Costs bytes: +18,424 as written, +7,259 minified and +8,056 gzipped (smaller is better; minified 9,111 to 23,896, gzipped 4,349 to 11,608 with terser 5.51.2). Not run: a phone, Safari.
+**Honest limits.** The palette search is slower than the JavaScript code in the two WebKit browsers on flat pictures: scrolling bands 0.89x in WebKitGTK (14.5 to 16.3 ms), the small moving block 0.95x in GNOME Web (19.8 to 20.8 ms) and the flat game picture 0.97x in both (1 ms or less, inside the clock's step). The cost is copying every picture into WebAssembly memory (it now goes in pieces of 16,384 pixels so the copy stays in the processor cache, which moved WebKitGTK from 0.87x to the numbers above); the JavaScript code counts such pictures in runs at about the same speed. Everything else is 1.07x or faster, and encoding is 1.08x or faster everywhere. The `lzw()` function you can call directly is unchanged JavaScript. Costs bytes: +20,124 as written (20,789 to 40,913), +16,195 minified (9,115 to 25,310) and +7,929 gzipped (4,349 to 12,278) with terser 5.51.2 (smaller is better). Not run: a phone, Safari.
 
 ## How it compares
 Much smaller files than gifenc when most of the picture stays still, about the same size when everything changes, and bigger as code. Speed against gifenc in browsers: not measured (the only timings against gifenc are an older Node run, left in the Numbers table below).
 
 | Alternative | Size of the code (smaller is better) | Speed (faster is better) | Features | Where it wins or loses |
 |---|---|---|---|---|
-| gif-writer 1.2.0 (MIT, this module) | 23,896 bytes minified, 11,608 gzipped (39,213 as written; terser 5.51.2; 1.1.0 was 9,111 and 4,349) | Palette and encoding 1.1 to 2.2 times faster again with WebAssembly (table above); before that, the palette for a busy animation, 1.1.0 against 1.0.0 (faster is better): 1.3 times in Chromium 155, 1.7 in Firefox 158, 3.0 in WebKitGTK 2.52.6, 2.95 in GNOME Web 46.5. Against gifenc in browsers: not measured | One palette for the whole animation, only changed pixels stored, GIF89a with loop | Wins on file size for still backgrounds; loses on code size |
+| gif-writer 1.2.0 (MIT, this module) | 25,310 bytes minified, 12,278 gzipped (40,913 as written; terser 5.51.2; 1.1.0 was 9,115 and 4,349) | Encoding 1.1 to 2.3 times faster and the palette search 0.9 to 1.7 times (the two tables above); before that, the palette for a busy animation, 1.1.0 against 1.0.0 (faster is better): 1.3 times in Chromium 155, 1.7 in Firefox 158, 3.0 in WebKitGTK 2.52.6, 2.95 in GNOME Web 46.5. Against gifenc in browsers: not measured | One palette for the whole animation, only changed pixels stored, GIF89a with loop | Wins on file size for still backgrounds; loses on code size |
 | [gifenc](https://github.com/mattdesl/gifenc) (MIT, 1.0.3) | About 5.7 KB gzipped | In browsers: not measured | Palette quantizing, global or per-picture palettes, writes every pixel of every picture | Wins on code size; loses on file size for mostly still animations |
 | Your own encoder | A few hundred lines | Not measured | Whatever you write | You must test it yourself; the tests here include an independent decoder |
 
