@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // gif-writer encoder, plain JavaScript against WebAssembly (1.2.0), in one real browser at a time. Copyright (c) 2026 LFC Foundry. MIT License.
+// Timing reads are batched (4 palettes, or 3 encodings, in a row for the quick jobs) because WebKit's clock moves in whole milliseconds.
 // Part 1 (equality): scenes through makePalette and createEncoder with WebAssembly (the default) and with { wasm: false }: every GIF must have the same bytes, for photographs, flat game pictures, noise, animations that change only a
 // rectangle, repeated pictures and odd sizes. Part 2 (speed): 30 pictures of 640 x 480 (photo, flat game picture, a small moving block), encoding only, taking turns in rotating order (ms per job, smaller is better), and a first small GIF
 // on a fresh page. Part 3: a page whose policy lacks 'wasm-unsafe-eval' must write the same bytes on the plain code.
@@ -47,7 +48,7 @@ function mode(m) {
     var sets = { photo: scene('photo', 640, 480, 30), game: scene('few', 640, 480, 30), 'moving block': scene('anim', 640, 480, 30), 'scrolling bands': scene('bands', 640, 480, 30) }, res = {}, med = function (a) { a = a.slice().sort(function (x, y) { return x - y; }); return a[a.length >> 1]; };
     Object.keys(sets).forEach(function (name) {
       var pics = sets[name], t0, pal = G.makePalette(pics, 255, { wasm: false }), pj = [], pw = [], tj = [], tw = [], rep, ref = encode(G, 640, 480, pal, pics, false);
-      for (rep = 0; rep < REPSN + 1; rep++) { var order = rep % 2 ? ['w', 'j'] : ['j', 'w']; for (var o = 0; o < 2; o++) { t0 = performance.now(); var pp = G.makePalette(pics, 255, order[o] === 'w' ? undefined : { wasm: false }); var pdt = performance.now() - t0; if (JSON.stringify(pp) !== JSON.stringify(pal)) throw new Error('palette differs in ' + name); if (rep > 0) (order[o] === 'w' ? pw : pj).push(pdt); t0 = performance.now(); var out = encode(G, 640, 480, pal, pics, order[o] === 'w' ? undefined : false); var dt = performance.now() - t0; if (!sameBytes(out, ref)) throw new Error('bytes differ in ' + name); if (rep > 0) (order[o] === 'w' ? tw : tj).push(dt); } }
+      for (rep = 0; rep < REPSN + 1; rep++) { var order = rep % 2 ? ['w', 'j'] : ['j', 'w']; for (var o = 0; o < 2; o++) { var pp, z, PB = name === 'photo' ? 1 : 4, EB = name === 'photo' || name === 'game' ? 1 : 3; t0 = performance.now(); for (z = 0; z < PB; z++) pp = G.makePalette(pics, 255, order[o] === 'w' ? undefined : { wasm: false }); var pdt = (performance.now() - t0) / PB; if (JSON.stringify(pp) !== JSON.stringify(pal)) throw new Error('palette differs in ' + name); if (rep > 0) (order[o] === 'w' ? pw : pj).push(pdt); var out; t0 = performance.now(); for (z = 0; z < EB; z++) out = encode(G, 640, 480, pal, pics, order[o] === 'w' ? undefined : false); var dt = (performance.now() - t0) / EB; if (!sameBytes(out, ref)) throw new Error('bytes differ in ' + name); if (rep > 0) (order[o] === 'w' ? tw : tj).push(dt); } }
       res[name] = { paletteJs: +med(pj).toFixed(1), paletteWasm: +med(pw).toFixed(1), js: +med(tj).toFixed(1), wasm: +med(tw).toFixed(1) };
     });
     return { speed: res, available: G.wasmAvailable() };
