@@ -1,18 +1,18 @@
 # netflow-sankey
 
-**Version 2.2.1 · API 2**
+**Version 2.3.0 · API 2**
 
-**Tested in:** Node 22 checks (24); the Netflow Map engine built as a module (netflow-engine 2.0.0) with this Sankey add-on made the same pictures as Netflow Map's own engine on 32 Sankey builds and 4 builds past the long-link cap in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (0 differences, 0 errors)
+**Tested in:** Node 22 checks (31); 48 layouts identical to JavaScript, with and without the CSP word, in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, 3 passes each
 
-Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 37 KB (12.9 KB gzipped), no dependencies. Cut from Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
+Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 49 KB (17.7 KB gzipped, of which about 7 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
 
-It reads your list of links, puts each item in a column by the direction of the flow, and makes each band as thick as its flow on one scale for the whole picture. A long link passes through the columns in between. It then searches for the order of items in each column that gives the fewest weighted crossings (big flows crossing big flows cost most), restarting several times within a time budget and keeping the best order. Backward links are drawn as bands under the picture, and `toSvg` draws the result as an SVG.
+It reads your list of links, puts each item in a column by the direction of the flow, and makes each band as thick as its flow on one scale for the whole picture. A long link passes through the columns in between. It then searches for the order of items in each column that gives the fewest weighted crossings (big flows crossing big flows cost most), restarting several times within a time budget and keeping the best order (the counting and sorting of that search runs as WebAssembly when the browser allows it, and as the same JavaScript otherwise). Backward links are drawn as bands under the picture, and `toSvg` draws the result as an SVG.
 
 ## Why it exists
 Flow charts are read by the thick bands. If the thick ones tangle, the chart is useless, so the search spends its effort there. And data from real life has loops, which must not crash the page.
 
 ## Try it and test it
-**Test it:** `node modules/netflow-sankey/test/run.js` (15 checks, about 0.3 s). **Try it:** `demo.html` (type links, the chart redraws).
+**Test it:** `node modules/netflow-sankey/test/run.js` (31 checks, about 1 s). **Try it:** `demo.html` (type links, the chart redraws).
 
 ## Use
 ```js
@@ -69,6 +69,32 @@ Three made-up charts (64, 118 and 222 links). One yardstick for both: for every 
 | 222 | 35,454 | 61,492 | 58% | 26 ms / 7 ms |
 
 So about half the weighted crossings, at about 4 to 5 times the time (still under 30 ms). The two tools place the columns differently, so this is one yardstick on three charts, not a proof for every chart. A chart with a loop (a to b to c to a): d3-sankey throws "circular link"; netflow-sankey draws it (2 bands and 1 loop).
+
+## WebAssembly (since 2.3.0)
+
+**What.** The inner loop of the order search (counting weighted crossings, sorting each column by the average position of its neighbors, trying swaps; `wasm/order.c`, 5,319 bytes) also exists as WebAssembly, embedded in `netflow-sankey.js` and used first. The restarts, the random numbers and everything else stay JavaScript, so a layout comes out the same as before: 48 test layouts identical to the last digit, with and without the CSP word, in each of 12 browser runs. `NetflowSankey.wasmAvailable()` says whether the browser allows it; `layout(..., { wasm: false })` forces the JavaScript code.
+
+**Why.** Median of 3 passes of 5 rounds in rotating order, JavaScript to WebAssembly in ms (lower is better; times faster, higher is better; WebKit's clock moves in whole milliseconds, so quick layouts there are timed 10 in a row). Only the order search is faster; the rest of a layout is still JavaScript, so big charts gain little.
+
+| Chart | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 | GNOME Web 46.5 |
+|---|---|---|---|---|
+| small, 70 bars | 3.0 to 1.9 (1.58x) | 3.2 to 1.7 (1.88x) | 2.1 to 1.7 (1.24x) | 2.2 to 1.9 (1.16x) |
+| medium, 240 bars | 19.3 to 11.7 (1.65x) | 23.1 to 14.0 (1.65x) | 14.8 to 14.2 (1.04x) | 14.5 to 13.8 (1.05x) |
+| dense, 320 bars | 7.6 to 6.5 (1.17x) | 7.3 to 7.0 (1.04x) | 6.0 to 6.1 (0.98x) | 5.9 to 5.8 (1.02x) |
+| large, 640 bars | 5.9 to 5.1 (1.16x) | 6.4 to 6.1 (1.05x) | 4.8 to 4.9 (0.98x) | 4.9 to 5.0 (0.98x) |
+| big, 1000 bars | 7.2 to 6.5 (1.11x) | 8.9 to 8.3 (1.07x) | 6.3 to 6.3 (1.00x) | 6.3 to 6.4 (0.98x) |
+| first layout, right after the page loads | 40.4 to 30.7 (1.32x) | 34 to 22 (1.55x) | 31 to 29 (1.07x) | 33 to 37 (0.89x) |
+| first layout, 250 ms after the page loads | 43.4 to 29.4 (1.48x) | 36 to 22 (1.64x) | 26 to 26 (1.00x) | 34 to 34 (1.00x) |
+
+Chromium and Firefox rows are the median of 3 passes of 5 rounds; the two WebKit browsers' chart rows were run again as 3 passes of 9 rounds (a first run had shown two cells 9 to 10% slower, which did not repeat); the first-layout rows are the median of 11 fresh pages.
+
+**Use.**
+- Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it, or if anything goes wrong at the start, the JavaScript code runs and gives the same layout. A chart with a flow that is negative, not a number or above 1e100 also uses the JavaScript code.
+- The wasm compiles in the background when the file loads; a layout asked for before that is done compiles it on the spot. `NetflowSankey.wasmReady()` is a promise (true or false) and `NetflowSankey.wasmModule()` gives the compiled module once ready (else null). Nothing is stored in the browser.
+- All layouts on a page share one WebAssembly memory, which grows as needed and is not freed.
+- Source `wasm/order.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
+
+**Honest limits.** Gains are in Chromium and Firefox (up to 1.9x on small charts, about 1.05 to 1.2x on big ones). In the two WebKit browsers the chart rows are a wash (0.98x to 1.24x). The one real cost: a layout started right after the page loads in GNOME Web is about 4 ms slower (33 to 37 ms, 0.89x) because the wasm is still compiling in the background; 250 ms later it is equal. Costs bytes: +11,578 as written (37,790 to 49,368), +9,493 minified (19,377 to 28,870) and +4,301 gzipped (8,097 to 12,398) with terser 5.51.2 (smaller is better). Not run: a phone, Safari.
 
 ## Limits
 - The search is a heuristic (it restarts several times within a time budget); it finds a good order, not always the best.

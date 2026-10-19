@@ -306,7 +306,7 @@
     },
     {
       "id": "netflow-sankey",
-      "version": "2.2.1",
+      "version": "2.3.0",
       "api": 2,
       "global": "NetflowSankey",
       "summary": "Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer.",
