@@ -44,7 +44,7 @@
     } catch (e) { WM = null; }
     return WM;
   }
-  /** The palette search in WebAssembly (colour histogram, median cut, k-means): the same colors as makePaletteJs, to the last digit. Null when it cannot run (the JavaScript code then does). */
+  /** The palette search in WebAssembly (color histogram, median cut, k-means): the same colors as makePaletteJs, to the last digit. Null when it cannot run (the JavaScript code then does). */
   function makePaletteWasm(pictures, maxColors) {
     var mod = wasmModule();
     if (!mod) return null;
