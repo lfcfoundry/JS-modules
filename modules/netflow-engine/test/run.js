@@ -39,6 +39,27 @@ t('with WebAssembly off the picture is the same (Force and Distances, 600 items)
     ok(same(w, j), arr + ': positions differ between wasm and plain JavaScript');
   });
 });
+t('Distances 3D, Closeness and the hash-grid push-apart give the same picture with and without WebAssembly (smallest sizes lowered for the check)', () => {
+  const W = E.stressWasm, keep = { a: W.min3d, b: W.minClose }; W.min3d = 100; W.minClose = 100;
+  try {
+    const g = network(900, 9), c3 = W.calls3, cc = W.closeCalls;
+    ['stress3d', 'closeness'].forEach((arr) => {
+      const w = E.build(copy(g), { view: 'network', arrange: arr }); const on = W.on; W.on = false;
+      let j; try { j = E.build(copy(g), { view: 'network', arrange: arr }); } finally { W.on = on; }
+      ok(same(w, j), arr + ': positions differ between wasm and plain JavaScript');
+    });
+    ok(W.calls3 > c3 && W.closeCalls > cc, 'WebAssembly did not run for Distances 3D or Closeness');
+    const k = 400, r = rng(11), X0 = new Float64Array(k * 2); for (let i = 0; i < k * 2; i++) X0[i] = (r() - 0.5) * 500000; for (let i = 1; i < k; i += 5) { X0[2 * i] = X0[2 * i - 2] + 3; X0[2 * i + 1] = X0[2 * i - 1]; }
+    const rad = (i) => 6 + (i % 5) * 3, XA = Float64Array.from(X0), XB = Float64Array.from(X0), sp = W.sparseCalls; W.on = false; E.separate(XA, k, 2, rad, 30); W.on = true; E.separate(XB, k, 2, rad, 30);
+    ok(W.sparseCalls > sp, 'the hash-grid push-apart did not run in WebAssembly'); ok(XA.every((v, i) => v === XB[i]), 'push-apart positions differ');
+  } finally { W.min3d = keep.a; W.minClose = keep.b; }
+});
+t('flat Force from 5,000 items starts from the Distances picture: different from the old start, the same every run, and 3D Distances is a 3D picture', () => {
+  const g = network(5200, 12), T = E.force2dTuning, a = E.build(copy(g), { view: 'network', arrange: 'force' }), b = E.build(copy(g), { view: 'network', arrange: 'force' });
+  ok(same(a, b), 'two runs differ'); const keep = T.stressMin; T.stressMin = 0; let o; try { o = E.build(copy(g), { view: 'network', arrange: 'force' }); } finally { T.stressMin = keep; }
+  ok(!same(a, o), 'the picture did not change at 5,200 items');
+  const d3 = E.build(copy(network(600, 13)), { view: 'network', arrange: 'stress3d' }); ok(d3.is3d === true && d3.nodes.some((n) => Math.abs(n.z) > 1), 'Distances 3D is not a 3D picture');
+});
 t('no two items on top of each other (stress, force, closeness: 2,000 items)', () => ['stress', 'force', 'closeness'].forEach((arr) => { const p = touching(E.build(copy(network(2000, 8)), { view: 'network', arrange: arr })); ok(p === 0, arr + ': ' + p + ' touching pairs'); }));
 t('a start page that does not exist, an empty map and a single item do not crash', () => {
   const g = story(30, 9); g.start = 'nope'; E.build(copy(g), { view: 'flow' });

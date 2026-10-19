@@ -28,7 +28,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.0.3 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.0.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.2.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.0.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.1.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.2.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -60,6 +60,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **netflow-sankey** 2.2.0 · API 2: Very long links no longer blow up big charts: past a limit, the lightest long links are drawn as one straight band. The crossing count is now always a real number.
 - 2026-10-18 · **netflow-sankey** 2.1.0 · API 2: Two new calls so a flow chart can be wired into Netflow Map's engine, one for settings and one for applying a result.
 - 2026-10-18 · **netflow-layers** 1.3.0 · API 1: New tight or wide option: wide draws a looser, more tree-like picture that reads better on wide screens. Tight stays the same as before.
+- 2026-10-18 · **netflow-engine** 2.1.0 · API 2: More of the engine runs as WebAssembly, there is a new Distances 3D arrangement, and big flat Force maps are 1.5 to 2.4 times faster at 5,000 to 10,000 items (higher is better).
 - 2026-10-18 · **netflow-engine** 2.0.0 · API 2: The sixth view is now called "sankey" (the old name is gone), so a page that typed the old name by hand must change it. New tight or wide spread for the story views.
 - 2026-10-18 · **netflow-engine** 1.0.0 · API 1: The engine code arrives: the engine of Netflow Map as one file you can adapt, with nine map views and layouts for networks of any size.
 - 2026-10-18 · **netflow-engine** 0.1.0 · API 0: Placeholder with no engine code yet.

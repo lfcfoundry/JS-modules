@@ -75,6 +75,44 @@ EXP("sweeps") void sweeps(double *X, const i32 *pa, const i32 *pb, const u16 *pc
     }
   }
 }
+/* The same sweeps in three dimensions (Distances 3D), 3 numbers per item; the pairs, the tables and the one shuffle are the ones above. etas[t] is the page's. */
+EXP("sweeps3") void sweeps3(double *X, const i32 *pa, const i32 *pb, const u16 *pc, const float *pdT, const float *pwT, i32 cnt, const double *etas, i32 tmax) {
+  for (i32 t = 0; t < tmax; t++) {
+    double eta = etas[t]; i32 back = t & 1, q = back ? cnt - 1 : 0, step = back ? -1 : 1;
+    for (i32 n = 0; n < cnt; n++, q += step) {
+      i32 c = pc[q]; double mu = (double)pwT[c] * eta; if (mu > 1) mu = 1;
+      i32 a3 = pa[q] * 3, b3 = pb[q] * 3;
+      double dx = X[a3] - X[b3], dy = X[a3 + 1] - X[b3 + 1], dz = X[a3 + 2] - X[b3 + 2], mag = __builtin_sqrt(dx * dx + dy * dy + dz * dz);
+      if (mag == 0 || mag != mag) mag = 1e-6;
+      double r = (mu * (mag - (double)pdT[c])) / (2 * mag), rx = r * dx, ry = r * dy, rz = r * dz;
+      X[a3] -= rx; X[a3 + 1] -= ry; X[a3 + 2] -= rz; X[b3] += rx; X[b3 + 1] += ry; X[b3 + 2] += rz;
+    }
+  }
+}
+/* The Closeness rounds (closenessComponent's loop, with b = 1): linked items pulled together, a few random others pushed away, steps clipped. U holds 2 numbers per
+ * item (already scaled by 1/EDGE); ea/eb are the links; s is the page's xorshift seed. Same operations in the same order as the JavaScript. */
+static u32 rs_;
+static i32 next_int(i32 n) { u32 s = rs_; s ^= s << 13; s ^= s >> 17; s ^= s << 5; rs_ = s; return (i32)(((double)s / 4294967296.0) * (double)n); }
+EXP("closeness") void closeness(double *U, i32 k, const i32 *ea, const i32 *eb, i32 nE, u32 seed, i32 epochs, i32 neg, double a, double b, double clip, double alpha0) {
+  rs_ = seed;
+  for (i32 ep = 0; ep < epochs; ep++) {
+    double alpha = alpha0 * (1 - (double)ep / (double)epochs);
+    for (i32 e = 0; e < nE; e++) {
+      i32 p = ea[e], q = eb[e];
+      double dx = U[2 * p] - U[2 * q], dy = U[2 * p + 1] - U[2 * q + 1], d2 = dx * dx + dy * dy;
+      double g = d2 > 0 ? -2 * a / (1 + a * d2) : 0;
+      double mx = g * dx, my = g * dy; if (mx > clip) mx = clip; else if (mx < -clip) mx = -clip; if (my > clip) my = clip; else if (my < -clip) my = -clip;
+      U[2 * p] += alpha * mx; U[2 * p + 1] += alpha * my; U[2 * q] -= alpha * mx; U[2 * q + 1] -= alpha * my;
+      for (i32 r = 0; r < neg; r++) {
+        i32 c = next_int(k); if (c == p) continue;
+        double rx = U[2 * p] - U[2 * c], ry = U[2 * p + 1] - U[2 * c + 1], r2 = rx * rx + ry * ry;
+        double gr = 2 * b / ((0.001 + r2) * (1 + a * r2));
+        double qx = gr * rx, qy = gr * ry; if (qx > clip) qx = clip; else if (qx < -clip) qx = -clip; if (qy > clip) qy = clip; else if (qy < -clip) qy = -clip;
+        U[2 * p] += alpha * qx; U[2 * p + 1] += alpha * qy;
+      }
+    }
+  }
+}
 /* separate(): push overlapping discs apart on a grid, 2 numbers per item. Returns 0 = settled, 1 = still moving at the end, -(pass+1) when the grid would be
  * over 4,000,000 cells at that pass (the page finishes with its sparse version, as the JavaScript does), or -(100000+pass) when the grid does not fit the
  * start table the page gave (startCap ints): X is as the passes so far left it, so the page calls again with a bigger table and the passes that remain. */
@@ -111,4 +149,43 @@ EXP("separate") i32 separate(double *X, i32 k, const double *rads, double rmax, 
     if (!moved) break;
   }
   return moved ? 1 : 0;
+}
+/* separateSparse(): the same push-apart on a hash grid (cells 90 wide, key = the page's integer key), for pictures too spread out for a plain grid. Items of one cell are a list
+ * whose newest item comes first, as in the JavaScript, so the pushes happen in the same order. hk/hv: an open-addressing table of cap (a power of two, at least twice k)
+ * entries; hv = -2 marks an empty one. Returns 1 when the last pass still moved something. */
+typedef long long i64; typedef unsigned long long u64;
+static i32 slot_of(const i64 *hk, const i32 *hv, i32 mask, i64 key) {
+  u64 h = (u64)key * 0x9E3779B97F4A7C15ULL; i32 sl = (i32)(h >> 40) & mask;
+  while (hv[sl] != -2 && hk[sl] != key) sl = (sl + 1) & mask;
+  return sl;
+}
+EXP("separate_sparse") i32 separate_sparse(double *X, i32 k, const double *rads, i32 passes, i32 *next, i64 *hk, i32 *hv, i32 cap) {
+  const double cell = 90; i32 mask = cap - 1, moved = 0;
+  for (i32 pass = 0; pass < passes; pass++) {
+    for (i32 c = 0; c < cap; c++) hv[c] = -2;
+    moved = 0;
+    for (i32 i = 0; i < k; i++) {
+      double key = (__builtin_floor(X[2 * i] / cell) + 4096) * 8192 + __builtin_floor(X[2 * i + 1] / cell) + 4096;
+      i32 sl = slot_of(hk, hv, mask, (i64)key);
+      if (hv[sl] == -2) { hk[sl] = (i64)key; next[i] = -1; } else next[i] = hv[sl];
+      hv[sl] = i;
+    }
+    for (i32 i = 0; i < k; i++) {
+      double cx = __builtin_floor(X[2 * i] / cell) + 4096, cy = __builtin_floor(X[2 * i + 1] / cell) + 4096, ra = rads[i];
+      for (double gx = cx - 1; gx <= cx + 1; gx++) for (double gy = cy - 1; gy <= cy + 1; gy++) {
+        i32 sl = slot_of(hk, hv, mask, (i64)(gx * 8192 + gy)); if (hv[sl] == -2) continue;
+        for (i32 o = hv[sl]; o >= 0; o = next[o]) {
+          if (o <= i) continue;
+          double dx = X[2 * o] - X[2 * i], dy = X[2 * o + 1] - X[2 * i + 1], dd = __builtin_sqrt(dx * dx + dy * dy); if (dd == 0 || dd != dd) dd = 0.01;
+          double need = ra + rads[o];
+          if (dd < need) {
+            double push = (need - dd) / 2, ux = dx / dd; if (ux == 0 || ux != ux) ux = 1; double uy = dy / dd;
+            X[2 * i] -= ux * push; X[2 * i + 1] -= uy * push; X[2 * o] += ux * push; X[2 * o + 1] += uy * push; moved = 1;
+          }
+        }
+      }
+    }
+    if (!moved) break;
+  }
+  return moved;
 }
