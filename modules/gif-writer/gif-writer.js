@@ -4,7 +4,7 @@
  * are left transparent, and every picture is compressed the moment it is added.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  *
  *   var pal = GifWriter.makePalette([rgba1, rgba2], 255);          // rgba: Uint8ClampedArray from ctx.getImageData(...).data
  *   var enc = GifWriter.createEncoder(width, height, pal, { loop: true });
@@ -29,8 +29,59 @@
   }
   var rgbOf = function (px) { return ((px & 255) << 16) | (px & 0xff00) | ((px >>> 16) & 255); };
 
-  /** Up to maxColors colors that stand for the pictures. */
-  function makePalette(pictures, maxColors) {
+  /* The picture-to-GIF-data half in WebAssembly (since 1.2.0; source wasm/gif.c): palette lookup of every pixel, the comparison with the last picture and the LZW coder. Whole numbers only, so the
+     bytes are the same as the JavaScript code writes. createEncoder uses it when the browser allows it and the picture is at most 4,194,304 pixels; createEncoder(w, h, pal, { wasm: false }) never does. */
+  var WASM_B64 = /*WASM:BEGIN*/'AGFzbQEAAAABRAdgAn9/AGAIf39/f39/f38Bf2ABfwF/YAN/f38Bf2ALf39/f39/f39/f38Bf2AGf39/f39/AX9gCX9/f39/f39/fwF/AwoJAAECAwQAAQUGBQMBAFQGEQJ/AUGg6M0CC38AQaDozQILB20KBm1lbW9yeQIABXNldHVwAAAFZnJhbWUAAQNsencAAwZlbmNvZGUABApoaXN0X3Jlc2V0AAUMaGlzdF9waWN0dXJlAAYMaGlzdF9leHRyYWN0AAcIcXVhbnRpemUACAtfX2hlYXBfYmFzZQMBCthDCZEBAQF/QQAgADYCgIiAgAACQCAAQQFIDQBBkIiAgAAgASAAQQJ0IgL8CgAAQZCQgIAAIAEgAmogAvwKAABBkJiAgAAgASAAQQN0aiAC/AoAAEGQoICAACABIABBDGxqIAL8CgAAC0GQqICAAEH/AUGAgIAC/AsAQQBBADYCkKiAggBBoKiAggBB/wFBgIAE/AsAC4AFARJ/AkAgAEUNAAJAIAYgBWwiCEEBSA0AIAMgASgCACIJQRB0QYCA/AdxIAlBgP4DcXIgCUEQdkH/AXFyEIKAgIAAIgo6AAAgCEEBRg0AIAFBBGohACAIQX9qIQsgA0EBaiEMA0ACQCAAKAIAIg0gCUYNACANQRB0QYCA/AdxIA1BgP4DcXIgDUEQdkH/AXFyEIKAgIAAIQogDSEJCyAMIAo6AAAgAEEEaiEAIAxBAWohDCALQX9qIgsNAAsLIAdCADcCACAHIAVBf2o2AgggByAGQX9qNgIMIAgPCwJAAkAgBkEBTg0AQX8hDkEAIQ8gBSEQIAYhEUF/IRIMAQsgBUECdCETQX8hEkEAIQkgBUEBSCEUQQAhFUEAIQpBACEWQX8hDiAGIREgBSEQQQAhD0EAIRcDQCAJIAVqIQgCQAJAIBRFDQBBACEYDAELIAMgCWohGUEAIQAgASEMIAIhDUEAIRgDQAJAIAwoAgAiCyANKAIARg0AAkACQCAKRQ0AIAsgFUYNAQsgC0EQdEGAgPwHcSALQYD+A3FyIAtBEHZB/wFxchCCgICAACEWIAshFQtBASEKIBkgAGoiCy0AACAWQf8BcUYNACALIBY6AAAgBCAPQQJ0aiAJIABqNgIAIAAgDiAAIA5KGyEOIAAgECAAIBBIGyEQQQEhCiAPQQFqIQ9BASEYCyAMQQRqIQwgDUEEaiENIAkgAEEBaiIAaiAISA0ACwsgFyASIBgbIRIgFyARIBcgEUgbIBEgGBshESABIBNqIQEgAiATaiECIAghCSAXQQFqIhcgBkcNAAsLIAcgDjYCCCAHIBE2AgQgByAQNgIAIAcgEjYCDCAPC5oGARB/AkACQCAAQbHz3fF5bCIBQRJ2IgJBAnRBoKiAggBqIgMoAgAgAEcNACACQaCojIIAai0AACEEDAELIAFBDHYiBSEGAkACQCAFQQJ0QZCogIAAaiIHKAIAIgFBf0YNACAFIQYDQAJAIAEgAEcNACAGQaCojYIAai0AACEEDAMLIAZBAWpB//8/cSIGQQJ0QZCogIAAaigCACIBQX9HDQALCyAAQQh2Qf8BcSEIQQAhAQJAQQAoAoCIgIAAIglBAUgNAEEAIQEgCSEKA0AgASAKakEBdSILQQFqIAEgC0ECdEGQkICAAGooAgAgCEgiDBsiASAKIAsgDBsiCkgNAAsLIABB/wFxIQ0gAEEQdiEOIAFBf2ohDEGAlOvcAyELQQAhBANAAkACQAJAAkAgDEEATg0AIAEhCgwBCyAMQQJ0QZCQgIAAaigCACEKAkACQCABIAlODQAgAUECdEGQkICAAGooAgAgCGsiDyAIIAprSg0AIAkhECAPIA9sQQJ0Ig8gC0oNASABIQoMAwsgASEQCwJAIAogCGsiASABbEECdCIPIAtMDQBBfyEMIBAhCgwBCyAMIQogDEF/aiEMIBAhAQwCCwJAIAogCU4NACAKQQJ0QZCQgIAAaigCACAIayIBIAFsQQJ0Ig8gC0wNAQsCQEEAKAKQqICCACIBQZqzJkgNAEGQqICAAEH/AUGAgIAC/AsAAkAgBygCAEF/Rg0AA0AgBUEBakH//z9xIgVBAnRBkKiAgABqKAIAQX9HDQALC0EAIQEgBSEGCyAGQaCojYIAaiAEOgAAQQAgAUEBajYCkKiAggAgBkECdEGQqICAAGogADYCAAwDCyAKQQFqIQELAkAgCkECdCIKQZCIgIAAaigCACAOayIQIBBsQQF0IA9qIApBkJiAgABqKAIAIA1rIg8gD2xBA2xqIg8gC04NACAKQZCggIAAaigCACEEIA8hCwwBCyAPIAtHDQAgCkGQoICAAGooAgAiCiAEIAogBEgbIQQMAAsLIAMgADYCACACQaCojIIAaiAEOgAACyAEQf8BcQu4BQEMf0GgqISCAEEAQYCABPwLACACQQA6AAACQAJAIAENAEEJIQNBASEEQQEhBUEBIQYMAQsgAC0AACEHAkACQCABQQJODQBBCSEDQQEhBEEBIQVBASEIDAELQQkhA0GCAiEJQQEhCEEBIQVBASEEQQEhCgNAAkAgACAKai0AACILIAdBCHRyQQFqIgxBsfPd8XlsQRJ2Ig1BAnRBoKiEggBqIg4oAgAiBkUNACAGIAxGDQADQCANQQFqQf//AHEiDUECdEGgqISCAGoiDigCACIGRQ0BIAYgDEcNAAsLAkACQCAGIAxHDQAgDUEBdEGgqIiCAGovAQAhBwwBCyAHIAh0IAVyIQUCQAJAIAMgCGoiBkEITg0AIAYhCAwBCwNAIAIgBGogBToAACAFQQh2IQUgBEEBaiEEIAZBD0shByAGQXhqIgghBiAHDQALCwJAAkAgCUGAIEcNAEGAAiAIdCAFciEFIAggA2oiCEEISA0BA0AgAiAEaiAFOgAAIAVBCHYhBSAEQQFqIQQgCEEPSyEGIAhBeGohCCAGDQAMAgsLIA4gDDYCACANQQF0QaCoiIIAaiAJOwEAIAMgCUEBIAN0TmohAyALIQcgCUEBaiEJDAELQaCohIIAQQBBgIAE/AsAQYICIQlBCSEDIAshBwsgCkEBaiIKIAFHDQALCyAHIAh0IAVyIQUgAyAIaiIGQQhIDQADQCACIARqIAU6AAAgBUEIdiEFIARBAWohBCAGQQ9LIQ0gBkF4aiIIIQYgDQ0ACyAIIQYLQYECIAZ0IAVyIQUCQAJAIAMgBmoiBkEITg0AIAYhCAwBCwNAIAIgBGogBToAACAFQQh2IQUgBEEBaiEEIAZBD0shDSAGQXhqIgghBiANDQALCwJAIAhBAUgNACACIARqIAU6AAAgBEEBaiEECyAEC4kBAQF/AkAgAA0AAkAgCCAHbCILQQFIDQAgCUH/ASAL/AsACwJAIANBAUgNAANAIAkgAigCACIIIARtIgAgBmsgB2xqIAggACAEbCAFamtqIAEgCGotAAA6AAAgAkEEaiECIANBf2oiAw0ACwsgCSALIAoQg4CAgAAPCyABIAggBGwgChCDgICAAAsbAAJAQQIgAXRBAUgNACAAQQBBCCABdPwLAAsLogIBCH8CQCABQQFIDQBBfyAEdEF/cyEIQSAgBGshCUF+IQpBACELQQAhDANAAkAgACALQQJ0aigCACIEQRB0QYCA/AdxIARBgP4DcXIgBEEQdkH/AXFyIAVxIg0gCkYNACANQQFqIQ4gDUGx893xeWwgCXYiBEEBdCEMAkAgAyAEQQN0aiIPKAIAIgpFDQAgCiAORg0AA0AgBEEBaiAIcSIEQQF0IQwgAyAEQQN0aiIPKAIAIgpFDQEgCiAORw0ACwsCQAJAIApFDQAgBiEEDAELIA8gDjYCACAGIAdOIQogBkEBaiIEIQYgCg0DCyAMQQFyIQwgDSEKIAQhBgsgAyAMQQJ0aiIEIAQoAgBBAWo2AgAgCyACaiILIAFIDQALCyAGC4MBAQJ/QQAhBgJAIAFBH0YNAEEBIAF0IQFBACEGA0ACQCAAKAIAIgdFDQAgAiAGaiAHQX9qIgdBEHY6AAAgAyAGaiAHQQh2OgAAIAQgBmogBzoAACAFIAZBA3RqIABBBGooAgC3OQMAIAZBAWohBgsgAEEIaiEAIAFBf2oiAQ0ACwsgBguaLQcDfwF8EH8EfBF/AX4BfCOAgICAAEEQayIJIAQ2AgwgCSADNgIIIAkgAjYCBEEBIQpBgX4hCwJAAkAgAEEBTg0ARAAAAAAAAAAAIQxBgX4hDUGBfiEODAELIABBB3EhD0EAIQ0CQCAAQQhJDQAgAEH4////B3EhEEEAIQ0gBiERA0AgESANNgIAIBFBHGogDUEHajYCACARQRhqIA1BBmo2AgAgEUEUaiANQQVqNgIAIBFBEGogDUEEajYCACARQQxqIA1BA2o2AgAgEUEIaiANQQJqNgIAIBFBBGogDUEBajYCACARQSBqIREgDUEIaiINIBBHDQALCwJAIA9FDQAgBiANQQJ0aiERA0AgESANNgIAIBFBBGohESANQQFqIQ0gD0F/aiIPDQALC0QAAAAAAAAAACEMQYF+IQ1BgX4hDiAAQQFIDQBEAAAAAAAAAAAhDEEAIRFB/wEhDyACIRIgAyETIAQhFCAFIRUgACEWQf8BIRBBACELQf8BIQ5BACEXA0AgFyAULQAAIg0gFyANShshFyAOIA0gDiANSBshDiALIBMtAAAiDSALIA1KGyELIBAgDSAQIA1IGyEQIBEgEi0AACINIBEgDUobIREgDyANIA8gDUgbIQ8gEkEBaiESIBNBAWohEyAUQQFqIRQgDCAVKwMAoCEMIBVBCGohFSAWQX9qIhYNAAsgFyAOayEOIAsgEGshDSARIA9rIQsLQQAhGEEAIAw5A7ioioIAQQAgADYCpKiKggBBAEECQQEgDSAOSBsiESARQQAgCyAOSBsgCyANSBs2AqioioIAQQBEAAAAAAAAAAAgDJ8gDiALIA0gCyANShsiDSAOIA1KG7eiIABBAkgbOQOwqIqCAEEAQQA2AqCoioIAAkAgAUECSA0AQQAhGUGgqIqCACEaQQEhG0EAIRxBASEKA0BBACENQX8hF0QAAAAAAAAAACEMAkAgHEEDSQ0AIApB/P///wdxIRJEAAAAAAAAAAAhDEF/IRdBACENQZCpioIAIREDQCARKwMAIh0gEUFgaisDACIeIBFBQGorAwAiHyARQaB/aisDACIgIAwgICAMZCIPGyIMIB8gDGQiEBsiDCAeIAxkIgsbIgwgHSAMZCIOGyEMIA1BA2ogDUECaiANQQFqIA0gFyAPGyAQGyALGyAOGyEXIBFBgAFqIREgDUEEaiINIBJHDQALCwJAIApBA3FFDQAgG0EDcSEPIA1BBXRBsKiKggBqIREDQCANIBcgESsDACIdIAxkIhAbIRcgHSAMIBAbIQwgEUEgaiERIA1BAWohDSAPQX9qIg8NAAsLIBdBAEgNASAJQQRqIBdBBXQiDUGoqIqCAGooAgBBAnRqKAIAIRQgDUG4qIqCAGorAwAhDCANQaSoioIAaigCACEhIA1BoKiKggBqIiIoAgAhI0Gg6IqCAEEAQYAQ/AsAQaD4ioIAQQBBgAj8CwACQCAhICNMIiQNACAhICNrIREgBiAjQQJ0aiENA0AgFCANKAIAIg9qLQAAIhBBA3RBoOiKggBqIgsgBSAPQQN0aisDACALKwMAoDkDACAQQQJ0QaD4ioIAaiIPIA8oAgBBAWo2AgAgDUEEaiENIBFBf2oiEQ0ACwsgDEQAAAAAAADgP6IhHkQAAAAAAAAAACEMQQAhEkGg+IqCACENQaDoioIAIRFBACEVAkACQANAIAwgESsDAKAhHQJAIA0oAgAiE0UNACAdIB5mDQMLIBMgFWohFSAdIBFBCGorAwCgIQwCQCANQQRqKAIAIhNFDQAgDCAeZg0CCyARQRBqIREgDUEIaiENIBMgFWohFSASQQJqIhJBgAJHDQALQQAoAqCAi4IAIRNBgAIhEgwBCyASQQFqIRIgHSEMCwJAICQNACAhICNrIg1BAXEhDkEAIREgIyEPAkAgISAjQQFqRg0AIA1BfnEhECAGICNBAnRqIQ1BACERICMhDwNAAkAgEiAUIA0oAgAiC2otAABHDQAgByARQQJ0aiALNgIAIBFBAWohEQsCQCASIBQgDUEEaigCACILai0AAEcNACAHIBFBAnRqIAs2AgAgEUEBaiERCyANQQhqIQ0gD0ECaiEPIBBBfmoiEA0ACwsCQCAORQ0AIBIgFCAGIA9BAnRqKAIAIg1qLQAARw0AIAcgEUECdGogDTYCACARQQFqIRELIBFBAkgNACARQQF2IRYDQAJAIBYiJUF/aiIWQQF0Ig9BAXIiDSARTg0AIBYhEANAAkACQCAPQQJqIg8gEUgNACANIQ0MAQsgDyANIAcgD0ECdGooAgAgByANQQJ0aigCAEobIQ0LIAcgEEECdGoiDygCACIQIAcgDUECdGoiCygCACIOTg0BIA8gDjYCACALIBA2AgAgDSEQIA1BAXQiD0EBciINIBFIDQALCyAlQQFKDQALIAcoAgAhDyAHIAcgEUF/aiINQQJ0aiIQKAIANgIAIBAgDzYCACARQQJGDQADQCANIRFBACEPQQEhDUEAIRADQAJAAkAgD0ECaiIPIBFIDQAgDSENDAELIA8gDSAHIA9BAnRqKAIAIAcgDUECdGooAgBKGyENCwJAIAcgEEECdGoiDygCACIQIAcgDUECdGoiCygCACIOTg0AIA8gDjYCACALIBA2AgAgDSEQIA1BAXQiD0EBciINIBFIDQELCyAHKAIAIQ8gByAHIBFBf2oiDUECdGoiECgCADYCACAQIA82AgAgEUECSw0ACwtBACERAkAgE0EBSA0AIAchDQNAIAwgBSANKAIAQQN0aisDAKAiDCAeZg0BIA1BBGohDSATIBFBAWoiEUcNAAsgEyERC0F/ISYCQCARIBEgFWogISAjQX9zak5rIg1BAEgNACAHIA1BAnRqKAIAISYLICMgFWogDWohJwJAAkAgJEUNAEH/ASEoQQAhKUQAAAAAAAAAACEdRAAAAAAAAAAAIQxBACEqQf8BIStBACEsQf8BIS1BACEOQf8BIRNBACEVQf8BIRZBACElQf8BISQMAQsgISAjayEuIAYgI0ECdGohC0H/ASEoQQAhKUQAAAAAAAAAACEdRAAAAAAAAAAAIQxBACEqQf8BIStBACEsQf8BIS1BACEOQf8BIRNBACEVQf8BIRZBACElQf8BISRBACEvICMhMANAIAQgCygCACINai0AACERIAMgDWotAAAhDyACIA1qLQAAIRACQAJAAkAgEiAUIA1qLQAAIjFLDQAgEiAxRw0BIA0gJkoNAQsgBiAwQQJ0aiANNgIAIA4gESAOIBFKGyEOIBMgESATIBFIGyETIBUgDyAVIA9KGyEVIBYgDyAWIA9IGyEWICUgECAlIBBKGyElICQgECAkIBBIGyEkIDBBAWohMCAMIAUgDUEDdGorAwCgIQwMAQsgByAvQQJ0aiANNgIAICkgESApIBFKGyEpICggESAoIBFIGyEoICogDyAqIA9KGyEqICsgDyArIA9IGyErICwgECAsIBBKGyEsIC0gECAtIBBIGyEtIC9BAWohLyAdIAUgDUEDdGorAwCgIR0LIAtBBGohCyAuQX9qIi4NAAsgL0EBSA0AIDBBAnQhFEEAIRACQCAvQQRJDQAgBiAUaiELIC9B/P///wdxIRJBACENQQAhEANAIAsgDWoiESAHIA1qIg8oAgA2AgAgEUEEaiAPQQRqKAIANgIAIBFBCGogD0EIaigCADYCACARQQxqIA9BDGooAgA2AgAgDUEQaiENIBIgEEEEaiIQRw0ACwsgL0EDcSIPRQ0AIAYgEEECdCIRaiAUaiENIAcgEWohEQNAIA0gESgCADYCACARQQRqIREgDUEEaiENIA9Bf2oiDw0ACwsgJ0EBaiEuAkAgCiAXQQFqIjBMDQAgCiERAkAgHCAXa0EDcUUNACAZIBdrQQNxIQ9BACERIBohDQNAIA1BIGogDSkDADcDACANQThqIA1BGGopAwA3AwAgDUEwaiANQRBqKQMANwMAIA1BKGogDUEIaikDADcDACANQWBqIQ0gDyARQQFqIhFHDQALIAogEWshEQsgFyAca0F8Sw0AIBFBBXRBoKeKggBqIQ0DQCANQZgBaiANQfgAaiIPKQMANwMAIA1BkAFqIA1B8ABqIhApAwA3AwAgDUGIAWogDUHoAGoiCykDADcDACANQYABaiANQeAAaiIXKQMANwMAIA1BwABqIhIpAwAhMiASIA1BIGoiFCkDADcDACAXIDI3AwAgDUHIAGoiFykDACEy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'/*WASM:END*/, WASM_MAXPIX = 4194304, WM;
+  function wasmModule() {
+    if (WM !== undefined) return WM;
+    WM = null;
+    try {
+      if (typeof WebAssembly !== 'object' || typeof WebAssembly.Module !== 'function') return WM;
+      var bin, i;
+      if (typeof atob === 'function') { var raw = atob(WASM_B64); bin = new Uint8Array(raw.length); for (i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); }
+      else bin = new Uint8Array(Buffer.from(WASM_B64, 'base64'));
+      WM = new WebAssembly.Module(bin);
+    } catch (e) { WM = null; }
+    return WM;
+  }
+  /** The palette search in WebAssembly (colour histogram, median cut, k-means): the same colors as makePaletteJs, to the last digit. Null when it cannot run (the JavaScript code then does). */
+  function makePaletteWasm(pictures, maxColors) {
+    var mod = wasmModule();
+    if (!mod) return null;
+    try {
+      maxColors = Math.min(255, maxColors || 255);
+      var total = 0, maxn = 0, p, n, pic, ex, attempt, uniq = 0, cap, HB = 16, mask = 0xffffff, i;
+      for (p = 0; p < pictures.length; p++) { n = pictures[p].length >> 2; total += n; if (n > maxn) maxn = n; }
+      if (!total) return null;
+      var stride = total > 1000000 ? 2 : 1, al = function (v) { return (v + 15) & ~15; };
+      ex = new WebAssembly.Instance(mod, {}).exports;
+      var stage = al(ex.__heap_base.value), tbl = al(stage + maxn * 4), ensure = function (end) { var have = ex.memory.buffer.byteLength; if (end > have) ex.memory.grow(Math.ceil((end - have) / 65536)); };
+      for (attempt = 0; attempt < 6; attempt++) {
+        ensure(tbl + (8 << HB)); ex.hist_reset(tbl, HB); uniq = 0; cap = Math.floor((1 << HB) * 0.4);
+        for (p = 0; p < pictures.length && uniq <= cap; p++) {
+          pic = pictures[p]; n = pic.length >> 2;
+          new Uint8Array(ex.memory.buffer, stage, n * 4).set(pic.length === n * 4 ? pic : pic.subarray(0, n * 4));
+          uniq = ex.hist_picture(stage, n, stride, tbl, HB, mask, uniq, cap);
+        }
+        if (uniq <= cap) break;
+        if (attempt === 0) HB = 20; else if (attempt === 1) HB = 22; else mask = attempt === 2 ? 0xfefefe : attempt === 3 ? 0xfcfcfc : 0xf8f8f8;
+      }
+      var oR = al(tbl + (8 << HB)), oG = oR + al(uniq), oB = oG + al(uniq), oC = oB + al(uniq), oOrd = oC + uniq * 8, oScr = oOrd + uniq * 4, oOut = oScr + uniq * 4;
+      ensure(oOut + 3072);
+      if (ex.hist_extract(tbl, HB, oR, oG, oB, oC) !== uniq) return null;
+      var buf = ex.memory.buffer, R = new Uint8Array(buf, oR, uniq), G = new Uint8Array(buf, oG, uniq), B = new Uint8Array(buf, oB, uniq), res = [];
+      if (uniq <= maxColors) { for (i = 0; i < uniq; i++) res.push([R[i], G[i], B[i]]); return res; }
+      var K = ex.quantize(uniq, maxColors, oR, oG, oB, oC, oOrd, oScr, oOut), out = new Int32Array(ex.memory.buffer, oOut, 1 + 3 * K);
+      for (i = 0; i < K; i++) res.push([out[1 + 3 * i], out[2 + 3 * i], out[3 + 3 * i]]);
+      return res;
+    } catch (e) { return null; }
+  }
+  /** Up to maxColors colors that stand for the pictures. Runs in WebAssembly when the browser allows it; makePalette(pictures, maxColors, { wasm: false }) never does. */
+  function makePalette(pictures, maxColors, opts) {
+    var r = opts && opts.wasm === false ? null : makePaletteWasm(pictures, maxColors);
+    return r || makePaletteJs(pictures, maxColors);
+  }
+  function makePaletteJs(pictures, maxColors) {
     maxColors = Math.min(255, maxColors || 255);
     var HB = 16, HS = 1 << HB, mask = 0xffffff, attempt, uniq = 0, p, i;
     var total = 0; for (p = 0; p < pictures.length; p++) total += pictures[p].length >> 2;
@@ -213,6 +264,22 @@
    * A streaming writer: createEncoder(width, height, palette, { loop }) then add(rgba, delayMs) for each picture, then finish().
    * Pixels that did not change since the last picture are left transparent, so still parts cost almost nothing.
    */
+  /** One instance for one encoder: its own memory holds the pictures, the palette cache and the LZW table. Null when it cannot be had (no WebAssembly, refused, too big): the JavaScript code then runs. */
+  function wasmEncoder(width, height, NP, SI, SR, SG, SB) {
+    var mod = wasmModule(), n = width * height;
+    if (!mod || !(n > 0) || n > WASM_MAXPIX || width !== (width | 0) || height !== (height | 0)) return null;
+    try {
+      var ex = new WebAssembly.Instance(mod, {}).exports, base = (ex.__heap_base.value + 15) & ~15, cap = Math.ceil((n + 8) * 1.51) + 64;
+      var oIn = base, oIn2 = oIn + n * 4, oIdx = oIn2 + n * 4, oChg = (oIdx + n + 3) & ~3, oData = oChg + n * 4, oOut = oData + n, oRes = (oOut + cap + 15) & ~15, oPal = oRes + 16, end = oPal + NP * 16;
+      var have = ex.memory.buffer.byteLength, need = Math.ceil(end / 65536) * 65536;
+      if (need > have) ex.memory.grow((need - have) / 65536);
+      var buf = ex.memory.buffer, pal = new Int32Array(buf, oPal, NP * 4), j;
+      for (j = 0; j < NP; j++) { pal[j] = SR[j]; pal[NP + j] = SG[j]; pal[2 * NP + j] = SB[j]; pal[3 * NP + j] = SI[j]; }
+      ex.setup(NP, oPal);
+      return { ex: ex, n: n, in0: new Uint8Array(buf, oIn, n * 4), in1: new Uint8Array(buf, oIn2, n * 4), o0: oIn, o1: oIn2, res: new Int32Array(buf, oRes, 4), buf: buf, oIdx: oIdx, oChg: oChg, oData: oData, oOut: oOut, oRes: oRes };
+    } catch (e) { return null; }
+  }
+
   function createEncoder(width, height, palette, opts) {
     opts = opts || {};
     var pal = palette.slice(0, 255), TRANS = 255, frames = [], n = width * height, prevIdx = null, prevRaw = null, bufIdx = null, chg = null;
@@ -222,8 +289,9 @@
     for (j = 0; j < NP; j++) SI[j] = j;
     SI.sort(function (x, y) { return PG[x] - PG[y] || x - y; });
     for (j = 0; j < NP; j++) { SR[j] = PR[SI[j]]; SG[j] = PG[SI[j]]; SB[j] = PB[SI[j]]; }
-    var CAP = 1 << 20, ck = new Int32Array(CAP).fill(-1), cv = new Uint8Array(CAP), used = 0;
-    var L1 = 1 << 14, l1k = new Int32Array(L1).fill(-1), l1v = new Uint8Array(L1);   // a small table that stays in the processor cache, in front of the big one
+    var W = opts.wasm === false ? null : wasmEncoder(width, height, NP, SI, SR, SG, SB);   // WebAssembly does the picture work when it can; then the JavaScript tables below are not made
+    var CAP = 1 << 20, ck = W ? null : new Int32Array(CAP).fill(-1), cv = W ? null : new Uint8Array(CAP), used = 0;
+    var L1 = 1 << 14, l1k = W ? null : new Int32Array(L1).fill(-1), l1v = W ? null : new Uint8Array(L1);   // a small table that stays in the processor cache, in front of the big one
     var nearest = function (col) {
       var h1 = Math.imul(col, 0x9e3779b1) >>> 18;
       if (l1k[h1] === col) return l1v[h1];
@@ -255,8 +323,22 @@
       ck[h] = col; cv[h] = best; used++;
       return best;
     };
+    var wFirst = true, wSide = 0;   // wSide: which of the two picture areas the next picture is copied into (the other holds the last one)
+    var addWasm = function (rgba, delayMs) {
+      var ex = W.ex, first = wFirst, nchg, x0 = 0, y0 = 0, fw = width, fh = height, len, here = wSide ? W.o1 : W.o0, there = wSide ? W.o0 : W.o1;
+      if (rgba.length < W.n * 4) throw new RangeError('gif-writer: the picture has ' + (rgba.length >> 2) + ' pixels, ' + W.n + ' expected');
+      (wSide ? W.in1 : W.in0).set(rgba.length === W.n * 4 ? rgba : rgba.subarray(0, W.n * 4));
+      wSide ^= 1; wFirst = false;
+      nchg = ex.frame(first ? 1 : 0, here, there, W.oIdx, W.oChg, width, height, W.oRes);
+      if (!first) {
+        if (W.res[2] < 0) { frames[frames.length - 1].delay += delayMs; return; }
+        x0 = W.res[0]; y0 = W.res[1]; fw = W.res[2] - x0 + 1; fh = W.res[3] - y0 + 1;
+      }
+      len = ex.encode(first ? 1 : 0, W.oIdx, W.oChg, nchg, width, x0, y0, fw, fh, W.oData, W.oOut);
+      frames.push({ x: x0, y: y0, w: fw, h: fh, delay: delayMs, trans: frames.length > 0, code: new Uint8Array(W.buf, W.oOut, len).slice() });
+    };
     return {
-      add: function (rgba, delayMs) {
+      add: W ? addWasm : function (rgba, delayMs) {
         var w = words(rgba), idx, i, x, y, nchg = 0;
         var minx = width, miny = height, maxx = -1, maxy = -1, last = -1, lastIdx = 0;
         if (!prevRaw) {
@@ -310,5 +392,5 @@
       count: function () { return frames.length; }
     };
   }
-  return { makePalette: makePalette, createEncoder: createEncoder, lzw: lzw };
+  return { makePalette: makePalette, createEncoder: createEncoder, lzw: lzw, wasmAvailable: function () { return !!wasmModule(); } };
 }));

@@ -147,7 +147,7 @@ Draw maps, flow charts and animated pictures from data.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [gif-writer](modules/gif-writer/README.md) | 1.1.0 | 20.3 | 7.3 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
+| [gif-writer](modules/gif-writer/README.md) | 1.2.0 | 38.3 | 15.1 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.1.0 | 200.3 | 62.3 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.0 | 29.1 | 9.4 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.2.1 | 36.9 | 12.6 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |

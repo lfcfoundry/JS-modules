@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-10-18
+- Making a palette and writing the pictures is about 1.1 to 2.2 times faster with WebAssembly, with the same colors and the same file bytes. Pages with a content policy need 'wasm-unsafe-eval'; without it the old code runs.
+
 ## 1.1.0 · API 1 · 2026-10-17
 - Busy, photo-like animations now make their GIF about 1.3 to 3 times faster to prepare in the four test browsers, and the pictures are written faster too.
 

@@ -23,7 +23,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lzma-decode](modules/lzma-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
-| [gif-writer](modules/gif-writer/README.md) | 1.1.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
+| [gif-writer](modules/gif-writer/README.md) | 1.2.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.2.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.0.3 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.0.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
@@ -69,6 +69,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **memory-compression** 2.0.1 · API 2: Opening a file in fast mode is 21% to 65% faster in Firefox, WebKitGTK and GNOME Web when files of other modes are open on the same page. Packed files are identical.
 - 2026-10-18 · **lzma-pack** 2.0.0 · API 2: Packed pages now carry the WebAssembly decoder by default (about 4.5 KB or 3% bigger, opens faster); --no-wasm gives the old smaller page. --wasm still works.
 - 2026-10-18 · **lzma-decode** 1.2.0 · API 1: The default file is now lzma-decode-with-wasm.js: lzmaDecode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.5 to 2.6 times faster to open a page in the four test browsers.
+- 2026-10-18 · **gif-writer** 1.2.0 · API 1: Making a palette and writing the pictures is about 1.1 to 2.2 times faster with WebAssembly, with the same colors and the same file bytes. Pages with a content policy need 'wasm-unsafe-eval'; without it the old code runs.
 - 2026-10-17 · **zip-open** 1.1.0 · API 1: The check on every unpacked file is about 3.9 times faster, so large zips open sooner. Same answers.
 - 2026-10-17 · **zip-open** 1.0.0 · API 1: New module: opens .zip and Excel .xlsx files in the browser or in Node with no libraries, with every problem reported in plain words. Zip bombs are refused quickly.
 - 2026-10-17 · **webkit-driver** 1.2.0 · API 1: Scripted input in GNOME Web now behaves like a real mouse and keyboard for pages that use pointer events, so all five piece checks pass there.
