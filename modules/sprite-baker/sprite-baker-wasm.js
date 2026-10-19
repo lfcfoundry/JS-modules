@@ -1,4 +1,4 @@
-/*! sprite-baker-wasm.js: an optional add-on for sprite-baker.js that fills the triangles in WebAssembly (built from wasm/tri.c). Copyright (c) 2026 LFC Foundry. MIT License. Version 1.6.0 (API 1)
+/*! sprite-baker-wasm.js: an optional add-on for sprite-baker.js that fills the triangles in WebAssembly (built from wasm/tri.c). Copyright (c) 2026 LFC Foundry. MIT License. Version 1.6.1 (API 1)
  * Load sprite-baker.js first, then this file (in Node: require it; it loads sprite-baker.js itself and returns SpriteBaker). It adds one function:
  *
  *   SpriteBaker.wasm([bytes])   returns { available, engine, Rast, drawMesh, setLight, features, stats }
@@ -140,7 +140,7 @@
         p = k * st; V[p] = ox + x * s; V[p + 1] = oy + y * s; V[p + 2] = z * s; V[p + 3] = nx; V[p + 4] = ny; V[p + 5] = nz;
         if (withUV) { V[p + 6] = uvs ? uvs[k * 2] : ((k / cols) | 0) / m.nu; V[p + 7] = uvs ? uvs[k * 2 + 1] : ((k % cols) / m.nv) * PI2; }
       }
-      setup(rast, mat, opts && opts.cull);
+      setup(rast, mat, opts ? opts.cull : undefined);
       ex.fill_mesh(JOB, TRIS, m.nu, m.nv, st);
       stats.wasm++;
     }
