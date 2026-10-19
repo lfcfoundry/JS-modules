@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.2.1 (API 2)
+ * Version 2.3.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -17,6 +17,47 @@
   'use strict';
   var EPS = 1e-9, DUMMY_CAP = 20000;   // DUMMY_CAP: most stand-in points for long links the layout routes (the rest are drawn straight through)
   function rng(seed) { var s = seed | 0; return function () { s = (s + 0x6d2b79f5) | 0; var t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+
+  /* ---- WebAssembly for the order search (wasm/order.c): the same sweeps, swaps and crossing count, same arithmetic, same answer. Plain JavaScript runs when WebAssembly is missing, refused by the page, or a flow is not an ordinary number. ---- */
+  var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/, WM, WI;
+  function wasmInstance() {
+    if (WI !== undefined) return WI;
+    WI = null;
+    try {
+      if (typeof WebAssembly !== 'object' || typeof WebAssembly.Module !== 'function') return WI;
+      var bin, i;
+      if (typeof atob === 'function') { var raw = atob(WASM_B64); bin = new Uint8Array(raw.length); for (i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); }
+      else bin = new Uint8Array(Buffer.from(WASM_B64, 'base64'));
+      WM = new WebAssembly.Module(bin);
+      WI = new WebAssembly.Instance(WM, {}).exports;
+    } catch (e) { WI = null; }
+    return WI;
+  }
+  /* Puts the order search's arrays into WebAssembly memory (the JavaScript below works on views of the same bytes) and returns them with run(rounds, swaps), or null. */
+  function orderWasm(nV, nL, layerOf, lc, S1, I1, O1, S2, I2, O2) {
+    var X = wasmInstance(), i, k, maxDeg = 1, maxLen = 1;
+    if (!X || nV < 2) return null;
+    for (i = 0; i < O1.length; i++) if (!(O1[i] <= 1e100 && O1[i] >= 0)) return null;
+    for (i = 0; i < O2.length; i++) if (!(O2[i] <= 1e100 && O2[i] >= 0)) return null;
+    for (i = 0; i < nV; i++) { if (S1[i + 1] - S1[i] > maxDeg) maxDeg = S1[i + 1] - S1[i]; if (S2[i + 1] - S2[i] > maxDeg) maxDeg = S2[i + 1] - S2[i]; }
+    for (k = 0; k < nL; k++) if (lc[k] > maxLen) maxLen = lc[k];
+    var at = X.__heap_base, off = {}, put = function (name, bytes) { at = (at + 7) & ~7; off[name] = at; at += bytes; };
+    put('layerOf', 4 * nV); put('start', 4 * (nL + 2)); put('ord', 4 * nV); put('pos', 4 * nV); put('lenOf', 8 * nL); put('bary', 8 * nV); put('tmp', 4 * nV); put('best', 4 * nV);
+    put('S1', 4 * (nV + 1)); put('I1', 4 * I1.length); put('O1', 8 * O1.length); put('S2', 4 * (nV + 1)); put('I2', 4 * I2.length); put('O2', 8 * O2.length);
+    put('xBot', 4 * maxDeg); put('xW', 8 * maxDeg); put('xBit', 8 * (maxLen + 4));
+    var need = Math.ceil((at + 64) / 65536) - X.memory.buffer.byteLength / 65536;
+    try { if (need > 0) X.memory.grow(need); } catch (e) { return null; }
+    var buf = X.memory.buffer, I32 = function (n, len) { return new Int32Array(buf, off[n], len); }, F64 = function (n, len) { return new Float64Array(buf, off[n], len); };
+    var start = I32('start', nL + 2), r = { start: start, ord: I32('ord', nV), pos: I32('pos', nV), lenOf: F64('lenOf', nL), bary: F64('bary', nV), tmp: I32('tmp', nV) };
+    I32('layerOf', nV).set(layerOf); I32('S1', nV + 1).set(S1); I32('I1', I1.length).set(I1); F64('O1', O1.length).set(O1); I32('S2', nV + 1).set(S2); I32('I2', I2.length).set(I2); F64('O2', O2.length).set(O2);
+    start[0] = 0;
+    for (k = 0; k < nL; k++) start[k + 1] = start[k] + lc[k];
+    start[nL + 1] = start[nL];
+    X.bind(nV, nL, off.layerOf, off.start, off.ord, off.pos, off.lenOf, off.bary, off.tmp, off.best, off.S1, off.I1, off.O1, off.S2, off.I2, off.O2, off.xBot, off.xW, off.xBit);
+    r.run = function (rounds, swaps) { return X.run(rounds, swaps); };
+    return r;
+  }
 
   /** Weighted crossings between two neighboring layers: links as [posTop, posBottom, weight]. Sum of w1*w2 over crossing pairs, in n log n. */
   function crossWeight(links, nb) {
@@ -200,11 +241,12 @@
       var nu = near(upS, upI, upO), nd = near(dnS, dnI, dnO);
       sUpS = nu[0]; sUpI = nu[1]; sUpO = nu[2]; sDnS = nd[0]; sDnI = nd[1]; sDnO = nd[2];
     }
-    var ord = [], pos = new Int32Array(nV), lenOf = new Float64Array(nL), bary = new Float64Array(nV), key2 = new Float64Array(nV), tmp = new Int32Array(nV);
-    var syncPos = function () { for (var q = 0; q < nL; q++) { var list = ord[q]; lenOf[q] = list.length || 1; for (var j = 0; j < list.length; j++) pos[list[j]] = j; } };
     var lc = new Int32Array(nL);
     for (vi = 0; vi < nV; vi++) lc[layerOf[vi]]++;
-    for (k = 0; k < nL; k++) ord.push(new Int32Array(lc[k]));
+    var wk = opts.wasm === false ? null : orderWasm(nV, nL, layerOf, lc, sUpS, sUpI, sUpO, sDnS, sDnI, sDnO);
+    var ord = [], pos = wk ? wk.pos : new Int32Array(nV), lenOf = wk ? wk.lenOf : new Float64Array(nL), bary = wk ? wk.bary : new Float64Array(nV), key2 = new Float64Array(nV), tmp = wk ? wk.tmp : new Int32Array(nV);
+    var syncPos = function () { for (var q = 0; q < nL; q++) { var list = ord[q]; lenOf[q] = list.length || 1; for (var j = 0; j < list.length; j++) pos[list[j]] = j; } };
+    for (k = 0; k < nL; k++) ord.push(wk ? wk.ord.subarray(wk.start[k], wk.start[k + 1]) : new Int32Array(lc[k]));
     lc.fill(0);
     for (vi = 0; vi < nV; vi++) { k = layerOf[vi]; ord[k][lc[k]++] = vi; key2[vi] = V[vi].key; }
     for (k = 0; k < nL; k++) sortSlots(ord[k], ord[k].length, tmp, key2, pos, false);   // first order: by the ranking the layering gave
@@ -260,6 +302,7 @@
       }
     };
     var run = function (rounds) {
+      if (wk) return wk.run(rounds, V.length <= 800 ? 1 : 0);
       var best = snap(), bestC = total(), cur;
       for (var r = 0; r < rounds && bestC > 0; r++) {
         for (var q = 1; q < nL; q++) sweep(q, true);
@@ -497,5 +540,5 @@
     return s + '</svg>';
   }
 
-  return { layoutFlows: layoutFlows, toSvg: toSvg, fromLinks: fromLinks, layout: layout, apply: apply, options: options, layering: layering, crossWeight: crossWeight, roundPath: roundPath, toBezier: toBezier };
+  return { wasmAvailable: function () { return !!wasmInstance(); }, layoutFlows: layoutFlows, toSvg: toSvg, fromLinks: fromLinks, layout: layout, apply: apply, options: options, layering: layering, crossWeight: crossWeight, roundPath: roundPath, toBezier: toBezier };
 }));
