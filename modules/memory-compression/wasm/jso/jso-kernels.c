@@ -118,3 +118,135 @@ EXPORT u32 fsst_decode_col(const u8 *codes, const u32 *coff, u32 n, u8 *out, u32
   }
   return o;
 }
+
+/* ---- the number picker's loops (src/picker.js): rANS, byte planes, bit packing. Same bytes and same numbers as the JavaScript there. ----
+ * Every function works on memory the caller filled; none keeps anything between calls except the two rANS tables (one stream at a time). */
+#define RS_RL (1u << 23)
+static unsigned short rs_cum[257]; static u8 rs_slot[4096];
+/* Decodes n bytes from a rANS stream. freq: 256 frequencies that add up to 4096 (JavaScript checked). delta: 1 when the bytes are differences (running sum is applied). Returns 0, or -1 for a cut stream. */
+EXPORT int rans_dec(const u8 *src, u32 len, u32 n, const unsigned short *freq, u8 *out, int delta) {
+  u32 i, s, c = 0, q, x, p = 4, m;
+  if (len < 4) return -1;
+  for (s = 0; s < 256; s++) { u32 f = freq[s]; rs_cum[s] = (unsigned short)c; for (q = 0; q < f && c + q < 4096; q++) rs_slot[c + q] = (u8)s; c += f; }
+  rs_cum[256] = (unsigned short)c;
+  x = (u32)src[0] | ((u32)src[1] << 8) | ((u32)src[2] << 16) | ((u32)src[3] << 24);
+  for (i = 0; i < n; i++) {
+    u64 t;
+    m = x & 4095; s = rs_slot[m]; out[i] = (u8)s;
+    t = (u64)freq[s] * (u64)(x >> 12) + m - rs_cum[s];
+    x = (u32)t;
+    if (t < RS_RL) { do { if (p >= len) return -1; x = (x << 8) | src[p++]; } while (x < RS_RL); }
+  }
+  if (delta) for (i = 1; i < n; i++) out[i] = (u8)(out[i - 1] + out[i]);
+  return 0;
+}
+/* Encodes syms (n bytes) with the same table; writes backwards from out + cap and returns the number of bytes written (they start at out + cap - result). */
+EXPORT u32 rans_enc(const u8 *src, u32 n, const unsigned short *freq, u8 *out, u32 cap) {
+  unsigned short cum[257]; u32 s, c = 0, p = cap, x = RS_RL, i, k;
+  for (s = 0; s < 256; s++) { cum[s] = (unsigned short)c; c += freq[s]; }
+  for (i = n; i-- > 0;) {
+    u32 f, xm, q;
+    s = src[i]; f = freq[s]; xm = (2048u << 8) * f;
+    while (x >= xm) { out[--p] = (u8)x; x >>= 8; }
+    q = x / f; k = x - q * f;
+    x = (q << 12) + k + cum[s];
+  }
+  for (k = 4; k-- > 0;) out[--p] = (u8)(x >> (8 * k));
+  return cap - p;
+}
+/* The 8 byte planes of n doubles (plane b of value i at out[b * n + i]); variant 1 first XORs every value's two halves with the raw halves of the value before. */
+EXPORT void planes_split(const double *a, u32 n, int variant, u8 *out) {
+  const u32 *w = (const u32 *)a; u32 i, pl = 0, ph = 0;
+  for (i = 0; i < n; i++) {
+    u32 lo = w[2 * i], hi = w[2 * i + 1];
+    if (variant) { u32 l2 = lo, h2 = hi; lo ^= pl; hi ^= ph; pl = l2; ph = h2; }
+    out[i] = (u8)lo; out[n + i] = (u8)(lo >> 8); out[2 * n + i] = (u8)(lo >> 16); out[3 * n + i] = (u8)(lo >> 24);
+    out[4 * n + i] = (u8)hi; out[5 * n + i] = (u8)(hi >> 8); out[6 * n + i] = (u8)(hi >> 16); out[7 * n + i] = (u8)(hi >> 24);
+  }
+}
+EXPORT void planes_join(const u8 *p, u32 n, int variant, double *out) {
+  u32 *o = (u32 *)out, i, pl = 0, ph = 0;
+  for (i = 0; i < n; i++) {
+    u32 lo = (u32)p[i] | ((u32)p[n + i] << 8) | ((u32)p[2 * n + i] << 16) | ((u32)p[3 * n + i] << 24);
+    u32 hi = (u32)p[4 * n + i] | ((u32)p[5 * n + i] << 8) | ((u32)p[6 * n + i] << 16) | ((u32)p[7 * n + i] << 24);
+    if (variant) { lo ^= pl; hi ^= ph; pl = lo; ph = hi; }
+    o[2 * i] = lo; o[2 * i + 1] = hi;
+  }
+}
+/* Counts of the bytes of one plane (cnt) and of their differences (cd); d receives the differences (d[0] = p[0]). The count arrays are 256 u32 each and are set to zero first. */
+EXPORT void plane_stats(const u8 *p, u32 n, u32 *cnt, u32 *cd, u8 *d) {
+  u32 i; u8 prev;
+  for (i = 0; i < 256; i++) { cnt[i] = 0; cd[i] = 0; }
+  if (!n) return;
+  for (i = 0; i < n; i++) cnt[p[i]]++;
+  prev = p[0]; d[0] = prev; cd[prev]++;
+  for (i = 1; i < n; i++) { u8 v = p[i]; u8 e = (u8)(v - prev); d[i] = e; cd[e]++; prev = v; }
+}
+/* n values of bw bits (1 to 32) read from src (padded with 8 zero bytes) into doubles, each plus base. */
+EXPORT void bp_unpack(const u8 *src, u32 n, u32 bw, double base, double *out) {
+  const u32 *w = (const u32 *)src; u32 i, mask = bw == 32 ? 0xFFFFFFFFu : ((1u << bw) - 1u); u64 pos = 0;
+  for (i = 0; i < n; i++) {
+    u32 idx = (u32)(pos >> 5), off = (u32)(pos & 31), v = w[idx] >> off;
+    if (off + bw > 32) v |= w[idx + 1] << (32 - off);
+    out[i] = (double)(v & mask) + base;
+    pos += bw;
+  }
+}
+/* The reverse: values a[i] - base (whole numbers from 0 to 4294967295) written bw bits each into o, which holds ceil(n * bw / 32) + 1 words (set to zero here). */
+EXPORT void bp_pack(const double *a, u32 n, double base, u32 bw, u32 *o) {
+  u32 words = (u32)(((u64)n * bw + 31) / 32) + 1, i; u64 pos = 0;
+  for (i = 0; i < words; i++) o[i] = 0;
+  for (i = 0; i < n; i++) {
+    u32 v = (u32)(long long)(a[i] - base), idx = (u32)(pos >> 5), off = (u32)(pos & 31);
+    o[idx] |= v << off; if (off + bw > 32) o[idx + 1] |= v >> (32 - off);
+    pos += bw;
+  }
+}
+/* Whole-number differences, zigzag coded: d[i - 1] = zigzag(a[i] - a[i - 1]) for i = 1 .. n - 1. Returns the largest of them (0 when n < 2). */
+EXPORT double delta_enc(const double *a, u32 n, double *d) {
+  u32 i; double y = 0;
+  for (i = 1; i < n; i++) { double x = a[i] - a[i - 1]; x = x < 0 ? -2 * x - 1 : 2 * x; d[i - 1] = x; if (x > y) y = x; }
+  return y;
+}
+/* The reverse: out[0] = c0 and out[i + 1] = out[i] + unzigzag(d[i]) for i = 0 .. m - 1 (z % 2 is true for odd and for fractions, like the JavaScript). */
+EXPORT void delta_dec(const double *d, u32 m, double c0, double *out) {
+  u32 i; double c = c0; out[0] = c;
+  for (i = 0; i < m; i++) {
+    double z = d[i]; int odd;
+    if (z >= 9.2e18 || z <= -9.2e18) odd = 0; else { long long t = (long long)z; odd = (z != (double)t) || (t & 1); }
+    c += odd ? -(z + 1) / 2 : z / 2;
+    out[i + 1] = c;
+  }
+}
+/* One look at a block of doubles for the picker: mm[0] = smallest, mm[1] = largest (NaN never wins, like the JavaScript compare); returns 1 when every value is a whole number
+ * below 2^51 in size that is not -0 (the test isIntegral in picker.js makes), else 0. */
+EXPORT int block_stats(const double *a, u32 n, double *mm) {
+  u32 i; double mn = __builtin_inf(), mx = -__builtin_inf(); int ok = 1;
+  for (i = 0; i < n; i++) {
+    double v = a[i], av = v < 0 ? -v : v;
+    if (v < mn) mn = v;
+    if (v > mx) mx = v;
+    if (!(av < 2251799813685248.0) || (double)(long long)v != v || (v == 0 && 1 / v < 0)) ok = 0;
+  }
+  mm[0] = mn; mm[1] = mx; return ok;
+}
+/* Math.round as the JavaScript defines it (halves go up). */
+static inline double js_round(double y) {
+  double t, diff;
+  if (y >= 4503599627370496.0 || y <= -4503599627370496.0) return y;
+  t = (double)(long long)y; if (t > y) t -= 1;
+  diff = y - t; return diff >= 0.5 ? t + 1 : t;
+}
+/* ALP, the exact part: for every value, the whole number d with d * Ff / Fe == a[i] (Fe, Ff: the powers of ten for the two exponents) goes to ints[i];
+ * a value that is not exactly such a decimal (or is NaN, infinite or too big) gets ints[i] = 0 and its row is added to pos. Returns how many rows are in pos. */
+EXPORT u32 alp_enc(const double *a, u32 n, double Fe, double Ff, double *ints, u32 *pos) {
+  u32 i, k = 0;
+  for (i = 0; i < n; i++) {
+    double x = a[i], y = x * Fe / Ff, d;
+    if (!(y - y == 0)) { ints[i] = 0; pos[k++] = i; continue; }
+    d = js_round(y);
+    if (d > 2251799813685248.0 || d < -2251799813685248.0) { ints[i] = 0; pos[k++] = i; continue; }
+    if (d * Ff / Fe == x && !(x == 0 && 1 / x < 0)) ints[i] = d; else { ints[i] = 0; pos[k++] = i; }
+  }
+  return k;
+}
