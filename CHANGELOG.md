@@ -26,7 +26,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.2.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.2.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.0.3 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.0.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.1.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.1.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
@@ -59,6 +59,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **ppmd-pack** 2.0.0 · API 2: Packed pages now carry the WebAssembly decoder by default (about 9.8 KB or 5% bigger, opens faster); --no-wasm gives the old smaller page. --wasm still works.
 - 2026-10-18 · **ppmd-decode** 1.3.0 · API 1: The wasm now compiles in the background when the file loads (ready() and module() added); the compile it saves is about 1 ms. Same bytes out.
 - 2026-10-18 · **ppmd-decode** 1.2.0 · API 1: The default file is now ppmd-decode-with-wasm.js: ppmd7Decode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.4 to 1.8 times faster to open a page in the four test browsers.
+- 2026-10-18 · **pcodec-js** 1.1.0 · API 1: Big unpacks no longer freeze the page: unpackAsync() unpacks in 2 ms slices (frozen 47 to 156 ms for 2,000,000 numbers before, now 3 to 6 ms). New PcodecJS.worker() does unpack and pack in a background worker (a pack froze the page 169 to 207 ms, now 5 to 8 ms). The program compiles the moment the file runs, so load() is ready at once (the wait was 7 to 17 ms, now under 1 ms).
 - 2026-10-18 · **pcodec-js** 1.0.1 · API 1: No change to the code or to the files it writes. The build was rebuilt and checked again, and the credits and comparison were updated.
 - 2026-10-18 · **pcodec-js** 1.0.0 · API 1: First release as its own module: Pcodec, a number compressor, for web pages in one file with no build step. It needs WebAssembly.
 - 2026-10-18 · **netflow-sankey** 2.3.0 · API 2: Small and medium flow charts lay out up to 1.9 times faster in Chromium and Firefox with WebAssembly, same pictures; the two WebKit browsers are about even. The wasm compiles in the background at load. Needs 'wasm-unsafe-eval'.
