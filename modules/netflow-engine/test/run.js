@@ -86,6 +86,18 @@ t("spread 'wide' reaches the layered drawing: wider with netflow-layers 1.3.0 or
   });
   ['sankey', 'arc', 'matrix', 'network', 'shape'].forEach((view) => ok(key(E.build(copy(g), { view })) === key(E.build(copy(g), { view, spread: 'wide' })), view + ': spread should only change Flow, Top-down, Spine and Lanes'));
 });
+t('saved layouts: a steady fingerprint that changes with the data, and saved positions that equal a new layout; a wrong or short record is ignored', () => {
+  const g = network(700, 4), o = { view: 'network', arrange: 'stress' }, k = E.layoutKey(copy(g), o); ok(k && k === E.layoutKey(copy(g), o), 'steady key');
+  ok(E.layoutKey(copy(g), { view: 'network', arrange: 'closeness' }) !== k, 'arrangement changes the key'); ok(E.layoutKey(copy(g), { view: 'network', arrange: 'stress', previewOnly: true }) === null && E.layoutKey(copy(g), { view: 'flow' }) === null, 'no key for a preview or a story view');
+  const g2 = copy(g); g2.edges.push({ from: g2.nodes[0].id, to: g2.nodes[g2.nodes.length - 1].id, label: '', kind: '', attrs: {} }); ok(E.layoutKey(g2, o) !== k, 'a changed link changes the key');
+  const a = E.build(copy(g), Object.assign({ saveKey: k, wantSave: true }, o)); ok(a.saveLayout && a.saveLayout.key === k && a.saveLayout.xy.length === 2 * a.nodes.length, 'asked to save');
+  const b = E.build(copy(g), Object.assign({ saveKey: k, saved: a.saveLayout }, o)); ok(b.fromSaved && same(a.nodes.map((n) => [n.cx, n.cy]), b.nodes.map((n) => [n.cx, n.cy])), 'saved positions equal the new layout');
+  ok(!E.build(copy(g), Object.assign({ saveKey: k, saved: Object.assign({}, a.saveLayout, { key: 'other' }) }, o)).fromSaved, 'wrong key ignored'); ok(!E.build(copy(g), Object.assign({ saveKey: k, saved: Object.assign({}, a.saveLayout, { xy: a.saveLayout.xy.slice(0, 8) }) }, o)).fromSaved, 'short record ignored');
+});
+t('two-lane Distances sweeps give the same positions as one lane (1,500 items)', () => {
+  const g = network(1500, 6), o = { view: 'network', arrange: 'stress' }, W = E.stressWasm; if (!W.simd) { console.log('     (no SIMD in this engine: skipped)'); return; }
+  const a = E.build(copy(g), o); W.simd = false; let b; try { b = E.build(copy(g), o); } finally { W.simd = true; } ok(same(a, b), 'positions differ between SIMD on and off');
+});
 t('the column reader is exposed and reads numbers the way people write them', () => { ok(E.columns.num('1,234.5') === 1234.5 && E.columns.num('12%') === 12 && isNaN(E.columns.num('0x10')), 'num'); });
 t('the file has no dependencies and builds no code from text (no eval, no new Function)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'netflow-engine.js'), 'utf8').replace(/'[A-Za-z0-9+/=]{200,}'/g, "''");
