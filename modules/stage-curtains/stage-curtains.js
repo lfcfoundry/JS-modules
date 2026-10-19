@@ -2,9 +2,11 @@
  * stage-curtains.js: velvet stage curtains that slide shut over a page, then fly open.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  *
  * No dependencies. Needs: canvas 2D, Promise, Element.animate (Web Animations). Any modern browser (2020+).
+ * The velvet's pixel loop runs in WebAssembly (a 1.5 KB module inside this file; the page policy needs 'wasm-unsafe-eval') and in JavaScript where that cannot start:
+ * the pixels are the same either way. create({ wasm: false }) forces JavaScript.
  *
  *   var curtains = StageCurtains.create({ container: document.body, color: '#b3202a' });
  *   curtains.prepare().then(function () {      // paints the velvet in small slices (idle time), call early
@@ -66,11 +68,32 @@
   // Small seeded random generator (Lehmer), so a seed always paints the same velvet.
   function rng(seed) { var r = seed || 1; return function () { return (r = (r * 16807) % 2147483647) / 2147483647; }; }
 
+  // ---- the WebAssembly velvet loop (wasm/velvet.c, built by wasm/build.sh, put here by wasm/embed.py) ----
+  // The per-pixel loop of the velvet painter below, in WebAssembly: the very same bytes, about 1.4 to 1.65 times faster on a freshly loaded page.
+  // One instance and one memory serve every painter; they are made on the first paint. If WebAssembly is missing, the page policy lacks
+  // 'wasm-unsafe-eval', or anything throws, kernel() is null and the JavaScript loop paints instead (option wasm: false forces that).
+  var WASM_B64 = /*WASM:BEGIN*/'AGFzbQEAAAABFgFgEn9/f39/f39/f39/f39/f39/fwACDwEDZW52Bm1lbW9yeQIAAgMCAQAGDwJ/AUGAiAQLfwBBgIgECwcXAgVwYWludAAAC19faGVhcF9iYXNlAwEKhAsBgQsLC3wBfwJ8AX8CfAJ/A3wBfwN8An8DfAJAIAMgBE4NACABQQFIDQAgECsDSCESIBArA0AhEyAQKwM4IRQgECsDMCEVIBArAyghFiAQKwMgIRcgECsDGCEYIBArAwAhGSAQKwMIIhpEAAAAAAAABECiIRsgGkQAAAAAAAD4P6IhHCAFQX5qIh23IR4gArchHyADISADQCARICBBGGxqIhArAwAiIUQAAAAAAADgPyAhRAAAAAAAAOA/ZBshIiAgQQZ0QcAfcSEjICAgA2sgAWwhJCAQQRBqKwMAISUgEEEIaisDACEmICC3ISdBACEoRAAAAAAAAAAAISkDQCAZICYgGSApIBqjIiqhoqEgJUQAAAAAAADwPyAqIBmjoaKgRAAAAAAAAABAoCIrnCIqRAAAAAAAAPA/oCAqICsgKqFEAAAAAAAA4D9mGyIqIB5kIRACQAJAICqZRAAAAAAAAOBBY0UNACAqqiEFDAELQYCAgIB4IQULICggJGpBAnQhLAJAAkACQCAcIB8gCkEBIB0gBSAQGyAqRAAAAAAAAPA/YxtBA3QiLWorAwChIi6gICdjDQAgCCAtaisDACALIC1qKwMAoiIqRB+F61G4HuU/okTD9Shcj8LVP6AgKiATRAAAAAAAAAAAYhshLyAMIRAgDSEFIAYhAiAGQQFIDQEDQAJAICsgECsDAKGZIiogBSsDACIwY0UNACAvICogMKNEzczMzMzM3D+iRJqZmZmZmeE/oKIhLwsgEEEIaiEQIAVBCGohBSACQX9qIgJFDQIMAAsLIAAgLGpBjhA7AABBCCEQDAELAkACQCAuIBuhICdjDQAgFSAvIA4gKEEDdGorAwCiICEgFCAPIChBP3EgI3JBA3RqKwMAokQAAAAAAADwP6CioiIroiIqICEgCSAtaisDAKIiL0QAAAAAAOBvQCAqoaJEAAAAAAAA4D+ioCEqIBYgK6IiMCAvRAAAAAAA4G9AIDChokRmZmZmZmbmP6KgITAgGCAXICuioiIrIC9EAAAAAADgb0AgK6GioCErDAELICIgByAtaisDAEQzMzMzMzPjP6JEAAAAAAAA4D+goiIrRAAAAAAAAE1AoiEqICtEAAAAAACAZkCiITAgK0QAAAAAAOBsQKIhKwsCQCASRAAAAAAAAAAAYQ0AICpEAAAAAAAANECjIi+cIipEAAAAAAAA8D+gICogLyAqoUQAAAAAAADgP2YbRAAAAAAAADRAoiEqIDBEAAAAAAAANECjIi+cIjBEAAAAAAAA8D+gIDAgLyAwoUQAAAAAAADgP2YbRAAAAAAAADRAoiEwICtEAAAAAAAANECjIi+cIitEAAAAAAAA8D+gICsgLyAroUQAAAAAAADgP2YbRAAAAAAAADRAoiErCyAwRAAAAAAA4G9AZCEQAkACQCAwnkQAAAAAAAAAACAwRAAAAAAAAAAAZBsiMEQAAAAAAADwQWMgMEQAAAAAAAAAAGZxRQ0AIDCrIQUMAQtBACEFCyAAICxqIgJBAWpBfyAFIBAbOgAAICtEAAAAAADgb0BkIRACQAJAICueRAAAAAAAAAAAICtEAAAAAAAAAABkGyIwRAAAAAAAAPBBYyAwRAAAAAAAAAAAZnFFDQAgMKshBQwBC0EAIQULIAJBfyAFIBAbOgAAICpEAAAAAADgb0BkIRACQCAqnkQAAAAAAAAAACAqRAAAAAAAAAAAZBsiKkQAAAAAAADwQWMgKkQAAAAAAAAAAGZxRQ0AQX8gKqsgEBshEAwBC0F/QQAgEBshEAsgACAsaiIFQQNqQf8BOgAAIAVBAmogEDoAACApRAAAAAAAAPA/oCEpIChBAWoiKCABRw0ACyAgQQFqIiAgBEcNAAsLCw=='/*WASM:END*/;
+  var kern;   // undefined: not tried yet; null: not usable; else { ex, mem, base, owner }
+  function kernel() {
+    if (kern !== undefined) return kern;
+    kern = null;
+    try {
+      if (typeof WebAssembly !== 'object' || !WebAssembly || typeof atob !== 'function') return kern;
+      var t = atob(WASM_B64), b = new Uint8Array(t.length), i;
+      for (i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
+      var mem = new WebAssembly.Memory({ initial: 4 }), ex = new WebAssembly.Instance(new WebAssembly.Module(b), { env: { memory: mem } }).exports;
+      kern = { ex: ex, mem: mem, base: ex.__heap_base.value, owner: null };
+    } catch (e) { kern = null; }
+    return kern;
+  }
+  var WASM_ROWS = 16;   // rows per kernel call: the clock is read between calls, so a slice ends within about a millisecond of its limit
+
   // ---- the velvet painter ----
   // Paints ONE half of a curtain onto a canvas, row by row, so it can be spread over many idle moments.
   // PW, H: panel size in CSS px. k: canvas pixels per CSS px. base: the cloth color. stepped: quantize tones (flat, chunky look).
-  // Returns { canvas, step(ms) -> true when finished }.
-  function velvetPainter(PW, H, k, base, seed, stepped) {
+  // wasm: false paints with the JavaScript loop only (default: WebAssembly when it can start; the pixels are the same either way).
+  // Returns { canvas, engine ('wasm' or 'js'), step(ms) -> true when finished }.
+  function velvetPainter(PW, H, k, base, seed, stepped, wasm) {
     var cw = Math.max(1, Math.round(PW * k)), ch = Math.max(1, Math.round(H * k));
     var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
     var x = cv.getContext('2d'), img = x.createImageData(cw, ch), p = img.data;
@@ -105,6 +128,37 @@
     }
     var ncr = creases.length, crAt = creases.map(function (q) { return q.at; }), crW2 = creases.map(function (q) { return q.w * 2; });
     var y = 0, ph = rnd() * 6;
+    // The WebAssembly path: sin and pow stay in JavaScript, as one value per row and one per column, handed over as tables.
+    var K = wasm === false || !(B[0] >= 0 && B[1] >= 0 && B[2] >= 0) ? null : kernel(), job = {}, T = null;
+    if (K) {
+      var rows = new Float64Array(3 * ch), edgeT = new Float64Array(cw), yy, cc, ee;
+      for (yy = 0; yy < ch; yy++) {
+        var yf0 = yy / ch;
+        rows[3 * yy] = (0.72 + 0.28 * Math.sin(Math.min(1, yf0 / 0.4) * Math.PI / 2)) * (1 - Math.pow(Math.max(0, yf0 - 0.5) / 0.5, 1.5) * 0.85);
+        rows[3 * yy + 1] = 1 + 0.22 * (1 - yf0);
+        rows[3 * yy + 2] = Math.sin(yy / k * 0.004 + ph) * 6;
+      }
+      for (cc = 0; cc < cw; cc++) {
+        if (cc > cw - 16 * k) { ee = (cc - (cw - 16 * k)) / (16 * k); edgeT[cc] = (1 + 0.35 * Math.sin(Math.min(1, ee / 0.55) * Math.PI)) * (1 - 0.8 * Math.pow(Math.max(0, (ee - 0.55) / 0.45), 1.5)); }
+        else edgeT[cc] = 1;
+      }
+      T = { list: [hgt, T85, T6, THEM, TSL, crAt, crW2, edgeT, Float64Array.from(grain), new Float64Array([PW, k, ch, warm, B[0], B[1], B[2], stepped ? 0.03 : 0.02, lift, stepped ? 1 : 0]), rows], off: [] };
+    }
+    // Puts this painter's tables into the kernel's memory (unless they are already there) and returns where the rows will land.
+    function load() {
+      var list = T.list, off = T.off, pos = K.base, i, need;
+      for (i = 0; i < list.length; i++) { off[i] = pos; pos += list[i].length * 8; }
+      T.pix = pos; need = pos + WASM_ROWS * cw * 4;
+      if (K.mem.buffer.byteLength < need) K.mem.grow(Math.ceil((need - K.mem.buffer.byteLength) / 65536));
+      if (K.owner !== job) { for (i = 0; i < list.length; i++) new Float64Array(K.mem.buffer, off[i], list[i].length).set(list[i]); K.owner = job; }
+    }
+    // Paints rows y .. y1 - 1 with the kernel and copies them into the image.
+    function bulk(y1) {
+      var o = T.off;
+      K.ex.paint(T.pix, cw, ch, y, y1, n, ncr, o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7], o[8], o[9], o[10]);
+      p.set(new Uint8Array(K.mem.buffer, T.pix, (y1 - y) * cw * 4), y * cw * 4);
+      y = y1;
+    }
     function row() {
       var yf = y / ch;
       // stage light: pooled in the upper middle, falling off to near black at the hem
@@ -135,9 +189,16 @@
     }
     return {
       canvas: cv, done: false,
+      engine: K ? 'wasm' : 'js',
       step: function (ms) {
         var t0 = performance.now();
-        while (y < ch) { row(); if (ms && performance.now() - t0 > ms) break; }
+        if (K && y < ch) {
+          try {
+            load();
+            while (y < ch) { bulk(Math.min(ch, y + WASM_ROWS)); if (ms && performance.now() - t0 > ms) break; }
+          } catch (e) { K = null; this.engine = 'js'; }   // anything went wrong: the JavaScript loop finishes the remaining rows
+        }
+        if (!K) while (y < ch) { row(); if (ms && performance.now() - t0 > ms) break; }
         if (y >= ch && !this.done) { x.putImageData(img, 0, 0); this.done = true; }
         return this.done;
       }
@@ -248,7 +309,7 @@
     var color = opts.color || '#b3202a';
     var seed = opts.seed || 11;
     var closeMs = opts.closeMs || 760, openMs = opts.openMs || 1300;
-    var stepped = !!opts.stepped;
+    var stepped = !!opts.stepped;   // opts.wasm: false paints the velvet with JavaScript only
     var zIndex = opts.zIndex == null ? 2147483000 : opts.zIndex;
     var state = { jobs: null, el: null, parts: null, ready: false, size: null, destroyed: false, closed: false,
       preparing: null, closePromise: null, opening: null, openEnd: null, slides: [], locked: null, hurry: false, waiting: null };
@@ -296,7 +357,7 @@
       var gm, jobs;
       try {
         gm = geometry(); state.size = gm;
-        jobs = state.jobs = [0, 1].map(function (n) { return velvetPainter(gm.PW, gm.H, gm.k, color, seed + n * 23, stepped); });   // two different paintings
+        jobs = state.jobs = [0, 1].map(function (n) { return velvetPainter(gm.PW, gm.H, gm.k, color, seed + n * 23, stepped, opts.wasm); });   // two different paintings
       } catch (e) { state.jobs = null; return Promise.resolve(api); }   // no canvas 2D (or no memory): skip the curtain
       var sliceMs = po.sliceMs || 2.5, restMs = po.restMs == null ? 45 : po.restMs;
       var realIdle = typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function';
@@ -467,5 +528,5 @@
     return api;
   }
 
-  return { create: create, velvetPainter: velvetPainter, valanceSvg: valanceSvg, shade: shade, mix: mix, mirrorCanvas: mirrorCanvas };
+  return { create: create, wasmAvailable: function () { return !!kernel(); }, velvetPainter: velvetPainter, valanceSvg: valanceSvg, shade: shade, mix: mix, mirrorCanvas: mirrorCanvas };
 });

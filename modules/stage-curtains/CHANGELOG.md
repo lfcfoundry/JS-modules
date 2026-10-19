@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-10-18
+- A curtain half paints about 1.4 to 1.6 times faster on a freshly loaded page (same picture) using a small WebAssembly painter. Pages with a content policy need 'wasm-unsafe-eval'; without it, plain JavaScript is used.
+
 ## 1.1.0 · API 1 · 2026-10-17
 - On a very busy page the curtain now lifts about 3.6 to 5.7 times sooner. A quiet page is unchanged.
 
