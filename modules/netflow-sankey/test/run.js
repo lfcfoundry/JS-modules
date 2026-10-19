@@ -176,8 +176,8 @@ t('an empty drawing has height 0 (not -Infinity) and applies cleanly; one item a
   RL.apply(L, R); ok(L.height === 0, 'L.height ' + L.height);
   const one = { nodes: [{ id: 'a', label: 'A', layer: 0 }], edges: [], pos: {} }; one.pos.a = one.nodes[0]; const R1 = RL.layout(one); ok(Number.isFinite(R1.height) && Number.isFinite(R1.width), 'one item: ' + R1.height + ' x ' + R1.width);
 });
-t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier, wasmAvailable', () => {
-  ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg,wasmAvailable', Object.keys(RL).sort().join());
+t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier, wasmAvailable, wasmReady, wasmModule', () => {
+  ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg,wasmAvailable,wasmModule,wasmReady', Object.keys(RL).sort().join());
 });
 
 // 2.3.0: the order search in WebAssembly. Same layout either way, to the last digit; plain JavaScript when WebAssembly is missing, refused, or a flow is not an ordinary number.
@@ -189,6 +189,15 @@ const dense = (nl, per, deg, seed, loops, longs) => {
   for (let q = 0; q < longs; q++) links.push({ from: `S0 i${Math.floor(r() * per)}`, to: `S${nl - 1} i${Math.floor(r() * per)}`, value: 2 });
   return { links };
 };
+t('compile early: wasmModule() is null at first, wasmReady() says true, the module is a WebAssembly.Module, and the first layout then starts it without compiling again; without WebAssembly.compile it says false and still lays out on wasm', () => {
+  const cp = require('child_process'), script = "var M = WebAssembly.Module, made = 0, out = {}; if (process.env.NOCOMPILE) delete WebAssembly.compile;\n" +
+    "var S = require(" + JSON.stringify(require('path').join(__dirname, '..', 'netflow-sankey.js')) + "); out.before = S.wasmModule();\n" +
+    "S.wasmReady().then(function (ok) { out.ready = ok; out.isModule = S.wasmModule() instanceof M; WebAssembly.Module = function () { made++; return new M(arguments[0]); }; out.avail = S.wasmAvailable(); out.made = made; console.log(JSON.stringify(out)); });";
+  const run = (env) => JSON.parse(cp.execFileSync(process.execPath, ['-e', script], { encoding: 'utf8', env: Object.assign({}, process.env, env) }));
+  const A = run({}), B = run({ NOCOMPILE: '1' });
+  ok(A.before === null && A.ready === true && A.isModule === true && A.avail === true && A.made === 0, JSON.stringify(A));
+  ok(B.before === null && B.ready === false && B.avail === true, JSON.stringify(B));
+});
 t('WebAssembly is available here and the order search uses it', () => { ok(RL.wasmAvailable() === true, 'wasmAvailable'); });
 t('WebAssembly layouts equal the plain JavaScript ones (48 nets: weighted and unweighted, loops, long links, three seeds)', () => {
   let tried = 0; const bad2 = [];

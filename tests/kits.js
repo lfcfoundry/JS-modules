@@ -45,6 +45,7 @@ var steps = [
   ['slow-note', 'node', ['modules/slow-note/test/run.js']],
   ['spotlight-tour', 'node', ['modules/spotlight-tour/test/run.js']],
   ['test-isolation', 'node', ['tools/test-isolation/test/run.js']],
+  ['test-runner', 'node', ['tools/test-runner/test/run.js']],
   ['speed-lab', 'node', ['tools/speed-lab/test/run.js']],
   ['gif-writer', 'node', ['modules/gif-writer/test/run.js']],
   ['zip-open', 'node', ['modules/zip-open/test/run.js']],
