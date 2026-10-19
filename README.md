@@ -163,7 +163,7 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 | [pcodec-js](modules/pcodec-js/README.md) | 1.0.1 | 164.2 | 66.6 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.2.0 | 43.2 | 15.6 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.0 | 47.8 | 14.6 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
-| [zip-open](modules/zip-open/README.md) | 1.1.0 | 26.8 | 9.3 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
+| [zip-open](modules/zip-open/README.md) | 1.2.0 | 30.7 | 10.8 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 
 ### Story editor packages (10)
 

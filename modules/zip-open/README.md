@@ -1,10 +1,10 @@
 # zip-open
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Node 22.22.0 module test (15 checks passed) and tests/zip-open-crc-browser.js, one browser at a time: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, each giving the same 814 checksums as a plain bit-by-bit CRC (0 different). Not run: a phone.
+**Tested in:** Node checks (18, 3 of them new: wasm against the plain loop for lengths around the 1,024-byte switch, every start position, the 1 MB chunk edges and a big buffer; without WebAssembly, a refused module and a broken instance; the embedded wasm matches wasm/crc32.c); tests/zip-open-crc-browser.js one browser at a time, 3 passes each, in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5: 1,860 checksums, 0 differ in all 12 runs, also on a page without the wasm permission. Not run: a phone, Safari.
 
-Opens `.zip` and Excel `.xlsx` files safely, in the browser or in Node. Text files come out as strings, every Excel sheet comes out as CSV text, and every problem is a note in plain words. About 26 KB (9.0 KB gzipped), no dependencies. Cut from Netflow Map's file opener.
+Opens `.zip` and Excel `.xlsx` files safely, in the browser or in Node. Text files come out as strings, every Excel sheet comes out as CSV text, and every problem is a note in plain words. About 31 KB (10.7 KB gzipped, of which about 2 KB is the embedded WebAssembly checksum), no dependencies. Cut from Netflow Map's file opener.
 
 It reads the zip's list of entries, then unpacks each text file with the platform's own deflate (`DecompressionStream("deflate-raw")` in browsers, `zlib` in Node) and checks its checksum. Every limit is counted on the bytes that really come out, not on what the zip says about itself, so a zip bomb (a tiny file that claims a small size but unpacks to gigabytes) stops at the limit. An Excel file is a zip of XML files; a small scanner reads the cell values from them and writes each sheet as CSV text.
 
@@ -12,7 +12,7 @@ It reads the zip's list of entries, then unpacks each text file with the platfor
 Players and users drop files on a page. A zip is a few hundred bytes that can claim anything. The common libraries trust the sizes in the header, or hand you everything and leave the limits to you. This one turns "it said 1 KB, it was 1 GB" into a sentence you can show.
 
 ## Try it and test it
-**Test it:** `node modules/zip-open/test/run.js` (15 checks, including zip bombs, bad checksums, cut-off files, lying offsets and zips inside zips; about 2.6 s). **Try it:** `demo.html` (drop a file, or press the bomb button).
+**Test it:** `node modules/zip-open/test/run.js` (18 checks, including zip bombs, bad checksums, cut-off files, lying offsets and zips inside zips; about 2.6 s). **Try it:** `demo.html` (drop a file, or press the bomb button).
 
 ## Use
 ```js
@@ -28,7 +28,7 @@ var toc = ZipOpen.list(bytes);                          // every entry, nothing 
 var got = await ZipOpen.read(bytes, toc.entries[0], 5e6);   // { bytes } or { skip: "why" }; the third argument is the most bytes you accept
 await ZipOpen.expand(bytes, "x.zip", { maxFiles: 100, textExt: /\.(csv|txt)$/i });   // change the limits or what counts as text
 ```
-Also exported: `isZip`, `looksLikeArchive`, `decodeText` (UTF-8, else Windows-1252), `crc32` and `LIMITS`.
+Also exported: `isZip`, `looksLikeArchive`, `decodeText` (UTF-8, else Windows-1252), `crc32(bytes)` (WebAssembly from 1,024 bytes up; `crc32(bytes, true)` forces the plain JavaScript loop), `wasmAvailable()` and `LIMITS`.
 
 Needs async functions and, in a browser, `DecompressionStream("deflate-raw")`. In Node it uses `zlib`.
 
@@ -38,6 +38,19 @@ Every limit is counted on the bytes that really come out, not on what the zip sa
 - Wrong checksums, cut-off data, sizes that lie, a count of files that lies, offsets that point nowhere, password-protected entries and unusual compression methods are skipped with a note, not thrown.
 - Names such as `__proto__` cannot reach an object's inner workings; macOS and editor junk (`__MACOSX`, `.DS_Store`, `.git`) is ignored.
 - XML is read by a small scanner that does not load outside files or expand entities beyond the basic five.
+
+## WebAssembly checksum (since 1.2.0)
+
+**What.** The checksum that proves every unpacked file is intact (CRC-32) also exists as a 1,476-byte WebAssembly function ("slicing by 16"), embedded in `zip-open.js`. `crc32` uses it for 1,024 bytes and more; shorter pieces use the plain JavaScript loop, which is as fast there. `ZipOpen.wasmAvailable()` says whether the browser allows it.
+
+**Why.** On a 20 MB buffer the checksum takes 16.5 to 12.9 ms in ungoogled-chromium 155.0.8059.39-1 (1.28x), 20 to 12 ms in Firefox 158.0 (1.67x), 15 to 9 ms in WebKitGTK 2.52.6 (1.67x) and 16 to 10 ms in GNOME Web 46.5 (1.60x); median of 3 passes of 7 rounds, lower is better. 4 KB pieces gain 1.35x, 1.54x, 1.55x and 1.42x. The answers are identical: 1,860 of 1,860 checksums in 12 of 12 runs, and the same on a page that forbids WebAssembly.
+
+**Rules.**
+- Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it, or if anything goes wrong, the plain JavaScript loop gives the same answers.
+- `crc32(bytes, true)` always uses the plain loop.
+- Source `wasm/crc32.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
+
+**Honest limits.** Most zips and Excel files are small, so opening one gains little: the unpacking itself is the browser's own `DecompressionStream`. Pieces of 256 bytes tie (0.93 to 1.06x) and use the plain loop. The first checksum on a fresh page is about the same (2 to 3 ms for 1 MB; in the two WebKit browsers wasm is about 1 ms slower there, inside the timer's rounding). Costs bytes: +3,011 minified and +1,103 gzipped (16,088 to 18,955 and 7,056 to 8,159; smaller is better). Not run: a phone, Safari.
 
 ## Numbers (Node 22, measured 2026-10-17)
 
@@ -57,7 +70,7 @@ Smaller than fflate and, of the ones measured, the only one that stops a lying z
 
 | Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins or loses |
 |---|---|---|---|---|
-| zip-open 1.1.0 (MIT, this module) | 27.5 KB, 9.5 KB gzipped (current file; the top of this page gives the 1.0.0 size) | Checksum check 3.9 times faster than in 1.0.0: 0.74 ms per MB in Chromium 155, 0.85 in Firefox 158, 0.7 in WebKitGTK 2.52.6 and GNOME Web 46.5 (smaller is better). Against the others in browsers: not measured | Reads zip and Excel .xlsx, limits counted on the bytes that really come out, plain-words notes | Wins on safety by default and Excel to CSV; loses on writing zips and on formats |
+| zip-open 1.2.0 (MIT, this module) | 18,955 bytes minified, 8,159 gzipped (31,479 as written; terser 5.51.2; 1.1.0 was 16,088 and 7,056) | Checksum on big buffers 1.3 to 1.7 times faster again with WebAssembly (20 MB: 16.5 to 12.9 ms in Chromium 155, 20 to 12 in Firefox 158, 15 to 9 in WebKitGTK 2.52.6, 16 to 10 in GNOME Web 46.5; lower is better). In 1.1.0 the checksum check was 3.9 times faster than in 1.0.0: 0.74 ms per MB in Chromium 155, 0.85 in Firefox 158, 0.7 in WebKitGTK 2.52.6 and GNOME Web 46.5 (smaller is better). Against the others in browsers: not measured | Reads zip and Excel .xlsx, limits counted on the bytes that really come out, plain-words notes | Wins on safety by default and Excel to CSV; loses on writing zips and on formats |
 | [fflate](https://github.com/101arrowz/fflate) (MIT, 0.8.3) | 33 KB, 12.6 KB gzipped | In browsers: not measured | Reads and writes zips and other formats; safety limits are left to you | On the 1 GB-of-zeros test it returned a 1,000-byte file with no error. Wins on features and on writing zips |
 | JSZip 3.10.2 (MIT or GPL-3.0-or-later) | Not measured | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |
 | zip.js | Not measured | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |

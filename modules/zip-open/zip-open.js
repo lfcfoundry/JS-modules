@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -186,7 +186,7 @@
 
   var CRC_T = null, LE = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
   /** CRC-32 (the zip checksum). "Slicing by 8": eight table lookups handle eight bytes at once, and where the bytes sit on a 4-byte boundary they are read as whole words. */
-  function crc32(u8) {
+  function crc32js(u8) {
     var t = CRC_T, n, c, k, i;
     if (!t) {   // table 0 is the classic one; table j holds the effect of a byte followed by j zero bytes
       t = CRC_T = new Int32Array(2048);
@@ -210,6 +210,39 @@
     }
     for (; i < L; i++) crc = (crc >>> 8) ^ t[(crc ^ u8[i]) & 255];
     return (crc ^ -1) >>> 0;
+  }
+  /* The same checksum in WebAssembly ("slicing by 16", 1.2.0): 1.3 to 1.8 times as fast on big buffers in the four test browsers. It is used from 1,024 bytes up; shorter pieces use the plain loop above,
+     which is as fast there. If the browser refuses WebAssembly (a page policy without 'wasm-unsafe-eval'), or anything goes wrong, crc32js gives the same answer. Source: wasm/crc32.c. */
+  var WASM_B64 = /*WASM:BEGIN*/'AGFzbQEAAAABCwJgAABgA39/fwF/AwMCAAEFAwEAAQYPAn8BQYCoAQt/AEGAqAELByUEBm1lbW9yeQIABGluaXQAAANjcmMAAQtfX2hlYXBfYmFzZQMBCuoKAsAGAQR/QQAhAEGAiICAACEBA0AgASAAQQF2IgJBoIbi7X5zIAIgAEEBcRsiAkEBdiIDQaCG4u1+cyADIAJBAXEbIgJBAXYiA0GghuLtfnMgAyACQQFxGyICQQF2IgNBoIbi7X5zIAMgAkEBcRsiAkEBdiIDQaCG4u1+cyADIAJBAXEbIgJBAXYiA0GghuLtfnMgAyACQQFxGyICQQF2IgNBoIbi7X5zIAMgAkEBcRsiAkEBdiIDQaCG4u1+cyADIAJBAXEbNgIAIAFBBGohASAAQQFqIgBBgAJHDQALQYB4IQADQCAAQYCYgIAAaiAAQYCQgIAAaigCACIBQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCggIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCogIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCwgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYC4gIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDAgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDIgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDQgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDYgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDggIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDogIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDwgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYD4gIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCAgYAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCIgYAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnM2AgAgAEEEaiIADQALC6UEAQF/AkAgAUEQSQ0AA0AgACgCACACcyICQQZ2QfwHcUGA+ICAAGooAgAgAkH/AXFBAnRBgICBgABqKAIAcyACQQ52QfwHcUGA8ICAAGooAgBzIAJBFnZB/AdxQYDogIAAaigCAHMgACgCBCICQf8BcUECdEGA4ICAAGooAgBzIAJBBnZB/AdxQYDYgIAAaigCAHMgAkEOdkH8B3FBgNCAgABqKAIAcyACQRZ2QfwHcUGAyICAAGooAgBzIAAoAggiAkH/AXFBAnRBgMCAgABqKAIAcyACQQZ2QfwHcUGAuICAAGooAgBzIAJBDnZB/AdxQYCwgIAAaigCAHMgAkEWdkH8B3FBgKiAgABqKAIAcyAAKAIMIgJB/wFxQQJ0QYCggIAAaigCAHMgAkEGdkH8B3FBgJiAgABqKAIAcyACQQ52QfwHcUGAkICAAGooAgBzIAJBFnZB/AdxQYCIgIAAaigCAHMhAiAAQRBqIQAgAUFwaiIBQQ9LDQALCwJAIAFFDQACQAJAIAFBAXENACABIQMMAQsgAC0AACACc0H/AXFBAnRBgIiAgABqKAIAIAJBCHZzIQIgAEEBaiEAIAFBf2ohAwsgAUEBRg0AA0AgAEEBai0AACAALQAAIAJzQf8BcUECdEGAiICAAGooAgAgAkEIdnMiAnNB/wFxQQJ0QYCIgIAAaigCACACQQh2cyECIABBAmohACADQX5qIgMNAAsLIAIL'/*WASM:END*/, WASM_MIN = 1024, WASM_CHUNK = 1 << 20, K;
+  function kernel() {
+    if (K !== undefined) return K;
+    K = null;
+    try {
+      if (typeof WebAssembly !== 'object' || typeof WebAssembly.Module !== 'function') return K;
+      var bin, i;
+      if (typeof atob === 'function') { var raw = atob(WASM_B64); bin = new Uint8Array(raw.length); for (i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); }
+      else bin = new Uint8Array(Buffer.from(WASM_B64, 'base64'));
+      var ex = new WebAssembly.Instance(new WebAssembly.Module(bin), {}).exports;
+      ex.init();
+      var base = (ex.__heap_base.value + 15) & ~15, need = Math.ceil((base + WASM_CHUNK) / 65536), have = ex.memory.buffer.byteLength / 65536;
+      if (need > have) ex.memory.grow(need - have);
+      K = { ex: ex, base: base };
+    } catch (e) { K = null; }
+    return K;
+  }
+  /** CRC-32 of a Uint8Array as an unsigned number. WebAssembly from 1,024 bytes up when the browser allows it; crc32(bytes, true) forces the plain JavaScript loop. */
+  function crc32(u8, plain) {
+    var k = plain === true || u8.length < WASM_MIN || typeof u8.subarray !== 'function' ? null : kernel();
+    if (!k) return crc32js(u8);
+    try {
+      var s = -1, L = u8.length, o = 0, n;
+      while (o < L) {
+        n = L - o < WASM_CHUNK ? L - o : WASM_CHUNK;
+        new Uint8Array(k.ex.memory.buffer, k.base, n).set(o === 0 && n === L ? u8 : u8.subarray(o, o + n));
+        s = k.ex.crc(k.base, n, s); o += n;
+      }
+      return (s ^ -1) >>> 0;
+    } catch (e) { K = null; return crc32js(u8); }
   }
   function isZip(u8) { return u8 && u8.length >= 4 && u8[0] === 0x50 && u8[1] === 0x4b && (u8[2] === 3 || u8[2] === 5) && (u8[3] === 4 || u8[3] === 6); }
 
@@ -408,5 +441,5 @@
   /** Bytes of one listed entry, checked against the size and checksum the zip promised: { bytes } or { skip: 'plain-words reason' }. */
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
-  return { expand: expand, list: list, read: read, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, LIMITS: LIMITS };
+  return { expand: expand, list: list, read: read, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, LIMITS: LIMITS };
 }));
