@@ -107,13 +107,13 @@ i32 encode(i32 first, const u8 *idx, const i32 *chg, i32 nchg, i32 width, i32 x0
   return lzw(data, fw * fh, out);
 }
 
-/* ---- the palette search (makePalette): colour histogram, median cut, k-means. The arithmetic is done in the same order as the JavaScript code, with no fused multiply-add, so the decimals match. ---- */
+/* ---- the palette search (makePalette): color histogram, median cut, k-means. The arithmetic is done in the same order as the JavaScript code, with no fused multiply-add, so the decimals match. ---- */
 static inline double jsround(double x) { double f = __builtin_floor(x); return (x - f >= 0.5) ? f + 1 : f; }   /* JavaScript's Math.round: halves go up */
 
-/* Clears the table of pairs (colour + 1, count): 2 ints per slot, 1 << hb slots. */
+/* Clears the table of pairs (color + 1, count): 2 ints per slot, 1 << hb slots. */
 void hist_reset(i32 *tbl, i32 hb) { i32 n = 2 << hb, i; for (i = 0; i < n; i++) tbl[i] = 0; }
 
-/* Counts the colours of one picture (n pixels, every `stride`th). uniq: distinct colours so far; cap: stop when more than this many. Returns the new count. */
+/* Counts the colors of one picture (n pixels, every `stride`th). uniq: distinct colors so far; cap: stop when more than this many. Returns the new count. */
 i32 hist_picture(const u32 *w, i32 n, i32 stride, i32 *tbl, i32 hb, i32 mask, i32 uniq, i32 cap) {
   i32 i, last = -2, lastSlot = 0, hs1 = (1 << hb) - 1;
   for (i = 0; i < n; i += stride) {
@@ -127,7 +127,7 @@ i32 hist_picture(const u32 *w, i32 n, i32 stride, i32 *tbl, i32 hb, i32 mask, i3
   return uniq;
 }
 
-/* The distinct colours in slot order: red, green, blue as bytes, count as double. Returns how many. */
+/* The distinct colors in slot order: red, green, blue as bytes, count as double. Returns how many. */
 i32 hist_extract(const i32 *tbl, i32 hb, u8 *R, u8 *G, u8 *B, double *C) {
   i32 hs = 1 << hb, i, u = 0;
   for (i = 0; i < hs; i++) if (tbl[i * 2] != 0) { i32 kc = tbl[i * 2] - 1; R[u] = (u8)(kc >> 16); G[u] = (u8)((kc >> 8) & 255); B[u] = (u8)(kc & 255); C[u] = (double)tbl[i * 2 + 1]; u++; }
@@ -150,7 +150,7 @@ static void sort_ints(i32 *a, i32 n) {   /* ascending; heap sort (the values are
   for (end = n - 1; end > 0; end--) { t = a[0]; a[0] = a[end]; a[end] = t; s = 0; for (;;) { c = 2 * s + 1; if (c >= end) break; if (c + 1 < end && a[c + 1] > a[c]) c++; if (a[s] >= a[c]) break; t = a[s]; a[s] = a[c]; a[c] = t; s = c; } }
 }
 
-/* Median cut then k-means on the uniq colours (R, G, B bytes, C counts); order and scratch: uniq ints each. out gets the number of colours, then red, green, blue of each (rounded). */
+/* Median cut then k-means on the uniq colors (R, G, B bytes, C counts); order and scratch: uniq ints each. out gets the number of colors, then red, green, blue of each (rounded). */
 i32 quantize(i32 uniq, i32 maxColors, const u8 *R, const u8 *G, const u8 *B, const double *C, i32 *order, i32 *scratch, i32 *out) {
   const u8 *chans[3]; chans[0] = R; chans[1] = G; chans[2] = B;
   i32 i, nb = 0, q, v;

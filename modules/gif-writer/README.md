@@ -27,7 +27,7 @@ Each picture is compressed the moment you add it, so memory holds the compressed
 
 ## WebAssembly (since 1.2.0)
 
-**What.** The palette search (`makePalette`: colour histogram, median cut, k-means) and the picture encoder (`createEncoder`: palette lookup of every pixel, comparison with the last picture, LZW coder) also exist as WebAssembly (8,892 bytes, `wasm/gif.c`), embedded in `gif-writer.js` and used first. They give the same colors and the same GIF bytes as the JavaScript code: 16 of 16 GIFs and 116 palette sets identical in Node, and 16 of 16 GIFs in 24 of 24 browser runs. `GifWriter.wasmAvailable()` says whether the browser allows it; `makePalette(pics, n, { wasm: false })` and `createEncoder(w, h, pal, { wasm: false })` force the JavaScript code.
+**What.** The palette search (`makePalette`: color histogram, median cut, k-means) and the picture encoder (`createEncoder`: palette lookup of every pixel, comparison with the last picture, LZW coder) also exist as WebAssembly (8,892 bytes, `wasm/gif.c`), embedded in `gif-writer.js` and used first. They give the same colors and the same GIF bytes as the JavaScript code: 16 of 16 GIFs and 116 palette sets identical in Node, and 16 of 16 GIFs in 24 of 24 browser runs. `GifWriter.wasmAvailable()` says whether the browser allows it; `makePalette(pics, n, { wasm: false })` and `createEncoder(w, h, pal, { wasm: false })` force the JavaScript code.
 
 **Why.** 30 pictures of 640 x 480, median of 3 passes of 5 rounds in rotating order, JavaScript to WebAssembly in ms (lower is better; times faster, higher is better):
 
