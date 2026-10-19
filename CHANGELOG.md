@@ -41,14 +41,17 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
 | [storage-probe](tools/storage-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/storage-probe/CHANGELOG.md) |
 | [firefox-stand-in](tools/firefox-stand-in/README.md) | 1.0.0 · API 1 | [changelog](tools/firefox-stand-in/CHANGELOG.md) |
-| [webkit-driver](tools/webkit-driver/README.md) | 1.2.0 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
+| [webkit-driver](tools/webkit-driver/README.md) | 1.3.0 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
 | [test-isolation](tools/test-isolation/README.md) | 1.1.0 · API 1 | [changelog](tools/test-isolation/CHANGELOG.md) |
 | [speed-lab](tools/speed-lab/README.md) | 1.1.1 · API 1 | [changelog](tools/speed-lab/CHANGELOG.md) |
+| [test-runner](tools/test-runner/README.md) | 1.0.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
 
 ## Changes since labels began
 
 - 2026-10-18 · **zip-open** 1.2.0 · API 1: Checking big files is about 1.3 to 1.7 times faster using a small WebAssembly checksum (same answers). Pages with a content policy need 'wasm-unsafe-eval'; without it the old code is used.
+- 2026-10-18 · **webkit-driver** 1.3.0 · API 1: New attach() lets a check reuse a WebKit browser that is already open instead of starting a new one.
 - 2026-10-18 · **walker-sim** 2.2.0 · API 2: The default file is now walker-sim-with-wasm.js: big runs use the WebAssembly walking loop first (about 1.5 times faster in Chromium and Firefox), and the JavaScript loop when WebAssembly is not usable. Same counts either way. In WebKitGTK and GNOME Web a fresh page is about 15% to 30% slower with it; set cfg.wasm = false or copy walker-sim.js there.
+- 2026-10-18 · **test-runner** 1.0.0 · API 1: Shared pieces for browser checks: warm browsers that cut the start of each check from seconds to well under a second, fair timing, skipped rebuilds, a wasm-versus-JavaScript twin test, a picture gate and an automatic bisect.
 - 2026-10-18 · **stage-curtains** 1.2.0 · API 1: A curtain half paints about 1.4 to 1.6 times faster on a freshly loaded page (same picture) using a small WebAssembly painter. Pages with a content policy need 'wasm-unsafe-eval'; without it, plain JavaScript is used.
 - 2026-10-18 · **sprite-baker** 1.6.1 · API 1: Fix: the WebAssembly add-on drew drawMesh(..., null) with the wrong back-face cut (about 79 pixels per picture went missing in one game); now identical to the plain code.
 - 2026-10-18 · **sprite-baker** 1.6.0 · API 1: New optional add-on sprite-baker-wasm.js fills triangles in WebAssembly with the very same pixels: baking is about 1.1 to 1.4 times faster in Chromium and Firefox, mixed in WebKit browsers. Plain JavaScript is the fallback.
@@ -56,7 +59,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **ppmd-decode** 1.2.0 · API 1: The default file is now ppmd-decode-with-wasm.js: ppmd7Decode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.4 to 1.8 times faster to open a page in the four test browsers.
 - 2026-10-18 · **pcodec-js** 1.0.1 · API 1: No change to the code or to the files it writes. The build was rebuilt and checked again, and the credits and comparison were updated.
 - 2026-10-18 · **pcodec-js** 1.0.0 · API 1: First release as its own module: Pcodec, a number compressor, for web pages in one file with no build step. It needs WebAssembly.
-- 2026-10-18 · **netflow-sankey** 2.3.0 · API 2: Small and medium flow charts lay out up to 1.9 times faster in Chromium and Firefox with WebAssembly, same pictures. The two WebKit browsers are about even (two cases 9 to 10% slower). The fast path needs 'wasm-unsafe-eval'.
+- 2026-10-18 · **netflow-sankey** 2.3.0 · API 2: Small and medium flow charts lay out up to 1.9 times faster in Chromium and Firefox with WebAssembly, same pictures; the two WebKit browsers are about even. The wasm compiles in the background at load. Needs 'wasm-unsafe-eval'.
 - 2026-10-18 · **netflow-sankey** 2.2.1 · API 2: Fix: an empty drawing now has height 0 instead of -Infinity. Drawings with items are unchanged.
 - 2026-10-18 · **netflow-sankey** 2.2.0 · API 2: Very long links no longer blow up big charts: past a limit, the lightest long links are drawn as one straight band. The crossing count is now always a real number.
 - 2026-10-18 · **netflow-sankey** 2.1.0 · API 2: Two new calls so a flow chart can be wired into Netflow Map's engine, one for settings and one for applying a result.

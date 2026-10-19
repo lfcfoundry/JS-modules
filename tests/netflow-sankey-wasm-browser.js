@@ -42,7 +42,7 @@ const server = http.createServer((q, r) => {
   if (u.pathname !== '/page.html') { r.writeHead(404); return r.end(); }
   const m = u.searchParams.get('m'), blocked = u.searchParams.get('csp') === 'nowasm';
   r.setHeader('content-type', 'text/html');
-  r.end('<!doctype html><meta charset=utf-8><meta http-equiv="Content-Security-Policy" content="' + (blocked ? CSP_NOWASM : CSP_WASM) + '"><title>t</title><link rel="icon" href="data:,"><script src="/m.js"></script><script>' + CODE + '\ntry{window.__res=mode(' + JSON.stringify(m) + ')}catch(e){window.__res={error:String(e&&e.stack||e)}}</script>');
+  r.end('<!doctype html><meta charset=utf-8><meta http-equiv="Content-Security-Policy" content="' + (blocked ? CSP_NOWASM : CSP_WASM) + '"><title>t</title><link rel="icon" href="data:,"><script src="/m.js"></script><script>' + CODE + '\ntry{var __m=' + JSON.stringify(m) + ';if(__m.indexOf("idle-")===0)setTimeout(function(){try{window.__res=mode("cold-"+__m.slice(5))}catch(e){window.__res={error:String(e)}}},250);else window.__res=mode(__m)}catch(e){window.__res={error:String(e&&e.stack||e)}}</script>');
 });
 const webkitFamily = which === 'webkit' || which === 'epiphany', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 (async () => {
@@ -59,10 +59,12 @@ const webkitFamily = which === 'webkit' || which === 'epiphany', med = (a) => a.
     if (!webkitFamily) await p.close();
     return res || { error: 'no result in 120 s' };
   }
-  const t0 = Date.now(), eq = await run('eq', ''), eqBlocked = await run('eq', 'nowasm'), sp = await run('speed', '');
+  const coldOnly = !!process.env.COLD_ONLY, t0 = Date.now(), eq = coldOnly ? {} : await run('eq', ''), eqBlocked = coldOnly ? {} : await run('eq', 'nowasm'), sp = coldOnly ? {} : await run('speed', '');
   const cold = { js: [], wasm: [] };
   for (let rep = 0; rep < REPS + 2; rep++) for (const v of rep % 2 ? ['wasm', 'js'] : ['js', 'wasm']) { const r = await run('cold-' + v, ''); if (!r.error) cold[v].push(r.first); }
-  const out = { version, reps: REPS, eq, eqBlocked, speed: sp.speed, cold: { jsMs: med(cold.js), wasmMs: med(cold.wasm) }, wallSeconds: (Date.now() - t0) / 1000 };
+  const idle = { js: [], wasm: [] };   // the first layout 250 ms after the page loaded (the wasm has had time to compile in the background)
+  for (let rep = 0; rep < REPS + 2; rep++) for (const v of rep % 2 ? ['wasm', 'js'] : ['js', 'wasm']) { const r = await run('idle-' + v, ''); if (!r.error) idle[v].push(r.first); }
+  const out = { version, reps: REPS, eq, eqBlocked, speed: sp.speed, cold: { jsMs: med(cold.js), wasmMs: med(cold.wasm) }, idle: { jsMs: med(idle.js), wasmMs: med(idle.wasm) }, wallSeconds: (Date.now() - t0) / 1000 };
   let pass = !eq.error && !eqBlocked.error && !sp.error && eq.differing === 0 && eqBlocked.differing === 0 && eq.available === true;
   if (!webkitFamily && !eqBlocked.error) pass = pass && eqBlocked.available === false;
   console.log('same layouts: ' + (eq.error ? 'ERROR ' + eq.error : eq.tried + ' layouts, ' + eq.differing + ' differ ' + (eq.names || []).join(',')) + '; no-wasm policy: ' + (eqBlocked.error ? 'ERROR ' + eqBlocked.error : eqBlocked.tried + ', ' + eqBlocked.differing + ' differ'));
