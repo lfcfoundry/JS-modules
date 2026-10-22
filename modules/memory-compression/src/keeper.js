@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Part of memory-compression.js; build.py joins the pieces in src/ (this line is left out of the built file).
 
   // ================================================================ keeper: named data that is held packed, restored on demand and let go of when memory is tight
   // heapInfo(): what the page can tell about memory. Firefox and Safari tell nothing, so the keeper's own accounting (memory()) is what to rely on there.

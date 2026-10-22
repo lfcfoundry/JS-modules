@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Part of memory-compression.js; build.py joins the pieces in src/ (this line is left out of the built file).
   // ================================================================ the number picker
   // Every block of 8,192 numbers picks its own way: whole numbers (one repeated value, offset + bit packing, differences, runs, a small dictionary, a few big outliers kept aside,
   // a common factor, or a byte-coded bucket table), decimals (ALP: 12.34 as the whole number 1234; float noise such as 1.8630000000000002 is kept as a tiny distance from the decimal
