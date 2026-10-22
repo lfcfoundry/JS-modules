@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-10-22
+- New pack(x, { smallest: 'quick' }): tries decimal settings only when a column looks like decimals. 39 test columns come out 3.4% smaller at 1.7 times the plain pack time (full smallest: 4.0% smaller at 3.3 to 3.5 times).
+
 ## 1.2.0 · API 1 · 2026-10-22
 - New PcodecJS.pool() shares packing across background workers: one 2,000,000-number column took 129 to 142 ms on one worker, now 58 to 80 ms (lower is better), same file as pack().
 

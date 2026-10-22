@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LFC Foundry. MIT License. Research runner behind the pcodec-js 1.2.0 numbers; it needs the test browsers installed (see the repository QA notes).
+// Copyright (c) 2026 LFC Foundry. MIT License. Research runner behind the pcodec-js 1.3.0 numbers; it needs the test browsers installed (see the repository QA notes).
 // node abpack.js chromium|firefox|webkit|epiphany out.json
 // A/B pack timing: libs named in LIBS (comma list of id=path) take turns packing the same 12 columns (alternating order), median of ROUNDS rounds (first round is warm-up).
 // Checks that every lib writes the same bytes as the first one.
@@ -14,7 +14,7 @@ const man = JSON.parse(fs.readFileSync(W + 'cols.json')), bin = fs.readFileSync(
 const PICK = [/NFM node x, Distances/, /links.to/, /links.weight/, /links.x1/, /events.ts/, /^temperature/, /^price/, /geojson/, /kWh/, /housing median_income/, /quakes Latitude/, /events.user/];
 const cols = PICK.map((r) => man.find((m) => r.test(m.name)));
 const libs = (process.env.LIBS || '').split(',').filter(Boolean).map((s) => { const [id, p] = s.split('='); return { id, src: fs.readFileSync(p, 'utf8') }; });
-const arg = { libs, cols: cols.map((m) => ({ name: m.name, kind: m.kind, n: m.n, b64: bin.subarray(m.off, m.off + m.bytes).toString('base64') })), rounds: +process.env.ROUNDS || 9, level: +process.env.LEVEL || 8 };
+const arg = { libs, cols: cols.map((m) => ({ name: m.name, kind: m.kind, n: m.n, b64: bin.subarray(m.off, m.off + m.bytes).toString('base64') })), rounds: +process.env.ROUNDS || 9, level: +process.env.LEVEL || 8, opts: JSON.parse(process.env.OPTS || '{}') };
 async function inPage(arg) {
   const T = { f64: Float64Array, i32: Int32Array, f32: Float32Array, u32: Uint32Array, i16: Int16Array, u16: Uint16Array };
   const data = arg.cols.map((c) => { const s = atob(c.b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new T[c.kind](u.buffer); });
@@ -26,7 +26,7 @@ async function inPage(arg) {
     const ids = arg.libs.map((l) => l.id), k = r % ids.length, order = ids.slice(k).concat(ids.slice(0, k));   // every version takes every place in the order
     for (const id of order) {
       const t0 = performance.now(); let tot = 0, h = 0;
-      const outs = data.map((a) => P[id].pack(a, { level: arg.level }));
+      const outs = data.map((a) => P[id].pack(a, Object.assign({ level: arg.level }, arg.opts[id] || {})));
       const dt = performance.now() - t0;
       if (r === 0) { outs.forEach((o) => { tot += o.length; h = (h * 31 + fnv(o)) >>> 0; }); res.hash[id] = h; res.bytes[id] = tot; } else res.times[id].push(dt);
     }
