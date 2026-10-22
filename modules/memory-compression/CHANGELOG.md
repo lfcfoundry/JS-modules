@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.1 · API 2 · 2026-10-22
+- 2.3.1: the automatic page length is never longer than the old 2,048-row default, so thin rows no longer open slower in Firefox.
+
 ## 2.3.0 · API 2 · 2026-10-22
 - pager() can pick its own page size, open pages and mode from the list and the device's memory (pageRows, livePages and mode set to 'auto', or pager.plan()). Nothing changes unless you ask for it.
 
