@@ -4,7 +4,7 @@
  * small number at a time, and tells you whether the browser can read WebP or AVIF.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   ImageDecode.load(source[, { strategy: 'auto' }])   -> Promise of a drawable (an ImageBitmap or an Image), ready to drawImage
  *   ImageDecode.loadAll(list[, { concurrency: 2, onEach: function (drawable, index) {} }])  -> Promise of an array, same order
@@ -22,8 +22,9 @@
  * table): Chromium decodes off the main thread only through createImageBitmap ('bitmap'); an Image.decode() there is
  * decoded again at the first draw. Firefox and WebKit are the opposite: Image.decode() keeps the freeze at 1 to 11 ms, while
  * createImageBitmap there freezes the page for the whole decode. 'auto' therefore uses 'bitmap' in Chromium-family browsers
- * and 'decode' elsewhere. If the chosen way fails (for example the page's Content-Security-Policy has no img-src blob:), the
- * other way is tried once before the promise rejects.
+ * and 'decode' elsewhere. 'decode' reads the picture through a blob: address; if the page refuses that (no img-src blob:), the
+ * module remembers it and goes through a background worker (WebKit family, needs worker-src blob:) and then a data: address
+ * (needs img-src data:), and only then tries the other way ('bitmap') once before the promise rejects.
  *
  * Needs createImageBitmap or Image; without either, load() rejects with a plain message. No wasm: the browser's own decoder
  * is already native code, so there is nothing for wasm to speed up.
@@ -66,6 +67,7 @@
     var fetchFn = 'fetch' in env ? env.fetch : (g.fetch && g.fetch.bind(g));
     var atobFn = 'atob' in env ? env.atob : (g.atob && g.atob.bind(g));
     var BlobCtor = 'Blob' in env ? env.Blob : g.Blob;
+    var ReaderCtor = 'FileReader' in env ? env.FileReader : g.FileReader;
     var nav = 'navigator' in env ? env.navigator : g.navigator;
 
     // Chromium family (Chrome, Edge, Opera, ungoogled Chromium, Android WebView) decodes off the main thread through
@@ -110,21 +112,80 @@
       if (!cib) return Promise.reject(new Error('ImageDecode: createImageBitmap is not available'));
       return cib(blob);
     }
-    function viaDecode(blob) {
-      if (!ImageCtor || !URLApi || !URLApi.createObjectURL) return Promise.reject(new Error('ImageDecode: Image is not available'));
-      var url = URLApi.createObjectURL(blob), img = new ImageCtor();
-      var done = function () { try { URLApi.revokeObjectURL(url); } catch (e) { /* ignore */ } };
+    // Image.decode() needs an address for the picture: a blob: address (cheap, but the page's Content-Security-Policy must
+    // allow img-src blob:) or a data: address (made by FileReader, which needs img-src data:).
+    var blobRefused = false;
+    function toDataUrl(blob) {
+      if (!ReaderCtor) return Promise.reject(new Error('ImageDecode: FileReader is not available'));
+      return new Promise(function (res, rej) {
+        var r = new ReaderCtor();
+        r.onload = function () { res(r.result); };
+        r.onerror = function () { rej(r.error || new Error('ImageDecode: the picture could not be read')); };
+        r.readAsDataURL(blob);
+      });
+    }
+    function decodeFrom(url, done) {
+      var img = new ImageCtor();
       img.src = url;
       var ready = typeof img.decode === 'function' ? img.decode() : new Promise(function (res, rej) { img.onload = function () { res(); }; img.onerror = function () { rej(new Error('ImageDecode: the picture could not be read')); }; });
       return ready.then(function () { done(); return img; }, function (e) { done(); throw e; });
     }
+    function viaBlobUrl(blob) {
+      if (!URLApi || !URLApi.createObjectURL) return Promise.reject(new Error('ImageDecode: blob: addresses are not available'));
+      var url = URLApi.createObjectURL(blob);
+      return decodeFrom(url, function () { try { URLApi.revokeObjectURL(url); } catch (e) { /* ignore */ } });
+    }
+    function viaDataUrl(blob) {
+      return toDataUrl(blob).then(function (url) { return decodeFrom(url, function () { /* nothing to free */ }); });
+    }
+    // A background worker that does createImageBitmap() for us (needs worker-src blob: in the page's policy). WebKit decodes
+    // there without freezing the page; Firefox does not gain from it, so 'auto' only uses it for non-Firefox, non-Chromium engines.
+    var workerState = null;   // null = not tried, a Worker, or false = refused or unavailable
+    var jobs = {}, jobId = 0;
+    var WORKER_CODE = 'onmessage=function(e){var d=e.data;createImageBitmap(d.b).then(function(m){postMessage({i:d.i,m:m},[m]);},function(x){postMessage({i:d.i,e:String(x&&x.message||x)});});};';
+    function getWorker() {
+      if (workerState !== null) return workerState;
+      workerState = false;
+      try {
+        var W = 'Worker' in env ? env.Worker : g.Worker;
+        if (!W || !cib || !URLApi || !URLApi.createObjectURL || !BlobCtor) return false;
+        var u = URLApi.createObjectURL(new BlobCtor([WORKER_CODE], { type: 'text/javascript' }));
+        var w = new W(u);
+        try { URLApi.revokeObjectURL(u); } catch (e0) { /* ignore */ }
+        w.onmessage = function (e) { var j = jobs[e.data.i]; if (!j) return; delete jobs[e.data.i]; if (e.data.m) j.res(e.data.m); else j.rej(new Error(e.data.e || 'ImageDecode: the worker could not read the picture')); };
+        w.onerror = function () { workerState = false; var k; for (k in jobs) { jobs[k].rej(new Error('ImageDecode: the worker is not allowed or failed')); delete jobs[k]; } try { w.terminate(); } catch (e1) { /* ignore */ } };
+        workerState = w;
+      } catch (e) { workerState = false; }
+      return workerState;
+    }
+    function viaWorker(blob) {
+      var w = getWorker();
+      if (!w) return Promise.reject(new Error('ImageDecode: a background worker is not available'));
+      return new Promise(function (res, rej) { var i = ++jobId; jobs[i] = { res: res, rej: rej }; try { w.postMessage({ i: i, b: blob }); } catch (e) { delete jobs[i]; rej(e); } });
+    }
+    var isFirefox = /Firefox\/\d/.test((nav && nav.userAgent) || '');
+    // Image.decode() routes in the order: blob: address; when the page refuses blob: pictures (no img-src blob:), a background
+    // worker (non-Firefox engines) and then a data: address (needs img-src data:). What the page refused is remembered.
+    function viaDecode(blob, address) {
+      if (!ImageCtor) return Promise.reject(new Error('ImageDecode: Image is not available'));
+      if (address === 'blob') return viaBlobUrl(blob);
+      if (address === 'data') return viaDataUrl(blob);
+      if (address === 'worker') return viaWorker(blob);
+      var first;
+      if (!blobRefused) first = viaBlobUrl(blob).catch(function (e1) { blobRefused = true; return Promise.reject(e1); });
+      else first = Promise.reject(new Error('ImageDecode: blob: pictures are refused by the page'));
+      return first.catch(function (e1) {
+        var viaW = function () { return !isFirefox && workerState !== false ? viaWorker(blob) : Promise.reject(e1); };
+        return viaW().catch(function () { return viaDataUrl(blob); }).catch(function () { throw e1; });
+      });
+    }
 
-    // Load one picture. Resolves to a drawable. opts.strategy: 'auto' (default), 'bitmap' or 'decode'.
+    // Load one picture. Resolves to a drawable. opts.strategy: 'auto' (default), 'bitmap' or 'decode'; opts.address (only for 'decode'): 'auto' (default), 'blob', 'data' or 'worker'.
     function load(source, opts) {
       var want = (opts && opts.strategy) || 'auto', first = want === 'auto' ? strategy : want, second = first === 'bitmap' ? 'decode' : 'bitmap';
       if (!first) return Promise.reject(new Error('ImageDecode: this browser has neither createImageBitmap nor Image'));
       return toBlob(source).then(function (blob) {
-        var run = function (way) { return way === 'bitmap' ? viaBitmap(blob) : viaDecode(blob); };
+        var run = function (way) { return way === 'bitmap' ? viaBitmap(blob) : viaDecode(blob, (opts && opts.address) || 'auto'); };
         return run(first).catch(function (e1) {
           if (want !== 'auto') throw e1;
           return run(second).catch(function () { throw e1; });
@@ -175,7 +236,7 @@
 
     function close(d) { if (d && typeof d.close === 'function') try { d.close(); } catch (e) { /* already closed */ } }
 
-    return { load: load, loadAll: loadAll, supports: supports, pick: pick, close: close, sniff: sniff, strategy: strategy, create: create, version: '1.0.0' };
+    return { load: load, loadAll: loadAll, supports: supports, pick: pick, close: close, sniff: sniff, strategy: strategy, create: create, version: '1.1.0' };
   }
 
   return create();

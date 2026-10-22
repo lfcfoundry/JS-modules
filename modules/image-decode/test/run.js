@@ -40,7 +40,21 @@ function fakeEnv(o) {
     return k;
   };
   if (!o.noBitmap) env.createImageBitmap = async blob => { log.push('bitmap'); await (o.slow ? new Promise(r => setTimeout(r, o.slow)) : 0); if (o.bitmapFails) throw new Error('bitmap refused'); const k = await readable(blob); return { kind: k, close() { log.push('close'); } }; };
-  if (!o.noImage) env.Image = class { set src(v) { this._src = v; this.blobIndex = log.length; } decode() { log.push('decode'); if (o.decodeFails) return Promise.reject(new Error('decode refused')); return readable(env.blobs[this._src]); } };
+  if (!o.noImage) env.Image = class {
+    set src(v) { this._src = v; this.blobIndex = log.length; }
+    decode() {
+      log.push('decode'); if (o.decodeFails) return Promise.reject(new Error('decode refused'));
+      if (/^data:/.test(this._src)) { if (o.dataRefused) return Promise.reject(new Error('data refused')); log.push('decode-data'); const m = /^data:([^,]*),(.*)$/.exec(this._src); return readable(new Blob([Buffer.from(m[2], 'base64')])); }
+      if (o.blobRefused) { log.push('blob-refused'); return Promise.reject(new Error('blob refused by the page')); }
+      return readable(env.blobs[this._src]);
+    }
+  };
+  env.FileReader = class { readAsDataURL(b) { log.push('reader'); b.arrayBuffer().then(ab => { this.result = 'data:' + (b.type || 'application/octet-stream') + ';base64,' + Buffer.from(ab).toString('base64'); this.onload(); }, e => { this.error = e; this.onerror(); }); } };
+  env.Worker = class {
+    constructor() { if (o.noWorker) throw new Error('worker refused by the page'); log.push('worker-start'); }
+    postMessage(m) { log.push('worker-job'); readable(m.b).then(k => this.onmessage({ data: { i: m.i, m: { kind: k } } }), e => this.onmessage({ data: { i: m.i, e: String(e.message) } })); }
+    terminate() {}
+  };
   return env;
 }
 
@@ -192,6 +206,43 @@ function fakeEnv(o) {
   await test('a Blob works too, including when the page has no Blob (bytes then fail plainly)', async () => {
     const env = fakeEnv({ navigator: { userAgent: 'Chrome/155' } }), I = ID.create(env);
     assert.strictEqual((await I.load(new Blob([WEBP]))).kind, 'webp');
+  });
+
+  await test('a page that refuses blob: pictures: Firefox falls back to a data: address and remembers the refusal', async () => {
+    const env = fakeEnv({ navigator: { userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0' }, blobRefused: true }), I = ID.create(env);
+    assert.ok(await I.load(PNG));
+    assert.ok(env.log.includes('blob-refused') && env.log.includes('decode-data') && !env.log.includes('worker-start') && !env.log.includes('bitmap'));
+    env.log.length = 0; await I.load(WEBP);
+    assert.ok(!env.log.includes('blob-refused') && !env.log.includes('url') && env.log.includes('decode-data'), 'the second picture goes straight to data:');
+  });
+
+  await test('a page that refuses blob: pictures: WebKit tries a background worker first, then data:', async () => {
+    const ua = { userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15' };
+    const a = fakeEnv({ navigator: ua, blobRefused: true }), A = ID.create(a);
+    assert.strictEqual((await A.load(PNG)).kind, 'png'); assert.ok(a.log.includes('worker-start') && a.log.includes('worker-job') && !a.log.includes('decode-data'));
+    const b = fakeEnv({ navigator: ua, blobRefused: true, noWorker: true }), B = ID.create(b);
+    assert.ok(await B.load(PNG)); assert.ok(b.log.includes('decode-data'));
+    b.log.length = 0; await B.load(WEBP); assert.ok(!b.log.includes('worker-start'), 'a refused worker is not tried again');
+  });
+
+  await test('forced addresses: blob, data and worker each take only their own way, and a refusal is an error, not a retry', async () => {
+    const ua = { userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0' };
+    const e1 = fakeEnv({ navigator: ua }), I1 = ID.create(e1);
+    await I1.load(PNG, { strategy: 'decode', address: 'data' }); assert.ok(e1.log.includes('decode-data') && !e1.log.includes('url'));
+    const e2 = fakeEnv({ navigator: ua, blobRefused: true }), I2 = ID.create(e2);
+    await assert.rejects(I2.load(PNG, { strategy: 'decode', address: 'blob' }), /blob refused/);
+    const e3 = fakeEnv({ navigator: ua }), I3 = ID.create(e3);
+    assert.strictEqual((await I3.load(PNG, { strategy: 'decode', address: 'worker' })).kind, 'png'); assert.ok(e3.log.includes('worker-job'));
+  });
+
+  await test('when blob:, the worker and data: are all refused the load fails with the first error', async () => {
+    const env = fakeEnv({ navigator: { userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0' }, blobRefused: true, dataRefused: true, noBitmap: true }), I = ID.create(env);
+    await assert.rejects(I.load(PNG), /blob refused/);
+  });
+
+  await test('supports() still answers under a page that refuses blob: pictures', async () => {
+    const I = ID.create(fakeEnv({ navigator: { userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0' }, blobRefused: true }));
+    assert.strictEqual(await I.supports('png'), true);
   });
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
