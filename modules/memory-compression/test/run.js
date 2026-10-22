@@ -485,6 +485,7 @@ t('2.0.2: view() of fewer than 16 objects works with the same calls; non-objects
   var K = J.keeper(opt()); K.hold('s', rows); same(rows[1], K.view('s').get(1)); same(rows.map(function (r) { return r.a; }), K.column('s', 'a')); K.release('s'); same(rows, K.get('s'));
   });
 t('2.0.2: the eval probe is skipped (no blocked-eval error) with the global switch or a <meta> policy without unsafe-eval; otherwise it runs', function () {
+  if (typeof require.resolve !== 'function') { console.log('  (skipped here: it reloads the module through the module cache of Node)'); return; }
   var modFile = require.resolve(path.resolve(modPath)), realF = global.Function, probes = 0, saved = { doc: global.document, flag: global.MEMORY_COMPRESSION_NO_EVAL };
   function load(doc, flag) {
     var m; delete require.cache[modFile]; global.document = doc; global.MEMORY_COMPRESSION_NO_EVAL = flag; probes = 0;
@@ -505,6 +506,91 @@ t('2.0.2: the eval probe is skipped (no blocked-eval error) with the global swit
     load(meta("script-src 'self'", 'refresh'), undefined); assert.strictEqual(probes, 1, 'another http-equiv is not a policy');
     load({ querySelectorAll: function () { throw new Error('no access'); } }, undefined); assert.strictEqual(probes, 1, 'a page that cannot be read: the probe runs');
   } finally { delete require.cache[modFile]; require(modFile); }
+});
+
+t('pager: opens only the page a row is in, gives back every row exactly, lets pages go in turn', function () {
+  var r = D.rng(71), rows = many(5000, function (i) { return { id: i, a: r() < 0.5 ? null : Math.round(r() * 1000) / 10, name: 'row ' + i, tags: ['t' + (i % 7)] }; }), P = J.pager(rows, opt({ pageRows: 512, livePages: 2, readAhead: false })), i, m;
+  assert.strictEqual(P.length, 5000); assert.strictEqual(P.memory().open, 0, 'nothing is open before the first read');
+  [0, 511, 512, 4999, 2500, 3, 4096, 4999].forEach(function (k) { same(rows[k], P.get(k), 'row ' + k); });
+  m = P.memory(); assert(m.open <= 2, 'at most 2 pages open: ' + m.open); assert(m.pageOuts > 0 && m.pageIns > m.open, 'pages came and went');
+  for (i = 0; i < 5000; i += 7) same(rows[i], P.get(i), 'sweep ' + i);
+  assert.strictEqual(P.get(-1), undefined); assert.strictEqual(P.get(5000), undefined);
+  same(rows.slice(500, 1600), P.range(500, 1600), 'range over three pages'); same(rows, P.range(0), 'range of everything'); same([], P.range(10, 10), 'empty range');
+  assert(m.packed > 0 && m.packed < JSON.stringify(rows).length / 3, 'packed pages are much smaller than the JSON text');
+});
+t('pager: edits survive a page leaving memory; push adds rows; release lets everything go', function () {
+  var rows = many(3000, function (i) { return { id: i, v: i * 2, s: 'x' + (i % 11) }; }), P = J.pager(rows, opt({ pageRows: 256, livePages: 1, readAhead: false })), o, m;
+  P.set(10, { id: 10, v: -1, s: 'set' }); o = P.get(1000); P.get(2000);     // page 0 left memory after set: the edit was packed first
+  same({ id: 10, v: -1, s: 'set' }, P.get(10), 'set survives');
+  o = P.get(300); o.v = 12345; P.changed(300); P.get(2999); P.get(0);
+  assert.strictEqual(P.get(300).v, 12345, 'changed() keeps an edit made in place');
+  assert.strictEqual(P.get(301).v, 602, 'the other rows of the page are untouched');
+  assert.strictEqual(P.push({ id: 3000, v: 6000, s: 'p' }), 3001); assert.strictEqual(P.length, 3001); same({ id: 3000, v: 6000, s: 'p' }, P.get(3000), 'pushed row');
+  for (var i = 0; i < 300; i++) P.push({ id: 3001 + i, v: i, s: 'q' });
+  assert.strictEqual(P.length, 3301); same({ id: 3300, v: 299, s: 'q' }, P.get(3300), 'a second new page'); same(rows[1500], P.get(1500), 'old rows still there');
+  P.release(); m = P.memory(); assert.strictEqual(m.open, 0); assert.strictEqual(m.dirty, 0, 'release packed the edited pages');
+  same({ id: 10, v: -1, s: 'set' }, P.get(10), 'still there after release'); same({ id: 3300, v: 299, s: 'q' }, P.get(3300), 'pushed rows still there after release');
+});
+t('pager: pressure steps the open pages down, small and odd lists work', function () {
+  var rows = many(2000, function (i) { return { id: i, k: 'a' + (i % 5) }; }), P = J.pager(rows, opt({ pageRows: 100, livePages: 8, readAhead: false })), lv = [], Q, E, S;
+  for (var i = 0; i < 2000; i += 100) P.get(i);
+  assert.strictEqual(P.memory().open, 8); P.pressure(1); assert.strictEqual(P.memory().open, 4, 'level 1 keeps half'); P.pressure(2); assert.strictEqual(P.memory().open, 0, 'level 2 keeps none');
+  same(rows[1234], P.get(1234), 'a closed list still reads'); P.pressure(0); for (i = 0; i < 2000; i += 100) P.get(i); assert.strictEqual(P.memory().open, 8, 'back to normal');
+  Q = J.pager([], opt({})); assert.strictEqual(Q.length, 0); assert.strictEqual(Q.get(0), undefined); Q.push({ a: 1 }); same({ a: 1 }, Q.get(0), 'push into an empty pager');
+  E = J.pager(many(7, function (i) { return { i: i }; }), opt({ pageRows: 3 })); same({ i: 6 }, E.get(6), 'pages of 3 rows, 7 rows'); assert.strictEqual(E.memory().pages, 3);
+  S = J.pager(many(50, function (i) { return i; }), opt({ pageRows: 1 })); assert.strictEqual(S.get(49), 49); assert.strictEqual(S.memory().pages, 50);
+  throwsJ(function () { J.pager('nope'); }, 'not an array'); throwsJ(function () { P.set(99999, 1); }, 'set outside the list');
+});
+tAsync('pager: each() walks the pages with the page free in between and reads open pages as they are', function () {
+  var rows = many(3000, function (i) { return { id: i, s: 'v' + (i % 13) }; }), P = J.pager(rows, opt({ pageRows: 200, livePages: 2, readAhead: false })), seen = [], firsts = [], before;
+  P.set(5, { id: 5, s: 'edited' }); before = P.memory().open;
+  return P.each(function (objs, first) { firsts.push(first); for (var i = 0; i < objs.length; i++) seen.push(objs[i]); }, { sliceMs: 1 }).then(function (n) {
+    assert.strictEqual(n, 3000); assert.strictEqual(seen.length, 3000); assert.strictEqual(firsts.length, 15); assert.strictEqual(firsts[3], 600);
+    assert.strictEqual(seen[5].s, 'edited', 'an open edited page is read as it is'); same(rows[2999], seen[2999], 'last row'); assert(P.memory().open <= before, 'each() does not leave pages open');
+  });
+});
+tAsync('pager: reading rows in order opens the next page in the background', function () {
+  var rows = many(1200, function (i) { return { id: i }; }), P = J.pager(rows, opt({ pageRows: 100, livePages: 4 }));
+  P.get(0); P.get(150);
+  return new Promise(function (res) { setTimeout(res, 20); }).then(function () { assert(P.memory().open >= 3, 'page 2 opened ahead: ' + P.memory().open); assert.strictEqual(P.get(250).id, 250); });
+});
+
+tAsync('pager: background: true reads at once, packs the pages in slices, then settle() packs later edits', function () {
+  var rows = many(6000, function (i) { return { id: i, s: 'v' + (i % 17), n: i * 3 }; }), P = J.pager(rows, opt({ pageRows: 512, livePages: 2, background: true, sliceMs: 1 }));
+  assert.strictEqual(P.memory().packed, 0, 'nothing is packed yet'); same(rows[4000], P.get(4000), 'readable before it is packed');
+  return P.ready.then(function (Q) {
+    var m = Q.memory(); assert(Q === P && m.dirty === 0 && m.packed > 0 && m.open <= 2, 'packed, clean and within the limit: ' + JSON.stringify(m));
+    same(rows, Q.range(0), 'every row after the build'); Q.set(100, { id: 100, s: 'z', n: -1 }); assert.strictEqual(Q.memory().dirty, 1);
+    return Q.settle(1);
+  }).then(function (Q) { assert.strictEqual(Q.memory().dirty, 0, 'settle packed the edit'); Q.release(); same({ id: 100, s: 'z', n: -1 }, Q.get(100), 'edit kept'); });
+});
+
+tAsync('pager: spill moves closed pages to a store and getAsync() brings them back; an edit after that is kept', function () {
+  var rows = many(4000, function (i) { return { id: i, s: 'w' + (i % 9), n: i * 5 }; }), mem = {}, writes = 0, store = {
+    put: function (k, b) { writes++; return new Promise(function (res) { setTimeout(function () { mem[k] = b.slice(); res(); }, 0); }); },
+    get: function (k) { return new Promise(function (res, rej) { setTimeout(function () { mem[k] ? res(mem[k].slice()) : rej(new Error('missing ' + k)); }, 0); }); },
+    remove: function (k) { delete mem[k]; return Promise.resolve(); } }, P = J.pager(rows, opt({ pageRows: 500, livePages: 2, readAhead: false, spill: store })), before = P.memory().packed;
+  P.get(10); P.get(700);
+  return P.spill({ all: true }).then(function () {
+    var m = P.memory(); assert.strictEqual(m.open, 0); assert.strictEqual(m.spilled, 8, 'all 8 pages are on disk'); assert.strictEqual(m.packed, 0, 'no packed bytes left in memory'); assert.strictEqual(writes, 8);
+    throwsJ(function () { P.get(10); }, 'reading a spilled page without loading it');
+    return P.getAsync(3999);
+  }).then(function (o) {
+    same(rows[3999], o, 'row from a spilled page'); P.set(3999, { id: 3999, s: 'edited', n: 0 }); return P.spill({ all: true });
+  }).then(function () { assert.strictEqual(writes, 9, 'only the edited page was written again: ' + writes); return P.getAsync(3999); })
+    .then(function (o) { same({ id: 3999, s: 'edited', n: 0 }, o, 'edit kept through the store'); return P.getAsync(250); })
+    .then(function (o) { same(rows[250], o, 'an untouched page'); var seen = 0; return P.each(function (objs) { seen += objs.length; }).then(function () { assert.strictEqual(seen, 4000, 'each() reads spilled pages'); }); })
+    .then(function () { return P.dispose(); }).then(function () { assert.strictEqual(Object.keys(mem).length, 0, 'dispose empties the store'); });
+});
+tAsync('pager: pressure level 2 spills by itself, read-ahead fetches the next spilled page', function () {
+  var rows = many(3000, function (i) { return { id: i, k: 'a' + (i % 4) }; }), mem = {}, store = {
+    put: function (k, b) { mem[k] = b.slice(); return Promise.resolve(); }, get: function (k) { return Promise.resolve(mem[k].slice()); }, remove: function (k) { delete mem[k]; return Promise.resolve(); } },
+    P = J.pager(rows, opt({ pageRows: 300, livePages: 3, spill: store }));
+  P.get(5); P.get(305); P.pressure(2);
+  return new Promise(function (res) { setTimeout(res, 20); }).then(function () {
+    assert.strictEqual(P.memory().spilled, 10, 'level 2 spilled every page'); P.pressure(0); return P.getAsync(0);
+  }).then(function () { return P.getAsync(300); }).then(function () { P.get(0); P.get(300); P.get(0); return new Promise(function (res) { setTimeout(res, 20); }); })
+    .then(function () { assert(P.memory().open >= 3, 'the next spilled page was fetched ahead: ' + P.memory().open); same(rows[650], P.get(650), 'read-ahead page is readable'); });
 });
 
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {

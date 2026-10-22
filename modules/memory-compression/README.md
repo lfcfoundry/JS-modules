@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.1.2 · API 2**
+**Version 2.2.0 · API 2**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5
+**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5, one at a time; order of numbers Chromium / Firefox / WebKitGTK / GNOME Web
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
 
@@ -32,7 +32,7 @@ var held = MemoryCompression.pack(nodes, { width: 64, chunk: 262144 });
 var piece = MemoryCompression.view(held).read(3);                 // only piece 3, restored in about 1 ms
 ```
 
-Lists of objects: `view()` opens a packed list without making any objects, and `keeper()` holds named values under a memory budget.
+Lists of objects: `view()` opens a packed list without making any objects, `keeper()` holds named values under a memory budget, and `pager()` keeps a long list packed in pages that open, leave memory and spill to browser storage as needed.
 
 ```js
 var packed = MemoryCompression.pack(links, { mode: 'balanced' });  // links: 300,000 objects with the same keys
@@ -41,6 +41,31 @@ v.get(4711);  v.field(4711, 'weight');  v.column('x1');            // one object
 var K = MemoryCompression.keeper({ budget: 600e6 });               // restores in slices; the page stays free
 K.hold('layout', layout);  K.restore('layout').then(function (layout) { /* ... */ });
 ```
+
+```js
+var P = MemoryCompression.pager(links, { pageRows: 2048, livePages: 4 });  // keeps the list packed in pages; your own array can be let go
+P.get(4711);                       // one object, 0.4 to 3 ms the first time (only its page opens), then under a microsecond
+P.range(1000, 1500);               // a run of rows
+P.set(4711, links2);  P.changed(4711);   // after you change a row; its page is packed again when it leaves memory
+P.pressure(1);                     // memory is tight: half the open pages go;  P.pressure(2): all go;  P.pressure(0): normal
+P.spill({ all: true }).then(function () { /* packed bytes are in browser storage, none in memory */ });  // needs { spill: true }
+MemoryCompression.pager(links, { background: true }).ready.then(function (P) { /* packed, a few milliseconds at a time */ });
+```
+
+`pager(list, opts)` is for long lists of objects you read a few at a time (a map, a log, a table). The list is packed in pages of `pageRows` rows (default 2,048; larger pages open slower). At most `livePages` (default 4) pages are open at once; the least recently used one leaves memory when another opens, and a page that was only read leaves for free because its packed copy stays. Rows read in order open the next page in the background (`readAhead`, default on). `get(i)`, `range(from, to)`, `each(fn)` (a promise, one page at a time with the page free in between), `set`, `changed`, `push`, `flush()`, `settle()` (a promise: packs edited pages a few milliseconds at a time), `trim(n)`, `release()`, `pressure(level)`, `memory()`. `background: true` makes the pager at once and packs its pages a slice at a time (`ready` is a promise of the pager; reads work meanwhile); `sliceMs` sets the slice (default 8). With `auto` on (default) the pager steps the open pages down by itself when the page's heap gets close to its limit (Chromium-based browsers only; elsewhere call `pressure()` from your own signal); `onPressure(level, memory)` is called when that changes. `spill: true` (browser storage, IndexedDB) or `spill: { put, get, remove }` (your own store; each returns a promise) lets cold pages leave memory altogether: `spill()` (a promise) writes every closed, unedited page to the store and drops its packed bytes (`spill({ all: true })` closes the open pages first; a page that came back unchanged is not written again), `pressure(2)` does it by itself, `await load(i)` or `await getAsync(i)` brings a page back (the next page is fetched ahead when rows are read in order), `each()` reads spilled pages straight from the store, and `dispose()` empties the store. Plain `get(i)` on a spilled page throws a message that says to load it first. Objects handed out by `get()` belong to their page: after the page leaves memory and comes back they are new objects, so call `changed(i)` or `set(i, value)` for a row you changed, and do not keep objects that point at each other across pages. Every other option is a pack option used for each page.
+
+**Pager numbers** (pages of 2,048 rows, 4 pages open; ms, lower is better; ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time). Opening a closed page, median / 90th percentile:
+
+| Browser | Links (60,000) | Scene items (20,000) | User records (10,000) |
+|---|---:|---:|---:|
+| Chromium | 0.50 / 1.00 | 0.70 / 2.20 | 0.90 / 2.70 |
+| Firefox | 0.42 / 0.50 | 0.86 / 1.00 | 1.34 / 1.94 |
+| WebKitGTK | 2 / 2 | 2 / 3 | 3 / 6 |
+| GNOME Web | 1 / 2 | 1 / 2 | 3 / 6 |
+
+The first read of one row from the whole packed list (`view()`) is 6 to 50 ms; a row in an open page is under 1 microsecond. Packed bytes against packing the list whole: 2% more (Links), 4% more (Scene items), 5% more (User records). Packing 60,000 links into pages freezes the page for 50.6 / 61.2 / 70 / 72 ms all at once (Chromium / Firefox / WebKitGTK / GNOME Web) and 7.3 / 6.5 / 9 / 9 ms with `background: true`. Real JS heap in Chromium 155 for 60,000 links: 7.62 MB as live objects, 2.43 MB with the pager and nothing open, 3.46 MB with 4 pages open. Bringing a page back from browser storage (read plus unpack) takes 1.8 to 8 ms median for the three lists in the four browsers; writing all of Links' pages to storage takes 39 to 47 ms and takes the packed bytes in memory from 1.59 MB to 0.
+
+Larger pages open slower: 4,096-row pages opened 6 to 10 times slower than 2,048 in Chromium (a start-up cost in the text path at 4,096 rows and up), so the default stays 2,048. The automatic memory-pressure step needs `performance.memory` (Chromium-based browsers); elsewhere call `pressure()` from your own signal. Spilled pages are stored under a random id per pager; call `dispose()` when done.
 
 The WebAssembly helper starts the first time you pack or unpack (since 2.0.3), so a page that never packs does not pay for it. `accelerated()` is `false` until then; `await MemoryCompression.ready()` starts it early if you want the fast path from the very first call. Try it: `demo.html` (objects) and `demo-arrays.html` (arrays and bytes).
 
@@ -70,7 +95,7 @@ The WebAssembly helper starts the first time you pack or unpack (since 2.0.3), s
 | `wasm` | `false` forces plain JavaScript | use WebAssembly if available |
 | `maxSize`, `maxItems` | limits that stop a hostile or damaged input (1 GiB, 100,000,000) | as shown |
 
-Also on the object: `keeper(opts)` with `hold`, `get`, `restore`, `each`, `pin`, `unpin`, `trim`, `release`, `drop`, `memory`, `calibrate`; `estimateBytes(value)`, `profile(value, opts, repeats)`, `heap()`; `ready()` and `accelerated()`; the standard formats `lz4Compress`, `lz4Decompress`, `deflate`, `inflate`, `zlib`, `unzlib`, `gzip`, `gunzip`; and `shuffle`, `unshuffle`, `crc32`, `adler32`. The parts are `MemoryCompression.core`, `.objects` (also `.jso`, and the global `MemoryCompressionJSO`) and `.picker`. Errors are `Error` objects whose message starts with `MemoryCompression:` and says what is wrong in plain words. Every option with its default is listed in the full notes.
+Also on the object: `pager(list, opts)` with `get`, `getAsync`, `load`, `range`, `each`, `set`, `changed`, `push`, `flush`, `settle`, `spill`, `trim`, `release`, `pressure`, `memory`, `dispose`; `keeper(opts)` with `hold`, `get`, `restore`, `each`, `pin`, `unpin`, `trim`, `release`, `drop`, `memory`, `calibrate`; `estimateBytes(value)`, `profile(value, opts, repeats)`, `heap()`; `ready()` and `accelerated()`; the standard formats `lz4Compress`, `lz4Decompress`, `deflate`, `inflate`, `zlib`, `unzlib`, `gzip`, `gunzip`; and `shuffle`, `unshuffle`, `crc32`, `adler32`. The parts are `MemoryCompression.core`, `.objects` (also `.jso`, and the global `MemoryCompressionJSO`) and `.picker`. Errors are `Error` objects whose message starts with `MemoryCompression:` and says what is wrong in plain words. Every option with its default is listed in the full notes.
 
 ## Numbers and how it compares
 
@@ -116,7 +141,7 @@ Fast mode restores faster than lz4-wasm in Firefox 158.0 and Chromium 155 but no
 
 ## Test it and rebuild it
 
-`node modules/memory-compression/test/core.js` (packing core, 24 checks), `test/run.js` (object layer, 41 checks) and `test/router.js` (the one entry point, 15 checks), a few seconds each; `--js-only` runs without WebAssembly and `FULL=1` adds 10 times more random cases. Browser checks: `bench/lazy-start.js`, `bench/csp-and-speed.js` and `bench/browser-run.js` (see `bench/README.md`). Rebuild the file with `python3 modules/memory-compression/build.py`; rebuild the helper with `sh wasm/build.sh && python3 wasm/embed.py` (clang with the wasm32 target); the JavaScript and WebAssembly paths must stay byte-identical, and the tests check that.
+`node modules/memory-compression/test/core.js` (packing core, 24 checks), `test/run.js` (object layer, 49 checks) and `test/router.js` (the one entry point, 15 checks), a few seconds each; `--js-only` runs without WebAssembly and `FULL=1` adds 10 times more random cases. Browser checks: `bench/lazy-start.js`, `bench/csp-and-speed.js` and `bench/browser-run.js` (see `bench/README.md`). Rebuild the file with `python3 modules/memory-compression/build.py`; rebuild the helper with `sh wasm/build.sh && python3 wasm/embed.py` (clang with the wasm32 target); the JavaScript and WebAssembly paths must stay byte-identical, and the tests check that.
 
 ## For AI agents
 
