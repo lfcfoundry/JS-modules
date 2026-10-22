@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.0.3 (API 2)
+ * Version 2.0.4 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -3308,6 +3308,57 @@
   };
   var ZEROS = '000000000000000';
   function pad(v, w) { var s = '' + v; return s.length >= w ? s : ZEROS.substring(0, w - s.length) + s; }
+  // Slots that are table lookups (kind 1) and sit side by side are merged into one lookup: the row's combination of their values is one number (mixed radix), and its
+  // text is made once per combination that shows up (a month, a day and an hour is at most 12 * 28 * 24 combinations however many rows there are). A row then costs one lookup instead
+  // of a join of several pieces. Only for one pattern, at most 65,536 combinations, and at most 4 per row. Returns the merged slots, or null when nothing can be merged.
+  function mixInto(idx, a, lo, span, n) {                          // one loop per kind of array, so each loop sees one type
+    var i;
+    if (a instanceof Uint8Array) for (i = 0; i < n; i++) idx[i] = idx[i] * span + (a[i] - lo);
+    else if (a instanceof Uint16Array) for (i = 0; i < n; i++) idx[i] = idx[i] * span + (a[i] - lo);
+    else if (a instanceof Int32Array) for (i = 0; i < n; i++) idx[i] = idx[i] * span + (a[i] - lo);
+    else if (a instanceof Float64Array) for (i = 0; i < n; i++) idx[i] = idx[i] * span + (a[i] - lo);
+    else for (i = 0; i < n; i++) idx[i] = idx[i] * span + (a[i] - lo);
+  }
+  function templateRun(n, L, R, widths, kinds, arrs, tabs, los) {
+    var j0 = -1, j1 = -1, P = 1, cnt = 0, j, span, other = false, idx, T, make, k, r;
+    for (j = 0; j < R; j++) {
+      if (kinds[j] === 1) {
+        span = tabs[j].length;
+        if (j0 < 0) { j0 = j1 = j; P = span; cnt = 1; }
+        else if (!other && P * span <= 65536 && P * span <= 4 * n) { P *= span; j1 = j; cnt++; }
+        else other = true;
+      } else if (kinds[j] !== 3) { if (j0 >= 0 && !other) other = true; else if (j0 < 0) other = true; }
+    }
+    if (cnt < 2 || P > 4 * n) return null;
+    idx = new Uint16Array(n);
+    for (j = j0; j <= j1; j++) if (kinds[j] === 1) mixInto(idx, arrs[j], los[j], tabs[j].length, n);
+    T = new Array(P).fill('');
+    make = function (x) {
+      var vals = [], d, sp, q, str;
+      for (q = j1; q >= j0; q--) { if (kinds[q] === 1) { sp = tabs[q].length; d = x % sp; x = (x - d) / sp; vals[q] = tabs[q][d]; } else vals[q] = tabs[q]; }
+      str = vals[j0];
+      for (q = j0 + 1; q <= j1; q++) str += L[q] + vals[q];
+      return str;
+    };
+    for (k = 0; k < n; k++) { r = idx[k]; if (T[r] === '') T[r] = make(r); }
+    // the slots after the merged ones that vary (or any slot that is not a constant outside the run) keep their own place; if nothing varies outside, the text around is folded in too
+    for (j = 0; j < R; j++) if ((j < j0 || j > j1) && kinds[j] !== 3) { other = true; break; }
+    var nl = [], nw = [], nk = [], na = [], nt = [], nlo = [];
+    if (!other) {
+      var pre = L[0], post = '', q2;
+      for (q2 = 0; q2 < j0; q2++) pre += tabs[q2] + L[q2 + 1];
+      pre = j0 > 0 ? pre : L[0];
+      post = L[j1 + 1];
+      for (q2 = j1 + 1; q2 < R; q2++) post += tabs[q2] + L[q2 + 1];
+      if (pre || post) for (k = 0; k < P; k++) if (T[k] !== '') T[k] = pre + T[k] + post;
+      return { lits: ['', ''], R: 1, widths: [0], kinds: [1], arrs: [idx], tabs: [T], los: [0] };
+    }
+    for (j = 0; j < j0; j++) { nl.push(L[j]); nw.push(widths[j]); nk.push(kinds[j]); na.push(arrs[j]); nt.push(tabs[j]); nlo.push(los[j]); }
+    nl.push(L[j0]); nw.push(0); nk.push(1); na.push(idx); nt.push(T); nlo.push(0);
+    for (j = j1 + 1; j < R; j++) { nl.push(L[j]); nw.push(widths[j]); nk.push(kinds[j]); na.push(arrs[j]); nt.push(tabs[j]); nlo.push(los[j]); }
+    nl.push(L[R]);
+    return { lits: nl, R: nk.length, widths: nw, kinds: nk, arrs: na, tabs: nt, los: nlo };
+  }
   // The strings come back as literal + number + literal ...; a column of numbers that spans few values is turned into text once and looked up.
   function buildTemplate(n, tpls, R, widths, tid, cols) {
     var nt = tpls.length, out = new Array(n), kinds = [], arrs = [], tabs = [], los = [], lits, j, t, i, a, lo, hi, x, k, sig, f, v;
@@ -3321,6 +3372,7 @@
         kinds[j] = 1; tabs[j] = v; los[j] = lo;
       } else if (widths[j]) kinds[j] = 2;
     }
+    if (nt === 1 && (j = templateRun(n, tpls[0], R, widths, kinds, arrs, tabs, los))) { tpls = [j.lits]; R = j.R; widths = j.widths; kinds = j.kinds; arrs = j.arrs; tabs = j.tabs; los = j.los; }
     sig = 'p' + nt + '|' + R + '|' + kinds.join('') + '|' + widths.join(',') + '|' + JSON.stringify(tpls);
     f = GEN_CACHE[sig];
     if (!f) {
