@@ -8,7 +8,7 @@
   "modules": [
     {
       "id": "stage-curtains",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "api": 1,
       "global": "StageCurtains",
       "summary": "Velvet stage curtains that slide shut over a page, then fly open; the velvet is painted by a small WebAssembly loop with plain JavaScript as the fallback.",
@@ -139,8 +139,22 @@
       "category": "adaptation"
     },
     {
+      "id": "field-report",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "FieldReport",
+      "summary": "Two hidden buttons for a game or app: five taps in a corner open a panel that saves a speed report (start-up, frames a second, slowest frames, heavy tasks, plain verdict) and an error log, as small Markdown files. No network.",
+      "short": "Hidden buttons that save a speed report and an error log from a real device. No network.",
+      "file": "modules/field-report/field-report.js",
+      "readme": "modules/field-report/README.md",
+      "demo": "modules/field-report/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "adaptation"
+    },
+    {
       "id": "sprite-baker",
-      "version": "1.6.1",
+      "version": "1.7.0",
       "api": 1,
       "global": "SpriteBaker",
       "summary": "Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. Optional WebAssembly fill add-on (same pixels, about 1.1 to 1.4 times faster baking in Chromium and Firefox).",
@@ -210,7 +224,7 @@
     },
     {
       "id": "lzma-decode",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "api": 1,
       "global": "lzmaDecode",
       "summary": "LZMA1 decoder that uses WebAssembly first (about 1.5 to 2.6 times faster to open a page) and falls back to a small readable ES5 JavaScript decoder; tested against Python's lzma. Browsers can only unpack gzip and deflate natively.",
@@ -224,7 +238,7 @@
     },
     {
       "id": "ppmd-decode",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "api": 1,
       "global": "ppmd7Decode",
       "summary": "A PPMd (7-Zip PPMd7) decoder that uses WebAssembly first (about 1.4 to 1.8 times faster to open a page) and falls back to one ES5 JavaScript function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip.",
@@ -292,7 +306,7 @@
     },
     {
       "id": "pcodec-js",
-      "version": "1.0.1",
+      "version": "1.2.0",
       "api": 1,
       "global": "PcodecJS",
       "summary": "Pcodec for web pages: unpacks (and optionally packs) big lists of numbers in a browser, one file, same bytes as any other Pcodec. The unpack-only file is 68 KB gzipped (the other JavaScript build of Pcodec is 324 KB), streams a 4,000,000-number file in 6.8 MB of memory, and WebAssembly is required (no plain-JavaScript backup).",
@@ -306,7 +320,7 @@
     },
     {
       "id": "netflow-sankey",
-      "version": "2.2.1",
+      "version": "2.3.0",
       "api": 2,
       "global": "NetflowSankey",
       "summary": "Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer.",
@@ -320,7 +334,7 @@
     },
     {
       "id": "netflow-engine",
-      "version": "2.1.0",
+      "version": "2.2.1",
       "api": 2,
       "global": "NetflowEngine",
       "summary": "The engine of Netflow Map as a module you can copy and adapt: nine views of a map and eleven network layouts, no two items on top of each other, WebAssembly twins for Force and Distances, and a use() hand-over for the layers and Sankey add-ons; a 30,000-item network lays out in about 0.8 s.",
@@ -547,7 +561,7 @@
     },
     {
       "id": "test-runner",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "summary": "Shared pieces for browser checks and speed tests: warm browsers, a four-browser runner, fair timing, skip-unchanged wasm builds, a wasm-versus-JavaScript twin test, a picture fingerprint gate and an automatic bisect.",
       "short": "Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect.",

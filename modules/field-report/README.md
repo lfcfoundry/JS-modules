@@ -1,0 +1,55 @@
+# field-report
+
+**Version 1.0.0 · API 1**
+
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5, one at a time
+
+Two hidden buttons for a game or app, so a person on a real phone or laptop can hand over what happened: **Save speed report** and **Save error log**. Five quick taps in a corner of the page open a small panel with the two buttons; each saves one small Markdown file on the device. The module draws nothing until then, makes no network request, and keeps no names.
+
+How it works: `FieldReport.start()` begins watching the moment the file runs. A tiny `requestAnimationFrame` loop keeps the last 3,600 frame times in a ring of numbers (no garbage per frame). The browser's own timeline gives first paint, DOMContentLoaded and load. Page errors, rejected promises, files that failed to load, page-policy blocks and `console.error` / `console.warn` lines go into a list of the last 200 different lines, repeats counted. Taps are counted from the page's own pointer events in the corner square, so nothing sits over your game and it cannot steal a tap. The speed report ends in a plain-words verdict such as "Mostly smooth. 56 FPS on average (higher is better), the slowest 1% of frames run at 12 FPS, the slowest frame took 83 ms (lower is better), 0 frame(s) took over 100 ms."
+
+## Why it exists
+The project rule is that every game and app has a hidden real-device speed button and a hidden error-log button, so the owner can test on a phone and send back numbers instead of "it felt slow". The same two buttons were being written again in each game; this is the one shared copy. Closest alternatives: Chrome DevTools and Lighthouse need a computer attached; `stats.js` and similar overlays show frames a second on screen but save nothing and record no errors; Sentry and similar services collect errors but send them over the network, which the games here never do.
+
+## Quick start
+```html
+<script src="field-report.js"></script>   <!-- first, so start-up errors are caught -->
+<script>
+  var fr = FieldReport.start({ name: 'my-game', version: '2026.10.22.1700' });
+  fr.mark('first-screen');                                   // when the first screen is ready
+  var sprites = fr.task('bake-sprites', function () { return bake(); });   // time one heavy job, keep its answer
+</script>
+```
+Then tap the top-left corner five times. Open `demo.html` to try it.
+
+## API
+| Call | What it does |
+|---|---|
+| `FieldReport.start(options)` | Starts watching; returns the controller below. Without a window (Node) it returns a quiet object that does nothing. |
+| `fr.mark(name)` | Records a start-up step (milliseconds since the page started). |
+| `fr.task(name, fn)` | Runs `fn`, records how long it took (also if it throws), returns its answer. |
+| `fr.time(name, ms)` | Records a time you measured yourself. |
+| `fr.speedText()` / `fr.errorsText()` | The two reports as Markdown text. `fr.speed()` and `fr.errors()` give the numbers as objects. |
+| `fr.open()` / `fr.close()` / `fr.isOpen()` | Show or hide the panel yourself (for example from your own settings screen). |
+| `fr.saveSpeed()` / `fr.saveErrors()` | Save without the panel. Return `{ text, file, saved }`. |
+| `fr.stop()` | Stops everything and puts the console back. |
+
+Options: `name` (used in file names, `my-game-speed-20261022-1700.md`), `version` (your release stamp, shown in the reports), `corner` (`'top-left'` by default, or `'top-right'`, `'bottom-left'`, `'bottom-right'`), `taps` (5) within `within` ms (2500) inside a square of `size` px (64), `fps` (60: what "smooth" means for this page; use 30 for a 30 FPS game), `frames` (`false` skips the frame loop), `console` (`false` leaves the console alone), `onSave(text, fileName, kind)` (replaces the file download, for example to open a share sheet), `onOpen`, `onClose`.
+
+## What a report holds
+- **Speed report:** device lines (browser string, cores, memory class, screen, pixel ratio, WebAssembly and Worker yes/no), the verdict, a start-up table (first paint, DOMContentLoaded, load, your marks), frame numbers (average FPS, FPS of the slowest 1%, slowest five frames, counts over 33, 50 and 100 ms) and the 15 heaviest tasks.
+- **Error log:** the same device lines, a one-line summary ("12 error line(s), 3 different: 10 error, 2 console.warn"), a table with seconds since start, kind, times and text, and the stack of each error that has one.
+
+## Limits
+- Errors raised before this file ran cannot be seen; put it first.
+- Heavy tasks from the browser's own long-task report exist in Chromium only. In Firefox and Safari engines, wrap known heavy jobs in `task()` or `time()`; frame gaps still show the freezes.
+- Frames while the page is hidden are dropped. A page that draws only when something changes has few frames; use `frames: false` there.
+- The memory class is rounded by the browser and missing in Firefox and Safari engines. Nothing about the person (no name, no storage, no cookies) is read.
+- Files are saved with a download link and a Blob. If the browser will not (some in-app webviews), the text is shown in a box to copy; or pass `onSave`.
+- The panel is built with element styles, not a `<style>` tag or style attribute, so it works under a strict page policy (`style-src 'self'`). Nothing needs `'unsafe-inline'`.
+
+## Prior art and credits
+No code was taken from anywhere. The ideas of a ring buffer of frame times, "1% low" frame rate and the long-task entry are common practice in game and web performance tools; the long-task entry is the W3C Long Tasks API.
+
+## For AI agents
+One file, no dependencies, ES5, UMD (`window.FieldReport` or `require`). Start it before other scripts. Tests: `node modules/field-report/test/run.js` (44 checks, fake window) and `node tests/field-report-browser.js chromium|firefox|webkit|epiphany`.
