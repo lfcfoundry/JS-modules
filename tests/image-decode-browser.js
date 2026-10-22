@@ -48,6 +48,7 @@ function inPage(arg) {
 
     // (2) timing
     const W = (m, url) => m;
+    let uniq = 0;   // each try gets its own media-type parameter, so a data: address is new every time and the browser's picture cache cannot answer it
     async function once(method, url) {
       const blob = await (await fetch(url, { cache: 'no-store' })).blob();
       let run = true, last = performance.now(), maxGap = 0; const ch = new MessageChannel();
@@ -55,12 +56,12 @@ function inPage(arg) {
       ch.port2.postMessage(0); await new Promise(r => setTimeout(r, 30)); maxGap = 0; last = performance.now();
       const t0 = performance.now(); let src;
       if (method === 'plain') src = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(blob); });
-      else src = await ID.load(blob, { strategy: method });
+      else { const sa = method.split('-'); src = await ID.load(new Blob([blob], { type: blob.type + ';n=' + (++uniq) }), { strategy: sa[0], address: sa[1] }); }   // 'decode-data' = Image.decode() through a data: address, 'decode-blob' through a blob: address
       const t1 = performance.now(); g.clearRect(0, 0, 512, 512); g.drawImage(src, 0, 0, 512, 512); g.getImageData(0, 0, 1, 1);
       const draw = performance.now() - t1, total = performance.now() - t0; run = false; await new Promise(r => setTimeout(r, 20)); ID.close(src);
       return { total, draw, gap: maxGap };
     }
-    const methods = ['plain', 'auto', 'bitmap', 'decode'];
+    const methods = ['plain', 'auto', 'bitmap', 'decode-blob', 'decode-data'];
     for (const size of [1024, 2048]) for (const fmt of ['png', 'webp', 'avif']) {
       const url = '/sheet' + size + '.' + fmt;
       if (!(await ID.supports(fmt))) { out.rows.push({ size, fmt, skip: true }); continue; }
@@ -90,9 +91,61 @@ function inPage(arg) {
   })();
 }
 
+
+// The strict-policy page: the same Content-Security-Policy our games ship (img-src data: only; csp=b adds worker-src blob:), the module inlined,
+// no network. It checks that the picture loads and draws the same pixels with the policy refusing blob: pictures, that a forced blob: address is
+// really refused (so the policy is in force), and, when IMG_DIR holds the 2048 sheets, times them (freeze loop as above).
+function strictPage(csp) {
+  const policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; " + (csp === 'b' ? 'worker-src blob:; ' : '') + "base-uri 'none'; form-action 'none'";
+  const sheets = {}; if (IMG_DIR) for (const f of ['png', 'webp']) { const q = path.join(IMG_DIR, 'sheet2048.' + f); if (fs.existsSync(q)) sheets[f] = fs.readFileSync(q).toString('base64'); }
+  const code = '(' + function (fix, sheets, ID) {
+    const out = { checks: {}, ms: {}, strategy: ID.strategy };
+    const g = document.getElementById('c').getContext('2d', { willReadFrequently: true });
+    const mark = (k, ok) => { out.checks[k] = !!ok; };
+    const hash = () => { let h = 2166136261; const px = g.getImageData(0, 0, 48, 32).data; for (let i = 0; i < px.length; i++) h = Math.imul(h ^ px[i], 16777619) >>> 0; return h; };
+    const plain = u => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('plain load failed')); i.src = u; });
+    const med = a => { a = a.slice().sort((x, y) => x - y); return a[a.length >> 1]; };
+    (async () => {
+      try {
+        const uri = 'data:image/png;base64,' + fix.png, ref = await plain(uri); g.clearRect(0, 0, 48, 32); g.drawImage(ref, 0, 0); const refHash = hash();
+        for (const way of ['auto', 'decode']) {
+          const d = await ID.load(uri, { strategy: way }); g.clearRect(0, 0, 48, 32); g.drawImage(d, 0, 0);
+          mark('png ' + way + ' draws the same pixels as the plain picture', hash() === refHash && (d.width || d.naturalWidth) === 48);
+        }
+        let refused = false; try { await ID.load(uri, { strategy: 'decode', address: 'blob' }); } catch (e) { refused = true; }
+        mark('a forced blob: address is refused by this policy (the policy is in force)', refused);
+        mark('supports(png) and supports(webp) are true under this policy', (await ID.supports('png')) && (await ID.supports('webp')));
+        const d2 = await ID.load('data:image/webp;base64,' + fix.webp); g.clearRect(0, 0, 48, 32); g.drawImage(d2, 0, 0); mark('webp auto draws the same pixels as the PNG', hash() === refHash);
+        for (const f of Object.keys(sheets)) {
+          const mime = 'image/' + f, bytes = Uint8Array.from(atob(sheets[f]), c => c.charCodeAt(0)), rows = {};
+          for (const m of ['plain', 'auto', 'bitmap', 'data', 'worker']) rows[m] = [];
+          for (let t = 0; t < 5; t++) for (const m of ['plain', 'auto', 'bitmap', 'data', 'worker']) {
+            let run = true, last = performance.now(), gap = 0; const ch = new MessageChannel();
+            ch.port1.onmessage = () => { const n = performance.now(); if (n - last > gap) gap = n - last; last = n; if (run) ch.port2.postMessage(0); };
+            ch.port2.postMessage(0); await new Promise(r => setTimeout(r, 30)); gap = 0; last = performance.now();
+            const t0 = performance.now(); let src, err = null;
+            try {
+              const blob = new Blob([bytes], { type: mime + ';n=' + Math.random().toString(36).slice(2) });   // a new media type each try: no picture-cache hit on the data: address
+              if (m === 'plain') src = await plain('data:' + mime + ';base64,' + sheets[f] + '#' + t + m);
+              else src = await ID.load(blob, m === 'auto' ? {} : m === 'bitmap' ? { strategy: 'bitmap' } : { strategy: 'decode', address: m });
+              g.clearRect(0, 0, 512, 512); g.drawImage(src, 0, 0, 512, 512); g.getImageData(0, 0, 1, 1);
+            } catch (e) { err = String(e && e.message || e); }
+            const total = performance.now() - t0; run = false; await new Promise(r => setTimeout(r, 20)); if (src) ID.close(src);
+            rows[m].push(err ? { err } : { total, gap });
+          }
+          out.ms[f] = {}; for (const m of Object.keys(rows)) { const ok = rows[m].filter(x => !x.err); out.ms[f][m] = ok.length ? { total: +med(ok.map(x => x.total)).toFixed(1), gap: +med(ok.map(x => x.gap)).toFixed(1) } : { err: rows[m][0].err }; }
+        }
+      } catch (e) { out.error = String(e && e.stack || e); }
+      window.__strict = out;
+    })();
+  } + ')(' + JSON.stringify(FIX) + ',' + JSON.stringify(sheets) + ', ImageDecode);';
+  return { policy, html: '<!doctype html><title>strict</title><canvas id=c width=512 height=512></canvas><script>' + SRC.replace(/<\/script/gi, '<\\/script') + '\nvar ImageDecode = (typeof module === "object" ? module.exports : self.ImageDecode) || self.ImageDecode;</script><script>' + code.replace(/<\/script/gi, '<\\/script') + '</script>' };
+}
+
 (async () => {
   const srv = http.createServer((q, r) => {
     const u = q.url.split('?')[0];
+    if (u === '/strict') { const sp = strictPage(new URL(q.url, 'http://x').searchParams.get('csp') === 'b' ? 'b' : 'a'); r.writeHead(200, { 'content-type': 'text/html', 'content-security-policy': sp.policy, 'cache-control': 'no-store' }); return r.end(sp.html); }
     if (u === '/') { r.writeHead(200, { 'content-type': 'text/html' }); return r.end('<!doctype html><title>image-decode</title><canvas id=c width=512 height=512></canvas>'); }
     const f = IMG_DIR && path.join(IMG_DIR, path.basename(u));
     if (!f || !fs.existsSync(f)) { r.writeHead(404); return r.end(); }
@@ -109,10 +162,19 @@ function inPage(arg) {
     for (const k of Object.keys(o.checks)) { console.log((o.checks[k] ? '  ok   ' : '  FAIL ') + k); if (!o.checks[k]) fails++; }
     if (o.rows.length) {
       console.log('ms, smaller is better: total / first draw / longest freeze, median of 7');
-      for (const r of o.rows) { if (r.skip) { console.log(String(r.size).padStart(5), r.fmt.padEnd(5), 'not readable here'); continue; } console.log(String(r.size).padStart(5), r.fmt.padEnd(5), ['plain', 'auto', 'bitmap', 'decode'].map(m => m.padEnd(6) + String(r[m].total).padStart(6) + ' /' + String(r[m].draw).padStart(6) + ' /' + String(r[m].gap).padStart(6)).join(' | ')); }
+      for (const r of o.rows) { if (r.skip) { console.log(String(r.size).padStart(5), r.fmt.padEnd(5), 'not readable here'); continue; } console.log(String(r.size).padStart(5), r.fmt.padEnd(5), ['plain', 'auto', 'bitmap', 'decode-blob', 'decode-data'].map(m => m.padEnd(11) + String(r[m].total).padStart(6) + ' /' + String(r[m].draw).padStart(6) + ' /' + String(r[m].gap).padStart(6)).join(' | ')); }
       console.log('list of 8 sheets (1024 PNG): ms, smaller is better; first = first picture ready, draws = drawing all 8, freeze = longest main-thread freeze; median of 5');
       for (const k of ['plain', 'list']) { const r = o.list[k]; console.log('  ' + (k === 'plain' ? 'plain, one after another' : 'loadAll, 2 at a time').padEnd(26), 'total', String(r.total).padStart(6), 'first', String(r.first).padStart(6), 'draws', String(r.draws).padStart(6), 'freeze', String(r.gap).padStart(6)); }
       if (process.env.OUT) fs.writeFileSync(process.env.OUT.replace('%', kind), JSON.stringify({ browser: await b.version(), strategy: o.strategy, rows: o.rows, list: o.list }));
+    }
+    for (const csp of ['a', 'b']) {   // the strict policy our games ship: a = img-src data: only, b = plus worker-src blob:
+      await page.goto('http://127.0.0.1:' + port + '/strict?csp=' + csp);
+      let so = null; for (let i = 0; i < 600 && !so; i++) { await new Promise(r => setTimeout(r, 100)); so = await page.evaluate(() => window.__strict || null); }
+      const label = 'strict policy ' + (csp === 'a' ? '(img-src data:)' : '(img-src data:, worker-src blob:)');
+      if (!so) { console.log('  FAIL ' + label + ': the page did not finish'); fails++; continue; }
+      if (so.error) { console.log('  FAIL ' + label + ': ' + so.error); fails++; }
+      for (const k of Object.keys(so.checks)) { console.log((so.checks[k] ? '  ok   ' : '  FAIL ') + label + ': ' + k); if (!so.checks[k]) fails++; }
+      for (const f of Object.keys(so.ms || {})) console.log('  ' + label + ' 2048 ' + f + ' (ms, smaller is better; total / longest freeze): ' + Object.keys(so.ms[f]).map(m => m + ' ' + (so.ms[f][m].err ? 'refused' : so.ms[f][m].total + ' / ' + so.ms[f][m].gap)).join(' | '));
     }
     await b.close();
   }
