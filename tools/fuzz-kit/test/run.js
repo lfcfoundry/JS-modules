@@ -545,6 +545,7 @@ const S = '/*TEST_HOOK_START*/', E = '/*TEST_HOOK_END*/';
     check('runner --init and --mobile reach the page', pg.initScripts && pg.initScripts[0] === "localStorage.setItem('k','v')" && pg.viewport.isMobile === true && pg.viewport.hasTouch === true, [pg.initScripts, pg.viewport]);
     check('Chrome does not get the FIREFOX variable as its executable', mod.pickExecutable('chrome', undefined, { FIREFOX: '/usr/bin/firefox' }) === undefined);
     check('Firefox gets the FIREFOX variable', mod.pickExecutable('firefox', undefined, { FIREFOX: '/usr/bin/firefox', CHROME: '/c' }) === '/usr/bin/firefox');
+    check('GNOME Web gets EPIPHANY and WebKitGTK gets nothing, whatever CHROME and FIREFOX say', mod.pickExecutable('epiphany', undefined, { CHROME: '/c', FIREFOX: '/f', EPIPHANY: '/e' }) === '/e' && mod.pickExecutable('webkitgtk', undefined, { CHROME: '/c', FIREFOX: '/f' }) === undefined && mod.pickExecutable('epiphany', undefined, { CHROME: '/c' }) === undefined);
     check('Chrome gets the CHROME variable, and --executable beats both', mod.pickExecutable('chrome', undefined, { CHROME: '/c' }) === '/c' && mod.pickExecutable('chrome', '/x', { CHROME: '/c' }) === '/x');
     check('consoleIgnored matches regular expressions', mod.consoleIgnored('Failed to load favicon.ico', ['favicon']) && !mod.consoleIgnored('boom', ['favicon']));
     // each seed gets its own context, and contexts are closed
@@ -560,11 +561,30 @@ const S = '/*TEST_HOOK_START*/', E = '/*TEST_HOOK_END*/';
     check('background: reads the runner output (version, clean seeds, failing seed with its words)', r.version === 'Chrome/155.0.8059.39' && r.ok === 2 && r.fails.length === 1 && r.fails[0].seed === 2 && r.fails[0].findings === 2 && r.fails[0].words.length === 2, r);
     const st = { url: 'u', adapter: 'a.js', ops: 50, started: 'now', stopped: false, browsers: [{ name: 'chrome', version: 'Chrome/155', total: 3, run: 3, ok: 2, fails: r.fails, state: 'done' }] };
     const md = bg.findingsMd(st);
-    check('background: findings file lists each browser, says WebKit browsers were not run, and keeps the words', /\| chrome \| Chrome\/155 \| 3 \| 2 \| 1 \| done \|/.test(md) && /webkitgtk .*not run/.test(md) && /epiphany .*not run/.test(md) && /coins went negative/.test(md), md);
+    check('background: findings file lists each browser and keeps the words', /\| chrome \| Chrome\/155 \| 3 \| 2 \| 1 \| done \|/.test(md) && /coins went negative/.test(md) && !/not run/.test(md), md);
+    const st2 = { url: 'u', adapter: 'a.js', ops: 50, started: 'now', stopped: false, browsers: [{ name: 'webkitgtk', version: 'MiniBrowser 2.52.6', total: 2, run: 2, ok: 2, fails: [], state: 'done' }, { name: 'epiphany', version: 'Epiphany 46.5', total: 2, run: 2, ok: 2, fails: [], state: 'done' }] };
+    const md2 = bg.findingsMd(st2);
+    check('background: the two WebKit browsers are listed like any other', /\| webkitgtk \| MiniBrowser 2.52.6 \| 2 \| 2 \| 0 \| done \|/.test(md2) && /\| epiphany \| Epiphany 46.5 \| 2 \| 2 \| 0 \| done \|/.test(md2), md2);
     check('background: plain status words', /running/.test(bg.statusWords(st, null)) && /finished: all seeds run/.test(bg.statusWords(st, 'all seeds run\n')) && /1 seed\(s\) with findings/.test(bg.statusWords(st, null)));
     st.browsers[0].fails = []; check('background: a clean hunt says so', /No findings so far/.test(bg.findingsMd(st)));
-    const bad = require('child_process').spawnSync(process.execPath, [path.join(RUNNER, 'background.js'), 'start', 'x', 'y', '--browsers', 'epiphany'], { encoding: 'utf8' });
-    check('background: asking for an unsupported browser is refused in plain words', bad.status === 2 && /not supported/.test(bad.stderr), bad.stderr);
+    const bad = require('child_process').spawnSync(process.execPath, [path.join(RUNNER, 'background.js'), 'start', 'x', 'y', '--browsers', 'netscape'], { encoding: 'utf8' });
+    check('background: asking for an unknown browser is refused in plain words', bad.status === 2 && /cannot hunt in: netscape/.test(bad.stderr) && /webkitgtk/.test(bad.stderr), bad.stderr);
+  });
+
+  await section('webkit adapter', async () => {
+    const { launchWebkit } = require(path.join(RUNNER, 'webkit_browser.js'));
+    const calls = [], fakeRaw = { on() { }, goto: async (u) => { calls.push('goto ' + u); }, evaluate: async (fn, a) => { calls.push('eval'); if (typeof fn === 'function') { const f = fn; try { return f(a); } catch (e) { return typeof a; } } }, waitForFunction: async () => { throw new Error('waitForFunction timed out after 50 ms'); }, setViewport: async () => { }, screenshot: async () => { }, mouse: {}, keyboard: {} };
+    const fake = { launch: async () => ({ page: fakeRaw, version: 'MiniBrowser 9.9', close: async () => { calls.push('close'); }, port: 1, sessionId: 's' }), call: async () => { } };
+    const fp = path.join(require('os').tmpdir(), 'fake-wk-' + process.pid + '.js'); fs.writeFileSync(fp, 'module.exports = null;');
+    require.cache[fp] = { id: fp, filename: fp, loaded: true, exports: fake };
+    const b = await launchWebkit({ driverPath: fp });
+    check('webkit adapter: reports the real browser version', await b.version() === 'MiniBrowser 9.9');
+    const ctx = await b.createBrowserContext(), page = await ctx.newPage();
+    let err = null; try { await page.waitForFunction('window.x', { timeout: 50 }); } catch (e) { err = e; }
+    check('webkit adapter: a wait that runs out is a TimeoutError, as the runner expects', err && err.name === 'TimeoutError', err);
+    check('webkit adapter: url() follows goto(), and the calls the runner makes exist', typeof page.url() === 'string' && typeof page.mainFrame === 'function' && page.isClosed() === false && typeof page.emulateCPUThrottling === 'function');
+    await ctx.close(); await b.close(); fs.unlinkSync(fp);
+    check('webkit adapter: closing the browser closes the driver session', calls.includes('close'));
   });
 
   console.log(`fuzz-core: ${pass} passed, ${fail} failed`);
