@@ -2,17 +2,17 @@
 // Hunts bugs in the background: runs the fuzz-kit runner over many seeds, one browser at a time, at the lowest priority, and writes what it finds to a folder.
 // Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
 //   node runner/background.js start URL ADAPTER.js [--browsers chrome,firefox] [--seeds 1-200] [--batch 10] [--ops 400] [--out DIR]
-//       [--chrome PATH] [--firefox PATH] [--seed-secs 120] [-- more options for fuzz_puppeteer.mjs]
+//       [--chrome PATH] [--firefox PATH] [--epiphany PATH] [--seed-secs 120] [-- more options for fuzz_puppeteer.mjs]
 //   node runner/background.js status DIR    plain-words progress (also prints the findings so far)
 //   node runner/background.js stop DIR      stops after the seed in progress (kills the browser run, keeps what was found)
 // `start` prints the folder and returns at once; the hunt carries on without the terminal. In the folder: run.log (everything printed), state.json (progress),
 // findings.md (written after every batch: each failing seed with its words), bundles/ (the saved page data and shrunk script of each failing seed), and
 // DONE (written last; its text says how it ended). Nothing is left running after DONE. No packages of its own: it starts runner/fuzz_puppeteer.mjs.
-// WebKitGTK and GNOME Web are not hunted yet: Puppeteer cannot drive them and tools/webkit-driver has no Puppeteer-style browser object. They are listed as "not run".
+// --browsers chrome,firefox,webkitgtk,epiphany: the two WebKit browsers are driven through tools/webkit-driver (see the top of runner/webkit_browser.js for what differs: no CPU throttling, no popup or crash events).
 'use strict';
 const fs = require('fs'), os = require('os'), path = require('path'), cp = require('child_process');
 const RUNNER = path.join(__dirname, 'fuzz_puppeteer.mjs');
-const SUPPORTED = ['chrome', 'firefox'], NOT_YET = ['webkitgtk', 'epiphany'];
+const SUPPORTED = ['chrome', 'firefox', 'webkitgtk', 'epiphany'], NOT_YET = [];   // WebKitGTK and GNOME Web go through tools/webkit-driver (runner/webkit_browser.js)
 
 function parseSeeds(spec) {   // '1-5,9' -> [1,2,3,4,5,9]
   const out = [];
@@ -61,11 +61,11 @@ function start(args) {
   const pos = own.filter(function (x, i) { return !x.startsWith('--') && !(i > 0 && own[i - 1].startsWith('--')); });
   if (pos.length < 2) { console.error('usage: node runner/background.js start URL ADAPTER.js [--browsers chrome,firefox] [--seeds 1-200] [--batch 10] [--ops 400] [--out DIR]'); process.exit(2); }
   const browsers = opt(own, 'browsers', 'chrome,firefox').split(',').filter(Boolean), bad = browsers.filter(function (b) { return SUPPORTED.indexOf(b) < 0; });
-  if (bad.length) { console.error('cannot hunt in: ' + bad.join(', ') + (bad.some(function (b) { return NOT_YET.indexOf(b) >= 0; }) ? ' (WebKitGTK and GNOME Web are not supported by this runner yet)' : '') + '. Choose from ' + SUPPORTED.join(', ')); process.exit(2); }
+  if (bad.length) { console.error('cannot hunt in: ' + bad.join(', ') + '' + '. Choose from ' + SUPPORTED.join(', ')); process.exit(2); }
   const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 13), out = path.resolve(opt(own, 'out', path.join(os.tmpdir(), 'fuzz-bg-' + stamp)));
   fs.mkdirSync(path.join(out, 'bundles'), { recursive: true });
   const cfg = { url: pos[0], adapter: path.resolve(pos[1]), browsers: browsers, seeds: parseSeeds(opt(own, 'seeds', '1-200')), batch: +opt(own, 'batch', 10), ops: +opt(own, 'ops', 400),
-    seedSecs: +opt(own, 'seed-secs', 120), executables: { chrome: opt(own, 'chrome', process.env.CHROME), firefox: opt(own, 'firefox', process.env.FIREFOX) }, extra: rest, out: out };
+    seedSecs: +opt(own, 'seed-secs', 120), executables: { chrome: opt(own, 'chrome', process.env.CHROME), firefox: opt(own, 'firefox', process.env.FIREFOX), epiphany: opt(own, 'epiphany', process.env.EPIPHANY) }, extra: rest, out: out };
   fs.writeFileSync(path.join(out, 'config.json'), JSON.stringify(cfg, null, 1));
   const log = fs.openSync(path.join(out, 'run.log'), 'a');
   const child = cp.spawn(process.execPath, [__filename, '_worker', out], { detached: true, stdio: ['ignore', log, log], env: process.env });
