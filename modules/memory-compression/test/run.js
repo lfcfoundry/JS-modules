@@ -593,6 +593,17 @@ tAsync('pager: pressure level 2 spills by itself, read-ahead fetches the next sp
     .then(function () { assert(P.memory().open >= 3, 'the next spilled page was fetched ahead: ' + P.memory().open); same(rows[650], P.get(650), 'read-ahead page is readable'); });
 });
 
+t('pager.plan: page size and open pages follow the row size and the device memory; "auto" options give back every row', function () {
+  var rows = many(20000, function (i) { return { id: i, label: 'node ' + i, x: i / 3, tags: ['a', 'b'] }; }), big = J.pager.plan(rows, { deviceMemory: 8 }), small = J.pager.plan(rows, { deviceMemory: 1 }), thin = J.pager.plan(many(60000, function (i) { return { a: i, b: i % 9 }; }), { deviceMemory: 8 }), P, i;
+  assert(small.pageRows < big.pageRows && small.pageRows >= 512 && big.pageRows <= 8192, 'smaller pages on a small device: ' + small.pageRows + ' / ' + big.pageRows);
+  assert(thin.pageRows > big.pageRows, 'thin rows make longer pages: ' + thin.pageRows);
+  assert(big.livePages >= 2 && big.livePages <= 8 && small.livePages >= 2, 'live pages in range');
+  assert.strictEqual(big.mode, 'fast'); assert.strictEqual(J.pager.plan(rows, { deviceMemory: 1, heapBytes: 1e6 }).mode, 'balanced');
+  assert.strictEqual(J.pager.plan(many(10, function (i) { return { i: i }; }), { deviceMemory: 4 }).pageRows, 10, 'a short list is one page');
+  P = J.pager(rows, opt({ pageRows: 'auto', livePages: 'auto', deviceMemory: 2 })); assert.strictEqual(P.memory().pageRows, J.pager.plan(rows, { deviceMemory: 2 }).pageRows);
+  for (i = 0; i < rows.length; i += 997) same(rows[i], P.get(i), 'row ' + i);
+});
+
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);

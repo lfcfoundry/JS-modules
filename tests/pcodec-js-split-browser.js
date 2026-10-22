@@ -11,9 +11,9 @@ const wd = require('./webkit-shim.js');
 const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'modules', 'pcodec-js', process.env.LIB || 'pcodec-js-pack.js'), 'utf8');
 const exes = [['chromium', process.env.CHROMIUM], ['firefox', process.env.FIREFOX], ['webkit', process.env.WEBKIT]].filter(x => x[1] && (pp || x[0] === 'webkit'));
 if (!exes.length) { console.log('skipped: needs CHROMIUM, FIREFOX (with puppeteer-core) or WEBKIT=1'); process.exit(2); }
-const ROUNDS = +process.env.ROUNDS || 5;
+const ROUNDS = +process.env.ROUNDS || 5, CHECKS_ONLY = !!process.env.CHECKS_ONLY;   // CHECKS_ONLY=1: exactness only, no timing
 
-async function battery(rounds) {
+async function battery(rounds, correctnessOnly) {
   const med = a => { a = a.slice().sort((x, y) => x - y); return +a[a.length >> 1].toFixed(1); };
   const mk = n => { const a = new Float64Array(n); for (let i = 0; i < n; i++) a[i] = Math.round((i % 1000 * 3.7 + Math.sin(i / 50) * 100) * 100) / 100; return a; };
   const same = (a, b) => { if (a.length !== b.length) return false; for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false; return true; };
@@ -23,7 +23,16 @@ async function battery(rounds) {
   const small = mk(600000), sp = pc.pack(small, { parts: 4 }), np = pc.pack(small);
   mark('split file opens to the same numbers (unpack, unpackAsync, info, worker)', same(pc.unpack(sp), small) && same(await pc.unpackAsync(sp), small) && pc.info(sp).count === small.length && same(await W.unpack(sp), small));
   mark('a split file is only a few bytes bigger than a normal one (' + (sp.length - np.length) + ' B)', sp.length > np.length && sp.length - np.length < 400);
-  for (const [label, n] of [['0.5M numbers', 500000], ['2M numbers', 2000000], ['8M numbers', 8000000]]) {
+  { // since 1.5.0: { into } on worker and pool, pool({ warm: true })
+    const r1 = await W.unpack(np, { into: new Float64Array(small.length) });
+    const PW = await PcodecJS.pool({ size: 2, warm: true });
+    const r2 = await PW.unpack(sp, { into: new Float64Array(small.length + 3) }), r3 = await PW.unpack(sp);
+    let refused = 0; for (const bad of [() => PW.unpack(sp, { into: new Float64Array(10) }), () => PW.unpack(sp, { into: new Float32Array(small.length) }), () => PW.unpack(sp, { into: new Float64Array(small.length), parts: true })]) { try { await bad(); } catch (e) { if (e instanceof TypeError) refused++; } }
+    mark('{ into } on the worker and the pool gives the same numbers; a pool made with { warm: true } works', same(r1, small) && same(r2, small) && same(r3, small));
+    mark('{ into } with a too short array, the wrong type or parts is refused with a TypeError', refused === 3);
+    try { PW.terminate && PW.terminate(); } catch (e) { /* ignore */ }
+  }
+  for (const [label, n] of (correctnessOnly ? [['0.5M numbers', 500000]] : [['0.5M numbers', 500000], ['2M numbers', 2000000], ['8M numbers', 8000000]])) {
     const a = mk(n), normal = pc.pack(a), split = await P.pack(a, { parts: true });
     const pool1 = await PcodecJS.pool({ size: 1 });
     mark(label + ': split opens equal on the pool, parts join equal, normal file equal', same(await P.unpack(split), a) && same(join(await P.unpack(split, { parts: true })), a) && same(await P.unpack(normal), a));
@@ -51,7 +60,7 @@ async function battery(rounds) {
     console.log('Browser: ' + await b.version());
     const p = await b.newPage(); await p.goto('http://127.0.0.1:' + srv.address().port + '/');
     await p.evaluate(src => { (0, eval)(src); }, SRC + '\nwindow.PcodecJS = PcodecJS;');
-    const r = await p.evaluate(battery, ROUNDS);
+    const r = await p.evaluate(battery, ROUNDS, CHECKS_ONLY);
     for (const k of Object.keys(r.checks)) { console.log((r.checks[k] ? '  ok   ' : '  FAIL ') + k); if (!r.checks[k]) bad++; }
     console.log('  ms to open the column (lower is better): normal file on 1 worker / split file on a pool of 4, joined / parts only');
     for (const x of r.rows) console.log('  ' + x.label.padEnd(13) + String(x.one).padStart(7) + ' /' + String(x.split).padStart(7) + ' /' + String(x.parts).padStart(7) + '   (file ' + x.normalSize + ' B normal, ' + x.size + ' B split)');

@@ -2,6 +2,10 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-10-22
+- New { into: myArray } for worker and pool unpack: fills an array you already have. 8 million numbers open 1.07 to 1.3 times faster (normal file) and 1.3 to 1.7 times (split file); Chromium's page pause falls from 48 ms to 9 ms.
+- New pool({ warm: true }) starts the workers when the pool is made: the first big unpack is 3 to 26 ms faster, for 3 to 7 ms at creation.
+
 ## 1.4.0 · API 1 · 2026-10-22
 - New split file: pack(x, { parts: true }) writes a big column as ordinary Pcodec files, and the pool opens the parts on several workers. 8 million numbers open 1.25 to 1.6 times faster (joined), 2.1 to 2.8 times as parts.
 
