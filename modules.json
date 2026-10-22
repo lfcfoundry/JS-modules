@@ -139,6 +139,20 @@
       "category": "adaptation"
     },
     {
+      "id": "field-report",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "FieldReport",
+      "summary": "Two hidden buttons for a game or app: five taps in a corner open a panel that saves a speed report (start-up, frames a second, slowest frames, heavy tasks, plain verdict) and an error log, as small Markdown files. No network.",
+      "short": "Hidden buttons that save a speed report and an error log from a real device. No network.",
+      "file": "modules/field-report/field-report.js",
+      "readme": "modules/field-report/README.md",
+      "demo": "modules/field-report/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "adaptation"
+    },
+    {
       "id": "sprite-baker",
       "version": "1.7.0",
       "api": 1,
