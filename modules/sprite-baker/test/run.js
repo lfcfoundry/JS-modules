@@ -327,7 +327,7 @@ var frames = SB.bakeRoll(ringScene, 8, [48, 48], ringOpts);
   check('ceiling: padding counts (two 2048 x 1024 pictures stack to 2048 x 2049, over the default 4,194,304)', SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)]) === null && SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)], { padding: 0 }) !== null);
   var rolled = SB.bakeRoll(ringScene, 4, [16, 16], { ss: 1 }), sheet = SB.toSheet(rolled, { padding: 2, maxWidth: 40 });
   check('baked frames pack into a sheet (4 of 16 x 16 at maxWidth 40 and padding 2: two rows of two)', sheet && sheet.width === 34 && sheet.height === 34 && sheet.frames[2].y === 18);
-  check('version is 1.6.1', SB.version === '1.6.1');
+  check('version is 1.7.0', SB.version === '1.7.0');
 })();
 
 /* 12. 1.3.0 made the rasterizer faster without changing a single byte. These hashes were taken from 1.2.0 (the shiny material has a strong
@@ -374,6 +374,19 @@ require('./fancy-scenes.js')(SB, SB, check);
     check('bad bytes (not a wasm module): the same plain result, no throw', SB.wasm(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])).available === false);
     var P = new off.Rast(40, 40); off.drawMesh(P, SB.mesh(SB.sphere(14), 12, 16), WARM, { ox: 20, oy: 20 });
     check('and the plain result draws', coverage(P.px) > 400);
+  })();
+  /* compile early: a fresh process each, because the compile starts when the file loads */
+  (function () {
+    var script = "var M = WebAssembly.Module, made = 0, out = {}; if (process.env.NOCOMPILE) delete WebAssembly.compile;\n" +
+      "var SB = require(" + JSON.stringify(path.join(dir, 'sprite-baker-wasm.js')) + ");\n" +
+      "out.before = SB.wasmModule();\n" +
+      "SB.wasmReady().then(function (ok) { out.ready = ok; out.isModule = SB.wasmModule() instanceof M; WebAssembly.Module = function () { made++; return new M(arguments[0]); }; var e = SB.wasm(); out.engine = e.engine; out.made = made; console.log(JSON.stringify(out)); });";
+    var a = cp.spawnSync(process.execPath, ['-e', script], { encoding: 'utf8' }), A = {}; try { A = JSON.parse(a.stdout); } catch (e) { /* reported below */ }
+    check('compile early: wasmModule() is null at first, wasmReady() says true, the module is a WebAssembly.Module, and wasm() then starts it without compiling again', A.before === null && A.ready === true && A.isModule === true && A.engine === 'wasm' && A.made === 0, a.stdout + a.stderr);
+    var early = fs.readFileSync(path.join(dir, 'sprite-baker-wasm.js'), 'utf8').indexOf('compileEarly();') > 0;
+    check('compile early: the compile is started when the file loads', early);
+    var b = cp.spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', env: Object.assign({}, process.env, { NOCOMPILE: '1' }) }), B = {}; try { B = JSON.parse(b.stdout); } catch (e) { /* reported below */ }
+    check('no WebAssembly.compile in the engine: wasmReady() says false without a throw, and wasm() still works (compiling on the spot)', B.before === null && B.ready === false && B.engine === 'wasm', b.stdout + b.stderr);
   })();
   /* the embedded file is what wasm/tri.wasm holds, and that is what tri.c builds (when clang is here) */
   var emb = cp.spawnSync('python3', [path.join(dir, 'wasm', 'embed.py'), '--check'], { encoding: 'utf8' });
