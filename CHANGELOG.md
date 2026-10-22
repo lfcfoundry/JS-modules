@@ -6,7 +6,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 | Module or tool | Version | History |
 |---|---|---|
-| [stage-curtains](modules/stage-curtains/README.md) | 1.2.0 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
+| [stage-curtains](modules/stage-curtains/README.md) | 1.3.0 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
 | [save-kit](modules/save-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
@@ -52,6 +52,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **webkit-driver** 1.3.0 · API 1: New attach() lets a check reuse a WebKit browser that is already open instead of starting a new one.
 - 2026-10-18 · **walker-sim** 2.2.0 · API 2: The default file is now walker-sim-with-wasm.js: big runs use the WebAssembly walking loop first (about 1.5 times faster in Chromium and Firefox), and the JavaScript loop when WebAssembly is not usable. Same counts either way. In WebKitGTK and GNOME Web a fresh page is about 15% to 30% slower with it; set cfg.wasm = false or copy walker-sim.js there.
 - 2026-10-18 · **test-runner** 1.0.0 · API 1: Shared pieces for browser checks: warm browsers that cut the start of each check from seconds to well under a second, fair timing, skipped rebuilds, a wasm-versus-JavaScript twin test, a picture gate and an automatic bisect.
+- 2026-10-18 · **stage-curtains** 1.3.0 · API 1: New option create({ worker: true }) paints the curtain in a background worker: the page does 3 to 7 ms of work instead of 21 to 36 ms. Same picture.
 - 2026-10-18 · **stage-curtains** 1.2.0 · API 1: A curtain half paints about 1.4 to 1.6 times faster on a freshly loaded page (same picture) using a small WebAssembly painter. Pages with a content policy need 'wasm-unsafe-eval'; without it, plain JavaScript is used.
 - 2026-10-18 · **sprite-baker** 1.7.0 · API 1: The wasm now compiles in the background when the file loads (ready() and module() added); the compile it saves is about 1 ms. Same pictures.
 - 2026-10-18 · **sprite-baker** 1.6.1 · API 1: Fix: the WebAssembly add-on drew drawMesh(..., null) with the wrong back-face cut (about 79 pixels per picture went missing in one game); now identical to the plain code.
