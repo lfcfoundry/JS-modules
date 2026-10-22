@@ -1,8 +1,8 @@
 # pcodec-js
 
-**Version 1.4.0 · API 1**
+**Version 1.5.0 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5, one at a time, on a 4-core test machine; order of numbers Chromium / Firefox / WebKitGTK / GNOME Web. Not tested: phones (the page in `phone-test/` does not cover split files yet), Safari itself. Timers round to whole ms outside Chromium; run-to-run noise is about 10%. Raw files `results/v140-split-8M-*.json` (15 turns) and `results/v140-split-all-*.json` (9 turns); runner `bench/browser/splitbench.js`. Node was used only for pass/fail.
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
 
 Pcodec for web pages: unpack (and optionally pack) big lists of numbers in a browser, one file, no build step, no network.
 
@@ -19,9 +19,9 @@ Pcodec is a compressor made for lists of numbers, and a web page that wants to o
 
 | File | Raw / gzipped | Use it when |
 |---|---:|---|
-| `pcodec-js.js` | 191,078 B / 74,803 B | you only unpack. Works in every browser that has WebAssembly. **Start here.** |
-| `pcodec-js-fast.js` | 250,766 B / 93,169 B | you only unpack and want the SIMD program (17% faster in Firefox, within 3% elsewhere). Opening it without SIMD gives a clear message to use `pcodec-js.js` |
-| `pcodec-js-pack.js` | 501,570 B / 192,782 B | you also pack (built for speed, so bigger than a size-built packer) |
+| `pcodec-js.js` | 192,606 B / 75,252 B | you only unpack. Works in every browser that has WebAssembly. **Start here.** |
+| `pcodec-js-fast.js` | 252,294 B / 93,616 B | you only unpack and want the SIMD program (17% faster in Firefox, within 3% elsewhere). Opening it without SIMD gives a clear message to use `pcodec-js.js` |
+| `pcodec-js-pack.js` | 503,098 B / 193,197 B | you also pack (built for speed, so bigger than a size-built packer) |
 
 Needs `'wasm-unsafe-eval'` in the page's `script-src` (the project rule for every page), and `worker-src blob:` if you use `PcodecJS.worker()` or `PcodecJS.pool()` (without it the same calls run on the page). WebAssembly is required: if it is blocked, `load()` rejects with a clear message. There is no plain-JavaScript backup (project decision, 2026-10-17).
 
@@ -44,6 +44,8 @@ const quick = pco.pack(float64Array, {smallest: 'quick'});     // pack file only
 - **Compile early (since 1.1.0).** The program starts compiling the moment the file runs, off the page's main thread, so `load()` is ready at once if you call it after your first screen's other work (the wait after 30 ms of other start-up work went from 7.3 / 15 / 17 / 12 ms to 0.2 / 0 / 0 / 0.5). A worker is handed the compiled program, so nothing compiles twice (`worker()` ready 58.9 / 27.5 / 46 / 45.5 ms before, 32.8 / 10.5 / 22 / 24.5 now). Compiled wasm cannot be stored between visits: every tested browser refused to keep it in IndexedDB, and Cache Storage saved at most 2.5 ms of a 4 to 7 ms compile.
 - **Several workers (since 1.2.0).** `const p = await PcodecJS.pool();` then `await p.pack([colA, colB, colC])` (an array of files comes back, same order) or `await p.pack(oneBigArray)` (one file; the array is cut into Pcodec's own pages on several workers and the pieces join into exactly the bytes `pack()` writes), and `await p.unpack([fileA, fileB, ...])`. Packing took 1.7 to 2.2 times less time with 2 to 4 workers in the four test browsers; unpacking many columns up to 2.3 times less (Chromium 14%). Small jobs stay on one worker, because starting a worker costs 7 to 12 ms; `{ size, laneMs }` change the limits. A single file cannot be unpacked in parallel.
 - **Split file: a big column that unpacks on several workers (since 1.4.0).** `await p.pack(oneBigArray, { parts: true })` (or `pco.pack(x, { parts: true })` without a pool) writes one file made of ordinary Pcodec files, one for each group of Pcodec pages, behind a 12-byte header and a list of lengths (magic `PCJM`, version 1; 31 to 135 B more than a normal file for 0.5 to 8 million numbers). `pco.unpack`, `unpackAsync`, `stream`, `info`, the worker and the pool all open it, and each part is a normal Pcodec file. `await p.unpack(splitFile)` opens the parts on several workers and a worker joins them, so the page is usually frozen for less than 10 ms. `await p.unpack(splitFile, { parts: true })` hands back the array of parts as they are, with no join: 8 million numbers opened 2.1 to 2.8 times faster than a normal file on one worker (joined: 1.25 to 1.6 times). Files under about 2.5 million numbers stay on one worker, where a split file is as fast as a normal one. Not available with `smallest`.
+- **Reuse your array.** `await w.unpack(bytes, { into: myArray })` (worker) and `await p.unpack(file, { into: myArray })` (pool, normal or split file) fill an array you already have: its memory goes to a worker and comes back as the result (`myArray` itself is empty afterwards, so keep the result and pass it in again next time). A big column then needs no new 64 MB to allocate and collect each time: 8 million numbers opened 1.07 to 1.3 times faster from a normal file and 1.3 to 1.7 times faster from a split file than with a new array each time, and Chromium's long page pauses with a joined result went from 48 ms (median) to 9. One file per call, not with `parts`.
+- **Start the pool early.** `PcodecJS.pool({ warm: true })` (or a number) starts the workers when the pool is made instead of at the first job, so the first big unpack is 3 to 26 ms faster; it costs 3 to 7 ms when the pool is made. The program is compiled once on the page and handed to every worker; no worker compiles again.
 - **Smaller files, cheaply (since 1.3.0).** `pack(x, { smallest: 'quick' })` checks whether a float column is made of decimals (multiples of 0.1, 0.01, ... 0.000001) and only then also packs with that setting, keeping the smaller file (never larger than plain). On our 39 test columns it helped 2 of 39 (one by 61%) and made all 39 files together 3.4% smaller at about 1.7 times the plain time; `smallest: true` is 4.0% smaller at 3.3 to 3.5 times.
 - `count` and `maxCount`: pass `count` when you know it; a wrong count is refused. `maxCount` defaults to 33,554,432 numbers so a damaged file cannot make the page reserve gigabytes.
 - `stream()` hands back one view per batch (batch is a multiple of 256, default 4,096). Copy a part if you keep it.

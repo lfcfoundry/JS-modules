@@ -2,7 +2,7 @@
  * pcodec-js.js: Pcodec (a compressor for numbers) for web pages and Node, in one file with no dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.0 (API 1) · reader and packer in one file
+ * Version 1.5.0 (API 1) · reader and packer in one file
  *
  * Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (https://github.com/pcodec/pcodec, Apache-2.0, notice in NOTICE-pcodec.txt).
  * This file holds pco 1.0.4 as WebAssembly programs (built from wasm/ with wasm/build.sh), so it writes and reads ordinary Pcodec files: any other Pcodec can open what this writes, and this opens what any other Pcodec 1.x writes.
@@ -382,12 +382,12 @@
   // Add { transfer: true } to a call to hand your input array over without a copy (it is empty afterwards). w.terminate() ends the worker.
   // The page needs `worker-src blob:` in its policy. If the browser will not start a worker, the same object is returned running on the page (w.inWorker is false):
   // unpack then runs in slices of about 2 ms (unpackAsync), pack runs in one piece.
-  function joinParts(parts) {                                            // typed arrays of one kind in, one typed array out
+  function joinParts(parts, into) {                                      // typed arrays of one kind in, one typed array out (into: an array to fill instead of a new one)
     var n = 0, q = 0, i, out;
     for (i = 0; i < parts.length; i++) n += parts[i].length;
-    out = new parts[0].constructor(n);
+    out = into || new parts[0].constructor(n);
     for (i = 0; i < parts.length; i++) { out.set(parts[i], q); q += parts[i].length; }
-    return out;
+    return out.length === n ? out : out.subarray(0, n);
   }
   function workerMain(factory) {                                       // this function's text runs inside the worker
     var pc = null, ready = null;
@@ -402,7 +402,7 @@
           else if (m.op === 'unpack') v = pc.unpack(m.a, m.o);
           else if (m.op === 'pack') v = pc.pack(m.a, m.o);
           else if (m.op === 'packPart') v = pc.packPart(m.a, m.o);
-          else if (m.op === 'join') { var jn = 0, jq = 0, ji; for (ji = 0; ji < m.a.length; ji++) jn += m.a[ji].length; v = new m.a[0].constructor(jn); for (ji = 0; ji < m.a.length; ji++) { v.set(m.a[ji], jq); jq += m.a[ji].length; } }
+          else if (m.op === 'join') { var jn = 0, jq = 0, ji; for (ji = 0; ji < m.a.length; ji++) jn += m.a[ji].length; v = m.o && m.o.into; if (v && (v.constructor !== m.a[0].constructor || v.length < jn)) throw new TypeError('PcodecJS: { into } does not fit'); v = v || new m.a[0].constructor(jn); for (ji = 0; ji < m.a.length; ji++) { v.set(m.a[ji], jq); jq += m.a[ji].length; } if (v.length !== jn) v = v.subarray(0, jn); }
           else throw new Error('unknown call');
           reply(true, v, v.buffer ? [v.buffer] : []);
         } catch (err) { reply(false, err); }
@@ -420,7 +420,7 @@
           unpack: function (b, o) { return pc.unpackAsync(b, o); },
           pack: function (a, o) { return p(function () { return pc.pack(a, o); }); },
           packPart: function (a, o) { return p(function () { return pc.packPart(a, o); }); },
-          join: function (parts) { return p(function () { return joinParts(parts); }); },
+          join: function (parts, into) { return p(function () { return joinParts(parts, into); }); },
           terminate: function () {} };
       });
     }
@@ -446,13 +446,13 @@
       w.onerror = function () { try { w.terminate(); } catch (e) { /* gone */ } URL.revokeObjectURL(url); if (!up) { up = true; onPage().then(resolve, reject); } else giveUp(); };
       load(lo).then(function (pc) { return call('init', lo, undefined, [], { module: pc.programModule, name: pc.programName }); }).then(function (info) {
         if (up) return; up = true; URL.revokeObjectURL(url);
-        function tr(x, o) { return o && o.transfer ? [x.buffer] : []; }
+        function tr(x, o) { var t = o && o.transfer ? [x.buffer] : []; if (o && o.into && o.into.buffer) t.push(o.into.buffer); return t; }   // { into } hands the array's memory to the worker and comes back as the result
         resolve({ inWorker: true, engine: info.engine, canPack: info.canPack,
           info: function (b, o) { return call('info', b, undefined, tr(b, o)); },
           unpack: function (b, o) { return call('unpack', b, o, tr(b, o)); },
           pack: function (a, o) { return call('pack', a, o, tr(a, o)); },
           packPart: function (a, o) { return call('packPart', a, o, tr(a, o)); },
-          join: function (parts) { return call('join', parts, undefined, parts.map(function (x) { return x.buffer; })); },
+          join: function (parts, into) { return call('join', parts, into ? { into: into } : undefined, parts.map(function (x) { return x.buffer; }).concat(into ? [into.buffer] : [])); },
           terminate: function () { try { w.terminate(); } catch (e) { /* gone */ } giveUp(); } });
       }, function (err) { if (up) return; up = true; try { w.terminate(); } catch (e) { /* gone */ } URL.revokeObjectURL(url); onPage().then(resolve, function () { reject(err); }); });
     });
@@ -461,9 +461,11 @@
   // Several background workers that share a job out, so a big job takes less time on a phone or laptop with several cores.
   //   PcodecJS.pool().then(function (p) { return p.pack([colA, colB, colC]); })       // an array of arrays in, an array of Pcodec files out (same order); one big array in, one file out
   //   p.unpack([fileA, fileB, fileC])                                                  // an array of files in, an array of typed arrays out; one file in, one array out (a normal file stays on one worker; a split file is shared out)
+  //   p.unpack(file, { into: myArray })                                                // fills your array (its memory goes to a worker and comes back as the result; myArray itself is empty afterwards), so a big result needs no new 64 MB to collect
   //   p.unpack(splitFile, { parts: true })                                             // the parts as an array of typed arrays, in order, without copying them into one array
   //   p.pack(oneBigArray, { parts: true })                                             // a split file: ordinary Pcodec files for the column's pages behind a small header, packed on several workers and unpackable on several workers
   // Workers start the first time they are needed and a small job stays on one worker, because starting one costs about 10 to 25 ms: a job is shared out only when each worker would get about 25 ms of work (opts.laneMs, 0 shares it out always).
+  // opts.warm: true (or a number) starts that many workers when the pool is made instead of at the first job, so the first big job does not wait 8 to 19 ms for them.
   // opts.size is the most workers (default: the cores the device reports less one, at most 4). One big array is cut into the pages Pcodec itself would use and the pieces join into exactly the bytes pack() writes; { smallest: true } packs it on one worker.
   // Needs the "pack" file for pack. Without Worker support the pool runs on the page one job after another (see worker()). p.terminate() ends all workers.
   var PACK_NS = 60, UNPACK_NS = 20;                                    // about how long one number takes to pack and to unpack, measured in the four test browsers
@@ -528,6 +530,7 @@
       }
       if (total !== c.total || !TYPES[type][1]) return Promise.reject(new Error('PcodecJS: ' + ERRORS['-2']));
       if (!(total > 0) || total > ((o && o.maxCount) || MAX_COUNT)) return Promise.reject(new Error('PcodecJS: bad count ' + total + ' announced by the file (pass { maxCount } if you trust it)'));
+      if (o && o.into && (o.parts || !(o.into instanceof TYPES[type][1]) || o.into.length < total)) return Promise.reject(new TypeError('PcodecJS: { into } must be a ' + TYPES[type][1].name + ' of at least ' + total + ' numbers'));
       k = lanesFor(c.parts.length, total * UNPACK_NS / 1e6);
       if (k === 1 && !(o && o.parts)) return lane(0).then(function (w) { return w.unpack(b, o); });   // too small to share out: the one worker opens the whole file in one go
       out = new Array(counts.length);                                  // { parts: true } hands back the parts as they are
@@ -535,12 +538,13 @@
         return lane(gi).then(function (w) { return Promise.all(g.map(function (at) { return w.unpack(c.parts[at].slice(), { count: counts[at], transfer: true }).then(function (v) { out[at] = v; }); })); });
       })).then(function () {
         if (o && o.parts) return out;
-        return lane(0).then(function (w) { return w.join(out); });   // the first worker joins the parts, so the page never stops to copy a big array
+        return lane(0).then(function (w) { return w.join(out, o && o.into); });   // the first worker joins the parts, so the page never stops to copy a big array
       });
     }
     function count(b) { try { return main.info(b).count; } catch (e) { return b && b.length || 1; } }
     return load(lo).then(function (pc) {
       main = pc;
+      if (opts.warm) { var wn = opts.warm === true ? size : Math.min(size, Math.floor(opts.warm)), wi; for (wi = 0; wi < wn; wi++) lane(wi).then(null, function () {}); }   // start the workers now, off the critical path
       return {
         size: size,
         pack: function (x, o) {
@@ -550,6 +554,7 @@
         },
         unpack: function (x, o) {
           if (ended) return Promise.reject(new Error('PcodecJS: the pool has ended'));
+          if (Array.isArray(x) && o && o.into) return Promise.reject(new TypeError('PcodecJS: { into } takes one file, not a list'));
           if (Array.isArray(x)) return share(x, x.map(count), UNPACK_NS, function (w, b) { return w.unpack(b, o); });
           var bytes = x instanceof ArrayBuffer ? new Uint8Array(x) : x;
           if (bytes instanceof Uint8Array && isSplit(bytes)) { try { return unpackSplit(bytes, o); } catch (e) { return Promise.reject(e); } }
@@ -559,5 +564,5 @@
       };
     });
   }
-  return { version: '1.4.0', load: load, worker: worker, pool: pool, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
+  return { version: '1.5.0', load: load, worker: worker, pool: pool, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
 });
