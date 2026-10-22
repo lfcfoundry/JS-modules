@@ -219,6 +219,7 @@
       if (sch === IS.ENT) {
         rng = mx - mn; if (rng >= 549755813888 || n < 64) return null;
         bw = rng < 1 ? 0 : Math.floor(Math.log2(rng)) + 1; sh = Math.max(0, bw - 8); div = Math.pow(2, sh);
+        if (bound && n * sh / 8 > bound) return null;                      // the low bits alone are already bigger than the best so far: it cannot win
         syms = new Uint8Array(n); low = new Uint32Array(n); cnt = new Uint32Array(256);
         for (i = 0; i < n; i++) { x = a[i] - mn; y = Math.floor(x / div); syms[i] = y; low[i] = x - y * div; cnt[y]++; }
         if (bound) {                                                         // a quick estimate first: if the entropy coder cannot get under the best size so far, it is not run
@@ -269,6 +270,7 @@
         hist = new Uint32Array(34);                                                // how many values need 0, 1, 2 ... 32 bits (33: more than 32)
         for (i = 0; i < n; i++) { x = res[i]; hist[x > 4294967295 ? 33 : x <= 0 ? 0 : 32 - Math.clz32(x)]++; }
         q = Math.floor(n * 0.92) + 1; x = 0; for (bw = 0; bw < 33; bw++) { x += hist[bw]; if (x >= q) break; }   // the narrowest width that holds at least 92% of the values
+        if (bound && Math.ceil(n * bw / 8) >= bound) return null;                  // the packed low parts alone are not smaller than the best so far: it cannot win
         lim = bw >= 32 ? 4294967295 : Math.pow(2, bw) - 1; pos = []; hi = []; low = new Uint32Array(n);
         for (i = 0; i < n; i++) {
           if (res[i] > lim) { pos.push(i); hi.push(Math.floor(res[i] / (lim + 1))); low[i] = res[i] % (lim + 1); } else low[i] = res[i];
