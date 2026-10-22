@@ -2,7 +2,7 @@
  * netflow-layers.js: lay out a graph in rows (a Sugiyama-style layered drawing): top to bottom or left to right, with long links as tags, story order, a column for the pages every route passes, and tall maps cut into columns. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.3.1 (API 1)
  *
  *   var R = NetflowLayers.layout({ nodes: [{ id: "start", w: 140, h: 44 }, { id: "a", w: 140, h: 44 }], edges: [{ from: "start", to: "a" }], root: "start" }, { dir: "TB" });
  *   svgElement.innerHTML = NetflowLayers.toSvg(R);          // or draw R.nodes and R.edges yourself (see README)
@@ -169,7 +169,8 @@
     var L = [], vert = [];
     var addV = function (rec, k) { rec.layer = k; rec.idx = vert.length; vert.push(rec); (L[k] = L[k] || []).push(rec); return rec; };
     G.nodes.forEach(function (n) { n.v = addV({ id: n.id, node: n, dummy: false }, layer[n.id]); });
-    var links = [];
+    var lkA = [], lkB = [], lkW = [];   // the stand-in links, three lists side by side (from, to, weight)
+    var addLink = function (a, b, w) { lkA.push(a); lkB.push(b); lkW.push(w); };
     G.edges.forEach(function (e, ei0) {
       var a = byNode[e.from], b = byNode[e.to], la = layer[e.from], lb = layer[e.to];
       e.chain = [];
@@ -182,12 +183,12 @@
         var tn = byNode[topOf(e)], bn = byNode[botOf(e)], lt = Math.min(la, lb), lbm = Math.max(la, lb), nd = lbm - lt - 1, part;
         if (bm === 'top') {
           var tr = bundle.topTrunk[tn.id] || (bundle.topTrunk[tn.id] = []);
-          while (tr.length < nd) { var dd = addV({ dummy: true, edge: e }, lt + 1 + tr.length); links.push([tr.length ? tr[tr.length - 1] : tn.v, dd, tr.length ? 8 : 2]); tr.push(dd); }
-          part = tr.slice(0, nd); links.push([tr[nd - 1], bn.v, 2]);
+          while (tr.length < nd) { var dd = addV({ dummy: true, edge: e }, lt + 1 + tr.length); addLink(tr.length ? tr[tr.length - 1] : tn.v, dd, tr.length ? 8 : 2); tr.push(dd); }
+          part = tr.slice(0, nd); addLink(tr[nd - 1], bn.v, 2);
         } else {
           var tb = bundle.botTrunk[bn.id] || (bundle.botTrunk[bn.id] = []);
-          while (tb.length < nd) { var d3 = addV({ dummy: true, edge: e }, lbm - 1 - tb.length); links.push([d3, tb.length ? tb[tb.length - 1] : bn.v, tb.length ? 8 : 2]); tb.push(d3); }
-          part = tb.slice(0, nd).reverse(); links.push([tn.v, tb[nd - 1], 2]);
+          while (tb.length < nd) { var d3 = addV({ dummy: true, edge: e }, lbm - 1 - tb.length); addLink(d3, tb.length ? tb[tb.length - 1] : bn.v, tb.length ? 8 : 2); tb.push(d3); }
+          part = tb.slice(0, nd).reverse(); addLink(tn.v, tb[nd - 1], 2);
         }
         e.chain = lb > la ? part : part.reverse();
         return;
@@ -195,13 +196,22 @@
       var lo = Math.min(la, lb), hi = Math.max(la, lb), prevV = (lb > la ? a : b).v;
       for (var k = lo + 1; k < hi; k++) {
         var d = addV({ dummy: true, edge: e }, k);
-        e.chain.push(d); links.push([prevV, d, prevV.dummy ? 8 : 2]); prevV = d;
+        e.chain.push(d); addLink(prevV, d, prevV.dummy ? 8 : 2); prevV = d;
       }
-      links.push([prevV, (lb > la ? b : a).v, prevV.dummy ? 2 : 1]);
+      addLink(prevV, (lb > la ? b : a).v, prevV.dummy ? 2 : 1);
       if (e.kind === 'back') e.chain.reverse();
     });
-    var up = vert.map(function () { return []; }), down = vert.map(function () { return []; });
-    links.forEach(function (l) { down[l[0].idx].push([l[1], l[2]]); up[l[1].idx].push([l[0], l[2]]); });
+    /* the neighbors of every stop, as flat lists: neighbors of stop i are idx[off[i] .. off[i + 1] - 1] with weights w[...], in the order the links were made */
+    var nV = vert.length, nLk = lkA.length;
+    var csr = function (from, to, extra) {
+      var off = new Int32Array(nV + 1), idx = new Int32Array(nLk), w = new Float64Array(nLk), i, f;
+      for (i = 0; i < nLk; i++) off[from(i).idx + 1]++;
+      for (i = 0; i < nV; i++) off[i + 1] += off[i];
+      var fill = off.slice(0, nV);
+      for (i = 0; i < nLk; i++) { f = from(i).idx; idx[fill[f]] = to(i).idx; w[fill[f]++] = lkW[i]; }
+      return { off: off, idx: idx, w: w };
+    };
+    var up = csr(function (i) { return lkB[i]; }, function (i) { return lkA[i]; }), down = csr(function (i) { return lkA[i]; }, function (i) { return lkB[i]; });
     var nL = L.length;
     for (var k0 = 0; k0 < nL; k0++) L[k0] = L[k0] || [];
     /* depth-first rank without recursion */
@@ -233,40 +243,63 @@
       list.sort(function (a, b) { return laneOf(a) - laneOf(b) || a.key - b.key; });
       list.forEach(function (v, i) { v.pos = i; });
     });
+    /* crossings between row k and row k+1 on flat number lists (the same count as mapCrossPairs gives): each link is one number, upper place * K + lower place, sorted as numbers */
+    var maxSeg = 0, maxLen = 0;
+    L.forEach(function (list) { var m = 0; list.forEach(function (u) { m += down.off[u.idx + 1] - down.off[u.idx]; }); if (m > maxSeg) maxSeg = m; if (list.length > maxLen) maxLen = list.length; });
+    var keyBuf = new Float64Array(maxSeg), fen = new Int32Array(maxLen + 2);
     var crossBetween = function (k) {
-      var segs = [];
-      L[k].forEach(function (u) { down[u.idx].forEach(function (d) { segs.push([u.pos, d[0].pos]); }); });
-      return mapCrossPairs(segs);
+      var K = L[k + 1].length + 1, n = 0, list = L[k], i, j, t;
+      for (i = 0; i < list.length; i++) { var u = list[i], base = u.pos * K; for (j = down.off[u.idx]; j < down.off[u.idx + 1]; j++) keyBuf[n++] = base + vert[down.idx[j]].pos; }
+      if (n < 2) return 0;
+      var keys = keyBuf.subarray(0, n); keys.sort();
+      fen.fill(0, 0, K + 1);
+      var c = 0, done = 0, hi = K + 1;
+      for (i = 0; i < n;) {
+        var a = Math.floor(keys[i] / K);
+        for (j = i; j < n && Math.floor(keys[j] / K) === a; j++) {
+          var q = 0;
+          for (t = keys[j] - a * K + 1; t > 0; t -= t & -t) q += fen[t];
+          c += done - q;
+        }
+        for (var m = i; m < j; m++) { for (t = keys[m] - a * K + 1; t < hi; t += t & -t) fen[t]++; done++; }
+        i = j;
+      }
+      return c;
     };
     var totalCross = function () { var c = 0; for (var k = 0; k + 1 < nL; k++) c += crossBetween(k); return c; };
     var snapshot = function () { return L.map(function (list) { return list.slice(); }); };
     var best = snapshot(), bestC = totalCross();
     var medianNow = false;
+    var scratch = new Int32Array(Math.max(1, nLk));   // for the middle value of a stop's neighbor places
     var sweep = function (k, nb) {
-      L[k].forEach(function (v) {
-        var ns = nb[v.idx];
-        if (medianNow && ns.length) { var ps = ns.map(function (o) { return o[0].pos; }).sort(function (a, b) { return a - b; }), mid = ps.length >> 1; v.bary = ps.length % 2 ? ps[mid] : (ps[mid - 1] + ps[mid]) / 2; }
-        else v.bary = ns.length ? ns.reduce(function (s, o) { return s + o[0].pos; }, 0) / ns.length : v.pos;
-      });
-      L[k].sort(function (a, b) { return laneOf(a) - laneOf(b) || a.bary - b.bary || a.pos - b.pos; });
-      L[k].forEach(function (v, i) { v.pos = i; });
+      var list = L[k], i, j, lo, hi;
+      for (i = 0; i < list.length; i++) {
+        var v = list[i], a = nb.off[v.idx], z = nb.off[v.idx + 1], cnt = z - a;
+        if (medianNow && cnt) {
+          for (j = 0; j < cnt; j++) { var pv = vert[nb.idx[a + j]].pos, q = j - 1; while (q >= 0 && scratch[q] > pv) { scratch[q + 1] = scratch[q]; q--; } scratch[q + 1] = pv; }
+          var mid = cnt >> 1; v.bary = cnt % 2 ? scratch[mid] : (scratch[mid - 1] + scratch[mid]) / 2;
+        } else if (cnt) { var sum = 0; for (j = a; j < z; j++) sum += vert[nb.idx[j]].pos; v.bary = sum / cnt; }
+        else v.bary = v.pos;
+      }
+      list.sort(function (a, b) { return laneOf(a) - laneOf(b) || a.bary - b.bary || a.pos - b.pos; });
+      for (i = 0; i < list.length; i++) list[i].pos = i;
     };
     var transpose = function (k) {
-      var improved = true, guard = 0;
+      var improved = true, guard = 0, before, after;
+      var tally = function (ax, bx, nb) {
+        for (var p = nb.off[ax]; p < nb.off[ax + 1]; p++) for (var q = nb.off[bx]; q < nb.off[bx + 1]; q++) {
+          var x = vert[nb.idx[p]].pos, y = vert[nb.idx[q]].pos;
+          if (x > y) before++; else if (x < y) after++;
+        }
+      };
       while (improved && guard++ < 8) {
         improved = false;
         for (var i = 0; i + 1 < L[k].length; i++) {
           var a = L[k][i], b = L[k][i + 1];
           if (laneOf(a) !== laneOf(b)) continue;
-          var before = 0, after = 0;
-          var tally = function (ea, eb) {
-            for (var p = 0; p < ea.length; p++) for (var q = 0; q < eb.length; q++) {
-              var x = ea[p][0].pos, y = eb[q][0].pos;
-              if (x > y) before++; else if (x < y) after++;
-            }
-          };
-          if (k + 1 < nL) tally(down[a.idx], down[b.idx]);
-          if (k > 0) tally(up[a.idx], up[b.idx]);
+          before = 0; after = 0;
+          if (k + 1 < nL) tally(a.idx, b.idx, down);
+          if (k > 0) tally(a.idx, b.idx, up);
           if (after < before) { a.pos = i + 1; b.pos = i; L[k][i] = b; L[k][i + 1] = a; improved = true; }
         }
       }
@@ -290,24 +323,44 @@
       list.forEach(function (v, i) { if (i) c2 += gapOf(list[i - 1], v); v.c = c2; });
     });
     var isChoke = function (v) { return !v.dummy && opts.spine && v.node.choke; };
+    /* the row placement on flat number lists: the same arithmetic as mapPlaceLine, in the same order, with no list made per row */
+    var P = { want: new Float64Array(maxLen), wt: new Float64Array(maxLen), gaps: new Float64Array(maxLen), off: new Float64Array(maxLen), bs: new Float64Array(maxLen), bw: new Float64Array(maxLen), bn: new Int32Array(maxLen), out: new Float64Array(maxLen) };
     var placeLayer = function (list, nb) {
-      if (!list.length) return;
-      var want = [], wt = [], gaps = [];
-      list.forEach(function (v, i) {
-        var ns = nb[v.idx], s = 0, sw = 0;
-        ns.forEach(function (o) { s += o[0].c * o[1]; sw += o[1]; });
-        if (isChoke(v)) { want.push(0); wt.push(1000); }
+      var n = list.length, want = P.want, wt = P.wt, gaps = P.gaps, off = P.off, bs = P.bs, bw = P.bw, bn = P.bn, out = P.out, i, j;
+      if (!n) return;
+      for (i = 0; i < n; i++) {
+        var v = list[i], na = nb.off[v.idx], nz = nb.off[v.idx + 1], s = 0, sw = 0;
+        for (j = na; j < nz; j++) { s += vert[nb.idx[j]].c * nb.w[j]; sw += nb.w[j]; }
+        if (isChoke(v)) { want[i] = 0; wt[i] = 1000; }
         else {
           var mid = sw ? s / sw : v.c;
-          if (wide && sw && !v.dummy && ns.length > 1) { var lo = Infinity, hi = -Infinity; ns.forEach(function (o) { lo = Math.min(lo, o[0].c); hi = Math.max(hi, o[0].c); }); mid = (lo + hi) / 2; }   // wide: over the middle of its neighbors, like a tree
-          want.push(mid); wt.push(sw ? sw + (v.dummy ? 2 : 0) : 0.2);
+          if (wide && sw && !v.dummy && nz - na > 1) { var lo = Infinity, hi = -Infinity; for (j = na; j < nz; j++) { lo = Math.min(lo, vert[nb.idx[j]].c); hi = Math.max(hi, vert[nb.idx[j]].c); } mid = (lo + hi) / 2; }   // wide: over the middle of its neighbors, like a tree
+          want[i] = mid; wt[i] = sw ? sw + (v.dummy ? 2 : 0) : 0.2;
         }
-        if (i) gaps.push(gapOf(list[i - 1], v));
-      });
-      var xs = mapPlaceLine(want, wt, gaps);
-      list.forEach(function (v, i) { v.c = xs[i]; });
+        if (i) gaps[i - 1] = gapOf(list[i - 1], v);
+      }
+      off[0] = 0;
+      for (i = 1; i < n; i++) off[i] = off[i - 1] + gaps[i - 1];
+      var m = 0;
+      for (i = 0; i < n; i++) {
+        bs[m] = wt[i] * (want[i] - off[i]); bw[m] = wt[i]; bn[m] = 1; m++;
+        while (m > 1 && bs[m - 2] / bw[m - 2] > bs[m - 1] / bw[m - 1]) { m--; bs[m - 1] += bs[m]; bw[m - 1] += bw[m]; bn[m - 1] += bn[m]; }
+      }
+      var at = 0;
+      for (var bi = 0; bi < m; bi++) { var val = bs[bi] / bw[bi]; for (var kk = 0; kk < bn[bi]; kk++, at++) out[at] = val + off[at]; }
+      for (i = 1; i < n; i++) if (out[i] < out[i - 1] + gaps[i - 1]) out[i] = out[i - 1] + gaps[i - 1];
+      for (i = 0; i < n; i++) list[i].c = out[i];
     };
-    var both = vert.map(function (_, i) { return up[i].concat(down[i]); });
+    var both = (function () {   // up neighbors first, then down neighbors, for each stop
+      var off = new Int32Array(nV + 1), idx = new Int32Array(2 * nLk), w = new Float64Array(2 * nLk), at = 0, i, j;
+      for (i = 0; i < nV; i++) {
+        off[i] = at;
+        for (j = up.off[i]; j < up.off[i + 1]; j++) { idx[at] = up.idx[j]; w[at++] = up.w[j]; }
+        for (j = down.off[i]; j < down.off[i + 1]; j++) { idx[at] = down.idx[j]; w[at++] = down.w[j]; }
+      }
+      off[nV] = at;
+      return { off: off, idx: idx, w: w };
+    })();
     for (var it2 = 0; it2 < (big ? 3 : 8); it2++) {
       for (var k4 = 1; k4 < nL; k4++) placeLayer(L[k4], it2 % 3 === 2 ? both : up);
       for (var k5 = nL - 2; k5 >= 0; k5--) placeLayer(L[k5], it2 % 3 === 2 ? both : down);
@@ -449,5 +502,5 @@
     return out.join('\n');
   }
 
-  return { version: '1.3.0', layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
+  return { version: '1.3.1', layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
 }));
