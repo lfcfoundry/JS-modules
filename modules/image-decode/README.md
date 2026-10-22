@@ -1,8 +1,8 @@
 # image-decode
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node 22 checks (22); real browsers one at a time: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5; order of numbers Chromium / Firefox / WebKitGTK / GNOME Web
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time
 
 The version is also in code as `ImageDecode.version`. Run the tests (offline, about a second): `node modules/image-decode/test/run.js`. The real-browser check is `tests/image-decode-browser.js`.
 
@@ -56,6 +56,21 @@ Open `format-check.html` on a phone or laptop, tap **Run the check**, and it mea
 
 What it showed on two sheets of sample art in the four test browsers: WebP and AVIF files are 75% to 91% smaller than PNG, but in Chromium 155 and Firefox 158 they take longer to open than the PNG (for the 1024 sheets, PNG 16 and 18 ms against WebP 29 and 31 ms and AVIF 21 and 26 ms, Chromium / Firefox), with the same 1 to 2 ms freeze. In WebKit the 2048 WebP sheet opened as fast as the PNG or a little faster (80 against 86 ms in WebKitGTK, 82 against 91 in GNOME Web). So the smaller formats win on download size everywhere, and win on opening time only in WebKit.
 
+## Under a strict Content-Security-Policy (`img-src data:` only)
+
+Our games ship `img-src data:` and no `img-src blob:`. Firefox and WebKit then cannot read a picture through a blob: address, which was this module's route for them, and 1.0.0 fell back to `createImageBitmap`, which freezes those browsers for the whole decode. Since 1.1.0 the module notices the refusal once, remembers it, and goes through a **background worker** (WebKit family; needs `worker-src blob:` in the policy) and then a **data: address** (made by `FileReader`; needs `img-src data:`). Chromium is not affected: `createImageBitmap` needs no address. `load(x, { strategy: 'decode', address: 'blob' | 'data' | 'worker' })` forces one of the routes; the default `'auto'` is the order above.
+
+Longest page freeze for one 2048 x 2048 sheet under that policy, ms, lower is better, plain `new Image()` / `ImageDecode.load` (median of 5 tries; Firefox is the median of 3 runs because it swings from run to run; tests/image-decode-browser.js opens a page with the same policy in each browser; Firefox and WebKit timers read whole milliseconds):
+
+| Sheet and policy | Chromium 155.0.8059.39-1 | Firefox 158.0 | WebKitGTK 2.52.6 | GNOME Web 46.5 |
+|---|---|---|---|---|
+| PNG, `img-src data:` | 111 / 3.4 | 70 / 68 | 82 / 39 | 81 / 39 |
+| PNG, plus `worker-src blob:` | 115 / 3.4 | 58 / 61 | 77 / 11 | 79 / 10 |
+| WebP, `img-src data:` | 104 / 2.6 | 85 / 8 | 74 / 6 | 70 / 7 |
+| WebP, plus `worker-src blob:` | 93 / 2.4 | 85 / 9 | 73 / 7 | 67 / 9 |
+
+Plainly: WebKit and GNOME Web are fine in both cases (PNG 10 to 39 ms against about 80, WebP 6 to 9 ms against about 70). Firefox is fine for WebP and AVIF (about 9 ms against 84) but **a large PNG gets no help under this policy** (68 ms against 70): a 3.7 MB data: address costs the page about as much as plain decoding. If your policy has `img-src data:` only, ship WebP or AVIF sprites for Firefox, or add `img-src blob:`, which gives 2 ms for the same PNG. (The Firefox plain WebP time in the plus-worker row is taken from the first row, because a repeated plain data: address is answered from the browser's picture cache.) Not measured: a phone, and policies that also drop `data:`.
+
 ## Measured (the four test browsers, one at a time)
 
 Sprite sheets of 1024 and 2048 pixels square, the same artwork saved as PNG, WebP and AVIF (made by `test/make-sheets.py` with Pillow; 1.4 and 3.7 MB as PNG). Each number is the median of 7 tries in a run; Chromium and Firefox are the median over 4 runs, WebKitGTK and GNOME Web over 1 run. **Longest freeze** is the longest gap in a message loop running on the page while the picture was loaded and drawn once; it is what a player sees as a stutter. **Ready after** is start to drawn. Timers read whole milliseconds in Firefox and WebKit, so small values are rough. "Plain" is `new Image()`, wait for `onload`, `drawImage`.
@@ -108,7 +123,7 @@ Not measured: a phone GPU (the test machine draws canvases in software, so the d
 
 | Alternative | Size (smaller is better) | Speed (lower freeze is better) | Features | Where it wins / loses |
 | --- | --- | --- | --- | --- |
-| **image-decode 1.0.0** (this module, MIT) | 12.6 KB with comments | Freeze 2 to 9 ms (table above) | Right door per browser, list loading, format checks, bytes/data:/url/Blob input | Needs the page to allow `blob:` pictures for the Firefox/WebKit door (falls back otherwise) |
+| **image-decode 1.1.0** (this module, MIT) | 16.9 KB with comments | Freeze 2 to 9 ms (table above) | Right door per browser, list loading, format checks, bytes/data:/url/Blob input | Needs the page to allow `blob:` pictures for the Firefox/WebKit door (falls back otherwise) |
 | Plain `new Image()` + `onload` | 0 | Freeze 44 to 94 ms at 2048 | None | The simplest; freezes the page at the first draw |
 | Plain `createImageBitmap` | 0 | Good in Chromium (2.5 ms), freezes Firefox (48) and WebKit (105) | Blob input only | Right in one browser family and wrong in the other |
 | Plain `Image.decode()` | 0 | Good in Firefox and WebKit (2.5, 8), no help in Chromium (43) | None | Opposite of the line above |
