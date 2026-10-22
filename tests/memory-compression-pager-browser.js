@@ -62,6 +62,17 @@ function battery(src) {
     await R.spill({ all: true });
     for (let k = 0; k < 20; k++) { const t = performance.now(); await R.load(((k * 7) % 29) * 2048 + 5); back.push(performance.now() - t); }
     out.ms.back = [med(back), p90(back)]; try { await R.dispose(); } catch (e) { /* ignore */ }
+    async function sweep(dir, ra) {          // wait one turn between rows, as a game does between frames; time only the first read of each new page
+      const Q = L.pager(big.slice(), { pageRows: 2048, livePages: 4, readAhead: ra, mode: 'fast' }), t = []; let last = -1;
+      for (let k = 0; k < 29 * 2048; k += 512) {
+        const row = dir > 0 ? k : 29 * 2048 - 1 - k, pg = Math.floor(row / 2048), t0 = performance.now(); Q.get(row);
+        if (pg !== last) { t.push(performance.now() - t0); last = pg; }
+        await new Promise(r => setTimeout(r, 0));
+      }
+      return med(t.slice(1));
+    }
+    const sf = [], sb = []; for (let t = 0; t < 3; t++) { sf.push(await sweep(1, true)); sb.push([await sweep(-1, false), await sweep(-1, true)]); }
+    out.ms.sweepBack = [med(sb.map(x => x[0])), med(sb.map(x => x[1]))]; out.ms.sweepForward = med(sf);
     return out;
   })();
 }
@@ -79,7 +90,8 @@ function battery(src) {
     if (r.error) console.log('  error: ' + r.error);
     const f = x => (Math.round(x * 100) / 100).toString();
     console.log('  ms (lower is better): open one closed page ' + f(r.ms.open[0]) + ' / ' + f(r.ms.open[1]) + ' (median / 90th percentile); first read from the whole packed list ' + f(r.ms.viewFirstRead) +
-      '; longest freeze packing 60,000 links all at once ' + f(r.ms.freezeAll) + ', background ' + f(r.ms.freezeBackground) + '; page back from browser storage ' + f(r.ms.back[0]) + ' / ' + f(r.ms.back[1]));
+      '; longest freeze packing 60,000 links all at once ' + f(r.ms.freezeAll) + ', background ' + f(r.ms.freezeBackground) + '; page back from browser storage ' + f(r.ms.back[0]) + ' / ' + f(r.ms.back[1]) +
+      '; first read of each new page when sweeping backward, read-ahead off / on ' + f(r.ms.sweepBack[0]) + ' / ' + f(r.ms.sweepBack[1]) + ', forward with read-ahead ' + f(r.ms.sweepForward));
     await b.close();
   }
   srv.close(); console.log(bad ? bad + ' check(s) failed' : 'all checks passed'); process.exit(bad ? 1 : 0);
