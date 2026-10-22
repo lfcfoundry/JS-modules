@@ -97,6 +97,7 @@ var steps = [
   ['sprite-baker Fancy pixels', 'node', ['tests/sprite-baker-fancy-browser.js'], true, true],   // optional like the one above (Fancy Banana's own filler against sprite-baker, byte for byte, in Node and in each browser, with timings)
   ['save-kit speed', 'node', ['tests/save-kit-speed-browser.js'], true, true],   // optional like the one above (one game-sized save and load, new file against an older one with OLD=, in Node and in each browser)
   ['memory-compression browser', 'node', ['tests/memory-compression-browser.js'], true, true],   // optional: the module's own 36 checks inside each browser page (about 6 to 8 s per browser)
+  ['memory-compression pager browser', 'node', ['tests/memory-compression-pager-browser.js'], true, true],   // optional: pager() exactness (pages, background, real IndexedDB spill) and page-open timings in each browser
   ['pcodec-js browser', 'node', ['tests/pcodec-js-browser.js'], true, true],   // optional: the test page and the demo page in a real browser
   ['small lean browser', 'node', ['tests/small-lean-browser.js'], true, true],   // optional: back-close, wake-keeper, even-dt and quality-governor lean builds in each browser (about 3 s per browser)
   ['field-report browser', 'node', ['tests/field-report-browser.js'], true, true],
