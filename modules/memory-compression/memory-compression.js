@@ -4171,11 +4171,12 @@
       } else st.hits++;
       e.used = ++clock; return e.value;
     }
-    function ahead1(i) {
-      if (i + 1 < np && pages[i + 1].value === undefined && limit() > 1) later(function () {
-        var e = pages[i + 1];
+    function ahead1(i, d) {                      // d is 1 for a forward sweep and -1 for a backward one
+      var j = i + d;
+      if (j >= 0 && j < np && pages[j].value === undefined && limit() > 1) later(function () {
+        var e = pages[j];
         if (!e || e.value !== undefined || limit() <= 1) return;
-        if (e.bytes) open(i + 1); else if (store) P.load((i + 1) * rows).catch(fail);        // a spilled page is fetched from storage
+        if (e.bytes) open(j); else if (store) P.load(j * rows).catch(fail);        // a spilled page is fetched from storage
       });
     }
     function row(i) { if (!(i >= 0 && i < n)) jfail('row ' + i + ' is outside the list of ' + n); return i; }
@@ -4185,7 +4186,7 @@
         var pi, v;
         if (!(i >= 0 && i < n)) return undefined;
         pi = (i / rows) | 0; v = open(pi)[i - pi * rows];
-        if (ahead && pi === lastPage + 1) ahead1(pi);
+        if (ahead && (pi === lastPage + 1 || pi === lastPage - 1)) ahead1(pi, pi > lastPage ? 1 : -1);
         lastPage = pi; return v;
       },
       range: function (from, to) {              // rows from to to - 1 as an array
