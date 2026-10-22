@@ -1,6 +1,12 @@
-// Tests for pcodec-js.js and pcodec-js-pack.js. usage: node test.js [dir]   (dir holds the two built files; default: this folder)
+// Tests for pcodec-js.js and pcodec-js-pack.js. usage: node test.js [dir] [--reader pcodec-js-fast.js]   (dir holds the built files; default: this folder; the reader can also be set with the READER environment variable)
 'use strict';
-const path = require('path'), fs = require('fs'), dir = path.resolve(process.argv[2] || path.join(__dirname, '..')), READER = process.env.READER || 'pcodec-js.js';
+const path = require('path'), fs = require('fs'), args = process.argv.slice(2);
+let readerArg = null;
+for (let i = 0; i < args.length; i++) {   // --reader NAME or --reader=NAME, taken out of the list so the first plain argument stays the folder
+  if (args[i] === '--reader') { readerArg = args[i + 1]; args.splice(i, 2); break; }
+  if (args[i].indexOf('--reader=') === 0) { readerArg = args[i].slice(9); args.splice(i, 1); break; }
+}
+const dir = path.resolve(args[0] || path.join(__dirname, '..')), READER = readerArg || process.env.READER || 'pcodec-js.js';
 const R = require(path.join(dir, READER)), K = require(path.join(dir, 'pcodec-js-pack.js'));
 let pass = 0, fail = 0; const fails = [];
 const ok = (c, m) => { if (c) pass++; else { fail++; fails.push(m); console.log('FAIL', m); } };

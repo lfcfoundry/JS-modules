@@ -10,7 +10,9 @@ marker = "})(typeof self !== 'undefined' ? self : this, function () {\n"
 i = core.index(marker) + len(marker)
 j = core.rindex('});')
 body = core[i:j]
-rd = lambda n: open(os.path.join(here, 'src', n), encoding='utf8').read()
+def rd(n):
+    t = open(os.path.join(here, 'src', n), encoding='utf8').read()
+    return re.sub(r'\A// Copyright \(c\) 2026 LFC Foundry[^\n]*\n', '', t)   # the one-line house header on each piece is not part of the built file
 layer = rd('picker.js') + rd('jso-layer.js') + rd('keeper.js') + rd('pager.js')
 head = rd('header.txt')
 out = head + """(function (root, factory) {

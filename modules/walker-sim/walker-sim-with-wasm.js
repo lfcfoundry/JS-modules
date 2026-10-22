@@ -1014,7 +1014,7 @@
  * Turn it off for one run with cfg.wasm = false. sim.engine says which loop a run used ('wasm' or 'js'); WalkerSim.wasm says whether this file found WebAssembly usable.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.2.0 (API 2)
+ * Version 2.3.0 (API 2)
  */
 
 (function (root, factory) {
