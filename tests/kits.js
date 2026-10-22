@@ -67,6 +67,7 @@ var steps = [
   ['save-kit', 'node', ['modules/save-kit/test/run.js']],
   ['save-kit lean', 'node', ['modules/save-kit/test/lean.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
+  ['field-report', 'node', ['modules/field-report/test/run.js']],
   ['idle-core', 'node', ['modules/idle-core/test/run.js']],
   ['idle-core minified', 'node', ['modules/idle-core/test/run.js', 'modules/idle-core/idle-core.min.js']],
   ['lzma-pack python', 'python3', ['tools/lzma-pack/test/run.py']],
@@ -98,6 +99,7 @@ var steps = [
   ['memory-compression browser', 'node', ['tests/memory-compression-browser.js'], true, true],   // optional: the module's own 36 checks inside each browser page (about 6 to 8 s per browser)
   ['pcodec-js browser', 'node', ['tests/pcodec-js-browser.js'], true, true],   // optional: the test page and the demo page in a real browser
   ['small lean browser', 'node', ['tests/small-lean-browser.js'], true, true],   // optional: back-close, wake-keeper, even-dt and quality-governor lean builds in each browser (about 3 s per browser)
+  ['field-report browser', 'node', ['tests/field-report-browser.js'], true, true],
   ['frame-kit browser', 'node', ['tests/frame-kit-browser.js'], true, true],   // optional like the one above (the 67 checks of modules/frame-kit/test/run.js run inside each browser, plus about 1.5 s of real animation frames)
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fourth item: a browser step (left out by --quick, run one at a time); fifth: counts as skipped, not failed, when it exits with code 2
 ].map(function (s) { return { name: s[0], cmd: s[1], args: s[2], browser: !!s[3], skippable: !!s[4], always: !!s[5] }; });
