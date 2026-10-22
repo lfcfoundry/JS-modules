@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-10-22
+- New background hunt: start a long fuzz run that carries on without the terminal, stops on request, and writes its findings to a folder. Chrome and Firefox now; the runner also works with puppeteer-core.
+
 ## 1.1.0 · API 1 · 2026-10-16
 - Fixed: a page stuck in an endless loop no longer freezes the whole test run; it is reported as hung with the step that froze.
 - Keyboard tests now work in Firefox, and tests can run in several browsers at once.

@@ -393,7 +393,7 @@ const S = '/*TEST_HOOK_START*/', E = '/*TEST_HOOK_END*/';
       check(f + ': ES5 syntax (no async/await, arrows, const/let, template strings, classes, spread)', bad.length === 0, bad.slice(0, 5));
       check(f + ': keeps the header "Copyright (c) 2026 LFC Foundry. MIT License"', t.indexOf('Copyright (c) 2026 LFC Foundry. MIT License') >= 0);
     });
-    ['example/adapter.js', 'example/generic-adapter.js', 'test/run.js', 'test/browser.py', 'test/runner_fakes.py', 'runner/fuzz_playwright.py', 'runner/fuzz_puppeteer.mjs'].forEach(f => {
+    ['example/adapter.js', 'example/generic-adapter.js', 'test/run.js', 'test/browser.py', 'test/runner_fakes.py', 'runner/fuzz_playwright.py', 'runner/fuzz_puppeteer.mjs', 'runner/background.js'].forEach(f => {
       let t = ''; try { t = fs.readFileSync(path.join(__dirname, '..', f), 'utf8'); } catch (e) { }
       check(f + ': keeps the header "Copyright (c) 2026 LFC Foundry. MIT License"', t.indexOf('Copyright (c) 2026 LFC Foundry. MIT License') >= 0);
     });
@@ -550,6 +550,21 @@ const S = '/*TEST_HOOK_START*/', E = '/*TEST_HOOK_END*/';
     // each seed gets its own context, and contexts are closed
     const fb = makeFakeBrowser(); await mod.runSeed(fb, 'u', junkAdapter, 1, 3, vp, null, {}); await mod.runSeed(fb, 'u', junkAdapter, 2, 3, vp, null, {});
     check('runner: every seed gets a fresh context and it is closed afterwards', fb.made.contexts === 2 && fb.made.closed === 2, fb.made);
+  });
+
+  await section('background hunt', async () => {
+    const bg = require(path.join(RUNNER, 'background.js'));
+    check('background: seed lists and batches', JSON.stringify(bg.parseSeeds('1-3,7')) === '[1,2,3,7]' && JSON.stringify(bg.batches([1, 2, 3, 4, 5], 2)) === '[[1,2],[3,4],[5]]');
+    const text = 'browser: Chrome/155.0.8059.39\n ok   seed 1: 50 ops 0.1s visited={}\n FAIL seed 2: 2 finding(s) after 50 ops\n       {"i":3,"what":"coins went negative"}\n       {"i":9,"what":"again"}\nshrunk 50 -> 3 operations\n ok   seed 3: 50 ops 0.1s visited={}\n';
+    const r = bg.readLog(text);
+    check('background: reads the runner output (version, clean seeds, failing seed with its words)', r.version === 'Chrome/155.0.8059.39' && r.ok === 2 && r.fails.length === 1 && r.fails[0].seed === 2 && r.fails[0].findings === 2 && r.fails[0].words.length === 2, r);
+    const st = { url: 'u', adapter: 'a.js', ops: 50, started: 'now', stopped: false, browsers: [{ name: 'chrome', version: 'Chrome/155', total: 3, run: 3, ok: 2, fails: r.fails, state: 'done' }] };
+    const md = bg.findingsMd(st);
+    check('background: findings file lists each browser, says WebKit browsers were not run, and keeps the words', /\| chrome \| Chrome\/155 \| 3 \| 2 \| 1 \| done \|/.test(md) && /webkitgtk .*not run/.test(md) && /epiphany .*not run/.test(md) && /coins went negative/.test(md), md);
+    check('background: plain status words', /running/.test(bg.statusWords(st, null)) && /finished: all seeds run/.test(bg.statusWords(st, 'all seeds run\n')) && /1 seed\(s\) with findings/.test(bg.statusWords(st, null)));
+    st.browsers[0].fails = []; check('background: a clean hunt says so', /No findings so far/.test(bg.findingsMd(st)));
+    const bad = require('child_process').spawnSync(process.execPath, [path.join(RUNNER, 'background.js'), 'start', 'x', 'y', '--browsers', 'epiphany'], { encoding: 'utf8' });
+    check('background: asking for an unsupported browser is refused in plain words', bad.status === 2 && /not supported/.test(bad.stderr), bad.stderr);
   });
 
   console.log(`fuzz-core: ${pass} passed, ${fail} failed`);
