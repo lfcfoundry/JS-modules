@@ -177,3 +177,26 @@ pub extern "C" fn compress_cfg(kind: u32, ptr: *const u8, n: usize, level: u32, 
         }
     }, -1)
 }
+
+// One slice packed as ONE chunk, so a big column can be packed on several workers: the pieces, joined in order, are the same bytes compress() writes for the whole column.
+// `total` is the count of the whole column (it goes in the file header); flags: bit 0 also writes the file header, bit 1 also writes the end-of-file byte. Pass the first piece flag 1, the last piece flag 2 (one piece alone: 3).
+// The slice must be one of the pages Pcodec itself would pick for the whole column (equal pages of at most 262,144 numbers; the page script in pcodec-js.js does the same sum).
+#[cfg(feature = "encode")]
+#[no_mangle]
+pub extern "C" fn compress_part(kind: u32, ptr: *const u8, n: usize, level: u32, total: usize, flags: u32) -> i32 {
+    if n == 0 || n > 0x1FFF_FFFF || total < n || total > 0x1FFF_FFFF || level > 12 || flags > 3 { return -4; }
+    let cfg = pco::ChunkConfig::default().with_compression_level(level as usize).with_paging_spec(pco::PagingSpec::Exact(vec![n]));
+    dispatch!(kind, T, {
+        let a = unsafe { std::slice::from_raw_parts(ptr as *const T, n) };
+        let fc = pco::standalone::FileCompressor::default().with_n_hint(total);
+        let r: pco::errors::PcoResult<Vec<u8>> = (|| {
+            let mut dst = Vec::new();
+            if flags & 1 != 0 { fc.write_header(&mut dst)?; }
+            let mut cc = fc.chunk_compressor(a, &cfg)?;
+            cc.write(&mut dst)?;
+            if flags & 2 != 0 { fc.write_footer(&mut dst)?; }
+            Ok(dst)
+        })();
+        match r { Ok(v) => { let l = v.len() as i32; unsafe { OUT = v; } l } Err(_) => -2 }
+    }, -1)
+}
