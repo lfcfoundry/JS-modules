@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Run a fuzz-kit adapter against a page with Puppeteer (Chrome, or stock Firefox over WebDriver BiDi).
 // Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
-//   node runner/fuzz_puppeteer.mjs URL ADAPTER.js [--seeds 1-20] [--ops 400] [--browser chrome|firefox] [--executable /path/to/browser] [--viewport 412x892]
+//   node runner/fuzz_puppeteer.mjs URL ADAPTER.js [--seeds 1-20] [--ops 400] [--browser chrome|firefox|webkitgtk|epiphany] [--executable /path/to/browser] [--viewport 412x892]
 //       [--shrink] [--shrink-tries 200] [--shrink-secs 30] [--seed-secs 120] [--bundle DIR] [--throttle 4] [--real-input] [--junk-text] [--junk-skip "a,b"]
 //       [--ignore-console REGEX]... [--allow-console-errors] [--allow-navigation] [--hang-trace] [--init "JS"] [--mobile]
 //       [--jobs 4] [--swarm 0.3] [--check-repeat] [--replay FILE]   (what they do: see the top of runner/fuzz_playwright.py)
@@ -106,8 +106,8 @@ export async function runSeed(browser, url, adapter, seed, ops, viewport = { wid
   return r;
 }
 
-// The browser path is chosen per browser: the FIREFOX variable is for Firefox only (it used to be passed to Chrome too).
-export const pickExecutable = (browserName, flagValue, env) => flagValue || (browserName === 'firefox' ? env.FIREFOX : env.CHROME) || undefined;
+// The browser path is chosen per browser: the FIREFOX variable is for Firefox only (it used to be passed to Chrome too), CHROME for Chrome only, EPIPHANY for GNOME Web.
+export const pickExecutable = (browserName, flagValue, env) => flagValue || ({ firefox: env.FIREFOX, epiphany: env.EPIPHANY, chrome: env.CHROME }[browserName]) || undefined;   // WebKitGTK uses the WebKitWebDriver on the PATH; GNOME Web's path is --executable or EPIPHANY
 
 export function parseSeeds(spec) {   // '1-5,9,12-14' -> [1,2,3,4,5,9,12,13,14]
   const out = [];
@@ -157,10 +157,10 @@ async function main() {
   const optAll = n => argv.reduce((acc, x, i) => (x === '--' + n && argv[i + 1] !== undefined ? acc.concat(argv[i + 1]) : acc), []);
   const has = n => argv.includes('--' + n);
   const [url, adapterPath] = pos;
-  if (!url || !adapterPath) { console.error('usage: node runner/fuzz_puppeteer.mjs URL ADAPTER.js [--seeds 1-20] [--ops 400] [--browser chrome|firefox] [--executable PATH] [--shrink] [--seed-secs 120] [--bundle DIR] (see the top of this file)'); process.exit(2); }
+  if (!url || !adapterPath) { console.error('usage: node runner/fuzz_puppeteer.mjs URL ADAPTER.js [--seeds 1-20] [--ops 400] [--browser chrome|firefox|webkitgtk|epiphany] [--executable PATH] [--shrink] [--seed-secs 120] [--bundle DIR] (see the top of this file)'); process.exit(2); }
   const adapter = fs.readFileSync(adapterPath, 'utf8'), ops = +opt('ops', 400), [vw, vh] = opt('viewport', '412x892').split('x').map(Number);
   const browserName = opt('browser', 'chrome'), throttle = +opt('throttle', 1);
-  if (throttle > 1 && browserName !== 'chrome') { console.error('--throttle works only with --browser chrome (Firefox over WebDriver BiDi has no CPU throttling).'); process.exit(2); }
+  if (throttle > 1 && browserName !== 'chrome') { console.error('--throttle works only with --browser chrome (Firefox over WebDriver BiDi and WebKit have no CPU throttling).'); process.exit(2); }
   const ignoreConsole = optAll('ignore-console');
   for (const p of ignoreConsole) { try { new RegExp(p); } catch (e) { console.error(`--ignore-console ${JSON.stringify(p)} is not a valid regular expression`); process.exit(2); } }
   const kw = { shrink: has('shrink'), shrinkTries: +opt('shrink-tries', DEFAULTS.shrinkTries), shrinkSecs: +opt('shrink-secs', DEFAULTS.shrinkSecs), seedSecs: +opt('seed-secs', DEFAULTS.seedSecs), throttle, realInput: has('real-input'), junkText: has('junk-text'),
@@ -176,9 +176,10 @@ async function main() {
     const { bad, total } = await runJobs(argv, seeds, jobs, kw.bundle);
     console.log(`fuzz: ${seeds.length} seeds, ${total} ops, ${bad} seeds with findings, wall ${Math.round((Date.now() - t0) / 1000)}s, ${jobs} browsers at once`); process.exit(bad ? 1 : 0);
   }
-  const puppeteer = await loadPuppeteer();
   const executablePath = pickExecutable(browserName, opt('executable', undefined), process.env);
-  const browser = await puppeteer.launch({ browser: browserName, executablePath, headless: true, args: browserName === 'chrome' ? ['--no-sandbox'] : [] });
+  const browser = browserName === 'webkitgtk' || browserName === 'epiphany'
+    ? await createRequire(import.meta.url)('./webkit_browser.js').launchWebkit({ browser: browserName, executablePath, driverPath: opt('webkit-driver', undefined) })   // through tools/webkit-driver; see webkit_browser.js for what differs
+    : await (await loadPuppeteer()).launch({ browser: browserName, executablePath, headless: true, args: browserName === 'chrome' ? ['--no-sandbox'] : [] });
   if (!jsonLines) console.log('browser: ' + await browser.version());   // the real version, on the first line of every run
   let bad = 0, total = 0;
   if (has('check-repeat')) {
