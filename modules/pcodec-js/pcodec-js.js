@@ -2,7 +2,7 @@
  * pcodec-js.js: Pcodec (a compressor for numbers) for web pages and Node, in one file with no dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.0 (API 1) · reader: unpacks and streams (to pack as well, use pcodec-js-pack.js)
+ * Version 1.5.1 (API 1) · reader: unpacks and streams (to pack as well, use pcodec-js-pack.js)
  *
  * Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (https://github.com/pcodec/pcodec, Apache-2.0, notice in NOTICE-pcodec.txt).
  * This file holds pco 1.0.4 as WebAssembly programs (built from wasm/ with wasm/build.sh), so it writes and reads ordinary Pcodec files: any other Pcodec can open what this writes, and this opens what any other Pcodec 1.x writes.
@@ -313,9 +313,10 @@
           else if (m.op === 'unpack') v = pc.unpack(m.a, m.o);
           else if (m.op === 'pack') v = pc.pack(m.a, m.o);
           else if (m.op === 'packPart') v = pc.packPart(m.a, m.o);
+          else if (m.op === 'many') v = m.a.map(function (x) { return m.what === 'pack' ? pc.pack(x, m.o) : pc.unpack(x, m.o); });
           else if (m.op === 'join') { var jn = 0, jq = 0, ji; for (ji = 0; ji < m.a.length; ji++) jn += m.a[ji].length; v = m.o && m.o.into; if (v && (v.constructor !== m.a[0].constructor || v.length < jn)) throw new TypeError('PcodecJS: { into } does not fit'); v = v || new m.a[0].constructor(jn); for (ji = 0; ji < m.a.length; ji++) { v.set(m.a[ji], jq); jq += m.a[ji].length; } if (v.length !== jn) v = v.subarray(0, jn); }
           else throw new Error('unknown call');
-          reply(true, v, v.buffer ? [v.buffer] : []);
+          reply(true, v, Array.isArray(v) ? v.map(function (x) { return x.buffer; }) : v.buffer ? [v.buffer] : []);
         } catch (err) { reply(false, err); }
       });
     };
@@ -332,6 +333,7 @@
           pack: function (a, o) { return p(function () { return pc.pack(a, o); }); },
           packPart: function (a, o) { return p(function () { return pc.packPart(a, o); }); },
           join: function (parts, into) { return p(function () { return joinParts(parts, into); }); },
+          many: function (what, list, o) { return p(function () { return list.map(function (x) { return what === 'pack' ? pc.pack(x, o) : pc.unpack(x, o); }); }); },
           terminate: function () {} };
       });
     }
@@ -363,6 +365,7 @@
           unpack: function (b, o) { return call('unpack', b, o, tr(b, o)); },
           pack: function (a, o) { return call('pack', a, o, tr(a, o)); },
           packPart: function (a, o) { return call('packPart', a, o, tr(a, o)); },
+          many: function (what, list, o) { return call('many', list, o, [], { what: what }); },   // a whole group of files in one message each way
           join: function (parts, into) { return call('join', parts, into ? { into: into } : undefined, parts.map(function (x) { return x.buffer; }).concat(into ? [into.buffer] : [])); },
           terminate: function () { try { w.terminate(); } catch (e) { /* gone */ } giveUp(); } });
       }, function (err) { if (up) return; up = true; try { w.terminate(); } catch (e) { /* gone */ } URL.revokeObjectURL(url); onPage().then(resolve, function () { reject(err); }); });
@@ -397,12 +400,15 @@
       order.forEach(function (at) { var m = 0, j; for (j = 1; j < k; j++) if (load[j] < load[m]) m = j; groups[m].push(at); load[m] += weights[at]; });
       return groups;
     }
-    function share(list, weights, ns, one) {
+    function share(list, weights, ns, one, what, o) {
       var total = 0, out = new Array(list.length);
       if (!list.length) return Promise.resolve(out);
       weights.forEach(function (w) { total += w; });
       return Promise.all(split(weights, lanesFor(list.length, total * ns / 1e6)).map(function (g, k) {
-        return lane(k).then(function (w) { return Promise.all(g.map(function (at) { return one(w, list[at]).then(function (v) { out[at] = v; }); })); });
+        return lane(k).then(function (w) {
+          if (what === 'unpack' && g.length > 1 && w.many) return w.many(what, g.map(function (at) { return list[at]; }), o).then(function (vs) { g.forEach(function (at, j) { out[at] = vs[j]; }); });
+          return Promise.all(g.map(function (at) { return one(w, list[at]).then(function (v) { out[at] = v; }); }));
+        });
       })).then(function () { return out; });
     }
     function packOne(x, o) {
@@ -461,12 +467,12 @@
         pack: function (x, o) {
           if (ended) return Promise.reject(new Error('PcodecJS: the pool has ended'));
           if (!pc.canPack) return Promise.reject(new Error('PcodecJS: pack needs pcodec-js-pack.js'));
-          return Array.isArray(x) ? share(x, x.map(function (a) { return a && a.length || 1; }), PACK_NS, function (w, a) { return w.pack(a, o); }) : packOne(x, o);
+          return Array.isArray(x) ? share(x, x.map(function (a) { return a && a.length || 1; }), PACK_NS, function (w, a) { return w.pack(a, o); }, 'pack', o) : packOne(x, o);
         },
         unpack: function (x, o) {
           if (ended) return Promise.reject(new Error('PcodecJS: the pool has ended'));
           if (Array.isArray(x) && o && o.into) return Promise.reject(new TypeError('PcodecJS: { into } takes one file, not a list'));
-          if (Array.isArray(x)) return share(x, x.map(count), UNPACK_NS, function (w, b) { return w.unpack(b, o); });
+          if (Array.isArray(x)) return share(x, x.map(count), UNPACK_NS, function (w, b) { return w.unpack(b, o); }, 'unpack', o);
           var bytes = x instanceof ArrayBuffer ? new Uint8Array(x) : x;
           if (bytes instanceof Uint8Array && isSplit(bytes)) { try { return unpackSplit(bytes, o); } catch (e) { return Promise.reject(e); } }
           return lane(0).then(function (w) { return w.unpack(x, o); });
@@ -475,5 +481,5 @@
       };
     });
   }
-  return { version: '1.5.0', load: load, worker: worker, pool: pool, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
+  return { version: '1.5.1', load: load, worker: worker, pool: pool, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
 });
