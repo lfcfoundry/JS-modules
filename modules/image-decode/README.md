@@ -69,7 +69,7 @@ Longest page freeze for one 2048 x 2048 sheet under that policy, ms, lower is be
 | WebP, `img-src data:` | 104 / 2.6 | 85 / 8 | 74 / 6 | 70 / 7 |
 | WebP, plus `worker-src blob:` | 93 / 2.4 | 85 / 9 | 73 / 7 | 67 / 9 |
 
-Plainly: WebKit and GNOME Web are fine in both cases (PNG 10 to 39 ms against about 80, WebP 6 to 9 ms against about 70). Firefox is fine for WebP and AVIF (about 9 ms against 84) but **a large PNG gets no help under this policy** (68 ms against 70): a 3.7 MB data: address costs the page about as much as plain decoding. If your policy has `img-src data:` only, ship WebP or AVIF sprites for Firefox, or add `img-src blob:`, which gives 2 ms for the same PNG. (The Firefox plain WebP time in the plus-worker row is taken from the first row, because a repeated plain data: address is answered from the browser's picture cache.) Not measured: a phone, and policies that also drop `data:`.
+Plainly: WebKit and GNOME Web are fine in both cases (PNG 10 to 39 ms against about 80, WebP 6 to 9 ms against about 70). Firefox is fine for WebP and AVIF (about 9 ms against 84) but **a large PNG gets no help under this policy** (68 ms against 70): a 3.7 MB data: address costs the page about as much as plain decoding. If your policy has `img-src data:` only, ship WebP or AVIF sprites for Firefox. (The Firefox plain WebP time in the plus-worker row is taken from the first row, because a repeated plain data: address is answered from the browser's picture cache.) Not measured: a phone, and policies that also drop `data:`.
 
 ## Measured (the four test browsers, one at a time)
 
