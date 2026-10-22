@@ -1,0 +1,129 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : image-decode format check
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>image-decode format check</title>
+<style>
+  body { font: 16px/1.45 system-ui, sans-serif; max-width: 44rem; margin: 1.5rem auto; padding: 0 1rem; background: #14161c; color: #e8eaf0; }
+  button { font: inherit; padding: .7rem 1.2rem; border-radius: .5rem; border: 0; background: #4f7cff; color: #fff; cursor: pointer; margin-right: .5rem; }
+  button:disabled { opacity: .5; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  td, th { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #2c303c; }
+  #verdict { font-weight: 600; margin: 1rem 0; white-space: pre-line; }
+  small { color: #9aa0b4; } pre { background: #0d0f14; padding: .7rem; border-radius: .5rem; overflow: auto; }
+</style></head><body>
+<h1>Which picture format is better for my sprites?</h1>
+<p>This page measures the same sprite sheet as PNG, WebP and AVIF in <b>this</b> browser: how big the file is, and how long the page is frozen while the picture opens (smaller is better for both). Use it on your phone and your laptop.</p>
+<p><label>Use my own sheet(s): <input id="files" type="file" accept="image/png,image/webp,image/avif" multiple></label><br><small>Pick one PNG, or the same sheet saved as PNG, WebP and AVIF. With nothing picked, a 1024 x 1024 sample sheet is drawn and saved in each format this browser can make.</small></p>
+<p><button id="go">Run the check</button><button id="copy" hidden>Copy results (Markdown)</button> <small id="busy"></small></p>
+<div id="verdict"></div>
+<table id="t" hidden><thead><tr><th>Format</th><th>File size (KB)</th><th>Longest freeze (ms)</th><th>Ready after (ms)</th></tr></thead><tbody></tbody></table>
+<pre id="md" hidden></pre>
+<canvas id="c" width="512" height="512" hidden></canvas>
+<script src="image-decode.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, g = $('c').getContext('2d'), NAMES = { png: 'PNG', webp: 'WebP', avif: 'AVIF' };
+  function median(a) { a = a.slice().sort(function (p, q) { return p - q; }); return a[a.length >> 1]; }
+  function sample() {
+    var c = document.createElement('canvas'); c.width = c.height = 1024; var x = c.getContext('2d'), i;
+    for (i = 0; i < 2400; i++) { x.fillStyle = 'hsl(' + (i * 37 % 360) + ',70%,' + (30 + i % 40) + '%)'; x.beginPath(); x.arc((i * 97) % 1024, (i * 53) % 1024, 4 + i % 28, 0, 6.3); x.fill(); }
+    return c;
+  }
+  function encode(canvas, type, q) { return new Promise(function (res) { canvas.toBlob(function (b) { res(b && b.type === type ? b : null); }, type, q); }); }
+  function fromFiles(files) {
+    var out = {}, k = 0;
+    return Promise.all(Array.prototype.map.call(files, function (f) {
+      return f.arrayBuffer().then(function (ab) { var kind = ImageDecode.sniff(new Uint8Array(ab)); if (NAMES[kind]) out[kind] = new Blob([ab], { type: 'image/' + kind }); });
+    })).then(function () { return out; });
+  }
+  function build() {
+    var files = $('files').files;
+    if (files.length) return fromFiles(files).then(function (m) {
+      if (m.png && !m.webp) return ImageDecode.load(m.png).then(function (d) { var c = document.createElement('canvas'); c.width = d.width || d.naturalWidth; c.height = d.height || d.naturalHeight; c.getContext('2d').drawImage(d, 0, 0); return encode(c, 'image/webp', 0.82).then(function (w) { if (w) m.webp = w; return encode(c, 'image/avif', 0.6); }).then(function (a) { if (a) m.avif = a; return m; }); });
+      return m;
+    });
+    var c = sample(), m = {};
+    return encode(c, 'image/png').then(function (p) { m.png = p; return encode(c, 'image/webp', 0.82); }).then(function (w) { if (w) m.webp = w; return encode(c, 'image/avif', 0.6); }).then(function (a) { if (a) m.avif = a; return m; });
+  }
+  function once(blob) {
+    return new Promise(function (done) {
+      var run = true, last = performance.now(), worst = 0, ch = new MessageChannel();
+      ch.port1.onmessage = function () { var n = performance.now(); if (n - last > worst) worst = n - last; last = n; if (run) ch.port2.postMessage(0); };
+      ch.port2.postMessage(0);
+      setTimeout(function () {
+        worst = 0; last = performance.now(); var t0 = performance.now();
+        ImageDecode.load(blob).then(function (src) {
+          g.clearRect(0, 0, 512, 512); g.drawImage(src, 0, 0, 512, 512); g.getImageData(0, 0, 1, 1);
+          var total = performance.now() - t0; run = false;
+          setTimeout(function () { ImageDecode.close(src); done({ freeze: worst, total: total }); }, 30);
+        }, function () { run = false; done(null); });
+      }, 40);
+    });
+  }
+  function run() {
+    var btn = $('go'), busy = $('busy'); btn.disabled = true; $('verdict').textContent = ''; $('t').hidden = true; $('md').hidden = true; $('copy').hidden = true;
+    return build().then(function (m) {
+      var kinds = ['png', 'webp', 'avif'].filter(function (k) { return m[k]; }), res = {}, order = [], r, k, n = 0;
+      kinds.forEach(function (k) { res[k] = []; });
+      for (r = 0; r < 7; r++) kinds.forEach(function (k, i) { order.push(kinds[(i + r) % kinds.length]); });
+      return new Promise(function (resolve) {
+        (function next() {
+          if (n === order.length) return resolve({ m: m, res: res, kinds: kinds });
+          busy.textContent = 'Try ' + (n + 1) + ' of ' + order.length + '...'; var way = order[n++];
+          once(m[way]).then(function (x) { if (x) res[way].push(x); next(); });
+        })();
+      });
+    }).then(function (o) {
+      var rows = {}, lines = [];
+      o.kinds.forEach(function (k) { rows[k] = { kb: o.m[k].size / 1024, freeze: median(o.res[k].map(function (x) { return x.freeze; })), total: median(o.res[k].map(function (x) { return x.total; })), ok: o.res[k].length > 0 }; });
+      var tb = $('t').querySelector('tbody'); tb.innerHTML = '';
+      ['png', 'webp', 'avif'].forEach(function (k) {
+        var tr = document.createElement('tr');
+        if (!rows[k]) tr.innerHTML = '<td>' + NAMES[k] + '</td><td colspan="3">' + (o.m[k] ? 'could not be opened by this browser' : 'this browser could not make or open one') + '</td>';
+        else tr.innerHTML = '<td>' + NAMES[k] + '</td><td>' + rows[k].kb.toFixed(0) + '</td><td>' + rows[k].freeze.toFixed(1) + '</td><td>' + rows[k].total.toFixed(1) + '</td>';
+        tb.appendChild(tr);
+      });
+      $('t').hidden = false;
+      var png = rows.png, say = [];
+      ['webp', 'avif'].forEach(function (k) {
+        var x = rows[k]; if (!x || !png) return;
+        var smaller = 100 * (1 - x.kb / png.kb), quicker = x.total <= png.total * 1.05;
+        say.push(NAMES[k] + ' is ' + Math.abs(smaller).toFixed(0) + '% ' + (smaller >= 0 ? 'smaller' : 'bigger') + ' than PNG and ' + (x.total <= png.total * 0.95 ? 'opens faster' : quicker ? 'opens about as fast' : 'opens slower (' + x.total.toFixed(0) + ' ms against ' + png.total.toFixed(0) + ' ms)') + ' here.');
+      });
+      var win = ['webp', 'avif'].filter(function (k) { return rows[k] && png && rows[k].total <= png.total * 1.05 && rows[k].kb < png.kb; });
+      say.push(win.length ? 'Use ' + NAMES[win[0]] + ' for sprites in this browser: smaller and not slower.' : 'Keep PNG for sprites in this browser, or use the smaller format if download size matters more than opening time.');
+      $('verdict').textContent = say.join('\n');
+      var md = '# image-decode format check\n\n' + navigator.userAgent + '\n\nImageDecode uses: ' + ImageDecode.strategy + '. Medians of 7 tries (ms, lower is better).\n\n| Format | File size (KB) | Longest freeze (ms) | Ready after (ms) |\n|---|---:|---:|---:|\n' +
+        ['png', 'webp', 'avif'].map(function (k) { return rows[k] ? '| ' + NAMES[k] + ' | ' + rows[k].kb.toFixed(0) + ' | ' + rows[k].freeze.toFixed(1) + ' | ' + rows[k].total.toFixed(1) + ' |' : '| ' + NAMES[k] + ' | not available here | | |'; }).join('\n') + '\n\n' + say.join('\n') + '\n';
+      $('md').textContent = md; $('md').hidden = false; $('copy').hidden = false; busy.textContent = ''; btn.disabled = false;
+      window.__result = { rows: rows, verdict: say, md: md };
+    });
+  }
+  $('go').onclick = run;
+  $('copy').onclick = function () { var t = $('md').textContent; if (navigator.clipboard) navigator.clipboard.writeText(t).then(function () { $('busy').textContent = 'Copied.'; }, function () { $('busy').textContent = 'Select the text below and copy it.'; }); else $('busy').textContent = 'Select the text below and copy it.'; };
+  if (/[?&]auto/.test(location.search)) run();
+})();
+</script></body></html>
