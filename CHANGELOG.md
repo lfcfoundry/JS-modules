@@ -15,7 +15,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
-| [field-report](modules/field-report/README.md) | 1.0.0 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
+| [field-report](modules/field-report/README.md) | 1.0.1 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.1.0 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
@@ -27,8 +27,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.3.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.5.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.3.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.5.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
@@ -52,6 +52,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-10-22 · **zip-open** 1.3.0 · API 1: The WebAssembly checksum now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 - 2026-10-22 · **walker-sim** 2.3.0 · API 2: The WebAssembly loop now starts compiling in the background when the file loads; walker-sim-wasm adds wasmReady() and wasmModule().
+- 2026-10-22 · **pcodec-js** 1.5.1 · API 1: 1.5.1: unpacking a list of files on the worker pool is 1.2 to 1.4 times faster in Firefox, WebKitGTK and GNOME Web (Chromium: a tie).
 - 2026-10-22 · **pcodec-js** 1.5.0 · API 1: New { into: myArray } for worker and pool unpack: fills an array you already have. 8 million numbers open 1.07 to 1.3 times faster (normal file) and 1.3 to 1.7 times (split file); Chromium's page pause falls from 48 ms to 9 ms. New pool({ warm: true }) starts the workers when the pool is made: the first big unpack is 3 to 26 ms faster, for 3 to 7 ms at creation.
 - 2026-10-22 · **pcodec-js** 1.4.0 · API 1: New split file: pack(x, { parts: true }) writes a big column as ordinary Pcodec files, and the pool opens the parts on several workers. 8 million numbers open 1.25 to 1.6 times faster (joined), 2.1 to 2.8 times as parts.
 - 2026-10-22 · **pcodec-js** 1.3.0 · API 1: New pack(x, { smallest: 'quick' }): tries decimal settings only when a column looks like decimals. 39 test columns come out 3.4% smaller at 1.7 times the plain pack time (full smallest: 4.0% smaller at 3.3 to 3.5 times).
@@ -59,6 +60,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-22 · **netflow-layers** 1.3.1 · API 1: Layouts are 1.2 to 2.1 times faster on maps of 2,000 to 20,000 pages in all four test browsers; the drawing is exactly the same. Inner work now runs on flat number lists instead of many small lists.
 - 2026-10-22 · **netflow-engine** 2.2.2 · API 2: 2.2.2: Flow, Down, Spine and Lanes build layered drawings up to 250,000 stops (was 90,000), so maps of about 5,000 to 6,500 pages now draw in 0.5 to 1.6 s instead of being refused.
 - 2026-10-22 · **netflow-engine** 2.2.1 · API 2: The two-pair Distances sweeps no longer stop at 20,000 items: they run at any size (1.02 to 1.10 times faster at 30,000 and 60,000 items in the four test browsers), same positions.
+- 2026-10-22 · **memory-compression** 2.3.1 · API 2: 2.3.1: the automatic page length is never longer than the old 2,048-row default, so thin rows no longer open slower in Firefox.
 - 2026-10-22 · **memory-compression** 2.3.0 · API 2: pager() can pick its own page size, open pages and mode from the list and the device's memory (pageRows, livePages and mode set to 'auto', or pager.plan()). Nothing changes unless you ask for it.
 - 2026-10-22 · **memory-compression** 2.2.0 · API 2: New pager(): keeps a long list packed in pages. One object opens in 0.4 to 3 ms instead of 6 to 50 ms, idle pages leave memory or move to browser storage, and a list packs in the background without a freeze.
 - 2026-10-22 · **memory-compression** 2.1.2 · API 2: Balanced and small packing of number columns is a little faster (up to about 15% on some whole-number columns); no change to file size on disk.
@@ -68,6 +70,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-22 · **gif-writer** 1.3.0 · API 1: The WebAssembly program now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 - 2026-10-22 · **fuzz-kit** 1.3.0 · API 1: New: the background hunt and the runner now also drive WebKitGTK and GNOME Web, so all four test browsers can be hunted. A stuck page in WebKit is reported as hung, as in Chrome and Firefox.
 - 2026-10-22 · **fuzz-kit** 1.2.0 · API 1: New background hunt: start a long fuzz run that carries on without the terminal, stops on request, and writes its findings to a folder. Chrome and Firefox now; the runner also works with puppeteer-core.
+- 2026-10-22 · **field-report** 1.0.1 · API 1: 1.0.1: the Save buttons now really download the report file; before, a wrong type test sent every browser to the copy box.
 - 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
 - 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
 - 2026-10-18 · **zip-open** 1.2.0 · API 1: Checking big files is about 1.3 to 1.7 times faster using a small WebAssembly checksum (same answers). Pages with a content policy need 'wasm-unsafe-eval'; without it the old code is used.

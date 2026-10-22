@@ -595,8 +595,8 @@ tAsync('pager: pressure level 2 spills by itself, read-ahead fetches the next sp
 
 t('pager.plan: page size and open pages follow the row size and the device memory; "auto" options give back every row', function () {
   var rows = many(20000, function (i) { return { id: i, label: 'node ' + i, x: i / 3, tags: ['a', 'b'] }; }), big = J.pager.plan(rows, { deviceMemory: 8 }), small = J.pager.plan(rows, { deviceMemory: 1 }), thin = J.pager.plan(many(60000, function (i) { return { a: i, b: i % 9 }; }), { deviceMemory: 8 }), P, i;
-  assert(small.pageRows < big.pageRows && small.pageRows >= 512 && big.pageRows <= 8192, 'smaller pages on a small device: ' + small.pageRows + ' / ' + big.pageRows);
-  assert(thin.pageRows > big.pageRows, 'thin rows make longer pages: ' + thin.pageRows);
+  assert(small.pageRows < big.pageRows && small.pageRows >= 512 && big.pageRows <= 2048, 'smaller pages on a small device: ' + small.pageRows + ' / ' + big.pageRows);
+  assert(thin.pageRows >= big.pageRows, 'thin rows never make shorter pages: ' + thin.pageRows);
   assert(big.livePages >= 2 && big.livePages <= 8 && small.livePages >= 2, 'live pages in range');
   assert.strictEqual(big.mode, 'fast'); assert.strictEqual(J.pager.plan(rows, { deviceMemory: 1, heapBytes: 1e6 }).mode, 'balanced');
   assert.strictEqual(J.pager.plan(many(10, function (i) { return { i: i }; }), { deviceMemory: 4 }).pageRows, 10, 'a short list is one page');
