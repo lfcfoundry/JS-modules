@@ -74,6 +74,7 @@ ok('keeper and estimateBytes work from the one file', function () {
 var lazyReady = null;
 ok('the WebAssembly helper starts on first use: off after load, on after the first pack, same bytes as 2.0.2', function () {
   if (typeof WebAssembly !== 'object') { console.log('  (skipped: no WebAssembly)'); return; }
+  if (typeof require.resolve !== 'function') { console.log('  (skipped here: it reloads the module through the module cache of Node)'); return; }
   delete require.cache[require.resolve(file)];
   var L = require(file), d = new Uint8Array(100000).map(function (_, i) { return (i * 7 + (i >> 5)) & 255; });
   assert.strictEqual(L.accelerated(), false, 'accelerated() is false right after load');

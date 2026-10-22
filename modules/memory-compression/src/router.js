@@ -35,7 +35,7 @@
   for (key in MC) unified[key] = MC[key];                                                     // lz4Compress, deflate, inflate, zlib, gzip, shuffle, crc32 ... as in memory-compression 1.x
   unified.pack = autoPack; unified.unpack = autoUnpack; unified.view = autoView;
   unified.layerOf = layerOf;
-  unified.freeBuffers = freeBuffers; unified.keeper = keeper; unified.heap = heapInfo; unified.profile = profile; unified.estimateBytes = estimateBytes;
+  unified.freeBuffers = freeBuffers; unified.keeper = keeper; unified.pager = pager; unified.heap = heapInfo; unified.profile = profile; unified.estimateBytes = estimateBytes;
   unified.core = MC; unified.objects = jso; unified.jso = jso; unified.picker = PK;
   return unified;
 });

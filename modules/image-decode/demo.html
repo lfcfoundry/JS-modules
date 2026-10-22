@@ -1,0 +1,101 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : image-decode demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>image-decode demo</title>
+<style>
+  body { font: 16px/1.45 system-ui, sans-serif; max-width: 40rem; margin: 1.5rem auto; padding: 0 1rem; background: #14161c; color: #e8eaf0; }
+  button { font: inherit; padding: .7rem 1.2rem; border-radius: .5rem; border: 0; background: #4f7cff; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  td, th { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #2c303c; }
+  #verdict { font-weight: 600; margin: 1rem 0; }
+  canvas { max-width: 100%; height: auto; border-radius: .5rem; background: #000; }
+  small { color: #9aa0b4; }
+</style></head><body>
+<h1>image-decode demo</h1>
+<p>A picture normally freezes the page for a moment when it is drawn for the first time. This page makes a 2048 x 2048 picture, then loads it the plain way and with <code>ImageDecode</code>, five times each, and measures the longest freeze (smaller is better).</p>
+<p><button id="go">Compare the two ways</button> <small id="busy"></small></p>
+<div id="verdict"></div>
+<table id="t" hidden><thead><tr><th>Way</th><th>Longest freeze (ms)</th><th>Ready after (ms)</th></tr></thead><tbody></tbody></table>
+<canvas id="c" width="512" height="512"></canvas>
+<p><small id="info"></small></p>
+<script src="image-decode.js"></script>
+<script>
+(function () {
+  var g = document.getElementById('c').getContext('2d');
+  document.getElementById('info').textContent = 'This browser: ImageDecode uses "' + ImageDecode.strategy + '". Reads WebP: ... AVIF: ...';
+  Promise.all([ImageDecode.supports('webp'), ImageDecode.supports('avif')]).then(function (r) {
+    document.getElementById('info').textContent = 'This browser: ImageDecode uses "' + ImageDecode.strategy + '". Reads WebP: ' + (r[0] ? 'yes' : 'no') + ', AVIF: ' + (r[1] ? 'yes' : 'no') + '.';
+  });
+  function makePicture() {
+    var c = document.createElement('canvas'); c.width = c.height = 2048; var x = c.getContext('2d'), i;
+    for (i = 0; i < 4000; i++) { x.fillStyle = 'hsl(' + (i * 37 % 360) + ',70%,' + (30 + i % 40) + '%)'; x.beginPath(); x.arc((i * 97) % 2048, (i * 53) % 2048, 6 + i % 40, 0, 6.3); x.fill(); }
+    return new Promise(function (res) { c.toBlob(res, 'image/png'); });
+  }
+  function median(a) { a = a.slice().sort(function (p, q) { return p - q; }); return a[a.length >> 1]; }
+  // One try: start, wait until the picture is ready, draw it, and watch for the longest gap between page turns.
+  function once(way, blob) {
+    return new Promise(function (done) {
+      var run = true, last = performance.now(), worst = 0, ch = new MessageChannel();
+      ch.port1.onmessage = function () { var n = performance.now(); if (n - last > worst) worst = n - last; last = n; if (run) ch.port2.postMessage(0); };
+      ch.port2.postMessage(0);
+      setTimeout(function () {
+        worst = 0; last = performance.now(); var t0 = performance.now();
+        var ready = way === 'plain' ? new Promise(function (r) { var im = new Image(); im.onload = function () { r(im); }; im.src = URL.createObjectURL(blob); }) : ImageDecode.load(blob);
+        ready.then(function (src) {
+          g.clearRect(0, 0, 512, 512); g.drawImage(src, 0, 0, 512, 512); g.getImageData(0, 0, 1, 1);
+          var total = performance.now() - t0; run = false;
+          setTimeout(function () { ImageDecode.close(src); done({ freeze: worst, total: total }); }, 30);
+        });
+      }, 40);
+    });
+  }
+  document.getElementById('go').onclick = function () {
+    var btn = this, busy = document.getElementById('busy'); btn.disabled = true; busy.textContent = 'Working...';
+    makePicture().then(function (blob) {
+      var res = { plain: [], auto: [] }, n = 0, order = [];
+      for (var k = 0; k < 5; k++) { order.push(k % 2 ? 'auto' : 'plain'); order.push(k % 2 ? 'plain' : 'auto'); }
+      (function next() {
+        if (n === order.length) return finish();
+        var way = order[n++]; busy.textContent = 'Try ' + n + ' of ' + order.length + '...';
+        once(way, blob).then(function (r) { res[way].push(r); next(); });
+      })();
+      function finish() {
+        var f = { plain: median(res.plain.map(function (r) { return r.freeze; })), auto: median(res.auto.map(function (r) { return r.freeze; })) };
+        var t = { plain: median(res.plain.map(function (r) { return r.total; })), auto: median(res.auto.map(function (r) { return r.total; })) };
+        var tb = document.querySelector('#t tbody'); tb.innerHTML = '';
+        [['Plain (draw it, the page decodes it then)', 'plain'], ['ImageDecode.load', 'auto']].forEach(function (row) {
+          var tr = document.createElement('tr'); tr.innerHTML = '<td>' + row[0] + '</td><td>' + f[row[1]].toFixed(1) + '</td><td>' + t[row[1]].toFixed(1) + '</td>'; tb.appendChild(tr);
+        });
+        document.getElementById('t').hidden = false;
+        document.getElementById('verdict').textContent = f.auto < f.plain * 0.5 ? 'ImageDecode keeps the page moving here: the longest freeze fell from ' + f.plain.toFixed(0) + ' ms to ' + f.auto.toFixed(0) + ' ms.'
+          : 'No clear difference in this browser (' + f.plain.toFixed(0) + ' ms plain, ' + f.auto.toFixed(0) + ' ms with ImageDecode).';
+        busy.textContent = ''; btn.disabled = false;
+      }
+    });
+  };
+})();
+</script></body></html>
