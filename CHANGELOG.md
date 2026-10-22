@@ -25,7 +25,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.2.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.2.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.0.4 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.1.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.1.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
@@ -73,6 +73,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **netflow-engine** 2.0.0 · API 2: The sixth view is now called "sankey" (the old name is gone), so a page that typed the old name by hand must change it. New tight or wide spread for the story views.
 - 2026-10-18 · **netflow-engine** 1.0.0 · API 1: The engine code arrives: the engine of Netflow Map as one file you can adapt, with nine map views and layouts for networks of any size.
 - 2026-10-18 · **netflow-engine** 0.1.0 · API 0: Placeholder with no engine code yet.
+- 2026-10-18 · **memory-compression** 2.1.0 · API 2: Balanced and small mode open 7 to 32% faster and pack 6 to 18% faster in all four test browsers (same files); WebAssembly starts compiling when the file loads.
 - 2026-10-18 · **memory-compression** 2.0.4 · API 2: Text such as dates (2025-03-04T05:15:00Z) opens up to 2 times faster in fast mode; no change to file size on disk.
 - 2026-10-18 · **memory-compression** 2.0.3 · API 2: Saves about 5.8 MB of memory on pages that load the module but never pack anything. The first pack takes a few milliseconds longer.
 - 2026-10-18 · **memory-compression** 2.0.2 · API 2: Two bugs fixed: asking how much memory a list uses no longer fails when some rows are missing a text value, and a page that only allows WebAssembly no longer logs a blocked-code error.
