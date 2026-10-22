@@ -2,7 +2,7 @@
  * pcodec-js.js: Pcodec (a compressor for numbers) for web pages and Node, in one file with no dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1) · reader with the SIMD program: unpacks and streams, needs WebAssembly SIMD (pcodec-js.js works everywhere)
+ * Version 1.2.0 (API 1) · reader with the SIMD program: unpacks and streams, needs WebAssembly SIMD (pcodec-js.js works everywhere)
  *
  * Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (https://github.com/pcodec/pcodec, Apache-2.0, notice in NOTICE-pcodec.txt).
  * This file holds pco 1.0.4 as WebAssembly programs (built from wasm/ with wasm/build.sh), so it writes and reads ordinary Pcodec files: any other Pcodec can open what this writes, and this opens what any other Pcodec 1.x writes.
@@ -222,6 +222,7 @@
           if (m.op === 'info') v = pc.info(m.a);
           else if (m.op === 'unpack') v = pc.unpack(m.a, m.o);
           else if (m.op === 'pack') v = pc.pack(m.a, m.o);
+          else if (m.op === 'packPart') v = pc.packPart(m.a, m.o);
           else throw new Error('unknown call');
           reply(true, v, v.buffer ? [v.buffer] : []);
         } catch (err) { reply(false, err); }
@@ -238,6 +239,7 @@
           info: function (b) { return p(function () { return pc.info(b); }); },
           unpack: function (b, o) { return pc.unpackAsync(b, o); },
           pack: function (a, o) { return p(function () { return pc.pack(a, o); }); },
+          packPart: function (a, o) { return p(function () { return pc.packPart(a, o); }); },
           terminate: function () {} };
       });
     }
@@ -268,9 +270,87 @@
           info: function (b, o) { return call('info', b, undefined, tr(b, o)); },
           unpack: function (b, o) { return call('unpack', b, o, tr(b, o)); },
           pack: function (a, o) { return call('pack', a, o, tr(a, o)); },
+          packPart: function (a, o) { return call('packPart', a, o, tr(a, o)); },
           terminate: function () { try { w.terminate(); } catch (e) { /* gone */ } giveUp(); } });
       }, function (err) { if (up) return; up = true; try { w.terminate(); } catch (e) { /* gone */ } URL.revokeObjectURL(url); onPage().then(resolve, function () { reject(err); }); });
     });
   }
-  return { version: '1.1.0', load: load, worker: worker, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
+
+  // Several background workers that share a job out, so a big job takes less time on a phone or laptop with several cores.
+  //   PcodecJS.pool().then(function (p) { return p.pack([colA, colB, colC]); })       // an array of arrays in, an array of Pcodec files out (same order); one big array in, one file out
+  //   p.unpack([fileA, fileB, fileC])                                                  // an array of files in, an array of typed arrays out; one file in, one array out (a single file cannot be shared out)
+  // Workers start the first time they are needed and a small job stays on one worker, because starting one costs about 10 to 25 ms: a job is shared out only when each worker would get about 25 ms of work (opts.laneMs, 0 shares it out always).
+  // opts.size is the most workers (default: the cores the device reports less one, at most 4). One big array is cut into the pages Pcodec itself would use and the pieces join into exactly the bytes pack() writes; { smallest: true } packs it on one worker.
+  // Needs the "pack" file for pack. Without Worker support the pool runs on the page one job after another (see worker()). p.terminate() ends all workers.
+  var PACK_NS = 60, UNPACK_NS = 20;                                    // about how long one number takes to pack and to unpack, measured in the four test browsers
+  function pageSizes(n) {                                              // the equal pages of at most 262,144 numbers Pcodec cuts a column into
+    var np = Math.ceil(n / 262144), lo = Math.floor(n / np), r = n % np, out = [], i;
+    for (i = 0; i < np; i++) out.push(i < r ? lo + 1 : lo);
+    return out;
+  }
+  function pool(opts) {
+    opts = opts || {};
+    var hc = typeof navigator === 'object' && navigator && navigator.hardwareConcurrency || 4, lo = { program: opts.program },
+      size = Math.max(1, Math.min(8, Math.floor(opts.size || Math.min(4, hc - 1)))), laneMs = opts.laneMs === undefined ? 25 : opts.laneMs, lanes = [], main = null, ended = false;
+    function lane(k) { return lanes[k] || (lanes[k] = worker(lo)); }
+    function lanesFor(count, ms) { return Math.max(1, Math.min(size, count, laneMs > 0 ? Math.floor(ms / laneMs) : size)); }
+    function split(weights, k) {                                       // largest first, each to the least loaded worker: lists of positions
+      var order = weights.map(function (_, i) { return i; }).sort(function (a, b) { return weights[b] - weights[a]; }), groups = [], load = [], i;
+      for (i = 0; i < k; i++) { groups.push([]); load.push(0); }
+      order.forEach(function (at) { var m = 0, j; for (j = 1; j < k; j++) if (load[j] < load[m]) m = j; groups[m].push(at); load[m] += weights[at]; });
+      return groups;
+    }
+    function share(list, weights, ns, one) {
+      var total = 0, out = new Array(list.length);
+      if (!list.length) return Promise.resolve(out);
+      weights.forEach(function (w) { total += w; });
+      return Promise.all(split(weights, lanesFor(list.length, total * ns / 1e6)).map(function (g, k) {
+        return lane(k).then(function (w) { return Promise.all(g.map(function (at) { return one(w, list[at]).then(function (v) { out[at] = v; }); })); });
+      })).then(function () { return out; });
+    }
+    function packOne(x, o) {
+      var n = x && ArrayBuffer.isView(x) ? x.length : 0, pages, k, groups = [], g, from, to, at = 0, i;
+      if (!(n > 0) || (o && o.smallest)) return lane(0).then(function (w) { return w.pack(x, o); });
+      pages = pageSizes(n); k = Math.min(lanesFor(pages.length, n * PACK_NS / 1e6), pages.length);
+      if (k < 2) return lane(0).then(function (w) { return w.pack(x, o); });
+      for (g = 0; g < k; g++) {                                        // k stretches of whole pages
+        from = Math.floor(g * pages.length / k); to = Math.floor((g + 1) * pages.length / k);
+        groups.push({ sizes: pages.slice(from, to), first: g === 0, last: g === k - 1 });
+      }
+      var sent = [], chain = Promise.resolve();
+      groups.forEach(function (p, g) {                                 // one stretch per turn of the page, so copying the array never freezes it for long
+        chain = chain.then(function () {
+          var cnt = 0, part;
+          p.sizes.forEach(function (s) { cnt += s; });
+          part = x.slice(at, at + cnt); at += cnt;                     // a copy of just this stretch (handed over, so it is not copied again)
+          sent.push(lane(g).then(function (w) { return w.packPart(part, { sizes: p.sizes, total: n, level: o && o.level, first: p.first, last: p.last, transfer: true }); }));
+          return g < groups.length - 1 ? yieldNow() : undefined;
+        });
+      });
+      return chain.then(function () { return Promise.all(sent); }).then(function (outs) {
+        var len = 0, out, q = 0;
+        outs.forEach(function (b) { len += b.length; }); out = new Uint8Array(len);
+        for (i = 0; i < outs.length; i++) { out.set(outs[i], q); q += outs[i].length; }
+        return out;
+      });
+    }
+    function count(b) { try { return main.info(b).count; } catch (e) { return b && b.length || 1; } }
+    return load(lo).then(function (pc) {
+      main = pc;
+      return {
+        size: size,
+        pack: function (x, o) {
+          if (ended) return Promise.reject(new Error('PcodecJS: the pool has ended'));
+          if (!pc.canPack) return Promise.reject(new Error('PcodecJS: pack needs pcodec-js-pack.js'));
+          return Array.isArray(x) ? share(x, x.map(function (a) { return a && a.length || 1; }), PACK_NS, function (w, a) { return w.pack(a, o); }) : packOne(x, o);
+        },
+        unpack: function (x, o) {
+          if (ended) return Promise.reject(new Error('PcodecJS: the pool has ended'));
+          return Array.isArray(x) ? share(x, x.map(count), UNPACK_NS, function (w, b) { return w.unpack(b, o); }) : lane(0).then(function (w) { return w.unpack(x, o); });
+        },
+        terminate: function () { ended = true; lanes.forEach(function (p) { p.then(function (w) { w.terminate(); }, function () {}); }); lanes = []; },
+      };
+    });
+  }
+  return { version: '1.2.0', load: load, worker: worker, pool: pool, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
 });

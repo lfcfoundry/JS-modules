@@ -333,6 +333,86 @@ t('wasm: velvet.wasm in stage-curtains.js is the file wasm/velvet.wasm, and (wit
   else console.log('  skip clang not found: not checking the rebuild');
 });
 
+/* ---- the background worker (option worker: true), with a pretend Worker that runs the worker's own source text in this process ---- */
+function pretendWorkers(how) {   // how: 'ok', 'throws' (constructor throws), 'posts-error', 'onerror', 'none' (no Worker at all)
+  var saved = { Worker: global.Worker, Blob: global.Blob, URL: global.URL }, log = { made: 0, terminated: 0, revoked: 0, posted: 0 };
+  if (how !== 'none') {
+    global.Blob = function (parts) { this.text = parts.join(''); };
+    global.URL = function () {}; global.URL.createObjectURL = function (b) { return { text: b.text }; }; global.URL.revokeObjectURL = function () { log.revoked++; };
+    global.Worker = function (url) {
+      var w = this, handler; log.made++;
+      if (how === 'throws') throw new Error('refused by the page policy');
+      if (how !== 'posts-error') { var scope = new Function('postMessage', 'var onmessage;\n' + url.text + '\nreturn function (e) { return onmessage(e); };'); handler = scope(function (m) { setImmediate(function () { w.onmessage({ data: m }); }); }); }
+      w.postMessage = function (m) {
+        log.posted++;
+        setImmediate(function () {
+          if (how === 'onerror') return w.onerror({ preventDefault: function () {} });
+          if (how === 'posts-error') return w.onmessage({ data: { id: m.id, error: 'boom' } });
+          handler({ data: JSON.parse(JSON.stringify(m)) });
+        });
+      };
+      w.terminate = function () { log.terminated++; };
+    };
+  } else { delete global.Worker; }
+  return { log: log, restore: function () { global.Worker = saved.Worker; global.Blob = saved.Blob; global.URL = saved.URL; if (saved.Worker === undefined) delete global.Worker; } };
+}
+async function paintWorker(SC, args) {   // steps until done (the page keeps getting its turn between steps)
+  var j = SC.velvetPainter.apply(null, args), n = 0;
+  while (!j.step(8) && n++ < 2000) await new Promise(function (r) { setImmediate(r); });
+  return { bytes: j.canvas.img.data, engine: j.engine, done: j.done, steps: n, put: j.canvas.put };
+}
+t('worker: both halves, stepped and smooth, three colors paint the same pixels in the worker as on the page, with wasm and with JavaScript', async function () {
+  global.document = capturingDocument(); var pw = pretendWorkers('ok'), SC = freshSC(), tried = 0;
+  try {
+    for (var c of ['#b3202a', '#1e5aa8', '#e0b020']) for (var st of [false, true]) for (var seed of [5, 28]) for (var wasm of [undefined, false]) {
+      var a = paintBytes(SC, [212, 892, 1.25, c, seed, st, wasm]), b = await paintWorker(SC, [212, 892, 1.25, c, seed, st, wasm, true]);
+      assert.ok(b.done && b.put !== undefined || b.done, 'finished'); assert.ok(sameBytes(a.bytes, b.bytes), c + ' ' + st + ' ' + seed + ' ' + wasm);
+      assert.strictEqual(b.engine, wasm === false ? 'worker+js' : 'worker+wasm'); tried++;
+    }
+    assert.strictEqual(pw.log.made, 1, 'one worker serves every half');
+  } finally { pw.restore(); }
+  assert.strictEqual(tried, 24);
+});
+t('worker: step() returns false until the pixels arrive, then puts them on the canvas once and returns true', async function () {
+  global.document = capturingDocument(); var pw = pretendWorkers('ok'), SC = freshSC();
+  try {
+    var j = SC.velvetPainter(97, 53, 2, '#b3202a', 3, false, undefined, true), first = j.step(8);
+    assert.strictEqual(first, false); assert.strictEqual(j.done, false); assert.strictEqual(j.canvas.put, undefined, 'nothing drawn yet');
+    for (var n = 0; !j.step(8) && n < 500; n++) await new Promise(function (r) { setImmediate(r); });
+    assert.strictEqual(j.done, true); assert.ok(j.canvas.put !== undefined, 'drawn'); assert.strictEqual(j.step(8), true);
+  } finally { pw.restore(); }
+});
+['throws', 'posts-error', 'onerror', 'none'].forEach(function (how) {
+  t('worker: ' + how + ' falls back to the page, silently, with the same pixels, and the worker is not tried again', async function () {
+    global.document = capturingDocument(); var pw = pretendWorkers(how), SC = freshSC(), ref = paintBytes(SC, [212, 892, 1.25, '#b3202a', 11, false]);
+    try {
+      var b = await paintWorker(SC, [212, 892, 1.25, '#b3202a', 11, false, undefined, true]);
+      assert.ok(b.done); assert.ok(sameBytes(ref.bytes, b.bytes)); assert.strictEqual(b.engine, 'wasm');
+      var made = pw.log.made, b2 = await paintWorker(SC, [212, 892, 1.25, '#b3202a', 11, false, undefined, true]);
+      assert.ok(sameBytes(ref.bytes, b2.bytes)); assert.strictEqual(pw.log.made, made, 'not tried again');
+    } finally { pw.restore(); }
+  });
+});
+t('worker: release() ends the worker and a later painter makes a new one; startWorker() makes it early', async function () {
+  global.document = capturingDocument(); var pw = pretendWorkers('ok'), SC = freshSC();
+  try {
+    assert.strictEqual(SC.startWorker(), true); assert.strictEqual(pw.log.made, 1);
+    await paintWorker(SC, [97, 53, 2, '#b3202a', 3, false, undefined, true]); assert.strictEqual(pw.log.made, 1);
+    SC.release(); assert.strictEqual(pw.log.terminated, 1); assert.strictEqual(pw.log.revoked, 1);
+    await paintWorker(SC, [97, 53, 2, '#b3202a', 3, false, undefined, true]); assert.strictEqual(pw.log.made, 2);
+    SC.release();
+  } finally { pw.restore(); }
+});
+t('worker: create({ worker: true }) paints both halves in the worker and the curtain still closes and opens', async function () {
+  var pw = pretendWorkers('ok'), s = setup({ idle: true, opts: { worker: true } });
+  try { var r = await settle(s.c.prepare(), 15000); assert.ok(r.done && !r.threw, 'prepare finished'); } finally { pw.restore(); }
+  assert.ok(pw.log.posted >= 2, 'two halves posted: ' + pw.log.posted);
+});
+t('worker: the default (no worker option) never touches Worker', async function () {
+  global.document = capturingDocument(); var pw = pretendWorkers('ok'), SC = freshSC();
+  try { paintBytes(SC, [97, 53, 2, '#b3202a', 3, false]); assert.strictEqual(pw.log.made, 0); } finally { pw.restore(); }
+});
+
 (async function () {
   for (var i = 0; i < tests.length; i++) {
     try { await tests[i].fn(); pass++; } catch (e) { fail++; console.error('FAIL ' + tests[i].name + ': ' + (e && e.stack || e)); }

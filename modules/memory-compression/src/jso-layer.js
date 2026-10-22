@@ -19,9 +19,11 @@
   var P10 = [1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000, 10000000000];
   // Generated loops need new Function. It is not even tried (so a page that forbids it logs no blocked-eval error) when the page sets MEMORY_COMPRESSION_NO_EVAL = true
   // before this file loads, or has a <meta> Content-Security-Policy whose script-src (else default-src) lacks 'unsafe-eval'. A CSP sent as a header cannot be read from a page: use the switch there.
-  function evalForbidden() {
+  function evalForbidden() { return policyLacks(["'unsafe-eval'"], true); }
+  function wasmForbidden() { return policyLacks(["'unsafe-eval'", "'wasm-unsafe-eval'"], false); }
+  function policyLacks(tokens, useSwitch) {      // true when a <meta> policy's script-src (else default-src) has none of the tokens (or, for eval, the global switch is set)
     var g = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : undefined, m, i, c, parts, j, d, s;
-    if (g && g.MEMORY_COMPRESSION_NO_EVAL === true) return true;
+    if (useSwitch && g && g.MEMORY_COMPRESSION_NO_EVAL === true) return true;
     try {
       m = g && g.document && g.document.querySelectorAll ? g.document.querySelectorAll('meta[http-equiv]') : [];
       for (i = 0; i < m.length; i++) {
@@ -32,7 +34,7 @@
           if (/^script-src(\s|$)/.test(c) && s === null) s = c; else if (/^default-src(\s|$)/.test(c) && d === null) d = c;
         }
         c = s !== null ? s : d;
-        if (c !== null && c.indexOf("'unsafe-eval'") < 0) return true;
+        if (c !== null && !tokens.some(function (t) { return c.indexOf(t) >= 0; })) return true;
       }
     } catch (e) { /* no page, or no access: go on to the real test */ }
     return false;
@@ -402,17 +404,17 @@
     var a = PK, small = this.mode === 'small', best, z = 0, p, ne, probe, got, got0, plain, tryNe = true, i;
     try {
       if (src.length >= 32768) {                    // a long column is first tried on its first 8,192 numbers; if the chooser gains under 5% there, the rest is not tried
-        probe = src.subarray(0, 8192); got = got0 = a.pack(probe, { sample: true });
+        probe = src.subarray(0, 8192); got = got0 = a.pack(probe, { sample: true, wasm: this.mcOpts.wasm });
         if (small) { p = MC.pack(got, this.mcOpts); if (p.length < got.length) got = p; }
         plain = MC.pack(probe, this.mcOpts);
         if (got.length > plain.length * 0.95) return null;
         if (small) {                                // the second pass (no entropy coding, then deflate) is only worth its time when it comes close on the same 8,192 numbers
-          ne = a.pack(probe, { sample: true, noEntropy: true });
+          ne = a.pack(probe, { sample: true, noEntropy: true, wasm: this.mcOpts.wasm });
           if (ne.length === got0.length) { for (i = 0; i < ne.length && ne[i] === got0[i]; i++); tryNe = i < ne.length; }   // the very same bytes: the second pass would only repeat the first
           if (tryNe) { p = MC.pack(ne, this.mcOpts); tryNe = p.length < got.length * 1.02; }
         }
       }
-      best = a.pack(src, { sample: true });
+      best = a.pack(src, { sample: true, wasm: this.mcOpts.wasm });
       if (small) {
         p = MC.pack(best, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
         if (tryNe) { ne = a.pack(src, { sample: true, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; } }
@@ -514,7 +516,7 @@
     return lits;
   }
   // ---- the pattern scan: JavaScript below, and the same loop in WebAssembly (wasm/jso-kernels.c) when the page allows it
-  var TRIE_NODES = 1024, KERNELS_B64 = /*KW:BEGIN*/'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'/*KW:END*/, KW = null, KW_STATE = 0;
+  var TRIE_NODES = 1024, KERNELS_B64 = /*KW:BEGIN*/'AGFzbQEAAAABbA1gDn9/f39/f39/f39/f39/AX9gAAF/YAF/AGAFf39/f38Bf2AGf39/f39/AX9gBH9/f38AYAV/f39/fwBgBX9/f3x/AGAFf398f38AYAN/f38BfGAEf398fwBgA39/fwF/YAZ/f3x8f38BfwMREAABAgMDBAMFBQYHCAkKCwwFBgEBEICAAQYPAn8BQZCWCQt/AEGQlgkLB+UBEgZtZW1vcnkCAAh0cGxfc2NhbgAACGZzc3RfdGJsAAEJZnNzdF9pbml0AAIPZnNzdF9lbmNvZGVfY29sAAMPZnNzdF9kZWNvZGVfY29sAAQIcmFuc19kZWMABQhyYW5zX2VuYwAGDHBsYW5lc19zcGxpdAAHC3BsYW5lc19qb2luAAgLcGxhbmVfc3RhdHMACQlicF91bnBhY2sACgdicF9wYWNrAAsJZGVsdGFfZW5jAAwJZGVsdGFfZGVjAA0LYmxvY2tfc3RhdHMADgdhbHBfZW5jAA8LX19oZWFwX2Jhc2UDAQrlNRD9AwMMfwF+AX8CQCACIANODQAgAEEBaiEOIAVBgARqIQ8DQEEAIRACQCAEIAEgAkECdGooAgAgBGoiEU8NACAHIAJBA3RqIRJBACETQQAhECAEIRQDQAJAAkAgACAUaiIVLQAAIhZBUGpBCUsNACARIBRBAWoiFyARIBdLGyIYQX9qIRlCACEaIBQhFwJAA0AgGkIKfiAWQVBqrXwhGgJAIBkgF0cNACAYIRsMAgsgDiAXaiEWIBdBAWoiGyEXIBYtAAAiFkFQakEKSQ0ACwsCQCAbIBRrIhdBD0wNACACIQMMBgsCQCATIAhIDQAgAiEDDAYLAkAgDyAQQYIEbGovAQAiFg0AIAIhAwwGCyASIBMgA2xBA3RqIBq6OQMAAkAgFyAKIBNBAnQiGWoiFCgCAE4NACAUIBc2AgALAkAgFyALIBlqIhkoAgBMDQAgGSAXNgIACwJAIBdBAkgNACAVLQAAQTBHDQAgDCATakEBOgAACyATQQFqIRMMAQsCQCAFIBBBggRsaiAWQQF0ai8BACIWDQAgAiEDDAULIBRBAWohGwsgFsEhECAbIRQgGyARSQ0ACwsCQCAGIBBqLAAAIhdBAE4NACACIQMMAgsgCSACaiAXOgAAIBEhBCACQQFqIgIgA0cNAAsgESEECyANIAQ2AgQgDSADNgIAIAMLCABBgIiAgAAL7w4GAn8BfgJ/AX4BfwV+QYCAeCEBA0AgAUGImoiAAGpCfzcDACABQYCaiIAAakJ/NwMAIAFBEGoiAQ0AC0GAfiEBQYCeiIAAIQIDQCACQgA3AwAgAUGAnoiAAGpBADoAACABQYCciIAAakEAOwEAIAFBgLCIgABqQQA6AAAgAUGBnoiAAGpBADoAACACQQhqQgA3AwAgAUGBsIiAAGpBADoAACACQRBqIQIgAUECaiIBDQALQYBgIQEDQCABQYjQiIAAakJ/NwMAIAFBgNCIgABqQn83AwAgAUEQaiIBDQALAkAgAEEBSA0AIACtIQNBhIiAgAAhBEGBiICAACEFQgAhBgNAAkACQCAGpyIHQQlsQYCIgIAAai0AACICDQAgB0GAroiAAGogAjoAACAHQQN0QYCeiIAAakIANwMADAELIAKtIghCA4MhCUIAIQpCACELAkAgAkEESQ0AIAhCA4ZC4A+DIQxCACEIIAQhAUIAIQpCACELA0AgATEAACAIQhh8hiABQX9qMQAAIAhCEHyGIAFBfmoxAAAgCEIIfIYgAUF9ajEAACAIhiALhISEhCELIAFBBGohASAKQgR8IQogDCAIQiB8IghSDQALCwJAIAlQDQAgCkIDhiEIIAUgCqdqIQEDQCABMQAAIAiGIAuEIQsgAUEBaiEBIAhCCHwhCCAJQn98IglCAFINAAsLIAdBgK6IgABqIAI6AAAgB0EDdEGAnoiAAGogCzcDACACQQFHDQAgC6dB/wFxIgFBgNCIgABqIAY8AAAgAUGAmoiAAGpBAToAAAsgBUEJaiEFIARBCWohBCAGQgF8IgYgA1INAAsgAEEBSA0AIABBAXEhBUEAIQECQCAAQQFGDQAgAEH+////B3EhB0EAIQFBgJ6IgAAhAgNAAkAgAUGAroiAAGotAABBAkcNACACLwEAQQF0QYCagIAAaiABOwEACwJAIAFBga6IgABqLQAAQQJHDQAgAkEIai8BAEEBdEGAmoCAAGogAUEBajsBAAsgAkEQaiECIAcgAUECaiIBRw0ACwsCQCAFRQ0AIAFBgK6IgABqLQAAQQJHDQAgAUEDdEGAnoiAAGovAQBBAXRBgJqAgABqIAE7AQALIABBAUgNAEEAIQUDQAJAIAVBgK6IgABqLQAAQQhHDQAgBUGAnIiAAGpBADoAAAJAIAVBA3RBgJ6IgABqKAIAQeHJBGxBB3ZB/h9xQYCwiIAAaiICLwEAIgFB//8DRg0AA0AgAUGAnIiAAGoiBy0AACICQX9qIQEgAg0ACyAHIAVBAWo6AAAMAQsgAiAFOwEACyAFQQFqIgUgAEcNAAtBACEFA0ACQCAFQYCuiIAAai0AAEEHRw0AIAVBgJyIgABqQQA6AAACQCAFQQN0QYCeiIAAaigCAEHhyQRsQQd2Qf4fcUGAsIiAAGoiAi8BACIBQf//A0YNAANAIAFBgJyIgABqIgctAAAiAkF/aiEBIAINAAsgByAFQQFqOgAADAELIAIgBTsBAAsgBUEBaiIFIABHDQALQQAhBQNAAkAgBUGAroiAAGotAABBBkcNACAFQYCciIAAakEAOgAAAkAgBUEDdEGAnoiAAGooAgBB4ckEbEEHdkH+H3FBgLCIgABqIgIvAQAiAUH//wNGDQADQCABQYCciIAAaiIHLQAAIgJBf2ohASACDQALIAcgBUEBajoAAAwBCyACIAU7AQALIAVBAWoiBSAARw0AC0EAIQUDQAJAIAVBgK6IgABqLQAAQQVHDQAgBUGAnIiAAGpBADoAAAJAIAVBA3RBgJ6IgABqKAIAQeHJBGxBB3ZB/h9xQYCwiIAAaiICLwEAIgFB//8DRg0AA0AgAUGAnIiAAGoiBy0AACICQX9qIQEgAg0ACyAHIAVBAWo6AAAMAQsgAiAFOwEACyAFQQFqIgUgAEcNAAtBACEFA0ACQCAFQYCuiIAAai0AAEEERw0AIAVBgJyIgABqQQA6AAACQCAFQQN0QYCeiIAAaigCAEHhyQRsQQd2Qf4fcUGAsIiAAGoiAi8BACIBQf//A0YNAANAIAFBgJyIgABqIgctAAAiAkF/aiEBIAINAAsgByAFQQFqOgAADAELIAIgBTsBAAsgBUEBaiIFIABHDQALQQAhBQNAAkAgBUGAroiAAGotAABBA0cNACAFQYCciIAAakEAOgAAAkAgBUEDdEGAnoiAAGooAgBB4ckEbEEHdkH+H3FBgLCIgABqIgIvAQAiAUH//wNGDQADQCABQYCciIAAaiIHLQAAIgJBf2ohASACDQALIAcgBUEBajoAAAwBCyACIAU7AQALIAVBAWoiBSAARw0ACwtBACEFQYCagIAAIQcDQAJAIAVBgJqIgABqLQAARQ0AQQAhASAFQYDQiIAAaiEAA0ACQCAHIAFqIgIvAQBB//8DRw0AIAIgAC0AADsBAAsCQCACQYAEaiICLwEAQf//A0cNACACIAAtAAA7AQALIAFBgAhqIgFBgIAIRw0ACwsgB0ECaiEHIAVBAWoiBUGAAkcNAAsLhAQDCn8BfgN/QQAhBSAEQQA2AgACQCACRQ0AQQAhBkEAIQUDQCAGQQJ0IQdBACEIAkAgASAGQQFqIgZBAnQiCWooAgAiCiABIAdqKAIAIgdGDQAgCiAHayELIAMgBWohDCAAIAdqIQ1BACEOQQAhCANAIA0gDmopAAAhDwJAIAsgDmsiEEEHSw0AIA9CfyAQQQN0rYZCf4WDIQ8LAkACQAJAIA+nIhFB4ckEbEEHdkH+H3FBgLCIgABqLwEAIhJB//8DRg0AA0ACQCAQIBJB//8DcSIHQYCuiIAAai0AACIKSQ0AQn9CfyAKQQN0rYZCf4UgCkEIRhsgD4MgB0EDdEGAnoiAAGopAwBRDQMLIAdBgJyIgABqLQAAIgdBf2ohEiAHDQALCwJAIBFB//8DcUEBdEGAmoCAAGovAQAiB0H//wNGDQAgECAHQYCuiIAAai0AACIKSQ0AIAwgCGogBzoAACAIQQFqIQgMAgsCQCARQf8BcSIHQYCaiIAAai0AAEUNACAMIAhqIAdBgNCIgABqLQAAOgAAQQEhCiAIQQFqIQgMAgsgDCAIaiIHQf8BOgAAQQEhCiAHQQFqIA88AAAgCEECaiEIDAELIAwgCGogEjoAACAIQQFqIQgLIAogDmoiDiALSQ0ACwsgBCAJaiAIIAVqIgU2AgAgBiACRw0ACwsgBQvHAQEGf0EAIQUgBEEANgIAAkAgAkUNAEEAIQVBACEGA0ACQCABIAZBAnRqKAIAIgcgASAGQQFqIgZBAnQiCGooAgAiCU8NAANAAkACQCAAIAdqLQAAIgpB/wFHDQAgAyAFaiAAIAdBAWoiB2otAAA6AAAgBUEBaiEFDAELIAMgBWogCkEDdEGAnoiAAGopAwA3AAAgBSAKQYCuiIAAai0AAGohBQsgB0EBaiIHIAlJDQALCyAEIAhqIAU2AgAgBiACRw0ACwsgBQuwBAIFfwF+AkAgAUEETw0AQX8PC0EAIQZBACEHA0AgAyAGQQF0IghqLwEAIQkgCEGA0oiAAGogBzsBAAJAIAlFDQAgB0H/H0sNAEEBIQgDQCAHIAhqIgpBj9aIgABqIAY6AAAgCCAJTw0BIAhBAWohCCAKQYAgSQ0ACwsgByAJaiEHIAZBAWoiBkGAAkcNAAtBACEGQQAgBzsBgNaIgAACQCACRQ0AIAAoAAAhCkEEIQhBACEJA0AgBCAJaiAKQf8fcSIHQZDWiIAAai0AACIGOgAAIAMgBkEBdCIGajMBACAKQQx2rX4gB618IAZBgNKIgABqMwEAfSILpyEKAkAgC0L///8DVg0AIAggASAIIAFLGyEGA0ACQCAGIAhHDQBBfw8LIAAgCGohByAIQQFqIQggCkEIdCAHLQAAciIKQYCAgARJDQALCyAJQQFqIgkgAkcNAAtBACEGIAVFDQBBASEIIAJBAUYNACACQX9qIgdBA3EhCSAELQAAIQoCQCACQX5qQQNJDQAgB0F8cSEAQQAhBwNAIAQgB2oiCEEBaiIDIAMtAAAgCmoiCjoAACAIQQJqIgMgAy0AACAKaiIKOgAAIAhBA2oiAyADLQAAIApqIgo6AAAgCEEEaiIIIAgtAAAgCmoiCjoAACAAIAdBBGoiB0cNAAsgB0EBaiEICyAJRQ0AIAQgCGohCANAIAggCC0AACAKaiIKOgAAIAhBAWohCCAJQX9qIgkNAAsLIAYLxAIBB38jgICAgABBkARrIgUkgICAgABBACEGQYB8IQcDQCAFIAdqIghBgARqIAY7AQAgCEGCBGogBiACIAdqIglBgARqLwEAaiIGOwEAIAhBhARqIAYgCUGCBGovAQBqIgY7AQAgCEGGBGogBiAJQYQEai8BAGoiCDsBACAIIAlBhgRqLwEAaiEGIAdBCGoiBw0ACwJAAkAgAQ0AQYCAgAQhByAEIQgMAQsgA0F/aiEGQYCAgAQhByAEIQgDQAJAIAcgAiAAIAFBf2oiAWotAABBAXQiCmovAQAiC0ETdCIJSQ0AA0AgBiAIaiAHOgAAIAhBf2ohCCAHQQh2IgcgCU8NAAsLIAcgBSAKai8BAGpBgCAgC2sgByALbmxqIQcgAQ0ACwsgAyAIQXxqIghqIAc2AAAgBUGQBGokgICAgAAgBCAIawvgAgEFfwJAIAFFDQACQCACRQ0AQQAhAiABIQRBACEFA0AgAEEEaigCACEGIAMgACgCACIHIAJzIgI6AAAgAyABaiIIIAJBCHY6AAAgCCABaiIIIAJBEHY6AAAgCCABaiIIIAJBGHY6AAAgCCABaiIIIAYgBXMiAjoAACAIIAFqIgUgAkEIdjoAACAFIAFqIgUgAWogAkEYdjoAACAFIAJBEHY6AAAgAEEIaiEAIANBAWohAyAHIQIgBiEFIARBf2oiBA0ADAILCyABIQQDQCAAQQRqKAIAIQIgAyABaiIFIAAoAgAiBkEIdjoAACADIAY6AAAgBSABaiIFIAZBEHY6AAAgBSABaiIFIAZBGHY6AAAgBSABaiIGIAI6AAAgBiABaiIGIAJBCHY6AAAgBiABaiIGIAFqIAJBGHY6AAAgBiACQRB2OgAAIABBCGohACADQQFqIQMgBEF/aiIEDQALCwvgAgEJfwJAIAFFDQACQCACRQ0AQQAhAiABIQRBACEFA0AgACABaiIGIAFqIgcgAWoiCCABaiIJIAFqIgogAWoiCyABai0AACEMIAstAAAhCyAJLQAAIQkgCi0AACEKIAMgBi0AAEEIdCAALQAAciAHLQAAQRB0ciAILQAAQRh0ciAFcyIFNgIAIANBBGogCSAKQQh0ciALQRB0ciAMQRh0ciACcyICNgIAIANBCGohAyAAQQFqIQAgBEF/aiIEDQAMAgsLIAEhAgNAIAAgAWoiBCABaiIFIAFqIgYgAWoiByABaiIIIAFqIgkgAWotAAAhCiAJLQAAIQkgBy0AACEHIAgtAAAhCCADIAQtAABBCHQgAC0AAHIgBS0AAEEQdHIgBi0AAEEYdHI2AgAgA0EEaiAHIAhBCHRyIAlBEHRyIApBGHRyNgIAIABBAWohACADQQhqIQMgAkF/aiICDQALCwvPBAEGf0GAeCEFA0AgAiAFaiIGQYAIakEANgIAIAMgBWoiB0GACGpBADYCACAGQYQIakEANgIAIAdBhAhqQQA2AgAgBkGICGpBADYCACAHQYgIakEANgIAIAZBjAhqQQA2AgAgB0GMCGpBADYCACAFQRBqIgUNAAsCQCABRQ0AIAFBA3EhB0EAIQYCQCABQQRJDQAgAUF8cSEIQQAhBgNAIAIgACAGaiIFLQAAQQJ0aiIJIAkoAgBBAWo2AgAgAiAFQQFqLQAAQQJ0aiIJIAkoAgBBAWo2AgAgAiAFQQJqLQAAQQJ0aiIJIAkoAgBBAWo2AgAgAiAFQQNqLQAAQQJ0aiIFIAUoAgBBAWo2AgAgCCAGQQRqIgZHDQALCwJAIAdFDQAgACAGaiEFA0AgAiAFLQAAQQJ0aiIGIAYoAgBBAWo2AgAgBUEBaiEFIAdBf2oiBw0ACwsgBCAALQAAIgY6AABBASEFIAMgBkECdGoiByAHKAIAQQFqNgIAIAFBAUYNACABQX9qIgdBAXEhCgJAIAFBAkYNAEEAIAdBfnFrIQhBASEFA0AgBCAFaiIHIAAgBWoiAi0AACIJIAZrIgY6AAAgAyAGQf8BcUECdGoiBiAGKAIAQQFqNgIAIAdBAWogAkEBai0AACIGIAlrIgc6AAAgAyAHQf8BcUECdGoiByAHKAIAQQFqNgIAIAggBUECaiIFakEBRw0ACwsgCkUNACAEIAVqIAAgBWotAAAgBmsiBToAACADIAVB/wFxQQJ0aiIFIAUoAgBBAWo2AgALC5kBAwF/An4EfwJAIAFFDQBBf0F/IAJ0QX9zIAJBIEYbIQUgAq0hBkIAIQdBACEIA0AgACAHQgWIp0ECdGoiCSgCACAIdiEKAkAgCEEfcSILIAJqQSFJDQAgCUEEaigCAEEgIAtrdCAKciEKCyAEIAogBXG4IAOgOQMAIAggAmohCCAEQQhqIQQgByAGfCEHIAFBf2oiAQ0ACwsL3wIFAX4EfwF+AXwBfgJAIAOtIgUgAa1+Qh98QgWIpyIGQX9GDQAgBkEBaiIHQQdxIQhBACEJAkAgBkEHSQ0AIAdBeHEhB0EAIQkgBCEGA0AgBkIANwIAIAZBGGpCADcCACAGQRBqQgA3AgAgBkEIakIANwIAIAZBIGohBiAHIAlBCGoiCUcNAAsLIAhFDQAgBCAJQQJ0aiEGA0AgBkEANgIAIAZBBGohBiAIQX9qIggNAAsLAkAgAUUNAEIAIQpBACEGA0ACQAJAIAArAwAgAqEiC5lEAAAAAAAA4ENjRQ0AIAuwIQwMAQtCgICAgICAgICAfyEMCyAEIApCBYinQQJ0aiIIIAynIgkgBnQgCCgCAHI2AgACQCAGQR9xIgcgA2pBIUkNACAIQQRqIgggCCgCACAJQSAgB2t2cjYCAAsgBiADaiEGIABBCGohACAKIAV8IQogAUF/aiIBDQALCwuLAQMBfAF/AnxEAAAAAAAAAAAhAwJAIAFBAkkNACABQX9qIQFEAAAAAAAAAAAhAwNAIAJEAAAAAAAA8L8gAEEIaiIEKwMAIAArAwChIgUgBaAiBqEgBiAFRAAAAAAAAAAAYxsiBTkDACAFIAMgBSADZBshAyACQQhqIQIgBCEAIAFBf2oiAQ0ACwsgAwvcAQIBfAF+IAMgAjkDAAJAIAFFDQAgA0EIaiEDA0ACQAJAAkAgACsDACIERABmZ9A9699DZg0AIAREAGZn0D3r38NlRQ0BCyAERAAAAAAAAOA/oiEEDAELAkACQCAEmUQAAAAAAADgQ2NFDQAgBLAhBQwBC0KAgICAgICAgIB/IQULIAREAAAAAAAA4D+iIAREAAAAAAAA8D+gRAAAAAAAAOC/oiAEIAW5YSAFQgGDUHFBAXEbIQQLIAMgAiAEoCICOQMAIABBCGohACADQQhqIQMgAUF/aiIBDQALCwuWAgUBfAF/AnwCfwF+AkACQCABDQBEAAAAAAAA8H8hA0EBIQREAAAAAAAA8P8hBQwBC0QAAAAAAADw/yEFQQEhBEQAAAAAAADwfyEDA0AgACsDACIGIAVkIQcgBiADYyEIAkACQCAGmiAGIAZEAAAAAAAAAABjG0QAAAAAAAAgQ2NFDQACQAJAIAaZRAAAAAAAAOBDY0UNACAGsCEJDAELQoCAgICAgICAgH8hCQsgBiAJuWINACAGRAAAAAAAAAAAYg0BRAAAAAAAAPA/IAajRAAAAAAAAAAAY0UNAQtBACEECyAGIAUgBxshBSAGIAMgCBshAyAAQQhqIQAgAUF/aiIBDQALCyACIAU5AwggAiADOQMAIAQLjgMEAn8CfAF+AXwCQCABDQBBAA8LQQAhBkEAIQcDQAJAAkACQCAAKwMAIgggAqIgA6MiCSAJoUQAAAAAAAAAAGENACAEQgA3AwAgBSAHQQJ0aiAGNgIADAELAkAgCUQAAAAAAAAwQ2YNACAJRAAAAAAAADDDZQ0AAkACQCAJmUQAAAAAAADgQ2NFDQAgCbAhCgwBC0KAgICAgICAgIB/IQoLIAq5IgtEAAAAAAAA8L+gIAsgCSALYxsiC0QAAAAAAADwP6AgCyAJIAuhRAAAAAAAAOA/ZhshCQsCQAJAIAlEAAAAAAAAIENkDQAgCUQAAAAAAAAgw2NFDQELIARCADcDACAFIAdBAnRqIAY2AgAMAQsCQCAJIAOiIAKjIAhiDQACQCAIRAAAAAAAAAAAYg0ARAAAAAAAAPA/IAijRAAAAAAAAAAAYw0BCyAEIAk5AwAMAgsgBEIANwMAIAUgB0ECdGogBjYCAAsgB0EBaiEHCyAAQQhqIQAgBEEIaiEEIAEgBkEBaiIGRw0ACyAHCw=='/*KW:END*/, KW = null, KW_STATE = 0;
   function b64bytes(t) {
     var bin = typeof atob === 'function' ? atob(t) : Buffer.from(t, 'base64').toString('binary'), u = new Uint8Array(bin.length), i;
     for (i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
@@ -526,11 +528,17 @@
     KW_STATE = 2;
     try {
       if (typeof WebAssembly !== 'object' || !KERNELS_B64) return null;
-      inst = new WebAssembly.Instance(new WebAssembly.Module(b64bytes(KERNELS_B64)), {});
+      inst = new WebAssembly.Instance(KW_MOD || new WebAssembly.Module(b64bytes(KERNELS_B64)), {});
       KW = { x: inst.exports, mem: inst.exports.memory, base: (inst.exports.__heap_base.value + 15) & ~15 }; KW_STATE = 1;
     } catch (e) { KW = null; }
     return KW;
   }
+  // Compiling starts when this file loads, in the background, so the first pack or unpack that wants the helper finds it ready (compiling it on the spot costs about 1 to 4 ms on the page's own
+  // thread). Not started when a <meta> policy would refuse it (no error is logged for a page that forbids WebAssembly). If it is not ready yet when needed, it is compiled on the spot as before.
+  var KW_MOD = null;
+  (function () {
+    try { if (typeof WebAssembly === 'object' && typeof WebAssembly.compile === 'function' && KERNELS_B64 && !wasmForbidden()) WebAssembly.compile(b64bytes(KERNELS_B64)).then(function (m) { KW_MOD = m; }, function () {}); } catch (e) { /* no helper: the plain code runs */ }
+  })();
   function kwRoom(bytes) {                          // makes sure the helper's memory holds `bytes` after its base; false if it cannot (or it would be too big to keep)
     var need = KW.base + bytes, have = KW.mem.buffer.byteLength;
     if (need > 134217728) return false;
@@ -1423,7 +1431,7 @@
         if (!PK.available()) jfail('this file stores a number column with the number picker, which needs a little-endian machine');
         try {
           if (k) a = MC.unpack(a, { maxSize: m * 64 + n * 16 + 4096, wasm: this.wasm });
-          t = PK.unpack(a, n);
+          t = PK.unpack(a, n, this.wasm);
         } catch (err) { jfail('an adaptive number column is damaged'); }
         if (!(t instanceof Float64Array) || t.length !== n) jfail('an adaptive number column is damaged');
         if (e > 0) { p = P10[e]; a = new Float64Array(n); for (i = 0; i < n; i++) a[i] = t[i] / p; t = a; }
@@ -1480,7 +1488,7 @@
         m = c.varint(); this.spend(m); this.spend(n); if (m > n || m < 2) jfail('bad dictionary column');
         d = this.rawStrings(m); k = c.u8(); e = c.varint(); if (k > 1) jfail('bad dictionary column');
         t = this.bl.take(e);
-        try { if (k) t = MC.unpack(t, { maxSize: e * 64 + n * 16 + 4096, wasm: this.wasm }); t = PK.unpack(t, n); } catch (err) { jfail('a dictionary column is damaged'); }
+        try { if (k) t = MC.unpack(t, { maxSize: e * 64 + n * 16 + 4096, wasm: this.wasm }); t = PK.unpack(t, n, this.wasm); } catch (err) { jfail('a dictionary column is damaged'); }
         a = new (m <= 256 ? Uint8Array : m <= 65536 ? Uint16Array : Uint32Array)(n);
         for (i = 0; i < n; i++) { if (!(t[i] >= 0 && t[i] < m)) jfail('dictionary index out of range'); a[i] = t[i]; }
         return new Col(n, 2, a, d);
@@ -1718,6 +1726,57 @@
   };
   var ZEROS = '000000000000000';
   function pad(v, w) { var s = '' + v; return s.length >= w ? s : ZEROS.substring(0, w - s.length) + s; }
+  // Slots that are table lookups (kind 1) and sit side by side are merged into one lookup: the row's combination of their values is one number (mixed radix), and its
+  // text is made once per combination that shows up (a month, a day and an hour is at most 12 * 28 * 24 combinations however many rows there are). A row then costs one lookup instead
+  // of a join of several pieces. Only for one pattern, at most 65,536 combinations, and at most 4 per row. Returns the merged slots, or null when nothing can be merged.
+  function mixInto(idx, a, lo, span, n) {                          // one loop per kind of array, so each loop sees one type
+    var i;
+    if (a instanceof Uint8Array) for (i = 0; i < n; i++) idx[i] = idx[i] * span + (a[i] - lo);
+    else if (a instanceof Uint16Array) for (i = 0; i < n; i++) idx[i] = idx[i] * span + (a[i] - lo);
+    else if (a instanceof Int32Array) for (i = 0; i < n; i++) idx[i] = idx[i] * span + (a[i] - lo);
+    else if (a instanceof Float64Array) for (i = 0; i < n; i++) idx[i] = idx[i] * span + (a[i] - lo);
+    else for (i = 0; i < n; i++) idx[i] = idx[i] * span + (a[i] - lo);
+  }
+  function templateRun(n, L, R, widths, kinds, arrs, tabs, los) {
+    var j0 = -1, j1 = -1, P = 1, cnt = 0, j, span, other = false, idx, T, make, k, r;
+    for (j = 0; j < R; j++) {
+      if (kinds[j] === 1) {
+        span = tabs[j].length;
+        if (j0 < 0) { j0 = j1 = j; P = span; cnt = 1; }
+        else if (!other && P * span <= 65536 && P * span <= 4 * n) { P *= span; j1 = j; cnt++; }
+        else other = true;
+      } else if (kinds[j] !== 3) { if (j0 >= 0 && !other) other = true; else if (j0 < 0) other = true; }
+    }
+    if (cnt < 2 || P > 4 * n) return null;
+    idx = new Uint16Array(n);
+    for (j = j0; j <= j1; j++) if (kinds[j] === 1) mixInto(idx, arrs[j], los[j], tabs[j].length, n);
+    T = new Array(P).fill('');
+    make = function (x) {
+      var vals = [], d, sp, q, str;
+      for (q = j1; q >= j0; q--) { if (kinds[q] === 1) { sp = tabs[q].length; d = x % sp; x = (x - d) / sp; vals[q] = tabs[q][d]; } else vals[q] = tabs[q]; }
+      str = vals[j0];
+      for (q = j0 + 1; q <= j1; q++) str += L[q] + vals[q];
+      return str;
+    };
+    for (k = 0; k < n; k++) { r = idx[k]; if (T[r] === '') T[r] = make(r); }
+    // the slots after the merged ones that vary (or any slot that is not a constant outside the run) keep their own place; if nothing varies outside, the text around is folded in too
+    for (j = 0; j < R; j++) if ((j < j0 || j > j1) && kinds[j] !== 3) { other = true; break; }
+    var nl = [], nw = [], nk = [], na = [], nt = [], nlo = [];
+    if (!other) {
+      var pre = L[0], post = '', q2;
+      for (q2 = 0; q2 < j0; q2++) pre += tabs[q2] + L[q2 + 1];
+      pre = j0 > 0 ? pre : L[0];
+      post = L[j1 + 1];
+      for (q2 = j1 + 1; q2 < R; q2++) post += tabs[q2] + L[q2 + 1];
+      if (pre || post) for (k = 0; k < P; k++) if (T[k] !== '') T[k] = pre + T[k] + post;
+      return { lits: ['', ''], R: 1, widths: [0], kinds: [1], arrs: [idx], tabs: [T], los: [0] };
+    }
+    for (j = 0; j < j0; j++) { nl.push(L[j]); nw.push(widths[j]); nk.push(kinds[j]); na.push(arrs[j]); nt.push(tabs[j]); nlo.push(los[j]); }
+    nl.push(L[j0]); nw.push(0); nk.push(1); na.push(idx); nt.push(T); nlo.push(0);
+    for (j = j1 + 1; j < R; j++) { nl.push(L[j]); nw.push(widths[j]); nk.push(kinds[j]); na.push(arrs[j]); nt.push(tabs[j]); nlo.push(los[j]); }
+    nl.push(L[R]);
+    return { lits: nl, R: nk.length, widths: nw, kinds: nk, arrs: na, tabs: nt, los: nlo };
+  }
   // The strings come back as literal + number + literal ...; a column of numbers that spans few values is turned into text once and looked up.
   function buildTemplate(n, tpls, R, widths, tid, cols) {
     var nt = tpls.length, out = new Array(n), kinds = [], arrs = [], tabs = [], los = [], lits, j, t, i, a, lo, hi, x, k, sig, f, v;
@@ -1731,6 +1790,7 @@
         kinds[j] = 1; tabs[j] = v; los[j] = lo;
       } else if (widths[j]) kinds[j] = 2;
     }
+    if (nt === 1 && (j = templateRun(n, tpls[0], R, widths, kinds, arrs, tabs, los))) { tpls = [j.lits]; R = j.R; widths = j.widths; kinds = j.kinds; arrs = j.arrs; tabs = j.tabs; los = j.los; }
     sig = 'p' + nt + '|' + R + '|' + kinds.join('') + '|' + widths.join(',') + '|' + JSON.stringify(tpls);
     f = GEN_CACHE[sig];
     if (!f) {
