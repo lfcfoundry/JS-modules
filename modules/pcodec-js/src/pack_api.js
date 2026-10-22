@@ -30,4 +30,27 @@
           return best;
         });
       };
+
+      // One stretch of a big column packed as whole pages, for packing a column on several workers (PcodecJS.pool shares the column out; the pieces join into exactly the bytes pack() writes).
+      // o = { sizes: the page sizes of this stretch, total: the count of the whole column, level, first: true for the first stretch, last: true for the last }
+      api.packPart = function (arr, o) {
+        var type = typeOf(arr), kind, sizes = o && o.sizes, level = o && o.level !== undefined ? o.level : 8, i, off = 0, outs = [], len = 0, out, q = 0;
+        if (!type) throw new TypeError('PcodecJS: packPart needs a typed array of u16, i16, u32, i32, f32, u64, i64 or f64');
+        if (!sizes || !sizes.length || !(level >= 0 && level <= 12) || !(o.total >= arr.length)) throw new RangeError('PcodecJS: packPart needs { sizes, total, level }');
+        for (i = 0; i < sizes.length; i++) off += sizes[i];
+        if (off !== arr.length) throw new RangeError('PcodecJS: the page sizes do not add up to the array');
+        kind = TYPES[type][0]; off = 0;
+        return run(function (x) {
+          drop();
+          for (i = 0; i < sizes.length; i++) {
+            var part = arr.subarray(off, off + sizes[i]), src = new Uint8Array(part.buffer, part.byteOffset, part.byteLength), p = putIn(x, src), n;
+            try { n = x.compress_part(kind, p, sizes[i], level, o.total, (o.first && i === 0 ? 1 : 0) | (o.last && i === sizes.length - 1 ? 2 : 0)); } finally { x.release(p, src.length); }
+            if (n < 0) fail(n);
+            outs.push(new Uint8Array(x.memory.buffer, x.out_ptr(), n).slice()); x.out_release(); len += n; off += sizes[i];
+          }
+          out = new Uint8Array(len);
+          for (i = 0; i < outs.length; i++) { out.set(outs[i], q); q += outs[i].length; }
+          return out;
+        });
+      };
     }
