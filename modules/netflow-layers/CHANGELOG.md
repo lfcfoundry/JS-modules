@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.1 · API 1 · 2026-10-22
+- Layouts are 1.2 to 2.1 times faster on maps of 2,000 to 20,000 pages in all four test browsers; the drawing is exactly the same. Inner work now runs on flat number lists instead of many small lists.
+
 ## 1.3.0 · API 1 · 2026-10-18
 - New tight or wide option: wide draws a looser, more tree-like picture that reads better on wide screens. Tight stays the same as before.
 
