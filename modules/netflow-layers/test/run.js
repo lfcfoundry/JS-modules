@@ -127,4 +127,9 @@ t("spread 'wide': a box that leads to several boxes sits over the middle of them
   const R = NL.layout(g, { dir: 'TB', spread: 'wide' }); ok(Math.abs(at(R, 'r') - (at(R, 'a') + at(R, 'c')) / 2) < 1, 'root at ' + at(R, 'r') + ', middle of its children ' + (at(R, 'a') + at(R, 'c')) / 2);
   ok(Math.abs(at(R, 'a') - (at(R, 'a1') + at(R, 'a4')) / 2) < 1, 'a at ' + at(R, 'a') + ', middle of its children ' + (at(R, 'a1') + at(R, 'a4')) / 2);
 });
+t('1.3.1 flat-list rewrite: every option gives the fingerprints 1.3.0 gave (16 pins: tags and bundles, better and wide, columns and the must-pass column, lanes)', () => {
+  const PIN2 = {"story 30|story-tags-bundle":"cee8f1a492bd1d79","story 30|better-wide":"b638c5bb6890ca33","story 30|wrap-spine":"146eb44be6992c8b","story 30|lanes":"41905b2523fb81c0","story 120|story-tags-bundle":"b6d0419e385c1488","story 120|better-wide":"f49c87153efb195c","story 120|wrap-spine":"8d0d272e67e7c9a3","story 120|lanes":"e7006a54d51e7a00","dag 60/120|story-tags-bundle":"8aad701333730367","dag 60/120|better-wide":"46958ab6d9b6abf4","dag 60/120|wrap-spine":"d1b78293fd424abf","dag 60/120|lanes":"886834f89a4e7616","story 400|story-tags-bundle":"76c211ab94754099","story 400|better-wide":"0f0cae5e4b084519","story 400|wrap-spine":"86d52201cdafa355","story 400|lanes":"12fda9f43de5fb4b"};
+  const OPTS = { 'story-tags-bundle': { dir: 'TB', rows: 'story', tagLen: 6, bundle: true }, 'better-wide': { dir: 'LR', better: true, spread: 'wide' }, 'wrap-spine': { dir: 'TB', rows: 'story', wrap: true, spine: true, tagLen: 20 }, 'lanes': { dir: 'LR', lanes: true, bundle: true } };
+  Object.keys(PIN2).forEach((k) => { const [m, o] = k.split('|'); const got = fp(NL.layout(graph(MAPS[m]), OPTS[o])); ok(got === PIN2[k], k + ' changed: ' + got + ' vs ' + PIN2[k]); });
+});
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);
