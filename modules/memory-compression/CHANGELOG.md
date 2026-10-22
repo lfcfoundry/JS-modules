@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.1.2 · API 2 · 2026-10-22
+- Balanced and small packing of number columns is a little faster (up to about 15% on some whole-number columns); no change to file size on disk.
+
 ## 2.1.1 · API 2 · 2026-10-22
 - Lists with a lot of text pack up to about 15% faster in Chrome-based and Safari-based browsers; no change to file size on disk.
 
