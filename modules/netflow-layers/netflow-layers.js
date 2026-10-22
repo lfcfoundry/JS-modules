@@ -233,10 +233,28 @@
       list.sort(function (a, b) { return laneOf(a) - laneOf(b) || a.key - b.key; });
       list.forEach(function (v, i) { v.pos = i; });
     });
+    /* crossings between row k and row k+1 on flat number lists (the same count as mapCrossPairs gives): each link is one number, upper place * K + lower place, sorted as numbers */
+    var maxSeg = 0, maxLen = 0;
+    L.forEach(function (list) { var m = 0; list.forEach(function (u) { m += down[u.idx].length; }); if (m > maxSeg) maxSeg = m; if (list.length > maxLen) maxLen = list.length; });
+    var keyBuf = new Float64Array(maxSeg), fen = new Int32Array(maxLen + 2);
     var crossBetween = function (k) {
-      var segs = [];
-      L[k].forEach(function (u) { down[u.idx].forEach(function (d) { segs.push([u.pos, d[0].pos]); }); });
-      return mapCrossPairs(segs);
+      var K = L[k + 1].length + 1, n = 0, list = L[k], i, j, t;
+      for (i = 0; i < list.length; i++) { var u = list[i], ds = down[u.idx], base = u.pos * K; for (j = 0; j < ds.length; j++) keyBuf[n++] = base + ds[j][0].pos; }
+      if (n < 2) return 0;
+      var keys = keyBuf.subarray(0, n); keys.sort();
+      fen.fill(0, 0, K + 1);
+      var c = 0, done = 0, hi = K + 1;
+      for (i = 0; i < n;) {
+        var a = Math.floor(keys[i] / K);
+        for (j = i; j < n && Math.floor(keys[j] / K) === a; j++) {
+          var q = 0;
+          for (t = keys[j] - a * K + 1; t > 0; t -= t & -t) q += fen[t];
+          c += done - q;
+        }
+        for (var m = i; m < j; m++) { for (t = keys[m] - a * K + 1; t < hi; t += t & -t) fen[t]++; done++; }
+        i = j;
+      }
+      return c;
     };
     var totalCross = function () { var c = 0; for (var k = 0; k + 1 < nL; k++) c += crossBetween(k); return c; };
     var snapshot = function () { return L.map(function (list) { return list.slice(); }); };
@@ -290,22 +308,33 @@
       list.forEach(function (v, i) { if (i) c2 += gapOf(list[i - 1], v); v.c = c2; });
     });
     var isChoke = function (v) { return !v.dummy && opts.spine && v.node.choke; };
+    /* the row placement on flat number lists: the same arithmetic as mapPlaceLine, in the same order, with no list made per row */
+    var P = { want: new Float64Array(maxLen), wt: new Float64Array(maxLen), gaps: new Float64Array(maxLen), off: new Float64Array(maxLen), bs: new Float64Array(maxLen), bw: new Float64Array(maxLen), bn: new Int32Array(maxLen), out: new Float64Array(maxLen) };
     var placeLayer = function (list, nb) {
-      if (!list.length) return;
-      var want = [], wt = [], gaps = [];
-      list.forEach(function (v, i) {
-        var ns = nb[v.idx], s = 0, sw = 0;
-        ns.forEach(function (o) { s += o[0].c * o[1]; sw += o[1]; });
-        if (isChoke(v)) { want.push(0); wt.push(1000); }
+      var n = list.length, want = P.want, wt = P.wt, gaps = P.gaps, off = P.off, bs = P.bs, bw = P.bw, bn = P.bn, out = P.out, i, j, o;
+      if (!n) return;
+      for (i = 0; i < n; i++) {
+        var v = list[i], ns = nb[v.idx], s = 0, sw = 0;
+        for (j = 0; j < ns.length; j++) { o = ns[j]; s += o[0].c * o[1]; sw += o[1]; }
+        if (isChoke(v)) { want[i] = 0; wt[i] = 1000; }
         else {
           var mid = sw ? s / sw : v.c;
-          if (wide && sw && !v.dummy && ns.length > 1) { var lo = Infinity, hi = -Infinity; ns.forEach(function (o) { lo = Math.min(lo, o[0].c); hi = Math.max(hi, o[0].c); }); mid = (lo + hi) / 2; }   // wide: over the middle of its neighbors, like a tree
-          want.push(mid); wt.push(sw ? sw + (v.dummy ? 2 : 0) : 0.2);
+          if (wide && sw && !v.dummy && ns.length > 1) { var lo = Infinity, hi = -Infinity; for (j = 0; j < ns.length; j++) { o = ns[j]; lo = Math.min(lo, o[0].c); hi = Math.max(hi, o[0].c); } mid = (lo + hi) / 2; }   // wide: over the middle of its neighbors, like a tree
+          want[i] = mid; wt[i] = sw ? sw + (v.dummy ? 2 : 0) : 0.2;
         }
-        if (i) gaps.push(gapOf(list[i - 1], v));
-      });
-      var xs = mapPlaceLine(want, wt, gaps);
-      list.forEach(function (v, i) { v.c = xs[i]; });
+        if (i) gaps[i - 1] = gapOf(list[i - 1], v);
+      }
+      off[0] = 0;
+      for (i = 1; i < n; i++) off[i] = off[i - 1] + gaps[i - 1];
+      var m = 0;
+      for (i = 0; i < n; i++) {
+        bs[m] = wt[i] * (want[i] - off[i]); bw[m] = wt[i]; bn[m] = 1; m++;
+        while (m > 1 && bs[m - 2] / bw[m - 2] > bs[m - 1] / bw[m - 1]) { m--; bs[m - 1] += bs[m]; bw[m - 1] += bw[m]; bn[m - 1] += bn[m]; }
+      }
+      var at = 0;
+      for (var bi = 0; bi < m; bi++) { var val = bs[bi] / bw[bi]; for (var kk = 0; kk < bn[bi]; kk++, at++) out[at] = val + off[at]; }
+      for (i = 1; i < n; i++) if (out[i] < out[i - 1] + gaps[i - 1]) out[i] = out[i - 1] + gaps[i - 1];
+      for (i = 0; i < n; i++) list[i].c = out[i];
     };
     var both = vert.map(function (_, i) { return up[i].concat(down[i]); });
     for (var it2 = 0; it2 < (big ? 3 : 8); it2++) {
