@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -214,15 +214,40 @@
   /* The same checksum in WebAssembly ("slicing by 16", 1.2.0): 1.3 to 1.8 times as fast on big buffers in the four test browsers. It is used from 1,024 bytes up; shorter pieces use the plain loop above,
      which is as fast there. If the browser refuses WebAssembly (a page policy without 'wasm-unsafe-eval'), or anything goes wrong, crc32js gives the same answer. Source: wasm/crc32.c. */
   var WASM_B64 = /*WASM:BEGIN*/'AGFzbQEAAAABCwJgAABgA39/fwF/AwMCAAEFAwEAAQYPAn8BQYCoAQt/AEGAqAELByUEBm1lbW9yeQIABGluaXQAAANjcmMAAQtfX2hlYXBfYmFzZQMBCuoKAsAGAQR/QQAhAEGAiICAACEBA0AgASAAQQF2IgJBoIbi7X5zIAIgAEEBcRsiAkEBdiIDQaCG4u1+cyADIAJBAXEbIgJBAXYiA0GghuLtfnMgAyACQQFxGyICQQF2IgNBoIbi7X5zIAMgAkEBcRsiAkEBdiIDQaCG4u1+cyADIAJBAXEbIgJBAXYiA0GghuLtfnMgAyACQQFxGyICQQF2IgNBoIbi7X5zIAMgAkEBcRsiAkEBdiIDQaCG4u1+cyADIAJBAXEbNgIAIAFBBGohASAAQQFqIgBBgAJHDQALQYB4IQADQCAAQYCYgIAAaiAAQYCQgIAAaigCACIBQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCggIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCogIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCwgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYC4gIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDAgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDIgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDQgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDYgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDggIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDogIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDwgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYD4gIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCAgYAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCIgYAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnM2AgAgAEEEaiIADQALC6UEAQF/AkAgAUEQSQ0AA0AgACgCACACcyICQQZ2QfwHcUGA+ICAAGooAgAgAkH/AXFBAnRBgICBgABqKAIAcyACQQ52QfwHcUGA8ICAAGooAgBzIAJBFnZB/AdxQYDogIAAaigCAHMgACgCBCICQf8BcUECdEGA4ICAAGooAgBzIAJBBnZB/AdxQYDYgIAAaigCAHMgAkEOdkH8B3FBgNCAgABqKAIAcyACQRZ2QfwHcUGAyICAAGooAgBzIAAoAggiAkH/AXFBAnRBgMCAgABqKAIAcyACQQZ2QfwHcUGAuICAAGooAgBzIAJBDnZB/AdxQYCwgIAAaigCAHMgAkEWdkH8B3FBgKiAgABqKAIAcyAAKAIMIgJB/wFxQQJ0QYCggIAAaigCAHMgAkEGdkH8B3FBgJiAgABqKAIAcyACQQ52QfwHcUGAkICAAGooAgBzIAJBFnZB/AdxQYCIgIAAaigCAHMhAiAAQRBqIQAgAUFwaiIBQQ9LDQALCwJAIAFFDQACQAJAIAFBAXENACABIQMMAQsgAC0AACACc0H/AXFBAnRBgIiAgABqKAIAIAJBCHZzIQIgAEEBaiEAIAFBf2ohAwsgAUEBRg0AA0AgAEEBai0AACAALQAAIAJzQf8BcUECdEGAiICAAGooAgAgAkEIdnMiAnNB/wFxQQJ0QYCIgIAAaigCACACQQh2cyECIABBAmohACADQX5qIgMNAAsLIAIL'/*WASM:END*/, WASM_MIN = 1024, WASM_CHUNK = 1 << 20, K;
+  /* compile early (since 1.3.0): the engine compiles the program on another thread as soon as this file loads, so the page keeps running; the first big checksum then only starts it. A checksum asked
+     for before the compile is done compiles on the spot as it always did, so nothing waits and the answers do not change. */
+  var ZM, zbin = null, earlyP = null;
+  function zipBytes() {
+    if (zbin) return zbin;
+    var bin, i;
+    if (typeof atob === 'function') { var raw = atob(WASM_B64); bin = new Uint8Array(raw.length); for (i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); }
+    else bin = new Uint8Array(Buffer.from(WASM_B64, 'base64'));
+    return (zbin = bin);
+  }
+  function zipModule() {     // undefined until decided; null when the browser has none or refuses it
+    if (ZM !== undefined) return ZM;
+    ZM = null;
+    try {
+      if (typeof WebAssembly === 'object' && typeof WebAssembly.Module === 'function') ZM = new WebAssembly.Module(zipBytes());
+    } catch (e) { ZM = null; }
+    zbin = null;
+    return ZM;
+  }
+  function compileEarly() {
+    if (earlyP) return earlyP;
+    try {
+      if (typeof WebAssembly !== 'object' || !WebAssembly || typeof WebAssembly.compile !== 'function' || typeof WebAssembly.Module !== 'function') { ZM = null; return (earlyP = Promise.resolve(false)); }
+      earlyP = WebAssembly.compile(zipBytes()).then(function (m) { if (ZM === undefined) ZM = m; zbin = null; return ZM !== null; }, function () { if (ZM === undefined) ZM = null; zbin = null; return false; });
+    } catch (e) { earlyP = Promise.resolve(false); }
+    return earlyP;
+  }
   function kernel() {
     if (K !== undefined) return K;
     K = null;
     try {
-      if (typeof WebAssembly !== 'object' || typeof WebAssembly.Module !== 'function') return K;
-      var bin, i;
-      if (typeof atob === 'function') { var raw = atob(WASM_B64); bin = new Uint8Array(raw.length); for (i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); }
-      else bin = new Uint8Array(Buffer.from(WASM_B64, 'base64'));
-      var ex = new WebAssembly.Instance(new WebAssembly.Module(bin), {}).exports;
+      var mod = zipModule();
+      if (!mod) return K;
+      var ex = new WebAssembly.Instance(mod, {}).exports;
       ex.init();
       var base = (ex.__heap_base.value + 15) & ~15, need = Math.ceil((base + WASM_CHUNK) / 65536), have = ex.memory.buffer.byteLength / 65536;
       if (need > have) ex.memory.grow(need - have);
@@ -441,5 +466,6 @@
   /** Bytes of one listed entry, checked against the size and checksum the zip promised: { bytes } or { skip: 'plain-words reason' }. */
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
-  return { expand: expand, list: list, read: read, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, LIMITS: LIMITS };
+  compileEarly();
+  return { expand: expand, list: list, read: read, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, LIMITS: LIMITS };
 }));
