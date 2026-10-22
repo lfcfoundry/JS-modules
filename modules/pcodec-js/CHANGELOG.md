@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-10-22
+- New split file: pack(x, { parts: true }) writes a big column as ordinary Pcodec files, and the pool opens the parts on several workers. 8 million numbers open 1.25 to 1.6 times faster (joined), 2.1 to 2.8 times as parts.
+
 ## 1.3.0 · API 1 · 2026-10-22
 - New pack(x, { smallest: 'quick' }): tries decimal settings only when a column looks like decimals. 39 test columns come out 3.4% smaller at 1.7 times the plain pack time (full smallest: 4.0% smaller at 3.3 to 3.5 times).
 
