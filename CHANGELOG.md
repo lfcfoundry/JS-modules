@@ -15,6 +15,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
+| [field-report](modules/field-report/README.md) | 1.0.0 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.0 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
@@ -48,6 +49,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
+- 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
 - 2026-10-18 · **zip-open** 1.2.0 · API 1: Checking big files is about 1.3 to 1.7 times faster using a small WebAssembly checksum (same answers). Pages with a content policy need 'wasm-unsafe-eval'; without it the old code is used.
 - 2026-10-18 · **webkit-driver** 1.3.0 · API 1: New attach() lets a check reuse a WebKit browser that is already open instead of starting a new one.
 - 2026-10-18 · **walker-sim** 2.2.0 · API 2: The default file is now walker-sim-with-wasm.js: big runs use the WebAssembly walking loop first (about 1.5 times faster in Chromium and Firefox), and the JavaScript loop when WebAssembly is not usable. Same counts either way. In WebKitGTK and GNOME Web a fresh page is about 15% to 30% slower with it; set cfg.wasm = false or copy walker-sim.js there.

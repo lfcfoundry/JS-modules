@@ -1,0 +1,42 @@
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : field-report demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>field-report demo</title>
+<body style="font:16px system-ui,sans-serif;margin:1.5rem;max-width:34rem;background:#10131a;color:#eee">
+<h1 style="font-size:1.3rem">field-report demo</h1>
+<p>Tap the top-left corner of this page <b>5 times quickly</b>. A small panel opens with two buttons: <b>Save speed report</b> and <b>Save error log</b>. Each saves one Markdown file on this device. Nothing is sent anywhere.</p>
+<p>Make something happen first, then open the panel:</p>
+<p><button id="stutter" style="min-height:44px">Make the page stutter (0.2 s)</button> <button id="boom" style="min-height:44px">Raise an error</button> <button id="reject" style="min-height:44px">Reject a promise</button></p>
+<canvas id="c" width="320" height="120" style="width:100%;max-width:320px;border-radius:8px"></canvas>
+<script src="field-report.js"></script>
+<script>
+var fr = FieldReport.start({ name: 'field-report-demo', version: '1.0.0' });
+var cv = document.getElementById('c'), cx = cv.getContext('2d'), n = 0;
+(function loop() { n++; cx.fillStyle = '#10131a'; cx.fillRect(0, 0, 320, 120); cx.fillStyle = '#6cf'; cx.fillRect(n * 3 % 320, 40, 40, 40); requestAnimationFrame(loop); })();
+fr.mark('first-screen');
+document.getElementById('stutter').onclick = function () { fr.task('demo-stutter', function () { var t = performance.now(); while (performance.now() - t < 200) {} }); };
+document.getElementById('boom').onclick = function () { setTimeout(function () { null.oops(); }, 0); };
+document.getElementById('reject').onclick = function () { Promise.reject(new Error('demo rejection')); };
+</script>
