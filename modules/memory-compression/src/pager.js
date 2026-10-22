@@ -33,10 +33,36 @@
       remove: function (key) { return run('readwrite', function (st) { return st.delete(key); }); }
     };
   }
+  // pager.plan(list, opts): picks pageRows, livePages and mode for a list from the size of its rows and the device's memory, and says why. A page is sized to about 512 KB of live objects (256 KB when
+  // the device reports 2 or 3 GB, 128 KB below 2 GB), between 512 and 8,192 rows, so a page opens in about the same time (0.3 to 1.5 ms) whatever the rows hold. The live pages
+  // are given about 2 MB (1 MB at 2 or 3 GB, 512 KB below 2 GB), between 2 and 8 pages. The mode stays fast unless the packed list alone would take more than a tenth of the page's memory
+  // (opts.heapBytes, else the browser's heap limit, else 512 MB for each GB of device memory), then it is balanced (15 to 17% smaller packed, pages open 1.3 to 2.2 times slower). opts.deviceMemory overrides the reading.
+  function pagerPlan(list, opts) {
+    var o = opts || {}, n = list.length, h = heapInfo(), gb = o.deviceMemory || h.deviceMemoryGB || 4, step = n > 64 ? n / 64 : 1, sample = [], i, per, target, rows, live, budget, heap, packedEst, mode = 'fast', why;
+    for (i = 0; i < n && sample.length < 64; i += step) sample.push(list[Math.floor(i)]);
+    per = sample.length ? Math.max(8, estimateBytes(sample) / sample.length) : 64;
+    target = gb >= 4 ? 524288 : gb >= 2 ? 262144 : 131072;
+    rows = Math.max(512, Math.min(8192, Math.round(target / per / 256) * 256));
+    live = Math.max(2, Math.min(8, Math.round((gb >= 4 ? 2097152 : gb >= 2 ? 1048576 : 524288) / (rows * per))));
+    heap = o.heapBytes || h.jsHeapLimit || gb * 536870912; packedEst = n * per / 7;
+    if (packedEst > heap / 10) mode = 'balanced';
+    why = 'about ' + Math.round(per) + ' bytes a row, ' + gb + ' GB device, a page of ' + rows + ' rows is about ' + Math.round(rows * per / 1024) + ' KB' + (mode === 'balanced' ? ', packed list over a tenth of the memory budget' : '');
+    return { pageRows: n <= rows * 1.5 ? Math.max(1, n) : rows, livePages: live, mode: mode, bytesPerRow: Math.round(per), why: why };
+  }
+  function pagerAuto(list, opts) {       // pageRows, livePages and mode set to 'auto' are filled in by pager.plan
+    var o = opts || {}, a = o.pageRows === 'auto' || o.livePages === 'auto' || o.mode === 'auto', pl, k, c;
+    if (!a || !Array.isArray(list)) return o;
+    pl = pagerPlan(list, o); c = {};
+    for (k in o) c[k] = o[k];
+    if (o.pageRows === 'auto') c.pageRows = pl.pageRows;
+    if (o.livePages === 'auto') c.livePages = pl.livePages;
+    if (o.mode === 'auto') c.mode = pl.mode;
+    return c;
+  }
   function pager(list, opts) {
-    var store, uid = Math.random().toString(36).slice(2, 10), o = opts || {}, rows = o.pageRows > 0 ? Math.floor(o.pageRows) : 2048, n = list.length, np = Math.ceil(n / rows), pages = new Array(np), maxLive = o.livePages >= 0 ? Math.floor(o.livePages) : 4,
+    var store, uid = Math.random().toString(36).slice(2, 10), o = pagerAuto(list, opts), rows = o.pageRows > 0 ? Math.floor(o.pageRows) : 2048, n = list.length, np = Math.ceil(n / rows), pages = new Array(np), maxLive = o.livePages >= 0 ? Math.floor(o.livePages) : 4,
       ahead = o.readAhead !== false, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
-    for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError') packOpts[k] = o[k];
+    for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError' && k !== 'deviceMemory' && k !== 'heapBytes') packOpts[k] = o[k];
     if (!Array.isArray(list)) jfail('pager() needs an array');
     store = o.spill ? (o.spill === true ? idbStore() : o.spill) : null;
     function pkey(i) { return uid + ':' + i; }
@@ -194,3 +220,4 @@
     if (o.background) P.ready = P.settle();
     return P;
   }
+  pager.plan = pagerPlan;
