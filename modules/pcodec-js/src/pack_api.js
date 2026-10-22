@@ -2,7 +2,18 @@
       var CANDIDATES_F = [[0, 0, 0, 0], [0, 0, 3, 0], [0, 0, 2, 1], [2, 0.001, 0, 0], [2, 1e-4, 0, 0], [2, 0.01, 0, 0], [1, 0, 0, 0]];   // mode, mode argument, delta, delta order
       var CANDIDATES_I = [[0, 0, 0, 0], [0, 0, 3, 0], [0, 0, 2, 1], [1, 0, 0, 0]];
       // Packs a typed array (Uint32, BigUint64, Int32, BigInt64, Float32, Float64, Uint16 or Int16) into an ordinary Pcodec file. opts.level 0 to 12 (default 8, Pcodec's own default).
-      // opts.smallest: true also tries seven other encoder settings on a 20,000-number sample, packs with the best, and keeps the smaller file (about 3.2 to 3.7 times the time, about 2.8% to 4% smaller on decimals and counters).
+      // opts.smallest: 'quick' checks whether the numbers are decimals (multiples of 0.1, 0.01, ... 0.000001) and, if so, also packs with that setting and keeps the smaller file: about 90% of the saving of true on our 39 test columns (3.6% against 4.0% smaller) at about 1.4 times the plain time. opts.smallest: true also tries seven other encoder settings on a 20,000-number sample, packs with the best, and keeps the smaller file (about 3.2 to 3.7 times the time, about 2.8% to 4% smaller on decimals and counters).
+      var DECIMALS = [0.1, 0.01, 0.001, 1e-4, 1e-5, 1e-6];
+      // The coarsest of 0.1 ... 0.000001 that at least 99% of about 512 sampled numbers are a whole multiple of, or 0.
+      function decimalBase(a, single) {
+        var n = a.length, step = Math.max(1, Math.floor(n / 512)), k, i, ok, tot, q, tol, x;
+        for (k = 0; k < DECIMALS.length; k++) {
+          ok = 0; tot = 0;
+          for (i = 0; i < n; i += step) { x = a[i]; if (x !== x || x === Infinity || x === -Infinity) continue; tot++; q = x / DECIMALS[k]; tol = (single ? 1e-6 : 1e-9) * Math.max(1, Math.abs(q)); if (Math.abs(q - Math.round(q)) <= tol) ok++; }
+          if (tot && ok / tot >= 0.99) return DECIMALS[k];
+        }
+        return 0;
+      }
       api.pack = function (arr, opts) {
         opts = opts || {};
         var type = typeOf(arr), level = opts.level === undefined ? 8 : opts.level;
@@ -19,7 +30,10 @@
         return run(function (x) {
           drop();
           var best = once(x, arr, null);
-          if (opts.smallest && arr.length >= 256) {
+          if (opts.smallest === 'quick') {                              // decimals only: if the numbers are multiples of 0.1, 0.01, ... try that one setting on the whole array
+            var base = (type === 'f64' || type === 'f32') && arr.length >= 256 ? decimalBase(arr, type === 'f32') : 0, alt;
+            if (base) { alt = once(x, arr, [2, base, 0, 0]); if (alt.length < best.length) best = alt; }
+          } else if (opts.smallest && arr.length >= 256) {
             var S = 20000, smp = arr;
             if (arr.length > S * 2) { var k = 4, L = S / k, j, s; smp = new arr.constructor(S); for (j = 0; j < k; j++) { s = Math.floor((arr.length - L) * j / (k - 1)); smp.set(arr.subarray(s, s + L), j * L); } }
             // When the sample is the whole array (up to 40,000 numbers) the sample packs are the real packs: setting 0 is the pack already made, and the winner is kept instead of being packed again.

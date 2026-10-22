@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 1.2.0 (API 1)
+# Version 1.3.0 (API 1)
 # Builds the three shipped files from src/ and the WebAssembly programs in wasm/:
 #   pcodec-js.js       reader, the speed-built program (no SIMD needed)
 #   pcodec-js-fast.js  reader, the SIMD program (about 15% faster unpack on Firefox; needs a browser with WebAssembly SIMD)

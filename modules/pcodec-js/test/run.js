@@ -97,5 +97,12 @@ function gen(type, n, shape) {
     ok(Buffer.compare(Buffer.concat(outs.map((o) => Buffer.from(o))), Buffer.from(pk.pack(a))) === 0, 'packPart pieces join into the bytes pack() writes');
     e = null; try { pk.packPart(a.subarray(0, 100), { sizes: [99], total: 100 }); } catch (x) { e = x; } ok(!!e, 'packPart refuses page sizes that do not add up');
     ok(typeof rd.packPart === 'undefined', 'the reader file has no packPart'); }
+  // 13. smallest: 'quick' (decimals only): never larger than the plain pack, always the same numbers back, ints and short arrays untouched
+  { for (const t of ['f64', 'f32']) for (const n of [255, 256, 5000, 70000]) { const a = gen(t, n, 'dec'), p = pk.pack(a), q = pk.pack(a, { smallest: 'quick' }); ok(same(rd.unpack(q), a), `quick round trip ${t} ${n}`); ok(q.length <= p.length, `quick never larger ${t} ${n}`); if (n === 255) ok(same(q, p), 'quick leaves arrays under 256 numbers alone'); }
+    for (const t of ['f64', 'f32']) { const a = gen(t, 20000, 'noise'), p = pk.pack(a), q = pk.pack(a, { smallest: 'quick' }); ok(same(rd.unpack(q), a) && q.length <= p.length, `quick on noise ${t}`); }
+    for (const t of ['i32', 'u16', 'i64']) { const a = gen(t, 20000, 'walk'), p = pk.pack(a), q = pk.pack(a, { smallest: 'quick' }); ok(same(q, p), `quick leaves integers alone ${t}`); }
+    const d3 = new Float64Array(30000); for (let i = 0; i < d3.length; i++) d3[i] = Math.round(Math.sin(i / 70) * 1e6 + rnd() * 40) / 1000; const p3 = pk.pack(d3), q3 = pk.pack(d3, { smallest: 'quick' }); ok(q3.length <= p3.length && same(rd.unpack(q3), d3), 'quick on multiples of 0.001: never larger, same numbers');
+    const sp = new Float64Array([0.5, NaN, Infinity, -0, 1.25, 0.1, 0.2, 0.3]); ok(same(rd.unpack(pk.pack(sp, { smallest: 'quick' })), sp), 'quick keeps special floats');
+    const wk = await K.worker(), pl = await K.pool({ size: 2 }); ok(same(await wk.unpack(await wk.pack(d3, { smallest: 'quick' })), d3) && same(await pl.unpack(await pl.pack(d3, { smallest: 'quick' })), d3), 'quick through worker and pool'); wk.terminate(); pl.terminate(); }
   console.log(`\n${pass} checks passed, ${fail} failed`); process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });
