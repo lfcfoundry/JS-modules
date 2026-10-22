@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Part of memory-compression.js; build.py joins the pieces in src/ (this line is left out of the built file).
 
   // ================================================================ one pack / unpack / view that pick the layer
   // Packed data starts with two marker bytes: 'MC' (written by the packing core) or 'MJ' (written by the object layer). unpack() and view() read them; pack() decides from the input.
