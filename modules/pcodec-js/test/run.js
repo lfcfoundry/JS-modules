@@ -70,5 +70,32 @@ function gen(type, n, shape) {
   { const w = await R.worker(), wp = await K.worker(); ok(w.inWorker === false && w.canPack === false && wp.canPack === true, 'worker() falls back to the page when there is no Worker');
     const a = gen('i32', 30000, 'walk'), b = await wp.pack(a, { level: 6 }); ok(same(await w.unpack(b), a), 'worker pack then unpack'); ok((await w.info(b)).count === 30000, 'worker info'); w.terminate(); wp.terminate();
     let e = null; try { await w.unpack(new Uint8Array(3)); } catch (x) { e = x; } ok(!!e, 'worker refuses bad data'); }
+  // 12. packPart and pool(): the pieces of a big column join into exactly the bytes pack() writes; a pool of workers gives the same results as one object
+  { const rows = [['f64', 600001, 'dec'], ['f64', 262144, 'walk'], ['f64', 262145, 'noise'], ['i32', 1000000, 'walk'], ['u16', 5000, 'few'], ['f32', 800000, 'dec'], ['u64', 300000, 'walk']];
+    const pl = await K.pool({ size: 3, laneMs: 0 }), plr = await R.pool({ size: 2 });
+    ok(pl.size === 3 && plr.size === 2 && typeof pl.pack === 'function', 'pool() gives size, pack, unpack, terminate');
+    for (const [t, n, sh] of rows) {
+      const a = gen(t, n, sh), serial = pk.pack(a), viaPool = await pl.pack(a), viaLevel = await pl.pack(a, { level: 3 });
+      ok(same(viaPool, serial), `pool pack of one ${t} array of ${n} is the same bytes as pack()`); ok(same(viaLevel, pk.pack(a, { level: 3 })), `pool pack with a level, ${t} ${n}`);
+      ok(same(rd.unpack(viaPool), a), `pool pack round trip ${t} ${n}`);
+    }
+    const cols = [gen('f64', 70000, 'dec'), gen('i32', 90000, 'walk'), gen('u16', 3000, 'few'), gen('f64', 20000, 'noise'), gen('i64', 4000, 'ramp')];
+    const files = await pl.pack(cols); ok(files.length === 5 && files.every((f, i) => same(f, pk.pack(cols[i]))), 'pool pack of a list: same files, same order');
+    const back = await pl.unpack(files); ok(back.length === 5 && back.every((b, i) => same(b, cols[i]) && b.constructor === cols[i].constructor), 'pool unpack of a list: same numbers, same order');
+    const backR = await plr.unpack(files); ok(backR.every((b, i) => same(b, cols[i])), 'reader-only pool unpacks a list');
+    ok(same(await pl.unpack(files[1]), cols[1]), 'pool unpack of one file');
+    ok((await pl.pack([])).length === 0 && (await pl.unpack([])).length === 0, 'empty lists give empty lists');
+    ok(same(await pl.pack(cols[0], { smallest: true }), pk.pack(cols[0], { smallest: true })), 'pool pack with smallest: same file as pack()');
+    let e = null; try { await plr.pack(cols[0]); } catch (x) { e = x; } ok(!!e && /pack/.test(e.message), 'reader-only pool refuses to pack');
+    e = null; try { await pl.pack([cols[0], new Array(3)]); } catch (x) { e = x; } ok(!!e, 'pool pack refuses something that is not a typed array');
+    e = null; try { await pl.unpack([files[0], new Uint8Array(5)]); } catch (x) { e = x; } ok(!!e, 'pool unpack refuses a damaged file');
+    ok(same(await pl.unpack(files[2]), cols[2]), 'the pool still works after a refused file');
+    const dflt = await K.pool(); ok(dflt.size >= 1 && dflt.size <= 4, 'default pool size is 1 to 4'); dflt.terminate();
+    pl.terminate(); plr.terminate(); e = null; try { await pl.pack(cols[0]); } catch (x) { e = x; } ok(!!e, 'a ended pool refuses new jobs');
+    const sz = (n) => { const np = Math.ceil(n / 262144), lo = Math.floor(n / np), r = n % np; return Array.from({ length: np }, (_, i) => i < r ? lo + 1 : lo); };
+    const a = gen('f64', 700000, 'dec'); let off = 0; const sizes = sz(a.length), outs = sizes.map((s, i) => { const o = pk.packPart(a.subarray(off, off + s), { sizes: [s], total: a.length, first: i === 0, last: i === sizes.length - 1 }); off += s; return o; });
+    ok(Buffer.compare(Buffer.concat(outs.map((o) => Buffer.from(o))), Buffer.from(pk.pack(a))) === 0, 'packPart pieces join into the bytes pack() writes');
+    e = null; try { pk.packPart(a.subarray(0, 100), { sizes: [99], total: 100 }); } catch (x) { e = x; } ok(!!e, 'packPart refuses page sizes that do not add up');
+    ok(typeof rd.packPart === 'undefined', 'the reader file has no packPart'); }
   console.log(`\n${pass} checks passed, ${fail} failed`); process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });

@@ -1,8 +1,8 @@
 # test-runner
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node 22 checks (21); warm-browser check in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, all PASS
+**Tested in:** Node checks (23), and a real canvas in Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5
 
 The shared helpers every browser check and speed test in this repository (and the games that follow its rules) needs, in one folder: start the four test browsers once and keep them open, run one check in all four, compare two ways of doing the same job fairly, skip a build whose inputs did not change, prove that a WebAssembly path and its plain-JavaScript twin give the same answers to the last bit, catch a drawing that changed when nobody meant it, and name the commit that broke something. Node only, no packages of its own (`puppeteer-core` for Chromium and Firefox, as the checks already used).
 
@@ -35,7 +35,7 @@ A check written with `T.launch` / `T.main` takes a warm browser when there is on
 
 `stamp.js`: `node tools/test-runner/stamp.js build [--force|--list] [id...]` rebuilds the wasm of every module whose `wasm/` sources changed (build.sh then embed.py) and skips the rest; `stamp.js run <name> --in <paths> [--out <files>] -- <command...>` does the same for any command. Stamps are kept in `.cache/test-runner/`.
 
-`fingerprint.js`: `gate(name, browser, version)`, `.check(label, hash)`, `.finish()` and `pageHash(selector)` (runs in the page: a 64-bit fingerprint of a canvas's pixels). Baselines live in `tests/fingerprints/<name>.json`, per browser and version; `FINGERPRINT_UPDATE=1` accepts the pictures as they are.
+`fingerprint.js`: `gate(name, browser, version)`, `.check(label, hash)`, `.finish()` and `pageHash(selector)` (runs in the page: a 64-bit fingerprint of a canvas's pixels). Near matches (the owner's 99.5% rule): `await g.checkPixels(label, hash, () => page.evaluate(F.pagePixels, selector))` passes a picture when 99.5% of its pixels or more are identical to the stored ones and prints the exact percentage (`NEAR closed 99.833% identical`); the pixels are fetched only when the hash differs. `gate(..., { threshold })` or `FINGERPRINT_THRESHOLD` changes the 99.5 (100 = exact). The stored pixels are gzipped files next to the baseline in `tests/fingerprints/<name>/`. Data results still have to be byte-identical; this is for drawings. Baselines live in `tests/fingerprints/<name>.json`, per browser and version; `FINGERPRINT_UPDATE=1` accepts the pictures as they are.
 
 `bisect.js`: `node tools/test-runner/bisect.js <good> <bad> -- <command...>` names the first bad commit by halving, in a throwaway copy of the files (exit code 125 = this commit cannot be tested).
 
