@@ -28,7 +28,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.3.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.4.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.5.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
@@ -52,6 +52,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-10-22 · **zip-open** 1.3.0 · API 1: The WebAssembly checksum now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 - 2026-10-22 · **walker-sim** 2.3.0 · API 2: The WebAssembly loop now starts compiling in the background when the file loads; walker-sim-wasm adds wasmReady() and wasmModule().
+- 2026-10-22 · **pcodec-js** 1.5.0 · API 1: New { into: myArray } for worker and pool unpack: fills an array you already have. 8 million numbers open 1.07 to 1.3 times faster (normal file) and 1.3 to 1.7 times (split file); Chromium's page pause falls from 48 ms to 9 ms. New pool({ warm: true }) starts the workers when the pool is made: the first big unpack is 3 to 26 ms faster, for 3 to 7 ms at creation.
 - 2026-10-22 · **pcodec-js** 1.4.0 · API 1: New split file: pack(x, { parts: true }) writes a big column as ordinary Pcodec files, and the pool opens the parts on several workers. 8 million numbers open 1.25 to 1.6 times faster (joined), 2.1 to 2.8 times as parts.
 - 2026-10-22 · **pcodec-js** 1.3.0 · API 1: New pack(x, { smallest: 'quick' }): tries decimal settings only when a column looks like decimals. 39 test columns come out 3.4% smaller at 1.7 times the plain pack time (full smallest: 4.0% smaller at 3.3 to 3.5 times).
 - 2026-10-22 · **pcodec-js** 1.2.0 · API 1: New PcodecJS.pool() shares packing across background workers: one 2,000,000-number column took 129 to 142 ms on one worker, now 58 to 80 ms (lower is better), same file as pack().
