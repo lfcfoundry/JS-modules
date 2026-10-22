@@ -1,8 +1,8 @@
 # pcodec-js
 
-**Version 1.0.1 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5, one at a time
 
 Pcodec for web pages: unpack (and optionally pack) big lists of numbers in a browser, one file, no build step, no network.
 
@@ -13,17 +13,17 @@ You give it the bytes of a Pcodec file. It runs Pcodec's WebAssembly program (a 
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license (wrapper). Pcodec itself stays Apache-2.0; see `NOTICE-pcodec.txt`.
 
 ## Why it exists
-Pcodec is a compressor made for lists of numbers, and a web page that wants to open (or write) such files needs it as one file with no build step and no network. The only other JavaScript build I found, numcodecs-wasm-pco, is a 324,006 B download (gzipped) against 68,390 B for the unpack-only file here (see "How it compares").
+Pcodec is a compressor made for lists of numbers, and a web page that wants to open (or write) such files needs it as one file with no build step and no network. The only other JavaScript build I found, numcodecs-wasm-pco, is a 324,006 B download (gzipped) against 70,799 B for the unpack-only file here (see "How it compares").
 
 ## Pick a file
 
 | File | Raw / gzipped | Use it when |
 |---|---:|---|
-| `pcodec-js.js` | 168,183 B / 68,390 B | you only unpack. Works in every browser that has WebAssembly. **Start here.** |
-| `pcodec-js-fast.js` | 227,871 B / 86,705 B | you only unpack and want the SIMD program (17% faster in Firefox, within 3% elsewhere). Opening it without SIMD gives a clear message to use `pcodec-js.js` |
-| `pcodec-js-pack.js` | 468,019 B / 184,685 B | you also pack (built for speed, so bigger than a size-built packer) |
+| `pcodec-js.js` | 176,051 B / 70,799 B | you only unpack. Works in every browser that has WebAssembly. **Start here.** |
+| `pcodec-js-fast.js` | 235,739 B / 89,131 B | you only unpack and want the SIMD program (17% faster in Firefox, within 3% elsewhere). Opening it without SIMD gives a clear message to use `pcodec-js.js` |
+| `pcodec-js-pack.js` | 475,887 B / 187,088 B | you also pack (built for speed, so bigger than a size-built packer) |
 
-Needs `'wasm-unsafe-eval'` in the page's `script-src` (the project rule for every page). WebAssembly is required: if it is blocked, `load()` rejects with a clear message. There is no plain-JavaScript backup (project decision, 2026-10-17).
+Needs `'wasm-unsafe-eval'` in the page's `script-src` (the project rule for every page), and `worker-src blob:` if you use `PcodecJS.worker()` or `PcodecJS.pool()` (without it the same calls run on the page). WebAssembly is required: if it is blocked, `load()` rejects with a clear message. There is no plain-JavaScript backup (project decision, 2026-10-17).
 
 ## Use
 
@@ -38,6 +38,10 @@ const packed = pco.pack(float64Array, {level: 8});             // pack file only
 const tiny = pco.pack(float64Array, {smallest: true});          // pack file only, about 3.2 to 3.7 times slower, about 4% smaller
 ```
 
+- **Never freeze the page (since 1.1.0).** `await pco.unpackAsync(bytes, { sliceMs, count, maxCount, into })` gives the same numbers as `unpack`, in slices of 2 ms with the page getting a turn between slices. Longest page freeze while unpacking 2,000,000 numbers, Chromium / Firefox / WebKitGTK / GNOME Web (ms, smaller is better): `unpack` 68 / 156 / 47 / 68, `unpackAsync` 2.9 / 4 / 5 / 6. The total time is longer (plain 67 / 156 / 48 / 67 ms, sliced 112 / 189 / 76 / 93 ms).
+- **Background worker (since 1.1.0).** `const w = await PcodecJS.worker();` then `await w.info(bytes)`, `await w.unpack(bytes)` and `await w.pack(array)`. Pass `{ transfer: true }` to hand your array over instead of copying it (it is empty afterwards). Longest freeze for a 2,000,000-number pack: on the page 169 / 207 / 181 / 180 ms, in the worker with the array handed over 4.6 / 8 / 5 / 5 ms. If the browser or the page policy refuses workers you get the same calls on the page (`w.inWorker` is false).
+- **Compile early (since 1.1.0).** The program starts compiling the moment the file runs, off the page's main thread, so `load()` is ready at once if you call it after your first screen's other work (the wait after 30 ms of other start-up work went from 7.3 / 15 / 17 / 12 ms to 0.2 / 0 / 0 / 0.5). A worker is handed the compiled program, so nothing compiles twice (`worker()` ready 58.9 / 27.5 / 46 / 45.5 ms before, 32.8 / 10.5 / 22 / 24.5 now). Compiled wasm cannot be stored between visits: every tested browser refused to keep it in IndexedDB, and Cache Storage saved at most 2.5 ms of a 4 to 7 ms compile.
+- **Several workers (since 1.2.0).** `const p = await PcodecJS.pool();` then `await p.pack([colA, colB, colC])` (an array of files comes back, same order) or `await p.pack(oneBigArray)` (one file; the array is cut into Pcodec's own pages on several workers and the pieces join into exactly the bytes `pack()` writes), and `await p.unpack([fileA, fileB, ...])`. Packing took 1.7 to 2.2 times less time with 2 to 4 workers in the four test browsers; unpacking many columns up to 2.3 times less (Chromium 14%). Small jobs stay on one worker, because starting a worker costs 7 to 12 ms; `{ size, laneMs }` change the limits. A single file cannot be unpacked in parallel.
 - `count` and `maxCount`: pass `count` when you know it; a wrong count is refused. `maxCount` defaults to 33,554,432 numbers so a damaged file cannot make the page reserve gigabytes.
 - `stream()` hands back one view per batch (batch is a multiple of 256, default 4,096). Copy a part if you keep it.
 - Types: u16, i16, u32, i32, f32, u64, i64, f64 (64-bit whole numbers come back as BigInt64Array / BigUint64Array).

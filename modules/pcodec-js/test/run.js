@@ -1,8 +1,6 @@
-// Tests for pcodec-js.js and pcodec-js-pack.js. usage: node test.js [dir] [--reader pcodec-js-fast.js]   (dir holds the two built files; default: this folder)
+// Tests for pcodec-js.js and pcodec-js-pack.js. usage: node test.js [dir]   (dir holds the two built files; default: this folder)
 'use strict';
-const path = require('path'), fs = require('fs');
-const args = process.argv.slice(2), ri = args.indexOf('--reader');   // --reader pcodec-js-fast.js tests the SIMD reader (same as READER=pcodec-js-fast.js)
-const READER = ri >= 0 ? args.splice(ri, 2)[1] : (process.env.READER || 'pcodec-js.js'), dir = path.resolve(args[0] || path.join(__dirname, '..'));
+const path = require('path'), fs = require('fs'), dir = path.resolve(process.argv[2] || path.join(__dirname, '..')), READER = process.env.READER || 'pcodec-js.js';
 const R = require(path.join(dir, READER)), K = require(path.join(dir, 'pcodec-js-pack.js'));
 let pass = 0, fail = 0; const fails = [];
 const ok = (c, m) => { if (c) pass++; else { fail++; fails.push(m); console.log('FAIL', m); } };
@@ -61,5 +59,43 @@ function gen(type, n, shape) {
   // 9. warm-up: resolves, leaves results unchanged, and load({ warm: true }) starts it
   { const a = gen('f64', 5000, 'walk'), b = pk.pack(a); const t0 = Date.now(); await rd.warm(12); ok(Date.now() - t0 >= 12, 'warm runs for the time asked'); ok(same(rd.unpack(b), a), 'unpack after warm is unchanged');
     const r2 = await R.load({ warm: 8 }); await new Promise((r) => setTimeout(r, 60)); ok(same(r2.unpack(b), a), 'load({ warm }) then unpack is unchanged'); const c = gen('i32', 3000, 'walk'); ok(same(r2.unpack(pk.pack(c)), c), 'warm does not disturb the next unpack of another type'); }
+  // 10. unpackAsync: same numbers as unpack, every type, with into, with bad counts; sliceMs 0 yields after every batch
+  { for (const t of types) { const a = gen(t, 20000, t === 'f32' || t === 'f64' ? 'dec' : 'walk'), b = pk.pack(a); ok(same(await rd.unpackAsync(b), a), `unpackAsync ${t}`); }
+    const a = gen('f64', 600000, 'dec'), b = pk.pack(a); ok(same(await rd.unpackAsync(b, { sliceMs: 0 }), a), 'unpackAsync multi-chunk, yields every batch');
+    const dst = new Float64Array(a.length + 5); const r = await rd.unpackAsync(b, { into: dst }); ok(r.length === a.length && same(r, a), 'unpackAsync into a larger array');
+    let e = null; try { await rd.unpackAsync(b, { count: a.length - 1 }); } catch (x) { e = x; } ok(!!e, 'unpackAsync wrong count refused'); e = null; try { await rd.unpackAsync(new Uint8Array(0)); } catch (x) { e = x; } ok(!!e, 'unpackAsync empty input refused');
+    e = null; try { await rd.unpackAsync(b, { maxCount: 1000 }); } catch (x) { e = x; } ok(!!e, 'unpackAsync maxCount refused');
+    ok(same(rd.unpack(b), a), 'the object still works after unpackAsync'); }
+  // 11. worker(): in Node there is no Worker, so the same calls run on the page
+  { const w = await R.worker(), wp = await K.worker(); ok(w.inWorker === false && w.canPack === false && wp.canPack === true, 'worker() falls back to the page when there is no Worker');
+    const a = gen('i32', 30000, 'walk'), b = await wp.pack(a, { level: 6 }); ok(same(await w.unpack(b), a), 'worker pack then unpack'); ok((await w.info(b)).count === 30000, 'worker info'); w.terminate(); wp.terminate();
+    let e = null; try { await w.unpack(new Uint8Array(3)); } catch (x) { e = x; } ok(!!e, 'worker refuses bad data'); }
+  // 12. packPart and pool(): the pieces of a big column join into exactly the bytes pack() writes; a pool of workers gives the same results as one object
+  { const rows = [['f64', 600001, 'dec'], ['f64', 262144, 'walk'], ['f64', 262145, 'noise'], ['i32', 1000000, 'walk'], ['u16', 5000, 'few'], ['f32', 800000, 'dec'], ['u64', 300000, 'walk']];
+    const pl = await K.pool({ size: 3, laneMs: 0 }), plr = await R.pool({ size: 2 });
+    ok(pl.size === 3 && plr.size === 2 && typeof pl.pack === 'function', 'pool() gives size, pack, unpack, terminate');
+    for (const [t, n, sh] of rows) {
+      const a = gen(t, n, sh), serial = pk.pack(a), viaPool = await pl.pack(a), viaLevel = await pl.pack(a, { level: 3 });
+      ok(same(viaPool, serial), `pool pack of one ${t} array of ${n} is the same bytes as pack()`); ok(same(viaLevel, pk.pack(a, { level: 3 })), `pool pack with a level, ${t} ${n}`);
+      ok(same(rd.unpack(viaPool), a), `pool pack round trip ${t} ${n}`);
+    }
+    const cols = [gen('f64', 70000, 'dec'), gen('i32', 90000, 'walk'), gen('u16', 3000, 'few'), gen('f64', 20000, 'noise'), gen('i64', 4000, 'ramp')];
+    const files = await pl.pack(cols); ok(files.length === 5 && files.every((f, i) => same(f, pk.pack(cols[i]))), 'pool pack of a list: same files, same order');
+    const back = await pl.unpack(files); ok(back.length === 5 && back.every((b, i) => same(b, cols[i]) && b.constructor === cols[i].constructor), 'pool unpack of a list: same numbers, same order');
+    const backR = await plr.unpack(files); ok(backR.every((b, i) => same(b, cols[i])), 'reader-only pool unpacks a list');
+    ok(same(await pl.unpack(files[1]), cols[1]), 'pool unpack of one file');
+    ok((await pl.pack([])).length === 0 && (await pl.unpack([])).length === 0, 'empty lists give empty lists');
+    ok(same(await pl.pack(cols[0], { smallest: true }), pk.pack(cols[0], { smallest: true })), 'pool pack with smallest: same file as pack()');
+    let e = null; try { await plr.pack(cols[0]); } catch (x) { e = x; } ok(!!e && /pack/.test(e.message), 'reader-only pool refuses to pack');
+    e = null; try { await pl.pack([cols[0], new Array(3)]); } catch (x) { e = x; } ok(!!e, 'pool pack refuses something that is not a typed array');
+    e = null; try { await pl.unpack([files[0], new Uint8Array(5)]); } catch (x) { e = x; } ok(!!e, 'pool unpack refuses a damaged file');
+    ok(same(await pl.unpack(files[2]), cols[2]), 'the pool still works after a refused file');
+    const dflt = await K.pool(); ok(dflt.size >= 1 && dflt.size <= 4, 'default pool size is 1 to 4'); dflt.terminate();
+    pl.terminate(); plr.terminate(); e = null; try { await pl.pack(cols[0]); } catch (x) { e = x; } ok(!!e, 'a ended pool refuses new jobs');
+    const sz = (n) => { const np = Math.ceil(n / 262144), lo = Math.floor(n / np), r = n % np; return Array.from({ length: np }, (_, i) => i < r ? lo + 1 : lo); };
+    const a = gen('f64', 700000, 'dec'); let off = 0; const sizes = sz(a.length), outs = sizes.map((s, i) => { const o = pk.packPart(a.subarray(off, off + s), { sizes: [s], total: a.length, first: i === 0, last: i === sizes.length - 1 }); off += s; return o; });
+    ok(Buffer.compare(Buffer.concat(outs.map((o) => Buffer.from(o))), Buffer.from(pk.pack(a))) === 0, 'packPart pieces join into the bytes pack() writes');
+    e = null; try { pk.packPart(a.subarray(0, 100), { sizes: [99], total: 100 }); } catch (x) { e = x; } ok(!!e, 'packPart refuses page sizes that do not add up');
+    ok(typeof rd.packPart === 'undefined', 'the reader file has no packPart'); }
   console.log(`\n${pass} checks passed, ${fail} failed`); process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });
