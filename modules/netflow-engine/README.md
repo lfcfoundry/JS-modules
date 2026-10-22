@@ -1,8 +1,8 @@
 # netflow-engine
 
-**Version 2.2.0 · API 2**
+**Version 2.2.1 · API 2**
 
-**Tested in:** Node 22 checks (15), 315 same-layout comparisons with Netflow Map's own engine in Node, and a page check in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5
+**Tested in:** Node 22 checks (15), 315 same-layout comparisons with Netflow Map's own engine (0 differences), and a page check in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5
 
 The engine of Netflow Map as a module you can copy and adapt. You give it a list of items and links; it works out where everything goes (as a story laid out in rows, arcs, a matrix, a shape, or as a network of any size), scores the drawing, and hands back plain numbers ready to draw. It runs with no page, so it works in a worker, in Node, or on the main thread. It reads and prepares the data into flat typed arrays, finds choke points and traffic, then places items with a layered, force or distance-based method (the heavy force and distance steps run in WebAssembly when the page allows it and in plain JavaScript when not, with identical results).
 
@@ -56,7 +56,7 @@ In Node: `const E = require('./netflow-engine.js'); E.use('layers', require('../
 
 ## WebAssembly
 
-The Force and Distances steps have a WebAssembly twin (`forceWasm`, `stressWasm`: each has `on`, `minItems` (150), `calls`, `error`). `stressWasm` also runs Distances 3D from `min3d` (3,000) items, the Closeness rounds from `minClose` (20,000) items and the hash-grid push-apart (counters `calls3`, `closeCalls`, `sparseCalls`); below those sizes the timings did not clearly favor WebAssembly. Flat Force starts from the Distances picture for pieces of 5,000 up to 20,000 items (`force2dTuning`). The flat Distances sweeps also have a two-lanes-at-a-time form (`stressWasm.simd`, on by default where the browser supports it; `simdMax` 20,000): two neighbors in the shuffled order that share no item run side by side, so the positions are the same to the last digit; turn it off with `NetflowEngine.stressWasm.simd = false`. Turn one off with `NetflowEngine.forceWasm.on = false`; the plain-JavaScript path gives the same positions to the last digit (a check proves it). The only page-policy addition needed is `'wasm-unsafe-eval'` in `script-src`; nothing else is loosened. Sources are in `wasm/` (`force.c`, `stress.c`); `sh wasm/build.sh` rebuilds both (clang 18 with the wasm32 target and wasm-ld; two builds give the same bytes) and `python3 wasm/embed.py` puts them into `netflow-engine.js`.
+The Force and Distances steps have a WebAssembly twin (`forceWasm`, `stressWasm`: each has `on`, `minItems` (150), `calls`, `error`). `stressWasm` also runs Distances 3D from `min3d` (3,000) items, the Closeness rounds from `minClose` (20,000) items and the hash-grid push-apart (counters `calls3`, `closeCalls`, `sparseCalls`); below those sizes the timings did not clearly favor WebAssembly. Flat Force starts from the Distances picture for pieces of 5,000 up to 20,000 items (`force2dTuning`). The flat Distances sweeps also have a two-lanes-at-a-time form (`stressWasm.simd`, on by default where the browser supports it; any size since 2.2.1): two neighbors in the shuffled order that share no item run side by side, so the positions are the same to the last digit; turn it off with `NetflowEngine.stressWasm.simd = false`. Turn one off with `NetflowEngine.forceWasm.on = false`; the plain-JavaScript path gives the same positions to the last digit (a check proves it). The only page-policy addition needed is `'wasm-unsafe-eval'` in `script-src`; nothing else is loosened. Sources are in `wasm/` (`force.c`, `stress.c`); `sh wasm/build.sh` rebuilds both (clang 18 with the wasm32 target and wasm-ld; two builds give the same bytes) and `python3 wasm/embed.py` puts them into `netflow-engine.js`.
 
 ## Speed
 
