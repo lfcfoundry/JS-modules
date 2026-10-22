@@ -50,6 +50,12 @@ A data: address is turned into bytes in place (`atob`), with no network request.
 
 No wasm: the browser's decoder is already native code, so there is nothing for wasm to speed up here.
 
+## Which format is better for my sprites? (`format-check.html`)
+
+Open `format-check.html` on a phone or laptop, tap **Run the check**, and it measures the same sprite sheet as PNG, WebP and AVIF in that browser: file size, longest freeze and time until ready (medians of 7 tries), then says in plain words which format to use there, with a Markdown copy button for the results. With nothing picked it draws a 1024 x 1024 sample sheet and saves it in each format the browser can make (Chromium and Firefox make WebP, WebKit makes neither WebP nor AVIF); pick your own PNG, or the same sheet as PNG, WebP and AVIF, to test your art.
+
+What it showed on two sheets of sample art in the four test browsers: WebP and AVIF files are 75% to 91% smaller than PNG, but in Chromium 155 and Firefox 158 they take longer to open than the PNG (for the 1024 sheets, PNG 16 and 18 ms against WebP 29 and 31 ms and AVIF 21 and 26 ms, Chromium / Firefox), with the same 1 to 2 ms freeze. In WebKit the 2048 WebP sheet opened as fast as the PNG or a little faster (80 against 86 ms in WebKitGTK, 82 against 91 in GNOME Web). So the smaller formats win on download size everywhere, and win on opening time only in WebKit.
+
 ## Measured (the four test browsers, one at a time)
 
 Sprite sheets of 1024 and 2048 pixels square, the same artwork saved as PNG, WebP and AVIF (made by `test/make-sheets.py` with Pillow; 1.4 and 3.7 MB as PNG). Each number is the median of 7 tries in a run; Chromium and Firefox are the median over 4 runs, WebKitGTK and GNOME Web over 1 run. **Longest freeze** is the longest gap in a message loop running on the page while the picture was loaded and drawn once; it is what a player sees as a stutter. **Ready after** is start to drawn. Timers read whole milliseconds in Firefox and WebKit, so small values are rough. "Plain" is `new Image()`, wait for `onload`, `drawImage`.
