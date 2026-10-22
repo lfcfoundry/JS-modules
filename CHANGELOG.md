@@ -26,7 +26,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.2.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.2.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.1.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.1.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.2.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
@@ -45,17 +45,19 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [webkit-driver](tools/webkit-driver/README.md) | 1.3.0 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
 | [test-isolation](tools/test-isolation/README.md) | 1.1.0 · API 1 | [changelog](tools/test-isolation/CHANGELOG.md) |
 | [speed-lab](tools/speed-lab/README.md) | 1.1.1 · API 1 | [changelog](tools/speed-lab/CHANGELOG.md) |
-| [test-runner](tools/test-runner/README.md) | 1.0.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
+| [test-runner](tools/test-runner/README.md) | 1.1.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
 
 ## Changes since labels began
 
 - 2026-10-22 · **pcodec-js** 1.2.0 · API 1: New PcodecJS.pool() shares packing across background workers: one 2,000,000-number column took 129 to 142 ms on one worker, now 58 to 80 ms (lower is better), same file as pack().
 - 2026-10-22 · **netflow-engine** 2.2.1 · API 2: The two-pair Distances sweeps no longer stop at 20,000 items: they run at any size (1.02 to 1.10 times faster at 30,000 and 60,000 items in the four test browsers), same positions.
+- 2026-10-22 · **memory-compression** 2.1.1 · API 2: Lists with a lot of text pack up to about 15% faster in Chrome-based and Safari-based browsers; no change to file size on disk.
 - 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
 - 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
 - 2026-10-18 · **zip-open** 1.2.0 · API 1: Checking big files is about 1.3 to 1.7 times faster using a small WebAssembly checksum (same answers). Pages with a content policy need 'wasm-unsafe-eval'; without it the old code is used.
 - 2026-10-18 · **webkit-driver** 1.3.0 · API 1: New attach() lets a check reuse a WebKit browser that is already open instead of starting a new one.
 - 2026-10-18 · **walker-sim** 2.2.0 · API 2: The default file is now walker-sim-with-wasm.js: big runs use the WebAssembly walking loop first (about 1.5 times faster in Chromium and Firefox), and the JavaScript loop when WebAssembly is not usable. Same counts either way. In WebKitGTK and GNOME Web a fresh page is about 15% to 30% slower with it; set cfg.wasm = false or copy walker-sim.js there.
+- 2026-10-18 · **test-runner** 1.1.0 · API 1: The picture gate now passes a picture that is 99.5% identical or better and prints the exact percentage; exact matches still count as same.
 - 2026-10-18 · **test-runner** 1.0.0 · API 1: Shared pieces for browser checks: warm browsers that cut the start of each check from seconds to well under a second, fair timing, skipped rebuilds, a wasm-versus-JavaScript twin test, a picture gate and an automatic bisect.
 - 2026-10-18 · **stage-curtains** 1.3.0 · API 1: New option create({ worker: true }) paints the curtain in a background worker: the page does 3 to 7 ms of work instead of 21 to 36 ms. Same picture.
 - 2026-10-18 · **stage-curtains** 1.2.0 · API 1: A curtain half paints about 1.4 to 1.6 times faster on a freshly loaded page (same picture) using a small WebAssembly painter. Pages with a content policy need 'wasm-unsafe-eval'; without it, plain JavaScript is used.

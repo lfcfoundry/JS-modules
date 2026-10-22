@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.1.0 (API 2)
+ * Version 2.1.1 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1840,6 +1840,13 @@
   function genStore(sig, f) { if (GEN_COUNT >= GEN_LIMIT) { GEN_CACHE = {}; LEARNED = {}; GEN_COUNT = 0; } GEN_CACHE[sig] = f; GEN_COUNT++; }
 
   function jfail(m) { throw new Error('MemoryCompressionJSO: ' + m); }
+  // The same bytes as TEXT_ENC.encode(s). Plain ASCII text (the usual case) is written with encodeInto into a buffer of exactly its length, which is several times faster than encode() in V8; anything else falls back.
+  function utf8(s) {
+    var n = s.length, out, r;
+    if (n < 1024) return TEXT_ENC.encode(s);
+    out = new Uint8Array(n); r = TEXT_ENC.encodeInto(s, out);
+    return r.read === n && r.written === n ? out : TEXT_ENC.encode(s);
+  }
   function wellFormed(s) { return typeof s.isWellFormed === 'function' ? s.isWellFormed() : !RE_LONE.test(s); }
 
   // ---- byte streams
@@ -2272,7 +2279,7 @@
     if (total > 67108864) return null;
     joined = vals.join('');
     if (!wellFormed(joined)) return { lens: lens, joined: joined, bytes: null, ascii: false };
-    bytes = TEXT_ENC.encode(joined);
+    bytes = utf8(joined);
     return { lens: lens, joined: joined, bytes: bytes, ascii: bytes.length === total };
   }
   // Strings that follow a pattern ('user' + number + '@example.org', '2025-03-05T04:15:00Z', 'Item 7 flow'): the text between the numbers is kept
@@ -2702,7 +2709,7 @@
       piece = bounds.length === 2 ? vals : vals.slice(bounds[i], bounds[i + 1]);
       c.varint(bounds[i + 1] - bounds[i]);
       joined = piece.join('');
-      if (wellFormed(joined)) { c.u8(0); bytes = TEXT_ENC.encode(joined); c.varint(bytes.length); this.blob(bytes, 'text'); }
+      if (wellFormed(joined)) { c.u8(0); bytes = utf8(joined); c.varint(bytes.length); this.blob(bytes, 'text'); }
       else { c.u8(1); u = new Uint16Array(joined.length); for (j = 0; j < joined.length; j++) u[j] = joined.charCodeAt(j); c.varint(u.length); this.blob(u, 'text'); }
     }
   };
