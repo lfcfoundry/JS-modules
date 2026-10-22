@@ -114,6 +114,20 @@ Size is smaller-is-better and times are lower-is-better in every table. Every re
 
 2.5 times smaller than msgpackr with records, and its unpack is as fast or faster in all four browsers; it loses on download size (about 84.6 KB gzipped against 11 KB for msgpackr) and on packing text-heavy records (up to 2.4 times slower than msgpackr in WebKit).
 
+**The same 60,000 links kept in pages of 2,048 rows, one page opened at a time** (version 2.2.0, `pager()` against page-by-page copies made with each library; median of 5 turns, one browser at a time; times in ms, lower is better, each cell is Chromium 155 / Firefox 158.0 / WebKitGTK 2.52.6 / GNOME Web 46.5; "open" is the mean of 29 pages timed as one block; every contender gave back equal rows):
+
+| Way of keeping the list | Bytes kept | Pack all rows | Open one page |
+|---|---:|---|---|
+| memory-compression `pager()`, fast | 439,494 | 28 / 40 / 55 / 51 | 0.43 / 0.45 / 0.66 / 0.62 |
+| memory-compression `pager()`, small | 357,481 | 277 / 174 / 189 / 192 | 0.77 / 0.59 / 0.79 / 0.97 |
+| msgpackr, records, per page | 2,136,891 | 18 / 19 / 15 / 16 | 0.33 / 0.72 / 0.66 / 0.62 |
+| JSON text + fflate gzip level 1, per page | 1,154,475 | 141 / 154 / 150 / 159 | 2.38 / 1.83 / 4.38 / 4.17 |
+| JSON text + lz4js, per page | 1,602,817 | 50 / 46 / 54 / 61 | 2.16 / 1.62 / 4.21 / 4.10 |
+| JSON text, per page | 5,493,765 | 14 / 14 / 15 / 15 | 0.63 / 0.45 / 1.03 / 1.07 |
+| JSON text, whole list in one piece | 5,493,736 | 17 / 21 / 16 / 17 | 19.97 / 17.90 / 31.48 / 29.55 |
+
+The pager keeps 4.9 times fewer bytes than msgpackr with records and opens a page as fast (faster in Chromium for msgpackr, 0.33 against 0.43 ms; slower in Firefox, 0.72 against 0.45). It loses on packing all at once (1.6 to 3.7 times slower than msgpackr with records); `background: true` packs in slices of about 8 ms instead. Not measured: heap held by the open page, other data shapes, `bundleStrings`. Details and raw lines: `js-modules-research/memory-compression-jso/2.2.0/vs-competitors/`.
+
 **A 120 MB scene of records, coordinates and text** (version 1.0.0 of the core, which fast mode still matches; Firefox 158, pack and restore in ms):
 
 | Method | Size | Firefox 158.0 |
