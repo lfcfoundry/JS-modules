@@ -1,8 +1,8 @@
 # fuzz-kit
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Real runs by hand on 2026-10-17: stock Firefox 157.0.1 (over WebDriver BiDi), Chromium 153 and Chromium 141, with the same results; automatic checks: 201 engine checks in Node, 38 in Python, 16 browser checks in Chromium through Playwright for Python (version not recorded). Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
+**Tested in:** Chromium 155.0.8059.39 and Firefox 158.0 (background hunt of the example app, 6 seeds each, planted bug found in both); WebKitGTK 2.52.6 and GNOME Web 46.5 not covered by the background hunt
 
 A small, seeded, reproducible random-input fuzzer for **stateful pages and games**, plus the pattern that makes such a page testable without shipping test code. No dependencies; the engine needs only `Promise`.
 
@@ -70,6 +70,10 @@ if (r.fails.length) var s = await Fuzzer.shrink(make, r.script, { maxTries: 400,
 `record: true` plays exactly the game a plain run plays, so an ordinary failing seed goes straight to the shrinker (prefer it to `perOp: true`, which gives each operation its own random stream). The shrinker removes slices of the script at finer sizes and ends 1-minimal; `pieces: true` also tries each slice alone. "The same failure" means the same operation name and whole message with digits blanked (`matchChars: 80` and `match(finding)` change that). `maxTries` (default 400) and `maxMs` stop the search with `stopped: 'tries'` or `'time'`. A script that does not fail on replay gets `note: 'the script does not fail when replayed'`.
 
 **Input helpers** (`Fuzzer.Input`, no app knowledge): `key(k, down, repeat, extra)` (a US-keyboard keydown or keyup to the focused element), `pointer(target, type, x, y, kind, opts)` (a synthetic pointer event; it swallows only the `NotFoundError` from `setPointerCapture` for made-up pointer ids, see `opts.pointerId`, `opts.captureGuard`), `visible(el, opts)` (could a person use it now), `clickables(selector, skip, opts)` (visible controls; links only with `{ links: true }`), `pickVisible(c, selector, skip, opts)` (one random visible control, about 12 times cheaper on a busy page), `canvasPoint(...)` and `junk(c)` (values to damage saved data with). `Fuzzer.Invariants.noJunkText({ skip, words, root })` fails when visible text shows `NaN`, `undefined` or `[object ...]` as whole words. `Fuzzer.Real.ops()` returns `real-click`, `real-move` and `real-key` under `--real-input` and an empty list otherwise, so `ops: myOps.concat(Fuzzer.Real.ops())` is always safe.
+
+## Hunting in the background
+
+`node runner/background.js start URL ADAPTER.js [--browsers chrome,firefox] [--seeds 1-200] [--batch 10] [--ops 400] [--out DIR]` starts a hunt and returns at once. It runs the Puppeteer runner over the seeds, one browser at a time, at the lowest priority so other work is not slowed, with `--shrink` and `--bundle` on. The folder holds `run.log`, `state.json`, `findings.md` (rewritten after every batch), `bundles/` and `DONE` (written last, saying how it ended). `status DIR` prints progress in plain words; `stop DIR` ends it after a few seconds and keeps what was found. Browsers: Chrome and Firefox (set `CHROME` / `FIREFOX` or pass `--chrome` / `--firefox`). WebKitGTK and GNOME Web are listed as "not run": Puppeteer cannot drive them. The runner finds Puppeteer or puppeteer-core in `NODE_PATH` too, and prints the real browser version on its first line.
 
 ## Runner options
 

@@ -8,7 +8,7 @@
 // Same options, behavior and output as runner/fuzz_playwright.py (read the top of that file for what each one does). Differences: --throttle needs Chrome
 // (Firefox has no CPU throttling over WebDriver BiDi); the browser path comes from --executable, else the FIREFOX variable (for --browser firefox) or the CHROME variable (for --browser chrome).
 // Needs: npm install puppeteer (and, for Firefox, `npx puppeteer browsers install firefox`, or --executable). This runner is run by hand; no automatic test starts a real browser with it.
-import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath, pathToFileURL } from 'node:url'; import { spawn } from 'node:child_process';
+import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath, pathToFileURL } from 'node:url'; import { createRequire } from 'node:module'; import { spawn } from 'node:child_process';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const core = fs.readFileSync(path.join(here, '..', 'src', 'fuzz-core.js'), 'utf8');
 const driver = fs.readFileSync(path.join(here, 'page-driver.js'), 'utf8');
@@ -142,6 +142,13 @@ function runJobs(argv, seeds, jobs, bundle) {   // child processes, one browser 
     pr.on('close', res);
   }))).then(() => ({ bad, total }));
 }
+async function loadPuppeteer() {   // 'puppeteer', or puppeteer-core (enough when the browser path is given); the NODE_PATH folders count too, which import() alone ignores
+  const dirs = [null, ...String(process.env.NODE_PATH || '').split(path.delimiter).filter(Boolean)];
+  for (const name of ['puppeteer', 'puppeteer-core']) for (const d of dirs) {
+    try { const m = await import(d ? pathToFileURL(createRequire(path.join(d, 'x.js')).resolve(name)).href : name); return m.default || m; } catch (e) { }
+  }
+  throw new Error('Puppeteer is not installed: npm install puppeteer (or puppeteer-core with --executable)');
+}
 async function main() {
   const argv = process.argv.slice(2);
   const flags = new Set(['--shrink', '--real-input', '--junk-text', '--allow-console-errors', '--allow-navigation', '--hang-trace', '--mobile', '--check-repeat', '--json-lines']);
@@ -169,9 +176,10 @@ async function main() {
     const { bad, total } = await runJobs(argv, seeds, jobs, kw.bundle);
     console.log(`fuzz: ${seeds.length} seeds, ${total} ops, ${bad} seeds with findings, wall ${Math.round((Date.now() - t0) / 1000)}s, ${jobs} browsers at once`); process.exit(bad ? 1 : 0);
   }
-  const { default: puppeteer } = await import('puppeteer');
+  const puppeteer = await loadPuppeteer();
   const executablePath = pickExecutable(browserName, opt('executable', undefined), process.env);
   const browser = await puppeteer.launch({ browser: browserName, executablePath, headless: true, args: browserName === 'chrome' ? ['--no-sandbox'] : [] });
+  if (!jsonLines) console.log('browser: ' + await browser.version());   // the real version, on the first line of every run
   let bad = 0, total = 0;
   if (has('check-repeat')) {
     const first = await runSeed(browser, url, adapter, seeds[0], ops, { width: vw, height: vh }, null, { ...kw, repeat: true }), again = await runSeed(browser, url, adapter, seeds[0], ops, { width: vw, height: vh }, null, kw);
