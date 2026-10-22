@@ -38,6 +38,8 @@
     };
 
     // ---------------------------------------------------------------- bit packing (values below 2^32)
+    var KWC = null;                                                               // the wasm helper while pack() or unpack() runs with it allowed (a block of 1,024 numbers or more uses it)
+    function kal(x) { return (x + 15) & ~15; }
     function bwOf(maxv) { return maxv <= 0 ? 0 : 32 - Math.clz32(maxv >>> 0) + (maxv > 4294967295 ? 99 : 0); }
     function bpWrite(w, a, n, bw) {
       var words, o, pos = 0, i, v, idx, off;
@@ -49,6 +51,34 @@
         pos += bw;
       }
       w.bytes(new Uint8Array(o.buffer, 0, Math.ceil(n * bw / 8)));
+    }
+    function bpWriteF(w, a, base, n, bw) {       // a: Float64Array of whole numbers; writes a[i] - base in bw bits each (the wasm helper when it is on)
+      var kw = KWC, aP, oP, bytes;
+      if (kw && n >= 1024 && bw > 0 && bw <= 32) {
+        aP = kw.base; oP = kal(aP + n * 8); bytes = Math.ceil(n * bw / 8);
+        if (kwRoom(oP + (Math.ceil(n * bw / 32) + 1) * 4 - kw.base + 64)) {
+          new Float64Array(kw.mem.buffer, aP, n).set(a);
+          kw.x.bp_pack(aP, n, base, bw, oP);
+          w.bytes(new Uint8Array(kw.mem.buffer, oP, bytes)); return;
+        }
+      }
+      var res = new Uint32Array(n), i; for (i = 0; i < n; i++) res[i] = a[i] - base;
+      bpWrite(w, res, n, bw);
+    }
+    function bpReadF(r, n, bw, base) {            // n values of bw bits, each plus base, as doubles
+      var kw = KWC, out, res, i, bytes, sP, oP, src;
+      if (bw > 32) pfail('bad bit width');
+      if (!bw) { out = new Float64Array(n); if (base) out.fill(base); return out; }
+      if (kw && n >= 1024) {
+        bytes = Math.ceil(n * bw / 8); sP = kw.base; oP = kal(sP + bytes + 16);
+        if (kwRoom(oP + n * 8 - kw.base + 64)) {
+          src = r.bytes(bytes);
+          new Uint8Array(kw.mem.buffer, sP, bytes + 8).fill(0, bytes).set(src);
+          kw.x.bp_unpack(sP, n, bw, base, oP);
+          out = new Float64Array(n); out.set(new Float64Array(kw.mem.buffer, oP, n)); return out;
+        }
+      }
+      res = bpRead(r, n, bw); out = new Float64Array(n); for (i = 0; i < n; i++) out[i] = res[i] + base; return out;
     }
     function bpRead(r, n, bw) {
       var out = new Uint32Array(n), bytes, src, tmp, mask, pos = 0, i, idx, off, v;
@@ -66,7 +96,19 @@
 
     // ---------------------------------------------------------------- rANS entropy coding of bytes (static table, 12-bit frequencies)
     var SB = 12, M = 1 << SB, RL = 1 << 23;
-    function ransEncode(syms, freq, cum) {
+    function ransEncode(syms, freq, cum) {                     // the bytes (a view; use them before the next call); wasm helper for 1,024 symbols and up
+      var kw = KWC, n = syms.length, sP, fP, oP, cap, len;
+      if (kw && n >= 1024) {
+        cap = n * 2 + 64; sP = kw.base; fP = kal(sP + n); oP = kal(fP + 512);
+        if (kwRoom(oP + cap + 16 - kw.base + 64)) {
+          new Uint8Array(kw.mem.buffer, sP, n).set(syms); new Uint16Array(kw.mem.buffer, fP, 256).set(freq);
+          len = kw.x.rans_enc(sP, n, fP, oP, cap);
+          return new Uint8Array(kw.mem.buffer, oP + cap - len, len);
+        }
+      }
+      return ransEncodeJS(syms, freq, cum);
+    }
+    function ransEncodeJS(syms, freq, cum) {
       var out = new Uint8Array(syms.length * 2 + 64), p = out.length, x = RL, i, s, f, xm, q, k, xmax = new Float64Array(256), inv = new Float64Array(256);
       for (s = 0; s < 256; s++) if (freq[s]) { xmax[s] = ((RL >>> SB) << 8) * freq[s]; inv[s] = 1 / freq[s]; }
       for (i = syms.length - 1; i >= 0; i--) {
@@ -80,6 +122,18 @@
       return out.subarray(p);
     }
     function ransDecode(bytes, n, freq, cum, slot) {
+      var kw = KWC, len = bytes.length, sP, fP, oP, out;
+      if (kw && n >= 1024 && len >= 4 && len <= n * 2 + 64) {
+        sP = kw.base; fP = kal(sP + len + 16); oP = kal(fP + 512);
+        if (kwRoom(oP + n + 16 - kw.base + 64)) {
+          new Uint8Array(kw.mem.buffer, sP, len).set(bytes); new Uint16Array(kw.mem.buffer, fP, 256).set(freq);
+          if (kw.x.rans_dec(sP, len, n, fP, oP, 0) < 0) pfail('bad entropy data');
+          out = new Uint8Array(n); out.set(new Uint8Array(kw.mem.buffer, oP, n)); return out;
+        }
+      }
+      return ransDecodeJS(bytes, n, freq, cum, slot);
+    }
+    function ransDecodeJS(bytes, n, freq, cum, slot) {
       var out = new Uint8Array(n), len = bytes.length, p = 4, x, i, m, s;
       if (len < 4) pfail('bad entropy data');
       x = (bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24) >>> 0;
@@ -111,13 +165,45 @@
 
     // ---------------------------------------------------------------- whole numbers (a Float64Array of whole numbers, each below 2^52 in size)
     var IS = { RAW: 0, CONST: 1, FOR: 2, DELTA: 3, RLE: 4, DICT: 5, PFOR: 6, DIV: 7, ENT: 8 }, MAX_DEPTH = 4;
-    function range(a) { var mn = Infinity, mx = -Infinity, i, v; for (i = 0; i < a.length; i++) { v = a[i]; if (v < mn) mn = v; if (v > mx) mx = v; } return [mn, mx]; }
+    var STAT = null;                                                              // the smallest, the largest and "all whole numbers" of the block isIntegral just looked at (same array object)
+    function statsOf(kw, a) {                                                     // one pass in the wasm helper for a block of 1,024 numbers or more; null when it cannot
+      var n = a.length, aP = kw.base, mP = kal(aP + n * 8), ok, mm;
+      if (!kwRoom(mP + 16 - kw.base + 64)) return null;
+      new Float64Array(kw.mem.buffer, aP, n).set(a); ok = kw.x.block_stats(aP, n, mP); mm = new Float64Array(kw.mem.buffer, mP, 2);
+      return (STAT = { a: a, mn: mm[0], mx: mm[1], ok: ok === 1 });
+    }
+    function range(a) { var mn = Infinity, mx = -Infinity, i, v; if (STAT && STAT.a === a) return [STAT.mn, STAT.mx]; for (i = 0; i < a.length; i++) { v = a[i]; if (v < mn) mn = v; if (v > mx) mx = v; } return [mn, mx]; }
     function distinctFew(a, k) {      // true when the first 256 values hold more than k different ones
       var m = new Set(), i, n = Math.min(a.length, 256);
       for (i = 0; i < n; i++) { m.add(a[i]); if (m.size > k) return true; }
       return false;
     }
     function gapsOf(pos) { var g = new Float64Array(pos.length), prev = -1, k; for (k = 0; k < pos.length; k++) { g[k] = pos[k] - prev - 1; prev = pos[k]; } return g; }
+    function deltaOf(a, n, d) {        // d[i - 1] = zigzag(a[i] - a[i - 1]); returns the largest
+      var kw = KWC, aP, dP, i, x, y = 0;
+      if (kw && n >= 1024) {
+        aP = kw.base; dP = kal(aP + n * 8);
+        if (kwRoom(dP + n * 8 - kw.base + 64)) {
+          new Float64Array(kw.mem.buffer, aP, n).set(a); y = kw.x.delta_enc(aP, n, dP);
+          d.set(new Float64Array(kw.mem.buffer, dP, n - 1)); return y;
+        }
+      }
+      for (i = 1; i < n; i++) { x = a[i] - a[i - 1]; x = x < 0 ? -2 * x - 1 : 2 * x; d[i - 1] = x; if (x > y) y = x; }
+      return y;
+    }
+    function undeltaOf(d, n, c0) {    // out[0] = c0; out[i] = out[i - 1] + unzigzag(d[i - 1])
+      var kw = KWC, dP, oP, out = new Float64Array(n), i, c = c0, z;
+      if (kw && n >= 1024) {
+        dP = kw.base; oP = kal(dP + n * 8);
+        if (kwRoom(oP + n * 8 - kw.base + 64)) {
+          new Float64Array(kw.mem.buffer, dP, n - 1).set(d); kw.x.delta_dec(dP, n - 1, c0, oP);
+          out.set(new Float64Array(kw.mem.buffer, oP, n)); return out;
+        }
+      }
+      out[0] = c0;
+      for (i = 1; i < n; i++) { z = d[i - 1]; c += z % 2 ? -(z + 1) / 2 : z / 2; out[i] = c; }
+      return out;
+    }
     function encIntWith(sch, a, depth, opt, mm, bound) {      // bytes, or null when this way does not apply (mm: the smallest and largest value, when the caller already has them)
       var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist, seen;
       w.u8(sch);
@@ -127,8 +213,8 @@
       if (sch === IS.CONST) { if (mn !== mx) return null; w.zi(mn); return w.out(); }
       if (sch === IS.FOR) {
         rng = mx - mn; if (rng > 4294967295) return null;
-        bw = bwOf(rng); res = new Uint32Array(n); for (i = 0; i < n; i++) res[i] = a[i] - mn;
-        w.zi(mn); w.u8(bw); bpWrite(w, res, n, bw); return w.out();
+        bw = bwOf(rng);
+        w.zi(mn); w.u8(bw); bpWriteF(w, a, mn, n, bw); return w.out();
       }
       if (sch === IS.ENT) {
         rng = mx - mn; if (rng >= 549755813888 || n < 64) return null;
@@ -146,7 +232,7 @@
       if (depth <= 0) return null;
       if (sch === IS.DELTA) {
         if (n < 4) return null;
-        d = new Float64Array(n - 1); y = 0; for (i = 1; i < n; i++) { x = a[i] - a[i - 1]; x = x < 0 ? -2 * x - 1 : 2 * x; d[i - 1] = x; if (x > y) y = x; }
+        d = new Float64Array(n - 1); y = deltaOf(a, n, d);
         if (depth < 2 && bwOf(y) > bwOf(mx - mn) && distinctFew(d, 64)) return null;       // wider than the values themselves and never repeating: differences cannot help
         w.zi(a[0]); w.bytes(encInts(d, depth - 1, opt)); return w.out();
       }
@@ -222,7 +308,7 @@
       if (depth > MAX_DEPTH) pfail('data nested too deep');
       if (sch === IS.RAW) { for (i = 0; i < n; i++) out[i] = r.f64(); return out; }
       if (sch === IS.CONST) { out.fill(r.zi()); return out; }
-      if (sch === IS.FOR) { mn = r.zi(); bw = r.u8(); res = bpRead(r, n, bw); for (i = 0; i < n; i++) out[i] = res[i] + mn; return out; }
+      if (sch === IS.FOR) { mn = r.zi(); bw = r.u8(); return bpReadF(r, n, bw, mn); }
       if (sch === IS.ENT) {
         mn = r.zi(); sh = r.u8(); if (sh > 40) pfail('bad shift'); t = readTable(r); rl = r.vi();
         syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot); low = bpRead(r, n, sh); div = Math.pow(2, sh);
@@ -231,9 +317,8 @@
       }
       if (sch === IS.DELTA) {
         if (n < 1) pfail('bad column');
-        out[0] = r.zi(); d = decInts(r, n - 1, depth + 1); c = out[0];
-        for (i = 1; i < n; i++) { z = d[i - 1]; c += z % 2 ? -(z + 1) / 2 : z / 2; out[i] = c; }
-        return out;
+        c = r.zi(); d = decInts(r, n - 1, depth + 1);
+        return undeltaOf(d, n, c);
       }
       if (sch === IS.DIV) { b = r.zi(); g = r.vi(); d = decInts(r, n, depth + 1); for (i = 0; i < n; i++) out[i] = d[i] * g + b; return out; }
       if (sch === IS.RLE) {
@@ -251,8 +336,7 @@
       }
       if (sch === IS.PFOR) {
         mn = r.zi(); bw = r.u8(); ne = r.vi(); if (ne > n || bw > 31) pfail('bad outliers');
-        low = bpRead(r, n, bw); gaps = decInts(r, ne, depth + 1); hi = decInts(r, ne, depth + 1); lim1 = Math.pow(2, bw);
-        for (i = 0; i < n; i++) out[i] = low[i] + mn;
+        out = bpReadF(r, n, bw, mn); gaps = decInts(r, ne, depth + 1); hi = decInts(r, ne, depth + 1); lim1 = Math.pow(2, bw);
         p = -1; for (k = 0; k < ne; k++) { p += gaps[k] + 1; if (!(p >= 0 && p < n)) pfail('bad outlier position'); out[p] += hi[k] * lim1; }
         return out;
       }
@@ -289,9 +373,20 @@
       u32a[HI] = h; u32a[LO] = l; return f64a[0];
     }
     function encALP(a, depth, opt) {       // decimals as whole numbers; a value that is NOT exactly a decimal is stored as its distance in last-place steps from the decimal guess
-      var n = a.length, ef = alpParams(a), e = ef[0], f = ef[1], ints = new Float64Array(n), pos = [], near = [], raw = [], last = 0, i, v, d, code, d0, r, w;
-      for (i = 0; i < n; i++) {
-        v = a[i]; d = alpTry(v, e, f);
+      var n = a.length, ef = alpParams(a), e = ef[0], f = ef[1], ints = new Float64Array(n), pos = [], near = [], raw = [], last = 0, i, v, d, code, d0, r, w, kw = KWC, ex = null, xi = 0, aP, iP, pP;
+      if (kw && n >= 1024) {                                                  // the exact decimals in the wasm helper; only the rows that are not exact are looked at here
+        aP = kw.base; iP = kal(aP + n * 8); pP = kal(iP + n * 8);
+        if (kwRoom(pP + n * 4 - kw.base + 64)) {
+          new Float64Array(kw.mem.buffer, aP, n).set(a);
+          xi = kw.x.alp_enc(aP, n, F10[e], F10[f], iP, pP);
+          if (xi * 2 > n) return null;
+          ints.set(new Float64Array(kw.mem.buffer, iP, n)); ex = new Uint32Array(kw.mem.buffer, pP, xi).slice(); xi = 0;
+        }
+      }
+      for (var ii = 0, cntx = ex ? ex.length : n; ii < cntx; ii++) {
+        i = ex ? ex[ii] : ii;
+        v = a[i]; d = ex ? null : alpTry(v, e, f);
+        if (ex) last = i > 0 ? ints[i - 1] : 0;
         if (d !== null) { ints[i] = d; last = d; continue; }
         pos.push(i); code = 0; d0 = Math.round(v * F10[e] / F10[f]) + 0;              // + 0 turns -0 into +0 so the encoder and the decoder guess the same value
         if (isFinite(d0) && Math.abs(d0) <= MAXI) {
@@ -417,7 +512,53 @@
     }
     function planeModes(planes, n) { var pms = [], b; for (b = 0; b < 8; b++) pms.push(planeMode(planes[b], n)); return pms; }
     function estOf(pms) { var e = 0, b; for (b = 0; b < 8; b++) e += pms[b].est; return e; }
-    function encPlanes(a) {                // byte planes of the doubles (like OpenZL's transpose_split); the variant is chosen on a quarter of the block, then each plane's way by estimate
+    function planeModeK(kw, pP, n, cP, dP) {      // planeMode with the counting in the wasm helper (counts at cP and cP + 1024, differences at dP)
+      var cnt, cd, i, used = 0, e2, e3;
+      kw.x.plane_stats(pP, n, cP, cP + 1024, dP);
+      cnt = new Uint32Array(kw.mem.buffer, cP, 256); cd = new Uint32Array(kw.mem.buffer, cP + 1024, 256);
+      for (i = 0; i < 256; i++) if (cnt[i]) used++;
+      if (used === 1) return { mode: 1, est: 2 };
+      e2 = entropyOf(cnt, n); e3 = entropyOf(cd, n);
+      if (Math.min(e2, e3) >= n) return { mode: 0, est: n + 1 };
+      return e3 < e2 ? { mode: 3, est: e3 + 1, c: cd.slice() } : { mode: 2, est: e2 + 1, c: cnt.slice() };
+    }
+    function encPlanesK(a, kw) {           // the same as encPlanes, with the splitting, counting and entropy coding in the wasm helper; null when its memory cannot be had
+      var n = a.length, sub = n > 4096 ? sampleOf(a) : a, m = sub.length, mx = Math.max(n, m), cap = n * 2 + 64, subP = kw.base, aP, plP, dP, cP, fP, oP, end, variant, v0 = [], v1 = [], spm, pms = [], b, i, w, v, pm, c, freq, p, len, body, u8, fq;
+      aP = sub === a ? subP : kal(subP + m * 8); plP = kal(aP + (sub === a ? 0 : n * 8) + (sub === a ? m * 8 : 0)); dP = kal(plP + 8 * mx); cP = kal(dP + mx + 16); fP = kal(cP + 2048); oP = kal(fP + 512); end = oP + cap + 16;
+      if (!kwRoom(end - kw.base + 64)) return null;
+      new Float64Array(kw.mem.buffer, subP, m).set(sub);
+      if (sub !== a) new Float64Array(kw.mem.buffer, aP, n).set(a);
+      kw.x.planes_split(subP, m, 0, plP); for (b = 0; b < 8; b++) v0.push(planeModeK(kw, plP + b * m, m, cP, dP));
+      kw.x.planes_split(subP, m, 1, plP); for (b = 0; b < 8; b++) v1.push(planeModeK(kw, plP + b * m, m, cP, dP));
+      variant = estOf(v1) < estOf(v0) ? 1 : 0; spm = variant ? v1 : v0;
+      kw.x.planes_split(aP, n, variant, plP);
+      u8 = new Uint8Array(kw.mem.buffer);
+      for (b = 0; b < 8; b++) {
+        if (sub === a) pms.push(spm[b]);
+        else if (spm[b].mode === 1) { v = u8[plP + b * n]; for (i = 1; i < n && u8[plP + b * n + i] === v; i++); pms.push(i < n ? planeModeK(kw, plP + b * n, n, cP, dP) : spm[b]); }
+        else pms.push(planeModeK(kw, plP + b * n, n, cP, dP));
+      }
+      fq = new Uint16Array(kw.mem.buffer, fP, 256);
+      w = new Wr(); w.u8(variant);
+      for (b = 0; b < 8; b++) {
+        pm = pms[b]; p = plP + b * n; c = new Wr();
+        if (pm.mode === 1) { c.u8(1); c.u8(u8[p]); w.bytes(c.out()); continue; }
+        if (pm.mode === 0) { c.u8(0); c.bytes(u8.subarray(p, p + n)); w.bytes(c.out()); continue; }
+        freq = normFreq(pm.c, n); fq.set(freq);
+        if (pm.mode === 3) kw.x.plane_stats(p, n, cP, cP + 1024, dP);                         // the differences again, into dP
+        writeTable(c, freq);
+        len = kw.x.rans_enc(pm.mode === 3 ? dP : p, n, fP, oP, cap); c.vi(len); c.bytes(new Uint8Array(kw.mem.buffer, oP + cap - len, len));
+        if (c.n + 1 >= n) { c = new Wr(); c.u8(0); c.bytes(u8.subarray(p, p + n)); w.bytes(c.out()); continue; }
+        body = c.out(); c = new Wr(); c.u8(pm.mode); c.bytes(body); w.bytes(c.out());
+      }
+      return w.out();
+    }
+    function encPlanes(a) {
+      var kw = KWC, got;
+      if (kw && a.length >= 1024) { got = encPlanesK(a, kw); if (got) return got; }
+      return encPlanesJS(a);
+    }
+    function encPlanesJS(a) {                // byte planes of the doubles (like OpenZL's transpose_split); the variant is chosen on a quarter of the block, then each plane's way by estimate
       var n = a.length, sub = n > 4096 ? sampleOf(a) : a, m = sub.length, v0, v1, variant, spm, planes, pms = [], b, w, i, v;
       v0 = planeModes(splitPlanes(sub, m, 0), m); v1 = planeModes(splitPlanes(sub, m, 1), m);
       variant = estOf(v1) < estOf(v0) ? 1 : 0; spm = variant ? v1 : v0;
@@ -430,7 +571,43 @@
       w = new Wr(); w.u8(variant); for (b = 0; b < 8; b++) w.bytes(planeBytes(planes[b], n, pms[b]));
       return w.out();
     }
+    function decPlanesK(r, n, kw) {        // the same as decPlanes, with the entropy decoding and the joining of the planes in the wasm helper; null when its memory cannot be had
+      var planesP = kw.base, outP = kal(planesP + 8 * n), freqP = kal(outP + 8 * n), srcP = kal(freqP + 512), cap = n * 2 + 64, variant, b, mode, u8, fq, bm, i, tot, v, rl, sub, out, dst, t;
+      if (!kwRoom(srcP + cap + 16 - kw.base + 64)) return null;
+      variant = r.u8(); if (variant > 1) pfail('bad column');
+      u8 = new Uint8Array(kw.mem.buffer); fq = new Uint16Array(kw.mem.buffer, freqP, 256);
+      for (b = 0; b < 8; b++) {
+        mode = r.u8(); dst = planesP + b * n;
+        if (mode === 1) { u8.fill(r.u8(), dst, dst + n); continue; }
+        if (mode === 0) { u8.set(r.bytes(n), dst); continue; }
+        if (mode !== 2 && mode !== 3) pfail('bad column');
+        bm = r.bytes(32); fq.fill(0); tot = 0;                                              // the frequency table, checked: it must add up to exactly 4096
+        for (i = 0; i < 256; i++) if ((bm[i >> 3] >> (i & 7)) & 1) { v = r.vi() + 1; tot += v; if (tot > M) pfail('bad frequencies'); fq[i] = v; }
+        if (tot !== M) pfail('bad frequencies');
+        rl = r.vi(); sub = r.bytes(rl);
+        if (rl > cap) {                                                                     // longer than any packer here writes: the plain way
+          t = tablesOf(fq); v = ransDecode(sub, n, t.freq, t.cum, t.slot);
+          if (mode === 3) for (i = 1; i < n; i++) v[i] = (v[i - 1] + v[i]) & 255;
+          u8.set(v, dst); continue;
+        }
+        u8.set(sub, srcP);
+        if (kw.x.rans_dec(srcP, rl, n, freqP, dst, mode === 3 ? 1 : 0) < 0) pfail('bad entropy data');
+      }
+      kw.x.planes_join(planesP, n, variant, outP);
+      out = new Float64Array(n); out.set(new Float64Array(kw.mem.buffer, outP, n));
+      return out;
+    }
+    function tablesOf(freq) {           // cum and slot tables for a frequency table that adds up to 4096
+      var cum = new Uint16Array(257), slot = new Uint8Array(M), i;
+      for (i = 0; i < 256; i++) { cum[i + 1] = cum[i] + freq[i]; slot.fill(i, cum[i], cum[i + 1]); }
+      return { freq: Uint16Array.from(freq), cum: cum, slot: slot };
+    }
     function decPlanes(r, n) {
+      var kw = KWC, p0 = r.p, got;
+      if (kw && n >= 1024) { got = decPlanesK(r, n, kw); if (got) return got; r.p = p0; }
+      return decPlanesJS(r, n);
+    }
+    function decPlanesJS(r, n) {
       var variant = r.u8(), planes = [], b, mode, t, p, rl, i, lo, hi, pl = 0, ph = 0, out = new Float64Array(n), o32, p0, p1, p2, p3, p4, p5, p6, p7;
       if (variant > 1) pfail('bad column');
       for (b = 0; b < 8; b++) {
@@ -453,7 +630,7 @@
 
     // ---------------------------------------------------------------- one block of numbers, and a whole column
     var CS = { INTS: 0, ALP: 1, RD: 2, RAWF: 3, FDICT: 4, PLANES: 5 }, CHUNK = 8192, NAMES = ['INTS', 'ALP', 'RD', 'RAWF', 'FDICT', 'PLANES'];
-    function isIntegral(a) { var i, v; for (i = 0; i < a.length; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return false; } return true; }
+    function isIntegral(a) { var i, v, st; if (KWC && a.length >= 1024 && (st = statsOf(KWC, a))) return st.ok; for (i = 0; i < a.length; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return false; } return true; }
     function rawDoubles(a) { var w = new Wr(), i; w.need(a.length * 8); for (i = 0; i < a.length; i++) w.f64(a[i]); return w.out(); }
     function encChunk(a, depth, opt, only) {      // only: the ways that won earlier blocks of this column; given on most blocks so the others are not tried
       var cands = [], best = null, bs = -1, k, e, w;
@@ -494,6 +671,10 @@
     // pack(values, opts): values is a Float64Array (or any array of numbers). opts.sample (default true): choose each block's top way on a quarter of it, which is much faster;
     // opts.noEntropy: leave out the byte-coded ways (used to give a general compressor something it can still shrink); opts.labels: an array that receives one label per block.
     function pack(values, opts) {
+      KWC = opts && opts.wasm === false ? null : kwGet(); STAT = null;
+      try { return packRun(values, opts); } finally { KWC = null; STAT = null; }
+    }
+    function packRun(values, opts) {
       var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full;
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
@@ -508,7 +689,11 @@
       return w.out();
     }
     // unpack(bytes, count): the Float64Array, exactly as it was packed. count is checked against the data. Damaged or cut data throws an Error whose message starts with MemoryCompressionJSO:.
-    function unpack(bytes, count) {
+    function unpack(bytes, count, wasm) {
+      KWC = wasm === false ? null : kwGet();
+      try { return unpackRun(bytes, count); } finally { KWC = null; }
+    }
+    function unpackRun(bytes, count) {
       var r = new Rd(bytes), n = r.vi(), c = r.vi(), out, i, len, c2;
       if (n !== count || c < 1 || c > 1048576) pfail('the data does not match the column');
       out = new Float64Array(n);

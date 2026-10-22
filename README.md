@@ -11,9 +11,9 @@ Live demos: **https://lfcfoundry.github.io/JS-modules/**
 
 Every piece in one place, by name. The tables below give the version, the sizes (readable and gzipped) and what each piece does.
 
-**Modules & Tools (39)**
+**Modules & Tools (40)**
 
-- Device and browser adaptation: [env-probes](modules/env-probes/README.md), [frame-kit](modules/frame-kit/README.md), [fx-governor](modules/fx-governor/README.md), [slow-note](modules/slow-note/README.md)
+- Device and browser adaptation: [env-probes](modules/env-probes/README.md), [field-report](modules/field-report/README.md), [frame-kit](modules/frame-kit/README.md), [fx-governor](modules/fx-governor/README.md), [slow-note](modules/slow-note/README.md)
 - Saving and data safety: [save-kit](modules/save-kit/README.md), [tab-guard](modules/tab-guard/README.md)
 - Games - Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md), [fly-to-mini](modules/fly-to-mini/README.md), [sprite-baker](modules/sprite-baker/README.md), [stage-curtains](modules/stage-curtains/README.md), [sticker-text](modules/sticker-text/README.md)
 - Games - Controls: [back-close](modules/back-close/README.md), [hold-press](modules/hold-press/README.md), [pad-nav](modules/pad-nav/README.md), [wake-keeper](modules/wake-keeper/README.md)
@@ -48,7 +48,7 @@ Grouped by what a piece does. The live page, with demos and a quick finder, is *
 **How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments); *Gzipped* is that file compressed. A piece marked *(tool)* is for building and testing: it is not shipped inside a game or story. Story Editor packages are measured on their built `global` file. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes`.
 Every piece has a size.
 
-### Modules & Tools (39)
+### Modules & Tools (40)
 
 #### Device and browser adaptation
 
@@ -57,6 +57,7 @@ Make a game behave on slow phones, privacy-focused browsers and power-saving scr
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [env-probes](modules/env-probes/README.md) | 1.1.0 | 16.2 | 5.4 | Detects privacy modes that blur timers, scramble canvas reads or block storage. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/env-probes/demo.html) |
+| [field-report](modules/field-report/README.md) | 1.0.0 | 21.3 | 7.6 | Hidden buttons that save a speed report and an error log from a real device. No network. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/field-report/demo.html) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 | 38.9 | 12.1 | Frame pacing for canvas games: smooth frame time, effect governor, job pump, frame meter. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/frame-kit/demo.html) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 | 6.2 | 2.5 | Steps visual effects down when the device cannot keep up; never back up mid-play. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fx-governor/demo.html) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 | 9.7 | 3.7 | A short private note of errors, slow taps and long frames, copyable as text. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/slow-note/demo.html) |
@@ -79,7 +80,7 @@ Curtains, flying elements, lettering and 3D-looking sprites.
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 | 49.3 | 20.2 | A written style guide and demo for the soft, glossy cartoon 3D look in CSS and SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/cartoon-3d-kit/demo.html) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 | 18.1 | 6.3 | A big element scrolls away and a copy flies to its sticky mini version. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fly-to-mini/demo.html) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.0 | 54.5 | 17.9 | Tiny software 3D rasterizer that bakes shaded sprites to canvases. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sprite-baker/demo.html) |
-| [stage-curtains](modules/stage-curtains/README.md) | 1.2.0 | 36.1 | 13.1 | Velvet stage curtains that slide shut over a page and fly open. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/stage-curtains/demo.html) |
+| [stage-curtains](modules/stage-curtains/README.md) | 1.3.0 | 42.4 | 14.9 | Velvet stage curtains that slide shut over a page and fly open. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/stage-curtains/demo.html) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 | 5.0 | 2.1 | Die-cut sticker lettering in plain CSS, no images. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sticker-text/demo.html) |
 
 #### Games - Controls
@@ -122,7 +123,7 @@ Test a game by playing it at random, shrinking any failure to a short replay, co
 | [speed-lab](tools/speed-lab/README.md) *(tool)* | 1.1.1 | 20.5 | 7.4 | A one-button speed test on the device: switches parts off and says what costs time. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/speed-lab/demo.html) |
 | [storage-probe](tools/storage-probe/README.md) *(tool)* | 1.1.0 | 19.4 | 7.2 | A one-button page that says whether copies of a page share their saved data. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/storage-probe/storage-probe.html) |
 | [test-isolation](tools/test-isolation/README.md) *(tool)* | 1.1.0 | 6.5 | 2.4 | Prefixes every localStorage key on a test page so tests never touch the real save. | — |
-| [test-runner](tools/test-runner/README.md) *(tool)* | 1.0.0 | 34.0 | 11.8 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
+| [test-runner](tools/test-runner/README.md) *(tool)* | 1.1.0 | 38.6 | 13.2 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
 | [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.3.0 | 22.2 | 8.1 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
 
 #### App - Efficiency
@@ -131,7 +132,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [memory-compression](modules/memory-compression/README.md) | 2.0.3 | 274.3 | 84.6 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [memory-compression](modules/memory-compression/README.md) | 2.1.1 | 296.0 | 91.4 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.1.0 | 27.5 | 10.4 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 
 #### Model simulation
@@ -149,7 +150,7 @@ Draw maps, flow charts and animated pictures from data.
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [gif-writer](modules/gif-writer/README.md) | 1.3.0 | 41.1 | 16.2 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.1.0 | 200.3 | 62.3 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.2.1 | 204.9 | 64.1 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.0 | 29.1 | 9.4 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 | 48.2 | 17.3 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
 
@@ -161,7 +162,7 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 |---|---|---:|---:|---|---|
 | [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 | 22.2 | 8.7 | LZMA decoder: WebAssembly first, small readable JavaScript fallback; tested against Python's lzma. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/lzma-pack/example/packed-base64.html) |
 | [lzma-pack](tools/lzma-pack/README.md) *(tool)* | 2.0.0 | 27.7 | 10.6 | Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3). | — |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.1.0 | 171.9 | 69.0 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.2.0 | 178.1 | 70.8 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 | 45.3 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.0 | 47.8 | 14.6 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
 | [zip-open](modules/zip-open/README.md) | 1.3.0 | 32.1 | 11.2 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
