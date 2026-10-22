@@ -2,6 +2,7 @@
       var CANDIDATES_F = [[0, 0, 0, 0], [0, 0, 3, 0], [0, 0, 2, 1], [2, 0.001, 0, 0], [2, 1e-4, 0, 0], [2, 0.01, 0, 0], [1, 0, 0, 0]];   // mode, mode argument, delta, delta order
       var CANDIDATES_I = [[0, 0, 0, 0], [0, 0, 3, 0], [0, 0, 2, 1], [1, 0, 0, 0]];
       // Packs a typed array (Uint32, BigUint64, Int32, BigInt64, Float32, Float64, Uint16 or Int16) into an ordinary Pcodec file. opts.level 0 to 12 (default 8, Pcodec's own default).
+      // opts.parts: true (8) or a number packs a big column as that many ordinary Pcodec files behind a small header (a split file) that PcodecJS.pool() can unpack on several workers; a column of one page (up to 262,144 numbers) stays a normal file; not combined with smallest.
       // opts.smallest: 'quick' checks whether the numbers are decimals (multiples of 0.1, 0.01, ... 0.000001) and, if so, also packs with that setting and keeps the smaller file: about 90% of the saving of true on our 39 test columns (3.6% against 4.0% smaller) at about 1.4 times the plain time. opts.smallest: true also tries seven other encoder settings on a 20,000-number sample, packs with the best, and keeps the smaller file (about 3.2 to 3.7 times the time, about 2.8% to 4% smaller on decimals and counters).
       var DECIMALS = [0.1, 0.01, 0.001, 1e-4, 1e-5, 1e-6];
       // The coarsest of 0.1 ... 0.000001 that at least 99% of about 512 sampled numbers are a whole multiple of, or 0.
@@ -16,6 +17,7 @@
       }
       api.pack = function (arr, opts) {
         opts = opts || {};
+        if (opts.parts) return packSplit(arr, opts);
         var type = typeOf(arr), level = opts.level === undefined ? 8 : opts.level;
         if (!type) throw new TypeError('PcodecJS: pack needs a typed array of u16, i16, u32, i32, f32, u64, i64 or f64');
         if (!(level >= 0 && level <= 12) || level !== Math.floor(level)) throw new RangeError('PcodecJS: level is 0 to 12');
@@ -67,4 +69,22 @@
           return out;
         });
       };
+
+      // A split file: the column's pages (equal pages of at most 262,144 numbers, as Pcodec cuts them) are shared out over `parts` ordinary Pcodec files. Each part holds the same page bytes a normal file would, so the whole is about 7 bytes per part plus 4 for the header larger.
+      function packSplit(arr, opts) {
+        var type = typeOf(arr), n, pages, want, P, rest = {}, k, files = [], g, from, to, off = 0, cnt, sizes, i;
+        if (!type) throw new TypeError('PcodecJS: pack needs a typed array of u16, i16, u32, i32, f32, u64, i64 or f64');
+        if (opts.smallest) throw new RangeError('PcodecJS: parts and smallest cannot be combined');
+        n = arr.length; if (!n) throw new RangeError('PcodecJS: nothing to pack');
+        want = opts.parts === true ? 8 : Math.floor(opts.parts);
+        if (!(want >= 1)) throw new RangeError('PcodecJS: parts is a number from 1 up, or true');
+        pages = pageSizes(n); P = Math.min(want, pages.length, 65535);
+        if (P < 2) { for (k in opts) if (k !== 'parts') rest[k] = opts[k]; return api.pack(arr, rest); }
+        for (g = 0; g < P; g++) {
+          from = Math.floor(g * pages.length / P); to = Math.floor((g + 1) * pages.length / P); sizes = pages.slice(from, to); cnt = 0;
+          for (i = 0; i < sizes.length; i++) cnt += sizes[i];
+          files.push(api.packPart(arr.subarray(off, off + cnt), { sizes: sizes, total: cnt, level: opts.level, first: true, last: true })); off += cnt;
+        }
+        return buildSplit(n, files);
+      }
     }
