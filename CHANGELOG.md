@@ -6,7 +6,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 | Module or tool | Version | History |
 |---|---|---|
-| [stage-curtains](modules/stage-curtains/README.md) | 1.2.0 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
+| [stage-curtains](modules/stage-curtains/README.md) | 1.3.0 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
 | [save-kit](modules/save-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
@@ -25,10 +25,10 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.2.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.2.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.0.3 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.0.4 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.2.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.1.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.2.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.2.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -53,6 +53,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **webkit-driver** 1.3.0 · API 1: New attach() lets a check reuse a WebKit browser that is already open instead of starting a new one.
 - 2026-10-18 · **walker-sim** 2.2.0 · API 2: The default file is now walker-sim-with-wasm.js: big runs use the WebAssembly walking loop first (about 1.5 times faster in Chromium and Firefox), and the JavaScript loop when WebAssembly is not usable. Same counts either way. In WebKitGTK and GNOME Web a fresh page is about 15% to 30% slower with it; set cfg.wasm = false or copy walker-sim.js there.
 - 2026-10-18 · **test-runner** 1.0.0 · API 1: Shared pieces for browser checks: warm browsers that cut the start of each check from seconds to well under a second, fair timing, skipped rebuilds, a wasm-versus-JavaScript twin test, a picture gate and an automatic bisect.
+- 2026-10-18 · **stage-curtains** 1.3.0 · API 1: New option create({ worker: true }) paints the curtain in a background worker: the page does 3 to 7 ms of work instead of 21 to 36 ms. Same picture.
 - 2026-10-18 · **stage-curtains** 1.2.0 · API 1: A curtain half paints about 1.4 to 1.6 times faster on a freshly loaded page (same picture) using a small WebAssembly painter. Pages with a content policy need 'wasm-unsafe-eval'; without it, plain JavaScript is used.
 - 2026-10-18 · **sprite-baker** 1.7.0 · API 1: The wasm now compiles in the background when the file loads (ready() and module() added); the compile it saves is about 1 ms. Same pictures.
 - 2026-10-18 · **sprite-baker** 1.6.1 · API 1: Fix: the WebAssembly add-on drew drawMesh(..., null) with the wrong back-face cut (about 79 pixels per picture went missing in one game); now identical to the plain code.
@@ -68,10 +69,12 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **netflow-sankey** 2.2.0 · API 2: Very long links no longer blow up big charts: past a limit, the lightest long links are drawn as one straight band. The crossing count is now always a real number.
 - 2026-10-18 · **netflow-sankey** 2.1.0 · API 2: Two new calls so a flow chart can be wired into Netflow Map's engine, one for settings and one for applying a result.
 - 2026-10-18 · **netflow-layers** 1.3.0 · API 1: New tight or wide option: wide draws a looser, more tree-like picture that reads better on wide screens. Tight stays the same as before.
+- 2026-10-18 · **netflow-engine** 2.2.0 · API 2: A page can keep finished Network map positions and put them back: reopening a big map is 2.4 to 14.9 times faster (higher is better), same picture. Distances sweeps run two pairs of items at a time in WebAssembly up to 20,000 items: 1.0 to 1.44 times faster, same positions.
 - 2026-10-18 · **netflow-engine** 2.1.0 · API 2: More of the engine runs as WebAssembly, there is a new Distances 3D arrangement, and big flat Force maps are 1.5 to 2.4 times faster at 5,000 to 10,000 items (higher is better).
 - 2026-10-18 · **netflow-engine** 2.0.0 · API 2: The sixth view is now called "sankey" (the old name is gone), so a page that typed the old name by hand must change it. New tight or wide spread for the story views.
 - 2026-10-18 · **netflow-engine** 1.0.0 · API 1: The engine code arrives: the engine of Netflow Map as one file you can adapt, with nine map views and layouts for networks of any size.
 - 2026-10-18 · **netflow-engine** 0.1.0 · API 0: Placeholder with no engine code yet.
+- 2026-10-18 · **memory-compression** 2.0.4 · API 2: Text such as dates (2025-03-04T05:15:00Z) opens up to 2 times faster in fast mode; no change to file size on disk.
 - 2026-10-18 · **memory-compression** 2.0.3 · API 2: Saves about 5.8 MB of memory on pages that load the module but never pack anything. The first pack takes a few milliseconds longer.
 - 2026-10-18 · **memory-compression** 2.0.2 · API 2: Two bugs fixed: asking how much memory a list uses no longer fails when some rows are missing a text value, and a page that only allows WebAssembly no longer logs a blocked-code error.
 - 2026-10-18 · **memory-compression** 2.0.1 · API 2: Opening a file in fast mode is 21% to 65% faster in Firefox, WebKitGTK and GNOME Web when files of other modes are open on the same page. Packed files are identical.

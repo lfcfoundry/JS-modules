@@ -1,8 +1,8 @@
 # netflow-engine
 
-**Version 2.1.0 · API 2**
+**Version 2.2.0 · API 2**
 
-**Tested in:** Node 22 checks (13), 315 same-layout comparisons with Netflow Map's own engine in Node, and 5 builds (Distances 3D, 3D force, Force, Closeness, Circle) identical to Netflow Map's own engine and to the module with WebAssembly off, in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
+**Tested in:** Node 22 checks (15), 315 same-layout comparisons with Netflow Map's own engine in Node, and a page check in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5
 
 The engine of Netflow Map as a module you can copy and adapt. You give it a list of items and links; it works out where everything goes (as a story laid out in rows, arcs, a matrix, a shape, or as a network of any size), scores the drawing, and hands back plain numbers ready to draw. It runs with no page, so it works in a worker, in Node, or on the main thread. It reads and prepares the data into flat typed arrays, finds choke points and traffic, then places items with a layered, force or distance-based method (the heavy force and distance steps run in WebAssembly when the page allows it and in plain JavaScript when not, with identical results).
 
@@ -26,6 +26,19 @@ var L = NetflowEngine.build(graph, { view: 'network', arrange: 'stress', colorBy
 // L.nodes: one record per item with its place (cx, cy for the Network view; x, y for rows), size and color value
 // L.edges: one record per link; L.groups: the groups; L.ms: how long the build took
 ```
+### Putting a big layout back (saved layouts)
+
+A Network layout of a big map is slow to compute and quick to put back. `NetflowEngine.layoutKey(graph, options)` returns a short fingerprint string of everything that decides the picture (the data, the options, the tuning and the layout code itself; `null` for views and options where saving makes no sense, such as previews). Keep the finished positions anywhere you like, for example in IndexedDB, under that key:
+```js
+var key = NetflowEngine.layoutKey(graph, opts);
+var L = NetflowEngine.build(graph, Object.assign({}, opts, { saveKey: key, wantSave: true }));
+if (L.saveLayout) store(L.saveLayout);              // { key, xy: Float64Array of x,y per item, width, height, rough }
+// later, for the same map:
+var L2 = NetflowEngine.build(graph, Object.assign({}, opts, { saveKey: key, saved: fetched }));
+// L2.fromSaved === true when the record matched; the picture is the same positions as a new layout. A wrong or damaged record is ignored and the layout runs as usual.
+```
+Netflow Map does this for maps of 1,500 items or more, reopening them 2.4 to 14.9 times faster (higher is better) with the same picture.
+
 In Node: `const E = require('./netflow-engine.js'); E.use('layers', require('../netflow-layers/netflow-layers.js'));` (the layers module is also found on its own when it sits next to this folder).
 
 ## Views and arrangements
@@ -43,7 +56,7 @@ In Node: `const E = require('./netflow-engine.js'); E.use('layers', require('../
 
 ## WebAssembly
 
-The Force and Distances steps have a WebAssembly twin (`forceWasm`, `stressWasm`: each has `on`, `minItems` (150), `calls`, `error`). `stressWasm` also runs Distances 3D from `min3d` (3,000) items, the Closeness rounds from `minClose` (20,000) items and the hash-grid push-apart (counters `calls3`, `closeCalls`, `sparseCalls`); below those sizes the timings did not clearly favor WebAssembly. Flat Force starts from the Distances picture for pieces of 5,000 up to 20,000 items (`force2dTuning`). Turn one off with `NetflowEngine.forceWasm.on = false`; the plain-JavaScript path gives the same positions to the last digit (a check proves it). The only page-policy addition needed is `'wasm-unsafe-eval'` in `script-src`; nothing else is loosened. Sources are in `wasm/` (`force.c`, `stress.c`); `sh wasm/build.sh` rebuilds both (clang 18 with the wasm32 target and wasm-ld; two builds give the same bytes) and `python3 wasm/embed.py` puts them into `netflow-engine.js`.
+The Force and Distances steps have a WebAssembly twin (`forceWasm`, `stressWasm`: each has `on`, `minItems` (150), `calls`, `error`). `stressWasm` also runs Distances 3D from `min3d` (3,000) items, the Closeness rounds from `minClose` (20,000) items and the hash-grid push-apart (counters `calls3`, `closeCalls`, `sparseCalls`); below those sizes the timings did not clearly favor WebAssembly. Flat Force starts from the Distances picture for pieces of 5,000 up to 20,000 items (`force2dTuning`). The flat Distances sweeps also have a two-lanes-at-a-time form (`stressWasm.simd`, on by default where the browser supports it; `simdMax` 20,000): two neighbors in the shuffled order that share no item run side by side, so the positions are the same to the last digit; turn it off with `NetflowEngine.stressWasm.simd = false`. Turn one off with `NetflowEngine.forceWasm.on = false`; the plain-JavaScript path gives the same positions to the last digit (a check proves it). The only page-policy addition needed is `'wasm-unsafe-eval'` in `script-src`; nothing else is loosened. Sources are in `wasm/` (`force.c`, `stress.c`); `sh wasm/build.sh` rebuilds both (clang 18 with the wasm32 target and wasm-ld; two builds give the same bytes) and `python3 wasm/embed.py` puts them into `netflow-engine.js`.
 
 ## Speed
 
@@ -127,11 +140,11 @@ The libraries do more than this engine (drawing, routing, bundling, hundreds of 
 
 ## Size
 
-200 KB as one file, 62 KB gzipped (about 20 KB of it is the two WebAssembly helpers as text). No dependencies other than the optional add-ons above.
+205 KB as one file, 64 KB gzipped (about 21 KB of it is the two WebAssembly helpers as text). No dependencies other than the optional add-ons above.
 
 ## Tests
 
-`node modules/netflow-engine/test/run.js` (13 checks, about 6 seconds): every view on a 300-page story and a 1,500-item network, repeatable output, identical positions with and without WebAssembly (Force and Distances, 600 items; Distances 3D, Closeness and the hash-grid push-apart), flat Force from 5,000 items, no two items on top of each other (2,000 items, three arrangements), odd inputs (a start that does not exist, an empty map, one item), `use()` names, the column reader, and that the file builds no code from text. Separately, Netflow Map checks that this file gives the same layout as its own engine: 315 builds (5 maps × 9 views × 7 option sets), 0 differences.
+`node modules/netflow-engine/test/run.js` (15 checks, about 8 seconds): every view on a 300-page story and a 1,500-item network, repeatable output, identical positions with and without WebAssembly (Force and Distances, 600 items; Distances 3D, Closeness and the hash-grid push-apart), flat Force from 5,000 items, no two items on top of each other (2,000 items, three arrangements), odd inputs (a start that does not exist, an empty map, one item), `use()` names, the column reader, and that the file builds no code from text. Separately, Netflow Map checks that this file gives the same layout as its own engine: 315 builds (5 maps × 9 views × 7 option sets), 0 differences.
 
 ## Limits
 
