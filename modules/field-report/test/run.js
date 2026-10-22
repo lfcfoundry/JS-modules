@@ -173,7 +173,7 @@ withEnv(env => {
 withEnv(env => {
   const fr = FR.start({ name: 'g' });
   const reports = fr.saveSpeed();
-  check('save without a handler: a file download link is clicked with a dated .md name', env.downloads.length === 0 || /^g-speed-\d{8}-\d{4}\.md$/.test(env.downloads[0].name), env.downloads);
+  check('save without a handler: a file download link is clicked with a dated .md name', env.downloads.length === 1 && /^g-speed-\d{8}-\d{4}\.md$/.test(env.downloads[0].name), env.downloads);
   fr.stop();
 });
 withEnv(env => {
