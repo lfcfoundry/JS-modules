@@ -1,0 +1,111 @@
+/* Copyright (c) 2026 LFC Foundry. MIT License. The order search of netflow-sankey (barycenter sweeps, neighbor swaps, crossing count) in WebAssembly.
+   Same arithmetic, in the same order, as the JavaScript in netflow-sankey.js (build with -ffp-contract=off, no fast-math). */
+typedef int i32; typedef double f64;
+static i32 nV, nL;
+static i32 *layerOf, *layerStart, *ord, *pos, *tmp, *best, *uS, *uI, *dS, *dI, *xBot;
+static f64 *lenOf, *bary, *uO, *dO, *xW, *xBit;
+
+void bind(i32 nV_, i32 nL_, i32 *layerOf_, i32 *layerStart_, i32 *ord_, i32 *pos_, f64 *lenOf_, f64 *bary_, i32 *tmp_, i32 *best_,
+          i32 *uS_, i32 *uI_, f64 *uO_, i32 *dS_, i32 *dI_, f64 *dO_, i32 *xBot_, f64 *xW_, f64 *xBit_) {
+  nV = nV_; nL = nL_; layerOf = layerOf_; layerStart = layerStart_; ord = ord_; pos = pos_; lenOf = lenOf_; bary = bary_; tmp = tmp_; best = best_;
+  uS = uS_; uI = uI_; uO = uO_; dS = dS_; dI = dI_; dO = dO_; xBot = xBot_; xW = xW_; xBit = xBit_;
+}
+
+static f64 crossTyped(i32 q) {
+  i32 *o = ord + layerStart[q], len = layerStart[q + 1] - layerStart[q], nb = layerStart[q + 2] - layerStart[q + 1] + 1;
+  i32 n = 0, i, k, m, p, v, s0, c, tb; f64 tw, sum, w, all = 0, total = 0;
+  for (i = 0; i < len; i++) n += dS[o[i] + 1] - dS[o[i]];
+  if (n < 2) return 0;
+  for (i = 0; i < nb + 2; i++) xBit[i] = 0;
+  for (i = 0; i < len; i++) {
+    v = o[i]; s0 = dS[v]; c = dS[v + 1] - s0;
+    if (!c) continue;
+    for (k = 0; k < c; k++) {
+      tb = pos[dI[s0 + k]]; tw = dO[s0 + k];
+      for (m = k - 1; m >= 0 && xBot[m] > tb; m--) { xBot[m + 1] = xBot[m]; xW[m + 1] = xW[m]; }
+      xBot[m + 1] = tb; xW[m + 1] = tw;
+    }
+    for (k = 0; k < c; k++) { sum = 0; for (p = xBot[k] + 1; p > 0; p -= p & -p) sum += xBit[p]; total += xW[k] * (all - sum); }
+    for (k = 0; k < c; k++) { w = xW[k]; for (p = xBot[k] + 1; p <= nb + 1; p += p & -p) xBit[p] += w; all += w; }
+  }
+  return total;
+}
+
+static f64 totalAll(void) {
+  f64 c = 0; i32 q;
+  for (q = 0; q + 1 < nL; q++) c += crossTyped(q);
+  return c;
+}
+
+/* stable merge sort of the slots a[0..n) by key[slot]; ties by pos[slot] when tie is set, else they keep their order */
+static void sortSlots(i32 *a, i32 n, f64 *key, i32 tie) {
+  i32 i, j, x, y, w, lo, mid, hi, p, q, k, *src = a, *dst = tmp, *t;
+  for (lo = 0; lo < n; lo += 8) {
+    hi = lo + 8 < n ? lo + 8 : n;
+    for (i = lo + 1; i < hi; i++) {
+      x = a[i]; j = i - 1;
+      while (j >= lo) { y = a[j]; if (key[x] < key[y] || (tie && key[x] == key[y] && pos[x] < pos[y])) { a[j + 1] = y; j--; } else break; }
+      a[j + 1] = x;
+    }
+  }
+  for (w = 8; w < n; w *= 2) {
+    for (lo = 0; lo < n; lo += 2 * w) {
+      mid = lo + w < n ? lo + w : n; hi = lo + 2 * w < n ? lo + 2 * w : n; p = lo; q = mid; k = lo;
+      while (p < mid && q < hi) {
+        x = src[q]; y = src[p];
+        if (key[x] < key[y] || (tie && key[x] == key[y] && pos[x] < pos[y])) { dst[k++] = x; q++; } else { dst[k++] = y; p++; }
+      }
+      while (p < mid) dst[k++] = src[p++];
+      while (q < hi) dst[k++] = src[q++];
+    }
+    t = src; src = dst; dst = t;
+  }
+  if (src != a) for (i = 0; i < n; i++) a[i] = src[i];
+}
+
+static void sweep(i32 q, i32 goUp) {
+  i32 *list = ord + layerStart[q], n = layerStart[q + 1] - layerStart[q], j, e, e1, v, nb, *S, *I; f64 len = lenOf[q], s, w, ww, *O;
+  if (goUp) { S = uS; I = uI; O = uO; } else { S = dS; I = dI; O = dO; }
+  for (j = 0; j < n; j++) {
+    v = list[j]; s = 0; w = 0;
+    for (e = S[v], e1 = S[v + 1]; e < e1; e++) { nb = I[e]; ww = O[e]; s += ww * ((f64)pos[nb] + 0.5) / lenOf[layerOf[nb]]; w += ww; }
+    bary[v] = w != 0 ? s / w : ((f64)pos[v] + 0.5) / len;
+  }
+  sortSlots(list, n, bary, 1);
+  for (j = 0; j < n; j++) pos[list[j]] = j;
+}
+
+static void swapPass(i32 q) {
+  i32 *list = ord + layerStart[q], n = layerStart[q + 1] - layerStart[q], improved = 1, guard = 0, j, a, b, side, xs, xe, ys, ye, px, py, *S, *I; f64 before, after, *O;
+  while (improved && guard++ < 6) {
+    improved = 0;
+    for (j = 0; j + 1 < n; j++) {
+      a = list[j]; b = list[j + 1]; before = 0; after = 0;
+      for (side = 0; side < 2; side++) {
+        if (side) { S = dS; I = dI; O = dO; } else { S = uS; I = uI; O = uO; }
+        for (xs = S[a], xe = S[a + 1]; xs < xe; xs++) {
+          px = pos[I[xs]];
+          for (ys = S[b], ye = S[b + 1]; ys < ye; ys++) { py = pos[I[ys]]; if (px > py) before += O[xs] * O[ys]; else if (px < py) after += O[xs] * O[ys]; }
+        }
+      }
+      if (after < before - 1e-12) { list[j] = b; list[j + 1] = a; pos[a] = j + 1; pos[b] = j; improved = 1; }
+    }
+  }
+}
+
+/* rounds of (sweep down, sweep up, neighbor swaps when doSwap) with the best order kept; leaves the best order in place and returns its crossing weight */
+f64 run(i32 rounds, i32 doSwap) {
+  i32 r, q, i; f64 bestC, cur;
+  for (i = 0; i < nV; i++) best[i] = ord[i];
+  bestC = totalAll();
+  for (r = 0; r < rounds && bestC > 0; r++) {
+    for (q = 1; q < nL; q++) sweep(q, 1);
+    for (q = nL - 2; q >= 0; q--) sweep(q, 0);
+    if (doSwap) for (q = 0; q < nL; q++) swapPass(q);
+    cur = totalAll();
+    if (cur < bestC - 1e-12) { bestC = cur; for (i = 0; i < nV; i++) best[i] = ord[i]; }
+  }
+  for (i = 0; i < nV; i++) ord[i] = best[i];
+  for (q = 0; q < nL; q++) for (i = layerStart[q]; i < layerStart[q + 1]; i++) pos[ord[i]] = i - layerStart[q];
+  return bestC;
+}
