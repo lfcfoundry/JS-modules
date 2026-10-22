@@ -206,6 +206,8 @@ const Pw = S.graph({ links: pinLinks, start: 's' }), pins = {
     if (joined && !isMin) ok(fs.readFileSync(wf, 'utf8') === fs.readFileSync(path.join(path.dirname(wf), 'walker-sim.js'), 'utf8').replace(/\s+$/, '') + '\n\n' + fs.readFileSync(path.join(path.dirname(wf), 'walker-sim-wasm.js'), 'utf8'), 'walker-sim-with-wasm.js is exactly walker-sim.js followed by walker-sim-wasm.js (rebuild with test/make-min.js)');
     const W = require(wf), PW = W.graph({ links: pinLinks, start: 's' });
     ok(typeof W.wasm === 'boolean', 'WalkerSim.wasm says whether WebAssembly is usable here: ' + W.wasm);
+    ok(typeof W.wasmReady === 'function' && typeof W.wasmModule === 'function' && (W.wasmModule() === null) === !W.wasm && (!W.wasm || W.wasmModule() instanceof WebAssembly.Module), 'compile early: wasmModule() is the compiled module when WebAssembly is usable, null when not');
+    W.wasmReady().then(v => ok(v === W.wasm, 'compile early: wasmReady() settles to ' + W.wasm));
     for (const k in pins) {
       const a = W.create(PW, Object.assign({ seed: 11, weights: PW.w }, pins[k][0])), b = W.create(PW, Object.assign({ seed: 11, weights: PW.w, wasm: false }, pins[k][0]));
       a.run(1e9, 1e9); b.run(1e9, 1e9);
@@ -220,6 +222,7 @@ const Pw = S.graph({ links: pinLinks, start: 's' }), pins = {
       for (const f of joined ? [wf] : [wf, path.join(path.dirname(wf), 'walker-sim.js')]) delete require.cache[require.resolve(f)];
       const N0 = require(wf), pn = N0.graph({ links: pinLinks, start: 's' }), sn = N0.create(pn, Object.assign({ seed: 11, weights: pn.w }, pins.plain[0])); sn.run(1e9, 1e9);
       global.WebAssembly = keep;
+      N0.wasmReady().then(v => ok(v === false && N0.wasmModule() === null, 'without WebAssembly wasmReady() settles to false and wasmModule() is null'));
       ok(N0.wasm === false && sn.engine === 'js' && sn.snapshot().endpoints.map(e => e.count).join() === pins.plain[1], 'without WebAssembly the file does nothing and the counts are still the 2.0.0 counts');
     }
   }

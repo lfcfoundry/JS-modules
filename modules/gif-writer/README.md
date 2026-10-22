@@ -1,8 +1,8 @@
 # gif-writer
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5 (3 passes each, one at a time; a phone and Safari not run)
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5
 
 Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 38 KB (15 KB gzipped, of which about 12 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map's GIF maker.
 
@@ -57,6 +57,12 @@ A first small GIF on a fresh page (160 x 120, 4 pictures, start-up included): 44
 - Source `wasm/gif.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
 
 **Honest limits.** The palette search is slower than the JavaScript code in the two WebKit browsers on flat pictures: scrolling bands 0.89x in WebKitGTK (14.5 to 16.3 ms), the small moving block 0.95x in GNOME Web (19.8 to 20.8 ms) and the flat game picture 0.97x in both (1 ms or less, inside the clock's step). The cost is copying every picture into WebAssembly memory (it now goes in pieces of 16,384 pixels so the copy stays in the processor cache, which moved WebKitGTK from 0.87x to the numbers above); the JavaScript code counts such pictures in runs at about the same speed. Everything else is 1.07x or faster, and encoding is 1.08x or faster everywhere. The `lzw()` function you can call directly is unchanged JavaScript. Costs bytes: +20,124 as written (20,789 to 40,913), +16,195 minified (9,115 to 25,310) and +7,929 gzipped (4,349 to 12,278) with terser 5.51.2 (smaller is better). Not run: a phone, Safari.
+
+## Compile early (since 1.3.0)
+
+The WebAssembly program starts compiling in the background when the file loads, so the first palette or encoder only starts it. `GifWriter.wasmReady()` gives a promise of `true` or `false` and `GifWriter.wasmModule()` the compiled module (or `null`). Asked for before the compile is done, it compiles on the spot, as before; without WebAssembly nothing changes. The colors and bytes do not change.
+
+Honest numbers: load plus first use, ms, old / new (median of nine fresh pages, right after load; lower is better): Chromium 155 8.3 / 8.7, Firefox 158.0 20 / 20, WebKitGTK 2.52.6 3 / 3, GNOME Web 46.5 6 / 6. Level within about 1 ms.
 
 ## How it compares
 Much smaller files than gifenc when most of the picture stays still, about the same size when everything changes, and bigger as code. Speed against gifenc in browsers: not measured (the only timings against gifenc are an older Node run, left in the Numbers table below).

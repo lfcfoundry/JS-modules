@@ -264,7 +264,7 @@
     },
     {
       "id": "gif-writer",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "api": 1,
       "global": "GifWriter",
       "summary": "Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation).",
@@ -278,7 +278,7 @@
     },
     {
       "id": "zip-open",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "api": 1,
       "global": "ZipOpen",
       "summary": "Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note.",
@@ -362,7 +362,7 @@
     },
     {
       "id": "walker-sim",
-      "version": "2.2.0",
+      "version": "2.3.0",
       "api": 2,
       "global": "WalkerSim",
       "summary": "Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (about 6 million walkers a second). Big runs use a WebAssembly loop first, JavaScript when it cannot.",
