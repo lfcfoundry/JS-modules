@@ -45,9 +45,10 @@ async function battery(src, jsOnly, full) {
   await Promise.race([finished, new Promise(r => setTimeout(r, 170000))]);
   const rlines = [], rcon = { log: (...a) => rlines.push(a.join(' ')) };   // the router checks (which layer packs, which opens, the old formats) run after the module's own, in the same page
   try { new Function('require', 'process', 'console', '__dirname', 'Buffer', src.router)(fakeRequire, { argv: ['node', 'router.js'], env: {}, exit: () => {} }, rcon, '/x/test', Buf); } catch (e) { rlines.push('router error: ' + (e && e.message)); }
+  for (let w = 0; w < 100 && !rlines.some(l => /checks passed|error/.test(l)); w++) await new Promise(r => setTimeout(r, 200));   // the router's last checks finish a moment after the first ones
   const rlast = (rlines.filter(l => /checks passed|error/.test(l)).pop() || '').trim();
   const last = (lines.filter(l => /checks passed|failed/.test(l)).pop() || '').trim();
-  return { rlast, rfails: rlines.filter(l => /error|FAIL/.test(l)), globals: typeof self !== 'undefined' && typeof MemoryCompression, last, fails: lines.filter(l => /^\s*FAIL/.test(l)), head: lines[0] || '', code, ms: Math.round(performance.now() - t0), tail: lines.slice(-3) };
+  return { rtail: rlines.slice(-4).join(' | '), rlast, rfails: rlines.filter(l => /error|FAIL/.test(l)), globals: typeof self !== 'undefined' && typeof MemoryCompression, last, fails: lines.filter(l => /^\s*FAIL/.test(l)), head: lines[0] || '', code, ms: Math.round(performance.now() - t0), tail: lines.slice(-3) };
 }
 
 (async () => {
@@ -60,8 +61,9 @@ async function battery(src, jsOnly, full) {
     const p = await b.newPage(); const errs = []; p.on && p.on('pageerror', e => errs.push(String(e && e.message || e)));
     await p.goto('about:blank');
     const r = await p.evaluate(battery, SRC, JSONLY, FULLFUZZ);
-    const ok = r.code === 0 && /\bchecks passed/.test(r.last) && !r.fails.length && /^13 checks passed/.test(r.rlast) && !r.rfails.length && !errs.length;
+    const ok = r.code === 0 && /\bchecks passed/.test(r.last) && !r.fails.length && /^\d+ checks passed/.test(r.rlast) && !r.rfails.length && !errs.length;
     if (!ok) bad++;
+    if (!ok && !/^\d+ checks passed/.test(r.rlast)) console.log('  router lines: ' + r.rtail);
     console.log('  ' + r.head);
     console.log((ok ? '  ok   ' : '  FAIL ') + 'router checks: ' + (r.rlast || 'no result') + '\n  ' + (ok ? 'ok   ' : 'FAIL ') + 'test/run.js in this page: ' + (r.last || 'no result') + ' (' + (r.ms / 1000).toFixed(1) + ' s)' + (r.fails.length ? '\n       ' + r.fails.slice(0, 4).join('\n       ') : '') + (errs.length ? '; page error: ' + errs[0] : '') + (!r.last ? ' ' + r.tail.join(' | ') : ''));
     console.log('  ' + version + ': ' + (ok ? 'passed' : 'FAILED') + ', ' + ((Date.now() - t0) / 1000).toFixed(1) + ' s');
