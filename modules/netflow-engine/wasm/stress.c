@@ -3,6 +3,7 @@
  * Mirrors stressComponent and separate in src/engine.js step for step, so the picture is the same to the last digit. Pairs are kept as two item numbers
  * (4 bytes each) plus one Uint16 "hop code" (the hop count, +512 when the pivot weight applies); distance and weight come from two 1,024-entry tables
  * the page fills with the same float32 rounding the JavaScript used, so 10 bytes a pair instead of 16. All memory is handed in by the page. */
+#include <wasm_simd128.h>
 typedef int i32; typedef unsigned int u32; typedef unsigned short u16;
 #define EXP(n) __attribute__((export_name(n)))
 static i32 *off_, *nbr_, *dist_, *queue_;
@@ -72,6 +73,49 @@ EXP("sweeps") void sweeps(double *X, const i32 *pa, const i32 *pb, const u16 *pc
       if (mag == 0 || mag != mag) mag = 1e-6;
       double r = (mu * (mag - (double)pdT[c])) / (2 * mag), rx = r * dx, ry = r * dy;
       X[a2] -= rx; X[a2 + 1] -= ry; X[b2] += rx; X[b2 + 1] += ry;
+    }
+  }
+}
+/* The same sweeps, two pairs at a time. Two neighbors in the shuffled list that share no item do not touch each other's numbers, so doing them side by side (one
+ * pair per lane) gives exactly what doing them one after the other gives, to the last digit; when they do share an item, that pair runs alone as above. Every
+ * multiply, add, divide and square root is the same operation in the same order (no fused multiply-add), so the positions match the JavaScript ones. */
+static inline v128_t clampmu(v128_t mu) { v128_t one = wasm_f64x2_splat(1.0); return wasm_v128_bitselect(one, mu, wasm_f64x2_gt(mu, one)); }
+static inline v128_t fixmag(v128_t mag) { v128_t bad = wasm_v128_or(wasm_f64x2_eq(mag, wasm_f64x2_splat(0.0)), wasm_f64x2_ne(mag, mag)); return wasm_v128_bitselect(wasm_f64x2_splat(1e-6), mag, bad); }
+EXP("sweepsv") void sweepsv(double *X, const i32 *pa, const i32 *pb, const u16 *pc, const float *pdT, const float *pwT, i32 cnt, const double *etas, i32 tmax) {
+  for (i32 t = 0; t < tmax; t++) {
+    double eta = etas[t]; i32 back = t & 1, q = back ? cnt - 1 : 0, step = back ? -1 : 1; v128_t etav = wasm_f64x2_splat(eta); i32 n = 0;
+    for (; n + 1 < cnt; ) {
+      i32 q2 = q + step, a1 = pa[q], b1 = pb[q], a2 = pa[q2], b2 = pb[q2];
+      if (a1 != a2 && a1 != b2 && b1 != a2 && b1 != b2) {
+        i32 c1 = pc[q], c2 = pc[q2], a1i = a1 * 2, b1i = b1 * 2, a2i = a2 * 2, b2i = b2 * 2;
+        v128_t mu = clampmu(wasm_f64x2_mul(wasm_f64x2_make((double)pwT[c1], (double)pwT[c2]), etav));
+        v128_t dd = wasm_f64x2_make((double)pdT[c1], (double)pdT[c2]);
+        v128_t xa = wasm_f64x2_make(X[a1i], X[a2i]), xb = wasm_f64x2_make(X[b1i], X[b2i]), ya = wasm_f64x2_make(X[a1i + 1], X[a2i + 1]), yb = wasm_f64x2_make(X[b1i + 1], X[b2i + 1]);
+        v128_t dx = wasm_f64x2_sub(xa, xb), dy = wasm_f64x2_sub(ya, yb);
+        v128_t mag = fixmag(wasm_f64x2_sqrt(wasm_f64x2_add(wasm_f64x2_mul(dx, dx), wasm_f64x2_mul(dy, dy))));
+        v128_t r = wasm_f64x2_div(wasm_f64x2_mul(mu, wasm_f64x2_sub(mag, dd)), wasm_f64x2_mul(wasm_f64x2_splat(2.0), mag));
+        v128_t rx = wasm_f64x2_mul(r, dx), ry = wasm_f64x2_mul(r, dy);
+        v128_t nxa = wasm_f64x2_sub(xa, rx), nya = wasm_f64x2_sub(ya, ry), nxb = wasm_f64x2_add(xb, rx), nyb = wasm_f64x2_add(yb, ry);
+        X[a1i] = wasm_f64x2_extract_lane(nxa, 0); X[a1i + 1] = wasm_f64x2_extract_lane(nya, 0); X[b1i] = wasm_f64x2_extract_lane(nxb, 0); X[b1i + 1] = wasm_f64x2_extract_lane(nyb, 0);
+        X[a2i] = wasm_f64x2_extract_lane(nxa, 1); X[a2i + 1] = wasm_f64x2_extract_lane(nya, 1); X[b2i] = wasm_f64x2_extract_lane(nxb, 1); X[b2i + 1] = wasm_f64x2_extract_lane(nyb, 1);
+        q += 2 * step; n += 2;
+      } else {
+        i32 c = pc[q]; double mu = (double)pwT[c] * eta; if (mu > 1) mu = 1;
+        i32 ai = a1 * 2, bi = b1 * 2;
+        double dx = X[ai] - X[bi], dy = X[ai + 1] - X[bi + 1], mag = __builtin_sqrt(dx * dx + dy * dy);
+        if (mag == 0 || mag != mag) mag = 1e-6;
+        double r = (mu * (mag - (double)pdT[c])) / (2 * mag), rx = r * dx, ry = r * dy;
+        X[ai] -= rx; X[ai + 1] -= ry; X[bi] += rx; X[bi + 1] += ry;
+        q += step; n += 1;
+      }
+    }
+    if (n < cnt) {
+      i32 c = pc[q]; double mu = (double)pwT[c] * eta; if (mu > 1) mu = 1;
+      i32 ai = pa[q] * 2, bi = pb[q] * 2;
+      double dx = X[ai] - X[bi], dy = X[ai + 1] - X[bi + 1], mag = __builtin_sqrt(dx * dx + dy * dy);
+      if (mag == 0 || mag != mag) mag = 1e-6;
+      double r = (mu * (mag - (double)pdT[c])) / (2 * mag), rx = r * dx, ry = r * dy;
+      X[ai] -= rx; X[ai + 1] -= ry; X[bi] += rx; X[bi + 1] += ry;
     }
   }
 }
