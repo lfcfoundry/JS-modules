@@ -1,8 +1,8 @@
 # zip-open
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Node checks (18, 3 of them new: wasm against the plain loop for lengths around the 1,024-byte switch, every start position, the 1 MB chunk edges and a big buffer; without WebAssembly, a refused module and a broken instance; the embedded wasm matches wasm/crc32.c); tests/zip-open-crc-browser.js one browser at a time, 3 passes each, in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5: 1,860 checksums, 0 differ in all 12 runs, also on a page without the wasm permission. Not run: a phone, Safari.
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5
 
 Opens `.zip` and Excel `.xlsx` files safely, in the browser or in Node. Text files come out as strings, every Excel sheet comes out as CSV text, and every problem is a note in plain words. About 31 KB (10.7 KB gzipped, of which about 2 KB is the embedded WebAssembly checksum), no dependencies. Cut from Netflow Map's file opener.
 
@@ -51,6 +51,12 @@ Every limit is counted on the bytes that really come out, not on what the zip sa
 - Source `wasm/crc32.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
 
 **Honest limits.** Most zips and Excel files are small, so opening one gains little: the unpacking itself is the browser's own `DecompressionStream`. Pieces of 256 bytes tie (0.93 to 1.06x) and use the plain loop. The first checksum on a fresh page is about the same (2 to 3 ms for 1 MB; in the two WebKit browsers wasm is about 1 ms slower there, inside the timer's rounding). Costs bytes: +3,011 minified and +1,103 gzipped (16,088 to 18,955 and 7,056 to 8,159; smaller is better). Not run: a phone, Safari.
+
+## Compile early (since 1.3.0)
+
+The checksum program starts compiling in the background when the file loads, so the first big checksum only starts it. `ZipOpen.wasmReady()` gives a promise of `true` or `false` and `ZipOpen.wasmModule()` the compiled module (or `null`). A checksum asked for before the compile is done compiles on the spot, as before; without WebAssembly the plain loop answers. The answers do not change.
+
+Honest numbers: load plus first use, ms, old / new (median of nine fresh pages, right after load; lower is better): Chromium 155 7.4 / 7.3, Firefox 158.0 18 / 20, WebKitGTK 2.52.6 4 / 4, GNOME Web 46.5 5 / 4. A wash, as expected for a 1,476-byte program.
 
 ## Numbers (Node 22, measured 2026-10-17)
 

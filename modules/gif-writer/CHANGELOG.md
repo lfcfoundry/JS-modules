@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-10-22
+- The WebAssembly program now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
+
 ## 1.2.0 · API 1 · 2026-10-18
 - Pictures are written 1.1 to 2.3 times faster and palettes up to 1.7 times faster with WebAssembly, same colors and bytes. The palette for flat pictures is up to 11% slower in the two WebKit browsers. The fast path needs 'wasm-unsafe-eval'.
 

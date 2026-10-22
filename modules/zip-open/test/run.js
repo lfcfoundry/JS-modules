@@ -164,4 +164,14 @@ t('the embedded WebAssembly is what wasm/crc32.c builds (embed.py --check, and b
   var has = false; try { cp.execFileSync('clang', ['--version'], { stdio: 'pipe' }); has = true; } catch (e) { /* no clang here: the build proof is skipped */ }
   if (has) cp.execFileSync('sh', [require('path').join(dir, 'build.sh'), '--check'], { stdio: 'pipe' });
 });
+t('compile early: wasmReady() settles to true and wasmModule() is the compiled module; with no WebAssembly it settles to false and the module is null; the answers do not change', function () {
+  var path = require.resolve('../zip-open.js'), saved = globalThis.WebAssembly, data = new Uint8Array(5000).map(function (_, q) { return (q * 7 + 3) & 255; }), want = U.crc32(data, true);
+  function fresh() { delete require.cache[path]; var m = require(path); delete require.cache[path]; return m; }
+  var a = fresh();
+  return a.wasmReady().then(function (v) {
+    assert.strictEqual(v, true); assert.ok(a.wasmModule() instanceof WebAssembly.Module); assert.strictEqual(a.crc32(data), want); assert.strictEqual(a.wasmAvailable(), true);
+    globalThis.WebAssembly = undefined; var b = fresh();
+    return b.wasmReady().then(function (w) { assert.strictEqual(w, false); assert.strictEqual(b.wasmModule(), null); assert.strictEqual(b.crc32(data), want); });
+  }).then(function () { globalThis.WebAssembly = saved; }, function (e) { globalThis.WebAssembly = saved; throw e; });
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); });

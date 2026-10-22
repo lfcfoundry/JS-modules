@@ -139,4 +139,12 @@ function goldenHashes(G) {
   if (hasClang) { try { cp.execFileSync('sh', [require('path').join(dir, 'build.sh'), '--check'], { stdio: 'pipe' }); } catch (e) { proof = false; } }
   ok(proof, 'the embedded WebAssembly is what wasm/gif.c builds (embed.py --check' + (hasClang ? ' and build.sh --check' : '; build.sh --check skipped, no clang here') + ')');
 }
-if (fails) { console.log(fails + ' FAILED'); process.exit(1); } else console.log('gif-writer: all passed');
+(async () => {
+  const path = require.resolve('../gif-writer.js'), saved = globalThis.WebAssembly, fresh = () => { delete require.cache[path]; const m = require(path); delete require.cache[path]; return m; };
+  const a = fresh(), v = await a.wasmReady();
+  ok(v === true && a.wasmModule() instanceof WebAssembly.Module && a.wasmAvailable() === true, 'compile early: wasmReady() settles to true and wasmModule() is the compiled module');
+  globalThis.WebAssembly = undefined; let b, w; try { b = fresh(); w = await b.wasmReady(); } finally { globalThis.WebAssembly = saved; }
+  ok(w === false && b.wasmModule() === null && b.wasmAvailable() === false, 'compile early: with no WebAssembly wasmReady() settles to false and wasmModule() is null');
+  const p0 = [new Uint8ClampedArray([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 9, 9, 9, 255])]; ok(JSON.stringify(a.makePalette(p0, 255)) === JSON.stringify(b.makePalette(p0, 255)), 'compile early: the same palette with and without the early module');
+  if (fails) { console.log(fails + ' FAILED'); process.exit(1); } else console.log('gif-writer: all passed');
+})();
