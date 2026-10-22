@@ -1,8 +1,8 @@
 # fuzz-kit
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Chromium 155.0.8059.39 and Firefox 158.0 (background hunt of the example app, 6 seeds each, planted bug found in both); WebKitGTK 2.52.6 and GNOME Web 46.5 not covered by the background hunt
+**Tested in:** Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6 (MiniBrowser) and GNOME Web 46.5: background hunt of the example app, 6 seeds each, planted bug found in 24 of 24 seeds; a stuck page reported in WebKitGTK; 214 Node checks
 
 A small, seeded, reproducible random-input fuzzer for **stateful pages and games**, plus the pattern that makes such a page testable without shipping test code. No dependencies; the engine needs only `Promise`.
 
@@ -73,7 +73,7 @@ if (r.fails.length) var s = await Fuzzer.shrink(make, r.script, { maxTries: 400,
 
 ## Hunting in the background
 
-`node runner/background.js start URL ADAPTER.js [--browsers chrome,firefox] [--seeds 1-200] [--batch 10] [--ops 400] [--out DIR]` starts a hunt and returns at once. It runs the Puppeteer runner over the seeds, one browser at a time, at the lowest priority so other work is not slowed, with `--shrink` and `--bundle` on. The folder holds `run.log`, `state.json`, `findings.md` (rewritten after every batch), `bundles/` and `DONE` (written last, saying how it ended). `status DIR` prints progress in plain words; `stop DIR` ends it after a few seconds and keeps what was found. Browsers: Chrome and Firefox (set `CHROME` / `FIREFOX` or pass `--chrome` / `--firefox`). WebKitGTK and GNOME Web are listed as "not run": Puppeteer cannot drive them. The runner finds Puppeteer or puppeteer-core in `NODE_PATH` too, and prints the real browser version on its first line.
+`node runner/background.js start URL ADAPTER.js [--browsers chrome,firefox] [--seeds 1-200] [--batch 10] [--ops 400] [--out DIR]` starts a hunt and returns at once. It runs the Puppeteer runner over the seeds, one browser at a time, at the lowest priority so other work is not slowed, with `--shrink` and `--bundle` on. The folder holds `run.log`, `state.json`, `findings.md` (rewritten after every batch), `bundles/` and `DONE` (written last, saying how it ended). `status DIR` prints progress in plain words; `stop DIR` ends it after a few seconds and keeps what was found. Browsers: `chrome`, `firefox`, `webkitgtk` and `epiphany` (GNOME Web); set `CHROME` / `FIREFOX` / `EPIPHANY` or pass `--chrome` / `--firefox` / `--epiphany`. The two WebKit browsers are driven through `tools/webkit-driver` (`runner/webkit_browser.js` gives it the few Puppeteer calls the runner needs), so they need `WebKitWebDriver` on the PATH, plus `xvfb-run` and `dbus-run-session` when there is no display. What differs there: no CPU throttling, no popup, crash or navigation events (so the `page-guard` checks for those do not run), `--init` runs right after the page loads instead of before its scripts, `--hang-trace` names nothing, and the one browser window is reused between seeds after clearing the page and its saved data (a page that hangs ends that window and the next seed gets a new one). The runner finds Puppeteer or puppeteer-core in `NODE_PATH` too, and prints the real browser version on its first line.
 
 ## Runner options
 
@@ -82,7 +82,7 @@ Both runners take the same options and print one line per seed. A dead page neve
 | Option | What it does |
 |---|---|
 | `--seeds 1-20`, `--ops 400`, `--viewport 412x892` | Seeds (`1-5,9,20-22`), operations per seed, page size. |
-| `--browser` | Playwright: `chromium` (default), `firefox` (Playwright's own patched build), `webkit`. Puppeteer: `chrome` (default) or `firefox` (stock, over WebDriver BiDi). |
+| `--browser` | Playwright: `chromium` (default), `firefox` (Playwright's own patched build), `webkit`. Puppeteer: `chrome` (default), `firefox` (stock, over WebDriver BiDi), `webkitgtk` or `epiphany` (GNOME Web) through `tools/webkit-driver` (`--webkit-driver PATH` or `WEBKIT_DRIVER` if it is not beside this folder). |
 | `--executable PATH` | The browser to start. Puppeteer also reads `FIREFOX` (only with `--browser firefox`) or `CHROME` (only with `--browser chrome`). |
 | `--shrink` (`--shrink-tries 200`, `--shrink-secs 30`) | Replay a failing seed and cut it down; prints the short list and the script for `run(0, { script })`. Says so if the failure does not repeat. |
 | `--seed-secs 120`, `--hang-trace` | Hang guard: a seed with no answer is reported as hung and its context is closed. `--hang-trace` (slower) names the last operation. |
