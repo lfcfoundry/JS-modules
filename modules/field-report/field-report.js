@@ -4,7 +4,7 @@
  * "Save error log" writes every error the page raised, in plain words. Both save one small Markdown file on the device. No network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.0.1 (API 1)
  *
  *   <script src="field-report.js"></script>      // put it FIRST, so errors during start-up are caught too
  *   var fr = FieldReport.start({ name: 'my-game', version: '2026.10.22.1700' });
@@ -217,7 +217,7 @@
       if (typeof o.onSave === 'function') { try { o.onSave(text, file, kind); } catch (e) { /* the page's own handler failed; the file is not lost, it is returned below */ } return { text: text, file: file, saved: 'handler' }; }
       var done = false;
       try {
-        if (typeof Blob === 'function' && typeof URL === 'object' && URL.createObjectURL) {
+        if (typeof Blob === 'function' && typeof URL === 'function' && URL.createObjectURL) {
           var url = URL.createObjectURL(new Blob([text], { type: 'text/markdown' })), a = doc.createElement('a');
           a.href = url; a.download = file; a.style.display = 'none'; doc.body.appendChild(a); a.click();
           setTimeout(function () { try { doc.body.removeChild(a); URL.revokeObjectURL(url); } catch (e) { /* already gone */ } }, 1500);
