@@ -2,9 +2,10 @@
  * stage-curtains.js: velvet stage curtains that slide shut over a page, then fly open.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  *
  * No dependencies. Needs: canvas 2D, Promise, Element.animate (Web Animations). Any modern browser (2020+).
+ * create({ worker: true }) paints the velvet in a background worker (the page then needs worker-src blob:); StageCurtains.startWorker() starts it early, release() ends it.
  * The velvet's pixel loop runs in WebAssembly (a 1.5 KB module inside this file; the page policy needs 'wasm-unsafe-eval') and in JavaScript where that cannot start:
  * the pixels are the same either way. create({ wasm: false }) forces JavaScript.
  *
@@ -65,144 +66,234 @@
   }
   // t > 0 lightens toward white, t < 0 darkens toward black.
   function shade(c, t) { return t > 0 ? mix(c, '#ffffff', t) : mix(c, '#000000', -t); }
-  // Small seeded random generator (Lehmer), so a seed always paints the same velvet.
-  function rng(seed) { var r = seed || 1; return function () { return (r = (r * 16807) % 2147483647) / 2147483647; }; }
-
-  // ---- the WebAssembly velvet loop (wasm/velvet.c, built by wasm/build.sh, put here by wasm/embed.py) ----
-  // The per-pixel loop of the velvet painter below, in WebAssembly: the very same bytes, about 1.4 to 1.65 times faster on a freshly loaded page.
-  // One instance and one memory serve every painter; they are made on the first paint. If WebAssembly is missing, the page policy lacks
-  // 'wasm-unsafe-eval', or anything throws, kernel() is null and the JavaScript loop paints instead (option wasm: false forces that).
   var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
-  var kern;   // undefined: not tried yet; null: not usable; else { ex, mem, base, owner }
-  function kernel() {
-    if (kern !== undefined) return kern;
-    kern = null;
-    try {
-      if (typeof WebAssembly !== 'object' || !WebAssembly || typeof atob !== 'function') return kern;
-      var t = atob(WASM_B64), b = new Uint8Array(t.length), i;
-      for (i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
-      var mem = new WebAssembly.Memory({ initial: 4 }), ex = new WebAssembly.Instance(new WebAssembly.Module(b), { env: { memory: mem } }).exports;
-      kern = { ex: ex, mem: mem, base: ex.__heap_base.value, owner: null };
-    } catch (e) { kern = null; }
-    return kern;
-  }
   var WASM_ROWS = 16;   // rows per kernel call: the clock is read between calls, so a slice ends within about a millisecond of its limit
+
+  // ---- the velvet maker: no page objects at all, so the very same code (as text) also runs in a background worker ----
+  // makeCore(WASM_B64, WASM_ROWS) gives { rng, velvetCore }. Its source text is also what the worker is built from (see "the background worker" below), so there is one copy of the painter.
+  function makeCore(WASM_B64, WASM_ROWS) {
+    // Small seeded random generator (Lehmer), so a seed always paints the same velvet.
+    function rng(seed) { var r = seed || 1; return function () { return (r = (r * 16807) % 2147483647) / 2147483647; }; }
+
+    // ---- the WebAssembly velvet loop (wasm/velvet.c, built by wasm/build.sh, put here by wasm/embed.py) ----
+    // The per-pixel loop of the velvet painter below, in WebAssembly: the very same bytes, about 1.4 to 1.65 times faster on a freshly loaded page.
+    // One instance and one memory serve every painter; they are made on the first paint. If WebAssembly is missing, the page policy lacks
+    // 'wasm-unsafe-eval', or anything throws, kernel() is null and the JavaScript loop paints instead (option wasm: false forces that).
+    var kern;   // undefined: not tried yet; null: not usable; else { ex, mem, base, owner }
+    function kernel() {
+      if (kern !== undefined) return kern;
+      kern = null;
+      try {
+        if (typeof WebAssembly !== 'object' || !WebAssembly || typeof atob !== 'function') return kern;
+        var t = atob(WASM_B64), b = new Uint8Array(t.length), i;
+        for (i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
+        var mem = new WebAssembly.Memory({ initial: 4 }), ex = new WebAssembly.Instance(new WebAssembly.Module(b), { env: { memory: mem } }).exports;
+        kern = { ex: ex, mem: mem, base: ex.__heap_base.value, owner: null };
+      } catch (e) { kern = null; }
+      return kern;
+    }
+
+    // Paints ONE half of a curtain into a pixel buffer, row by row, so it can be spread over many idle moments.
+    // PW, H: panel size in CSS px. k: canvas pixels per CSS px. B: the cloth color as [r, g, b]. stepped: quantize tones (flat, chunky look). wasm: false paints with JavaScript only.
+    // px: the Uint8ClampedArray to paint into (Math.round(PW * k) * Math.round(H * k) * 4 long); made here when left out.
+    // Returns { px, cw, ch, engine ('wasm' or 'js'), done, step(ms) -> true when finished }.
+    function velvetCore(PW, H, k, B, seed, stepped, wasm, px) {
+      var cw = Math.max(1, Math.round(PW * k)), ch = Math.max(1, Math.round(H * k));
+      var p = px || new Uint8ClampedArray(cw * ch * 4);
+        var rnd = rng(seed);
+        // Orange, coral and yellow turn brown or olive when shaded toward black, and pale colors turn gray, so for those
+        // the folds are shaded less deeply ("lift"). A very dark red is brightened to a rich crimson first.
+        var cmx = Math.max(B[0], B[1], B[2]), cmn = Math.min(B[0], B[1], B[2]), lift = 0;
+        if (cmx > 200 && cmx - cmn > 0.45 * cmx) {
+          var hh = 60 * (cmx === B[0] ? (B[1] - B[2]) / (cmx - cmn) : (cmx === B[1] ? 2 + (B[2] - B[0]) / (cmx - cmn) : 4 + (B[0] - B[1]) / (cmx - cmn)));
+          if (hh < 0) hh += 360;
+          if (hh >= 8 && hh <= 70) lift = 1;
+        } else if (cmx > 200 && cmn > 0.6 * cmx) lift = 1;
+        if (cmx < 150 && B[0] === cmx && B[0] > 1.8 * Math.max(B[1], B[2])) { var up = 176 / cmx; B = B.map(function (v) { return v * up; }); lift = 1; }
+        var warm = (B[2] > B[0] && B[2] >= B[1]) ? 1 : 1.08;   // a little warm tint, except for blue-leaning colors
+        // The fold surface across the flat panel: three long waves plus a few sharp crease lines.
+        var n = Math.ceil(PW * 1.6) + 4, hgt = new Float32Array(n), waves = [], w, i;
+        for (w = 0; w < 3; w++) waves.push({ l: [110, 70, 46][w] * (0.8 + rnd() * 0.4), a: [1, 0.55, 0.25][w], ph: rnd() * 6.28 });
+        for (i = 0; i < n; i++) { var v = 0; waves.forEach(function (q) { v += q.a * Math.sin(i / q.l * 6.283 + q.ph); }); hgt[i] = v; }
+        var creases = []; for (var c = 0; c < 4; c++) creases.push({ at: rnd() * PW * 1.4, w: 2 + rnd() * 3 });
+        var mn = 1e9, mx = -1e9; for (i = 0; i < n; i++) { mn = Math.min(mn, hgt[i]); mx = Math.max(mx, hgt[i]); }
+        for (i = 0; i < n; i++) hgt[i] = (hgt[i] - mn) / (mx - mn);   // 0 = deepest trough, 1 = crest
+        var G = 64, grain = new Float32Array(G * G); for (var g = 0; g < G * G; g++) grain[g] = rnd() * 2 - 1;
+        // Per-column lookup tables, so the pixel loop does no pow() calls.
+        var T85 = new Float64Array(n), T6 = new Float64Array(n), TSL = new Float64Array(n), THEM = new Float64Array(n);
+        for (var t = 0; t < n; t++) {
+          var hv = hgt[t];
+          T85[t] = 0.2 + 0.95 * Math.pow(hv, 0.85);      // crests bright, troughs deep
+          T6[t] = Math.pow(hv, 6) * 0.18;                // sheen on the very crests
+          THEM[t] = (10 + hv * 6) * k;                   // the wavy hem line
+          if (t >= 1 && t <= n - 2) { var sl0 = (hgt[t + 1] - hgt[t - 1]) * 0.5 * 40; TSL[t] = 1 + Math.max(-0.25, Math.min(0.25, -sl0 * 0.12)); }
+        }
+        var ncr = creases.length, crAt = creases.map(function (q) { return q.at; }), crW2 = creases.map(function (q) { return q.w * 2; });
+        var y = 0, ph = rnd() * 6;
+        // The WebAssembly path: sin and pow stay in JavaScript, as one value per row and one per column, handed over as tables.
+        var K = wasm === false || !(B[0] >= 0 && B[1] >= 0 && B[2] >= 0) ? null : kernel(), job = {}, T = null;
+        if (K) {
+          var rows = new Float64Array(3 * ch), edgeT = new Float64Array(cw), yy, cc, ee;
+          for (yy = 0; yy < ch; yy++) {
+            var yf0 = yy / ch;
+            rows[3 * yy] = (0.72 + 0.28 * Math.sin(Math.min(1, yf0 / 0.4) * Math.PI / 2)) * (1 - Math.pow(Math.max(0, yf0 - 0.5) / 0.5, 1.5) * 0.85);
+            rows[3 * yy + 1] = 1 + 0.22 * (1 - yf0);
+            rows[3 * yy + 2] = Math.sin(yy / k * 0.004 + ph) * 6;
+          }
+          for (cc = 0; cc < cw; cc++) {
+            if (cc > cw - 16 * k) { ee = (cc - (cw - 16 * k)) / (16 * k); edgeT[cc] = (1 + 0.35 * Math.sin(Math.min(1, ee / 0.55) * Math.PI)) * (1 - 0.8 * Math.pow(Math.max(0, (ee - 0.55) / 0.45), 1.5)); }
+            else edgeT[cc] = 1;
+          }
+          T = { list: [hgt, T85, T6, THEM, TSL, crAt, crW2, edgeT, Float64Array.from(grain), new Float64Array([PW, k, ch, warm, B[0], B[1], B[2], stepped ? 0.03 : 0.02, lift, stepped ? 1 : 0]), rows], off: [] };
+        }
+        // Puts this painter's tables into the kernel's memory (unless they are already there) and returns where the rows will land.
+        function load() {
+          var list = T.list, off = T.off, pos = K.base, i, need;
+          for (i = 0; i < list.length; i++) { off[i] = pos; pos += list[i].length * 8; }
+          T.pix = pos; need = pos + WASM_ROWS * cw * 4;
+          if (K.mem.buffer.byteLength < need) K.mem.grow(Math.ceil((need - K.mem.buffer.byteLength) / 65536));
+          if (K.owner !== job) { for (i = 0; i < list.length; i++) new Float64Array(K.mem.buffer, off[i], list[i].length).set(list[i]); K.owner = job; }
+        }
+        // Paints rows y .. y1 - 1 with the kernel and copies them into the image.
+        function bulk(y1) {
+          var o = T.off;
+          K.ex.paint(T.pix, cw, ch, y, y1, n, ncr, o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7], o[8], o[9], o[10]);
+          p.set(new Uint8Array(K.mem.buffer, T.pix, (y1 - y) * cw * 4), y * cw * 4);
+          y = y1;
+        }
+        function row() {
+          var yf = y / ch;
+          // stage light: pooled in the upper middle, falling off to near black at the hem
+          var light = (0.72 + 0.28 * Math.sin(Math.min(1, yf / 0.4) * Math.PI / 2)) * (1 - Math.pow(Math.max(0, yf - 0.5) / 0.5, 1.5) * 0.85);
+          var fan = 1 + 0.22 * (1 - yf);                       // folds sit closer together up at the rod
+          var wob = Math.sin(y / k * 0.004 + ph) * 6;
+          for (var c2 = 0; c2 < cw; c2++) {
+            var o = (y * cw + c2) * 4, X = c2 / k;
+            var edge = 1 - X / PW;                              // 1 at the outer edge, 0 at the middle
+            // folds fan out from the rod and meander a little, but only away from the middle, so the inner edge is a clean vertical line
+            var u = PW - (PW - X) * fan + wob * edge + 2;
+            var ui = Math.max(1, Math.min(n - 2, Math.round(u)));
+            var hem = ch - THEM[ui];
+            if (y > hem + 1.5 * k) { p[o] = 14; p[o + 1] = 8; p[o + 2] = 8; p[o + 3] = 255; continue; }   // dark floor under the hem
+            var sh = T85[ui] * TSL[ui];
+            if (lift) sh = 0.34 + sh * 0.66;
+            for (var ci = 0; ci < ncr; ci++) { var d = Math.abs(u - crAt[ci]); if (d < crW2[ci]) sh *= 0.55 + 0.45 * (d / crW2[ci]); }
+            // the leading edge: a soft rolled hem catching a little light, then turning away into the overlap's shadow
+            if (c2 > cw - 16 * k) { var e = (c2 - (cw - 16 * k)) / (16 * k); sh *= (1 + 0.35 * Math.sin(Math.min(1, e / 0.55) * Math.PI)) * (1 - 0.8 * Math.pow(Math.max(0, (e - 0.55) / 0.45), 1.5)); }
+            sh *= light * (1 + grain[(y & 63) * G + (c2 & 63)] * (stepped ? 0.03 : 0.02));
+            var R = B[0] * sh * warm, Gc = B[1] * sh, Bc = B[2] * sh;
+            var sheen = T6[ui] * light; R += (255 - R) * sheen; Gc += (255 - Gc) * sheen * 0.7; Bc += (255 - Bc) * sheen * 0.5;
+            if (y > hem - 2.5 * k) { var gl = (0.5 + 0.6 * hgt[ui]) * Math.max(0.5, light); R = 231 * gl; Gc = 180 * gl; Bc = 58 * gl; }   // gold trim
+            if (stepped) { R = Math.round(R / 20) * 20; Gc = Math.round(Gc / 20) * 20; Bc = Math.round(Bc / 20) * 20; }
+            p[o] = R > 255 ? 255 : R; p[o + 1] = Gc > 255 ? 255 : Gc; p[o + 2] = Bc > 255 ? 255 : Bc; p[o + 3] = 255;
+          }
+          y++;
+        }
+
+      return {
+        px: p, cw: cw, ch: ch, done: false,
+        engine: K ? 'wasm' : 'js',
+        step: function (ms) {
+          var t0 = performance.now();
+          if (K && y < ch) {
+            try {
+              load();
+              while (y < ch) { bulk(Math.min(ch, y + WASM_ROWS)); if (ms && performance.now() - t0 > ms) break; }
+            } catch (e) { K = null; this.engine = 'js'; }   // anything went wrong: the JavaScript loop finishes the remaining rows
+          }
+          if (!K) while (y < ch) { row(); if (ms && performance.now() - t0 > ms) break; }
+          if (y >= ch) this.done = true;
+          return this.done;
+        }
+      };
+    }
+    return { rng: rng, kernel: kernel, velvetCore: velvetCore };
+  }
+  var CORE = makeCore(WASM_B64, WASM_ROWS), rng = CORE.rng, kernel = CORE.kernel;
+
+  // ---- the background worker (option worker: true) ----
+  // The velvet of one curtain half takes about 30 ms of the page's own thread. In a worker it is painted without touching the page: the worker runs makeCore's own source text (this file keeps one copy of the
+  // painter) and hands the finished pixels back as a transferable buffer, so the page only copies them into the canvas. One worker serves both halves and ends itself after a few idle seconds
+  // (or at once with StageCurtains.release()). If anything about the worker fails (no Worker or Blob, a page policy without worker-src blob:, a thrown or posted error), the half is painted on the page instead,
+  // from the start, and the worker is not tried again.
+  var WK = null, wkBroken = false, WK_IDLE_MS = 4000;
+  function workerOK() {
+    return !wkBroken && typeof Worker === 'function' && typeof Blob === 'function' && typeof URL === 'function' && typeof URL.createObjectURL === 'function';
+  }
+  function wkFail() {   // the worker cannot be used: every waiting half goes to the page
+    var w = WK; wkBroken = true; WK = null;
+    if (!w) return;
+    clearTimeout(w.timer);
+    try { w.w.terminate(); } catch (e) { /* gone */ }
+    try { URL.revokeObjectURL(w.url); } catch (e) { /* gone */ }
+    Object.keys(w.jobs).forEach(function (id) { w.jobs[id].failed = true; });
+  }
+  function getWorker() {
+    if (WK) { clearTimeout(WK.timer); return WK; }
+    if (!workerOK()) return null;
+    try {
+      var src = 'var C = (' + makeCore.toString() + ')(' + JSON.stringify(WASM_B64) + ', ' + WASM_ROWS + ');\n' +
+        'onmessage = function (e) { var m = e.data; try { var c = C.velvetCore(m.PW, m.H, m.k, m.B, m.seed, m.stepped, m.wasm, null); c.step(0); var b = c.px.buffer; postMessage({ id: m.id, buf: b, engine: c.engine }, [b]); } catch (err) { postMessage({ id: m.id, error: String(err) }); } };';
+      var url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), w = new Worker(url), rec = { w: w, url: url, jobs: {}, n: 0, timer: 0 };
+      w.onmessage = function (e) {
+        var m = e.data, j = rec.jobs[m && m.id];
+        if (!j) return;
+        delete rec.jobs[m.id];
+        if (m.error || !m.buf) j.failed = true; else { j.buf = m.buf; j.engine = m.engine; j.ready = true; }
+        if (!Object.keys(rec.jobs).length) { clearTimeout(rec.timer); rec.timer = setTimeout(release, WK_IDLE_MS); }
+      };
+      w.onerror = function (e) { if (e && e.preventDefault) e.preventDefault(); wkFail(); };
+      WK = rec;
+      return rec;
+    } catch (e) { wkFail(); return null; }
+  }
+  function release() {   // ends the worker; a later painter makes a new one
+    var w = WK; WK = null;
+    if (!w) return;
+    clearTimeout(w.timer);
+    try { w.w.terminate(); } catch (e) { /* gone */ }
+    try { URL.revokeObjectURL(w.url); } catch (e) { /* gone */ }
+    Object.keys(w.jobs).forEach(function (id) { w.jobs[id].failed = true; });
+  }
 
   // ---- the velvet painter ----
   // Paints ONE half of a curtain onto a canvas, row by row, so it can be spread over many idle moments.
   // PW, H: panel size in CSS px. k: canvas pixels per CSS px. base: the cloth color. stepped: quantize tones (flat, chunky look).
   // wasm: false paints with the JavaScript loop only (default: WebAssembly when it can start; the pixels are the same either way).
-  // Returns { canvas, engine ('wasm' or 'js'), step(ms) -> true when finished }.
-  function velvetPainter(PW, H, k, base, seed, stepped, wasm) {
+  // worker: true paints in a background worker (engine then reads 'worker+wasm' or 'worker+js'; 'wasm' or 'js' when it fell back to the page): the first step() starts the job, later steps return false until the
+  // pixels have arrived, then they are put on the canvas and step() returns true. Same pixels as without the worker.
+  // Returns { canvas, engine ('wasm', 'js', 'worker+wasm' or 'worker+js'), done, step(ms) -> true when finished }.
+  function velvetPainter(PW, H, k, base, seed, stepped, wasm, worker) {
     var cw = Math.max(1, Math.round(PW * k)), ch = Math.max(1, Math.round(H * k));
     var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
-    var x = cv.getContext('2d'), img = x.createImageData(cw, ch), p = img.data;
-    var rnd = rng(seed);
-    var B = parseColor(base);
-    // Orange, coral and yellow turn brown or olive when shaded toward black, and pale colors turn gray, so for those
-    // the folds are shaded less deeply ("lift"). A very dark red is brightened to a rich crimson first.
-    var cmx = Math.max(B[0], B[1], B[2]), cmn = Math.min(B[0], B[1], B[2]), lift = 0;
-    if (cmx > 200 && cmx - cmn > 0.45 * cmx) {
-      var hh = 60 * (cmx === B[0] ? (B[1] - B[2]) / (cmx - cmn) : (cmx === B[1] ? 2 + (B[2] - B[0]) / (cmx - cmn) : 4 + (B[0] - B[1]) / (cmx - cmn)));
-      if (hh < 0) hh += 360;
-      if (hh >= 8 && hh <= 70) lift = 1;
-    } else if (cmx > 200 && cmn > 0.6 * cmx) lift = 1;
-    if (cmx < 150 && B[0] === cmx && B[0] > 1.8 * Math.max(B[1], B[2])) { var up = 176 / cmx; B = B.map(function (v) { return v * up; }); lift = 1; }
-    var warm = (B[2] > B[0] && B[2] >= B[1]) ? 1 : 1.08;   // a little warm tint, except for blue-leaning colors
-    // The fold surface across the flat panel: three long waves plus a few sharp crease lines.
-    var n = Math.ceil(PW * 1.6) + 4, hgt = new Float32Array(n), waves = [], w, i;
-    for (w = 0; w < 3; w++) waves.push({ l: [110, 70, 46][w] * (0.8 + rnd() * 0.4), a: [1, 0.55, 0.25][w], ph: rnd() * 6.28 });
-    for (i = 0; i < n; i++) { var v = 0; waves.forEach(function (q) { v += q.a * Math.sin(i / q.l * 6.283 + q.ph); }); hgt[i] = v; }
-    var creases = []; for (var c = 0; c < 4; c++) creases.push({ at: rnd() * PW * 1.4, w: 2 + rnd() * 3 });
-    var mn = 1e9, mx = -1e9; for (i = 0; i < n; i++) { mn = Math.min(mn, hgt[i]); mx = Math.max(mx, hgt[i]); }
-    for (i = 0; i < n; i++) hgt[i] = (hgt[i] - mn) / (mx - mn);   // 0 = deepest trough, 1 = crest
-    var G = 64, grain = new Float32Array(G * G); for (var g = 0; g < G * G; g++) grain[g] = rnd() * 2 - 1;
-    // Per-column lookup tables, so the pixel loop does no pow() calls.
-    var T85 = new Float64Array(n), T6 = new Float64Array(n), TSL = new Float64Array(n), THEM = new Float64Array(n);
-    for (var t = 0; t < n; t++) {
-      var hv = hgt[t];
-      T85[t] = 0.2 + 0.95 * Math.pow(hv, 0.85);      // crests bright, troughs deep
-      T6[t] = Math.pow(hv, 6) * 0.18;                // sheen on the very crests
-      THEM[t] = (10 + hv * 6) * k;                   // the wavy hem line
-      if (t >= 1 && t <= n - 2) { var sl0 = (hgt[t + 1] - hgt[t - 1]) * 0.5 * 40; TSL[t] = 1 + Math.max(-0.25, Math.min(0.25, -sl0 * 0.12)); }
-    }
-    var ncr = creases.length, crAt = creases.map(function (q) { return q.at; }), crW2 = creases.map(function (q) { return q.w * 2; });
-    var y = 0, ph = rnd() * 6;
-    // The WebAssembly path: sin and pow stay in JavaScript, as one value per row and one per column, handed over as tables.
-    var K = wasm === false || !(B[0] >= 0 && B[1] >= 0 && B[2] >= 0) ? null : kernel(), job = {}, T = null;
-    if (K) {
-      var rows = new Float64Array(3 * ch), edgeT = new Float64Array(cw), yy, cc, ee;
-      for (yy = 0; yy < ch; yy++) {
-        var yf0 = yy / ch;
-        rows[3 * yy] = (0.72 + 0.28 * Math.sin(Math.min(1, yf0 / 0.4) * Math.PI / 2)) * (1 - Math.pow(Math.max(0, yf0 - 0.5) / 0.5, 1.5) * 0.85);
-        rows[3 * yy + 1] = 1 + 0.22 * (1 - yf0);
-        rows[3 * yy + 2] = Math.sin(yy / k * 0.004 + ph) * 6;
-      }
-      for (cc = 0; cc < cw; cc++) {
-        if (cc > cw - 16 * k) { ee = (cc - (cw - 16 * k)) / (16 * k); edgeT[cc] = (1 + 0.35 * Math.sin(Math.min(1, ee / 0.55) * Math.PI)) * (1 - 0.8 * Math.pow(Math.max(0, (ee - 0.55) / 0.45), 1.5)); }
-        else edgeT[cc] = 1;
-      }
-      T = { list: [hgt, T85, T6, THEM, TSL, crAt, crW2, edgeT, Float64Array.from(grain), new Float64Array([PW, k, ch, warm, B[0], B[1], B[2], stepped ? 0.03 : 0.02, lift, stepped ? 1 : 0]), rows], off: [] };
-    }
-    // Puts this painter's tables into the kernel's memory (unless they are already there) and returns where the rows will land.
-    function load() {
-      var list = T.list, off = T.off, pos = K.base, i, need;
-      for (i = 0; i < list.length; i++) { off[i] = pos; pos += list[i].length * 8; }
-      T.pix = pos; need = pos + WASM_ROWS * cw * 4;
-      if (K.mem.buffer.byteLength < need) K.mem.grow(Math.ceil((need - K.mem.buffer.byteLength) / 65536));
-      if (K.owner !== job) { for (i = 0; i < list.length; i++) new Float64Array(K.mem.buffer, off[i], list[i].length).set(list[i]); K.owner = job; }
-    }
-    // Paints rows y .. y1 - 1 with the kernel and copies them into the image.
-    function bulk(y1) {
-      var o = T.off;
-      K.ex.paint(T.pix, cw, ch, y, y1, n, ncr, o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7], o[8], o[9], o[10]);
-      p.set(new Uint8Array(K.mem.buffer, T.pix, (y1 - y) * cw * 4), y * cw * 4);
-      y = y1;
-    }
-    function row() {
-      var yf = y / ch;
-      // stage light: pooled in the upper middle, falling off to near black at the hem
-      var light = (0.72 + 0.28 * Math.sin(Math.min(1, yf / 0.4) * Math.PI / 2)) * (1 - Math.pow(Math.max(0, yf - 0.5) / 0.5, 1.5) * 0.85);
-      var fan = 1 + 0.22 * (1 - yf);                       // folds sit closer together up at the rod
-      var wob = Math.sin(y / k * 0.004 + ph) * 6;
-      for (var c2 = 0; c2 < cw; c2++) {
-        var o = (y * cw + c2) * 4, X = c2 / k;
-        var edge = 1 - X / PW;                              // 1 at the outer edge, 0 at the middle
-        // folds fan out from the rod and meander a little, but only away from the middle, so the inner edge is a clean vertical line
-        var u = PW - (PW - X) * fan + wob * edge + 2;
-        var ui = Math.max(1, Math.min(n - 2, Math.round(u)));
-        var hem = ch - THEM[ui];
-        if (y > hem + 1.5 * k) { p[o] = 14; p[o + 1] = 8; p[o + 2] = 8; p[o + 3] = 255; continue; }   // dark floor under the hem
-        var sh = T85[ui] * TSL[ui];
-        if (lift) sh = 0.34 + sh * 0.66;
-        for (var ci = 0; ci < ncr; ci++) { var d = Math.abs(u - crAt[ci]); if (d < crW2[ci]) sh *= 0.55 + 0.45 * (d / crW2[ci]); }
-        // the leading edge: a soft rolled hem catching a little light, then turning away into the overlap's shadow
-        if (c2 > cw - 16 * k) { var e = (c2 - (cw - 16 * k)) / (16 * k); sh *= (1 + 0.35 * Math.sin(Math.min(1, e / 0.55) * Math.PI)) * (1 - 0.8 * Math.pow(Math.max(0, (e - 0.55) / 0.45), 1.5)); }
-        sh *= light * (1 + grain[(y & 63) * G + (c2 & 63)] * (stepped ? 0.03 : 0.02));
-        var R = B[0] * sh * warm, Gc = B[1] * sh, Bc = B[2] * sh;
-        var sheen = T6[ui] * light; R += (255 - R) * sheen; Gc += (255 - Gc) * sheen * 0.7; Bc += (255 - Bc) * sheen * 0.5;
-        if (y > hem - 2.5 * k) { var gl = (0.5 + 0.6 * hgt[ui]) * Math.max(0.5, light); R = 231 * gl; Gc = 180 * gl; Bc = 58 * gl; }   // gold trim
-        if (stepped) { R = Math.round(R / 20) * 20; Gc = Math.round(Gc / 20) * 20; Bc = Math.round(Bc / 20) * 20; }
-        p[o] = R > 255 ? 255 : R; p[o + 1] = Gc > 255 ? 255 : Gc; p[o + 2] = Bc > 255 ? 255 : Bc; p[o + 3] = 255;
-      }
-      y++;
-    }
-    return {
-      canvas: cv, done: false,
-      engine: K ? 'wasm' : 'js',
-      step: function (ms) {
-        var t0 = performance.now();
-        if (K && y < ch) {
-          try {
-            load();
-            while (y < ch) { bulk(Math.min(ch, y + WASM_ROWS)); if (ms && performance.now() - t0 > ms) break; }
-          } catch (e) { K = null; this.engine = 'js'; }   // anything went wrong: the JavaScript loop finishes the remaining rows
+    var x = cv.getContext('2d'), img = x.createImageData(cw, ch), B = parseColor(base);
+    var core = null, job = null, self = {};
+    function onPage() { core = CORE.velvetCore(PW, H, k, B, seed, stepped, wasm, img.data); self.engine = core.engine; }
+    self.canvas = cv; self.done = false;
+    if (worker) self.engine = 'worker+' + (wasm === false ? 'js' : 'wasm'); else onPage();
+    self.step = function (ms) {
+      if (self.done) return true;
+      if (worker && !core) {
+        if (!job) {
+          var wk = getWorker();
+          if (wk) {
+            job = { ready: false, failed: false, buf: null, engine: null };
+            wk.jobs[++wk.n] = job;
+            try { wk.w.postMessage({ id: wk.n, PW: PW, H: H, k: k, B: B, seed: seed, stepped: stepped, wasm: wasm }); } catch (e) { wkFail(); }
+          }
         }
-        if (!K) while (y < ch) { row(); if (ms && performance.now() - t0 > ms) break; }
-        if (y >= ch && !this.done) { x.putImageData(img, 0, 0); this.done = true; }
-        return this.done;
+        if (job && job.failed) job = null;
+        if (job && job.ready) {
+          try { img.data.set(new Uint8ClampedArray(job.buf)); x.putImageData(img, 0, 0); self.engine = 'worker+' + job.engine; self.done = true; return true; } catch (e) { job = null; }
+        }
+        if (job) return false;   // still painting in the worker
+        onPage();               // no worker, or it failed: paint here, from the start
       }
+      core.step(ms); self.engine = core.engine;
+      if (core.done) { x.putImageData(img, 0, 0); self.done = true; }
+      return self.done;
     };
+    return self;
   }
 
   function mirrorCanvas(src) {
@@ -357,7 +448,7 @@
       var gm, jobs;
       try {
         gm = geometry(); state.size = gm;
-        jobs = state.jobs = [0, 1].map(function (n) { return velvetPainter(gm.PW, gm.H, gm.k, color, seed + n * 23, stepped, opts.wasm); });   // two different paintings
+        jobs = state.jobs = [0, 1].map(function (n) { return velvetPainter(gm.PW, gm.H, gm.k, color, seed + n * 23, stepped, opts.wasm, opts.worker); });   // two different paintings
       } catch (e) { state.jobs = null; return Promise.resolve(api); }   // no canvas 2D (or no memory): skip the curtain
       var sliceMs = po.sliceMs || 2.5, restMs = po.restMs == null ? 45 : po.restMs;
       var realIdle = typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function';
@@ -528,5 +619,5 @@
     return api;
   }
 
-  return { create: create, wasmAvailable: function () { return !!kernel(); }, velvetPainter: velvetPainter, valanceSvg: valanceSvg, shade: shade, mix: mix, mirrorCanvas: mirrorCanvas };
+  return { create: create, wasmAvailable: function () { return !!kernel(); }, release: release, startWorker: function () { return !!getWorker(); }, velvetPainter: velvetPainter, valanceSvg: valanceSvg, shade: shade, mix: mix, mirrorCanvas: mirrorCanvas };
 });
