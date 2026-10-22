@@ -181,6 +181,20 @@
       "category": "controls"
     },
     {
+      "id": "image-decode",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "ImageDecode",
+      "summary": "Loads PNG, JPEG, WebP and AVIF pictures so the page does not freeze when they are first drawn: picks the right off-thread way for each browser, loads a list in order, and tells whether the browser can read WebP or AVIF.",
+      "short": "Loads pictures with no freeze at first draw, the right way per browser, plus WebP/AVIF checks.",
+      "file": "modules/image-decode/image-decode.js",
+      "readme": "modules/image-decode/README.md",
+      "demo": "modules/image-decode/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "adaptation"
+    },
+    {
       "id": "tab-guard",
       "version": "1.1.0",
       "api": 1,
@@ -292,7 +306,7 @@
     },
     {
       "id": "memory-compression",
-      "version": "2.1.2",
+      "version": "2.2.0",
       "api": 2,
       "global": "MemoryCompression",
       "summary": "Keeps big data packed in memory and brings it back exactly, in one file with one pack/unpack: bytes and typed arrays (a 120 MB scene shrinks to 52%, 41% in small mode, and restores in about 175 ms, against 525 ms with lz4js and 1.2 s with fflate) and big lists of plain JavaScript objects (300,000 link objects shrink to 14% of their JSON text, 35% for msgpackr with records). Picks the right layer by itself; MemoryCompressionJSO stays as an alias.",

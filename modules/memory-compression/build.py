@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 2.1.2 (API 2)
-"""Builds memory-compression.js: header + the packing core (src/core.js) + the number picker, object layer and keeper (src/) + the router that picks the layer (src/router.js).
+# Version 2.2.0 (API 2)
+"""Builds memory-compression.js: header + the packing core (src/core.js) + the number picker, object layer, keeper and pager (src/) + the router that picks the layer (src/router.js).
 Run:  python3 modules/memory-compression/build.py   (after changing the core, the layer or the router)"""
 import os, re, sys
 here = os.path.dirname(os.path.abspath(__file__))
@@ -11,7 +11,7 @@ i = core.index(marker) + len(marker)
 j = core.rindex('});')
 body = core[i:j]
 rd = lambda n: open(os.path.join(here, 'src', n), encoding='utf8').read()
-layer = rd('picker.js') + rd('jso-layer.js') + rd('keeper.js')
+layer = rd('picker.js') + rd('jso-layer.js') + rd('keeper.js') + rd('pager.js')
 head = rd('header.txt')
 out = head + """(function (root, factory) {
   var api = factory();
@@ -28,7 +28,7 @@ out = head + """(function (root, factory) {
   var jso = {
     pack: pack, unpack: unpack, view: view, freeBuffers: freeBuffers,
     ready: MC.ready, accelerated: MC.accelerated,
-    keeper: keeper, heap: heapInfo, profile: profile, estimateBytes: estimateBytes,
+    keeper: keeper, pager: pager, heap: heapInfo, profile: profile, estimateBytes: estimateBytes,
     core: MC, picker: PK
   };
 """ + rd('router.js')
