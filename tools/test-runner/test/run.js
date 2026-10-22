@@ -96,6 +96,29 @@ t('fingerprint gate: records new pictures, passes the same ones, fails a changed
   g = F.gate('demo', 'chromium', 'Chrome/156.0.2'); g.check('b', 'other'); ok(quiet(() => g.finish()) === true && JSON.parse(fs.readFileSync(tmp + '/fp/demo.json', 'utf8'))['chromium 156.0.2'].b === 'other', 'new version records');
   delete process.env.FINGERPRINT_DIR;
 });
+t('fingerprint near match: 99.5% of pixels identical passes and prints the exact percentage, 99% fails, a new picture stores its pixels, a size change fails, FINGERPRINT_UPDATE accepts', async () => {
+  process.env.FINGERPRINT_DIR = tmp + '/fp2'; const F = require('../fingerprint.js'), logs = []; const o = console.log; console.log = (m) => logs.push(m);
+  const pic = (w, h, wrong) => { const a = new Uint8ClampedArray(w * h * 4); for (let i = 0; i < w * h; i++) { a[i * 4] = i & 255; a[i * 4 + 1] = (i >> 8) & 255; a[i * 4 + 2] = 7; a[i * 4 + 3] = 255; } for (let i = 0; i < wrong; i++) a[i * 4 + 2] ^= 1; return { w, h, b64: Buffer.from(a).toString('base64') }; };
+  const run = async (px, hash, extra) => { const g = F.gate('near', 'chromium', 'Chrome/155.0.1', extra); const pct = await g.checkPixels('p', hash, async () => px); return { ok: g.finish(), pct, g }; };
+  try {
+    ok((await run(pic(100, 100), 'h0')).ok === true, 'first run records');
+    ok(fs.existsSync(tmp + '/fp2/near/chromium_155.0.1/p.rgba.gz'), 'pixels stored');
+    ok((await run(pic(100, 100), 'h0')).pct === 100, 'same hash is 100');
+    let r = await run(pic(100, 100, 40), 'h1'); ok(r.ok === true && Math.abs(r.pct - 99.6) < 1e-9, '40 of 10,000 wrong passes at 99.600: ' + r.pct);
+    ok(logs.some((l) => /NEAR p 99\.600% identical/.test(l)), 'the exact percentage is printed');
+    r = await run(pic(100, 100, 100), 'h2'); ok(r.ok === false && Math.abs(r.pct - 99) < 1e-9, '100 of 10,000 wrong fails at 99.000: ' + r.pct);
+    r = await run(pic(100, 100, 50), 'h3'); ok(r.ok === true && Math.abs(r.pct - 99.5) < 1e-9, 'exactly 99.5 passes');
+    r = await run(pic(100, 100, 40), 'h1', { threshold: 100 }); ok(r.ok === false, 'threshold 100 is exact');
+    r = await run(pic(101, 100), 'h4'); ok(r.ok === false && r.pct === 0, 'a size change fails');
+    process.env.FINGERPRINT_UPDATE = '1'; r = await run(pic(101, 100), 'h4'); ok(r.ok === true, 'update accepts'); delete process.env.FINGERPRINT_UPDATE;
+    ok((await run(pic(101, 100), 'h4')).pct === 100, 'accepted picture now matches');
+  } finally { console.log = o; delete process.env.FINGERPRINT_DIR; }
+});
+t('fingerprint pagePixels: gives the canvas size and its RGBA bytes in base64 (fake canvas)', () => {
+  const F = require('../fingerprint.js'), px = new Uint8ClampedArray([1, 2, 3, 255, 4, 5, 6, 255]);
+  global.document = { querySelector: () => ({ width: 2, height: 1, getContext: () => ({ getImageData: () => ({ data: px }) }) }) }; global.btoa = (s) => Buffer.from(s, 'latin1').toString('base64');
+  const r = F.pagePixels('#c'); delete global.document; delete global.btoa; ok(r.w === 2 && r.h === 1 && Buffer.from(r.b64, 'base64').equals(Buffer.from(px)), JSON.stringify(r));
+});
 t('bisect: finds the commit that broke a file in a throwaway repository, in log2 runs, without touching the checked-out files', () => {
   const B = require('../bisect.js'), repo = tmp + '/repo'; fs.mkdirSync(repo);
   const g = (...a) => cp.execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...a], { cwd: repo, encoding: 'utf8' });
