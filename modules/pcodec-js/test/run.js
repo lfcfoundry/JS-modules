@@ -104,5 +104,45 @@ function gen(type, n, shape) {
     const d3 = new Float64Array(30000); for (let i = 0; i < d3.length; i++) d3[i] = Math.round(Math.sin(i / 70) * 1e6 + rnd() * 40) / 1000; const p3 = pk.pack(d3), q3 = pk.pack(d3, { smallest: 'quick' }); ok(q3.length <= p3.length && same(rd.unpack(q3), d3), 'quick on multiples of 0.001: never larger, same numbers');
     const sp = new Float64Array([0.5, NaN, Infinity, -0, 1.25, 0.1, 0.2, 0.3]); ok(same(rd.unpack(pk.pack(sp, { smallest: 'quick' })), sp), 'quick keeps special floats');
     const wk = await K.worker(), pl = await K.pool({ size: 2 }); ok(same(await wk.unpack(await wk.pack(d3, { smallest: 'quick' })), d3) && same(await pl.unpack(await pl.pack(d3, { smallest: 'quick' })), d3), 'quick through worker and pool'); wk.terminate(); pl.terminate(); }
+  // 14. split files: ordinary Pcodec parts behind a small header; the same calls read them, the pool unpacks them on several workers
+  { const u32 = (b, i) => (b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24) >>> 0, isSplit = (b) => b[0] === 80 && b[1] === 67 && b[2] === 74 && b[3] === 77;
+    const partsOf = (b) => { const np = b[10] | b[11] << 8; let off = 12 + 4 * np; const out = []; for (let i = 0; i < np; i++) { const l = u32(b, 12 + 4 * i); out.push(b.subarray(off, off + l)); off += l; } return out; };
+    const plr = await R.pool({ size: 3, laneMs: 0 }), plk = await K.pool({ size: 3, laneMs: 0 });
+    let made = 0;
+    for (const [t, n, sh] of [['f64', 262145, 'dec'], ['f64', 600001, 'dec'], ['i32', 1000000, 'walk'], ['u16', 700000, 'few'], ['f32', 530000, 'noise'], ['u64', 300000, 'walk']]) {
+      const a = gen(t, n, sh), plain = pk.pack(a);
+      for (const parts of [2, 3, 8, true]) {
+        const sp = pk.pack(a, { parts }); made++;
+        ok(isSplit(sp), `split file ${t} ${n} parts ${parts}`); ok(same(rd.unpack(sp), a), `split unpack ${t} ${n} parts ${parts}`);
+        const inf = rd.info(sp); ok(inf.type === t && inf.count === n && inf.parts === partsOf(sp).length, `split info ${t} ${n} parts ${parts}`);
+        ok(sp.length - plain.length < 40 * partsOf(sp).length + 20, `split overhead small ${t} ${n} parts ${parts} (${sp.length - plain.length} B for ${partsOf(sp).length} parts)`);
+        let cat = []; for (const part of partsOf(sp)) cat.push(rd.unpack(part)); const joined = new a.constructor(n); let o = 0; for (const c of cat) { joined.set(c, o); o += c.length; } ok(same(joined, a), `every part is an ordinary Pcodec file ${t} ${n} parts ${parts}`);
+        ok(same(await plk.pack(a, { parts }), sp), `pool packs the same split file ${t} ${n} parts ${parts}`);
+        ok(same(await plr.unpack(sp), a), `pool unpacks a split file ${t} ${n} parts ${parts}`);
+      }
+      const sp = pk.pack(a, { parts: 4 });
+      let tot = 0, got = new a.constructor(n), ms = 0; for (const part of rd.stream(sp, { batch: 4096 })) { got.set(part, tot); tot += part.length; ms = Math.max(ms, part.length); }
+      ok(tot === n && same(got, a) && ms <= 4096, `split stream ${t} ${n}`); ok(same(await rd.unpackAsync(sp), a), `split unpackAsync ${t} ${n}`);
+      const dst = new a.constructor(n + 7); const r = rd.unpack(sp, { into: dst }); ok(r.length === n && same(r, a), `split unpack into ${t} ${n}`);
+      let e = null; try { rd.unpack(sp, { count: n - 1 }); } catch (x) { e = x; } ok(!!e, `split wrong count refused ${t}`);
+      e = null; try { rd.unpack(sp, { view: true }); } catch (x) { e = x; } ok(!!e, `split view refused ${t}`);
+      e = null; try { rd.unpack(sp, { maxCount: 1000 }); } catch (x) { e = x; } ok(!!e, `split maxCount refused ${t}`);
+    }
+    console.log('split files made:', made);
+    const one = gen('f64', 262144, 'dec'); ok(!isSplit(pk.pack(one, { parts: 8 })) && same(pk.pack(one, { parts: 8 }), pk.pack(one)), 'one page stays a normal file');
+    let e = null; try { pk.pack(one, { parts: 2, smallest: true }); } catch (x) { e = x; } ok(!!e, 'parts and smallest refused'); e = null; try { pk.pack(one, { parts: -1 }); } catch (x) { e = x; } ok(!!e, 'bad parts refused');
+    // damaged split files: an error or the exact numbers, never a crash
+    const a = gen('f64', 600001, 'dec'), sp = pk.pack(a, { parts: 3 }); let errs = 0, bad = 0, okc = 0;
+    const tryIt = (b) => { try { const r = rd.unpack(b); okc++; if (r.length !== a.length) bad++; } catch (x) { errs++; } };
+    for (let cut = 0; cut < sp.length; cut += Math.floor(sp.length / 40)) tryIt(sp.subarray(0, cut));
+    for (let t = 0; t < 300; t++) { const c = new Uint8Array(sp); const k = t % 3; if (k === 0) c[Math.floor(rnd() * 40)] ^= 1 << Math.floor(rnd() * 8); else if (k === 1) c[Math.floor(rnd() * c.length)] ^= 1 << Math.floor(rnd() * 8); else { c[10] = 1 + Math.floor(rnd() * 5); } tryIt(c); }
+    ok(bad === 0, `damaged split files never give a wrong length (${errs} refused, ${okc} decoded)`);
+    { const c = new Uint8Array(sp); c[6] ^= 1; let e2 = null; try { rd.unpack(c); } catch (x) { e2 = x; } ok(!!e2, 'split header count that disagrees with the parts refused'); c.set(sp); c[4] = 9; e2 = null; try { rd.unpack(c); } catch (x) { e2 = x; } ok(!!e2, 'split unknown version refused'); e2 = null; try { rd.unpack(new Uint8Array([80, 67, 74, 77, 1, 0, 5, 0, 0, 0, 0, 0])); } catch (x) { e2 = x; } ok(!!e2, 'split with no parts refused'); }
+    { const pf = pk.pack(gen('f64', 1000, 'dec')), pi = pk.pack(gen('i32', 1000, 'walk')), hdr = new Uint8Array(12 + 8 + pf.length + pi.length); hdr.set([80, 67, 74, 77, 1, 0, 0xd0, 0x07, 0, 0, 2, 0], 0); hdr[12] = pf.length & 255; hdr[13] = pf.length >> 8; hdr[16] = pi.length & 255; hdr[17] = pi.length >> 8; hdr.set(pf, 20); hdr.set(pi, 20 + pf.length); let e2 = null; try { rd.unpack(hdr); } catch (x) { e2 = x; } ok(!!e2, 'split with parts of different number types refused'); }
+    { const pr = await plr.unpack(sp, { parts: true }); const j = new Float64Array(a.length); let o2 = 0; for (const x of pr) { j.set(x, o2); o2 += x.length; } ok(Array.isArray(pr) && pr.length === 3 && same(j, a), 'pool unpack of a split file as separate parts'); }
+    let e3 = null; try { await plr.unpack(sp.subarray(0, sp.length - 9)); } catch (x) { e3 = x; } ok(!!e3, 'pool refuses a cut split file'); ok(same(await plr.unpack(sp), a), 'pool still works after a refused split file');
+    ok(same(rd.unpack(await plk.pack(a, { parts: 5, level: 3 })), a), 'pool pack parts with a level round trips');
+    const w = await K.worker(); ok(same(await w.unpack(sp), a), 'worker unpacks a split file'); w.terminate();
+    plr.terminate(); plk.terminate(); }
   console.log(`\n${pass} checks passed, ${fail} failed`); process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });

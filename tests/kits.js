@@ -101,6 +101,7 @@ var steps = [
   ['memory-compression pager browser', 'node', ['tests/memory-compression-pager-browser.js'], true, true],   // optional: pager() exactness (pages, background, real IndexedDB spill) and page-open timings in each browser
   ['image-decode browser', 'node', ['tests/image-decode-browser.js'], true, true],   // optional: the same pictures by every way in each browser (add IMG_DIR=<folder made by modules/image-decode/test/make-sheets.py> for the timings)
   ['pcodec-js browser', 'node', ['tests/pcodec-js-browser.js'], true, true],   // optional: the test page and the demo page in a real browser
+  ['pcodec-js split browser', 'node', ['tests/pcodec-js-split-browser.js'], true, true],   // optional: split files open equal on the pool, with open times for 0.5, 2 and 8 million numbers
   ['small lean browser', 'node', ['tests/small-lean-browser.js'], true, true],   // optional: back-close, wake-keeper, even-dt and quality-governor lean builds in each browser (about 3 s per browser)
   ['field-report browser', 'node', ['tests/field-report-browser.js'], true, true],
   ['frame-kit browser', 'node', ['tests/frame-kit-browser.js'], true, true],   // optional like the one above (the 67 checks of modules/frame-kit/test/run.js run inside each browser, plus about 1.5 s of real animation frames)
