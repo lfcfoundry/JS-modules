@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.1.2 (API 2)
+ * Version 2.2.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -4065,10 +4065,205 @@
     return { bytes: bytes.length, packMs: Math.round(best * 100) / 100, unpackMs: Math.round(bestU * 100) / 100, format: bytes[2], parts: rep };
   }
 
+  // ================================================================ pager: a long list kept packed in pages, opened one page at a time and let go of when memory is tight
+  // pager(list, opts) packs the list in pages of opts.pageRows (default 2,048) rows. get(i) opens only the page that holds row i (a page opens in about 1 to 3 ms); a page that was only read
+  // leaves memory for free (its packed bytes stay); an edited page is packed again first. opts.livePages (default 4) is how many opened pages may stay in memory, opts.readAhead (default true)
+  // opens the next page in the background when rows are read in order, opts.auto (default true) steps the live pages down when the page's heap is close to its limit; every other
+  // option is a pack option (mode, wasm ...) used for each page. Objects handed out by get() belong to their page: after that page leaves memory and comes back they are new objects,
+  // so call changed(i) or set(i, value) for a row you changed. Shared objects between pages (refs) are not kept.
+  // a store for spilled pages in the browser's IndexedDB: put(key, bytes), get(key), remove(key) all return promises (opts.spill can also be any object with these three)
+  function idbStore(name) {
+    var dbp = null;
+    function db() {
+      if (!dbp) dbp = new Promise(function (resolve, reject) {
+        var rq;
+        if (typeof indexedDB === 'undefined') { reject(new Error('MemoryCompressionJSO: this environment has no IndexedDB')); return; }
+        rq = indexedDB.open(name || 'memory-compression-spill', 1);
+        rq.onupgradeneeded = function () { rq.result.createObjectStore('pages'); };
+        rq.onsuccess = function () { resolve(rq.result); }; rq.onerror = function () { reject(rq.error); };
+      });
+      return dbp;
+    }
+    function run(mode, f) {
+      return db().then(function (d) {
+        return new Promise(function (resolve, reject) {
+          var tx = d.transaction('pages', mode), rq = f(tx.objectStore('pages'));
+          tx.oncomplete = function () { resolve(rq && rq.result); }; tx.onerror = tx.onabort = function () { reject(tx.error); };
+        });
+      });
+    }
+    return {
+      put: function (key, bytes) { return run('readwrite', function (st) { return st.put(bytes, key); }); },
+      get: function (key) { return run('readonly', function (st) { return st.get(key); }).then(function (v) { if (!v) throw new Error('MemoryCompressionJSO: a spilled page is missing from storage'); return v instanceof Uint8Array ? v : new Uint8Array(v.buffer || v); }); },
+      remove: function (key) { return run('readwrite', function (st) { return st.delete(key); }); }
+    };
+  }
+  function pager(list, opts) {
+    var store, uid = Math.random().toString(36).slice(2, 10), o = opts || {}, rows = o.pageRows > 0 ? Math.floor(o.pageRows) : 2048, n = list.length, np = Math.ceil(n / rows), pages = new Array(np), maxLive = o.livePages >= 0 ? Math.floor(o.livePages) : 4,
+      ahead = o.readAhead !== false, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
+    for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError') packOpts[k] = o[k];
+    if (!Array.isArray(list)) jfail('pager() needs an array');
+    store = o.spill ? (o.spill === true ? idbStore() : o.spill) : null;
+    function pkey(i) { return uid + ':' + i; }
+    function fail(x) { if (typeof o.onError === 'function') o.onError(x); }
+    function packPage(i) { return pack(list.slice(i * rows, Math.min(n, (i + 1) * rows)), packOpts); }
+    for (p = 0; p < np; p++) {
+      if (o.background) pages[p] = { bytes: null, rows: Math.min(rows, n - p * rows), value: list.slice(p * rows, Math.min(n, (p + 1) * rows)), dirty: true, used: 0, heap: 0, disk: false, stored: false };     // opened as they are; packed a slice at a time by settle()
+      else pages[p] = { bytes: packPage(p), rows: Math.min(rows, n - p * rows), value: undefined, dirty: false, used: 0, heap: 0, disk: false, stored: false };
+    }
+    if (o.background) live = np;
+    list = null;                                  // the pager keeps no reference to the caller's array: the caller can let go of it
+    function limit() { return level >= 2 ? 0 : level === 1 ? maxLive >> 1 : maxLive; }
+    function pageOut(e) {
+      if (e.value === undefined) return;
+      if (e.dirty) { e.bytes = pack(e.value, packOpts); e.rows = e.value.length; e.dirty = false; e.disk = false; st.repacks++; }
+      e.value = undefined; live--; st.pageOuts++;
+    }
+    function pageOutClean(e) { if (live > limit() && e.value !== undefined && !e.dirty) { e.value = undefined; live--; st.pageOuts++; } }
+    function makeRoom(keep, room) {              // opens room pages' worth of space: the least recently used live pages go, except keep
+      var best, i, e;
+      while (live > Math.max(0, limit() - room)) {
+        best = null;
+        for (i = 0; i < np; i++) { e = pages[i]; if (e.value !== undefined && i !== keep && (!best || e.used < best.used)) best = e; }
+        if (!best) return;
+        pageOut(best);
+      }
+    }
+    function checkHeap() {
+      var h = heapInfo(), lv = 0;
+      if (h.usedJSHeap && h.jsHeapLimit) lv = h.usedJSHeap >= h.jsHeapLimit * 0.8 ? 2 : h.usedJSHeap >= h.jsHeapLimit * 0.6 ? 1 : 0;
+      if (lv !== level) { level = lv; if (typeof o.onPressure === 'function') o.onPressure(lv, P.memory()); }
+    }
+    function open(i) {                           // the rows of page i, opened now if they are not
+      var e = pages[i];
+      if (e.value === undefined) {
+        if (!e.bytes) jfail('page ' + i + ' is on disk: use await load(' + (i * rows) + ') or getAsync(' + (i * rows) + ') first');
+        if (auto && (st.pageIns & 15) === 0) checkHeap();
+        makeRoom(i, 1);
+        e.value = unpack(e.bytes, packOpts); live++; st.pageIns++;
+        e.heap = e.value.length ? Math.round(estimateBytes(e.value) * factor) : 0;
+      } else st.hits++;
+      e.used = ++clock; return e.value;
+    }
+    function ahead1(i) {
+      if (i + 1 < np && pages[i + 1].value === undefined && limit() > 1) later(function () {
+        var e = pages[i + 1];
+        if (!e || e.value !== undefined || limit() <= 1) return;
+        if (e.bytes) open(i + 1); else if (store) P.load((i + 1) * rows).catch(fail);        // a spilled page is fetched from storage
+      });
+    }
+    function row(i) { if (!(i >= 0 && i < n)) jfail('row ' + i + ' is outside the list of ' + n); return i; }
+    P = {
+      get length() { return n; },
+      get: function (i) {                       // the object at row i (opens its page if needed)
+        var pi, v;
+        if (!(i >= 0 && i < n)) return undefined;
+        pi = (i / rows) | 0; v = open(pi)[i - pi * rows];
+        if (ahead && pi === lastPage + 1) ahead1(pi);
+        lastPage = pi; return v;
+      },
+      range: function (from, to) {              // rows from to to - 1 as an array
+        var out = [], i, pi, v;
+        from = Math.max(0, from | 0); to = Math.min(n, to === undefined ? n : to | 0);
+        for (i = from; i < to; i += v.length) { pi = (i / rows) | 0; v = open(pi); v = v.slice(i - pi * rows, Math.min(v.length, to - pi * rows)); out.push.apply(out, v); }
+        return out;
+      },
+      each: function (fn, eopts) {              // a promise: fn(objects, firstRow) for each page in order, the page free in between; pages that were closed are closed again (spilled pages are read from storage)
+        var pi = 0, ms = eopts && eopts.sliceMs > 0 ? eopts.sliceMs : 8;
+        return new Promise(function (resolve, reject) {
+          function run() {
+            var t0 = performance.now(), e, v;
+            try {
+              while (pi < np) {
+                e = pages[pi];
+                if (e.value === undefined && !e.bytes) {            // on disk: fetch, use, forget
+                  store.get(pkey(pi)).then(function (b) { fn(unpack(b, packOpts), pi * rows); pi++; later(run); }).catch(reject); return;
+                }
+                v = e.value !== undefined ? e.value : unpack(e.bytes, packOpts);
+                fn(v, pi * rows); pi++;
+                if (pi < np && performance.now() - t0 >= ms) { later(run); return; }
+              }
+            } catch (x) { reject(x); return; }
+            resolve(n);
+          }
+          later(run);
+        });
+      },
+      set: function (i, value) { var pi = (row(i) / rows) | 0, e = pages[pi]; open(pi)[i - pi * rows] = value; e.dirty = true; },
+      changed: function (i) { var pi = (row(i) / rows) | 0; open(pi); pages[pi].dirty = true; },       // call after changing an object from get() in place
+      push: function (value) {                  // adds a row at the end
+        var last = pages[np - 1], v;
+        if (!last || last.rows >= rows) { last = { bytes: null, rows: 0, value: [], dirty: true, used: ++clock, heap: 0, disk: false, stored: false }; pages[np++] = last; live++; makeRoom(np - 1, 0); }
+        v = open(np - 1); v.push(value); last.rows = v.length; last.dirty = true; n++; return n;
+      },
+      flush: function () { var i, e; for (i = 0; i < np; i++) { e = pages[i]; if (e.dirty && e.value !== undefined) { e.bytes = pack(e.value, packOpts); e.rows = e.value.length; e.dirty = false; e.disk = false; st.repacks++; } } },
+      trim: function (keep) {                   // lets pages go until at most keep (default: the current limit) stay open
+        var want = keep >= 0 ? keep : limit(), best, i, e;
+        while (live > want) {
+          best = null;
+          for (i = 0; i < np; i++) { e = pages[i]; if (e.value !== undefined && (!best || e.used < best.used)) best = e; }
+          if (!best) break;
+          pageOut(best);
+        }
+        return live;
+      },
+      release: function () { return P.trim(0); },
+      pressure: function (lv) { level = lv > 0 ? (lv > 1 ? 2 : 1) : 0; P.trim(); if (level === 2 && store && o.spillAt !== false) P.spill().catch(fail); return level; },        // 0 = normal, 1 = half the live pages, 2 = none kept
+      load: function (i) {                      // a promise of row i's page opened (fetched from storage first if it was spilled); then get() works for every row of that page
+        var pi = (row(i) / rows) | 0, e = pages[pi];
+        if (e.value !== undefined || e.bytes) { open(pi); return Promise.resolve(P); }
+        return store.get(pkey(pi)).then(function (b) { e.bytes = b; e.disk = true; open(pi); return P; });
+      },
+      getAsync: function (i) { return i >= 0 && i < n ? P.load(i).then(function () { return P.get(i); }) : Promise.resolve(undefined); },
+      spill: function (sopts) {                 // a promise: moves the packed bytes of every closed, unedited page to storage (a page already there only drops its memory copy); { all: true } closes the open pages first
+        var i = 0, jobs = [], e;
+        if (!store) return Promise.reject(new Error('MemoryCompressionJSO: pager() was made without the spill option'));
+        if (sopts && sopts.all) P.trim(0);
+        function one(pi, pe) {
+          var b = pe.bytes;
+          if (pe.disk) { pe.bytes = null; return Promise.resolve(); }
+          return store.put(pkey(pi), b).then(function () { pe.stored = true; if (pe.bytes === b && pe.value === undefined) { pe.bytes = null; pe.disk = true; } });
+        }
+        for (; i < np; i++) { e = pages[i]; if (e.value === undefined && e.bytes && !e.dirty) jobs.push(one(i, e)); }
+        return Promise.all(jobs).then(function () { return P; });
+      },
+      dispose: function () { var i, jobs = []; if (store) for (i = 0; i < np; i++) if (pages[i].stored) { pages[i].stored = false; pages[i].disk = false; jobs.push(store.remove(pkey(i))); }; return Promise.all(jobs).then(function () { return P; }); },
+      settle: function (sliceMs) {              // a promise: packs every edited page (and, with background: true, every page) a slice of about sliceMs (default 8) at a time, then lets pages go down to the limit
+        var i = 0, ms = sliceMs > 0 ? sliceMs : o.sliceMs > 0 ? o.sliceMs : 8;
+        return new Promise(function (resolve, reject) {
+          function run() {
+            var t0 = performance.now(), e, t1, cost = 0;                     // a page is only started when the slice has room for as long as the last one took
+            try {
+              while (i < np) {
+                e = pages[i];
+                if (e.dirty && e.value !== undefined) {
+                  t1 = performance.now(); if (t1 - t0 + cost > ms && t1 > t0 + 0.01 && cost > 0) { later(run); return; }
+                  e.bytes = pack(e.value, packOpts); e.rows = e.value.length; e.dirty = false; e.disk = false; st.repacks++; pageOutClean(e); cost = Math.max(cost, performance.now() - t1);
+                }
+                i++;
+              }
+              P.trim();
+            } catch (x) { reject(x); return; }
+            resolve(P);
+          }
+          later(run);
+        });
+      },
+      calibrate: function (f) { if (f === undefined) return factor; factor = f; return factor; },
+      memory: function () {
+        var packed = 0, heap = 0, dirty = 0, spilled = 0, i, e;
+        for (i = 0; i < np; i++) { e = pages[i]; packed += e.bytes ? e.bytes.length : 0; if (!e.bytes && e.disk) spilled++; if (e.value !== undefined) heap += e.heap; if (e.dirty) dirty++; }
+        return { rows: n, pages: np, pageRows: rows, open: live, dirty: dirty, packed: packed, openHeap: heap, spilled: spilled, level: level, pageIns: st.pageIns, pageOuts: st.pageOuts, repacks: st.repacks, hits: st.hits };
+      }
+    };
+    if (o.background) P.ready = P.settle();
+    return P;
+  }
+
   var jso = {
     pack: pack, unpack: unpack, view: view, freeBuffers: freeBuffers,
     ready: MC.ready, accelerated: MC.accelerated,
-    keeper: keeper, heap: heapInfo, profile: profile, estimateBytes: estimateBytes,
+    keeper: keeper, pager: pager, heap: heapInfo, profile: profile, estimateBytes: estimateBytes,
     core: MC, picker: PK
   };
 
@@ -4108,7 +4303,7 @@
   for (key in MC) unified[key] = MC[key];                                                     // lz4Compress, deflate, inflate, zlib, gzip, shuffle, crc32 ... as in memory-compression 1.x
   unified.pack = autoPack; unified.unpack = autoUnpack; unified.view = autoView;
   unified.layerOf = layerOf;
-  unified.freeBuffers = freeBuffers; unified.keeper = keeper; unified.heap = heapInfo; unified.profile = profile; unified.estimateBytes = estimateBytes;
+  unified.freeBuffers = freeBuffers; unified.keeper = keeper; unified.pager = pager; unified.heap = heapInfo; unified.profile = profile; unified.estimateBytes = estimateBytes;
   unified.core = MC; unified.objects = jso; unified.jso = jso; unified.picker = PK;
   return unified;
 });
