@@ -67,6 +67,7 @@ var steps = [
   ['save-kit', 'node', ['modules/save-kit/test/run.js']],
   ['save-kit lean', 'node', ['modules/save-kit/test/lean.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
+  ['image-decode', 'node', ['modules/image-decode/test/run.js']],
   ['field-report', 'node', ['modules/field-report/test/run.js']],
   ['idle-core', 'node', ['modules/idle-core/test/run.js']],
   ['idle-core minified', 'node', ['modules/idle-core/test/run.js', 'modules/idle-core/idle-core.min.js']],
@@ -97,6 +98,7 @@ var steps = [
   ['sprite-baker Fancy pixels', 'node', ['tests/sprite-baker-fancy-browser.js'], true, true],   // optional like the one above (Fancy Banana's own filler against sprite-baker, byte for byte, in Node and in each browser, with timings)
   ['save-kit speed', 'node', ['tests/save-kit-speed-browser.js'], true, true],   // optional like the one above (one game-sized save and load, new file against an older one with OLD=, in Node and in each browser)
   ['memory-compression browser', 'node', ['tests/memory-compression-browser.js'], true, true],   // optional: the module's own 36 checks inside each browser page (about 6 to 8 s per browser)
+  ['image-decode browser', 'node', ['tests/image-decode-browser.js'], true, true],   // optional: the same pictures by every way in each browser (add IMG_DIR=<folder made by modules/image-decode/test/make-sheets.py> for the timings)
   ['pcodec-js browser', 'node', ['tests/pcodec-js-browser.js'], true, true],   // optional: the test page and the demo page in a real browser
   ['small lean browser', 'node', ['tests/small-lean-browser.js'], true, true],   // optional: back-close, wake-keeper, even-dt and quality-governor lean builds in each browser (about 3 s per browser)
   ['field-report browser', 'node', ['tests/field-report-browser.js'], true, true],
