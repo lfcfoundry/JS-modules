@@ -34,7 +34,7 @@
     };
   }
   // pager.plan(list, opts): picks pageRows, livePages and mode for a list from the size of its rows and the device's memory, and says why. A page is sized to about 512 KB of live objects (256 KB when
-  // the device reports 2 or 3 GB, 128 KB below 2 GB), between 512 and 8,192 rows, so a page opens in about the same time (0.3 to 1.5 ms) whatever the rows hold. The live pages
+  // the device reports 2 or 3 GB, 128 KB below 2 GB), between 512 and 2,048 rows, so a page opens in about the same time (0.3 to 1.5 ms) whatever the rows hold. The live pages
   // are given about 2 MB (1 MB at 2 or 3 GB, 512 KB below 2 GB), between 2 and 8 pages. The mode stays fast unless the packed list alone would take more than a tenth of the page's memory
   // (opts.heapBytes, else the browser's heap limit, else 512 MB for each GB of device memory), then it is balanced (15 to 17% smaller packed, pages open 1.3 to 2.2 times slower). opts.deviceMemory overrides the reading.
   function pagerPlan(list, opts) {
@@ -42,7 +42,7 @@
     for (i = 0; i < n && sample.length < 64; i += step) sample.push(list[Math.floor(i)]);
     per = sample.length ? Math.max(8, estimateBytes(sample) / sample.length) : 64;
     target = gb >= 4 ? 524288 : gb >= 2 ? 262144 : 131072;
-    rows = Math.max(512, Math.min(8192, Math.round(target / per / 256) * 256));
+    rows = Math.max(512, Math.min(2048, Math.round(target / per / 256) * 256));
     live = Math.max(2, Math.min(8, Math.round((gb >= 4 ? 2097152 : gb >= 2 ? 1048576 : 524288) / (rows * per))));
     heap = o.heapBytes || h.jsHeapLimit || gb * 536870912; packedEst = n * per / 7;
     if (packedEst > heap / 10) mode = 'balanced';
