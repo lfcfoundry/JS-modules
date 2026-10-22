@@ -1,8 +1,8 @@
 # stage-curtains
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Node checks with a fake DOM (37, 11 of them new: 112 curtains and 300 random curtains identical in JavaScript and WebAssembly, sliced painting, no WebAssembly, a failing module, memory that cannot grow, rebuild checks); tests/stage-curtains-wasm-browser.js one browser at a time, three passes of seven fresh pages each, in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5: 112 curtains, 0 pixels differ in all 12 runs, also on a page without the wasm permission. Not run: a phone, Safari.
+**Tested in:** Chromium 155.0.8059.39 (ungoogled), Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
 
 Velvet stage curtains that slide shut over a page, then fly open. A scene-change transition for games and shows. About 37 KB (about 2 KB of it is the embedded WebAssembly painter), no images (the velvet is painted with canvas).
 
@@ -45,6 +45,7 @@ curtains.prepare()                    // paints the velvet in small slices of id
 | `lockPage` | calm mode only | `true` always makes the page behind inert while closed; `false` never does. |
 | `wasm` | true | `false` always paints with plain JavaScript; otherwise the small WebAssembly painter is used when the browser allows it (see below). |
 | `warmMs` | 2500 | How long `close()` may take to finish painting a little each frame when the velvet is not ready; then the rest is painted at once. `0` paints it all at once straight away (as 1.0.0 did). |
+| `worker` | false | `true` paints the velvet in a background worker, so the page does 3 to 7 ms of work for a curtain instead of 21 to 36 ms (see below). Same picture. |
 
 - `prepare(opts)` paints in slices (`sliceMs` 2.5, `restMs` 45) during idle time; `prepare({ hurry: true })` paints at once. A page busy every frame never reports an idle moment; the browser then hands over a turn after 250 ms, which paints a 5 ms slice. If the container or window has a different size than at `prepare()` (the phone was turned), the velvet is painted again.
 - `close()` slides the curtain shut and resolves when both halves are in place; it works without `prepare()` (it paints 4 ms per frame for up to `warmMs`, then finishes at once). Calling it again while it runs gives the same promise.
@@ -69,6 +70,36 @@ curtains.prepare()                    // paints the velvet in small slices of id
 **Honest limits.** The first paint is the win. A repeat paint in the same page gains little (1.0 to 1.36x), the slowest slice and the frame rate do not change, and the gain on a phone is an estimate, not a measurement (no phone or Safari run). The valance texture (`curtainTexture`, `addPile`) stays plain JavaScript.
 
 **Rebuild.** `wasm/velvet.c` is the source; `wasm/build.sh` rebuilds `velvet.wasm` and `wasm/embed.py` writes it into `stage-curtains.js`. Both have `--check` to prove the committed files match.
+
+## Background worker (since 1.3.0)
+
+**What.** `create({ worker: true })` paints the velvet in a background worker. The page only hands over the size and color, then puts the finished pixels on the canvas. The worker runs the same code as the page (the WebAssembly loop, or the plain loop when WebAssembly cannot start), so the picture is byte for byte the same: 12 of 12 test curtains match with the worker allowed and 12 of 12 with the worker refused, in all four browsers. The painter reports `engine` as `'worker+wasm'` or `'worker+js'`, and as `'wasm'` or `'js'` when it fell back to the page.
+
+**Why.** One phone-size curtain half no longer holds up the page. Page busy time (milliseconds of the page's own work to get both halves painted; lower is better) and the longest single stall (lower is better), median of seven fresh pages, main thread now → worker:
+
+| Browser | Page busy, ms | Longest stall, ms | Both halves ready, ms (lower is better) |
+|---|---|---|---|
+| Chromium 155 | 24.8 → 5.9 | 8.3 → 2.6 | 25.3 → 49.1 |
+| Firefox 158.0 | 21 → 5 | 9 → 2 | 23 → 41 |
+| WebKitGTK 2.52.6 | 23 → 3 | 9 → 1 | 26 → 42 |
+| GNOME Web 46.5 | 36 → 7 | 10 → 4 | 37 → 53 |
+
+Starting the worker costs time, so a curtain painted the moment the page loads is ready 16 to 24 ms later than before. Call `StageCurtains.startWorker()` early (for example when the page starts, before you need a curtain) and the cost mostly goes away; the same test with the worker started 150 ms earlier:
+
+| Browser | Page busy, ms | Longest stall, ms | Both halves ready, ms (lower is better) |
+|---|---|---|---|
+| Chromium 155 | 25 → 3.9 | 8.3 → 1.9 | 25.4 → 33.4 |
+| Firefox 158.0 | 22 → 4 | 9 → 3 | 24 → 29 |
+| WebKitGTK 2.52.6 | 24 → 4 | 9 → 3 | 28 → 37 |
+| GNOME Web 46.5 | 35 → 3 | 10 → 2 | 36 → 39 |
+
+**Rules.**
+- Needs `worker-src blob:` beside `'wasm-unsafe-eval'` if your page has a Content Security Policy. If the worker is refused or fails for any reason (no Worker, a blocked blob, an error), the page paints that half itself from the start; nothing is shown to the user and the worker is not tried again.
+- One shared worker serves every half. It ends itself 4 seconds after its last job, and `StageCurtains.release()` ends it at once. `StageCurtains.startWorker()` starts it early and returns `false` when workers cannot be used.
+- Off by default: with no `worker` option the module never touches `Worker`, and the 1.2.0 behavior and numbers stay as they were.
+- Costs bytes: +2,422 minified and +951 gzipped (smaller is better; 19,284 to 21,706 and 8,322 to 9,273). The worker's source is built from the painter's own text, so the painter exists once.
+
+**Honest limits.** The picture is ready later, not sooner: the win is a free page, not a faster curtain. GNOME Web is the slowest to start a worker (53 ms to ready when started cold). Phones were not measured.
 
 ## The bug it fixes
 
