@@ -123,7 +123,7 @@ Test a game by playing it at random, shrinking any failure to a short replay, co
 | [speed-lab](tools/speed-lab/README.md) *(tool)* | 1.1.1 | 20.5 | 7.4 | A one-button speed test on the device: switches parts off and says what costs time. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/speed-lab/demo.html) |
 | [storage-probe](tools/storage-probe/README.md) *(tool)* | 1.1.0 | 19.4 | 7.2 | A one-button page that says whether copies of a page share their saved data. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/storage-probe/storage-probe.html) |
 | [test-isolation](tools/test-isolation/README.md) *(tool)* | 1.1.0 | 6.5 | 2.4 | Prefixes every localStorage key on a test page so tests never touch the real save. | — |
-| [test-runner](tools/test-runner/README.md) *(tool)* | 1.0.0 | 34.0 | 11.8 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
+| [test-runner](tools/test-runner/README.md) *(tool)* | 1.1.0 | 38.6 | 13.2 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
 | [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.3.0 | 22.2 | 8.1 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
 
 #### App - Efficiency
@@ -132,7 +132,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [memory-compression](modules/memory-compression/README.md) | 2.1.0 | 295.5 | 91.3 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [memory-compression](modules/memory-compression/README.md) | 2.1.1 | 296.0 | 91.4 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.1.0 | 27.5 | 10.4 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 
 #### Model simulation
