@@ -5,7 +5,7 @@
  * check against; what-if sweeps. Names and help texts for the random-number kinds are in the optional walker-sim-menu.js.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.2.0 (API 2)
+ * Version 2.3.0 (API 2)
  *
  *   var P = WalkerSim.graph({ links: [{ from: "start", to: "a", weight: 3 }, { from: "start", to: "b", weight: 1 }] });
  *   var sim = WalkerSim.create(P, { seed: 7, trials: 10000 }); sim.run(1e9, 1e9);   // run(max trials, max milliseconds)
@@ -1023,19 +1023,37 @@
   else factory(core);
 }(typeof self !== 'undefined' ? self : this, function (WalkerSim) {
   'use strict';
-  var mod = null;
-  try {
+  var mod = null, settled = false, early = null, bin = null;     // bin: the decoded program, kept only until it is compiled once
+  function wasmBytes() {
+    if (bin) return bin;
     var txt = atob(/*WASM:BEGIN*/'AGFzbQEAAAABEwFgDn9/f39/f39/f39/f39/AX8CDwEDZW52Bm1lbW9yeQIAAgMCAQAGBwF/AUGAEAsHCAEEd2FsawAACv4GAfsGAgh/AnwCQCAADQAgDUEANgIAIAIPCwJAAkAgA0EBSA0AIAcgAWohDkEAIQ9BACEQA0ACQAJAIA4tAABFDQAgASERQQAhEgwBC0EAIRIgASERA0AgBCARQQJ0aigCACETAkACQCAIIBFBCHQgAkH1863pBmoiAkEPdiACcyACQQFybCIRQQd2IBFzIBFBPXJsIBFqIBFzIhRBGHZyai0AACIRQf8BRg0AIBMgEWohFQwBCyATQX9qIRUgBSATQQN0aiERIBRBDnYgFHO4RAAAAAAAAPA9oiEWA0AgFUEBaiEVIBErAwAhFyARQQhqIREgFyAWZQ0ACwsgCSAVQQN0aiIRIBErAwBEAAAAAAAA8D+gOQMAIBJBAWohEiAHIAYgFUECdGooAgAiEWotAAANASASIANIDQALCyAKIBJBA3RqIhUgFSsDAEQAAAAAAADwP6A5AwACQAJAIAsgEUECdGooAgAiEUEASA0AIAwgEUEDdGoiESARKwMARAAAAAAAAPA/oDkDAAwBCyAPQQFqIQ8LIBBBAWoiECAARw0ADAILCwJAIAsgAUECdGooAgAiEUEASA0AIAwgEUEDdGohESAAQQNxIRUCQCAAQQRJDQAgAEF8cSESA0AgCiAKKwMARAAAAAAAAPA/oDkDACARIBErAwBEAAAAAAAA8D+gOQMAIAogCisDAEQAAAAAAADwP6A5AwAgESARKwMARAAAAAAAAPA/oDkDACAKIAorAwBEAAAAAAAA8D+gOQMAIBEgESsDAEQAAAAAAADwP6A5AwAgCiAKKwMARAAAAAAAAPA/oDkDACARIBErAwBEAAAAAAAA8D+gOQMAIBJBfGoiEg0ACwtBACEPIBVFDQEDQCAKIAorAwBEAAAAAAAA8D+gOQMAIBEgESsDAEQAAAAAAADwP6A5AwAgFUF/aiIVDQAMAgsLIABBB3EhESAKKwMAIRcCQCAAQQhJDQAgAEF4cSEVA0AgF0QAAAAAAADwP6BEAAAAAAAA8D+gRAAAAAAAAPA/oEQAAAAAAADwP6BEAAAAAAAA8D+gRAAAAAAAAPA/oEQAAAAAAADwP6BEAAAAAAAA8D+gIRcgFUF4aiIVDQALCwJAIBFFDQADQCAXRAAAAAAAAPA/oCEXIBFBf2oiEQ0ACwsgCiAXOQMAIAAhDwsgDSAPNgIAIAIL'/*WASM:END*/), bytes = new Uint8Array(txt.length);
     for (var i = 0; i < txt.length; i++) bytes[i] = txt.charCodeAt(i);
-    mod = new WebAssembly.Module(bytes);
-    new WebAssembly.Instance(mod, { env: { memory: new WebAssembly.Memory({ initial: 2 }) } });     // some engines only refuse here when the page's policy forbids WebAssembly
-  } catch (e) { mod = null; }     // no WebAssembly, or the page's policy forbids it: stay on the JavaScript loop
-  WalkerSim.wasm = mod !== null;
-  if (mod === null) return WalkerSim;
+    return (bin = bytes);
+  }
+  function accept(m) {     // keep m only if the page lets it start: some engines only refuse at the first Instance when the policy forbids WebAssembly
+    settled = true; bin = null;
+    try { new WebAssembly.Instance(m, { env: { memory: new WebAssembly.Memory({ initial: 2 }) } }); mod = m; } catch (e) { mod = null; }
+    return mod;
+  }
+  function ensure() {     // a run that finds the early compile unfinished compiles on the spot, as before
+    if (settled) return mod;
+    try { return accept(new WebAssembly.Module(wasmBytes())); } catch (e) { settled = true; bin = null; return (mod = null); }
+  }
+  /* compile early: the engine compiles on another thread as soon as this file loads, so the page keeps running; WalkerSim.wasmReady() says when (true when WebAssembly is usable) */
+  if (typeof WebAssembly !== 'object' || !WebAssembly || typeof WebAssembly.Module !== 'function') settled = true;     // no WebAssembly at all: decided now
+  try {
+    early = settled ? Promise.resolve(false) : typeof WebAssembly.compile === 'function'
+      ? WebAssembly.compile(wasmBytes()).then(function (m) { if (!settled) accept(m); return mod !== null; }, function () { if (!settled) { settled = true; bin = null; mod = null; } return false; })
+      : Promise.resolve(false);
+  } catch (e) { early = Promise.resolve(false); }
+  Object.defineProperty(WalkerSim, 'wasm', { configurable: true, enumerable: true, get: function () { return ensure() !== null; } });     // whether this file found WebAssembly usable
+  WalkerSim.wasmReady = function () { return early; };
+  WalkerSim.wasmModule = function () { return ensure(); };     // the compiled WebAssembly.Module (or null), to hand to a worker
 
   /** Gets the arrays of one run, copies them into a memory of its own and gives back the pieces the run counts in and the walking function. Null (use JavaScript) on any trouble. */
   WalkerSim.useKernel(function (a) {
     try {
+      if (!ensure()) return null;
       var n = a.n, m = a.m, K = a.K, off = 66560;     // the arrays start above the compiled module's own stack (it sits below 66,560)
       var take = function (size) { off = (off + 7) & ~7; var o = off; off += size; return o; };
       var oOs = take(4 * (n + 1)), oTg = take(4 * m), oHalt = take(n), oEp = take(4 * n), oLut = take(n * 256), oCum = take(8 * m), oMoves = take(8 * m), oTab = take(8 * (a.cap + 1)), oTc = take(8 * K), oSt = take(8);

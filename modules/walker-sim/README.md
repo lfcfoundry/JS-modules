@@ -1,8 +1,8 @@
 # walker-sim
 
-**Version 2.2.0 · API 2**
+**Version 2.3.0 · API 2**
 
-**Tested in:** Node 22.22.0 (walker-sim checks on all four files); tests/wasm-default-bench.js one browser at a time on 2026-10-18: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; the default file also on a page without WebAssembly in all four
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5
 
 Simulates random walkers on a network (where do they end up, how long does it take, what does it cost), with the exact odds worked out by arithmetic so you can check the simulation against them. No dependencies. Cut from Netflow Map. 61 KB readable (with its notes), or 31 KB as `walker-sim.min.js` (12.1 KB gzipped). The plain-words names for the random-number kinds are an optional 4 KB file, `walker-sim-menu.js` (1.5 KB gzipped), that a settings page loads and a script does not.
 
@@ -86,6 +86,12 @@ WebKit-family browsers are the exception, and the numbers say so plainly. In a f
 | 4,000,000 | GNOME Web 46.5 | 144 | 173 | 156 |
 
 The 2.1.0 figures for these two browsers (1.0 to 1.3 times faster) came from a page that had already run the loop several times; the first run in a new page, which is what a visitor sees, goes the other way. Chromium and Firefox gain about 1.5 times either way. A page aimed at Safari-like browsers can set `cfg.wasm = false` or copy `walker-sim.js`.
+
+## Compile early (since 2.3.0)
+
+The WebAssembly loop starts compiling in the background the moment the file loads, so the first big run only starts it. `WalkerSim.wasmReady()` gives a promise of `true` or `false`, and `WalkerSim.wasmModule()` gives the compiled module (or `null`) to hand to a worker. A run that starts before the compile is done compiles on the spot, as before; with no WebAssembly nothing changes, and the counts are the same either way.
+
+Honest numbers: the program is 966 bytes, so there is almost nothing to win. Load plus first use, ms, old / new (median of nine fresh pages; lower is better): Chromium 155 8.7 / 9.9, Firefox 158.0 23 / 22, WebKitGTK 2.52.6 3 / 3, GNOME Web 46.5 4 / 4. About 1 ms slower in Chromium, level elsewhere.
 
 ## Numbers
 

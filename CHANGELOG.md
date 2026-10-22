@@ -24,14 +24,14 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
-| [gif-writer](modules/gif-writer/README.md) | 1.2.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.2.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [gif-writer](modules/gif-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.3.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.1.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.2.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [walker-sim](modules/walker-sim/README.md) | 2.2.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
+| [walker-sim](modules/walker-sim/README.md) | 2.3.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
 | [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.0 · API 1 | [changelog](modules/spotlight-tour/CHANGELOG.md) |
@@ -49,10 +49,13 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-22 · **zip-open** 1.3.0 · API 1: The WebAssembly checksum now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
+- 2026-10-22 · **walker-sim** 2.3.0 · API 2: The WebAssembly loop now starts compiling in the background when the file loads; walker-sim-wasm adds wasmReady() and wasmModule().
 - 2026-10-22 · **pcodec-js** 1.2.0 · API 1: New PcodecJS.pool() shares packing across background workers: one 2,000,000-number column took 129 to 142 ms on one worker, now 58 to 80 ms (lower is better), same file as pack().
 - 2026-10-22 · **netflow-engine** 2.2.1 · API 2: The two-pair Distances sweeps no longer stop at 20,000 items: they run at any size (1.02 to 1.10 times faster at 30,000 and 60,000 items in the four test browsers), same positions.
 - 2026-10-22 · **memory-compression** 2.1.2 · API 2: Balanced and small packing of number columns is a little faster (up to about 15% on some whole-number columns); no change to file size on disk.
 - 2026-10-22 · **memory-compression** 2.1.1 · API 2: Lists with a lot of text pack up to about 15% faster in Chrome-based and Safari-based browsers; no change to file size on disk.
+- 2026-10-22 · **gif-writer** 1.3.0 · API 1: The WebAssembly program now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 - 2026-10-22 · **fuzz-kit** 1.2.0 · API 1: New background hunt: start a long fuzz run that carries on without the terminal, stops on request, and writes its findings to a folder. Chrome and Firefox now; the runner also works with puppeteer-core.
 - 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
 - 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
