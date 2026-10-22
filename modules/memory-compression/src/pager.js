@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Part of memory-compression.js; build.py joins the pieces in src/ (this line is left out of the built file).
 
   // ================================================================ pager: a long list kept packed in pages, opened one page at a time and let go of when memory is tight
   // pager(list, opts) packs the list in pages of opts.pageRows (default 2,048) rows. get(i) opens only the page that holds row i (a page opens in about 1 to 3 ms); a page that was only read
