@@ -4,7 +4,7 @@
  * small number at a time, and tells you whether the browser can read WebP or AVIF.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   ImageDecode.load(source[, { strategy: 'auto' }])   -> Promise of a drawable (an ImageBitmap or an Image), ready to drawImage
  *   ImageDecode.loadAll(list[, { concurrency: 2, onEach: function (drawable, index) {} }])  -> Promise of an array, same order
@@ -22,8 +22,9 @@
  * table): Chromium decodes off the main thread only through createImageBitmap ('bitmap'); an Image.decode() there is
  * decoded again at the first draw. Firefox and WebKit are the opposite: Image.decode() keeps the freeze at 1 to 11 ms, while
  * createImageBitmap there freezes the page for the whole decode. 'auto' therefore uses 'bitmap' in Chromium-family browsers
- * and 'decode' elsewhere. If the chosen way fails (for example the page's Content-Security-Policy has no img-src blob:), the
- * other way is tried once before the promise rejects.
+ * and 'decode' elsewhere. 'decode' reads the picture through a blob: address; if the page refuses that (no img-src blob:), the
+ * module remembers it and goes through a background worker (WebKit family, needs worker-src blob:) and then a data: address
+ * (needs img-src data:), and only then tries the other way ('bitmap') once before the promise rejects.
  *
  * Needs createImageBitmap or Image; without either, load() rejects with a plain message. No wasm: the browser's own decoder
  * is already native code, so there is nothing for wasm to speed up.
@@ -235,7 +236,7 @@
 
     function close(d) { if (d && typeof d.close === 'function') try { d.close(); } catch (e) { /* already closed */ } }
 
-    return { load: load, loadAll: loadAll, supports: supports, pick: pick, close: close, sniff: sniff, strategy: strategy, create: create, version: '1.0.0' };
+    return { load: load, loadAll: loadAll, supports: supports, pick: pick, close: close, sniff: sniff, strategy: strategy, create: create, version: '1.1.0' };
   }
 
   return create();
