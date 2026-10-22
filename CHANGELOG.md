@@ -27,7 +27,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.1.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.2.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.3.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.3.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
@@ -51,6 +51,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-10-22 · **zip-open** 1.3.0 · API 1: The WebAssembly checksum now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 - 2026-10-22 · **walker-sim** 2.3.0 · API 2: The WebAssembly loop now starts compiling in the background when the file loads; walker-sim-wasm adds wasmReady() and wasmModule().
+- 2026-10-22 · **pcodec-js** 1.3.0 · API 1: New pack(x, { smallest: 'quick' }): tries decimal settings only when a column looks like decimals. 39 test columns come out 3.4% smaller at 1.7 times the plain pack time (full smallest: 4.0% smaller at 3.3 to 3.5 times).
 - 2026-10-22 · **pcodec-js** 1.2.0 · API 1: New PcodecJS.pool() shares packing across background workers: one 2,000,000-number column took 129 to 142 ms on one worker, now 58 to 80 ms (lower is better), same file as pack().
 - 2026-10-22 · **netflow-engine** 2.2.1 · API 2: The two-pair Distances sweeps no longer stop at 20,000 items: they run at any size (1.02 to 1.10 times faster at 30,000 and 60,000 items in the four test browsers), same positions.
 - 2026-10-22 · **memory-compression** 2.1.2 · API 2: Balanced and small packing of number columns is a little faster (up to about 15% on some whole-number columns); no change to file size on disk.
