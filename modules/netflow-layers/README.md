@@ -1,6 +1,6 @@
 # netflow-layers
 
-**Version 1.3.2 · API 1**
+**Version 1.4.0 · API 1**
 
 **Tested in:** Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5; 90 generated layouts identical to 1.3.1
 
