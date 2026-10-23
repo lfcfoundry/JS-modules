@@ -1,8 +1,8 @@
 # netflow-engine
 
-**Version 2.2.1 · API 2**
+**Version 2.2.2 · API 2**
 
-**Tested in:** Node 22 checks (15), 315 same-layout comparisons with Netflow Map's own engine (0 differences), and a page check in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time
 
 The engine of Netflow Map as a module you can copy and adapt. You give it a list of items and links; it works out where everything goes (as a story laid out in rows, arcs, a matrix, a shape, or as a network of any size), scores the drawing, and hands back plain numbers ready to draw. It runs with no page, so it works in a worker, in Node, or on the main thread. It reads and prepares the data into flat typed arrays, finds choke points and traffic, then places items with a layered, force or distance-based method (the heavy force and distance steps run in WebAssembly when the page allows it and in plain JavaScript when not, with identical results).
 

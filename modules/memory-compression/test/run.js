@@ -553,6 +553,11 @@ tAsync('pager: reading rows in order opens the next page in the background', fun
   var rows = many(1200, function (i) { return { id: i }; }), P = J.pager(rows, opt({ pageRows: 100, livePages: 4 }));
   P.get(0); P.get(150);
   return new Promise(function (res) { setTimeout(res, 20); }).then(function () { assert(P.memory().open >= 3, 'page 2 opened ahead: ' + P.memory().open); assert.strictEqual(P.get(250).id, 250); });
+tAsync('pager: reading rows backward opens the previous page in the background', function () {
+  var rows = many(1200, function (i) { return { id: i }; }), P = J.pager(rows, opt({ pageRows: 100, livePages: 4 }));
+  P.get(950); P.get(850);
+  return new Promise(function (res) { setTimeout(res, 20); }).then(function () { assert(P.memory().open >= 3, 'page 7 opened ahead: ' + P.memory().open); assert.strictEqual(P.get(750).id, 750); });
+});
 });
 
 tAsync('pager: background: true reads at once, packs the pages in slices, then settle() packs later edits', function () {
