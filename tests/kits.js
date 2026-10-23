@@ -101,6 +101,7 @@ var steps = [
   ['memory-compression browser', 'node', ['tests/memory-compression-browser.js'], true, true],   // optional: the module's own 36 checks inside each browser page (about 6 to 8 s per browser)
   ['memory-compression pager browser', 'node', ['tests/memory-compression-pager-browser.js'], true, true],   // optional: pager() exactness (pages, background, real IndexedDB spill) and page-open timings in each browser
   ['image-decode browser', 'node', ['tests/image-decode-browser.js'], true, true],   // optional: the same pictures by every way in each browser (add IMG_DIR=<folder made by modules/image-decode/test/make-sheets.py> for the timings)
+  ['image-decode ahead browser', 'node', ['tests/image-decode-ahead-browser.js'], true, true],   // optional: ahead() against load-when-asked at a stage change in each browser (needs IMG_DIR as above)
   ['pcodec-js browser', 'node', ['tests/pcodec-js-browser.js'], true, true],   // optional: the test page and the demo page in a real browser
   ['pcodec-js split browser', 'node', ['tests/pcodec-js-split-browser.js'], true, true],   // optional: {into}, pool warm and split files open equal on the pool, with open times for 0.5, 2 and 8 million numbers
   ['small lean browser', 'node', ['tests/small-lean-browser.js'], true, true],   // optional: back-close, wake-keeper, even-dt and quality-governor lean builds in each browser (about 3 s per browser)

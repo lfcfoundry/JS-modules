@@ -4,10 +4,11 @@
  * small number at a time, and tells you whether the browser can read WebP or AVIF.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  *
  *   ImageDecode.load(source[, { strategy: 'auto' }])   -> Promise of a drawable (an ImageBitmap or an Image), ready to drawImage
  *   ImageDecode.loadAll(list[, { concurrency: 2, onEach: function (drawable, index) {} }])  -> Promise of an array, same order
+ *   ImageDecode.ahead(items[, { concurrency: 1, idle: 'idle' }])  -> a handle that decodes pictures in idle time before they are needed: get(key), ready(key), drawable(key), release(key), cancel()
  *   ImageDecode.supports('webp' | 'avif' | 'png' | 'jpeg')  -> Promise of true/false
  *   ImageDecode.pick({ avif: urlA, webp: urlB, png: urlC })  -> Promise of the first url the browser can read (best format first)
  *   ImageDecode.close(drawable)                              -> frees an ImageBitmap's memory (an Image needs nothing)
@@ -69,6 +70,8 @@
     var BlobCtor = 'Blob' in env ? env.Blob : g.Blob;
     var ReaderCtor = 'FileReader' in env ? env.FileReader : g.FileReader;
     var nav = 'navigator' in env ? env.navigator : g.navigator;
+    var ricFn = 'requestIdleCallback' in env ? env.requestIdleCallback : (g.requestIdleCallback && g.requestIdleCallback.bind(g));
+    var timeoutFn = 'setTimeout' in env ? env.setTimeout : g.setTimeout.bind(g);
 
     // Chromium family (Chrome, Edge, Opera, ungoogled Chromium, Android WebView) decodes off the main thread through
     // createImageBitmap only; everything else (Firefox, Safari, WebKitGTK, GNOME Web) through Image.decode().
@@ -214,6 +217,61 @@
       });
     }
 
+
+    // Decode ahead. ahead(items[, opts]) starts decoding pictures in the page's idle time, one at a time, before they are needed, and keeps the
+    // result. items is an array of sources or an object { key: source } (an array uses 0, 1, 2 ... as keys). When the page asks for one with get(key)
+    // it is usually already there, so a stage change draws at once. Returns { get(key) -> Promise of a drawable, ready(key) -> true when it is decoded,
+    // drawable(key) -> the drawable or null, release(key) -> frees it (an ImageBitmap's memory), cancel() -> stops what has not started, count }.
+    // opts: concurrency (default 1), idle ('idle' default: wait for an idle moment before each start, but at most `timeout` ms (default 300) on a page that never goes idle; 'now': start at once), onEach(drawable, key),
+    // and strategy and address, which go to load(). A picture that fails rejects its get() and does not stop the rest. get() of a picture that has
+    // not started starts it at once, ahead of the queue.
+    function ahead(items, opts) {
+      opts = opts || {};
+      var keys = [], src = {}, st = {}, queue = [], running = 0, stopped = false, limit = Math.max(1, opts.concurrency || 1), waiting = false, i, k;
+      if (Array.isArray(items)) { for (i = 0; i < items.length; i++) { keys.push(String(i)); src[i] = items[i]; } }
+      else for (k in items) if (Object.prototype.hasOwnProperty.call(items, k)) { keys.push(k); src[k] = items[k]; }
+      keys.forEach(function (key) { st[key] = { state: 'queued', value: null, promise: null }; queue.push(key); });
+      function begin(key) {
+        var e = st[key];
+        if (e.state !== 'queued') return e.promise;
+        e.state = 'loading'; running++;
+        e.promise = load(src[key], opts).then(function (d) {
+          e.state = 'done'; e.value = d; running--;
+          if (opts.onEach) try { opts.onEach(d, key); } catch (err) { /* the callback's own problem */ }
+          pump(); return d;
+        }, function (err) { e.state = 'failed'; running--; pump(); throw err; });
+        e.promise.catch(function () { /* the caller of get() sees it; an unread failure is not an unhandled rejection */ });
+        return e.promise;
+      }
+      function pump() {
+        if (waiting || stopped) return;
+        if (running >= limit || !queue.length) return;
+        waiting = true;
+        var go = function () {
+          waiting = false;
+          while (!stopped && running < limit && queue.length) { var key = queue.shift(); if (st[key].state === 'queued') begin(key); }
+        };
+        if (opts.idle === 'now') go();
+        else if (ricFn) ricFn(go, { timeout: opts.timeout > 0 ? opts.timeout : 300 });
+        else timeoutFn(go, 50);
+      }
+      pump();
+      return {
+        count: keys.length,
+        get: function (key) {
+          var e = st[String(key)];
+          if (!e) return Promise.reject(new Error('ImageDecode: no picture called ' + key));
+          if (e.state === 'queued') { if (stopped) return Promise.reject(new Error('ImageDecode: this ahead() was cancelled')); return begin(String(key)); }
+          if (e.state === 'done') return Promise.resolve(e.value);
+          return e.promise;
+        },
+        ready: function (key) { var e = st[String(key)]; return !!e && e.state === 'done'; },
+        drawable: function (key) { var e = st[String(key)]; return e && e.state === 'done' ? e.value : null; },
+        release: function (key) { var e = st[String(key)]; if (e && e.state === 'done') { close(e.value); e.value = null; e.state = 'released'; e.promise = Promise.reject(new Error('ImageDecode: released')); e.promise.catch(function () {}); } },
+        cancel: function () { stopped = true; queue.length = 0; }
+      };
+    }
+
     var support = {};
     // Can this browser read the format? Asked once per format with a one-pixel picture; the answer is remembered.
     function supports(type) {
@@ -236,7 +294,7 @@
 
     function close(d) { if (d && typeof d.close === 'function') try { d.close(); } catch (e) { /* already closed */ } }
 
-    return { load: load, loadAll: loadAll, supports: supports, pick: pick, close: close, sniff: sniff, strategy: strategy, create: create, version: '1.1.0' };
+    return { load: load, loadAll: loadAll, ahead: ahead, supports: supports, pick: pick, close: close, sniff: sniff, strategy: strategy, create: create, version: '1.2.0' };
   }
 
   return create();
