@@ -28,7 +28,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.4.7 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.5.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.6.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.4.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
@@ -51,6 +51,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-23 · **pcodec-js** 1.6.0 · API 1: Files 45-56% smaller (program stored deflated); big unpacks use 6 MB, not 36 MB, of wasm memory; idle pool workers end after idleMs (4 s). New load({ lean: false }) gives WebKit browsers 1.5.1 speed back (keeps 36 MB, freed when idle).
 - 2026-10-23 · **memory-compression** 2.4.7 · API 2: New opt-in warm(): call it at idle and it packs and opens a made-up 1,200-row list in 18 short tasks, so the first big pack is 12 to 39 ms faster (log events, four browsers). Costs 32 to 65 ms at idle. No format change.
 - 2026-10-23 · **memory-compression** 2.4.6 · API 2: 2.4.6: new opt-in unpackAsync() opens a long packed list in short slices so the page stays free, same value as unpack(); page held 2 to 8 ms instead of 8 to 26, but total time 1.0 to 2.4x longer (most in WebKit). No new policy need.
 - 2026-10-23 · **memory-compression** 2.4.3 · API 2: 2.4.3: new opt-in packAsync() packs a long list without freezing the page, same bytes as pack(); 60,000 rows balanced: 85 to 117 ms as one task, 54 to 83 ms total, longest page task 6 to 9 ms. Slower in a few short-list and fast-mode cells.

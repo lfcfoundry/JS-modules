@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 1.5.1 (API 1)
+# Version 1.6.0 (API 1)
 # Builds the three shipped files from src/ and the WebAssembly programs in wasm/:
 #   pcodec-js.js       reader, the speed-built program (no SIMD needed)
 #   pcodec-js-fast.js  reader, the SIMD program (about 15% faster unpack on Firefox; needs a browser with WebAssembly SIMD)
 #   pcodec-js-pack.js  reader and packer in one file
+# The three wasm programs are embedded deflated (zlib level 9, raw deflate stream) then base64, so the files are about half the size; rebuilding gives the same files with the same zlib.
 # usage: python3 build.py [--version X.Y.Z] [--out DIR]
-import base64, os, sys
+import base64, os, sys, zlib
 
 args = sys.argv[1:]
 def opt(name, default):
@@ -21,7 +22,10 @@ warm = open(os.path.join(here, 'src', 'warm.json'), encoding='utf8').read().stri
 pack_api = open(os.path.join(here, 'src', 'pack_api.js'), encoding='utf8').read().rstrip('\n')
 
 def b64(name):
-    return base64.b64encode(open(os.path.join(wasm_dir, name), 'rb').read()).decode()
+    # each program is stored deflate-raw (level 9), then base64; the file opens it with DecompressionStream('deflate-raw') before compiling
+    raw = open(os.path.join(wasm_dir, name), 'rb').read()
+    z = zlib.compressobj(9, zlib.DEFLATED, -15, 9)
+    return base64.b64encode(z.compress(raw) + z.flush()).decode()
 
 def build(out_name, programs, profile_line, with_pack):
     body = '{ ' + ', '.join('%s: "%s"' % (k, b64(f)) for k, f in programs.items()) + ' }'

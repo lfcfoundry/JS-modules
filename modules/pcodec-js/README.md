@@ -1,6 +1,6 @@
 # pcodec-js
 
-**Version 1.5.1 · API 1**
+**Version 1.6.0 · API 1**
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time
 
@@ -8,22 +8,22 @@ Pcodec for web pages: unpack (and optionally pack) big lists of numbers in a bro
 
 Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (Apache-2.0). This module is Pcodec 1.0.4 compiled to WebAssembly with a small interface designed for pages. It reads and writes ordinary Pcodec files, so anything that opens Pcodec opens these, and the other way around.
 
-You give it the bytes of a Pcodec file. It runs Pcodec's WebAssembly program (a compact compiled program the browser can run, held inside the one JavaScript file) and hands back the numbers as a typed array, such as a `Float64Array`. Packing runs the same Pcodec code the other way and writes ordinary Pcodec bytes.
+You give it the bytes of a Pcodec file. It runs Pcodec's WebAssembly program (a compact compiled program the browser can run, held inside the one JavaScript file in packed form and opened when you call `load()`) and hands back the numbers as a typed array, such as a `Float64Array`. Packing runs the same Pcodec code the other way and writes ordinary Pcodec bytes.
 
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license (wrapper). Pcodec itself stays Apache-2.0; see `NOTICE-pcodec.txt`.
 
 ## Why it exists
-Pcodec is a compressor made for lists of numbers, and a web page that wants to open (or write) such files needs it as one file with no build step and no network. The only other JavaScript build I found, numcodecs-wasm-pco, is a 324,006 B download (gzipped) against 70,799 B for the unpack-only file here (see "How it compares").
+Pcodec is a compressor made for lists of numbers, and a web page that wants to open (or write) such files needs it as one file with no build step and no network. The only other JavaScript build I found, numcodecs-wasm-pco, is a 324,006 B download (gzipped) against 61,314 B for the unpack-only file here (see "How it compares").
 
 ## Pick a file
 
 | File | Raw / gzipped | Use it when |
 |---|---:|---|
-| `pcodec-js.js` | 192,606 B / 75,252 B | you only unpack. Works in every browser that has WebAssembly. **Start here.** |
-| `pcodec-js-fast.js` | 252,294 B / 93,616 B | you only unpack and want the SIMD program (17% faster in Firefox, within 3% elsewhere). Opening it without SIMD gives a clear message to use `pcodec-js.js` |
-| `pcodec-js-pack.js` | 503,098 B / 193,197 B | you also pack (built for speed, so bigger than a size-built packer) |
+| `pcodec-js.js` | 106,348 B / 61,314 B | you only unpack. Works in every browser that has WebAssembly. **Start here.** |
+| `pcodec-js-fast.js` | 122,204 B / 73,420 B | you only unpack and want the SIMD program (17% faster in Firefox, within 3% elsewhere). Opening it without SIMD gives a clear message to use `pcodec-js.js` |
+| `pcodec-js-pack.js` | 219,644 B / 142,786 B | you also pack (built for speed, so bigger than a size-built packer) |
 
-Needs `'wasm-unsafe-eval'` in the page's `script-src` (the project rule for every page), and `worker-src blob:` if you use `PcodecJS.worker()` or `PcodecJS.pool()` (without it the same calls run on the page). WebAssembly is required: if it is blocked, `load()` rejects with a clear message. There is no plain-JavaScript backup (project decision, 2026-10-17).
+Needs `'wasm-unsafe-eval'` in the page's `script-src` (the project rule for every page), and `worker-src blob:` if you use `PcodecJS.worker()` or `PcodecJS.pool()` (without it the same calls run on the page). WebAssembly is required: if it is blocked, `load()` rejects with a clear message. There is no plain-JavaScript backup (project decision, 2026-10-17). Since 1.6.0 the program is stored deflated inside the file and opened with the browser's `DecompressionStream('deflate-raw')` (every current browser has it; without it `load()` rejects with a clear message). The opening costs 1 to 5 ms once per page load and the packed text is dropped after the program is compiled; workers are handed the compiled program, so nothing is opened twice. Raw file sizes and gzipped downloads are measured with gzip level 9.
 
 ## Use
 
@@ -46,6 +46,8 @@ const quick = pco.pack(float64Array, {smallest: 'quick'});     // pack file only
 - **Split file: a big column that unpacks on several workers (since 1.4.0).** `await p.pack(oneBigArray, { parts: true })` (or `pco.pack(x, { parts: true })` without a pool) writes one file made of ordinary Pcodec files, one for each group of Pcodec pages, behind a 12-byte header and a list of lengths (magic `PCJM`, version 1; 31 to 135 B more than a normal file for 0.5 to 8 million numbers). `pco.unpack`, `unpackAsync`, `stream`, `info`, the worker and the pool all open it, and each part is a normal Pcodec file. `await p.unpack(splitFile)` opens the parts on several workers and a worker joins them, so the page is usually frozen for less than 10 ms. `await p.unpack(splitFile, { parts: true })` hands back the array of parts as they are, with no join: 8 million numbers opened 2.1 to 2.8 times faster than a normal file on one worker (joined: 1.25 to 1.6 times). Files under about 2.5 million numbers stay on one worker, where a split file is as fast as a normal one. Not available with `smallest`.
 - **Reuse your array.** `await w.unpack(bytes, { into: myArray })` (worker) and `await p.unpack(file, { into: myArray })` (pool, normal or split file) fill an array you already have: its memory goes to a worker and comes back as the result (`myArray` itself is empty afterwards, so keep the result and pass it in again next time). A big column then needs no new 64 MB to allocate and collect each time: 8 million numbers opened 1.07 to 1.3 times faster from a normal file and 1.3 to 1.7 times faster from a split file than with a new array each time, and Chromium's long page pauses with a joined result went from 48 ms (median) to 9. One file per call, not with `parts`.
 - **Start the pool early.** `PcodecJS.pool({ warm: true })` (or a number) starts the workers when the pool is made instead of at the first job, so the first big unpack is 3 to 26 ms faster; it costs 3 to 7 ms when the pool is made. The program is compiled once on the page and handed to every worker; no worker compiles again.
+- **Lean big unpacks (since 1.6.0).** `unpack(bytes)` of 262,144 numbers or more (main thread, worker and every pool lane) decodes in batches of 65,536 straight into the new result array, so the wasm memory stays about 6.3 MB for 4,000,000 numbers instead of 36.3 MB, and the numbers are the same. Time for that unpack (median, Chromium / Firefox / WebKitGTK / GNOME Web): on a program that already holds its memory -5% / -6% / +24% / +19% (WebKit-based browsers are slower here because the new result array must be zeroed before it is filled); on a fresh program, or after `release()`, -17% / -22% / -3% / -9%. `view`, `into` and `stream()` work as before. **`load({ lean: false })` is the 1.5.1 route for big copies (since 1.6.0):** the program decodes the whole result into its own memory and copies it out once. In WebKitGTK and GNOME Web that last copy is faster: the warm 4,000,000-number unpack takes 56 / 62 ms with `lean: false` against 57 / 60 ms in 1.5.1 and 73 / 77 ms lean (median of 40 turns, 3 fresh instances; 1.5.1 speed, within 5%). **It trades 36 MB for that speed:** the program holds a result-sized region (36.3 MB for 4,000,000 numbers) after every big unpack. Chromium and Firefox gain nothing from it (lean is 5 to 6% faster there). To limit that, such an object gives the memory back when it has not been called for `idleMs` (default 4000; `idleMs: 0` turns that off), and the next call starts a new program (the first call after a release took 96 / 77 / 97 / 98 ms for 4,000,000 numbers against 87 / 60 / 86 / 78 ms warm, in Chromium / Firefox / WebKitGTK / GNOME Web). `lean: false` also works on `worker({ lean: false })` and `pool({ lean: false })`. The default stays lean. `lean: false` gives you your own object, not the shared one `load()` returns without options.
+- **The pool gives memory back when idle (since 1.6.0).** A pool ends its workers after `idleMs` (default 4000 ms, 0 turns it off) with no job and starts them again at the next one, so an idle pool that has opened a 4,000,000-number file no longer keeps its 17 to 52 MB. The first job after parking costs about 20 to 40 ms for four small files in the four browsers (a warm pool needs 6 to 10 ms). `p.workers()` says how many workers run now and `p.idleMs` shows the setting. Workers start one per page turn, so the page task of a first job is 1 to 4 ms.
 - **Smaller files, cheaply (since 1.3.0).** `pack(x, { smallest: 'quick' })` checks whether a float column is made of decimals (multiples of 0.1, 0.01, ... 0.000001) and only then also packs with that setting, keeping the smaller file (never larger than plain). On our 39 test columns it helped 2 of 39 (one by 61%) and made all 39 files together 3.4% smaller at about 1.7 times the plain time; `smallest: true` is 4.0% smaller at 3.3 to 3.5 times.
 - `count` and `maxCount`: pass `count` when you know it; a wrong count is refused. `maxCount` defaults to 33,554,432 numbers so a damaged file cannot make the page reserve gigabytes.
 - `stream()` hands back one view per batch (batch is a multiple of 256, default 4,096). Copy a part if you keep it.
@@ -56,22 +58,23 @@ const quick = pco.pack(float64Array, {smallest: 'quick'});     // pack file only
 
 ## How it compares
 
-The same Pcodec bytes as any Pcodec, so the question is only how well each build runs in a page. The only other JavaScript build of Pcodec I could find is numcodecs-wasm-pco; this one is much smaller to download, uses a tenth of the wasm memory when streaming and unpacks as fast or faster, packs about level with it (0% to 5% slower in the 1.0.0 run, a tie to 19% faster in the 1.0.1 re-run) but its plain `pack()` is 6% larger on the 12-column set (Pcodec 1.0.4 against 1.0.2; `smallest` mode fixes that). Details and tables: `RESULTS.md`; all speeds measured in the four browsers.
+The same Pcodec bytes as any Pcodec, so the question is only how well each build runs in a page. The only other JavaScript build of Pcodec I could find is numcodecs-wasm-pco; this one is much smaller to download (5.3 times for the unpack-only file), is ready 7 to 11 times sooner after the script runs, keeps wasm memory to 6.3 MB for a big unpack, unpacks about as fast (a tie in three browsers, 11% slower in WebKitGTK) and packs about level with it (14% faster in Chromium, a tie elsewhere in the 1.6.0 re-run) but its plain `pack()` is 6% larger on the 12-column set (Pcodec 1.0.4 against 1.0.2; `smallest` mode fixes that). Details and tables: `RESULTS.md`; all speeds measured in the four browsers.
 
 Better direction is stated in each header. Order in each cell: Chromium / Firefox / WebKitGTK / GNOME Web.
 
 | Measure | numcodecs-wasm-pco (the only other JS Pcodec I found) | pcodec-js | Better |
 |---|---:|---:|---|
-| Download, unpack only (gzipped) | 324,006 B | 68,390 B | smaller |
-| Download, with packer (gzipped) | 324,006 B | 184,685 B | smaller |
-| Wasm memory, 4,000,000 numbers, streamed | not exposed | 6.8 MB (old add-on: 67.9 MB) | lower |
-| Unpack, copy made (ns per number) | 12.13 / 11.39 / 10.08 / 10.08 | 11.88 / 8.46 / 8.13 / 10.08 | lower (a tie in Chromium and GNOME Web, 26% faster in Firefox, 19% in WebKitGTK) |
-| Unpack, view (ns per number) | not offered | 7.74 / 7.49 / 6.83 / 6.83 | lower |
-| Pack 12 columns (ms) | 52.4 / 57 / 45 / 55 | 42.7 / 57 / 42 / 56 | lower (19% faster in Chromium, 7% in WebKitGTK, a tie in Firefox and GNOME Web) |
+| Download, unpack only (gzipped) | 324,006 B | 61,314 B (1.5.1: 75,081 B) | smaller |
+| Download, with packer (gzipped) | 324,006 B | 142,786 B (1.5.1: 193,195 B) | smaller |
+| Wasm memory, 4,000,000 numbers, copy unpack or streamed | not exposed | 6.3 MB (1.5.1 copy unpack: 36.3 MB; old add-on: 67.9 MB) | lower |
+| Unpack, copy made (ns per number, 13 columns) | 10.68 / 10.16 / 9.17 / 9.50 | 10.45 / 9.83 / 10.16 / 9.17 | lower (a tie in Chromium, Firefox and GNOME Web; 11% slower than numcodecs-wasm-pco in WebKitGTK) |
+| Unpack, view (ns per number) | not offered | 7.08 / 6.55 / 8.19 / 7.86 | lower |
+| Pack 3 float columns, 850,000 numbers (ms) | 49.6 / 51.0 / 50.0 / 51.0 | 42.9 / 53.0 / 52.5 / 50.5 | lower (14% faster in Chromium, a tie elsewhere) |
+| `load()` until ready (ms) | 105.5 / 66.5 / 67 / 65 | 9.0 / 9.0 / 6.0 / 6.0 | lower |
 | Pack 39 columns, smallest mode (bytes) | 2,791,125 | 2,778,048 | smaller |
 | First unpack after load with `warm` (ms) | not offered | 2.8 / 5 / 7 / 5 | lower |
 
-Unpack and pack rows were re-measured for 1.0.1 (checked 2026-10-18) with the current build, the tuned loop included: 12 columns, one browser at a time, in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, 0 wrong columns. Compare numbers within a row only: this run was on a faster machine than the 1.0.0 run, and browsers other than Chromium round timers to whole milliseconds, so treat gaps under 5% as ties. The other rows are from the 1.0.0 run. Details: `CHANGELOG.md` 1.0.1 and `RESULTS.md` section 0b.
+The download, memory, unpack, pack and `load()` rows were re-measured for 1.6.0 (checked 2026-10-23): numcodecs-wasm-pco 0.4.0 against this build, 13 columns of 8 types (1,526,000 numbers; each build opens files it wrote itself at level 8 and every result is identical), the contenders taking turns in fresh pages, 8 rounds of 25 passes, median, one browser at a time in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5. Only one of the 13 columns is big enough for the lean path, so this row mostly measures small files. Compare numbers within a row only, and treat gaps under 5% as ties (browsers other than Chromium round timers to whole milliseconds; single rounds ranged by up to 30%). The other rows are from the 1.0.0 run. Details: `CHANGELOG.md` and `RESULTS.md` section 0b.
 
 ## Prior art and credits
 
