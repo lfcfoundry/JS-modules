@@ -69,6 +69,7 @@ withEnv(env => {
   const r = fr.task('bake', () => 7);
   fr.time('load-level', 41.5);
   const sp = fr.speedText();
+  check('the version in the header comment matches the VERSION constant (FR.version)', (function () { var h = /Version (\d+\.\d+\.\d+)/.exec(fs.readFileSync(path.join(__dirname, '..', 'field-report.js'), 'utf8')); return !!h && h[1] === FR.version; })(), FR.version);
   check('speedText: has the title, page name and version, verdict, frames and tasks', /^# Speed report/.test(sp) && /test-game 2026\.10\.22\.1700/.test(sp) && /## Verdict/.test(sp) && /Smooth\./.test(sp) && /\| Frames recorded \| 89 \|/.test(sp) && /load-level \| 41\.5/.test(sp) && /first-screen/.test(sp), sp);
   check('task(): returns the function result and records the time', r === 7 && fr.speed().tasks.some(t => t.name === 'bake'));
   let threw = false; try { fr.task('boom', () => { throw new Error('x'); }); } catch (e) { threw = true; }
