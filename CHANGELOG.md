@@ -15,7 +15,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
-| [field-report](modules/field-report/README.md) | 1.0.1 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
+| [field-report](modules/field-report/README.md) | 1.0.2 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
@@ -39,11 +39,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [single-file-tools](tools/single-file-tools/README.md) | 1.1.0 · API 1 | [changelog](tools/single-file-tools/CHANGELOG.md) |
 | [lzma-pack](tools/lzma-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
 | [ppmd-pack](tools/ppmd-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
-| [fuzz-kit](tools/fuzz-kit/README.md) | 1.3.1 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
+| [fuzz-kit](tools/fuzz-kit/README.md) | 1.3.3 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
 | [storage-probe](tools/storage-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/storage-probe/CHANGELOG.md) |
 | [firefox-stand-in](tools/firefox-stand-in/README.md) | 1.0.0 · API 1 | [changelog](tools/firefox-stand-in/CHANGELOG.md) |
-| [webkit-driver](tools/webkit-driver/README.md) | 1.3.0 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
+| [webkit-driver](tools/webkit-driver/README.md) | 1.4.0 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
 | [test-isolation](tools/test-isolation/README.md) | 1.1.0 · API 1 | [changelog](tools/test-isolation/CHANGELOG.md) |
 | [speed-lab](tools/speed-lab/README.md) | 1.1.1 · API 1 | [changelog](tools/speed-lab/CHANGELOG.md) |
 | [test-runner](tools/test-runner/README.md) | 1.1.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
@@ -52,6 +52,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-10-22 · **zip-open** 1.3.0 · API 1: The WebAssembly checksum now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
+- 2026-10-22 · **webkit-driver** 1.4.0 · API 1: 1.4.0: new runScript() runs script text without eval, waitForFunction no longer needs eval, and fuzz-kit debug messages are passed on.
 - 2026-10-22 · **walker-sim** 2.3.0 · API 2: The WebAssembly loop now starts compiling in the background when the file loads; walker-sim-wasm adds wasmReady() and wasmModule().
 - 2026-10-22 · **speed-guard** 1.0.0 · API 1: New: one command that flags any release step more than 5% slower than the release before, and lists the browser checks a change needs re-run.
 - 2026-10-22 · **pcodec-js** 1.5.1 · API 1: 1.5.1: unpacking a list of files on the worker pool is 1.2 to 1.4 times faster in Firefox, WebKitGTK and GNOME Web (Chromium: a tie).
@@ -75,9 +76,12 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-22 · **image-decode** 1.1.0 · API 1: A page that refuses blob: pictures (no img-src blob:) now loads through a background worker or a data: address instead of freezing; new option address: 'auto', 'blob', 'data' or 'worker'.
 - 2026-10-22 · **image-decode** 1.0.0 · API 1: New module: loads PNG, JPEG, WebP and AVIF pictures without freezing the page at the first draw (a 2048 sheet froze it 44 to 94 ms, now 2 to 9 ms), using the right way for each browser.
 - 2026-10-22 · **gif-writer** 1.3.0 · API 1: The WebAssembly program now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
+- 2026-10-22 · **fuzz-kit** 1.3.3 · API 1: 1.3.3: Chromium's refusals of a file picker that no real tap opened or that closed at once ('User activation required', 'Must be handling a user gesture', 'The user aborted a request') are no longer findings.
+- 2026-10-22 · **fuzz-kit** 1.3.2 · API 1: 1.3.2: the WebKitGTK and GNOME Web runs no longer use eval, so games with a strict policy (no unsafe-eval) run all their operations there too.
 - 2026-10-22 · **fuzz-kit** 1.3.1 · API 1: 1.3.1: the runner no longer waits for the page with script that needs eval, so games with a strict policy (no unsafe-eval) run all their operations.
 - 2026-10-22 · **fuzz-kit** 1.3.0 · API 1: New: the background hunt and the runner now also drive WebKitGTK and GNOME Web, so all four test browsers can be hunted. A stuck page in WebKit is reported as hung, as in Chrome and Firefox.
 - 2026-10-22 · **fuzz-kit** 1.2.0 · API 1: New background hunt: start a long fuzz run that carries on without the terminal, stops on request, and writes its findings to a folder. Chrome and Firefox now; the runner also works with puppeteer-core.
+- 2026-10-22 · **field-report** 1.0.2 · API 1: 1.0.2: the version the module reports (FR.version and the report footer) now says 1.0.2; 1.0.1 still reported 1.0.0.
 - 2026-10-22 · **field-report** 1.0.1 · API 1: 1.0.1: the Save buttons now really download the report file; before, a wrong type test sent every browser to the copy box.
 - 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
 - 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.

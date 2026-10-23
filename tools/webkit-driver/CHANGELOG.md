@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-10-22
+- 1.4.0: new runScript() runs script text without eval, waitForFunction no longer needs eval, and fuzz-kit debug messages are passed on.
+
 ## 1.3.0 · API 1 · 2026-10-18
 - New attach() lets a check reuse a WebKit browser that is already open instead of starting a new one.
 
