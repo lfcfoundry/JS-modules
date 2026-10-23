@@ -14,7 +14,7 @@
       if (url) { try { URL.revokeObjectURL(url); } catch (x) { } url = null; }
       for (id in pending) { p = pending[id]; delete pending[id]; p.fail(why); }
     }
-    function start() {
+    function begin() {
       var src, i, w;
       if (!usable || ws.length) return;
       try {
@@ -31,7 +31,7 @@
     }
     function run(jobs) {
       var order = [], load = [], mine = [], i, k, w, ps = [], rows = 0, timer = null, results = new Array(jobs.length), all;
-      start();
+      begin();
       if (!usable || !ws.length) return Promise.resolve(jobs.map(function (j) { return j.kind === 1 ? colsFor(j.src, j.n, j.a, j.wopts) : adaptFor(j.src, j.mode, j.wasm); }));
       for (i = 0; i < jobs.length; i++) { order.push(i); rows += jobs[i].n; }
       order.sort(function (a, b) { return jobs[b].n - jobs[a].n; });
@@ -53,6 +53,18 @@
       if (timer && timer.unref) timer.unref();
       return all.then(function (r) { clearTimeout(timer); return results; }, function (err) { clearTimeout(timer); throw err; });
     }
+    var primed = false, handle;
+    function start() {                                             // pool.start(): make the workers now and pack a small made-up list once with them (the result is thrown away), so the first real packAsync does not pay for loading the file and for the first run of the code on both sides
+      var sample = [], i;
+      begin();
+      if (primed || !usable || !ws.length) return;
+      primed = true;
+      try {
+        for (i = 0; i < 2500; i++) sample.push({ id: i, a: (i * 7919) % 900, b: (i * 104729) % 913, w: ((i * 31) % 1000) / 10, t: 1700000000 + i * 37 + (i * i) % 29 });
+        unified.packAsync(sample, { mode: 'balanced', workers: handle }).then(function () { }, function () { });
+      } catch (err) { }
+    }
     function close() { fail('closed'); }
-    return { run: run, close: close, start: start, size: size };
+    handle = { run: run, close: close, start: start, size: size };
+    return handle;
   }
