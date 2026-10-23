@@ -11,6 +11,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
+| [gpu-blur](modules/gpu-blur/README.md) | 1.0.0 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 · API 1 | [changelog](modules/fly-to-mini/CHANGELOG.md) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
@@ -58,6 +59,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-23 · **memory-compression** 2.4.3 · API 2: 2.4.3: new opt-in packAsync() packs a long list without freezing the page, same bytes as pack(); 60,000 rows balanced: 85 to 117 ms as one task, 54 to 83 ms total, longest page task 6 to 9 ms. Slower in a few short-list and fast-mode cells.
 - 2026-10-23 · **memory-compression** 2.4.2 · API 2: 2.4.2: pager() can repack pages nobody is reading 15 to 18% smaller in a background worker, by itself when idle or before moving them to storage (needs worker-src blob: in the page's security policy).
 - 2026-10-23 · **memory-compression** 2.4.10 · API 2: Pages that forbid generated code now save lists of records faster (fast pack of 60,000 links 15 to 32% shorter; balanced up to 16%). pool.start() returns a promise that resolves when the workers are warm. Same bytes and format.
+- 2026-10-23 · **gpu-blur** 1.0.0 · API 1: New: GpuBlur, a picture blur that uses WebGL 2 where the device is fast at it, then WebAssembly, then plain JavaScript. All three give the same picture, and big jobs run in short slices.
 - 2026-10-22 · **zip-open** 1.3.0 · API 1: The WebAssembly checksum now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 - 2026-10-22 · **webkit-driver** 1.4.0 · API 1: 1.4.0: new runScript() runs script text without eval, waitForFunction no longer needs eval, and fuzz-kit debug messages are passed on.
 - 2026-10-22 · **walker-sim** 2.3.0 · API 2: The WebAssembly loop now starts compiling in the background when the file loads; walker-sim-wasm adds wasmReady() and wasmModule().
