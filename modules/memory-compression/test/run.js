@@ -880,6 +880,22 @@ tAsync('pool.start() packs a small made-up list once through the workers (answer
     return ['blocked', 'throws', 'silent'].reduce(function (p, kind) { return p.then(function () { var f2 = fakeBrowser(kind), p2 = f2.M.pool({ size: 2, timeout: 60 }); p2.start(); return new Promise(function (r) { setTimeout(r, 30); }).then(function () { f2.restore(); p2.close(); }); }); }, Promise.resolve());
   }, function (e) { fb.restore(); pool.close(); throw e; });
 });
+tAsync('pool.start() returns a promise: true the first time, false the second time and on a closed pool; a blocked pool still resolves (true, the warm-up runs on the page); a caller that ignores the return still works', function () {
+  var fb = fakeBrowser('ok'), pool = fb.M.pool({ size: 2 }), p1, p2;
+  p1 = pool.start(); p2 = pool.start();
+  assert(p1 && typeof p1.then === 'function' && p2 && typeof p2.then === 'function', 'start() did not return promises');
+  return Promise.all([p1, p2]).then(function (r) {
+    assert.strictEqual(r[0], true, 'first start() resolved ' + r[0]); assert.strictEqual(r[1], false, 'second start() resolved ' + r[1]);
+    return pool.start();
+  }).then(function (r3) {
+    assert.strictEqual(r3, false, 'third start() resolved ' + r3); pool.close();
+    return pool.start();
+  }).then(function (r4) {
+    assert.strictEqual(r4, false, 'start() on a closed pool resolved ' + r4); fb.restore();
+    var f2 = fakeBrowser('blocked'), p3 = f2.M.pool({ size: 2, timeout: 60 });
+    return p3.start().then(function (r5) { assert.strictEqual(r5, true, 'blocked pool: the warm-up pack ran on the page and resolved ' + r5); return p3.start(); }).then(function (r6) { assert.strictEqual(r6, false, 'second start() on a blocked pool resolved ' + r6); f2.restore(); p3.close(); });
+  }, function (e) { fb.restore(); throw e; });
+});
 t('rows without generated code: 1 to 18 fields, a field called __proto__, missing and mixed values give the same rows as with generated code (a child process that forbids code generation)', function () {
   var cp = require('child_process'), script = "var M=require(" + JSON.stringify(path.resolve(modPath)) + ");var out=[];for(var nk=1;nk<=18;nk++){var rows=[];for(var i=0;i<3000;i++){var o={};for(var j=0;j<nk;j++)o['k'+j]=j%3===0?i*j:j%3===1?'s'+(i%7):(i%2===0);rows.push(o);}var b=M.pack(rows,{mode:'fast'});out.push(JSON.stringify(M.unpack(b))===JSON.stringify(rows));}var pr=[];for(var i=0;i<3000;i++){var o={a:i};Object.defineProperty(o,'__proto__',{value:i%5,enumerable:true,writable:true,configurable:true});o.z='x'+i;pr.push(o);}var b2=M.pack(pr,{mode:'fast'});var u=M.unpack(b2);out.push(u.length===3000&&Object.keys(u[7]).join()==='a,__proto__,z'&&u[7]['__proto__']===2&&Object.getPrototypeOf(u[7])===Object.prototype);console.log(out.join());";
   var r = cp.execFileSync(process.execPath, ['--disallow-code-generation-from-strings', '-e', script], { encoding: 'utf8' }).trim();
