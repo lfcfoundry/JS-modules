@@ -57,7 +57,7 @@ Make a game behave on slow phones, privacy-focused browsers and power-saving scr
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [env-probes](modules/env-probes/README.md) | 1.1.0 | 16.2 | 5.4 | Detects privacy modes that blur timers, scramble canvas reads or block storage. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/env-probes/demo.html) |
-| [field-report](modules/field-report/README.md) | 1.0.1 | 21.3 | 7.6 | Hidden buttons that save a speed report and an error log from a real device. No network. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/field-report/demo.html) |
+| [field-report](modules/field-report/README.md) | 1.0.2 | 21.3 | 7.6 | Hidden buttons that save a speed report and an error log from a real device. No network. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/field-report/demo.html) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 | 38.9 | 12.1 | Frame pacing for canvas games: smooth frame time, effect governor, job pump, frame meter. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/frame-kit/demo.html) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 | 6.2 | 2.5 | Steps visual effects down when the device cannot keep up; never back up mid-play. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fx-governor/demo.html) |
 | [image-decode](modules/image-decode/README.md) | 1.2.0 | 20.6 | 7.2 | Loads pictures with no freeze at first draw, the right way per browser, plus WebP/AVIF checks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/image-decode/demo.html) |
@@ -120,13 +120,13 @@ Test a game by playing it at random, shrinking any failure to a short replay, co
 |---|---|---:|---:|---|---|
 | [canvas-probe](tools/canvas-probe/README.md) *(tool)* | 1.1.0 | 28.8 | 8.8 | Test-build counter for canvas 2D games: calls per frame, leaks, repeated style writes. | — |
 | [firefox-stand-in](tools/firefox-stand-in/README.md) *(tool)* | 1.0.0 | 11.0 | 4.0 | Runs a Playwright-for-Python test in stock Firefox without rewriting it. | — |
-| [fuzz-kit](tools/fuzz-kit/README.md) *(tool)* | 1.3.1 | 80.0 | 26.0 | Seeded random-input fuzzer for games, with failure shrinking and browser runners. | — |
+| [fuzz-kit](tools/fuzz-kit/README.md) *(tool)* | 1.3.3 | 81.5 | 26.3 | Seeded random-input fuzzer for games, with failure shrinking and browser runners. | — |
 | [speed-guard](tools/speed-guard/README.md) *(tool)* | 1.0.0 | 7.4 | 2.9 | Flags speed-history steps over 5% slower than the last release; lists the browser checks to re-run. | — |
 | [speed-lab](tools/speed-lab/README.md) *(tool)* | 1.1.1 | 20.5 | 7.4 | A one-button speed test on the device: switches parts off and says what costs time. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/speed-lab/demo.html) |
 | [storage-probe](tools/storage-probe/README.md) *(tool)* | 1.1.0 | 19.4 | 7.2 | A one-button page that says whether copies of a page share their saved data. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/storage-probe/storage-probe.html) |
 | [test-isolation](tools/test-isolation/README.md) *(tool)* | 1.1.0 | 6.5 | 2.4 | Prefixes every localStorage key on a test page so tests never touch the real save. | — |
 | [test-runner](tools/test-runner/README.md) *(tool)* | 1.1.0 | 38.6 | 13.2 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
-| [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.3.0 | 22.2 | 8.1 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
+| [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.4.0 | 23.6 | 8.6 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
 
 #### App - Efficiency
 

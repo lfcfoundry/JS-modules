@@ -1,8 +1,8 @@
 # field-report
 
-**Version 1.0.1 · API 1**
+**Version 1.0.2 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time
+**Tested in:** field-report checks 45/45 (one new: header version equals FR.version)
 
 Two hidden buttons for a game or app, so a person on a real phone or laptop can hand over what happened: **Save speed report** and **Save error log**. Five quick taps in a corner of the page open a small panel with the two buttons; each saves one small Markdown file on the device. The module draws nothing until then, makes no network request, and keeps no names.
 

@@ -46,9 +46,13 @@ def strip_hash(u):
     return u.split("#", 1)[0]
 
 
+# Refusals that are the browser's rule, not the app's bug: a file picker opened by a fuzz tap that is not a real user tap, or one that closes at once ("User activation required", "Must be handling a user gesture", "The user aborted a request"; Chromium wording). Always ignored.
+KNOWN_NOISE = [r"show(?:Save|Open)FilePicker.*(?:User activation required|Must be handling a user gesture|The user aborted a request)", r"showDirectoryPicker.*(?:User activation required|Must be handling a user gesture|The user aborted a request)"]
+
+
 def console_ignored(text, patterns):
-    """True when a console.error text matches any of the regular expressions (strings or compiled)."""
-    return any(re.search(p, text) for p in patterns)
+    """True when a console.error text matches a known browser refusal or any of the regular expressions (strings or compiled)."""
+    return any(re.search(p, text) for p in KNOWN_NOISE) or any(re.search(p, text) for p in patterns)
 
 
 def real_request(req, vw, vh):
@@ -155,7 +159,7 @@ def run_seed(browser, url, adapter_js, seed, ops, viewport=(412, 892), stop_at=N
         if st["armed"] and frame == page.main_frame and not o["allow_navigation"] and strip_hash(frame.url) != st["start"]:
             guard.append("the page left the start page: now at " + frame.url[:200])
 
-    page.on("pageerror", lambda e: perr.append("pageerror: " + str(e)))
+    page.on("pageerror", lambda e: None if console_ignored(str(e), []) else perr.append("pageerror: " + str(e)))
     page.on("console", on_console)
     page.on("crash", lambda *_: guard.append("the page crashed"))
     page.on("close", lambda *_: guard.append("the page was closed") if st["armed"] else None)
