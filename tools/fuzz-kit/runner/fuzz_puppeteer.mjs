@@ -56,7 +56,7 @@ async function doReal(page, req, vp) {
 async function pump(page, deadline, vp, st) {   // wait for the page's answer; carry out real-input requests; throw Hung when the deadline passes
   for (;;) {
     const left = deadline - Date.now(); if (left <= 0) throw new Hung();
-    if (!st.ready) { await new Promise(r => setTimeout(r, 50)); continue; }   // the page says "__fuzz-ready" on the console; nothing runs in the page meanwhile (a strict CSP forbids waitForFunction's eval)
+    if (!st.ready) { await new Promise(r => setTimeout(r, 50)); if (page.flushEvents) await page.flushEvents(); continue; }   // the page says "__fuzz-ready" on the console; nothing runs in the page meanwhile (a strict CSP forbids waitForFunction's eval)
     st.ready = false;
     const need = await page.evaluate(() => window.__fuzzTake());
     if (need) { await doReal(page, need, vp); await page.evaluate(() => window.__fuzzGive()); continue; }

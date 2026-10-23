@@ -61,7 +61,7 @@
         });
       }).then(function (r) { root.__fuzzR = r; ready(); }, function (e) { root.__fuzzR = { error: 'driver: ' + msg(e) }; ready(); });
 
-    }, 0);
+    }, 40);   // a short pause so the answer to this call reaches the runner before the first operation runs (a freezing first operation would otherwise swallow it in WebKit)
     return 1;
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this);
