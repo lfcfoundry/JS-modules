@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.4.0 (API 2)
+ * Version 2.4.1 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -4128,10 +4128,10 @@
   }
   // pager.plan(list, opts): picks pageRows, livePages and mode for a list from the size of its rows and the device's memory, and says why. A page is sized to about 512 KB of live objects (256 KB when
   // the device reports 2 or 3 GB, 128 KB below 2 GB), between 512 and 2,048 rows, so a page opens in about the same time (0.3 to 1.5 ms) whatever the rows hold. The live pages
-  // are given about 2 MB (1 MB at 2 or 3 GB, 512 KB below 2 GB), between 2 and 8 pages. The mode stays fast unless the packed list alone would take more than a tenth of the page's memory
+  // are given about 2 MB (1 MB at 2 or 3 GB, 512 KB below 2 GB), between 2 and 8 pages. pageView is true when the sampled rows are nearly all numbers (pageView: 'auto' uses it). The mode stays fast unless the packed list alone would take more than a tenth of the page's memory
   // (opts.heapBytes, else the browser's heap limit, else 512 MB for each GB of device memory), then it is balanced (15 to 17% smaller packed, pages open 1.3 to 2.2 times slower). opts.deviceMemory overrides the reading.
   function pagerPlan(list, opts) {
-    var o = opts || {}, n = list.length, h = heapInfo(), gb = o.deviceMemory || h.deviceMemoryGB || 4, step = n > 64 ? n / 64 : 1, sample = [], i, per, target, rows, live, budget, heap, packedEst, mode = 'fast', why;
+    var o = opts || {}, n = list.length, h = heapInfo(), gb = o.deviceMemory || h.deviceMemoryGB || 4, step = n > 64 ? n / 64 : 1, sample = [], i, per, target, rows, live, budget, heap, packedEst, mode = 'fast', why, num, tot, x, q, pv;
     for (i = 0; i < n && sample.length < 64; i += step) sample.push(list[Math.floor(i)]);
     per = sample.length ? Math.max(8, estimateBytes(sample) / sample.length) : 64;
     target = gb >= 4 ? 524288 : gb >= 2 ? 262144 : 131072;
@@ -4139,24 +4139,28 @@
     live = Math.max(2, Math.min(8, Math.round((gb >= 4 ? 2097152 : gb >= 2 ? 1048576 : 524288) / (rows * per))));
     heap = o.heapBytes || h.jsHeapLimit || gb * 536870912; packedEst = n * per / 7;
     if (packedEst > heap / 10) mode = 'balanced';
+    num = 0; tot = 0;
+    for (i = 0; i < sample.length; i++) { x = sample[i]; if (x && typeof x === 'object' && !Array.isArray(x)) { for (q in x) { tot++; if (typeof x[q] === 'number' || typeof x[q] === 'boolean') num++; } } else { tot = 0; break; } }
+    pv = tot > 0 && num >= tot * 0.9 && sample.length >= 16;                                  // rows that are (nearly) all numbers: the page can stay as columns, about half the memory of objects, opening 2 to 3 times faster
     why = 'about ' + Math.round(per) + ' bytes a row, ' + gb + ' GB device, a page of ' + rows + ' rows is about ' + Math.round(rows * per / 1024) + ' KB' + (mode === 'balanced' ? ', packed list over a tenth of the memory budget' : '');
-    return { pageRows: n <= rows * 1.5 ? Math.max(1, n) : rows, livePages: live, mode: mode, bytesPerRow: Math.round(per), why: why };
+    return { pageRows: n <= rows * 1.5 ? Math.max(1, n) : rows, livePages: live, mode: mode, pageView: pv, bytesPerRow: Math.round(per), why: why };
   }
   function pagerAuto(list, opts) {       // pageRows, livePages and mode set to 'auto' are filled in by pager.plan
-    var o = opts || {}, a = o.pageRows === 'auto' || o.livePages === 'auto' || o.mode === 'auto', pl, k, c;
+    var o = opts || {}, a = o.pageRows === 'auto' || o.livePages === 'auto' || o.mode === 'auto' || o.pageView === 'auto', pl, k, c;
     if (!a || !Array.isArray(list)) return o;
     pl = pagerPlan(list, o); c = {};
     for (k in o) c[k] = o[k];
     if (o.pageRows === 'auto') c.pageRows = pl.pageRows;
     if (o.livePages === 'auto') c.livePages = pl.livePages;
     if (o.mode === 'auto') c.mode = pl.mode;
+    if (o.pageView === 'auto') c.pageView = pl.pageView;
     return c;
   }
   function pager(list, opts) {
     var store, uid = Math.random().toString(36).slice(2, 10), o = pagerAuto(list, opts), rows = o.pageRows > 0 ? Math.floor(o.pageRows) : 2048, n = list.length, np = Math.ceil(n / rows), pages = new Array(np), maxLive = o.livePages >= 0 ? Math.floor(o.livePages) : 4,
-      ahead = o.readAhead !== false, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
+      asView = !!o.pageView, ahead = o.readAhead !== false && !o.pageView, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
     packOpts.hints = {};                         // each column remembers which number ways won on earlier pages (every 4th pack still tries them all)
-    for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError' && k !== 'deviceMemory' && k !== 'heapBytes') packOpts[k] = o[k];
+    for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError' && k !== 'deviceMemory' && k !== 'heapBytes' && k !== 'pageView') packOpts[k] = o[k];
     if (!Array.isArray(list)) jfail('pager() needs an array');
     store = o.spill ? (o.spill === true ? idbStore() : o.spill) : null;
     function pkey(i) { return uid + ':' + i; }
@@ -4169,7 +4173,9 @@
     if (o.background) live = np;
     list = null;                                  // the pager keeps no reference to the caller's array: the caller can let go of it
     function limit() { return level >= 2 ? 0 : level === 1 ? maxLive >> 1 : maxLive; }
+    function isOpen(e) { return e.value !== undefined || e.view !== undefined; }
     function pageOut(e) {
+      if (e.view !== undefined) { e.view = undefined; live--; st.pageOuts++; return; }
       if (e.value === undefined) return;
       if (e.dirty) { e.bytes = pack(e.value, packOpts); e.rows = e.value.length; e.dirty = false; e.disk = false; st.repacks++; }
       e.value = undefined; live--; st.pageOuts++;
@@ -4179,7 +4185,7 @@
       var best, i, e;
       while (live > Math.max(0, limit() - room)) {
         best = null;
-        for (i = 0; i < np; i++) { e = pages[i]; if (e.value !== undefined && i !== keep && (!best || e.used < best.used)) best = e; }
+        for (i = 0; i < np; i++) { e = pages[i]; if (isOpen(e) && i !== keep && (!best || e.used < best.used)) best = e; }
         if (!best) return;
         pageOut(best);
       }
@@ -4189,8 +4195,17 @@
       if (h.usedJSHeap && h.jsHeapLimit) lv = h.usedJSHeap >= h.jsHeapLimit * 0.8 ? 2 : h.usedJSHeap >= h.jsHeapLimit * 0.6 ? 1 : 0;
       if (lv !== level) { level = lv; if (typeof o.onPressure === 'function') o.onPressure(lv, P.memory()); }
     }
+    function openView(i) {                       // page i as columns (pageView): objects are made one row at a time; a page that cannot be shown this way is opened as objects
+      var e = pages[i], vo = packOpts.wasm === false ? { wasm: false } : undefined;
+      if (!e.bytes) jfail('page ' + i + ' is on disk: use await load(' + (i * rows) + ') or getAsync(' + (i * rows) + ') first');
+      if (auto && (st.pageIns & 15) === 0) checkHeap();
+      makeRoom(i, 1);
+      try { e.view = view(e.bytes, vo); } catch (x) { e.view = undefined; return open(i); }
+      live++; st.pageIns++; return e.view;
+    }
     function open(i) {                           // the rows of page i, opened now if they are not
       var e = pages[i];
+      if (e.value === undefined && e.view !== undefined) { e.view = undefined; live--; }       // a page shown as columns becomes objects when it is edited or read as a whole
       if (e.value === undefined) {
         if (!e.bytes) jfail('page ' + i + ' is on disk: use await load(' + (i * rows) + ') or getAsync(' + (i * rows) + ') first');
         if (auto && (st.pageIns & 15) === 0) checkHeap();
@@ -4212,9 +4227,14 @@
     P = {
       get length() { return n; },
       get: function (i) {                       // the object at row i (opens its page if needed)
-        var pi, v;
+        var pi, v, e0;
         if (!(i >= 0 && i < n)) return undefined;
-        pi = (i / rows) | 0; v = open(pi)[i - pi * rows];
+        pi = (i / rows) | 0;
+        if (asView) {
+          e0 = pages[pi];
+          if (e0.value === undefined) { if (e0.view === undefined) openView(pi); if (e0.view !== undefined) { e0.used = ++clock; lastPage = pi; return e0.view.get(i - pi * rows); } }
+        }
+        v = open(pi)[i - pi * rows];
         if (ahead && (pi === lastPage + 1 || pi === lastPage - 1)) ahead1(pi, pi > lastPage ? 1 : -1);
         lastPage = pi; return v;
       },
@@ -4246,7 +4266,7 @@
         });
       },
       set: function (i, value) { var pi = (row(i) / rows) | 0, e = pages[pi]; open(pi)[i - pi * rows] = value; e.dirty = true; },
-      changed: function (i) { var pi = (row(i) / rows) | 0; open(pi); pages[pi].dirty = true; },       // call after changing an object from get() in place
+      changed: function (i) { var pi = (row(i) / rows) | 0; if (asView) jfail('changed() cannot see a row that was read from a column page: use set(i, value)'); open(pi); pages[pi].dirty = true; },       // call after changing an object from get() in place
       push: function (value) {                  // adds a row at the end
         var last = pages[np - 1], v;
         if (!last || last.rows >= rows) { last = { bytes: null, rows: 0, value: [], dirty: true, used: ++clock, heap: 0, disk: false, stored: false }; pages[np++] = last; live++; makeRoom(np - 1, 0); }
@@ -4257,7 +4277,7 @@
         var want = keep >= 0 ? keep : limit(), best, i, e;
         while (live > want) {
           best = null;
-          for (i = 0; i < np; i++) { e = pages[i]; if (e.value !== undefined && (!best || e.used < best.used)) best = e; }
+          for (i = 0; i < np; i++) { e = pages[i]; if (isOpen(e) && (!best || e.used < best.used)) best = e; }
           if (!best) break;
           pageOut(best);
         }
@@ -4267,6 +4287,7 @@
       pressure: function (lv) { level = lv > 0 ? (lv > 1 ? 2 : 1) : 0; P.trim(); if (level === 2 && store && o.spillAt !== false) P.spill().catch(fail); return level; },        // 0 = normal, 1 = half the live pages, 2 = none kept
       load: function (i) {                      // a promise of row i's page opened (fetched from storage first if it was spilled); then get() works for every row of that page
         var pi = (row(i) / rows) | 0, e = pages[pi];
+        if (asView && e.bytes) return Promise.resolve(P);
         if (e.value !== undefined || e.bytes) { open(pi); return Promise.resolve(P); }
         return store.get(pkey(pi)).then(function (b) { e.bytes = b; e.disk = true; open(pi); return P; });
       },
@@ -4280,7 +4301,7 @@
           if (pe.disk) { pe.bytes = null; return Promise.resolve(); }
           return store.put(pkey(pi), b).then(function () { pe.stored = true; if (pe.bytes === b && pe.value === undefined) { pe.bytes = null; pe.disk = true; } });
         }
-        for (; i < np; i++) { e = pages[i]; if (e.value === undefined && e.bytes && !e.dirty) jobs.push(one(i, e)); }
+        for (; i < np; i++) { e = pages[i]; if (e.value === undefined && e.view === undefined && e.bytes && !e.dirty) jobs.push(one(i, e)); }
         return Promise.all(jobs).then(function () { return P; });
       },
       dispose: function () { var i, jobs = []; if (store) for (i = 0; i < np; i++) if (pages[i].stored) { pages[i].stored = false; pages[i].disk = false; jobs.push(store.remove(pkey(i))); }; return Promise.all(jobs).then(function () { return P; }); },
@@ -4308,7 +4329,7 @@
       calibrate: function (f) { if (f === undefined) return factor; factor = f; return factor; },
       memory: function () {
         var packed = 0, heap = 0, dirty = 0, spilled = 0, i, e;
-        for (i = 0; i < np; i++) { e = pages[i]; packed += e.bytes ? e.bytes.length : 0; if (!e.bytes && e.disk) spilled++; if (e.value !== undefined) heap += e.heap; if (e.dirty) dirty++; }
+        for (i = 0; i < np; i++) { e = pages[i]; packed += e.bytes ? e.bytes.length : 0; if (!e.bytes && e.disk) spilled++; if (e.value !== undefined) heap += e.heap; else if (e.view !== undefined) heap += Math.round(e.view.memory().restored * factor); if (e.dirty) dirty++; }
         return { rows: n, pages: np, pageRows: rows, open: live, dirty: dirty, packed: packed, openHeap: heap, spilled: spilled, level: level, pageIns: st.pageIns, pageOuts: st.pageOuts, repacks: st.repacks, hits: st.hits };
       }
     };
