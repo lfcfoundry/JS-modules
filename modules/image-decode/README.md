@@ -1,6 +1,6 @@
 # image-decode
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time
 
@@ -30,6 +30,12 @@ ImageDecode.loadAll(['hero.webp', 'tiles.webp', 'ui.webp'], {
   onEach: function (picture, index) { if (index === 0) startMenu(picture); }   // the first one is ready first
 }).then(function (list) { /* list[0], list[1], list[2] */ });
 
+// Decode the next stage's sheets in idle time while this stage plays, then draw them at once at the stage change (since 1.2.0):
+var next = ImageDecode.ahead({ forest: 'forest.webp', cave: 'cave.webp' });   // starts by itself, one picture at a time, when the page is idle
+// ... at the stage change:
+next.get('cave').then(function (sheet) { ctx.drawImage(sheet, 0, 0); });      // already there (next.ready('cave') is true), or starts it now if it is not
+next.release('forest'); next.cancel();   // free a picture you are done with; stop what has not started
+
 // Ship the smallest format the browser can read:
 ImageDecode.pick({ avif: 'sheet.avif', webp: 'sheet.webp', png: 'sheet.png' }).then(function (url) { return ImageDecode.load(url); });
 
@@ -49,6 +55,18 @@ A data: address is turned into bytes in place (`atob`), with no network request.
 `loadAll` starts the first `concurrency` pictures at once and the next one each time one finishes, so the browser is never handed the whole list, and the pictures come back in list order. It never rejects: a picture that cannot be read gives `null`.
 
 No wasm: the browser's decoder is already native code, so there is nothing for wasm to speed up here.
+
+## Decode ahead (`ahead()`, since 1.2.0)
+`ImageDecode.ahead(items[, opts])` decodes pictures before they are needed, one at a time (`concurrency`, default 1), each start waiting for an idle moment (`requestIdleCallback`, at most `timeout` ms, default 300, on a page that never goes idle; without it a short timer). `idle: 'now'` starts at once. `items` is an array or an object of sources. It returns `get(key)` (a promise of the drawable, started at once ahead of the queue if it had not started), `ready(key)`, `drawable(key)`, `release(key)`, `cancel()` and `count`; `onEach(drawable, key)` is called as each one finishes, and one bad picture rejects only its own `get()`.
+
+**Wait at the stage change, ms, lower is better** (a 2048 px sheet; request until it is drawn, first draw included; a stage playing at about 4 ms of work per frame; median of 5; Firefox, WebKit timers read whole ms). Load when asked / decoded ahead:
+
+| Sheet | Chromium 155.0.8059.39-1 | Firefox 158.0 | WebKitGTK 2.52.6 | GNOME Web 46.5 |
+|---|---|---|---|---|
+| PNG | 259 / 1.6 | 370 / 2 | 361 / 6 | 385 / 7 |
+| WebP | 286 / 1.6 | 366 / 2 | 452 / 64 | 341 / 73 |
+
+**Longest gap between frames of the playing stage while it decodes, ms, lower is better** (one frame is about 16.7): PNG 16.7 / 16.6, 17.2 / 17.1, 20 / 17, 21 / 17; WebP 16.7 / 16.7, 17.2 / 16.3, 77 / 16, 25 / 17. Decoding ahead did not add a stutter in any browser; WebKit's lossless WebP still pays 64 to 73 ms at the first draw after the wait (the browser decodes it lazily), so ship PNG there or draw it once off screen. Not measured: a phone.
 
 ## Which format is better for my sprites? (`format-check.html`)
 

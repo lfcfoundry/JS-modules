@@ -182,7 +182,7 @@
     },
     {
       "id": "image-decode",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "api": 1,
       "global": "ImageDecode",
       "summary": "Loads PNG, JPEG, WebP and AVIF pictures so the page does not freeze when they are first drawn: picks the right off-thread way for each browser, loads a list in order, and tells whether the browser can read WebP or AVIF.",
