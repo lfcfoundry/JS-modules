@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.4.7 (API 2)
+ * Version 2.4.9 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -31,11 +31,11 @@
  *  - refs: true now stores lists of shared objects by column too (links that point at the very node objects), not value by value.
  *  - float32: true (opt-in, lossy) keeps fraction columns in 4 bytes per value instead of 8 (relative error at most about 6e-8).
  *  - packAsync(value, {mode, workers}) (opt-in): a promise for exactly the bytes pack(value, {mode}) makes, without freezing the page. A long list of same-shape records (2,048 rows or more) is
- *    turned into columns and encoded in slices of about 3 ms with a yield between them; number columns of 1,024 rows or more go to up to 3 workers (MemoryCompression.pool({size}), each a copy of
+ *    turned into columns and encoded in slices of about 3 ms, and it yields only when a slice has used its time (a short list never yields); number columns of 1,024 rows or more go to up to 3 workers (MemoryCompression.pool({size}), each a copy of
  *    this file made from a blob: URL, so a page with a content-security-policy needs worker-src blob:). Without a pool, without Worker, with workers the page blocks, or when a worker fails, it
  *    still resolves with the same bytes (slices on the page, or a plain pack). pack() is unchanged. Do not change the list while it runs.
  *  - unpackAsync(bytes, opts) (opt-in): a promise for the same value unpack(bytes) gives, without holding the page for the whole open. A long list of same-shape records (2,048 rows or more,
- *    format 2 or newer, no shared objects) is opened one column at a time and its rows are made in slices of about 5 ms with a yield between them; records inside records, arrays and
+ *    format 2 or newer, no shared objects) is opened one column at a time and its rows are made in slices of about 5 ms, yielding only when a slice has used its time; records inside records, arrays and
  *    coordinate pairs are opened the same way. Anything else is opened as unpack() does. It uses no workers and needs no policy change. Errors come back as a rejected promise. unpack() is unchanged.
  *  - warm(opts) (opt-in): a promise; call it once when the page is idle. It packs and opens one made-up 1,200-row list (nine single-column lists, each pack and each open in a task of its own, about 3 to 10 ms
  *    each) and throws the result away, so the first real pack of a big list skips the engine's cold start. Output and format are unchanged; nothing is stored. It moves about 40 ms of work to idle time.

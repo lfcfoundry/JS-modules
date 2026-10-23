@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.4.7 (API 2)
+ * Version 2.4.9 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -31,11 +31,11 @@
  *  - refs: true now stores lists of shared objects by column too (links that point at the very node objects), not value by value.
  *  - float32: true (opt-in, lossy) keeps fraction columns in 4 bytes per value instead of 8 (relative error at most about 6e-8).
  *  - packAsync(value, {mode, workers}) (opt-in): a promise for exactly the bytes pack(value, {mode}) makes, without freezing the page. A long list of same-shape records (2,048 rows or more) is
- *    turned into columns and encoded in slices of about 3 ms with a yield between them; number columns of 1,024 rows or more go to up to 3 workers (MemoryCompression.pool({size}), each a copy of
+ *    turned into columns and encoded in slices of about 3 ms, and it yields only when a slice has used its time (a short list never yields); number columns of 1,024 rows or more go to up to 3 workers (MemoryCompression.pool({size}), each a copy of
  *    this file made from a blob: URL, so a page with a content-security-policy needs worker-src blob:). Without a pool, without Worker, with workers the page blocks, or when a worker fails, it
  *    still resolves with the same bytes (slices on the page, or a plain pack). pack() is unchanged. Do not change the list while it runs.
  *  - unpackAsync(bytes, opts) (opt-in): a promise for the same value unpack(bytes) gives, without holding the page for the whole open. A long list of same-shape records (2,048 rows or more,
- *    format 2 or newer, no shared objects) is opened one column at a time and its rows are made in slices of about 5 ms with a yield between them; records inside records, arrays and
+ *    format 2 or newer, no shared objects) is opened one column at a time and its rows are made in slices of about 5 ms, yielding only when a slice has used its time; records inside records, arrays and
  *    coordinate pairs are opened the same way. Anything else is opened as unpack() does. It uses no workers and needs no policy change. Errors come back as a rejected promise. unpack() is unchanged.
  *  - warm(opts) (opt-in): a promise; call it once when the page is idle. It packs and opens one made-up 1,200-row list (nine single-column lists, each pack and each open in a task of its own, about 3 to 10 ms
  *    each) and throws the result away, so the first real pack of a big list skips the engine's cold start. Output and format are unchanged; nothing is stored. It moves about 40 ms of work to idle time.
@@ -3131,6 +3131,32 @@
     genStore(sig, f);
     return f;
   }
+  // Rows without generated code (a page that forbids new Function): one plain function per number of fields, 1 to 16, each setting its keys in a fixed order. Measured against a loop over the
+  // keys (what this was before): opens 1.5 to 3x faster in Firefox, WebKitGTK and GNOME Web, a tie to 1.2x in Chromium. (Computed keys in the literal were tried: fast in Firefox, 3x slower in Chromium.)
+  var FIXED_ROWS = [null,
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0];for(i=from;i<to;i++){r={};r[k0]=c0[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7],k8=k[8],c8=c[8];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];r[k8]=c8[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7],k8=k[8],c8=c[8],k9=k[9],c9=c[9];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];r[k8]=c8[i];r[k9]=c9[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7],k8=k[8],c8=c[8],k9=k[9],c9=c[9],k10=k[10],c10=c[10];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];r[k8]=c8[i];r[k9]=c9[i];r[k10]=c10[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7],k8=k[8],c8=c[8],k9=k[9],c9=c[9],k10=k[10],c10=c[10],k11=k[11],c11=c[11];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];r[k8]=c8[i];r[k9]=c9[i];r[k10]=c10[i];r[k11]=c11[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7],k8=k[8],c8=c[8],k9=k[9],c9=c[9],k10=k[10],c10=c[10],k11=k[11],c11=c[11],k12=k[12],c12=c[12];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];r[k8]=c8[i];r[k9]=c9[i];r[k10]=c10[i];r[k11]=c11[i];r[k12]=c12[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7],k8=k[8],c8=c[8],k9=k[9],c9=c[9],k10=k[10],c10=c[10],k11=k[11],c11=c[11],k12=k[12],c12=c[12],k13=k[13],c13=c[13];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];r[k8]=c8[i];r[k9]=c9[i];r[k10]=c10[i];r[k11]=c11[i];r[k12]=c12[i];r[k13]=c13[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7],k8=k[8],c8=c[8],k9=k[9],c9=c[9],k10=k[10],c10=c[10],k11=k[11],c11=c[11],k12=k[12],c12=c[12],k13=k[13],c13=c[13],k14=k[14],c14=c[14];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];r[k8]=c8[i];r[k9]=c9[i];r[k10]=c10[i];r[k11]=c11[i];r[k12]=c12[i];r[k13]=c13[i];r[k14]=c14[i];out[i]=r;}},
+    function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7],k8=k[8],c8=c[8],k9=k[9],c9=c[9],k10=k[10],c10=c[10],k11=k[11],c11=c[11],k12=k[12],c12=c[12],k13=k[13],c13=c[13],k14=k[14],c14=c[14],k15=k[15],c15=c[15];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];r[k8]=c8[i];r[k9]=c9[i];r[k10]=c10[i];r[k11]=c11[i];r[k12]=c12[i];r[k13]=c13[i];r[k14]=c14[i];r[k15]=c15[i];out[i]=r;}}
+  ];
+  function plainCol(col) { return col.mode === 0 ? col.a : col.full(); }
+  function fixedRows(out, from, to, keys, cols) {
+    var f = FIXED_ROWS[keys.length], i, j, r, nk = keys.length;
+    if (f && keys.indexOf('__proto__') < 0) { f(out, from, to, keys, cols); return; }
+    for (i = from; i < to; i++) { r = {}; for (j = 0; j < nk; j++) define(r, keys[j], cols[j][i]); out[i] = r; }
+  }
   function define(o, k, v) { if (k === '__proto__') Object.defineProperty(o, k, { value: v, writable: true, enumerable: true, configurable: true }); else o[k] = v; }
 
   // ================================================================ reader
@@ -3755,7 +3781,8 @@
       for (j = 0; j < keys.length; j++) {
         if (cnt > 0) { var col = this.column(cnt); cols.push(col); modes.push(col.mode); args.push(col.a, col.d); }
       }
-      rows = builder(keys, modes).apply(null, args);
+      if (CAN_EVAL) rows = builder(keys, modes).apply(null, args);
+      else { rows = new Array(cnt); fixedRows(rows, 0, cnt, keys, cols.map(plainCol)); }
       counts.push(rows);
       shapes[i] = rows;
     }
@@ -3805,6 +3832,7 @@
     opts = opts || {};
     if (!TEXT_ENC) jfail('this environment has no TextEncoder');
     var defer = { jobs: [], dirs: [], cur: null }, o = {}, k, e, runner, T = opts.timing || null, tA = T ? performance.now() : 0, encoded;
+    SLICE_T = PIECE_T = performance.now();
     for (k in opts) o[k] = opts[k];
     o.defer = defer; o.hints = null;
     e = new Enc(o);
@@ -3817,14 +3845,23 @@
     return encoded.then(function () { return packAsyncRest(e, defer, value, opts, o, T, tA); });
   }
   var SLICE_MIN = 2048, SLICE_MS = 3, UNPACK_SLICE_MS = 5;
-  var YCH = null, YQ = [];                                                // one channel for every yield: making a channel per yield cost 1 to 2 ms each in Chromium
-  function nextTask() {
+  var YCH = null, YQ = [], SLICE_T = 0, PIECE_T = 0, RESOLVED = Promise.resolve();      // one channel for every yield: making a channel per yield cost 1 to 2 ms each in Chromium; SLICE_T: the clock when the running slice began
+  function nextTask() {                                                   // a real yield: the page's other tasks run, then the slice clock starts again
     return new Promise(function (res) {
-      if (typeof setImmediate === 'function') { setImmediate(res); return; }
-      if (typeof MessageChannel !== 'function') { setTimeout(res, 0); return; }
+      function resume() { SLICE_T = PIECE_T = performance.now(); res(); }
+      if (typeof setImmediate === 'function') { setImmediate(resume); return; }
+      if (typeof MessageChannel !== 'function') { setTimeout(resume, 0); return; }
       if (!YCH) { YCH = new MessageChannel(); YCH.port1.onmessage = function () { var f = YQ.shift(); if (f) f(); }; }
-      YQ.push(res); YCH.port2.postMessage(0);
+      YQ.push(resume); YCH.port2.postMessage(0);
     });
+  }
+  function pause(ms) {                                                    // between two pieces of work that cannot be cut (a column): yield when the slice has used its time, or when the piece just done (the next is usually as long) would not fit in what is left; a short job never yields
+    var t = performance.now(), piece = t - PIECE_T;
+    if (t - SLICE_T + piece >= (ms || SLICE_MS)) return nextTask();
+    PIECE_T = t; return RESOLVED;
+  }
+  function stepFor(step, dt, left) {                                      // rows for the next chunk: aims at the time left in the slice (dt is 0 or 1 whole milliseconds in some browsers)
+    return Math.max(256, Math.min(65536, Math.floor(step * (dt > 0.05 ? Math.max(0.25, left) / dt : 2))));
   }
   function fusedSlicer(keys, types) {                                    // fills columns from row `from` up to `to`: 0, -1 (a row does not fit) or -(2 + j) (key j held a non-number), like fusedExtractor
     var sig = 'g' + keys.join('\u0001') + '\u0002' + types.join(''), f = GEN_CACHE[sig], j, src, nk = keys.length;
@@ -3862,32 +3899,39 @@
       var cols = [], j, i = 0, step = 512;
       for (j = 0; j < nk; j++) cols.push(types[j] === 'n' ? takeF64(n) : new Array(n));
       function go() {
-        var t0 = performance.now(), r, to = Math.min(n, i + step), dt;
-        r = fusedSlicer(keys, types)(vals, i, to, keys, cols);
-        if (r !== 0) {
-          if (r === -1 || ++tries > nk) return null;
-          types[-r - 2] = 'a'; return attempt();
+        var t0, t1, r, to, dt;
+        for (;;) {
+          t0 = performance.now(); to = Math.min(n, i + step);
+          r = fusedSlicer(keys, types)(vals, i, to, keys, cols);
+          if (r !== 0) {
+            if (r === -1 || ++tries > nk) return null;
+            types[-r - 2] = 'a'; return attempt();
+          }
+          i = to; t1 = PIECE_T = performance.now(); dt = t1 - t0;
+          if (i >= n) { LEARNED[sig] = types; return cols; }
+          step = stepFor(step, dt, SLICE_MS - (t1 - SLICE_T));
+          if (t1 - SLICE_T >= SLICE_MS) return nextTask().then(go);
         }
-        i = to; dt = performance.now() - t0;
-        step = Math.max(256, Math.min(65536, Math.floor(step * (dt > 0.05 ? SLICE_MS / dt : 2))));
-        if (i >= n) { LEARNED[sig] = types; return cols; }
-        return nextTask().then(go);
       }
       return Promise.resolve().then(go);
     }
     return attempt();
   }
-  function slicedLoop(n, work, ms) {                                          // work(from, to) -> true to go on, anything else stops with that value; slices of about SLICE_MS, a yield between them
+  function slicedLoop(n, work, ms) {                                          // work(from, to) -> true to go on, anything else stops with that value; chunks sized to the time left in the slice, a yield only when the slice is used up
+    ms = ms || SLICE_MS;
     return new Promise(function (resolve, reject) {
       var i = 0, step = 512;
       function go() {
         try {
-          var t0 = performance.now(), to = Math.min(n, i + step), r = work(i, to), dt;
-          if (r !== true) { resolve(r); return; }
-          i = to; dt = performance.now() - t0;
-          step = Math.max(256, Math.min(65536, Math.floor(step * (dt > 0.05 ? (ms || SLICE_MS) / dt : 2))));
-          if (i >= n) { resolve(true); return; }
-          nextTask().then(go);
+          var t0, t1, to, r, dt;
+          for (;;) {
+            t0 = performance.now(); to = Math.min(n, i + step); r = work(i, to);
+            if (r !== true) { resolve(r); return; }
+            i = to; t1 = PIECE_T = performance.now(); dt = t1 - t0;
+            if (i >= n) { resolve(true); return; }
+            step = stepFor(step, dt, ms - (t1 - SLICE_T));
+            if (t1 - SLICE_T >= ms) { nextTask().then(go); return; }
+          }
         } catch (err) { reject(err); }
       }
       go();
@@ -3964,7 +4008,7 @@
   }
   function eachColumn(e, cols, count, j) {                                // the columns one after another, a yield between them
     if (j >= cols.length) return Promise.resolve(true);
-    return e.columnAsync(cols[j], count).then(function () { return nextTask(); }).then(function () { return eachColumn(e, cols, count, j + 1); });
+    return e.columnAsync(cols[j], count).then(function () { return pause(); }).then(function () { return eachColumn(e, cols, count, j + 1); });
   }
   Enc.prototype.columnAsync = function (vals, n) {                        // column() for the shapes that take long on the page, in slices; anything else is the plain call
     var e = this, first = vals[0], p;
@@ -3989,7 +4033,7 @@
       function step() {
         if (j >= nk) { e.path = path; return true; }
         var st = e.dirColumnBegin(j, keys, path), jj = j;
-        return e.columnAsync(cols[j], n).then(function () { e.dirColumnEnd(dir, st, jj); j++; return nextTask(); }).then(step);
+        return e.columnAsync(cols[j], n).then(function () { e.dirColumnEnd(dir, st, jj); j++; return pause(); }).then(step);
       }
       return step();
     });
@@ -4149,6 +4193,7 @@
   // shared objects, other values) is opened as unpack() does.
   function unpackAsync(bytes, opts) {
     var d, c, p0, n;
+    SLICE_T = PIECE_T = performance.now();
     try {
       d = open(bytes, opts); c = d.c; p0 = c.p;
       if (d.refs || d.ver < 2 || c.u8() !== T_COLS) { c.p = p0; return Promise.resolve(finishUnpack(d)); }
@@ -4189,11 +4234,17 @@
         d.keys = saved;
         if (c.p - c0 !== dirC[j] || d.bl.p - b0 !== dirB[j]) jfail('a column does not match its directory entry');
         cols.push(col); modes.push(col.mode); j++;
-        return nextTask();
+        return pause(UNPACK_SLICE_MS);
       }).then(columns);
     }
     return columns().then(function () {
-      var k, f = builderSlice(keys, modes), args = [out = new Array(n), 0, 0];
+      var k, f, args, plain;
+      out = new Array(n);
+      if (!CAN_EVAL) {
+        plain = cols.map(plainCol);
+        return slicedLoop(n, function (from, to) { fixedRows(out, from, to, keys, plain); return true; }, UNPACK_SLICE_MS);
+      }
+      f = builderSlice(keys, modes); args = [out, 0, 0];
       for (k = 0; k < nk; k++) { args.push(cols[k].a); args.push(cols[k].d); }
       return slicedLoop(n, function (from, to) { args[1] = from; args[2] = to; f.apply(null, args); return true; }, UNPACK_SLICE_MS);
     }).then(function () { return new Col(n, 0, out, null); });
@@ -4204,7 +4255,7 @@
     d.spend(n * k);
     function next() {
       if (j >= k) return true;
-      return d.columnAsync(n).then(function (col) { cols.push(col); j++; return nextTask(); }).then(next);
+      return d.columnAsync(n).then(function (col) { cols.push(col); j++; return pause(UNPACK_SLICE_MS); }).then(next);
     }
     return next().then(function () {
       var c0 = cols[0], c1 = cols[1], x0 = k === 2 && c0.mode === 0 ? c0.a : null, x1 = k === 2 && c1.mode === 0 ? c1.a : null, fast = x0 instanceof Float64Array && x1 instanceof Float64Array;
@@ -4628,7 +4679,7 @@
   }
   function pager(list, opts) {
     var store, uid = Math.random().toString(36).slice(2, 10), o = pagerAuto(list, opts), rows = o.pageRows > 0 ? Math.floor(o.pageRows) : 2048, n = list.length, np = Math.ceil(n / rows), pages = new Array(np), maxLive = o.livePages >= 0 ? Math.floor(o.livePages) : 4,
-      asView = !!o.pageView, coldOn = !!o.cold, coldAfter = o.coldAfter > 0 ? o.coldAfter : 3000, lastTouch = 0, coldTimer = null, coolBad = false, ahead = o.readAhead !== false && !o.pageView, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
+      asView = !!o.pageView, coldOn = !!o.cold, coldAfter = o.coldAfter > 0 ? o.coldAfter : 3000, touched = 0, coldTimer = null, coolBad = false, ahead = o.readAhead !== false && !o.pageView, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
     packOpts.hints = {};                         // each column remembers which number ways won on earlier pages (every 4th pack still tries them all)
     for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError' && k !== 'deviceMemory' && k !== 'heapBytes' && k !== 'pageView' && k !== 'cold' && k !== 'coldAfter') packOpts[k] = o[k];
     if (!Array.isArray(list)) jfail('pager() needs an array');
@@ -4700,7 +4751,7 @@
         var pi, v, e0;
         if (!(i >= 0 && i < n)) return undefined;
         pi = (i / rows) | 0;
-        if (coldOn) lastTouch = performance.now();
+        touched = 1;                                  // cold: a flag, not the clock: get() is on the hot path, the timer below looks at the flag
         if (asView) {
           e0 = pages[pi];
           if (e0.value === undefined) { if (e0.view === undefined) openView(pi); if (e0.view !== undefined) { e0.used = ++clock; lastPage = pi; return e0.view.get(i - pi * rows); } }
@@ -4834,7 +4885,7 @@
       }
     };
     if (coldOn && typeof setInterval === 'function') {                    // after coldAfter ms without a read, closed pages are cooled in the background
-      coldTimer = setInterval(function () { if (performance.now() - lastTouch >= coldAfter) P.cool().catch(fail); }, coldAfter);
+      coldTimer = setInterval(function () { if (touched) touched = 0; else P.cool().catch(fail); }, coldAfter);      // a whole interval without a get(): cool
       if (coldTimer && typeof coldTimer.unref === 'function') coldTimer.unref();
     }
     if (o.background) P.ready = P.settle();
@@ -4856,7 +4907,7 @@
       if (url) { try { URL.revokeObjectURL(url); } catch (x) { } url = null; }
       for (id in pending) { p = pending[id]; delete pending[id]; p.fail(why); }
     }
-    function start() {
+    function begin() {
       var src, i, w;
       if (!usable || ws.length) return;
       try {
@@ -4873,7 +4924,7 @@
     }
     function run(jobs) {
       var order = [], load = [], mine = [], i, k, w, ps = [], rows = 0, timer = null, results = new Array(jobs.length), all;
-      start();
+      begin();
       if (!usable || !ws.length) return Promise.resolve(jobs.map(function (j) { return j.kind === 1 ? colsFor(j.src, j.n, j.a, j.wopts) : adaptFor(j.src, j.mode, j.wasm); }));
       for (i = 0; i < jobs.length; i++) { order.push(i); rows += jobs[i].n; }
       order.sort(function (a, b) { return jobs[b].n - jobs[a].n; });
@@ -4895,8 +4946,20 @@
       if (timer && timer.unref) timer.unref();
       return all.then(function (r) { clearTimeout(timer); return results; }, function (err) { clearTimeout(timer); throw err; });
     }
+    var primed = false, handle;
+    function start() {                                             // pool.start(): make the workers now and pack a small made-up list once with them (the result is thrown away), so the first real packAsync does not pay for loading the file and for the first run of the code on both sides
+      var sample = [], i;
+      begin();
+      if (primed || !usable || !ws.length) return;
+      primed = true;
+      try {
+        for (i = 0; i < 2500; i++) sample.push({ id: i, a: (i * 7919) % 900, b: (i * 104729) % 913, w: ((i * 31) % 1000) / 10, t: 1700000000 + i * 37 + (i * i) % 29 });
+        unified.packAsync(sample, { mode: 'balanced', workers: handle }).then(function () { }, function () { });
+      } catch (err) { }
+    }
     function close() { fail('closed'); }
-    return { run: run, close: close, start: start, size: size };
+    handle = { run: run, close: close, start: start, size: size };
+    return handle;
   }
 
   var jso = {
