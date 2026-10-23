@@ -28,7 +28,7 @@ The Story Editor and the games are single files that people keep in several fold
 
 ## Measured
 - **2026-10-14**, desktop Firefox 158 and Chromium: `file:` pages in different folders **share** localStorage, see each other's writes live and see each other's locks. Phones and other browsers may differ, which is the reason for the page.
-- **2026-10-17**, Chromium 141 (headless): pages from different folders share **one bucket including its limit** of about 5.24 million characters. After page A wrote 1.5 million characters, page B saw the key and had only 3.74 million left. On a computer, all the games and the editor opened from files share that space, so one big save can leave another game with no room; each needs its own key prefix. `navigator.storage.persist()` answered `false` for a file page. Firefox, Windows and the Pixel are still unmeasured.
+- **2026-10-17**, Chromium 141 (headless): pages from different folders share **one bucket including its limit** of about 5.24 million characters. After page A wrote 1.5 million characters, page B saw the key and had only 3.74 million left. On a computer, all the games and the editor opened from files share that space, so one big save can leave another game with no room; each needs its own key prefix. `navigator.storage.persist()` answered `false` for a file page. Firefox, Windows and Android phones are still unmeasured.
 
 ## Phone recipe (five steps)
 1. Open `storage-probe.html` on the phone and press **Run the check**.
