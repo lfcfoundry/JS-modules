@@ -362,7 +362,7 @@
     },
     {
       "id": "netflow-layers",
-      "version": "1.3.1",
+      "version": "1.3.2",
       "api": 1,
       "global": "NetflowLayers",
       "summary": "Lays out a graph in rows (top to bottom or left to right) with story order, tags instead of very long links, a column for the pages every route passes, and tall maps cut into columns; 20,000-page maps draw in about 0.4 s.",

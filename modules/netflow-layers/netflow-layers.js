@@ -2,7 +2,7 @@
  * netflow-layers.js: lay out a graph in rows (a Sugiyama-style layered drawing): top to bottom or left to right, with long links as tags, story order, a column for the pages every route passes, and tall maps cut into columns. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.1 (API 1)
+ * Version 1.3.2 (API 1)
  *
  *   var R = NetflowLayers.layout({ nodes: [{ id: "start", w: 140, h: 44 }, { id: "a", w: 140, h: 44 }], edges: [{ from: "start", to: "a" }], root: "start" }, { dir: "TB" });
  *   svgElement.innerHTML = NetflowLayers.toSvg(R);          // or draw R.nodes and R.edges yourself (see README)
@@ -168,38 +168,39 @@
     }
     var L = [], vert = [];
     var addV = function (rec, k) { rec.layer = k; rec.idx = vert.length; vert.push(rec); (L[k] = L[k] || []).push(rec); return rec; };
-    G.nodes.forEach(function (n) { n.v = addV({ id: n.id, node: n, dummy: false }, layer[n.id]); });
+    /* a box's own stop and a link's run of stand-in stops are kept in side lists (not as fields of the caller's objects, which would have to be deleted again: deleting a field makes every object slow) */
+    var nodeIx = {}, chains = new Array(G.edges.length);
+    G.nodes.forEach(function (n, ni) { nodeIx[n.id] = ni; addV({ id: n.id, node: n, dummy: false }, layer[n.id]); });
     var lkA = [], lkB = [], lkW = [];   // the stand-in links, three lists side by side (from, to, weight)
     var addLink = function (a, b, w) { lkA.push(a); lkB.push(b); lkW.push(w); };
     G.edges.forEach(function (e, ei0) {
-      var a = byNode[e.from], b = byNode[e.to], la = layer[e.from], lb = layer[e.to];
-      e.chain = [];
+      var a = vert[nodeIx[e.from]], b = vert[nodeIx[e.to]], la = layer[e.from], lb = layer[e.to], chain = chains[ei0] = [];
       if (e.from === e.to) { e.kind = 'self'; return; }
       if (la === lb) { e.kind = 'flat'; return; }
       if (tagged(la, lb)) { e.kind = 'tag'; e.tagFwd = lb > la; return; }
       e.kind = lb > la ? 'fwd' : 'back';
       var bm = bundle ? bundle.mode[ei0] : null;
       if (bm) {
-        var tn = byNode[topOf(e)], bn = byNode[botOf(e)], lt = Math.min(la, lb), lbm = Math.max(la, lb), nd = lbm - lt - 1, part;
+        var tid = topOf(e), bid = botOf(e), tv = vert[nodeIx[tid]], bv = vert[nodeIx[bid]], lt = Math.min(la, lb), lbm = Math.max(la, lb), nd = lbm - lt - 1, part;
         if (bm === 'top') {
-          var tr = bundle.topTrunk[tn.id] || (bundle.topTrunk[tn.id] = []);
-          while (tr.length < nd) { var dd = addV({ dummy: true, edge: e }, lt + 1 + tr.length); addLink(tr.length ? tr[tr.length - 1] : tn.v, dd, tr.length ? 8 : 2); tr.push(dd); }
-          part = tr.slice(0, nd); addLink(tr[nd - 1], bn.v, 2);
+          var tr = bundle.topTrunk[tid] || (bundle.topTrunk[tid] = []);
+          while (tr.length < nd) { var dd = addV({ dummy: true, edge: e }, lt + 1 + tr.length); addLink(tr.length ? tr[tr.length - 1] : tv, dd, tr.length ? 8 : 2); tr.push(dd); }
+          part = tr.slice(0, nd); addLink(tr[nd - 1], bv, 2);
         } else {
-          var tb = bundle.botTrunk[bn.id] || (bundle.botTrunk[bn.id] = []);
-          while (tb.length < nd) { var d3 = addV({ dummy: true, edge: e }, lbm - 1 - tb.length); addLink(d3, tb.length ? tb[tb.length - 1] : bn.v, tb.length ? 8 : 2); tb.push(d3); }
-          part = tb.slice(0, nd).reverse(); addLink(tn.v, tb[nd - 1], 2);
+          var tb = bundle.botTrunk[bid] || (bundle.botTrunk[bid] = []);
+          while (tb.length < nd) { var d3 = addV({ dummy: true, edge: e }, lbm - 1 - tb.length); addLink(d3, tb.length ? tb[tb.length - 1] : bv, tb.length ? 8 : 2); tb.push(d3); }
+          part = tb.slice(0, nd).reverse(); addLink(tv, tb[nd - 1], 2);
         }
-        e.chain = lb > la ? part : part.reverse();
+        chains[ei0] = lb > la ? part : part.reverse();
         return;
       }
-      var lo = Math.min(la, lb), hi = Math.max(la, lb), prevV = (lb > la ? a : b).v;
+      var lo = Math.min(la, lb), hi = Math.max(la, lb), prevV = lb > la ? a : b;
       for (var k = lo + 1; k < hi; k++) {
         var d = addV({ dummy: true, edge: e }, k);
-        e.chain.push(d); addLink(prevV, d, prevV.dummy ? 8 : 2); prevV = d;
+        chain.push(d); addLink(prevV, d, prevV.dummy ? 8 : 2); prevV = d;
       }
-      addLink(prevV, (lb > la ? b : a).v, prevV.dummy ? 2 : 1);
-      if (e.kind === 'back') e.chain.reverse();
+      addLink(prevV, lb > la ? b : a, prevV.dummy ? 2 : 1);
+      if (e.kind === 'back') chain.reverse();
     });
     /* the neighbors of every stop, as flat lists: neighbors of stop i are idx[off[i] .. off[i + 1] - 1] with weights w[...], in the order the links were made */
     var nV = vert.length, nLk = lkA.length;
@@ -239,9 +240,12 @@
         v.key = v.dummy ? (dfsRank[v.edge.from] + dfsRank[v.edge.to]) / 2 / rn : (prev[v.id] !== undefined ? prev[v.id] : dfsRank[v.id] / rn);
       });
     });
+    /* place in its row, lane and average neighbor place of every stop in flat lists by stop number (v.pos is kept in step for the code after the rows are final) */
+    var posA = new Int32Array(nV), laneA = new Float64Array(nV), baryA = new Float64Array(nV);
+    vert.forEach(function (v) { laneA[v.idx] = laneOf(v); });
     L.forEach(function (list) {
-      list.sort(function (a, b) { return laneOf(a) - laneOf(b) || a.key - b.key; });
-      list.forEach(function (v, i) { v.pos = i; });
+      list.sort(function (a, b) { return laneA[a.idx] - laneA[b.idx] || a.key - b.key; });
+      list.forEach(function (v, i) { v.pos = i; posA[v.idx] = i; });
     });
     /* crossings between row k and row k+1 on flat number lists (the same count as mapCrossPairs gives): each link is one number, upper place * K + lower place, sorted as numbers */
     var maxSeg = 0, maxLen = 0;
@@ -249,7 +253,7 @@
     var keyBuf = new Float64Array(maxSeg), fen = new Int32Array(maxLen + 2);
     var crossBetween = function (k) {
       var K = L[k + 1].length + 1, n = 0, list = L[k], i, j, t;
-      for (i = 0; i < list.length; i++) { var u = list[i], base = u.pos * K; for (j = down.off[u.idx]; j < down.off[u.idx + 1]; j++) keyBuf[n++] = base + vert[down.idx[j]].pos; }
+      for (i = 0; i < list.length; i++) { var u = list[i], base = posA[u.idx] * K; for (j = down.off[u.idx]; j < down.off[u.idx + 1]; j++) keyBuf[n++] = base + posA[down.idx[j]]; }
       if (n < 2) return 0;
       var keys = keyBuf.subarray(0, n); keys.sort();
       fen.fill(0, 0, K + 1);
@@ -276,19 +280,19 @@
       for (i = 0; i < list.length; i++) {
         var v = list[i], a = nb.off[v.idx], z = nb.off[v.idx + 1], cnt = z - a;
         if (medianNow && cnt) {
-          for (j = 0; j < cnt; j++) { var pv = vert[nb.idx[a + j]].pos, q = j - 1; while (q >= 0 && scratch[q] > pv) { scratch[q + 1] = scratch[q]; q--; } scratch[q + 1] = pv; }
-          var mid = cnt >> 1; v.bary = cnt % 2 ? scratch[mid] : (scratch[mid - 1] + scratch[mid]) / 2;
-        } else if (cnt) { var sum = 0; for (j = a; j < z; j++) sum += vert[nb.idx[j]].pos; v.bary = sum / cnt; }
-        else v.bary = v.pos;
+          for (j = 0; j < cnt; j++) { var pv = posA[nb.idx[a + j]], q = j - 1; while (q >= 0 && scratch[q] > pv) { scratch[q + 1] = scratch[q]; q--; } scratch[q + 1] = pv; }
+          var mid = cnt >> 1; baryA[v.idx] = cnt % 2 ? scratch[mid] : (scratch[mid - 1] + scratch[mid]) / 2;
+        } else if (cnt) { var sum = 0; for (j = a; j < z; j++) sum += posA[nb.idx[j]]; baryA[v.idx] = sum / cnt; }
+        else baryA[v.idx] = posA[v.idx];
       }
-      list.sort(function (a, b) { return laneOf(a) - laneOf(b) || a.bary - b.bary || a.pos - b.pos; });
-      for (i = 0; i < list.length; i++) list[i].pos = i;
+      list.sort(function (a, b) { return laneA[a.idx] - laneA[b.idx] || baryA[a.idx] - baryA[b.idx] || posA[a.idx] - posA[b.idx]; });
+      for (i = 0; i < list.length; i++) { list[i].pos = i; posA[list[i].idx] = i; }
     };
     var transpose = function (k) {
       var improved = true, guard = 0, before, after;
       var tally = function (ax, bx, nb) {
         for (var p = nb.off[ax]; p < nb.off[ax + 1]; p++) for (var q = nb.off[bx]; q < nb.off[bx + 1]; q++) {
-          var x = vert[nb.idx[p]].pos, y = vert[nb.idx[q]].pos;
+          var x = posA[nb.idx[p]], y = posA[nb.idx[q]];
           if (x > y) before++; else if (x < y) after++;
         }
       };
@@ -296,11 +300,11 @@
         improved = false;
         for (var i = 0; i + 1 < L[k].length; i++) {
           var a = L[k][i], b = L[k][i + 1];
-          if (laneOf(a) !== laneOf(b)) continue;
+          if (laneA[a.idx] !== laneA[b.idx]) continue;
           before = 0; after = 0;
           if (k + 1 < nL) tally(a.idx, b.idx, down);
           if (k > 0) tally(a.idx, b.idx, up);
-          if (after < before) { a.pos = i + 1; b.pos = i; L[k][i] = b; L[k][i + 1] = a; improved = true; }
+          if (after < before) { a.pos = i + 1; b.pos = i; posA[a.idx] = i + 1; posA[b.idx] = i; L[k][i] = b; L[k][i + 1] = a; improved = true; }
         }
       }
     };
@@ -314,30 +318,32 @@
       var c = totalCross();
       if (c < bestC) { bestC = c; best = snapshot(); }
     }
-    best.forEach(function (list, k) { L[k] = list; list.forEach(function (v, i) { v.pos = i; }); });
+    best.forEach(function (list, k) { L[k] = list; list.forEach(function (v, i) { v.pos = i; posA[v.idx] = i; }); });
     var across = function (v) { return v.dummy ? 0 : LR ? v.node.h : v.node.w; };
     var wide = opts.spread === 'wide', gapN = (opts.gapNode !== undefined ? opts.gapNode : LR ? 22 : 28) * (wide ? (LR ? 1.4 : 2.4) : 1), gapD = 12 * (wide ? (LR ? 1.3 : 2) : 1);
     var gapOf = function (a, b) { return (across(a) + across(b)) / 2 + (a.dummy || b.dummy ? gapD : gapN) + (opts.lane && laneOf(a) !== laneOf(b) ? 40 : 0); };
+    /* the place of every stop and the gap before it live in flat lists by stop number; the gap before a stop never changes once the rows are final */
+    var cA = new Float64Array(nV), gapBefore = new Float64Array(nV), chokeA = new Uint8Array(nV);
     L.forEach(function (list) {
       var c2 = 0;
-      list.forEach(function (v, i) { if (i) c2 += gapOf(list[i - 1], v); v.c = c2; });
+      list.forEach(function (v, i) { if (i) { gapBefore[v.idx] = gapOf(list[i - 1], v); c2 += gapBefore[v.idx]; } cA[v.idx] = c2; });
     });
-    var isChoke = function (v) { return !v.dummy && opts.spine && v.node.choke; };
+    vert.forEach(function (v) { if (!v.dummy && opts.spine && v.node.choke) chokeA[v.idx] = 1; });
     /* the row placement on flat number lists: the same arithmetic as mapPlaceLine, in the same order, with no list made per row */
     var P = { want: new Float64Array(maxLen), wt: new Float64Array(maxLen), gaps: new Float64Array(maxLen), off: new Float64Array(maxLen), bs: new Float64Array(maxLen), bw: new Float64Array(maxLen), bn: new Int32Array(maxLen), out: new Float64Array(maxLen) };
     var placeLayer = function (list, nb) {
-      var n = list.length, want = P.want, wt = P.wt, gaps = P.gaps, off = P.off, bs = P.bs, bw = P.bw, bn = P.bn, out = P.out, i, j;
+      var n = list.length, want = P.want, wt = P.wt, gaps = P.gaps, off = P.off, bs = P.bs, bw = P.bw, bn = P.bn, out = P.out, nbOff = nb.off, nbIdx = nb.idx, nbW = nb.w, i, j;
       if (!n) return;
       for (i = 0; i < n; i++) {
-        var v = list[i], na = nb.off[v.idx], nz = nb.off[v.idx + 1], s = 0, sw = 0;
-        for (j = na; j < nz; j++) { s += vert[nb.idx[j]].c * nb.w[j]; sw += nb.w[j]; }
-        if (isChoke(v)) { want[i] = 0; wt[i] = 1000; }
+        var v = list[i], vi = v.idx, na = nbOff[vi], nz = nbOff[vi + 1], s = 0, sw = 0;
+        for (j = na; j < nz; j++) { s += cA[nbIdx[j]] * nbW[j]; sw += nbW[j]; }
+        if (chokeA[vi]) { want[i] = 0; wt[i] = 1000; }
         else {
-          var mid = sw ? s / sw : v.c;
-          if (wide && sw && !v.dummy && nz - na > 1) { var lo = Infinity, hi = -Infinity; for (j = na; j < nz; j++) { lo = Math.min(lo, vert[nb.idx[j]].c); hi = Math.max(hi, vert[nb.idx[j]].c); } mid = (lo + hi) / 2; }   // wide: over the middle of its neighbors, like a tree
+          var mid = sw ? s / sw : cA[vi];
+          if (wide && sw && !v.dummy && nz - na > 1) { var lo = Infinity, hi = -Infinity; for (j = na; j < nz; j++) { lo = Math.min(lo, cA[nbIdx[j]]); hi = Math.max(hi, cA[nbIdx[j]]); } mid = (lo + hi) / 2; }   // wide: over the middle of its neighbors, like a tree
           want[i] = mid; wt[i] = sw ? sw + (v.dummy ? 2 : 0) : 0.2;
         }
-        if (i) gaps[i - 1] = gapOf(list[i - 1], v);
+        if (i) gaps[i - 1] = gapBefore[vi];
       }
       off[0] = 0;
       for (i = 1; i < n; i++) off[i] = off[i - 1] + gaps[i - 1];
@@ -349,7 +355,7 @@
       var at = 0;
       for (var bi = 0; bi < m; bi++) { var val = bs[bi] / bw[bi]; for (var kk = 0; kk < bn[bi]; kk++, at++) out[at] = val + off[at]; }
       for (i = 1; i < n; i++) if (out[i] < out[i - 1] + gaps[i - 1]) out[i] = out[i - 1] + gaps[i - 1];
-      for (i = 0; i < n; i++) list[i].c = out[i];
+      for (i = 0; i < n; i++) cA[list[i].idx] = out[i];
     };
     var both = (function () {   // up neighbors first, then down neighbors, for each stop
       var off = new Int32Array(nV + 1), idx = new Int32Array(2 * nLk), w = new Float64Array(2 * nLk), at = 0, i, j;
@@ -365,6 +371,7 @@
       for (var k4 = 1; k4 < nL; k4++) placeLayer(L[k4], it2 % 3 === 2 ? both : up);
       for (var k5 = nL - 2; k5 >= 0; k5--) placeLayer(L[k5], it2 % 3 === 2 ? both : down);
     }
+    vert.forEach(function (v) { v.c = cA[v.idx]; });
     var lanes = [];
     if (opts.lane) {
       var ext = {};
@@ -411,7 +418,7 @@
       n.y = LR ? pad + acrossC - n.h / 2 : pad + along - n.h / 2;
     });
     lanes = lanes.map(function (l) { return { lane: l.lane, from: pad + l.from - minC, to: pad + l.to - minC }; });
-    G.edges.forEach(function (e) { e.pts = e.chain.map(function (v) { return [v.x, v.y]; }); });
+    G.edges.forEach(function (e, ei) { e.pts = chains[ei].map(function (v) { return [v.x, v.y]; }); });
     var W = 0, H = 0;
     G.nodes.forEach(function (n) { W = Math.max(W, n.x + n.w); H = Math.max(H, n.y + n.h); });
     vert.forEach(function (v) { if (v.dummy) { W = Math.max(W, v.x); H = Math.max(H, v.y); } });
@@ -419,8 +426,7 @@
     var ord = {};
     L.forEach(function (list) { list.forEach(function (v) { if (!v.dummy) ord[v.id] = (v.pos + 0.5) / list.length; }); });
     var pos = {};
-    G.nodes.forEach(function (n) { pos[n.id] = n; delete n.v; });
-    G.edges.forEach(function (e) { delete e.chain; });
+    G.nodes.forEach(function (n) { pos[n.id] = n; });
     var ruler = depthOf.map(function (dm, k) { var b = wrapR ? Math.floor(k / wrapR) : 0; return { at: pad + dm[0] + dm[1] / 2 - bY[b], edge: pad + (wrapR && bLo[b] !== undefined ? bLo[b] - minC + bX[b] : 0) }; });
     var kinds = { fwd: 0, back: 0, flat: 0, self: 0, tag: 0 };
     var goldTags = 0;
@@ -502,5 +508,5 @@
     return out.join('\n');
   }
 
-  return { version: '1.3.1', layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
+  return { version: '1.3.2', layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
 }));
