@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.1 · API 2 · 2026-10-22
+- 2.4.1: pager() can keep open pages as columns; for lists of numbers that halves the memory of an open page and opens it about 2 to 3 times faster.
+
 ## 2.4.0 · API 2 · 2026-10-22
 - 2.4.0: after a big pack the module gives its spare memory back by itself once the page is quiet for 2 seconds.
 
