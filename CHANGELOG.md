@@ -27,7 +27,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.4.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.4.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
@@ -52,6 +52,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-10-23 · **pcodec-js** 1.6.0 · API 1: Smaller and lighter: files are 46% to 57% smaller (program stored deflated), big unpacks use 6 MB instead of 36 MB of wasm memory, idle pool workers end after idleMs (4 s). A warm 4M-number unpack is 19-24% slower in WebKit browsers.
+- 2026-10-23 · **memory-compression** 2.4.2 · API 2: 2.4.2: pager() can repack pages nobody is reading 15 to 18% smaller in a background worker, by itself when idle or before moving them to storage (needs worker-src blob: in the page's security policy).
 - 2026-10-22 · **zip-open** 1.3.0 · API 1: The WebAssembly checksum now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 - 2026-10-22 · **webkit-driver** 1.4.0 · API 1: 1.4.0: new runScript() runs script text without eval, waitForFunction no longer needs eval, and fuzz-kit debug messages are passed on.
 - 2026-10-22 · **walker-sim** 2.3.0 · API 2: The WebAssembly loop now starts compiling in the background when the file loads; walker-sim-wasm adds wasmReady() and wasmModule().
