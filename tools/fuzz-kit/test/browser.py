@@ -70,6 +70,11 @@ with sync_playwright() as p:
     hang_adapter = adapter.replace("{ name: 'tap', weight: 6, run: function () { app.tap(); } },", "{ name: 'tap', weight: 6, run: function () { app.tap(); } }, { name: 'freeze', weight: 1, run: function () { for (;;); } },")
     t0 = time.time(); r = mod.run_seed(br, app_url, hang_adapter, 1, 200, seed_secs=3, hang_trace=True)
     check("a frozen page is reported as hung, naming the operation, within a few seconds", bool(r["fails"]) and r["fails"][0]["op"] == "hung" and "freeze" in r["fails"][0]["what"] and time.time() - t0 < 20, (r["fails"][:1], round(time.time() - t0, 1)))
+    # a page whose policy has no 'unsafe-eval' (every game here): the runner must not wait with script that needs eval
+    csp = pathlib.Path(tempfile.mkdtemp()) / "csp.html"
+    csp.write_text((ROOT / "example" / "app.html").read_text().replace("<meta charset=\"utf-8\">", "<meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:\">", 1)); assert "Content-Security-Policy" in csp.read_text()
+    r = mod.run_seed(br, csp.as_uri(), adapter, 1, 200)
+    check("a page with a strict policy (no unsafe-eval) runs all its operations", r["fails"] == [] and r["ops"] == 200, (r["fails"][:1], r.get("ops")))
     br.close()
 
 # 7b. Fuzzer.Input.pickVisible: picks only visible, enabled controls, spreads over them, honors a skip test, and says null when none is visible
