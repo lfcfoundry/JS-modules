@@ -22,8 +22,9 @@
     o = o || {};
     root.__fuzzR = null; root.__fuzzNeed = null; root.__fuzzWake = null; root.__fuzzLast = '';
     root.__fuzzTake = function () { var n = root.__fuzzNeed; root.__fuzzNeed = null; return n; };
+    function ready() { try { root.console.debug('__fuzz-ready'); } catch (e) { } }   // tells the runner to look, so it never has to poll with eval (a strict CSP forbids that)
     root.__fuzzGive = function () { var w = root.__fuzzWake; root.__fuzzWake = null; if (w) w(); return 1; };
-    if (o.real) root.__fuzzReal = function (req) { return new Promise(function (resolve) { root.__fuzzNeed = req; root.__fuzzWake = resolve; }); };
+    if (o.real) root.__fuzzReal = function (req) { return new Promise(function (resolve) { root.__fuzzNeed = req; root.__fuzzWake = resolve; ready(); }); };
     else root.__fuzzReal = undefined;
     var F = root.Fuzzer;
     function cfgFor() {
@@ -58,7 +59,7 @@
             ops: s.script.map(function (e) { return e.op; }), script: s.script, finding: s.finding };
           delete r.script; return r;
         });
-      }).then(function (r) { root.__fuzzR = r; }, function (e) { root.__fuzzR = { error: 'driver: ' + msg(e) }; });
+      }).then(function (r) { root.__fuzzR = r; ready(); }, function (e) { root.__fuzzR = { error: 'driver: ' + msg(e) }; ready(); });
 
     }, 0);
     return 1;
