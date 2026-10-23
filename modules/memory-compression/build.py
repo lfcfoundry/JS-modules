@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 2.4.1 (API 2)
+# Version 2.4.2 (API 2)
 """Builds memory-compression.js: header + the packing core (src/core.js) + the number picker, object layer, keeper and pager (src/) + the router that picks the layer (src/router.js).
 Run:  python3 modules/memory-compression/build.py   (after changing the core, the layer or the router)"""
 import os, re, sys
@@ -19,7 +19,7 @@ out = head + """(function (root, factory) {
   var api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   else { root.MemoryCompression = api; root.MemoryCompressionJSO = api.jso; }
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function mcFactory() {
   'use strict';
 
   // ================================================================ the packing core (bytes and typed arrays; its WebAssembly helper is inside)
