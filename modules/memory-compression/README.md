@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.3.5 · API 2**
+**Version 2.4.0 · API 2**
 
-**Tested in:** node modules/memory-compression/test/run.js 52 of 52 (one new: nested coordinate lists); 126 old-build packs unpacked by old and new builds with identical results; four browsers, one at a time, 15 turns, both load orders, Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
+**Tested in:** node test/run.js 53/53; four browsers one at a time under the shared timing lock: Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
 

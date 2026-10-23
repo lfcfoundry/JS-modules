@@ -620,6 +620,14 @@ t('nested coordinate lists: arrays of pairs (decimal, whole-number and mixed), e
   for (m = 0; m < modes.length; m++) { out = J.unpack(J.pack(rows, opt({ mode: modes[m] }))); for (i = 0; i < rows.length; i += 37) same(rows[i], out[i], modes[m] + ' row ' + i); }
 });
 
+t('idle release: the helpers give their memory back and a later pack makes the very same bytes', function () {
+  var rows = many(30000, function (i) { return { id: i, label: 'node ' + i + ' harbor', x: i / 3.1, y: (i * 7) % 1000 / 10, tags: ['a', 'b' + (i % 5)] }; }), a = J.pack(rows, opt({ mode: 'balanced' })), b, c;
+  J.freeBuffers(); assert.strictEqual(typeof require(path.resolve(modPath)).trimMemory, 'function'); require(path.resolve(modPath)).trimMemory();
+  b = J.pack(rows, opt({ mode: 'balanced' })); c = J.pack(rows, opt({ mode: 'fast' }));
+  assert.strictEqual(Buffer.compare(Buffer.from(a), Buffer.from(b)), 0, 'same bytes after the memory was given back');
+  same(rows[12345], J.unpack(b)[12345], 'round trip'); same(rows[29999], J.unpack(c)[29999], 'round trip, fast');
+});
+
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);
