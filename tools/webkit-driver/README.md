@@ -1,8 +1,8 @@
 # webkit-driver
 
-**Version 1.3.0 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** not recorded.
+**Tested in:** webkit-driver checks, real WebKitGTK 2.52.6 and GNOME Web 46.5 checks
 
 A Node file with no dependencies that starts **WebKitGTK** (the WebKit engine for Linux, the nearest thing to Safari a Linux test machine can run) or **GNOME Web** and gives you the small set of page controls that Playwright and Puppeteer give: `goto`, `evaluate`, `waitForFunction`, `mouse.move/down/up/click/wheel`, `keyboard.press`, `screenshot`, `setViewport`, and `on('pageerror')` / `on('console')`.
 

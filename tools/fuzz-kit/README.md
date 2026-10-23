@@ -1,8 +1,8 @@
 # fuzz-kit
 
-**Version 1.3.1 · API 1**
+**Version 1.3.2 · API 1**
 
-**Tested in:** runner fakes pass; Chromium 155 example app 14 checks incl. strict-policy page; fuzz-kit core 214 pass
+**Tested in:** runner fakes, fuzz-core 214/214, Chromium 155 example app all pass; strict-policy page in WebKitGTK 2.52.6 and GNOME Web 46.5: 150 of 150 operations, planted bug found, frozen page reported hung
 
 A small, seeded, reproducible random-input fuzzer for **stateful pages and games**, plus the pattern that makes such a page testable without shipping test code. No dependencies; the engine needs only `Promise`.
 
