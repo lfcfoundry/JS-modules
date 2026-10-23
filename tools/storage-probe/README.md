@@ -37,7 +37,7 @@ The Story Editor and the games are single files that people keep in several fold
 4. Press **Run the check** in that copy.
 5. Press **Copy the report** and paste it back.
 
-The report prints the address type, so one run also tells whether the downloaded copy opened as `file://` or as `content://`, which is not known for the Pixel 7 Pro yet.
+The report prints the address type, so one run also tells whether the downloaded copy opened as `file://` or as `content://`, which is not known for an Android phone yet.
 
 ## Prior art and credits
 Browser-storage test pages (MDN's Web Storage demos, storage-quota checkers) show quota for one page. None found that compares two saved copies. Checked 2026-10-14; this is a small purpose-built tool.
