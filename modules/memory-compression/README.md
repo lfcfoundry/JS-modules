@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.4.2 · API 2**
+**Version 2.4.6 · API 2**
 
-**Tested in:** Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (timing one browser at a time, 5 runs plus a 3-pass re-check and a same-file control; Node only for pass/fail checks); no real phone
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
 
@@ -100,6 +100,10 @@ The WebAssembly helper starts the first time you pack or unpack (since 2.0.3), s
 | `maxSize`, `maxItems` | limits that stop a hostile or damaged input (1 GiB, 100,000,000) | as shown |
 
 Also on the object: `pager(list, opts)` with `get`, `getAsync`, `load`, `range`, `each`, `set`, `changed`, `push`, `flush`, `settle`, `spill`, `trim`, `release`, `pressure`, `memory`, `dispose`; `keeper(opts)` with `hold`, `get`, `restore`, `each`, `pin`, `unpin`, `trim`, `release`, `drop`, `memory`, `calibrate`; `estimateBytes(value)`, `profile(value, opts, repeats)`, `heap()`; `ready()` and `accelerated()`; the standard formats `lz4Compress`, `lz4Decompress`, `deflate`, `inflate`, `zlib`, `unzlib`, `gzip`, `gunzip`; and `shuffle`, `unshuffle`, `crc32`, `adler32`. The parts are `MemoryCompression.core`, `.objects` (also `.jso`, and the global `MemoryCompressionJSO`) and `.picker`. Errors are `Error` objects whose message starts with `MemoryCompression:` and says what is wrong in plain words. Every option with its default is listed in the full notes.
+
+**`packAsync(value, { mode, workers })`** (opt-in, 2.4.3) returns a promise for exactly the bytes `pack(value, { mode })` makes, without freezing the page. A long list of same-shape records (2,048 rows or more) is turned into columns in slices of about 3 ms with a yield between slices and columns, and every number column of 1,024 rows or more goes to up to 3 workers (`workers: MemoryCompression.pool({ size })`; the default size is the smaller of 3 and cores minus 1). Without a pool it runs the same slices on the page. If a worker cannot start, is blocked by the page policy or fails, it still resolves with the same bytes. Do not change the list while it runs. `pack()` is unchanged. It is not always faster in total time than `pack()`: see the numbers in the changelog and keep `pack()` for background jobs and short lists. A page with a content-security-policy needs `worker-src blob:` for the workers (nothing else changes); without it the call still resolves, on the page.
+
+**`unpackAsync(bytes, opts)`** (opt-in, 2.4.6) returns a promise for the same value `unpack(bytes)` gives, without holding the page for the whole open. A packed long list of same-shape records (2,048 rows or more, format 2 or newer, no shared objects) is opened one column at a time and its rows are made in slices of about 5 ms with a yield between slices; records inside records, arrays and coordinate pairs are opened the same way. Anything else (short lists, mixed shapes, shared objects, numbers, text) is opened as `unpack()` does, so the answer is always the same. A damaged file comes back as a rejected promise. It uses no workers and needs no change to the page's security policy. `unpack()` is unchanged. In the four test browsers, on lists of 10,000 to 60,000 rows, the page's longest gap while it runs is 2 to 8 ms (median) instead of the 8 to 26 ms an `unpack()` holds it, but the total time is longer: 1.0 to 1.3 times in Chromium and Firefox, and 1.6 to 2.4 times in the two WebKit browsers (lists of 4,000 rows: 2 ms became 10 to 14 ms there). Use it where a frozen page matters more than 5 to 30 ms of total time; keep `unpack()` for background jobs and short lists.
 
 ## Numbers and how it compares
 

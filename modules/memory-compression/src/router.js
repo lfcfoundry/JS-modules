@@ -35,6 +35,16 @@
   var unified = {}, key;
   for (key in MC) unified[key] = MC[key];                                                     // lz4Compress, deflate, inflate, zlib, gzip, shuffle, crc32 ... as in memory-compression 1.x
   unified.pack = autoPack; unified.unpack = autoUnpack; unified.view = autoView;
+  unified.packAsync = function (value, opts) {                                               // the same bytes as pack(); the number picker runs on workers (opts.workers: a pool from MemoryCompression.pool())
+    opts = opts || {}; var layer = opts.layer === undefined ? 'auto' : opts.layer;
+    if (layer === 'core' || (layer === 'auto' && isBytesLike(value) && !(isNumberArray(value) && (opts.mode === 'balanced' || opts.picker === true)))) return Promise.resolve(autoPack(value, opts));
+    if (opts.mode === 'small' && isBytesLike(value)) return Promise.resolve(autoPack(value, opts));
+    return jso.packAsync(value, opts);
+  };
+  unified.unpackAsync = function (bytes, opts) {                                              // the same value as unpack(); a long list of records is opened in short slices
+    try { return layerOf(bytes) === 'objects' ? jso.unpackAsync(bytes, opts) : Promise.resolve(MC.unpack(bytes, opts)); } catch (err) { return Promise.reject(err); }
+  };
+  unified.pool = makePool;
   unified.layerOf = layerOf;
   unified.freeBuffers = freeBuffers; unified.keeper = keeper; unified.pager = pager; unified.heap = heapInfo; unified.profile = profile; unified.estimateBytes = estimateBytes;
   unified.core = MC; unified.objects = jso; unified.jso = jso; unified.picker = PK;

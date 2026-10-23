@@ -681,6 +681,146 @@ tAsync('pager: cool() with a worker the page policy blocks (the error event come
   }).then(function () { assert(made === 2, 'the idle timer stopped after one failure: made ' + made); Q.dispose(); }).then(function () { global.Worker = realW; }, function (e) { global.Worker = realW; throw e; });
 });
 
+tAsync('packAsync gives the same bytes as pack in every mode (long record lists in slices, short lists, number columns, rows that do not fit, a worker-less pool)', function () {
+  var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13), ok: i % 3 === 0, t: 1e12 + i * 977 }; }); };
+  var odd = mk(5000); odd[3000] = { id: 1, x: 2 };
+  var str = mk(5000); str[4000].v = 'x';
+  var nul = mk(5000); nul[4500] = null;
+  var cases = [mk(5000), mk(2047), mk(2048), mk(100), odd, str, nul, many(5000, function (i) { return Math.round(Math.sin(i / 50) * 1e5) / 100; }), Float64Array.from(many(5000, function (i) { return i * 3; }))];
+  var modes = ['fast', 'balanced', 'small'], jobs = [];
+  cases.forEach(function (v, ci) {
+    modes.forEach(function (m) {
+      jobs.push(J.packAsync(v, opt({ mode: m })).then(function (b) {
+        var a = J.pack(v, opt({ mode: m }));
+        assert.strictEqual(Buffer.compare(Buffer.from(a), Buffer.from(b)), 0, 'case ' + ci + ' ' + m + ': packAsync bytes differ from pack');
+        same(v, J.unpack(b, opt({ mode: m })), 'case ' + ci + ' ' + m);
+      }));
+    });
+  });
+  return Promise.all(jobs);
+});
+
+tAsync('packAsync: every test set at 100, 1,500, 4,000 and 9,000 rows (balanced and small) and top-level number columns give the same bytes as pack', function () {
+  var work = [], keys = Object.keys(D.sets), col = many(5000, function (i) { return Math.round(Math.sin(i / 50) * 1e5) / 100; }), cnt = 0;
+  keys.forEach(function (k) { [100, 1500, 4000, 9000].forEach(function (n) { ['balanced', 'small'].forEach(function (mode) { work.push([k, n, mode]); }); }); });
+  [col, Float64Array.from(col), new Int32Array(5000).map(function (_, i) { return i * 3; })].forEach(function (x, xi) { ['fast', 'balanced', 'small'].forEach(function (mode) { work.push([x, xi, mode]); }); });
+  return work.reduce(function (p, w) {
+    return p.then(function () {
+      var d, label = typeof w[0] === 'string' ? w[0] + ' ' + w[1] : 'column ' + w[1];
+      try { d = typeof w[0] === 'string' ? D.sets[w[0]](w[1]) : w[0]; } catch (e) { return null; }
+      return J.packAsync(d, opt({ mode: w[2] })).then(function (b) {
+        var a = J.pack(d, opt({ mode: w[2] }));
+        assert.strictEqual(Buffer.compare(Buffer.from(a), Buffer.from(b)), 0, label + ' ' + w[2] + ': bytes differ (' + a.length + ' vs ' + b.length + ')');
+        if (typeof w[0] === 'string') same(d, J.unpack(b, opt({ mode: w[2] })), label); cnt++;
+      });
+    });
+  }, Promise.resolve()).then(function () { assert(cnt >= 60, 'cases run: ' + cnt); });
+});
+
+// A stand-in for browser workers that really runs the worker script (the file itself, loaded the way the blob: URL would) in this process, so the pool's splice path is checked end to end.
+function fakeBrowser(kind) {          // kind: 'ok', 'blocked' (error event right after creation), 'throws' (new Worker throws), 'silent' (never answers, no error)
+  var M = require(path.resolve(modPath)), real = { Worker: global.Worker, Blob: global.Blob, createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL }, st = { made: 0, jobs: 0, terminated: 0 };
+  global.Blob = function (parts) { this.src = parts[0]; };
+  URL.createObjectURL = function (b) { return b; }; URL.revokeObjectURL = function () {};
+  global.Worker = function (blob) {
+    var w = this, scope, run;
+    st.made++;
+    if (kind === 'throws') throw new Error('SecurityError: blob: workers are blocked');
+    w.terminate = function () { st.terminated++; };
+    if (kind === 'blocked') { w.postMessage = function () {}; Promise.resolve().then(function () { if (w.onerror) w.onerror({ preventDefault: function () {} }); }); return; }
+    if (kind === 'silent') { w.postMessage = function () {}; return; }
+    scope = { postMessage: function (m, tr) { setImmediate(function () { if (w.onmessage) w.onmessage({ data: m }); }); } };
+    run = require('vm').runInThisContext('(function (self) {' + blob.src + ';return self;})')(scope);
+    w.postMessage = function (m, tr) { var c = structuredClone(m, { transfer: tr }); st.jobs += c.jobs.length; setImmediate(function () { scope.onmessage({ data: c }); }); };
+  };
+  st.restore = function () { global.Worker = real.Worker; global.Blob = real.Blob; URL.createObjectURL = real.createObjectURL; URL.revokeObjectURL = real.revokeObjectURL; };
+  st.M = M;
+  return st;
+}
+function within(p, ms, what) { return Promise.race([p, new Promise(function (res, rej) { setTimeout(function () { rej(new Error(what + ' did not resolve in ' + ms + ' ms')); }, ms); })]); }
+function asyncSame(v, o, pool, what) {
+  return within(J.packAsync(v, Object.assign({ workers: pool }, opt(o))), 3000, what).then(function (b) {
+    assert.strictEqual(Buffer.compare(Buffer.from(J.pack(v, opt(o))), Buffer.from(b)), 0, what + ': bytes differ from pack');
+    same(v, J.unpack(b, opt(o)), what);
+  });
+}
+function poolCases() {
+  var r = D.rng(5);
+  return [
+    ['links', many(9000, function (i) { return { id: i, src: i % 300, dst: (i * 7) % 900, w: Math.round(r() * 1000) / 10, t: 1.7e9 + i * 37 }; })],
+    ['fractions', many(5000, function (i) { return Math.round(Math.sin(i / 50) * 1e5) / 100; })],
+    ['nested', many(4000, function (i) { return { id: i, pos: [i / 3, i * 0.5], tags: ['a', 'b'] }; })]
+  ];
+}
+tAsync('packAsync with a pool of workers (the worker script run in this process): same bytes as pack, the number columns really went to the workers', function () {
+  var fb = fakeBrowser('ok'), pool = fb.M.pool({ size: 2 });
+  return poolCases().reduce(function (p, c) { return p.then(function () { return asyncSame(c[1], { mode: 'balanced' }, pool, c[0] + ' balanced'); }).then(function () { return asyncSame(c[1], { mode: 'small' }, pool, c[0] + ' small'); }); }, Promise.resolve()).then(function () {
+    assert(fb.made === 2 && fb.jobs >= 6, 'workers made ' + fb.made + ', jobs sent ' + fb.jobs);
+    pool.close(); assert.strictEqual(fb.terminated, 2, "close() ends both workers");
+    return asyncSame(poolCases()[0][1], { mode: 'balanced' }, pool, 'closed pool answers on the page');
+  }).then(function () { fb.restore(); }, function (e) { fb.restore(); throw e; });
+});
+tAsync('packAsync with workers the page policy blocks (error event after creation), a constructor that throws, or workers that never answer resolves with the same bytes as pack and does not hang', function () {
+  var kinds = ['blocked', 'throws', 'silent'], cs = poolCases();
+  return kinds.reduce(function (p, kind) {
+    return p.then(function () {
+      var fb = fakeBrowser(kind), pool = fb.M.pool({ size: 2, timeout: 60 });
+      return cs.reduce(function (q, c) { return q.then(function () { return asyncSame(c[1], { mode: 'balanced' }, pool, kind + ' ' + c[0]); }); }, Promise.resolve()).then(function () {
+        assert(fb.made <= 2, kind + ': no new workers after the failure, made ' + fb.made);
+        fb.restore();
+      }, function (e) { fb.restore(); throw e; });
+    });
+  }, Promise.resolve());
+});
+
+tAsync('unpackAsync gives the same value as unpack (long record lists in slices, short lists, mixed shapes, shared objects, other values)', function () {
+  var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13), ok: i % 3 === 0, t: 1e12 + i * 977 }; }); };
+  var odd = mk(5000); odd[3000] = { id: 1, x: 2 };
+  var shared = { q: 1 }, refs = many(3000, function (i) { return { s: shared, i: i }; });
+  var cases = [mk(5000), mk(2047), mk(2048), mk(100), odd, refs, [1, 2, 3], 'text', null, Float64Array.from(many(5000, function (i) { return i * 3; }))];
+  var jobs = [];
+  cases.forEach(function (v, ci) {
+    ['fast', 'balanced', 'small'].forEach(function (m) {
+      var b = J.pack(v, opt({ mode: m }));
+      jobs.push(J.unpackAsync(b, opt()).then(function (x) { same(J.unpack(b, opt()), x, 'case ' + ci + ' ' + m); }));
+    });
+  });
+  var bad = J.pack(mk(3000)); bad[bad.length - 3] ^= 0x55;
+  jobs.push(J.unpackAsync(bad, opt()).then(function () { try { J.unpack(bad, opt()); } catch (e) { throw new Error('unpackAsync accepted bytes that unpack refuses'); } }, function () { }));
+  return Promise.all(jobs);
+});
+
+tAsync('unpackAsync never waits on workers: with workers the page blocks, a constructor that throws or workers that stay silent it still resolves with the same value, uses no worker, and runs beside a packAsync that falls back', function () {
+  var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13), pos: [i / 3, i * 0.5], tags: ['a', 'b' + (i % 5)], t: 1e12 + i * 977 }; }); };
+  var data = mk(6000), bytes = J.pack(data, opt({ mode: 'balanced' }));
+  return ['blocked', 'throws', 'silent'].reduce(function (p, kind) {
+    return p.then(function () {
+      var fb = fakeBrowser(kind), pool = fb.M.pool({ size: 2, timeout: 60 }), t0 = Date.now();
+      return Promise.all([
+        within(J.unpackAsync(bytes, opt()), 3000, kind + ' unpackAsync'),
+        within(J.packAsync(data, opt({ mode: 'balanced', workers: pool })), 3000, kind + ' packAsync beside it'),
+        within(J.unpackAsync(bytes, opt()), 3000, kind + ' second unpackAsync')
+      ]).then(function (r) {
+        same(J.unpack(bytes, opt()), r[0], kind + ' value'); same(data, r[2], kind + ' second value');
+        assert.strictEqual(Buffer.compare(Buffer.from(J.pack(data, opt({ mode: 'balanced' }))), Buffer.from(r[1])), 0, kind + ': packAsync bytes differ');
+        assert(Date.now() - t0 < 2500, kind + ': took ' + (Date.now() - t0) + ' ms');
+        assert(fb.jobs === 0 && fb.made <= 2, kind + ': unpackAsync touched the workers, made ' + fb.made);
+        fb.restore(); pool.close();
+      }, function (e) { fb.restore(); pool.close(); throw e; });
+    });
+  }, Promise.resolve());
+});
+tAsync('unpackAsync, packAsync and a second unpackAsync running together all settle when the yield goes through the one shared message channel (no setImmediate)', function () {
+  var realSI = global.setImmediate, data = many(5000, function (i) { return { id: i, a: [i, i + 1], s: 'k' + (i % 9), t: 1e12 + i * 31 }; }), bytes = J.pack(data, opt());
+  global.setImmediate = undefined;
+  function done() { global.setImmediate = realSI; }
+  return within(Promise.all([J.unpackAsync(bytes, opt()), J.packAsync(data, opt({ mode: 'fast' })), J.unpackAsync(bytes, opt()), J.packAsync(data, opt({ mode: 'fast' }))]), 4000, 'shared channel').then(function (r) {
+    done(); same(data, r[0], 'first'); same(data, r[2], 'second');
+    assert.strictEqual(Buffer.compare(Buffer.from(r[1]), Buffer.from(J.pack(data, opt({ mode: 'fast' })))), 0, 'packAsync bytes');
+    assert.strictEqual(Buffer.compare(Buffer.from(r[3]), Buffer.from(r[1])), 0, 'the two packAsync runs differ');
+  }, function (e) { done(); throw e; });
+});
+
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);

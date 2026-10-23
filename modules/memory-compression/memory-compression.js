@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.4.2 (API 2)
+ * Version 2.4.6 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -30,6 +30,13 @@
  *    copies under a budget, and reports memory() with restore-time estimates. profile() times pack/unpack and lists where the time goes.
  *  - refs: true now stores lists of shared objects by column too (links that point at the very node objects), not value by value.
  *  - float32: true (opt-in, lossy) keeps fraction columns in 4 bytes per value instead of 8 (relative error at most about 6e-8).
+ *  - packAsync(value, {mode, workers}) (opt-in): a promise for exactly the bytes pack(value, {mode}) makes, without freezing the page. A long list of same-shape records (2,048 rows or more) is
+ *    turned into columns and encoded in slices of about 3 ms with a yield between them; number columns of 1,024 rows or more go to up to 3 workers (MemoryCompression.pool({size}), each a copy of
+ *    this file made from a blob: URL, so a page with a content-security-policy needs worker-src blob:). Without a pool, without Worker, with workers the page blocks, or when a worker fails, it
+ *    still resolves with the same bytes (slices on the page, or a plain pack). pack() is unchanged. Do not change the list while it runs.
+ *  - unpackAsync(bytes, opts) (opt-in): a promise for the same value unpack(bytes) gives, without holding the page for the whole open. A long list of same-shape records (2,048 rows or more,
+ *    format 2 or newer, no shared objects) is opened one column at a time and its rows are made in slices of about 5 ms with a yield between them; records inside records, arrays and
+ *    coordinate pairs are opened the same way. Anything else is opened as unpack() does. It uses no workers and needs no policy change. Errors come back as a rejected promise. unpack() is unchanged.
  *  - The packing core (byte shuffle, delta, LZ4-class and deflate coders, LZ4/deflate/zlib/gzip, crc32) is inside this file and also exported as MemoryCompression.lz4Compress, .deflate and so on.
  *
  * Notes
@@ -39,6 +46,7 @@
  */
 (function (root, factory) {
   var api = factory();
+  api.workerSource = function () { return '(' + factory.toString() + ')()'; };   // the whole file as text, for the workers of pool()
   if (typeof module === 'object' && module.exports) module.exports = api;
   else { root.MemoryCompression = api; root.MemoryCompressionJSO = api.jso; }
 })(typeof self !== 'undefined' ? self : this, function mcFactory() {
@@ -1991,6 +1999,7 @@
     if (opts && opts.wasm === false) this.mcOpts.wasm = false;
     this.hints = opts && opts.hints && typeof opts.hints === 'object' ? opts.hints : null;         // what won for each column in earlier packs of the same kind of list (pager pages): later packs try those ways first
     this.blobBytes = 0;
+    this.defer = opts && opts.defer || null;                          // packAsync: the picker runs later (on workers); the plain form is written now and its place in the streams is noted
   }
   Enc.prototype.blob = function (t, name, pre) {      // t: a typed array. Raw when tiny, else packed by the core when that is smaller (pre: that packed form, when the caller already made it)
     var o = this.blobs, raw = t.length * t.BYTES_PER_ELEMENT, packed, start = o.pos();
@@ -2109,6 +2118,7 @@
     var allInt = true, f32 = true, neg0 = false, min = Infinity, max = -Infinity, same = true, first = vals[0];
     if (typeof first === 'number' && scanNumbers(vals, n)) {
       if (SCAN.same && n > 1 && !(first === 0 && SCAN.neg0)) { c.u8(CT_CONST); this.value(first); return; }
+      if (this.defer && n >= ADAPT_MIN) { this.deferNumbers(vals, n, SCAN.allInt && !SCAN.neg0, SCAN.f32, SCAN.min, SCAN.max, SCAN.neg0); return; }
       this.numbers(vals, n, SCAN.allInt && !SCAN.neg0, SCAN.f32, SCAN.min, SCAN.max, SCAN.neg0); return;
     }
     if (this.refs && typeof first === 'object' && first !== null) {           // with shared objects kept: a column of references to objects already written, or of flat records written here
@@ -2181,10 +2191,16 @@
       c.u8(tag); if (tag === CT_DEC) c.u8(e);
     }
     c.u8(w); c.zigzag(min); this.blob(t, 'ints', pre);
+    if (this.defer) this.deferEnd();
   };
   // A number column stored by the number picker: src is a Float64Array of n whole numbers (or doubles). Written only when smaller than plainLen. False writes nothing.
   Enc.prototype.altStore = function (src, n, e, plainLen) {
     var ab, c = this.ctl, t0 = this.report ? performance.now() : 0;
+    if (this.defer) {                                                 // packAsync: note where the plain form goes (the caller writes it next); deferEnd() closes the note
+      this.defer.cur = { src: new Float64Array(src), n: n, e: e, plainLen: plainLen, c0: c.p, b0: this.blobs.pos(), c1: -1, b1: -1, res: null };
+      this.defer.jobs.push(this.defer.cur);
+      return false;
+    }
     ab = this.adaptBytes(src);
     if (this.report && ab) this.report.push({ path: this.path, part: 'picker (time to try)', count: n, ms: Math.round((performance.now() - t0) * 100) / 100 });
     if (!ab || ab.bytes.length >= plainLen) return false;
@@ -2193,6 +2209,12 @@
     if (this.report) this.report.push({ path: this.path, part: 'picker', count: n, rawBytes: n * 8, bytes: ab.bytes.length });
     return true;
   };
+  Enc.prototype.deferNumbers = function (vals, n, allInt, f32, min, max, neg0) {   // packAsync: the whole number column is encoded elsewhere; only its place is kept
+    var src, i, at = this.blobs.pos();
+    if (vals instanceof Float64Array && vals.length === n) src = vals.slice(); else { src = new Float64Array(n); for (i = 0; i < n; i++) src[i] = vals[i]; }
+    this.defer.jobs.push({ kind: 1, src: src, n: n, a: [allInt, f32, min, max, neg0], c0: this.ctl.p, c1: this.ctl.p, b0: at, b1: at });
+  };
+  Enc.prototype.deferEnd = function () { var j = this.defer.cur; if (j) { j.c1 = this.ctl.p; j.b1 = this.blobs.pos(); this.defer.cur = null; } };
   // The codes of a text dictionary through the number picker: written only when smaller than the plain index column (a dictionary of names in a sorted or clustered order shrinks a lot).
   Enc.prototype.dictCodes = function (idx, n, m, dict) {
     var pre = MC.pack(idx, this.mcOpts), plain = Math.min(pre.length, n * idx.BYTES_PER_ELEMENT), ab, c = this.ctl;
@@ -2261,6 +2283,7 @@
       if (this.altStore(t, n, 0, Math.min(pre.length, n * 8))) return;
     }
     c.u8(CT_F64); this.blob(t, 'f64', pre);
+    if (this.defer) this.deferEnd();
   };
   Enc.prototype.bools = function (vals, n) {
     var bits = new Uint8Array((n + 7) >> 3), i;
@@ -2791,21 +2814,37 @@
     this.column(flat, q);
     return true;
   };
+  function varintLen(v) { var n = 1; while (v > 127) { v = Math.floor(v / 128); n++; } return n; }
   function patch5(b, at, v) { var i; for (i = 0; i < 4; i++) { b[at + i] = (v % 128) | 128; v = Math.floor(v / 128); } b[at + 4] = v; }
   // The columns of one list of same-shape records, each with its own key numbering, behind a directory of (control bytes, data bytes) per column
   // (written as 5-byte numbers filled in afterwards) so a reader can skip to any column.
   Enc.prototype.dirColumns = function (cols, n, keys, path) {
-    var c = this.ctl, nk = cols.length, dir, j, c0, b0, saved;
+    var st = this.dirStart(cols.length), j;
+    for (j = 0; j < cols.length; j++) this.dirColumn(st, cols[j], n, keys, j, path);
+    this.path = path;
+  };
+  Enc.prototype.dirStart = function (nk) {
+    var c = this.ctl, dir, j;
     c.need(nk * 10 + 16); dir = c.p;
     for (j = 0; j < nk * 2; j++) { c.b[c.p++] = 128; c.b[c.p++] = 128; c.b[c.p++] = 128; c.b[c.p++] = 128; c.b[c.p++] = 0; }
-    for (j = 0; j < nk; j++) {
-      c0 = c.p; b0 = this.blobs.pos(); saved = this.keys; this.keys = new Map();
-      if (this.report) this.path = path + '.' + keys[j];
-      this.column(cols[j], n);
-      this.keys = saved;
-      patch5(c.b, dir + j * 10, c.p - c0); patch5(c.b, dir + j * 10 + 5, this.blobs.pos() - b0);
-    }
-    this.path = path;
+    return dir;
+  };
+  Enc.prototype.dirColumn = function (dir, col, n, keys, j, path) {
+    var st = this.dirColumnBegin(j, keys, path);
+    this.column(col, n);
+    this.dirColumnEnd(dir, st, j);
+  };
+  Enc.prototype.dirColumnBegin = function (j, keys, path) {
+    var st = { c0: this.ctl.p, b0: this.blobs.pos(), saved: this.keys, j0: this.defer ? this.defer.jobs.length : 0 };
+    this.keys = new Map();
+    if (this.report) this.path = path + '.' + keys[j];
+    return st;
+  };
+  Enc.prototype.dirColumnEnd = function (dir, st, j) {
+    var c = this.ctl;
+    this.keys = st.saved;
+    patch5(c.b, dir + j * 10, c.p - st.c0); patch5(c.b, dir + j * 10 + 5, this.blobs.pos() - st.b0);
+    if (this.defer) this.defer.dirs.push({ at: dir + j * 10, c0: st.c0, c1: c.p, b0: st.b0, b1: this.blobs.pos(), j0: st.j0, j1: this.defer.jobs.length });
   };
   Enc.prototype.fusedRecords = function (vals, n) {
     var c = this.ctl, keys = Object.keys(vals[0]), nk = keys.length, cols, j, path = this.path;
@@ -3735,24 +3774,317 @@
   function pack(value, opts) {
     opts = opts || {};
     if (!TEXT_ENC) jfail('this environment has no TextEncoder');
-    var e = new Enc(opts), ctlBytes, flags = 0, head, stored, packedCtl = null, ctlRaw, out, p, crc;
+    var e = new Enc(opts);
     POOL_ON = opts.pool !== false;
     try { e.value(value); } finally { POOL_ON = true; }
-    ctlRaw = e.ctl.done();
+    return finishPack(e, e.ctl.done(), e.blobs, opts);
+  }
+  function finishPack(e, ctlRaw, blobs, opts) {                        // control bytes + blobs -> the packed container
+    var flags = 0, head, stored, packedCtl = null, out, p, crc;
     if (ctlRaw.length >= 256) {
       packedCtl = MC.pack(ctlRaw, e.mcOpts);
       if (packedCtl.length >= ctlRaw.length * 0.9) packedCtl = null;
     }
     stored = packedCtl || ctlRaw;
     if (e.refs) flags |= 1; if (packedCtl) flags |= 2; if (opts.check) flags |= 4;
-    var blobsLen = e.blobs.size();
+    var blobsLen = blobs.size();
     head = new Out(); head.u8(0x4D); head.u8(0x4A); head.u8(e.needsV5 ? 5 : e.usedFront ? 4 : e.usedTimes || e.needsV3 ? 3 : 2); head.u8(flags);
     head.varint(ctlRaw.length); head.varint(stored.length);
     out = new Uint8Array(head.p + stored.length + blobsLen + (flags & 4 ? 4 : 0));
-    out.set(head.done(), 0); p = head.p; out.set(stored, p); p += stored.length; p = e.blobs.copyTo(out, p);
+    out.set(head.done(), 0); p = head.p; out.set(stored, p); p += stored.length; p = blobs.copyTo(out, p);
     if (flags & 4) { crc = MC.crc32(out.subarray(0, p)); out[p] = crc; out[p + 1] = crc >>> 8; out[p + 2] = crc >>> 16; out[p + 3] = crc >>> 24; }
     if (opts.report) { opts.report.summary = { total: out.length, control: stored.length, controlRaw: ctlRaw.length, blobs: blobsLen }; }
     return out;
+  }
+  // packAsync(value, opts): the same bytes as pack(), but the number picker runs elsewhere. The values are encoded in the plain form first (what fast mode does), the number columns the picker
+  // would try are noted with their place in the streams, run(jobs) returns a promise for the picker's answer for each (null: keep the plain form), and the answers that are smaller are spliced in.
+  // run is given [{src, n, e, plainLen}] and resolves to an array of {bytes, z} or null; opts.pool (a pool made by makePool) supplies it, else the picker runs here after a yield.
+  function packAsync(value, opts) {
+    opts = opts || {};
+    if (!TEXT_ENC) jfail('this environment has no TextEncoder');
+    var defer = { jobs: [], dirs: [], cur: null }, o = {}, k, e, runner, T = opts.timing || null, tA = T ? performance.now() : 0, encoded;
+    for (k in opts) o[k] = opts[k];
+    o.defer = defer; o.hints = null;
+    e = new Enc(o);
+    if (Array.isArray(value) && value.length >= SLICE_MIN && !e.refs && !e.report) encoded = encodeSliced(e, value);     // a long list: row-to-column pass and column encodes in short slices, yielding between them
+    else {
+      POOL_ON = opts.pool !== false && !opts.workers;
+      try { e.value(value); } finally { POOL_ON = true; }
+      encoded = Promise.resolve(true);
+    }
+    return encoded.then(function () { return packAsyncRest(e, defer, value, opts, o, T, tA); });
+  }
+  var SLICE_MIN = 2048, SLICE_MS = 3, UNPACK_SLICE_MS = 5;
+  var YCH = null, YQ = [];                                                // one channel for every yield: making a channel per yield cost 1 to 2 ms each in Chromium
+  function nextTask() {
+    return new Promise(function (res) {
+      if (typeof setImmediate === 'function') { setImmediate(res); return; }
+      if (typeof MessageChannel !== 'function') { setTimeout(res, 0); return; }
+      if (!YCH) { YCH = new MessageChannel(); YCH.port1.onmessage = function () { var f = YQ.shift(); if (f) f(); }; }
+      YQ.push(res); YCH.port2.postMessage(0);
+    });
+  }
+  function fusedSlicer(keys, types) {                                    // fills columns from row `from` up to `to`: 0, -1 (a row does not fit) or -(2 + j) (key j held a non-number), like fusedExtractor
+    var sig = 'g' + keys.join('\u0001') + '\u0002' + types.join(''), f = GEN_CACHE[sig], j, src, nk = keys.length;
+    if (f) return f;
+    if (CAN_EVAL) {
+      src = 'var i,o,k,p,v;';
+      for (j = 0; j < nk; j++) src += 'var c' + j + '=cols[' + j + '];';
+      src += 'for(i=from;i<to;i++){o=rows[i];if(typeof o!=="object"||o===null||Object.getPrototypeOf(o)!==OP)return -1;k=0;for(p in o){if(p!==keys[k++])return -1;}if(k!==' + nk + ')return -1;';
+      for (j = 0; j < nk; j++) {
+        if (types[j] === 'n') src += 'v=o[' + JSON.stringify(keys[j]) + '];if(typeof v!=="number")return ' + (-(2 + j)) + ';c' + j + '[i]=v;';
+        else src += 'c' + j + '[i]=o[' + JSON.stringify(keys[j]) + '];';
+      }
+      src += '}return 0;';
+      f = new Function('rows', 'from', 'to', 'keys', 'cols', 'OP', src);
+      f = (function (g) { return function (rows, from, to, ks, cols) { return g(rows, from, to, ks, cols, OP); }; })(f);
+    } else {
+      f = function (rows, from, to, ks, cols) {
+        var i, jj, o, k, p, v;
+        for (i = from; i < to; i++) {
+          o = rows[i];
+          if (typeof o !== 'object' || o === null || Object.getPrototypeOf(o) !== OP) return -1;
+          k = 0; for (p in o) { if (p !== ks[k++]) return -1; }
+          if (k !== nk) return -1;
+          for (jj = 0; jj < nk; jj++) { v = o[ks[jj]]; if (types[jj] === 'n' && typeof v !== 'number') return -(2 + jj); cols[jj][i] = v; }
+        }
+        return 0;
+      };
+    }
+    genStore(sig, f);
+    return f;
+  }
+  function extractSliced(vals, n, keys, sig) {                           // splitColumns in slices of about SLICE_MS; null when the rows do not fit
+    var types = typesFor(vals[0], keys, LEARNED[sig]), tries = 0, nk = keys.length;
+    function attempt() {
+      var cols = [], j, i = 0, step = 512;
+      for (j = 0; j < nk; j++) cols.push(types[j] === 'n' ? takeF64(n) : new Array(n));
+      function go() {
+        var t0 = performance.now(), r, to = Math.min(n, i + step), dt;
+        r = fusedSlicer(keys, types)(vals, i, to, keys, cols);
+        if (r !== 0) {
+          if (r === -1 || ++tries > nk) return null;
+          types[-r - 2] = 'a'; return attempt();
+        }
+        i = to; dt = performance.now() - t0;
+        step = Math.max(256, Math.min(65536, Math.floor(step * (dt > 0.05 ? SLICE_MS / dt : 2))));
+        if (i >= n) { LEARNED[sig] = types; return cols; }
+        return nextTask().then(go);
+      }
+      return Promise.resolve().then(go);
+    }
+    return attempt();
+  }
+  function slicedLoop(n, work, ms) {                                          // work(from, to) -> true to go on, anything else stops with that value; slices of about SLICE_MS, a yield between them
+    return new Promise(function (resolve, reject) {
+      var i = 0, step = 512;
+      function go() {
+        try {
+          var t0 = performance.now(), to = Math.min(n, i + step), r = work(i, to), dt;
+          if (r !== true) { resolve(r); return; }
+          i = to; dt = performance.now() - t0;
+          step = Math.max(256, Math.min(65536, Math.floor(step * (dt > 0.05 ? (ms || SLICE_MS) / dt : 2))));
+          if (i >= n) { resolve(true); return; }
+          nextTask().then(go);
+        } catch (err) { reject(err); }
+      }
+      go();
+    });
+  }
+  function tupleSplitSlice(k, types) {                                    // tupleSplitter in slices: fills columns from row `from` to `to`; 0, -1 or -(2 + j)
+    var sig = 'p' + k + types.join(''), f = GEN_CACHE[sig], j, src;
+    if (f) return f;
+    if (CAN_EVAL) {
+      src = 'var i,a,v;';
+      for (j = 0; j < k; j++) src += 'var c' + j + '=cols[' + j + '];';
+      src += 'for(i=from;i<to;i++){a=rows[i];if(!Array.isArray(a)||a.length!==' + k + ')return -1;';
+      for (j = 0; j < k; j++) {
+        if (types[j] === 'n') src += 'v=a[' + j + '];if(typeof v!=="number")return ' + (-(2 + j)) + ';c' + j + '[i]=v;';
+        else src += 'c' + j + '[i]=a[' + j + '];';
+      }
+      src += '}return 0;';
+      f = new Function('rows', 'from', 'to', 'cols', src);
+    } else {
+      f = function (rows, from, to, cols) {
+        var i, jj, a, v;
+        for (i = from; i < to; i++) {
+          a = rows[i]; if (!Array.isArray(a) || a.length !== k) return -1;
+          for (jj = 0; jj < k; jj++) { v = a[jj]; if (types[jj] === 'n' && typeof v !== 'number') return -(2 + jj); cols[jj][i] = v; }
+        }
+        return 0;
+      };
+    }
+    genStore(sig, f);
+    return f;
+  }
+  function tupleFlatSlice(k, types) {                                     // tupleFlattener in slices: rows from..to, items written from position q on; returns the next q, -1 or -(2 + j)
+    var sig = 'v' + k + types.join(''), f = GEN_CACHE[sig], j, src;
+    if (f) return f;
+    if (CAN_EVAL) {
+      src = 'var i,m,a,t,v,len;';
+      for (j = 0; j < k; j++) src += 'var c' + j + '=cols[' + j + '];';
+      src += 'for(i=from;i<to;i++){a=rows[i];len=a.length;for(m=0;m<len;m++){t=a[m];if(!Array.isArray(t)||t.length!==' + k + ')return -1;';
+      for (j = 0; j < k; j++) {
+        if (types[j] === 'n') src += 'v=t[' + j + '];if(typeof v!=="number")return ' + (-(2 + j)) + ';c' + j + '[q]=v;';
+        else src += 'c' + j + '[q]=t[' + j + '];';
+      }
+      src += 'q++;}}return q;';
+      f = new Function('rows', 'from', 'to', 'cols', 'q', src);
+    } else {
+      f = function (rows, from, to, cols, q) {
+        var i, m, jj, a, t, v, len;
+        for (i = from; i < to; i++) {
+          a = rows[i]; len = a.length;
+          for (m = 0; m < len; m++) {
+            t = a[m]; if (!Array.isArray(t) || t.length !== k) return -1;
+            for (jj = 0; jj < k; jj++) { v = t[jj]; if (types[jj] === 'n' && typeof v !== 'number') return -(2 + jj); cols[jj][q] = v; }
+            q++;
+          }
+        }
+        return q;
+      };
+    }
+    genStore(sig, f);
+    return f;
+  }
+  function sliceAttempt(sig, first, idx, n, total, fill) {                // splitColumns with slices: fill(types, cols, from, to, state) -> true or an error code; the columns or null
+    var types = typesFor(first, idx, LEARNED[sig]), tries = 0, k = idx.length;
+    function attempt() {
+      var cols = [], j, state = { q: 0 };
+      for (j = 0; j < k; j++) cols.push(types[j] === 'n' ? new Float64Array(total) : new Array(total));
+      return slicedLoop(n, function (from, to) { return fill(types, cols, from, to, state); }).then(function (r) {
+        if (r === true) { LEARNED[sig] = types; return cols; }
+        if (r === -1 || ++tries > k) return null;
+        types[-r - 2] = 'a'; return attempt();
+      });
+    }
+    return attempt();
+  }
+  function eachColumn(e, cols, count, j) {                                // the columns one after another, a yield between them
+    if (j >= cols.length) return Promise.resolve(true);
+    return e.columnAsync(cols[j], count).then(function () { return nextTask(); }).then(function () { return eachColumn(e, cols, count, j + 1); });
+  }
+  Enc.prototype.columnAsync = function (vals, n) {                        // column() for the shapes that take long on the page, in slices; anything else is the plain call
+    var e = this, first = vals[0], p;
+    if (n < 1024 || e.refs || first === null || typeof first !== 'object') { e.column(vals, n); return Promise.resolve(); }
+    if (++e.depth > MAX_DEPTH) jfail('nested too deeply');
+    if (Array.isArray(first)) {
+      p = first.length > 0 && first.length <= 8 ? e.fusedTuplesAsync(vals, n, first.length) : Promise.resolve(false);
+      p = p.then(function (ok) { return ok ? true : e.fusedArraysAsync(vals, n); });
+    } else if (Object.getPrototypeOf(first) === OP) p = e.fusedRecordsAsync(vals, n);
+    else p = Promise.resolve(false);
+    return p.then(function (ok) { e.depth--; if (!ok) e.column(vals, n); });
+  };
+  Enc.prototype.fusedRecordsAsync = function (vals, n) {
+    var e = this, c = e.ctl, keys = Object.keys(vals[0]), nk = keys.length, path = e.path;
+    if (nk === 0 || nk > MAX_FUSED_KEYS) return Promise.resolve(false);
+    return extractSliced(vals, n, keys, 'R' + keys.join('\u0001') + '\u0002' + nk).then(function (cols) {
+      if (!cols) return false;
+      var j, dir = 0;
+      c.u8(CT_RECORDS); c.varint(1); c.varint(nk);
+      for (j = 0; j < nk; j++) { if (wellFormed(keys[j])) { c.u8(0); c.str(keys[j]); } else { c.u8(1); e.str16(keys[j]); } }
+      dir = e.dirStart(nk); j = 0;
+      function step() {
+        if (j >= nk) { e.path = path; return true; }
+        var st = e.dirColumnBegin(j, keys, path), jj = j;
+        return e.columnAsync(cols[j], n).then(function () { e.dirColumnEnd(dir, st, jj); j++; return nextTask(); }).then(step);
+      }
+      return step();
+    });
+  };
+  Enc.prototype.fusedTuplesAsync = function (vals, n, k) {
+    var e = this, c = e.ctl, idx = tupleIdx(k);
+    return sliceAttempt('T' + k, vals[0], idx, n, n, function (types, cols, from, to) { var r = tupleSplitSlice(k, types)(vals, from, to, cols); return r === 0 ? true : r; }).then(function (cols) {
+      if (!cols) return false;
+      c.u8(CT_TUPLE); c.varint(k);
+      return eachColumn(e, cols, n, 0);
+    });
+  };
+  Enc.prototype.fusedArraysAsync = function (vals, n) {
+    var e = this, c = e.ctl, lens = new Uint32Array(n), q = 0, i, j, a, len, k = 0, flat, idx, total;
+    for (i = 0; i < n; i++) {
+      a = vals[i]; if (!Array.isArray(a)) return Promise.resolve(false);
+      len = a.length; lens[i] = len; q += len;
+      if (k === 0 && len > 0 && Array.isArray(a[0])) k = a[0].length;
+    }
+    total = q;
+    c.u8(CT_ARRAYS); c.varint(q);
+    e.lengths(lens, n);
+    if (q === 0) return Promise.resolve(true);
+    function generic() {
+      flat = q > 30000000 ? [] : new Array(q); var m = 0;
+      for (i = 0; i < n; i++) { a = vals[i]; len = a.length; for (j = 0; j < len; j++) flat[m++] = a[j]; }
+      return e.columnAsync(flat, m).then(function () { return true; });
+    }
+    if (k > 0 && k <= 8) {
+      idx = tupleIdx(k);
+      return sliceAttempt('F' + k, vals[firstNonEmpty(vals, n)][0], idx, n, total, function (types, cols, from, to, state) {
+        var r = tupleFlatSlice(k, types)(vals, from, to, cols, state.q); if (r < 0) return r; state.q = r; return true;
+      }).then(function (cols) {
+        if (!cols) return generic();
+        c.u8(CT_TUPLE); c.varint(k);
+        return eachColumn(e, cols, total, 0);
+      });
+    }
+    return generic();
+  };
+  function encodeSliced(e, vals) {                                       // the value as a long list: its columns encoded in slices; a promise for true
+    var n = vals.length;
+    e.depth++;                                                            // the array (value -> object)
+    e.ctl.u8(T_COLS); e.ctl.varint(n);
+    return e.columnAsync(vals, n).then(function () { e.depth--; return true; });
+  }
+  function packAsyncRest(e, defer, value, opts, o, T, tA) {
+    var runner;
+    if (T) T.encode = performance.now() - tA;
+    if (!defer.jobs.length) return Promise.resolve(finishPack(e, e.ctl.done(), e.blobs, opts));
+    runner = opts.workers && typeof opts.workers.run === 'function' ? opts.workers.run : function (jobs) {
+      return Promise.resolve().then(function () { return jobs.map(function (j) { return j.kind === 1 ? colsFor(j.src, j.n, j.a, j.wopts) : adaptFor(j.src, e.mode, e.mcOpts.wasm); }); });
+    };
+    var tB = T ? performance.now() : 0, wopts = { mode: opts.mode, picker: opts.picker, level: opts.level, float32: opts.float32, wasm: opts.wasm };
+    var jobsMsg = defer.jobs.map(function (j) { return j.kind === 1 ? { kind: 1, src: j.src, n: j.n, a: j.a, wopts: wopts, mode: e.mode, wasm: e.mcOpts.wasm } : { kind: 0, src: j.src, n: j.n, e: j.e, plainLen: j.plainLen, mode: e.mode, wasm: e.mcOpts.wasm }; });
+    var pr = runner(jobsMsg); if (T) T.post = performance.now() - tB;
+    return pr.then(function (res) {
+      var tC = T ? performance.now() : 0, ctl = e.ctl.done(), flat, pos = 0, ctlOut = new Out(), blobOut = [], bpos = 0, i, j, r, tag, acc = [], d, at, dc, db, t, total = 0;
+      for (i = 0; i < res.length; i++) if ((!res[i] && defer.jobs[i].kind === 1) || (res[i] && res[i].fail)) throw new Error('worker answer missing');          // caught below: the plain pack
+      flat = new Uint8Array(e.blobs.size()); e.blobs.copyTo(flat, 0);
+      for (i = 0; i < defer.jobs.length; i++) {
+        j = defer.jobs[i]; r = res[i];
+        if (j.kind === 1) {                                              // a whole number column: its control and data bytes go in at this place
+          ctlOut.bytes(ctl.subarray(pos, j.c0)); ctlOut.bytes(r.ctl); pos = j.c1;
+          blobOut.push(flat.subarray(bpos, j.b0)); blobOut.push(r.blob); bpos = j.b1; if (r.v5) e.needsV5 = true;
+          acc.push({ j: j, ix: i, dc: r.ctl.length - (j.c1 - j.c0), db: r.blob.length - (j.b1 - j.b0) });
+          continue;
+        }
+        if (!r || !r.bytes || r.bytes.length >= j.plainLen || j.c1 < 0) continue;                // the plain form stays
+        ctlOut.bytes(ctl.subarray(pos, j.c0)); tag = new Out(); tag.u8(CT_ADAPT); tag.u8(j.e); tag.u8(r.z); tag.varint(r.bytes.length); ctlOut.bytes(tag.done()); pos = j.c1;
+        blobOut.push(flat.subarray(bpos, j.b0)); blobOut.push(r.bytes); bpos = j.b1; e.needsV5 = true;
+        acc.push({ j: j, ix: i, dc: tag.p - (j.c1 - j.c0), db: r.bytes.length - (j.b1 - j.b0) });
+      }
+      ctlOut.bytes(ctl.subarray(pos)); blobOut.push(flat.subarray(bpos));
+      for (i = 0; i < blobOut.length; i++) total += blobOut[i].length;
+      var newCtl = ctlOut.done();
+      for (i = 0; i < defer.dirs.length; i++) {            // a spliced-in column changes the size of the column that holds it: the directory entries (5-byte numbers) are filled in again
+        d = defer.dirs[i]; at = d.at; dc = d.c1 - d.c0; db = d.b1 - d.b0;
+        for (t = 0; t < acc.length; t++) {
+          if (acc[t].j.c1 <= d.at) at += acc[t].dc;
+          if (acc[t].ix >= d.j0 && acc[t].ix < d.j1) { dc += acc[t].dc; db += acc[t].db; }
+        }
+        patch5(newCtl, at, dc); patch5(newCtl, at + 5, db);
+      }
+      var joined = { size: function () { return total; }, copyTo: function (dst, at2) { for (var q = 0; q < blobOut.length; q++) { dst.set(blobOut[q], at2); at2 += blobOut[q].length; } return at2; } };
+      var outp = finishPack(e, newCtl, joined, opts); if (T) T.finish = performance.now() - tC; return outp;
+    }).catch(function () { return pack(value, opts); });                // a worker failed: the same bytes the slow way
+  }
+  function colsFor(src, n, a, wopts) {                                  // a whole number column, encoded on its own: its control bytes, data bytes and whether it needs format 5
+    var e2 = new Enc(wopts || {}), blobs = e2.blobs, flat;
+    e2.numbers(src, n, a[0], a[1], a[2], a[3], a[4]);
+    flat = new Uint8Array(blobs.size()); blobs.copyTo(flat, 0);
+    return { ctl: e2.ctl.done().slice(), blob: flat, v5: !!e2.needsV5 };
+  }
+  function adaptFor(src, mode, wasm) {                                 // what the picker answers for one column, for a worker or the page
+    var mcOpts = { mode: mode }; if (wasm === false) mcOpts.wasm = false;
+    return Enc.prototype.adaptBytes.call({ mode: mode, mcOpts: mcOpts, hints: null, path: '' }, src);
   }
   function open(bytes, opts) {
     opts = opts || {};
@@ -3779,6 +4111,132 @@
   }
   function unpack(bytes, opts) {
     var d = open(bytes, opts), v = d.value();
+    if (d.c.p !== d.c.end) jfail('extra data after the value');
+    return v;
+  }
+
+  function builderSlice(keys, modes) {                                    // builder() for rows from..to of an array made beforehand
+    var sig = 'S' + keys.join('\u0001') + '\u0002' + modes.join(''), f = GEN_CACHE[sig], j, src, expr, pk, params;
+    if (f) return f;
+    if (CAN_EVAL) {
+      src = 'var i;for(i=from;i<to;i++){out[i]={';
+      for (j = 0; j < keys.length; j++) {
+        expr = modes[j] === 0 ? 'a' + j + '[i]' : modes[j] === 1 ? '(a' + j + '[i]===1)' : modes[j] === 2 ? 'd' + j + '[a' + j + '[i]]' : 'd' + j;
+        pk = keys[j] === '__proto__' ? '["__proto__"]' : JSON.stringify(keys[j]);
+        src += (j ? ',' : '') + pk + ':' + expr;
+      }
+      src += '};}';
+      params = ['out', 'from', 'to'];
+      for (j = 0; j < keys.length; j++) { params.push('a' + j); params.push('d' + j); }
+      f = new Function(params.join(','), src);
+    } else {
+      f = function (out, from, to) {
+        var i, jj, o, m, a, d;
+        for (i = from; i < to; i++) {
+          o = {};
+          for (jj = 0; jj < keys.length; jj++) { m = modes[jj]; a = arguments[3 + jj * 2]; d = arguments[4 + jj * 2]; define(o, keys[jj], m === 0 ? a[i] : m === 1 ? a[i] === 1 : m === 2 ? d[a[i]] : d); }
+          out[i] = o;
+        }
+      };
+    }
+    genStore(sig, f);
+    return f;
+  }
+  // unpackAsync(): the same value as unpack(), a promise; a long list of same-shape records is opened one column at a time and its rows are made in slices of about 5 ms with a yield between them,
+  // so the page is never held for the whole open. The columns inside (records in records, arrays, coordinate pairs) are opened the same way. Anything else (short lists, mixed shapes,
+  // shared objects, other values) is opened as unpack() does.
+  function unpackAsync(bytes, opts) {
+    var d, c, p0, n;
+    try {
+      d = open(bytes, opts); c = d.c; p0 = c.p;
+      if (d.refs || d.ver < 2 || c.u8() !== T_COLS) { c.p = p0; return Promise.resolve(finishUnpack(d)); }
+      n = c.varint();
+      if (n < SLICE_MIN) { c.p = p0; return Promise.resolve(finishUnpack(d)); }
+      d.depth = 1; d.spend(n);
+    } catch (err) { return Promise.reject(err); }
+    return d.columnAsync(n).then(function (col) {
+      var out = col.full();
+      if (c.p !== c.end) jfail('extra data after the value');
+      return out;
+    });
+  }
+  Dec.prototype.columnAsync = function (n) {                              // column() for the shapes that take long on the page, in slices; anything else is the plain call
+    var d = this, c = d.c, p1 = c.p, ct, p;
+    if (n < 1024) return Promise.resolve(d.column(n));
+    try {
+      ct = c.u8();
+      if (ct === CT_RECORDS) { if (c.varint() !== 1 || d.ver < 2) ct = -1; else c.p = p1 + 1; }
+      if (ct !== CT_RECORDS && ct !== CT_TUPLE && ct !== CT_ARRAYS) { c.p = p1; return Promise.resolve(d.column(n)); }
+      if (++d.depth > MAX_DEPTH) jfail('nested too deeply');
+    } catch (err) { return Promise.reject(err); }
+    p = ct === CT_RECORDS ? d.recordsAsync(n) : ct === CT_TUPLE ? d.tupleAsync(n) : d.arraysAsync(n);
+    return p.then(function (col) { d.depth--; return col; });
+  };
+  Dec.prototype.recordsAsync = function (n) {                              // CT_RECORDS with one shape (format 2): the byte for the kind is read, the shape count is not
+    var d = this, c = d.c, ns = c.varint(), nk, j = 0, keys = [], dirC = [], dirB = [], cols = [], modes = [], out;
+    nk = c.varint(); if (nk > 100000) jfail('too many keys');
+    for (j = 0; j < nk; j++) keys.push(c.u8() === 0 ? c.str() : d.str16());
+    d.spend(n * nk);
+    for (j = 0; j < nk; j++) { dirC.push(c.varint()); dirB.push(c.varint()); }
+    j = 0;
+    function columns() {
+      if (j >= nk) return true;
+      var c0 = c.p, b0 = d.bl.p, saved = d.keys;
+      d.keys = [];
+      return d.columnAsync(n).then(function (col) {
+        d.keys = saved;
+        if (c.p - c0 !== dirC[j] || d.bl.p - b0 !== dirB[j]) jfail('a column does not match its directory entry');
+        cols.push(col); modes.push(col.mode); j++;
+        return nextTask();
+      }).then(columns);
+    }
+    return columns().then(function () {
+      var k, f = builderSlice(keys, modes), args = [out = new Array(n), 0, 0];
+      for (k = 0; k < nk; k++) { args.push(cols[k].a); args.push(cols[k].d); }
+      return slicedLoop(n, function (from, to) { args[1] = from; args[2] = to; f.apply(null, args); return true; }, UNPACK_SLICE_MS);
+    }).then(function () { return new Col(n, 0, out, null); });
+  };
+  Dec.prototype.tupleAsync = function (n) {
+    var d = this, c = d.c, k = c.varint(), cols = [], j = 0, out;
+    if (k < 1 || k > 8) jfail('bad tuple');
+    d.spend(n * k);
+    function next() {
+      if (j >= k) return true;
+      return d.columnAsync(n).then(function (col) { cols.push(col); j++; return nextTask(); }).then(next);
+    }
+    return next().then(function () {
+      var c0 = cols[0], c1 = cols[1], x0 = k === 2 && c0.mode === 0 ? c0.a : null, x1 = k === 2 && c1.mode === 0 ? c1.a : null, fast = x0 instanceof Float64Array && x1 instanceof Float64Array;
+      out = new Array(n);
+      return slicedLoop(n, function (from, to) {
+        var i, jj, r;
+        if (fast) for (i = from; i < to; i++) out[i] = [x0[i], x1[i]];
+        else if (k === 2) for (i = from; i < to; i++) out[i] = [c0.get(i), c1.get(i)];
+        else for (i = from; i < to; i++) { r = new Array(k); for (jj = 0; jj < k; jj++) r[jj] = cols[jj].get(i); out[i] = r; }
+        return true;
+      }, UNPACK_SLICE_MS);
+    }).then(function () { return new Col(n, 0, out, null); });
+  };
+  Dec.prototype.arraysAsync = function (n) {
+    var d = this, c = d.c, m = c.varint(), lens, out;
+    d.spend(m + n);
+    lens = d.lengthCol(n);
+    return (m > 0 ? d.columnAsync(m) : Promise.resolve(null)).then(function (flat) {
+      var off = 0, fa = flat !== null && flat.mode === 0 && Array.isArray(flat.a) ? flat.a : null;
+      out = new Array(n);
+      return slicedLoop(n, function (from, to) {
+        var i, j, len, row;
+        for (i = from; i < to; i++) {
+          len = lens.get(i); if (off + len > m) jfail('bad array lengths');
+          if (fa !== null) row = fa.slice(off, off + len);
+          else { row = new Array(len); for (j = 0; j < len; j++) row[j] = flat.get(off + j); }
+          out[i] = row; off += len;
+        }
+        return true;
+      }, UNPACK_SLICE_MS).then(function () { if (off !== m) jfail('bad array lengths'); });
+    }).then(function () { return new Col(n, 0, out, null); });
+  };
+  function finishUnpack(d) {
+    var v = d.value();
     if (d.c.p !== d.c.end) jfail('extra data after the value');
     return v;
   }
@@ -4382,8 +4840,65 @@
   }
   pager.plan = pagerPlan;
 
+  // ================================================================ packAsync's workers
+  // makePool({ size }): workers that run the number picker for packAsync(value, { workers: pool }). Each worker is this same file loaded from a blob: URL, so a page that sets a content-security-policy
+  // needs worker-src blob: for it. Without Worker, or when new Worker() throws, pool.run answers on the page; when a worker is blocked later (the error event) or goes silent for 10 s, the waiting runs reject and packAsync packs the plain way, so the bytes never differ and the promise always settles. pool.close() ends the workers.
+  function makePool(opts) {
+    opts = opts || {};
+    var cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency || 4, size = opts.size > 0 ? Math.floor(opts.size) : Math.max(1, Math.min(3, cores - 1)), ws = [], url = null, pending = {}, nextId = 1, watchdog = opts.timeout > 0 ? opts.timeout : 10000, usable = typeof Worker === 'function' && typeof Blob === 'function' && typeof URL === 'function' && typeof URL.createObjectURL === 'function';
+    function fail(why) {                                           // a worker could not start, was blocked (content-security-policy), crashed or went silent: this pool answers on the page from now on, and every waiting run rejects so packAsync packs the plain way
+      var id, p, k;
+      usable = false;
+      for (k = 0; k < ws.length; k++) { try { ws[k].terminate(); } catch (x) { } }
+      ws = [];
+      if (url) { try { URL.revokeObjectURL(url); } catch (x) { } url = null; }
+      for (id in pending) { p = pending[id]; delete pending[id]; p.fail(why); }
+    }
+    function start() {
+      var src, i, w;
+      if (!usable || ws.length) return;
+      try {
+        src = 'var MC=' + unified.workerSource() + ';self.onmessage=function(ev){var d=ev.data,out=[],tr=[],i,r,b;for(i=0;i<d.jobs.length;i++){r=null;try{if(d.jobs[i].kind===1){r=MC.objects.cols(d.jobs[i].src,d.jobs[i].n,d.jobs[i].a,d.jobs[i].wopts);out.push({id:d.jobs[i].id,ctl:r.ctl,blob:r.blob,v5:r.v5});tr.push(r.ctl.buffer);tr.push(r.blob.buffer);continue;}r=MC.objects.adapt(d.jobs[i].src,d.jobs[i].mode,d.jobs[i].wasm);}catch(e){r=null;if(d.jobs[i].kind===1){out.push({id:d.jobs[i].id,fail:1});continue;}}if(r&&r.bytes){b=r.bytes.slice();out.push({id:d.jobs[i].id,bytes:b,z:r.z});tr.push(b.buffer);}else out.push({id:d.jobs[i].id,bytes:null,z:0});}self.postMessage({out:out},tr);};';
+        url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+        for (i = 0; i < size; i++) {
+          w = new Worker(url);
+          w.onmessage = function (ev) { var o = ev.data.out, k, p; for (k = 0; k < o.length; k++) { p = pending[o[k].id]; if (p) { delete pending[o[k].id]; p.ok(o[k]); } } };
+          w.onerror = function (ev) { if (ev && ev.preventDefault) ev.preventDefault(); fail('worker error'); };      // a blocked blob: worker reports here, later than new Worker()
+          w.onmessageerror = function () { fail('worker message error'); };
+          ws.push(w);
+        }
+      } catch (err) { fail('no worker'); }
+    }
+    function run(jobs) {
+      var order = [], load = [], mine = [], i, k, w, ps = [], rows = 0, timer = null, results = new Array(jobs.length), all;
+      start();
+      if (!usable || !ws.length) return Promise.resolve(jobs.map(function (j) { return j.kind === 1 ? colsFor(j.src, j.n, j.a, j.wopts) : adaptFor(j.src, j.mode, j.wasm); }));
+      for (i = 0; i < jobs.length; i++) { order.push(i); rows += jobs[i].n; }
+      order.sort(function (a, b) { return jobs[b].n - jobs[a].n; });
+      for (w = 0; w < ws.length; w++) { load.push(0); mine.push([]); }
+      for (k = 0; k < order.length; k++) { w = load.indexOf(Math.min.apply(null, load)); load[w] += jobs[order[k]].n; mine[w].push(order[k]); }
+      for (w = 0; w < ws.length; w++) {
+        if (!mine[w].length) continue;
+        (function (w) {
+          var msg = [], tr = [];
+          mine[w].forEach(function (ix) {
+            var id = nextId++; msg.push({ id: id, kind: jobs[ix].kind, src: jobs[ix].src, n: jobs[ix].n, a: jobs[ix].a, wopts: jobs[ix].wopts, mode: jobs[ix].mode, wasm: jobs[ix].wasm }); tr.push(jobs[ix].src.buffer);
+            ps.push(new Promise(function (res, rej) { pending[id] = { fail: function (why) { rej(new Error('MemoryCompression pool: ' + why)); }, ok: function (o) { results[ix] = o.fail ? { fail: 1 } : o.ctl ? { ctl: o.ctl, blob: o.blob, v5: o.v5 } : { bytes: o.bytes || null, z: o.z }; res(); } }; }));
+          });
+          try { ws[w].postMessage({ jobs: msg }, tr); } catch (err) { fail('postMessage failed'); }
+        })(w);
+      }
+      all = Promise.all(ps);
+      timer = setTimeout(function () { fail('no answer from the workers'); }, watchdog + rows / 100);              // never wait for ever on a worker that was blocked without an error
+      if (timer && timer.unref) timer.unref();
+      return all.then(function (r) { clearTimeout(timer); return results; }, function (err) { clearTimeout(timer); throw err; });
+    }
+    function close() { fail('closed'); }
+    return { run: run, close: close, start: start, size: size };
+  }
+
   var jso = {
-    pack: pack, unpack: unpack, view: view, freeBuffers: freeBuffers,
+    pack: pack, unpack: unpack, view: view, freeBuffers: freeBuffers, packAsync: packAsync, unpackAsync: unpackAsync, adapt: adaptFor, cols: colsFor,
     ready: MC.ready, accelerated: MC.accelerated,
     keeper: keeper, pager: pager, heap: heapInfo, profile: profile, estimateBytes: estimateBytes,
     core: MC, picker: PK
@@ -4424,6 +4939,16 @@
   var unified = {}, key;
   for (key in MC) unified[key] = MC[key];                                                     // lz4Compress, deflate, inflate, zlib, gzip, shuffle, crc32 ... as in memory-compression 1.x
   unified.pack = autoPack; unified.unpack = autoUnpack; unified.view = autoView;
+  unified.packAsync = function (value, opts) {                                               // the same bytes as pack(); the number picker runs on workers (opts.workers: a pool from MemoryCompression.pool())
+    opts = opts || {}; var layer = opts.layer === undefined ? 'auto' : opts.layer;
+    if (layer === 'core' || (layer === 'auto' && isBytesLike(value) && !(isNumberArray(value) && (opts.mode === 'balanced' || opts.picker === true)))) return Promise.resolve(autoPack(value, opts));
+    if (opts.mode === 'small' && isBytesLike(value)) return Promise.resolve(autoPack(value, opts));
+    return jso.packAsync(value, opts);
+  };
+  unified.unpackAsync = function (bytes, opts) {                                              // the same value as unpack(); a long list of records is opened in short slices
+    try { return layerOf(bytes) === 'objects' ? jso.unpackAsync(bytes, opts) : Promise.resolve(MC.unpack(bytes, opts)); } catch (err) { return Promise.reject(err); }
+  };
+  unified.pool = makePool;
   unified.layerOf = layerOf;
   unified.freeBuffers = freeBuffers; unified.keeper = keeper; unified.pager = pager; unified.heap = heapInfo; unified.profile = profile; unified.estimateBytes = estimateBytes;
   unified.core = MC; unified.objects = jso; unified.jso = jso; unified.picker = PK;
