@@ -4168,7 +4168,7 @@
   }
   function pager(list, opts) {
     var store, uid = Math.random().toString(36).slice(2, 10), o = pagerAuto(list, opts), rows = o.pageRows > 0 ? Math.floor(o.pageRows) : 2048, n = list.length, np = Math.ceil(n / rows), pages = new Array(np), maxLive = o.livePages >= 0 ? Math.floor(o.livePages) : 4,
-      asView = !!o.pageView, coldOn = !!o.cold, coldAfter = o.coldAfter > 0 ? o.coldAfter : 3000, lastTouch = 0, coldTimer = null, ahead = o.readAhead !== false && !o.pageView, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
+      asView = !!o.pageView, coldOn = !!o.cold, coldAfter = o.coldAfter > 0 ? o.coldAfter : 3000, lastTouch = 0, coldTimer = null, coolBad = false, ahead = o.readAhead !== false && !o.pageView, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
     packOpts.hints = {};                         // each column remembers which number ways won on earlier pages (every 4th pack still tries them all)
     for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError' && k !== 'deviceMemory' && k !== 'heapBytes' && k !== 'pageView' && k !== 'cold' && k !== 'coldAfter') packOpts[k] = o[k];
     if (!Array.isArray(list)) jfail('pager() needs an array');
@@ -4342,8 +4342,13 @@
         var i = 0, co = {}, k2, done = 0, saved = 0, w = null, inline = typeof window === 'undefined' && typeof Worker !== 'function';
         for (k2 in packOpts) if (k2 !== 'hints') co[k2] = packOpts[k2];
         co.mode = 'balanced';
-        if (!inline) { w = coolWorker(); if (!w) return Promise.resolve({ pages: 0, saved: 0, worker: false }); }
+        if (!inline) { if (coolBad) return Promise.resolve({ pages: 0, saved: 0, worker: false }); w = coolWorker(); if (!w) return Promise.resolve({ pages: 0, saved: 0, worker: false }); }
         return new Promise(function (resolve, reject) {
+          var replied = false;
+          if (w) w.onerror = function (ev) {      // attached as soon as the worker exists: a page policy that blocks blob: workers reports it right after creation
+            w.terminate();
+            if (!replied) { coolBad = true; if (coldTimer !== null) { clearInterval(coldTimer); coldTimer = null; } resolve({ pages: 0, saved: 0, worker: false }); } else reject(new Error('MemoryCompressionJSO: the cooling worker failed'));
+          };
           function finish() { if (w) w.terminate(); resolve({ pages: done, saved: saved, worker: !!w }); }
           function take(e, orig, b) {
             e.cold = true;
@@ -4355,8 +4360,7 @@
             if (i >= np) { finish(); return; }
             orig = e.bytes; i++;
             if (!w) { try { take(e, orig, pack(unpack(orig, packOpts), co)); } catch (x) { reject(x); return; } later(next); return; }
-            w.onmessage = function (m) { if (m.data.error) { w.terminate(); reject(new Error('MemoryCompressionJSO: ' + m.data.error)); return; } take(e, orig, m.data.bytes); next(); };
-            w.onerror = function (ev) { w.terminate(); reject(new Error('MemoryCompressionJSO: the cooling worker failed')); };
+            w.onmessage = function (m) { replied = true; if (m.data.error) { w.terminate(); reject(new Error('MemoryCompressionJSO: ' + m.data.error)); return; } take(e, orig, m.data.bytes); next(); };
             var copy = orig.slice(); w.postMessage({ bytes: copy, po: packOpts, co: co }, [copy.buffer]);
           }
           later(next);
