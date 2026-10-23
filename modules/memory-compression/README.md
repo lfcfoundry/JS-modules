@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.4.2 · API 2**
+**Version 2.4.3 · API 2**
 
-**Tested in:** Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (timing one browser at a time, 5 runs each; Node only for pass/fail checks); no real phone
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
 
@@ -100,6 +100,8 @@ The WebAssembly helper starts the first time you pack or unpack (since 2.0.3), s
 | `maxSize`, `maxItems` | limits that stop a hostile or damaged input (1 GiB, 100,000,000) | as shown |
 
 Also on the object: `pager(list, opts)` with `get`, `getAsync`, `load`, `range`, `each`, `set`, `changed`, `push`, `flush`, `settle`, `spill`, `trim`, `release`, `pressure`, `memory`, `dispose`; `keeper(opts)` with `hold`, `get`, `restore`, `each`, `pin`, `unpin`, `trim`, `release`, `drop`, `memory`, `calibrate`; `estimateBytes(value)`, `profile(value, opts, repeats)`, `heap()`; `ready()` and `accelerated()`; the standard formats `lz4Compress`, `lz4Decompress`, `deflate`, `inflate`, `zlib`, `unzlib`, `gzip`, `gunzip`; and `shuffle`, `unshuffle`, `crc32`, `adler32`. The parts are `MemoryCompression.core`, `.objects` (also `.jso`, and the global `MemoryCompressionJSO`) and `.picker`. Errors are `Error` objects whose message starts with `MemoryCompression:` and says what is wrong in plain words. Every option with its default is listed in the full notes.
+
+**`packAsync(value, { mode, workers })`** (opt-in, 2.4.3) returns a promise for exactly the bytes `pack(value, { mode })` makes, without freezing the page. A long list of same-shape records (2,048 rows or more) is turned into columns in slices of about 3 ms with a yield between slices and columns, and every number column of 1,024 rows or more goes to up to 3 workers (`workers: MemoryCompression.pool({ size })`; the default size is the smaller of 3 and cores minus 1). Without a pool it runs the same slices on the page. If a worker cannot start, is blocked by the page policy or fails, it still resolves with the same bytes. Do not change the list while it runs. `pack()` is unchanged. It is not always faster in total time than `pack()`: see the numbers in the changelog and keep `pack()` for background jobs and short lists. A page with a content-security-policy needs `worker-src blob:` for the workers (nothing else changes); without it the call still resolves, on the page.
 
 ## Numbers and how it compares
 
