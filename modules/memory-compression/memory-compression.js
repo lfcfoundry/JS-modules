@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.4 (API 2)
+ * Version 2.3.5 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -3297,17 +3297,22 @@
         k = c.varint(); if (k < 1 || k > 8) jfail('bad tuple'); this.spend(n * k);
         var cols = []; for (j = 0; j < k; j++) cols.push(this.column(n));
         out = new Array(n);
-        if (k === 2) { var c0 = cols[0], c1 = cols[1]; for (i = 0; i < n; i++) out[i] = [c0.get(i), c1.get(i)]; }
+        if (k === 2) {
+          var c0 = cols[0], c1 = cols[1], x0 = c0.mode === 0 ? c0.a : null, x1 = c1.mode === 0 ? c1.a : null;
+          if (x0 instanceof Float64Array && x1 instanceof Float64Array) for (i = 0; i < n; i++) out[i] = [x0[i], x1[i]];                      // the usual coordinate pair: both columns are plain decimals, read straight from their arrays
+          else for (i = 0; i < n; i++) out[i] = [c0.get(i), c1.get(i)];
+        }
         else for (i = 0; i < n; i++) { var r = new Array(k); for (j = 0; j < k; j++) r[j] = cols[j].get(i); out[i] = r; }
         return new Col(n, 0, out, null);
       case CT_ARRAYS:
         m = c.varint(); this.spend(m + n);
         lens = this.lengthCol(n);
         flat = m > 0 ? this.column(m) : null;
-        out = new Array(n); var off = 0, len, row;
+        out = new Array(n); var off = 0, len, row, fa = flat !== null && flat.mode === 0 && Array.isArray(flat.a) ? flat.a : null;
         for (i = 0; i < n; i++) {
           len = lens.get(i); if (off + len > m) jfail('bad array lengths');
-          row = new Array(len); for (j = 0; j < len; j++) row[j] = flat.get(off + j);
+          if (fa !== null) row = fa.slice(off, off + len);                                  // items already in a plain array: the engine copies the stretch in one go
+          else { row = new Array(len); for (j = 0; j < len; j++) row[j] = flat.get(off + j); }
           out[i] = row; off += len;
         }
         if (off !== m) jfail('bad array lengths');
