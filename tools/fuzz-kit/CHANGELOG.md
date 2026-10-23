@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.1 · API 1 · 2026-10-22
+- 1.3.1: the runner no longer waits for the page with script that needs eval, so games with a strict policy (no unsafe-eval) run all their operations.
+
 ## 1.3.0 · API 1 · 2026-10-22
 - New: the background hunt and the runner now also drive WebKitGTK and GNOME Web, so all four test browsers can be hunted. A stuck page in WebKit is reported as hung, as in Chrome and Firefox.
 
