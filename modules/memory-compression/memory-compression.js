@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.3 (API 2)
+ * Version 2.3.4 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1745,7 +1745,8 @@
       try { return packRun(values, opts); } finally { KWC = null; STAT = null; }
     }
     function packRun(values, opts) {
-      var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full;
+      var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
+      if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
         k++; full = !(k > 2 && k % 4 !== 0 && won.length);
@@ -1756,6 +1757,7 @@
         w.vi(part.length); w.bytes(part);
         if (opts && opts.labels) opts.labels.push(describe(part));
       }
+      if (H) H.k = k;
       return w.out();
     }
     // unpack(bytes, count): the Float64Array, exactly as it was packed. count is checked against the data. Damaged or cut data throws an Error whose message starts with MemoryCompressionJSO:.
@@ -1970,6 +1972,7 @@
     this.path = '';
     this.mcOpts = { mode: this.mode }; if (this.level !== undefined) this.mcOpts.level = this.level;
     if (opts && opts.wasm === false) this.mcOpts.wasm = false;
+    this.hints = opts && opts.hints && typeof opts.hints === 'object' ? opts.hints : null;         // what won for each column in earlier packs of the same kind of list (pager pages): later packs try those ways first
     this.blobBytes = 0;
   }
   Enc.prototype.blob = function (t, name, pre) {      // t: a typed array. Raw when tiny, else packed by the core when that is smaller (pre: that packed form, when the caller already made it)
@@ -2198,7 +2201,7 @@
           if (tryNe) { p = MC.pack(ne, this.mcOpts); tryNe = p.length < got.length * 1.02; }
         }
       }
-      best = a.pack(src, { sample: true, wasm: this.mcOpts.wasm });
+      best = a.pack(src, { sample: true, wasm: this.mcOpts.wasm, hint: this.hints ? (this.hints[this.path] || (this.hints[this.path] = {})) : null });
       if (small) {
         p = MC.pack(best, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
         if (tryNe) { ne = a.pack(src, { sample: true, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; } }
@@ -4129,6 +4132,7 @@
   function pager(list, opts) {
     var store, uid = Math.random().toString(36).slice(2, 10), o = pagerAuto(list, opts), rows = o.pageRows > 0 ? Math.floor(o.pageRows) : 2048, n = list.length, np = Math.ceil(n / rows), pages = new Array(np), maxLive = o.livePages >= 0 ? Math.floor(o.livePages) : 4,
       ahead = o.readAhead !== false, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
+    packOpts.hints = {};                         // each column remembers which number ways won on earlier pages (every 4th pack still tries them all)
     for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError' && k !== 'deviceMemory' && k !== 'heapBytes') packOpts[k] = o[k];
     if (!Array.isArray(list)) jfail('pager() needs an array');
     store = o.spill ? (o.spill === true ? idbStore() : o.spill) : null;

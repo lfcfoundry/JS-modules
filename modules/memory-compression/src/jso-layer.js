@@ -194,6 +194,7 @@
     this.path = '';
     this.mcOpts = { mode: this.mode }; if (this.level !== undefined) this.mcOpts.level = this.level;
     if (opts && opts.wasm === false) this.mcOpts.wasm = false;
+    this.hints = opts && opts.hints && typeof opts.hints === 'object' ? opts.hints : null;         // what won for each column in earlier packs of the same kind of list (pager pages): later packs try those ways first
     this.blobBytes = 0;
   }
   Enc.prototype.blob = function (t, name, pre) {      // t: a typed array. Raw when tiny, else packed by the core when that is smaller (pre: that packed form, when the caller already made it)
@@ -422,7 +423,7 @@
           if (tryNe) { p = MC.pack(ne, this.mcOpts); tryNe = p.length < got.length * 1.02; }
         }
       }
-      best = a.pack(src, { sample: true, wasm: this.mcOpts.wasm });
+      best = a.pack(src, { sample: true, wasm: this.mcOpts.wasm, hint: this.hints ? (this.hints[this.path] || (this.hints[this.path] = {})) : null });
       if (small) {
         p = MC.pack(best, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
         if (tryNe) { ne = a.pack(src, { sample: true, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; } }
