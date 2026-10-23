@@ -615,6 +615,11 @@ t('pager: balanced pages remember which number ways won and still give back ever
   for (i = 0; i < rows.length; i += 499) same(rows[i], P.get(i), 'row ' + i);
 });
 
+t('nested coordinate lists: arrays of pairs (decimal, whole-number and mixed), empty arrays and null entries come back exactly in every mode', function () {
+  var rows = many(1200, function (i) { return { line: i % 9 ? [[i, i + 0.5], [i * 2, i * 3.25], [i, null]] : [], ints: [[i, i + 1], [i * 2, i * 3]], names: [['x', i], ['y', i]], deep: { p: [[1.5, 2], [3, 4.5]], q: i % 5 ? null : undefined } }; }), modes = ['fast', 'balanced', 'small'], m, out, i;
+  for (m = 0; m < modes.length; m++) { out = J.unpack(J.pack(rows, opt({ mode: modes[m] }))); for (i = 0; i < rows.length; i += 37) same(rows[i], out[i], modes[m] + ' row ' + i); }
+});
+
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);

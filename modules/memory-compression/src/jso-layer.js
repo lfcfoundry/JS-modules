@@ -1519,17 +1519,22 @@
         k = c.varint(); if (k < 1 || k > 8) jfail('bad tuple'); this.spend(n * k);
         var cols = []; for (j = 0; j < k; j++) cols.push(this.column(n));
         out = new Array(n);
-        if (k === 2) { var c0 = cols[0], c1 = cols[1]; for (i = 0; i < n; i++) out[i] = [c0.get(i), c1.get(i)]; }
+        if (k === 2) {
+          var c0 = cols[0], c1 = cols[1], x0 = c0.mode === 0 ? c0.a : null, x1 = c1.mode === 0 ? c1.a : null;
+          if (x0 instanceof Float64Array && x1 instanceof Float64Array) for (i = 0; i < n; i++) out[i] = [x0[i], x1[i]];                      // the usual coordinate pair: both columns are plain decimals, read straight from their arrays
+          else for (i = 0; i < n; i++) out[i] = [c0.get(i), c1.get(i)];
+        }
         else for (i = 0; i < n; i++) { var r = new Array(k); for (j = 0; j < k; j++) r[j] = cols[j].get(i); out[i] = r; }
         return new Col(n, 0, out, null);
       case CT_ARRAYS:
         m = c.varint(); this.spend(m + n);
         lens = this.lengthCol(n);
         flat = m > 0 ? this.column(m) : null;
-        out = new Array(n); var off = 0, len, row;
+        out = new Array(n); var off = 0, len, row, fa = flat !== null && flat.mode === 0 && Array.isArray(flat.a) ? flat.a : null;
         for (i = 0; i < n; i++) {
           len = lens.get(i); if (off + len > m) jfail('bad array lengths');
-          row = new Array(len); for (j = 0; j < len; j++) row[j] = flat.get(off + j);
+          if (fa !== null) row = fa.slice(off, off + len);                                  // items already in a plain array: the engine copies the stretch in one go
+          else { row = new Array(len); for (j = 0; j < len; j++) row[j] = flat.get(off + j); }
           out[i] = row; off += len;
         }
         if (off !== m) jfail('bad array lengths');
