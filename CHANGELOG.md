@@ -15,7 +15,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
-| [field-report](modules/field-report/README.md) | 1.0.1 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
+| [field-report](modules/field-report/README.md) | 1.0.2 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
@@ -77,6 +77,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-22 · **fuzz-kit** 1.3.1 · API 1: 1.3.1: the runner no longer waits for the page with script that needs eval, so games with a strict policy (no unsafe-eval) run all their operations.
 - 2026-10-22 · **fuzz-kit** 1.3.0 · API 1: New: the background hunt and the runner now also drive WebKitGTK and GNOME Web, so all four test browsers can be hunted. A stuck page in WebKit is reported as hung, as in Chrome and Firefox.
 - 2026-10-22 · **fuzz-kit** 1.2.0 · API 1: New background hunt: start a long fuzz run that carries on without the terminal, stops on request, and writes its findings to a folder. Chrome and Firefox now; the runner also works with puppeteer-core.
+- 2026-10-22 · **field-report** 1.0.2 · API 1: 1.0.2: the version the module reports (FR.version and the report footer) now says 1.0.2; 1.0.1 still reported 1.0.0.
 - 2026-10-22 · **field-report** 1.0.1 · API 1: 1.0.1: the Save buttons now really download the report file; before, a wrong type test sent every browser to the copy box.
 - 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
 - 2026-10-22 · **field-report** 1.0.0 · API 1: First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
