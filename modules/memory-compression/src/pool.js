@@ -57,12 +57,12 @@
     function start() {                                             // pool.start(): make the workers now and pack a small made-up list once with them (the result is thrown away), so the first real packAsync does not pay for loading the file and for the first run of the code on both sides
       var sample = [], i;
       begin();
-      if (primed || !usable || !ws.length) return;
+      if (primed || !usable || !ws.length) return Promise.resolve(false);
       primed = true;
       try {
         for (i = 0; i < 2500; i++) sample.push({ id: i, a: (i * 7919) % 900, b: (i * 104729) % 913, w: ((i * 31) % 1000) / 10, t: 1700000000 + i * 37 + (i * i) % 29 });
-        unified.packAsync(sample, { mode: 'balanced', workers: handle }).then(function () { }, function () { });
-      } catch (err) { }
+        return unified.packAsync(sample, { mode: 'balanced', workers: handle }).then(function () { return true; }, function () { return false; });   // resolves true once the first real pack will meet warm workers
+      } catch (err) { return Promise.resolve(false); }
     }
     function close() { fail('closed'); }
     handle = { run: run, close: close, start: start, size: size };
