@@ -159,5 +159,70 @@ function gen(type, n, shape) {
     ok(same(rd.unpack(await plk.pack(a, { parts: 5, level: 3 })), a), 'pool pack parts with a level round trips');
     const w = await K.worker(); ok(same(await w.unpack(sp), a), 'worker unpacks a split file'); w.terminate();
     plr.terminate(); plk.terminate(); }
+  // 15. 1.6.0: the programs are stored packed, big unpacks run in batches, an idle pool parks its workers
+  { const crypto = require('crypto'), zlib = require('zlib');
+    // 15a. packed program: the file holds deflate-raw, not the bare wasm, and it inflates to exactly the program in wasm/
+    for (const [file, wasm] of [['pcodec-js.js', 'read-speed.opt.wasm'], ['pcodec-js-fast.js', 'read-fast.opt.wasm'], ['pcodec-js-pack.js', 'pack-full.opt.wasm']]) {
+      const text = fs.readFileSync(path.join(dir, file), 'utf8'), raw = fs.readFileSync(path.join(__dirname, '..', 'wasm', wasm));
+      const m = /var PROGRAMS = \{ (\w+): "([A-Za-z0-9+/=]+)" \};/.exec(text); ok(!!m, `${file}: one embedded program found`);
+      ok(text.indexOf('AGFzbQ') === -1, `${file}: the bare wasm (base64 of the magic bytes) is not embedded`);
+      let inflated = null; try { inflated = zlib.inflateRawSync(Buffer.from(m[2], 'base64')); } catch (e) { /* not deflate */ }
+      ok(!!inflated && crypto.createHash('sha256').update(inflated).digest('hex') === crypto.createHash('sha256').update(raw).digest('hex'), `${file}: the embedded text inflates to exactly wasm/${wasm}`);
+      ok(Buffer.byteLength(text) < raw.length, `${file}: the whole file is smaller than the bare program (${Buffer.byteLength(text)} < ${raw.length})`);
+    }
+    ok(rd.programBytes === fs.statSync(path.join(__dirname, '..', 'wasm', READER === 'pcodec-js-fast.js' ? 'read-fast.opt.wasm' : 'read-speed.opt.wasm')).size && pk.programBytes === fs.statSync(path.join(__dirname, '..', 'wasm', 'pack-full.opt.wasm')).size, 'programBytes is the size of the opened program');
+    // 15b. a copy without DecompressionStream says so clearly; a second load() of a program already opened still works; a worker and a pool open it once
+    const fresh = (file) => { const f = path.join(dir, file); delete require.cache[require.resolve(f)]; return require(f); };
+    { const DS = globalThis.DecompressionStream; globalThis.DecompressionStream = undefined; let e = null; try { await fresh(READER).load(); } catch (x) { e = x; } globalThis.DecompressionStream = DS;
+      ok(!!e && /DecompressionStream/.test(e.message), 'no DecompressionStream: load() rejects and names it'); }
+    { let opened = 0; const DS = globalThis.DecompressionStream; globalThis.DecompressionStream = class extends DS { constructor(f) { super(f); opened++; } };
+      const F = fresh(READER), a = gen('i32', 3000, 'walk'), b = pk.pack(a); const l1 = await F.load(); const l2 = await F.load(); const l3 = await F.load({ program: READER === 'pcodec-js.js' ? 'plain' : 'fast' });
+      ok(same(l1.unpack(b), a) && l2 === l1 && same(l3.unpack(b), a), 'load() twice and load({ program }) after it give working objects'); const w = await F.worker(), pl = await F.pool({ size: 2, warm: true });
+      ok(same(await w.unpack(b), a) && same(await pl.unpack(b), a), 'a worker and a pool made after load() work'); w.terminate(); pl.terminate();
+      ok(opened === 1, `the packed program is opened once, not again for the second load, a worker or a pool (${opened})`); globalThis.DecompressionStream = DS; }
+    // 15c. unpack() of a big file decodes in batches into the result: same numbers, a small program memory, nothing left open
+    for (const [t, n, sh] of [['f64', 262143, 'dec'], ['f64', 262144, 'dec'], ['f64', 262145, 'noise'], ['i32', 300000, 'walk'], ['u16', 300000, 'few'], ['f32', 400000, 'noise'], ['i64', 300000, 'walk'], ['u64', 270000, 'walk'], ['i16', 300000, 'walk'], ['u32', 650000, 'few'], ['f64', 1000000, 'dec']]) {
+      const a = gen(t, n, sh), b = pk.pack(a), r = rd.unpack(b); ok(same(r, a) && r.constructor === a.constructor && r.length === n, `big copy unpack ${t} ${n} ${sh}`);
+      if (n >= 262144) { let e = null; try { rd.unpack(b, { count: n - 1 }); } catch (x) { e = x; } ok(!!e, `big copy: count one too small refused ${t} ${n}`); e = null; try { rd.unpack(b, { count: n + 1 }); } catch (x) { e = x; } ok(!!e, `big copy: count one too large refused ${t} ${n}`); }
+    }
+    { const a = gen('f64', 1500000, 'dec'), b = pk.pack(a); rd.release(); const r = rd.unpack(b); const mb = rd.memoryBytes() / 1048576;
+      ok(same(r, a) && mb < 6, `big copy unpack of 1,500,000 f64 (12 MB result) leaves the program holding under 6 MB (${mb.toFixed(1)} MB)`);
+      rd.release(); const v = rd.unpack(b, { view: true }); ok(same(v, a) && rd.memoryBytes() / 1048576 > 12, 'view still points into the program memory (holds the whole result)');
+      const inn = new Float64Array(a.length); rd.unpack(b, { into: inn }); ok(same(inn, a), 'into still fills your array'); rd.release();
+      const wb = Buffer.from(pk.pack(a)); let errs = 0, wrongLen = 0, good = 0; const before = rd.memoryBytes();
+      for (let t = 0; t < 60; t++) { const c = new Uint8Array(wb); c[Math.floor(rnd() * c.length)] ^= 1 << Math.floor(rnd() * 8); try { const q = rd.unpack(t % 4 === 3 ? c.subarray(0, Math.floor(c.length * rnd())) : c); good++; if (q.length !== a.length) wrongLen++; } catch (x) { errs++; } }
+      ok(wrongLen === 0 && errs > 0, `damaged big files: an error or the right length, never a crash (${errs} refused, ${good} decoded)`);
+      ok(same(rd.unpack(b), a), 'the object still works after damaged big files'); ok(rd.memoryBytes() / 1048576 < 8, 'damaged big files leave nothing open in the program (' + (rd.memoryBytes() / 1048576).toFixed(1) + ' MB)'); }
+    // 15d. parking the pool: needs workers, so Node gets a stand-in Worker built on worker_threads
+    { const NW = require('worker_threads').Worker, texts = new Map(), OB = globalThis.Blob, cu = URL.createObjectURL, live = new Set();
+      globalThis.Blob = class extends OB { constructor(parts, o) { super(parts, o); this.__t = parts.join(''); } };
+      URL.createObjectURL = function (b) { const u = cu.call(URL, b); texts.set(u, b.__t); return u; };
+      const PRE = "const {parentPort}=require('worker_threads');globalThis.self=globalThis;globalThis.postMessage=(m,t)=>parentPort.postMessage(m,t);parentPort.on('message',d=>{if(globalThis.onmessage)globalThis.onmessage({data:d});});";
+      globalThis.Worker = class { constructor(url) { this.w = new NW(PRE + texts.get(url), { eval: true }); this.w.on('message', (d) => { if (this.onmessage) this.onmessage({ data: d }); }); this.w.on('error', (e) => { if (this.onerror) this.onerror(e); }); live.add(this); } postMessage(m, t) { this.w.postMessage(m, t); } terminate() { live.delete(this); this.w.terminate(); } };
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms)), F = fresh('pcodec-js-pack.js');
+      try {
+        const a = gen('f64', 700000, 'dec'), sp = pk.pack(a, { parts: 4 }), plain = pk.pack(a), cols = [gen('i32', 60000, 'walk'), gen('f64', 50000, 'dec'), gen('u16', 40000, 'few')], files = cols.map((c) => pk.pack(c));
+        const w1 = await F.worker(); ok(w1.inWorker === true && live.size === 1, 'the Node stand-in starts a real worker thread'); ok(same(await w1.unpack(plain), a), 'a real worker opens a big file in batches (same numbers)'); w1.terminate();
+        const pl = await F.pool({ size: 3, laneMs: 0, idleMs: 150 });
+        ok(pl.idleMs === 150 && pl.workers() === 0, 'a new pool has no workers and reports idleMs');
+        { const q4 = await F.pool({ size: 4, laneMs: 0, idleMs: 0 }), pr = q4.unpack(files.concat([files[0]]).map((f) => f.slice())); ok(live.size - pl.workers() <= 1, `starting 4 workers is spread over turns of the page: ${live.size - pl.workers()} created in the first turn`); const r4 = await pr; ok(q4.workers() === 4 && r4.length === 4 && same(r4[3], cols[0]), 'all 4 workers run after the first job'); q4.terminate(); }
+        ok(same(await pl.unpack(sp), a), 'pool opens a split file'); ok(pl.workers() > 0 && live.size === pl.workers(), `workers run after a job (${pl.workers()})`);
+        await sleep(60); ok(pl.workers() > 0, 'not parked before idleMs');
+        await sleep(450); ok(pl.workers() === 0 && live.size === 0, `parked after idleMs: no worker threads left (${live.size})`);
+        const back = await pl.unpack(files); ok(back.every((b, i) => same(b, cols[i])), 'the next job after parking starts new workers and gives the same numbers'); ok(pl.workers() > 0, 'workers are back after the job');
+        await sleep(500); ok(pl.workers() === 0 && live.size === 0, 'parked again');
+        ok(same(await pl.unpack(sp, { into: new Float64Array(a.length) }), a), 'split file into your array after parking twice');
+        // a job in progress is never parked, however short idleMs is
+        const quick = await F.pool({ size: 2, laneMs: 0, idleMs: 1 }); const outs = await Promise.all([quick.unpack(sp), quick.unpack(files), quick.unpack(plain)]);
+        ok(same(outs[0], a) && outs[1].every((b, i) => same(b, cols[i])) && same(outs[2], a), 'idleMs 1: three jobs at once finish with exact numbers (the pool does not park under a running job)');
+        const keep = await F.pool({ size: 2, laneMs: 0, idleMs: 0 }); await keep.unpack(files); await sleep(400); ok(keep.workers() > 0, 'idleMs 0 turns parking off');
+        const dflt = await F.pool({ size: 2 }); ok(dflt.idleMs === 4000, 'default idleMs is 4000'); await dflt.unpack(files); ok(dflt.workers() > 0, 'default pool keeps its workers right after a job'); dflt.terminate(); ok(dflt.workers() === 0, 'terminate ends the workers at once');
+        let e = null; try { await dflt.unpack(files); } catch (x) { e = x; } ok(!!e, 'a terminated pool refuses jobs'); await sleep(50);
+        await pl.unpack(files); pl.terminate(); await sleep(300); ok(pl.workers() === 0 && live.size === keep.workers(), 'terminate cancels the idle clock and ends the workers');
+        keep.terminate(); quick.terminate();
+        const wp = await F.pool({ size: 2, warm: true, idleMs: 120 }); await sleep(30); ok(wp.workers() === 2, 'warm pool starts its workers'); await sleep(500); ok(wp.workers() === 0 && live.size === 0, 'a warm pool that never got a job parks too'); ok(same(await wp.unpack(sp), a), 'and still works'); wp.terminate();
+        await sleep(100); ok(live.size === 0, 'no worker thread left at the end');
+      } finally { delete globalThis.Worker; globalThis.Blob = OB; URL.createObjectURL = cu; for (const x of [...live]) x.terminate(); } }
+  }
   console.log(`\n${pass} checks passed, ${fail} failed`); process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });
