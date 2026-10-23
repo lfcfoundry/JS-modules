@@ -24,7 +24,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // Resolve with fn()'s answer, or reject after ms (a hung page can make driver calls wait for ever).
 const within = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + ' timed out after ' + ms + ' ms')), ms).unref?.())]);
 
-export const consoleIgnored = (text, patterns) => patterns.some(p => new RegExp(p).test(text));
+// Refusals that are the browser's rule, not the app's bug: a file picker opened by a fuzz tap that is not a real user tap, or one that closes at once ("User activation required", "Must be handling a user gesture", "The user aborted a request"; Chromium wording). Always ignored; every other error still shows.
+export const KNOWN_NOISE = [/show(?:Save|Open)FilePicker.*(?:User activation required|Must be handling a user gesture|The user aborted a request)/, /showDirectoryPicker.*(?:User activation required|Must be handling a user gesture|The user aborted a request)/];
+export const consoleIgnored = (text, patterns) => KNOWN_NOISE.some(r => r.test(text)) || patterns.some(p => new RegExp(p).test(text));
 export function realRequest(req, vw, vh) {   // check a real-input request from the page; null when not acceptable
   if (!req || typeof req !== 'object') return null;
   const clamp = (v, hi) => Math.min(Math.max(Number(v), 0), hi - 1);
@@ -71,7 +73,7 @@ export async function runSeed(browser, url, adapter, seed, ops, viewport = { wid
   await page.setViewport(o.mobile ? { ...viewport, isMobile: true, hasTouch: true } : viewport); page.setDefaultTimeout(60000);
   if (o.init) await page.evaluateOnNewDocument(o.init);   // runs before the page's own scripts
   page.on('dialog', d => { d.dismiss().catch(() => { }); });   // an alert() would freeze the page for ever; Playwright dismisses these by itself
-  page.on('pageerror', e => perr.push('pageerror: ' + e));
+  page.on('pageerror', e => { if (!consoleIgnored(String(e), [])) perr.push('pageerror: ' + e); });
   page.on('console', m => {
     if (m.type() === 'error') { if (!o.allowConsoleErrors && !consoleIgnored(m.text(), o.ignoreConsole)) perr.push('console.error: ' + m.text()); }
     else if (m.type() === 'debug' && m.text().startsWith('__fuzz-op ')) st.mark = m.text().slice(10);
