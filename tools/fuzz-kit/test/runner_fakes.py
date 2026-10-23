@@ -172,6 +172,11 @@ check("console.error fails a seed by default", any(f["op"] == "pageerror" and "d
 check("--ignore-console REGEX lets a deliberate message pass", run(FakePage(OK, during_start=noisy), ignore_console=["^deliberate"])["fails"] == [])
 check("a pattern that does not match still fails", len(run(FakePage(OK, during_start=noisy), ignore_console=["nothing"])["fails"]) == 1)
 check("--allow-console-errors lets all pass", run(FakePage(OK, during_start=noisy), allow_console_errors=True)["fails"] == [])
+def picker(pg):
+    for t in ("Failed to execute 'showSaveFilePicker' on 'Window': User activation required.", "Failed to execute 'showSaveFilePicker' on 'Window': Must be handling a user gesture to show a file picker."):
+        pg.emit("console", Msg("error", t)); pg.emit("pageerror", Exception("Uncaught (in promise) TypeError: " + t))
+check("the browser's refusal of a file picker without a real tap is not a finding (console and page error, both wordings)", run(FakePage(OK, during_start=picker))["fails"] == [])
+check("another showSaveFilePicker error still is", any(f["op"] == "pageerror" for f in run(FakePage(OK, during_start=lambda pg: pg.emit("console", Msg("error", "Failed to execute 'showSaveFilePicker' on 'Window': disk full"))))["fails"]))
 check("a page error is still a finding", any(f["op"] == "pageerror" for f in run(FakePage(OK, during_start=lambda pg: pg.emit("pageerror", Exception("kaput"))))["fails"]))
 
 # 6. real input
