@@ -69,6 +69,8 @@ var steps = [
   ['save-kit lean', 'node', ['modules/save-kit/test/lean.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
   ['image-decode', 'node', ['modules/image-decode/test/run.js']],
+  ['gpu-blur', 'node', ['modules/gpu-blur/test/run.js']],
+  ['gpu-blur mutants', 'node', ['modules/gpu-blur/test/mutants.js']],
   ['field-report', 'node', ['modules/field-report/test/run.js']],
   ['idle-core', 'node', ['modules/idle-core/test/run.js']],
   ['idle-core minified', 'node', ['modules/idle-core/test/run.js', 'modules/idle-core/idle-core.min.js']],
@@ -101,6 +103,7 @@ var steps = [
   ['save-kit speed', 'node', ['tests/save-kit-speed-browser.js'], true, true],   // optional like the one above (one game-sized save and load, new file against an older one with OLD=, in Node and in each browser)
   ['memory-compression browser', 'node', ['tests/memory-compression-browser.js'], true, true],   // optional: the module's own 36 checks inside each browser page (about 6 to 8 s per browser)
   ['memory-compression pager browser', 'node', ['tests/memory-compression-pager-browser.js'], true, true],   // optional: pager() exactness (pages, background, real IndexedDB spill) and page-open timings in each browser
+  ['gpu-blur browser', 'node', ['tests/gpu-blur-browser.js'], true, true],   // optional: every route (card, wasm, JavaScript) against the JavaScript reference, source and result kinds, the four fallbacks and the longest page task, in each browser (FIREFOX_GL=1 under xvfb-run for the card route in Firefox)
   ['image-decode browser', 'node', ['tests/image-decode-browser.js'], true, true],   // optional: the same pictures by every way in each browser (add IMG_DIR=<folder made by modules/image-decode/test/make-sheets.py> for the timings)
   ['image-decode ahead browser', 'node', ['tests/image-decode-ahead-browser.js'], true, true],   // optional: ahead() against load-when-asked at a stage change in each browser (needs IMG_DIR as above)
   ['pcodec-js browser', 'node', ['tests/pcodec-js-browser.js'], true, true],   // optional: the test page and the demo page in a real browser
