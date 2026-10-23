@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.4 · API 2 · 2026-10-22
+- 2.3.4: a pager in balanced mode builds its pages up to about 25% faster; packed size grows by under 1%.
+
 ## 2.3.3 · API 2 · 2026-10-22
 - 2.3.3: packing a long list in pager() is 15 to 30% faster (60,000 rows: Chromium 40 to 31 ms, Firefox 61 to 45, WebKitGTK 54 to 39, GNOME Web 47 to 38). Same bytes.
 
