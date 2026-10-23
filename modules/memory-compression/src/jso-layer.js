@@ -2021,8 +2021,16 @@
     }
     return encoded.then(function () { return packAsyncRest(e, defer, value, opts, o, T, tA); });
   }
-  var SLICE_MIN = 2048, SLICE_MS = 3;
-  function nextTask() { return new Promise(function (res) { if (typeof MessageChannel === 'function') { var ch = new MessageChannel(); ch.port1.onmessage = function () { ch.port1.close(); res(); }; ch.port2.postMessage(0); } else setTimeout(res, 0); }); }
+  var SLICE_MIN = 2048, SLICE_MS = 3, UNPACK_SLICE_MS = 5;
+  var YCH = null, YQ = [];                                                // one channel for every yield: making a channel per yield cost 1 to 2 ms each in Chromium
+  function nextTask() {
+    return new Promise(function (res) {
+      if (typeof setImmediate === 'function') { setImmediate(res); return; }
+      if (typeof MessageChannel !== 'function') { setTimeout(res, 0); return; }
+      if (!YCH) { YCH = new MessageChannel(); YCH.port1.onmessage = function () { var f = YQ.shift(); if (f) f(); }; }
+      YQ.push(res); YCH.port2.postMessage(0);
+    });
+  }
   function fusedSlicer(keys, types) {                                    // fills columns from row `from` up to `to`: 0, -1 (a row does not fit) or -(2 + j) (key j held a non-number), like fusedExtractor
     var sig = 'g' + keys.join('\u0001') + '\u0002' + types.join(''), f = GEN_CACHE[sig], j, src, nk = keys.length;
     if (f) return f;
@@ -2074,7 +2082,7 @@
     }
     return attempt();
   }
-  function slicedLoop(n, work) {                                          // work(from, to) -> true to go on, anything else stops with that value; slices of about SLICE_MS, a yield between them
+  function slicedLoop(n, work, ms) {                                          // work(from, to) -> true to go on, anything else stops with that value; slices of about SLICE_MS, a yield between them
     return new Promise(function (resolve, reject) {
       var i = 0, step = 512;
       function go() {
@@ -2082,7 +2090,7 @@
           var t0 = performance.now(), to = Math.min(n, i + step), r = work(i, to), dt;
           if (r !== true) { resolve(r); return; }
           i = to; dt = performance.now() - t0;
-          step = Math.max(256, Math.min(65536, Math.floor(step * (dt > 0.05 ? SLICE_MS / dt : 2))));
+          step = Math.max(256, Math.min(65536, Math.floor(step * (dt > 0.05 ? (ms || SLICE_MS) / dt : 2))));
           if (i >= n) { resolve(true); return; }
           nextTask().then(go);
         } catch (err) { reject(err); }
@@ -2310,6 +2318,132 @@
   }
   function unpack(bytes, opts) {
     var d = open(bytes, opts), v = d.value();
+    if (d.c.p !== d.c.end) jfail('extra data after the value');
+    return v;
+  }
+
+  function builderSlice(keys, modes) {                                    // builder() for rows from..to of an array made beforehand
+    var sig = 'S' + keys.join('\u0001') + '\u0002' + modes.join(''), f = GEN_CACHE[sig], j, src, expr, pk, params;
+    if (f) return f;
+    if (CAN_EVAL) {
+      src = 'var i;for(i=from;i<to;i++){out[i]={';
+      for (j = 0; j < keys.length; j++) {
+        expr = modes[j] === 0 ? 'a' + j + '[i]' : modes[j] === 1 ? '(a' + j + '[i]===1)' : modes[j] === 2 ? 'd' + j + '[a' + j + '[i]]' : 'd' + j;
+        pk = keys[j] === '__proto__' ? '["__proto__"]' : JSON.stringify(keys[j]);
+        src += (j ? ',' : '') + pk + ':' + expr;
+      }
+      src += '};}';
+      params = ['out', 'from', 'to'];
+      for (j = 0; j < keys.length; j++) { params.push('a' + j); params.push('d' + j); }
+      f = new Function(params.join(','), src);
+    } else {
+      f = function (out, from, to) {
+        var i, jj, o, m, a, d;
+        for (i = from; i < to; i++) {
+          o = {};
+          for (jj = 0; jj < keys.length; jj++) { m = modes[jj]; a = arguments[3 + jj * 2]; d = arguments[4 + jj * 2]; define(o, keys[jj], m === 0 ? a[i] : m === 1 ? a[i] === 1 : m === 2 ? d[a[i]] : d); }
+          out[i] = o;
+        }
+      };
+    }
+    genStore(sig, f);
+    return f;
+  }
+  // unpackAsync(): the same value as unpack(), a promise; a long list of same-shape records is opened one column at a time and its rows are made in slices of about 5 ms with a yield between them,
+  // so the page is never held for the whole open. The columns inside (records in records, arrays, coordinate pairs) are opened the same way. Anything else (short lists, mixed shapes,
+  // shared objects, other values) is opened as unpack() does.
+  function unpackAsync(bytes, opts) {
+    var d, c, p0, n;
+    try {
+      d = open(bytes, opts); c = d.c; p0 = c.p;
+      if (d.refs || d.ver < 2 || c.u8() !== T_COLS) { c.p = p0; return Promise.resolve(finishUnpack(d)); }
+      n = c.varint();
+      if (n < SLICE_MIN) { c.p = p0; return Promise.resolve(finishUnpack(d)); }
+      d.depth = 1; d.spend(n);
+    } catch (err) { return Promise.reject(err); }
+    return d.columnAsync(n).then(function (col) {
+      var out = col.full();
+      if (c.p !== c.end) jfail('extra data after the value');
+      return out;
+    });
+  }
+  Dec.prototype.columnAsync = function (n) {                              // column() for the shapes that take long on the page, in slices; anything else is the plain call
+    var d = this, c = d.c, p1 = c.p, ct, p;
+    if (n < 1024) return Promise.resolve(d.column(n));
+    try {
+      ct = c.u8();
+      if (ct === CT_RECORDS) { if (c.varint() !== 1 || d.ver < 2) ct = -1; else c.p = p1 + 1; }
+      if (ct !== CT_RECORDS && ct !== CT_TUPLE && ct !== CT_ARRAYS) { c.p = p1; return Promise.resolve(d.column(n)); }
+      if (++d.depth > MAX_DEPTH) jfail('nested too deeply');
+    } catch (err) { return Promise.reject(err); }
+    p = ct === CT_RECORDS ? d.recordsAsync(n) : ct === CT_TUPLE ? d.tupleAsync(n) : d.arraysAsync(n);
+    return p.then(function (col) { d.depth--; return col; });
+  };
+  Dec.prototype.recordsAsync = function (n) {                              // CT_RECORDS with one shape (format 2): the byte for the kind is read, the shape count is not
+    var d = this, c = d.c, ns = c.varint(), nk, j = 0, keys = [], dirC = [], dirB = [], cols = [], modes = [], out;
+    nk = c.varint(); if (nk > 100000) jfail('too many keys');
+    for (j = 0; j < nk; j++) keys.push(c.u8() === 0 ? c.str() : d.str16());
+    d.spend(n * nk);
+    for (j = 0; j < nk; j++) { dirC.push(c.varint()); dirB.push(c.varint()); }
+    j = 0;
+    function columns() {
+      if (j >= nk) return true;
+      var c0 = c.p, b0 = d.bl.p, saved = d.keys;
+      d.keys = [];
+      return d.columnAsync(n).then(function (col) {
+        d.keys = saved;
+        if (c.p - c0 !== dirC[j] || d.bl.p - b0 !== dirB[j]) jfail('a column does not match its directory entry');
+        cols.push(col); modes.push(col.mode); j++;
+        return nextTask();
+      }).then(columns);
+    }
+    return columns().then(function () {
+      var k, f = builderSlice(keys, modes), args = [out = new Array(n), 0, 0];
+      for (k = 0; k < nk; k++) { args.push(cols[k].a); args.push(cols[k].d); }
+      return slicedLoop(n, function (from, to) { args[1] = from; args[2] = to; f.apply(null, args); return true; }, UNPACK_SLICE_MS);
+    }).then(function () { return new Col(n, 0, out, null); });
+  };
+  Dec.prototype.tupleAsync = function (n) {
+    var d = this, c = d.c, k = c.varint(), cols = [], j = 0, out;
+    if (k < 1 || k > 8) jfail('bad tuple');
+    d.spend(n * k);
+    function next() {
+      if (j >= k) return true;
+      return d.columnAsync(n).then(function (col) { cols.push(col); j++; return nextTask(); }).then(next);
+    }
+    return next().then(function () {
+      var c0 = cols[0], c1 = cols[1], x0 = k === 2 && c0.mode === 0 ? c0.a : null, x1 = k === 2 && c1.mode === 0 ? c1.a : null, fast = x0 instanceof Float64Array && x1 instanceof Float64Array;
+      out = new Array(n);
+      return slicedLoop(n, function (from, to) {
+        var i, jj, r;
+        if (fast) for (i = from; i < to; i++) out[i] = [x0[i], x1[i]];
+        else if (k === 2) for (i = from; i < to; i++) out[i] = [c0.get(i), c1.get(i)];
+        else for (i = from; i < to; i++) { r = new Array(k); for (jj = 0; jj < k; jj++) r[jj] = cols[jj].get(i); out[i] = r; }
+        return true;
+      }, UNPACK_SLICE_MS);
+    }).then(function () { return new Col(n, 0, out, null); });
+  };
+  Dec.prototype.arraysAsync = function (n) {
+    var d = this, c = d.c, m = c.varint(), lens, out;
+    d.spend(m + n);
+    lens = d.lengthCol(n);
+    return (m > 0 ? d.columnAsync(m) : Promise.resolve(null)).then(function (flat) {
+      var off = 0, fa = flat !== null && flat.mode === 0 && Array.isArray(flat.a) ? flat.a : null;
+      out = new Array(n);
+      return slicedLoop(n, function (from, to) {
+        var i, j, len, row;
+        for (i = from; i < to; i++) {
+          len = lens.get(i); if (off + len > m) jfail('bad array lengths');
+          if (fa !== null) row = fa.slice(off, off + len);
+          else { row = new Array(len); for (j = 0; j < len; j++) row[j] = flat.get(off + j); }
+          out[i] = row; off += len;
+        }
+        return true;
+      }, UNPACK_SLICE_MS).then(function () { if (off !== m) jfail('bad array lengths'); });
+    }).then(function () { return new Col(n, 0, out, null); });
+  };
+  function finishUnpack(d) {
+    var v = d.value();
     if (d.c.p !== d.c.end) jfail('extra data after the value');
     return v;
   }
