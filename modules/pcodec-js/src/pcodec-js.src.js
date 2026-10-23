@@ -14,19 +14,21 @@
  *   });
  *
  * Needs a page that allows WebAssembly (the policy word is wasm-unsafe-eval). There is no plain-JavaScript fallback; without WebAssembly load() rejects with a clear message.
+ * The programs are stored deflated (then base64) and opened with the browser's built-in DecompressionStream before they are compiled; load() rejects with a clear message where that is missing.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.PcodecJS = factory();
 })(typeof self !== 'undefined' ? self : this, function pcodecFactory() {
   'use strict';
-  var PROGRAMS = @PROGRAMS@;                                         // { name: base64 }; "fast" (SIMD) and "plain" read, "pack" read and write
+  var PROGRAMS = @PROGRAMS@;                                         // { name: base64 of the deflate-raw packed program }; "fast" (SIMD) and "plain" read, "pack" read and write; the text is dropped once the program is compiled
   var TYPES = { u32: [1, Uint32Array], u64: [2, typeof BigUint64Array === 'function' ? BigUint64Array : null], i32: [3, Int32Array], i64: [4, typeof BigInt64Array === 'function' ? BigInt64Array : null], f32: [5, Float32Array], f64: [6, Float64Array], u16: [7, Uint16Array], i16: [8, Int16Array] };
   var KIND_NAME = { 1: 'u32', 2: 'u64', 3: 'i32', 4: 'i64', 5: 'f32', 6: 'f64', 7: 'u16', 8: 'i16' };
   var ERRORS = { '-1': 'this number type is not in this build', '-2': 'the data is damaged or cut short', '-3': 'the file holds a different count of numbers than asked', '-4': 'bad argument' };
   var SIMD_PROBE = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]);
   var WARM = @WARM@;                                                  // three tiny Pcodec files [kind, count, base64] that the warm-up unpacks in a loop
-  var HAS_PACK = !!PROGRAMS.pack, MAX_COUNT = 1 << 25;
+  var HAS_PACK = has('pack'), MAX_COUNT = 1 << 25, LEAN_MIN = 262144, LEAN_BATCH = 65536;   // unpack() of LEAN_MIN numbers or more decodes LEAN_BATCH numbers at a time straight into the result (see unpack)
+  function has(k) { return Object.prototype.hasOwnProperty.call(PROGRAMS, k); }
   function now() { return typeof performance === 'object' && performance.now ? performance.now() : Date.now(); }
   function yieldNow() {                                                // gives the page a turn (a message, not a timer, so there is no 4 ms wait)
     return new Promise(function (r) {
@@ -37,6 +39,10 @@
     var i, n, u;
     if (typeof atob === 'function') { s = atob(s); n = s.length; u = new Uint8Array(n); for (i = 0; i < n; i++) u[i] = s.charCodeAt(i); return u; }
     return new Uint8Array(Buffer.from(s, 'base64'));
+  }
+  function inflate(text) {                                             // base64 of a deflate-raw stream in, a promise for the bytes out (the browser's own decoder, off the page's main thread)
+    if (typeof DecompressionStream !== 'function' || typeof Response !== 'function') return Promise.reject(new Error('PcodecJS needs DecompressionStream (built into current browsers and Node 18 and later) to open its packed WebAssembly program'));
+    try { return new Response(new Response(b64(text)).body.pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer(); } catch (e) { return Promise.reject(e); }
   }
   function typeOf(a) {
     for (var k in TYPES) if (TYPES[k][1] && a instanceof TYPES[k][1]) return k;
@@ -69,24 +75,37 @@
   }
   function pick(want) {                                                 // the program this engine should run (want: 'fast' or 'plain' to force one)
     if (HAS_PACK) return 'pack';
-    if (want && PROGRAMS[want]) return want;
-    if (PROGRAMS.fast && WebAssembly.validate(SIMD_PROBE)) return 'fast';
-    if (PROGRAMS.plain) return 'plain';
+    if (want && has(want)) return want;
+    if (has('fast') && WebAssembly.validate(SIMD_PROBE)) return 'fast';
+    if (has('plain')) return 'plain';
     throw new Error('PcodecJS: this file needs WebAssembly SIMD, which this browser does not have; use pcodec-js.js instead');
   }
+  var compiled = {};                                                    // name -> promise for { name, module, size }: a program is opened and compiled once, then its text is dropped
   function compileAsync(want) {
     if (typeof WebAssembly !== 'object') return Promise.reject(new Error('PcodecJS needs WebAssembly, which this page does not have'));
     var name; try { name = pick(want); } catch (e) { return Promise.reject(e); }
-    return WebAssembly.compile(b64(PROGRAMS[name])).then(function (m) { return { name: name, module: m }; }, function (e) {
-      throw new Error('PcodecJS could not start its WebAssembly program (the page may need the policy word wasm-unsafe-eval): ' + (e && e.message));
-    });
+    if (compiled[name]) return compiled[name];
+    if (!PROGRAMS[name]) return Promise.reject(new Error('PcodecJS: this copy of the program is empty (a worker gets the compiled program handed over)'));
+    return (compiled[name] = inflate(PROGRAMS[name]).then(function (bytes) {
+      PROGRAMS[name] = '';                                              // the text is not needed any more
+      return WebAssembly.compile(bytes).then(function (m) { return { name: name, module: m, size: bytes.byteLength }; }, function (e) {
+        throw new Error('PcodecJS could not start its WebAssembly program (the page may need the policy word wasm-unsafe-eval): ' + (e && e.message));
+      });
+    }));
   }
-  function make(c) {
-    var inst = null;
+  function make(c, mo) {
+    mo = mo || {};
+    var inst = null, leanOn = mo.lean !== false, relMs = mo.idleMs === undefined ? 4000 : Math.max(0, +mo.idleMs || 0), relTimer = null, retained = false, streams = 0;   // lean: false keeps the 1.5.1 route for big copies (the program holds the whole result, which makes the final copy faster in WebKit); relMs: how long after the last call it gives that memory back
+    function relOff() { if (relTimer) { clearTimeout(relTimer); relTimer = null; } }
+    function relOn() {                                                   // after a big whole-result unpack: let the program go when the object has been idle for relMs, the next call starts a new one
+      relOff();
+      if (retained && relMs > 0) { relTimer = setTimeout(function () { relTimer = null; if (streams) { relOn(); return; } inst = null; held = null; retained = false; }, relMs); if (relTimer && typeof relTimer.unref === 'function') relTimer.unref(); }
+    }
     function ex() { if (!inst) inst = new WebAssembly.Instance(c.module, {}).exports; return inst; }
     function fail(code) { throw new Error('PcodecJS: ' + (ERRORS[code] || 'error ' + code)); }
     function run(fn) {                                                   // a trap leaves the program in an unknown state, so drop it and start a new one next time
-      try { return fn(ex()); } catch (e) { if (e instanceof WebAssembly.RuntimeError) { inst = null; throw new Error('PcodecJS: the data is damaged'); } throw e; }
+      relOff();
+      try { return fn(ex()); } catch (e) { if (e instanceof WebAssembly.RuntimeError) { inst = null; retained = false; throw new Error('PcodecJS: the data is damaged'); } throw e; } finally { relOn(); }
     }
     function toBytes(src) {
       if (src instanceof Uint8Array) return src;
@@ -95,6 +114,26 @@
       throw new TypeError('PcodecJS: expected bytes (a Uint8Array or an ArrayBuffer)');
     }
     function putIn(x, bytes) { var p = x.alloc(bytes.length); new Uint8Array(x.memory.buffer, p, bytes.length).set(bytes); return p; }
+    function lean(x, p, len, kind, T, n) {                               // the stream route into a new array: same numbers as decompress, a few MB of program memory instead of the whole result
+      var h = x.stream_open(kind, p, len), w = T.BYTES_PER_ELEMENT, d = 0, out, pos = 0, r;
+      if (h < 0) fail(h);
+      try {
+        d = x.alloc(LEAN_BATCH * w);
+        if (!d) throw new Error('PcodecJS: out of memory');
+        out = new T(n);
+        for (;;) {
+          r = x.stream_read(h, d, LEAN_BATCH);
+          if (r < 0) fail(r);
+          if (r === 0) break;
+          if (pos + r > n) fail(-3);
+          out.set(new T(x.memory.buffer, d, r), pos); pos += r;
+        }
+        if (pos !== n) fail(-3);
+      } finally {
+        try { x.stream_close(h); if (d) x.release(d, LEAN_BATCH * w); } catch (e) { /* the program stopped; run() starts a new one */ }
+      }
+      return out;
+    }
     var held = null;                                                     // the last { view: true } result, released on the next call
     function drop() { if (held && inst) { inst.release(held[0], held[1]); } held = null; }
     function peek(x, p, len) {
@@ -105,7 +144,7 @@
     var api = {
       engine: 'pco 1.0.4 (WebAssembly, ' + c.name + ')',
       programName: c.name, programModule: c.module,                      // the compiled program, to hand to a worker of your own (a WebAssembly.Module can be posted to a worker without compiling again)
-      programBytes: PROGRAMS[c.name].length * 3 / 4 | 0,
+      programBytes: c.size || 0,                                          // the program's size once opened (0 when it was handed over compiled)
       canPack: HAS_PACK,
       // What a file holds, read from its first bytes: { type: 'f64', count: 100000 }. The count comes from the file and is only a hint until unpack checks it.
       info: function (src) {
@@ -127,6 +166,7 @@
             n = opts.count !== undefined ? opts.count : pk.count;
             if (!(n > 0) || n !== Math.floor(n) || n > (opts.maxCount || MAX_COUNT)) throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or a larger { maxCount })' : ''));
             T = TYPES[type][1]; w = T.BYTES_PER_ELEMENT;
+            if (!opts.view && !opts.into && n >= LEAN_MIN && leanOn) return lean(x, p, b.length, kind, T, n);   // big copy: decode in batches into the result, so the program never holds all the numbers
             d = x.alloc(n * w);
             if (!d) throw new Error('PcodecJS: out of memory');
             r = x.decompress(kind, p, b.length, d, n);
@@ -137,6 +177,7 @@
               opts.into.set(new T(x.memory.buffer, d, n)); return opts.into.length === n ? opts.into : opts.into.subarray(0, n);
             }
             out = new T(x.memory.buffer, d, n).slice();
+            if (n >= LEAN_MIN) retained = true;                        // the program now holds a result-sized region: given back after relMs without a call
           } finally { x.release(p, b.length); if (d) x.release(d, n * w); }
           return out;
         });
@@ -173,17 +214,18 @@
         opts = opts || {};
         var b = toBytes(src), batch = opts.batch || 4096;
         if (batch % 256 !== 0 || batch <= 0) throw new Error('PcodecJS: batch must be a multiple of 256');
-        var x0 = ex(); drop();
+        relOff(); var x0 = ex(); drop();
         var copy = new Uint8Array(b); var p = putIn(x0, copy), pk, T, h, d = 0, w, self = this, done = false;
         try { pk = peek(x0, p, b.length); var type = KIND_NAME[pk.kind]; if (!type || !TYPES[type][1]) fail(-1); T = TYPES[type][1]; w = T.BYTES_PER_ELEMENT; h = x0.stream_open(pk.kind, p, b.length); if (h < 0) fail(h); d = x0.alloc(batch * w); if (!d) throw new Error('PcodecJS: out of memory'); }
-        catch (e) { x0.release(p, b.length); throw e; }
-        function close() { if (done) return; done = true; if (inst) { inst.stream_close(h); inst.release(d, batch * w); inst.release(p, b.length); } }
+        catch (e) { x0.release(p, b.length); relOn(); throw e; }
+        streams++;
+        function close() { if (done) return; done = true; streams--; if (inst) { inst.stream_close(h); inst.release(d, batch * w); inst.release(p, b.length); } }
         var it = {
           type: KIND_NAME[pk.kind], countHint: pk.count,
           next: function () {
             if (done) return { done: true, value: undefined };
             var r;
-            try { r = run(function (x) { return x.stream_read(h, d, batch); }); } catch (e) { done = true; throw e; }
+            try { r = run(function (x) { return x.stream_read(h, d, batch); }); } catch (e) { done = true; streams--; throw e; }
             if (r < 0) { close(); fail(r); }
             if (r === 0) { close(); return { done: true, value: undefined }; }
             return { done: false, value: new T(inst.memory.buffer, d, r) };
@@ -214,7 +256,7 @@
       // How many bytes of memory the program holds right now.
       memoryBytes: function () { return inst ? inst.memory.buffer.byteLength : 0; },
       // Frees the program's memory; the next call starts a new one.
-      release: function () { inst = null; held = null; },
+      release: function () { relOff(); inst = null; held = null; retained = false; },
     };
     // split files: the same calls work on them, one part after the other
     var infoPlain = api.info, unpackPlain = api.unpack, streamPlain = api.stream;
@@ -278,13 +320,14 @@
     return api;
   }
   var cache = {};
-  function start(w) { return cache[w] || (cache[w] = compileAsync(w).then(make)); }
+  function start(w, mo) { return mo ? compileAsync(w).then(function (c) { return make(c, mo); }) : cache[w] || (cache[w] = compileAsync(w).then(make)); }
   try { start('').catch(function () { /* load() will report it */ }); } catch (e) { /* load() will report it */ }   // compile early: the program starts compiling the moment this file runs, off the page's main thread, while the page does its other start-up work
+  // load({ lean: false, idleMs }) gives its own object that unpacks big copies the 1.5.1 way: the whole result in the program's memory, then one copy out. That is faster in WebKitGTK and GNOME Web (about 20% for 4,000,000 numbers) and no faster elsewhere, but it holds a result-sized region (36.3 MB for 4,000,000 numbers); the program is let go when no call has come for idleMs (default 4000, 0 = never) and the next call starts a new one. worker({ lean }) and pool({ lean }) pass it on.
   // load() gives the ready object. load({ program: 'plain' }) forces the program that needs no SIMD instead of the SIMD one when both are in the file. load({ warm: true }) also starts the warm-up (see api.warm).
   function load(opts) {
-    var w = (opts && opts.program) || '', warm = opts && opts.warm, p;
-    if (opts && opts.module) p = Promise.resolve({ name: opts.name || pick(w), module: opts.module }).then(make);   // already compiled (handed over by the page): nothing to compile here
-    else p = start(w);
+    var w = (opts && opts.program) || '', warm = opts && opts.warm, p, mo = opts && (opts.lean === false || opts.idleMs !== undefined) ? { lean: opts.lean, idleMs: opts.idleMs } : null;
+    if (opts && opts.module) p = Promise.resolve({ name: opts.name || pick(w), module: opts.module }).then(function (c) { return make(c, mo); });   // already compiled (handed over by the page): nothing to compile here
+    else p = start(w, mo);
     if (warm) p.then(function (pc) { pc.warm(typeof warm === 'number' ? warm : undefined).catch(function () {}); });
     return p;
   }
@@ -305,7 +348,7 @@
     self.onmessage = function (e) {
       var m = e.data;
       function reply(ok, value, tr) { self.postMessage({ id: m.id, ok: ok, value: ok ? value : undefined, error: ok ? undefined : String(value && value.message || value) }, tr || []); }
-      if (m.op === 'init') { ready = factory().load({ program: m.opts.program, module: m.module, name: m.name }).then(function (x) { pc = x; reply(true, { engine: x.engine, canPack: x.canPack}); }, function (err) { reply(false, err); }); return; }
+      if (m.op === 'init') { ready = factory().load({ program: m.opts.program, lean: m.opts.lean, module: m.module, name: m.name }).then(function (x) { pc = x; reply(true, { engine: x.engine, canPack: x.canPack}); }, function (err) { reply(false, err); }); return; }
       ready.then(function () {
         var v;
         try {
@@ -323,7 +366,7 @@
   }
   function worker(opts) {
     opts = opts || {};
-    var lo = { program: opts.program };
+    var lo = { program: opts.program, lean: opts.lean };
     function onPage() {
       return load(lo).then(function (pc) {
         function p(f) { return new Promise(function (res) { res(f()); }); }
@@ -342,7 +385,7 @@
       try {
         if (typeof Worker !== 'function' || typeof Blob !== 'function' || !URL || !URL.createObjectURL) throw new Error('no worker');
         var stub = {}, k, text = pcodecFactory.toString();
-        for (k in PROGRAMS) stub[k] = 'AAAA';                          // the worker is handed the compiled program, so it does not need the program's text: a small Blob starts faster
+        for (k in PROGRAMS) stub[k] = '';                              // the worker is handed the compiled program, so it does not need the program's text (nothing is opened twice): a small Blob starts faster
         text = text.replace(/var PROGRAMS = \{[^;]*\};/, function () { return 'var PROGRAMS = ' + JSON.stringify(stub) + ';'; });
         url = URL.createObjectURL(new Blob(['(' + workerMain.toString() + ')(' + text + ');'], { type: 'text/javascript' }));
         w = new Worker(url);
@@ -381,7 +424,8 @@
   // Workers start the first time they are needed and a small job stays on one worker, because starting one costs about 10 to 25 ms: a job is shared out only when each worker would get about 25 ms of work (opts.laneMs, 0 shares it out always).
   // opts.warm: true (or a number) starts that many workers when the pool is made instead of at the first job, so the first big job does not wait 8 to 19 ms for them.
   // opts.size is the most workers (default: the cores the device reports less one, at most 4). One big array is cut into the pages Pcodec itself would use and the pieces join into exactly the bytes pack() writes; { smallest: true } packs it on one worker.
-  // Needs the "pack" file for pack. Without Worker support the pool runs on the page one job after another (see worker()). p.terminate() ends all workers.
+  // opts.idleMs (default 4000, 0 turns it off): when no job has run for that long the pool ends its workers, which gives their memory back (a worker that has opened a 4,000,000-number file holds 17 to 52 MB), and starts them again at the next job (the first costs about 8 to 29 ms, the rest 2 to 5 ms).
+  // Needs the "pack" file for pack. Without Worker support the pool runs on the page one job after another (see worker()). p.terminate() ends all workers; p.workers() says how many are running now.
   var PACK_NS = 60, UNPACK_NS = 20;                                    // about how long one number takes to pack and to unpack, measured in the four test browsers
   function pageSizes(n) {                                              // the equal pages of at most 262,144 numbers Pcodec cuts a column into
     var np = Math.ceil(n / 262144), lo = Math.floor(n / np), r = n % np, out = [], i;
@@ -390,9 +434,30 @@
   }
   function pool(opts) {
     opts = opts || {};
-    var hc = typeof navigator === 'object' && navigator && navigator.hardwareConcurrency || 4, lo = { program: opts.program },
-      size = Math.max(1, Math.min(8, Math.floor(opts.size || Math.min(4, hc - 1)))), laneMs = opts.laneMs === undefined ? 25 : opts.laneMs, lanes = [], main = null, ended = false;
-    function lane(k) { return lanes[k] || (lanes[k] = worker(lo)); }
+    var hc = typeof navigator === 'object' && navigator && navigator.hardwareConcurrency || 4, lo = { program: opts.program, lean: opts.lean },
+      size = Math.max(1, Math.min(8, Math.floor(opts.size || Math.min(4, hc - 1)))), laneMs = opts.laneMs === undefined ? 25 : opts.laneMs, lanes = [], main = null, ended = false,
+      idleMs = opts.idleMs === undefined ? 4000 : Math.max(0, +opts.idleMs || 0), busy = 0, timer = null;
+    var started = 0;                                                   // workers started so far in this turn of the page
+    function turns(n) { var q = Promise.resolve(), i; for (i = 0; i < n; i++) q = q.then(yieldNow); return q; }
+    function lane(k) {
+      if (!lanes[k]) {
+        var wait = started++;                                          // the second, third ... worker started in one turn each wait one more turn, so starting 4 workers is never one long page task (about 2.5 ms each in Chromium, 10 ms together)
+        if (!wait) Promise.resolve().then(function () { started = 0; });
+        lanes[k] = wait ? turns(wait).then(function () { return worker(lo); }) : worker(lo); arm();
+      }
+      return lanes[k];
+    }
+    function disarm() { if (timer) { clearTimeout(timer); timer = null; } }
+    function arm() {                                                   // the idle clock: counts from the last moment the pool was busy
+      disarm();
+      if (idleMs > 0 && !ended && !busy && lanes.length) { timer = setTimeout(park, idleMs); if (timer && typeof timer.unref === 'function') timer.unref(); }
+    }
+    function endLanes(spread) {                                         // spread: one worker per turn of the page (ending a worker is a page task of about 2 ms in Firefox)
+      var old = lanes; lanes = [];
+      old.forEach(function (p, i) { (spread && i ? turns(i) : Promise.resolve()).then(function () { return p; }).then(function (w) { w.terminate(); }, function () {}); });
+    }
+    function park() { timer = null; if (!busy && !ended) endLanes(true); }  // idle long enough: end the workers; lane() starts new ones at the next job
+    function track(pr) { busy++; disarm(); function done() { busy--; arm(); } pr.then(done, done); return pr; }
     function lanesFor(count, ms) { return Math.max(1, Math.min(size, count, laneMs > 0 ? Math.floor(ms / laneMs) : size)); }
     function split(weights, k) {                                       // largest first, each to the least loaded worker: lists of positions
       var order = weights.map(function (_, i) { return i; }).sort(function (a, b) { return weights[b] - weights[a]; }), groups = [], load = [], i;
@@ -467,17 +532,19 @@
         pack: function (x, o) {
           if (ended) return Promise.reject(new Error('PcodecJS: the pool has ended'));
           if (!pc.canPack) return Promise.reject(new Error('PcodecJS: pack needs pcodec-js-pack.js'));
-          return Array.isArray(x) ? share(x, x.map(function (a) { return a && a.length || 1; }), PACK_NS, function (w, a) { return w.pack(a, o); }, 'pack', o) : packOne(x, o);
+          return track(Array.isArray(x) ? share(x, x.map(function (a) { return a && a.length || 1; }), PACK_NS, function (w, a) { return w.pack(a, o); }, 'pack', o) : packOne(x, o));
         },
         unpack: function (x, o) {
           if (ended) return Promise.reject(new Error('PcodecJS: the pool has ended'));
           if (Array.isArray(x) && o && o.into) return Promise.reject(new TypeError('PcodecJS: { into } takes one file, not a list'));
-          if (Array.isArray(x)) return share(x, x.map(count), UNPACK_NS, function (w, b) { return w.unpack(b, o); }, 'unpack', o);
+          if (Array.isArray(x)) return track(share(x, x.map(count), UNPACK_NS, function (w, b) { return w.unpack(b, o); }, 'unpack', o));
           var bytes = x instanceof ArrayBuffer ? new Uint8Array(x) : x;
-          if (bytes instanceof Uint8Array && isSplit(bytes)) { try { return unpackSplit(bytes, o); } catch (e) { return Promise.reject(e); } }
-          return lane(0).then(function (w) { return w.unpack(x, o); });
+          if (bytes instanceof Uint8Array && isSplit(bytes)) { try { return track(unpackSplit(bytes, o)); } catch (e) { return Promise.reject(e); } }
+          return track(lane(0).then(function (w) { return w.unpack(x, o); }));
         },
-        terminate: function () { ended = true; lanes.forEach(function (p) { p.then(function (w) { w.terminate(); }, function () {}); }); lanes = []; },
+        workers: function () { return lanes.length; },                  // how many background workers are running (or starting) now; 0 after the pool has parked or ended
+        idleMs: idleMs,
+        terminate: function () { ended = true; disarm(); endLanes(); },
       };
     });
   }
