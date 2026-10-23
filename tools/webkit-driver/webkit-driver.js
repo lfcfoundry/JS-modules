@@ -2,7 +2,7 @@
  * webkit-driver.js: drive WebKitGTK (or GNOME Web) from Node with the same small page controls Playwright and Puppeteer give.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.4.0 (API 1)
  *
  * Why: Playwright and Puppeteer cannot drive WebKitGTK (Playwright only drives its own patched WebKit build). WebKitGTK ships its own
  * WebDriver (`WebKitWebDriver`). This file speaks the W3C WebDriver protocol to it over plain HTTP, with no packages.
@@ -58,7 +58,8 @@ function which(cmd) {
  *  (so big arrays and odd values do not depend on the driver's own object walking) plus the console errors and page errors seen since the last call. */
 var HOOK = 'if (!window.__wd) { var L = window.__wd = { l: [] }; window.addEventListener("error", function (e) { L.l.push({ k: "pageerror", m: String(e.message || e) }); });' +
   ' window.addEventListener("unhandledrejection", function (e) { L.l.push({ k: "pageerror", m: "unhandled rejection: " + String(e.reason && e.reason.message || e.reason) }); });' +
-  ' var ce = console.error; console.error = function () { try { L.l.push({ k: "console", t: "error", m: Array.prototype.map.call(arguments, String).join(" ") }); } catch (x) { } return ce.apply(console, arguments); }; }';
+  ' var ce = console.error; console.error = function () { try { L.l.push({ k: "console", t: "error", m: Array.prototype.map.call(arguments, String).join(" ") }); } catch (x) { } return ce.apply(console, arguments); };' +
+  ' var cd = console.debug; console.debug = function () { try { var a = arguments[0]; if (typeof a === "string" && a.indexOf("__fuzz-") === 0) L.l.push({ k: "console", t: "debug", m: a }); } catch (x) { } return cd.apply(console, arguments); }; }';   // fuzz-kit signals (__fuzz-ready, __fuzz-op) arrive as debug messages; other debug output is left alone
 function wrapScript(fnSource) {
   return 'var cb = arguments[arguments.length - 1], arg = arguments[0];' + HOOK +
     'var done = function (o) { o.l = window.__wd.l.splice(0); var s; try { s = JSON.stringify(o); } catch (x) { s = JSON.stringify({ e: "the answer cannot be turned into JSON: " + x.message, l: o.l }); } cb(s); };' +
@@ -149,10 +150,19 @@ function makePage(port, sid, site) {
       if (o.e) throw new Error('in the page: ' + o.e);
       return o.v;
     },
+    /** Runs a script text in the page's global scope (what Puppeteer's evaluate(string) does) without eval, so a page whose policy has no 'unsafe-eval' still works.
+     *  First as an inline script element (top-level var and function stay global); if the policy blocks inline scripts too, as the body of the driver's own script call. */
+    runScript: async function (src) {
+      var done = await page.evaluate(function (s) { var e = document.createElement('script'); e.textContent = s + '\n;window.__wdRan = 1;'; (document.head || document.documentElement).appendChild(e); e.parentNode.removeChild(e); var ran = window.__wdRan === 1; window.__wdRan = 0; return ran; }, String(src));
+      if (done) return 1;
+      var out = await call(port, 'POST', url('/execute/sync'), { script: String(src) + '\n;return 1;', args: [] });
+      return out;
+    },
     /** Polls fn(arg) every 50 ms until it answers something truthy; rejects after opts.timeout (default 20000 ms). */
     waitForFunction: async function (fn, arg, opts) {
       var ms = (opts && opts.timeout) || 20000, src = typeof fn === 'function' ? fn.toString() : '(function(){ return (' + String(fn) + '); })';
-      var r = await page.evaluate(new Function('a', 'return new Promise(function (ok, no) { var f = ' + src + ', end = performance.now() + a.ms; (function poll() { var v; try { v = f(a.arg); } catch (e) { return no(e); } if (v) ok({ v: v }); else if (performance.now() > end) ok({ late: 1 }); else requestAnimationFrame(poll); })(); });'), { arg: arg === undefined ? null : arg, ms: ms });
+      var poller = function () { }; poller.toString = function () { return 'function (a) { return new Promise(function (ok, no) { var f = ' + src + ', end = performance.now() + a.ms; (function poll() { var v; try { v = f(a.arg); } catch (e) { return no(e); } if (v) ok({ v: v }); else if (performance.now() > end) ok({ late: 1 }); else requestAnimationFrame(poll); })(); }); }'; };   // a function whose text is the poller, so nothing here needs eval or new Function (a strict policy forbids both)
+      var r = await page.evaluate(poller, { arg: arg === undefined ? null : arg, ms: ms });
       if (r.late) throw new Error('waitForFunction timed out after ' + ms + ' ms'); return r.v;
     },
     /** Window size so that the page area (not the whole window) is width x height. */
@@ -247,4 +257,4 @@ async function attach(info, opts) {
   return { page: page, port: info.port, sessionId: info.sessionId, version: info.version, close: async function () { if (site) site.close(); } };
 }
 
-module.exports = { launch: launch, attach: attach, call: call, wrapScript: wrapScript, keyChar: keyChar, version: '1.3.0' };
+module.exports = { launch: launch, attach: attach, call: call, wrapScript: wrapScript, keyChar: keyChar, version: '1.4.0' };
