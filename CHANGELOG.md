@@ -51,7 +51,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
-- 2026-10-23 · **pcodec-js** 1.6.0 · API 1: Smaller and lighter: files are 46% to 57% smaller (program stored deflated), big unpacks use 6 MB instead of 36 MB of wasm memory, idle pool workers end after idleMs (4 s). A warm 4M-number unpack is 19-24% slower in WebKit browsers.
+- 2026-10-23 · **pcodec-js** 1.6.0 · API 1: Files 45-56% smaller (program stored deflated); big unpacks use 6 MB, not 36 MB, of wasm memory; idle pool workers end after idleMs (4 s). New load({ lean: false }) gives WebKit browsers 1.5.1 speed back (keeps 36 MB, freed when idle).
 - 2026-10-23 · **memory-compression** 2.4.2 · API 2: 2.4.2: pager() can repack pages nobody is reading 15 to 18% smaller in a background worker, by itself when idle or before moving them to storage (needs worker-src blob: in the page's security policy).
 - 2026-10-22 · **zip-open** 1.3.0 · API 1: The WebAssembly checksum now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 - 2026-10-22 · **webkit-driver** 1.4.0 · API 1: 1.4.0: new runScript() runs script text without eval, waitForFunction no longer needs eval, and fuzz-kit debug messages are passed on.

@@ -93,12 +93,19 @@
       });
     }));
   }
-  function make(c) {
-    var inst = null;
+  function make(c, mo) {
+    mo = mo || {};
+    var inst = null, leanOn = mo.lean !== false, relMs = mo.idleMs === undefined ? 4000 : Math.max(0, +mo.idleMs || 0), relTimer = null, retained = false, streams = 0;   // lean: false keeps the 1.5.1 route for big copies (the program holds the whole result, which makes the final copy faster in WebKit); relMs: how long after the last call it gives that memory back
+    function relOff() { if (relTimer) { clearTimeout(relTimer); relTimer = null; } }
+    function relOn() {                                                   // after a big whole-result unpack: let the program go when the object has been idle for relMs, the next call starts a new one
+      relOff();
+      if (retained && relMs > 0) { relTimer = setTimeout(function () { relTimer = null; if (streams) { relOn(); return; } inst = null; held = null; retained = false; }, relMs); if (relTimer && typeof relTimer.unref === 'function') relTimer.unref(); }
+    }
     function ex() { if (!inst) inst = new WebAssembly.Instance(c.module, {}).exports; return inst; }
     function fail(code) { throw new Error('PcodecJS: ' + (ERRORS[code] || 'error ' + code)); }
     function run(fn) {                                                   // a trap leaves the program in an unknown state, so drop it and start a new one next time
-      try { return fn(ex()); } catch (e) { if (e instanceof WebAssembly.RuntimeError) { inst = null; throw new Error('PcodecJS: the data is damaged'); } throw e; }
+      relOff();
+      try { return fn(ex()); } catch (e) { if (e instanceof WebAssembly.RuntimeError) { inst = null; retained = false; throw new Error('PcodecJS: the data is damaged'); } throw e; } finally { relOn(); }
     }
     function toBytes(src) {
       if (src instanceof Uint8Array) return src;
@@ -159,7 +166,7 @@
             n = opts.count !== undefined ? opts.count : pk.count;
             if (!(n > 0) || n !== Math.floor(n) || n > (opts.maxCount || MAX_COUNT)) throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or a larger { maxCount })' : ''));
             T = TYPES[type][1]; w = T.BYTES_PER_ELEMENT;
-            if (!opts.view && !opts.into && n >= LEAN_MIN) return lean(x, p, b.length, kind, T, n);   // big copy: decode in batches into the result, so the program never holds all the numbers
+            if (!opts.view && !opts.into && n >= LEAN_MIN && leanOn) return lean(x, p, b.length, kind, T, n);   // big copy: decode in batches into the result, so the program never holds all the numbers
             d = x.alloc(n * w);
             if (!d) throw new Error('PcodecJS: out of memory');
             r = x.decompress(kind, p, b.length, d, n);
@@ -170,6 +177,7 @@
               opts.into.set(new T(x.memory.buffer, d, n)); return opts.into.length === n ? opts.into : opts.into.subarray(0, n);
             }
             out = new T(x.memory.buffer, d, n).slice();
+            if (n >= LEAN_MIN) retained = true;                        // the program now holds a result-sized region: given back after relMs without a call
           } finally { x.release(p, b.length); if (d) x.release(d, n * w); }
           return out;
         });
@@ -206,17 +214,18 @@
         opts = opts || {};
         var b = toBytes(src), batch = opts.batch || 4096;
         if (batch % 256 !== 0 || batch <= 0) throw new Error('PcodecJS: batch must be a multiple of 256');
-        var x0 = ex(); drop();
+        relOff(); var x0 = ex(); drop();
         var copy = new Uint8Array(b); var p = putIn(x0, copy), pk, T, h, d = 0, w, self = this, done = false;
         try { pk = peek(x0, p, b.length); var type = KIND_NAME[pk.kind]; if (!type || !TYPES[type][1]) fail(-1); T = TYPES[type][1]; w = T.BYTES_PER_ELEMENT; h = x0.stream_open(pk.kind, p, b.length); if (h < 0) fail(h); d = x0.alloc(batch * w); if (!d) throw new Error('PcodecJS: out of memory'); }
-        catch (e) { x0.release(p, b.length); throw e; }
-        function close() { if (done) return; done = true; if (inst) { inst.stream_close(h); inst.release(d, batch * w); inst.release(p, b.length); } }
+        catch (e) { x0.release(p, b.length); relOn(); throw e; }
+        streams++;
+        function close() { if (done) return; done = true; streams--; if (inst) { inst.stream_close(h); inst.release(d, batch * w); inst.release(p, b.length); } }
         var it = {
           type: KIND_NAME[pk.kind], countHint: pk.count,
           next: function () {
             if (done) return { done: true, value: undefined };
             var r;
-            try { r = run(function (x) { return x.stream_read(h, d, batch); }); } catch (e) { done = true; throw e; }
+            try { r = run(function (x) { return x.stream_read(h, d, batch); }); } catch (e) { done = true; streams--; throw e; }
             if (r < 0) { close(); fail(r); }
             if (r === 0) { close(); return { done: true, value: undefined }; }
             return { done: false, value: new T(inst.memory.buffer, d, r) };
@@ -247,7 +256,7 @@
       // How many bytes of memory the program holds right now.
       memoryBytes: function () { return inst ? inst.memory.buffer.byteLength : 0; },
       // Frees the program's memory; the next call starts a new one.
-      release: function () { inst = null; held = null; },
+      release: function () { relOff(); inst = null; held = null; retained = false; },
     };
     // split files: the same calls work on them, one part after the other
     var infoPlain = api.info, unpackPlain = api.unpack, streamPlain = api.stream;
@@ -311,13 +320,14 @@
     return api;
   }
   var cache = {};
-  function start(w) { return cache[w] || (cache[w] = compileAsync(w).then(make)); }
+  function start(w, mo) { return mo ? compileAsync(w).then(function (c) { return make(c, mo); }) : cache[w] || (cache[w] = compileAsync(w).then(make)); }
   try { start('').catch(function () { /* load() will report it */ }); } catch (e) { /* load() will report it */ }   // compile early: the program starts compiling the moment this file runs, off the page's main thread, while the page does its other start-up work
+  // load({ lean: false, idleMs }) gives its own object that unpacks big copies the 1.5.1 way: the whole result in the program's memory, then one copy out. That is faster in WebKitGTK and GNOME Web (about 20% for 4,000,000 numbers) and no faster elsewhere, but it holds a result-sized region (36.3 MB for 4,000,000 numbers); the program is let go when no call has come for idleMs (default 4000, 0 = never) and the next call starts a new one. worker({ lean }) and pool({ lean }) pass it on.
   // load() gives the ready object. load({ program: 'plain' }) forces the program that needs no SIMD instead of the SIMD one when both are in the file. load({ warm: true }) also starts the warm-up (see api.warm).
   function load(opts) {
-    var w = (opts && opts.program) || '', warm = opts && opts.warm, p;
-    if (opts && opts.module) p = Promise.resolve({ name: opts.name || pick(w), module: opts.module }).then(make);   // already compiled (handed over by the page): nothing to compile here
-    else p = start(w);
+    var w = (opts && opts.program) || '', warm = opts && opts.warm, p, mo = opts && (opts.lean === false || opts.idleMs !== undefined) ? { lean: opts.lean, idleMs: opts.idleMs } : null;
+    if (opts && opts.module) p = Promise.resolve({ name: opts.name || pick(w), module: opts.module }).then(function (c) { return make(c, mo); });   // already compiled (handed over by the page): nothing to compile here
+    else p = start(w, mo);
     if (warm) p.then(function (pc) { pc.warm(typeof warm === 'number' ? warm : undefined).catch(function () {}); });
     return p;
   }
@@ -338,7 +348,7 @@
     self.onmessage = function (e) {
       var m = e.data;
       function reply(ok, value, tr) { self.postMessage({ id: m.id, ok: ok, value: ok ? value : undefined, error: ok ? undefined : String(value && value.message || value) }, tr || []); }
-      if (m.op === 'init') { ready = factory().load({ program: m.opts.program, module: m.module, name: m.name }).then(function (x) { pc = x; reply(true, { engine: x.engine, canPack: x.canPack}); }, function (err) { reply(false, err); }); return; }
+      if (m.op === 'init') { ready = factory().load({ program: m.opts.program, lean: m.opts.lean, module: m.module, name: m.name }).then(function (x) { pc = x; reply(true, { engine: x.engine, canPack: x.canPack}); }, function (err) { reply(false, err); }); return; }
       ready.then(function () {
         var v;
         try {
@@ -356,7 +366,7 @@
   }
   function worker(opts) {
     opts = opts || {};
-    var lo = { program: opts.program };
+    var lo = { program: opts.program, lean: opts.lean };
     function onPage() {
       return load(lo).then(function (pc) {
         function p(f) { return new Promise(function (res) { res(f()); }); }
@@ -424,7 +434,7 @@
   }
   function pool(opts) {
     opts = opts || {};
-    var hc = typeof navigator === 'object' && navigator && navigator.hardwareConcurrency || 4, lo = { program: opts.program },
+    var hc = typeof navigator === 'object' && navigator && navigator.hardwareConcurrency || 4, lo = { program: opts.program, lean: opts.lean },
       size = Math.max(1, Math.min(8, Math.floor(opts.size || Math.min(4, hc - 1)))), laneMs = opts.laneMs === undefined ? 25 : opts.laneMs, lanes = [], main = null, ended = false,
       idleMs = opts.idleMs === undefined ? 4000 : Math.max(0, +opts.idleMs || 0), busy = 0, timer = null;
     var started = 0;                                                   // workers started so far in this turn of the page

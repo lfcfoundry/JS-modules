@@ -86,8 +86,8 @@ Setup as in 0b, but with numcodecs-wasm-pco 0.4.0 (it writes its own framing, so
 
 | Measure | numcodecs-wasm-pco | pcodec-js 1.5.1 | pcodec-js 1.6.0 |
 |---|---:|---:|---:|
-| Download, unpack only, gzipped (B) | 324,006 | 75,081 | 60,742 |
-| Download, with packer, gzipped (B) | 324,006 | 193,195 | 142,187 |
+| Download, unpack only, gzipped (B) | 324,006 | 75,081 | 61,314 |
+| Download, with packer, gzipped (B) | 324,006 | 193,195 | 142,786 |
 | Unpack, copy (ns per number) | 10.68 / 10.16 / 9.17 / 9.50 | 10.75 / 10.16 / 9.17 / 9.17 | 10.45 / 9.83 / 10.16 / 9.17 |
 | Unpack, view (ns per number) | not offered | n/a | 7.08 / 6.55 / 8.19 / 7.86 |
 | `load()` until ready (ms) | 105.5 / 66.5 / 67 / 65 | 9.2 / 8 / 4 / 4 | 9.0 / 9 / 6 / 6 |
