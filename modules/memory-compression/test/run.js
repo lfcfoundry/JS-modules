@@ -628,6 +628,24 @@ t('idle release: the helpers give their memory back and a later pack makes the v
   same(rows[12345], J.unpack(b)[12345], 'round trip'); same(rows[29999], J.unpack(c)[29999], 'round trip, fast');
 });
 
+t('pager: pageView keeps open pages as columns, gives back every row, and edits turn a page into objects', function () {
+  var r = D.rng(33), rows = many(6000, function (i) { return { id: i, name: 'row ' + i, v: Math.round(r() * 1000) / 10, tags: ['t' + (i % 7)] }; }), P = J.pager(rows, opt({ pageRows: 500, livePages: 2, pageView: true })), i, m;
+  for (i = 0; i < rows.length; i += 211) same(rows[i], P.get(i), 'row ' + i);
+  m = P.memory(); assert(m.open <= 2 && m.pageIns >= 12, 'pages open and close: ' + JSON.stringify(m));
+  P.set(100, { id: -1, name: 'edited', v: 0, tags: [] }); same({ id: -1, name: 'edited', v: 0, tags: [] }, P.get(100), 'edited row'); same(rows[101], P.get(101), 'row next to the edit');
+  for (i = 0; i < 6000; i += 500) P.get(i); same({ id: -1, name: 'edited', v: 0, tags: [] }, P.get(100), 'edit survives the page leaving memory');
+  assert.throws(function () { P.changed(5); }, /set\(i, value\)/);
+  P.pressure(2); assert.strictEqual(P.memory().open, 0); same(rows[3000], P.get(3000), 'row after pressure');
+  var odd = many(2000, function (i) { return i % 2 ? { a: i } : { b: i }; }), Q = J.pager(odd, opt({ pageRows: 300, pageView: true })), k;      // different keys in a page: shown as objects
+  for (k = 0; k < odd.length; k += 97) same(odd[k], Q.get(k), 'odd row ' + k);
+});
+
+t('pager.plan: rows that are nearly all numbers are shown as column pages, text rows are not; pageView "auto" follows it', function () {
+  var nums = many(5000, function (i) { return { a: i, b: i % 9, c: i / 7, d: true }; }), txt = many(5000, function (i) { return { id: i, name: 'row ' + i, tags: ['x'] }; }), P, i;
+  assert.strictEqual(J.pager.plan(nums, { deviceMemory: 8 }).pageView, true); assert.strictEqual(J.pager.plan(txt, { deviceMemory: 8 }).pageView, false);
+  P = J.pager(nums, opt({ pageRows: 'auto', pageView: 'auto', deviceMemory: 8 })); for (i = 0; i < nums.length; i += 311) same(nums[i], P.get(i), 'row ' + i);
+});
+
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);
