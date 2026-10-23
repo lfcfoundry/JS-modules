@@ -5,13 +5,16 @@
       Reads the speed-history files (one <product>.tsv per product: product, release, date, test, browser, value, unit, better, note), takes the
       newest release of every (test, browser) and the release before it, and marks any step that got more than --limit percent worse as SLOWER
       (direction-aware: "lower" means a bigger number is worse). It runs nothing, so it costs no browser time. Exit 1 when something is SLOWER.
-      A step whose two values differ by --floor ms or less is a tie: Firefox and WebKit read whole milliseconds.
+      A step whose two values differ by --floor ms or less is a tie: Firefox and WebKit read whole milliseconds. Releases are put in time order
+      by date and stamp, not by their place in the file. Read the note of a SLOWER row: a row timed in a separate run is not a fair comparison.
       --ok FILE lists slowdowns the owner accepted, one per line:  release <TAB> part of the test text.  Those show as OK (accepted).
   python3 tools/speed-guard/speed-guard.py --plan [BASE]
       Prints the browser checks the changed files affect (the same picker as tests/kits.js --changed) and the command that runs only those.
       Run them, add the new rows to the speed history, then run the guard above.
 """
 import os, re, subprocess, sys
+
+STAMP = re.compile(r'^\d{4}\.\d\d\.\d\d\.\d{4}$')
 
 def args_value(argv, name, default=None):
     if name in argv:
@@ -36,7 +39,7 @@ def read_rows(folder, product=None):
                     value = float(p[5])
                 except ValueError:
                     continue
-                rows.append({'product': p[0], 'release': p[1], 'date': p[2], 'test': p[3], 'browser': p[4], 'value': value, 'unit': p[6], 'better': p[7]})
+                rows.append({'product': p[0], 'release': p[1], 'date': p[2], 'test': p[3], 'browser': p[4], 'value': value, 'unit': p[6], 'better': p[7], 'note': p[8] if len(p) > 8 else ''})
     return rows
 
 def compare(rows, limit=5.0, floor=1.0):
@@ -46,10 +49,10 @@ def compare(rows, limit=5.0, floor=1.0):
         series.setdefault((r['product'], r['test'], r['browser']), []).append(r)
     out = []
     for key, s in sorted(series.items()):
-        releases = []
-        for r in s:
-            if r['release'] not in releases:
-                releases.append(r['release'])
+        first = {}
+        for i, r in enumerate(s):
+            first.setdefault(r['release'], (r['date'], r['release'] if STAMP.match(r['release']) else '', i))
+        releases = sorted(first, key=lambda k: first[k])    # oldest first: by date, then by the YYYY.MM.DD.HHMM stamp, then by where it first appears (files are not always in time order)
         if len(releases) < 2:
             continue
         new_rel, old_rel = releases[-1], releases[-2]
@@ -60,7 +63,7 @@ def compare(rows, limit=5.0, floor=1.0):
         tie = new['unit'] == 'ms' and abs(new['value'] - old['value']) <= floor
         verdict = 'tie' if tie else 'SLOWER' if worse > limit else 'faster' if worse < -limit else 'level'
         out.append({'product': key[0], 'test': key[1], 'browser': key[2], 'old_release': old_rel, 'new_release': new_rel, 'old': old['value'],
-                    'new': new['value'], 'unit': new['unit'], 'better': new['better'], 'change': change, 'verdict': verdict})
+                    'new': new['value'], 'unit': new['unit'], 'better': new['better'], 'change': change, 'verdict': verdict, 'note': new['note']})
     return out
 
 def accepted(res, ok_lines):
@@ -71,10 +74,10 @@ def accepted(res, ok_lines):
     return False
 
 def table(results):
-    head = ['release', 'test', 'browser', 'old', 'new', 'change', 'better', 'verdict']
+    head = ['release', 'test', 'browser', 'old', 'new', 'change', 'better', 'verdict', 'note of the new row']
     lines = [head]
     for r in results:
-        lines.append([r['new_release'], r['test'][:70], r['browser'], '%g' % r['old'], '%g %s' % (r['new'], r['unit']), '%+.1f%%' % r['change'], r['better'] + ' is better', r['verdict']])
+        lines.append([r['new_release'], r['test'][:70], r['browser'], '%g' % r['old'], '%g %s' % (r['new'], r['unit']), '%+.1f%%' % r['change'], r['better'] + ' is better', r['verdict'], r['note'][:80]])
     w = [max(len(l[i]) for l in lines) for i in range(len(head))]
     return '\n'.join('  '.join(c.ljust(w[i]) for i, c in enumerate(l)) for l in lines)
 
