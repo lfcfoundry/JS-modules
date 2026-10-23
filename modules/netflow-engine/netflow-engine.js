@@ -2,7 +2,7 @@
  * netflow-engine.js: the engine of Netflow Map as a module you can adapt: reads links, lays the map out (layered rows, arcs, matrix, shapes, force, distances), and scores it. No page, no DOM; runs on the main thread or in a worker.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.2.1 (API 2)
+ * Version 2.2.2 (API 2)
  *
  *   var L = NetflowEngine.build({ nodes: [{ id: 'a' }, { id: 'b' }], edges: [{ from: 'a', to: 'b' }] }, { view: 'network', colorBy: 'group' });   // L.nodes, L.edges: positions and sizes, ready to draw
  *   NetflowEngine.use('layers', NetflowLayers);      // optional: hand over the add-ons (they are also found on their own)
@@ -14,7 +14,7 @@
   else root.NetflowEngine = factory(null);
 }(typeof self !== 'undefined' ? self : this, function (REQ) {
   'use strict';
-  var VERSION = '2.2.1';
+  var VERSION = '2.2.2';
   var NFMColumns = (function () {
     'use strict';
 
@@ -464,6 +464,7 @@
     var C = NFMColumns;
     var SK = null;   // the Sankey add-on (netflow-sankey): handed over with use('sankey', impl); without it the Sankey view keeps the plain layered picture
     var MAP_W = 176, MAP_H = 56;
+    var MAX_STOPS = 250000;   /* the largest layered drawing (pages plus the stand-in stops on long links) the Flow, Down, Spine and Lanes views will build; the module's own limit is 90,000. About 6,500 pages of a 3-links-per-page map: layout 0.6 s in the worker, 100 MB */
     var LN10 = Math.LN10;
 
     /* ---------------------------------------------------------------- small tools */
@@ -2599,7 +2600,7 @@
       G.nodes.forEach(function (n) { laneOfBox[n.id] = laneIdx.get(cls[n.id]); });
       var root = P.start >= 0 ? G.groupOf[P.start] : undefined, prev = o.prev || undefined, Lr;
       /* optional layered-drawing choices (all off by default, so the picture is the old one): see layered() */
-      var LO = { rows: o.rows === 'story' ? 'story' : undefined, tagLen: o.tagLen > 1 ? o.tagLen : 0, better: !!o.better, bundle: !!o.bundle, spread: o.spread === 'wide' ? 'wide' : undefined };
+      var LO = { rows: o.rows === 'story' ? 'story' : undefined, tagLen: o.tagLen > 1 ? o.tagLen : 0, better: !!o.better, bundle: !!o.bundle, spread: o.spread === 'wide' ? 'wide' : undefined, maxVertices: MAX_STOPS };
       var withLO = function (x) { return Object.assign(x, LO); };
       /* top to bottom (and the Flow view turned that way): a map more than about twice as tall as wide can be cut into columns (o.wrap) */
       var downLanes = view === 'down' && o.downLanes && laneNames.length > 1;
