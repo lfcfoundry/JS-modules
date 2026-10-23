@@ -591,6 +591,19 @@
         "tools/test-runner/fingerprint.js",
         "tools/test-runner/bisect.js"
       ]
+    },
+    {
+      "id": "speed-guard",
+      "version": "1.0.0",
+      "api": 1,
+      "summary": "One command that says whether a release got slower than the one before it, from the speed-history files, and which browser checks a change needs re-run. It runs nothing itself, so it costs no browser time.",
+      "short": "Flags speed-history steps over 5% slower than the last release; lists the browser checks to re-run.",
+      "folder": "tools/speed-guard",
+      "readme": "tools/speed-guard/README.md",
+      "category": "testing",
+      "file": [
+        "tools/speed-guard/speed-guard.py"
+      ]
     }
   ],
   "related": {
