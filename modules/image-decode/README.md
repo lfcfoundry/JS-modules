@@ -141,7 +141,7 @@ Not measured: a phone GPU (the test machine draws canvases in software, so the d
 
 | Alternative | Size (smaller is better) | Speed (lower freeze is better) | Features | Where it wins / loses |
 | --- | --- | --- | --- | --- |
-| **image-decode 1.1.0** (this module, MIT) | 16.9 KB with comments | Freeze 2 to 9 ms (table above) | Right door per browser, list loading, format checks, bytes/data:/url/Blob input | Needs the page to allow `blob:` pictures for the Firefox/WebKit door (falls back otherwise) |
+| **image-decode 1.2.0** (this module, MIT) | 21.1 KB with comments | Freeze 2 to 9 ms; a stage change that decoded ahead waits 1.6 to 7 ms (tables above) | Right door per browser, list loading, decode ahead in idle time, format checks, bytes/data:/url/Blob input | Needs the page to allow `blob:` pictures for the Firefox/WebKit door (falls back otherwise) |
 | Plain `new Image()` + `onload` | 0 | Freeze 44 to 94 ms at 2048 | None | The simplest; freezes the page at the first draw |
 | Plain `createImageBitmap` | 0 | Good in Chromium (2.5 ms), freezes Firefox (48) and WebKit (105) | Blob input only | Right in one browser family and wrong in the other |
 | Plain `Image.decode()` | 0 | Good in Firefox and WebKit (2.5, 8), no help in Chromium (43) | None | Opposite of the line above |
