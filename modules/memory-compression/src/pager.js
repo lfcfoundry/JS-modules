@@ -75,7 +75,7 @@
   }
   function pager(list, opts) {
     var store, uid = Math.random().toString(36).slice(2, 10), o = pagerAuto(list, opts), rows = o.pageRows > 0 ? Math.floor(o.pageRows) : 2048, n = list.length, np = Math.ceil(n / rows), pages = new Array(np), maxLive = o.livePages >= 0 ? Math.floor(o.livePages) : 4,
-      asView = !!o.pageView, coldOn = !!o.cold, coldAfter = o.coldAfter > 0 ? o.coldAfter : 3000, lastTouch = 0, coldTimer = null, coolBad = false, ahead = o.readAhead !== false && !o.pageView, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
+      asView = !!o.pageView, coldOn = !!o.cold, coldAfter = o.coldAfter > 0 ? o.coldAfter : 3000, touched = 0, coldTimer = null, coolBad = false, ahead = o.readAhead !== false && !o.pageView, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
     packOpts.hints = {};                         // each column remembers which number ways won on earlier pages (every 4th pack still tries them all)
     for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError' && k !== 'deviceMemory' && k !== 'heapBytes' && k !== 'pageView' && k !== 'cold' && k !== 'coldAfter') packOpts[k] = o[k];
     if (!Array.isArray(list)) jfail('pager() needs an array');
@@ -147,7 +147,7 @@
         var pi, v, e0;
         if (!(i >= 0 && i < n)) return undefined;
         pi = (i / rows) | 0;
-        if (coldOn) lastTouch = performance.now();
+        touched = 1;                                  // cold: a flag, not the clock: get() is on the hot path, the timer below looks at the flag
         if (asView) {
           e0 = pages[pi];
           if (e0.value === undefined) { if (e0.view === undefined) openView(pi); if (e0.view !== undefined) { e0.used = ++clock; lastPage = pi; return e0.view.get(i - pi * rows); } }
@@ -281,7 +281,7 @@
       }
     };
     if (coldOn && typeof setInterval === 'function') {                    // after coldAfter ms without a read, closed pages are cooled in the background
-      coldTimer = setInterval(function () { if (performance.now() - lastTouch >= coldAfter) P.cool().catch(fail); }, coldAfter);
+      coldTimer = setInterval(function () { if (touched) touched = 0; else P.cool().catch(fail); }, coldAfter);      // a whole interval without a get(): cool
       if (coldTimer && typeof coldTimer.unref === 'function') coldTimer.unref();
     }
     if (o.background) P.ready = P.settle();
