@@ -5,12 +5,6 @@ What changed in each version, newest first, in plain words. The full details (nu
 ## 1.3.3 · API 1 · 2026-10-22
 - 1.3.3: Chromium's refusals of a file picker that no real tap opened or that closed at once ('User activation required', 'Must be handling a user gesture', 'The user aborted a request') are no longer findings.
 
-## 1.3.3 · API 1 · 2026-10-22
-- 1.3.3: the browser's refusals of a file picker that no real tap opened or that closed at once (Chromium: showSaveFilePicker 'User activation required', 'Must be handling a user gesture', 'The user aborted a request') are no longer reported as findings.
-
-## 1.3.3 · API 1 · 2026-10-22
-- 1.3.3: the browser's refusal of a file picker opened without a real tap (Chromium: showSaveFilePicker 'User activation required') is no longer reported as a finding.
-
 ## 1.3.2 · API 1 · 2026-10-22
 - 1.3.2: the WebKitGTK and GNOME Web runs no longer use eval, so games with a strict policy (no unsafe-eval) run all their operations there too.
 
