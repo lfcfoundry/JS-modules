@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-10-23
+- Smaller and lighter: files are 46% to 57% smaller (program stored deflated), big unpacks use 6 MB instead of 36 MB of wasm memory, idle pool workers end after idleMs (4 s). A warm 4M-number unpack is 19-24% slower in WebKit browsers.
+
 ## 1.5.1 · API 1 · 2026-10-22
 - 1.5.1: unpacking a list of files on the worker pool is 1.2 to 1.4 times faster in Firefox, WebKitGTK and GNOME Web (Chromium: a tie).
 

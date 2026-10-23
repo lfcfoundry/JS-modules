@@ -80,6 +80,22 @@ N is faster to start than B (by 16% to 78%); the old add-on starts quicker in Ch
 
 **Where it does not win:** pack speed against B (0% to 10% slower), plain `pack()` size (6% bigger than B), no plain-JavaScript backup (the owner's decision), no checksum (a property of Pcodec), and the comparison has only one rival. Earlier detail tables below (sections 1 to 10) are from the run before the tuned loop and the same conclusions hold; section 4c has the before/after for the loop.
 
+## 0c. Re-run for 1.6.0 (2026-10-23): packed program, lean unpack, same comparison
+
+Setup as in 0b, but with numcodecs-wasm-pco 0.4.0 (it writes its own framing, so each build opens files it wrote itself at level 8; every result is byte-identical across builds) and 8 rounds of 25 passes. 13 columns, 8 types, 1,526,000 numbers. Order in each cell: Chromium / Firefox / WebKitGTK / GNOME Web. Lower is better in every row. Median of 8 fresh pages; single pages ranged by up to 30%, so gaps under 5% are ties.
+
+| Measure | numcodecs-wasm-pco | pcodec-js 1.5.1 | pcodec-js 1.6.0 |
+|---|---:|---:|---:|
+| Download, unpack only, gzipped (B) | 324,006 | 75,081 | 60,742 |
+| Download, with packer, gzipped (B) | 324,006 | 193,195 | 142,187 |
+| Unpack, copy (ns per number) | 10.68 / 10.16 / 9.17 / 9.50 | 10.75 / 10.16 / 9.17 / 9.17 | 10.45 / 9.83 / 10.16 / 9.17 |
+| Unpack, view (ns per number) | not offered | n/a | 7.08 / 6.55 / 8.19 / 7.86 |
+| `load()` until ready (ms) | 105.5 / 66.5 / 67 / 65 | 9.2 / 8 / 4 / 4 | 9.0 / 9 / 6 / 6 |
+| Pack 3 float columns, 850,000 numbers (ms) | 49.6 / 51 / 50 / 51 | 48.5 / 53 / 50.5 / 51 | 42.9 / 53 / 52.5 / 50.5 |
+| Pack 3 float columns, bytes | 1,031,016 | 1,030,983 | 1,030,983 |
+
+Honest reading: against 1.5.1 the copy unpack of this set is a tie in three browsers and 11% slower in WebKitGTK (the one 600,000-number column takes the lean path, whose new result array has to be zeroed first; see CHANGELOG.md 1.6.0). The `load()` rows rose by 0 to 2 ms (the program is inflated once). The packer file is the same code; its timing differences are inside the noise.
+
 ## 0b. Re-run for 1.0.1 (2026-10-18 03:40Z): rebuilt wasm, same comparison
 
 What was done. (1) Pcodec v1.0.4 was cloned from upstream (commit 9fa6d04); the crates.io source of the `pco` crate differs from it only by our patch, and the patch applies cleanly. (2) The three WebAssembly programs were rebuilt from scratch on a fresh machine (`sh wasm/vendor.sh`, `sh wasm/buildall.sh`, wasm-opt 132, Rust 1.97): all three are byte for byte identical to the shipped files (same SHA-256), and `python3 build.py` gives identical JavaScript. (3) 854 Node checks pass for both readers; `test.html` (491 checks) and `demo.html` (a million numbers back exactly, 630,578 bytes) pass in all four browsers. (4) The comparison with numcodecs-wasm-pco 0.4.0 (converted with jco 1.39) was re-run in each browser, one at a time (15 repeats x 3 rounds, a fresh page per contender, `bench/browser/run-release.js`), 0 wrong columns everywhere.
