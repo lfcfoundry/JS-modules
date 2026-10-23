@@ -63,7 +63,7 @@ def compare(rows, limit=5.0, floor=1.0):
         tie = new['unit'] == 'ms' and abs(new['value'] - old['value']) <= floor
         verdict = 'tie' if tie else 'SLOWER' if worse > limit else 'faster' if worse < -limit else 'level'
         out.append({'product': key[0], 'test': key[1], 'browser': key[2], 'old_release': old_rel, 'new_release': new_rel, 'old': old['value'],
-                    'new': new['value'], 'unit': new['unit'], 'better': new['better'], 'change': change, 'verdict': verdict, 'note': new['note']})
+                    'new': new['value'], 'unit': new['unit'], 'better': new['better'], 'change': change, 'verdict': verdict, 'note': new.get('note', '')})
     return out
 
 def accepted(res, ok_lines):
