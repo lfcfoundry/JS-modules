@@ -120,6 +120,27 @@ module.exports = {
     for (let r = 0; r < rounds; r++) { const order = r % 2 ? ['B', 'A'] : ['A', 'B']; for (const k of order) { await H.tick(); T[k].push(go(k)); } }
     return { n, A: H.med(T.A), B: H.med(T.B), Aall: T.A, Ball: T.B, memA: pa.memoryBytes(), memB: pb.memoryBytes() };
   },
+  // 1.5.1 (A), 1.6.0 default lean (B) and 1.6.0 load({ lean: false }) (C) take turns on the same big file
+  lean3: async function (a) {
+    const H = eval(a.helpers), A = H.load(a.libA), B = H.load(a.libB), pa = await A.load({ warm: true }), pb = await B.load({ warm: true }), pc = await H.load(a.libB).load({ lean: false, warm: true });
+    const file = H.b64u8(a.file), n = a.n, rounds = a.rounds, sink = { s: 0 }, P = { A: pa, B: pb, C: pc }, T = { A: [], B: [], C: [] };
+    const go = (k) => { if (a.cold) P[k].release(); const t = performance.now(); const r = P[k].unpack(file); const e = performance.now() - t; sink.s += r[r.length - 1]; if (r.length !== n) throw new Error('wrong length'); return e; };
+    for (let i = 0; i < 3; i++) { go('A'); go('B'); go('C'); }
+    const ks = ['A', 'B', 'C'];
+    for (let r = 0; r < rounds; r++) for (let j = 0; j < 3; j++) { const k = ks[(r + j) % 3]; await H.tick(); T[k].push(go(k)); }
+    return { n, A: H.med(T.A), B: H.med(T.B), C: H.med(T.C), Aall: T.A, Ball: T.B, Call: T.C, memA: pa.memoryBytes(), memB: pb.memoryBytes(), memC: pc.memoryBytes() };
+  },
+  // memory of lean: false: before, right after a big unpack, after the idle release; and the cost of the first call after the release
+  leanmem: async function (a) {
+    const H = eval(a.helpers), B = H.load(a.libB), file = H.b64u8(a.file), n = a.n, idle = a.idleMs, sink = { s: 0 };
+    const p = await B.load({ lean: false, idleMs: idle, warm: true }); p.release(); const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const m0 = p.memoryBytes(); let t = performance.now(); let r = p.unpack(file); const first = performance.now() - t; sink.s += r[n - 1]; r = null;
+    const m1 = p.memoryBytes(); const t0 = performance.now(); let gapMax = 0, last = performance.now(), m2 = m1, relAt = null;
+    while (performance.now() - t0 < (a.dur || idle + 1500)) { await H.tick(); const now = performance.now(); gapMax = Math.max(gapMax, now - last); if (now - last > 15) (a.big = a.big || []).push([+(last - t0).toFixed(0), +(now - last).toFixed(1)]); last = now; const mb = p.memoryBytes(); if (relAt === null && mb === 0) { relAt = now - t0; m2 = mb; } }
+    t = performance.now(); r = p.unpack(file); const afterRelease = performance.now() - t; sink.s += r[n - 1]; r = null;
+    t = performance.now(); r = p.unpack(file); const warmAgain = performance.now() - t; sink.s += r[n - 1];
+    return { m0, m1, m2, relAt, first, afterRelease, warmAgain, gapMax, big: a.big || [] };
+  },
   // size sweep for the batch threshold: A copy, B copy, and the batched route forced (B.stream, batch 65,536, into a new array)
   sweep: async function (a) {
     const H = eval(a.helpers), A = H.load(a.libA), B = H.load(a.libB), pa = await A.load({ warm: true }), pb = await B.load({ warm: true }), out = [];

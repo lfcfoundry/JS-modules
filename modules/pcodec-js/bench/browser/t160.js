@@ -1,6 +1,7 @@
 // Copyright (c) 2026 LFC Foundry. MIT License.
 // node t160.js <chromium|firefox|webkit|epiphany> <test[,test...]> [out.json]    (run from the bridge folder: it holds fx/ and out/)
 // tests: unpack-steady unpack-cold sweep set startup workers park idle-a idle-b idle-none pool pack
+// extra tests: lean3-steady lean3-cold leanmem (1.5.1, default and load({ lean: false }))
 // env: NCDIR + NCMJS (numcodecs-wasm-pco, 'comp' only), JSM_A (1.5.1 tree), JSM_B (1.6.0 tree), ROUNDS, PAGES, CHROMIUM, FIREFOX
 'use strict';
 const fs = require('fs'), path = require('path');
@@ -43,6 +44,8 @@ async function data() {
   for (const t of tests) {
     const t0 = Date.now(); let r;
     if (t === 'unpack-steady' || t === 'unpack-cold') r = await one(S.unpack, { libA: libs.A.read, libB: libs.B.read, file, n: N, rounds, cold: t === 'unpack-cold' });
+    else if (t === 'lean3-steady' || t === 'lean3-cold') r = await one(S.lean3, { libA: libs.A.read, libB: libs.B.read, file, n: N, rounds, cold: t === 'lean3-cold' });
+    else if (t === 'leanmem') { r = []; for (let i = 0; i < (+process.env.MEMPAGES || 5); i++) r.push(await one(S.leanmem, { libB: libs.B.read, file, n: N, idleMs: process.env.IDLEMS === undefined ? 2000 : +process.env.IDLEMS, dur: +process.env.DUR || 0 })); }
     else if (t === 'sweep' || t === 'sweep-cold') r = await one(S.sweep, { libA: libs.A.read, libB: libs.B.read, files: D.sweep, rounds: Math.max(5, rounds >> 1), cold: t === 'sweep-cold' });
     else if (t === 'batches' || t === 'batches-cold') r = await one(S.batches, { libA: libs.A.read, libB: libs.B.read, file, n: N, rounds, cold: t === 'batches-cold', sizes: [8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576] });
     else if (t === 'phases' || t === 'phases-tight') r = await one(S.phases, { libA: libs.A.read, libB: libs.B.read, file, n: N, rounds, tick: t === 'phases' });

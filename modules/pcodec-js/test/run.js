@@ -193,6 +193,19 @@ function gen(type, n, shape) {
       for (let t = 0; t < 60; t++) { const c = new Uint8Array(wb); c[Math.floor(rnd() * c.length)] ^= 1 << Math.floor(rnd() * 8); try { const q = rd.unpack(t % 4 === 3 ? c.subarray(0, Math.floor(c.length * rnd())) : c); good++; if (q.length !== a.length) wrongLen++; } catch (x) { errs++; } }
       ok(wrongLen === 0 && errs > 0, `damaged big files: an error or the right length, never a crash (${errs} refused, ${good} decoded)`);
       ok(same(rd.unpack(b), a), 'the object still works after damaged big files'); ok(rd.memoryBytes() / 1048576 < 8, 'damaged big files leave nothing open in the program (' + (rd.memoryBytes() / 1048576).toFixed(1) + ' MB)'); }
+    // 15e. load({ lean: false }): the 1.5.1 route for big copies (the program holds the whole result), given back after idleMs
+    { const F = fresh(READER), sleep = (ms) => new Promise((r) => setTimeout(r, ms)), a = gen('f64', 1500000, 'dec'), b = pk.pack(a), small = gen('i32', 20000, 'walk'), sb = pk.pack(small);
+      const dflt = await F.load(); ok(dflt === await F.load(), 'load() without options still gives one shared object'); dflt.release(); ok(same(dflt.unpack(b), a) && dflt.memoryBytes() / 1048576 < 6, 'default stays lean (under 6 MB held)'); dflt.release();
+      const L = await F.load({ lean: false, idleMs: 120 }); ok(L !== dflt, 'load({ lean: false }) gives its own object');
+      const r = L.unpack(b); ok(same(r, a) && r.constructor === a.constructor, 'lean: false gives the same numbers'); const held = L.memoryBytes() / 1048576; ok(held > 12, `lean: false holds the whole result in the program (${held.toFixed(1)} MB)`);
+      ok(Buffer.compare(Buffer.from(r.buffer), Buffer.from(new Float64Array(rd.unpack(b)).buffer)) === 0, 'lean: false and lean give identical bytes');
+      await sleep(60); ok(L.memoryBytes() > 0, 'still held before idleMs'); await sleep(250); ok(L.memoryBytes() === 0, 'given back after idleMs without a call (memoryBytes 0)');
+      ok(same(L.unpack(b), a) && L.memoryBytes() / 1048576 > 12, 'the next big call starts a new program and gives the same numbers'); await sleep(60); L.unpack(sb); await sleep(100); ok(L.memoryBytes() > 0, 'a call inside idleMs restarts the clock'); await sleep(250); ok(L.memoryBytes() === 0, 'and the memory goes at the end of the new wait');
+      L.unpack(small.length >= 262144 ? sb : sb); ok(L.memoryBytes() / 1048576 < 3, 'a small unpack after the release holds little'); ok(same(L.unpack(sb), small), 'small unpack exact');
+      L.unpack(b); L.release(); ok(L.memoryBytes() === 0, 'release() frees at once'); await sleep(200); ok(same(L.unpack(sb), small) && L.memoryBytes() / 1048576 < 3, 'release() cancelled the timer; nothing stale fires');
+      const it = (L.unpack(b), L.stream(b, { batch: 65536 })); let got = 0; const first = it.next(); got += first.value.length; await sleep(300); ok(L.memoryBytes() > 0, 'an open stream is never dropped by the idle release'); for (let q = it.next(); !q.done; q = it.next()) got += q.value.length; ok(got === a.length, 'the stream finishes with every number after the wait');
+      const V = await F.load({ lean: false, idleMs: 0 }); V.unpack(b); await sleep(250); ok(V.memoryBytes() > 0, 'idleMs 0 turns the release off'); V.release();
+      const d1 = await F.load({ lean: false }); ok(d1.unpack(b).length === a.length, 'lean: false with the default idleMs (4000) works'); d1.release(); }
     // 15d. parking the pool: needs workers, so Node gets a stand-in Worker built on worker_threads
     { const NW = require('worker_threads').Worker, texts = new Map(), OB = globalThis.Blob, cu = URL.createObjectURL, live = new Set();
       globalThis.Blob = class extends OB { constructor(parts, o) { super(parts, o); this.__t = parts.join(''); } };
@@ -203,6 +216,8 @@ function gen(type, n, shape) {
       try {
         const a = gen('f64', 700000, 'dec'), sp = pk.pack(a, { parts: 4 }), plain = pk.pack(a), cols = [gen('i32', 60000, 'walk'), gen('f64', 50000, 'dec'), gen('u16', 40000, 'few')], files = cols.map((c) => pk.pack(c));
         const w1 = await F.worker(); ok(w1.inWorker === true && live.size === 1, 'the Node stand-in starts a real worker thread'); ok(same(await w1.unpack(plain), a), 'a real worker opens a big file in batches (same numbers)'); w1.terminate();
+        { const wl = await F.worker({ lean: false }); const rr = await wl.unpack(plain); ok(same(rr, a), 'a worker with lean: false gives the same numbers'); wl.terminate();
+          const pl2 = await F.pool({ size: 2, laneMs: 0, lean: false, idleMs: 0 }); ok(same(await pl2.unpack(plain), a) && same(await pl2.unpack(sp), a), 'a pool with lean: false gives the same numbers'); pl2.terminate(); }
         const pl = await F.pool({ size: 3, laneMs: 0, idleMs: 150 });
         ok(pl.idleMs === 150 && pl.workers() === 0, 'a new pool has no workers and reports idleMs');
         { const q4 = await F.pool({ size: 4, laneMs: 0, idleMs: 0 }), pr = q4.unpack(files.concat([files[0]]).map((f) => f.slice())); ok(live.size - pl.workers() <= 1, `starting 4 workers is spread over turns of the page: ${live.size - pl.workers()} created in the first turn`); const r4 = await pr; ok(q4.workers() === 4 && r4.length === 4 && same(r4[3], cols[0]), 'all 4 workers run after the first job'); q4.terminate(); }
