@@ -472,6 +472,30 @@ t('2.0.2: memory() counts text only where a text column has rows with the key mi
   var m = K.view('x').memory(); assert(m.restored > 0, 'restored ' + m.restored); assert(K.memory().total > 0);
   var v = J.view(J.pack(rows, opt()), opt()); v.column('kind'); assert(v.memory().restored >= 3000 * 8, 'a missing key counts as a slot, no text');
 });
+t('2.4.4: text columns of a view stay whole and are cut per row (plain text, wide text, patterns); the memory report counts them', function () {
+  var W = ['harbor', 'ridge', 'copper', 'lantern', 'meadow', 'signal'], rows = many(5000, function (i) {
+    return { id: i, label: W[i % 6] + ' ' + W[(i * 7) % 6] + ' number ' + (i * 31 % 977), tag: 'item-' + i + '-x', wide: i % 9 === 0 ? 'caf\u00e9 \u2603 ' + i : 'plain ' + i + ' text that is long', empty: i % 5 ? 'abcdefghijklmnop' + i : '', w: [W[i % 6], W[(i + 1) % 6]] };
+  }), v = J.view(J.pack(rows, opt()), opt()), i, mem, back;
+  for (i = 0; i < 5000; i += 7) { same(rows[i], v.get(i), 'row ' + i); same(rows[i].label, v.field(i, 'label'), 'field ' + i); }
+  ['label', 'tag', 'wide', 'empty', 'w'].forEach(function (k) { same(rows.map(function (r) { return r[k]; }), Array.prototype.slice.call(v.column(k)), 'column ' + k); });
+  same(rows.slice(40, 90), v.slice(40, 90), 'slice'); same(rows, v.toArray(), 'toArray');
+  mem = v.memory().restored; assert(mem > 5000 * 6, 'the report counts the text: ' + mem);
+  v.release(); assert.strictEqual(v.memory().restored, 0); same(rows[4999], v.get(4999), 'after release');
+  back = J.view(J.pack(rows, opt({ mode: 'balanced' })), opt()); same(rows, back.toArray(), 'balanced pages');
+});
+t('2.4.4: the memory report of a view counts a text column once (a string header and the text), nested columns in full, the open view as 8 KB, and a repeated string once in estimateBytes', function () {
+  var W = ['harbor', 'ridge', 'copper', 'lantern', 'meadow', 'signal'], rows = many(5000, function (i) {
+    return { id: i, label: W[i % 6] + ' ' + W[(i * 7) % 6] + ' number ' + (i * 31 % 977), tag: 'item-' + i + '-x', w: [W[i % 6], W[(i + 1) % 6]] };
+  }), b = J.pack(rows, opt()), m = {}, s = 'abcdefghijklmnopqrstu';
+  ['label', 'tag', 'w', 'id'].forEach(function (k) { var v = J.view(b, opt()); v.column(k); m[k] = v.memory().restored; });
+  var evalOk = true; try { new Function('return 1')(); } catch (e) { evalOk = false; }                  // a pattern column is put together per row only where generated code is allowed
+  assert(m.tag > 8192 + 5000 && (!evalOk || m.tag < 40000), 'pattern text column: ' + m.tag);         // 2.4.3 counted 93,890
+  assert(m.label > 8192 + 5000 && (!evalOk || m.label < 100000), 'pattern text column with lookup tables: ' + m.label);   // 2.4.3 counted 159,434
+  assert(m.w > 100000, 'nested column counted in full: ' + m.w);                                         // 2.4.3 counted 40,000
+  assert(m.id >= 8192 + 5000 * 2, 'the open view counts 8 KB: ' + m.id);                             // 2.4.3 counted 10,000
+  assert(J.estimateBytes([s + '1', s + '1', s + '1']) < J.estimateBytes([s + '1', s + '2', s + '3']), 'a repeated string is counted once');
+  assert(J.estimateBytes([s + '1'], 32) > J.estimateBytes([s + '1']), 'a long string cut from a bigger text has a bigger header');
+});
 t('2.0.2: view() of fewer than 16 objects works with the same calls; non-objects are still refused', function () {
   var rows = [{ a: 1, b: 'x' }, { a: 2 }, { a: 3, b: 'z', c: [1, 2] }], v = J.view(J.pack(rows, opt()), opt());
   assert.strictEqual(v.length, 3); assert.deepStrictEqual(v.keys, ['a', 'b', 'c']); assert.strictEqual(v.lazy, false);

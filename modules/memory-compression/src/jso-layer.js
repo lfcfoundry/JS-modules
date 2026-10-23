@@ -1463,12 +1463,15 @@
   };
 
   // A column is returned as {n, mode, a, d}: mode 0 a[i] is the value, 1 a[i] === 1 is the value, 2 d[a[i]], 3 every value is d.
+  // Modes 4 to 6 are for a top-level column of a view (lazyText): 4 FSST codes decoded per row, 5 one decoded text with the row ends (a.big, a.off: a string is cut when asked for), 6 a pattern whose strings are put together per row (a.row(i); the slots' numbers and lookup tables are kept for the memory report).
   // full() gives a plain array of the values.
   function Col(n, mode, a, d) { this.n = n; this.mode = mode; this.a = a; this.d = d; }
-  Col.prototype.get = function (i) { var m = this.mode; if (m === 4) return fsGet(this.a, i); return m === 0 ? this.a[i] : m === 1 ? this.a[i] === 1 : m === 2 ? this.d[this.a[i]] : this.d; };
+  Col.prototype.get = function (i) { var m = this.mode; if (m >= 4) return m === 4 ? fsGet(this.a, i) : m === 5 ? this.a.big.substring(this.a.off[i], this.a.off[i + 1]) : this.a.row(i); return m === 0 ? this.a[i] : m === 1 ? this.a[i] === 1 : m === 2 ? this.d[this.a[i]] : this.d; };
   Col.prototype.full = function () {
     var n = this.n, a = this.a, d = this.d, out, i, m = this.mode;
     if (m === 4) return fsAll(a, n);
+    if (m === 5) { out = new Array(n); for (i = 0; i < n; i++) out[i] = a.big.substring(a.off[i], a.off[i + 1]); return out; }
+    if (m === 6) { out = new Array(n); for (i = 0; i < n; i++) out[i] = a.row(i); return out; }
     if (m === 0 && Array.isArray(a)) return a;
     out = new Array(n);
     if (m === 0) {                                                   // one loop per kind of array, so each loop sees one type
@@ -1571,7 +1574,7 @@
         a = new (m <= 256 ? Uint8Array : m <= 65536 ? Uint16Array : Uint32Array)(n);
         for (i = 0; i < n; i++) { if (!(t[i] >= 0 && t[i] < m)) jfail('dictionary index out of range'); a[i] = t[i]; }
         return new Col(n, 2, a, d);
-      case CT_STRR: return new Col(n, 0, this.rawStrings(n), null);
+      case CT_STRR: t = this.rawStrings(n, false, this.lazyText && this.depth === 1); return t instanceof Col ? t : new Col(n, 0, t, null);
       case CT_NULLABLE:
         m = c.varint(); if (m > n) jfail('bad count');
         kinds = this.blob(Uint8Array, n);
@@ -1796,7 +1799,7 @@
     if (R === g && n >= 2048) return new Col(n, 0, buildTimes(n, L, g, ts), null);
     cols = tsUnpack(g, ts, n).map(function (a) { var k, x = a[0]; for (k = 1; k < n && a[k] === x; k++); return k === n ? new Col(n, 3, null, x) : new Col(n, 0, a, null); });   // a number that never changes becomes part of the text
     for (j = g; j < R; j++) cols.push(this.column(n));
-    return new Col(n, 0, buildTemplate(n, [L], R, widths, null, cols), null);
+    return buildTemplate(n, [L], R, widths, null, cols, false);
   };
   Dec.prototype.template = function (n) {
     var c = this.c, nt = c.varint(), R = c.varint(), tpls = [], widths = [], tid = null, cols = [], t, j, i, L, w;
@@ -1806,7 +1809,7 @@
     for (j = 0; j < R; j++) { w = c.varint(); if (w === 1 || w > 15) jfail('bad string pattern'); widths.push(w); }
     if (nt > 1) { tid = this.blob(Uint8Array, n); for (i = 0; i < n; i++) if (tid[i] >= nt) jfail('bad string pattern'); }
     for (j = 0; j < R; j++) cols.push(this.column(n));
-    return new Col(n, 0, buildTemplate(n, tpls, R, widths, tid, cols), null);
+    return buildTemplate(n, tpls, R, widths, tid, cols, this.lazyText && this.depth === 1 && CAN_EVAL);
   };
   var ZEROS = '000000000000000';
   function pad(v, w) { var s = '' + v; return s.length >= w ? s : ZEROS.substring(0, w - s.length) + s; }
@@ -1862,7 +1865,7 @@
     return { lits: nl, R: nk.length, widths: nw, kinds: nk, arrs: na, tabs: nt, los: nlo };
   }
   // The strings come back as literal + number + literal ...; a column of numbers that spans few values is turned into text once and looked up.
-  function buildTemplate(n, tpls, R, widths, tid, cols) {
+  function buildTemplate(n, tpls, R, widths, tid, cols, lazy) {      // a Col; lazy: the strings are put together when a row is read, not now
     var nt = tpls.length, out = new Array(n), kinds = [], arrs = [], tabs = [], los = [], lits, j, t, i, a, lo, hi, x, k, sig, f, v;
     for (j = 0; j < R; j++) {
       a = cols[j]; kinds.push(0); arrs.push(null); tabs.push(null); los.push(0);
@@ -1875,7 +1878,7 @@
       } else if (widths[j]) kinds[j] = 2;
     }
     if (nt === 1 && (j = templateRun(n, tpls[0], R, widths, kinds, arrs, tabs, los))) { tpls = [j.lits]; R = j.R; widths = j.widths; kinds = j.kinds; arrs = j.arrs; tabs = j.tabs; los = j.los; }
-    sig = 'p' + nt + '|' + R + '|' + kinds.join('') + '|' + widths.join(',') + '|' + JSON.stringify(tpls);
+    sig = (lazy ? 'q' : 'p') + nt + '|' + R + '|' + kinds.join('') + '|' + widths.join(',') + '|' + JSON.stringify(tpls);
     f = GEN_CACHE[sig];
     if (!f) {
       if (CAN_EVAL) {
@@ -1890,7 +1893,10 @@
           e = e ? e + (pend ? '+' + JSON.stringify(pend) : '') : JSON.stringify(pend);
           body.push(e);
         }
-        if (nt === 1) src += 'out[i]=' + body[0] + ';}';
+        if (lazy) {
+          if (nt === 1) src = 'return function(i){return ' + body[0] + ';};';
+          else { src = 'return function(i){switch(tid[i]){'; for (t = 0; t < nt; t++) src += 'case ' + t + ':return ' + body[t] + ';'; src += '}};'; }
+        } else if (nt === 1) src += 'out[i]=' + body[0] + ';}';
         else { src += 't=tid[i];switch(t){'; for (t = 0; t < nt; t++) src += 'case ' + t + ':out[i]=' + body[t] + ';break;'; src += '}}'; }
         var params = ['out', 'n', 'tid', 'pad'];
         for (j = 0; j < R; j++) { params.push('A' + j); params.push('T' + j); params.push('LO' + j); }
@@ -1913,8 +1919,12 @@
     }
     var args = [out, n, tid, pad];
     for (j = 0; j < R; j++) { args.push(arrs[j]); args.push(tabs[j]); args.push(los[j]); }
+    if (lazy) {
+      var row = f.apply(null, args);
+      return new Col(n, 6, { row: row, arrs: arrs, tabs: tabs, tid: tid }, null);
+    }
     f.apply(null, args);
-    return out;
+    return new Col(n, 0, out, null);
   }
   Dec.prototype.intCol = function (n) {
     var c = this.c, w = c.u8(), base, t, i, a, Ctor;
@@ -1934,7 +1944,7 @@
     if (ct !== CT_INT) jfail('bad lengths');
     return this.intCol(n);
   };
-  Dec.prototype.rawStrings = function (n, raw) {                 // raw: a single UTF-8 piece comes back as {lens, bytes} so the caller can work on the bytes
+  Dec.prototype.rawStrings = function (n, raw, lazy) {                 // raw: a single UTF-8 piece comes back as {lens, bytes} so the caller can work on the bytes
     var c = this.c, lens, pieces, out = new Array(n), q = 0, pi, kind, len, cnt, bytes, big, off, i, u, end;
     this.spend(n);
     lens = this.lengthCol(n);
@@ -1947,6 +1957,12 @@
       if (kind === 0) { bytes = this.blob(Uint8Array, len); big = TEXT_DEC.decode(bytes); }
       else if (kind === 1) { u = this.blob(Uint16Array, len); big = codesToString(u); }
       else jfail('bad text');
+      if (lazy && pieces === 1 && cnt === n) {                      // one piece: keep the text whole and the row ends; a string is cut out when it is read
+        off = new Uint32Array(n + 1);
+        for (i = 0; i < n; i++) { off[i + 1] = off[i] + lens.get(i); if (off[i + 1] > big.length) jfail('bad string lengths'); }
+        if (off[n] !== big.length) jfail('bad string lengths');
+        return new Col(n, 5, { big: big, off: off, wide: kind === 1 }, null);
+      }
       off = 0; end = q + cnt;
       for (; q < end; q++) {
         i = lens.get(q);
@@ -2566,13 +2582,20 @@
       } else getter = function (i) { var o = {}, q; for (q = 0; q < nk; q++) define(o, keys[q], cols[q].get(i)); return o; };
       return getter;
     }
-    function colBytes(x) {                                          // about: 8 bytes a slot, plus a byte a character for text
-      var t, i, a = x.a;
-      if (x.mode === 3) return 0;
-      if (x.mode === 4) return a.codes.byteLength + a.coff.byteLength;
-      if (a.byteLength !== undefined) return a.byteLength;
-      t = a.length * 8; for (i = 0; i < a.length; i++) if (typeof a[i] === 'string') t += a[i].length;   // rows where the key is missing are undefined: count only the text
-      return t;
+    function colBytes(x) {                                          // about what the restored column takes: a number column exactly, text 8 bytes a slot plus a string header (32 for a long one, as it is cut from a bigger text) and the text itself
+      var a = x.a, m = x.mode;
+      if (m === 3) return 0;
+      if (m === 4) return a.codes.byteLength + a.coff.byteLength + a.syms.length * 24 + 64;
+      if (m === 5) return 16 + a.off.byteLength + a.big.length * (a.wide ? 2 : 1);
+      if (m === 6) {                                                  // the numbers each slot reads and the tables of text it looks up
+        var t = 16 + (a.tid ? a.tid.byteLength : 0), seen = [], j;
+        for (j = 0; j < a.arrs.length; j++) if (a.arrs[j] && seen.indexOf(a.arrs[j]) < 0) { seen.push(a.arrs[j]); t += 16 + a.arrs[j].byteLength; }
+        for (j = 0; j < a.tabs.length; j++) if (a.tabs[j]) t += estimateBytes(a.tabs[j], 32);
+        return t;
+      }
+      if (m === 2) return a.byteLength + 16 + estimateBytes(x.d, 32);
+      if (a.byteLength !== undefined) return a.byteLength + 16;
+      return estimateBytes(a, 32) + 16;
     }
     return {
       length: n, keys: keys.slice(), lazy: lazy,
@@ -2593,6 +2616,6 @@
       toArray: function () { var out = new Array(n), q, g = getter || makeGetter(); for (q = 0; q < n; q++) out[q] = g(q); return out; },
       loaded: function () { return keys.filter(function (k, q) { return cols[q]; }); },
       release: function () { var q; if (!lazy) jfail('release() needs a file made by format 2 (pack it again)'); for (q = 0; q < nk; q++) cols[q] = undefined; getter = null; },
-      memory: function () { var q, dec = 0; for (q = 0; q < nk; q++) if (cols[q]) dec += colBytes(cols[q]); return { packed: bytes.length, restored: dec }; }
+      memory: function () { var q, dec = 0, any = false; for (q = 0; q < nk; q++) if (cols[q]) { dec += colBytes(cols[q]); any = true; } return { packed: bytes.length, restored: any ? dec + 8192 : 0 }; }   // 8 KB: what an open view itself takes
     };
   }

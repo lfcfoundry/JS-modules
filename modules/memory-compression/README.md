@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.4.9 · API 2**
+**Version 2.5.0 · API 2**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5 (timing one browser at a time, 3 fresh passes of 40 rounds plus same-file controls; Node only for pass/fail checks); no real phone
+**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5 (timing: 3 fresh passes x 40 rounds each plus a 2-pass control; page memory in all four; Node used for pass/fail checks only)
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
 
@@ -84,6 +84,8 @@ The WebAssembly helper starts the first time you pack or unpack (since 2.0.3), s
 ## API
 
 `pack(value, opts)` returns a `Uint8Array`. `unpack(bytes, opts)` returns the value (`as: 'bytes'` gives a `Uint8Array`; `into` fills a buffer you already have). `view(bytes, opts)` opens a packed typed array (`chunks`, `chunkLength(i)`, `read(i, into)`) or a packed array of objects (`length`, `keys`, `get(i)`, `field(i, key)`, `column(key)`, `slice(from, to)`, `toArray()`, `loaded()`, `release()`, `memory()`). A list of fewer than 16 objects is restored whole.
+
+Since 2.5.0 a view keeps each top-level text column whole until a row is read (plain text as one string plus the row ends, pattern text such as `Item 12 flow` as the pattern and its numbers, put together per row where the page allows generated code) instead of making 2,048 strings when the page opens. In the four test browsers a 2,048-row page of scene items opens 23 to 48% faster and holds 13 to 32% less memory (Chromium JS heap 304 to 206 KB, Firefox 452 to 393 KB; lower is better), but reading every row one by one with `get(i)` costs 37 to 129 ns more per row on lists with text (lazy text pays when rows are read sparsely). `memory().restored` now counts string headers, shared words, lookup tables, nested arrays and objects and about 8 KB for the open view itself. No format change.
 
 | Option | Meaning | Default |
 |---|---|---|
