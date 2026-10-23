@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.0 · API 2 · 2026-10-22
+- 2.4.0: after a big pack the module gives its spare memory back by itself once the page is quiet for 2 seconds.
+
 ## 2.3.5 · API 2 · 2026-10-22
 - 2.3.5: lists with coordinate pairs and other arrays inside rows (map features, routes) open up to about 25% faster in Firefox, WebKitGTK and GNOME Web; level in Chromium; no change to files.
 
