@@ -116,6 +116,14 @@ Same 1920 x 1080 picture, a blur that looks like a Gaussian of sigma 6, time unt
 - CSS `filter` lets the browser blur on its own thread; it is the cheapest way to blur something that is only shown, and it is not available when you need the blurred pixels or a texture.
 
 
+## Test it on your own device (one button)
+
+`tester/gpu-blur-device-test.html` is one file with `gpu-blur.js` inside it and no network. Copy it to a phone or laptop and open it in the browser you care about (Chrome on a phone, Firefox on a laptop), keep the tab open and in front, and tap **Run the test**. Add `#auto` to the address to run on load, `#quick` for a 5-round check.
+
+It blurs 480 x 270, 1920 x 1080 and (if the device has the memory, 4 GB or more) 3840 x 2160 at radius 12 on all three ways, plus what `auto` picks. The ways take turns in a rotating order, two warm-up turns per way are thrown away, and each size gets 25 timed rounds (11 for 3840 x 2160, and it stops early after 110 s). It reports, for each way, the median time until the picture is really finished, the middle half (25% to 75%) and the longest page task (lower is better for all of them), then what `auto` found (the 480 x 270 probe on the card way and in WebAssembly), whether the ways draw the same picture, and a verdict in plain words: whether `auto` picked the fastest way, and how many times faster or slower the card way is than WebAssembly. A red line appears if nothing has reported after 15 seconds.
+
+Tap **Copy results** (or **Save as file** / **Share**) and paste the text back. The text names the device by class (`phone` or `laptop`) and the browser's name and version only: no user agent, no model, no graphics name. The page shows the browser's graphics name on screen, for you only. A run takes about one to four minutes. `node tests/gpu-blur-tester.js` runs the page in a real browser and checks all of this, including that a phone user agent with a model name does not reach the copy text; `python3 modules/gpu-blur/tester/build.py` copies the current `gpu-blur.js` into the page (`--check` says whether it is current).
+
 ## Rebuild the WebAssembly
 
 `wasm/blur.c` is the source (about 90 lines of C with SIMD). `sh modules/gpu-blur/wasm/build.sh` builds `wasm/blur.wasm` with clang 18 or newer and its wasm32 target (no other tool); `sh modules/gpu-blur/wasm/build.sh --check` says whether the shipped file is byte for byte what the source builds. `python3 modules/gpu-blur/wasm/embed.py` writes the file into `gpu-blur.js` between the `WASM:BEGIN` and `WASM:END` markers (`--check` compares). `node modules/gpu-blur/test/run.js` runs both checks when clang is present.
