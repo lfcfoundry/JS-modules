@@ -39,9 +39,9 @@ function puppeteerPage(state, wd) {
   raw.on('console', (m) => handlers.console.forEach((h) => h(m)));
   const evaluate = (fn, ...args) => {
     let call;
-    if (typeof fn === 'string') call = raw.evaluate(function (s) { return (0, eval)(s); }, fn);   // a string runs as a script in the page's global scope, as in Puppeteer
+    if (typeof fn === 'string') call = raw.runScript(fn);   // a string runs as a script in the page's global scope, as in Puppeteer, without eval (a strict policy forbids it)
     else if (args.length <= 1) call = raw.evaluate(fn, args[0]);
-    else call = raw.evaluate(new Function('a', 'return (' + fn.toString() + ').apply(null, a)'), args);
+    else { const w = function () { }; w.toString = () => 'function (a) { return (' + fn.toString() + ').apply(null, a); }'; call = raw.evaluate(w, args); }   // several arguments travel as one array; no new Function (eval)
     return guarded(state, call, 90000, 'the page');
   };
   return {
@@ -59,6 +59,7 @@ function puppeteerPage(state, wd) {
     mainFrame() { return this; },
     isClosed() { return false; },
     evaluate,
+    flushEvents() { return guarded(state, raw.evaluate(() => 1), 8000, 'the page').catch(() => { }); },   // this driver hands over console messages when a call returns, so the runner makes a tiny call to receive them (a page that does not answer in time is left to the runner's own deadline)
     waitForFunction(fn, opts) {   // Puppeteer: (function or expression, options); the page polls, and so does a clock here, in case the page cannot
       const ms = (opts && opts.timeout) || 30000;
       return guarded(state, raw.waitForFunction(fn, null, { timeout: ms }).catch((e) => { throw /timed out/.test(String(e && e.message)) ? timeoutError(e.message) : e; }), ms + 4000, 'the page');
