@@ -61,8 +61,18 @@
       a = c.length === c.buffer.byteLength / 8 ? c : new Float64Array(c.buffer);
       POOL.push(a); POOL_BYTES += a.byteLength;
     }
+    if (POOL_BYTES > 0) idleSoon();
   }
   function freeBuffers() { POOL = []; POOL_BYTES = 0; }
+  // After the last big pack has been quiet for IDLE_MS, the buffer pool is emptied and both WebAssembly helpers give their memory back (a page that packs again simply makes them again, about 1 to 4 ms).
+  var IDLE_MS = 2000, idleTimer = null;
+  function idleSoon() {
+    if (idleTimer !== null) clearTimeout(idleTimer);
+    if (typeof setTimeout !== 'function') return;
+    idleTimer = setTimeout(function () { idleTimer = null; freeBuffers(); kwTrim(); MC.trimMemory(); }, IDLE_MS);
+    if (idleTimer && typeof idleTimer.unref === 'function') idleTimer.unref();
+  }
+  if (typeof MC.onGrow === 'function') MC.onGrow(idleSoon);
   function genStore(sig, f) { if (GEN_COUNT >= GEN_LIMIT) { GEN_CACHE = {}; LEARNED = {}; GEN_COUNT = 0; } GEN_CACHE[sig] = f; GEN_COUNT++; }
 
   function jfail(m) { throw new Error('MemoryCompressionJSO: ' + m); }
@@ -531,6 +541,7 @@
     for (i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
     return u;
   }
+  function kwTrim() { if (KW_STATE === 1 && KW && KW.mem.buffer.byteLength > 4194304) { KW = null; KW_STATE = 0; } }
   function kwGet() {                                // the helper's instance, made on first use; null when WebAssembly is missing or the page refuses it
     var inst;
     if (KW_STATE) return KW;
@@ -551,7 +562,7 @@
   function kwRoom(bytes) {                          // makes sure the helper's memory holds `bytes` after its base; false if it cannot (or it would be too big to keep)
     var need = KW.base + bytes, have = KW.mem.buffer.byteLength;
     if (need > 134217728) return false;
-    if (need > have) { try { KW.mem.grow(Math.ceil((need - have) / 65536)); } catch (e) { return false; } }
+    if (need > have) { try { KW.mem.grow(Math.ceil((need - have) / 65536)); } catch (e) { return false; } if (need > 4194304) idleSoon(); }
     return true;
   }
   // The known patterns form a tree over the bytes of their text, with one branch (256) for "a run of digits"; a row is read by walking the tree once,
