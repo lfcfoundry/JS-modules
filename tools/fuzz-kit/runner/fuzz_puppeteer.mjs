@@ -24,8 +24,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // Resolve with fn()'s answer, or reject after ms (a hung page can make driver calls wait for ever).
 const within = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + ' timed out after ' + ms + ' ms')), ms).unref?.())]);
 
-// Refusals that are the browser's rule, not the app's bug: a file picker opened by a fuzz tap that is not a real user tap (Chromium wording, two variants). Always ignored; --allow-console-errors still shows every other error.
-export const KNOWN_NOISE = [/showSaveFilePicker.*(User activation required|Must be handling a user gesture)/, /showOpenFilePicker.*(User activation required|Must be handling a user gesture)/];
+// Refusals that are the browser's rule, not the app's bug: a file picker opened by a fuzz tap that is not a real user tap, or one that closes at once ("User activation required", "Must be handling a user gesture", "The user aborted a request"; Chromium wording). Always ignored; every other error still shows.
+export const KNOWN_NOISE = [/show(?:Save|Open)FilePicker.*(?:User activation required|Must be handling a user gesture|The user aborted a request)/, /showDirectoryPicker.*(?:User activation required|Must be handling a user gesture|The user aborted a request)/];
 export const consoleIgnored = (text, patterns) => KNOWN_NOISE.some(r => r.test(text)) || patterns.some(p => new RegExp(p).test(text));
 export function realRequest(req, vw, vh) {   // check a real-input request from the page; null when not acceptable
   if (!req || typeof req !== 'object') return null;

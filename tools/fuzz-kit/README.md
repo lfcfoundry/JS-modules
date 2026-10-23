@@ -2,7 +2,7 @@
 
 **Version 1.3.3 · API 1**
 
-**Tested in:** runner fakes pass, fuzz-core 215/215 (one new), Chromium 155 example app all pass
+**Tested in:** runner fakes, fuzz-core 215/215, Chromium 155.0.8059.39 example app all pass including a real showSaveFilePicker refusal page
 
 A small, seeded, reproducible random-input fuzzer for **stateful pages and games**, plus the pattern that makes such a page testable without shipping test code. No dependencies; the engine needs only `Promise`.
 
@@ -87,7 +87,7 @@ Both runners take the same options and print one line per seed. A dead page neve
 | `--shrink` (`--shrink-tries 200`, `--shrink-secs 30`) | Replay a failing seed and cut it down; prints the short list and the script for `run(0, { script })`. Says so if the failure does not repeat. |
 | `--seed-secs 120`, `--hang-trace` | Hang guard: a seed with no answer is reported as hung and its context is closed. `--hang-trace` (slower) names the last operation. |
 | `--bundle DIR` | For each failing seed save `seed-N.png`, `seed-N-storage.json` (localStorage, sessionStorage, cookie text) and `seed-N-findings.json`. A hung or dead page keeps only the findings. IndexedDB is not dumped. |
-| `--ignore-console REGEX` (repeat), `--allow-console-errors` | A `console.error` fails a seed by default; let some or all pass. |
+| `--ignore-console REGEX` (repeat), `--allow-console-errors` | A `console.error` fails a seed by default; let some or all pass. Chromium's refusal of a file picker that no real tap opened or that closed at once (`showSaveFilePicker` / `showOpenFilePicker` / `showDirectoryPicker`: "User activation required", "Must be handling a user gesture", "The user aborted a request") is always ignored, as a console error and as a page error. |
 | `--junk-text`, `--junk-skip "a,b"` | Also fail on junk text (`NaN`, `undefined`, `[object ...]`); the skip list holds phrases that are fine. |
 | `--real-input`, `--throttle 4` | Real mouse moves, clicks and key presses through the driver (trusted events). CPU slowdown (Chromium / Chrome only; refused for Firefox). |
 | `--mobile` | Touch on and the mobile viewport flag (Chromium and WebKit in Playwright; Chrome in Puppeteer; not Firefox through Puppeteer). |

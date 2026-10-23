@@ -75,6 +75,15 @@ with sync_playwright() as p:
     csp.write_text((ROOT / "example" / "app.html").read_text().replace("<meta charset=\"utf-8\">", "<meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:\">", 1)); assert "Content-Security-Policy" in csp.read_text()
     r = mod.run_seed(br, csp.as_uri(), adapter, 1, 200)
     check("a page with a strict policy (no unsafe-eval) runs all its operations", r["fails"] == [] and r["ops"] == 200, (r["fails"][:1], r.get("ops")))
+    # the real refusal: Chromium rejects showSaveFilePicker when no real tap opened it; that is the browser's rule, not a finding (console error and unhandled rejection)
+    pick = pathlib.Path(tempfile.mkdtemp()) / "picker.html"
+    pick.write_text((ROOT / "example" / "app.html").read_text().replace("<footer", "<script>setTimeout(function () { window.showSaveFilePicker({ suggestedName: 'a.txt' }); }, 50); setTimeout(function () { window.showSaveFilePicker({ suggestedName: 'b.txt' }).catch(function (e) { console.error(String(e)); }); }, 80);</script><footer", 1))
+    assert "showSaveFilePicker" in pick.read_text()
+    r = mod.run_seed(br, pick.as_uri(), adapter, 1, 100)
+    check("Chromium's real file-picker refusal (no real tap) is not a finding", r["fails"] == [], r["fails"][:2])
+    pick.write_text(pick.read_text().replace("showSaveFilePicker({ suggestedName: 'b.txt' }).catch(function (e) { console.error(String(e)); })", "Promise.reject(new Error('another problem')).catch(function (e) { console.error(String(e)); })", 1))
+    r = mod.run_seed(br, pick.as_uri(), adapter, 1, 100)
+    check("any other console error on the same page still is a finding", any("another problem" in f["what"] for f in r["fails"]), r["fails"][:2])
     br.close()
 
 # 7b. Fuzzer.Input.pickVisible: picks only visible, enabled controls, spreads over them, honors a skip test, and says null when none is visible

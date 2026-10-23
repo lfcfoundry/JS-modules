@@ -46,8 +46,8 @@ def strip_hash(u):
     return u.split("#", 1)[0]
 
 
-# Refusals that are the browser's rule, not the app's bug: a file picker opened by a fuzz tap that is not a real user tap (Chromium wording, two variants). Always ignored.
-KNOWN_NOISE = [r"showSaveFilePicker.*(User activation required|Must be handling a user gesture)", r"showOpenFilePicker.*(User activation required|Must be handling a user gesture)"]
+# Refusals that are the browser's rule, not the app's bug: a file picker opened by a fuzz tap that is not a real user tap, or one that closes at once ("User activation required", "Must be handling a user gesture", "The user aborted a request"; Chromium wording). Always ignored.
+KNOWN_NOISE = [r"show(?:Save|Open)FilePicker.*(?:User activation required|Must be handling a user gesture|The user aborted a request)", r"showDirectoryPicker.*(?:User activation required|Must be handling a user gesture|The user aborted a request)"]
 
 
 def console_ignored(text, patterns):
