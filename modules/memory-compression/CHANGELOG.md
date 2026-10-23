@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.9 · API 2 · 2026-10-23
+- 2.4.9: packAsync and unpackAsync yield only when a slice is used up: total time 0.95 to 1.4x of pack/unpack (was up to 3.3x in WebKit); cold pager reads 66 to 94% cheaper; no-eval pages open up to 2.6x faster; pool.start() primes.
+
 ## 2.4.6 · API 2 · 2026-10-23
 - 2.4.6: new opt-in unpackAsync() opens a long packed list in short slices so the page stays free, same value as unpack(); page held 2 to 8 ms instead of 8 to 26, but total time 1.0 to 2.4x longer (most in WebKit). No new policy need.
 
