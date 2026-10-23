@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.2 (API 2)
+ * Version 2.3.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -2453,6 +2453,7 @@
     }
     return g === 3 ? [cY, cM, cD] : g === 5 ? [cY, cM, cD, cH, cI] : g === 6 ? [cY, cM, cD, cH, cI, cS] : [cY, cM, cD, cH, cI, cS, cF];
   }
+  var TRIE_JS = null;
   Enc.prototype.template = function (vals, n, pre) {
     var b = pre.bytes, lens = pre.lens, lits0 = tplOf(vals[0]), R, tpls, j, t, i, widths, L, c = this.ctl, nt, total = b.length, tr, kw = null, buf, off, at;
     var next, term, slotsAll, tid, minL, maxL, lead, out, bb, ll, row, p, r, g, ts;
@@ -2474,7 +2475,8 @@
       }
     }
     if (!kw) {
-      next = new Int16Array(TRIE_NODES * 257); term = new Int8Array(TRIE_NODES); bb = b; ll = lens; tid = new Uint8Array(n); slotsAll = new Float64Array(n * R);
+      if (!TRIE_JS) TRIE_JS = [new Int16Array(TRIE_NODES * 257), new Int8Array(TRIE_NODES)];       // the tree is only read while scanning and every node is cleared when it is made, so one pair serves every column
+      next = TRIE_JS[0]; term = TRIE_JS[1]; bb = b; ll = lens; tid = new Uint8Array(n); slotsAll = new Float64Array(n * R);
       minL = new Int32Array(R); maxL = new Int32Array(R); lead = new Uint8Array(R); out = new Uint32Array(2);
     }
     minL.fill(99); maxL.fill(0); lead.fill(0);
