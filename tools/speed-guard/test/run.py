@@ -21,6 +21,8 @@ check('1 to 2 ms is a tie (within the 1 ms floor, whole-millisecond timers)', re
 check('a step with one release is not compared', ('only', 'a') not in res)
 check('4% worse stays level at the default 5% limit', sg.compare([row('r1', 't', 'a', 100), row('r2', 't', 'a', 104)])[0]['verdict'] == 'level')
 check('an accepted slowdown is matched by release and test text', sg.accepted(res[('open', 'a')], ['r2\topen\tthe owner said fine\n']) and not sg.accepted(res[('open', 'a')], ['r9\topen\n']))
+late = [dict(row('2026.10.22.1845', 'flow', 'a', 248), date='2026-10-22'), dict(row('2026.10.22.1253', 'flow', 'a', 447), date='2026-10-22')]   # the newer release is written first, as in netflow-map.tsv
+check('a file written newest-first is still read oldest-first: 447 to 248 ms is faster', sg.compare(late)[0]['verdict'] == 'faster' and sg.compare(late)[0]['new_release'] == '2026.10.22.1845')
 with tempfile.TemporaryDirectory() as d:
     open(os.path.join(d, 'p.tsv'), 'w').write('product\trelease\tdate\ttest\tbrowser\tvalue\tunit\tbetter\tnote\n' + ''.join('p\t%s\td\topen\ta\t%s\tms\tlower\tn\n' % (r, v) for r, v in (('r1', 10), ('r2', 12))))
     p = subprocess.run([sys.executable, os.path.join(here, '..', 'speed-guard.py'), '--history', d], capture_output=True, text=True)
