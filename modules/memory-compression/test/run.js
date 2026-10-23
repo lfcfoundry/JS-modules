@@ -658,11 +658,29 @@ tAsync('pager: cool() repacks closed pages smaller, rows stay exact, edits repac
   }).then(function () {
     assert(Q.memory().cold > 0, 'the idle timer cooled pages: ' + Q.memory().cold);
     for (i = 0; i < rows.length; i += 211) same(rows[i], Q.get(i), 'cooled row ' + i);
+    Q.dispose();
     spillStore = { put: function (k, b) { store[k] = b; return Promise.resolve(); }, get: function (k) { return Promise.resolve(store[k]); }, remove: function (k) { delete store[k]; return Promise.resolve(); } };
     var S = J.pager(rows, opt({ pageRows: 2048, livePages: 2, readAhead: false, cold: true, coldAfter: 100000, spill: spillStore }));
     return S.spill({ all: true }).then(function () { assert(S.memory().cold > 0 && S.memory().spilled > 0, 'spill cooled first'); return S.getAsync(777); }).then(function (v) { same(rows[777], v, 'row back from storage'); S.dispose(); });
   });
 });
+tAsync('pager: cool() with a worker the page policy blocks (the error event comes right after creation) resolves with pages: 0 and is not tried again', function () {
+  // closest honest fake of a browser whose policy refuses blob: workers: the constructor works and the error event follows in the next microtask (as in Chromium and WebKit); the real browser path is the policy page in results/ab-tiers-4b.js
+  var rows = many(5000, function (i) { return { id: i, a: (i * 7919) % 900, b: i % 7 }; }), made = 0, realW = global.Worker, P, Q;
+  global.Worker = function () { var self = this; made++; this.postMessage = function () {}; this.terminate = function () {}; Promise.resolve().then(function () { if (self.onerror) self.onerror({}); }); };
+  function within(p, ms, what) { return Promise.race([p, new Promise(function (res, rej) { setTimeout(function () { rej(new Error(what + ' did not resolve in ' + ms + ' ms')); }, ms); })]); }
+  P = J.pager(rows, opt({ pageRows: 2048, livePages: 2, readAhead: false }));
+  return within(P.cool(), 1500, 'cool()').then(function (res) {
+    assert(res.pages === 0 && res.worker === false, 'blocked worker: ' + JSON.stringify(res));
+    return within(P.cool(), 500, 'second cool()');
+  }).then(function (res2) {
+    assert(res2.pages === 0 && made === 1, 'no second worker: made ' + made);
+    for (var i = 0; i < rows.length; i += 331) same(rows[i], P.get(i), 'row ' + i);
+    Q = J.pager(rows, opt({ pageRows: 2048, livePages: 2, readAhead: false, cold: true, coldAfter: 20 }));
+    return new Promise(function (r) { setTimeout(r, 250); });
+  }).then(function () { assert(made === 2, 'the idle timer stopped after one failure: made ' + made); Q.dispose(); }).then(function () { global.Worker = realW; }, function (e) { global.Worker = realW; throw e; });
+});
+
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);
