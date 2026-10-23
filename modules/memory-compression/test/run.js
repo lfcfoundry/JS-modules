@@ -646,6 +646,23 @@ t('pager.plan: rows that are nearly all numbers are shown as column pages, text 
   P = J.pager(nums, opt({ pageRows: 'auto', pageView: 'auto', deviceMemory: 8 })); for (i = 0; i < nums.length; i += 311) same(nums[i], P.get(i), 'row ' + i);
 });
 
+tAsync('pager: cool() repacks closed pages smaller, rows stay exact, edits repack, the idle timer and spill cool by themselves', function () {
+  var rows = many(9000, function (i) { return { id: i, from: (i * 7919) % 900, to: (i * 104729) % 913, w: ((i * 31) % 1000) / 10, t: 1700000000 + i * 37 + (i * i) % 29, k: i % 7 }; }), P = J.pager(rows, opt({ pageRows: 2048, livePages: 2, readAhead: false })), before = P.memory().packed, i, Q, store = {}, spillStore;
+  return P.cool().then(function (res) {
+    var m = P.memory();
+    assert(m.packed < before && res.pages > 0 && m.cold > 0, 'smaller after cooling: ' + before + ' to ' + m.packed);
+    for (i = 0; i < rows.length; i += 173) same(rows[i], P.get(i), 'row ' + i);
+    P.set(10, { id: -5, from: 1, to: 2, w: 3, t: 4, k: 3 }); P.release(); same({ id: -5, from: 1, to: 2, w: 3, t: 4, k: 3 }, P.get(10), 'edit after cooling');
+    Q = J.pager(rows, opt({ pageRows: 2048, livePages: 2, readAhead: false, cold: true, coldAfter: 30 }));
+    return new Promise(function (res2) { setTimeout(res2, 250); });
+  }).then(function () {
+    assert(Q.memory().cold > 0, 'the idle timer cooled pages: ' + Q.memory().cold);
+    for (i = 0; i < rows.length; i += 211) same(rows[i], Q.get(i), 'cooled row ' + i);
+    spillStore = { put: function (k, b) { store[k] = b; return Promise.resolve(); }, get: function (k) { return Promise.resolve(store[k]); }, remove: function (k) { delete store[k]; return Promise.resolve(); } };
+    var S = J.pager(rows, opt({ pageRows: 2048, livePages: 2, readAhead: false, cold: true, coldAfter: 100000, spill: spillStore }));
+    return S.spill({ all: true }).then(function () { assert(S.memory().cold > 0 && S.memory().spilled > 0, 'spill cooled first'); return S.getAsync(777); }).then(function (v) { same(rows[777], v, 'row back from storage'); S.dispose(); });
+  });
+});
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);
