@@ -1,0 +1,109 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : gpu-blur demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gpu-blur demo</title>
+<style>
+  body { font: 16px/1.45 system-ui, sans-serif; max-width: 56rem; margin: 1.5rem auto; padding: 0 1rem; background: #14161c; color: #e8eaf0; }
+  h1 { font-size: 1.4rem; margin: 0 0 .3rem; } p { margin: .4rem 0; color: #b8bdca; }
+  .row { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; margin: .8rem 0; }
+  label { display: inline-flex; gap: .4rem; align-items: center; } select, input[type=range] { font: inherit; }
+  select { background: #1e222b; color: inherit; border: 1px solid #3a4150; border-radius: .4rem; padding: .3rem .5rem; }
+  button { font: inherit; padding: .6rem 1.1rem; border-radius: .5rem; border: 0; background: #4f7cff; color: #fff; cursor: pointer; }
+  button.alt { background: #2c3342; }
+  canvas { max-width: 100%; height: auto; border-radius: .4rem; background: #000; display: block; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .8rem; }
+  .pair figcaption { color: #b8bdca; font-size: .9rem; margin-top: .2rem; }
+  pre { background: #0d0f14; padding: .8rem; border-radius: .4rem; overflow: auto; font-size: .85rem; white-space: pre-wrap; }
+  footer { margin-top: 2rem; color: #7e8596; font-size: .85rem; }
+</style></head><body>
+<h1>gpu-blur</h1>
+<p>Blurs a picture on the graphics card (WebGL 2) when that is quicker on this device, otherwise in WebAssembly, otherwise in plain JavaScript. All three give the same picture. Pick a route to force it, or leave it on auto.</p>
+<div class="row">
+  <label>Size <select id="size"><option value="480x270">480 x 270</option><option value="1280x720">1280 x 720</option><option value="1920x1080" selected>1920 x 1080</option></select></label>
+  <label>Radius <input id="radius" type="range" min="0" max="60" value="12"> <b id="rv">12</b></label>
+  <label>Route <select id="route"><option>auto</option><option>webgl2</option><option>wasm</option><option>js</option></select></label>
+  <label>Result <select id="out"><option value="canvas">canvas (drawn)</option><option value="pixels">pixels (bytes)</option></select></label>
+</div>
+<div class="row"><button id="go">Blur</button><button id="speed" class="alt">Speed check on this device</button><button id="copy" class="alt" hidden>Copy report</button></div>
+<p id="status" aria-live="polite">Loading...</p>
+<div class="pair"><figure><canvas id="before" width="480" height="270"></canvas><figcaption>Before</figcaption></figure><figure><canvas id="after" width="480" height="270"></canvas><figcaption id="cap">After</figcaption></figure></div>
+<pre id="report" hidden></pre>
+<footer>Forged by LFC Foundry &bull; MIT Licensed</footer>
+<script src="gpu-blur.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, G = window.GpuBlur;
+  function sizeOf() { var s = $('size').value.split('x'); return [+s[0], +s[1]]; }
+  function drawPicture(c, w, h) {
+    c.width = w; c.height = h; var g = c.getContext('2d'), i;
+    var gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#1b2a6b'); gr.addColorStop(1, '#c2410c'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    for (i = 0; i < 40; i++) { g.fillStyle = 'hsl(' + (i * 47 % 360) + ',80%,' + (45 + (i % 4) * 8) + '%)'; g.beginPath(); g.arc((i * 137 % 100) / 100 * w, (i * 71 % 100) / 100 * h, h * (0.02 + (i % 5) * 0.012), 0, 6.283); g.fill(); }
+    g.fillStyle = '#fff'; g.font = 'bold ' + Math.round(h / 6) + 'px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText('gpu-blur', w / 2, h * 0.58);
+    g.strokeStyle = '#fff'; g.lineWidth = Math.max(2, h / 100); g.strokeRect(w * 0.08, h * 0.12, w * 0.84, h * 0.76);
+  }
+  var src = document.createElement('canvas'), last = null;
+  function prepare() { var s = sizeOf(); drawPicture(src, s[0], s[1]); var b = $('before'); b.width = s[0]; b.height = s[1]; b.getContext('2d').drawImage(src, 0, 0); }
+  function probe() { var P = { gap: 0, last: performance.now(), run: true }, ch = new MessageChannel(); ch.port1.onmessage = function () { var n = performance.now(); if (n - P.last > P.gap) P.gap = n - P.last; P.last = n; if (P.run) ch.port2.postMessage(0); }; ch.port2.postMessage(0); return P; }
+  function tick() { return new Promise(function (r) { var c = new MessageChannel(); c.port1.onmessage = function () { r(); }; c.port2.postMessage(0); }); }
+  function blurOnce(route, out, radius) {
+    var s = sizeOf(), t0 = performance.now();
+    return G.blur(src, s[0], s[1], radius, { route: route, out: out }).then(function (res) {
+      if (res.canvas) { var a = $('after'); a.width = s[0]; a.height = s[1]; a.getContext('2d').drawImage(res.canvas, 0, 0); a.getContext('2d').getImageData(0, 0, 1, 1); }
+      res.ms = performance.now() - t0; return res;
+    });
+  }
+  function go() {
+    $('status').textContent = 'Working...';
+    var P = probe(), route = $('route').value, out = $('out').value, radius = +$('radius').value;
+    blurOnce(route, out, radius).then(function (res) { return tick().then(tick).then(function () { P.run = false; $('status').textContent = 'Route used: ' + res.route + (route !== 'auto' && route !== res.route ? ' (' + route + ' could not run here)' : '') + '. ' + res.ms.toFixed(1) + ' ms until the picture was ready (' + out + ' result). Longest page task meanwhile: ' + P.gap.toFixed(1) + ' ms.'; }); },
+      function (e) { P.run = false; $('status').textContent = 'Error: ' + (e && e.message || e); });
+  }
+  function med(a) { a = a.slice().sort(function (x, y) { return x - y; }); return a[a.length >> 1]; }
+  function speed() {
+    $('speed').disabled = true; $('copy').hidden = true; $('report').hidden = false; $('report').textContent = 'Running (about 10 to 30 seconds)...';
+    var saveSize = $('size').value; $('size').value = '1920x1080'; prepare();
+    var lines = [], routes = ['webgl2', 'wasm', 'js', 'auto'], k = 0;
+    return G.ready().then(function (info) {
+      lines.push('gpu-blur ' + G.version + ' speed check, 1920 x 1080, radius 12, source canvas, drawn result (milliseconds, lower is better; median of 5 after one warm-up)');
+      lines.push('Page: ' + (navigator.userAgent || 'unknown browser') + ' | screen ratio ' + (window.devicePixelRatio || 1));
+      lines.push('Found: wasm ' + info.wasm + ', webgl2 ' + info.webgl2 + (info.glMs != null ? ' (480 x 270 probe ' + info.glMs.toFixed(1) + ' ms on the card against ' + (info.wasmMs == null ? 'n/a' : info.wasmMs.toFixed(1)) + ' ms in wasm)' : '') + ', drawn pictures go by ' + info.canvasRoute + ', pixels by ' + info.pixelsRoute);
+      lines.push('route | ran as | ready after | longest page task');
+      return routes.reduce(function (p, r) {
+        return p.then(function () {
+          var ms = [], gaps = [], ran = '', i = 0;
+          function one() { var P = probe(); return tick().then(tick).then(function () { P.gap = 0; P.last = performance.now(); return blurOnce(r, 'canvas', 12); }).then(function (res) { ran = res.route; return tick().then(tick).then(function () { P.run = false; if (i++ > 0) { ms.push(res.ms); gaps.push(P.gap); } return i < 6 ? one() : null; }); }); }
+          return one().then(function () { lines.push(r + ' | ' + ran + ' | ' + med(ms).toFixed(1) + ' ms | ' + med(gaps).toFixed(1) + ' ms'); $('report').textContent = lines.join('\n') + '\n...'; });
+        });
+      }, Promise.resolve());
+    }).then(function () { $('report').textContent = lines.join('\n'); $('copy').hidden = false; }, function (e) { $('report').textContent = lines.join('\n') + '\nError: ' + (e && e.message || e); })
+      .then(function () { $('size').value = saveSize; prepare(); $('speed').disabled = false; });
+  }
+  $('radius').oninput = function () { $('rv').textContent = this.value; };
+  $('size').onchange = prepare; $('go').onclick = go; $('speed').onclick = speed;
+  $('copy').onclick = function () { var t = $('report').textContent; if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { $('copy').textContent = 'Copied'; }, function () { sel(); }); else sel(); function sel() { var r = document.createRange(); r.selectNodeContents($('report')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); $('copy').textContent = 'Selected: copy it by hand'; } };
+  prepare(); G.ready().then(function (i) { $('status').textContent = 'Ready. This device: drawn pictures go by ' + i.canvasRoute + ', pixels by ' + i.pixelsRoute + (i.why ? ' (' + i.why + ')' : '') + '.'; go(); });
+})();
+</script></body></html>
