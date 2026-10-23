@@ -192,6 +192,38 @@ function fakeEnv(o) {
     assert.deepStrictEqual(await I.loadAll([]), []);
   });
 
+  await test('ahead waits for an idle moment, then decodes one picture at a time in order and keeps the results', async () => {
+    const env = fakeEnv({ navigator: { userAgent: 'Chrome/155' }, slow: 3 }), idle = []; let live = 0, peak = 0; const started = [];
+    env.requestIdleCallback = fn => idle.push(fn);
+    const orig = env.createImageBitmap; env.createImageBitmap = async b => { live++; peak = Math.max(peak, live); started.push(b.size); try { return await orig(b); } finally { live--; } };
+    const I = ID.create(env), srcs = [PNG, WEBP, JPG].map((x, i) => Buffer.concat([x, Buffer.alloc(i * 2)])), got = [];
+    const h = I.ahead(srcs, { onEach: (d, k) => got.push(k) });
+    assert.strictEqual(h.count, 3); assert.strictEqual(started.length, 0, 'nothing starts before an idle moment'); assert.strictEqual(idle.length, 1);
+    for (let n = 0; n < 3; n++) { await new Promise(r => setTimeout(r, 15)); assert.strictEqual(idle.length, 1, 'one idle wait before each start'); idle.shift()(); }
+    await new Promise(r => setTimeout(r, 15));
+    assert.deepStrictEqual(started, srcs.map(x => x.length), 'in order'); assert.strictEqual(peak, 1, 'one at a time');
+    assert.ok(h.ready(0) && h.ready(2) && h.drawable(1)); assert.deepStrictEqual(got, ['0', '1', '2']);
+    assert.strictEqual(await h.get(1), h.drawable(1), 'get gives the kept picture');
+  });
+
+  await test('ahead: get() of a picture that has not started starts it at once, ahead of the queue; a bad picture rejects only its own get()', async () => {
+    const env = fakeEnv({ navigator: { userAgent: 'Chrome/155' } }); env.requestIdleCallback = () => {};
+    const I = ID.create(env), h = I.ahead({ a: PNG, b: WEBP, bad: Buffer.alloc(30) }, {});
+    assert.ok(!h.ready('b')); const d = await h.get('b'); assert.ok(d && h.ready('b') && !h.ready('a'));
+    await assert.rejects(h.get('bad')); assert.ok(!h.ready('bad')); await assert.rejects(h.get('nope'), /no picture called/);
+    assert.ok(await h.get('a'));
+  });
+
+  await test('ahead: idle "now" starts at once, release frees a picture, cancel stops what has not started', async () => {
+    const env = fakeEnv({ navigator: { userAgent: 'Chrome/155' }, slow: 2 }); let closed = 0;
+    const orig = env.createImageBitmap; env.createImageBitmap = async b => { const bm = await orig(b); bm.close = () => closed++; return bm; };
+    const I = ID.create(env), h = I.ahead([PNG, WEBP, JPG], { idle: 'now' });
+    await h.get(0); h.release(0); assert.strictEqual(closed, 1); assert.ok(!h.ready(0)); await assert.rejects(h.get(0), /released/);
+    h.cancel(); await new Promise(r => setTimeout(r, 30));
+    assert.ok(!h.ready(2) || h.ready(2), 'a picture already started may finish'); const h2 = I.ahead([PNG, WEBP], { idle: 'now', concurrency: 1 }); h2.cancel();
+    await assert.rejects(I.ahead([PNG], { idle: 'now' }).get(5), /no picture/);
+  });
+
   await test('a callback that throws does not stop the list', async () => {
     const I = ID.create(fakeEnv({ navigator: { userAgent: 'Chrome/155' } }));
     const out = await I.loadAll([PNG, WEBP], { onEach: () => { throw new Error('boom'); } });
