@@ -773,6 +773,54 @@ tAsync('packAsync with workers the page policy blocks (error event after creatio
   }, Promise.resolve());
 });
 
+tAsync('unpackAsync gives the same value as unpack (long record lists in slices, short lists, mixed shapes, shared objects, other values)', function () {
+  var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13), ok: i % 3 === 0, t: 1e12 + i * 977 }; }); };
+  var odd = mk(5000); odd[3000] = { id: 1, x: 2 };
+  var shared = { q: 1 }, refs = many(3000, function (i) { return { s: shared, i: i }; });
+  var cases = [mk(5000), mk(2047), mk(2048), mk(100), odd, refs, [1, 2, 3], 'text', null, Float64Array.from(many(5000, function (i) { return i * 3; }))];
+  var jobs = [];
+  cases.forEach(function (v, ci) {
+    ['fast', 'balanced', 'small'].forEach(function (m) {
+      var b = J.pack(v, opt({ mode: m }));
+      jobs.push(J.unpackAsync(b, opt()).then(function (x) { same(J.unpack(b, opt()), x, 'case ' + ci + ' ' + m); }));
+    });
+  });
+  var bad = J.pack(mk(3000)); bad[bad.length - 3] ^= 0x55;
+  jobs.push(J.unpackAsync(bad, opt()).then(function () { try { J.unpack(bad, opt()); } catch (e) { throw new Error('unpackAsync accepted bytes that unpack refuses'); } }, function () { }));
+  return Promise.all(jobs);
+});
+
+tAsync('unpackAsync never waits on workers: with workers the page blocks, a constructor that throws or workers that stay silent it still resolves with the same value, uses no worker, and runs beside a packAsync that falls back', function () {
+  var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13), pos: [i / 3, i * 0.5], tags: ['a', 'b' + (i % 5)], t: 1e12 + i * 977 }; }); };
+  var data = mk(6000), bytes = J.pack(data, opt({ mode: 'balanced' }));
+  return ['blocked', 'throws', 'silent'].reduce(function (p, kind) {
+    return p.then(function () {
+      var fb = fakeBrowser(kind), pool = fb.M.pool({ size: 2, timeout: 60 }), t0 = Date.now();
+      return Promise.all([
+        within(J.unpackAsync(bytes, opt()), 3000, kind + ' unpackAsync'),
+        within(J.packAsync(data, opt({ mode: 'balanced', workers: pool })), 3000, kind + ' packAsync beside it'),
+        within(J.unpackAsync(bytes, opt()), 3000, kind + ' second unpackAsync')
+      ]).then(function (r) {
+        same(J.unpack(bytes, opt()), r[0], kind + ' value'); same(data, r[2], kind + ' second value');
+        assert.strictEqual(Buffer.compare(Buffer.from(J.pack(data, opt({ mode: 'balanced' }))), Buffer.from(r[1])), 0, kind + ': packAsync bytes differ');
+        assert(Date.now() - t0 < 2500, kind + ': took ' + (Date.now() - t0) + ' ms');
+        assert(fb.jobs === 0 && fb.made <= 2, kind + ': unpackAsync touched the workers, made ' + fb.made);
+        fb.restore(); pool.close();
+      }, function (e) { fb.restore(); pool.close(); throw e; });
+    });
+  }, Promise.resolve());
+});
+tAsync('unpackAsync, packAsync and a second unpackAsync running together all settle when the yield goes through the one shared message channel (no setImmediate)', function () {
+  var realSI = global.setImmediate, data = many(5000, function (i) { return { id: i, a: [i, i + 1], s: 'k' + (i % 9), t: 1e12 + i * 31 }; }), bytes = J.pack(data, opt());
+  global.setImmediate = undefined;
+  function done() { global.setImmediate = realSI; }
+  return within(Promise.all([J.unpackAsync(bytes, opt()), J.packAsync(data, opt({ mode: 'fast' })), J.unpackAsync(bytes, opt()), J.packAsync(data, opt({ mode: 'fast' }))]), 4000, 'shared channel').then(function (r) {
+    done(); same(data, r[0], 'first'); same(data, r[2], 'second');
+    assert.strictEqual(Buffer.compare(Buffer.from(r[1]), Buffer.from(J.pack(data, opt({ mode: 'fast' })))), 0, 'packAsync bytes');
+    assert.strictEqual(Buffer.compare(Buffer.from(r[3]), Buffer.from(r[1])), 0, 'the two packAsync runs differ');
+  }, function (e) { done(); throw e; });
+});
+
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);
