@@ -14,7 +14,7 @@
  *    (one per key), not as repeated text, so a list of 300,000 link objects becomes a few megabytes and is rebuilt in tens of milliseconds.
  *  - view(bytes): for a packed array of objects that you keep packed. Read one object (get(i)), one field (field(i, key)) or a whole
  *    column as a typed array (column(key)) without making the other objects. Opens in well under a millisecond: columns are restored
- *    only when first read, and release() lets them go again. Text columns stay whole (one decoded text plus the row ends, or a pattern and its numbers) and a string is cut or put together when a row is read; memory().restored counts what the open columns really take.
+ *    only when first read, and release() lets them go again. Text columns stay whole (one decoded text plus the row ends, or a pattern and its numbers) and a string is cut or put together when a row is read; a column that is read row after row is turned into its strings in one pass after about n/32 reads (at least 32; lists of up to 16,384 rows), and then costs what a plain column costs. memory().restored counts what the open columns really take.
  *  - Text that follows a pattern ('user' + number + '@example.org', '2025-03-05T04:15:00Z') is stored as the pattern once plus a number
  *    column; a small WebAssembly helper scans big text columns (the plain-JavaScript loop gives the same bytes). pack(x, {patterns: false}) skips it.
  *  - Dates and times written as text ('2025-03-05T04:15:00Z', '2025-03-05', with milliseconds, with a space instead of the T) become one number each and come back as
