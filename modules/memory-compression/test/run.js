@@ -681,6 +681,16 @@ tAsync('pager: cool() with a worker the page policy blocks (the error event come
   }).then(function () { assert(made === 2, 'the idle timer stopped after one failure: made ' + made); Q.dispose(); }).then(function () { global.Worker = realW; }, function (e) { global.Worker = realW; throw e; });
 });
 
+tAsync('warm() resolves and leaves packing unchanged', function () {
+  var v = many(3000, function (i) { return { id: i, v: i * 1.5, name: 'n' + (i % 13) }; }), before = J.pack(v, opt({ mode: 'balanced' }));
+  return require(path.resolve(modPath)).warm(opt()).then(function () { assert.strictEqual(Buffer.compare(Buffer.from(before), Buffer.from(J.pack(v, opt({ mode: 'balanced' })))), 0, 'bytes changed after warm'); });
+});
+tAsync('warm() works in short tasks: it yields to the page at least 18 times (a pack and an open for each of 9 columns) and never packs the whole list in one block', function () {
+  var g = typeof globalThis !== 'undefined' ? globalThis : self, count = 0, undo, M = require(path.resolve(modPath));
+  if (typeof g.setImmediate === 'function') { var si = g.setImmediate; g.setImmediate = function () { count++; return si.apply(this, arguments); }; undo = function () { g.setImmediate = si; }; }
+  else { var pm = MessagePort.prototype.postMessage; MessagePort.prototype.postMessage = function () { count++; return pm.apply(this, arguments); }; undo = function () { MessagePort.prototype.postMessage = pm; }; }
+  return M.warm(opt()).then(function (r) { undo(); assert.strictEqual(r, true, 'warm() resolves true'); assert(count >= 18, 'warm() yielded only ' + count + ' times'); }, function (e) { undo(); throw e; });
+});
 tAsync('packAsync gives the same bytes as pack in every mode (long record lists in slices, short lists, number columns, rows that do not fit, a worker-less pool)', function () {
   var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13), ok: i % 3 === 0, t: 1e12 + i * 977 }; }); };
   var odd = mk(5000); odd[3000] = { id: 1, x: 2 };

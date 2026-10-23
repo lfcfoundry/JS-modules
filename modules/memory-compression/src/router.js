@@ -44,6 +44,17 @@
   unified.unpackAsync = function (bytes, opts) {                                              // the same value as unpack(); a long list of records is opened in short slices
     try { return layerOf(bytes) === 'objects' ? jso.unpackAsync(bytes, opts) : Promise.resolve(MC.unpack(bytes, opts)); } catch (err) { return Promise.reject(err); }
   };
+  unified.warm = function (opts) {                                                            // call once when the page is idle: the first big pack then skips 30 to 60 ms of cold-start work. A made-up 1,200-row list is packed and opened one column at a time, every pack and every open in a task of its own (each about 3 to 10 ms), and the result is thrown away
+    opts = opts || {}; var po = { mode: 'balanced', wasm: opts.wasm }, wo = { wasm: opts.wasm }, N = 1200, names = ['id', 'from', 'to', 'w', 'x', 'y', 't', 'kind', 'hot'], make = [
+      function (i) { return i; }, function (i) { return i % 97; }, function (i) { return (i * 7) % 211; }, function (i) { return (i % 13) * 0.25; }, function (i) { return i * 0.5; },
+      function (i) { return Math.round(Math.sin(i / 50) * 1e5) / 1e3; }, function (i) { return 1700000000000 + i * 977; }, function (i) { return 'k' + (i % 5); }, function (i) { return i % 3 === 0; }];
+    function rows(j) { var out = [], i, o; for (i = 0; i < N; i++) { o = {}; o[names[j]] = make[j](i); out.push(o); } return out; }
+    function step(j) {                                                                        // column j: a task to pack it, a task to open it
+      var b;
+      return nextTask().then(function () { b = autoPack(rows(j), po); return nextTask(); }).then(function () { autoUnpack(b, wo); return j + 1 < names.length ? step(j + 1) : true; });
+    }
+    return Promise.resolve(unified.ready ? unified.ready() : true).then(function () { return step(0); }).then(function () { return true; }, function () { return false; });   // a warm-up that fails is not worth an error: false
+  };
   unified.pool = makePool;
   unified.layerOf = layerOf;
   unified.freeBuffers = freeBuffers; unified.keeper = keeper; unified.pager = pager; unified.heap = heapInfo; unified.profile = profile; unified.estimateBytes = estimateBytes;
