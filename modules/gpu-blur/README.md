@@ -72,7 +72,7 @@ Nothing here needs more than `'wasm-unsafe-eval'` in `script-src`: no `eval`, no
 
 ## Measured (the four test browsers, one at a time)
 
-All numbers are milliseconds, **lower is better**, taken in Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web 46.5, one browser at a time, two runs each (the median of the reps in each run, then the two runs together; 1920 x 1080, radius 12, bytes in, a drawn canvas out, "finished" means the canvas was drawn from and read once so the picture is really there). Node is used only to pass or fail the checks; no speed is taken in Node. The WebGL 2 route here ran on the graphics path these browsers had on the test machine, which was slow; **no hardware graphics card was timed**, so the first table says what the module does on that path and is not a card speed.
+All numbers are milliseconds, **lower is better**, taken in Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web 46.5, one browser at a time, two runs each (the median of the reps in each run, then the two runs together; 1920 x 1080, radius 12, bytes in, a drawn canvas out, "finished" means the canvas was drawn from and read once so the picture is really there). Node is used only to pass or fail the checks; no speed is taken in Node. The WebGL 2 route here ran on the graphics path these browsers had on the test machine, which was slow; **no hardware graphics card was timed in these four browsers**, so the first table says what the module does on that path and is not a card speed; see "Measured on real graphics hardware" below for a phone and a laptop that draw on the card.
 
 | 1920 x 1080, radius 12, bytes in, drawn canvas out | Chromium 155 | Firefox 158 | WebKitGTK 2.52 | GNOME Web 46.5 |
 | --- | ---: | ---: | ---: | ---: |
@@ -123,6 +123,18 @@ Same 1920 x 1080 picture, a blur that looks like a Gaussian of sigma 6, time unt
 It blurs 480 x 270, 1920 x 1080 and (if the device has the memory, 4 GB or more) 3840 x 2160 at radius 12 on all three ways, plus what `auto` picks. The ways take turns in a rotating order, two warm-up turns per way are thrown away, and each size gets 25 timed rounds (11 for 3840 x 2160, and it stops early after 110 s). It reports, for each way, the median time until the picture is really finished, the middle half (25% to 75%) and the longest page task (lower is better for all of them), then what `auto` found (the 480 x 270 probe on the card way and in WebAssembly), whether the ways draw the same picture, and a verdict in plain words: whether `auto` picked the fastest way, and how many times faster or slower the card way is than WebAssembly. A red line appears if nothing has reported after 15 seconds.
 
 Tap **Copy results** (or **Save as file** / **Share**) and paste the text back. The text names the device by class (`phone` or `laptop`) and the browser's name and version only: no user agent, no model, no graphics name. The page shows the browser's graphics name on screen, for you only. A run takes about one to four minutes. `node tests/gpu-blur-tester.js` runs the page in a real browser and checks all of this, including that a phone user agent with a model name does not reach the copy text; `python3 modules/gpu-blur/tester/build.py` copies the current `gpu-blur.js` into the page (`--check` says whether it is current).
+
+## Measured on real graphics hardware
+
+One run each (2026.10.23) with the page above on a midrange phone (Android, Chrome 155) and a laptop with integrated graphics (Firefox 159), both drawing on the card. Time until the picture is finished, in milliseconds (**lower is better**); `auto` picked the card way and was the right pick at every size on both.
+
+| Size | Phone: card / WebAssembly / JavaScript | Laptop: card / WebAssembly / JavaScript |
+|---|---|---|
+| 480 x 270 | 12.2 / 12.2 / 28.9 (tie) | 5.0 / 5.0 / 21.0 (tie) |
+| 1920 x 1080 | 44.2 / 81.1 / 352 (1.8x faster) | 25.0 / 56.0 / 306 (2.2x faster) |
+| 3840 x 2160 | 104 / 296 / 1544 (2.9x faster) | 96.0 / 240 / 1275 (2.5x faster) |
+
+The picture matched the JavaScript reference at 100.0000% on both (through a canvas, 99.9922% on the phone). The longest page task (lower is better) is the catch on the laptop: the card way finishes sooner but holds the page longer, 25.0 against 11.0 ms for WebAssembly at 1920 x 1080 and 96.0 against 58.0 ms at 3840 x 2160, with a worst single task of 125 ms. On the phone the two were level (44.5 against 40.4 ms at 1920 x 1080). Use the card way for speed. Where the page must stay responsive during a big blur, pass `{ route: 'wasm' }` or blur in smaller pictures.
 
 ## Rebuild the WebAssembly
 
