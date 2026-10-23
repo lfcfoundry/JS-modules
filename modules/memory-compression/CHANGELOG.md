@@ -5,6 +5,9 @@ What changed in each version, newest first, in plain words. The full details (nu
 ## 2.5.0 · API 2 · 2026-10-23
 - Column pages hold text lazily: page open up to 45% faster, held text columns 62 to 89% smaller; a column read row by row is made in one pass, so reading rows costs about what it did in 2.4.9; memory report counts text and nested data.
 
+## 2.4.10 · API 2 · 2026-10-23
+- Pages that forbid generated code now save lists of records faster (fast pack of 60,000 links 15 to 32% shorter; balanced up to 16%). pool.start() returns a promise that resolves when the workers are warm. Same bytes and format.
+
 ## 2.4.9 · API 2 · 2026-10-23
 - 2.4.9: packAsync and unpackAsync yield only when a slice is used up: total time 0.95 to 1.4x of pack/unpack (was up to 3.3x in WebKit); cold pager reads 66 to 94% cheaper; no-eval pages open up to 2.6x faster; pool.start() primes.
 
