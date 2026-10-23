@@ -609,6 +609,12 @@ t('pager.plan: page size and open pages follow the row size and the device memor
   for (i = 0; i < rows.length; i += 997) same(rows[i], P.get(i), 'row ' + i);
 });
 
+t('pager: balanced pages remember which number ways won and still give back every row', function () {
+  var r = D.rng(91), rows = many(9000, function (i) { return { id: i, t: 1700000000 + i * 37, v: Math.round(r() * 1000) / 10, k: i % 7 }; }), P = J.pager(rows, opt({ pageRows: 1000, livePages: 2, mode: 'balanced', readAhead: false })), i;
+  assert(P.memory().packed > 0);
+  for (i = 0; i < rows.length; i += 499) same(rows[i], P.get(i), 'row ' + i);
+});
+
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);

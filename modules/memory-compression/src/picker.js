@@ -678,7 +678,8 @@
       try { return packRun(values, opts); } finally { KWC = null; STAT = null; }
     }
     function packRun(values, opts) {
-      var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full;
+      var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
+      if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
         k++; full = !(k > 2 && k % 4 !== 0 && won.length);
@@ -689,6 +690,7 @@
         w.vi(part.length); w.bytes(part);
         if (opts && opts.labels) opts.labels.push(describe(part));
       }
+      if (H) H.k = k;
       return w.out();
     }
     // unpack(bytes, count): the Float64Array, exactly as it was packed. count is checked against the data. Damaged or cut data throws an Error whose message starts with MemoryCompressionJSO:.
