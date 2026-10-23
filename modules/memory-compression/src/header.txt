@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.4.2 (API 2)
+ * Version 2.4.3 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -30,6 +30,10 @@
  *    copies under a budget, and reports memory() with restore-time estimates. profile() times pack/unpack and lists where the time goes.
  *  - refs: true now stores lists of shared objects by column too (links that point at the very node objects), not value by value.
  *  - float32: true (opt-in, lossy) keeps fraction columns in 4 bytes per value instead of 8 (relative error at most about 6e-8).
+ *  - packAsync(value, {mode, workers}) (opt-in): a promise for exactly the bytes pack(value, {mode}) makes, without freezing the page. A long list of same-shape records (2,048 rows or more) is
+ *    turned into columns and encoded in slices of about 3 ms with a yield between them; number columns of 1,024 rows or more go to up to 3 workers (MemoryCompression.pool({size}), each a copy of
+ *    this file made from a blob: URL, so a page with a content-security-policy needs worker-src blob:). Without a pool, without Worker, with workers the page blocks, or when a worker fails, it
+ *    still resolves with the same bytes (slices on the page, or a plain pack). pack() is unchanged. Do not change the list while it runs.
  *  - The packing core (byte shuffle, delta, LZ4-class and deflate coders, LZ4/deflate/zlib/gzip, crc32) is inside this file and also exported as MemoryCompression.lz4Compress, .deflate and so on.
  *
  * Notes

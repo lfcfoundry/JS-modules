@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.3 · API 2 · 2026-10-23
+- 2.4.3: new opt-in packAsync() packs a long list without freezing the page, same bytes as pack(); 60,000 rows balanced: 85 to 117 ms as one task, 54 to 83 ms total, longest page task 6 to 9 ms. Slower in a few short-list and fast-mode cells.
+
 ## 2.4.2 · API 2 · 2026-10-23
 - 2.4.2: pager() can repack pages nobody is reading 15 to 18% smaller in a background worker, by itself when idle or before moving them to storage (needs worker-src blob: in the page's security policy).
 
