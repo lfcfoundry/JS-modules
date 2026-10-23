@@ -504,6 +504,8 @@ const S = '/*TEST_HOOK_START*/', E = '/*TEST_HOOK_END*/';
     const consoleAdapter = `window.__fuzzConfig = function (seed) { return { seed: seed, errors: false, ops: [ { name: 'x', run: function (c) { if (c.i === 1) console.error('deliberate: the demo error'); } } ] }; };`;
     r = await run({}, consoleAdapter, 1, 4); check('runner: console.error fails a seed by default', r.fails.some(f => f.op === 'pageerror' && /deliberate/.test(f.what)), r.fails);
     r = await run({ ignoreConsole: ['^deliberate'] }, consoleAdapter, 1, 4); check('runner: --ignore-console REGEX lets a deliberate message pass', r.fails.length === 0, r.fails);
+    const pickerAdapter = consoleAdapter.replace(/console\.error\([^)]*\)/, "console.error(\"Failed to execute 'showSaveFilePicker' on 'Window': Must be handling a user gesture to show a file picker.\")");
+    if (pickerAdapter !== consoleAdapter) { r = await run({}, pickerAdapter, 1, 4); check("runner: the browser's refusal of a file picker without a real tap is not a finding", r.fails.length === 0, r.fails); }
     r = await run({ ignoreConsole: ['something else'] }, consoleAdapter, 1, 4); check('runner: an --ignore-console pattern that does not match still fails', r.fails.length === 1, r.fails);
     r = await run({ allowConsoleErrors: true }, consoleAdapter, 1, 4); check('runner: --allow-console-errors lets all pass', r.fails.length === 0, r.fails);
     // junk text

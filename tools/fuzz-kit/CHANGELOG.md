@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.3 · API 1 · 2026-10-22
+- 1.3.3: the browser's refusal of a file picker opened without a real tap (Chromium: showSaveFilePicker 'User activation required') is no longer reported as a finding.
+
 ## 1.3.2 · API 1 · 2026-10-22
 - 1.3.2: the WebKitGTK and GNOME Web runs no longer use eval, so games with a strict policy (no unsafe-eval) run all their operations there too.
 
