@@ -114,18 +114,15 @@ def save_bundle(page, directory, seed, r, gone):
     return notes
 
 
-def pump(page, deadline, viewport):
-    """Wait for the page's answer; carry out real-input requests; raise Hung when the deadline passes."""
+def pump(page, deadline, viewport, st):
+    """Wait for the page's answer; carry out real-input requests; raise Hung when the deadline passes.
+    The page says "__fuzz-ready" on the console when it has an answer or a request, so nothing here runs script in the page while it works (wait_for_function would, and a strict CSP forbids that)."""
     while True:
-        left = deadline - time.perf_counter()
-        if left <= 0:
-            raise Hung()
-        try:
-            page.wait_for_function("window.__fuzzR || window.__fuzzNeed", polling=50, timeout=int(left * 1000) + 1)
-        except Exception as e:
-            if type(e).__name__ == "TimeoutError":
+        while not st["ready"]:
+            if deadline - time.perf_counter() <= 0:
                 raise Hung()
-            raise
+            page.wait_for_timeout(50)
+        st["ready"] = False
         need = page.evaluate("window.__fuzzTake()")
         if need:
             do_real(page, need, viewport)
@@ -143,7 +140,7 @@ def run_seed(browser, url, adapter_js, seed, ops, viewport=(412, 892), stop_at=N
     page.set_default_timeout(60000)
     if o["init"]:
         page.add_init_script(script=o["init"])
-    perr, guard, st = [], [], {"armed": False, "start": "", "mark": ""}
+    perr, guard, st = [], [], {"armed": False, "start": "", "mark": "", "ready": False}
 
     def on_console(m):
         if m.type == "error":
@@ -151,6 +148,8 @@ def run_seed(browser, url, adapter_js, seed, ops, viewport=(412, 892), stop_at=N
                 perr.append("console.error: " + m.text)
         elif m.type == "debug" and m.text.startswith("__fuzz-op "):
             st["mark"] = m.text[10:]
+        elif m.type == "debug" and m.text == "__fuzz-ready":
+            st["ready"] = True
 
     def on_nav(frame):
         if st["armed"] and frame == page.main_frame and not o["allow_navigation"] and strip_hash(frame.url) != st["start"]:
@@ -183,7 +182,7 @@ def run_seed(browser, url, adapter_js, seed, ops, viewport=(412, 892), stop_at=N
             drv["stopAt"] = stop_at
         page.evaluate("([s, n, o]) => window.__fuzzStart(s, n, o)", [seed, ops, drv])
         deadline = time.perf_counter() + o["seed_secs"] + ((o["shrink_secs"] + 5) if o["shrink"] else 0)
-        r = pump(page, deadline, viewport)
+        r = pump(page, deadline, viewport, st)
     except Hung:
         hung = True
         r = {"seed": seed, "ops": 0, "visited": {}, "fails": [{"i": -1, "op": "hung", "what": "no answer after %ds: the page is stuck (an endless loop?). Last operation it reported: %s" % (
