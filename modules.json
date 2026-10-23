@@ -77,6 +77,20 @@
       "category": "adaptation"
     },
     {
+      "id": "gpu-blur",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "GpuBlur",
+      "summary": "Blurs a picture (a canvas, an ImageBitmap or RGBA bytes) on the graphics card with WebGL 2, or in WebAssembly, or in plain JavaScript, whichever the device does best; every way gives the same picture, and a big blur never freezes the page.",
+      "short": "Blurs a picture on the card (WebGL 2), in WebAssembly or plain JavaScript; same picture every way.",
+      "file": "modules/gpu-blur/gpu-blur.js",
+      "readme": "modules/gpu-blur/README.md",
+      "demo": "modules/gpu-blur/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "looks"
+    },
+    {
       "id": "fly-to-mini",
       "version": "1.2.0",
       "api": 1,
