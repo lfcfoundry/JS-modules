@@ -280,7 +280,7 @@ Rules for anyone running the tests:
 - Run one browser at a time. Two at once make timing checks flaky.
 - Point the test at the browser you installed: `CHROMIUM=/path/to/chrome` for the Chromium checks, `FIREFOX_PATH` (and `GECKODRIVER_PATH` for [firefox-stand-in](tools/firefox-stand-in/README.md)) for Firefox. A bare run that falls back to some other build gives unfair timing numbers, so say which one ran.
 - WebKitGTK and GNOME Web can only be driven through WebDriver (Playwright and Puppeteer cannot); the recipe is in the branch README.
-- Not covered yet: Safari itself, and real phones (the Pixel and an iPhone). A passing desktop run is not a phone result.
+- Not covered yet: Safari itself, and real phones (an Android phone and an iPhone). A passing desktop run is not a phone result.
 
 ## More from LFC Foundry
 
