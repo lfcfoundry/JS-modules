@@ -3,7 +3,7 @@ Copyright (c) 2026 LFC Foundry. MIT License.
 They cover what the runner adds around the engine: the hang guard, the dead-page guard (crash, close, new tab, leaving the start page), console.error
 handling, real-input requests, the --shrink report, the failure bundle, --throttle and the option checks. The engine itself is tested by test/run.js and the
 real browser by test/browser.py. Run: python3 tools/fuzz-kit/test/runner_fakes.py"""
-import importlib.util, json, pathlib, sys, tempfile
+import importlib.util, json, pathlib, sys, tempfile, time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("pw_runner", ROOT / "runner" / "fuzz_playwright.py")
@@ -62,8 +62,14 @@ class FakePage:
     def add_init_script(self, script=None): self.init_scripts = getattr(self, 'init_scripts', []) + [script]
 
     def wait_for_function(self, expr, polling=None, timeout=None):
-        if self.hang:
-            raise TimeoutError("Timeout %sms exceeded" % timeout)
+        raise AssertionError("the runner must not wait with wait_for_function: it uses eval, which a strict CSP forbids")
+
+    def wait_for_timeout(self, ms):
+        time.sleep(ms / 1000.0)
+
+    def ready(self):
+        if not self.hang:
+            self.emit("console", Msg("debug", "__fuzz-ready"))
 
     def evaluate(self, expr, arg=None):
         self.evals.append(expr[:40])
@@ -73,10 +79,12 @@ class FakePage:
             self.started = arg
             if self.during_start:
                 self.during_start(self)
+            self.ready()
             return 1
         if "__fuzzTake" in expr:
             return self.needs.pop(0) if self.needs else None
         if "__fuzzGive" in expr:
+            self.ready()
             return 1
         if "__fuzzR" in expr:
             return json.loads(json.dumps(self.result))
