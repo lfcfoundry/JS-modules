@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.5 · API 2 · 2026-10-22
+- 2.3.5: lists with coordinate pairs and other arrays inside rows (map features, routes) open up to about 25% faster in Firefox, WebKitGTK and GNOME Web; level in Chromium; no change to files.
+
 ## 2.3.4 · API 2 · 2026-10-22
 - 2.3.4: a pager in balanced mode builds its pages up to about 25% faster; packed size grows by under 1%.
 
