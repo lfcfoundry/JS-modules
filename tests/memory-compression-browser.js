@@ -37,7 +37,7 @@ async function battery(src, jsOnly, full) {
   const fakePath = { join: (...a) => a.join('/'), resolve: (...a) => a.join('/') };
   const fakeRequire = (n) => { if (n === 'vm' || n === 'fs') throw new Error('no ' + n); return n === 'assert' ? assert : n === 'path' ? fakePath : /data\.js$/.test(n) ? mods.data : mods.module; };
   class B extends Uint8Array { toString() { return new TextDecoder().decode(this); } }   // the few Buffer calls the checks make: Buffer.from(text), (text, 'base64') and (bytes), and .toString()
-  const Buf = { from: (x, enc) => { if (typeof x === 'string') { if (enc === 'base64') { const bin = atob(x); const u = new B(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; } const e = new TextEncoder().encode(x); const u = new B(e.length); u.set(e); return u; } const u = new B(x.length); u.set(x); return u; } };
+  const Buf = { compare: (a, b) => { const n = Math.min(a.length, b.length); for (let i = 0; i < n; i++) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1; return a.length === b.length ? 0 : a.length < b.length ? -1 : 1; }, from: (x, enc) => { if (typeof x === 'string') { if (enc === 'base64') { const bin = atob(x); const u = new B(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; } const e = new TextEncoder().encode(x); const u = new B(e.length); u.set(e); return u; } const u = new B(x.length); u.set(x); return u; } };
   const proc = { argv: ['node', 'run.js'].concat(jsOnly ? ['--js-only'] : []), env: full ? { FULL: '1' } : {}, exit: (c) => { code = c; done(); } };
   const con = { log: (...a) => lines.push(a.join(' ')) };
   const t0 = performance.now();

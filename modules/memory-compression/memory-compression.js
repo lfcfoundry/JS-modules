@@ -37,6 +37,8 @@
  *  - unpackAsync(bytes, opts) (opt-in): a promise for the same value unpack(bytes) gives, without holding the page for the whole open. A long list of same-shape records (2,048 rows or more,
  *    format 2 or newer, no shared objects) is opened one column at a time and its rows are made in slices of about 5 ms, yielding only when a slice has used its time; records inside records, arrays and
  *    coordinate pairs are opened the same way. Anything else is opened as unpack() does. It uses no workers and needs no policy change. Errors come back as a rejected promise. unpack() is unchanged.
+ *  - warm(opts) (opt-in): a promise; call it once when the page is idle. It packs and opens one made-up 1,200-row list (nine single-column lists, each pack and each open in a task of its own, about 3 to 10 ms
+ *    each) and throws the result away, so the first real pack of a big list skips the engine's cold start. Output and format are unchanged; nothing is stored. It moves about 40 ms of work to idle time.
  *  - The packing core (byte shuffle, delta, LZ4-class and deflate coders, LZ4/deflate/zlib/gzip, crc32) is inside this file and also exported as MemoryCompression.lz4Compress, .deflate and so on.
  *
  * Notes
@@ -5010,6 +5012,17 @@
   };
   unified.unpackAsync = function (bytes, opts) {                                              // the same value as unpack(); a long list of records is opened in short slices
     try { return layerOf(bytes) === 'objects' ? jso.unpackAsync(bytes, opts) : Promise.resolve(MC.unpack(bytes, opts)); } catch (err) { return Promise.reject(err); }
+  };
+  unified.warm = function (opts) {                                                            // call once when the page is idle: the first big pack then skips 30 to 60 ms of cold-start work. A made-up 1,200-row list is packed and opened one column at a time, every pack and every open in a task of its own (each about 3 to 10 ms), and the result is thrown away
+    opts = opts || {}; var po = { mode: 'balanced', wasm: opts.wasm }, wo = { wasm: opts.wasm }, N = 1200, names = ['id', 'from', 'to', 'w', 'x', 'y', 't', 'kind', 'hot'], make = [
+      function (i) { return i; }, function (i) { return i % 97; }, function (i) { return (i * 7) % 211; }, function (i) { return (i % 13) * 0.25; }, function (i) { return i * 0.5; },
+      function (i) { return Math.round(Math.sin(i / 50) * 1e5) / 1e3; }, function (i) { return 1700000000000 + i * 977; }, function (i) { return 'k' + (i % 5); }, function (i) { return i % 3 === 0; }];
+    function rows(j) { var out = [], i, o; for (i = 0; i < N; i++) { o = {}; o[names[j]] = make[j](i); out.push(o); } return out; }
+    function step(j) {                                                                        // column j: a task to pack it, a task to open it
+      var b;
+      return nextTask().then(function () { b = autoPack(rows(j), po); return nextTask(); }).then(function () { autoUnpack(b, wo); return j + 1 < names.length ? step(j + 1) : true; });
+    }
+    return Promise.resolve(unified.ready ? unified.ready() : true).then(function () { return step(0); }).then(function () { return true; }, function () { return false; });   // a warm-up that fails is not worth an error: false
   };
   unified.pool = makePool;
   unified.layerOf = layerOf;
