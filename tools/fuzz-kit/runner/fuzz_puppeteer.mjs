@@ -53,10 +53,11 @@ async function doReal(page, req, vp) {
   const ok = realRequest(req, vp.width, vp.height); if (!ok) return;
   if (ok.t === 'click') await page.mouse.click(ok.x, ok.y); else if (ok.t === 'move') await page.mouse.move(ok.x, ok.y); else await page.keyboard.press(ok.key === 'Space' ? ' ' : ok.key);   // Firefox over WebDriver BiDi does not know the name "Space" (found in a Firefox 157 run); a single space works everywhere
 }
-async function pump(page, deadline, vp) {   // wait for the page's answer; carry out real-input requests; throw Hung when the deadline passes
+async function pump(page, deadline, vp, st) {   // wait for the page's answer; carry out real-input requests; throw Hung when the deadline passes
   for (;;) {
     const left = deadline - Date.now(); if (left <= 0) throw new Hung();
-    try { await page.waitForFunction('window.__fuzzR || window.__fuzzNeed', { polling: 50, timeout: left + 1 }); } catch (e) { if (e && e.name === 'TimeoutError') throw new Hung(); throw e; }
+    if (!st.ready) { await new Promise(r => setTimeout(r, 50)); continue; }   // the page says "__fuzz-ready" on the console; nothing runs in the page meanwhile (a strict CSP forbids waitForFunction's eval)
+    st.ready = false;
     const need = await page.evaluate(() => window.__fuzzTake());
     if (need) { await doReal(page, need, vp); await page.evaluate(() => window.__fuzzGive()); continue; }
     return page.evaluate(() => window.__fuzzR);
@@ -66,7 +67,7 @@ async function pump(page, deadline, vp) {   // wait for the page's answer; carry
 // One seed in a fresh context. browser: a Puppeteer Browser (or anything with the same few methods).
 export async function runSeed(browser, url, adapter, seed, ops, viewport = { width: 412, height: 892 }, stopAt = null, kw = {}) {
   const o = { ...DEFAULTS, ...kw }, ctx = await browser.createBrowserContext(), page = await ctx.newPage();
-  const perr = [], guard = [], st = { armed: false, start: '', mark: '' };
+  const perr = [], guard = [], st = { armed: false, start: '', mark: '', ready: false };
   await page.setViewport(o.mobile ? { ...viewport, isMobile: true, hasTouch: true } : viewport); page.setDefaultTimeout(60000);
   if (o.init) await page.evaluateOnNewDocument(o.init);   // runs before the page's own scripts
   page.on('dialog', d => { d.dismiss().catch(() => { }); });   // an alert() would freeze the page for ever; Playwright dismisses these by itself
@@ -74,6 +75,7 @@ export async function runSeed(browser, url, adapter, seed, ops, viewport = { wid
   page.on('console', m => {
     if (m.type() === 'error') { if (!o.allowConsoleErrors && !consoleIgnored(m.text(), o.ignoreConsole)) perr.push('console.error: ' + m.text()); }
     else if (m.type() === 'debug' && m.text().startsWith('__fuzz-op ')) st.mark = m.text().slice(10);
+    else if (m.type() === 'debug' && m.text() === '__fuzz-ready') st.ready = true;
   });
   page.on('error', () => guard.push('the page crashed'));
   page.on('close', () => { if (st.armed) guard.push('the page was closed'); });
@@ -89,7 +91,7 @@ export async function runSeed(browser, url, adapter, seed, ops, viewport = { wid
     for (const k of ['swarm', 'repeat', 'script']) if (o[k]) drv[k] = o[k];   // only when asked for, so the plain call is unchanged
     if (stopAt !== null && stopAt !== undefined) drv.stopAt = stopAt;
     await page.evaluate((s, n, d) => window.__fuzzStart(s, n, d), seed, ops, drv);
-    r = await pump(page, Date.now() + o.seedSecs * 1000 + (o.shrink ? (o.shrinkSecs + 5) * 1000 : 0), viewport);
+    r = await pump(page, Date.now() + o.seedSecs * 1000 + (o.shrink ? (o.shrinkSecs + 5) * 1000 : 0), viewport, st);
   } catch (e) {
     if (e instanceof Hung) { hung = true; r = { seed, ops: 0, visited: {}, fails: [{ i: -1, op: 'hung', what: `no answer after ${o.seedSecs}s: the page is stuck (an endless loop?). Last operation it reported: ${st.mark || 'unknown (run again with --hang-trace to name it)'}`, tail: [] }] }; }
     else r = { seed, ops: 0, visited: {}, fails: [{ i: -1, op: 'harness', what: 'EXC ' + String(e).slice(0, 300), tail: [] }] };

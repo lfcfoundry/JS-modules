@@ -39,7 +39,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [single-file-tools](tools/single-file-tools/README.md) | 1.1.0 · API 1 | [changelog](tools/single-file-tools/CHANGELOG.md) |
 | [lzma-pack](tools/lzma-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
 | [ppmd-pack](tools/ppmd-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
-| [fuzz-kit](tools/fuzz-kit/README.md) | 1.3.0 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
+| [fuzz-kit](tools/fuzz-kit/README.md) | 1.3.1 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
 | [storage-probe](tools/storage-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/storage-probe/CHANGELOG.md) |
 | [firefox-stand-in](tools/firefox-stand-in/README.md) | 1.0.0 · API 1 | [changelog](tools/firefox-stand-in/CHANGELOG.md) |
@@ -74,6 +74,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-22 · **image-decode** 1.1.0 · API 1: A page that refuses blob: pictures (no img-src blob:) now loads through a background worker or a data: address instead of freezing; new option address: 'auto', 'blob', 'data' or 'worker'.
 - 2026-10-22 · **image-decode** 1.0.0 · API 1: New module: loads PNG, JPEG, WebP and AVIF pictures without freezing the page at the first draw (a 2048 sheet froze it 44 to 94 ms, now 2 to 9 ms), using the right way for each browser.
 - 2026-10-22 · **gif-writer** 1.3.0 · API 1: The WebAssembly program now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
+- 2026-10-22 · **fuzz-kit** 1.3.1 · API 1: 1.3.1: the runner no longer waits for the page with script that needs eval, so games with a strict policy (no unsafe-eval) run all their operations.
 - 2026-10-22 · **fuzz-kit** 1.3.0 · API 1: New: the background hunt and the runner now also drive WebKitGTK and GNOME Web, so all four test browsers can be hunted. A stuck page in WebKit is reported as hung, as in Chrome and Firefox.
 - 2026-10-22 · **fuzz-kit** 1.2.0 · API 1: New background hunt: start a long fuzz run that carries on without the terminal, stops on request, and writes its findings to a folder. Chrome and Firefox now; the runner also works with puppeteer-core.
 - 2026-10-22 · **field-report** 1.0.1 · API 1: 1.0.1: the Save buttons now really download the report file; before, a wrong type test sent every browser to the copy box.
