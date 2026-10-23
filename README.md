@@ -11,7 +11,7 @@ Live demos: **https://lfcfoundry.github.io/JS-modules/**
 
 Every piece in one place, by name. The tables below give the version, the sizes (readable and gzipped) and what each piece does.
 
-**Modules & Tools (41)**
+**Modules & Tools (42)**
 
 - Device and browser adaptation: [env-probes](modules/env-probes/README.md), [field-report](modules/field-report/README.md), [frame-kit](modules/frame-kit/README.md), [fx-governor](modules/fx-governor/README.md), [image-decode](modules/image-decode/README.md), [slow-note](modules/slow-note/README.md)
 - Saving and data safety: [save-kit](modules/save-kit/README.md), [tab-guard](modules/tab-guard/README.md)
@@ -19,7 +19,7 @@ Every piece in one place, by name. The tables below give the version, the sizes 
 - Games - Controls: [back-close](modules/back-close/README.md), [hold-press](modules/hold-press/README.md), [pad-nav](modules/pad-nav/README.md), [wake-keeper](modules/wake-keeper/README.md)
 - Games - Assist: [grown-ups-door](modules/grown-ups-door/README.md), [spotlight-tour](modules/spotlight-tour/README.md)
 - Games - Math: [idle-core](modules/idle-core/README.md)
-- Games - Testing: [canvas-probe](tools/canvas-probe/README.md), [firefox-stand-in](tools/firefox-stand-in/README.md), [fuzz-kit](tools/fuzz-kit/README.md), [speed-lab](tools/speed-lab/README.md), [storage-probe](tools/storage-probe/README.md), [test-isolation](tools/test-isolation/README.md), [test-runner](tools/test-runner/README.md), [webkit-driver](tools/webkit-driver/README.md)
+- Games - Testing: [canvas-probe](tools/canvas-probe/README.md), [firefox-stand-in](tools/firefox-stand-in/README.md), [fuzz-kit](tools/fuzz-kit/README.md), [speed-guard](tools/speed-guard/README.md), [speed-lab](tools/speed-lab/README.md), [storage-probe](tools/storage-probe/README.md), [test-isolation](tools/test-isolation/README.md), [test-runner](tools/test-runner/README.md), [webkit-driver](tools/webkit-driver/README.md)
 - App - Efficiency: [memory-compression](modules/memory-compression/README.md), [single-file-tools](tools/single-file-tools/README.md)
 - Model simulation: [walker-sim](modules/walker-sim/README.md)
 - Visualization: [gif-writer](modules/gif-writer/README.md), [netflow-engine](modules/netflow-engine/README.md), [netflow-layers](modules/netflow-layers/README.md), [netflow-sankey](modules/netflow-sankey/README.md)
@@ -48,7 +48,7 @@ Grouped by what a piece does. The live page, with demos and a quick finder, is *
 **How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments); *Gzipped* is that file compressed. A piece marked *(tool)* is for building and testing: it is not shipped inside a game or story. Story Editor packages are measured on their built `global` file. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes`.
 Every piece has a size.
 
-### Modules & Tools (41)
+### Modules & Tools (42)
 
 #### Device and browser adaptation
 
@@ -121,6 +121,7 @@ Test a game by playing it at random, shrinking any failure to a short replay, co
 | [canvas-probe](tools/canvas-probe/README.md) *(tool)* | 1.1.0 | 28.8 | 8.8 | Test-build counter for canvas 2D games: calls per frame, leaks, repeated style writes. | — |
 | [firefox-stand-in](tools/firefox-stand-in/README.md) *(tool)* | 1.0.0 | 11.0 | 4.0 | Runs a Playwright-for-Python test in stock Firefox without rewriting it. | — |
 | [fuzz-kit](tools/fuzz-kit/README.md) *(tool)* | 1.3.0 | 79.6 | 25.9 | Seeded random-input fuzzer for games, with failure shrinking and browser runners. | — |
+| [speed-guard](tools/speed-guard/README.md) *(tool)* | 1.0.0 | 7.4 | 2.9 | Flags speed-history steps over 5% slower than the last release; lists the browser checks to re-run. | — |
 | [speed-lab](tools/speed-lab/README.md) *(tool)* | 1.1.1 | 20.5 | 7.4 | A one-button speed test on the device: switches parts off and says what costs time. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/speed-lab/demo.html) |
 | [storage-probe](tools/storage-probe/README.md) *(tool)* | 1.1.0 | 19.4 | 7.2 | A one-button page that says whether copies of a page share their saved data. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/storage-probe/storage-probe.html) |
 | [test-isolation](tools/test-isolation/README.md) *(tool)* | 1.1.0 | 6.5 | 2.4 | Prefixes every localStorage key on a test page so tests never touch the real save. | — |

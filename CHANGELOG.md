@@ -47,11 +47,13 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [test-isolation](tools/test-isolation/README.md) | 1.1.0 · API 1 | [changelog](tools/test-isolation/CHANGELOG.md) |
 | [speed-lab](tools/speed-lab/README.md) | 1.1.1 · API 1 | [changelog](tools/speed-lab/CHANGELOG.md) |
 | [test-runner](tools/test-runner/README.md) | 1.1.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
+| [speed-guard](tools/speed-guard/README.md) | 1.0.0 · API 1 | [changelog](tools/speed-guard/CHANGELOG.md) |
 
 ## Changes since labels began
 
 - 2026-10-22 · **zip-open** 1.3.0 · API 1: The WebAssembly checksum now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 - 2026-10-22 · **walker-sim** 2.3.0 · API 2: The WebAssembly loop now starts compiling in the background when the file loads; walker-sim-wasm adds wasmReady() and wasmModule().
+- 2026-10-22 · **speed-guard** 1.0.0 · API 1: New: one command that flags any release step more than 5% slower than the release before, and lists the browser checks a change needs re-run.
 - 2026-10-22 · **pcodec-js** 1.5.1 · API 1: 1.5.1: unpacking a list of files on the worker pool is 1.2 to 1.4 times faster in Firefox, WebKitGTK and GNOME Web (Chromium: a tie).
 - 2026-10-22 · **pcodec-js** 1.5.0 · API 1: New { into: myArray } for worker and pool unpack: fills an array you already have. 8 million numbers open 1.07 to 1.3 times faster (normal file) and 1.3 to 1.7 times (split file); Chromium's page pause falls from 48 ms to 9 ms. New pool({ warm: true }) starts the workers when the pool is made: the first big unpack is 3 to 26 ms faster, for 3 to 7 ms at creation.
 - 2026-10-22 · **pcodec-js** 1.4.0 · API 1: New split file: pack(x, { parts: true }) writes a big column as ordinary Pcodec files, and the pool opens the parts on several workers. 8 million numbers open 1.25 to 1.6 times faster (joined), 2.1 to 2.8 times as parts.
