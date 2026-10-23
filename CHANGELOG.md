@@ -31,7 +31,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [pcodec-js](modules/pcodec-js/README.md) | 1.5.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.4.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.3.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -60,6 +60,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-22 · **pcodec-js** 1.4.0 · API 1: New split file: pack(x, { parts: true }) writes a big column as ordinary Pcodec files, and the pool opens the parts on several workers. 8 million numbers open 1.25 to 1.6 times faster (joined), 2.1 to 2.8 times as parts.
 - 2026-10-22 · **pcodec-js** 1.3.0 · API 1: New pack(x, { smallest: 'quick' }): tries decimal settings only when a column looks like decimals. 39 test columns come out 3.4% smaller at 1.7 times the plain pack time (full smallest: 4.0% smaller at 3.3 to 3.5 times).
 - 2026-10-22 · **pcodec-js** 1.2.0 · API 1: New PcodecJS.pool() shares packing across background workers: one 2,000,000-number column took 129 to 142 ms on one worker, now 58 to 80 ms (lower is better), same file as pack().
+- 2026-10-22 · **netflow-layers** 1.4.0 · API 1: Same layouts, up to 77% less time (moderate 3000 boxes: 47 to 37 ms in Chromium). The lane option is now called once per stop and must give the same answer each time.
 - 2026-10-22 · **netflow-layers** 1.3.1 · API 1: Layouts are 1.2 to 2.1 times faster on maps of 2,000 to 20,000 pages in all four test browsers; the drawing is exactly the same. Inner work now runs on flat number lists instead of many small lists.
 - 2026-10-22 · **netflow-engine** 2.2.2 · API 2: 2.2.2: Flow, Down, Spine and Lanes build layered drawings up to 250,000 stops (was 90,000), so maps of about 5,000 to 6,500 pages now draw in 0.5 to 1.6 s instead of being refused.
 - 2026-10-22 · **netflow-engine** 2.2.1 · API 2: The two-pair Distances sweeps no longer stop at 20,000 items: they run at any size (1.02 to 1.10 times faster at 30,000 and 60,000 items in the four test browsers), same positions.
