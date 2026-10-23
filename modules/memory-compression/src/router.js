@@ -41,6 +41,9 @@
     if (opts.mode === 'small' && isBytesLike(value)) return Promise.resolve(autoPack(value, opts));
     return jso.packAsync(value, opts);
   };
+  unified.unpackAsync = function (bytes, opts) {                                              // the same value as unpack(); a long list of records is opened in short slices
+    try { return layerOf(bytes) === 'objects' ? jso.unpackAsync(bytes, opts) : Promise.resolve(MC.unpack(bytes, opts)); } catch (err) { return Promise.reject(err); }
+  };
   unified.pool = makePool;
   unified.layerOf = layerOf;
   unified.freeBuffers = freeBuffers; unified.keeper = keeper; unified.pager = pager; unified.heap = heapInfo; unified.profile = profile; unified.estimateBytes = estimateBytes;
