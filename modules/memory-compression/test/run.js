@@ -831,6 +831,61 @@ tAsync('unpackAsync, packAsync and a second unpackAsync running together all set
   }, function (e) { done(); throw e; });
 });
 
+tAsync('packAsync and unpackAsync yield only when the slice has used its time: a clock that does not move gives no yield at all, a clock that jumps gives one at every piece, same bytes and rows either way', function () {
+  var realNow = performance.now, realSI = global.setImmediate, yields = 0, tick = 0, mode = 'frozen', data = many(6000, function (i) { return { id: i, a: [i, i + 1], s: 'k' + (i % 9), t: 1e12 + i * 31, w: (i % 50) / 8 }; }), ref = J.pack(data, opt({ mode: 'fast' })), bytes = ref;
+  performance.now = function () { return mode === 'frozen' ? 5000 : (tick += 7); };
+  global.setImmediate = function (f) { yields++; return realSI(f); };
+  function restore() { performance.now = realNow; global.setImmediate = realSI; }
+  function run(m) { mode = m; yields = 0; tick = 0; return J.packAsync(data, opt({ mode: 'fast' })).then(function (b) { var py = yields; yields = 0; return J.unpackAsync(bytes, opt()).then(function (r) { return { pack: py, unpack: yields, bytes: b, rows: r }; }); }); }
+  return run('frozen').then(function (a) {
+    assert.strictEqual(a.pack, 0, 'packAsync yielded ' + a.pack + ' times on a clock that does not move');
+    assert.strictEqual(a.unpack, 0, 'unpackAsync yielded ' + a.unpack + ' times on a clock that does not move');
+    assert.strictEqual(Buffer.compare(Buffer.from(a.bytes), Buffer.from(ref)), 0, 'packAsync bytes (frozen clock)'); same(data, a.rows, 'unpackAsync rows (frozen clock)');
+    return run('jumping');
+  }).then(function (b) {
+    assert(b.pack >= 3 && b.unpack >= 3, 'a clock that jumps 7 ms a reading must make both yield: pack ' + b.pack + ', unpack ' + b.unpack);
+    assert.strictEqual(Buffer.compare(Buffer.from(b.bytes), Buffer.from(ref)), 0, 'packAsync bytes (jumping clock)'); same(data, b.rows, 'unpackAsync rows (jumping clock)');
+    restore();
+  }, function (e) { restore(); throw e; });
+});
+tAsync('pager cold: get() does not read the clock, a pager that is read in every interval is not cooled, and one left alone is', function () {
+  var rows = many(9000, function (i) { return { id: i, from: (i * 7919) % 900, to: (i * 104729) % 913, w: ((i * 31) % 1000) / 10, t: 1700000000 + i * 37 + (i * i) % 29, k: i % 7 }; }), realNow = performance.now, calls = 0, P, i, stop = false;
+  P = J.pager(rows, opt({ pageRows: 2048, livePages: 2, readAhead: false, cold: true, coldAfter: 100000 }));
+  P.get(5);
+  performance.now = function () { calls++; return realNow.call(performance); };
+  try { for (i = 0; i < 20000; i++) P.get(i % 2048); } finally { performance.now = realNow; }
+  assert.strictEqual(calls, 0, 'get() read the clock ' + calls + ' times with cold: true');
+  P.dispose();
+  P = J.pager(rows, opt({ pageRows: 2048, livePages: 2, readAhead: false, cold: true, coldAfter: 200 }));
+  return new Promise(function (res) {
+    var n = 0, h = setInterval(function () { P.get((n++ * 37) % 9000); if (n > 35) { clearInterval(h); res(); } }, 20);      // about 700 ms of reads, three and a half intervals
+  }).then(function () {
+    assert.strictEqual(P.memory().cold, 0, 'cooled while it was being read: ' + P.memory().cold);
+    return new Promise(function (res) { setTimeout(res, 700); });
+  }).then(function () {
+    assert(P.memory().cold > 0, 'left alone for three intervals, nothing cooled'); same(rows[1234], P.get(1234), 'row after cooling'); P.dispose();
+  });
+});
+
+tAsync('pool.start() packs a small made-up list once through the workers (answer thrown away), only once, and a packAsync after it still gives the same bytes; a blocked pool and a throwing constructor do not break start()', function () {
+  var fb = fakeBrowser('ok'), pool = fb.M.pool({ size: 2 }), data = many(5000, function (i) { return { id: i, a: (i * 7919) % 900, t: 1e12 + i * 31 }; });
+  pool.start();
+  assert.strictEqual(fb.made, 2, 'workers made: ' + fb.made);
+  return new Promise(function (r) { setTimeout(r, 400); }).then(function () {
+    var j1 = fb.jobs; assert(j1 >= 2, 'priming sent jobs to the workers: ' + j1);
+    pool.start(); return new Promise(function (r) { setTimeout(r, 50); }).then(function () { assert.strictEqual(fb.jobs, j1, 'a second start() primed again: ' + j1 + ' to ' + fb.jobs); });
+  }).then(function () { return within(J.packAsync(data, opt({ mode: 'balanced', workers: pool })), 3000, 'packAsync after priming'); }).then(function (b) {
+    assert.strictEqual(Buffer.compare(Buffer.from(J.pack(data, opt({ mode: 'balanced' }))), Buffer.from(b)), 0, 'bytes differ after priming');
+    fb.restore(); pool.close();
+    return ['blocked', 'throws', 'silent'].reduce(function (p, kind) { return p.then(function () { var f2 = fakeBrowser(kind), p2 = f2.M.pool({ size: 2, timeout: 60 }); p2.start(); return new Promise(function (r) { setTimeout(r, 30); }).then(function () { f2.restore(); p2.close(); }); }); }, Promise.resolve());
+  }, function (e) { fb.restore(); pool.close(); throw e; });
+});
+t('rows without generated code: 1 to 18 fields, a field called __proto__, missing and mixed values give the same rows as with generated code (a child process that forbids code generation)', function () {
+  var cp = require('child_process'), script = "var M=require(" + JSON.stringify(path.resolve(modPath)) + ");var out=[];for(var nk=1;nk<=18;nk++){var rows=[];for(var i=0;i<3000;i++){var o={};for(var j=0;j<nk;j++)o['k'+j]=j%3===0?i*j:j%3===1?'s'+(i%7):(i%2===0);rows.push(o);}var b=M.pack(rows,{mode:'fast'});out.push(JSON.stringify(M.unpack(b))===JSON.stringify(rows));}var pr=[];for(var i=0;i<3000;i++){var o={a:i};Object.defineProperty(o,'__proto__',{value:i%5,enumerable:true,writable:true,configurable:true});o.z='x'+i;pr.push(o);}var b2=M.pack(pr,{mode:'fast'});var u=M.unpack(b2);out.push(u.length===3000&&Object.keys(u[7]).join()==='a,__proto__,z'&&u[7]['__proto__']===2&&Object.getPrototypeOf(u[7])===Object.prototype);console.log(out.join());";
+  var r = cp.execFileSync(process.execPath, ['--disallow-code-generation-from-strings', '-e', script], { encoding: 'utf8' }).trim();
+  assert.strictEqual(r, new Array(19).fill('true').join(','), r);
+});
+
 later.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () {
   console.log((failed ? failed + ' FAILED, ' : '') + passed + ' checks passed' + (FULL ? ' (full fuzz)' : ' (quick fuzz; FULL=1 for more)'));
   process.exit(failed ? 1 : 0);
