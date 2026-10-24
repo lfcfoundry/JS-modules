@@ -63,7 +63,7 @@
     }
     if (POOL_BYTES > 0) idleSoon();
   }
-  function freeBuffers() { POOL = []; POOL_BYTES = 0; }
+  function freeBuffers() { POOL = []; POOL_BYTES = 0; MC.dropPackBuffer(); }   // also lets go of the output buffer pack() keeps between calls
   // After the last big pack has been quiet for IDLE_MS, the buffer pool is emptied and both WebAssembly helpers give their memory back (a page that packs again simply makes them again, about 1 to 4 ms).
   var IDLE_MS = 2000, idleTimer = null;
   function idleSoon() {
