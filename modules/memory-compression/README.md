@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.5.1 · API 2**
+**Version 2.6.0 · API 2**
 
-**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 (three browsers, one at a time; node checks pass/fail and byte counts only)
+**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 (three browsers, one at a time; node checks pass/fail and byte counts only; GNOME Web not run)
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
 
