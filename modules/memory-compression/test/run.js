@@ -843,6 +843,62 @@ tAsync('unpackAsync gives the same value as unpack (long record lists in slices,
   return Promise.all(jobs);
 });
 
+tAsync('2.6.0: unpackAsync onRows is called after each slice with contiguous ranges that cover the list once, in order, the rows already final, the same array that comes back; unused it changes nothing', function () {
+  var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13), ok: i % 3 === 0, t: 1e12 + i * 977, pos: [i / 3, i * 0.5] }; }); };
+  var jobs = [];
+  [30000, 5000, 2048].forEach(function (n) {
+    ['fast', 'balanced', 'small'].forEach(function (m) {
+      var data = mk(n), b = J.pack(data, opt({ mode: m })), ref = J.unpack(b, opt()), next = 0, calls = 0, arr = null, seen = new Uint8Array(n);
+      jobs.push(J.unpackAsync(b, opt({ onRows: function (rows, from, to) {
+        if (arr === null) arr = rows; if (rows !== arr) throw new Error('a different array in a later call');
+        if (from !== next || to <= from || to > n) throw new Error('ranges not contiguous: ' + from + '..' + to + ' after ' + next);
+        for (var i = from; i < to; i++) { if (seen[i]) throw new Error('row ' + i + ' announced twice'); seen[i] = 1; var e = D.same(ref[i], rows[i]); if (e) throw new Error('row ' + i + ' not final when announced: ' + e); }
+        next = to; calls++;
+      } })).then(function (x) {
+        if (next !== n) throw new Error(n + ' ' + m + ': onRows covered ' + next + ' rows');
+        if (n === 30000 && calls < 2) throw new Error('only ' + calls + ' call(s) for 30000 rows');
+        if (x !== arr) throw new Error('the returned array is not the one given to onRows');
+        same(ref, x, 'value with onRows ' + n + ' ' + m);
+        return J.unpackAsync(b, opt()).then(function (y) { same(ref, y, 'value without onRows ' + n + ' ' + m); });
+      }));
+    });
+  });
+  return Promise.all(jobs);
+});
+tAsync('2.6.0: onRows is not called for short lists, mixed shapes, other values, lists inside rows, and a value that is not a function is ignored', function () {
+  var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5, tags: many(2, function (j) { return { k: j, i: i }; }) }; }); };
+  var odd = mk(5000); odd[3000] = { id: 1, x: 2 };
+  var cases = [mk(2047), odd, [1, 2, 3], 'text', null, Float64Array.from(many(5000, function (i) { return i * 3; })), many(5000, function (i) { return [i, [{ a: i }]]; })];
+  var hits = 0, jobs = cases.map(function (v) {
+    var b = J.pack(v, opt({ mode: 'balanced' }));
+    return J.unpackAsync(b, opt({ onRows: function () { hits++; } })).then(function (x) { same(J.unpack(b, opt()), x, 'value'); });
+  });
+  var top = mk(4000), b2 = J.pack(top, opt({ mode: 'balanced' })), lens = [];                  // lists of records inside the rows must not call it: only the 4000 outer rows are announced
+  jobs.push(J.unpackAsync(b2, opt({ onRows: function (rows, from, to) { lens.push(to - from); } })).then(function (x) {
+    same(top, x, 'nested value'); var s = 0; lens.forEach(function (z) { s += z; }); if (s !== 4000) throw new Error('nested lists were announced: ' + s);
+  }));
+  ['yes', 5, {}, true].forEach(function (junk) { jobs.push(J.unpackAsync(b2, opt({ onRows: junk })).then(function (x) { same(top, x, 'non-function onRows'); })); });
+  return Promise.all(jobs).then(function () { if (hits) throw new Error('called ' + hits + ' times for values that are not a long list of records'); });
+});
+tAsync('2.6.0: a callback that throws makes unpackAsync reject with its error (no hang, no half result); the next call, with or without onRows, is whole', function () {
+  var data = many(30000, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13) }; }), b = J.pack(data, opt({ mode: 'balanced' })), boom = new Error('boom'), after = [];
+  function bad(at) { var n = 0; return function (r, f, t) { if (at < 0 ? t === 30000 : n++ === at) throw boom; }; }   // at -1: the last call
+  var count = 0;
+  return J.unpackAsync(b, opt({ onRows: function () { count++; } })).then(function () {
+    assert(count >= 1, 'no calls');
+    return [0, 1, -1].reduce(function (p, at) {
+    return p.then(function () {
+      return within(J.unpackAsync(b, opt({ onRows: bad(at) })), 3000, 'throw at call ' + at).then(function () { throw new Error('no rejection when the callback threw at call ' + at); }, function (e) { if (e !== boom) throw e; });
+    });
+    }, Promise.resolve());
+  }).then(function () {
+    return Promise.all([J.unpackAsync(b, opt()), J.unpackAsync(b, opt({ onRows: function (r, f, t) { after.push(t - f); } })), J.unpackAsync(b, opt({ onRows: bad(0) })).then(function () { return 'x'; }, function () { return 'rejected'; })]);
+  }).then(function (r) {
+    same(data, r[0], 'plain call after a throw'); same(data, r[1], 'onRows call after a throw'); assert.strictEqual(r[2], 'rejected'); assert.strictEqual(after.reduce(function (a, z) { return a + z; }, 0), 30000);
+    same(data, J.unpack(b, opt()), 'unpack after a throw');
+  });
+});
+
 tAsync('unpackAsync never waits on workers: with workers the page blocks, a constructor that throws or workers that stay silent it still resolves with the same value, uses no worker, and runs beside a packAsync that falls back', function () {
   var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13), pos: [i / 3, i * 0.5], tags: ['a', 'b' + (i % 5)], t: 1e12 + i * 977 }; }); };
   var data = mk(6000), bytes = J.pack(data, opt({ mode: 'balanced' }));
