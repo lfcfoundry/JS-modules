@@ -2,11 +2,11 @@
 // What compiling each shipped WebAssembly program costs the page, in one real browser at a time. Copyright (c) 2026 LFC Foundry. MIT License.
 // A fresh page per reading, so no engine cache helps. For each program (ms, smaller is better): sync = `new WebAssembly.Module(bytes)` (the page is frozen for all of it); start = how long `WebAssembly.compile(bytes)` holds the page before it
 // returns (the rest happens on another thread); ready = from the call until the promise resolves; inst = `new WebAssembly.Instance` after the compile.
-// Run: node tests/wasm-compile-cost-browser.js <chromium|firefox|webkit|epiphany> [out.json]     Env: REPS (default 9), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two)
+// Run: node tests/wasm-compile-cost-browser.js <chromium|firefox|webkit> [out.json]     Env: REPS (default 9), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two)
 'use strict';
 const fs = require('fs'), path = require('path'), http = require('http');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which)) { console.log('usage: node tests/wasm-compile-cost-browser.js <chromium|firefox|webkit|epiphany> [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which)) { console.log('usage: node tests/wasm-compile-cost-browser.js <chromium|firefox|webkit> [out.json]'); process.exit(2); }
 const REPS = +(process.env.REPS || 9), dir = root + 'modules/', files = [];
 for (const m of fs.readdirSync(dir)) { const w = dir + m + '/wasm'; if (fs.existsSync(w)) for (const f of fs.readdirSync(w)) if (f.endsWith('.wasm')) files.push({ name: m + '/' + f, file: w + '/' + f }); }
 const server = http.createServer((q, r) => {
@@ -20,11 +20,11 @@ const server = http.createServer((q, r) => {
     'try{var t3=performance.now();new WebAssembly.Instance(m2,{});inst=performance.now()-t3}catch(e){}' +
     'window.__res={sync:sync,start:start,ready:ready,inst:inst,bytes:b.length}}catch(e){window.__res={error:String(e)}}})()</script>');
 });
-const webkitFamily = which === 'webkit' || which === 'epiphany', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1], r1 = (x) => Math.round(x * 10) / 10;
+const webkitFamily = which === 'webkit', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1], r1 = (x) => Math.round(x * 10) / 10;
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok)); const base = 'http://127.0.0.1:' + server.address().port, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let b;
-  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch(which === 'epiphany' ? 'epiphany' : 'webkitgtk'); }
+  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch('webkitgtk'); }
   else { const pup = require('puppeteer-core');
     b = which === 'firefox' ? await pup.launch({ browser: 'firefox', executablePath: process.env.FIREFOX, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 600000 })
       : await pup.launch({ executablePath: process.env.CHROMIUM, headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--disable-gpu'] }); }

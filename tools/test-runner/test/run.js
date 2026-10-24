@@ -135,13 +135,13 @@ t('ledger: a rerun skips the browsers that passed for this build, redoes a faile
   fs.writeFileSync(chk, "const b=process.argv[2];require('fs').appendFileSync(process.env.RAN_LOG,b+'\\n');if(process.env.FAKE_FAIL===b){console.log(b+' fails');process.exit(1)}console.log(b+' ok');process.exit(0)");
   const run = (args, env) => cp.spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', env: Object.assign({}, process.env, { TEST_RUNNER_LEDGER: L, TEST_RUNNER_BUILD: 'b1', RAN_LOG: log }, env) });
   let r = run(['all', chk], { FAKE_FAIL: 'webkit' }); ok(r.status === 1 && /webkit +FAIL/.test(r.stdout), 'first run: ' + r.stdout);
-  ok(fs.readFileSync(log, 'utf8').trim().split('\n').join() === 'chromium,firefox,webkit,epiphany', 'all four ran first time');
+  ok(fs.readFileSync(log, 'utf8').trim().split('\n').join() === 'chromium,firefox,webkit', 'all three ran first time');
   fs.writeFileSync(log, ''); r = run(['all', chk]); ok(r.status === 0, 'second run passes: ' + r.stdout + r.stderr);
   ok(fs.readFileSync(log, 'utf8').trim().split('\n').join() === 'webkit', 'only the failed browser ran again: ' + fs.readFileSync(log, 'utf8'));
-  ok(/chromium +pass \(kept\)/.test(r.stdout) && /webkit +pass +[\d.]+$/m.test(r.stdout) && /3 kept/.test(r.stdout), 'summary says what was kept: ' + r.stdout);
-  fs.writeFileSync(log, ''); run(['all', '--fresh', chk]); ok(fs.readFileSync(log, 'utf8').trim().split('\n').length === 4, '--fresh runs all four');
-  fs.writeFileSync(log, ''); run(['all', chk], { TEST_RUNNER_BUILD: 'b2' }); ok(fs.readFileSync(log, 'utf8').trim().split('\n').length === 4, 'a new build runs all four');
-  fs.writeFileSync(log, ''); run(['all', chk, 'extra']); ok(fs.readFileSync(log, 'utf8').trim().split('\n').length === 4, 'other arguments are another suite');
+  ok(/chromium +pass \(kept\)/.test(r.stdout) && /webkit +pass +[\d.]+$/m.test(r.stdout) && /2 kept/.test(r.stdout), 'summary says what was kept: ' + r.stdout);
+  fs.writeFileSync(log, ''); run(['all', '--fresh', chk]); ok(fs.readFileSync(log, 'utf8').trim().split('\n').length === 3, '--fresh runs all three');
+  fs.writeFileSync(log, ''); run(['all', chk], { TEST_RUNNER_BUILD: 'b2' }); ok(fs.readFileSync(log, 'utf8').trim().split('\n').length === 3, 'a new build runs all three');
+  fs.writeFileSync(log, ''); run(['all', chk, 'extra']); ok(fs.readFileSync(log, 'utf8').trim().split('\n').length === 3, 'other arguments are another suite');
   r = run(['all', '--status', chk]); ok(r.status === 0 && /^FINISHED +fake-check\.js: finished with every cell passing/m.test(r.stdout), 'finished: ' + r.stdout);
   ok(/^FINISHED/m.test(run(['status']).stdout), 'status without a file lists the runs');
 });

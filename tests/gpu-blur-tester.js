@@ -3,7 +3,7 @@
 // Loads modules/gpu-blur/tester/gpu-blur-device-test.html in a real browser with #quick&auto, waits for the report, and checks: it ran end to end, every way and size is in the
 // report, the copy text names the device by class and browser only (no user agent, no device model, no graphics name), the buttons work, the page uses no network, and the
 // inlined gpu-blur.js is byte for byte the shipped file. In Chromium it also runs with a user agent that names a phone model and checks the model is not in the text.
-// Run: CHROMIUM=/path/to/chrome node tests/gpu-blur-tester.js   (FIREFOX=... [FIREFOX_GL=1 under xvfb-run], WEBKIT=1, WEBKIT=epiphany)
+// Run: CHROMIUM=/path/to/chrome node tests/gpu-blur-tester.js   (FIREFOX=... [FIREFOX_GL=1 under xvfb-run], WEBKIT=1
 'use strict';
 const path = require('path'), fs = require('fs'), http = require('http'), cp = require('child_process');
 const pp = (() => { try { return require('puppeteer-core'); } catch (e) { return null; } })();
@@ -28,7 +28,7 @@ if (!exes.length) { console.log('browser part skipped: needs CHROMIUM, FIREFOX (
   const srv = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' }); r.end(fs.readFileSync(PAGE)); });
   await new Promise(r => srv.listen(0, '127.0.0.1', r)); const port = srv.address().port;
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch(Object.assign({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 0 }, process.env.FIREFOX_GL ? { headless: false, env: Object.assign({}, process.env, { LIBGL_ALWAYS_SOFTWARE: '1' }), extraPrefsFirefox: { 'webgl.force-enabled': true, 'webgl2.force-enabled': true, 'webgl.enable-webgl2': true } } : {})) : await pp.launch({ executablePath: exe, headless: true, protocolTimeout: 0, args: ['--no-sandbox'] });
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch(Object.assign({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 0 }, process.env.FIREFOX_GL ? { headless: false, env: Object.assign({}, process.env, { LIBGL_ALWAYS_SOFTWARE: '1' }), extraPrefsFirefox: { 'webgl.force-enabled': true, 'webgl2.force-enabled': true, 'webgl.enable-webgl2': true } } : {})) : await pp.launch({ executablePath: exe, headless: true, protocolTimeout: 0, args: ['--no-sandbox'] });
     console.log('Browser: ' + await b.version());
     const variants = kind === 'chromium' ? [['plain', null], ['phone user agent', 'Mozilla/5.0 (Linux; Android 14; Pixel 7 Pro Build/AP2A) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36']] : [['plain', null]];
     for (const [vn, ua] of variants) {

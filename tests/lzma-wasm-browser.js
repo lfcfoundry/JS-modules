@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // lzma-decode-wasm / lzma-pack --wasm: how long the first unpack takes in a real browser with and without the WebAssembly decoder, and that a page whose
 // Content-Security-Policy refuses WebAssembly still opens (the JavaScript decoder takes over). Copyright (c) 2026 LFC Foundry. MIT License.
-// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/lzma-wasm-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/lzma-wasm-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // The test pages carry a counting script in their head, so the packer's own Node check (which expects exactly two scripts) is skipped for them; tools/lzma-pack/test/run.py covers that check.
 // Needs python3 (to pack the pages) and a real page to pack: PAGES="/path/a.html,/path/b.html" (default: the sibling clones ../pineapple-defense and ../fancy-banana, else skipped).
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js and tools/webkit-driver. Exit 2 (skipped) when nothing can run.
@@ -73,7 +73,7 @@ async function decodeOnce(b, which) {
   let fails = 0;
   for (const [kind, exe] of exes) {
     const wd = kind === 'webkit' ? require('./webkit-shim.js') : null;
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     console.log('Browser: ' + await b.version());
     for (const pg of built) {

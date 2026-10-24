@@ -3,7 +3,7 @@
 // In Node and in each real browser: one game-sized schema (13 plain fields and 3 counts lists, like Apple Press) is saved and loaded with the new file and with OLD=/path/to/an/older/save-kit.js,
 // alternating, and the check says whether both wrote the same stored text and loaded the same save, and how long one save and one load took (microseconds, smaller is better) for a small,
 // a medium and a large save. Without OLD it only times the new file.
-// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/save-kit-speed-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/save-kit-speed-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js and tools/webkit-driver. Exit 2 (skipped) when nothing can run.
 'use strict';
 const path = require('path'), fs = require('fs');
@@ -53,7 +53,7 @@ console.log('Node ' + process.version + ': ' + (OLD ? (fails ? 'DIFFERS: ' + bad
 
 (async () => {
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     console.log('Browser: ' + await b.version());
     const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(String(e && e.message || e)));

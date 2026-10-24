@@ -1,12 +1,14 @@
 # webkit-driver
 
-**Version 1.4.0 · API 1**
+**Version 1.4.1 · API 1**
 
-**Tested in:** webkit-driver checks, real WebKitGTK 2.52.6 and GNOME Web 46.5 checks
+**Tested in:** Docs only, code unchanged.
 
 A Node file with no dependencies that starts **WebKitGTK** (the WebKit engine for Linux, the nearest thing to Safari a Linux test machine can run) or **GNOME Web** and gives you the small set of page controls that Playwright and Puppeteer give: `goto`, `evaluate`, `waitForFunction`, `mouse.move/down/up/click/wheel`, `keyboard.press`, `screenshot`, `setViewport`, and `on('pageerror')` / `on('console')`.
 
 It starts `WebKitWebDriver` (the WebDriver program WebKitGTK ships) and sends it each call over plain HTTP in the W3C WebDriver protocol, then hands the answer back as the Playwright-style call result.
+
+**GNOME Web is no longer a test browser (2026-10-24).** The `epiphany` option still launches it for anyone who wants it, but `tools/test-runner` and the repository's checks use WebKitGTK only; older results that name GNOME Web are kept as measured.
 
 ## Why it exists
 Playwright and Puppeteer cannot drive WebKitGTK (Playwright only drives its own patched WebKit build, which many networks do not let you download). WebKitGTK ships its own WebDriver, `WebKitWebDriver`, and this file speaks the W3C WebDriver protocol to it over plain HTTP.

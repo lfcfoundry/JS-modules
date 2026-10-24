@@ -1,8 +1,8 @@
 # cartoon-3d-kit
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (2026-10-17): the new crowd page (crowd-check.js: heroes painted and moving in baked mode, 12 and 48 live heroes, no page errors), and the earlier demo page in the first three. Node: 105 checks. Timing in Chromium 155 only. Not tested: a phone.
+**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 and WebKitGTK 2.52.6 (crowd-check.js incl. the new pause check: out-of-view heroes paused, in-view playing); 105 Node checks. Cost numbers: Chromium 155 only.
 
 A written style guide plus a working demo for the soft, glossy "toy" look in plain CSS and SVG: flat vector shapes that feel like squishy 3D. There is no code library to import. The value is in the numbers, copied from a published single-file game: where the light comes from, the four gradients, the face proportions, the shadow and glow recipes, the squash-and-stretch timings and the calm background scenery.
 

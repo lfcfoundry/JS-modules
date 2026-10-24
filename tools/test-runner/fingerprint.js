@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. The picture fingerprint gate: a drawing change that nobody meant fails a check instead of reaching a player.
      const F = require('./tools/test-runner/fingerprint.js');
-     const g = F.gate('apple-press-curtain', which, await b.version());          // which = chromium | firefox | webkit | epiphany
+     const g = F.gate('apple-press-curtain', which, await b.version());          // which = chromium | firefox | webkit
      g.check('closed', await page.evaluate(F.pageHash, '#stage'));              // a canvas selector hashes its pixels; no selector hashes the page's biggest canvas
      process.exit(g.finish() ? 0 : 1);                                          // prints what matched, what is new and what changed
    Near matches (the owner's 99.5% rule, 2026-10-19): a picture passes when 99.5% of its pixels or more are identical to the stored one, and the exact percentage is printed. Pass the pixels too:

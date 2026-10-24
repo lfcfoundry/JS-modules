@@ -3,7 +3,7 @@
 // Opens each piece in a real browser, one browser at a time. Needs puppeteer-core.
 // ONLY=speed-lab runs only the checks whose name contains that text.
 // Run: CHROMIUM=/path/to/chrome FIREFOX=/path/to/firefox node tests/pieces-browser.js   (either one or both), or WEBKIT=1 node tests/pieces-browser.js for WebKitGTK
-// (WEBKIT=epiphany for GNOME Web) through WebDriver (tests/webkit-shim.js and tools/webkit-driver). Exit code 2 (skipped) when nothing can run.
+// through WebDriver (tests/webkit-shim.js and tools/webkit-driver). Exit code 2 (skipped) when nothing can run.
 const pp = (() => { try { return require('puppeteer-core'); } catch (e) { return null; } })();
 const root = require('path').resolve(__dirname, '..') + '/';
 const wd = require('./webkit-shim.js');   // WebKitGTK / GNOME Web through tools/webkit-driver
@@ -62,7 +62,7 @@ module.exports = { check, open, sleep, ok, root };
   try { for (const f of ['slow-note', 'grown-ups-door', 'env-probes', 'spotlight-tour', 'speed-lab']) { const q = root + 'tests/pieces/' + f + '.js'; if (require('fs').existsSync(q)) require(q); } } catch (e) { console.log('could not load a check file: ' + e.message); process.exit(1); }
   let allFails = 0;
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     console.log('Browser: ' + await b.version());
     let fails = 0;

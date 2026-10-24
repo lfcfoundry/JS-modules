@@ -3,7 +3,7 @@
 // Exactness: 20,000 link-like objects read back equal through pages, background packing, edits, release, pressure and a real IndexedDB spill round trip.
 // Timing (ms, lower is better): opening one closed page (median / 90th percentile of 30 pages), the first read of a row from the whole packed list (view),
 // packing 60,000 links into pages all at once against background (longest freeze), and bringing one page back from browser storage.
-// One browser at a time: CHROMIUM=/path/to/chrome node tests/memory-compression-pager-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// One browser at a time: CHROMIUM=/path/to/chrome node tests/memory-compression-pager-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 (skipped) when nothing can run. Exit 1 on a failed check.
 'use strict';
 const path = require('path'), fs = require('fs'), http = require('http');
@@ -82,7 +82,7 @@ function battery(src) {
   const srv = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); r.end('<!doctype html><title>pager</title>'); });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));   // an http page, so IndexedDB works the same in every browser
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true }) : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox'] });
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true }) : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox'] });
     console.log('Browser: ' + await b.version());
     const p = await b.newPage(); await p.goto('http://127.0.0.1:' + srv.address().port + '/');
     const r = await p.evaluate(battery, SRC);

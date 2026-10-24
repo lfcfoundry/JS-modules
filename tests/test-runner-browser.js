@@ -2,7 +2,7 @@
 // test-runner warm browsers, in one real browser at a time. Copyright (c) 2026 LFC Foundry. MIT License.
 // Times the same tiny job (open a page, run one line, close) started cold (a new browser each time) and warm (a browser kept open by `cli.js warm start`), taking turns, and checks that the warm browser
 // survives a client letting go, that a second client waits its turn, and that the version printed on line 1 is the same either way.
-// Run: node tests/test-runner-browser.js <chromium|firefox|webkit|epiphany> [out.json]     Env: CHROMIUM=/path, FIREFOX=/path, REPS (default 3)
+// Run: node tests/test-runner-browser.js <chromium|firefox|webkit> [out.json]     Env: CHROMIUM=/path, FIREFOX=/path, REPS (default 3)
 'use strict';
 const path = require('path'), cp = require('child_process'), os = require('os'), fs = require('fs');
 process.env.TEST_RUNNER_WARM = fs.mkdtempSync(path.join(os.tmpdir(), 'trb-'));

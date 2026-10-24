@@ -3,11 +3,11 @@
 // Part 1 (same pixels): both halves of a curtain (212 x 892 CSS px at 1.25x), stepped and smooth, three cloth colors, painted on the page and in the worker: the canvases must be identical, with the page policy allowing
 // the worker and with it lacking worker-src blob: (then the worker is refused and the page paints, same pixels). Part 2 (speed, fresh page per reading, versions taking turns): how long the page's thread is busy
 // while both halves are painted (sum of the step() calls), the longest single step() call, and the time until both halves are on their canvases (ms, smaller is better). The page-painter steps in slices of 8 ms.
-// Run: node tests/stage-curtains-worker-browser.js <chromium|firefox|webkit|epiphany> [out.json]     Env: REPS (default 7), EARLY=1 starts the worker in idle time first, CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH)
+// Run: node tests/stage-curtains-worker-browser.js <chromium|firefox|webkit> [out.json]     Env: REPS (default 7), EARLY=1 starts the worker in idle time first, CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH)
 'use strict';
 const fs = require('fs'), path = require('path'), http = require('http');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which)) { console.log('usage: node tests/stage-curtains-worker-browser.js <chromium|firefox|webkit|epiphany> [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which)) { console.log('usage: node tests/stage-curtains-worker-browser.js <chromium|firefox|webkit> [out.json]'); process.exit(2); }
 const REPS = +(process.env.REPS || 7), EARLY = !!process.env.EARLY, SRC = fs.readFileSync(process.env.MODULE || root + 'modules/stage-curtains/stage-curtains.js', 'utf8');
 const CSP_WORKER = "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; worker-src blob:; img-src data: blob:", CSP_NOWORKER = "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; img-src data: blob:";
 const CODE = `
@@ -48,11 +48,11 @@ const server = http.createServer((q, r) => {
   r.end('<!doctype html><meta charset=utf-8><meta http-equiv="Content-Security-Policy" content="' + (blocked ? CSP_NOWORKER : CSP_WORKER) + '"><title>t</title><link rel="icon" href="data:,"><script src="/m.js"></script><script>' + CODE +
     '\ntry{if(' + JSON.stringify(m) + '==="eq")eq(function(r){window.__res=r});else speed(' + JSON.stringify(m) + ',function(r){window.__res=r})}catch(e){window.__res={error:String(e)}}</script>');
 });
-const webkitFamily = which === 'webkit' || which === 'epiphany', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1], r1 = (x) => Math.round(x * 10) / 10;
+const webkitFamily = which === 'webkit', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1], r1 = (x) => Math.round(x * 10) / 10;
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok)); const base = 'http://127.0.0.1:' + server.address().port, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let b;
-  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch(which === 'epiphany' ? 'epiphany' : 'webkitgtk'); }
+  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch('webkitgtk'); }
   else { const pup = require('puppeteer-core');
     b = which === 'firefox' ? await pup.launch({ browser: 'firefox', executablePath: process.env.FIREFOX, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 600000 })
       : await pup.launch({ executablePath: process.env.CHROMIUM, headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--disable-gpu'] }); }

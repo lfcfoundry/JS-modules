@@ -5,7 +5,7 @@
 // load() must reject, not hang. (2) With IMG_DIR=/folder/with/sheet1024.{png,webp,avif} and sheet2048.* (made by modules/image-decode/test/make-sheets.py) it times the plain way (Image + onload, drawn at first use) against ImageDecode.load: ms, smaller is better: total = start to drawn,
 // draw = the first drawImage, freeze = longest main-thread freeze measured by a message loop; medians of 7. (3) A list of 8 sheets, plain one after
 // another against loadAll with 2 at a time.
-// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/image-decode-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/image-decode-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 (skipped) when nothing can run. Exit 1 on a failed check.
 'use strict';
 const path = require('path'), fs = require('fs'), http = require('http');
@@ -154,7 +154,7 @@ function strictPage(csp) {
   await new Promise(r => srv.listen(0, '127.0.0.1', r)); const port = srv.address().port;
   let fails = 0;
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true }) : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox'] });
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true }) : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox'] });
     console.log('Browser: ' + await b.version());
     const page = await b.newPage(); await page.goto('http://127.0.0.1:' + port + '/');
     const o = await page.evaluate(inPage, { src: SRC, fix: FIX, timing: !!IMG_DIR });
