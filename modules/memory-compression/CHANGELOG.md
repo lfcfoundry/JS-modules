@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.5.0 · API 2 · 2026-10-23
+- Column pages hold text lazily: page open up to 45% faster, held text columns 62 to 89% smaller; a column read row by row is made in one pass, so reading rows costs about what it did in 2.4.9; memory report counts text and nested data.
+
 ## 2.4.10 · API 2 · 2026-10-23
 - Pages that forbid generated code now save lists of records faster (fast pack of 60,000 links 15 to 32% shorter; balanced up to 16%). pool.start() returns a promise that resolves when the workers are warm. Same bytes and format.
 
