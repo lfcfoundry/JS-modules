@@ -1,10 +1,10 @@
 # walker-sim
 
-**Version 2.3.0 · API 2**
+**Version 2.4.0 · API 2**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5
+**Tested in:** Node 22.22.0 (walker-sim checks on all four files, also with --disallow-code-generation-from-strings); Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, one at a time (tests/walker-sim-browser.js and the timing run, 2026-10-24)
 
-Simulates random walkers on a network (where do they end up, how long does it take, what does it cost), with the exact odds worked out by arithmetic so you can check the simulation against them. No dependencies. Cut from Netflow Map. 61 KB readable (with its notes), or 31 KB as `walker-sim.min.js` (12.1 KB gzipped). The plain-words names for the random-number kinds are an optional 4 KB file, `walker-sim-menu.js` (1.5 KB gzipped), that a settings page loads and a script does not.
+Simulates random walkers on a network (where do they end up, how long does it take, what does it cost), with the exact odds worked out by arithmetic so you can check the simulation against them. No dependencies. Cut from Netflow Map. 62 KB readable (with its notes), or 31 KB as `walker-sim.min.js` (12.3 KB gzipped). The plain-words names for the random-number kinds are an optional 4 KB file, `walker-sim-menu.js` (1.5 KB gzipped), that a settings page loads and a script does not.
 
 Each walker starts at a start item and, at every item, picks one of the ways on by a rule (by weight, evenly, first, softmax or curious) until it reaches an item with no way on or hits a step cap. The run counts where walkers end up, how many steps and how much cost they took, and puts a 95% range on each end's share. Every trial draws its numbers from the seed and the trial number, so the same seed gives the same run.
 
@@ -37,7 +37,7 @@ var exact = WalkerSim.exactEndpoints(P, { rule: "weights", weights: P.w });   //
 - **Stop when precise enough:** `precision: 0.005` stops once the widest 95% range is within plus or minus 0.5 points (after at least `minWalkers`, default 2,000); the snapshot says `stoppedEarly` and how many `trials` of `planned` ran. A worst-case end share (one holding half the walkers) needs about 38,400 walkers; on the example network, where each end holds a small share, it stopped after 13,600 walkers with the widest range at plus or minus 0.49 points.
 - **Exact average steps and cost:** `exactEndpoints` also gives `meanSteps` and, with `linkCost` or `dwell`, `meanCost` (`null` when a distribution has no average, such as a Pareto with shape 1 or less).
 - **Loops:** the exact solver goes round until the answers stop moving; a loop that needs more rounds is solved directly (up to 2,500 items in one tangle). Every exact result carries `converged`, `error` and `method` (`'sweeps'` or `'loops'`); a loop with no way out holds its walkers and the answer says `stuck`.
-- **What-if sweep:** `WalkerSim.sweep(P, cfg, { what: "items" | "links", top })` ranks which item or link, if removed, moves the end odds most.
+- **What-if sweep:** `WalkerSim.sweep(P, cfg, { what: "items" | "links", top })` ranks which item or link, if removed, moves the end odds most. With the WebAssembly file loaded (the default file has it) the rounds of every what-if, and of `exactEndpoints`, run in a second 1 KB WebAssembly program (since 2.4.0); the rows are the same to the last digit either way.
 - **Which weights matter:** `WalkerSim.sensitivity(P, cfg, { top })` gives, for every link, how far each end's odds move for one more unit of its weight (exact), biggest first as `{ from, to, d: [per end], reach }`. With `linkWeight` it also returns `sd`, the spread of each end's odds that the uncertainty causes. Matches finite differences to 1e-12 and, for `sd`, 300 exact re-solves within 7%. Needs the `weights` rule.
 - `graph` throws a plain-words error for an unknown start item and rejects item names such as `__proto__`.
 
@@ -56,14 +56,15 @@ Which file to copy:
 
 | File | What it is | Size (smaller is better) |
 |---|---|---|
-| `walker-sim-with-wasm.js` / `walker-sim-with-wasm.min.js` | **The default.** `walker-sim.js` followed by `walker-sim-wasm.js`: the WebAssembly loop is on from the start. | 66,418 bytes (21,502 gzipped) / 34,764 bytes (13,864 gzipped) |
-| `walker-sim.js` / `walker-sim.min.js` | JavaScript only, works under any page policy; for pages that must stay small. | 61,220 bytes (19,219 gzipped) / 30,800 bytes (12,099 gzipped) |
-| `walker-sim-wasm.js` / `walker-sim-wasm.min.js` | The WebAssembly loop alone, to load after `walker-sim.js`. The default file already holds both. | 5,197 bytes (2,435 gzipped) / 3,964 bytes (2,015 gzipped) |
+| `walker-sim-with-wasm.js` / `walker-sim-with-wasm.min.js` | **The default.** `walker-sim.js` followed by `walker-sim-wasm.js`: the WebAssembly loop is on from the start. | 75,212 bytes (24,521 gzipped) / 40,277 bytes (16,086 gzipped) |
+| `walker-sim.js` / `walker-sim.min.js` | JavaScript only, works under any page policy; for pages that must stay small. | 62,427 bytes (19,513 gzipped) / 31,262 bytes (12,313 gzipped) |
+| `walker-sim-wasm.js` / `walker-sim-wasm.min.js` | The WebAssembly loop alone, to load after `walker-sim.js`. The default file already holds both. | 12,784 bytes (5,212 gzipped) / 9,015 bytes (4,141 gzipped) |
 
 - The walking loop runs as a 1 KB WebAssembly program that takes over after a run's first 20,000 walkers (`cfg.wasmAfter`), so small runs never pay for setting it up. `cfg.wasm = false` keeps one run on JavaScript; `sim.engine` says which loop ran (`'js'` or `'wasm'`). The counts are exactly the same either way for the same seed.
+- `sweep` and `exactEndpoints` use a second WebAssembly program, `wasm/sweep.c`, for their rounds (since 2.4.0): the 199-item, 587-link example network, 40 what-ifs, warm, ms per call, median of 15 fresh pages (**lower is better**): `sweep` items Chromium 16.1 to 10.1, Firefox 18 to 7, WebKitGTK 9 to 8; `sweep` links 13.3 to 8.1, 14 to 6, 7 to 7; `exactEndpoints` 1.2 to 0.7, 1.0 to 0.5, 2.0 to 0.6 (the WebKitGTK clock steps 1 ms, so its gain is small, about 11% to 22%). A SIMD build and a scalar twin are both inside the file; if the engine refuses SIMD the scalar one is used, and if it refuses WebAssembly altogether (or a call needs more memory than the engine gives) the rounds run in JavaScript as before. `WalkerSim.useSweepKernel(f)` is the hook that file uses (`f(maxRounds, items, classes, order, starts, targets, chances, c, acc)` returns `[lastChange, changeBefore, rounds]` or `null`); the plain `walker-sim.js` does not change speed.
 - It needs a page that allows WebAssembly (policy word `wasm-unsafe-eval`). Otherwise `WalkerSim.wasm` is `false` and everything runs on the JavaScript loop (checked in all four browsers with a page that forbids it; Firefox also prints a console message).
 - `walker-sim-with-wasm.js` is `walker-sim.js` followed by `walker-sim-wasm.js`, nothing else; `test/make-min.js` builds it and the minified files, and the tests fail when it is stale.
-- Source: `wasm/walker-sim.c`; `wasm/build.sh` builds `wasm/walker-sim.wasm` (966 bytes, needs clang with wasm32) and `wasm/embed.py` puts it into `walker-sim-wasm.js`.
+- Source: `wasm/walker-sim.c`; `wasm/build.sh` builds `wasm/walker-sim.wasm` (966 bytes, needs clang with wasm32); the what-if rounds are `wasm/sweep.c`, built as `wasm/sweep.wasm` (1,047 bytes, SIMD) and `wasm/sweep-scalar.wasm` (947 bytes, built with `-ffp-contract=off` so the numbers stay bit for bit the same); `wasm/embed.py` puts all three into `walker-sim-wasm.js`.
 
 1,000,000 walkers on the README network in a freshly opened page (graph building and the WebAssembly start-up included), median of 7, the two files taking turns. **Lower milliseconds are better; a bigger "times faster" is better.**
 
@@ -120,7 +121,7 @@ walker-sim is one package for a job usually done by hand. No ready-made package 
 
 | Alternative | Size (smaller is better) | Features | Where it wins / loses |
 |---|---|---|---|
-| [d3-random](https://github.com/d3/d3-random) (ISC, 3.0.1) | not measured (this module: 30,839 bytes minified, 12.1 KB gzipped) | 18 distributions and a seedable generator; no network walking, no exact odds, no ranges | d3-random has 18 distributions (this module has 16). This module wins if you need to walk a network and check the answer. |
+| [d3-random](https://github.com/d3/d3-random) (ISC, 3.0.1) | not measured (this module: 31,262 bytes minified, 12.3 KB gzipped) | 18 distributions and a seedable generator; no network walking, no exact odds, no ranges | d3-random has 18 distributions (this module has 16). This module wins if you need to walk a network and check the answer. |
 | A hand-written loop with `Math.random()` | smallest possible (no library) | not repeatable from a seed; no 95% ranges; no exact odds; cannot split a run across threads with identical counts | Wins on size and simplicity. Loses on repeatability and on knowing whether the answer is right. |
 
 **Where it loses:** bigger than a hand-written loop or a distribution-only library; two distributions fewer than d3-random (16 against 18); the WebAssembly loop gives no gain in GNOME Web 46.5 and needs `wasm-unsafe-eval` (more limits below).
@@ -149,7 +150,7 @@ walker-sim is one package for a job usually done by hand. No ready-made package 
 - Gamma numbers: Marsaglia and Tsang's gamma method (2000). Published algorithm; code written here.
 - The random-number generator is mulberry32, a small generator shared in the public domain by Tommy Ettinger; the source file names it but not its author or license, so this credit comes from the common publication of that code.
 - 95% ranges on the end shares use the Wilson score interval (E. B. Wilson, 1927).
-- The optional WebAssembly loop is C written for this module (`wasm/walker-sim.c`), built with clang; it repeats the JavaScript loop step for step.
+- The optional WebAssembly loops are C written for this module (`wasm/walker-sim.c`, `wasm/sweep.c`), built with clang; each repeats its JavaScript loop step for step.
 - The simulator was cut from Netflow Map (LFC Foundry's own code).
 
 No other code from others; the ideas above are theirs.
