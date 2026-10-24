@@ -2,8 +2,11 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
-## 2.5.2 · API 2 · 2026-10-23
-- pack() writes into one output buffer it keeps instead of a new array for every 1 MiB piece, so a big pack leaves much less garbage; freeBuffers() and a 2 s idle spell release the buffer. Same bytes out.
+## 2.6.1 · API 2 · 2026-10-23
+- pack() writes into one output buffer it keeps instead of a new array for every 1 MiB piece, so a big pack leaves less garbage; freeBuffers() and a 2 s idle spell release the buffer. Same bytes out.
+
+## 2.6.0 · API 2 · 2026-10-23
+- unpackAsync takes an optional onRows(rows, from, to), called after each slice of a long record list so a page can use the first rows early; first rows 14 to 49% sooner on 60,000 links, whole call unchanged.
 
 ## 2.5.1 · API 2 · 2026-10-23
 - Packing a long number column now tries every way on every 8th block instead of every 4th: 30,000 scene items pack 4 to 10% faster (balanced), 60,000 links 4 to 5%; packed size within 0.2%. No format change.
