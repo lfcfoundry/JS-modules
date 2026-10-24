@@ -28,7 +28,7 @@ console.log('ok   look plan: ' + base + ' looks once, 0 on the next picture');
 {
 const L = E.build(bigNetwork(1500, 4, 7), { view: 'network', arrange: 'circle', colorBy: 'group' });
 const base = { colorBy: 'group', theme: 'light' };
-const flat = SC.make(L, base), objs = SC.make(L, Object.assign({ linkStyle: () => null }, base));
+const flat = SC.make(L, base), objs = SC.make(L, Object.assign({ flat: false }, base));
 const n = flat.curveCount(); ok(n > 2000 && n === objs.curveCount(), 'a big map: ' + n + ' vs ' + objs.curveCount());
 ok(flat.curvesPacked() && !objs.curvesPacked(), 'the flat build is packed from the start, the styled one is objects');
 const snap = (S) => S.curves.map((c) => JSON.stringify([c.P, c.w, c.color, c.arrow, c.line, c.edge, c.from, c.to, c.dash || 0], (k, v) => typeof v === 'number' ? Math.fround(v) : v));
@@ -36,7 +36,7 @@ const f0 = flat.curves.map((c) => c), o0 = snap(objs);   /* waking the flat one 
 ok(!flat.curvesPacked(), 'reading S.curves makes the objects');
 const fs = snap(flat); for (let i = 0; i < n; i++) ok(fs[i] === o0[i], 'link ' + i + ' differs:\n' + fs[i] + '\n' + o0[i]);
 /* styling and picture lists on fresh packed scenes */
-const mk = () => SC.make(L, base), a = mk(), b = SC.make(L, Object.assign({ linkStyle: () => null }, base));
+const mk = () => SC.make(L, base), a = mk(), b = SC.make(L, Object.assign({ flat: false }, base));
 const focus = new Set(L.nodes.slice(0, 40).map((x) => x.key || x.id));
 for (const st of [{}, { focus }, { focus, edges: new Set([3, 5, 9]) }, {}]) {
   SC.style(a, st); SC.style(b, st); ok(a.curvesPacked(), 'styling leaves the links packed');
@@ -46,6 +46,22 @@ for (const st of [{}, { focus }, { focus, edges: new Set([3, 5, 9]) }, {}]) {
 }
 const c = mk(); SC.style(c, { selEdges: new Set([2]) }); ok(c.curves[2].base && c.curves[2].a === 1, 'a selected link falls back to objects and is lit');
 console.log('ok   flat links: ' + n + ' links equal, styling reads the lists');
+}
+/* flat links with link rules, dashes, arrowheads and bends (1.1.0) */
+{
+const L = E.build(bigNetwork(1500, 4, 7), { view: 'network', arrange: 'circle', colorBy: 'group' });
+const rules = (e, ei) => ei % 11 === 0 ? { color: '#d33', w: 3, dash: 'dot' } : ei % 7 === 0 ? { arrow: true } : ei % 5 === 0 ? { bend: 0.2, opacity: 0.4 } : ei % 13 === 0 ? { hide: true } : ei % 17 === 0 ? { dash: 'long', arrow: true, bend: -0.15 } : null;
+const snap = (S) => S.curves.map((c) => JSON.stringify([c.P, c.w, c.color, c.arrow, c.line, c.tip, c.edge, c.from, c.to, c.dash || 0, c.a], (k, v) => typeof v === 'number' ? Math.fround(v) : v));
+for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, curve: 0.1 }]) {
+  const base = Object.assign({ colorBy: 'group', theme: 'light' }, extra);
+  const flat = SC.make(L, base), objs = SC.make(L, Object.assign({ flat: false }, base));
+  const n = flat.curveCount(); ok(n > 2000 && n === objs.curveCount(), 'count ' + n + ' vs ' + objs.curveCount());
+  ok(flat.curvesPacked() && !objs.curvesPacked(), 'flat is packed from the start');
+  let tips = 0, seen = 0; flat.eachCurveView((v) => { seen++; if (v.tip) tips++; }); ok(seen === n && flat.curvesPacked(), 'eachCurveView leaves it packed');
+  const fs = snap(flat), os = snap(objs);
+  for (let i = 0; i < n; i++) ok(fs[i] === os[i], 'link ' + i + ' differs:\n' + fs[i] + '\n' + os[i]);
+  console.log('ok   flat rules ' + Object.keys(extra).join('+') + ': ' + n + ' links equal, ' + tips + ' arrowheads packed');
+}
 }
 /* the public link accessors the renderers use */
 {
