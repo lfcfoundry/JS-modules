@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.5.2 · API 2 · 2026-10-23
+- Packing in balanced and small mode is a few percent faster (the number picker skips ways that cannot apply sooner); the packed bytes are identical.
+
 ## 2.5.1 · API 2 · 2026-10-23
 - Packing a long number column now tries every way on every 8th block instead of every 4th: 30,000 scene items pack 4 to 10% faster (balanced), 60,000 links 4 to 5%; packed size within 0.2%. No format change.
 
