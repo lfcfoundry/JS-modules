@@ -132,4 +132,32 @@ t('1.3.1 flat-list rewrite: every option gives the fingerprints 1.3.0 gave (16 p
   const OPTS = { 'story-tags-bundle': { dir: 'TB', rows: 'story', tagLen: 6, bundle: true }, 'better-wide': { dir: 'LR', better: true, spread: 'wide' }, 'wrap-spine': { dir: 'TB', rows: 'story', wrap: true, spine: true, tagLen: 20 }, 'lanes': { dir: 'LR', lanes: true, bundle: true } };
   Object.keys(PIN2).forEach((k) => { const [m, o] = k.split('|'); const got = fp(NL.layout(graph(MAPS[m]), OPTS[o])); ok(got === PIN2[k], k + ' changed: ' + got + ' vs ' + PIN2[k]); });
 });
+/* WebAssembly twin (1.5.0): the row-order search and the row placement run in wasm/order.wasm; the answer must equal the plain JavaScript one to the last digit (Object.is on every number) */
+const same = (a, b, path) => { if (typeof a === 'number') { if (!Object.is(a, b)) throw new Error('differs at ' + path + ': ' + a + ' vs ' + b); return; } if (a && typeof a === 'object') { const ka = Object.keys(a); ok(ka.length === Object.keys(b).length, 'keys at ' + path); ka.forEach((k) => same(a[k], b[k], path + '.' + k)); return; } ok(a === b, 'differs at ' + path); };
+const OPT_SET = [{ dir: 'TB' }, { dir: 'LR' }, { dir: 'TB', rows: 'story', tagLen: 8, bundle: true }, { dir: 'LR', better: true, spread: 'wide' }, { dir: 'TB', rows: 'story', wrap: true, spine: true }, { dir: 'TB', lanes: true, better: true }, { dir: 'LR', rows: 'story', tagLen: 6, spine: true, lanes: true, spread: 'wide', better: true }];
+t('wasm on and off: the same layers and places, to the last digit, on 8 maps x 7 option sets (wasm really ran)', () => {
+  ok(NL.wasm && NL.wasm.on === true && NL.wasm.b64.length > 1000, 'no wasm inside'); const min0 = NL.wasm.min; NL.wasm.min = 0; let n = 0;
+  try {
+    const maps = [story(30, 1), story(120, 2), dag(60, 120, 3), story(400, 4), story(1500, 5), dag(300, 700, 6), story(3, 7), dag(2, 1, 8)];
+    maps.forEach((m, mi) => OPT_SET.forEach((o, oi) => {
+      const g = graph(m), c0 = NL.wasm.calls; NL.wasm.on = true; const A = NL.layout(g, o), used = NL.wasm.calls - c0; NL.wasm.on = false; const B = NL.layout(g, o);
+      ok(used >= 2, 'wasm did not run on map ' + mi + ' set ' + oi + ' (' + NL.wasm.error + ')'); same(A, B, 'map' + mi + '/set' + oi); n++;
+    }));
+  } finally { NL.wasm.on = true; NL.wasm.min = min0; }
+  return n + ' pictures';
+});
+t('wasm: the default skips maps under 100 stops, and a refused or missing WebAssembly falls back to the same JavaScript picture', () => {
+  const g = graph(story(400, 4)), o = { dir: 'TB', rows: 'story', tagLen: 8, bundle: true }, ref = JSON.stringify(NL.layout(g, o));
+  let c0 = NL.wasm.calls; NL.layout(graph(story(8, 2)), { dir: 'TB' }); ok(NL.wasm.calls === c0, 'a tiny map used wasm');
+  const vm = require('vm'), src = require('fs').readFileSync(require.resolve('../netflow-layers.js'), 'utf8');
+  const load = (codeGen) => { const ctx = vm.createContext({ module: { exports: {} }, console, Buffer }, { codeGeneration: { strings: codeGen, wasm: codeGen } }); vm.runInContext(src, ctx); return ctx.module.exports; };
+  const denied = load(false), allowed = load(true);
+  const a = JSON.stringify(denied.layout(g, o)); ok(a === ref, 'code generation refused: a different picture'); ok(denied.wasm.calls === 0 && /wasm|WebAssembly|code generation/i.test(denied.wasm.error), 'refusal not seen: ' + denied.wasm.error + ' calls ' + denied.wasm.calls);
+  const b = JSON.stringify(allowed.layout(g, o)); ok(b === ref, 'vm copy with wasm: a different picture'); ok(allowed.wasm.calls >= 2, 'vm copy did not use wasm');
+  return 'refused: ' + denied.wasm.error.slice(0, 60);
+});
+t('wasm: the embedded bytes are the ones wasm/order.wasm holds (rebuild with sh wasm/build.sh, then python3 wasm/embed.py)', () => {
+  const fs = require('fs'), src = fs.readFileSync(require.resolve('../netflow-layers.js'), 'utf8'), b64 = /WASM:order:BEGIN\*\/'([^']*)'/.exec(src)[1];
+  ok(Buffer.from(b64, 'base64').equals(fs.readFileSync(require('path').join(__dirname, '..', 'wasm', 'order.wasm'))), 'embedded bytes differ from wasm/order.wasm'); return Buffer.from(b64, 'base64').length + ' bytes';
+});
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);
