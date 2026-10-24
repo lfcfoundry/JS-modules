@@ -3,7 +3,7 @@
    live mode shows the same number of heroes; the controls switch modes.
      NODE_PATH=<folder with puppeteer-core> CHROMIUM=<path> node modules/cartoon-3d-kit/test/crowd-check.js chromium
      NODE_PATH=... FIREFOX=<path> node modules/cartoon-3d-kit/test/crowd-check.js firefox
-     xvfb-run + dbus-run-session ... node modules/cartoon-3d-kit/test/crowd-check.js webkit|epiphany   (WebKitGTK or GNOME Web through tools/webkit-driver) */
+     xvfb-run + dbus-run-session ... node modules/cartoon-3d-kit/test/crowd-check.js webkit   (WebKitGTK through tools/webkit-driver; epiphany is still accepted if named) */
 'use strict';
 var path = require('path'), which = process.argv[2] || 'chromium', url = 'file://' + path.resolve(__dirname, '..', 'crowd-demo.html');
 var bad = 0;

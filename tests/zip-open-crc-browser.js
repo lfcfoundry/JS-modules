@@ -9,7 +9,7 @@ const fs = require('fs'), path = require('path'), http = require('http');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
 if (!which) {   // no browser named (tests/kits.js): run every browser the environment offers, one after the other, each in its own process
   const kinds = [['chromium', process.env.CHROMIUM], ['firefox', process.env.FIREFOX], [process.env.WEBKIT === 'epiphany' ? 'epiphany' : 'webkit', process.env.WEBKIT]].filter((x) => x[1]);
-  if (!kinds.length) { console.log('skipped: needs CHROMIUM, FIREFOX (with puppeteer-core) or WEBKIT=1 (WebKitGTK) / (GNOME Web)'); process.exit(2); }
+  if (!kinds.length) { console.log('skipped: needs CHROMIUM, FIREFOX (with puppeteer-core) or WEBKIT=1 (WebKitGTK)'); process.exit(2); }
   let bad = 0; for (const [k] of kinds) bad += require('child_process').spawnSync(process.execPath, [__filename, k], { stdio: 'inherit' }).status ? 1 : 0;
   process.exit(bad ? 1 : 0);
 }
