@@ -327,7 +327,7 @@ var frames = SB.bakeRoll(ringScene, 8, [48, 48], ringOpts);
   check('ceiling: padding counts (two 2048 x 1024 pictures stack to 2048 x 2049, over the default 4,194,304)', SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)]) === null && SB.toSheet([pic(2048, 1024, 1), pic(2048, 1024, 2)], { padding: 0 }) !== null);
   var rolled = SB.bakeRoll(ringScene, 4, [16, 16], { ss: 1 }), sheet = SB.toSheet(rolled, { padding: 2, maxWidth: 40 });
   check('baked frames pack into a sheet (4 of 16 x 16 at maxWidth 40 and padding 2: two rows of two)', sheet && sheet.width === 34 && sheet.height === 34 && sheet.frames[2].y === 18);
-  check('version is 1.7.0', SB.version === '1.7.0');
+  check('version is 1.7.1', SB.version === '1.7.1');
 })();
 
 /* 12. 1.3.0 made the rasterizer faster without changing a single byte. These hashes were taken from 1.2.0 (the shiny material has a strong
@@ -355,10 +355,10 @@ require('./fancy-scenes.js')(SB, SB, check);
 (function () {
   var fs = require('fs'), path = require('path'), cp = require('child_process'), os = require('os');
   var dir = path.join(__dirname, '..'), battery = require('./wasm-battery.js'), F = require('./reference-tri.js');
-  var SBW = require('../sprite-baker-wasm.js'), W = SBW.wasm();
+  var PLAIN_OUTLINE = SB.outline, SBW = require('../sprite-baker-wasm.js'), W = SBW.wasm();
   check('the add-on returns SpriteBaker with wasm() on it, and wasm() gives one engine each time', SBW === SB && typeof SB.wasm === 'function' && SB.wasm() === W);
   check('the add-on found WebAssembly, says engine "wasm" and has both optional parts', W.available === true && W.engine === 'wasm' && W.features.texture === true && W.features.ridge === true);
-  var r = battery(SB, F, W);
+  var r = battery(SB, F, W, PLAIN_OUTLINE);
   check('wasm fill: ' + r.meshScenes + ' mesh scenes (textured sphere with ridges, coin with lit ridge and pose, rod, ball, glove) give the same color and depth bytes as the plain JavaScript', r.meshDiffering === 0 && r.meshScenes === 26);
   check('wasm fill: ' + r.randomScenes + ' random scenes (random vertices, odd normals, far-out picture coordinates, six ramps, picture and ridge on and off, culled or not) give the same bytes', r.randomDiffering === 0 && r.randomScenes === 800, r.names.join('; '));
   Object.keys(r.extra).forEach(function (k) { check('wasm fill: ' + k, r.extra[k] === true); });

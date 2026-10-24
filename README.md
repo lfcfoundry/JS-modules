@@ -81,7 +81,7 @@ Curtains, flying elements, lettering and 3D-looking sprites.
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 | 49.3 | 20.2 | A written style guide and demo for the soft, glossy cartoon 3D look in CSS and SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/cartoon-3d-kit/demo.html) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 | 18.1 | 6.3 | A big element scrolls away and a copy flies to its sticky mini version. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fly-to-mini/demo.html) |
 | [gpu-blur](modules/gpu-blur/README.md) | 1.0.0 | 37.4 | 12.1 | Blurs a picture on the card (WebGL 2), in WebAssembly or plain JavaScript; same picture every way. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gpu-blur/demo.html) |
-| [sprite-baker](modules/sprite-baker/README.md) | 1.7.0 | 54.5 | 17.9 | Tiny software 3D rasterizer that bakes shaded sprites to canvases. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sprite-baker/demo.html) |
+| [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 | 54.6 | 18.0 | Tiny software 3D rasterizer that bakes shaded sprites to canvases. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sprite-baker/demo.html) |
 | [stage-curtains](modules/stage-curtains/README.md) | 1.3.0 | 42.4 | 14.9 | Velvet stage curtains that slide shut over a page and fly open. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/stage-curtains/demo.html) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 | 5.0 | 2.1 | Die-cut sticker lettering in plain CSS, no images. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sticker-text/demo.html) |
 

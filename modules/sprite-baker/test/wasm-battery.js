@@ -3,11 +3,11 @@
  *   26 mesh scenes (a textured sphere with ridges, the coin with a lit ridge and a spin pose, a rod, a ball, the glove), 800 random scenes (small meshes with random vertices,
  *   non-unit normals, picture coordinates far out of range, any of six ramps, with and without picture and ridge, culled or not), a picture over the wasm limit, a surface over the limit,
  *   and two surfaces drawn into by turns. Each one is drawn by SpriteBaker.Rast / drawMesh and by the add-on's Rast / drawMesh, and both buffers are compared byte for byte.
- * It is written in plain ES5 with no Node-only calls so a page can run it:  battery(SB, F, W)  with F = test/reference-tri.js (only its ramps are used) and W = SpriteBaker.wasm().
+ * It is written in plain ES5 with no Node-only calls so a page can run it:  battery(SB, F, W)  with F = test/reference-tri.js (only its ramps are used) and W = SpriteBaker.wasm(); PO (optional) = the plain SpriteBaker.outline taken BEFORE the add-on was loaded, which turns on the outline twin test.
  * Returns { scenes, differing, names (the first few that differ), fallbacks (calls that W drew with the plain code), extra: { name: true/false } }. */
 (function (root) {
   'use strict';
-  function battery(SB, F, W) {
+  function battery(SB, F, W, PO) {
     var PI2 = Math.PI * 2, seed = 20261018, scenes = 0, bad = [], extra = {};
     function rnd() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }
     function makeTex(n) {
@@ -115,6 +115,49 @@
         }
       }
       extra['drawMesh with null, undefined, {}, false, 0 or an object with cull null, undefined, false, 0 or -0.75 as last argument gives the same pixels as the plain code (on scenes where the cull value shows)'] = same4 && sensitive >= 4;
+    })();
+    /* outline: SpriteBaker.outline after the add-on is loaded (wasm when it starts) against PO, the plain function taken before: random pictures, radii, colors and every case that must fall back */
+    if (typeof PO === 'function') (function () {
+      var n, ok = true, w, h, d, i, j, a, img, r, c, radii = [0, 0.4, 1, 1.5, 2, 2.5, 3, 4.4, 7, 12, -2, NaN], cols = [[14, 24, 40], [0, 0, 0], [255, 255, 255], [10.5, 200.25, 99.9], undefined, null, [300, -20, 128]], cnt = 0, mixed = true;
+      function eq(A, B) { var k; if (A.width !== B.width || A.height !== B.height || A.data.length !== B.data.length) return false; for (k = 0; k < A.data.length; k++) if (A.data[k] !== B.data[k]) return false; return true; }
+      function pic(w, h, kind) {
+        var dd = new Uint8ClampedArray(w * h * 4), k, p, x, y;
+        for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+          p = (y * w + x) * 4; k = rnd();
+          if (kind === 0) { a = k < 0.5 ? 0 : k < 0.7 ? 255 : (rnd() * 256) | 0; }
+          else if (kind === 1) { a = ((x - w / 2) * (x - w / 2) + (y - h / 2) * (y - h / 2)) < (Math.min(w, h) * 0.3) * (Math.min(w, h) * 0.3) ? 255 : 0; if (a && k < 0.2) a = 1 + ((rnd() * 254) | 0); }
+          else a = k < 0.97 ? 0 : (rnd() * 256) | 0;
+          dd[p] = rnd() * 256; dd[p + 1] = rnd() * 256; dd[p + 2] = rnd() * 256; dd[p + 3] = a;
+        }
+        return { width: w, height: h, data: dd };
+      }
+      for (n = 0; n < 240; n++) {
+        w = 1 + ((rnd() * (n % 8 === 0 ? 170 : 60)) | 0); h = 1 + ((rnd() * (n % 8 === 0 ? 170 : 60)) | 0); img = pic(w, h, n % 3);
+        r = radii[(rnd() * radii.length) | 0]; c = cols[(rnd() * cols.length) | 0];
+        scenes++; if (!eq(PO(img, r, c), SB.outline(img, r, c))) { ok = false; bad.push('outline ' + w + 'x' + h + ' r' + r + ' ' + JSON.stringify(c)); }
+      }
+      extra['outline: 240 random pictures (1 to 170 pixels a side, three alpha patterns, 12 radii including 0, negative, fractional and NaN, 7 colors including fractional, out of range and none) give the same bytes as the plain function'] = ok;
+      [[64, 2], [96, 2], [160, 3]].forEach(function (z) { var im = pic(z[0], z[0], 1); scenes++; if (!eq(PO(im, z[1], [14, 24, 40]), SB.outline(im, z[1], [14, 24, 40]))) mixed = false; });
+      extra['outline: 64, 96 and 160 pixel pictures at radius 2, 2 and 3 give the same bytes'] = mixed;
+      var big = pic(700, 700, 1), fb = true; scenes++;
+      if (!eq(PO(big, 2, [1, 2, 3]), SB.outline(big, 2, [1, 2, 3]))) fb = false;
+      var small = pic(30, 30, 0); scenes++; if (!eq(PO(small, 1e9, [1, 2, 3]), SB.outline(small, 1e9, [1, 2, 3]))) fb = false;
+      extra['outline: a 700 x 700 picture and a radius of a billion (both over the wasm limits) fall back and give the same bytes'] = fb;
+      var thrown = [undefined, null, {}, { width: 2, height: 2 }], tk = true;
+      thrown.forEach(function (bad1) { var e1 = null, e2 = null; try { PO(bad1, 2, [0, 0, 0]); } catch (e) { e1 = e && e.constructor; } try { SB.outline(bad1, 2, [0, 0, 0]); } catch (e) { e2 = e && e.constructor; } scenes++; if (e1 !== e2) tk = false; });
+      extra['outline: a missing or malformed picture throws the same kind of error as the plain function'] = tk;
+      var sp = { width: 40, height: 30, data: new Uint8ClampedArray(40 * 30 * 4) }, keep = new Uint8ClampedArray(sp.data), same5;
+      for (i = 0; i < 40 * 30; i++) sp.data[i * 4 + 3] = i % 7 === 0 ? 255 : 0; keep.set(sp.data);
+      SB.outline(sp, 3, [9, 9, 9]); same5 = eq({ width: 40, height: 30, data: keep }, sp); scenes++;
+      extra['outline: the picture handed in is not changed, and the result is a fresh Uint8ClampedArray'] = same5 && SB.outline(sp, 3, [9, 9, 9]).data instanceof Uint8ClampedArray && SB.outline(sp, 3, [9, 9, 9]).data !== sp.data;
+      /* bakeSprite, bakeRoll and baker with an outline go through the same function: compare with the roll baked without it and outlined by the plain function */
+      var scene = [{ mesh: SB.mesh(SB.sphere(11, [0, 0, 0]), 24, 36), material: SB.material([[0, 60, 20, 90], [0.5, 170, 90, 210], [1, 245, 210, 255]]) }], roll = true, plainRoll, withOl, fi;
+      [[64, 2], [96, 2]].forEach(function (z) {
+        plainRoll = SB.bakeRoll(scene, 6, z[0], { margin: 2 + z[1] }); withOl = SB.bakeRoll(scene, 6, z[0], { outline: { radius: z[1], color: [14, 24, 40] } });
+        for (fi = 0; fi < 6; fi++) { scenes++; if (!eq(PO(plainRoll[fi], z[1], [14, 24, 40]), withOl[fi])) roll = false; }
+      });
+      extra['outline: bakeRoll with an outline (the baking code calls SpriteBaker.outline) equals the roll without it outlined by the plain function'] = roll;
+      extra['outline: with the wasm running SpriteBaker.outline is the add-on\'s function, otherwise it is the plain one'] = W.available ? SB.outline !== PO : true;
     })();
     return { scenes: scenes, meshScenes: meshScenes, meshDiffering: meshBad, randomScenes: N, randomDiffering: rbad, differing: bad.length, names: bad.slice(0, 5), extra: extra };
   }

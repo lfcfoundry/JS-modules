@@ -7,7 +7,7 @@
 # No fused multiply-add and no fast-math: the arithmetic has to match JavaScript's to the last bit (see tri.c). Then run embed.py to put the file into ../sprite-baker-wasm.js.
 set -e
 cd "$(dirname "$0")"
-FLAGS="--target=wasm32 -O3 -ffp-contract=off -mnontrapping-fptoint -nostdlib -Wl,--no-entry -Wl,--export=fill -Wl,--export=fill_mesh -Wl,--export=features -Wl,--export-memory -Wl,--initial-memory=16777216 -Wl,-z,stack-size=65536 -Wl,--strip-all"
+FLAGS="--target=wasm32 -O3 -ffp-contract=off -mnontrapping-fptoint -nostdlib -Wl,--no-entry -Wl,--export=fill -Wl,--export=fill_mesh -Wl,--export=outline -Wl,--export=features -Wl,--export-memory -Wl,--initial-memory=16777216 -Wl,-z,stack-size=65536 -Wl,--strip-all"
 case "$1" in
   lean) clang $FLAGS -DNO_TEXTURE -DNO_RIDGE -o "${2:-tri-lean.wasm}" tri.c; wc -c "${2:-tri-lean.wasm}" ;;
   --check) T=$(mktemp); clang $FLAGS -o "$T" tri.c; if cmp -s "$T" tri.wasm; then echo "tri.wasm is what tri.c builds"; rm -f "$T"; else echo "tri.wasm is NOT what tri.c builds"; rm -f "$T"; exit 1; fi ;;
