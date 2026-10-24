@@ -37,6 +37,8 @@
  *  - unpackAsync(bytes, opts) (opt-in): a promise for the same value unpack(bytes) gives, without holding the page for the whole open. A long list of same-shape records (2,048 rows or more,
  *    format 2 or newer, no shared objects) is opened one column at a time and its rows are made in slices of about 5 ms, yielding only when a slice has used its time; records inside records, arrays and
  *    coordinate pairs are opened the same way. Anything else is opened as unpack() does. It uses no workers and needs no policy change. Errors come back as a rejected promise. unpack() is unchanged.
+ *    opts.onRows(rows, from, to) (optional): for a long list of records, called after each slice with the array being filled; rows[from] to rows[to - 1] are ready (final), ranges are contiguous and cover the list once.
+ *    Not called for short lists, mixed shapes, other values or lists inside rows. Do not change rows in it. A callback that throws makes the call reject with its error. The returned value is the same array.
  *  - warm(opts) (opt-in): a promise; call it once when the page is idle. It packs and opens one made-up 1,200-row list (nine single-column lists, each pack and each open in a task of its own, about 3 to 10 ms
  *    each) and throws the result away, so the first real pack of a big list skips the engine's cold start. Output and format are unchanged; nothing is stored. It moves about 40 ms of work to idle time.
  *  - The packing core (byte shuffle, delta, LZ4-class and deflate coders, LZ4/deflate/zlib/gzip, crc32) is inside this file and also exported as MemoryCompression.lz4Compress, .deflate and so on.
@@ -4264,6 +4266,7 @@
       n = c.varint();
       if (n < SLICE_MIN) { c.p = p0; return Promise.resolve(finishUnpack(d)); }
       d.depth = 1; d.spend(n);
+      d.onRows = opts && typeof opts.onRows === 'function' ? opts.onRows : null;                 // opts.onRows(rows, from, to): called after each slice with the list being filled, rows from..to-1 ready (a list of records, not nested ones)
     } catch (err) { return Promise.reject(err); }
     return d.columnAsync(n).then(function (col) {
       var out = col.full();
@@ -4284,7 +4287,7 @@
     return p.then(function (col) { d.depth--; return col; });
   };
   Dec.prototype.recordsAsync = function (n) {                              // CT_RECORDS with one shape (format 2): the byte for the kind is read, the shape count is not
-    var d = this, c = d.c, ns = c.varint(), nk, j = 0, keys = [], dirC = [], dirB = [], cols = [], modes = [], out;
+    var d = this, c = d.c, ns = c.varint(), nk, j = 0, keys = [], dirC = [], dirB = [], cols = [], modes = [], out, tell = d.onRows && d.depth === 2 ? d.onRows : null;
     nk = c.varint(); if (nk > 100000) jfail('too many keys');
     for (j = 0; j < nk; j++) keys.push(c.u8() === 0 ? c.str() : d.str16());
     d.spend(n * nk);
@@ -4306,11 +4309,11 @@
       out = new Array(n);
       if (!CAN_EVAL) {
         plain = cols.map(plainCol);
-        return slicedLoop(n, function (from, to) { fixedRows(out, from, to, keys, plain); return true; }, UNPACK_SLICE_MS);
+        return slicedLoop(n, function (from, to) { fixedRows(out, from, to, keys, plain); if (tell) tell(out, from, to); return true; }, UNPACK_SLICE_MS);
       }
       f = builderSlice(keys, modes); args = [out, 0, 0];
       for (k = 0; k < nk; k++) { args.push(cols[k].a); args.push(cols[k].d); }
-      return slicedLoop(n, function (from, to) { args[1] = from; args[2] = to; f.apply(null, args); return true; }, UNPACK_SLICE_MS);
+      return slicedLoop(n, function (from, to) { args[1] = from; args[2] = to; f.apply(null, args); if (tell) tell(out, from, to); return true; }, UNPACK_SLICE_MS);
     }).then(function () { return new Col(n, 0, out, null); });
   };
   Dec.prototype.tupleAsync = function (n) {
