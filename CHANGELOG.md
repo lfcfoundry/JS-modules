@@ -36,7 +36,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [walker-sim](modules/walker-sim/README.md) | 2.4.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
-| [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.0 · API 1 | [changelog](modules/spotlight-tour/CHANGELOG.md) |
+| [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.1 · API 1 | [changelog](modules/spotlight-tour/CHANGELOG.md) |
 | [single-file-tools](tools/single-file-tools/README.md) | 1.2.0 · API 1 | [changelog](tools/single-file-tools/CHANGELOG.md) |
 | [lzma-pack](tools/lzma-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
 | [ppmd-pack](tools/ppmd-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
@@ -60,6 +60,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-24 · **stage-curtains** 1.4.0 · API 1: The curtain's velvet paints 60 to 70% faster in a browser with WebAssembly SIMD. The picture matches the plain-JavaScript one to within 5 of 255 on 99.99% of pixels; stepped curtains are unchanged.
 - 2026-10-24 · **stage-curtains** 1.3.1 · API 1: The curtain's velvet paints 27 to 34% faster (WebAssembly loop reads per-column tables). Same picture, byte for byte.
 - 2026-10-24 · **sprite-baker** 1.7.1 · API 1: With the WebAssembly add-on loaded, outlines are drawn in WebAssembly: about 1.6 to 1.9 times as fast per call (0.3 to 2 ms down to 0.15 to 1.1 ms), with the very same pixels. Without it nothing changes.
+- 2026-10-24 · **spotlight-tour** 1.1.1 · API 1: A closed tour no longer reacts to scrolling or resizing, so a page with the tour closed does less work on every scroll (20,000 scroll events: 88 to 12 ms in Chromium).
 - 2026-10-24 · **single-file-tools** 1.2.0 · API 1: Fonts with double-quoted family names are now shrunk too, and the packer can read your page's background color with --bg auto.
 - 2026-10-24 · **netflow-layers** 1.5.0 · API 1: The row-order search and row placement now run in WebAssembly (8 KB embedded, 'wasm-unsafe-eval' only), 18-48% faster at 100 to 5,000 pages in three browsers; same pictures to the last digit; plain JavaScript stays as the fallback.
 - 2026-10-24 · **gif-writer** 1.4.0 · API 1: Faster palette search on big inputs (3x fewer pixels looked at above 100,000 pixels, from 143-152 ms to about 55 ms for 8 pictures of 160x160). A GIF made from such pictures is not byte-identical to one from 1.3.0.

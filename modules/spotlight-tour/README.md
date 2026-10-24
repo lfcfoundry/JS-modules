@@ -1,8 +1,8 @@
 # spotlight-tour
 
-**Version 1.1.0 · API 1**
+**Version 1.1.1 · API 1**
 
-**Tested in:** Firefox 158.0 (reports 158.0b5), ungoogled Chromium 155.0.8059.39-1, WebKitGTK MiniBrowser 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, in a real browser (tests/pieces-browser.js, 2026-10-17); Chromium 155 timings for the scroll numbers; not tried on a real phone, Safari or with a screen reader
+**Tested in:** tests/pieces-browser.js spotlight-tour one browser at a time on 2026-10-24: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, all passed (new check: scroll and resize listeners exist only while the tour is open); finger scroll under an open tour on a midrange phone (Android, Chrome 155), window drift 0.0 px; not tried with a screen reader
 
 A short guided look at the parts of a page: one dimmed layer, one bright window over the current part (measured live, so it follows scrolling, resizing and the page reflowing), and a card beside it with Skip, Back and Next. It remembers that a visitor has seen it, and it can hand out a finishing gift once, only to people who reach the end. 12.6 KB including its own stylesheet (4.9 KB gzipped), no dependencies. Cut from Apple Press's first-time tour, with the game's own steps taken out.
 
@@ -52,7 +52,7 @@ Where it loses:
 - Far fewer features than driver.js: no arrow-key stepping, no waiting for a part to appear, no skipping of a missing part, no progress dots, no per-step window padding.
 - The bright window is a rectangle around the part (6 pixels larger), and the part itself cannot be clicked while the tour is open.
 - Text is plain text (no HTML or links inside steps); one tour at a time.
-- Not tried with a screen reader or on a real phone. The scroll timings are from Chromium only.
+- Tried by hand on a midrange phone (Android, Chrome 155) on 2026-10-24: finger scrolling with the tour open kept the bright window on the part (0.0 px drift over 259 frames), buttons 40 px. Not tried with a screen reader. The scroll timings are from Chromium only.
 - Not measured: speed against any other library, and the sizes of Shepherd.js and Intro.js.
 
 ## Limits
@@ -60,7 +60,7 @@ Where it loses:
 - The bright window is a rectangle around the part's box (6 pixels larger), and the part itself cannot be clicked while the tour is open.
 - A part inside a scrolling box is scrolled into view (nearest edge), and the window follows the part when the page reflows (an image loads, a block above grows). A part that moves by animation is followed only as fast as the browser reports size changes.
 - Text is set as plain text (`textContent`), so no HTML or links inside steps.
-- Not tried with a screen reader or on a real phone.
+- Tried by hand on a midrange phone (Android, Chrome 155) on 2026-10-24: finger scrolling with the tour open kept the bright window on the part (0.0 px drift over 259 frames), buttons 40 px. Not tried with a screen reader.
 
 ## Prior art and credits
 - [driver.js](https://github.com/kamranahmedse/driver.js) (MIT, 1.10.1): the closest match: a small, well-liked highlighter and tour library, 26.9 KB as one script (7.7 KB gzipped) plus a 1 KB (gzipped) stylesheet. It has more features (popover positioning, hints, a checklist). I did not check whether it remembers who has seen a tour or gives a finishing gift. Use it when you need those features.
