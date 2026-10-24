@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.1.1 · API 1 · 2026-10-24
+- Notes now say the probe's browser checks pass in Firefox 158 and Chromium 155. No code change.
+
 ## 1.1.0 · API 1 · 2026-10-16
 - The probe slows your game less, and a new check gives a plain pass or fail with problems listed in words.
 

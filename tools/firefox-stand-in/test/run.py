@@ -55,7 +55,21 @@ with pwfirefox.sync_playwright() as p:
         try: pg.wait_for_function("false", timeout=200); ok = False
         except TimeoutError: ok = True
         check("wait_for_function raises TimeoutError when it runs out", ok)
-        for name, call in (("page.on('console')", lambda: pg.on("console", lambda m: 0)), ("webkit", lambda: p.webkit), ("a second page", lambda: ctx.new_page()),
+        cons = []; pg.on("console", lambda m: cons.append((m.type, m.text)))
+        pg.evaluate("console.log('hi', 5, {a: 1}); console.warn('careful'); console.error(new Error('bad'))"); pg.wait_for_timeout(50)
+        check("on('console') gets log, warning and error messages made after it was set, with type and text",
+              ("log", 'hi 5 {"a":1}') in cons and ("warning", "careful") in cons and any(t == "error" and "bad" in x for t, x in cons), cons)
+        bad = []; pg.on("requestfailed", lambda r: bad.append(r.url))
+        pg.evaluate("var im = new Image(); im.src = 'file:///nonexistent-picture.png'; document.body.appendChild(im)"); pg.wait_for_timeout(300)
+        check("on('requestfailed') gets a picture that failed to load, with its url", any(u.endswith("nonexistent-picture.png") for u in bad), bad)
+        pg.evaluate("setTimeout(function () { var b = document.createElement('button'); b.id = 'late'; b.textContent = 'go'; document.body.appendChild(b); }, 150)")
+        check("wait_for_selector waits for an element that shows up later", pg.wait_for_selector("#late", timeout=3000) is not None)
+        pg.evaluate("document.getElementById('late').style.display = 'none'")
+        try: pg.wait_for_selector("#late", timeout=200); ok = False
+        except TimeoutError: ok = True
+        check("wait_for_selector raises TimeoutError when the element stays hidden", ok)
+        check("wait_for_selector(state='hidden') returns once it is hidden", pg.wait_for_selector("#late", state="hidden", timeout=500) is None)
+        for name, call in (("page.on('request')", lambda: pg.on("request", lambda r: 0)), ("webkit", lambda: p.webkit), ("a second page", lambda: ctx.new_page()),
                            ("new_context(is_mobile)", lambda: b.new_context(is_mobile=True)), ("page.screenshot", lambda: pg.screenshot())):
             try: call(); ok = False
             except NotImplementedError as e: ok = "supports:" in str(e)
