@@ -448,7 +448,7 @@
   "tools": [
     {
       "id": "single-file-tools",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "api": 1,
       "summary": "Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games.",
       "short": "Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer.",
@@ -508,7 +508,7 @@
     },
     {
       "id": "canvas-probe",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "api": 1,
       "summary": "Test-build counter for canvas 2D games: calls per frame, save/restore leaks, overhanging drawImage sources, draws below half size, style-write repeats, painted area.",
       "short": "Test-build counter for canvas 2D games: calls per frame, leaks, repeated style writes.",
@@ -535,7 +535,7 @@
     },
     {
       "id": "firefox-stand-in",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "api": 1,
       "summary": "Runs a Playwright-for-Python test in stock Firefox (through Selenium and geckodriver) without rewriting it; says plainly which calls it supports and stops with a clear message on the rest.",
       "short": "Runs a Playwright-for-Python test in stock Firefox without rewriting it.",

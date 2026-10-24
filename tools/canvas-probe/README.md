@@ -1,8 +1,8 @@
 # canvas-probe
 
-**Version 1.1.0 · API 1**
+**Version 1.1.1 · API 1**
 
-**Tested in:** Chromium 141 (94 Node checks and 18 browser checks pass) and Chromium 153 (real canvas). Not run: Firefox, ungoogled Chromium 155, WebKitGTK, a phone.
+**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 and WebKitGTK 2.52.6 (`test/browsers.js`, 10 grouped checks each), 18 of 18 `browser.py` checks in Chromium 155 and in Firefox 158 (through the Firefox stand-in), 94 Node checks. Not run: a phone.
 
 A test-build-only counter for a canvas 2D game. It wraps the drawing methods of `CanvasRenderingContext2D`, counts what the game really asks the browser to do each frame, and tells you in plain words where the work is wasteful or leaking.
 
@@ -27,7 +27,7 @@ A game can look fine on screen while it quietly wastes work: a `save()` that is 
 
 Keep it out of the shipped file like other test code: load it only from the test build (between `/*TEST_HOOK_START*/` and `/*TEST_HOOK_END*/` markers, or injected by the test runner, e.g. Playwright's `add_script_tag`). Install it before the game script runs. Run the game with its quality governor (such as `QualityGovernor` or `FxGovernor`) off while the probe is on, or it sees the slower frames the probe causes and steps quality down.
 
-Tests: `node tools/canvas-probe/test/run.js` (fake canvas, no browser, 94 checks) and `python3 tools/canvas-probe/test/browser.py` (Playwright for Python with Chromium, a real canvas, 18 checks; all pass in Chromium 141).
+Tests: `node tools/canvas-probe/test/run.js` (fake canvas, no browser, 94 checks) and `python3 tools/canvas-probe/test/browser.py` (Playwright for Python with Chromium, a real canvas, 18 checks; all pass in ungoogled Chromium 155 and in Firefox 158 through `tools/firefox-stand-in/run-in-firefox.py`). `node tools/canvas-probe/test/browsers.js firefox|chromium|webkit` runs the same three in-page scripts in any test browser through `tools/test-runner` (10 grouped checks).
 
 ## What it measures
 
@@ -86,7 +86,7 @@ If you know a tool that already does this, tell the owner so the prior-art note 
 - Without `WeakRef` (very old browsers) the probe keeps a plain reference to every context holding an open `save()` until it is restored, reset or forgotten.
 - A `canvas.width` write is seen only for canvases whose 2D context was created after install, or that called `save()` after it.
 - The path-growth flag is a guess from call counts: a path that legitimately grows for several frames with no `beginPath()` is flagged too.
-- Tested in Chromium 141 (real canvas) and with a fake context in Node. Not yet run in Firefox or on Android.
+- Tested in ungoogled Chromium 155, Firefox 158 and WebKitGTK 2.52.6 (real canvas) and with a fake context in Node. Not yet run on a phone.
 
 ## For AI agents
 

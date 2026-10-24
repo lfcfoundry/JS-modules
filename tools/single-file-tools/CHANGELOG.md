@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-10-24
+- Fonts with double-quoted family names are now shrunk too, and the packer can read your page's background color with --bg auto.
+
 ## 1.1.0 · API 1 · 2026-10-16
 - The packer can make files about 23% smaller to hand out and now defaults to a faster setting.
 - More pictures are handled.

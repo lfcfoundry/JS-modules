@@ -119,8 +119,8 @@ Test a game by playing it at random, shrinking any failure to a short replay, co
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [canvas-probe](tools/canvas-probe/README.md) *(tool)* | 1.1.0 | 28.8 | 8.8 | Test-build counter for canvas 2D games: calls per frame, leaks, repeated style writes. | — |
-| [firefox-stand-in](tools/firefox-stand-in/README.md) *(tool)* | 1.0.0 | 11.0 | 4.0 | Runs a Playwright-for-Python test in stock Firefox without rewriting it. | — |
+| [canvas-probe](tools/canvas-probe/README.md) *(tool)* | 1.1.1 | 28.8 | 8.8 | Test-build counter for canvas 2D games: calls per frame, leaks, repeated style writes. | — |
+| [firefox-stand-in](tools/firefox-stand-in/README.md) *(tool)* | 1.1.0 | 14.5 | 5.0 | Runs a Playwright-for-Python test in stock Firefox without rewriting it. | — |
 | [fuzz-kit](tools/fuzz-kit/README.md) *(tool)* | 1.3.3 | 81.5 | 26.3 | Seeded random-input fuzzer for games, with failure shrinking and browser runners. | — |
 | [speed-guard](tools/speed-guard/README.md) *(tool)* | 1.0.0 | 7.4 | 2.9 | Flags speed-history steps over 5% slower than the last release; lists the browser checks to re-run. | — |
 | [speed-lab](tools/speed-lab/README.md) *(tool)* | 1.1.1 | 20.5 | 7.4 | A one-button speed test on the device: switches parts off and says what costs time. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/speed-lab/demo.html) |
@@ -136,7 +136,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [memory-compression](modules/memory-compression/README.md) | 2.6.2 | 389.1 | 113.2 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
-| [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.1.0 | 27.5 | 10.4 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
+| [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 
 #### Model simulation
 
