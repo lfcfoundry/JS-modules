@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -174,13 +174,13 @@ var NFMScene = (function () {
   function plainLink(c) {
     var k, p = c.P, q = c.color, b = c.bb, bs = c.base;
     for (k in c) if (!PLAIN_KEYS[k]) return false;
-    if (!p || p.length !== 8 || !q || q.length !== 4 || c.tip !== undefined || (b !== undefined && (!b || b.length !== 4))) return false;
+    if (!p || p.length !== 8 || !q || q.length !== 4 || (c.tip !== undefined && (!c.tip || c.tip.length !== 2)) || (b !== undefined && (!b || b.length !== 4))) return false;
     if (typeof c.w !== 'number' || typeof c.edge !== 'number' || typeof c.dash !== 'number' || (c.a !== undefined && typeof c.a !== 'number') || typeof c.arrow !== 'boolean' || typeof c.line !== 'boolean' || typeof c.from !== 'string' || typeof c.to !== 'string') return false;
     if (bs !== undefined) { if (!bs || typeof bs.w !== 'number' || bs.color !== q) return false; for (k in bs) if (k !== 'w' && k !== 'color') return false; }
     return true;
   }
   /* a big flat map built straight into the packed lists, no object per link (ids = the name of each item in L.nodes order): the view fills it in, curveStore takes it over as S.flatPending */
-  function flatWriter(M, nodeIds) { return { M: M, n: 0, ids: nodeIds, P: new Float32Array(M * 8), BB: new Float32Array(0), COL: new Float32Array(M * 4), W: new Float32Array(M), BW: new Float32Array(M), DASH: new Float32Array(M), A: new Float32Array(M), EDGE: new Int32Array(M), FR: new Int32Array(M), TO: new Int32Array(M), FL: new Uint8Array(M) }; }
+  function flatWriter(M, nodeIds) { return { M: M, n: 0, ids: nodeIds, P: new Float32Array(M * 8), BB: new Float32Array(0), COL: new Float32Array(M * 4), W: new Float32Array(M), BW: new Float32Array(M), DASH: new Float32Array(M), A: new Float32Array(M), EDGE: new Int32Array(M), FR: new Int32Array(M), TO: new Int32Array(M), FL: new Uint8Array(M), TIP: new Float32Array(M * 2) }; }
   function curveStore(S, L) {
     var objs = S.curves, pk = null, touch = 0, touchedAt = 0, timer = 0, job = null, auto = null, refused = -1, ids = null, idList = null;
     function makeOne(i) {
@@ -188,12 +188,13 @@ var NFMScene = (function () {
       if (f & 4) c.base = { w: pk.BW[i], color: col };
       if (!(f & 8)) c.a = pk.A[i];
       if (!(f & 16)) c.bb = [pk.BB[q], pk.BB[q + 1], pk.BB[q + 2], pk.BB[q + 3]];
+      if (f & 32) c.tip = [pk.TIP[i * 2], pk.TIP[i * 2 + 1]];
       return c;
     }
     function unpack() { var n = pk.M, out = new Array(n), i; for (i = 0; i < n; i++) out[i] = makeOne(i); objs = out; pk = null; }
     function start() {
       var M = objs.length, byId = new Map(), i; idList = []; (L && L.nodes || []).forEach(function (n, k) { byId.set(n.id, k); idList.push(n.id); }); ids = byId;
-      job = { at: touch, i: 0, M: M, ids: idList, P: new Float32Array(M * 8), BB: new Float32Array(M * 4), COL: new Float32Array(M * 4), W: new Float32Array(M), BW: new Float32Array(M), DASH: new Float32Array(M), A: new Float32Array(M), EDGE: new Int32Array(M), FR: new Int32Array(M), TO: new Int32Array(M), FL: new Uint8Array(M) };
+      job = { at: touch, i: 0, M: M, ids: idList, P: new Float32Array(M * 8), BB: new Float32Array(M * 4), COL: new Float32Array(M * 4), W: new Float32Array(M), BW: new Float32Array(M), DASH: new Float32Array(M), A: new Float32Array(M), EDGE: new Int32Array(M), FR: new Int32Array(M), TO: new Int32Array(M), FL: new Uint8Array(M), TIP: new Float32Array(M * 2) };
     }
     /* copies the next slice; true when the whole list is packed and the objects are let go, false when it must stop (touch tells it was read, or a link is not plain) */
     function step(max) {
@@ -201,7 +202,8 @@ var NFMScene = (function () {
       for (i = j.i; i < end; i++) {
         c = objs[i]; if (!plainLink(c)) return null;
         p = c.P; o = i * 8; j.P[o] = p[0]; j.P[o + 1] = p[1]; j.P[o + 2] = p[2]; j.P[o + 3] = p[3]; j.P[o + 4] = p[4]; j.P[o + 5] = p[5]; j.P[o + 6] = p[6]; j.P[o + 7] = p[7];
-        q = i * 4; b = c.bb; f = (c.arrow ? 1 : 0) | (c.line ? 2 : 0) | (c.base ? 4 : 0) | (c.a === undefined ? 8 : 0) | (b === undefined ? 16 : 0);
+        q = i * 4; b = c.bb; f = (c.arrow ? 1 : 0) | (c.line ? 2 : 0) | (c.base ? 4 : 0) | (c.a === undefined ? 8 : 0) | (b === undefined ? 16 : 0) | (c.tip !== undefined ? 32 : 0);
+        if (c.tip !== undefined) { j.TIP[i * 2] = c.tip[0]; j.TIP[i * 2 + 1] = c.tip[1]; }
         if (b !== undefined) { j.BB[q] = b[0]; j.BB[q + 1] = b[1]; j.BB[q + 2] = b[2]; j.BB[q + 3] = b[3]; }   /* a link without a box gets none back; the renderer makes it */
         j.COL[q] = c.color[0]; j.COL[q + 1] = c.color[1]; j.COL[q + 2] = c.color[2]; j.COL[q + 3] = c.color[3];
         bs = c.base; j.W[i] = c.w; j.BW[i] = bs ? bs.w : 0; j.DASH[i] = c.dash; j.A[i] = c.a === undefined ? 1 : c.a; j.EDGE[i] = c.edge; j.FL[i] = f;
@@ -249,7 +251,7 @@ var NFMScene = (function () {
     /* one link for reading at once (the renderer's changed links): the live object when the list is not packed, otherwise a single object filled in again on every call, so it makes no garbage; do not keep it */
     var VIEW = { P: [0, 0, 0, 0, 0, 0, 0, 0], color: [0, 0, 0, 0], w: 0, a: undefined };
     /* every link for drawing with Canvas 2D without waking the packed list: the live objects when it is not packed, otherwise one object filled in again for each link (valid only inside the callback), so a picture drawn from a packed list makes no per-link objects */
-    var V2 = { P: [0, 0, 0, 0, 0, 0, 0, 0], color: [0, 0, 0, 0], bb: [0, 0, 0, 0], w: 0, a: undefined, dash: 0, arrow: false, line: false, edge: -1, from: null, to: null };
+    var V2 = { tip: undefined, P: [0, 0, 0, 0, 0, 0, 0, 0], color: [0, 0, 0, 0], bb: [0, 0, 0, 0], w: 0, a: undefined, dash: 0, arrow: false, line: false, edge: -1, from: null, to: null };
     S.eachCurveView = function (fn) {
       var v = V2, i, k, o, q, f, n, x0, y0, x1, y1;
       if (!pk) { objs.forEach(fn); return; }
@@ -258,7 +260,7 @@ var NFMScene = (function () {
         for (k = 0; k < 8; k++) v.P[k] = pk.P[o + k]; for (k = 0; k < 4; k++) v.color[k] = pk.COL[q + k];
         if (f & 16) { x0 = Math.min(v.P[0], v.P[2], v.P[4], v.P[6]); x1 = Math.max(v.P[0], v.P[2], v.P[4], v.P[6]); y0 = Math.min(v.P[1], v.P[3], v.P[5], v.P[7]); y1 = Math.max(v.P[1], v.P[3], v.P[5], v.P[7]); v.bb[0] = x0; v.bb[1] = y0; v.bb[2] = x1; v.bb[3] = y1; }
         else { v.bb[0] = pk.BB[q]; v.bb[1] = pk.BB[q + 1]; v.bb[2] = pk.BB[q + 2]; v.bb[3] = pk.BB[q + 3]; }
-        v.w = pk.W[i]; v.a = (f & 8) ? undefined : pk.A[i]; v.dash = pk.DASH[i]; v.arrow = !!(f & 1); v.line = !!(f & 2); v.edge = pk.EDGE[i];
+        v.w = pk.W[i]; v.a = (f & 8) ? undefined : pk.A[i]; v.dash = pk.DASH[i]; v.arrow = !!(f & 1); v.line = !!(f & 2); v.edge = pk.EDGE[i]; v.tip = (f & 32) ? (v.tipA || (v.tipA = [0, 0])) : undefined; if (f & 32) { v.tip[0] = pk.TIP[i * 2]; v.tip[1] = pk.TIP[i * 2 + 1]; }
         fn(v, i);
       }
     };
@@ -1040,8 +1042,8 @@ var NFMScene = (function () {
       var cg = new Map(); list.forEach(function (p) { if (p.hide) return; var g = p.n.group || '', c = cg.get(g) || { x: 0, y: 0, k: 0 }; c.x += p.px; c.y += p.py; c.k++; cg.set(g, c); });
       cg.forEach(function (c, g) { if (c.k > 1 && cg.size <= 40) lab(c.x / c.k, c.y / c.k, g || '(no group)', 18 * X.LC.groups.scale, mix(T.fg, gcol(g), 0.5), { bold: true, minK: 0.05, group: g, fixed: true }); });
     }
-    /* a big map of straight, arrowless links goes straight into typed lists (see S.flatLinks) */
-    var FLAT = !n3 && !ST && !arrows && !o.linkStyle && m >= FLAT_MIN ? flatWriter(m, nodeIds) : null;
+    /* a big flat map (straight or bent links, with or without link rules, dashes and arrowheads) goes straight into typed lists (see S.flatLinks) */
+    var FLAT = !n3 && !ST && o.flat !== false && m >= FLAT_MIN ? flatWriter(m, nodeIds) : null;
     L.edges.forEach(function (e, ei) {
       var s = ef ? (ef[ei] < 0 ? undefined : recs[ef[ei]]) : PN.get(e.from), t = et ? (et[ei] < 0 ? undefined : recs[et[ei]]) : PN.get(e.to);
       if (!s || !t || s === t || s.hide || t.hide) return;
@@ -1060,7 +1062,8 @@ var NFMScene = (function () {
         var fo = FLAT.n++, fp = fo * 8, fq = fo * 4, fc = lk.color;
         FLAT.P[fp] = sx; FLAT.P[fp + 1] = sy; FLAT.P[fp + 2] = c1x; FLAT.P[fp + 3] = c1y; FLAT.P[fp + 4] = c2x; FLAT.P[fp + 5] = c2y; FLAT.P[fp + 6] = ex; FLAT.P[fp + 7] = ey;
         FLAT.COL[fq] = fc[0]; FLAT.COL[fq + 1] = fc[1]; FLAT.COL[fq + 2] = fc[2]; FLAT.COL[fq + 3] = fc[3];
-        FLAT.W[fo] = lk.w; FLAT.DASH[fo] = lk.dash || 0; FLAT.A[fo] = 1; FLAT.EDGE[fo] = ei; FLAT.FR[fo] = s.qi; FLAT.TO[fo] = t.qi; FLAT.FL[fo] = (bend ? 0 : 2) | 8 | 16;
+        FLAT.W[fo] = lk.w; FLAT.DASH[fo] = lk.dash || 0; FLAT.A[fo] = 1; FLAT.EDGE[fo] = ei; FLAT.FR[fo] = s.qi; FLAT.TO[fo] = t.qi; FLAT.FL[fo] = (bend ? 0 : 2) | 8 | 16 | (lk.arrow ? 1 | 32 : 0);
+        if (lk.arrow) { FLAT.TIP[fo * 2] = t.px - dx / d * t.r; FLAT.TIP[fo * 2 + 1] = t.py - dy / d * t.r; }
       } else S.curves.push({ P: [sx, sy, c1x, c1y, c2x, c2y, ex, ey], w: n3 ? lk.w * ((s.f + t.f) / 2) : lk.w, color: n3 ? alpha(lk.color, lk.color[3] * fd) : lk.color, arrow: lk.arrow, line: !bend, tip: lk.arrow ? [t.px - dx / d * t.r, t.py - dy / d * t.r] : undefined, edge: ei, from: e.from, to: e.to, dash: lk.dash });
       var txt = sp.txt;
       if (txt && X.LC.links.show && m < 600) lab((sx + ex) / 2, (sy + ey) / 2 - 4, clip(txt, 24), 10 * X.LC.links.scale, T.muted, { minK: 0.9, edge: ei, bg: true });
