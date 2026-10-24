@@ -3,7 +3,7 @@
  * A native modal dialog (above the page's own pop-ups, the page behind is inert). Skip and Back buttons, Escape skips, a first-time memory ("seen") and a separate memory for a finishing gift that is given once, only to people who reach the end.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.1.1 (API 1)
  *
  *   var tour = SpotlightTour.create({
  *     key: "mygame-tour", giftKey: "mygame-tourgift",
@@ -99,7 +99,7 @@
       try { nextB.focus({ preventScroll: true }); } catch (e) { /* hidden */ }
       if (typeof opts.onStep === 'function') try { opts.onStep(n, st); } catch (e) { /* the page's code must not break the tour */ }
     }
-    function shut() { if (ro) ro.disconnect(); if (el.close) { if (el.open) el.close(); } else el.removeAttribute('open'); }
+    function shut() { if (ro) ro.disconnect(); if (winOff) winOff(); if (el.close) { if (el.open) el.close(); } else el.removeAttribute('open'); }
     function close(finished) {
       if (!open) return;
       open = false; shut(); put(opts.key);
@@ -123,13 +123,20 @@
       }
     });
     on(el, 'cancel', function (e) { e.preventDefault(); close(false); });   // the browser's own close request (for example the Android back gesture)
-    on(window, 'resize', function () { cs = null; place(); }); on(window, 'scroll', sched, { passive: true, capture: true });
+    var winOff = null;   // the window's resize and scroll listeners only exist while the tour is open, so a closed tour costs nothing on every scroll
+    function winOn() {
+      if (winOff) return;
+      var rs = function () { cs = null; place(); };
+      window.addEventListener('resize', rs); window.addEventListener('scroll', sched, { passive: true, capture: true });
+      winOff = function () { window.removeEventListener('resize', rs); window.removeEventListener('scroll', sched, { capture: true }); clearTimeout(mt); el.classList.remove('moving'); winOff = null; };
+    }
 
     function start() {
       if (open || destroyed) return false;
       steps = typeof opts.steps === 'function' ? opts.steps() : (opts.steps || []);
       if (!steps || !steps.length) return false;
       returnTo = doc.activeElement; open = true;
+      winOn();
       var reduce = false; try { reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) || (typeof opts.still === 'function' ? !!opts.still() : !!opts.still); } catch (e) { /* no matchMedia */ }
       el.classList.toggle('still', reduce); if (el.showModal) el.showModal(); else el.setAttribute('open', '');
       show(0); return true;
@@ -150,7 +157,7 @@
       /** Forget that the tour and the gift were seen. */
       reset: function (what) { try { if (store) { if (what !== 'gift') store.removeItem(opts.key); if (what === 'gift' || what === 'all') store.removeItem(opts.giftKey); } } catch (e) { /* blocked */ } },
       isOpen: function () { return open; }, goTo: function (n) { if (open && n >= 0 && n < steps.length) show(n); }, close: function () { close(false); },
-      destroy: function () { destroyed = true; open = false; if (ro) ro.disconnect(); offs.forEach(function (f) { f(); }); if (el.parentNode) el.parentNode.removeChild(el); }
+      destroy: function () { destroyed = true; open = false; if (ro) ro.disconnect(); if (winOff) winOff(); offs.forEach(function (f) { f(); }); if (el.parentNode) el.parentNode.removeChild(el); }
     };
   }
 
