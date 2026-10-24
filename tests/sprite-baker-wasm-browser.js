@@ -4,12 +4,12 @@
 // compares color and depth bytes of the plain JavaScript with the wasm fill. Part 2 (speed): 48 pictures of 140 x 140 pixels for four things (Fancy's face, the gold coin, a rod, the glove),
 // each drawn with SpriteBaker.drawMesh, with the add-on's drawMesh and with the add-on's drawMesh plus rast.release() (which skips the copy that keeps an older Rast correct), the three taking turns in rotating order, one warm-up round and then the best of REPS rounds (smaller is better);
 // the time to start the add-on (decode, compile, instantiate) is printed too. Part 3: a page whose policy lacks 'wasm-unsafe-eval' must still draw the same bytes (on the plain code where the browser refuses WebAssembly).
-// Run: node tests/sprite-baker-wasm-browser.js <chromium|firefox|webkit|epiphany> [out.json]
+// Run: node tests/sprite-baker-wasm-browser.js <chromium|firefox|webkit> [out.json]
 // Env: REPS (default 7), ADDON=/path/to/another/sprite-baker-wasm.js to try a variant, CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two). Node is not used for speed numbers.
 'use strict';
 const fs = require('fs'), path = require('path'), http = require('http');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which)) { console.log('usage: node tests/sprite-baker-wasm-browser.js <chromium|firefox|webkit|epiphany> [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which)) { console.log('usage: node tests/sprite-baker-wasm-browser.js <chromium|firefox|webkit> [out.json]'); process.exit(2); }
 const REPS = +(process.env.REPS || 7), dir = root + 'modules/sprite-baker/';
 const FILES = { '/sprite-baker.js': dir + 'sprite-baker.js', '/sprite-baker-wasm.js': process.env.ADDON || dir + 'sprite-baker-wasm.js', '/wasm-battery.js': dir + 'test/wasm-battery.js' };
 const REF = '(function(){var module={exports:{}};' + fs.readFileSync(dir + 'test/reference-tri.js', 'utf8') + '\n;window.__F=module.exports;})();';
@@ -50,11 +50,11 @@ const server = http.createServer((q, r) => {
     '<script>' + TIMING + '\ntry{var t0=performance.now(),W=SpriteBaker.wasm(),startMs=performance.now()-t0,b=spriteBakerWasmBattery(SpriteBaker,window.__F,W,window.__PO),res={startMs:startMs,available:W.available,engine:W.engine,scenes:b.scenes,differing:b.differing,names:b.names,extra:b.extra,stats:W.stats};' +
     (timed ? 'res.timing=timing(SpriteBaker,window.__F,W,' + REPS + ',48);' : '') + 'window.__res=res}catch(e){window.__res={error:String(e&&e.stack||e)}}</script>');
 });
-const webkitFamily = which === 'webkit' || which === 'epiphany';
+const webkitFamily = which === 'webkit';
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok)); const base = 'http://127.0.0.1:' + server.address().port, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let b;
-  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch(which === 'epiphany' ? 'epiphany' : 'webkitgtk'); }
+  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch('webkitgtk'); }
   else { const pup = require('puppeteer-core');
     b = which === 'firefox' ? await pup.launch({ browser: 'firefox', executablePath: process.env.FIREFOX, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 600000 })
       : await pup.launch({ executablePath: process.env.CHROMIUM, headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--disable-gpu'] }); }

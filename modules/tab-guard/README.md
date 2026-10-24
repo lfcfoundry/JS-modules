@@ -1,8 +1,8 @@
 # tab-guard
 
-**Version 1.1.0 · API 1**
+**Version 1.1.1 · API 1**
 
-**Tested in:** Node: 29 checks pass (7 new). Real Back-button runs, 3 each, with and without the option: Firefox 158.0 (reports 158.0b5), ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5. Module browser suite (python3 modules/tab-guard/test/run.py) passes in ungoogled Chromium 155.0.8059.39-1. Not run: that browser suite in Firefox 158.0, WebKitGTK and GNOME Web (no geckodriver on the browsers branch; no driver for the others), a phone
+**Tested in:** Docs only, code unchanged; the phone result is from the owner's Android phone (Chrome 155) running the storage-probe page, 2026-10-24.
 
 Keeps one open copy of a page "in charge", so two tabs (or two copies of a game) do not overwrite each other's saved data. About 8 KB with its comments, no dependencies.
 
@@ -75,6 +75,7 @@ Smaller than the two leader-election libraries whose sizes are known, with the o
 - Needs `navigator.locks` (Chrome 69+, Firefox 96+, Safari 15.4+). Without it nothing is guarded; `start()` returns `{ supported: false, reason: 'no-web-locks' }` and calls nothing.
 - **Web Locks needs a secure context** (https, `localhost`, or a `file:` page). A game played from plain `http://192.168.x.x` on a home network has no `navigator.locks`, so nothing is guarded there: `supported` is `false` and `reason` is `'insecure-context'`. Serve it over https, or add a `storage`-event check yourself.
 - Locks are shared by pages from the same origin. In Chromium and Firefox, pages opened from `file:` in different folders were measured to share locks as well, so two different games opened from disk should use different `name`s.
+- **Phone, measured 2026-10-24:** two copies of a page opened from an Android phone's Files app (`content://` addresses with different paths, Chrome 155) also share one lock space, one `localStorage` and one IndexedDB. A game opened as a file on a phone should therefore use a name nobody else uses, such as `my-game-open`, never a bare word like `game`.
 - It guards the page, not the data. Your `onTwin` must stop saving (and ideally save once first); the module does not touch storage.
 - `onFree` means the lock was free at that moment. If the other copy was only reloading, its new page may claim the lock a moment later, and `takeOver()` would then take it from that page. Ask the player before calling it.
 - Private windows have their own lock space, so a normal window and a private window are not guarded against each other (they do not share storage either).

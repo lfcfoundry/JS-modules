@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.1 · API 1 · 2026-10-24
+- README says GNOME Web is no longer a test browser; the option still works. No code change.
+
 ## 1.4.0 · API 1 · 2026-10-22
 - 1.4.0: new runScript() runs script text without eval, waitForFunction no longer needs eval, and fuzz-kit debug messages are passed on.
 

@@ -48,6 +48,15 @@ var PIXELS = function () {
   await wait(function () { return /Baked canvas:/.test(document.getElementById('note').textContent) && /48 heroes/.test(document.getElementById('note').textContent) && document.querySelectorAll('#crowd canvas').length === 2; });
   a = await page.evaluate(PIXELS);
   t('48 baked heroes are painted', a && a.opaque > a.total * 0.08);
+  await page.goto(url + '?pause#mode=live&n=96&pause=1');
+  await wait(function () { return /paused while out of view/.test(document.getElementById('note').textContent); });
+  await new Promise(function (r) { setTimeout(r, 600); });
+  var ps = await page.evaluate(function () {
+    var c = [].slice.call(document.querySelectorAll('#crowd .cell')), inView = c.filter(function (x) { var r = x.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; });
+    return { cells: c.length, off: c.filter(function (x) { return x.classList.contains('off'); }).length, inViewOff: inView.filter(function (x) { return x.classList.contains('off'); }).length, inView: inView.length,
+      paused: getComputedStyle(c[c.length - 1].querySelector('.bob')).animationPlayState, playing: getComputedStyle(c[0].querySelector('.bob')).animationPlayState };
+  });
+  t('pause=1: cells out of view are paused, cells in view keep playing', ps.cells === 96 && ps.off > 0 && ps.inViewOff === 0 && ps.paused === 'paused' && ps.playing === 'running', JSON.stringify(ps));
   t('no page errors', !errs.length, errs.join('; '));
   console.log(bad ? 'FAILED' : 'all passed');
   await close();

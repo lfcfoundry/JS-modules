@@ -4,11 +4,11 @@
 // Part 1 (equality): scenes through makePalette and createEncoder with WebAssembly (the default) and with { wasm: false }: every GIF must have the same bytes, for photographs, flat game pictures, noise, animations that change only a
 // rectangle, repeated pictures and odd sizes. Part 2 (speed): 30 pictures of 640 x 480 (photo, flat game picture, a small moving block), encoding only, taking turns in rotating order (ms per job, smaller is better), and a first small GIF
 // on a fresh page. Part 3: a page whose policy lacks 'wasm-unsafe-eval' must write the same bytes on the plain code.
-// Run: node tests/gif-writer-wasm-browser.js <chromium|firefox|webkit|epiphany> [out.json]     Env: REPS (default 5), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two), MODULE=/path/to/another/gif-writer.js
+// Run: node tests/gif-writer-wasm-browser.js <chromium|firefox|webkit> [out.json]     Env: REPS (default 5), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two), MODULE=/path/to/another/gif-writer.js
 'use strict';
 const fs = require('fs'), path = require('path'), http = require('http');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which)) { console.log('usage: node tests/gif-writer-wasm-browser.js <chromium|firefox|webkit|epiphany> [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which)) { console.log('usage: node tests/gif-writer-wasm-browser.js <chromium|firefox|webkit> [out.json]'); process.exit(2); }
 const REPS = +(process.env.REPS || 5), SRC = fs.readFileSync(process.env.MODULE || root + 'modules/gif-writer/gif-writer.js', 'utf8');
 const CSP_WASM = "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'", CSP_NOWASM = "default-src 'none'; script-src 'self' 'unsafe-inline'";
 const CODE = `
@@ -66,11 +66,11 @@ const server = http.createServer((q, r) => {
   r.setHeader('content-type', 'text/html');
   r.end('<!doctype html><meta charset=utf-8><meta http-equiv="Content-Security-Policy" content="' + (blocked ? CSP_NOWASM : CSP_WASM) + '"><title>t</title><link rel="icon" href="data:,"><script src="/gif-writer.js"></script><script>' + CODE + '\ntry{window.__res=mode(' + JSON.stringify(m) + ')}catch(e){window.__res={error:String(e&&e.stack||e)}}</script>');
 });
-const webkitFamily = which === 'webkit' || which === 'epiphany', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
+const webkitFamily = which === 'webkit', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok)); const base = 'http://127.0.0.1:' + server.address().port, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let b;
-  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch(which === 'epiphany' ? 'epiphany' : 'webkitgtk'); }
+  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch('webkitgtk'); }
   else { const pup = require('puppeteer-core');
     b = which === 'firefox' ? await pup.launch({ browser: 'firefox', executablePath: process.env.FIREFOX, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 600000 })
       : await pup.launch({ executablePath: process.env.CHROMIUM, headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--disable-gpu'] }); }

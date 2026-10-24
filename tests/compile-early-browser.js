@@ -3,12 +3,12 @@
 // For each module, an old copy (compiles the WebAssembly when it loads or when first used) and a new copy (starts compiling in the background when the file loads) are loaded in a fresh page each, taking turns:
 //   load = how long the main thread is busy loading the script(s) (ms, smaller is better); first use = the first call that needs the wasm, either right after the load ("now") or 250 ms later ("idle", after other start-up work);
 //   total = load + first use. Also checks that the old and new copy answer the same.
-// Run: node tests/compile-early-browser.js <chromium|firefox|webkit|epiphany> spec.json [out.json]     Env: REPS (default 9), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two)
+// Run: node tests/compile-early-browser.js <chromium|firefox|webkit> spec.json [out.json]     Env: REPS (default 9), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two)
 // spec.json: [{ "name": "...", "old": { "file.js": "/path/old/file.js", ... }, "new": { "file.js": "/path/new/file.js", ... }, "use": "JS expression whose value is the answer" }]
 'use strict';
 const fs = require('fs'), path = require('path'), http = require('http');
 const which = process.argv[2], specFile = process.argv[3], outFile = process.argv[4], root = path.resolve(__dirname, '..') + '/';
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which) || !specFile) { console.log('usage: node tests/compile-early-browser.js <chromium|firefox|webkit|epiphany> spec.json [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which) || !specFile) { console.log('usage: node tests/compile-early-browser.js <chromium|firefox|webkit> spec.json [out.json]'); process.exit(2); }
 const SPEC = JSON.parse(fs.readFileSync(specFile, 'utf8')), REPS = +(process.env.REPS || 9), CSP = "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'";
 const server = http.createServer((q, r) => {
   const u = new URL(q.url, 'http://x'); r.setHeader('cache-control', 'no-store');
@@ -21,11 +21,11 @@ const server = http.createServer((q, r) => {
     '<script>var T1=performance.now();function go(){var a=performance.now(),ans;try{ans=String(' + s.use + ')}catch(e){ans="error "+e}var b=performance.now();window.__res={load:T1-T0,first:b-a,ans:ans}}' +
     (mode === 'idle' ? 'setTimeout(go,250)' : 'go()') + '</script>');
 });
-const webkitFamily = which === 'webkit' || which === 'epiphany', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1], r1 = (x) => Math.round(x * 10) / 10;
+const webkitFamily = which === 'webkit', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1], r1 = (x) => Math.round(x * 10) / 10;
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok)); const base = 'http://127.0.0.1:' + server.address().port, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let b;
-  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch(which === 'epiphany' ? 'epiphany' : 'webkitgtk'); }
+  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch('webkitgtk'); }
   else { const pup = require('puppeteer-core');
     b = which === 'firefox' ? await pup.launch({ browser: 'firefox', executablePath: process.env.FIREFOX, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 600000 })
       : await pup.launch({ executablePath: process.env.CHROMIUM, headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--disable-gpu'] }); }

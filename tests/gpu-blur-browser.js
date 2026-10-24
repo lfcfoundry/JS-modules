@@ -6,7 +6,7 @@
 //   (2) every kind of source (canvas, ImageBitmap, ImageData, bytes) and every kind of result (canvas, pixels, a texture in your own WebGL 2 context);
 //   (3) the fallbacks, each on its own page: no WebGL 2 (getContext refuses), a lost card (WEBGL_lose_context), no WebAssembly, a policy without 'wasm-unsafe-eval';
 //   (4) a page task never longer than TASK_MS (default 8) while a 1920 x 1080 blur runs through blur() on the route auto picks (printed always; counted as a failure only with STRICT_TASK=1).
-// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/gpu-blur-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/gpu-blur-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // FIREFOX_GL=1 starts Firefox with a window (run it under xvfb-run when there is no screen) and turns WebGL 2 on, so the card route can run in it too.
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 (skipped) when nothing can run. Exit 1 on a failed check.
 'use strict';
@@ -170,7 +170,7 @@ function pageHtml(v) {
   await new Promise(r => srv.listen(0, '127.0.0.1', r)); const port = srv.address().port;
   let fails = 0;
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch(Object.assign({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 0 }, process.env.FIREFOX_GL ? { headless: false, env: Object.assign({}, process.env, { LIBGL_ALWAYS_SOFTWARE: '1' }), extraPrefsFirefox: { 'webgl.force-enabled': true, 'webgl.enable-webgl2': true } } : {})) : await pp.launch({ executablePath: exe, headless: true, protocolTimeout: 0, args: ['--no-sandbox'] });
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch(Object.assign({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 0 }, process.env.FIREFOX_GL ? { headless: false, env: Object.assign({}, process.env, { LIBGL_ALWAYS_SOFTWARE: '1' }), extraPrefsFirefox: { 'webgl.force-enabled': true, 'webgl.enable-webgl2': true } } : {})) : await pp.launch({ executablePath: exe, headless: true, protocolTimeout: 0, args: ['--no-sandbox'] });
     console.log('Browser: ' + await b.version());
     const page = await b.newPage();
     for (const v of ['main', 'nogl', 'nowasm', 'nopolicy', 'lost']) {

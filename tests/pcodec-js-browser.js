@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // pcodec-js in a real browser. Copyright (c) 2026 LFC Foundry. MIT License.
 // Opens modules/pcodec-js/test.html (all 8 number types, round trips, damaged files, the three files) and modules/pcodec-js/demo.html?auto in the browser and reads each page's window.__result.
-// One browser at a time: CHROMIUM=/path/to/chrome node tests/pcodec-js-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web).
+// One browser at a time: CHROMIUM=/path/to/chrome node tests/pcodec-js-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK.
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 (skipped) when nothing can run.
 'use strict';
 const path = require('path');
@@ -25,7 +25,7 @@ async function open(b, page) {
   let bad = 0;
   for (const [kind, exe] of exes) {
     const t0 = Date.now();
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     const version = await b.version(); console.log('Browser: ' + version);
     const t = await open(b, 'test.html'), okT = !!t && t.fail === 0 && t.pass > 400;

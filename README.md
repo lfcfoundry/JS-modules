@@ -70,7 +70,7 @@ Keep a player's progress safe and let them move it between devices.
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [save-kit](modules/save-kit/README.md) | 1.2.1 | 26.5 | 9.1 | Safe saves in localStorage: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
-| [tab-guard](modules/tab-guard/README.md) | 1.1.0 | 9.6 | 3.4 | Keeps one tab in charge so two tabs never overwrite each other's saves. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/tab-guard/demo.html) |
+| [tab-guard](modules/tab-guard/README.md) | 1.1.1 | 9.6 | 3.4 | Keeps one tab in charge so two tabs never overwrite each other's saves. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/tab-guard/demo.html) |
 
 #### Games - Looks and effects
 
@@ -78,7 +78,7 @@ Curtains, flying elements, lettering and 3D-looking sprites.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 | 49.3 | 20.2 | A written style guide and demo for the soft, glossy cartoon 3D look in CSS and SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/cartoon-3d-kit/demo.html) |
+| [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 | 50.3 | 20.6 | A written style guide and demo for the soft, glossy cartoon 3D look in CSS and SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/cartoon-3d-kit/demo.html) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 | 18.1 | 6.3 | A big element scrolls away and a copy flies to its sticky mini version. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fly-to-mini/demo.html) |
 | [gpu-blur](modules/gpu-blur/README.md) | 1.0.0 | 37.4 | 12.1 | Blurs a picture on the card (WebGL 2), in WebAssembly or plain JavaScript; same picture every way. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gpu-blur/demo.html) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 | 54.6 | 18.0 | Tiny software 3D rasterizer that bakes shaded sprites to canvases. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sprite-baker/demo.html) |
@@ -121,13 +121,13 @@ Test a game by playing it at random, shrinking any failure to a short replay, co
 |---|---|---:|---:|---|---|
 | [canvas-probe](tools/canvas-probe/README.md) *(tool)* | 1.1.1 | 28.8 | 8.8 | Test-build counter for canvas 2D games: calls per frame, leaks, repeated style writes. | — |
 | [firefox-stand-in](tools/firefox-stand-in/README.md) *(tool)* | 1.1.0 | 14.5 | 5.0 | Runs a Playwright-for-Python test in stock Firefox without rewriting it. | — |
-| [fuzz-kit](tools/fuzz-kit/README.md) *(tool)* | 1.3.3 | 81.5 | 26.3 | Seeded random-input fuzzer for games, with failure shrinking and browser runners. | — |
+| [fuzz-kit](tools/fuzz-kit/README.md) *(tool)* | 1.3.4 | 81.5 | 26.3 | Seeded random-input fuzzer for games, with failure shrinking and browser runners. | — |
 | [speed-guard](tools/speed-guard/README.md) *(tool)* | 1.0.0 | 7.4 | 2.9 | Flags speed-history steps over 5% slower than the last release; lists the browser checks to re-run. | — |
 | [speed-lab](tools/speed-lab/README.md) *(tool)* | 1.1.1 | 20.5 | 7.4 | A one-button speed test on the device: switches parts off and says what costs time. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/speed-lab/demo.html) |
 | [storage-probe](tools/storage-probe/README.md) *(tool)* | 1.1.0 | 19.4 | 7.2 | A one-button page that says whether copies of a page share their saved data. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/storage-probe/storage-probe.html) |
 | [test-isolation](tools/test-isolation/README.md) *(tool)* | 1.1.0 | 6.5 | 2.4 | Prefixes every localStorage key on a test page so tests never touch the real save. | — |
-| [test-runner](tools/test-runner/README.md) *(tool)* | 1.2.0 | 41.6 | 14.1 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
-| [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.4.0 | 23.6 | 8.6 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
+| [test-runner](tools/test-runner/README.md) *(tool)* | 1.2.1 | 41.5 | 14.0 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
+| [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.4.1 | 23.6 | 8.6 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
 
 #### App - Efficiency
 

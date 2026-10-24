@@ -49,6 +49,8 @@ button[aria-pressed="true"]{background:var(--fg);color:var(--panel)}
 @keyframes aura{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
 @keyframes blink{0%,90%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}}
 @keyframes wiggle{0%,86%,100%{transform:rotate(0)}88%{transform:rotate(-5deg)}90%{transform:rotate(5deg)}92%{transform:rotate(-3deg)}94%{transform:rotate(2deg)}}
+/* pause=1: a hero scrolled out of view stops its idle animation (guide, section 3.11) */
+.cell.off *{animation-play-state:paused!important}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 #note{font-size:.82rem}
 </style></head><body>
@@ -65,9 +67,9 @@ button[aria-pressed="true"]{background:var(--fg);color:var(--panel)}
 <script>
 // each skin: [hi, mid, lo, glow, pop, label] (the same list as demo.html; test/run.js checks it against the guide table)
 var SK={red:['#e6685b','#c4372c','#86231b','#c4372c','#c4372c','#ffffff'],gold:['#fff3b0','#f2b705','#a86a00','#ffd23f','#a86a00','#2a120d'],violet:['#c8b6ff','#5b3bd1','#1d0f5c','#9a7cf5','#5b3bd1','#ffffff'],ice:['#ffffff','#35c7e0','#0b3a63','#7df9ff','#0b3a63','#2a120d']};
-var opt={mode:'baked',n:12,fps:30,skin:'red'},crowd=document.getElementById('crowd'),note=document.getElementById('note');
+var opt={mode:'baked',n:12,fps:30,skin:'red',pause:0},crowd=document.getElementById('crowd'),note=document.getElementById('note');
 // the URL hash can preset the options, e.g. crowd-demo.html#mode=live&n=48 (the timing script uses this)
-location.hash.slice(1).split('&').forEach(function(kv){var p=kv.split('=');if(p[0]in opt&&p[1])opt[p[0]]=p[0]==='n'||p[0]==='fps'?+p[1]:p[1]});
+location.hash.slice(1).split('&').forEach(function(kv){var p=kv.split('=');if(p[0]in opt&&p[1])opt[p[0]]=p[0]==='n'||p[0]==='fps'||p[0]==='pause'?+p[1]:p[1]});
 var calm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // the hero as plain SVG text with every color written out (a picture loaded from SVG text cannot see the page's CSS variables)
@@ -90,14 +92,16 @@ function heroSvg(v,closed){
 }
 
 var raf=0,io=null,seen=true,stopped=false;
-function clear(){stopped=true;cancelAnimationFrame(raf);if(io)io.disconnect();crowd.innerHTML=''}
+var pio;
+function clear(){stopped=true;cancelAnimationFrame(raf);if(io)io.disconnect();if(pio)pio.disconnect();crowd.innerHTML=''}
 
 function live(){
   var v=SK[opt.skin],g=document.createElement('div');g.className='live';
   for(var i=0;i<opt.n;i++){var c=document.createElement('div'),d=-(i*437%3000)/1000+'s';c.className='cell';c.style.setProperty('--b',d);
     c.innerHTML='<span class="aura" style="background:radial-gradient(circle,'+v[3]+' 0,transparent 66%);animation-delay:'+d+'"></span><span class="ground"></span><span class="bob" style="animation-delay:'+d+'">'+heroSvg(v,false).replace('<svg ','<svg style="animation-delay:'+(3-i*437%3000/1000)+'s" ')+'</span>';
     g.appendChild(c)}
-  crowd.appendChild(g);note.textContent='Live page copies: '+opt.n+' animated element trees.';
+  crowd.appendChild(g);note.textContent='Live page copies: '+opt.n+' animated element trees'+(opt.pause?', paused while out of view.':'.');
+  if(opt.pause&&window.IntersectionObserver){pio=new IntersectionObserver(function(es){es.forEach(function(e){e.target.classList.toggle('off',!e.isIntersecting)})});[].forEach.call(g.children,function(c){pio.observe(c)})}
 }
 
 function load(svg){return new Promise(function(ok,no){var im=new Image();im.onload=function(){ok(im)};im.onerror=no;im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)})}
