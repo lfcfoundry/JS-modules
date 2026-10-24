@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.5.1 (API 2)
+ * Version 2.5.2 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -848,7 +848,8 @@
     var nChunks = Math.ceil(n / chunk), head = [0x4D, 0x43, 1, engine, inp.type, (w ? 1 : 0) | (opts.check ? 2 : 0)];
     putVar(head, n); putVar(head, chunk);
     if (w) { head.push(w); var mb = (w + 7) >> 3, q; for (q = 0; q < mb; q++) head.push(mask ? mask[q] : 0); }
-    var parts = [Uint8Array.from(head)], total = head.length, i;   // finished pieces are kept apart and joined once at the end, so packing never needs a spare buffer as big as the input
+    var ob = packRoom(head.length + 64), total = 0, i;   // finished pieces are written one after the other into one kept buffer (grown when it is full), then copied out once: two arrays are made per call, not two for every chunk
+    ob.set(head, 0); total = head.length;
     var cmax = Math.min(chunk, n), scratch = w ? new Uint8Array(cmax) : null, ht = null, tmp = null, hb = hashBits(cmax, opts.hashBits);
     var useW = engine === 1 && wasmOn(opts) && wasmRoom(cmax);
     if (engine === 1 && !useW) { ht = new Int32Array(1 << hb); tmp = new Uint8Array(lz4Bound(cmax)); }
@@ -872,13 +873,26 @@
       hdr.length = 0;
       if (pl < clen) { hdr.push(1); putVar(hdr, pl); }
       else { hdr.push(0); putVar(hdr, clen); coded = src.subarray(off, off + clen); pl = clen; }
-      parts.push(Uint8Array.from(hdr)); parts.push(coded.slice(0, pl)); total += hdr.length + pl;
+      if (total + hdr.length + pl + 16 > ob.length) ob = packRoom(total + hdr.length + pl + 16, total);
+      for (i = 0; i < hdr.length; i++) ob[total++] = hdr[i];
+      ob.set(coded.subarray(0, pl), total); total += pl;
     }
-    if (opts.check) { var ck = checksum(src); parts.push(new Uint8Array([ck & 255, (ck >>> 8) & 255, (ck >>> 16) & 255, ck >>> 24])); total += 4; }
-    var out = new Uint8Array(total), p = 0;
-    for (i = 0; i < parts.length; i++) { out.set(parts[i], p); p += parts[i].length; }
+    if (opts.check) { var ck = checksum(src); if (total + 4 > ob.length) ob = packRoom(total + 4, total); ob[total++] = ck & 255; ob[total++] = (ck >>> 8) & 255; ob[total++] = (ck >>> 16) & 255; ob[total++] = ck >>> 24; }
+    var out = ob.slice(0, total);
+    if (ob.length > PACK_KEEP) PACKBUF = null;                    // a very big one is not kept
+    else if (ob.length >= 1048576 && typeof idleHook === 'function') idleHook();   // a big kept one is let go after a quiet spell (the object layer's idle timer, 2 s), or at once by freeBuffers()
     return out;
   }
+  // The buffer pack() writes into: kept between calls so a big pack does not make a pile of short-lived arrays (Firefox pauses to collect them), grown by doubling, dropped when over 8 MB.
+  var PACKBUF = null, PACK_KEEP = 8388608;
+  function packRoom(need, used) {
+    var nb;
+    if (PACKBUF && PACKBUF.length >= need) return PACKBUF;
+    nb = new Uint8Array(Math.max(need, PACKBUF ? PACKBUF.length * 2 : 65536));
+    if (PACKBUF && used) nb.set(PACKBUF.subarray(0, used), 0);
+    PACKBUF = nb; return nb;
+  }
+  function dropPackBuffer() { var k = PACKBUF ? PACKBUF.length : 0; PACKBUF = null; return k; }
 
   function unpack(bytes, opts) {
     opts = opts || {};
@@ -1078,7 +1092,7 @@
     deflate: deflate, inflate: inflate, zlib: zlib, unzlib: unzlib, gzip: gzip, gunzip: gunzip,
     shuffle: shuffle, unshuffle: unshuffle, crc32: crc32, adler32: adler32, checksum: checksum,
     ready: wasmInit, accelerated: function () { return W !== null; },
-    trimMemory: wasmTrim, onGrow: function (f) { idleHook = f; },
+    trimMemory: function () { var r = wasmTrim(); dropPackBuffer(); return r; }, dropPackBuffer: dropPackBuffer, onGrow: function (f) { idleHook = f; },
     DEFAULT_MAX: DEFAULT_MAX, DEFAULT_CHUNK: DEFAULT_CHUNK
   };
   })();
@@ -1858,7 +1872,7 @@
     }
     if (POOL_BYTES > 0) idleSoon();
   }
-  function freeBuffers() { POOL = []; POOL_BYTES = 0; }
+  function freeBuffers() { POOL = []; POOL_BYTES = 0; MC.dropPackBuffer(); }   // also lets go of the output buffer pack() keeps between calls
   // After the last big pack has been quiet for IDLE_MS, the buffer pool is emptied and both WebAssembly helpers give their memory back (a page that packs again simply makes them again, about 1 to 4 ms).
   var IDLE_MS = 2000, idleTimer = null;
   function idleSoon() {
