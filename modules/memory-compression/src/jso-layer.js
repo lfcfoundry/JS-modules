@@ -2127,8 +2127,8 @@
     if (t - SLICE_T + piece >= (ms || SLICE_MS)) return nextTask();
     PIECE_T = t; return RESOLVED;
   }
-  function stepFor(step, dt, left) {                                      // rows for the next chunk: aims at the time left in the slice (dt is 0 or 1 whole milliseconds in some browsers)
-    return Math.max(256, Math.min(65536, Math.floor(step * (dt > 0.05 ? Math.max(0.25, left) / dt : 2))));
+  function stepFor(step, dt, left, min) {                                      // rows for the next chunk: aims at the time left in the slice (dt is 0 or 1 whole milliseconds in some browsers)
+    return Math.max(min || 256, Math.min(65536, Math.floor(step * (dt > 0.05 ? Math.max(0.25, left) / dt : 2))));
   }
   function fusedSlicer(keys, types) {                                    // fills columns from row `from` up to `to`: 0, -1 (a row does not fit) or -(2 + j) (key j held a non-number), like fusedExtractor
     var sig = 'g' + keys.join('\u0001') + '\u0002' + types.join(''), f = GEN_CACHE[sig], j, src, nk = keys.length;
@@ -2186,10 +2186,10 @@
     }
     return attempt();
   }
-  function slicedLoop(n, work, ms) {                                          // work(from, to) -> true to go on, anything else stops with that value; chunks sized to the time left in the slice, a yield only when the slice is used up
+  function slicedLoop(n, work, ms, step0, stepMin) {                                          // work(from, to) -> true to go on, anything else stops with that value; chunks sized to the time left in the slice, a yield only when the slice is used up
     ms = ms || SLICE_MS;
     return new Promise(function (resolve, reject) {
-      var i = 0, step = 512;
+      var i = 0, step = step0 || 512;
       function go() {
         try {
           var t0, t1, to, r, dt;
@@ -2198,7 +2198,7 @@
             if (r !== true) { resolve(r); return; }
             i = to; t1 = PIECE_T = performance.now(); dt = t1 - t0;
             if (i >= n) { resolve(true); return; }
-            step = stepFor(step, dt, ms - (t1 - SLICE_T));
+            step = stepFor(step, dt, ms - (t1 - SLICE_T), stepMin);
             if (t1 - SLICE_T >= ms) { nextTask().then(go); return; }
           }
         } catch (err) { reject(err); }
@@ -2483,10 +2483,10 @@
     try {
       ct = c.u8();
       if (ct === CT_RECORDS) { if (c.varint() !== 1 || d.ver < 2) ct = -1; else c.p = p1 + 1; }
-      if (ct !== CT_RECORDS && ct !== CT_TUPLE && ct !== CT_ARRAYS) { c.p = p1; return Promise.resolve(d.column(n)); }
+      if (ct !== CT_RECORDS && ct !== CT_TUPLE && ct !== CT_ARRAYS && ct !== CT_ADAPT) { c.p = p1; return Promise.resolve(d.column(n)); }
       if (++d.depth > MAX_DEPTH) jfail('nested too deeply');
     } catch (err) { return Promise.reject(err); }
-    p = ct === CT_RECORDS ? d.recordsAsync(n) : ct === CT_TUPLE ? d.tupleAsync(n) : d.arraysAsync(n);
+    p = ct === CT_RECORDS ? d.recordsAsync(n) : ct === CT_TUPLE ? d.tupleAsync(n) : ct === CT_ADAPT ? d.adaptAsync(n) : d.arraysAsync(n);
     return p.then(function (col) { d.depth--; return col; });
   };
   Dec.prototype.recordsAsync = function (n) {                              // CT_RECORDS with one shape (format 2): the byte for the kind is read, the shape count is not
@@ -2518,6 +2518,28 @@
       for (k = 0; k < nk; k++) { args.push(cols[k].a); args.push(cols[k].d); }
       return slicedLoop(n, function (from, to) { args[1] = from; args[2] = to; f.apply(null, args); if (tell) tell(out, from, to); return true; }, UNPACK_SLICE_MS);
     }).then(function () { return new Col(n, 0, out, null); });
+  };
+  Dec.prototype.adaptAsync = function (n) {                                // CT_ADAPT, a number column from the picker: its blocks of 8,192 numbers are opened a few at a time
+    var d = this, c = d.c, e, k, m, a, st, bad = 'an adaptive number column is damaged';
+    d.spend(n);
+    e = c.u8(); k = c.u8(); m = c.varint();
+    if (e > 10 || k > 1) jfail('bad adaptive column');
+    a = d.bl.take(m);
+    if (!PK.available()) jfail('this file stores a number column with the number picker, which needs a little-endian machine');
+    try {
+      if (k) a = MC.unpack(a, { maxSize: m * 64 + n * 16 + 4096, wasm: d.wasm });
+      st = PK.unpackStart(a, n, d.wasm);
+    } catch (err) { jfail(bad); }
+    return slicedLoop(Math.ceil(n / st.c), function (from, to) {
+      try { PK.unpackStep(st, to - from); } catch (err) { jfail(bad); }
+      return true;
+    }, UNPACK_SLICE_MS, 2, 1).then(function () {
+      var t = st.out, p, q;
+      if (!(t instanceof Float64Array) || t.length !== n) jfail(bad);
+      if (e === 0) return new Col(n, 0, t, null);
+      p = P10[e]; q = new Float64Array(n);
+      return slicedLoop(n, function (from, to) { var i; for (i = from; i < to; i++) q[i] = t[i] / p; return true; }, UNPACK_SLICE_MS, 8192).then(function () { return new Col(n, 0, q, null); });
+    });
   };
   Dec.prototype.tupleAsync = function (n) {
     var d = this, c = d.c, k = c.varint(), cols = [], j = 0, out;
