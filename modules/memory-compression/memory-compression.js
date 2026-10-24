@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.5.1 (API 2)
+ * Version 2.5.2 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1330,13 +1330,15 @@
         w.zi(a[0]); w.vi(g); w.bytes(encInts(d, depth - 1, opt)); return w.out();
       }
       if (sch === IS.RLE) {
+        for (i = 1, j = 1; i < n; i++) if (a[i] !== a[i - 1] && ++j * 2 > n) return null;   // count the runs first: too many runs and this way cannot apply
+        if (n && j * 2 > n) return null;
         vals = []; runs = []; i = 0;
         while (i < n) { j = i + 1; while (j < n && a[j] === a[i]) j++; vals.push(a[i]); runs.push(j - i - 1); i = j; if (vals.length * 2 > n) return null; }
         w.vi(vals.length); w.bytes(encInts(Float64Array.from(vals), depth - 1, opt)); w.bytes(encInts(Float64Array.from(runs), depth - 1, opt)); return w.out();
       }
       if (sch === IS.DICT) {
         lim = Math.min(n / 2, 65536);
-        if (mx - mn < 1048576) {                                                      // values in a narrow range: a table indexed by value is much faster than a Map
+        if (mx - mn < Math.max(65536, n * 16)) {                                                      // values in a narrow range: a table indexed by value is much faster than a Map
           seen = new Int32Array(mx - mn + 1); m = 0;
           for (i = 0; i < n; i++) { x = a[i] - mn; if (!seen[x]) { seen[x] = 1; if (++m > lim) return null; } }
           keys = new Float64Array(m); q = 0; for (i = 0; i < seen.length; i++) if (seen[i]) { keys[q] = i + mn; seen[i] = ++q; }
@@ -1351,16 +1353,18 @@
       }
       if (sch === IS.PFOR) {
         if (n < 16) return null;
-        res = new Float64Array(n); for (i = 0; i < n; i++) res[i] = a[i] - mn;
         hist = new Uint32Array(34);                                                // how many values need 0, 1, 2 ... 32 bits (33: more than 32)
-        for (i = 0; i < n; i++) { x = res[i]; hist[x > 4294967295 ? 33 : x <= 0 ? 0 : 32 - Math.clz32(x)]++; }
+        for (i = 0; i < n; i++) { x = a[i] - mn; hist[x > 4294967295 ? 33 : x <= 0 ? 0 : 32 - Math.clz32(x)]++; }
         q = Math.floor(n * 0.92) + 1; x = 0; for (bw = 0; bw < 33; bw++) { x += hist[bw]; if (x >= q) break; }   // the narrowest width that holds at least 92% of the values
         if (bound && Math.ceil(n * bw / 8) >= bound) return null;                  // the packed low parts alone are not smaller than the best so far: it cannot win
-        lim = bw >= 32 ? 4294967295 : Math.pow(2, bw) - 1; pos = []; hi = []; low = new Uint32Array(n);
+        if (bw >= 32) return null;
+        x = 0; for (i = bw + 1; i < 34; i++) x += hist[i];
+        if (!x) return null;                                                       // every value fits the narrow width: no outliers, so this way is plain offset packing
+        lim = Math.pow(2, bw) - 1; pos = []; hi = []; low = new Uint32Array(n);
         for (i = 0; i < n; i++) {
-          if (res[i] > lim) { pos.push(i); hi.push(Math.floor(res[i] / (lim + 1))); low[i] = res[i] % (lim + 1); } else low[i] = res[i];
+          x = a[i] - mn;
+          if (x > lim) { pos.push(i); hi.push(Math.floor(x / (lim + 1))); low[i] = x % (lim + 1); } else low[i] = x;
         }
-        if (!pos.length || bw >= 32) return null;
         w.zi(mn); w.u8(bw); w.vi(pos.length); bpWrite(w, low, n, bw); w.bytes(encInts(gapsOf(pos), depth - 1, opt)); w.bytes(encInts(Float64Array.from(hi), depth - 1, opt)); return w.out();
       }
       return null;
