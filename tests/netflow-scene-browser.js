@@ -15,7 +15,7 @@ T.main(async (b, which, outFile) => {
     const out = []; const ok = (c, m) => { if (!c) throw new Error(m); };
     try {
       const E = NetflowEngine, SC = NetflowScene, L = E.build(bigNetwork(1500, 4, 7), { view: 'network', arrange: 'circle', colorBy: 'group' }), base = { colorBy: 'group', theme: 'light' };
-      const flat = SC.make(L, base), objs = SC.make(L, Object.assign({ linkStyle: () => null }, base)), n = flat.curveCount();
+      const flat = SC.make(L, base), objs = SC.make(L, Object.assign({ flat: false }, base)), n = flat.curveCount();
       ok(n > 2000 && n === objs.curveCount() && flat.curvesPacked() && !objs.curvesPacked(), 'flat build is packed');
       let seen = 0; flat.eachCurveView(() => { seen++; }); ok(seen === n && flat.curvesPacked(), 'eachCurveView keeps the list packed');
       const snap = (S) => S.curves.map((c) => JSON.stringify([c.P, c.w, c.color, c.arrow, c.line, c.edge, c.from, c.to, c.dash || 0], (k, v) => typeof v === 'number' ? Math.fround(v) : v));
@@ -23,6 +23,10 @@ T.main(async (b, which, outFile) => {
       let calls = 0; const o = () => ({ colorBy: 'group', theme: 'light', linkStyle: () => { calls++; return null; } }), plan = {};
       SC.make(L, o()); const base0 = calls; calls = 0; SC.make(L, Object.assign(o(), { lookPlan: plan })); const first = calls; calls = 0; SC.make(L, Object.assign(o(), { lookPlan: plan }));
       ok(base0 > 500 && first === base0 && calls === 0, 'look plan: ' + base0 + '/' + first + '/' + calls);
+      const rules = (e, ei) => ei % 11 === 0 ? { color: '#d33', w: 3, dash: 'dot' } : ei % 7 === 0 ? { arrow: true } : ei % 5 === 0 ? { bend: 0.2, opacity: 0.4 } : ei % 13 === 0 ? { hide: true } : null;
+      const snap2 = (S) => S.curves.map((c) => JSON.stringify([c.P, c.w, c.color, c.arrow, c.line, c.tip, c.edge, c.from, c.to, c.dash || 0, c.a], (k, v) => typeof v === 'number' ? Math.fround(v) : v));
+      const fr = SC.make(L, Object.assign({ linkStyle: rules, curve: 0.1 }, base)), orr = SC.make(L, Object.assign({ linkStyle: rules, curve: 0.1, flat: false }, base)); ok(fr.curvesPacked() && !orr.curvesPacked(), 'rules build is packed');
+      const a2 = snap2(fr), b2 = snap2(orr); ok(a2.length === b2.length, 'rules count'); for (let i = 0; i < a2.length; i++) ok(a2[i] === b2[i], 'rules link ' + i + ' differs');
       out.push('flat ' + n + ' links equal; look plan ' + base0 + ' looks then 0');
     } catch (e) { out.push('FAIL ' + e.message); }
     return out;
