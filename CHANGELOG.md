@@ -33,6 +33,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.5.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -62,6 +63,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-24 · **sprite-baker** 1.7.1 · API 1: With the WebAssembly add-on loaded, outlines are drawn in WebAssembly: about 1.6 to 1.9 times as fast per call (0.3 to 2 ms down to 0.15 to 1.1 ms), with the very same pixels. Without it nothing changes.
 - 2026-10-24 · **spotlight-tour** 1.1.1 · API 1: A closed tour no longer reacts to scrolling or resizing, so a page with the tour closed does less work on every scroll (20,000 scroll events: 88 to 12 ms in Chromium).
 - 2026-10-24 · **single-file-tools** 1.2.0 · API 1: Fonts with double-quoted family names are now shrunk too, and the packer can read your page's background color with --bg auto.
+- 2026-10-24 · **netflow-scene** 1.0.0 · API 1: New module: turns a laid-out Netflow Map into plain drawing lists for Canvas, WebGL or SVG, with fast rebuilds of big maps after a move.
 - 2026-10-24 · **netflow-layers** 1.5.0 · API 1: The row-order search and row placement now run in WebAssembly (8 KB embedded, 'wasm-unsafe-eval' only), 18-48% faster at 100 to 5,000 pages in three browsers; same pictures to the last digit; plain JavaScript stays as the fallback.
 - 2026-10-24 · **gif-writer** 1.4.0 · API 1: Faster palette search on big inputs (3x fewer pixels looked at above 100,000 pixels, from 143-152 ms to about 55 ms for 8 pictures of 160x160). A GIF made from such pictures is not byte-identical to one from 1.3.0.
 - 2026-10-24 · **fuzz-kit** 1.3.4 · API 1: README notes that GNOME Web is no longer a test browser; naming it still works. No code change.
