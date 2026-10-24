@@ -2,7 +2,7 @@
 /* field-report checks that need no browser. Plain Node (18+), no packages. Copyright (c) 2026 LFC Foundry. MIT License.
  * Run:  node modules/field-report/test/run.js          (exit code 1 on any failure)
  * A small fake window and document stand in for the browser: event listeners, a frame loop we turn by hand, elements that remember their
- * style and children. The real-browser checks are in tests/field-report-browser.js (Chromium, Firefox, WebKitGTK, GNOME Web). */
+ * style and children. The real-browser checks are in tests/field-report-browser.js (Chromium, Firefox, WebKitGTK). */
 'use strict';
 const fs = require('fs'), path = require('path');
 const FR = require('../field-report.js');

@@ -5,7 +5,7 @@
 // ONLY=netflow-sankey runs only the checks whose name contains that text. Exit code 2 (skipped) when puppeteer-core or both browser paths are missing.
 const pp = (() => { try { return require('puppeteer-core'); } catch (e) { return null; } })();
 const root = require('path').resolve(__dirname, '..') + '/';
-const wd = require('./webkit-shim.js');   // WebKitGTK / GNOME Web through tools/webkit-driver
+const wd = require('./webkit-shim.js');   // WebKitGTK through tools/webkit-driver
 const exes = [['chromium', process.env.CHROMIUM], ['firefox', process.env.FIREFOX], ['webkit', process.env.WEBKIT]].filter(x => x[1] && (pp || x[0] === 'webkit'));
 if (!exes.length) { console.log('skipped: needs puppeteer-core and CHROMIUM and/or FIREFOX set to a browser path'); process.exit(2); }
 (async()=>{
