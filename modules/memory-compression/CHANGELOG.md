@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.2 · API 2 · 2026-10-23
+- Packing lists is a little faster in balanced mode for many list shapes (up to about 12% on event and map-feature lists); packed bytes are the same.
+
 ## 2.6.1 · API 2 · 2026-10-23
 - pack() writes into one output buffer it keeps instead of a new array for every 1 MiB piece, so a big pack leaves less garbage; freeBuffers() and a 2 s idle spell release the buffer. Same bytes out.
 
