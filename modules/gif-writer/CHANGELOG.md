@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-10-24
+- Faster palette search on big inputs (3x fewer pixels looked at above 100,000 pixels, from 143-152 ms to about 55 ms for 8 pictures of 160x160). A GIF made from such pictures is not byte-identical to one from 1.3.0.
+
 ## 1.3.0 · API 1 · 2026-10-22
 - The WebAssembly program now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 
