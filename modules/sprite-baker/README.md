@@ -1,8 +1,8 @@
 # sprite-baker
 
-**Version 1.7.0 · API 1**
+**Version 1.7.1 · API 1**
 
-**Tested in:** Node 22 checks; compile-early timing in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
+**Tested in:** Node 22 checks (140), ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time
 
 The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
@@ -80,7 +80,7 @@ var sheet = SB.toSheet(SB.bakeRoll(scene, 12, 96), { padding: 2, maxWidth: 1024 
 
 ## WebAssembly fill (since 1.6.0, optional add-on)
 
-**What it is and how it works.** `sprite-baker-wasm.js` adds one function, `SpriteBaker.wasm()`, that returns a `Rast` and a `drawMesh` used exactly like `SB.Rast` and `SB.drawMesh`, but the triangle filler and the shader run in a small WebAssembly program (7,864 bytes, built from `wasm/tri.c`). The depth and color buffers live inside the wasm memory, so a fill copies nothing; `drawMesh` writes the turned vertices straight there and calls the filler once per mesh. It does the same arithmetic as the JavaScript, operation for operation (no fused multiply-add, no fast-math), so every byte of color and depth is the same: 833 scenes are compared byte for byte in each of the four test browsers, 0 differ. Two things the wasm computes itself (the cosine of the ridge lines and the 2.2 power of the rim light) are checked against the browser's own `Math.cos` and `Math.pow`, and any result within 1e-8 of a rounding edge is redone with the browser's function, the trick the JavaScript already uses for the highlight; do not widen that margin without re-proving equality (`test/wasm-battery.js`).
+**What it is and how it works.** `sprite-baker-wasm.js` adds one function, `SpriteBaker.wasm()`, that returns a `Rast` and a `drawMesh` used exactly like `SB.Rast` and `SB.drawMesh`, but the triangle filler and the shader run in a small WebAssembly program (8,569 bytes, built from `wasm/tri.c`). The depth and color buffers live inside the wasm memory, so a fill copies nothing; `drawMesh` writes the turned vertices straight there and calls the filler once per mesh. It does the same arithmetic as the JavaScript, operation for operation (no fused multiply-add, no fast-math), so every byte of color and depth is the same: 1,155 scenes (outline included) are compared byte for byte in each of the four test browsers, 0 differ. Two things the wasm computes itself (the cosine of the ridge lines and the 2.2 power of the rim light) are checked against the browser's own `Math.cos` and `Math.pow`, and any result within 1e-8 of a rounding edge is redone with the browser's function, the trick the JavaScript already uses for the highlight; do not widen that margin without re-proving equality (`test/wasm-battery.js`).
 
 **Why it exists.** Baking is the one heavy loop in a game that uses this module (Fancy Banana's pictures: about half of the picture-building time). The owner's rule is that WebAssembly is the standard for heavy loops and plain JavaScript the fallback. The gain here is modest and only shortens the baking time; the fill never runs per frame, so it cannot raise the FPS.
 
@@ -97,6 +97,8 @@ var sheet = SB.toSheet(SB.bakeRoll(scene, 12, 96), { padding: 2, maxWidth: 1024 
 ```
 
 In Node: `var SB = require('./sprite-baker-wasm.js')` loads `sprite-baker.js` itself and returns `SpriteBaker`.
+
+**Outline (since 1.7.1).** Loading the add-on also makes `SpriteBaker.outline` (and so `bakeSprite`, `bakeRoll` and `baker` with an `outline` option) run in the same wasm program, with no change in how you call it. The 24 offsets are made by the JavaScript, the wasm does the search and the blend with the very same arithmetic (rounding half to even like a `Uint8ClampedArray`), and the result is a fresh `Uint8ClampedArray`, byte for byte what the plain function gives (tested at 64, 96 and 160 pixels, 240 random pictures, and the cases below). A picture over 393,216 pixels, a radius beyond 100,000, a color that is not three numbers, a malformed picture, a wasm file without the `outline` export, or no wasm at all go to the plain function (which also throws its own errors). Measured per call, outline alone is about 1.6 to 1.9 times as fast in the three test browsers (numbers in the changelog); a whole 12-frame roll gains only the outline's share. `downsample` stays in JavaScript: with the picture copied in, it loses in WebKitGTK.
 
 **It always works.** When the browser has no WebAssembly, the page policy lacks `'wasm-unsafe-eval'`, or the module will not start, `E.available` is `false`, `E.engine` is `'js'`, and `E.Rast` / `E.drawMesh` are SpriteBaker's own, so the code you wrote against `E` runs unchanged. A single call can also fall back by itself and draw with the plain code (same pixels): a surface over 1,048,576 pixels, a picture over 229,376 pixels (about 478 x 478), a grid over 393,216 numbers, or a material that uses a part the loaded wasm file does not have. `E.stats` counts the calls the wasm filled and the ones it handed over.
 
@@ -129,7 +131,7 @@ In Node: `var SB = require('./sprite-baker-wasm.js')` loads `sprite-baker.js` it
 
 Plain reading: Chromium and Firefox bake 1.1 to 1.4 times as fast. The two WebKit browsers gain only on pictures with a texture (1.15 to 1.25 times) and are about 14% slower on the ridge-line coin, flat on the rod and glove. If most of your players use Safari-type browsers and your pictures have no texture, leave the add-on out. Starting the add-on (decode, compile, instantiate) takes 1 to 11 ms once. Not measured: a phone, Safari itself.
 
-**Size.** `sprite-baker-wasm.js` is 21,643 bytes (9,750 gzipped), of which the wasm file (7,864 bytes) takes 10,488 as text. A lean wasm without the picture and ridge code is 5,561 bytes: `sh modules/sprite-baker/wasm/build.sh lean tri-lean.wasm` and `python3 modules/sprite-baker/wasm/embed.py --lean tri-lean.wasm -o sprite-baker-wasm-lean.js`; a material that needs a cut part is handed to the plain code, so the pixels stay the same.
+**Size.** `sprite-baker-wasm.js` is 26,980 bytes (11,582 gzipped), of which the wasm file (8,569 bytes) takes 11,428 as text. A lean wasm without the picture and ridge code is 5,561 bytes: `sh modules/sprite-baker/wasm/build.sh lean tri-lean.wasm` and `python3 modules/sprite-baker/wasm/embed.py --lean tri-lean.wasm -o sprite-baker-wasm-lean.js`; a material that needs a cut part is handed to the plain code, so the pixels stay the same.
 
 **Rebuild.** `sh modules/sprite-baker/wasm/build.sh` needs clang 18 or newer with the wasm32 target (no other tool); `build.sh --check` says whether `wasm/tri.wasm` is byte for byte what `tri.c` builds, and `python3 modules/sprite-baker/wasm/embed.py` puts the file into `sprite-baker-wasm.js` (`--check` compares). The `fmod` inside `tri.c` is from musl libc (MIT license), used so `%` on decimals matches JavaScript bit for bit.
 
@@ -189,7 +191,7 @@ Baking a 24-frame, 192 px roll with an outline takes 240 ms in ungoogled Chromiu
 - Keep the sampling and depth rules (pixel centers `x + 0.5`, inclusive edges with the `-1e-5` tolerance, strict `z > stored z`, `-1e9` clear value) and the shading constants in `tri` unless you are changing the look on purpose; then update the pinned hash in `test/run.js` after looking at the picture.
 - `rotationMatrix` negates the angle and snaps tiny sines and cosines to zero, so a full turn is exact. `bakeRoll` renders `i / frames * turn` for `i < frames` with one scale and one reused `Rast`. All baking paths share one internal `setup()` and `render(phi)`; the test "next() x 8 equals bakeRoll" guards it.
 - Loaders and probes do not throw (`null` or an inert `baker`); only programmer errors do. Only `toCanvas` may touch `document`; `alphaMask` and `toSheet` take pictures, never canvases.
-- The WebAssembly fill must stay byte-identical to `tri`/`triUV`: change the JavaScript and `wasm/tri.c` together, rebuild with `wasm/build.sh`, re-embed with `wasm/embed.py`, and run `test/run.js` and `tests/sprite-baker-wasm-browser.js`; never widen the 1e-8 rounding-edge guard without re-proving equality.
+- The WebAssembly fill and outline must stay byte-identical to `tri`/`triUV` and `outline`: change the JavaScript and `wasm/tri.c` together, rebuild with `wasm/build.sh`, re-embed with `wasm/embed.py`, and run `test/run.js` and `tests/sprite-baker-wasm-browser.js`; never widen the 1e-8 rounding-edge guard without re-proving equality.
 - Keep the file dual-loading (last line), the license header (first line), no dependencies, no game-specific art, names or palettes. Do not rename exported names.
 
 ## Prior art and credits
