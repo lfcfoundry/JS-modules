@@ -103,7 +103,7 @@ Show a new player around, and keep small children away from the buttons that mat
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 | 14.8 | 5.1 | A hold-and-drag task a young child will not finish, in front of grown-up buttons. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/grown-ups-door/demo.html) |
-| [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.0 | 12.3 | 4.7 | A first-visit tour: dimmed page, bright window, Skip and Back, remembers who saw it. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/spotlight-tour/demo.html) |
+| [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.1 | 12.8 | 4.9 | A first-visit tour: dimmed page, bright window, Skip and Back, remembers who saw it. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/spotlight-tour/demo.html) |
 
 #### Games - Math
 

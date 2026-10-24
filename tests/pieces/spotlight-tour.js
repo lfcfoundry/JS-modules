@@ -56,6 +56,17 @@ check('spotlight-tour', async (b) => {
   ok(inb.scrolled && inb.inBox, 'a part inside a scrolling box was not brought into view: ' + JSON.stringify(inb));
   ok(await covers('#sbt'), 'the window is not on the part inside the scrolling box');
   await p.evaluate(() => { window.t2.destroy(); document.getElementById('sbox').remove(); }); done.push('window stays on the part while scrolling and when the page reflows; a part in a scrolling box is scrolled into view; card above a max z-index element; page behind not focusable');
+  // 8. 1.1.1: the scroll and resize listeners exist only while the tour is open (a closed tour costs nothing on every scroll)
+  const lis = await p.evaluate(async () => {
+    const seen = () => new Promise((r) => { window.dispatchEvent(new Event('scroll')); r(); }), moving = (t) => t.element.classList.contains('moving');
+    const t = SpotlightTour.create({ steps: [{ title: 'a', text: 'b' }], storage: { getItem() { return null; }, setItem() {} }, key: 'k8' }), out = {};
+    await seen(); out.closedIdle = !moving(t);
+    t.start(); await new Promise((r) => setTimeout(r, 200)); await seen(); out.openMoves = moving(t); t.close(); await new Promise((r) => setTimeout(r, 250));
+    await seen(); out.afterClose = !moving(t);
+    t.start(); await new Promise((r) => setTimeout(r, 250)); await seen(); out.reopenMoves = moving(t); t.destroy(); out.destroyed = true;
+    return out;
+  });
+  ok(lis.closedIdle && lis.openMoves && lis.afterClose && lis.reopenMoves, 'scroll listener not tied to the open tour: ' + JSON.stringify(lis)); done.push('scroll and resize listeners exist only while the tour is open (closed, closed again, reopened)');
   // 6. a storage that throws does not break it
   const safe = await p.evaluate(() => { const t = SpotlightTour.create({ steps: [{ title: 'a', text: 'b' }], storage: { getItem() { throw new Error('x'); }, setItem() { throw new Error('x'); } }, key: 'k' }); const r = t.maybeStart(); t.close(); t.destroy(); return r; });
   ok(safe === true, 'blocked storage broke the tour');
