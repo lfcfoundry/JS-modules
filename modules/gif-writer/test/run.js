@@ -100,6 +100,21 @@ function goldenHashes(G) {
   return res;
 }
 {
+  /* 1.4.0: big inputs are sampled (about every 3rd pixel); the two paths give the same palette, never lose a color of a flat picture, and stay close in picture error to counting every pixel */
+  let sd = 5; const rn = () => { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; return sd / 4294967296; };
+  const mkp = (W, H, fn) => { const a = new Uint8ClampedArray(W * H * 4); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = fn(x, y), i = (y * W + x) * 4; a[i] = c[0]; a[i + 1] = c[1]; a[i + 2] = c[2]; a[i + 3] = 255; } return a; };
+  const photo = (f) => mkp(192, 144, (x, y) => [Math.sin(x / 37 + f / 5) * 127 + 128, Math.cos(y / 29 - f / 7) * 127 + 128, ((x ^ y) & 255) * 0.5 + rn() * 6]);
+  const pics = []; for (let f = 0; f < 8; f++) pics.push(photo(f));
+  const pj = G.makePalette(pics, 255, { wasm: false }), pw = G.makePalette(pics, 255);
+  ok(JSON.stringify(pj) === JSON.stringify(pw), '1.4.0 sampled palette: WebAssembly and plain JavaScript give the same colors (192x144 x 8 pictures, width divisible by 3)');
+  const err = (ps, pal) => { let t = 0, n = 0; for (const p of ps) for (let i = 0; i < p.length; i += 4) { let d = 1e9; for (const c of pal) { const dd = 2 * (c[0] - p[i]) ** 2 + 4 * (c[1] - p[i + 1]) ** 2 + 3 * (c[2] - p[i + 2]) ** 2; if (dd < d) d = dd; } t += d; n++; } return Math.sqrt(t / n / 9); };
+  const eBig = err(pics.slice(0, 2), pj);
+  ok(eBig < 8.5, '1.4.0 sampled palette: picture error stays near the 7.4 of counting every pixel (' + eBig.toFixed(2) + ')');
+  const rare = []; for (let f = 0; f < 8; f++) rare.push(mkp(160, 160, (x, y) => (x === 37 + f && y === 91) ? [1, 254, 2] : [(x >> 3) * 9 % 256, (y >> 3) * 11 % 256, 80]));
+  const pr = G.makePalette(rare, 255), has = pr.some(c => c[0] === 1 && c[1] === 254 && c[2] === 2);
+  ok(has && JSON.stringify(pr) === JSON.stringify(G.makePalette(rare, 255, { wasm: false })), '1.4.0 flat picture: a color of one single pixel is kept (few colors are counted every pixel), both paths');
+}
+{
   const got = goldenHashes(G), want = ["d13b7242aa86702a","cb99c400a18f2a30","710a5ab80d3fe07a","dbc250c79ac33851","ba2308747618c43e","420f628132808bec","67e5b86bb17ca357","70bb22cc137c8805","ad94477792e96c58","f3ec721b27d82bf6","2fae469763b3a7cb","e6dbfddbca69f469","d91c32be86da9da6"], bad = got.filter((h, i) => h !== want[i]).length;
   ok(bad === 0, 'palettes and GIF bytes of 7 fixed scenes match what version 1.0.0 wrote (' + bad + ' of ' + want.length + ' differ)');
 }

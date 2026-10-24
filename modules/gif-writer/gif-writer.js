@@ -4,7 +4,7 @@
  * are left transparent, and every picture is compressed the moment it is added.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.4.0 (API 1)
  *
  *   var pal = GifWriter.makePalette([rgba1, rgba2], 255);          // rgba: Uint8ClampedArray from ctx.getImageData(...).data
  *   var enc = GifWriter.createEncoder(width, height, pal, { loop: true });
@@ -60,6 +60,13 @@
     } catch (e) { earlyP = Promise.resolve(false); }
     return earlyP;
   }
+  /** How many pixels apart the palette histogram looks, for one picture of n pixels. Pictures under 100,000 pixels in all: every pixel (1). Bigger: an odd step (3 up to 1,000,000 pixels in all, 5 above) moved up to the next odd number that has no common factor with n, so it cannot divide the picture width or height (a width always divides n) and the sampled pixels do not all fall in the same columns. Both palette paths use this one rule, so they count the same pixels. */
+  var FEW_COLORS = 4096;   // fewer distinct colors than this in the sample: count every pixel after all
+  function sampleStride(total, n) {
+    if (total <= 100000) return 1;
+    var s = total > 1000000 ? 5 : 3, a, b, t;
+    for (;;) { a = n; b = s; while (b) { t = a % b; a = b; b = t; } if (a === 1) return s; s += 2; }
+  }
   /** The palette search in WebAssembly (color histogram, median cut, k-means): the same colors as makePaletteJs, to the last digit. Null when it cannot run (the JavaScript code then does). */
   function makePaletteWasm(pictures, maxColors) {
     var mod = wasmModule();
@@ -69,22 +76,31 @@
       var total = 0, maxn = 0, p, n, pic, ex, attempt, uniq = 0, cap, HB = 16, mask = 0xffffff, i;
       for (p = 0; p < pictures.length; p++) { n = pictures[p].length >> 2; total += n; if (n > maxn) maxn = n; }
       if (!total) return null;
-      var stride = total > 1000000 ? 2 : 1, al = function (v) { return (v + 15) & ~15; };
+      var al = function (v) { return (v + 15) & ~15; };
       ex = new WebAssembly.Instance(mod, {}).exports;
       var CH = 16384, stage = al(ex.__heap_base.value), tbl = al(stage + Math.min(maxn, CH) * 4), ensure = function (end) { var have = ex.memory.buffer.byteLength; if (end > have) ex.memory.grow(Math.ceil((end - have) / 65536)); };
-      for (attempt = 0; attempt < 6; attempt++) {
-        ensure(tbl + (8 << HB)); ex.hist_reset(tbl, HB); uniq = 0; cap = Math.floor((1 << HB) * 0.4);
-        for (p = 0; p < pictures.length && uniq <= cap; p++) {
-          pic = pictures[p]; n = pic.length >> 2;
-          /* the picture goes through a small area in pieces of 16,384 pixels (an even count, so every other pixel is still the same ones): each piece is copied in and counted while it is still in the processor cache */
-          for (var at = 0; at < n && uniq <= cap; at += CH) {
-            var cn = Math.min(CH, n - at);
-            new Uint8Array(ex.memory.buffer, stage, cn * 4).set(pic.subarray(at * 4, (at + cn) * 4));
-            uniq = ex.hist_picture(stage, cn, stride, tbl, HB, mask, uniq, cap);
+      var sampled = total > 100000, pass, early = false, full = total > 1000000 ? 2 : 1;
+      for (pass = 0; pass < 2; pass++) {
+        HB = 16; mask = 0xffffff; early = false;
+        for (attempt = 0; attempt < 6; attempt++) {
+          ensure(tbl + (8 << HB)); ex.hist_reset(tbl, HB); uniq = 0; cap = Math.floor((1 << HB) * 0.4);
+          for (p = 0; p < pictures.length && uniq <= cap; p++) {
+            pic = pictures[p]; n = pic.length >> 2;
+            var stride = pass === 0 && sampled ? sampleStride(total, n) : full, piece = Math.floor(CH / stride) * stride;
+            /* the picture goes through a small area in pieces (a whole number of steps, so the sampled pixels are the same ones as in one go): each piece is copied in and counted while it is still in the processor cache */
+            for (var at = 0; at < n && uniq <= cap; at += piece) {
+              var cn = Math.min(piece, n - at);
+              new Uint8Array(ex.memory.buffer, stage, cn * 4).set(pic.subarray(at * 4, (at + cn) * 4));
+              uniq = ex.hist_picture(stage, cn, stride, tbl, HB, mask, uniq, cap);
+            }
+            if (pass === 0 && sampled && p === 0 && pictures.length > 1 && uniq <= FEW_COLORS) { early = true; break; }   // the first picture already shows few colors: no need to sample the rest
           }
+          if (early || uniq <= cap) break;
+          if (attempt === 0) HB = 20; else if (attempt === 1) HB = 22; else mask = attempt === 2 ? 0xfefefe : attempt === 3 ? 0xfcfcfc : 0xf8f8f8;
         }
-        if (uniq <= cap) break;
-        if (attempt === 0) HB = 20; else if (attempt === 1) HB = 22; else mask = attempt === 2 ? 0xfefefe : attempt === 3 ? 0xfcfcfc : 0xf8f8f8;
+        /* few colors seen (flat or pixel-art pictures; at most 255 would be used as they are, so a color the sampling missed would be lost for good, and a few thousand still make a palette that a rare color changes): count again the old way (every pixel, or every other one above 1,000,000 pixels). */
+        if (pass === 0 && sampled && (early || uniq <= FEW_COLORS)) continue;
+        break;
       }
       var oR = al(tbl + (8 << HB)), oG = oR + al(uniq), oB = oG + al(uniq), oC = oB + al(uniq), oOrd = oC + uniq * 8, oScr = oOrd + uniq * 4, oOut = oScr + uniq * 4;
       ensure(oOut + 3072);
@@ -105,25 +121,32 @@
     maxColors = Math.min(255, maxColors || 255);
     var HB = 16, HS = 1 << HB, mask = 0xffffff, attempt, uniq = 0, p, i;
     var total = 0; for (p = 0; p < pictures.length; p++) total += pictures[p].length >> 2;
-    var stride = total > 1000000 ? 2 : 1;   // big pictures: look at every other pixel (the colors that matter come in runs and areas, so the palette barely changes; the histogram is the largest steady cost)
+    var sampled = total > 100000, full = total > 1000000 ? 2 : 1, pass, early = false;   // big inputs: look at every 3rd pixel (every 5th above 1,000,000 pixels; see sampleStride), the histogram is the largest steady cost
     var tbl;   // one table of pairs: [color + 1, count] (0 = empty slot), so a lookup touches one cache line
-    for (attempt = 0; attempt < 6; attempt++) {
-      tbl = new Int32Array(HS * 2); uniq = 0;
-      var cap = HS * 0.4;
-      for (p = 0; p < pictures.length && uniq <= cap; p++) {
-        var w = words(pictures[p]), n = w.length, last = -2, lastSlot = 0;
-        for (i = 0; i < n; i += stride) {
-          var col = rgbOf(w[i]) & mask;
-          if (col === last) { tbl[lastSlot]++; continue; }
-          var h = Math.imul(col, 0x9e3779b1) >>> (32 - HB), c1 = col + 1, e = tbl[h * 2];
-          while (e !== 0 && e !== c1) { h = (h + 1) & (HS - 1); e = tbl[h * 2]; }
-          if (e === 0) { tbl[h * 2] = c1; uniq++; if (uniq > cap) break; }
-          lastSlot = h * 2 + 1; tbl[lastSlot]++; last = col;
+    for (pass = 0; pass < 2; pass++) {
+      HB = 16; HS = 1 << HB; mask = 0xffffff; early = false;
+      for (attempt = 0; attempt < 6; attempt++) {
+        tbl = new Int32Array(HS * 2); uniq = 0;
+        var cap = HS * 0.4;
+        for (p = 0; p < pictures.length && uniq <= cap; p++) {
+          var w = words(pictures[p]), n = w.length, last = -2, lastSlot = 0, stride = pass === 0 && sampled ? sampleStride(total, n) : full;
+          for (i = 0; i < n; i += stride) {
+            var col = rgbOf(w[i]) & mask;
+            if (col === last) { tbl[lastSlot]++; continue; }
+            var h = Math.imul(col, 0x9e3779b1) >>> (32 - HB), c1 = col + 1, e = tbl[h * 2];
+            while (e !== 0 && e !== c1) { h = (h + 1) & (HS - 1); e = tbl[h * 2]; }
+            if (e === 0) { tbl[h * 2] = c1; uniq++; if (uniq > cap) break; }
+            lastSlot = h * 2 + 1; tbl[lastSlot]++; last = col;
+          }
+          if (pass === 0 && sampled && p === 0 && pictures.length > 1 && uniq <= FEW_COLORS) { early = true; break; }   // the first picture already shows few colors: no need to sample the rest
         }
+        if (early || uniq <= cap) break;
+        // too many distinct colors for the table: first a bigger table (flat pictures need a tiny one, which stays in the cache), then (a photograph) drop the lowest bits of every channel and count again
+        if (attempt === 0) { HB = 20; HS = 1 << HB; } else if (attempt === 1) { HB = 22; HS = 1 << HB; } else mask = attempt === 2 ? 0xfefefe : attempt === 3 ? 0xfcfcfc : 0xf8f8f8;
       }
-      if (uniq <= cap) break;
-      // too many distinct colors for the table: first a bigger table (flat pictures need a tiny one, which stays in the cache), then (a photograph) drop the lowest bits of every channel and count again
-      if (attempt === 0) { HB = 20; HS = 1 << HB; } else if (attempt === 1) { HB = 22; HS = 1 << HB; } else mask = attempt === 2 ? 0xfefefe : attempt === 3 ? 0xfcfcfc : 0xf8f8f8;
+      // few colors seen (flat or pixel-art pictures: a color the sampling missed would be lost for good, or would shift the palette): count again the old way
+      if (pass === 0 && sampled && (early || uniq <= FEW_COLORS)) continue;
+      break;
     }
     var R = new Uint8Array(uniq), G = new Uint8Array(uniq), B = new Uint8Array(uniq), C = new Float64Array(uniq), u = 0;
     for (i = 0; i < HS; i++) if (tbl[i * 2] !== 0) { var kc = tbl[i * 2] - 1; R[u] = kc >> 16; G[u] = (kc >> 8) & 255; B[u] = kc & 255; C[u] = tbl[i * 2 + 1]; u++; }
