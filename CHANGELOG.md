@@ -17,7 +17,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
 | [field-report](modules/field-report/README.md) | 1.0.2 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
-| [sprite-baker](modules/sprite-baker/README.md) | 1.7.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
+| [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.0 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
@@ -52,6 +52,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-24 · **sprite-baker** 1.7.1 · API 1: With the WebAssembly add-on loaded, outlines are drawn in WebAssembly: about 1.6 to 1.9 times as fast per call (0.3 to 2 ms down to 0.15 to 1.1 ms), with the very same pixels. Without it nothing changes.
 - 2026-10-23 · **pcodec-js** 1.6.0 · API 1: Files 45-56% smaller (program stored deflated); big unpacks use 6 MB, not 36 MB, of wasm memory; idle pool workers end after idleMs (4 s). New load({ lean: false }) gives WebKit browsers 1.5.1 speed back (keeps 36 MB, freed when idle).
 - 2026-10-23 · **memory-compression** 2.6.2 · API 2: Packing lists is a little faster in balanced mode for many list shapes (up to about 12% on event and map-feature lists); packed bytes are the same.
 - 2026-10-23 · **memory-compression** 2.6.1 · API 2: pack() writes into one output buffer it keeps instead of a new array for every 1 MiB piece, so a big pack leaves less garbage; freeBuffers() and a 2 s idle spell release the buffer. Same bytes out.
