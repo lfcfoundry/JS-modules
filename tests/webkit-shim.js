@@ -1,4 +1,4 @@
-// Lets the browser checks in this folder run in WebKitGTK or GNOME Web. Copyright (c) 2026 LFC Foundry. MIT License.
+// Lets the browser checks in this folder run in WebKitGTK (GNOME Web is no longer a test browser; it is still accepted if named). Copyright (c) 2026 LFC Foundry. MIT License.
 // The driver is tools/webkit-driver (WebDriver, no packages). It offers the main Playwright and Puppeteer page calls; the checks here also use
 // a few more, which this file adds on top: click(selector), select, reload, waitForSelector, keyboard.down/up, touchscreen, newPage/close, and
 // evaluate with several arguments. Two stand-ins to know about: key down/up and touch are sent as page events (WebKitGTK's WebDriver has no
