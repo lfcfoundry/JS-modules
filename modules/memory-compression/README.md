@@ -1,6 +1,6 @@
 # memory-compression
 
-**Version 2.6.1 · API 2**
+**Version 2.6.2 · API 2**
 
 **Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6
 
@@ -100,6 +100,8 @@ Since 2.5.0 a view keeps each top-level text column whole until a row is read (p
 | `float32` | `true` keeps fraction columns in 4 bytes (lossy, relative error at most about 6e-8) | off |
 | `wasm` | `false` forces plain JavaScript | use WebAssembly if available |
 | `maxSize`, `maxItems` | limits that stop a hostile or damaged input (1 GiB, 100,000,000) | as shown |
+
+**Output buffer (2.6.1).** `pack()` of bytes and typed arrays writes its pieces into one buffer that it keeps between calls (grown by doubling, never kept above 8 MB) and returns a copy cut to size, so every result is its own array. A kept buffer of 1 MB or more is let go by itself after about 2 seconds without packing; `freeBuffers()` (or `trimMemory()` on the core) lets it go at once. A page that packs often keeps at most 8 MB while it is busy.
 
 Also on the object: `pager(list, opts)` with `get`, `getAsync`, `load`, `range`, `each`, `set`, `changed`, `push`, `flush`, `settle`, `spill`, `trim`, `release`, `pressure`, `memory`, `dispose`; `keeper(opts)` with `hold`, `get`, `restore`, `each`, `pin`, `unpin`, `trim`, `release`, `drop`, `memory`, `calibrate`; `estimateBytes(value)`, `profile(value, opts, repeats)`, `heap()`; `ready()` and `accelerated()`; the standard formats `lz4Compress`, `lz4Decompress`, `deflate`, `inflate`, `zlib`, `unzlib`, `gzip`, `gunzip`; and `shuffle`, `unshuffle`, `crc32`, `adler32`. The parts are `MemoryCompression.core`, `.objects` (also `.jso`, and the global `MemoryCompressionJSO`) and `.picker`. Errors are `Error` objects whose message starts with `MemoryCompression:` and says what is wrong in plain words. Every option with its default is listed in the full notes.
 
