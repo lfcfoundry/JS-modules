@@ -224,5 +224,32 @@ void fill_mesh(const Job *J, const double *V, int nu, int nv, int stride) {
   }
 }
 
+/* outline: the same arithmetic as outline() in sprite-baker.js, operation for operation. src and data are w * h RGBA pixels, offX/offY hold nOff whole-pixel offsets (the JavaScript
+   makes them), c0..c2 are the outline color as doubles. Rounding is half to even, like a Uint8ClampedArray store. */
+static inline u8 q8(double v) { v = __builtin_rint(v); return (u8)(v < 0 ? 0 : v > 255 ? 255 : v); }
+void outline(const u8 *src, u8 *data, int w, int h, const int *offX, const int *offY, int nOff, double c0, double c1, double c2) {
+  int x, y, k;
+  for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+    int o = (y * w + x) << 2, sa = src[o + 3], oa = 0;
+    double ra;
+    if (sa != 255) {
+      for (k = 0; k < nOff; k++) {
+        int dx = x - offX[k], dy = y - offY[k], ox;
+        if (dx < 0 || dy < 0 || dx >= w || dy >= h) continue;
+        ox = src[((dy * w + dx) << 2) + 3];
+        if (ox > oa) { oa = ox; if (oa == 255) break; }
+      }
+    }
+    ra = sa + (double)(oa * (255 - sa)) / 255.0;
+    if (ra > 0) {
+      double bk = (double)(255 - sa);
+      data[o] = q8((src[o] * (double)sa + c0 * (double)oa * bk / 255.0) / ra);
+      data[o + 1] = q8((src[o + 1] * (double)sa + c1 * (double)oa * bk / 255.0) / ra);
+      data[o + 2] = q8((src[o + 2] * (double)sa + c2 * (double)oa * bk / 255.0) / ra);
+      data[o + 3] = q8(ra);
+    } else { data[o] = data[o + 1] = data[o + 2] = data[o + 3] = 0; }
+  }
+}
+
 /* bit 0: has the texture code, bit 1: has the ridge code */
 int features(void) { return HAS_TEXTURE | (HAS_RIDGE << 1); }
