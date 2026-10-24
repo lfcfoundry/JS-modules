@@ -292,7 +292,7 @@
     function encInts(a, depth, opt) {
       var n = a.length, order = INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, i, sub, mm = range(a);
       if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
-      if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 4th block tries all)
+      if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 8th block tries all)
         for (i = 0; i < opt.prefer.length; i++) { e = tryInt(opt.prefer[i], a, depth, opt, mm, best ? best.length : 0); if (e && (!best || e.length < best.length)) best = e; }
         if (best) return best;
       }
@@ -682,9 +682,9 @@
       if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
-        k++; full = !(k > 2 && k % 4 !== 0 && won.length);
+        k++; full = !(k > 2 && k % 8 !== 0 && won.length);
         o.prefer = full || !wonInts.length ? null : wonInts; o.top = 2;
-        part = encChunk(a.subarray(i, Math.min(n, i + CHUNK)), 2, o, full ? null : won);   // a block tries every way for the first blocks and every 4th; the rest try only the ways that have won before
+        part = encChunk(a.subarray(i, Math.min(n, i + CHUNK)), 2, o, full ? null : won);   // a block tries every way for the first blocks and every 8th; the rest try only the ways that have won before
         if (won.indexOf(part[0]) < 0 && part[0] !== CS.RAWF) won.push(part[0]);
         if (part[0] === CS.INTS && wonInts.indexOf(part[1]) < 0 && part[1] !== IS.RAW) wonInts.push(part[1]);
         w.vi(part.length); w.bytes(part);
