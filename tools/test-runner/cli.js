@@ -2,10 +2,30 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. Command line of the test runner.
      node tools/test-runner/cli.js warm start [chromium firefox webkit epiphany]   keep browsers open (all four when none are named)
      node tools/test-runner/cli.js warm status | stop
-     node tools/test-runner/cli.js all <check.js> [args...]                        run one browser check in the four browsers, one at a time, and print one summary */
+     node tools/test-runner/cli.js all [--fresh] <check.js> [args...]              run one browser check in the four browsers, one at a time, and print one summary;
+                                                                                   cells that already passed for this build are skipped (a rerun after a crash or a machine restart resumes), --fresh runs them all again
+     node tools/test-runner/cli.js status [check.js [args...]]                     ALIVE, FINISHED or DEAD (also: all --status [check.js [args...]]) */
 'use strict';
-const fs = require('fs'), path = require('path'), cp = require('child_process'), R = require('./runner.js');
-const [cmd, sub, ...rest] = process.argv.slice(2), dir = R.warmDir();
+const fs = require('fs'), path = require('path'), cp = require('child_process'), R = require('./runner.js'), L = require('./ledger.js');
+const argv = process.argv.slice(2), wantStatus = argv.includes('--status'), fresh = argv.includes('--fresh');
+const [cmd, sub, ...rest] = argv.filter((a) => a !== '--status' && a !== '--fresh'), dir = R.warmDir();
+const runChild = (script, args) => new Promise((ok) => {      // like spawnSync, but the heartbeat keeps beating while the check runs
+  const c = cp.spawn(process.execPath, [script, ...args], { env: process.env }), out = [], err = []; let n = 0;
+  c.stdout.on('data', (d) => { if ((n += d.length) < (1 << 26)) out.push(d); }); c.stderr.on('data', (d) => { if (n < (1 << 26)) err.push(d); });
+  c.on('close', (status) => ok({ status, stdout: Buffer.concat(out).toString('utf8'), stderr: Buffer.concat(err).toString('utf8') }));
+  c.on('error', (e) => ok({ status: 1, stdout: '', stderr: String(e) }));
+});
+function printStatus(script, args) {
+  const runs = L.status(script ? L.suiteId(script, args) : undefined);
+  if (!runs.length) { console.log('no run recorded' + (script ? ' for ' + script : '') + ' (state kept in ' + L.dirOf() + ')'); return 1; }
+  let worst = 0;
+  for (const j of runs) {
+    console.log(j.verdict + '  ' + j.suite + ': ' + j.reason);
+    if (j.hb) console.log(R.table(j.cells.map((c) => ({ browser: c.browser, status: c.status, seconds: c.seconds === undefined ? '' : c.seconds })), [{ key: 'browser', title: 'browser', align: 'left' }, { key: 'status', title: 'result', align: 'left' }, { key: 'seconds', title: 'seconds' }]).replace(/^/gm, '  '));
+    if (j.verdict === 'DEAD') worst = Math.max(worst, 2); else if (j.verdict === 'FINISHED' && j.hb.failed) worst = Math.max(worst, 1);
+  }
+  return worst;
+}
 const names = (a) => (a.length ? a : R.BROWSERS).filter((b) => R.BROWSERS.includes(b));
 async function main() {
   if (cmd === 'warm' && sub === 'start') {
@@ -26,15 +46,27 @@ async function main() {
     for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) { if (/\.(error|lock)$|^READY$/.test(f)) try { fs.unlinkSync(path.join(dir, f)); } catch (e) { /* gone */ } }
     console.log(pids.size ? 'stopped' : 'nothing was running'); return 0;
   }
+  if (cmd === 'status' || (cmd === 'all' && wantStatus)) return printStatus(sub, rest);
   if (cmd === 'all') {
-    const script = sub; if (!script) { console.log('usage: cli.js all <check.js> [args...]'); return 2; }
-    const t0 = Date.now(), rows = []; let bad = 0;
+    const script = sub; if (!script) { console.log('usage: cli.js all [--fresh] <check.js> [args...]'); return 2; }
+    const t0 = Date.now(), rows = [], suite = L.suiteId(script, rest), build = L.buildId(); let bad = 0, kept = 0;
+    const hb = L.heartbeat(suite, { script, args: rest, build, total: R.BROWSERS.length }), tick = hb.timer(5000);
     for (const b of R.BROWSERS) {
-      const t1 = Date.now(), r = cp.spawnSync(process.execPath, [script, b, ...rest], { encoding: 'utf8', env: process.env, maxBuffer: 1 << 26 });
+      const prior = fresh ? null : L.done(build, suite, b);
+      if (prior) {
+        kept++; console.log(b + ': finished earlier for this build (' + prior.status + ', ' + prior.seconds + ' s); not run again (--fresh runs it)');
+        rows.push({ browser: b, status: prior.status + ' (kept)', seconds: prior.seconds }); hb.beat({ cells: Object.assign(hb.state.cells, { [b]: { status: prior.status, seconds: prior.seconds, kept: true } }) });
+        continue;
+      }
+      hb.beat({ current: b });
+      const t1 = Date.now(), r = await runChild(script, [b, ...rest]);
       process.stdout.write(r.stdout || ''); if (r.status !== 0) { bad++; process.stdout.write(r.stderr || ''); }
-      rows.push({ browser: b, status: r.status === 0 ? 'pass' : r.status === 2 ? 'skipped' : 'FAIL', seconds: ((Date.now() - t1) / 1000).toFixed(1) });
+      const status = r.status === 0 ? 'pass' : r.status === 2 ? 'skipped' : 'FAIL', seconds = ((Date.now() - t1) / 1000).toFixed(1);
+      rows.push({ browser: b, status, seconds }); L.record(build, suite, b, { status, seconds, exit: r.status });
+      hb.beat({ current: null, cells: Object.assign(hb.state.cells, { [b]: { status, seconds } }) });
     }
-    console.log('\n' + R.table(rows, [{ key: 'browser', title: 'browser', align: 'left' }, { key: 'status', title: 'result', align: 'left' }, { key: 'seconds', title: 'seconds' }]) + '\ntotal ' + ((Date.now() - t0) / 1000).toFixed(1) + ' s' + (R.BROWSERS.some((b) => R.warmInfo(b)) ? '' : '  (no warm browsers; `warm start` saves the start-up of each)'));
+    clearInterval(tick); hb.beat({ state: 'finished', current: null, failed: bad, finishedAt: Date.now() });
+    console.log('\n' + R.table(rows, [{ key: 'browser', title: 'browser', align: 'left' }, { key: 'status', title: 'result', align: 'left' }, { key: 'seconds', title: 'seconds' }]) + '\ntotal ' + ((Date.now() - t0) / 1000).toFixed(1) + ' s' + (R.BROWSERS.some((b) => R.warmInfo(b)) ? '' : '  (no warm browsers; `warm start` saves the start-up of each)') + (kept ? '  (' + kept + ' kept from an earlier run of this build)' : ''));
     return bad ? 1 : 0;
   }
   console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 5).join('\n').replace(/^\/\* Copyright[^.]*\. MIT License\. /, ''));
