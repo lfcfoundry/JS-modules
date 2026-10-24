@@ -2,12 +2,12 @@
  * stage-curtains.js: velvet stage curtains that slide shut over a page, then fly open.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.4.0 (API 1)
  *
  * No dependencies. Needs: canvas 2D, Promise, Element.animate (Web Animations). Any modern browser (2020+).
  * create({ worker: true }) paints the velvet in a background worker (the page then needs worker-src blob:); StageCurtains.startWorker() starts it early, release() ends it.
- * The velvet's pixel loop runs in WebAssembly (a 1.5 KB module inside this file; the page policy needs 'wasm-unsafe-eval') and in JavaScript where that cannot start:
- * the pixels are the same either way. create({ wasm: false }) forces JavaScript.
+ * The velvet's pixel loop runs in WebAssembly (a 2.6 KB SIMD module inside this file; the page policy needs 'wasm-unsafe-eval') and in JavaScript where that cannot start (no WebAssembly, no WebAssembly SIMD, no 'wasm-unsafe-eval'):
+ * the picture is the same to within a few counts of 255 (the JavaScript loop is the reference). create({ wasm: false }) forces JavaScript.
  *
  *   var curtains = StageCurtains.create({ container: document.body, color: '#b3202a' });
  *   curtains.prepare().then(function () {      // paints the velvet in small slices (idle time), call early
@@ -66,7 +66,7 @@
   }
   // t > 0 lightens toward white, t < 0 darkens toward black.
   function shade(c, t) { return t > 0 ? mix(c, '#ffffff', t) : mix(c, '#000000', -t); }
-  var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
+  var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
   var WASM_ROWS = 16;   // rows per kernel call: the clock is read between calls, so a slice ends within about a millisecond of its limit
 
   // ---- the velvet maker: no page objects at all, so the very same code (as text) also runs in a background worker ----
@@ -76,7 +76,8 @@
     function rng(seed) { var r = seed || 1; return function () { return (r = (r * 16807) % 2147483647) / 2147483647; }; }
 
     // ---- the WebAssembly velvet loop (wasm/velvet.c, built by wasm/build.sh, put here by wasm/embed.py) ----
-    // The per-pixel loop of the velvet painter below, in WebAssembly: the very same bytes, about 1.4 to 1.65 times faster on a freshly loaded page.
+    // The per-pixel loop of the velvet painter below, in WebAssembly (SIMD, four pixels at a time in single precision): the same picture to within a few counts (99.5% of the pixels within 5 of 255 is the
+    // module's picture gate, not byte for byte; stepped curtains take an exact scalar path), about 3 to 6 times faster than the JavaScript loop. row() stays the reference.
     // One instance and one memory serve every painter; they are made on the first paint. If WebAssembly is missing, the page policy lacks
     // 'wasm-unsafe-eval', or anything throws, kernel() is null and the JavaScript loop paints instead (option wasm: false forces that).
     var kern;   // undefined: not tried yet; null: not usable; else { ex, mem, base, owner }
@@ -144,7 +145,26 @@
             if (cc > cw - 16 * k) { ee = (cc - (cw - 16 * k)) / (16 * k); edgeT[cc] = (1 + 0.35 * Math.sin(Math.min(1, ee / 0.55) * Math.PI)) * (1 - 0.8 * Math.pow(Math.max(0, (ee - 0.55) / 0.45), 1.5)); }
             else edgeT[cc] = 1;
           }
-          T = { list: [hgt, T85, T6, THEM, TSL, crAt, crW2, edgeT, Float64Array.from(grain), new Float64Array([PW, k, ch, warm, B[0], B[1], B[2], stepped ? 0.03 : 0.02, lift, stepped ? 1 : 0]), rows], off: [] };
+          // Per fold column and per canvas column values that row() would recompute for every pixel, evaluated here once with the same expressions (see wasm/velvet.c).
+          var aux = new Float64Array(6 * n + 2 * cw), q, cr, fl;
+          for (q = 0; q < n; q++) {
+            var s0 = T85[q] * TSL[q]; if (lift) s0 = 0.34 + s0 * 0.66;
+            aux[6 * q] = ch - THEM[q]; aux[6 * q + 1] = s0; aux[6 * q + 2] = T6[q]; aux[6 * q + 3] = 0.5 + 0.6 * hgt[q];
+            // a crease can touch a pixel whose fold column is q when the pixel's own position is within half a column of q (any position at all for the two clamped end columns)
+            fl = 0;
+            for (cr = 0; cr < ncr; cr++) if (q === 1 ? crAt[cr] - crW2[cr] < 1.6 : q === n - 2 ? crAt[cr] + crW2[cr] > n - 1.6 : Math.abs(q - crAt[cr]) < crW2[cr] + 1) fl = 1;
+            aux[6 * q + 4] = fl;
+          }
+          for (q = 0; q < cw; q++) { var xq = q / k; aux[6 * n + 2 * q] = xq; aux[6 * n + 2 * q + 1] = 1 - xq / PW; }
+          // The same values in single precision for the 4-pixel loop: per fold column 8 floats (shade, sheen, gold base, hem, 4 spare), then the n crease flags, then position, leading-edge ratio and
+          // leading-edge factor per canvas column (cw + 8 floats each, so the last group of four can read past the end), then the 64 x 64 grain. Carried as a Float64Array over the same bytes so load() copies it unchanged.
+          var a32 = new Float32Array(stepped ? 2 : (9 * n + 3 * (cw + 8) + 4096 + 1) & ~1), oX = 9 * n, oE = oX + cw + 8, oG = oE + cw + 8, oR = oG + cw + 8;
+          if (!stepped) {   // a stepped curtain takes the exact scalar path and never reads these
+            for (q = 0; q < n; q++) { a32[8 * q] = aux[6 * q + 1]; a32[8 * q + 1] = aux[6 * q + 2]; a32[8 * q + 2] = aux[6 * q + 3]; a32[8 * q + 3] = aux[6 * q]; a32[8 * n + q] = aux[6 * q + 4]; }
+            for (q = 0; q < cw; q++) { a32[oX + q] = aux[6 * n + 2 * q]; a32[oE + q] = aux[6 * n + 2 * q + 1]; a32[oG + q] = edgeT[q]; }
+            for (q = 0; q < 4096; q++) a32[oR + q] = grain[q];
+          }
+          T = { list: [hgt, T85, T6, THEM, TSL, crAt, crW2, edgeT, Float64Array.from(grain), new Float64Array([PW, k, ch, warm, B[0], B[1], B[2], stepped ? 0.03 : 0.02, lift, stepped ? 1 : 0]), rows, aux, new Float64Array(a32.buffer)], off: [] };
         }
         // Puts this painter's tables into the kernel's memory (unless they are already there) and returns where the rows will land.
         function load() {
@@ -157,7 +177,7 @@
         // Paints rows y .. y1 - 1 with the kernel and copies them into the image.
         function bulk(y1) {
           var o = T.off;
-          K.ex.paint(T.pix, cw, ch, y, y1, n, ncr, o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7], o[8], o[9], o[10]);
+          K.ex.paint(T.pix, cw, ch, y, y1, n, ncr, o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7], o[8], o[9], o[10], o[11], o[12]);
           p.set(new Uint8Array(K.mem.buffer, T.pix, (y1 - y) * cw * 4), y * cw * 4);
           y = y1;
         }
