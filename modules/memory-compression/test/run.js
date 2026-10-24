@@ -663,6 +663,18 @@ t('nested coordinate lists: arrays of pairs (decimal, whole-number and mixed), e
   for (m = 0; m < modes.length; m++) { out = J.unpack(J.pack(rows, opt({ mode: modes[m] }))); for (i = 0; i < rows.length; i += 37) same(rows[i], out[i], modes[m] + ' row ' + i); }
 });
 
+t('freeBuffers() lets go of the output buffer pack() keeps, and a pack after it gives the same bytes', function () {
+  var a = new Float32Array(600000), i, x = 1, p1, p2; for (i = 0; i < a.length; i++) { x = (x * 1103515245 + 12345) >>> 0; a[i] = (x >>> 8) / 256; }
+  p1 = J.core.pack(a, opt({ mode: 'fast' })); assert(J.core.dropPackBuffer() > 0, 'a pack leaves a kept buffer'); J.core.pack(a, opt({ mode: 'fast' })); J.freeBuffers();
+  assert.strictEqual(J.core.dropPackBuffer(), 0, 'freeBuffers drops the kept output buffer');
+  p2 = J.core.pack(a, opt({ mode: 'fast' })); assert.strictEqual(Buffer.compare(Buffer.from(p1), Buffer.from(p2)), 0, 'same bytes after the buffer was dropped');
+});
+tAsync('a big kept output buffer is let go by itself after a quiet spell (about 2 s)', function () {
+  var a = new Float32Array(600000), i, x = 1; for (i = 0; i < a.length; i++) { x = (x * 1103515245 + 12345) >>> 0; a[i] = (x >>> 8) / 256; }
+  J.core.pack(a, opt({ mode: 'fast' }));
+  return new Promise(function (res) { setTimeout(res, 2600); }).then(function () { assert.strictEqual(J.core.dropPackBuffer(), 0, 'still kept after the quiet spell'); });
+});
+
 t('idle release: the helpers give their memory back and a later pack makes the very same bytes', function () {
   var rows = many(30000, function (i) { return { id: i, label: 'node ' + i + ' harbor', x: i / 3.1, y: (i * 7) % 1000 / 10, tags: ['a', 'b' + (i % 5)] }; }), a = J.pack(rows, opt({ mode: 'balanced' })), b, c;
   J.freeBuffers(); assert.strictEqual(typeof require(path.resolve(modPath)).trimMemory, 'function'); require(path.resolve(modPath)).trimMemory();

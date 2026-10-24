@@ -277,6 +277,26 @@ t('view: bad chunk numbers, a too-small buffer, damaged and cut-off containers t
   for (var cut = 0; cut < packed.length; cut += 5) { try { var w = FP.view(packed.subarray(0, cut)); for (var k = 0; k < w.chunks; k++) w.read(k); } catch (e) { assert.ok(/MemoryCompression/.test(e.message), e.message); } }
   var r = rng(405); for (var q = 0; q < 300; q++) { var f = Uint8Array.from(packed); f[(r() * f.length) | 0] ^= 1 << ((r() * 8) | 0); try { var w2 = FP.view(f, { maxSize: 1 << 22 }); for (var k2 = 0; k2 < w2.chunks; k2++) w2.read(k2); } catch (e) { assert.ok(/MemoryCompression/.test(e.message), e.message); } }
 });
+t('pack keeps one output buffer inside, but every result is its own array: two packs, a result kept while others run, a big pack, a small pack after it, freeBuffers, all stay intact', function () {
+  var r = rng(404), a = makeFloats(r, 'f32', 300000, 0), b = makeFloats(r, 'f64', 40000, 1), c = makeBytes(r, 5000, 1), o = { mode: 'fast', check: true }, i, pa, pb, pc, pa2, ca, cb, cc;
+  pa = FP.pack(a, o); ca = Buffer.from(pa);            // a copy of what it should stay
+  pb = FP.pack(b, o); cb = Buffer.from(pb);
+  assert.notStrictEqual(pa.buffer, pb.buffer, 'two results share a buffer');
+  assert.strictEqual(pa.buffer.byteLength, pa.length, 'a result is cut to its own length (no spare room kept behind it)');
+  assert.strictEqual(pa.byteOffset, 0);
+  pc = FP.pack(c, o); cc = Buffer.from(pc);
+  assert.ok(Buffer.compare(Buffer.from(pa), ca) === 0 && Buffer.compare(Buffer.from(pb), cb) === 0, 'a result changed when another pack ran');
+  for (i = 0; i < pb.length; i++) pb[i] ^= 255;        // writing into one result must not touch another, nor the next pack
+  assert.ok(Buffer.compare(Buffer.from(pa), ca) === 0 && Buffer.compare(Buffer.from(pc), cc) === 0, 'mutating a result changed another');
+  pa2 = FP.pack(a, o); assert.ok(Buffer.compare(Buffer.from(pa2), ca) === 0, 'the same input gave other bytes after a mutated result'); assert.notStrictEqual(pa2.buffer, pa.buffer);
+  for (i = 0; i < pa2.length; i++) pa2[i] = 0;
+  assert.ok(Buffer.compare(Buffer.from(pa), ca) === 0, 'zeroing one result changed an earlier one');
+  same(FP.unpack(FP.pack(c, o)), c, 'small pack after big'); same(FP.unpack(pa), a, 'kept result opens');
+  var big = new Uint8Array(20000000); for (i = 0; i < big.length; i++) big[i] = (r() * 256) | 0;   // random: about 20 MB out, too big to keep the buffer
+  var pbig = FP.pack(big, { mode: 'fast' }), cbig = Buffer.from(pbig); same(FP.unpack(pbig), big, 'big pack opens'); if (typeof FP.dropPackBuffer === 'function') assert.strictEqual(FP.dropPackBuffer(), 0, 'a result over 8 MB leaves nothing kept');
+  var p3 = FP.pack(c, o); assert.ok(Buffer.compare(Buffer.from(p3), cc) === 0, 'small pack after a big one gave other bytes'); assert.ok(Buffer.compare(Buffer.from(pbig), cbig) === 0, 'big result changed by the next pack');
+  if (typeof FP.dropPackBuffer === 'function') { assert.strictEqual(typeof FP.dropPackBuffer(), 'number'); assert.strictEqual(FP.dropPackBuffer(), 0, 'second drop finds nothing'); same(FP.unpack(FP.pack(a, o)), a, 'pack after drop'); assert.ok(FP.dropPackBuffer() > 0, 'a pack leaves a kept buffer'); FP.trimMemory(); assert.strictEqual(FP.dropPackBuffer(), 0, 'trimMemory lets it go'); }
+});
 t('fuzz: random data and options round-trip exactly (seeded)', function () {
   var cases = FULL ? 3000 : 300, seed0 = +process.env.SEED || 20261017, k;
   for (k = 0; k < cases; k++) {
