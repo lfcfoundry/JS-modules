@@ -1,8 +1,8 @@
 # stage-curtains
 
-**Version 1.3.0 · API 1**
+**Version 1.3.1 · API 1**
 
-**Tested in:** Chromium 155.0.8059.39 (ungoogled), Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
+**Tested in:** ungoogled Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6 (MiniBrowser; GNOME Web not used); Node suite (quick, FULL=1, --js-only) 46 passed; tests/stage-curtains-wasm-browser.js and tests/stage-curtains-worker-browser.js PASS in all three; 15 alternating fresh-page turns of paint stall; real phones and a real GPU upload not measured
 
 Velvet stage curtains that slide shut over a page, then fly open. A scene-change transition for games and shows. About 37 KB (about 2 KB of it is the embedded WebAssembly painter), no images (the velvet is painted with canvas).
 
@@ -57,9 +57,11 @@ curtains.prepare()                    // paints the velvet in small slices of id
 
 ## WebAssembly velvet loop (since 1.2.0)
 
-**What.** The pixel loop that paints the velvet (the hot part of `prepare()`) also exists as a 1,510-byte WebAssembly function, embedded in `stage-curtains.js`. It paints the same pixels, 16 rows at a time, and `StageCurtains.wasmAvailable()` says whether the browser lets it run. The painter reports `engine` as `'wasm'` or `'js'`.
+**What.** The pixel loop that paints the velvet (the hot part of `prepare()`) also exists as a 1,307-byte WebAssembly function, embedded in `stage-curtains.js`. It paints the same pixels, 16 rows at a time, and `StageCurtains.wasmAvailable()` says whether the browser lets it run. The painter reports `engine` as `'wasm'` or `'js'`.
 
 **Why.** On a freshly loaded page one phone-size curtain half (295,475 pixels) paints about 1.4 to 1.6 times as fast: 23.9 to 17.0 ms in Chromium 155, 23.0 to 14.0 ms in Firefox 158.0, 24.0 to 17.0 ms in WebKitGTK 2.52.6 and 30.0 to 21.0 ms in GNOME Web 46.5 (median of three passes of seven fresh pages; lower is better). The picture is identical: 112 curtains, 0 pixels differ in all four browsers, and the same on a page that forbids WebAssembly.
+
+**Faster kernel (1.3.1).** The kernel now looks up the per-column values (the position along the curtain, the leading-edge ratio) and the per-fold-column values (hem, shade, sheen, gold base, crease flag) in tables that the page builds once with the same expressions, rounds with integers and clamps without branches. The bytes it paints are unchanged (the same hash as 1.3.0 for a 1280 x 720 curtain, smooth and stepped, in all three test browsers). Main-thread paint of one 1280 x 720 curtain (both halves and the mirror; median of 15 fresh pages; lower is better): Chromium 155 45.6 to 30.0 ms, Firefox 158 40 to 28 ms, WebKitGTK 2.52.6 37 to 27 ms.
 
 **Rules.**
 - Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it the module quietly paints with plain JavaScript (same picture, no speed-up). No other loosening is needed.
