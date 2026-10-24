@@ -6,7 +6,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 | Module or tool | Version | History |
 |---|---|---|
-| [stage-curtains](modules/stage-curtains/README.md) | 1.3.1 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
+| [stage-curtains](modules/stage-curtains/README.md) | 1.4.0 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
 | [save-kit](modules/save-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
@@ -52,6 +52,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-24 · **stage-curtains** 1.4.0 · API 1: The curtain's velvet paints 60 to 70% faster in a browser with WebAssembly SIMD. The picture matches the plain-JavaScript one to within 5 of 255 on 99.99% of pixels; stepped curtains are unchanged.
 - 2026-10-24 · **stage-curtains** 1.3.1 · API 1: The curtain's velvet paints 27 to 34% faster (WebAssembly loop reads per-column tables). Same picture, byte for byte.
 - 2026-10-24 · **sprite-baker** 1.7.1 · API 1: With the WebAssembly add-on loaded, outlines are drawn in WebAssembly: about 1.6 to 1.9 times as fast per call (0.3 to 2 ms down to 0.15 to 1.1 ms), with the very same pixels. Without it nothing changes.
 - 2026-10-23 · **pcodec-js** 1.6.0 · API 1: Files 45-56% smaller (program stored deflated); big unpacks use 6 MB, not 36 MB, of wasm memory; idle pool workers end after idleMs (4 s). New load({ lean: false }) gives WebKit browsers 1.5.1 speed back (keeps 36 MB, freed when idle).
