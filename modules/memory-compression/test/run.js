@@ -484,7 +484,7 @@ t('2.4.4: text columns of a view stay whole and are cut per row (plain text, wid
   v.release(); assert.strictEqual(v.memory().restored, 0); same(rows[4999], v.get(4999), 'after release');
   back = J.view(J.pack(rows, opt({ mode: 'balanced' })), opt()); same(rows, back.toArray(), 'balanced pages');
 });
-t('2.4.4: the memory report of a view counts a text column once (a string header and the text), nested columns in full, the open view as 8 KB, and a repeated string once in estimateBytes', function () {
+t('2.4.4: the memory report of a view counts a text column once (a string header and the text), nested columns in pieces (the pieces only, where code can be generated), the open view as 8 KB, and a repeated string once in estimateBytes', function () {
   var W = ['harbor', 'ridge', 'copper', 'lantern', 'meadow', 'signal'], rows = many(5000, function (i) {
     return { id: i, label: W[i % 6] + ' ' + W[(i * 7) % 6] + ' number ' + (i * 31 % 977), tag: 'item-' + i + '-x', w: [W[i % 6], W[(i + 1) % 6]] };
   }), b = J.pack(rows, opt()), m = {}, s = 'abcdefghijklmnopqrstu';
@@ -492,7 +492,7 @@ t('2.4.4: the memory report of a view counts a text column once (a string header
   var evalOk = true; try { new Function('return 1')(); } catch (e) { evalOk = false; }                  // a pattern column is put together per row only where generated code is allowed
   assert(m.tag > 8192 + 5000 && (!evalOk || m.tag < 40000), 'pattern text column: ' + m.tag);         // 2.4.3 counted 93,890
   assert(m.label > 8192 + 5000 && (!evalOk || m.label < 100000), 'pattern text column with lookup tables: ' + m.label);   // 2.4.3 counted 159,434
-  assert(m.w > 100000, 'nested column counted in full: ' + m.w);                                         // 2.4.3 counted 40,000
+  assert(m.w > 8192 + 5000 * 2 && (!evalOk || m.w < 40000), 'nested column kept in pieces and counted as such: ' + m.w);   // 2.4.3 counted 40,000; 2.6.2 counted over 100,000 (made for every row); 2.6.4 about 18,700 (pieces, an array per read)
   assert(m.id >= 8192 + 5000 * 2, 'the open view counts 8 KB: ' + m.id);                             // 2.4.3 counted 10,000
   assert(J.estimateBytes([s + '1', s + '1', s + '1']) < J.estimateBytes([s + '1', s + '2', s + '3']), 'a repeated string is counted once');
   assert(J.estimateBytes([s + '1'], 32) > J.estimateBytes([s + '1']), 'a long string cut from a bigger text has a bigger header');
@@ -514,6 +514,21 @@ t('2.5.0: a text column read row after row is turned into its strings in one pas
   bv.get(5); bm = bv.memory().restored; for (i = 0; i < 20000; i += 1) if (i % 997 === 0) same(big[i], bv.get(i), 'long list row ' + i); else bv.get(i);
   assert.strictEqual(bv.memory().restored, bm, 'a column of more than 16,384 rows is not made in one pass (a read must not wait for it)');
   var w = J.view(b, opt()); w.field(9, 'wide'); for (i = 0; i < 4000; i++) w.field(i, 'wide'); same(rows[4000], w.get(4000), 'a field column read alone, then the row');
+});
+t('2.6.4: nested columns (records, arrays, tuples) and dates stay in pieces in a view and give back the same values', function () {
+  var W = ['harbor', 'ridge', 'copper', 'lantern'], rows = many(5000, function (i) {
+    var ms = Date.UTC(2025, 0, 1) + i * 937000 + (i % 13) * 86400000;
+    return { id: i, style: { fill: 4281558732 + (i % 7), stroke: 4278190080, w: 1 + (i % 4) / 2 }, tags: i % 3 ? [W[i % 4], W[(i + 1) % 4]] : [], addr: { city: W[i % 4], zip: '' + (10000 + i * 7 % 89999), geo: [i / 7, -i / 3] },
+      roles: i % 5 ? [W[i % 4]] : [W[0], W[1], W[2]], at: new Date(ms).toISOString(), day: new Date(ms).toISOString().slice(0, 10), t: new Date(ms).toISOString().slice(0, 19) + 'Z', pts: [i, i + 1, i % 9] };
+  }), v = J.view(J.pack(rows, opt()), opt()), i, mem;
+  for (i = 0; i < 5000; i += 3) same(rows[i], v.get(i), 'row ' + i);
+  ['style', 'tags', 'addr', 'roles', 'at', 'day', 't', 'pts'].forEach(function (k) { same(rows.map(function (r) { return r[k]; }), Array.prototype.slice.call(v.column(k)), 'column ' + k); });
+  same(rows.slice(100, 140), v.slice(100, 140), 'slice'); same(rows, v.toArray(), 'toArray');
+  var evalOn = true; try { new Function('return 1')(); } catch (e) { evalOn = false; }             // without generated code the old eager build stays (the same object each read)
+  if (evalOn) assert.notStrictEqual(v.get(7).style, v.get(7).style, 'each read makes its own object');
+  mem = v.memory().restored; assert(mem > 0 && mem < J.estimateBytes(rows), 'the report counts pieces: ' + mem + ' vs ' + J.estimateBytes(rows));
+  v.release(); same(rows[4321], v.get(4321), 'after release');
+  same(rows, J.view(J.pack(rows, opt({ mode: 'balanced' })), opt()).toArray(), 'balanced pages');
 });
 t('2.0.2: view() of fewer than 16 objects works with the same calls; non-objects are still refused', function () {
   var rows = [{ a: 1, b: 'x' }, { a: 2 }, { a: 3, b: 'z', c: [1, 2] }], v = J.view(J.pack(rows, opt()), opt());
