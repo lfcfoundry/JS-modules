@@ -7,7 +7,7 @@ The whole page is squeezed with Zopfli (a slower, tighter gzip), stored inside a
 built-in unzipper (DecompressionStream, all browsers since 2023) unpacks it the moment the page opens and rewrites the document.
 
     pip install zopfli
-    python3 pack.py game.html game-small.html "My Game" [--bg "#101018"] [--encoding base64|bytes] [--fast | --best | --passes N]
+    python3 pack.py game.html game-small.html "My Game" [--bg "#101018"|auto] [--encoding base64|bytes] [--fast | --best | --passes N]
 
 Trade-offs: needs JavaScript and a 2023+ browser; the page is decoded before it can paint, so keep the loader tiny (it is);
 view-source shows base64. Best for big single-file games full of inline fonts and SVG.
@@ -23,7 +23,7 @@ for the last build, --passes N picks any number.
 The loader is plain ES5 and tests for the unzipper first: an old browser sees "needs a browser updated since 2023"; a file that is
 cut short or changed (the browser checks the gzip checksum itself) sees "could not be unpacked, may be damaged"; a browser too old to
 read the loader at all shows a note after 8 seconds. The title is escaped, so any text is safe in it.
-While the page unpacks, a small centered "Loading…" line shows on a dark background (--bg COLOR changes it, default #101018; the
+While the page unpacks, a small centered "Loading…" line shows on a dark background (--bg COLOR changes it, default #101018; --bg auto reads it from the page; the
 text color follows the background). The real page replaces it the moment it is ready. The color is checked: anything that is not a
 plain color falls back to the default, and the command line says so.
 """
@@ -152,11 +152,13 @@ def build_page_bytes(gz, title='Loading', bg=DEFAULT_BG):
 def main(argv):
     args = [a for a in argv[1:]]
     bg = DEFAULT_BG
+    bg_auto = False
     if '--bg' in args:
         i = args.index('--bg')
         if i + 1 >= len(args):
             raise SystemExit('--bg needs a color, for example --bg "#101018"')
-        bg, ok = safe_bg(args[i + 1])
+        bg_auto = args[i + 1].strip().lower() == 'auto'
+        bg, ok = (DEFAULT_BG, True) if bg_auto else safe_bg(args[i + 1])
         if not ok:
             print('note: "%s" is not a plain color (like #101018, rgb(16,16,24) or black); using %s' % (args[i + 1], DEFAULT_BG), file=sys.stderr)
         del args[i:i + 2]
@@ -183,7 +185,7 @@ def main(argv):
         del args[i:i + 2]
     argv = [argv[0]] + args
     if len(argv) < 3:
-        raise SystemExit('usage: python3 pack.py in.html out.html ["Title"] [--bg COLOR] [--encoding base64|bytes] [--fast | --best | --passes N]')
+        raise SystemExit('usage: python3 pack.py in.html out.html ["Title"] [--bg COLOR|auto] [--encoding base64|bytes] [--fast | --best | --passes N]')
     try:
         import zopfli.gzip
     except ImportError:
@@ -191,6 +193,10 @@ def main(argv):
     src, dst = argv[1], argv[2]
     title = argv[3] if len(argv) > 3 else 'Loading'
     raw = open(src, 'rb').read()
+    if bg_auto:
+        found = _lzma_helpers().detect_bg(raw.decode('utf-8', 'replace'))
+        bg, ok = safe_bg(found) if found else (DEFAULT_BG, False)
+        print('note: --bg auto %s %s' % ('read the page color', bg) if ok else 'note: --bg auto found no plain page color; using ' + bg, file=sys.stderr)
     gz = zopfli.gzip.compress(raw, numiterations=passes)
     if encoding == 'bytes':
         loader = build_page_bytes(gz, title, bg)
