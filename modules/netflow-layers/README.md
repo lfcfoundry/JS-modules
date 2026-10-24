@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.4.0 · API 1**
+**Version 1.5.0 · API 1**
 
-**Tested in:** Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5; 90 generated layouts identical to 1.3.1
+**Tested in:** Node 22 (19 checks, wasm on, off and with code generation refused); Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 one at a time (same 800-stop picture with wasm allowed, with wasm blocked by the page rule, and with wasm off; speed runs 40 turns x 3 passes). Not run: GNOME Web, a real phone
 
 Lays out a graph in rows (a layered, Sugiyama-style drawing): top to bottom or left to right, with long links drawn as tags, rows in the order of the story, a column for the pages every route passes, and tall maps cut into columns. It is the layered engine of Netflow Map, which draws Flow, Top-down, Spine, Lanes, Arc and Matrix from it. About 28 KB (28,868 bytes; 9.3 KB gzipped), no dependencies. Works in a browser (global `NetflowLayers`) and in Node (`module.exports`).
 
@@ -27,7 +27,7 @@ var R = NetflowLayers.layout({
 svgElement.innerHTML = NetflowLayers.toSvg(R);        // or draw R.nodes and R.edges yourself
 ```
 
-Your input is never changed: the result holds copies of your nodes and links with the places added. **Try it:** `demo.html` (type links, the picture redraws). **Test it:** `node modules/netflow-layers/test/run.js` (16 checks, about 0.4 s).
+Your input is never changed: the result holds copies of your nodes and links with the places added. **Try it:** `demo.html` (type links, the picture redraws). **Test it:** `node modules/netflow-layers/test/run.js` (19 checks, about 0.4 s).
 
 ## Options
 
@@ -55,6 +55,9 @@ Returns `{ nodes, edges, pos, order, lanes, width, height, crossings, rows, rule
 - `info`: `{ rows, columns, stops, back, flat, tags, goldTags, rowMode }`. `ruler`: for each row `{ at, edge }` (where to write "step 12" and where its column starts).
 
 `toSvg(result, colors)` draws boxes, curves and tag chips as a plain SVG string (text is escaped); `taper: true` draws forward links as shapes that narrow from 5 px to 1 px, so direction shows without arrowheads.
+
+## WebAssembly (1.5.0)
+The row-order search (crossing counts, sweeps, neighbor swaps) and the row placement run in WebAssembly, built from `wasm/order.c` (`sh wasm/build.sh`, then `python3 wasm/embed.py` puts the 8,040 bytes into `netflow-layers.js` as base64). A page needs only `'wasm-unsafe-eval'` in `script-src`; nothing is fetched. The pictures are the same to the last digit as the plain JavaScript, which stays in the file as the fallback (no WebAssembly, blocked by the page rule, a map under 100 stops, or a failed call). `NetflowLayers.wasm` is `{ on, min, calls, error }`: set `on = false` to force JavaScript, `min` to change the 100-stop limit, read `calls` and `error` to see what happened. Measured in ungoogled Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 5,000 pages (lower is better): 37.7 to 26.9, 55 to 41 and 53 to 43 ms with wasm off and on; 1,000 pages 6.65 to 4.8, 10 to 8 and 8.5 to 7 ms. The first map of 100 stops or more compiles the module once (about 4 ms in WebKitGTK, under 1 ms in Chromium).
 
 ## How it compares
 
