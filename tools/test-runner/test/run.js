@@ -130,4 +130,36 @@ t('bisect: finds the commit that broke a file in a throwaway repository, in log2
   const none = B.bisect(shas[14], shas[19], ['sh', '-c', 'grep -q fine v.txt'], { repo, quiet: true, log: () => {} }); ok(none.first === null, 'a good that is not good');
   const sk = B.bisect(shas[0], shas[19], ['sh', '-c', 'test "$(cat n.txt)" = 12 && exit 125; grep -q fine v.txt'], { repo, quiet: true }); ok(sk.first && sk.first.sha === shas[13], 'skips a commit it cannot test');
 });
+t('ledger: a rerun skips the browsers that passed for this build, redoes a failed one, and --fresh or a new build runs everything again', () => {
+  const L = path.join(tmp, 'ledger1'), log = path.join(tmp, 'ran1.log'), chk = path.join(tmp, 'fake-check.js'), cli = path.resolve(__dirname, '..', 'cli.js');
+  fs.writeFileSync(chk, "const b=process.argv[2];require('fs').appendFileSync(process.env.RAN_LOG,b+'\\n');if(process.env.FAKE_FAIL===b){console.log(b+' fails');process.exit(1)}console.log(b+' ok');process.exit(0)");
+  const run = (args, env) => cp.spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', env: Object.assign({}, process.env, { TEST_RUNNER_LEDGER: L, TEST_RUNNER_BUILD: 'b1', RAN_LOG: log }, env) });
+  let r = run(['all', chk], { FAKE_FAIL: 'webkit' }); ok(r.status === 1 && /webkit +FAIL/.test(r.stdout), 'first run: ' + r.stdout);
+  ok(fs.readFileSync(log, 'utf8').trim().split('\n').join() === 'chromium,firefox,webkit,epiphany', 'all four ran first time');
+  fs.writeFileSync(log, ''); r = run(['all', chk]); ok(r.status === 0, 'second run passes: ' + r.stdout + r.stderr);
+  ok(fs.readFileSync(log, 'utf8').trim().split('\n').join() === 'webkit', 'only the failed browser ran again: ' + fs.readFileSync(log, 'utf8'));
+  ok(/chromium +pass \(kept\)/.test(r.stdout) && /webkit +pass +[\d.]+$/m.test(r.stdout) && /3 kept/.test(r.stdout), 'summary says what was kept: ' + r.stdout);
+  fs.writeFileSync(log, ''); run(['all', '--fresh', chk]); ok(fs.readFileSync(log, 'utf8').trim().split('\n').length === 4, '--fresh runs all four');
+  fs.writeFileSync(log, ''); run(['all', chk], { TEST_RUNNER_BUILD: 'b2' }); ok(fs.readFileSync(log, 'utf8').trim().split('\n').length === 4, 'a new build runs all four');
+  fs.writeFileSync(log, ''); run(['all', chk, 'extra']); ok(fs.readFileSync(log, 'utf8').trim().split('\n').length === 4, 'other arguments are another suite');
+  r = run(['all', '--status', chk]); ok(r.status === 0 && /^FINISHED +fake-check\.js: finished with every cell passing/m.test(r.stdout), 'finished: ' + r.stdout);
+  ok(/^FINISHED/m.test(run(['status']).stdout), 'status without a file lists the runs');
+});
+t('ledger: ALIVE while a run goes on, DEAD when its process is gone, DEAD when the machine restarted, FINISHED at the end', async () => {
+  const LD = require('../ledger.js'), L = path.join(tmp, 'ledger2'), chk = path.join(tmp, 'slow-check.js'), cli = path.resolve(__dirname, '..', 'cli.js');
+  fs.writeFileSync(chk, "setTimeout(()=>process.exit(0), 60000)");
+  const env = Object.assign({}, process.env, { TEST_RUNNER_LEDGER: L, TEST_RUNNER_BUILD: 'b9' });
+  const status = () => cp.spawnSync(process.execPath, [cli, 'status', chk], { encoding: 'utf8', env });
+  const c = cp.spawn(process.execPath, [cli, 'all', chk], { env, stdio: 'ignore' }); const gone = new Promise((r) => c.on('exit', r));
+  for (let i = 0; i < 50 && !fs.existsSync(path.join(L, 'heartbeat-slow-check.js.json')); i++) await T.sleep(100);
+  let r = status(); ok(r.status === 0 && /^ALIVE +slow-check\.js: last heartbeat \d+ s ago, running chromium/m.test(r.stdout), 'alive: ' + r.stdout);
+  const hbf = path.join(L, 'heartbeat-slow-check.js.json'), hb = JSON.parse(fs.readFileSync(hbf, 'utf8'));
+  ok(hb.boot === LD.bootId() && hb.pid === c.pid, 'the heartbeat records the boot id and the pid');
+  fs.writeFileSync(hbf, JSON.stringify(Object.assign({}, hb, { boot: 'some-earlier-boot' }))); r = status();
+  ok(r.status === 2 && /^DEAD .*machine restarted/m.test(r.stdout), 'restart: ' + r.stdout);
+  fs.writeFileSync(hbf, JSON.stringify(hb)); c.kill('SIGKILL'); await gone; spawnWaitDead(c.pid);
+  r = status(); ok(r.status === 2 && /^DEAD .*process \(pid \d+\) is gone/m.test(r.stdout), 'crash: ' + r.stdout);
+  function spawnWaitDead(pid) { for (let i = 0; i < 50; i++) { try { process.kill(pid, 0); } catch (e) { return; } Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50); } }
+  ok(LD.judge(null).verdict === 'NONE', 'nothing recorded');
+});
 pending.then(() => { fs.rmSync(tmp, { recursive: true, force: true }); console.log(bad ? 'test-runner: ' + bad + ' FAILED' : 'test-runner: all passed'); process.exit(bad ? 1 : 0); });
