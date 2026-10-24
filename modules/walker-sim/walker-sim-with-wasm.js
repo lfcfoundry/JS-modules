@@ -5,7 +5,7 @@
  * check against; what-if sweeps. Names and help texts for the random-number kinds are in the optional walker-sim-menu.js.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.0 (API 2)
+ * Version 2.4.0 (API 2)
  *
  *   var P = WalkerSim.graph({ links: [{ from: "start", to: "a", weight: 3 }, { from: "start", to: "b", weight: 1 }] });
  *   var sim = WalkerSim.create(P, { seed: 7, trials: 10000 }); sim.run(1e9, 1e9);   // run(max trials, max milliseconds)
@@ -20,6 +20,7 @@
   'use strict';
 
   var kernelMaker = null;     // set by walker-sim-wasm.js through useKernel
+  var sweepKernel = null;     // set by walker-sim-wasm.js through useSweepKernel
 
   /* ---------------------------------------------------------------- random numbers */
   function mix32(a, b) {
@@ -845,7 +846,17 @@
       return delta;
     }
     var delta = Infinity, prev = Infinity, sweeps = 0, method = 'sweeps', converged, error;
-    while (sweeps < maxSweeps) { prev = delta; delta = sweepOnce(); sweeps++; if (delta < 1e-12) break; }
+    var kr = null;     // the first rounds in WebAssembly when walker-sim-wasm.js is loaded and works: it gets flat copies of what a round reads (the items in order, where each item's ways start, the target * K and the chance of every way, also those with chance 0 so the sums stay identical) and hands back null when it cannot, with c untouched
+    if (sweepKernel) {
+      var nO = ord.length, ordA = Int32Array.from(ord), eS = new Int32Array(nO + 1), E = 0, oi0, k0, e0;
+      for (oi0 = 0; oi0 < nO; oi0++) { eS[oi0] = E; E += P.outStart[ord[oi0] + 1] - P.outStart[ord[oi0]]; }
+      eS[nO] = E;
+      var tKa = new Int32Array(E), pea = new Float64Array(E);
+      for (oi0 = 0; oi0 < nO; oi0++) for (k0 = P.outStart[ord[oi0]]; k0 < P.outStart[ord[oi0] + 1]; k0++) { e0 = P.outEdge[k0]; tKa[eS[oi0] + k0 - P.outStart[ord[oi0]]] = P.to[e0] * K; pea[eS[oi0] + k0 - P.outStart[ord[oi0]]] = p[e0]; }
+      kr = sweepKernel(maxSweeps, nO, K, ordA, eS, tKa, pea, c, acc);
+    }
+    if (kr) { delta = kr[0]; prev = kr[1]; sweeps = kr[2]; }
+    else while (sweeps < maxSweeps) { prev = delta; delta = sweepOnce(); sweeps++; if (delta < 1e-12) break; }
     function leftover() { var rho = prev > 0 && prev < Infinity ? delta / prev : 1; return rho < 1 ? delta * rho / (1 - rho) : 1; }
     if (delta < 1e-12) { converged = true; error = delta; }
     else if (solveLoops(P, p, c, K, ord, o.maxLoop || 2500)) { method = 'loops'; delta = sweepOnce(); converged = delta < 1e-9; error = delta; }
@@ -1001,20 +1012,21 @@
     return out;
   }
 
-  return { graph: graph, DRAW: DRAW, moments: moments, drawer: drawer, makeRng: makeRng, rngFor: rngFor, lgamma: lgamma, create: create, merge: merge, exactEndpoints: exactEndpoints, exactSummary: exactSummary, sweep: sweep, sensitivity: sensitivity, useKernel: function (f) { kernelMaker = typeof f === 'function' ? f : null; }, wilson: wilson, quantile: quantile };
+  return { graph: graph, DRAW: DRAW, moments: moments, drawer: drawer, makeRng: makeRng, rngFor: rngFor, lgamma: lgamma, create: create, merge: merge, exactEndpoints: exactEndpoints, exactSummary: exactSummary, sweep: sweep, sensitivity: sensitivity, useKernel: function (f) { kernelMaker = typeof f === 'function' ? f : null; }, useSweepKernel: function (f) { sweepKernel = typeof f === 'function' ? f : null; }, wilson: wilson, quantile: quantile };
 }));
 
 /*!
- * walker-sim-wasm.js: an optional faster walking loop for walker-sim, written in WebAssembly (about 1 KB, built from wasm/walker-sim.c with wasm/build.sh).
+ * walker-sim-wasm.js: an optional faster walking loop and faster what-if rounds for walker-sim, written in WebAssembly (about 1 KB each, built from wasm/walker-sim.c and wasm/sweep.c with wasm/build.sh).
  * Load walker-sim.js first, then this file. The counts stay exactly the same as without it for the same seed; it only changes how fast the walkers go.
  * It helps most in Chromium and Firefox (about twice as fast again) and little in WebKit (1.0 to 1.3 times in WebKitGTK and GNOME Web). It needs a page that allows WebAssembly (the policy word is
  * wasm-unsafe-eval); when the page does not allow it, or the browser has no WebAssembly, loading this file does nothing and walker-sim keeps using its JavaScript loop.
  * A run switches to it after its first 20,000 walkers (cfg.wasmAfter changes that; setting it up costs about as much as walking that many), so small runs never pay for it.
  * Only runs with fixed weights, one start item, no costs or waits and a step cap of 100,000 or less use it; every other run uses the JavaScript loop as before.
+ * sweep and exactEndpoints use a second program from this file for their rounds (WalkerSim.useSweepKernel); it works out the same numbers to the last digit, and without WebAssembly walker-sim runs the rounds in JavaScript.
  * Turn it off for one run with cfg.wasm = false. sim.engine says which loop a run used ('wasm' or 'js'); WalkerSim.wasm says whether this file found WebAssembly usable.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.0 (API 2)
+ * Version 2.4.0 (API 2)
  */
 
 (function (root, factory) {
@@ -1066,6 +1078,47 @@
         moves: new Float64Array(buf, oMoves, m), tab: new Float64Array(buf, oTab, cap + 1), counts: new Float64Array(buf, oTc, K),
         walk: function (rng, count, start) { rng.reseed(walk(count, start, rng.state(), cap, oOs, oCum, oTg, oHalt, oLut, oMoves, oTab, oEp, oTc, oSt)); return stuck[0]; }
       };
+    } catch (e) { return null; }
+  });
+  /* The what-if rounds (sweep, exactEndpoints) have a program of their own, wasm/sweep.c: a SIMD build and a scalar twin for engines that refuse SIMD. It is compiled early like the walking loop,
+     keeps one memory and one instance for all calls (the memory grows only when a call needs more) and hands back null on any trouble, which makes walker-sim use its JavaScript loop. */
+  var sw = { mod: null, exp: null, mem: null, settled: false };
+  function swBytes(b64) { var txt = atob(b64), bytes = new Uint8Array(txt.length); for (var i = 0; i < txt.length; i++) bytes[i] = txt.charCodeAt(i); return bytes; }
+  var SW_SIMD = /*SWEEP:BEGIN*/'AGFzbQEAAAABDwFgCn9/f39/f39/f38BfwIPAQNlbnYGbWVtb3J5AgACAwIBAAYHAX8BQYAQCwcKAQZzd2VlcHMAAArRBwHOBwYBfwJ8D38BfAF7BHxBASEKRAAAAAAAAPB/IQsCQAJAIABBAU4NAEEAIQpEAAAAAAAA8H8hDAwBC0QAAAAAAAAAACEMIAFBAUgNACACQQFIDQAgAkEBcSENIAJBfnEhDiACQX9qIQ8gByACQQN0IhBqIREgCCAQaiESRAAAAAAAAPB/IQxBACEKA0AgDCELRAAAAAAAAAAAIQxBACETA0AgAyATQQJ0IhRqKAIAIRVBACEQAkACQCACQQJJIhYNACAOIRcgCCEQA0AgEP0MAAAAAAAAAAAAAAAAAAAAAP0LAwAgEEEQaiEQIBdBfmoiFw0ACyAOIRAgDiACRg0BCyACIBBrIRcgCCAQQQN0aiEQA0AgEEIANwMAIBBBCGohECAXQX9qIhcNAAsLIBUgAmwhGAJAIAQgFGooAgAiGSAEIBNBAWoiE0ECdGooAgAiGk4NAANAIAcgBSAZQQJ0aigCAEEDdCIbaiEVIAYgGUEDdGorAwAhHEEAIRACQAJAIBYNAAJAIBEgG2ogCE0NACAVIBJJDQELIBz9FCEdIA4hFCAIIRAgFSEXA0AgECAQ/QADACAdIBf9AAMA/fIB/fAB/QsDACAQQRBqIRAgF0EQaiEXIBRBfmoiFA0ACyAOIRAgDiACRg0BCyAQIRQCQCANRQ0AIAggEEEDdCIXaiIUIBQrAwAgHCAVIBdqKwMAoqA5AwAgEEEBciEUCyAPIBBGDQAgByAUQQN0IhAgG2pqIRcgAiAUayEUIAggEGohEANAIBAgECsDACAcIBcrAwCioDkDACAQQQhqIhUgFSsDACAcIBdBCGorAwCioDkDACAXQRBqIRcgEEEQaiEQIBRBfmoiFA0ACwsgGUEBaiIZIBpHDQALCyAHIBhBA3RqIRlEAAAAAAAAAAAhHkEAIRQCQCAPRQ0AIBkhECAIIRcDQCAQKwMAIRwgECAXKwMAIh85AwAgEEEIaiIVKwMAISAgFSAXQQhqKwMAIiE5AwAgHiAfIByhIhyaIBwgHEQAAAAAAAAAAGMboCAhICChIhyaIBwgHEQAAAAAAAAAAGMboCEeIBBBEGohECAXQRBqIRcgDiAUQQJqIhRHDQALCwJAIA1FDQAgGSAUQQN0IhBqIhcrAwAhHCAXIAggEGorAwAiHzkDACAeIB8gHKEiHJogHCAcRAAAAAAAAAAAYxugIR4LIB4gDCAeIAxkGyEMIBMgAUcNAAsgCkEBaiEKIAxEEeotgZmXcT1jDQEgCiAASA0ACwsgCSALOQMIIAkgDDkDACAJIAq3OQMQIAoL'/*SWEEP:END*/, SW_SCALAR = /*SWEEPS:BEGIN*/'AGFzbQEAAAABDwFgCn9/f39/f39/f38BfwIPAQNlbnYGbWVtb3J5AgACAwIBAAYHAX8BQYAQCwcKAQZzd2VlcHMAAArtBgHqBgQBfwJ8D38FfEEBIQpEAAAAAAAA8H8hCwJAAkAgAEEBTg0AQQAhCkQAAAAAAADwfyEMDAELRAAAAAAAAAAAIQwgAUEBSA0AIAJBAUgNACACQQFxIQ0gAkF+cSEOIAJBeHEhDyACQQdxIRAgAkF/aiERRAAAAAAAAPB/IQxBACEKIAJBCEkhEgNAIAwhC0QAAAAAAAAAACEMQQAhEwNAIAMgE0ECdCIUaigCACEVQQAhFgJAIBINAEEAIRYgCCEXA0AgF0IANwMAIBdBOGpCADcDACAXQTBqQgA3AwAgF0EoakIANwMAIBdBIGpCADcDACAXQRhqQgA3AwAgF0EQakIANwMAIBdBCGpCADcDACAXQcAAaiEXIA8gFkEIaiIWRw0ACwsCQCAQRQ0AIAggFkEDdGohFyAQIRYDQCAXQgA3AwAgF0EIaiEXIBZBf2oiFg0ACwsgFSACbCEYAkAgBCAUaigCACIZIAQgE0EBaiITQQJ0aigCACIaTg0AA0AgByAFIBlBAnRqKAIAQQN0aiEbIAYgGUEDdGorAwAhHEEAIRQCQCARRQ0AIAghFyAbIRYDQCAXIBcrAwAgHCAWKwMAoqA5AwAgF0EIaiIVIBUrAwAgHCAWQQhqKwMAoqA5AwAgF0EQaiEXIBZBEGohFiAOIBRBAmoiFEcNAAsLAkAgDUUNACAIIBRBA3QiF2oiFiAWKwMAIBwgGyAXaisDAKKgOQMACyAZQQFqIhkgGkcNAAsLIAcgGEEDdGohGUQAAAAAAAAAACEdQQAhFAJAIBFFDQAgGSEXIAghFgNAIBcrAwAhHCAXIBYrAwAiHjkDACAXQQhqIhUrAwAhHyAVIBZBCGorAwAiIDkDACAdIB4gHKEiHJogHCAcRAAAAAAAAAAAYxugICAgH6EiHJogHCAcRAAAAAAAAAAAYxugIR0gF0EQaiEXIBZBEGohFiAOIBRBAmoiFEcNAAsLAkAgDUUNACAZIBRBA3QiF2oiFisDACEcIBYgCCAXaisDACIeOQMAIB0gHiAcoSIcmiAcIBxEAAAAAAAAAABjG6AhHQsgHSAMIB0gDGQbIQwgEyABRw0ACyAKQQFqIQogDEQR6i2BmZdxPWMNASAKIABIDQALCyAJIAs5AwggCSAMOQMAIAkgCrc5AxAgCgs='/*SWEEPS:END*/;
+  function swAccept(m) {     // an engine may only refuse at the first Instance (a page that forbids WebAssembly), so make the one instance now
+    try {
+      var mem = new WebAssembly.Memory({ initial: 2 }), exp = new WebAssembly.Instance(m, { env: { memory: mem } }).exports;
+      if (typeof exp.sweeps === 'function') { sw.mod = m; sw.exp = exp; sw.mem = mem; }
+    } catch (e) { sw.mod = null; }
+    return sw.mod !== null;
+  }
+  function swEnsure() {     // the early compile unfinished: compile on the spot (1 KB, a fraction of a millisecond)
+    if (sw.settled) return sw.mod !== null;
+    sw.settled = true;
+    if (typeof WebAssembly !== 'object' || !WebAssembly) return false;
+    var list = [SW_SIMD, SW_SCALAR];
+    for (var i = 0; i < list.length; i++) { try { if (swAccept(new WebAssembly.Module(swBytes(list[i])))) return true; } catch (e) { /* SIMD refused: try the scalar twin */ } }
+    return false;
+  }
+  if (typeof WebAssembly === 'object' && WebAssembly && typeof WebAssembly.compile === 'function') {
+    try {
+      WebAssembly.compile(swBytes(SW_SIMD)).catch(function () { return WebAssembly.compile(swBytes(SW_SCALAR)); }).then(function (m) { if (!sw.settled) { sw.settled = true; swAccept(m); } }, function () { sw.settled = true; });
+    } catch (e) { /* compiled on the spot at the first call */ }
+  }
+  WalkerSim.useSweepKernel(function (maxS, nO, K, ordA, eS, tKa, pea, c, acc) {
+    try {
+      if (!swEnsure()) return null;
+      var E = tKa.length, off = 66560, take = function (size) { off = (off + 7) & ~7; var o = off; off += size; return o; };
+      var oOrd = take(4 * nO), oES = take(4 * (nO + 1)), oTK = take(4 * E), oPe = take(8 * E), oC = take(8 * c.length), oAcc = take(8 * K), oOut = take(24), need = Math.ceil((off + 8) / 65536);
+      var have = sw.mem.buffer.byteLength / 65536;
+      if (need > have) sw.mem.grow(need - have);
+      var buf = sw.mem.buffer;
+      new Int32Array(buf, oOrd, nO).set(ordA); new Int32Array(buf, oES, nO + 1).set(eS); new Int32Array(buf, oTK, E).set(tKa);
+      new Float64Array(buf, oPe, E).set(pea); new Float64Array(buf, oC, c.length).set(c);
+      sw.exp.sweeps(maxS, nO, K, oOrd, oES, oTK, oPe, oC, oAcc, oOut);
+      var out = new Float64Array(buf, oOut, 3), res = [out[0], out[1], out[2]];
+      c.set(new Float64Array(buf, oC, c.length));     // c is only written when the whole call went well
+      return res;
     } catch (e) { return null; }
   });
   return WalkerSim;
