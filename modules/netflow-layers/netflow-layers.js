@@ -2,7 +2,7 @@
  * netflow-layers.js: lay out a graph in rows (a Sugiyama-style layered drawing): top to bottom or left to right, with long links as tags, story order, a column for the pages every route passes, and tall maps cut into columns. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.0 (API 1)
+ * Version 1.5.0 (API 1)
  *
  *   var R = NetflowLayers.layout({ nodes: [{ id: "start", w: 140, h: 44 }, { id: "a", w: 140, h: 44 }], edges: [{ from: "start", to: "a" }], root: "start" }, { dir: "TB" });
  *   svgElement.innerHTML = NetflowLayers.toSvg(R);          // or draw R.nodes and R.edges yourself (see README)
@@ -13,6 +13,52 @@
   else root.NetflowLayers = factory();
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
+  /* The row-order search and the row placement of layered() in WebAssembly (wasm/order.c; build: sh wasm/build.sh; embed: python3 wasm/embed.py). The same rows and places to the last digit as the
+   * JavaScript below, which stays as the fallback: WebAssembly missing, blocked by the page rule (only 'wasm-unsafe-eval' is needed), a map under `min` stops (default 100, so a small first map does not pay the one-time compile), or any trouble inside a call.
+   * `NetflowLayers.wasm.on = false` turns it off; `.calls` counts the steps it ran, `.error` holds the last reason it fell back. */
+  var WASM = { b64: /*WASM:order:BEGIN*/'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'/*WASM:order:END*/, on: true, min: 100, calls: 0, error: '', mod: null, inst: null, tried: false };
+  function wasmBytes() {
+    var t = typeof atob === 'function' ? atob(WASM.b64) : Buffer.from(WASM.b64, 'base64').toString('latin1'), b = new Uint8Array(t.length), i;
+    for (i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
+    return b;
+  }
+  function wasmEngine() {
+    if (!WASM.tried) {
+      WASM.tried = true;
+      try {
+        if (typeof WebAssembly === 'object' && WebAssembly && WASM.b64) {
+          WASM.inst = new WebAssembly.Instance(new WebAssembly.Module(wasmBytes()), {}).exports;   // compiled here, once, on the first map of 100 stops or more
+        }
+      } catch (err) { WASM.error = String(err && err.message || err); WASM.inst = null; }
+    }
+    return WASM.inst;
+  }
+  var WASM_LISTS = ['NV', 'NL', 'MAXLEN', 'BASE', 'ROUNDS', 'BIG', 'rowOff', 'ord', 'best', 'pos', 'lane', 'bary', 'upOff', 'upIdx', 'dnOff', 'dnIdx', 'scr', 'fen', 'tmp',
+    'upW', 'dnW', 'bothOff', 'bothIdx', 'bothW', 'cA', 'gap', 'choke', 'dummy', 'WIDE', 'ITERS', 'want', 'wt', 'gaps', 'off', 'bs', 'bw', 'bn', 'out'];
+  /* Lay out the lists one call needs in wasm memory (grown once, here) and copy the fixed ones in. Returns null when that cannot be done. */
+  function wasmPrep(nV, nL, maxLen, nLk, up, down, laneA, vert) {
+    var ex = wasmEngine();
+    if (!ex) return null;
+    try {
+      var HEAD = 65536, at = HEAD + 1024, p = {}, i, mem = ex.memory;
+      var want = [['rowOff', 4 * (nL + 2)], ['ord', 4 * nV], ['best', 4 * nV], ['pos', 4 * nV], ['lane', 8 * nV], ['bary', 8 * nV], ['upOff', 4 * (nV + 1)], ['upIdx', 4 * nLk], ['dnOff', 4 * (nV + 1)], ['dnIdx', 4 * nLk],
+        ['scr', 4 * (nLk + 1)], ['fen', 4 * (maxLen + 3)], ['tmp', 4 * (nV + 1)], ['upW', 8 * nLk], ['dnW', 8 * nLk], ['bothOff', 4 * (nV + 1)], ['bothIdx', 8 * nLk], ['bothW', 16 * nLk], ['cA', 8 * nV], ['gap', 8 * nV],
+        ['choke', nV], ['dummy', nV], ['want', 8 * maxLen], ['wt', 8 * maxLen], ['gaps', 8 * maxLen], ['off', 8 * maxLen], ['bs', 8 * maxLen], ['bw', 8 * maxLen], ['bn', 4 * maxLen], ['out', 8 * maxLen]];
+      for (i = 0; i < want.length; i++) { at = (at + 7) & ~7; p[want[i][0]] = at; at += want[i][1] + 8; }
+      if (at > 1.9e9) return null;
+      if (at > mem.buffer.byteLength) mem.grow(Math.ceil((at - mem.buffer.byteLength) / 65536));
+      var buf = mem.buffer, w = { ex: ex, buf: buf, p: p, P: new Int32Array(buf, HEAD, WASM_LISTS.length), head: HEAD };
+      w.i32 = function (n, len) { return new Int32Array(buf, p[n], len); };
+      w.f64 = function (n, len) { return new Float64Array(buf, p[n], len); };
+      w.i32('upOff', nV + 1).set(up.off); w.i32('upIdx', nLk).set(up.idx.subarray(0, nLk)); w.f64('upW', nLk).set(up.w.subarray(0, nLk));
+      w.i32('dnOff', nV + 1).set(down.off); w.i32('dnIdx', nLk).set(down.idx.subarray(0, nLk)); w.f64('dnW', nLk).set(down.w.subarray(0, nLk));
+      w.f64('lane', nV).set(laneA);
+      var dm = new Uint8Array(buf, p.dummy, nV); for (i = 0; i < nV; i++) dm[i] = vert[i].dummy ? 1 : 0;
+      for (i = 0; i < WASM_LISTS.length; i++) if (p[WASM_LISTS[i]] !== undefined) w.P[i] = p[WASM_LISTS[i]];
+      w.P[0] = nV; w.P[1] = nL; w.P[2] = maxLen;
+      return w;
+    } catch (err) { WASM.error = String(err && err.message || err); return null; }
+  }
   function mapPlaceLine(want, w, gaps, lo) {
     var n = want.length, off = new Array(n);
     off[0] = 0;
@@ -250,75 +296,92 @@
     /* crossings between row k and row k+1 on flat number lists (the same count as mapCrossPairs gives): each link is one number, upper place * K + lower place, sorted as numbers */
     var maxSeg = 0, maxLen = 0;
     L.forEach(function (list) { var m = 0; list.forEach(function (u) { m += down.off[u.idx + 1] - down.off[u.idx]; }); if (m > maxSeg) maxSeg = m; if (list.length > maxLen) maxLen = list.length; });
-    var keyBuf = new Float64Array(maxSeg), fen = new Int32Array(maxLen + 2);
-    var crossBetween = function (k) {
-      var K = L[k + 1].length + 1, n = 0, list = L[k], i, j, t;
-      for (i = 0; i < list.length; i++) { var u = list[i], base = posA[u.idx] * K; for (j = down.off[u.idx]; j < down.off[u.idx + 1]; j++) keyBuf[n++] = base + posA[down.idx[j]]; }
-      if (n < 2) return 0;
-      var keys = keyBuf.subarray(0, n); keys.sort();
-      fen.fill(0, 0, K + 1);
-      var c = 0, done = 0, hi = K + 1;
-      for (i = 0; i < n;) {
-        var a = Math.floor(keys[i] / K);
-        for (j = i; j < n && Math.floor(keys[j] / K) === a; j++) {
-          var q = 0;
-          for (t = keys[j] - a * K + 1; t > 0; t -= t & -t) q += fen[t];
-          c += done - q;
+    var wm = WASM.on && nV >= WASM.min ? wasmPrep(nV, nL, maxLen, nLk, up, down, laneA, vert) : null, best, bestC = 0;
+    var big = vert.length > 600, baseRounds = big ? 2 : 6;
+    if (wm) {   // the whole order search in WebAssembly (wasm/order.c, order); L and posA are written only when it has finished
+      try {
+        var wP = wm.P, wro = wm.i32('rowOff', nL + 2), wod = wm.i32('ord', nV), r0 = 0, wi, wk;
+        for (wk = 0; wk < nL; wk++) { wro[wk] = r0; for (wi = 0; wi < L[wk].length; wi++) wod[r0 + wi] = L[wk][wi].idx; r0 += L[wk].length; }
+        wro[nL] = r0; wro[nL + 1] = r0;
+        wm.i32('pos', nV).set(posA);
+        wP[3] = baseRounds; wP[4] = baseRounds + (opts.better ? 6 : 0); wP[5] = big ? 1 : 0;
+        bestC = wm.ex.order(wm.head);
+        var wbo = wm.i32('best', nV), rows = new Array(nL);
+        for (wk = 0; wk < nL; wk++) { var wl = rows[wk] = new Array(L[wk].length); for (wi = 0; wi < wl.length; wi++) wl[wi] = vert[wbo[wro[wk] + wi]]; }
+        for (wk = 0; wk < nL; wk++) { L[wk] = rows[wk]; rows[wk].forEach(function (v, i) { v.pos = i; posA[v.idx] = i; }); }
+        WASM.calls++;
+      } catch (err) { WASM.error = String(err && err.message || err); wm = null; }
+    }
+    if (!wm) {
+      var keyBuf = new Float64Array(maxSeg), fen = new Int32Array(maxLen + 2);
+      var crossBetween = function (k) {
+        var K = L[k + 1].length + 1, n = 0, list = L[k], i, j, t;
+        for (i = 0; i < list.length; i++) { var u = list[i], base = posA[u.idx] * K; for (j = down.off[u.idx]; j < down.off[u.idx + 1]; j++) keyBuf[n++] = base + posA[down.idx[j]]; }
+        if (n < 2) return 0;
+        var keys = keyBuf.subarray(0, n); keys.sort();
+        fen.fill(0, 0, K + 1);
+        var c = 0, done = 0, hi = K + 1;
+        for (i = 0; i < n;) {
+          var a = Math.floor(keys[i] / K);
+          for (j = i; j < n && Math.floor(keys[j] / K) === a; j++) {
+            var q = 0;
+            for (t = keys[j] - a * K + 1; t > 0; t -= t & -t) q += fen[t];
+            c += done - q;
+          }
+          for (var m = i; m < j; m++) { for (t = keys[m] - a * K + 1; t < hi; t += t & -t) fen[t]++; done++; }
+          i = j;
         }
-        for (var m = i; m < j; m++) { for (t = keys[m] - a * K + 1; t < hi; t += t & -t) fen[t]++; done++; }
-        i = j;
-      }
-      return c;
-    };
-    var totalCross = function () { var c = 0; for (var k = 0; k + 1 < nL; k++) c += crossBetween(k); return c; };
-    var snapshot = function () { return L.map(function (list) { return list.slice(); }); };
-    var best = snapshot(), bestC = totalCross();
-    var medianNow = false;
-    var scratch = new Int32Array(Math.max(1, nLk));   // for the middle value of a stop's neighbor places
-    var sweep = function (k, nb) {
-      var list = L[k], i, j, lo, hi;
-      for (i = 0; i < list.length; i++) {
-        var v = list[i], a = nb.off[v.idx], z = nb.off[v.idx + 1], cnt = z - a;
-        if (medianNow && cnt) {
-          for (j = 0; j < cnt; j++) { var pv = posA[nb.idx[a + j]], q = j - 1; while (q >= 0 && scratch[q] > pv) { scratch[q + 1] = scratch[q]; q--; } scratch[q + 1] = pv; }
-          var mid = cnt >> 1; baryA[v.idx] = cnt % 2 ? scratch[mid] : (scratch[mid - 1] + scratch[mid]) / 2;
-        } else if (cnt) { var sum = 0; for (j = a; j < z; j++) sum += posA[nb.idx[j]]; baryA[v.idx] = sum / cnt; }
-        else baryA[v.idx] = posA[v.idx];
-      }
-      list.sort(function (a, b) { return laneA[a.idx] - laneA[b.idx] || baryA[a.idx] - baryA[b.idx] || posA[a.idx] - posA[b.idx]; });
-      for (i = 0; i < list.length; i++) { list[i].pos = i; posA[list[i].idx] = i; }
-    };
-    var transpose = function (k) {
-      var improved = true, guard = 0, before, after;
-      var tally = function (ax, bx, nb) {
-        for (var p = nb.off[ax]; p < nb.off[ax + 1]; p++) for (var q = nb.off[bx]; q < nb.off[bx + 1]; q++) {
-          var x = posA[nb.idx[p]], y = posA[nb.idx[q]];
-          if (x > y) before++; else if (x < y) after++;
+        return c;
+      };
+      var totalCross = function () { var c = 0; for (var k = 0; k + 1 < nL; k++) c += crossBetween(k); return c; };
+      var snapshot = function () { return L.map(function (list) { return list.slice(); }); };
+      var best = snapshot(), bestC = totalCross();
+      var medianNow = false;
+      var scratch = new Int32Array(Math.max(1, nLk));   // for the middle value of a stop's neighbor places
+      var sweep = function (k, nb) {
+        var list = L[k], i, j, lo, hi;
+        for (i = 0; i < list.length; i++) {
+          var v = list[i], a = nb.off[v.idx], z = nb.off[v.idx + 1], cnt = z - a;
+          if (medianNow && cnt) {
+            for (j = 0; j < cnt; j++) { var pv = posA[nb.idx[a + j]], q = j - 1; while (q >= 0 && scratch[q] > pv) { scratch[q + 1] = scratch[q]; q--; } scratch[q + 1] = pv; }
+            var mid = cnt >> 1; baryA[v.idx] = cnt % 2 ? scratch[mid] : (scratch[mid - 1] + scratch[mid]) / 2;
+          } else if (cnt) { var sum = 0; for (j = a; j < z; j++) sum += posA[nb.idx[j]]; baryA[v.idx] = sum / cnt; }
+          else baryA[v.idx] = posA[v.idx];
+        }
+        list.sort(function (a, b) { return laneA[a.idx] - laneA[b.idx] || baryA[a.idx] - baryA[b.idx] || posA[a.idx] - posA[b.idx]; });
+        for (i = 0; i < list.length; i++) { list[i].pos = i; posA[list[i].idx] = i; }
+      };
+      var transpose = function (k) {
+        var improved = true, guard = 0, before, after;
+        var tally = function (ax, bx, nb) {
+          for (var p = nb.off[ax]; p < nb.off[ax + 1]; p++) for (var q = nb.off[bx]; q < nb.off[bx + 1]; q++) {
+            var x = posA[nb.idx[p]], y = posA[nb.idx[q]];
+            if (x > y) before++; else if (x < y) after++;
+          }
+        };
+        while (improved && guard++ < 8) {
+          improved = false;
+          for (var i = 0; i + 1 < L[k].length; i++) {
+            var a = L[k][i], b = L[k][i + 1];
+            if (laneA[a.idx] !== laneA[b.idx]) continue;
+            before = 0; after = 0;
+            if (k + 1 < nL) tally(a.idx, b.idx, down);
+            if (k > 0) tally(a.idx, b.idx, up);
+            if (after < before) { a.pos = i + 1; b.pos = i; posA[a.idx] = i + 1; posA[b.idx] = i; L[k][i] = b; L[k][i + 1] = a; improved = true; }
+          }
         }
       };
-      while (improved && guard++ < 8) {
-        improved = false;
-        for (var i = 0; i + 1 < L[k].length; i++) {
-          var a = L[k][i], b = L[k][i + 1];
-          if (laneA[a.idx] !== laneA[b.idx]) continue;
-          before = 0; after = 0;
-          if (k + 1 < nL) tally(a.idx, b.idx, down);
-          if (k > 0) tally(a.idx, b.idx, up);
-          if (after < before) { a.pos = i + 1; b.pos = i; posA[a.idx] = i + 1; posA[b.idx] = i; L[k][i] = b; L[k][i + 1] = a; improved = true; }
-        }
+      /* "better": after the usual rounds, six more (average and middle value in turn, neighbor swaps always); the best order seen is kept, so it is never worse */
+      for (var it = 0; it < baseRounds + (opts.better ? 6 : 0) && bestC > 0; it++) {
+        medianNow = it >= baseRounds && (it - baseRounds) % 2 === 1;
+        for (var k1 = 1; k1 < nL; k1++) sweep(k1, up);
+        for (var k2 = nL - 2; k2 >= 0; k2--) sweep(k2, down);
+        if (!big || it >= baseRounds) for (var k3 = 0; k3 < nL; k3++) transpose(k3);
+        var c = totalCross();
+        if (c < bestC) { bestC = c; best = snapshot(); }
       }
-    };
-    var big = vert.length > 600, baseRounds = big ? 2 : 6;
-    /* "better": after the usual rounds, six more (average and middle value in turn, neighbor swaps always); the best order seen is kept, so it is never worse */
-    for (var it = 0; it < baseRounds + (opts.better ? 6 : 0) && bestC > 0; it++) {
-      medianNow = it >= baseRounds && (it - baseRounds) % 2 === 1;
-      for (var k1 = 1; k1 < nL; k1++) sweep(k1, up);
-      for (var k2 = nL - 2; k2 >= 0; k2--) sweep(k2, down);
-      if (!big || it >= baseRounds) for (var k3 = 0; k3 < nL; k3++) transpose(k3);
-      var c = totalCross();
-      if (c < bestC) { bestC = c; best = snapshot(); }
+      best.forEach(function (list, k) { L[k] = list; list.forEach(function (v, i) { v.pos = i; posA[v.idx] = i; }); });
     }
-    best.forEach(function (list, k) { L[k] = list; list.forEach(function (v, i) { v.pos = i; posA[v.idx] = i; }); });
     var across = function (v) { return v.dummy ? 0 : LR ? v.node.h : v.node.w; };
     var wide = opts.spread === 'wide', gapN = (opts.gapNode !== undefined ? opts.gapNode : LR ? 22 : 28) * (wide ? (LR ? 1.4 : 2.4) : 1), gapD = 12 * (wide ? (LR ? 1.3 : 2) : 1);
     var gapOf = function (a, b) { return (across(a) + across(b)) / 2 + (a.dummy || b.dummy ? gapD : gapN) + (opts.lane && laneOf(a) !== laneOf(b) ? 40 : 0); };
@@ -329,47 +392,63 @@
       list.forEach(function (v, i) { if (i) { gapBefore[v.idx] = gapOf(list[i - 1], v); c2 += gapBefore[v.idx]; } cA[v.idx] = c2; });
     });
     vert.forEach(function (v) { if (!v.dummy && opts.spine && v.node.choke) chokeA[v.idx] = 1; });
-    /* the row placement on flat number lists: the same arithmetic as mapPlaceLine, in the same order, with no list made per row */
-    var P = { want: new Float64Array(maxLen), wt: new Float64Array(maxLen), gaps: new Float64Array(maxLen), off: new Float64Array(maxLen), bs: new Float64Array(maxLen), bw: new Float64Array(maxLen), bn: new Int32Array(maxLen), out: new Float64Array(maxLen) };
-    var placeLayer = function (list, nb) {
-      var n = list.length, want = P.want, wt = P.wt, gaps = P.gaps, off = P.off, bs = P.bs, bw = P.bw, bn = P.bn, out = P.out, nbOff = nb.off, nbIdx = nb.idx, nbW = nb.w, i, j;
-      if (!n) return;
-      for (i = 0; i < n; i++) {
-        var v = list[i], vi = v.idx, na = nbOff[vi], nz = nbOff[vi + 1], s = 0, sw = 0;
-        for (j = na; j < nz; j++) { s += cA[nbIdx[j]] * nbW[j]; sw += nbW[j]; }
-        if (chokeA[vi]) { want[i] = 0; wt[i] = 1000; }
-        else {
-          var mid = sw ? s / sw : cA[vi];
-          if (wide && sw && !v.dummy && nz - na > 1) { var lo = Infinity, hi = -Infinity; for (j = na; j < nz; j++) { lo = Math.min(lo, cA[nbIdx[j]]); hi = Math.max(hi, cA[nbIdx[j]]); } mid = (lo + hi) / 2; }   // wide: over the middle of its neighbors, like a tree
-          want[i] = mid; wt[i] = sw ? sw + (v.dummy ? 2 : 0) : 0.2;
+    var placedW = false;
+    if (wm) {   // the row placement in WebAssembly (wasm/order.c, place); cA is written only when it has finished
+      try {
+        var q = wm.P, qro = wm.i32('rowOff', nL + 2), qod = wm.i32('best', nV), r1 = 0, qi, qk;
+        for (qk = 0; qk < nL; qk++) { qro[qk] = r1; for (qi = 0; qi < L[qk].length; qi++) qod[r1 + qi] = L[qk][qi].idx; r1 += L[qk].length; }
+        qro[qk] = r1; qro[qk + 1] = r1;
+        q[WASM_LISTS.indexOf('ord')] = wm.p.best;
+        wm.f64('cA', nV).set(cA); wm.f64('gap', nV).set(gapBefore); new Uint8Array(wm.buf, wm.p.choke, nV).set(chokeA);
+        q[WASM_LISTS.indexOf('WIDE')] = wide ? 1 : 0; q[WASM_LISTS.indexOf('ITERS')] = big ? 3 : 8;
+        wm.ex.place(wm.head);
+        cA.set(wm.f64('cA', nV));
+        placedW = true; WASM.calls++;
+      } catch (err) { WASM.error = String(err && err.message || err); }
+    }
+    if (!placedW) {
+      /* the row placement on flat number lists: the same arithmetic as mapPlaceLine, in the same order, with no list made per row */
+      var P = { want: new Float64Array(maxLen), wt: new Float64Array(maxLen), gaps: new Float64Array(maxLen), off: new Float64Array(maxLen), bs: new Float64Array(maxLen), bw: new Float64Array(maxLen), bn: new Int32Array(maxLen), out: new Float64Array(maxLen) };
+      var placeLayer = function (list, nb) {
+        var n = list.length, want = P.want, wt = P.wt, gaps = P.gaps, off = P.off, bs = P.bs, bw = P.bw, bn = P.bn, out = P.out, nbOff = nb.off, nbIdx = nb.idx, nbW = nb.w, i, j;
+        if (!n) return;
+        for (i = 0; i < n; i++) {
+          var v = list[i], vi = v.idx, na = nbOff[vi], nz = nbOff[vi + 1], s = 0, sw = 0;
+          for (j = na; j < nz; j++) { s += cA[nbIdx[j]] * nbW[j]; sw += nbW[j]; }
+          if (chokeA[vi]) { want[i] = 0; wt[i] = 1000; }
+          else {
+            var mid = sw ? s / sw : cA[vi];
+            if (wide && sw && !v.dummy && nz - na > 1) { var lo = Infinity, hi = -Infinity; for (j = na; j < nz; j++) { lo = Math.min(lo, cA[nbIdx[j]]); hi = Math.max(hi, cA[nbIdx[j]]); } mid = (lo + hi) / 2; }   // wide: over the middle of its neighbors, like a tree
+            want[i] = mid; wt[i] = sw ? sw + (v.dummy ? 2 : 0) : 0.2;
+          }
+          if (i) gaps[i - 1] = gapBefore[vi];
         }
-        if (i) gaps[i - 1] = gapBefore[vi];
+        off[0] = 0;
+        for (i = 1; i < n; i++) off[i] = off[i - 1] + gaps[i - 1];
+        var m = 0;
+        for (i = 0; i < n; i++) {
+          bs[m] = wt[i] * (want[i] - off[i]); bw[m] = wt[i]; bn[m] = 1; m++;
+          while (m > 1 && bs[m - 2] / bw[m - 2] > bs[m - 1] / bw[m - 1]) { m--; bs[m - 1] += bs[m]; bw[m - 1] += bw[m]; bn[m - 1] += bn[m]; }
+        }
+        var at = 0;
+        for (var bi = 0; bi < m; bi++) { var val = bs[bi] / bw[bi]; for (var kk = 0; kk < bn[bi]; kk++, at++) out[at] = val + off[at]; }
+        for (i = 1; i < n; i++) if (out[i] < out[i - 1] + gaps[i - 1]) out[i] = out[i - 1] + gaps[i - 1];
+        for (i = 0; i < n; i++) cA[list[i].idx] = out[i];
+      };
+      var both = (function () {   // up neighbors first, then down neighbors, for each stop
+        var off = new Int32Array(nV + 1), idx = new Int32Array(2 * nLk), w = new Float64Array(2 * nLk), at = 0, i, j;
+        for (i = 0; i < nV; i++) {
+          off[i] = at;
+          for (j = up.off[i]; j < up.off[i + 1]; j++) { idx[at] = up.idx[j]; w[at++] = up.w[j]; }
+          for (j = down.off[i]; j < down.off[i + 1]; j++) { idx[at] = down.idx[j]; w[at++] = down.w[j]; }
+        }
+        off[nV] = at;
+        return { off: off, idx: idx, w: w };
+      })();
+      for (var it2 = 0; it2 < (big ? 3 : 8); it2++) {
+        for (var k4 = 1; k4 < nL; k4++) placeLayer(L[k4], it2 % 3 === 2 ? both : up);
+        for (var k5 = nL - 2; k5 >= 0; k5--) placeLayer(L[k5], it2 % 3 === 2 ? both : down);
       }
-      off[0] = 0;
-      for (i = 1; i < n; i++) off[i] = off[i - 1] + gaps[i - 1];
-      var m = 0;
-      for (i = 0; i < n; i++) {
-        bs[m] = wt[i] * (want[i] - off[i]); bw[m] = wt[i]; bn[m] = 1; m++;
-        while (m > 1 && bs[m - 2] / bw[m - 2] > bs[m - 1] / bw[m - 1]) { m--; bs[m - 1] += bs[m]; bw[m - 1] += bw[m]; bn[m - 1] += bn[m]; }
-      }
-      var at = 0;
-      for (var bi = 0; bi < m; bi++) { var val = bs[bi] / bw[bi]; for (var kk = 0; kk < bn[bi]; kk++, at++) out[at] = val + off[at]; }
-      for (i = 1; i < n; i++) if (out[i] < out[i - 1] + gaps[i - 1]) out[i] = out[i - 1] + gaps[i - 1];
-      for (i = 0; i < n; i++) cA[list[i].idx] = out[i];
-    };
-    var both = (function () {   // up neighbors first, then down neighbors, for each stop
-      var off = new Int32Array(nV + 1), idx = new Int32Array(2 * nLk), w = new Float64Array(2 * nLk), at = 0, i, j;
-      for (i = 0; i < nV; i++) {
-        off[i] = at;
-        for (j = up.off[i]; j < up.off[i + 1]; j++) { idx[at] = up.idx[j]; w[at++] = up.w[j]; }
-        for (j = down.off[i]; j < down.off[i + 1]; j++) { idx[at] = down.idx[j]; w[at++] = down.w[j]; }
-      }
-      off[nV] = at;
-      return { off: off, idx: idx, w: w };
-    })();
-    for (var it2 = 0; it2 < (big ? 3 : 8); it2++) {
-      for (var k4 = 1; k4 < nL; k4++) placeLayer(L[k4], it2 % 3 === 2 ? both : up);
-      for (var k5 = nL - 2; k5 >= 0; k5--) placeLayer(L[k5], it2 % 3 === 2 ? both : down);
     }
     vert.forEach(function (v) { v.c = cA[v.idx]; });
     var lanes = [];
@@ -508,5 +587,5 @@
     return out.join('\n');
   }
 
-  return { version: '1.4.0', layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
+  return { version: '1.5.0', wasm: WASM, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
 }));
