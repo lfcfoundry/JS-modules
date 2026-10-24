@@ -2,7 +2,7 @@
 // pcodec-js 1.4.0 split files in a real browser. Copyright (c) 2026 LFC Foundry. MIT License.
 // Exactness: a split file (pack(x, { parts: true })) opens to the same numbers through unpack, unpackAsync, info and the pool, and the parts-only result joins to the same numbers.
 // Timing (ms, lower is better; wall time of the call): a column of 0.5, 2 and 8 million numbers, opened as a normal file on one worker, as a split file on a pool of 4 (joined) and as parts only.
-// Median of ROUNDS (default 5) rounds, the configurations taking turns. One browser at a time: CHROMIUM=/path/to/chrome node tests/pcodec-js-split-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// Median of ROUNDS (default 5) rounds, the configurations taking turns. One browser at a time: CHROMIUM=/path/to/chrome node tests/pcodec-js-split-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 (skipped) when nothing can run. Exit 1 on a failed check.
 'use strict';
 const path = require('path'), fs = require('fs'), http = require('http');
@@ -56,7 +56,7 @@ async function battery(rounds, correctnessOnly) {
   const srv = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); r.end('<!doctype html><meta charset=utf-8><title>split</title>'); });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true }) : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox'] });
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true }) : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox'] });
     console.log('Browser: ' + await b.version());
     const p = await b.newPage(); await p.goto('http://127.0.0.1:' + srv.address().port + '/');
     await p.evaluate(src => { (0, eval)(src); }, SRC + '\nwindow.PcodecJS = PcodecJS;');

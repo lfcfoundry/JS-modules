@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // save-kit 1.2.0 in a real browser: the new options with the browser's own localStorage and compression, for the full file and for two lean builds.
 // Copyright (c) 2026 LFC Foundry. MIT License.
-// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/save-kit-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/save-kit-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // Needs python3 (lean.py) and puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js and tools/webkit-driver. Exit 2 (skipped) when nothing can run.
 'use strict';
 const path = require('path'), fs = require('fs'), os = require('os'), { execFileSync } = require('child_process');

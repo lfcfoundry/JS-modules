@@ -3,13 +3,13 @@
 // Each module has a plain file (JavaScript only) and a default file (WebAssembly first, JavaScript when it cannot). Every sample is a fresh page, so the first call is cold and the
 // time of loading and compiling the WebAssembly module is counted; the two files take turns (plain first on one repeat, default first on the next). A second part loads the default file
 // under a page policy WITHOUT 'wasm-unsafe-eval' and checks that it still gives the right bytes or counts, on the JavaScript path.
-// Run: node tests/wasm-default-bench.js <chromium|firefox|webkit|epiphany> [out.json]
+// Run: node tests/wasm-default-bench.js <chromium|firefox|webkit> [out.json]
 // Env: REPS (default 7), PAGE (the page to compress; default ../pineapple-defense/index.html), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two),
 //      ONLY=regex on the module name (lzma, ppmd, walker). Node is not used for speed numbers; only the browsers are. Python 3 makes the test data (no packages).
 'use strict';
 const fs = require('fs'), path = require('path'), os = require('os'), http = require('http'), { execFileSync } = require('child_process');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which)) { console.log('usage: node tests/wasm-default-bench.js <chromium|firefox|webkit|epiphany> [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which)) { console.log('usage: node tests/wasm-default-bench.js <chromium|firefox|webkit> [out.json]'); process.exit(2); }
 const REPS = +(process.env.REPS || 7), ONLY = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
 const pageFile = process.env.PAGE || root + '../pineapple-defense/index.html';
 if (!fs.existsSync(pageFile)) { console.log('skipped: no page to compress (set PAGE=/path/page.html)'); process.exit(2); }
@@ -57,7 +57,7 @@ const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok)); const base = 'http://127.0.0.1:' + server.address().port, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let b, newPage;
-  if (which === 'webkit' || which === 'epiphany') { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch(which === 'epiphany' ? 'epiphany' : 'webkitgtk'); newPage = () => b.newPage(); }
+  if (which === 'webkit') { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch('webkitgtk'); newPage = () => b.newPage(); }
   else { const pup = require('puppeteer-core');
     b = which === 'firefox' ? await pup.launch({ browser: 'firefox', executablePath: process.env.FIREFOX, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 600000 })
       : await pup.launch({ executablePath: process.env.CHROMIUM, headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--disable-gpu'] });
@@ -66,7 +66,7 @@ const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
   async function sample(m, v, csp) {
     const p = await newPage(); await p.goto(base + '/page.html?m=' + m + '&v=' + v + (csp ? '&csp=' + csp : ''));
     let res = null; for (let i = 0; i < 600 && !res; i++) { res = await p.evaluate(() => window.__res || null); if (!res) await sleep(50); }
-    if (which !== 'webkit' && which !== 'epiphany') await p.close();
+    if (which !== 'webkit') await p.close();
     return res || { error: 'no result in 30 s' };
   }
   const names = Object.keys(M).filter((n) => fs.existsSync(root + M[n].def) && (!ONLY || ONLY.test(n))), out = { version, reps: REPS, page: path.basename(path.dirname(path.resolve(pageFile))), cases: {}, blocked: {} };

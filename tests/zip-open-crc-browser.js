@@ -3,17 +3,17 @@
 // Part 1 (equality): crc32 (WebAssembly from 1,024 bytes up) against a plain byte-by-byte CRC-32 and against crc32(bytes, true) (the plain slicing loop) for every length and start position in a grid and for 1 MB chunk edges.
 // Part 2 (speed): the same jobs through the old byte loop (zip-open 1.0.0), the slicing loop (1.1.0) and the WebAssembly loop, taking turns in rotating order (ms per job, smaller is better), and a first checksum of 1 MB on a fresh page.
 // Part 3: a page whose policy lacks 'wasm-unsafe-eval' must give the same answers on the plain loop.
-// Run: node tests/zip-open-crc-browser.js <chromium|firefox|webkit|epiphany> [out.json]  (no browser named: every browser the environment offers, one at a time)     Env: REPS (default 7), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two), MODULE=/path/to/another/zip-open.js
+// Run: node tests/zip-open-crc-browser.js <chromium|firefox|webkit> [out.json]  (no browser named: every browser the environment offers, one at a time)     Env: REPS (default 7), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two), MODULE=/path/to/another/zip-open.js
 'use strict';
 const fs = require('fs'), path = require('path'), http = require('http');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
 if (!which) {   // no browser named (tests/kits.js): run every browser the environment offers, one after the other, each in its own process
   const kinds = [['chromium', process.env.CHROMIUM], ['firefox', process.env.FIREFOX], [process.env.WEBKIT === 'epiphany' ? 'epiphany' : 'webkit', process.env.WEBKIT]].filter((x) => x[1]);
-  if (!kinds.length) { console.log('skipped: needs CHROMIUM, FIREFOX (with puppeteer-core) or WEBKIT=1 (WebKitGTK) / WEBKIT=epiphany (GNOME Web)'); process.exit(2); }
+  if (!kinds.length) { console.log('skipped: needs CHROMIUM, FIREFOX (with puppeteer-core) or WEBKIT=1 (WebKitGTK) / (GNOME Web)'); process.exit(2); }
   let bad = 0; for (const [k] of kinds) bad += require('child_process').spawnSync(process.execPath, [__filename, k], { stdio: 'inherit' }).status ? 1 : 0;
   process.exit(bad ? 1 : 0);
 }
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which)) { console.log('usage: node tests/zip-open-crc-browser.js <chromium|firefox|webkit|epiphany> [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which)) { console.log('usage: node tests/zip-open-crc-browser.js <chromium|firefox|webkit> [out.json]'); process.exit(2); }
 const REPS = +(process.env.REPS || 7), SRC = fs.readFileSync(process.env.MODULE || root + 'modules/zip-open/zip-open.js', 'utf8');
 const CSP_WASM = "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'", CSP_NOWASM = "default-src 'none'; script-src 'self' 'unsafe-inline'";
 const CODE = `
@@ -60,11 +60,11 @@ const server = http.createServer((q, r) => {
   r.setHeader('content-type', 'text/html');
   r.end('<!doctype html><meta charset=utf-8><meta http-equiv="Content-Security-Policy" content="' + (blocked ? CSP_NOWASM : CSP_WASM) + '"><title>t</title><link rel="icon" href="data:,"><script src="/zip-open.js"></script><script>' + CODE + '\ntry{window.__res=mode(' + JSON.stringify(m) + ')}catch(e){window.__res={error:String(e&&e.stack||e)}}</script>');
 });
-const webkitFamily = which === 'webkit' || which === 'epiphany', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
+const webkitFamily = which === 'webkit', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok)); const base = 'http://127.0.0.1:' + server.address().port, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let b;
-  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch(which === 'epiphany' ? 'epiphany' : 'webkitgtk'); }
+  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch('webkitgtk'); }
   else { const pup = require('puppeteer-core');
     b = which === 'firefox' ? await pup.launch({ browser: 'firefox', executablePath: process.env.FIREFOX, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 600000 })
       : await pup.launch({ executablePath: process.env.CHROMIUM, headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--disable-gpu'] }); }

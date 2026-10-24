@@ -1,20 +1,20 @@
 /*!
  * test-runner: the shared pieces every browser check and speed test in this repository needs, in one file. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.2.1 (API 1)
  *
  *   const T = require('./tools/test-runner/runner.js');
  *   T.main(async (b, which) => {                       // b: the browser, already launched (or taken from a warm one); line 1 of the output is its real version
  *     const page = await b.newPage(); await page.goto(url); ...
- *   });                                                // run as: node my-check.js <chromium|firefox|webkit|epiphany> [out.json]
+ *   });                                                // run as: node my-check.js <chromium|firefox|webkit> [out.json]
  *
- * Browsers: ungoogled Chromium and Firefox through puppeteer-core, WebKitGTK and GNOME Web through tools/webkit-driver (WebDriver, no packages).
- * Warm browsers: `node tools/test-runner/cli.js warm start` keeps the four browsers open; launch() then takes the one it needs instead of starting a new one.
+ * Browsers: ungoogled Chromium and Firefox through puppeteer-core, WebKitGTK through tools/webkit-driver (WebDriver, no packages).
+ * Warm browsers: `node tools/test-runner/cli.js warm start` keeps the three browsers open; launch() then takes the one it needs instead of starting a new one.
  */
 'use strict';
 const fs = require('fs'), os = require('os'), path = require('path'), http = require('http'), cp = require('child_process');
 const root = path.resolve(__dirname, '..', '..');
-const BROWSERS = ['chromium', 'firefox', 'webkit', 'epiphany'];
+const BROWSERS = ['chromium', 'firefox', 'webkit'];
 const warmDir = () => process.env.TEST_RUNNER_WARM || path.join(os.tmpdir(), 'test-runner-warm');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
@@ -63,7 +63,7 @@ function needPuppeteer() {
 async function launch(which, opts) {
   opts = opts || {};
   if (!BROWSERS.includes(which)) throw new Error('browser must be one of ' + BROWSERS.join(', '));
-  const webkit = which === 'webkit' || which === 'epiphany', warm = opts.cold ? null : warmInfo(which), release = opts.lock === false ? () => {} : await lock(which, opts.lockWaitMs);
+  const webkit = which === 'webkit', warm = opts.cold ? null : warmInfo(which), release = opts.lock === false ? () => {} : await lock(which, opts.lockWaitMs);
   try {
     if (webkit) {
       const shim = require(path.join(root, 'tests', 'webkit-shim.js'));
@@ -150,4 +150,4 @@ function table(rows, columns) {
   return [line((c) => c.title)].concat(rows.map((r) => line((c) => cell(r, c)))).join('\n');
 }
 
-module.exports = { BROWSERS, needPuppeteer, launch, main, serve, pageResult, rotate, median, asText, speedGuard, table, warmInfo, warmDir, lock, sleep, version: '1.2.0' };
+module.exports = { BROWSERS, needPuppeteer, launch, main, serve, pageResult, rotate, median, asText, speedGuard, table, warmInfo, warmDir, lock, sleep, version: '1.2.1' };

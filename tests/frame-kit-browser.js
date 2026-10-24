@@ -3,7 +3,7 @@
 // (1) Runs modules/frame-kit/test/run.js itself (all 64 checks, fake clock) inside the page, with small stand-ins for require, fs, path, vm and process, so the four files are
 // held to the same checks in each browser. (2) Feeds real animation frames (requestAnimationFrame, about 1.5 s) to FrameMeter, EvenDt and QualityGovernor: the frames must come,
 // the meter must report a frame rate, EvenDt must learn a period and nothing may throw. Frame counts depend on the headless browser's timing; this part only checks that it works.
-// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/frame-kit-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/frame-kit-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js and tools/webkit-driver. Exit 2 (skipped) when nothing can run.
 'use strict';
 const path = require('path'), fs = require('fs');
@@ -55,7 +55,7 @@ async function battery(files, runText) {
 (async () => {
   let bad = 0;
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     console.log('Browser: ' + await b.version());
     const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(String(e && e.message || e)));

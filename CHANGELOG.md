@@ -20,12 +20,12 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
-| [tab-guard](modules/tab-guard/README.md) | 1.1.0 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
+| [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
 | [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
-| [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.2.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
+| [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.4.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.6.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
@@ -40,27 +40,32 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [single-file-tools](tools/single-file-tools/README.md) | 1.2.0 · API 1 | [changelog](tools/single-file-tools/CHANGELOG.md) |
 | [lzma-pack](tools/lzma-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
 | [ppmd-pack](tools/ppmd-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
-| [fuzz-kit](tools/fuzz-kit/README.md) | 1.3.3 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
+| [fuzz-kit](tools/fuzz-kit/README.md) | 1.3.4 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.1 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
 | [storage-probe](tools/storage-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/storage-probe/CHANGELOG.md) |
 | [firefox-stand-in](tools/firefox-stand-in/README.md) | 1.1.0 · API 1 | [changelog](tools/firefox-stand-in/CHANGELOG.md) |
-| [webkit-driver](tools/webkit-driver/README.md) | 1.4.0 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
+| [webkit-driver](tools/webkit-driver/README.md) | 1.4.1 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
 | [test-isolation](tools/test-isolation/README.md) | 1.1.0 · API 1 | [changelog](tools/test-isolation/CHANGELOG.md) |
 | [speed-lab](tools/speed-lab/README.md) | 1.1.1 · API 1 | [changelog](tools/speed-lab/CHANGELOG.md) |
-| [test-runner](tools/test-runner/README.md) | 1.2.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
+| [test-runner](tools/test-runner/README.md) | 1.2.1 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
 | [speed-guard](tools/speed-guard/README.md) | 1.0.0 · API 1 | [changelog](tools/speed-guard/CHANGELOG.md) |
 
 ## Changes since labels began
 
+- 2026-10-24 · **webkit-driver** 1.4.1 · API 1: README says GNOME Web is no longer a test browser; the option still works. No code change.
 - 2026-10-24 · **walker-sim** 2.4.0 · API 2: sweep and exactEndpoints now run their rounds in a second 1 KB WebAssembly program in the default file: what-if sweeps are about 40% (Chromium) and 60% (Firefox) faster, the same numbers to the last digit. New hook WalkerSim.useSweepKernel.
+- 2026-10-24 · **test-runner** 1.2.1 · API 1: GNOME Web is out of the default list: a full run is now three browsers, not four.
 - 2026-10-24 · **test-runner** 1.2.0 · API 1: Long runs survive a machine restart: cli.js all skips the browsers that already passed for this build, a heartbeat file records the boot id, and cli.js status says ALIVE, FINISHED or DEAD.
+- 2026-10-24 · **tab-guard** 1.1.1 · API 1: Notes now say copies opened from a phone's Files app also share locks, so pick a unique lock name. No code change.
 - 2026-10-24 · **stage-curtains** 1.4.0 · API 1: The curtain's velvet paints 60 to 70% faster in a browser with WebAssembly SIMD. The picture matches the plain-JavaScript one to within 5 of 255 on 99.99% of pixels; stepped curtains are unchanged.
 - 2026-10-24 · **stage-curtains** 1.3.1 · API 1: The curtain's velvet paints 27 to 34% faster (WebAssembly loop reads per-column tables). Same picture, byte for byte.
 - 2026-10-24 · **sprite-baker** 1.7.1 · API 1: With the WebAssembly add-on loaded, outlines are drawn in WebAssembly: about 1.6 to 1.9 times as fast per call (0.3 to 2 ms down to 0.15 to 1.1 ms), with the very same pixels. Without it nothing changes.
 - 2026-10-24 · **single-file-tools** 1.2.0 · API 1: Fonts with double-quoted family names are now shrunk too, and the packer can read your page's background color with --bg auto.
 - 2026-10-24 · **netflow-layers** 1.5.0 · API 1: The row-order search and row placement now run in WebAssembly (8 KB embedded, 'wasm-unsafe-eval' only), 18-48% faster at 100 to 5,000 pages in three browsers; same pictures to the last digit; plain JavaScript stays as the fallback.
 - 2026-10-24 · **gif-writer** 1.4.0 · API 1: Faster palette search on big inputs (3x fewer pixels looked at above 100,000 pixels, from 143-152 ms to about 55 ms for 8 pictures of 160x160). A GIF made from such pictures is not byte-identical to one from 1.3.0.
+- 2026-10-24 · **fuzz-kit** 1.3.4 · API 1: README notes that GNOME Web is no longer a test browser; naming it still works. No code change.
 - 2026-10-24 · **firefox-stand-in** 1.1.0 · API 1: Tests can now watch console messages and failed loads and wait for a selector, so one more test file runs in Firefox.
+- 2026-10-24 · **cartoon-3d-kit** 1.3.0 · API 1: Many characters on screen: heroes scrolled out of view can now stop their idle animation (guide section 3.11), about 17 to 30% less browser work for a crowd of 48 to 96.
 - 2026-10-24 · **canvas-probe** 1.1.1 · API 1: Notes now say the probe's browser checks pass in Firefox 158 and Chromium 155. No code change.
 - 2026-10-23 · **pcodec-js** 1.6.0 · API 1: Files 45-56% smaller (program stored deflated); big unpacks use 6 MB, not 36 MB, of wasm memory; idle pool workers end after idleMs (4 s). New load({ lean: false }) gives WebKit browsers 1.5.1 speed back (keeps 36 MB, freed when idle).
 - 2026-10-23 · **memory-compression** 2.6.2 · API 2: Packing lists is a little faster in balanced mode for many list shapes (up to about 12% on event and map-feature lists); packed bytes are the same.

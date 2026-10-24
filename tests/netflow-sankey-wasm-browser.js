@@ -3,11 +3,11 @@
 // Part 1 (equality): 48 nets (weighted and unweighted; with loops and long links) laid out with WebAssembly (the default) and with { wasm: false }: the layouts must be identical. Part 2 (speed): five nets from
 // 70 to 1,000 bars, a layout takes (ms per layout, smaller is better), versions taking turns in rotating order, 10 layouts per reading because WebKit's clock moves in whole milliseconds; and the first layout on a
 // fresh page. Part 3: a page whose policy lacks 'wasm-unsafe-eval' must lay out the same on the plain code.
-// Run: node tests/netflow-sankey-wasm-browser.js <chromium|firefox|webkit|epiphany> [out.json]     Env: REPS (default 5), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two), MODULE=/path/to/another/netflow-sankey.js
+// Run: node tests/netflow-sankey-wasm-browser.js <chromium|firefox|webkit> [out.json]     Env: REPS (default 5), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two), MODULE=/path/to/another/netflow-sankey.js
 'use strict';
 const fs = require('fs'), path = require('path'), http = require('http');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which)) { console.log('usage: node tests/netflow-sankey-wasm-browser.js <chromium|firefox|webkit|epiphany> [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which)) { console.log('usage: node tests/netflow-sankey-wasm-browser.js <chromium|firefox|webkit> [out.json]'); process.exit(2); }
 const REPS = +(process.env.REPS || 5), SRC = fs.readFileSync(process.env.MODULE || root + 'modules/netflow-sankey/netflow-sankey.js', 'utf8');
 const CSP_WASM = "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'", CSP_NOWASM = "default-src 'none'; script-src 'self' 'unsafe-inline'";
 const CODE = `
@@ -44,11 +44,11 @@ const server = http.createServer((q, r) => {
   r.setHeader('content-type', 'text/html');
   r.end('<!doctype html><meta charset=utf-8><meta http-equiv="Content-Security-Policy" content="' + (blocked ? CSP_NOWASM : CSP_WASM) + '"><title>t</title><link rel="icon" href="data:,"><script src="/m.js"></script><script>' + CODE + '\ntry{var __m=' + JSON.stringify(m) + ';if(__m.indexOf("idle-")===0)setTimeout(function(){try{window.__res=mode("cold-"+__m.slice(5))}catch(e){window.__res={error:String(e)}}},250);else window.__res=mode(__m)}catch(e){window.__res={error:String(e&&e.stack||e)}}</script>');
 });
-const webkitFamily = which === 'webkit' || which === 'epiphany', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
+const webkitFamily = which === 'webkit', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok)); const base = 'http://127.0.0.1:' + server.address().port, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let b;
-  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch(which === 'epiphany' ? 'epiphany' : 'webkitgtk'); }
+  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch('webkitgtk'); }
   else { const pup = require('puppeteer-core');
     b = which === 'firefox' ? await pup.launch({ browser: 'firefox', executablePath: process.env.FIREFOX, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 600000 })
       : await pup.launch({ executablePath: process.env.CHROMIUM, headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--disable-gpu'] }); }

@@ -247,6 +247,16 @@ So the gain comes from drawing at 30 per second; at 60 per second the canvas did
 3. One `requestAnimationFrame` loop clears the canvas, then for each hero draws the picture at its own bob offset (a plain `drawImage`; only while wiggling, rotate first), choosing the shut-eyes picture when the blink time is up. Give every hero its own time offset so they do not move together. Skip the draw when the canvas is off-screen (`IntersectionObserver`) or the tab is hidden (`requestAnimationFrame` already stops), and draw once and stop when reduced motion is on.
 4. Bake again when the skin or the size changes.
 
+**Cheaper live crowds: pause what is out of view (optional, 1.3.0).** Page copies keep animating after they scroll out of sight. One `IntersectionObserver` that adds a class to each hero out of view, with `.cell.off *{animation-play-state:paused}`, stops that work and starts it again when the hero scrolls back. `crowd-demo.html#mode=live&n=96&pause=1` shows it (about 15 lines). Measured the same way as above (Chromium 155, headless, 412 x 892 screen, median of three 5-second runs, browser work per second, lower is better):
+
+| Heroes (in view) | All animating | Out-of-view paused |
+|---|---|---|
+| 12 (12) | 160 ms | 163 ms (no change: all are in view) |
+| 48 (24) | 267 ms | 222 ms (17% less) |
+| 96 (24) | 375 ms | 264 ms (30% less) |
+
+The gain grows with the number of heroes that are out of view; with everyone on screen it does nothing. Checked in Chromium 155, Firefox 158 and WebKitGTK 2.52.6 that out-of-view heroes get paused and in-view ones keep playing; the cost numbers are Chromium only.
+
 What you give up: no eye-following, no tap squash, pop number or confetti unless you draw them by hand on the canvas; every skin needs its own bake; the code is about 90 lines against none. Not measured: phones, Firefox or WebKitGTK cost (all four test browsers do draw it correctly; `test/crowd-check.js`). Timing script: `test/cost-crowd.js`.
 
 ---

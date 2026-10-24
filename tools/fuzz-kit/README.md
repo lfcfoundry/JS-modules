@@ -1,8 +1,8 @@
 # fuzz-kit
 
-**Version 1.3.3 · API 1**
+**Version 1.3.4 · API 1**
 
-**Tested in:** runner fakes, fuzz-core 215/215, Chromium 155.0.8059.39 example app all pass including a real showSaveFilePicker refusal page
+**Tested in:** Docs only, code unchanged; fuzz-kit Node checks 215 pass.
 
 A small, seeded, reproducible random-input fuzzer for **stateful pages and games**, plus the pattern that makes such a page testable without shipping test code. No dependencies; the engine needs only `Promise`.
 
@@ -72,6 +72,8 @@ if (r.fails.length) var s = await Fuzzer.shrink(make, r.script, { maxTries: 400,
 **Input helpers** (`Fuzzer.Input`, no app knowledge): `key(k, down, repeat, extra)` (a US-keyboard keydown or keyup to the focused element), `pointer(target, type, x, y, kind, opts)` (a synthetic pointer event; it swallows only the `NotFoundError` from `setPointerCapture` for made-up pointer ids, see `opts.pointerId`, `opts.captureGuard`), `visible(el, opts)` (could a person use it now), `clickables(selector, skip, opts)` (visible controls; links only with `{ links: true }`), `pickVisible(c, selector, skip, opts)` (one random visible control, about 12 times cheaper on a busy page), `canvasPoint(...)` and `junk(c)` (values to damage saved data with). `Fuzzer.Invariants.noJunkText({ skip, words, root })` fails when visible text shows `NaN`, `undefined` or `[object ...]` as whole words. `Fuzzer.Real.ops()` returns `real-click`, `real-move` and `real-key` under `--real-input` and an empty list otherwise, so `ops: myOps.concat(Fuzzer.Real.ops())` is always safe.
 
 ## Hunting in the background
+
+GNOME Web (`epiphany`) is no longer a test browser (2026-10-24): it still works when named, but the default hunt uses Chrome and Firefox and the repository tests use WebKitGTK.
 
 `node runner/background.js start URL ADAPTER.js [--browsers chrome,firefox] [--seeds 1-200] [--batch 10] [--ops 400] [--out DIR]` starts a hunt and returns at once. It runs the Puppeteer runner over the seeds, one browser at a time, at the lowest priority so other work is not slowed, with `--shrink` and `--bundle` on. The folder holds `run.log`, `state.json`, `findings.md` (rewritten after every batch), `bundles/` and `DONE` (written last, saying how it ended). `status DIR` prints progress in plain words; `stop DIR` ends it after a few seconds and keeps what was found. Browsers: `chrome`, `firefox`, `webkitgtk` and `epiphany` (GNOME Web); set `CHROME` / `FIREFOX` / `EPIPHANY` or pass `--chrome` / `--firefox` / `--epiphany`. The two WebKit browsers are driven through `tools/webkit-driver` (`runner/webkit_browser.js` gives it the few Puppeteer calls the runner needs), so they need `WebKitWebDriver` on the PATH, plus `xvfb-run` and `dbus-run-session` when there is no display. What differs there: no CPU throttling, no popup, crash or navigation events (so the `page-guard` checks for those do not run), `--init` runs right after the page loads instead of before its scripts, `--hang-trace` names nothing, and the one browser window is reused between seeds after clearing the page and its saved data (a page that hangs ends that window and the next seed gets a new one). The runner finds Puppeteer or puppeteer-core in `NODE_PATH` too, and prints the real browser version on its first line.
 

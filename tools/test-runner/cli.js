@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /* Copyright (c) 2026 LFC Foundry. MIT License. Command line of the test runner.
-     node tools/test-runner/cli.js warm start [chromium firefox webkit epiphany]   keep browsers open (all four when none are named)
+     node tools/test-runner/cli.js warm start [chromium firefox webkit]   keep browsers open (all three when none are named)
      node tools/test-runner/cli.js warm status | stop
-     node tools/test-runner/cli.js all [--fresh] <check.js> [args...]              run one browser check in the four browsers, one at a time, and print one summary;
+     node tools/test-runner/cli.js all [--fresh] <check.js> [args...]              run one browser check in the three browsers, one at a time, and print one summary;
                                                                                    cells that already passed for this build are skipped (a rerun after a crash or a machine restart resumes), --fresh runs them all again
      node tools/test-runner/cli.js status [check.js [args...]]                     ALIVE, FINISHED or DEAD (also: all --status [check.js [args...]]) */
 'use strict';

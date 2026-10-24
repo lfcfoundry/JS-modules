@@ -3,12 +3,12 @@
 // Each packed page records when its unpacked page starts (window.__t, milliseconds since the navigation began) and how many WebAssembly instances it made (window.__w).
 // Every sample is a fresh page; the variants take turns; median of REPS. A last page per packer has the 'wasm-unsafe-eval' word cut out of its policy and must still open
 // (JavaScript decoder, no WebAssembly instance; WebKitGTK and GNOME Web do not refuse WebAssembly without the word, so there it only has to open).
-// Run: node tests/pack-default-browser.js <chromium|firefox|webkit|epiphany> [out.json]
+// Run: node tests/pack-default-browser.js <chromium|firefox|webkit> [out.json]
 // Env: REPS (default 7), PAGE (the page to pack; default ../pineapple-defense/index.html), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two). Python 3 packs the pages.
 'use strict';
 const fs = require('fs'), path = require('path'), os = require('os'), http = require('http'), { execFileSync } = require('child_process');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which)) { console.log('usage: node tests/pack-default-browser.js <chromium|firefox|webkit|epiphany> [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which)) { console.log('usage: node tests/pack-default-browser.js <chromium|firefox|webkit> [out.json]'); process.exit(2); }
 const REPS = +(process.env.REPS || 7), pageFile = process.env.PAGE || root + '../pineapple-defense/index.html';
 if (!fs.existsSync(pageFile)) { console.log('skipped: no page to pack (set PAGE=/path/page.html)'); process.exit(2); }
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'packdef-'));
@@ -29,12 +29,12 @@ for (const tool of ['lzma', 'ppmd']) { pk(tool + '-default', tool, []); pk(tool 
 for (const tool of ['lzma', 'ppmd']) { const out = path.join(tmp, tool + '-blocked.html'); execFileSync('python3', [root + 'tools/' + tool + '-pack/pack.py', src, out, '--title', 'x', '--skip-node-check', '--head', CSP + COUNT], { stdio: ['ignore', 'ignore', 'inherit'] });
   fs.writeFileSync(out, fs.readFileSync(out, 'latin1').replace(" 'wasm-unsafe-eval'", ''), 'latin1'); pages[tool + '-blocked'] = out; sizes[tool + '-blocked'] = fs.statSync(out).size; }
 const server = http.createServer((q, r) => { const f = pages[new URL(q.url, 'http://x').pathname.slice(1)]; if (!f) { r.writeHead(404); return r.end(); } r.setHeader('cache-control', 'no-store'); r.setHeader('content-type', 'text/html'); r.end(fs.readFileSync(f)); });
-const webkitFamily = which === 'webkit' || which === 'epiphany';
+const webkitFamily = which === 'webkit';
 const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok)); const base = 'http://127.0.0.1:' + server.address().port, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let b, newPage;
-  if (which === 'webkit' || which === 'epiphany') { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch(which === 'epiphany' ? 'epiphany' : 'webkitgtk'); newPage = () => b.newPage(); }
+  if (which === 'webkit') { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch('webkitgtk'); newPage = () => b.newPage(); }
   else { const pup = require('puppeteer-core');
     b = which === 'firefox' ? await pup.launch({ browser: 'firefox', executablePath: process.env.FIREFOX, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 600000 })
       : await pup.launch({ executablePath: process.env.CHROMIUM, headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--disable-gpu'] });
@@ -43,7 +43,7 @@ const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
   async function sample(name) {
     const p = await newPage(); await p.goto(base + '/' + name);
     let r = null; for (let i = 0; i < 400 && !r; i++) { r = await p.evaluate(() => (window.__t === undefined ? null : { t: window.__t, w: window.__w || 0 })); if (!r) await sleep(50); }
-    if (which !== 'webkit' && which !== 'epiphany') await p.close();
+    if (which !== 'webkit') await p.close();
     return r || { t: null, w: 0 };
   }
   const out = { version, reps: REPS, page: path.basename(path.dirname(path.resolve(pageFile))), input: fs.statSync(pageFile).size, sizes, runs: {} };

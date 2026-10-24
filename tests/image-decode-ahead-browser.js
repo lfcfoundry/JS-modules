@@ -4,7 +4,7 @@
 // in idle time while the previous stage plays and ask for it at the stage change (get). Prints, in ms (smaller is better): the wait at the stage change (request until the sheet
 // can be drawn, first draw included), and the longest gap between frames of a playing stage (a loop that spends about 4 ms per frame) while the decoding happens, which for (b) is the stage that is still playing.
 // Needs IMG_DIR=/folder/with/sheet2048.{png,webp} (modules/image-decode/test/make-sheets.py). One browser at a time: CHROMIUM=/path/to/chrome node tests/image-decode-ahead-browser.js
-// (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web). Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 when nothing can run.
+// (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK. Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 when nothing can run.
 'use strict';
 const path = require('path'), fs = require('fs'), http = require('http');
 const pp = (() => { try { return require('puppeteer-core'); } catch (e) { return null; } })();
@@ -58,7 +58,7 @@ function inPage(arg) {
   });
   await new Promise(r => srv.listen(0, '127.0.0.1', r)); const port = srv.address().port;
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true }) : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox'] });
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true }) : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox'] });
     console.log('Browser: ' + await b.version());
     const page = await b.newPage(); await page.goto('http://127.0.0.1:' + port + '/');
     const o = await page.evaluate(inPage, { src: SRC });

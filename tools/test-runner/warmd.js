@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. The warm-browser daemon: starts the browsers it is given, one at a time, keeps them open and writes where to find each one into the warm folder.
-   Run by `cli.js warm start`; stop it with `cli.js warm stop`. Usage: node warmd.js chromium firefox webkit epiphany */
+   Run by `cli.js warm start`; stop it with `cli.js warm stop`. Usage: node warmd.js chromium firefox webkit */
 'use strict';
 const fs = require('fs'), path = require('path'), R = require('./runner.js');
 const want = process.argv.slice(2).filter((b) => R.BROWSERS.includes(b)), dir = R.warmDir(), keep = [];
@@ -10,8 +10,8 @@ const bye = () => { for (const b of keep) { try { b.kill(); } catch (e) { /* gon
 (async () => {
   for (const which of want) {
     try {
-      if (which === 'webkit' || which === 'epiphany') {
-        const WD = require('../webkit-driver/webkit-driver.js'), b = await WD.launch({ browser: which === 'epiphany' ? 'epiphany' : 'webkitgtk', width: 1280, height: 800 });
+      if (which === 'webkit') {
+        const WD = require('../webkit-driver/webkit-driver.js'), b = await WD.launch({ browser: 'webkitgtk', width: 1280, height: 800 });
         keep.push({ kill: () => b.close() }); mark(which, { port: b.port, sessionId: b.sessionId, version: b.version });
       } else {
         const pup = R.needPuppeteer(), ff = which === 'firefox';

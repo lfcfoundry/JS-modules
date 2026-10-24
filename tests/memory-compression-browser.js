@@ -3,7 +3,7 @@
 // Runs modules/memory-compression/test/run.js (the object layer) and test/router.js (the one entry point) themselves (all of its checks: every kind of value, every data set in every mode, damaged input, the number chooser, the keeper) inside the page,
 // with small stand-ins for require, path, assert and process, so the one file is held to the same checks in each browser, with the WebAssembly helper on (the page's default) and,
 // with JSONLY=1, the plain-JavaScript path only. One browser at a time: CHROMIUM=/path/to/chrome node tests/memory-compression-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK,
-// WEBKIT=epiphany for GNOME Web). Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 (skipped) when nothing can run.
+//. Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 (skipped) when nothing can run.
 'use strict';
 const path = require('path'), fs = require('fs');
 const pp = (() => { try { return require('puppeteer-core'); } catch (e) { return null; } })();
@@ -55,7 +55,7 @@ async function battery(src, jsOnly, full) {
   let bad = 0;
   for (const [kind, exe] of exes) {
     const t0 = Date.now();
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     const version = await b.version(); console.log('Browser: ' + version);
     const p = await b.newPage(); const errs = []; p.on && p.on('pageerror', e => errs.push(String(e && e.message || e)));
