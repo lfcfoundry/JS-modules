@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.11 · API 2 · 2026-10-23
+- Pages without generated code now build rows of 5 or more fields from a template object. Chromium opens 60,000 links with a shorter longest hold; Firefox opens lists of 8 to 10 fields 5 to 12% slower. Same bytes and rows.
+
 ## 2.4.10 · API 2 · 2026-10-23
 - Pages that forbid generated code now save lists of records faster (fast pack of 60,000 links 15 to 32% shorter; balanced up to 16%). pool.start() returns a promise that resolves when the workers are warm. Same bytes and format.
 
