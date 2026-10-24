@@ -3,11 +3,11 @@
 // Serves a page under a strict policy (script-src 'self', no inline script, no inline style), starts the module first, makes it raise one of every kind of error (uncaught error, rejected promise,
 // image that fails to load, a blocked inline script, console.error), runs a canvas animation, then taps the hidden corner five times with the real mouse and checks: the panel opens, both
 // buttons save through onSave, the error log lists every kind, the speed report has a verdict and real frame numbers, and the page made no request beyond its own files (no network from the module).
-// Run: node tests/field-report-browser.js <chromium|firefox|webkit|epiphany> [out.json]     Env: CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH); WebKit browsers need xvfb-run as in AGENTS.md.
+// Run: node tests/field-report-browser.js <chromium|firefox|webkit> [out.json]     Env: CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH); WebKit browsers need xvfb-run as in AGENTS.md.
 'use strict';
 const fs = require('fs'), path = require('path'), http = require('http');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which)) { console.log('usage: node tests/field-report-browser.js <chromium|firefox|webkit|epiphany> [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which)) { console.log('usage: node tests/field-report-browser.js <chromium|firefox|webkit> [out.json]'); process.exit(2); }
 const MOD = fs.readFileSync(process.env.MODULE || root + 'modules/field-report/field-report.js', 'utf8');
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'";
 const HTML = '<!doctype html><meta charset="utf-8"><title>field-report check</title><body style="margin:0"><canvas id="c" width="300" height="300"></canvas><script src="/field-report.js"></script><script src="/page.js"></script>';

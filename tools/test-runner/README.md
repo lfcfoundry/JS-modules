@@ -1,18 +1,18 @@
 # test-runner
 
-**Version 1.2.0 · API 1**
+**Version 1.2.1 · API 1**
 
-**Tested in:** Node checks (25, two new for the ledger and the heartbeat), a fake four-browser check run to a crash, a restart and a resume; real browsers not needed for this change
+**Tested in:** Node checks 25 pass (counts updated to three browsers); canvas-probe browsers.js through cli.js all in Firefox 158.0, ungoogled Chromium 155.0.8059.39-1 and WebKitGTK 2.52.6: all pass, 8.9 s total.
 
-The shared helpers every browser check and speed test in this repository (and the games that follow its rules) needs, in one folder: start the four test browsers once and keep them open, run one check in all four, compare two ways of doing the same job fairly, skip a build whose inputs did not change, prove that a WebAssembly path and its plain-JavaScript twin give the same answers to the last bit, catch a drawing that changed when nobody meant it, and name the commit that broke something. Node only, no packages of its own (`puppeteer-core` for Chromium and Firefox, as the checks already used).
+The shared helpers every browser check and speed test in this repository (and the games that follow its rules) needs, in one folder: start the three test browsers once and keep them open, run one check in all four, compare two ways of doing the same job fairly, skip a build whose inputs did not change, prove that a WebAssembly path and its plain-JavaScript twin give the same answers to the last bit, catch a drawing that changed when nobody meant it, and name the commit that broke something. Node only, no packages of its own (`puppeteer-core` for Chromium and Firefox, as the checks already used).
 
 ## Why it exists
-Each thread was writing the same scaffolding again: a local page server, a browser launch block, "take turns so the second runner is not favored", a table, a fresh page for a cold start. Starting a browser takes seconds on every single run (GNOME Web the longest), and a wasm-versus-JavaScript equality check was rewritten for each module. Putting them in one place makes a check shorter to write, quicker to run and the same everywhere.
+Each thread was writing the same scaffolding again: a local page server, a browser launch block, "take turns so the second runner is not favored", a table, a fresh page for a cold start. Starting a browser takes seconds on every single run (WebKitGTK the longest), and a wasm-versus-JavaScript equality check was rewritten for each module. Putting them in one place makes a check shorter to write, quicker to run and the same everywhere.
 
 ## Quick start
 ```js
 const T = require('./tools/test-runner/runner.js');
-T.main(async (b, which, outFile) => {                // node my-check.js chromium|firefox|webkit|epiphany [out.json]; line 1 prints the real browser version
+T.main(async (b, which, outFile) => {                // node my-check.js chromium|firefox|webkit [out.json]; line 1 prints the real browser version
   const page = await b.newPage(); await page.goto('http://127.0.0.1:1234/page.html');
   const ms = await T.rotate(['js', 'wasm'], 5, (name) => page.evaluate((n) => run(n), name));   // takes turns, drops the warm-up round, returns the medians
   console.log(T.table(T.speedGuard([{ name: 'job', before: ms.js, after: ms.wasm }]), [{ key: 'name', title: 'job', align: 'left' }, { key: 'ratio', title: 'times faster' }, { key: 'verdict', title: 'speed guard', align: 'left' }]));
@@ -21,10 +21,10 @@ T.main(async (b, which, outFile) => {                // node my-check.js chromiu
 ```
 Keep the browsers open between runs:
 ```
-node tools/test-runner/cli.js warm start            # all four (or name some); about the same time as one cold start of each, once
+node tools/test-runner/cli.js warm start            # all three (or name some); about the same time as one cold start of each, once
 node tools/test-runner/cli.js warm status           # which are warm and their versions
 node tools/test-runner/cli.js warm stop
-node tools/test-runner/cli.js all tests/my-check.js # the same check in the four browsers, one at a time, one summary table
+node tools/test-runner/cli.js all tests/my-check.js # the same check in the three browsers, one at a time, one summary table
 ```
 Long runs and machine restarts: the test machine can restart without warning and every process is lost, while files on disk survive. So `all` keeps a **ledger** and a **heartbeat** (`ledger.js`, state in `.cache/test-runner/ledger/`, or `TEST_RUNNER_LEDGER`):
 ```
@@ -52,7 +52,7 @@ A check written with `T.launch` / `T.main` takes a warm browser when there is on
 | | test-runner | Playwright Test / Vitest browser mode | hand-written scaffolding per check |
 |---|---|---|---|
 | Needs a package install | `puppeteer-core` only | large | the same |
-| Drives GNOME Web and WebKitGTK | yes, through `tools/webkit-driver` | WebKit builds only | only where copied |
+| Drives WebKitGTK | yes, through `tools/webkit-driver` | WebKit builds only | only where copied |
 | Keeps browsers open between runs | yes (`warm`) | its own server mode | no |
 | Fair timing helper (turn-taking, warm-up dropped) | yes | no | each one different |
 | WebAssembly-versus-JavaScript equality helper | yes (`twin`) | no | each one different |

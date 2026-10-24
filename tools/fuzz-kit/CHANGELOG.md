@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.4 · API 1 · 2026-10-24
+- README notes that GNOME Web is no longer a test browser; naming it still works. No code change.
+
 ## 1.3.3 · API 1 · 2026-10-22
 - 1.3.3: Chromium's refusals of a file picker that no real tap opened or that closed at once ('User activation required', 'Must be handling a user gesture', 'The user aborted a request') are no longer findings.
 

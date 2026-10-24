@@ -6,12 +6,12 @@
 // pixels), from the call of velvetPainter to the last row, the start-up of the WebAssembly module included (milliseconds; smaller is better). Also the slowest single step(4) call of such a paint,
 // and the median of five warm repeats in the same page (the JavaScript loop warms up, so the gain is for the first paint). Part 3: a page whose policy lacks 'wasm-unsafe-eval' must still paint
 // the same pixels (JavaScript where the browser refuses the module).
-// Run: node tests/stage-curtains-wasm-browser.js <chromium|firefox|webkit|epiphany> [out.json]
+// Run: node tests/stage-curtains-wasm-browser.js <chromium|firefox|webkit> [out.json]
 // Env: REPS (default 7), CHROMIUM=/path, FIREFOX=/path (puppeteer-core on NODE_PATH for those two). Node is not used for speed numbers.
 'use strict';
 const fs = require('fs'), path = require('path'), http = require('http');
 const which = process.argv[2], outFile = process.argv[3], root = path.resolve(__dirname, '..') + '/';
-if (!['chromium', 'firefox', 'webkit', 'epiphany'].includes(which)) { console.log('usage: node tests/stage-curtains-wasm-browser.js <chromium|firefox|webkit|epiphany> [out.json]'); process.exit(2); }
+if (!['chromium', 'firefox', 'webkit'].includes(which)) { console.log('usage: node tests/stage-curtains-wasm-browser.js <chromium|firefox|webkit> [out.json]'); process.exit(2); }
 const REPS = +(process.env.REPS || 7), SRC = fs.readFileSync(process.env.MODULE || root + 'modules/stage-curtains/stage-curtains.js', 'utf8');
 const CSP_WASM = "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'", CSP_NOWASM = "default-src 'none'; script-src 'self' 'unsafe-inline'";
 const CODE = `
@@ -46,11 +46,11 @@ const server = http.createServer((q, r) => {
   r.setHeader('content-type', 'text/html');
   r.end('<!doctype html><meta charset=utf-8><meta http-equiv="Content-Security-Policy" content="' + (blocked ? CSP_NOWASM : CSP_WASM) + '"><title>t</title><link rel="icon" href="data:,">' + (nosimd ? "<script>WebAssembly.Module = function () { throw new WebAssembly.CompileError('no SIMD'); };</script>" : '') + '<script src="/stage-curtains.js"></script><script>' + CODE + '\ntry{window.__res=mode(' + JSON.stringify(m) + ')}catch(e){window.__res={error:String(e&&e.stack||e)}}</script>');
 });
-const webkitFamily = which === 'webkit' || which === 'epiphany', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
+const webkitFamily = which === 'webkit', med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok)); const base = 'http://127.0.0.1:' + server.address().port, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let b;
-  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch(which === 'epiphany' ? 'epiphany' : 'webkitgtk'); }
+  if (webkitFamily) { const wd = require(root + 'tests/webkit-shim.js'); b = await wd.launch('webkitgtk'); }
   else { const pup = require('puppeteer-core');
     b = which === 'firefox' ? await pup.launch({ browser: 'firefox', executablePath: process.env.FIREFOX, headless: true, protocol: 'webDriverBiDi', protocolTimeout: 600000 })
       : await pup.launch({ executablePath: process.env.CHROMIUM, headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--disable-gpu'] }); }

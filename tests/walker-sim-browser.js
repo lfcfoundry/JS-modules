@@ -74,7 +74,7 @@ console.log('Node ' + process.version + ': readable and minified give the same a
 (async () => {
   let fails = nodeSame ? 0 : 1;
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     console.log('Browser: ' + await b.version());
     for (const q of ['', '?min']) {

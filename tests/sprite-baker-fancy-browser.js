@@ -4,7 +4,7 @@
 // (modules/sprite-baker/test/reference-tri.js) and through sprite-baker, compares color and depth byte for byte inside that browser, compares a
 // fingerprint of each picture with Node's, then times the fill (best of 5 alternating runs, smaller is better). With OLD=/path/to/an/older/sprite-baker.js it
 // also times the plain (no texture, no ridge) sphere with that copy beside the new one, to show the plain path did not slow down.
-// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/sprite-baker-fancy-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/sprite-baker-fancy-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // With LEAN=1 the drawing (Rast, tri, drawMesh) is done by the lean build Fancy would ship (modules/sprite-baker/lean.py without ramps, mesh, rotation, shapes, baking and sheets,
 // no comments); the meshes and the rotation come from the full file. The lean build is compared with the reference in the same way and timed beside the full file.
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js and tools/webkit-driver. Exit 2 (skipped) when nothing can run.
@@ -85,7 +85,7 @@ console.log('Node ' + process.version + ': ' + (fails ? 'DIFFERS from the refere
 
 (async () => {
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     console.log('Browser: ' + await b.version());
     const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(String(e && e.message || e)));

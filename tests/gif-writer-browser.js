@@ -3,7 +3,7 @@
 // Runs one fixed set of scenes through makePalette and createEncoder in Node and in each real browser and compares a short fingerprint of every palette and every
 // GIF it wrote, then prints how long the palette search and the encoder took in that browser. With OLD=/path/to/an/older/gif-writer.js it also runs that copy
 // beside the new one (alternating, so noise hits both) and says whether both wrote the same bytes and how much faster the new one is.
-// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/gif-writer-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/gif-writer-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js and tools/webkit-driver. Exit 2 (skipped) when nothing can run.
 'use strict';
 const path = require('path'), fs = require('fs');
@@ -75,7 +75,7 @@ console.log('Node ' + process.version + ': ' + Object.keys(ref.out).length + ' f
 
 (async () => {
   for (const [kind, exe] of exes) {
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     console.log('Browser: ' + await b.version());
     const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(String(e && e.message || e)));

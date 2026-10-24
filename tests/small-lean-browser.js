@@ -4,7 +4,7 @@
 // newest panel and the other stays closable, no CloseWatcher; (2) wake-keeper: run starts, tab hidden, tab back, run ends, refused (8 s wait), lock released by the browser, no wake lock;
 // (3) even-dt and quality-governor: the 26 frame series of modules/frame-kit/test/series.js against Fancy's own code, 0 differences required. Each situation prints ok, FAIL or "not available"
 // ("not available" means this browser lacks the API; it is not a pass). The full files run the same tables, for comparison.
-// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/small-lean-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK, WEBKIT=epiphany for GNOME Web)
+// Run one browser at a time: CHROMIUM=/path/to/chrome node tests/small-lean-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // OUT=file.json also writes the rows. Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 (skipped) when nothing can run.
 'use strict';
 const path = require('path'), fs = require('fs'), cp = require('child_process'), os = require('os');
@@ -49,7 +49,7 @@ async function inPage(src, hasHooks) {
   let bad = 0; const all = [];
   for (const [kind, exe] of exes) {
     const t0 = Date.now();
-    const b = kind === 'webkit' ? await wd.launch(exe === 'epiphany' ? 'epiphany' : 'webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
+    const b = kind === 'webkit' ? await wd.launch('webkitgtk') : kind === 'firefox' ? await pp.launch({ browser: 'firefox', executablePath: exe, headless: true, protocol: 'webDriverBiDi' })
       : await pp.launch({ executablePath: exe, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
     const version = await b.version(); console.log('Browser: ' + version);
     const p = await b.newPage(); const errs = []; p.on && p.on('pageerror', e => errs.push(String(e && e.message || e)));

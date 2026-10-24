@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-10-24
+- Many characters on screen: heroes scrolled out of view can now stop their idle animation (guide section 3.11), about 17 to 30% less browser work for a crowd of 48 to 96.
+
 ## 1.2.0 · API 1 · 2026-10-17
 - New optional way to show crowds: draw many characters once onto one canvas, which can cut the browser's work at lower frame rates. The guide has the recipe.
 
