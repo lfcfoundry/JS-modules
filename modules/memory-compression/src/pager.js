@@ -76,7 +76,7 @@
   function pager(list, opts) {
     var store, uid = Math.random().toString(36).slice(2, 10), o = pagerAuto(list, opts), rows = o.pageRows > 0 ? Math.floor(o.pageRows) : 2048, n = list.length, np = Math.ceil(n / rows), pages = new Array(np), maxLive = o.livePages >= 0 ? Math.floor(o.livePages) : 4,
       asView = !!o.pageView, coldOn = !!o.cold, coldAfter = o.coldAfter > 0 ? o.coldAfter : 3000, touched = 0, coldTimer = null, coolBad = false, ahead = o.readAhead !== false && !o.pageView, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
-    packOpts.hints = {};                         // each column remembers which number ways won on earlier pages (every 4th pack still tries them all)
+    packOpts.hints = {};                         // each column remembers which number ways won on earlier pages (every 8th pack still tries them all)
     for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError' && k !== 'deviceMemory' && k !== 'heapBytes' && k !== 'pageView' && k !== 'cold' && k !== 'coldAfter') packOpts[k] = o[k];
     if (!Array.isArray(list)) jfail('pager() needs an array');
     store = o.spill ? (o.spill === true ? idbStore() : o.spill) : null;
