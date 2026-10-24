@@ -1492,12 +1492,15 @@
   // 6 a pattern whose strings are put together per row (a.row(i); the slots' numbers and lookup tables are kept for the memory report). The first reads cut one string each, so opening a page and reading a row or two stays cheap.
   // A column that keeps being read (a scan, a list on screen) is turned into its strings in one pass after n/32 reads (at least 32; not for columns over 16,384 rows, so no read waits for a long pass), because cutting them all in a tight loop costs about a third of cutting them one by one;
   // it then becomes a plain mode 0 column (t stays, for the memory report), so later reads cost what any column costs.
+  // Modes 7 to 10 are for a nested column of a view (lazyNow): 7 records (an object made per row from its columns), 8 arrays (row ends plus one flat column), 9 tuples (an array made per row), 10 date-times (text made per row from the numbers);
+  // a.row(i) makes the value. They are never turned into plain arrays (that would hold every object), so each read makes its own value.
   // full() gives a plain array of the values.
   function Col(n, mode, a, d) { this.n = n; this.mode = mode; this.a = a; this.d = d; this.t = 0; this.hits = 0; }
   Col.prototype.get = function (i) { var m = this.mode; return m === 0 ? this.a[i] : m === 1 ? this.a[i] === 1 : m === 2 ? this.d[this.a[i]] : m === 3 ? this.d : this.cut(i); };   // kept small on purpose: it is read once per value in every row builder and must stay inlinable
   function lazyCol(n, kind, a) { var c = new Col(n, kind, a, null); c.t = kind; return c; }
   Col.prototype.cut = function (i) {                                  // one string of a column that is not made yet
     var a = this.a, m = this.mode;
+    if (m >= 7) return a.row(i);                                      // nested kinds and date-times: a value made per read
     if (this.n <= 16384 && ++this.hits > (this.n >> 5 > 32 ? this.n >> 5 : 32)) { this.fill(); return this.a[i]; }       // not for a column of more than 16,384 rows: making them all in one go would hold a slice of unpackAsync up
     return m === 5 ? a.big.substring(a.off[i], a.off[i + 1]) : m === 6 ? a.row(i) : fsGet(a, i);
   };
@@ -1532,6 +1535,8 @@
     return out;
   };
 
+  // lazyNow(): this column may be kept in pieces and made per row: a top-level column of a view, or one inside a nested column that is itself kept in pieces (lazyAt says which depth)
+  Dec.prototype.lazyNow = function () { return this.lazyText === true && this.depth === (this.lazyAt || 1); };
   Dec.prototype.column = function (n) {
     if (++this.depth > MAX_DEPTH) jfail('nested too deeply');
     var r = this.columnBody(n);
@@ -1620,7 +1625,7 @@
         a = new (m <= 256 ? Uint8Array : m <= 65536 ? Uint16Array : Uint32Array)(n);
         for (i = 0; i < n; i++) { if (!(t[i] >= 0 && t[i] < m)) jfail('dictionary index out of range'); a[i] = t[i]; }
         return new Col(n, 2, a, d);
-      case CT_STRR: t = this.rawStrings(n, false, this.lazyText && this.depth === 1); return t instanceof Col ? t : new Col(n, 0, t, null);
+      case CT_STRR: t = this.rawStrings(n, false, this.lazyNow()); return t instanceof Col ? t : new Col(n, 0, t, null);
       case CT_NULLABLE:
         m = c.varint(); if (m > n) jfail('bad count');
         kinds = this.blob(Uint8Array, n);
@@ -1634,7 +1639,10 @@
         return new Col(n, 0, out, null);
       case CT_TUPLE:
         k = c.varint(); if (k < 1 || k > 8) jfail('bad tuple'); this.spend(n * k);
-        var cols = []; for (j = 0; j < k; j++) cols.push(this.column(n));
+        var cols = [], lz = this.lazyNow(), la = this.lazyAt; if (lz) this.lazyAt = this.depth + 1;
+        for (j = 0; j < k; j++) cols.push(this.column(n));
+        this.lazyAt = la;
+        if (lz) return new Col(n, 9, { cols: cols, k: k, row: k === 2 ? function (i) { return [cols[0].get(i), cols[1].get(i)]; } : function (i) { var r = new Array(k), q; for (q = 0; q < k; q++) r[q] = cols[q].get(i); return r; } }, null);
         out = new Array(n);
         if (k === 2) {
           var c0 = cols[0], c1 = cols[1], x0 = c0.mode === 0 ? c0.a : null, x1 = c1.mode === 0 ? c1.a : null;
@@ -1646,7 +1654,15 @@
       case CT_ARRAYS:
         m = c.varint(); this.spend(m + n);
         lens = this.lengthCol(n);
+        var lz = this.lazyNow(), la = this.lazyAt; if (lz) this.lazyAt = this.depth + 1;
         flat = m > 0 ? this.column(m) : null;
+        this.lazyAt = la;
+        if (lz) {                                                                          // row ends and the one flat column; an array is made when its row is read
+          var ro = new Uint32Array(n + 1);
+          for (i = 0; i < n; i++) { ro[i + 1] = ro[i] + lens.get(i); if (ro[i + 1] > m) jfail('bad array lengths'); }
+          if (ro[n] !== m) jfail('bad array lengths');
+          return new Col(n, 8, { off: ro, flat: flat, row: flat === null ? function () { return []; } : flat.mode === 0 && Array.isArray(flat.a) ? function (i) { return flat.a.slice(ro[i], ro[i + 1]); } : function (i) { var b = ro[i], e = ro[i + 1], r = new Array(e - b), q; for (q = b; q < e; q++) r[q - b] = flat.get(q); return r; } }, null);
+        }
         out = new Array(n); var off = 0, len, row, fa = flat !== null && flat.mode === 0 && Array.isArray(flat.a) ? flat.a : null;
         for (i = 0; i < n; i++) {
           len = lens.get(i); if (off + len > m) jfail('bad array lengths');
@@ -1724,6 +1740,28 @@
     var out = new Array(n);
     timesJoin(g)(out, n, DT, di, HM, mi, SC, si, FR, fi);
     return out;
+  }
+  // The text of one date-time from its number, the calendar part kept for the last 256 distinct days; the column keeps just the numbers.
+  function timesLazy(n, L, g, ts) {
+    var per = g === 3 ? 1 : g === 5 ? 1440 : g === 6 ? 86400 : 86400000, ra = ts.mode === 3 ? null : ts.a, cv = ts.mode === 3 ? ts.d : 0, i, v;
+    for (i = 0; i < n; i++) { v = ra ? ra[i] : cv; if (v - v !== 0) jfail('bad date pattern'); if (!ra) break; }
+    var tags = new Float64Array(256).fill(NaN), strs = new Array(256).fill(''), last = NaN, lastDay = '';
+    function row(i) {
+      var v = ra ? ra[i] : cv, days = Math.floor(v / per), slot, day, rest, sec, ms, k;
+      if (days === last) day = lastDay;
+      else {
+        slot = days & 255;
+        if (tags[slot] === days) day = strs[slot]; else { day = dayText(days, L); tags[slot] = days; strs[slot] = day; }
+        last = days; lastDay = day;
+      }
+      if (g === 3) return day;
+      rest = (v - days * per) | 0;
+      if (g === 5) return day + pad((rest / 60) | 0, 2) + L[4] + pad(rest % 60, 2) + L[5];
+      if (g === 7) { ms = rest % 1000; sec = (rest - ms) / 1000 | 0; } else sec = rest;
+      k = (sec / 60) | 0;
+      return day + pad((k / 60) | 0, 2) + L[4] + pad(k % 60, 2) + L[5] + pad(sec - k * 60, 2) + L[6] + (g === 7 ? pad(ms, 3) + L[7] : '');
+    }
+    return new Col(n, 10, { ts: ts, row: row }, null);
   }
   function buildTimes(n, L, g, ts) {
     var per = g === 3 ? 1 : g === 5 ? 1440 : g === 6 ? 86400 : 86400000, ra = ts.mode === 3 ? null : ts.a, lo = Infinity, hi = -Infinity, i, v, span;
@@ -1831,7 +1869,7 @@
     }
     if (dec !== raw) jfail('FSST column decodes to the wrong size');
     a = { syms: syms, symLen: symLen, codes: codes, coff: coff, raw: raw, scratch: new Uint8Array(256), wasm: this.wasm };
-    if (this.lazyText && this.depth === 1) return lazyCol(n, 4, a);
+    if (this.lazyNow()) return lazyCol(n, 4, a);
     return new Col(n, 0, fsAll(a, n), null);
   };
   Dec.prototype.times = function (n) {
@@ -1842,6 +1880,7 @@
     for (j = 0; j < R; j++) { if (j < g) widths.push(TS_WIDTH[j]); else { widths.push(c.varint()); if (widths[j] === 1 || widths[j] > 15) jfail('bad date pattern'); } }
     ts = this.column(n);
     if (ts.mode !== 0 && ts.mode !== 3) jfail('bad date pattern');
+    if (R === g && this.lazyNow()) return timesLazy(n, L, g, ts);
     if (R === g && n >= 2048) return new Col(n, 0, buildTimes(n, L, g, ts), null);
     cols = tsUnpack(g, ts, n).map(function (a) { var k, x = a[0]; for (k = 1; k < n && a[k] === x; k++); return k === n ? new Col(n, 3, null, x) : new Col(n, 0, a, null); });   // a number that never changes becomes part of the text
     for (j = g; j < R; j++) cols.push(this.column(n));
@@ -1855,7 +1894,7 @@
     for (j = 0; j < R; j++) { w = c.varint(); if (w === 1 || w > 15) jfail('bad string pattern'); widths.push(w); }
     if (nt > 1) { tid = this.blob(Uint8Array, n); for (i = 0; i < n; i++) if (tid[i] >= nt) jfail('bad string pattern'); }
     for (j = 0; j < R; j++) cols.push(this.column(n));
-    return buildTemplate(n, tpls, R, widths, tid, cols, this.lazyText && this.depth === 1 && CAN_EVAL);
+    return buildTemplate(n, tpls, R, widths, tid, cols, this.lazyNow() && CAN_EVAL);
   };
   var ZEROS = '000000000000000';
   function pad(v, w) { var s = '' + v; return s.length >= w ? s : ZEROS.substring(0, w - s.length) + s; }
@@ -2020,8 +2059,17 @@
     if (q !== n) jfail('bad string lengths');
     return out;
   };
+  function recordRow(keys) {                                        // a function that gives a function making row i from the columns
+    var sig = 'r' + keys.join('\u0001') + '\u0002' + keys.length, f = GEN_CACHE[sig], j, src;
+    if (f) return f;
+    src = 'return function(i){return {';
+    for (j = 0; j < keys.length; j++) src += (j ? ',' : '') + (keys[j] === '__proto__' ? '["__proto__"]' : JSON.stringify(keys[j])) + ':c[' + j + '].get(i)';
+    f = new Function('c', src + '};}');
+    genStore(sig, f);
+    return f;
+  }
   Dec.prototype.records = function (n, register) {
-    var base = 0, c = this.c, ns = c.varint(), shapes = [], i, j, nk, keys, shapeOf = null, cols, sh, out, counts = [], modes, args, rows, pos, cnt;
+    var base = 0, c = this.c, ns = c.varint(), shapes = [], i, j, nk, keys, shapeOf = null, cols, sh, out, counts = [], modes, args, rows, pos, cnt, lz = !register && this.ver >= 2 && CAN_EVAL && this.lazyNow(), la = this.lazyAt;
     if (ns < 1 || ns > MAX_SHAPES || (register && ns !== 1)) jfail('bad shape count');
     if (register) { base = this.refs.length; this.spend(n); for (i = 0; i < n; i++) this.refs.push(RESERVED); }
     for (i = 0; i < ns; i++) {
@@ -2038,12 +2086,15 @@
       if (ns === 1 && this.ver >= 2) {                                            // a directory of sizes comes first; each column has its own key numbering
         var dirC = [], dirB = [], c0, b0, savedKeys;
         for (j = 0; j < keys.length; j++) { dirC.push(c.varint()); dirB.push(c.varint()); }
+        if (lz) this.lazyAt = this.depth + 1;
         for (j = 0; j < keys.length; j++) {
           c0 = c.p; b0 = this.bl.p; savedKeys = this.keys; this.keys = [];
           var col2 = this.column(cnt); this.keys = savedKeys;
           if (c.p - c0 !== dirC[j] || this.bl.p - b0 !== dirB[j]) jfail('a column does not match its directory entry');
           cols.push(col2); modes.push(col2.mode); args.push(col2.a, col2.d);
         }
+        this.lazyAt = la;
+        if (lz && ns === 1) return new Col(n, 7, { keys: keys, cols: cols, row: recordRow(keys)(cols) }, null);       // an object is made per row from the columns
       } else
       for (j = 0; j < keys.length; j++) {
         if (cnt > 0) { var col = this.column(cnt); cols.push(col); modes.push(col.mode); args.push(col.a, col.d); }
@@ -2642,6 +2693,9 @@
       }
       if (m === 4) return a.codes.byteLength + a.coff.byteLength + a.syms.length * 24 + 64;
       if (m === 5) return 16 + a.off.byteLength + a.big.length * (a.wide ? 2 : 1);
+      if (m === 7 || m === 9) { var t7 = 64, q7; for (q7 = 0; q7 < a.cols.length; q7++) t7 += colBytes(a.cols[q7]); return t7; }
+      if (m === 8) return 16 + a.off.byteLength + (a.flat ? colBytes(a.flat) : 0);
+      if (m === 10) return 4400 + colBytes(a.ts);
       if (m === 6) {                                                  // the numbers each slot reads and the tables of text it looks up
         var t = 16 + (a.tid ? a.tid.byteLength : 0), seen = [], j;
         for (j = 0; j < a.arrs.length; j++) if (a.arrs[j] && seen.indexOf(a.arrs[j]) < 0) { seen.push(a.arrs[j]); t += 16 + a.arrs[j].byteLength; }
