@@ -2,11 +2,11 @@
  * stage-curtains.js: velvet stage curtains that slide shut over a page, then fly open.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.3.1 (API 1)
  *
  * No dependencies. Needs: canvas 2D, Promise, Element.animate (Web Animations). Any modern browser (2020+).
  * create({ worker: true }) paints the velvet in a background worker (the page then needs worker-src blob:); StageCurtains.startWorker() starts it early, release() ends it.
- * The velvet's pixel loop runs in WebAssembly (a 1.5 KB module inside this file; the page policy needs 'wasm-unsafe-eval') and in JavaScript where that cannot start:
+ * The velvet's pixel loop runs in WebAssembly (a 1.3 KB module inside this file; the page policy needs 'wasm-unsafe-eval') and in JavaScript where that cannot start:
  * the pixels are the same either way. create({ wasm: false }) forces JavaScript.
  *
  *   var curtains = StageCurtains.create({ container: document.body, color: '#b3202a' });
@@ -66,7 +66,7 @@
   }
   // t > 0 lightens toward white, t < 0 darkens toward black.
   function shade(c, t) { return t > 0 ? mix(c, '#ffffff', t) : mix(c, '#000000', -t); }
-  var WASM_B64 = /*WASM:BEGIN*/'AGFzbQEAAAABFgFgEn9/f39/f39/f39/f39/f39/fwACDwEDZW52Bm1lbW9yeQIAAgMCAQAGDwJ/AUGAiAQLfwBBgIgECwcXAgVwYWludAAAC19faGVhcF9iYXNlAwEKhAsBgQsLC3wBfwJ8AX8CfAJ/A3wBfwN8An8DfAJAIAMgBE4NACABQQFIDQAgECsDSCESIBArA0AhEyAQKwM4IRQgECsDMCEVIBArAyghFiAQKwMgIRcgECsDGCEYIBArAwAhGSAQKwMIIhpEAAAAAAAABECiIRsgGkQAAAAAAAD4P6IhHCAFQX5qIh23IR4gArchHyADISADQCARICBBGGxqIhArAwAiIUQAAAAAAADgPyAhRAAAAAAAAOA/ZBshIiAgQQZ0QcAfcSEjICAgA2sgAWwhJCAQQRBqKwMAISUgEEEIaisDACEmICC3ISdBACEoRAAAAAAAAAAAISkDQCAZICYgGSApIBqjIiqhoqEgJUQAAAAAAADwPyAqIBmjoaKgRAAAAAAAAABAoCIrnCIqRAAAAAAAAPA/oCAqICsgKqFEAAAAAAAA4D9mGyIqIB5kIRACQAJAICqZRAAAAAAAAOBBY0UNACAqqiEFDAELQYCAgIB4IQULICggJGpBAnQhLAJAAkACQCAcIB8gCkEBIB0gBSAQGyAqRAAAAAAAAPA/YxtBA3QiLWorAwChIi6gICdjDQAgCCAtaisDACALIC1qKwMAoiIqRB+F61G4HuU/okTD9Shcj8LVP6AgKiATRAAAAAAAAAAAYhshLyAMIRAgDSEFIAYhAiAGQQFIDQEDQAJAICsgECsDAKGZIiogBSsDACIwY0UNACAvICogMKNEzczMzMzM3D+iRJqZmZmZmeE/oKIhLwsgEEEIaiEQIAVBCGohBSACQX9qIgJFDQIMAAsLIAAgLGpBjhA7AABBCCEQDAELAkACQCAuIBuhICdjDQAgFSAvIA4gKEEDdGorAwCiICEgFCAPIChBP3EgI3JBA3RqKwMAokQAAAAAAADwP6CioiIroiIqICEgCSAtaisDAKIiL0QAAAAAAOBvQCAqoaJEAAAAAAAA4D+ioCEqIBYgK6IiMCAvRAAAAAAA4G9AIDChokRmZmZmZmbmP6KgITAgGCAXICuioiIrIC9EAAAAAADgb0AgK6GioCErDAELICIgByAtaisDAEQzMzMzMzPjP6JEAAAAAAAA4D+goiIrRAAAAAAAAE1AoiEqICtEAAAAAACAZkCiITAgK0QAAAAAAOBsQKIhKwsCQCASRAAAAAAAAAAAYQ0AICpEAAAAAAAANECjIi+cIipEAAAAAAAA8D+gICogLyAqoUQAAAAAAADgP2YbRAAAAAAAADRAoiEqIDBEAAAAAAAANECjIi+cIjBEAAAAAAAA8D+gIDAgLyAwoUQAAAAAAADgP2YbRAAAAAAAADRAoiEwICtEAAAAAAAANECjIi+cIitEAAAAAAAA8D+gICsgLyAroUQAAAAAAADgP2YbRAAAAAAAADRAoiErCyAwRAAAAAAA4G9AZCEQAkACQCAwnkQAAAAAAAAAACAwRAAAAAAAAAAAZBsiMEQAAAAAAADwQWMgMEQAAAAAAAAAAGZxRQ0AIDCrIQUMAQtBACEFCyAAICxqIgJBAWpBfyAFIBAbOgAAICtEAAAAAADgb0BkIRACQAJAICueRAAAAAAAAAAAICtEAAAAAAAAAABkGyIwRAAAAAAAAPBBYyAwRAAAAAAAAAAAZnFFDQAgMKshBQwBC0EAIQULIAJBfyAFIBAbOgAAICpEAAAAAADgb0BkIRACQCAqnkQAAAAAAAAAACAqRAAAAAAAAAAAZBsiKkQAAAAAAADwQWMgKkQAAAAAAAAAAGZxRQ0AQX8gKqsgEBshEAwBC0F/QQAgEBshEAsgACAsaiIFQQNqQf8BOgAAIAVBAmogEDoAACApRAAAAAAAAPA/oCEpIChBAWoiKCABRw0ACyAgQQFqIiAgBEcNAAsLCw=='/*WASM:END*/;
+  var WASM_B64 = /*WASM:BEGIN*/'AGFzbQEAAAABFwFgE39/f39/f39/f39/f39/f39/f38AAg8BA2VudgZtZW1vcnkCAAIDAgEABg8CfwFBgIgEC38AQYCIBAsHFwIFcGFpbnQAAAtfX2hlYXBfYmFzZQMBCrgJAbUJDgF/B3wCfwR8AX8CfAJ/A3wBfwF8AX8CfAF/AXwCQCADIARODQAgAUEBSA0AIBIgBUEwbGohEyAQKwNIIRQgECsDOCEVIBArAzAhFiAQKwMoIRcgECsDICEYIBArAxghGSAQKwMAIRogBUF+aiEbIAFBAnQhHCAQKwMIIh1EAAAAAAAABECiIR4gHUQAAAAAAAD4P6IhHyAFt0QAAAAAAAD4v6AhICADISEDQCARICFBGGxqIhArAwAiIkQAAAAAAADgPyAiRAAAAAAAAOA/ZBshIyAAIBwgISADa2xqISQgDyAhQQl0QYD8AXFqISUgEEEQaisDACEmIBBBCGorAwAhJyAhtyEoQQAhKQNAQQEhEAJAICYgEyApQQR0aiIFQQhqKwMAoiAaICcgGiAFKwMAoaKhoEQAAAAAAAAAQKAiKkQAAAAAAAD4P2MNACAbIRAgKiAgZg0AICogKvwCIhC3oUQAAAAAAADgP2YgEGohEAtBjpCgeCEFAkAgHyASIBBBMGxqIisrAwAiLKAgKGMNACArKwMIIS0CQCArKwMgRAAAAAAAAAAAYQ0AIAwhECANIQUgBiEuIAZBAUgNAANAAkAgKiAQKwMAoZkiHSAFKwMAIi9jRQ0AIC0gHSAvo0TNzMzMzMzcP6JEmpmZmZmZ4T+goiEtCyAQQQhqIRAgBUEIaiEFIC5Bf2oiLg0ACwsCQAJAICwgHqEgKGMNACAWIC0gDiApQQN0aisDAKIgIiAVICUgKUE/cUEDdGorAwCiRAAAAAAAAPA/oKKiIiqiIh0gIiArKwMQoiItRAAAAAAA4G9AIB2hokQAAAAAAADgP6KgIR0gFyAqoiIvIC1EAAAAAADgb0AgL6GiRGZmZmZmZuY/oqAhLyAZIBggKqKiIiogLUQAAAAAAOBvQCAqoaKgISoMAQsgIyArKwMYoiIqRAAAAAAAAE1AoiEdICpEAAAAAACAZkCiIS8gKkQAAAAAAOBsQKIhKgsCQCAURAAAAAAAAAAAYQ0AIB1EAAAAAAAANECjIi2cIh1EAAAAAAAA8D+gIB0gLSAdoUQAAAAAAADgP2YbRAAAAAAAADRAoiEdIC9EAAAAAAAANECjIi2cIi9EAAAAAAAA8D+gIC8gLSAvoUQAAAAAAADgP2YbRAAAAAAAADRAoiEvICpEAAAAAAAANECjIi2cIipEAAAAAAAA8D+gICogLSAqoUQAAAAAAADgP2YbRAAAAAAAADRAoiEqC0QAAAAAAOBvQCAvIC9EAAAAAADgb0BkGyIvRAAAAAAAAAAAIC9EAAAAAAAAAABkG0QAAAAAAAA4Q6BEAAAAAAAAOMOg/AJBCHREAAAAAADgb0AgKiAqRAAAAAAA4G9AZBsiL0QAAAAAAAAAACAvRAAAAAAAAAAAZBtEAAAAAAAAOEOgRAAAAAAAADjDoPwCckQAAAAAAOBvQCAdIB1EAAAAAADgb0BkGyIdRAAAAAAAAAAAIB1EAAAAAAAAAABkG0QAAAAAAAA4Q6BEAAAAAAAAOMOg/AJBEHRyQYCAgHhyIQULICQgKUECdGogBTYCACApQQFqIikgAUcNAAsgIUEBaiIhIARHDQALCws='/*WASM:END*/;
   var WASM_ROWS = 16;   // rows per kernel call: the clock is read between calls, so a slice ends within about a millisecond of its limit
 
   // ---- the velvet maker: no page objects at all, so the very same code (as text) also runs in a background worker ----
@@ -76,7 +76,7 @@
     function rng(seed) { var r = seed || 1; return function () { return (r = (r * 16807) % 2147483647) / 2147483647; }; }
 
     // ---- the WebAssembly velvet loop (wasm/velvet.c, built by wasm/build.sh, put here by wasm/embed.py) ----
-    // The per-pixel loop of the velvet painter below, in WebAssembly: the very same bytes, about 1.4 to 1.65 times faster on a freshly loaded page.
+    // The per-pixel loop of the velvet painter below, in WebAssembly: the very same bytes. About 1.4 to 1.65 times faster than the JavaScript loop on a freshly loaded page; since 1.3.1 the kernel reads per-column tables and clamps without branches (the same bytes, 27 to 34% less paint time per curtain than 1.3.0).
     // One instance and one memory serve every painter; they are made on the first paint. If WebAssembly is missing, the page policy lacks
     // 'wasm-unsafe-eval', or anything throws, kernel() is null and the JavaScript loop paints instead (option wasm: false forces that).
     var kern;   // undefined: not tried yet; null: not usable; else { ex, mem, base, owner }
@@ -144,7 +144,18 @@
             if (cc > cw - 16 * k) { ee = (cc - (cw - 16 * k)) / (16 * k); edgeT[cc] = (1 + 0.35 * Math.sin(Math.min(1, ee / 0.55) * Math.PI)) * (1 - 0.8 * Math.pow(Math.max(0, (ee - 0.55) / 0.45), 1.5)); }
             else edgeT[cc] = 1;
           }
-          T = { list: [hgt, T85, T6, THEM, TSL, crAt, crW2, edgeT, Float64Array.from(grain), new Float64Array([PW, k, ch, warm, B[0], B[1], B[2], stepped ? 0.03 : 0.02, lift, stepped ? 1 : 0]), rows], off: [] };
+          // Per fold column and per canvas column values that row() would recompute for every pixel, evaluated here once with the same expressions (see wasm/velvet.c).
+          var aux = new Float64Array(6 * n + 2 * cw), q, cr, fl;
+          for (q = 0; q < n; q++) {
+            var s0 = T85[q] * TSL[q]; if (lift) s0 = 0.34 + s0 * 0.66;
+            aux[6 * q] = ch - THEM[q]; aux[6 * q + 1] = s0; aux[6 * q + 2] = T6[q]; aux[6 * q + 3] = 0.5 + 0.6 * hgt[q];
+            // a crease can touch a pixel whose fold column is q when the pixel's own position is within half a column of q (any position at all for the two clamped end columns)
+            fl = 0;
+            for (cr = 0; cr < ncr; cr++) if (q === 1 ? crAt[cr] - crW2[cr] < 1.6 : q === n - 2 ? crAt[cr] + crW2[cr] > n - 1.6 : Math.abs(q - crAt[cr]) < crW2[cr] + 1) fl = 1;
+            aux[6 * q + 4] = fl;
+          }
+          for (q = 0; q < cw; q++) { var xq = q / k; aux[6 * n + 2 * q] = xq; aux[6 * n + 2 * q + 1] = 1 - xq / PW; }
+          T = { list: [hgt, T85, T6, THEM, TSL, crAt, crW2, edgeT, Float64Array.from(grain), new Float64Array([PW, k, ch, warm, B[0], B[1], B[2], stepped ? 0.03 : 0.02, lift, stepped ? 1 : 0]), rows, aux], off: [] };
         }
         // Puts this painter's tables into the kernel's memory (unless they are already there) and returns where the rows will land.
         function load() {
@@ -157,7 +168,7 @@
         // Paints rows y .. y1 - 1 with the kernel and copies them into the image.
         function bulk(y1) {
           var o = T.off;
-          K.ex.paint(T.pix, cw, ch, y, y1, n, ncr, o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7], o[8], o[9], o[10]);
+          K.ex.paint(T.pix, cw, ch, y, y1, n, ncr, o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7], o[8], o[9], o[10], o[11]);
           p.set(new Uint8Array(K.mem.buffer, T.pix, (y1 - y) * cw * 4), y * cw * 4);
           y = y1;
         }
