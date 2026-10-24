@@ -142,6 +142,16 @@ else:
         assert out.count("<svg") == fixture(FONT).decode().count("<svg"), "markup changed"
         assert "characters kept" in r.stdout
 
+    def t_double_quotes():
+        d = TMP / "page-dq.html"; dq = TMP / "page-dq.fonts.html"
+        d.write_text(src.read_text(encoding="utf-8").replace("font-family:'TestFont'", 'font-family:"TestFont"', 1), encoding="utf-8")
+        assert 'font-family:"TestFont"' in d.read_text(encoding="utf-8"), "fixture did not get a double-quoted family"
+        r = run_optfonts(d, dq); assert r.returncode == 0, r.stderr[-400:]
+        out = dq.read_text(encoding="utf-8")
+        assert ("data:font/%s;base64," % FMT) in out and "TestFont" in out, "a font with a double-quoted family name was skipped"
+        assert 0x2605 in font_cmaps(out)[0].getBestCmap() and 0x416 not in font_cmaps(out)[0].getBestCmap(), "the double-quoted font was not subset"
+    check("optfonts also handles a font-family written in double quotes [%s]" % FMT, t_double_quotes)
+
     check("optfonts keeps CSS-escape (\\2605) and surrogate-pair (\\uD83D\\uDE00) glyphs and drops unused ones [%s]" % FMT, t_glyphs)
 
     def t_license():
@@ -512,6 +522,15 @@ try:
         r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "z3.small.html"), "--bg", "red;}</style>"]); assert r.returncode == 0, r.stderr
         assert "not a plain color" in r.stderr and "background:#101018" in (TMP / "z3.small.html").read_text(encoding="utf-8"), "a bad --bg must fall back and say so"
     check("pack.py command line, with zopfli (title, --bg, bad --bg)", t_cli)
+
+    def t_cli_auto_bg():
+        d = TMP / "za.html"; d.write_bytes(b"<!doctype html><title>x</title><style>body{background:#fff8e0}</style><p>hello hello hello</p>" * 3)
+        r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "za.small.html"), "T", "--bg", "auto"]); assert r.returncode == 0, r.stderr
+        assert "background:#fff8e0" in (TMP / "za.small.html").read_text(encoding="utf-8") and "read the page color" in r.stderr, "--bg auto did not read the page color: " + r.stderr
+        d.write_bytes(b"<!doctype html><title>x</title><p>no color here</p>")
+        r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "zb.small.html"), "T", "--bg", "auto"]); assert r.returncode == 0, r.stderr
+        assert "background:#101018" in (TMP / "zb.small.html").read_text(encoding="utf-8") and "found no plain page color" in r.stderr, "--bg auto without a page color must use the default and say so"
+    check("pack.py --bg auto reads the page's color, and falls back with a note", t_cli_auto_bg)
 
     def t_cli_modes():
         d = TMP / "m.html"; d.write_bytes(RAW)

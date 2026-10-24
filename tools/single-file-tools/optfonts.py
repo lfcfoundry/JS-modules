@@ -11,7 +11,7 @@ then subsets each @font-face with fontTools and re-embeds it as woff2.
     python3 optfonts.py in.html out.html [--report] [--costs] [--features kern,liga,tnum] [--extra "ñéü"] [--format woff2|woff]
 
 Layout features kept by default: kerning, ligatures, accents, required forms and tabular digits (tnum). Pass --features to change.
-Only works on @font-face rules whose src is a data: URL with base64 data and that name font-family in single quotes.
+Only works on @font-face rules whose src is a data: URL with base64 data and that name font-family in single or double quotes.
 If your page builds text from data loaded later (a database, user input), add those characters with --extra "ñéü".
 
 Font licenses: the copyright and license records of each font (name IDs 0, 13 and 14) are kept in the subset, and the same notice is written
@@ -119,7 +119,7 @@ def optimize(s, extra='', features=None, fmt='woff2', warn=None, rep=None, costs
 
     def sub(m):
         body = m.group(1)
-        fam = re.search(r"font-family:\s*'([^']+)'", body)
+        fam = re.search(r"""font-family:\s*(['"])(.+?)\1""", body)
         b64 = re.search(r'base64,([A-Za-z0-9+/=]+)', m.group(0))
         if not fam or not b64:
             return m.group(0)
@@ -148,7 +148,7 @@ def optimize(s, extra='', features=None, fmt='woff2', warn=None, rep=None, costs
             warn("WARNING: font '%s' is under the SIL Open Font License. Subsetting is a modification: the copyright notice and license text were kept "
                  "(in the font and in a comment in the page); keep them in what you ship, and include the license text with your game." % fam.group(1)
                  + (" It declares a Reserved Font Name (%s): a modified copy may not use that name, so give the font another name in your CSS and files." % r if r else ''))
-        notice = comment_safe(('Font: %s. %s %s %s' % (family or fam.group(1), copyright_text, license_text, license_url)).strip())
+        notice = comment_safe(('Font: %s. %s %s %s' % (family or fam.group(2), copyright_text, license_text, license_url)).strip())
         return '/*! ' + notice + ' */\n' + new_rule
 
     s2 = re.sub(r'@font-face\s*\{(.*?)\}', sub, s, flags=re.S)
