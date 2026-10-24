@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.5.1 · API 2 · 2026-10-23
+- Packing a long number column now tries every way on every 8th block instead of every 4th: 30,000 scene items pack 4 to 10% faster (balanced), 60,000 links 4 to 5%; packed size within 0.2%. No format change.
+
 ## 2.5.0 · API 2 · 2026-10-23
 - Column pages hold text lazily: page open up to 45% faster, held text columns 62 to 89% smaller; a column read row by row is made in one pass, so reading rows costs about what it did in 2.4.9; memory report counts text and nested data.
 
