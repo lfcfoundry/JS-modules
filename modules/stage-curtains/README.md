@@ -1,8 +1,8 @@
 # stage-curtains
 
-**Version 1.3.0 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Chromium 155.0.8059.39 (ungoogled), Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5
+**Tested in:** ungoogled Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6 (MiniBrowser; GNOME Web not used); Node suite (quick, FULL=1, --js-only) 46 passed; tests/stage-curtains-wasm-browser.js (picture gate, exact stepped, simulated no-SIMD) and tests/stage-curtains-worker-browser.js PASS in all three; 15 alternating fresh-page turns of paint stall in each browser, plus Chromium 40 turns x 3 passes with a same-file control; real phones, a browser without SIMD and a real GPU upload not run
 
 Velvet stage curtains that slide shut over a page, then fly open. A scene-change transition for games and shows. About 37 KB (about 2 KB of it is the embedded WebAssembly painter), no images (the velvet is painted with canvas).
 
@@ -57,12 +57,16 @@ curtains.prepare()                    // paints the velvet in small slices of id
 
 ## WebAssembly velvet loop (since 1.2.0)
 
-**What.** The pixel loop that paints the velvet (the hot part of `prepare()`) also exists as a 1,510-byte WebAssembly function, embedded in `stage-curtains.js`. It paints the same pixels, 16 rows at a time, and `StageCurtains.wasmAvailable()` says whether the browser lets it run. The painter reports `engine` as `'wasm'` or `'js'`.
+**What.** The pixel loop that paints the velvet (the hot part of `prepare()`) also exists as a 2,567-byte WebAssembly function (SIMD, four pixels per step, since 1.4.0), embedded in `stage-curtains.js`. It paints the same picture to within the module's picture gate (see below), 16 rows at a time, and `StageCurtains.wasmAvailable()` says whether the browser lets it run. The painter reports `engine` as `'wasm'` or `'js'`.
 
 **Why.** On a freshly loaded page one phone-size curtain half (295,475 pixels) paints about 1.4 to 1.6 times as fast: 23.9 to 17.0 ms in Chromium 155, 23.0 to 14.0 ms in Firefox 158.0, 24.0 to 17.0 ms in WebKitGTK 2.52.6 and 30.0 to 21.0 ms in GNOME Web 46.5 (median of three passes of seven fresh pages; lower is better). The picture is identical: 112 curtains, 0 pixels differ in all four browsers, and the same on a page that forbids WebAssembly.
 
+**Faster exact kernel (1.3.1).** The kernel now looks up the per-column values (the position along the curtain, the leading-edge ratio) and the per-fold-column values (hem, shade, sheen, gold base, crease flag) in tables that the page builds once with the same expressions, rounds with integers and clamps without branches. The bytes it paints are unchanged (the same hash as 1.3.0 for a 1280 x 720 curtain, smooth and stepped, in all three test browsers). Main-thread paint of one 1280 x 720 curtain (both halves and the mirror; median of 15 fresh pages; lower is better): Chromium 155 45.6 to 30.0 ms, Firefox 158 40 to 28 ms, WebKitGTK 2.52.6 37 to 27 ms.
+
+**SIMD kernel (1.4.0).** The main loop now works on four pixels at a time (WebAssembly SIMD, single precision), with the exact double-precision loop kept for stepped curtains and for the last `width % 4` columns of a row. The picture is the same to within the **picture gate**: at least 99.5% of the pixels within 5/255 on every channel of the plain JavaScript loop's picture, which stays the reference (`row()`). Measured: the worst of the 412 test curtains has 99.986% of its pixels within 5 (99.951% byte for byte; the largest single difference is 56 counts, on a handful of pixels at a fold or crease edge), the 1280 x 720 benchmark half 99.9998% (identical in all three test browsers). Stepped curtains are byte for byte the JavaScript curtain. Main-thread paint of one 1280 x 720 curtain, both halves plus the mirror (median of 15 fresh pages; lower is better), 1.3.0 to 1.4.0: Chromium 155 45.4 to 13.7 ms, Firefox 158 40 to 15 ms, WebKitGTK 2.52.6 38 to 13 ms; the first curtain in a fresh page 54 to 26, 44 to 22 and 49 to 27 ms. A browser without WebAssembly SIMD cannot compile the module, so the JavaScript loop paints (as with no WebAssembly at all); `StageCurtains.wasmAvailable()` is then `false`.
+
 **Rules.**
-- Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it the module quietly paints with plain JavaScript (same picture, no speed-up). No other loosening is needed.
+- Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it (or in a browser without WebAssembly SIMD) the module quietly paints with plain JavaScript (same picture to within a few counts, no speed-up). No other loosening is needed.
 - `create({ wasm: false })` forces the plain JavaScript loop. If the WebAssembly part fails for any reason, the plain loop finishes the remaining rows.
 - Each `step()` still stops between 16-row chunks, so the slowest single slice stays at 4 to 5 ms in every browser (no change, no loss).
 - Costs bytes: +3,923 minified and +2,038 gzipped (smaller is better; 15,353 to 19,276 and 6,275 to 8,313).
@@ -142,7 +146,7 @@ Where it loses:
 - Copy `stage-curtains.js` (keep the MIT header). No dependencies. It can be `require`d in Node; nothing touches `document` until `create()` and `prepare()` run.
 - Call `prepare()` early (at load or when a level starts), then `close()`, change the scene, `open()`, `destroy()`. Always chain with `.then`; nothing rejects.
 - Do not add your own reduced-motion check (override with `reducedMotion`). Do not wrap it in a timer; the safety timers are inside.
-- Keep the plain JavaScript loop (`row()`) and the WebAssembly kernel (`wasm/velvet.c`) painting identical pixels; change both together and run `node modules/stage-curtains/test/run.js` and `embed.py --check`.
+- Keep the plain JavaScript loop (`row()`) as the reference and the WebAssembly kernel (`wasm/velvet.c`) within the picture gate of it (stepped curtains byte for byte); change both together and run `node modules/stage-curtains/test/run.js` and `embed.py --check`.
 - Do not call `animation.cancel()` on the curtain elements, and do not remove `style.transform` from them: the module writes the end positions there.
 
 ## Prior art and credits

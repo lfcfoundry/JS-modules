@@ -46,8 +46,8 @@ const server = http.createServer((q, r) => {
   const blocked = u.searchParams.get('csp') === 'nowasm', timed = !blocked;
   r.setHeader('content-type', 'text/html');
   r.end('<!doctype html><meta charset=utf-8><meta http-equiv="Content-Security-Policy" content="' + (blocked ? CSP_NOWASM : CSP_WASM) + '"><title>t</title><link rel="icon" href="data:,">' +
-    '<script src="/sprite-baker.js"></script><script src="/ref.js"></script><script src="/wasm-battery.js"></script><script src="/sprite-baker-wasm.js"></script>' +
-    '<script>' + TIMING + '\ntry{var t0=performance.now(),W=SpriteBaker.wasm(),startMs=performance.now()-t0,b=spriteBakerWasmBattery(SpriteBaker,window.__F,W),res={startMs:startMs,available:W.available,engine:W.engine,scenes:b.scenes,differing:b.differing,names:b.names,extra:b.extra,stats:W.stats};' +
+    '<script src="/sprite-baker.js"></script><script>window.__PO=SpriteBaker.outline</script><script src="/ref.js"></script><script src="/wasm-battery.js"></script><script src="/sprite-baker-wasm.js"></script>' +
+    '<script>' + TIMING + '\ntry{var t0=performance.now(),W=SpriteBaker.wasm(),startMs=performance.now()-t0,b=spriteBakerWasmBattery(SpriteBaker,window.__F,W,window.__PO),res={startMs:startMs,available:W.available,engine:W.engine,scenes:b.scenes,differing:b.differing,names:b.names,extra:b.extra,stats:W.stats};' +
     (timed ? 'res.timing=timing(SpriteBaker,window.__F,W,' + REPS + ',48);' : '') + 'window.__res=res}catch(e){window.__res={error:String(e&&e.stack||e)}}</script>');
 });
 const webkitFamily = which === 'webkit' || which === 'epiphany';

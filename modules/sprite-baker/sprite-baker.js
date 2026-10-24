@@ -1,4 +1,4 @@
-/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.7.0 (API 1) */
+/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.7.1 (API 1) */
 var SpriteBaker = (function () {
   'use strict';
 
@@ -7,6 +7,7 @@ var SpriteBaker = (function () {
      - Projection is orthographic: a vertex lands at (ox + x * scale, oy + y * scale), z is only used for the depth test.
      - A vertex is a plain array [x, y, z, nx, ny, nz] (position, then a unit-ish normal). */
 
+  var API;                    // the object returned at the end; baking calls API.outline, so the optional WebAssembly add-on can swap it
   var PI2 = Math.PI * 2;
   var NO_DEPTH = -1e9;        // depth buffer clear value; anything nearer than this is drawn
   var DEFAULT_CULL = -0.75;   // triangles whose three normals' z sum is below this are skipped (see tri)
@@ -770,7 +771,7 @@ var SpriteBaker = (function () {
         rast.clear();
         parts.forEach(function (part) { drawMesh(rast, part.mesh, part.material, view, tOpts); });
         img = downsample(rast, ss);
-        return ol ? outline(img, ol.radius, ol.color) : img;
+        return ol ? API.outline(img, ol.radius, ol.color) : img;
       }
     };
   }
@@ -910,8 +911,8 @@ var SpriteBaker = (function () {
   }
 //@end
 
-  return {
-    version: '1.7.0',
+  API = {
+    version: '1.7.1',
     Rast: Rast,
 //@begin ramps
     material: material,
@@ -980,6 +981,7 @@ var SpriteBaker = (function () {
 //@end
     DEFAULT_LIGHT: DEFAULT_LIGHT.slice()
   };
+  return API;
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = SpriteBaker; else (typeof globalThis !== 'undefined' ? globalThis : this).SpriteBaker = SpriteBaker;
