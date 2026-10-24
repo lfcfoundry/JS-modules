@@ -1,8 +1,8 @@
 # test-runner
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Node checks (23), and a real canvas in Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5
+**Tested in:** Node checks (25, two new for the ledger and the heartbeat), a fake four-browser check run to a crash, a restart and a resume; real browsers not needed for this change
 
 The shared helpers every browser check and speed test in this repository (and the games that follow its rules) needs, in one folder: start the four test browsers once and keep them open, run one check in all four, compare two ways of doing the same job fairly, skip a build whose inputs did not change, prove that a WebAssembly path and its plain-JavaScript twin give the same answers to the last bit, catch a drawing that changed when nobody meant it, and name the commit that broke something. Node only, no packages of its own (`puppeteer-core` for Chromium and Firefox, as the checks already used).
 
@@ -26,6 +26,15 @@ node tools/test-runner/cli.js warm status           # which are warm and their v
 node tools/test-runner/cli.js warm stop
 node tools/test-runner/cli.js all tests/my-check.js # the same check in the four browsers, one at a time, one summary table
 ```
+Long runs and machine restarts: the test machine can restart without warning and every process is lost, while files on disk survive. So `all` keeps a **ledger** and a **heartbeat** (`ledger.js`, state in `.cache/test-runner/ledger/`, or `TEST_RUNNER_LEDGER`):
+```
+node tools/test-runner/cli.js all tests/my-check.js       # a cell = (build, browser, check file + arguments); each finished cell is written to disk
+node tools/test-runner/cli.js all tests/my-check.js       # after a crash or restart: the same command skips the browsers that already passed and continues
+node tools/test-runner/cli.js all --fresh tests/my-check.js    # run everything again
+node tools/test-runner/cli.js status [tests/my-check.js]  # ALIVE, FINISHED or DEAD (also: all --status ...)
+```
+The build is `TEST_RUNNER_BUILD` when set, otherwise a fingerprint of the commit plus every uncommitted change, so an edited file runs everything again. A failed cell always runs again. The heartbeat file records the process id, the machine's boot id and the time (every cell and every 5 s); `status` says DEAD with the reason when the boot id changed (the machine restarted) or the process is gone without a finish mark, and exits 0 for ALIVE or a clean FINISHED, 1 for FINISHED with failing cells and 2 for DEAD. A reminder that lives outside the machine (a scheduled self-reminder) should run `status` first.
+
 A check written with `T.launch` / `T.main` takes a warm browser when there is one and starts a new one when there is not; line 1 says `(warm)` when it took one. Only one check uses a browser at a time (a lock file; a second one waits, and says so if it gives up), because two pages in one browser at once make timings flaky.
 
 ## API
@@ -54,7 +63,7 @@ Written for this repository (LFC Foundry, MIT). It drives browsers through [pupp
 ## Limits
 - A warm browser keeps state between checks (cookies, caches); every check opens a fresh page, but a check that depends on a blank profile should use `launch(which, { cold: true })`.
 - One client per browser at a time; the lock is a file in the temp folder and ends with the process, and a dead owner is ignored.
-- The warm folder is `$TMPDIR/test-runner-warm` (`TEST_RUNNER_WARM` changes it); a machine restart clears it.
+- The warm folder is `$TMPDIR/test-runner-warm` (`TEST_RUNNER_WARM` changes it); a machine restart clears it. The ledger and heartbeat live in `.cache/test-runner/ledger/` on disk and survive a restart; they know only the cells run through `cli.js all`, and a check that dies half way through one browser starts that browser again.
 - `pageHash` reads a canvas; a page that draws with CSS or the DOM needs a screenshot hash of your own.
 - Fingerprints differ between browsers and between versions by design, so the baseline is kept per browser and version; a new version records itself instead of failing.
 - The stamp only knows files you name as inputs; a build that reads something else (a compiler version, an environment variable) needs `--force` after that changes.

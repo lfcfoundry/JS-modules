@@ -47,12 +47,13 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [webkit-driver](tools/webkit-driver/README.md) | 1.4.0 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
 | [test-isolation](tools/test-isolation/README.md) | 1.1.0 · API 1 | [changelog](tools/test-isolation/CHANGELOG.md) |
 | [speed-lab](tools/speed-lab/README.md) | 1.1.1 · API 1 | [changelog](tools/speed-lab/CHANGELOG.md) |
-| [test-runner](tools/test-runner/README.md) | 1.1.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
+| [test-runner](tools/test-runner/README.md) | 1.2.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
 | [speed-guard](tools/speed-guard/README.md) | 1.0.0 · API 1 | [changelog](tools/speed-guard/CHANGELOG.md) |
 
 ## Changes since labels began
 
 - 2026-10-24 · **walker-sim** 2.4.0 · API 2: sweep and exactEndpoints now run their rounds in a second 1 KB WebAssembly program in the default file: what-if sweeps are about 40% (Chromium) and 60% (Firefox) faster, the same numbers to the last digit. New hook WalkerSim.useSweepKernel.
+- 2026-10-24 · **test-runner** 1.2.0 · API 1: Long runs survive a machine restart: cli.js all skips the browsers that already passed for this build, a heartbeat file records the boot id, and cli.js status says ALIVE, FINISHED or DEAD.
 - 2026-10-24 · **stage-curtains** 1.4.0 · API 1: The curtain's velvet paints 60 to 70% faster in a browser with WebAssembly SIMD. The picture matches the plain-JavaScript one to within 5 of 255 on 99.99% of pixels; stepped curtains are unchanged.
 - 2026-10-24 · **stage-curtains** 1.3.1 · API 1: The curtain's velvet paints 27 to 34% faster (WebAssembly loop reads per-column tables). Same picture, byte for byte.
 - 2026-10-24 · **sprite-baker** 1.7.1 · API 1: With the WebAssembly add-on loaded, outlines are drawn in WebAssembly: about 1.6 to 1.9 times as fast per call (0.3 to 2 ms down to 0.15 to 1.1 ms), with the very same pixels. Without it nothing changes.

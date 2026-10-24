@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-10-24
+- Long runs survive a machine restart: cli.js all skips the browsers that already passed for this build, a heartbeat file records the boot id, and cli.js status says ALIVE, FINISHED or DEAD.
+
 ## 1.1.0 · API 1 · 2026-10-18
 - The picture gate now passes a picture that is 99.5% identical or better and prints the exact percentage; exact matches still count as same.
 
