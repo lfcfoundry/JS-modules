@@ -217,6 +217,44 @@ const Pw = S.graph({ links: pinLinks, start: 's' }), pins = {
     const a = W.create(PW, { seed: 5, trials: 400, weights: PW.w, arrivals: { dist: 'fixed', a: 60 } }); let g = 0; while (!a.run(37, 1e9).done && g++ < 1e4);
     const b = W.create(PW, { seed: 5, trials: 400, weights: PW.w, arrivals: { dist: 'fixed', a: 60 }, wasm: false }); b.run(1e9, 1e9);
     ok(JSON.stringify(a.export()) === JSON.stringify(b.export()), 'cut into batches of 37 trials, the WebAssembly run exports exactly what the JavaScript run does');
+    {     // 2.4.0: sweep and exactEndpoints run their rounds in WebAssembly too (wasm/sweep.c); every number equals the JavaScript rounds, which equal the 2.3.0 numbers
+      const crypto = require('crypto'), vm = require('vm');
+      const srcs = (joined || isMin ? [wf] : [file0, wf]).map(f => fs.readFileSync(f, 'utf8'));
+      const load = WA => {     // a private copy of the file(s) with its own WebAssembly (or none); spy sees every call of the sweep kernel
+        const spy = { fn: null, calls: 0 }, m = {}; let ex = {};
+        Object.defineProperty(m, 'exports', { get: () => ex, set: v => { ex = v; if (v.useSweepKernel.spied) return; const real = v.useSweepKernel; (v.useSweepKernel = f => { spy.fn = f; real(typeof f === 'function' ? function () { const r = f.apply(this, arguments); if (r) spy.calls++; return r; } : f); }).spied = true; } });
+        for (const t of srcs) vm.runInThisContext('(function (module, require, WebAssembly) {' + t + '\n})')(m, () => { throw new Error('no require'); }, WA);
+        return Object.assign(ex, { spy });
+      };
+      const net = (G, seed, n, deg, ends) => {     // a random network with loops, the same for the same seed
+        let s = seed; const r = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }, nodes = [], links = [];
+        for (let i = 0; i < n; i++) nodes.push('n' + i); for (let i = 0; i < ends; i++) nodes.push('e' + i);
+        for (let i = 0; i < n; i++) { const d = 1 + Math.floor(r() * deg); for (let k = 0; k < d; k++) { const j = r() < 0.15 ? Math.floor(r() * n) : (r() < 0.5 ? Math.min(n + ends - 1, i + 1 + Math.floor(r() * 5)) : n + Math.floor(r() * ends)); links.push({ from: 'n' + i, to: j < n ? 'n' + j : 'e' + (j - n), weight: 1 + Math.floor(r() * 6) }); } }
+        return G.graph({ nodes, links, start: 'n0' });
+      };
+      const h = o => crypto.createHash('sha1').update(JSON.stringify(o, (k, v) => ArrayBuffer.isView(v) ? Array.from(v) : v)).digest('hex').slice(0, 12);
+      const what = (G, P) => { const cf = { rule: 'weights', weights: P.w }, ee = G.exactEndpoints(P, cf); return { hash: h([ee, G.sweep(P, cf, { what: 'items', top: 25 }), G.sweep(P, cf, { what: 'links', top: 25 }), G.sensitivity(P, cf, { top: 10 })]), method: ee.method }; };
+      const sticky = G => { const P = G.graph({ links: [['s', 'a', 1], ['s', 'b', 1], ['a', 'b', 4000], ['b', 'a', 3000], ['a', 'e1', 1], ['b', 'c', 2], ['c', 'a', 5000], ['c', 'e2', 1], ['b', 'e2', 1], ['a', 'd', 3000], ['d', 'a', 4000], ['d', 'e1', 2]].map(([from, to, weight]) => ({ from, to, weight })), start: 's' }); return P; };     // loops that hold on so long that the rounds give up and the group is solved directly
+      const nets = [[1, 30, 3, 3], [2, 60, 4, 5], [3, 120, 3, 8], [4, 200, 5, 10], [5, 45, 2, 2], [6, 300, 4, 12]], want = '7002c7047e54 2fe467c36d1b 5727f348bf02 92684de4a721 e12ef954ac48 e95c3bfecee2 9da1e805a59d';     // want: what the 2.3.0 code gives
+      const refused = { Module: function () { throw new Error('code generation refused'); }, compile: () => Promise.reject(new Error('code generation refused')), Memory: function () { throw new Error('refused'); }, Instance: function () { throw new Error('refused'); } };
+      const A = load(WebAssembly), B = load(undefined), C = load(refused), runAll = G => nets.map(a => what(G, net(G, ...a)));
+      const runAll2 = G => runAll(G).concat([what(G, sticky(G))]), ra = runAll2(A), rb = runAll2(B), rc = runAll2(C);
+      ok(ra.map(x => x.hash).join(' ') === want && rb.map(x => x.hash).join(' ') === want && rc.map(x => x.hash).join(' ') === want, 'sweep items, sweep links, sensitivity and exactEndpoints on 6 random networks with loops and one with long loops: WebAssembly rounds, JavaScript rounds and refused code generation all give the 2.3.0 numbers (' + ra.map(x => x.method).join(',') + ')');
+      ok(ra.some(x => x.method === 'loops') && ra.some(x => x.method === 'sweeps'), 'the networks include groups solved directly (loops) and by rounds');
+      ok((A.spy.calls > 0) === A.wasm && B.spy.calls === 0 && C.spy.calls === 0 && B.wasm === false && C.wasm === false, 'the WebAssembly rounds ran (' + A.spy.calls + ' calls) only where WebAssembly is usable and the other copies used the JavaScript rounds');
+      const Z = load(WebAssembly), PZ = net(Z, 3, 120, 3, 8); Z.useSweepKernel(null);
+      ok(h(Z.sweep(PZ, { rule: 'weights', weights: PZ.w }, { what: 'items', top: 25 })) === h(A.sweep(PZ, { rule: 'weights', weights: PZ.w }, { what: 'items', top: 25 })), 'useSweepKernel(null) switches the WebAssembly rounds off and the rows stay equal');
+      if (A.wasm) {     // the kernel itself: a call bigger than the memory it holds makes the memory grow, and the numbers still equal the JavaScript rounds
+        const ref = (maxS, nO, K, ordA, eS, tKa, pea, c0, acc) => { const c = Float64Array.from(c0); let delta = Infinity, prev = Infinity, sw = 0; while (sw < maxS) { prev = delta; delta = 0; for (let oi = 0; oi < nO; oi++) { const b = ordA[oi] * K; for (let q = 0; q < K; q++) acc[q] = 0; for (let k = eS[oi]; k < eS[oi + 1]; k++) for (let q = 0; q < K; q++) acc[q] += pea[k] * c[tKa[k] + q]; let d = 0; for (let q = 0; q < K; q++) { d += Math.abs(acc[q] - c[b + q]); c[b + q] = acc[q]; } if (d > delta) delta = d; } sw++; if (delta < 1e-12) break; } return { c, r: [delta, prev, sw] }; };
+        const big = (n, K, deg) => { let s = 12345; const r = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }, nTot = n + K, ordA = new Int32Array(n), eS = new Int32Array(n + 1), tK = [], pe = [], c = new Float64Array(nTot * K);
+          for (let i = 0; i < n; i++) { ordA[i] = n - 1 - i; eS[i] = tK.length; const d = 1 + Math.floor(r() * deg); let t = 0; const w = []; for (let k = 0; k < d; k++) { w.push(0.1 + r()); t += w[k]; } for (let k = 0; k < d; k++) { tK.push((r() < 0.8 ? Math.min(nTot - 1, Math.floor(r() * (n + K))) : n + Math.floor(r() * K)) * K); pe.push(k === 0 && i % 7 === 0 ? 0 : w[k] / t); } }
+          eS[n] = tK.length; for (let q = 0; q < K; q++) c[(n + q) * K + q] = 1; return [60, n, K, ordA, eS, Int32Array.from(tK), Float64Array.from(pe), c, new Float64Array(K)]; };
+        for (const [n, K, deg] of [[200, 5, 3], [3000, 12, 5], [12000, 9, 4], [300, 5, 3]]) {     // small, bigger, biggest, small again
+          const a = big(n, K, deg), want2 = ref(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], new Float64Array(K)), got = A.spy.fn(...a);
+          ok(got && h(got) === h(want2.r) && Buffer.compare(Buffer.from(a[7].buffer), Buffer.from(want2.c.buffer)) === 0, 'the sweep kernel on ' + n + ' items, ' + a[5].length + ' ways, ' + K + ' classes equals the JavaScript rounds bit for bit (' + got[2] + ' rounds)');
+        }
+      }
+    }
     if (!isMin) {     // a page that forbids WebAssembly (or a browser without it): loading the file changes nothing
       const keep = global.WebAssembly; global.WebAssembly = undefined;
       for (const f of joined ? [wf] : [wf, path.join(path.dirname(wf), 'walker-sim.js')]) delete require.cache[require.resolve(f)];

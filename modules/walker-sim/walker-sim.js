@@ -5,7 +5,7 @@
  * check against; what-if sweeps. Names and help texts for the random-number kinds are in the optional walker-sim-menu.js.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.0 (API 2)
+ * Version 2.4.0 (API 2)
  *
  *   var P = WalkerSim.graph({ links: [{ from: "start", to: "a", weight: 3 }, { from: "start", to: "b", weight: 1 }] });
  *   var sim = WalkerSim.create(P, { seed: 7, trials: 10000 }); sim.run(1e9, 1e9);   // run(max trials, max milliseconds)
@@ -20,6 +20,7 @@
   'use strict';
 
   var kernelMaker = null;     // set by walker-sim-wasm.js through useKernel
+  var sweepKernel = null;     // set by walker-sim-wasm.js through useSweepKernel
 
   /* ---------------------------------------------------------------- random numbers */
   function mix32(a, b) {
@@ -845,7 +846,17 @@
       return delta;
     }
     var delta = Infinity, prev = Infinity, sweeps = 0, method = 'sweeps', converged, error;
-    while (sweeps < maxSweeps) { prev = delta; delta = sweepOnce(); sweeps++; if (delta < 1e-12) break; }
+    var kr = null;     // the first rounds in WebAssembly when walker-sim-wasm.js is loaded and works: it gets flat copies of what a round reads (the items in order, where each item's ways start, the target * K and the chance of every way, also those with chance 0 so the sums stay identical) and hands back null when it cannot, with c untouched
+    if (sweepKernel) {
+      var nO = ord.length, ordA = Int32Array.from(ord), eS = new Int32Array(nO + 1), E = 0, oi0, k0, e0;
+      for (oi0 = 0; oi0 < nO; oi0++) { eS[oi0] = E; E += P.outStart[ord[oi0] + 1] - P.outStart[ord[oi0]]; }
+      eS[nO] = E;
+      var tKa = new Int32Array(E), pea = new Float64Array(E);
+      for (oi0 = 0; oi0 < nO; oi0++) for (k0 = P.outStart[ord[oi0]]; k0 < P.outStart[ord[oi0] + 1]; k0++) { e0 = P.outEdge[k0]; tKa[eS[oi0] + k0 - P.outStart[ord[oi0]]] = P.to[e0] * K; pea[eS[oi0] + k0 - P.outStart[ord[oi0]]] = p[e0]; }
+      kr = sweepKernel(maxSweeps, nO, K, ordA, eS, tKa, pea, c, acc);
+    }
+    if (kr) { delta = kr[0]; prev = kr[1]; sweeps = kr[2]; }
+    else while (sweeps < maxSweeps) { prev = delta; delta = sweepOnce(); sweeps++; if (delta < 1e-12) break; }
     function leftover() { var rho = prev > 0 && prev < Infinity ? delta / prev : 1; return rho < 1 ? delta * rho / (1 - rho) : 1; }
     if (delta < 1e-12) { converged = true; error = delta; }
     else if (solveLoops(P, p, c, K, ord, o.maxLoop || 2500)) { method = 'loops'; delta = sweepOnce(); converged = delta < 1e-9; error = delta; }
@@ -1001,5 +1012,5 @@
     return out;
   }
 
-  return { graph: graph, DRAW: DRAW, moments: moments, drawer: drawer, makeRng: makeRng, rngFor: rngFor, lgamma: lgamma, create: create, merge: merge, exactEndpoints: exactEndpoints, exactSummary: exactSummary, sweep: sweep, sensitivity: sensitivity, useKernel: function (f) { kernelMaker = typeof f === 'function' ? f : null; }, wilson: wilson, quantile: quantile };
+  return { graph: graph, DRAW: DRAW, moments: moments, drawer: drawer, makeRng: makeRng, rngFor: rngFor, lgamma: lgamma, create: create, merge: merge, exactEndpoints: exactEndpoints, exactSummary: exactSummary, sweep: sweep, sensitivity: sensitivity, useKernel: function (f) { kernelMaker = typeof f === 'function' ? f : null; }, useSweepKernel: function (f) { sweepKernel = typeof f === 'function' ? f : null; }, wilson: wilson, quantile: quantile };
 }));
