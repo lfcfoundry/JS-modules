@@ -1,8 +1,8 @@
 # gif-writer
 
-**Version 1.3.0 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (gif-writer browser checks and timing); Node for pass/fail only; no real phone
 
 Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 38 KB (15 KB gzipped, of which about 12 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map's GIF maker.
 
@@ -55,6 +55,8 @@ A first small GIF on a fresh page (160 x 120, 4 pictures, start-up included): 44
 - Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it, or if anything goes wrong at the start, the JavaScript code runs and writes the same bytes. A picture area bigger than 4,194,304 pixels also uses the JavaScript code.
 - Each encoder has its own WebAssembly memory (about 5 MB plus the pictures); it is freed with the encoder.
 - Source `wasm/gif.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
+
+**Palette sampling (1.4.0).** Above 100,000 pixels in all, `makePalette` counts about every 3rd pixel (every 5th above 1,000,000), at a step with no common factor with the picture's pixel count (so never one that divides its width), and counts every pixel after all when the sample shows fewer than 4,096 distinct colors. WebAssembly and plain JavaScript count the same pixels and give the same palette. A GIF from big photo-like inputs is therefore not byte-identical to one from 1.3.0 (mean picture error within 0.3% on photo-like, gradient and one-pixel-line pictures in the tests); flat, pixel-art and most screenshot pictures give the same bytes as before.
 
 **Honest limits.** The palette search is slower than the JavaScript code in the two WebKit browsers on flat pictures: scrolling bands 0.89x in WebKitGTK (14.5 to 16.3 ms), the small moving block 0.95x in GNOME Web (19.8 to 20.8 ms) and the flat game picture 0.97x in both (1 ms or less, inside the clock's step). The cost is copying every picture into WebAssembly memory (it now goes in pieces of 16,384 pixels so the copy stays in the processor cache, which moved WebKitGTK from 0.87x to the numbers above); the JavaScript code counts such pictures in runs at about the same speed. Everything else is 1.07x or faster, and encoding is 1.08x or faster everywhere. The `lzw()` function you can call directly is unchanged JavaScript. Costs bytes: +20,124 as written (20,789 to 40,913), +16,195 minified (9,115 to 25,310) and +7,929 gzipped (4,349 to 12,278) with terser 5.51.2 (smaller is better). Not run: a phone, Safari.
 
