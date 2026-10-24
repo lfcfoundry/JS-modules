@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node 22 (3 checks); Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 one at a time (page check: flat links equal, look cache 0 recomputed); demo opened in Chromium 155. Not tried on a real phone.
+**Tested in:** Node 22 (4 checks); Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 one at a time (page check: flat links equal, rules + bends equal; speed 1.0.0 vs 1.1.0 alternating, 30,000 items). Not tried on a real phone.
 
 Turns a map laid out by [netflow-engine](../netflow-engine/README.md) into plain drawing lists (dots, links, labels, ribbons, shapes, a legend) that Canvas 2D, WebGL2, WebGPU or an SVG export can all draw the same way. It decides colors, widths, dashes, arrows, which labels fit and what a click would hit; it never touches a page. Big flat maps (2,000 or more straight links) keep their links in typed lists instead of one object per link, and a map rebuilt only because items moved or labels changed reuses each link's look from the last picture.
 
@@ -26,16 +26,16 @@ svgElement.innerHTML = NetflowScene.toSvg(S, 'My map');
 Pass the same empty object as `lookPlan` on every rebuild that only moved items or changed label sizes. You own it: **drop it (pass nothing) on every other kind of change**. The scene starts it over by itself for another map, theme, palette, color mode or link count. 3D maps and fisheye lenses never use it.
 
 ## Flat link lists and the link accessors
-A flat map of 2,000 or more straight, arrowless links with no `linkStyle` is built straight into typed lists. Read the links without waking them with these scene methods (public API):
+A flat map of 2,000 or more links is built straight into typed lists, also with link rules (`linkStyle`), dashes, arrowheads and bent links (`curve`); arrowhead tips are kept in a `TIP` list. Pass `flat: false` to force one object per link (used by the tests). Read the links without waking them with these scene methods (public API):
 
 | Method | Meaning |
 |---|---|
 | `curveCount()` | Number of links. |
 | `curvesPacked()` | True while the links are typed lists. |
-| `curvesStraight()` | True when every link is a plain straight line. |
-| `eachCurveView(fn)` | Calls `fn(link, i)` for each link; the object is reused, so do not keep it. |
+| `curvesStraight()` | True when every link is a plain straight line (false when any link has a dash, arrow or bend). |
+| `eachCurveView(fn)` | Calls `fn(link, i)` for each link; the object is reused, so do not keep it. A link has `tip` (an array of two numbers, or undefined). |
 | `curveView(i)`, `curveAt(i)` | One link for reading; `curveAt` makes a real object. |
-| `curveFlat()` | The typed lists themselves (`P, COL, W, DASH, A, EDGE, FR, TO, FL`) or null. |
+| `curveFlat()` | The typed lists themselves (`P, COL, W, DASH, A, EDGE, FR, TO, FL, TIP`) or null. |
 | `curves` | Reading it makes every link an object (the lists are let go). |
 | `packNow()`, `autoPack(opts)` | Pack the links now, or after a pause. |
 
