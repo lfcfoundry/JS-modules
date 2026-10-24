@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-10-24
+- The row-order search and row placement now run in WebAssembly (8 KB embedded, 'wasm-unsafe-eval' only), 18-48% faster at 100 to 5,000 pages in three browsers; same pictures to the last digit; plain JavaScript stays as the fallback.
+
 ## 1.4.0 · API 1 · 2026-10-22
 - Same layouts, up to 77% less time (moderate 3000 boxes: 47 to 37 ms in Chromium). The lane option is now called once per stop and must give the same answer each time.
 
