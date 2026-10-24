@@ -8,12 +8,13 @@
   }
   // estimateBytes(value): roughly how many bytes the value takes as live JavaScript objects (an estimate, usually within a third): 16 bytes of header and 8 per property or element,
   // 8 per number that is not a small whole number, strings by length, typed arrays exactly. Arrays of 200 or more objects are sampled.
-  function estimateBytes(value) {
-    var seen = new Set();
+  // A string that shows up again costs nothing more (the same string is shared); head is what a string costs besides its characters (16, or 32 for a long string cut out of a bigger one).
+  function estimateBytes(value, head) {
+    var seen = new Set(), seenS = new Set(), hs = head || 16;
     function walk(v, depth) {
       var t = typeof v, b, k, i, n, keys, step, sum;
       if (t === 'number') return v === (v | 0) ? 0 : 8;
-      if (t === 'string') return 16 + v.length;
+      if (t === 'string') { if (v.length === 0 || seenS.has(v)) return 0; if (seenS.size < 4096) seenS.add(v); return (v.length >= 13 ? hs : 16) + v.length; }
       if (t === 'bigint') return 16;
       if (v === null || t !== 'object' || depth > 40) return 0;
       if (seen.has(v)) return 0;

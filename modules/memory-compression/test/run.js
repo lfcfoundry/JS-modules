@@ -359,8 +359,9 @@ t('fsst: text columns stored as codes, each string readable alone', function () 
     var p = J.pack(rows, opt({ fsst: true })), plain = J.pack(rows, opt());
     assert.strictEqual(p[2], 3, 'a file with an FSST column says format 3'); assert(p.length < plain.length, 'FSST is smaller on short varied text: ' + p.length + ' against ' + plain.length);
     same(rows, J.unpack(p, opt()), 'unpack ' + n); same(rows, J.unpack(p, opt({ wasm: false })), 'unpack without WebAssembly ' + n);
-    var v = J.view(p, opt()); assert(v.lazy); assert.strictEqual(v.field(n - 1, 'label'), rows[n - 1].label); same(rows[7], v.get(7), 'view get'); same(rows, v.toArray(), 'view toArray'); same(rows.map(function (x) { return x.label; }), v.column('label'), 'view column');
-    assert(v.memory().restored < JSON.stringify(rows).length, 'the restored column is smaller than the strings'); v.release(); assert.strictEqual(v.loaded().length, 0);
+    var v = J.view(p, opt()); assert(v.lazy); assert.strictEqual(v.field(n - 1, 'label'), rows[n - 1].label); same(rows[7], v.get(7), 'view get');
+    assert(v.memory().restored < JSON.stringify(rows).length, 'the restored columns are smaller than the strings');       // asked while the columns are still codes (a column read row after row is turned into its strings)
+    same(rows, v.toArray(), 'view toArray'); same(rows.map(function (x) { return x.label; }), v.column('label'), 'view column'); v.release(); assert.strictEqual(v.loaded().length, 0);
     same(rows, J.unpack(J.pack(rows, opt({ fsst: true, mode: 'small' })), opt()), 'small mode');
     if (!JS_ONLY && J.accelerated()) assert.deepStrictEqual(Buffer.from(J.pack(rows, { fsst: true })), Buffer.from(J.pack(rows, { fsst: true, wasm: false })), 'same bytes with and without WebAssembly ' + n);
   });
@@ -471,6 +472,48 @@ t('2.0.2: memory() counts text only where a text column has rows with the key mi
   K.hold('x', rows); same(rows[0], K.view('x').get(0)); var got = K.get('x'); assert.strictEqual(got.length, 3000); same(rows, got);
   var m = K.view('x').memory(); assert(m.restored > 0, 'restored ' + m.restored); assert(K.memory().total > 0);
   var v = J.view(J.pack(rows, opt()), opt()); v.column('kind'); assert(v.memory().restored >= 3000 * 8, 'a missing key counts as a slot, no text');
+});
+t('2.4.4: text columns of a view stay whole and are cut per row (plain text, wide text, patterns); the memory report counts them', function () {
+  var W = ['harbor', 'ridge', 'copper', 'lantern', 'meadow', 'signal'], rows = many(5000, function (i) {
+    return { id: i, label: W[i % 6] + ' ' + W[(i * 7) % 6] + ' number ' + (i * 31 % 977), tag: 'item-' + i + '-x', wide: i % 9 === 0 ? 'caf\u00e9 \u2603 ' + i : 'plain ' + i + ' text that is long', empty: i % 5 ? 'abcdefghijklmnop' + i : '', w: [W[i % 6], W[(i + 1) % 6]] };
+  }), v = J.view(J.pack(rows, opt()), opt()), i, mem, back;
+  for (i = 0; i < 5000; i += 7) { same(rows[i], v.get(i), 'row ' + i); same(rows[i].label, v.field(i, 'label'), 'field ' + i); }
+  ['label', 'tag', 'wide', 'empty', 'w'].forEach(function (k) { same(rows.map(function (r) { return r[k]; }), Array.prototype.slice.call(v.column(k)), 'column ' + k); });
+  same(rows.slice(40, 90), v.slice(40, 90), 'slice'); same(rows, v.toArray(), 'toArray');
+  mem = v.memory().restored; assert(mem > 5000 * 6, 'the report counts the text: ' + mem);
+  v.release(); assert.strictEqual(v.memory().restored, 0); same(rows[4999], v.get(4999), 'after release');
+  back = J.view(J.pack(rows, opt({ mode: 'balanced' })), opt()); same(rows, back.toArray(), 'balanced pages');
+});
+t('2.4.4: the memory report of a view counts a text column once (a string header and the text), nested columns in full, the open view as 8 KB, and a repeated string once in estimateBytes', function () {
+  var W = ['harbor', 'ridge', 'copper', 'lantern', 'meadow', 'signal'], rows = many(5000, function (i) {
+    return { id: i, label: W[i % 6] + ' ' + W[(i * 7) % 6] + ' number ' + (i * 31 % 977), tag: 'item-' + i + '-x', w: [W[i % 6], W[(i + 1) % 6]] };
+  }), b = J.pack(rows, opt()), m = {}, s = 'abcdefghijklmnopqrstu';
+  ['label', 'tag', 'w', 'id'].forEach(function (k) { var v = J.view(b, opt()); v.column(k); m[k] = v.memory().restored; });
+  var evalOk = true; try { new Function('return 1')(); } catch (e) { evalOk = false; }                  // a pattern column is put together per row only where generated code is allowed
+  assert(m.tag > 8192 + 5000 && (!evalOk || m.tag < 40000), 'pattern text column: ' + m.tag);         // 2.4.3 counted 93,890
+  assert(m.label > 8192 + 5000 && (!evalOk || m.label < 100000), 'pattern text column with lookup tables: ' + m.label);   // 2.4.3 counted 159,434
+  assert(m.w > 100000, 'nested column counted in full: ' + m.w);                                         // 2.4.3 counted 40,000
+  assert(m.id >= 8192 + 5000 * 2, 'the open view counts 8 KB: ' + m.id);                             // 2.4.3 counted 10,000
+  assert(J.estimateBytes([s + '1', s + '1', s + '1']) < J.estimateBytes([s + '1', s + '2', s + '3']), 'a repeated string is counted once');
+  assert(J.estimateBytes([s + '1'], 32) > J.estimateBytes([s + '1']), 'a long string cut from a bigger text has a bigger header');
+});
+t('2.5.0: a text column read row after row is turned into its strings in one pass (same rows, the report follows, column() hands out a copy); a few reads leave it whole', function () {
+  var W = ['harbor', 'ridge', 'copper', 'lantern', 'meadow', 'signal'], rows = many(5000, function (i) {
+    return { id: i, tag: 'item-' + i + '-x', wide: i % 9 === 0 ? 'caf\u00e9 \u2603 ' + i : 'plain ' + i + ' text that is long', empty: i % 5 ? 'abcdefghijklmnop' + i : '', w: W[i % 6] };
+  }), b = J.pack(rows, opt()), v = J.view(b, opt()), i, m0, m1, m2, c;
+  for (i = 0; i < 40; i++) same(rows[i * 3], v.get(i * 3), 'few reads ' + i);
+  m0 = v.memory().restored; for (i = 0; i < 40; i++) v.get(i); assert.strictEqual(v.memory().restored, m0, 'a few reads change nothing');
+  for (i = 0; i < 5000; i++) { if (i % 499 === 0) same(rows[i], v.get(i), 'row ' + i); else v.get(i); }       // the column has been read more times than it has rows / 32
+  m1 = v.memory().restored; assert(m1 > m0 + 5000 * 8, 'the strings are counted once they are made: ' + m0 + ' then ' + m1);
+  for (i = 0; i < 5000; i += 3) { same(rows[i], v.get(i), 'row after ' + i); same(rows[i].wide, v.field(i, 'wide'), 'field after ' + i); }
+  same(rows, v.toArray(), 'toArray after'); same(rows.slice(7, 90), v.slice(7, 90), 'slice after');
+  c = v.column('wide'); same(rows.map(function (r) { return r.wide; }), Array.prototype.slice.call(c), 'column after'); c[0] = 'changed'; c.length = 0; same(rows[0].wide, v.field(0, 'wide'), 'the column handed out is a copy');
+  m2 = v.memory().restored; assert.strictEqual(m2, m1, 'asking again gives the same number');
+  v.release(); assert.strictEqual(v.memory().restored, 0); same(rows[4321], v.get(4321), 'after release'); assert(v.memory().restored > 0 && v.memory().restored < m0 + 1, 'a released view is whole again, not filled: ' + v.memory().restored);
+  var big = many(20000, function (i) { return { id: i, wide: i % 9 === 0 ? 'caf\u00e9 \u2603 ' + i : 'plain ' + i + ' text that is long' }; }), bv = J.view(J.pack(big, opt()), opt()), bm;
+  bv.get(5); bm = bv.memory().restored; for (i = 0; i < 20000; i += 1) if (i % 997 === 0) same(big[i], bv.get(i), 'long list row ' + i); else bv.get(i);
+  assert.strictEqual(bv.memory().restored, bm, 'a column of more than 16,384 rows is not made in one pass (a read must not wait for it)');
+  var w = J.view(b, opt()); w.field(9, 'wide'); for (i = 0; i < 4000; i++) w.field(i, 'wide'); same(rows[4000], w.get(4000), 'a field column read alone, then the row');
 });
 t('2.0.2: view() of fewer than 16 objects works with the same calls; non-objects are still refused', function () {
   var rows = [{ a: 1, b: 'x' }, { a: 2 }, { a: 3, b: 'z', c: [1, 2] }], v = J.view(J.pack(rows, opt()), opt());
