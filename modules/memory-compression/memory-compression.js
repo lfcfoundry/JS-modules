@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.5.0 (API 2)
+ * Version 2.5.1 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1376,7 +1376,7 @@
     function encInts(a, depth, opt) {
       var n = a.length, order = INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, i, sub, mm = range(a);
       if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
-      if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 4th block tries all)
+      if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 8th block tries all)
         for (i = 0; i < opt.prefer.length; i++) { e = tryInt(opt.prefer[i], a, depth, opt, mm, best ? best.length : 0); if (e && (!best || e.length < best.length)) best = e; }
         if (best) return best;
       }
@@ -1766,9 +1766,9 @@
       if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
-        k++; full = !(k > 2 && k % 4 !== 0 && won.length);
+        k++; full = !(k > 2 && k % 8 !== 0 && won.length);
         o.prefer = full || !wonInts.length ? null : wonInts; o.top = 2;
-        part = encChunk(a.subarray(i, Math.min(n, i + CHUNK)), 2, o, full ? null : won);   // a block tries every way for the first blocks and every 4th; the rest try only the ways that have won before
+        part = encChunk(a.subarray(i, Math.min(n, i + CHUNK)), 2, o, full ? null : won);   // a block tries every way for the first blocks and every 8th; the rest try only the ways that have won before
         if (won.indexOf(part[0]) < 0 && part[0] !== CS.RAWF) won.push(part[0]);
         if (part[0] === CS.INTS && wonInts.indexOf(part[1]) < 0 && part[1] !== IS.RAW) wonInts.push(part[1]);
         w.vi(part.length); w.bytes(part);
@@ -4758,7 +4758,7 @@
   function pager(list, opts) {
     var store, uid = Math.random().toString(36).slice(2, 10), o = pagerAuto(list, opts), rows = o.pageRows > 0 ? Math.floor(o.pageRows) : 2048, n = list.length, np = Math.ceil(n / rows), pages = new Array(np), maxLive = o.livePages >= 0 ? Math.floor(o.livePages) : 4,
       asView = !!o.pageView, coldOn = !!o.cold, coldAfter = o.coldAfter > 0 ? o.coldAfter : 3000, touched = 0, coldTimer = null, coolBad = false, ahead = o.readAhead !== false && !o.pageView, auto = o.auto !== false, live = 0, clock = 0, lastPage = -2, level = 0, packOpts = {}, k, p, st = { pageIns: 0, pageOuts: 0, repacks: 0, hits: 0 }, P, factor = 1;
-    packOpts.hints = {};                         // each column remembers which number ways won on earlier pages (every 4th pack still tries them all)
+    packOpts.hints = {};                         // each column remembers which number ways won on earlier pages (every 8th pack still tries them all)
     for (k in o) if (k !== 'pageRows' && k !== 'livePages' && k !== 'readAhead' && k !== 'auto' && k !== 'onPressure' && k !== 'background' && k !== 'sliceMs' && k !== 'spill' && k !== 'spillAt' && k !== 'onError' && k !== 'deviceMemory' && k !== 'heapBytes' && k !== 'pageView' && k !== 'cold' && k !== 'coldAfter') packOpts[k] = o[k];
     if (!Array.isArray(list)) jfail('pager() needs an array');
     store = o.spill ? (o.spill === true ? idbStore() : o.spill) : null;
