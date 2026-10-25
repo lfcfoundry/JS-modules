@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.1 · API 1 · 2026-10-25
+- Image decoding now frees its temporary address if the browser throws immediately.
+
 ## 1.2.0 · API 1 · 2026-10-22
 - 1.2.0: new ImageDecode.ahead() decodes the next stage's sheets in idle time, so a stage change draws in 1.6 to 7 ms instead of 260 to 450 ms.
 

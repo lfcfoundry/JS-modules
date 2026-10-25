@@ -19,7 +19,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [field-report](modules/field-report/README.md) | 1.0.2 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
-| [image-decode](modules/image-decode/README.md) | 1.2.0 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
+| [image-decode](modules/image-decode/README.md) | 1.2.1 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
@@ -53,6 +53,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-25 · **image-decode** 1.2.1 · API 1: Image decoding now frees its temporary address if the browser throws immediately.
 - 2026-10-24 · **webkit-driver** 1.4.1 · API 1: README says GNOME Web is no longer a test browser; the option still works. No code change.
 - 2026-10-24 · **walker-sim** 2.4.0 · API 2: sweep and exactEndpoints now run their rounds in a second 1 KB WebAssembly program in the default file: what-if sweeps are about 40% (Chromium) and 60% (Firefox) faster, the same numbers to the last digit. New hook WalkerSim.useSweepKernel.
 - 2026-10-24 · **test-runner** 1.2.1 · API 1: GNOME Web is out of the default list: a full run is now three browsers, not four.

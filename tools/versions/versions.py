@@ -285,6 +285,11 @@ def set_header(text, v):
     return text
 
 
+def set_runtime_version(text, v):
+    """Update the optional runtime version property that check() validates."""
+    return re.sub(r"(\bversion:\s*')[0-9]+\.[0-9]+\.[0-9]+(')", lambda m: m.group(1) + v + m.group(2), text, count=1)
+
+
 README_LINE = re.compile(r"^\*\*Version \d+\.\d+\.\d+ · API \d+\*\*$")
 
 
@@ -478,7 +483,7 @@ def apply(root, reg):
         e["api"] = int(v.split(".")[0])
         for f in source_files(root, e, kind):
             t = rd(root, f)
-            n = set_header(t, v)
+            n = set_runtime_version(set_header(t, v), v)
             if n != t:
                 wr(root, f, n)
         rp = e.get("readme")

@@ -60,7 +60,7 @@ Make a game behave on slow phones, privacy-focused browsers and power-saving scr
 | [field-report](modules/field-report/README.md) | 1.0.2 | 21.3 | 7.6 | Hidden buttons that save a speed report and an error log from a real device. No network. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/field-report/demo.html) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 | 38.9 | 12.1 | Frame pacing for canvas games: smooth frame time, effect governor, job pump, frame meter. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/frame-kit/demo.html) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 | 6.2 | 2.5 | Steps visual effects down when the device cannot keep up; never back up mid-play. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fx-governor/demo.html) |
-| [image-decode](modules/image-decode/README.md) | 1.2.0 | 20.6 | 7.2 | Loads pictures with no freeze at first draw, the right way per browser, plus WebP/AVIF checks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/image-decode/demo.html) |
+| [image-decode](modules/image-decode/README.md) | 1.2.1 | 20.6 | 7.3 | Loads pictures with no freeze at first draw, the right way per browser, plus WebP/AVIF checks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/image-decode/demo.html) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 | 9.7 | 3.7 | A short private note of errors, slow taps and long frames, copyable as text. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/slow-note/demo.html) |
 
 #### Saving and data safety
