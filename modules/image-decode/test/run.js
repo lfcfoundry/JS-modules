@@ -43,7 +43,7 @@ function fakeEnv(o) {
   if (!o.noImage) env.Image = class {
     set src(v) { this._src = v; this.blobIndex = log.length; }
     decode() {
-      log.push('decode'); if (o.decodeFails) return Promise.reject(new Error('decode refused'));
+      log.push('decode'); if (o.decodeThrows) throw new Error('decode threw synchronously'); if (o.decodeFails) return Promise.reject(new Error('decode refused'));
       if (/^data:/.test(this._src)) { if (o.dataRefused) return Promise.reject(new Error('data refused')); log.push('decode-data'); const m = /^data:([^,]*),(.*)$/.exec(this._src); return readable(new Blob([Buffer.from(m[2], 'base64')])); }
       if (o.blobRefused) { log.push('blob-refused'); return Promise.reject(new Error('blob refused by the page')); }
       return readable(env.blobs[this._src]);
@@ -98,6 +98,12 @@ function fakeEnv(o) {
     const env = fakeEnv({ navigator: { userAgent: 'Firefox/158.0' } }), I = ID.create(env);
     const d = await I.load(PNG.buffer.slice(PNG.byteOffset, PNG.byteOffset + PNG.length));
     assert.ok(d && d._src); assert.deepStrictEqual(env.log, ['url', 'decode', 'revoke']);
+  });
+
+  await test('a synchronous Image.decode throw still releases its temporary blob address', async () => {
+    const env = fakeEnv({ navigator: { userAgent: 'Firefox/158.0' }, decodeThrows: true }), I = ID.create(env);
+    await assert.rejects(I.load(PNG, { strategy: 'decode', address: 'blob' }), /decode threw synchronously/);
+    assert.deepStrictEqual(env.log, ['url', 'decode', 'revoke']);
   });
 
   await test('a view into a bigger buffer is read from the right place', async () => {

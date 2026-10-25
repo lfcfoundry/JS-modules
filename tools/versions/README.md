@@ -2,7 +2,7 @@
 
 One command keeps every module's and tool's version label the same everywhere.
 
-`versions.py` reads `modules.json`, which holds the one true label for each module and tool, and copies it into every place that shows it: the module's header comment, the first lines of its README, the root README tables, the front page and `llms.txt`. `set` changes one label and writes its changelog entries (a short one in the repo, a full one in the private folder), and `check` fails when any copy disagrees.
+`versions.py` reads `modules.json`, which holds the one true label for each module and tool, and copies it into every place that shows it: the module's header comment, any runtime `version` property, the first lines of its README, the root README tables, the front page and `llms.txt`. `set` changes one label and writes its changelog entries (a short one in the repo, a full one in the private folder), and `check` fails when any copy disagrees.
 
 ## Why it exists
 A label that is written by hand in several places drifts apart, and a reader cannot tell which copy is right. Keeping one source and copying it by script means a copied file, its README and the tables all say the same thing, and `check` fails the moment they do not.
@@ -26,12 +26,12 @@ Every full changelog entry (in the private folder) ends with a `Tested in:` line
 
 ## Where it lives
 `modules.json` is the source of truth (`version` and `api` next to each `id`). The script copies it into:
-1. the module's header comment (`Version 1.2.3 (API 1)`), so a single copied file carries it;
+1. the module's header comment (`Version 1.2.3 (API 1)`), so a single copied file carries it, and any runtime `version: '1.2.3'` property in that module's source;
 2. the first lines of the module's README (`**Version 1.2.3 · API 1**`);
 3. a Version column in the root README tables, the front page, and a line in `llms.txt`;
 4. the root README's "Pick a piece" tables and the "All at a glance" index under the title (names only, grouped as `categories` in `modules.json` says: Modules & Tools, Story editor packages and AI knowledge base, each with its groups; a tool is marked *(tool)* in the tables; the sizes are in the tables), written whole from `modules.json`: the same six columns in every table (Name, Version, Size, Gzipped, What it does, Demo), rows sorted by name inside each group, sizes in KB with one decimal. Size is the entry's `file` (a path, a list of paths, or a folder whose .js/.mjs/.cjs files count together) as it sits in the repository, and its gzip -9 size. Every entry needs a `short` line (at most 100 characters) and a size; a piece with no script says why in `sizeNote` and shows `n/a`. The front page (`index.html`) shows the same size after each name (`global X · 18.0 KB · docs`); `sizes` and `set` rewrite it and `check` fails when it is old.
 
-`sprite-baker` also exposes `SpriteBaker.version` in code; the check keeps it equal to the label. Other modules do not (it would cost bytes in size-critical files).
+Some modules expose `version` at runtime as part of their API. `set` updates those properties and `check` keeps them equal to the label; modules that do not expose a runtime version stay smaller.
 
 ## Commands
 ```
