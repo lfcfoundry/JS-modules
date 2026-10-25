@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.1.0 · API 1**
+**Version 1.1.1 · API 1**
 
-**Tested in:** Node 22 (4 checks); Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 one at a time (page check: flat links equal, rules + bends equal; speed 1.0.0 vs 1.1.0 alternating, 30,000 items). Not tried on a real phone.
+**Tested in:** Node 22 (4 checks); Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 one at a time (page check: flat and rules links equal). Speed in WebKitGTK 2.52.6 alternating in one page, 21 turns, three runs. Not tried on a real phone.
 
 Turns a map laid out by [netflow-engine](../netflow-engine/README.md) into plain drawing lists (dots, links, labels, ribbons, shapes, a legend) that Canvas 2D, WebGL2, WebGPU or an SVG export can all draw the same way. It decides colors, widths, dashes, arrows, which labels fit and what a click would hit; it never touches a page. Big flat maps (2,000 or more straight links) keep their links in typed lists instead of one object per link, and a map rebuilt only because items moved or labels changed reuses each link's look from the last picture.
 
