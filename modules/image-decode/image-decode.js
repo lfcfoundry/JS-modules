@@ -4,7 +4,7 @@
  * small number at a time, and tells you whether the browser can read WebP or AVIF.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.2.1 (API 1)
  *
  *   ImageDecode.load(source[, { strategy: 'auto' }])   -> Promise of a drawable (an ImageBitmap or an Image), ready to drawImage
  *   ImageDecode.loadAll(list[, { concurrency: 2, onEach: function (drawable, index) {} }])  -> Promise of an array, same order
@@ -128,9 +128,15 @@
       });
     }
     function decodeFrom(url, done) {
-      var img = new ImageCtor();
-      img.src = url;
-      var ready = typeof img.decode === 'function' ? img.decode() : new Promise(function (res, rej) { img.onload = function () { res(); }; img.onerror = function () { rej(new Error('ImageDecode: the picture could not be read')); }; });
+      var img, ready;
+      try {
+        img = new ImageCtor();
+        img.src = url;
+        ready = typeof img.decode === 'function' ? img.decode() : new Promise(function (res, rej) { img.onload = function () { res(); }; img.onerror = function () { rej(new Error('ImageDecode: the picture could not be read')); }; });
+      } catch (e) {
+        done();
+        throw e;
+      }
       return ready.then(function () { done(); return img; }, function (e) { done(); throw e; });
     }
     function viaBlobUrl(blob) {
@@ -294,7 +300,7 @@
 
     function close(d) { if (d && typeof d.close === 'function') try { d.close(); } catch (e) { /* already closed */ } }
 
-    return { load: load, loadAll: loadAll, ahead: ahead, supports: supports, pick: pick, close: close, sniff: sniff, strategy: strategy, create: create, version: '1.2.0' };
+    return { load: load, loadAll: loadAll, ahead: ahead, supports: supports, pick: pick, close: close, sniff: sniff, strategy: strategy, create: create, version: '1.2.1' };
   }
 
   return create();
