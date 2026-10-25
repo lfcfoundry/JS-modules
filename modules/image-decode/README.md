@@ -1,8 +1,8 @@
 # image-decode
 
-**Version 1.2.0 · API 1**
+**Version 1.2.1 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time
+**Tested in:** not recorded
 
 The version is also in code as `ImageDecode.version`. Run the tests (offline, about a second): `node modules/image-decode/test/run.js`. The real-browser check is `tests/image-decode-browser.js`.
 
