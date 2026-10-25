@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.1.1 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -181,6 +181,7 @@ var NFMScene = (function () {
   }
   /* a big flat map built straight into the packed lists, no object per link (ids = the name of each item in L.nodes order): the view fills it in, curveStore takes it over as S.flatPending */
   function flatWriter(M, nodeIds) { return { M: M, n: 0, ids: nodeIds, P: new Float32Array(M * 8), BB: new Float32Array(0), COL: new Float32Array(M * 4), W: new Float32Array(M), BW: new Float32Array(M), DASH: new Float32Array(M), A: new Float32Array(M), EDGE: new Int32Array(M), FR: new Int32Array(M), TO: new Int32Array(M), FL: new Uint8Array(M), TIP: new Float32Array(M * 2) }; }
+  function flatArrow(F, i, tx, ty) { F.FL[i] |= 1 | 32; F.TIP[i * 2] = tx; F.TIP[i * 2 + 1] = ty; }
   function curveStore(S, L) {
     var objs = S.curves, pk = null, touch = 0, touchedAt = 0, timer = 0, job = null, auto = null, refused = -1, ids = null, idList = null;
     function makeOne(i) {
@@ -1062,8 +1063,8 @@ var NFMScene = (function () {
         var fo = FLAT.n++, fp = fo * 8, fq = fo * 4, fc = lk.color;
         FLAT.P[fp] = sx; FLAT.P[fp + 1] = sy; FLAT.P[fp + 2] = c1x; FLAT.P[fp + 3] = c1y; FLAT.P[fp + 4] = c2x; FLAT.P[fp + 5] = c2y; FLAT.P[fp + 6] = ex; FLAT.P[fp + 7] = ey;
         FLAT.COL[fq] = fc[0]; FLAT.COL[fq + 1] = fc[1]; FLAT.COL[fq + 2] = fc[2]; FLAT.COL[fq + 3] = fc[3];
-        FLAT.W[fo] = lk.w; FLAT.DASH[fo] = lk.dash || 0; FLAT.A[fo] = 1; FLAT.EDGE[fo] = ei; FLAT.FR[fo] = s.qi; FLAT.TO[fo] = t.qi; FLAT.FL[fo] = (bend ? 0 : 2) | 8 | 16 | (lk.arrow ? 1 | 32 : 0);
-        if (lk.arrow) { FLAT.TIP[fo * 2] = t.px - dx / d * t.r; FLAT.TIP[fo * 2 + 1] = t.py - dy / d * t.r; }
+        FLAT.W[fo] = lk.w; FLAT.DASH[fo] = lk.dash || 0; FLAT.A[fo] = 1; FLAT.EDGE[fo] = ei; FLAT.FR[fo] = s.qi; FLAT.TO[fo] = t.qi; FLAT.FL[fo] = (bend ? 0 : 2) | 8 | 16;
+        if (lk.arrow) flatArrow(FLAT, fo, t.px - dx / d * t.r, t.py - dy / d * t.r);   /* arrowheads are rare: kept out of the per-link path */
       } else S.curves.push({ P: [sx, sy, c1x, c1y, c2x, c2y, ex, ey], w: n3 ? lk.w * ((s.f + t.f) / 2) : lk.w, color: n3 ? alpha(lk.color, lk.color[3] * fd) : lk.color, arrow: lk.arrow, line: !bend, tip: lk.arrow ? [t.px - dx / d * t.r, t.py - dy / d * t.r] : undefined, edge: ei, from: e.from, to: e.to, dash: lk.dash });
       var txt = sp.txt;
       if (txt && X.LC.links.show && m < 600) lab((sx + ex) / 2, (sy + ey) / 2 - 4, clip(txt, 24), 10 * X.LC.links.scale, T.muted, { minK: 0.9, edge: ei, bg: true });

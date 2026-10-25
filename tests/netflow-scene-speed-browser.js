@@ -16,11 +16,12 @@ T.main(async (b, which, outFile) => {
   await p.evaluate((n) => {
     window.SCL = NetflowEngine.build(bigNetwork(n, 6, 7), { view: 'network', arrange: 'circle', colorBy: 'group' });
     const rules = (e, ei) => ei % 11 === 0 ? { color: '#d33', w: 3, dash: 'dot' } : ei % 7 === 0 ? { arrow: true } : ei % 5 === 0 ? { bend: 0.2, opacity: 0.4 } : ei % 13 === 0 ? { hide: true } : null;
-    window.CASES = { 'rules+arrows': { linkStyle: rules }, 'bent': { curve: 0.25 }, 'plain (control)': {} };
-    window.run = (which, c) => { const S = which === 'old' ? NetflowSceneOld : NetflowScene, o = Object.assign({ colorBy: 'group', theme: 'light' }, CASES[c]); const t0 = performance.now(); const sc = S.make(SCL, o); const ms = performance.now() - t0; window.last = sc.curveCount(); return ms; };
+    window.PLANS = { old: {}, new: {} };
+    window.CASES = { 'rules+arrows': { linkStyle: rules }, 'bent': { curve: 0.25 }, 'plain (control)': {}, 'plain, look plan (rebuild after a move)': { plan: true } };
+    window.run = (which, c) => { const S = which === 'old' ? NetflowSceneOld : NetflowScene, o = Object.assign({ colorBy: 'group', theme: 'light' }, CASES[c]); if (o.plan) { delete o.plan; o.lookPlan = PLANS[which]; } const t0 = performance.now(); const sc = S.make(SCL, o); const ms = performance.now() - t0; window.last = sc.curveCount(); return ms; };
   }, ITEMS);
   const rows = [];
-  for (const c of ['rules+arrows', 'bent', 'plain (control)']) {
+  for (const c of ['rules+arrows', 'bent', 'plain (control)', 'plain, look plan (rebuild after a move)']) {
     const ms = await T.rotate(['old', 'new'], REPS, (n) => p.evaluate((w, cc) => run(w, cc), n, c));
     const links = await p.evaluate(() => last); rows.push({ name: c, links, before: Math.round(ms.old), after: Math.round(ms.new) });
   }
