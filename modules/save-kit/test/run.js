@@ -514,13 +514,30 @@ function countUnpacked(counter) {
     finally { if (had) Object.defineProperty(globalThis, 'window', had); else delete globalThis.window; }
   });
   await test('stamp: the timestamp is written under the given name (not `seen`), in saves, codes and staged imports, and the schema may list it', async K => {
-    const st = mem(), sc = Object.assign({ savedAt: 'num' }, schema), k = K.create({ key: 'g', schema: sc, storage: st, stamp: 'savedAt', skipUnchangedMs: 60000, prefix: 'BF1' });
+    const st = mem(), sc = Object.assign({ savedAt: 'num' }, schema), k = K.create({ key: 'g', schema: sc, storage: st, stamp: 'savedAt', prefix: 'BF1' });
     const state = { score: 1 }; k.save(state);
     assert.strictEqual(typeof state.savedAt, 'number'); assert.ok(!('seen' in state)); assert.ok(!('seen' in JSON.parse(st._d.g)));
     assert.strictEqual(k.load().savedAt, state.savedAt);
-    const w = st._d.g; k.save(state); assert.strictEqual(st._d.g, w, 'skipUnchangedMs works with the renamed stamp');
     const code = await k.exportCode({ score: 2 }); const back = await k.importCode(code); assert.strictEqual(typeof back.savedAt, 'number');
     if (k.stageImport) { k.stageImport({ score: 3 }, null); assert.strictEqual(typeof JSON.parse(st._d.g).savedAt, 'number'); }
+  });
+  await test('skipUnchangedMs with a custom stamp: an unchanged save is not written again', async K => {
+    const st = mem(), sc = Object.assign({ savedAt: 'num' }, schema);
+    let writes = 0, now = 1e12;
+    const setItem = st.setItem;
+    st.setItem = (key, value) => { if (key === 'g') writes++; setItem(key, value); };
+    const k = K.create({ key: 'g', schema: sc, storage: st, stamp: 'savedAt', skipUnchangedMs: 60000 });
+    const realNow = Date.now;
+    Date.now = () => now;
+    try {
+      const state = { score: 1 };
+      k.save(state);
+      const saved = st._d.g;
+      now++;
+      k.save(state);
+      assert.strictEqual(st._d.g, saved);
+      assert.strictEqual(writes, 1);
+    } finally { Date.now = realNow; }
   });
 
   const extra = OLD ? '; the old file was caught by ' + caught + ' of ' + oldTried + ' regression checks' : '; old file not available for comparison';
