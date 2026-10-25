@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.3 · API 2 · 2026-10-24
+- unpackAsync() now opens number columns written by the number picker a few blocks at a time, so a long coordinate column no longer holds the page for 15 to 25 ms; same values, same packed bytes, unpack() unchanged.
+
 ## 2.6.2 · API 2 · 2026-10-23
 - Packing lists is a little faster in balanced mode for many list shapes (up to about 12% on event and map-feature lists); packed bytes are the same.
 
