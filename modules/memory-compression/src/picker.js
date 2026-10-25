@@ -710,7 +710,21 @@
       return out;
     }
     function available() { return LE; }
-    function available() { return LE; }
-    return { pack: pack, unpack: unpack, available: available };
+    // unpackStart / unpackStep: the same answer as unpack(), a few blocks of 8,192 numbers at a time (each block stands alone), so a long column can be opened in short slices.
+    // st.out is the Float64Array when unpackStep has returned true (all blocks done).
+    function unpackStart(bytes, count, wasm) {
+      var r = new Rd(bytes), n = r.vi(), c = r.vi();
+      if (n !== count || c < 1 || c > 1048576) pfail('the data does not match the column');
+      return { r: r, n: n, c: c, i: 0, out: new Float64Array(n), wasm: wasm };
+    }
+    function unpackStep(st, blocks) {
+      var k, len, c2;
+      KWC = st.wasm === false ? null : kwGet();
+      try {
+        for (k = 0; k < blocks && st.i < st.n; k++) { len = st.r.vi(); c2 = Math.min(st.c, st.n - st.i); st.out.set(decChunk(new Rd(st.r.bytes(len)), c2), st.i); st.i += st.c; }
+      } finally { KWC = null; }
+      return st.i >= st.n;
+    }
+    return { pack: pack, unpack: unpack, available: available, unpackStart: unpackStart, unpackStep: unpackStep };
   })();
 

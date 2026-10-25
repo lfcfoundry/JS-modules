@@ -842,7 +842,8 @@ tAsync('unpackAsync gives the same value as unpack (long record lists in slices,
   var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13), ok: i % 3 === 0, t: 1e12 + i * 977 }; }); };
   var odd = mk(5000); odd[3000] = { id: 1, x: 2 };
   var shared = { q: 1 }, refs = many(3000, function (i) { return { s: shared, i: i }; });
-  var cases = [mk(5000), mk(2047), mk(2048), mk(100), odd, refs, [1, 2, 3], 'text', null, Float64Array.from(many(5000, function (i) { return i * 3; }))];
+  var wide = many(30000, function (i) { return { id: i, x: Math.sin(i / 7) * 180, y: Math.cos(i / 11) * 90, d: Math.round(i * 0.37 * 100) / 100 }; });   // float columns of several picker blocks each
+  var cases = [mk(5000), mk(2047), mk(2048), mk(100), odd, refs, [1, 2, 3], 'text', null, Float64Array.from(many(5000, function (i) { return i * 3; })), wide];
   var jobs = [];
   cases.forEach(function (v, ci) {
     ['fast', 'balanced', 'small'].forEach(function (m) {

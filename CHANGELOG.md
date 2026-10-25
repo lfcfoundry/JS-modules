@@ -28,7 +28,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.4.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.6.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.6.3 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
@@ -66,6 +66,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-24 · **netflow-scene** 1.1.0 · API 1: Big maps now also keep link rules, dashes, arrowheads and bent links in fast lists, so rebuilding such a map after a move is faster; the picture is the same.
 - 2026-10-24 · **netflow-scene** 1.0.0 · API 1: New module: turns a laid-out Netflow Map into plain drawing lists for Canvas, WebGL or SVG, with fast rebuilds of big maps after a move.
 - 2026-10-24 · **netflow-layers** 1.5.0 · API 1: The row-order search and row placement now run in WebAssembly (8 KB embedded, 'wasm-unsafe-eval' only), 18-48% faster at 100 to 5,000 pages in three browsers; same pictures to the last digit; plain JavaScript stays as the fallback.
+- 2026-10-24 · **memory-compression** 2.6.3 · API 2: unpackAsync() now opens number columns written by the number picker a few blocks at a time, so a long coordinate column no longer holds the page for 15 to 25 ms; same values, same packed bytes, unpack() unchanged.
 - 2026-10-24 · **gif-writer** 1.4.0 · API 1: Faster palette search on big inputs (3x fewer pixels looked at above 100,000 pixels, from 143-152 ms to about 55 ms for 8 pictures of 160x160). A GIF made from such pictures is not byte-identical to one from 1.3.0.
 - 2026-10-24 · **fuzz-kit** 1.3.4 · API 1: README notes that GNOME Web is no longer a test browser; naming it still works. No code change.
 - 2026-10-24 · **firefox-stand-in** 1.1.0 · API 1: Tests can now watch console messages and failed loads and wait for a selector, so one more test file runs in Firefox.
