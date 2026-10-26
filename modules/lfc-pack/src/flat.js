@@ -78,10 +78,15 @@
       else vals = tx[tp++].split('\n');
       store.set(order[j], vals);
     }
-    var seen = new Uint32Array(tl.length), arr, s;
+    // per template: its slot value arrays, looked up once instead of once per cell
+    var slotArr = new Array(tl.length), arr, s, vs, m;
+    for (id = 0; id < tl.length; id++) { arr = parts[id]; vs = new Array(arr.length - 1); for (k = 1; k < arr.length; k++) vs[k - 1] = store.get(id * 4096 + k - 1); slotArr[id] = vs; }
+    var seen = new Uint32Array(tl.length);
     for (i = 0; i < n; i++) {
-      id = ids[i] | (ids[n + i] << 8); arr = parts[id]; s = arr[0]; c = seen[id]++;
-      for (k = 1; k < arr.length; k++) s += store.get(id * 4096 + k - 1)[c] + arr[k];
+      id = ids[i] | (ids[n + i] << 8); arr = parts[id]; vs = slotArr[id]; c = seen[id]++; m = arr.length;
+      if (m === 1) { out[i] = arr[0]; continue; }
+      s = arr[0];
+      for (k = 1; k < m; k++) s += vs[k - 1][c] + arr[k];
       out[i] = s;
     }
     return out;
