@@ -556,20 +556,27 @@
     opts = opts || {}; need(true);
     var b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, p = 0, blocks = [], parts = [], zone = [], off = 0, rows = 0;
     var ctx = { zs: S.zfull, sh: S.sh }, exact = !!opts.exact, exc = {}, tail = b.length === 0 || b[b.length - 1] === 10, fatal = new TextDecoder('utf-8', { fatal: true });
-    while (p < b.length) {
-      var e = Math.min(b.length, p + bb);
-      if (e < b.length) { var nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; }
-      var chunk = b.subarray(p, e), kind = opts.block, blk = null;
-      if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, 'r']); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; p = e; continue; }
-      if (kind === 'flat') blk = writeFlatBlock(ctx, chunk, opts);
-      if (kind !== 'flat' || !blk) {
-        blk = writeNestedBlock(ctx, chunk, opts);
-        // auto: the flat layout is also tried when every row is a flat object, or when shapes are nearly all different (it then keeps nested values as JSON text, which packs far smaller)
-        if (!kind && (flatSkeletons(blk.skelList) || blk.skelList.length * 4 > blk.rows)) { var fb = writeFlatBlock(ctx, chunk, opts); if (fb && fb.bytes.length < blk.bytes.length) blk = fb; }
+    var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
+    while (retry.length || p < b.length) {
+      if (retry.length) { r0 = retry.pop(); s0 = r0[0]; e = r0[1]; }
+      else { s0 = p; e = Math.min(b.length, p + bb); if (e < b.length) { var nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } p = e; }
+      chunk = b.subarray(s0, e); kind = opts.block; blk = null;
+      if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, 'r']); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
+      try {
+        if (kind === 'flat') blk = writeFlatBlock(ctx, chunk, opts);
+        if (kind !== 'flat' || !blk) {
+          blk = writeNestedBlock(ctx, chunk, opts);
+          // auto: the flat layout is also tried when every row is a flat object, or when shapes are nearly all different (it then keeps nested values as JSON text, which packs far smaller)
+          if (!kind && (flatSkeletons(blk.skelList) || blk.skelList.length * 4 > blk.rows)) { fb = writeFlatBlock(ctx, chunk, opts); if (fb && fb.bytes.length < blk.bytes.length) blk = fb; }
+        }
+      } catch (err) {   // a block over the wasm limits (rows, numbers, strings, bytes) is cut in two at a line end and both halves are tried again
+        mid = /capacity|too large/.test(String(err && err.message)) ? b.indexOf(10, s0 + ((e - s0) >> 1)) : -1;
+        if (mid < 0 || mid + 1 >= e) throw err;
+        retry.push([mid + 1, e], [s0, mid + 1]); continue;
       }
-      if (exact) { var ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) exc[blocks.length] = ex; }
+      if (exact) { ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) exc[blocks.length] = ex; }
       blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, blk.kind || 'n']); zone.push(blk.zone); parts.push(blk.bytes);
-      off += blk.bytes.length; rows += blk.rows; p = e;
+      off += blk.bytes.length; rows += blk.rows;
     }
     var secs = [
       { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'json-format 0.1.0' })) },

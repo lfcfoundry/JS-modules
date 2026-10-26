@@ -31,6 +31,7 @@ var steps = [
   ['fuzz-kit engine', 'node', ['tools/fuzz-kit/test/run.js']],
   ['canvas-probe', 'node', ['tools/canvas-probe/test/run.js']],
   ['webkit-driver', 'node', ['tools/webkit-driver/test/run.js']],
+  ['json-format', 'node', ['modules/json-format/test/run.js']],
   ['wake-keeper', 'node', ['modules/wake-keeper/test/run.js']],
   ['wake-keeper lean', 'node', ['modules/wake-keeper/test/lean.js']],
   ['stage-curtains', 'node', ['modules/stage-curtains/test/run.js']],
