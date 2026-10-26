@@ -66,6 +66,7 @@ var steps = [
   ['netflow-engine', 'node', ['modules/netflow-engine/test/run.js']],
   ['netflow-layers', 'node', ['modules/netflow-layers/test/run.js']],
   ['netflow-scene', 'node', ['modules/netflow-scene/test/run.js']],
+  ['netflow-scene look settings', 'node', ['modules/netflow-scene/test/look.js']],
   ['walker-sim', 'node', ['modules/walker-sim/test/run.js']],
   ['walker-sim minified', 'node', ['modules/walker-sim/test/run.js', 'modules/walker-sim/walker-sim.min.js']],
   ['walker-sim default (with WebAssembly)', 'node', ['modules/walker-sim/test/run.js', 'modules/walker-sim/walker-sim-with-wasm.js']],

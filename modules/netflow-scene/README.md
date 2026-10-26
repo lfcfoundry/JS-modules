@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.1.1 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Node 22 (4 checks); Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 one at a time (page check: flat and rules links equal). Speed in WebKitGTK 2.52.6 alternating in one page, 21 turns, three runs. Not tried on a real phone.
+**Tested in:** Node 22 (look settings 23 checks); Firefox 158, Chromium 155, WebKitGTK 2.52.6 (page check: look registers, same name for the same look)
 
 Turns a map laid out by [netflow-engine](../netflow-engine/README.md) into plain drawing lists (dots, links, labels, ribbons, shapes, a legend) that Canvas 2D, WebGL2, WebGPU or an SVG export can all draw the same way. It decides colors, widths, dashes, arrows, which labels fit and what a click would hit; it never touches a page. Big flat maps (2,000 or more straight links) keep their links in typed lists instead of one object per link, and a map rebuilt only because items moved or labels changed reuses each link's look from the last picture.
 
@@ -40,6 +40,15 @@ A flat map of 2,000 or more links is built straight into typed lists, also with 
 | `packNow()`, `autoPack(opts)` | Pack the links now, or after a pause. |
 
 Values in the lists are 32-bit.
+
+## Look settings (since 1.2.0; optional file)
+`netflow-scene-look.js` (global `NetflowSceneLook`) is an optional companion. One small object says how a map is colored and set in type: `{ base: 'auto'|'light'|'dark', slots: { bg: '#hex', ... }, groups: [12 colors or ''], ramp: [2 to 6 colors], font, nodeScale: 0.4..3 }`. `clean()` makes any outside object (saved text, a shared view, an imported file) safe; `resolve()` lays it over a scene theme; `register(NetflowScene, look, 'light')` puts the result into this module's exported, mutable `THEMES`, `PALETTES` and `RAMPS` under a name made from a hash of the look and returns `{ theme, palette, ramp }` to pass to `make()`, so `netflow-scene.js` itself needs no change to use it. It also holds 12 `PRESETS` and `warnings()` (text contrast under 4.5, link contrast under 2). No DOM, no storage: runs in a page, a worker and Node (`node modules/netflow-scene/test/look.js`, 23 checks).
+
+```js
+var look = NetflowSceneLook.clean({ base: 'dark', slots: { bg: '#101820' }, nodeScale: 1.4 });
+var names = NetflowSceneLook.register(NetflowScene, look, 'light');
+var S = NetflowScene.make(L, { theme: names.theme, palette: names.palette, ramp: names.ramp });
+```
 
 ## Limits
 - Needs the layout shape of netflow-engine 2.2.2 or newer (`nodes`, `edges`, `is3d`, `parked`/`wake`).
