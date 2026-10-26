@@ -24,6 +24,18 @@ let sd = 1; for (const kind of ['dense', 'sparse', 'dups', 'clustered', 'full', 
 (async () => {
   await S.ready(); const wasm = S.accelerated() && !process.argv.includes('--js-only');
   console.log('backend: ' + (wasm ? (S.simd() ? 'WebAssembly with SIMD and plain JavaScript' : 'WebAssembly and plain JavaScript') : 'plain JavaScript only'));
+  ok(S.version === '1.0.1' && S.api === 1, 'runtime version and API match the published module label');
+  const one = S.build(new Uint32Array([7]));
+  const lyingCount = one.slice(); new DataView(lyingCount.buffer).setUint32(4, 1073741824, true);
+  let rejected = false; try { S.open(lyingCount); } catch (e) { rejected = e instanceof RangeError; }
+  ok(rejected, 'open refuses a header that promises more values than the blob contains');
+  const lyingLength = one.slice(); new DataView(lyingLength.buffer).setUint32(40, lyingLength.length + 8, true);
+  rejected = false; try { S.open(lyingLength); } catch (e) { rejected = e instanceof RangeError; }
+  ok(rejected, 'open refuses inconsistent section lengths');
+  const lists = S.buildLists([[1], [2, 3]]), lyingLists = lists.slice();
+  new DataView(lyingLists.buffer).setUint32(4, 1073741824, true);
+  rejected = false; try { S.openLists(lyingLists); } catch (e) { rejected = e instanceof RangeError; }
+  ok(rejected, 'openLists refuses a header that promises more lists than the offsets contain');
   let queries = 0, bytes = 0;
   for (const [name, a] of sets) {
     S.setBackend('js'); const bj = S.build(a); S.setBackend('auto'); const bw = wasm ? S.build(a) : bj;
@@ -69,4 +81,3 @@ let sd = 1; for (const kind of ['dense', 'sparse', 'dups', 'clustered', 'full', 
   let bad = 0; for (const f of [() => S.buildLists([[2, 1]]), () => S.buildLists([[4294967295]])]) { try { f(); bad++; } catch (e) { if (!(e instanceof RangeError)) bad++; } } ok(bad === 0, 'list sets refuse bad input');
   console.log('ok   elias-fano: list sets, ' + checked + ' lists read back exact, chunking and empty lists included');
 })();
-

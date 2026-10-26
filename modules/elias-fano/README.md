@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.0.0 · API 1**
+**Version 1.0.1 · API 1**
 
-**Tested in:** Node 22 twin test; Firefox 158, Chromium 155, WebKitGTK 2.52.6 with the noise guard
+**Tested in:** not recorded
 
 Keeps sorted whole numbers (ids, positions, timestamps, links of a graph) in about a third to a half of the memory of a plain 32-bit array, and still answers "what is value number i" and "where is the first value at or above x" without unpacking. It also keeps many sorted lists in one structure (the links of every item of a map) and decodes them all at once, fast. **One file, no dependencies, works offline.** A WebAssembly path (with SIMD where the browser has it) is compiled the moment the file loads; plain JavaScript answers until it is ready and gives the same answers.
 
@@ -59,6 +59,7 @@ It is for lists you search or scan, not for hammering single reads: keep a decod
 ## Limits
 - Values are whole numbers from 0 to 4,294,967,295; at most 1,073,741,824 values per list or list set.
 - Lists must be sorted (duplicates allowed); anything else throws a `RangeError`.
+- `open()` and `openLists()` check header and section lengths and reject malformed or truncated structures. Payload bits have no checksum; use an external checksum if stored or transmitted bytes can be corrupted.
 - Little-endian machines only (all browsers on current hardware).
 - `buildLists` adds `j × (biggest value + 1)` to list j inside a chunk and cuts a new chunk before that would pass 2^32, so a list set whose values reach 2^32 − 1 is refused.
 

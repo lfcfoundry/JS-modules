@@ -71,6 +71,7 @@ var steps = [
   ['save-kit', 'node', ['modules/save-kit/test/run.js']],
   ['save-kit lean', 'node', ['modules/save-kit/test/lean.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
+  ['elias-fano', 'node', ['modules/elias-fano/test/run.js']],
   ['image-decode', 'node', ['modules/image-decode/test/run.js']],
   ['gpu-blur', 'node', ['modules/gpu-blur/test/run.js']],
   ['gpu-blur mutants', 'node', ['modules/gpu-blur/test/mutants.js']],

@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.0.1 (API 1)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -16,7 +16,7 @@
   else root.EliasFano = factory();
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-  var VERSION = '0.1.0', MAGIC = 0x00014645, HDR = 64, SAMPLE_SHIFT = 7, MAX_N = 1073741824;
+  var MAGIC = 0x00014645, HDR = 64, SAMPLE_SHIFT = 7, MAX_N = 1073741824;
   if (new Uint8Array(new Uint32Array([1]).buffer)[0] !== 1) throw new Error('elias-fano: needs a little endian machine');
 
   /* ---- WebAssembly (wasm/ef.c): the same format and answers; compiled the moment this file loads, never blocking; the plain JavaScript below answers until it is ready ---- */
@@ -59,6 +59,17 @@
     var lowOff = HDR, lowBytes = ((Math.ceil(n * l / 32) + 2) * 4 + 7) & ~7, highOff = lowOff + lowBytes, highBytes = (Math.ceil(nbits / 64) + 1) * 8;
     var s1Off = highOff + highBytes, s1Bytes = (Math.ceil(n / (1 << s)) * 4 + 7) & ~7, s0Off = s1Off + s1Bytes, s0Bytes = (Math.ceil((hmax + 1) / (1 << s)) * 4 + 7) & ~7;
     return { n: n, maxv: maxv, l: l, s: s, nbits: nbits, hmax: hmax, lowOff: lowOff, highOff: highOff, s1Off: s1Off, s0Off: s0Off, total: s0Off + s0Bytes };
+  }
+  function listHeader(bytes) {
+    if (!bytes || bytes.byteLength < HDR || bytes.byteOffset % 4) throw new RangeError('elias-fano: truncated or unaligned list');
+    var h = new Uint32Array(bytes.buffer, bytes.byteOffset, HDR >>> 2);
+    if (h[0] !== MAGIC) throw new Error('elias-fano: not a list');
+    if (h[1] > MAX_N || (h[1] === 0 && h[2] !== 0)) throw new RangeError('elias-fano: invalid list size');
+    var expected = layout(h[1], h[2]);
+    if (h[3] !== expected.l || h[4] !== expected.s || h[5] !== expected.nbits || h[6] !== expected.lowOff || h[7] !== expected.highOff || h[8] !== expected.s1Off || h[9] !== expected.s0Off || h[10] !== expected.total || bytes.byteLength !== expected.total)
+      throw new RangeError('elias-fano: inconsistent list header or length');
+    for (var i = 11; i < HDR / 4; i++) if (h[i] !== 0) throw new RangeError('elias-fano: unknown list header fields');
+    return h;
   }
   function check(values) {
     var n = values.length, prev = 0, i, v;
@@ -105,8 +116,7 @@
     return pos + (31 - Math.clz32(x & -x));
   }
   function List(bytes) {
-    var h = new Uint32Array(bytes.buffer, bytes.byteOffset, HDR >>> 2);
-    if (h[0] !== MAGIC) throw new Error('elias-fano: not a list');
+    var h = listHeader(bytes);
     this.bytes = bytes; this.length = h[1]; this._maxv = h[2]; this._l = h[3]; this._s = h[4]; this._nbits = h[5]; this._ptr = 0; this._wm = false;
     var b = bytes.buffer, o = bytes.byteOffset;
     this._low = new Uint32Array(b, o + h[6], (h[7] - h[6]) >>> 2); this._hi = new Uint32Array(b, o + h[7], (h[8] - h[7]) >>> 2);
@@ -232,11 +242,33 @@
     return out;
   }
   function Lists(bytes) {
-    var h0 = new Uint32Array(bytes.buffer, bytes.byteOffset, 6); if (h0[0] !== LMAGIC) throw new Error('elias-fano: not a list set');
-    var n = h0[1], nc = h0[4], head = 6 + nc, h = new Uint32Array(bytes.buffer, bytes.byteOffset, head), pad = function (x) { return (x + 7) & ~7; }, t = pad((head) * 4), c;
-    this.length = n; this._K = h[2] === 0 ? 4294967296 : h[2]; this._C = h[3]; this.bytes = bytes;
-    this._off = open(bytes.subarray(t, t + h[5])); t += pad(h[5]); this._chunks = []; this._cstart = [];
-    for (c = 0; c < nc; c++) { this._chunks.push(h[6 + c] ? open(bytes.subarray(t, t + h[6 + c])) : null); t += pad(h[6 + c]); this._cstart.push(this._off.get(c * this._C)); }
+    if (!bytes || bytes.byteLength < 24 || bytes.byteOffset % 4) throw new RangeError('elias-fano: truncated or unaligned list set');
+    var h0 = new Uint32Array(bytes.buffer, bytes.byteOffset, 6);
+    if (h0[0] !== LMAGIC) throw new Error('elias-fano: not a list set');
+    var n = h0[1], K = h0[2], C = h0[3], nc = h0[4], offLen = h0[5];
+    if (n >= MAX_N || !K || !C || C !== Math.floor(4294967295 / K) || nc !== Math.ceil(n / C)) throw new RangeError('elias-fano: inconsistent list-set header');
+    var head = 6 + nc;
+    if (head > Math.floor(bytes.byteLength / 4)) throw new RangeError('elias-fano: truncated list-set header');
+    var h = new Uint32Array(bytes.buffer, bytes.byteOffset, head), pad = function (x) { return (x + 7) & ~7; }, t = pad(head * 4);
+    if (offLen < HDR || t + offLen > bytes.byteLength) throw new RangeError('elias-fano: truncated list-set offsets');
+    var offBytes = bytes.subarray(t, t + offLen), offHeader = listHeader(offBytes);
+    if (offHeader[1] !== n + 1) throw new RangeError('elias-fano: list-set offsets have the wrong count');
+    var offsets = open(offBytes), chunks = [], starts = [], totalValues = offsets.get(n), chunkValues = 0, c;
+    t += pad(offLen);
+    try {
+      if (offsets.get(0) !== 0 || totalValues > MAX_N || t > bytes.byteLength) throw new RangeError('elias-fano: invalid list-set offsets');
+      for (c = 0; c < nc; c++) {
+        var chunkLen = h[6 + c], end = t + chunkLen, endPad = t + pad(chunkLen), firstList = c * C, lastList = Math.min(n, firstList + C);
+        if (endPad > bytes.byteLength) throw new RangeError('elias-fano: truncated list-set chunk');
+        var firstValue = offsets.get(firstList), lastValue = offsets.get(lastList), chunk = null;
+        if (!(firstValue >= 0 && lastValue >= firstValue && lastValue <= totalValues)) throw new RangeError('elias-fano: invalid list-set range');
+        if (chunkLen) { chunk = open(bytes.subarray(t, end)); if (chunk.length !== lastValue - firstValue) throw new RangeError('elias-fano: list-set chunk has the wrong count'); }
+        else if (lastValue !== firstValue) throw new RangeError('elias-fano: missing list-set chunk');
+        chunks.push(chunk); starts.push(firstValue); chunkValues += lastValue - firstValue; t = endPad;
+      }
+      if (t !== bytes.byteLength || chunkValues !== totalValues) throw new RangeError('elias-fano: inconsistent list-set length');
+    } catch (e) { offsets.free(); chunks.forEach(function (chunk) { if (chunk) chunk.free(); }); throw e; }
+    this.length = n; this._K = K; this._C = C; this.bytes = bytes; this._off = offsets; this._chunks = chunks; this._cstart = starts;
   }
   var LP = Lists.prototype;
   LP.size = function (i) { return this._off.get(i + 1) - this._off.get(i); };
@@ -261,7 +293,7 @@
 
   start();   // compile early
   return {
-    version: VERSION, api: 0, build: build, open: open, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
+    version: '1.0.1', api: 1, build: build, open: open, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
     _buildJS: buildJS, _layout: layout
