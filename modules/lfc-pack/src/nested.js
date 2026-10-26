@@ -23,10 +23,19 @@
     // strings with escapes or non-ASCII characters are kept once each in a side list; their codes point past the dictionary
     var sideMap = new Map(), sideStr = [];
     for (i = 0; i < s.side.length; i++) { var str = s.side[i][1], k = sideMap.get(str); if (k === undefined) { k = sideStr.length; sideMap.set(str, k); sideStr.push(str); } codes[s.side[i][0]] = dN + k; }
-    var ns = sideStr.length, dlen = Math.max(olen - 1, 0), text = new Uint8Array(dlen + ns);
-    text.set(new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen));
-    var sideIdx = []; for (i = 0; i < ns; i++) sideIdx.push(dN + i);
-    var cols = s.cols; cols.set(CODES_KEY, codes);
+    var ns = sideStr.length, dlen = Math.max(olen - 1, 0), N = codes.length, m;
+    // first-appearance flags: the writer renumbers the dictionary in order of first use (unused entries drop out), so a string's first appearance always carries "the next number" and only repeats need a stored code
+    var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), offs = new Uint32Array(dN + 1), pos = 0, nz;
+    for (i = 0; i < dN; i++) { offs[i] = pos; nz = old.indexOf(0, pos); pos = nz < 0 ? dlen + 1 : nz + 1; } offs[dN] = dlen + 1;
+    var remap = new Int32Array(dN).fill(-1), used = [], nu = 0, c;
+    for (i = 0; i < N; i++) { c = codes[i]; if (c < dN && remap[c] < 0) { remap[c] = nu++; used.push(c); } }
+    var flags = new Uint8Array((N + 7) >> 3), rep = [], seenF = new Uint8Array(nu);
+    for (i = 0; i < N; i++) { c = codes[i]; if (c < dN) { m = remap[c]; if (!seenF[m]) { seenF[m] = 1; flags[i >> 3] |= 1 << (i & 7); } else rep.push(m); } else rep.push(nu + (c - dN)); }
+    var tl = 0; for (i = 0; i < nu; i++) tl += offs[used[i] + 1] - offs[used[i]];
+    var E = nu + ns, text = new Uint8Array(E > 0 ? tl - nu + E - 1 + (nu > 0 ? 0 : 0) : 0), tp = 0;
+    for (i = 0; i < nu; i++) { var a0 = offs[used[i]], a1 = offs[used[i] + 1] - 1; text.set(old.subarray(a0, a1), tp); tp += a1 - a0; if (i < E - 1) tp++; }
+    var sideIdx = []; for (i = 0; i < ns; i++) sideIdx.push(nu + i);
+    var cols = s.cols, repT = typedColumn(rep), zflags = zs.compress(flags, level), zrep = zs.compress(repT[2], level);
     var ztext = zs.compress(text, level), sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideStr })), zside = zs.compress(sideB, level);
     var skB = te.encode(s.skelList.join('\n')), zskel = zs.compress(skB, level);
     var tid = typedColumn(s.ids), zids = zs.compress(tid[2], level);
@@ -37,9 +46,9 @@
     });
     // column table (hash, width code, count, frame length) is its own zstd frame: files with many distinct paths have thousands of entries
     var cmB = te.encode(JSON.stringify(zc.map(function (z) { return [z[0], z[1], z[2], z[3].length]; }))), zcm = zs.compress(cmB, level);
-    var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, count: dN + ns, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
+    var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, count: E, fa: [flags.length, zflags.length, repT[0], repT[1], zrep.length, N], len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], cm: [cmB.length, zcm.length] }));
-    var parts = [u32le(hdr.length), hdr, zcm, ztext, zside, zskel, zids]; for (i = 0; i < zc.length; i++) parts.push(zc[i][3]);
+    var parts = [u32le(hdr.length), hdr, zcm, ztext, zside, zskel, zids, zflags, zrep]; for (i = 0; i < zc.length; i++) parts.push(zc[i][3]);
     return { bytes: concat(parts), rows: s.n, zone: zone, skelList: s.skelList, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
   }
 
@@ -56,7 +65,19 @@
     var side = JSON.parse(td.decode(zs.decompressView(take(h.p[1]), h.len[1])));
     var skel = td.decode(zs.decompressView(take(h.p[2]), h.len[2]));
     var ids = [h.ids[0], h.ids[1], zs.decompress(take(h.ids[2]), h.ids[1] * KIND[h.ids[0]].BYTES_PER_ELEMENT)], cols = [];
+    var zfl = zs.decompress(take(h.fa[1]), h.fa[0]), zrp = zs.decompress(take(h.fa[4]), h.fa[3] * KIND[h.fa[2]].BYTES_PER_ELEMENT);
     for (i = 0; i < cmeta.length; i++) { var cd = cmeta[i]; cols.push([cd[0], cd[1], cd[2], zs.decompress(take(cd[3]), cd[2] * KIND[cd[1]].BYTES_PER_ELEMENT)]); }
+    // codes back from the flags: a flagged cell takes the next new number, any other cell takes the next stored repeat
+    var NC = h.fa[5], rp = new KIND[h.fa[2]](zrp.buffer, zrp.byteOffset, h.fa[3]), ck = h.count < 256 ? 0 : h.count < 65536 ? 1 : 2, codes = new KIND[ck](NC), nxt = 0, r = 0;
+    var fb, e8, q, ib = 0;
+    for (; ib + 8 <= NC; ib += 8) {   // eight cells per flag byte: all new (255) and all repeats (0) are the common bytes
+      fb = zfl[ib >> 3];
+      if (fb === 0) { codes[ib] = rp[r]; codes[ib + 1] = rp[r + 1]; codes[ib + 2] = rp[r + 2]; codes[ib + 3] = rp[r + 3]; codes[ib + 4] = rp[r + 4]; codes[ib + 5] = rp[r + 5]; codes[ib + 6] = rp[r + 6]; codes[ib + 7] = rp[r + 7]; r += 8; }
+      else if (fb === 255) { for (q = 0; q < 8; q++) codes[ib + q] = nxt++; }
+      else for (q = 0; q < 8; q++) codes[ib + q] = (fb >> q) & 1 ? nxt++ : rp[r++];
+    }
+    for (; ib < NC; ib++) codes[ib] = (zfl[ib >> 3] >> (ib & 7)) & 1 ? nxt++ : rp[r++];
+    cols.push([CODES_KEY, ck, NC, new Uint8Array(codes.buffer)]);
     return { t: 'n', n: h.n, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
   }
   function nestedTransfer(F) { var t = [F.dict.buffer, F.ids[2].buffer], i; for (i = 0; i < F.cols.length; i++) t.push(F.cols[i][3].buffer); return t; }

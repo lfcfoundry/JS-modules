@@ -126,10 +126,15 @@ def _read_nested(b):
         D[ix] = sd['str'][i]
     skel = _decompress(c.take(h['p'][2])).decode('utf-8').split('\n')
     ids = _typed(_decompress(c.take(h['ids'][2])), h['ids'][0], h['ids'][1])
+    fa = h['fa']
+    flags = _decompress(c.take(fa[1])); rep = _typed(_decompress(c.take(fa[4])), fa[2], fa[3])
     cols = {}
     for key, kind, count, plen in cmeta:
         cols[key] = _typed(_decompress(c.take(plen)), kind, count)
-    codes = cols.get(CODES_KEY, [])
+    codes = []; nxt = 0; ri = 0
+    for i in range(fa[5]):
+        if (flags[i >> 3] >> (i & 7)) & 1: codes.append(nxt); nxt += 1
+        else: codes.append(int(rep[ri])); ri += 1
     strs = [D[k] for k in codes]
     state = {'ti': 0}
     cur = {}
