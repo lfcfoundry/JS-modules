@@ -4,6 +4,7 @@
      node tools/test-runner/cli.js warm status | stop
      node tools/test-runner/cli.js all [--fresh] <check.js> [args...]              run one browser check in the three browsers, one at a time, and print one summary;
                                                                                    cells that already passed for this build are skipped (a rerun after a crash or a machine restart resumes), --fresh runs them all again
+     node tools/test-runner/cli.js calibrate [--save] [browsers]                    the noise guard: 1.5 s fixed loop per browser vs the quiet baseline (--save on a quiet machine sets it)
      node tools/test-runner/cli.js status [check.js [args...]]                     ALIVE, FINISHED or DEAD (also: all --status [check.js [args...]]) */
 'use strict';
 const fs = require('fs'), path = require('path'), cp = require('child_process'), R = require('./runner.js'), L = require('./ledger.js');
@@ -45,6 +46,19 @@ async function main() {
     const until = Date.now() + 8000; while (Date.now() < until && [...pids].some((p) => { try { process.kill(p, 0); return true; } catch (e) { return false; } })) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
     for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) { if (/\.(error|lock)$|^READY$/.test(f)) try { fs.unlinkSync(path.join(dir, f)); } catch (e) { /* gone */ } }
     console.log(pids.size ? 'stopped' : 'nothing was running'); return 0;
+  }
+  if (cmd === 'calibrate') {                                    // calibrate <browser...> [--save]: show how quiet the machine is; --save keeps the median of 5 as the quiet baseline
+    const save = process.argv.includes('--save'), N = R.noise;
+    for (const w of names(rest.concat(sub && sub !== '--save' ? [sub] : []).filter((a) => a !== '--save'))) {
+      const b = await R.launch(w); try {
+        const n = save ? 5 : 1, runs = []; for (let i = 0; i < n; i++) runs.push(await N.calibrate(b));
+        const parts = {}; for (const k of ['int', 'json', 'copy']) parts[k] = { rate: R.median(runs.map((r) => r.parts[k].rate)), best: Math.max(...runs.map((r) => r.parts[k].best)) };
+        const m = { rate: R.median(runs.map((r) => r.rate)), parts }, base = N.baselineFor(w), j = N.judgeAll(m, base);
+        console.log(w.padEnd(9) + Object.keys(parts).map((k) => k + ' ' + parts[k].rate.toFixed(1) + ' (best ' + parts[k].best.toFixed(1) + ')').join('  ') + '\n         ' + j.note + (j.noisy ? '  NOISY' : '') + (save ? '  (saved as the quiet baseline from ' + n + ' runs)' : ''));
+        if (save) N.saveBaseline(w, m.rate, parts);
+      } finally { await b.close(); }
+    }
+    return 0;
   }
   if (cmd === 'status' || (cmd === 'all' && wantStatus)) return printStatus(sub, rest);
   if (cmd === 'all') {

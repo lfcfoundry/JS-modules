@@ -162,4 +162,20 @@ t('ledger: ALIVE while a run goes on, DEAD when its process is gone, DEAD when t
   function spawnWaitDead(pid) { for (let i = 0; i < 50; i++) { try { process.kill(pid, 0); } catch (e) { return; } Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50); } }
   ok(LD.judge(null).verdict === 'NONE', 'nothing recorded');
 });
+t('noise guard: judge flags more than 15% off, guarded reruns while noisy and gives up with ok false, runs once with no baseline', async () => {
+  const N = require('../noise.js');
+  ok(!N.judge(100, 100).noisy && !N.judge(90, 100).noisy && N.judge(80, 100).noisy && N.judge(130, 100).noisy && !N.judge(5, null).known, 'judge');
+  const rates = [60, 70, 99], fake = { newPage: null }; let ran = 0, i = 0;
+  const cal = async () => ({ rate: rates[i++] });
+  let r = await N.guarded(fake, 'x', () => ++ran, { baseline: { rate: 100 }, calibrate: cal, waitMs: 1, log: false });
+  ok(r.ok && r.tries === 3 && r.result === 1 && ran === 1 && r.calibrations.length === 3, 'reran until quiet: ' + JSON.stringify(r));
+  i = 0; r = await N.guarded(fake, 'x', () => ++ran, { baseline: { rate: 1000 }, calibrate: cal, waitMs: 1, tries: 2, log: false });
+  ok(!r.ok && r.result === null && ran === 1, 'noisy every time: nothing ran');
+  i = 0; r = await N.guarded(fake, 'x', () => ++ran, { baseline: null, calibrate: cal, log: false, tries: 1 });
+  ok(r.ok && !r.known, 'no baseline runs once');
+  process.env.TEST_RUNNER_LEDGER = path.join(tmp, 'ledger-nb'); N.saveBaseline('firefox', 42.5); ok(N.baselineFor('firefox').rate === 42.5 && !N.baselineFor('webkit'), 'baseline file');
+  const L = new Function('return ' + N.pageLoop.toString())(); const out = L(150); ok(out.rate > 0 && out.parts.int.chunks >= 1 && out.parts.json.rate > 0 && out.parts.copy.rate > 0, 'page loop runs');
+  const bp = { rate: 100, parts: { int: { rate: 100 }, json: { rate: 100 }, copy: { rate: 100 } } }, mk = (a, b, c) => ({ rate: 1, parts: { int: { rate: a }, json: { rate: b }, copy: { rate: c } } });
+  ok(!N.judgeAll(mk(100, 95, 105), bp).noisy && N.judgeAll(mk(100, 70, 100), bp).noisy && /json -30\.0%/.test(N.judgeAll(mk(100, 70, 100), bp).note), 'one noisy part marks the batch noisy and is named');
+});
 pending.then(() => { fs.rmSync(tmp, { recursive: true, force: true }); console.log(bad ? 'test-runner: ' + bad + ' FAILED' : 'test-runner: all passed'); process.exit(bad ? 1 : 0); });
