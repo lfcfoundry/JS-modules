@@ -58,4 +58,21 @@ const W = C.writeWebm(S, 320, 180);
   }
   ok(all, 'webm: cue positions are right for 1, 6, 26, 200 and 900 pictures');
 }
+// random sample sets (seeded): every file must read back exactly, whatever the sizes, times and key pattern
+{
+  let seed = 11, bad = '';
+  const r = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+  for (let round = 0; round < 300 && !bad; round++) {
+    const n = 1 + Math.floor(r() * (round % 10 === 0 ? 400 : 40)), sm = Array.from({ length: n }, (_, i) => ({ data: Uint8Array.from({ length: 1 + Math.floor(Math.pow(r(), 3) * 3000) }, () => Math.floor(r() * 256)), ms: [1, 33, 40, 40, 40, 100, 1000][Math.floor(r() * 7)], key: i === 0 || r() < 0.1 }));
+    const m = C.writeMp4(sm, 2 + 2 * Math.floor(r() * 400), 2 + 2 * Math.floor(r() * 300), avcC), tp = boxes(m, 0, m.length), md = find(tp, 'mdat'), mo = boxes(m, find(tp, 'moov').body, find(tp, 'moov').end);
+    const tr = boxes(m, find(mo, 'trak').body, find(mo, 'trak').end), mi = boxes(m, find(tr, 'mdia').body, find(tr, 'mdia').end), st = boxes(m, find(boxes(m, find(mi, 'minf').body, find(mi, 'minf').end), 'stbl').body, find(boxes(m, find(mi, 'minf').body, find(mi, 'minf').end), 'stbl').end);
+    const sz = find(st, 'stsz'); let p = md.body; for (let i = 0; i < n && !bad; i++) { if (be(m, sz.body + 12 + i * 4, 4) !== sm[i].data.length) bad = 'mp4 size ' + round; for (let k = 0; k < sm[i].data.length; k += 97) if (m[p + k] !== sm[i].data[k]) bad = 'mp4 bytes ' + round; p += sm[i].data.length; }
+    if (md.end - md.body !== p - md.body) bad = bad || 'mp4 mdat ' + round;
+    const w = C.writeWebm(sm, 64, 48), t2 = elements(w, 0, w.length), sg = elements(w, t2[1].body, t2[1].end), cu = sg.find((e) => e.id === 0x1c53bb6b), cl = sg.filter((e) => e.id === 0x1f43b675), starts = cl.map((e) => e.start - t2[1].body);
+    if (t2[1].end !== w.length) bad = bad || 'webm size ' + round;
+    for (const pt of elements(w, cu.body, cu.end)) { const q = elements(w, pt.body, pt.end).find((e) => e.id === 0xb7), pe = elements(w, q.body, q.end).find((e) => e.id === 0xf1); let v = 0; for (let i = pe.body; i < pe.end; i++) v = v * 256 + w[i]; if (!starts.includes(v)) bad = bad || 'webm cue ' + round; }
+    let cnt = 0; for (const c of cl) cnt += elements(w, c.body, c.end).filter((e) => e.id === 0xa3).length; if (cnt !== n) bad = bad || 'webm count ' + round;
+  }
+  ok(!bad, 'random sample sets: 300 rounds read back exactly in both formats' + (bad ? ' (' + bad + ')' : ''));
+}
 console.log(fails ? 'clip-writer: ' + fails + ' FAILED' : 'clip-writer: all passed'); process.exit(fails ? 1 : 0);
