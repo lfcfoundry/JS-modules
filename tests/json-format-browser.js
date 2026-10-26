@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // json-format in one real browser at a time: value-exact round trips (edge cases, generated rows) and timings of pack and unpack against JSON.parse, behind the noise guard. Copyright (c) 2026 LFC Foundry. MIT License.
+// With FILE=path.ndjson it also packs that file and reads it back with 1, 2, 4 and all helper workers (the real-file scaling table).
 // Run: node tests/json-format-browser.js <chromium|firefox|webkit> [out.json]     Env: REPS=7 (rounds), ROWS=40000 (generated rows per set), BASELINE=1 to skip the noise guard
 'use strict';
 const fs = require('fs'), path = require('path'), T = require('../tools/test-runner/runner.js');
 const src = fs.readFileSync(path.resolve(__dirname, '../modules/json-format/json-format.js'), 'utf8'), cases = require('../modules/json-format/test/cases.js');
-const REPS = +process.env.REPS || 7, ROWS = +process.env.ROWS || 40000;
-async function pageWork(reps, rows, cases) {
+const FILE = process.env.FILE || '', REPS = +process.env.REPS || 7, ROWS = +process.env.ROWS || 40000;
+async function pageWork(reps, rows, cases, haveFile) {
   const J = window.JsonFormat; await J.init();
   let seed = 7; const r = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296, pick = (a) => a[Math.floor(r() * a.length)];
   const out = { bad: [], sizes: {}, times: {} };
@@ -27,16 +28,32 @@ async function pageWork(reps, rows, cases) {
     }
     out.times[name] = { packMs: med(tp), unpackMs: med(tr), jsonParseMs: med(tj) };
   }
+  if (haveFile) {
+    const buf = new Uint8Array(await (await fetch('/data.ndjson')).arrayBuffer()); out.file = { input: buf.length };
+    let t = performance.now(); const packed = J.pack(buf); out.file.packMs = performance.now() - t; out.file.packed = packed.length;
+    t = performance.now(); const single = J.unpack(packed); out.file.unpackMs = performance.now() - t;
+    t = performance.now(); const text = new TextDecoder().decode(buf).split('\n').filter(Boolean).map((l) => JSON.parse(l)); out.file.jsonParseMs = performance.now() - t;
+    if (single.length !== text.length) out.bad.push('file: row count'); else for (let i = 0; i < single.length; i += 97) if (!same(single[i], text[i])) { out.bad.push('file: row ' + i); break; }
+    out.file.pool = {}; const hc = navigator.hardwareConcurrency; out.file.cores = hc;
+    for (const w of [1, 2, 4, Math.max(3, hc - 1)]) {
+      if (out.file.pool[w]) continue; const pool = await J.pool({ workers: w }); await pool.unpack(packed); const T = [];
+      for (let k = 0; k < Math.min(reps, 3); k++) { const t0 = performance.now(); const r = await pool.unpack(packed); T.push(performance.now() - t0); if (k === 0 && (r.length !== single.length || !same(r[r.length - 1], single[single.length - 1]))) out.bad.push('pool ' + w + ': differs'); }
+      out.file.pool[w] = med(T); pool.close();
+    }
+  }
   return out;
 }
 T.main(async (b, which, outFile) => {
-  const srv = await T.serve({ '/page.html': '<!doctype html><meta charset=utf-8><title>t</title><script>' + src + '</script>' });
-  const run = async () => { const p = await b.newPage(); await p.goto(srv.base + '/page.html'); try { return await p.evaluate('(' + pageWork.toString() + ')(' + REPS + ',' + ROWS + ',' + JSON.stringify(cases) + ')'); } finally { await p.close().catch(() => {}); } };
+  const routes = { '/page.html': '<!doctype html><meta charset=utf-8><title>t</title><script>' + src + '</script>' };
+  if (FILE) routes['/data.ndjson'] = fs.readFileSync(FILE);
+  const srv = await T.serve(routes);
+  const run = async () => { const p = await b.newPage(); await p.goto(srv.base + '/page.html'); try { return await p.evaluate('(' + pageWork.toString() + ')(' + REPS + ',' + ROWS + ',' + JSON.stringify(cases) + ',' + !!FILE + ')'); } finally { await p.close().catch(() => {}); } };
   const g = process.env.BASELINE ? { ok: true, result: await run(), calibrations: [] } : await T.guarded(b, which, run);
   srv.close();
   if (!g.ok) { console.log('NOISY: every try was off the quiet baseline; nothing published'); return false; }
   const r = g.result; console.log('sizes ' + JSON.stringify(r.sizes) + '; noise guard tries ' + (g.tries || 0));
   console.log(T.table(Object.entries(r.times).map(([n, t]) => ({ name: n, pack: t.packMs.toFixed(0), unpack: t.unpackMs.toFixed(0), parse: t.jsonParseMs.toFixed(0) })), [{ key: 'name', title: 'set', align: 'left' }, { key: 'pack', title: 'pack ms' }, { key: 'unpack', title: 'unpack ms' }, { key: 'parse', title: 'JSON.parse ms' }]));
+  if (r.file) { const f = r.file; console.log('file ' + FILE.split('/').pop() + ': ' + f.input + ' -> ' + f.packed + ' bytes; pack ' + f.packMs.toFixed(0) + ' ms; unpack one thread ' + f.unpackMs.toFixed(0) + ' ms; JSON.parse ' + f.jsonParseMs.toFixed(0) + ' ms; ' + f.cores + ' cores; helper workers (ms): ' + JSON.stringify(f.pool)); }
   if (r.bad.length) { console.log('FAIL ' + r.bad.slice(0, 10).join('; ')); return false; }
   console.log('all round trips value-exact'); if (outFile) fs.writeFileSync(outFile, JSON.stringify(r, null, 1)); return true;
 });

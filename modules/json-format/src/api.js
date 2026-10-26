@@ -2,6 +2,10 @@
 
   // ================================================================ public API
   var BLOCK_BYTES = 21 << 20;
+  function flatSkeletons(list) {
+    for (var i = 0; i < list.length; i++) { var t = list[i]; if (t.charCodeAt(0) !== 123 || t.indexOf('{', 1) >= 0 || t.indexOf('[') >= 0) return false; }
+    return list.length > 0;
+  }
   function init(opts) {   // -> Promise; loads the wasm modules once. { readOnly: true } skips the zstd encoder.
     var ro = !!(opts && opts.readOnly);
     if (S.ready && (ro || S.zfull)) return S.ready;
@@ -22,8 +26,12 @@
       if (e < b.length) { var nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; }
       var chunk = b.subarray(p, e), kind = opts.block, blk = null;
       if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, 'r']); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; p = e; continue; }
-      if (kind !== 'nested') blk = writeFlatBlock(ctx, chunk, opts);
-      if (kind !== 'flat' || !blk) { var nb = writeNestedBlock(ctx, chunk, opts); if (!blk || nb.bytes.length < blk.bytes.length) blk = nb; }
+      if (kind === 'flat') blk = writeFlatBlock(ctx, chunk, opts);
+      if (kind !== 'flat' || !blk) {
+        blk = writeNestedBlock(ctx, chunk, opts);
+        // auto: the flat layout is also tried when every row is a flat object, or when shapes are nearly all different (it then keeps nested values as JSON text, which packs far smaller)
+        if (!kind && (flatSkeletons(blk.skelList) || blk.skelList.length * 4 > blk.rows)) { var fb = writeFlatBlock(ctx, chunk, opts); if (fb && fb.bytes.length < blk.bytes.length) blk = fb; }
+      }
       if (exact) { var ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) exc[blocks.length] = ex; }
       blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, blk.kind || 'n']); zone.push(blk.zone); parts.push(blk.bytes);
       off += blk.bytes.length; rows += blk.rows; p = e;
