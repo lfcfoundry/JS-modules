@@ -305,6 +305,20 @@
       "category": "visualization"
     },
     {
+      "id": "clip-writer",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "ClipWriter",
+      "summary": "Turns pictures into a short MP4 or WebM video in the browser with the browser's own video encoder and two small file writers, no libraries; the same add/finish shape as gif-writer, and about 8 times smaller than a GIF of the same pictures in Netflow Map.",
+      "short": "Turns pictures into an MP4 or WebM video file.",
+      "file": "modules/clip-writer/clip-writer.js",
+      "readme": "modules/clip-writer/README.md",
+      "demo": "modules/clip-writer/demo.html",
+      "dependencies": "none (needs the browser's WebCodecs video encoder)",
+      "formats": "browser global, CommonJS (module.exports; the file writers work in Node)",
+      "category": "visualization"
+    },
+    {
       "id": "zip-open",
       "version": "1.3.0",
       "api": 1,

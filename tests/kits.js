@@ -49,6 +49,7 @@ var steps = [
   ['test-runner', 'node', ['tools/test-runner/test/run.js']],
   ['speed-lab', 'node', ['tools/speed-lab/test/run.js']],
   ['gif-writer', 'node', ['modules/gif-writer/test/run.js']],
+  ['clip-writer', 'node', ['modules/clip-writer/test/run.js']],
   ['gif-writer filters', 'node', ['modules/gif-writer/test/fx.js']],
   ['gif-writer filters, WebAssembly twin', 'node', ['modules/gif-writer/test/fx-wasm.js']],
   ['zip-open', 'node', ['modules/zip-open/test/run.js']],
@@ -102,6 +103,7 @@ var steps = [
   ['walker-sim same answers', 'node', ['tests/walker-sim-browser.js'], true, true],   // optional like the one above (walks, exact odds, sweeps and split runs in Node and in each browser, with timings)
   ['gif-writer same bytes', 'node', ['tests/gif-writer-browser.js'], true, true],   // optional like the one above (fixed scenes through the palette search and the encoder in Node and in each browser, with timings)
   ['gif-writer filters in browsers', 'node', ['tests/gif-writer-fx-browser.js'], true, true],   // optional like the one above (the WebAssembly filters against the JavaScript, the worker and the size tolerance in each browser)
+  ['clip-writer in browsers', 'node', ['tests/clip-writer-browser.js'], true, true],   // optional like the one above (a real encode in each browser, then the file is opened in a video element)
   ['zip-open checksums', 'node', ['tests/zip-open-crc-browser.js'], true, true],   // optional like the one above (the checksum against a plain bit-by-bit CRC in Node and in each browser, with timings)
   ['sprite-baker Fancy pixels', 'node', ['tests/sprite-baker-fancy-browser.js'], true, true],   // optional like the one above (Fancy Banana's own filler against sprite-baker, byte for byte, in Node and in each browser, with timings)
   ['save-kit speed', 'node', ['tests/save-kit-speed-browser.js'], true, true],   // optional like the one above (one game-sized save and load, new file against an older one with OLD=, in Node and in each browser)
