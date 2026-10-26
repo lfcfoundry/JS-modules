@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.1 (API 1)
+ * Version 1.4.0 (API 1)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -477,7 +477,7 @@
 
   start();   // compile early
   return {
-    version: '1.3.1', api: 1, build: build, open: open, buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, intersect: intersect, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
+    version: '1.4.0', api: 1, build: build, open: open, buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, intersect: intersect, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
     _buildJS: buildJS, _layout: layout

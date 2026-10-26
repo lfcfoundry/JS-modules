@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.3.1 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Node 22 twin, fuzz, partitioned, intersect and run tests; Firefox 158, Chromium 155, WebKitGTK 2.52.6 with the noise guard (A/B of open and query paths)
+**Tested in:** Node 22 intersect, twin, fuzz, partitioned and run tests; Firefox 158, Chromium 155, WebKitGTK 2.52.6 with the noise guard
 
 Keeps sorted whole numbers (ids, positions, timestamps, links of a graph) in about a third to a half of the memory of a plain 32-bit array, and still answers "what is value number i" and "where is the first value at or above x" without unpacking. It also keeps many sorted lists in one structure (the links of every item of a map) and decodes them all at once, fast. **One file, no dependencies, works offline.** A WebAssembly path (with SIMD where the browser has it) is compiled the moment the file loads; plain JavaScript answers until it is ready and gives the same answers.
 
@@ -81,17 +81,19 @@ The builder is JavaScript only (WebAssembly reads and decodes; both give the sam
 ## Intersecting lists (since 1.3.0)
 `EliasFano.intersect([a, b, c, ...])` takes opened lists (flat, partitioned, or a mix; up to 64) and returns the values that are in all of them, each once, in order. It walks the lists with `nextGEQ`, starting from the shortest, and never unpacks any of them; WebAssembly does the whole walk in one call. Use it for "which ids match every word" and "which items touch all these links".
 
+Two lists of similar size (shorter list at least 1/32 of the longer) are merged block by block: 256 values of the shorter list are unpacked, the matching stretch of the longer one is found with `nextGEQ` and unpacked, and the two small buffers are merged, so stretches that cannot match are never touched. With a much shorter first list, or when only a few values are left for the third list on, the `nextGEQ` walk is used.
+
 Timings (1,000,000 ids in the big list; Firefox 158 / Chromium 155 / WebKitGTK 2.52.6, ms; test `tests/elias-fano-intersect-browser.js`):
 
 | Intersect 1,000,000 ids with | Plain binary search | Plain linear merge | Flat Elias-Fano | Partitioned 128 |
 |---|---|---|---|---|
-| 1,000 ids | 0.2 / 0.3 / 0.2 | 3.0 / 1.8 / 1.0 | 0.2 / 0.2 / 0.2 | 0.3 / 0.3 / 0.3 |
-| 10,000 ids | 2.0 / 3.4 / 1.6 | 3.0 / 2.4 / 2.0 | 2.2 / 2.0 / 2.1 | 2.8 / 2.9 / 3.5 |
-| 200,000 ids | 30 / 64 / 19 | 14 / 12 / 9 | 40 / 37 / 38 | 52 / 53 / 57 |
-| 1,000,000 ids | 129 / 275 / 74 | 55 / 42 / 30 | 157 / 138 / 142 | 212 / 204 / 210 |
-| 3 lists (1M, 200k, 50k) | 8 / 15 / 5 | 6 / 5 / 3 | 10 / 9 / 9 | 11 / 12 / 12 |
+| 1,000 ids | 0.2 / 0.3 / 0.2 | 3.0 / 2.0 / 1.0 | 0.2 / 0.2 / 0.2 | 0.3 / 0.3 / 0.3 |
+| 10,000 ids | 2.2 / 3.9 / 1.3 | 4.0 / 2.6 / 2.0 | 2.3 / 2.1 / 2.0 | 3.0 / 3.3 / 3.0 |
+| 200,000 ids | 30 / 65 / 18 | 13 / 12 / 9 | 7 / 8.8 / 8 | 9 / 9 / 9 |
+| 1,000,000 ids | 142 / 278 / 73 | 53 / 39 / 29 | 21 / 19 / 19 | 25 / 21 / 21 |
+| 3 lists (1M, 200k, 50k) | 11 / 16 / 5 | 7 / 4.9 / 3 | 2 / 2.5 / 2 | 3 / 2.6 / 2 |
 
-So Elias-Fano intersection costs about the same as binary search on plain arrays when one list is small (and is faster in Chromium on big ones), while the lists take a sixth to a third of the memory. A plain linear merge is faster when both lists are large; keep a plain array for that case only if memory does not matter.
+Elias-Fano intersection matches binary search on plain arrays when one list is small, and beats even a plain linear merge (by 1.4 to 2.5x) when the lists are of similar size, with the lists taking a sixth to a third of the memory.
 
 ## Limits
 - Values are whole numbers from 0 to 4,294,967,295; at most 1,073,741,824 values per list or list set.

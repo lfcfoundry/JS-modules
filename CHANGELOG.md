@@ -30,7 +30,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.0.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.6.4 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 1.3.1 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 1.4.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
@@ -60,6 +60,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-25 · **netflow-scene** 1.2.0 · API 1: Optional look-settings file: one small object says how a map is colored and set in type.
 - 2026-10-25 · **image-decode** 1.2.1 · API 1: Image decoding now frees its temporary address if the browser throws immediately.
 - 2026-10-25 · **gif-writer** 1.5.0 · API 1: Optional picture filters, animation timing, a worker and a size tolerance, cut from Netflow Map.
+- 2026-10-25 · **elias-fano** 1.4.0 · API 1: intersect is 1.4 to 2.5x faster than a plain linear merge on lists of similar size: blocks of both lists are unpacked and merged, and stretches that cannot match are skipped.
 - 2026-10-25 · **elias-fano** 1.3.1 · API 1: Damaged or hostile blobs are refused when opened (a RangeError) instead of being read past their end: list headers, list-set offsets and partitioned lists are checked.
 - 2026-10-25 · **elias-fano** 1.3.0 · API 1: New: EliasFano.intersect([a, b, ...]) finds the values common to several lists (flat, partitioned or mixed) without unpacking any of them, in one WebAssembly call.
 - 2026-10-25 · **elias-fano** 1.2.0 · API 1: New: partitioned lists (buildPartitioned / openPartitioned). Each chunk of 128 values is stored as a plain run, a bitmap or Elias-Fano, whichever is smallest: up to 37% smaller than flat Elias-Fano on dense lists.
