@@ -3,7 +3,7 @@
   // ================================================================ flat-rows block (kind 'f'): every row is an object; one presence bit plane per key, one typed column per key
   // Layout: u32 header length, JSON header, then zstd frames: meta (keys and column table), presence planes, then the frames of each column.
   // Column types: V varints (delta when sorted, zigzag otherwise, whole numbers or two-decimal numbers), B bit-packed offsets, F float64 bytes, T booleans,
-  // H fixed-length lowercase hex, L log templates (used when 5% smaller than the plain strings), U lowercase UUID as 16 bytes, I IPv4 as 4 bytes, D block dictionary plus codes, s strings, j JSON text (anything else).
+  // H fixed-length lowercase hex, L log templates (opt-in with templates:true, kept only when smaller than plain; full-line reads measured 1.5-2x slower so off by default), U lowercase UUID as 16 bytes, I IPv4 as 4 bytes, D block dictionary plus codes, s strings, j JSON text (anything else).
   var LV_FLAT = 3;
   function zz(x) { return x >= 0 ? x * 2 : -x * 2 - 1; }
   function unzz(x) { return (x % 2 === 0) ? x / 2 : -(x + 1) / 2; }
@@ -129,7 +129,7 @@
         var map = new Map(), labels = [], codes = new Array(n), c;
         for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }
         cand('s', {}, [te.encode(v.join('\0'))]);
-        if (n >= 16 && labels.length * 2 > n && !opts_noTemplates) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.80) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
+        if (n >= 16 && labels.length * 2 > n && !opts_noTemplates) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
           var wd = Math.max(1, 32 - Math.clz32(labels.length - 1)), cb = labels.length > 256 ? new Uint8Array(new Uint16Array(codes).buffer) : Uint8Array.from(codes);
           cand('D', { w: 0, wide: labels.length > 256 }, [te.encode(labels.join('\0')), cb]);
@@ -175,7 +175,7 @@
     }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
     for (j = 0; j < cols.length; j++) {
-      var e = encodeColumn(cols[j], zs, level, opts.templates === false); enc.push(e);
+      var e = encodeColumn(cols[j], zs, level, opts.templates !== true); enc.push(e);
       meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }) });
       for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
       if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && cols[j].length) { var mn = Infinity, mx = -Infinity, a = cols[j]; for (i = 0; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zone.push([fnvStr('.' + keys[j]), mn, mx, a.length]); }
