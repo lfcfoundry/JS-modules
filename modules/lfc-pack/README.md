@@ -1,0 +1,98 @@
+# lfc-pack
+
+**Version 0.1.0 · API 0**
+
+**Version 0.1.0 · API 0**
+
+**Tested in:** not recorded.
+
+Packs newline-delimited JSON (NDJSON: one JSON value per line, the shape of logs, events and API dumps) into **LFC-pack** (`.json.lfc`, magic `LFC1`): the rows are cut into blocks of about 21 MB, every field becomes its own typed column, repeated strings are stored once, and each column is compressed with zstd. A footer at the end lists the blocks and the smallest and largest number of each column, so a reader can skip blocks without opening them. Reading gives back the same row objects `JSON.parse` would, and with `exact: true` the very same bytes. **One file, no dependencies, WebAssembly required** (zstd and the tokenizer are compiled to wasm32; a page needs `'wasm-unsafe-eval'` in its policy and nothing else).
+
+Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
+
+## Why it exists
+JSON is what data arrives as, and it is a poor thing to keep: every key is spelled out on every row, every number is text, and a 757 MB file takes seconds of `JSON.parse` before a page can show anything. Parquet fixes the size but wants a table with a fixed schema and a heavy reader. LFC-pack keeps JSON's freedom (missing fields, nested objects, arrays, mixed types per field) and still stores each field as a column. Two rules drive it: the file must be smaller than the best Parquet file for the same rows, and reading it into JavaScript objects must be at least as fast as `JSON.parse` of the original.
+
+## Use
+
+```html
+<script src="lfc-pack.js"></script>
+<script>
+  LfcPack.init().then(function () {                    // loads the wasm once (init({ readOnly: true }) if you only read)
+    var file = LfcPack.pack(ndjsonText);               // string, Uint8Array or Buffer -> Uint8Array (the .json.lfc bytes)
+    var rows = LfcPack.unpack(file);                   // array of row objects, same values as JSON.parse of each line
+    LfcPack.info(file);                                // { rows, blocks, size, major, minor }
+  });
+</script>
+```
+
+Options for `pack(input, options)`:
+
+| Option | Meaning |
+|---|---|
+| `exact: true` | the byte-exact switch: `unpackText(file)` returns the input bytes unchanged (spacing, key order, escapes, `1.0` spelled as written, CRLF, blank lines, invalid UTF-8). Costs size: rows whose text is not the canonical form keep their original line. Default is value-exact (same values, keys in first-seen order). |
+| `level: 19` | the archive setting: slower to write (about 15x), about 12% smaller. Default is 3. |
+| `block: 'nested' \| 'flat'` | force one layout. Default: each block is written as nested columns and, when it could win, as flat columns too, and the smaller one is kept. |
+| `blockBytes` | block size, default 21 MB. |
+| `templates: false` | switch the automatic log templates off. |
+
+Reading:
+
+```js
+LfcPack.unpack(file, { keys: ['ts', 'status'] });                         // only these keys (flat blocks never decode the others)
+LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } });   // rows whose number is in range; blocks outside it are not opened
+LfcPack.unpackText(file);                                                 // Uint8Array of NDJSON text (exact if packed with exact: true)
+LfcPack.pool({ workers: 3 }).then(function (pool) {                       // helper Web Workers do the byte work; rows are built on the calling thread
+  return pool.unpack(file).then(function (rows) { pool.close(); return rows; });   // same options as unpack
+});
+```
+
+Row objects in, row objects out (no NDJSON text), and whole documents made of several tables plus plain values (a map with nodes, links, states and view settings):
+
+```js
+var bytes = LfcPack.packRows([{ id: 1, name: 'a' }, { id: 2 }]);        // array of objects -> file bytes
+var rows = LfcPack.unpack(bytes);                                       // the same rows back
+var file = LfcPack.packTables({ nodes: nodes, links: links, states: states, view: { zoom: 2.5 }, title: 'My map' });   // arrays become tables, other values are kept as they are
+var map = LfcPack.unpackTables(file);                                   // { nodes, links, states, view, title }, value-exact (JSON values only: -0 becomes 0, undefined and NaN are lost, as with JSON.stringify)
+LfcPack.unpackTables(file, { keys: ['id'] });                           // same options as unpack, per table
+```
+
+Works under a page policy of `script-src 'wasm-unsafe-eval'` and `worker-src blob:` only: no `eval`, no `new Function`, no remote scripts (the helper workers start from a blob made of this file).
+
+Python (needs `pip install zstandard`, or Python 3.14): `python/lfc_pack.py` gives `read(path)`, `read_tables(path)`, `read_text(path)` and `info(path)`, with the same values.
+
+## How it works
+- **Nested blocks** (any JSON): each row is split into a *shape* (its keys, nesting and value kinds) and its values. Rows with the same shape share one entry. Strings of the block go into one dictionary (each distinct string once, rows hold small codes); numbers and booleans go into one column per path (`.actor.id`, `.payload.commits[].sha`), stored at the narrowest width that holds every value (8, 16, 32 bits or a 64-bit float). A WebAssembly tokenizer does the splitting and the dictionary.
+- **Flat blocks** (every row an object): one column per key plus one presence bit per row and key, so missing keys cost almost nothing. Columns pick their own coding: delta or zig-zag varints (also for numbers with two decimals), bit-packed offsets, floats, booleans as bits, hex ids and UUIDs as raw bytes, IPv4 as four bytes, a block dictionary, plain strings, or JSON text for anything else. A string column that looks like log lines (long, mostly unique) is also tried as **log templates**: runs of digits and long hex numbers become slots, the rest becomes a template list, and the writer keeps it only when that is at least 5% smaller.
+- **Footer**: the block table (offset, length, CRC32, rows, layout), per-block number ranges, flags and an optional raw-line store, itself zstd-compressed, then a 16-byte trailer (footer length, footer CRC32, version, `LFC1`). A reader fetches the last 16 bytes, then the footer, then only the blocks it needs. Unknown optional footer sections are skipped; an unknown *required* one is refused.
+- **Worker pool**: a helper does CRC32, zstd and the number columns for a block and sends typed arrays back (transferred, not copied); strings and row objects are made on the calling thread because objects cannot cross threads cheaply.
+
+## How it compares
+Sizes are exact byte counts, the same everywhere. Parquet numbers are from the project's research runs (pyarrow, zstd level 3 unless stated), see `columns-v2` in the LFC-pack research folder.
+
+| Data | Input | lfc-pack 0.1.0 | Parquet |
+|---|---|---|---|
+| FHIR resources (Synthea), first 21 MB, 11,448 rows | 20,972,170 | **620,636** | 1,467,703 (zstd 3) |
+| same, 260 MB, 140,468 rows | 259,998,467 | **7,708,261** | not measured here |
+| same, 757 MB, 409,973 rows, 35 blocks | 757,639,905 | **22,637,152** | 45,140,567 (zstd 3); 38,106,898 (zstd 19, 1M-row groups, dictionary) |
+| Made-up web logs, 20,000 rows | 2,305,577 | **262,039** | 343,535 (zstd 19, research set) |
+| LogHub HDFS 2k lines as `{"msg": line}` | 309,848 | **37,579** (31% less with templates) | not measured here |
+
+`exact: true` costs size: the 21 MB FHIR file is 727,040 bytes (about 800 rows are spelled `0.0`).
+
+Speed: the browser check `tests/lfc-pack-browser.js` prints pack time, unpack time and `JSON.parse` time for the same rows, and with `FILE=...` the 1, 2, 4 and all-helper times for a real file. The numbers published for a release must come from a run that passes the noise guard; this version has not had one yet, so none are quoted. Round trips pass in all three test browsers.
+
+## Limits
+- WebAssembly is required; there is no plain-JavaScript fallback for zstd.
+- Input is NDJSON, one value per line. Blank lines and `\r` are dropped in value mode (kept in `exact` mode). Lines that are not valid JSON make `pack` throw.
+- Value mode returns the values `JSON.parse` returns: numbers are doubles (9007199254740993 comes back as 9007199254740992), `1.0` comes back as `1`, `-0` stays `-0`, duplicate keys keep the last value, object keys come back in first-seen order per block (integer-like keys first, as in any JavaScript object).
+- Memory: the writer's wasm instance reserves about 400 MB of address space (not all touched) for a 21 MB block; shrinking this is planned. Blocks are capped at 48 MB, 4 million numbers and 262,144 rows; a block that exceeds the caps is split.
+- Rows are objects; a file of bare numbers or arrays works (nested layout) but gains little.
+- **The format is not frozen until a formal release**: files written by 0.x versions may not open in later ones.
+- Not built yet: the number-spelling section (smaller `exact` files), a streaming reader, the SQL subset, Parquet and CSV converters, and a command-line tool.
+
+## Prior art and credits
+Zstandard (Yann Collet and Meta Platforms, BSD-3-Clause) does the compression; the library is compiled unchanged by `wasm/build.sh` (see [NOTICE-zstd.txt](NOTICE-zstd.txt)). The ideas of columns plus a footer with per-block statistics come from Apache Parquet and ORC; the shape-plus-columns split for nested data follows the "shredding" of Dremel (Melnik et al., Google, 2010) and the Parquet and Arrow nesting rules, with a simpler path-hash column naming. Log templates follow the log-parsing line of work (Drain, He et al. 2017; LogHub samples by the Logpai group were used for tests). The code here is written from scratch for this repository.
+
+## For AI agents
+Load `lfc-pack.js` (global `LfcPack`) or `require` it; call `init()` first and wait for it. Pack once with `pack(text)` and keep the `Uint8Array`. Read with `unpack(file, { keys, range })` when you need a few fields or a time slice (blocks outside the range are never decoded), and with `pool()` for files over a few blocks. Use `exact: true` only when the original bytes must come back. The sources are `src/*.js` joined by `build.py`; the wasm sources are in `wasm/` (`build.sh` for zstd, `build-core.sh` for the tokenizer and string dictionary); `python/lfc_pack.py` reads files in Python. Run `node test/roundtrip.cjs`, `node test/exact.cjs`, `node test/query.cjs`, `node test/pool.cjs` and `python3 -I test/pyread.py <file.lfc>=<source.ndjson>` after any change.

@@ -361,6 +361,20 @@
       "category": "efficiency"
     },
     {
+      "id": "lfc-pack",
+      "version": "0.1.0",
+      "api": 0,
+      "global": "LfcPack",
+      "summary": "Packs newline-delimited JSON (logs, events, API dumps) into LFC-pack (.json.lfc): every field becomes a typed column inside zstd blocks, with a footer of per-block number ranges. Reads back the same rows as JSON.parse (or the exact original bytes), only some keys, or only a time range, with helper workers for big files. WebAssembly is required; a Python reader is included.",
+      "short": "Packs NDJSON into small column files and reads the rows back, exactly if you ask.",
+      "file": "modules/lfc-pack/lfc-pack.js",
+      "readme": "modules/lfc-pack/README.md",
+      "demo": "modules/lfc-pack/demo.html",
+      "dependencies": "none (needs WebAssembly)",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "efficiency"
+    },
+    {
       "id": "pcodec-js",
       "version": "1.6.0",
       "api": 1,
