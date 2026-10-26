@@ -230,7 +230,7 @@ void pef_decode_range(const u8 *b, u32 a, u32 e, u32 *out) {
 // ---- intersection of sorted lists (since 1.3.0): leapfrog over nextGEQ, no list is decoded ----
 // h: k pairs {pointer to the blob, kind} (kind 0 flat Elias-Fano, 1 partitioned), the shortest list first. Writes each common value once into out (room for the shortest list's length) and returns how many.
 static inline u32 lenOf(const u8 *b) { return rd32(b, 4); }
-u32 ef_intersect(const u32 *h, u32 k, u32 *out) {
+static u32 leapfrog(const u32 *h, u32 k, u32 *out) {
   u32 o = 0, i, hint[64];
   if (k > 64) return 0;
   for (i = 0; i < 64; i++) hint[i] = 0;
@@ -249,4 +249,68 @@ u32 ef_intersect(const u32 *h, u32 k, u32 *out) {
     }
     if (agree) { out[o++] = cand; if (cand == 0xffffffffu) return o; cand++; }
   }
+}
+
+// ---- two lists of similar size: decode a block of the shorter one, find the matching stretch of the longer one with two nextGEQ, decode that and merge the two small buffers ----
+#define BLK 256
+#define BBLK 512
+// values a .. a+cnt-1 of a flat list into out
+static void efRange(const u8 *b, u32 a, u32 cnt, u32 *out) {
+  OPEN(b)
+  if (cnt == 0) return;
+  u32 pos = select1(H, s1, s, a), w = pos >> 6, i = a, e = a + cnt;
+  u64 x = H[w] & (~0ULL << (pos & 63));
+  while (i < e) {
+    while (!x) x = H[++w];
+    u32 bit = CTZ(x), hh = (w * 64 + bit) - i;
+    out[i - a] = (u32)(((u64)hh << l) | lowAt(low, l, i)); i++; x &= x - 1;
+  }
+}
+static void rangeOf(const u8 *b, u32 kind, u32 a, u32 cnt, u32 *out) { if (kind == 0) efRange(b, a, cnt, out); else pef_decode_range(b, a, a + cnt, out); }
+static u32 nextOf(const u8 *b, u32 kind, u32 x) { return kind == 0 ? nextOne(b, x) : pef_next(b, x); }
+// two lists, a the shorter; writes the distinct common values to out, returns how many
+static u32 mergePair(const u8 *a, u32 ka, const u8 *b, u32 kb, u32 *out) {
+  u32 na = lenOf(a), nb = lenOf(b), o = 0, ia = 0, jb = 0, bufA[BLK], bufB[BBLK];
+  int have = 0; u32 lastOut = 0;
+  while (ia < na && jb < nb) {
+    u32 ca = na - ia < BLK ? na - ia : BLK;
+    rangeOf(a, ka, ia, ca, bufA);
+    u32 lo = bufA[0], hi = bufA[ca - 1];
+    u32 from = nextOf(b, kb, lo); if (from < jb) from = jb;
+    u32 to = hi == 0xffffffffu ? nb : nextOf(b, kb, hi + 1);
+    while (from < to) {
+      u32 cb = to - from < BBLK ? to - from : BBLK;
+      rangeOf(b, kb, from, cb, bufB);
+      u32 i = 0, j = 0;
+      while (i < ca && j < cb) {
+        u32 x = bufA[i], y = bufB[j];
+        if (x < y) i++; else if (y < x) j++;
+        else { if (!have || x != lastOut) { out[o++] = x; lastOut = x; have = 1; } i++; j++; }
+      }
+      from += cb;
+    }
+    if (to > jb) jb = to;
+    ia += ca;
+  }
+  return o;
+}
+u32 ef_intersect(const u32 *h, u32 k, u32 *out) {
+  if (k < 2) return leapfrog(h, k, out);
+  const u8 *a = (const u8 *)h[0], *b = (const u8 *)h[2];
+  u32 na = lenOf(a), nb = lenOf(b);
+  if (na == 0 || nb == 0) return 0;
+  if ((u64)nb < 32ULL * na) {
+    u32 m = mergePair(a, h[1], b, h[3], out);
+    for (u32 i = 2; i < k && m; i++) {   // the few that are left: keep those the other lists have too
+      const u8 *c = (const u8 *)h[2 * i]; u32 kc = h[2 * i + 1], lenc = lenOf(c), keep = 0, hint = 0, v;
+      for (u32 t = 0; t < m; t++) {
+        u32 j = kc == 0 ? nextOneV(c, out[t], &v) : pefNextV(c, out[t], &v, &hint);
+        if (j >= lenc) break;
+        if (v == out[t]) out[keep++] = v;
+      }
+      m = keep;
+    }
+    return m;
+  }
+  return leapfrog(h, k, out);
 }
