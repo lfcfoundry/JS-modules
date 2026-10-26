@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-10-25
+- New optional file netflow-scene-index.js: on maps of 100,000+ items, box selects and picks read a sorted Z-order index (Elias-Fano): small boxes about 150x faster, picks 3 to 4x. Nothing changes under 100,000 items.
+
 ## 1.2.0 · API 1 · 2026-10-25
 - Optional look-settings file: one small object says how a map is colored and set in type.
 
