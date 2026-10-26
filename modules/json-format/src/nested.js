@@ -47,6 +47,19 @@
   function parseBlockHeader(bytes) {
     var hl = rd32(bytes, 0); return { h: JSON.parse(td.decode(bytes.subarray(4, 4 + hl))), p: 4 + hl };
   }
+  // the byte work of reading a block (zstd and parsing the small tables); also what a helper worker runs. Everything returned owns its buffer, so it can be transferred.
+  function nestedFrames(zs, bytes) {
+    var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i;
+    function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
+    var cmeta = JSON.parse(td.decode(zs.decompressView(take(h.cm[1]), h.cm[0])));
+    var dict = zs.decompress(take(h.p[0]), h.len[0]);
+    var side = JSON.parse(td.decode(zs.decompressView(take(h.p[1]), h.len[1])));
+    var skel = td.decode(zs.decompressView(take(h.p[2]), h.len[2]));
+    var ids = [h.ids[0], h.ids[1], zs.decompress(take(h.ids[2]), h.ids[1] * KIND[h.ids[0]].BYTES_PER_ELEMENT)], cols = [];
+    for (i = 0; i < cmeta.length; i++) { var cd = cmeta[i]; cols.push([cd[0], cd[1], cd[2], zs.decompress(take(cd[3]), cd[2] * KIND[cd[1]].BYTES_PER_ELEMENT)]); }
+    return { t: 'n', n: h.n, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
+  }
+  function nestedTransfer(F) { var t = [F.dict.buffer, F.ids[2].buffer], i; for (i = 0; i < F.cols.length; i++) t.push(F.cols[i][3].buffer); return t; }
   function makeNestedReader(zs) {
     var STRS = null, TI = 0, COLS = new Map(), PLAN = new Map();
     function col(h) { var c = COLS.get(h); if (!c) { c = { h: h, a: null, i: 0 }; COLS.set(h, c); } return c; }
@@ -81,21 +94,12 @@
       if (t === 5) return JSON.parse(STRS[TI++]);
       var sb = p.subs, m = sb.length, arr = new Array(m); for (i = 0; i < m; i++) arr[i] = build(sb[i]); return arr;
     }
-    // decode the frames of one block: { n, ids, skel, cols (Map hash -> typed array), strings (expanded: one per string slot) }
-    function openBlock(bytes) {
-      var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i;
-      function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
-      var cmeta = JSON.parse(td.decode(zs.decompressView(take(h.cm[1]), h.cm[0])));
-      var D = tlat.decode(zs.decompressView(take(h.p[0]), h.len[0])).split('\0');
-      var sd = JSON.parse(td.decode(zs.decompressView(take(h.p[1]), h.len[1])));
+    // assemble one block from its decompressed frames (nestedFrames): the dictionary strings and column arrays the row builder reads
+    function openBlock(F) {
+      var D = tlat.decode(F.dict).split('\0'), sd = F.side, i, cols = new Map();
       for (i = 0; i < sd.idx.length; i++) D[sd.idx[i]] = sd.str[i];
-      var skel = td.decode(zs.decompressView(take(h.p[2]), h.len[2])).split('\n');
-      function column(kind, count, plen) {
-        var w = KIND[kind].BYTES_PER_ELEMENT, raw = zs.decompress(take(plen), count * w); return new KIND[kind](raw.buffer, 0, count);
-      }
-      var ids = column(h.ids[0], h.ids[1], h.ids[2]), cols = new Map();
-      for (i = 0; i < cmeta.length; i++) { var cd = cmeta[i]; cols.set(cd[0], column(cd[1], cd[2], cd[3])); }
-      return { n: h.n, ids: ids, skel: skel, cols: cols, dict: D, codes: cols.get(CODES_KEY) };
+      for (i = 0; i < F.cols.length; i++) { var cd = F.cols[i]; cols.set(cd[0], new KIND[cd[1]](cd[3].buffer, cd[3].byteOffset, cd[2])); }
+      return { n: F.n, ids: new KIND[F.ids[0]](F.ids[2].buffer, F.ids[2].byteOffset, F.ids[1]), skel: F.skel.split('\n'), cols: cols, dict: D, codes: cols.get(CODES_KEY) };
     }
     function rowsOf(b) {
       var D = b.dict, cd = b.codes, n = cd ? cd.length : 0, E = new Array(n), i;
@@ -108,5 +112,5 @@
       for (i = 0; i < b.n; i++) out[i] = build(fnById[ids[i]]);
       return out;
     }
-    return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes) { return rowsOf(openBlock(bytes)); } };
+    return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes) { return rowsOf(openBlock(nestedFrames(zs, bytes))); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
   }

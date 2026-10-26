@@ -174,21 +174,34 @@
     var hdr = te.encode(JSON.stringify({ k: 'f', n: n, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
     return { bytes: concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), rows: n, zone: zone, kind: 'f' };
   }
+  // the byte work of reading a flat block: zstd for every wanted column, and (predecode, in helper workers) the number columns turned into Float64Arrays
+  function flatFrames(zs, bytes, want, predecode) {
+    var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j;
+    function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
+    var meta = JSON.parse(td.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
+    if (meta.ord) { var om = meta.ord; ordList = JSON.parse(td.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, 0, n); }
+    for (j = 0; j < K; j++) {
+      var c = meta.cols[j], fr = [], wanted = !want || Object.prototype.hasOwnProperty.call(want, meta.keys[j]);
+      for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (wanted) fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
+      cols[j] = !wanted ? null : (predecode && (c.t === 'V' || c.t === 'B' || c.t === 'F')) ? { pre: decodeColumn(c, zs, fr) } : { fr: fr };
+    }
+    return { t: 'f', n: n, meta: meta, pl: pl, ordList: ordList, ordIds: ordIds, cols: cols };
+  }
+  function flatTransfer(F) {
+    var t = [F.pl.buffer], i, c, q; if (F.ordIds) t.push(F.ordIds.buffer);
+    for (i = 0; i < F.cols.length; i++) { c = F.cols[i]; if (!c) continue; if (c.pre) t.push(c.pre.buffer); else for (q = 0; q < c.fr.length; q++) t.push(c.fr[q].buffer); }
+    return t;
+  }
   function makeFlatReader(zs) {
-    function readBlock(bytes, want) {   // want: null, or an object whose own keys are the only keys to decode
-      var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j;
-      function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
-      var meta = JSON.parse(td.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, vals = new Array(K), ordList = null, ordIds = null;
-      if (meta.ord) { var om = meta.ord; ordList = JSON.parse(td.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, 0, n); }
-      for (j = 0; j < K; j++) {
-        var c = meta.cols[j], fr = [], wanted = !want || Object.prototype.hasOwnProperty.call(want, meta.keys[j]);
-        for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (wanted) fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
-        vals[j] = wanted ? decodeColumn(c, zs, fr) : null;
-      }
+    // assemble rows from the decompressed frames of flatFrames; want: null, or an object whose own keys are the only keys to decode
+    function assemble(F, want) {
+      var meta = F.meta, n = F.n, K = meta.keys.length, vals = new Array(K), pl = F.pl, ordList = F.ordList, ordIds = F.ordIds, i, j;
+      for (j = 0; j < K; j++) vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr);
       var pb = (n + 7) >> 3, ptr = new Int32Array(K), out = new Array(n), keys = meta.keys, o, hasProto = keys.indexOf('__proto__') >= 0;
       if (ordList) { for (i = 0; i < n; i++) { var sq2 = ordList[ordIds[i]], m2 = sq2.length; o = {}; for (j = 0; j < m2; j++) { var kk = sq2[j]; if (!vals[kk]) continue; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i] = o; } return out; }
       for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) if (vals[j] && ((pl[j * pb + (i >> 3)] >> (i & 7)) & 1)) { if (hasProto) setKey(o, keys[j], vals[j][ptr[j]++]); else o[keys[j]] = vals[j][ptr[j]++]; } out[i] = o; }
       return out;
     }
-    return { readBlock: readBlock };
+    function readBlock(bytes, want) { return assemble(flatFrames(zs, bytes, want, false), want); }
+    return { readBlock: readBlock, assemble: assemble };
   }

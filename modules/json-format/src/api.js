@@ -137,6 +137,4 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.0', apiVersion: 0 };
-  return api;
-});
+  var api = { pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.0', apiVersion: 0 };
