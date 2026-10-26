@@ -50,6 +50,8 @@ var steps = [
   ['speed-lab', 'node', ['tools/speed-lab/test/run.js']],
   ['gif-writer', 'node', ['modules/gif-writer/test/run.js']],
   ['clip-writer', 'node', ['modules/clip-writer/test/run.js']],
+  ['elias-fano', 'node', ['modules/elias-fano/test/run.js']],
+  ['elias-fano random lists', 'node', ['modules/elias-fano/test/fuzz.js']],
   ['gif-writer filters', 'node', ['modules/gif-writer/test/fx.js']],
   ['gif-writer filters, WebAssembly twin', 'node', ['modules/gif-writer/test/fx-wasm.js']],
   ['zip-open', 'node', ['modules/zip-open/test/run.js']],
