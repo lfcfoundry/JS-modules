@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Node 22 (look settings 23 checks); Firefox 158, Chromium 155, WebKitGTK 2.52.6 (page check: look registers, same name for the same look)
+**Tested in:** Node 22 index test; Firefox 158, Chromium 155, WebKitGTK 2.52.6 with the noise guard (one Firefox try was noisy and rerun)
 
 Turns a map laid out by [netflow-engine](../netflow-engine/README.md) into plain drawing lists (dots, links, labels, ribbons, shapes, a legend) that Canvas 2D, WebGL2, WebGPU or an SVG export can all draw the same way. It decides colors, widths, dashes, arrows, which labels fit and what a click would hit; it never touches a page. Big flat maps (2,000 or more straight links) keep their links in typed lists instead of one object per link, and a map rebuilt only because items moved or labels changed reuses each link's look from the last picture.
 
@@ -40,6 +40,27 @@ A flat map of 2,000 or more links is built straight into typed lists, also with 
 | `packNow()`, `autoPack(opts)` | Pack the links now, or after a pause. |
 
 Values in the lists are 32-bit.
+
+## Position index for big maps (since 1.3.0; optional file)
+`netflow-scene-index.js` (global `NetflowSceneIndex`, needs [elias-fano](../elias-fano/README.md) 1.0.0 or newer) is an optional companion for maps of 100,000 items or more (up to 1,048,576). Pass it as `spatial` and the scene keeps the sorted Z-order (Morton) codes of the item centers as Elias-Fano instead of the pick grid; `NetflowScene.pick` and `NetflowScene.inRect` then read a few short stretches of that list. Under 100,000 items nothing changes (the grid wins there), and boxes bigger than 10% of the picture's area still use the plain scan.
+
+```js
+var S = NetflowScene.make(L, { theme: 'light', spatial: NetflowSceneIndex });   // S.spatial is null on small maps
+```
+
+`inRect` gives the same keys in the same order as before; `pick` gives the same item except when two overlapping boxes share the very same paint order number. After items move, the index is rebuilt together with the grid it replaces.
+
+1,000,000 items (Firefox 158 / Chromium 155 / WebKitGTK 2.52.6, ms; test `tests/netflow-scene-index-browser.js`):
+
+| Job | Today (grid, scan) | With the index |
+|---|---|---|
+| Build | 115 / 81 / 126 | 135 / 62 / 76 |
+| 3,000 picks | 76 / 51 / 49 | 18 / 16 / 19 |
+| 20 small box selects (2% side) | 398 / 596 / 391 | 2 / 3 / 3 |
+| 20 mid box selects (10% side) | 424 / 584 / 395 | 48 / 65 / 100 |
+| 20 big box selects (40% side) | 562 / 648 / 604 | scan used: 588 / 621 / 603 |
+
+Memory: 1.8 MB of codes plus a 4 MB item order, against about 1.25 million grid entries.
 
 ## Look settings (since 1.2.0; optional file)
 `netflow-scene-look.js` (global `NetflowSceneLook`) is an optional companion. One small object says how a map is colored and set in type: `{ base: 'auto'|'light'|'dark', slots: { bg: '#hex', ... }, groups: [12 colors or ''], ramp: [2 to 6 colors], font, nodeScale: 0.4..3 }`. `clean()` makes any outside object (saved text, a shared view, an imported file) safe; `resolve()` lays it over a scene theme; `register(NetflowScene, look, 'light')` puts the result into this module's exported, mutable `THEMES`, `PALETTES` and `RAMPS` under a name made from a hash of the look and returns `{ theme, palette, ramp }` to pass to `make()`, so `netflow-scene.js` itself needs no change to use it. It also holds 12 `PRESETS` and `warnings()` (text contrast under 4.5, link contrast under 2). No DOM, no storage: runs in a page, a worker and Node (`node modules/netflow-scene/test/look.js`, 23 checks).
