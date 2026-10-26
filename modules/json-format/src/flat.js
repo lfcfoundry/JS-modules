@@ -175,19 +175,19 @@
     return { bytes: concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), rows: n, zone: zone, kind: 'f' };
   }
   function makeFlatReader(zs) {
-    function readBlock(bytes) {
+    function readBlock(bytes, want) {   // want: null, or an object whose own keys are the only keys to decode
       var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j;
       function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
       var meta = JSON.parse(td.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, vals = new Array(K), ordList = null, ordIds = null;
       if (meta.ord) { var om = meta.ord; ordList = JSON.parse(td.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, 0, n); }
       for (j = 0; j < K; j++) {
-        var c = meta.cols[j], fr = [];
-        for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
-        vals[j] = decodeColumn(c, zs, fr);
+        var c = meta.cols[j], fr = [], wanted = !want || Object.prototype.hasOwnProperty.call(want, meta.keys[j]);
+        for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (wanted) fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
+        vals[j] = wanted ? decodeColumn(c, zs, fr) : null;
       }
       var pb = (n + 7) >> 3, ptr = new Int32Array(K), out = new Array(n), keys = meta.keys, o, hasProto = keys.indexOf('__proto__') >= 0;
-      if (ordList) { for (i = 0; i < n; i++) { var sq2 = ordList[ordIds[i]], m2 = sq2.length; o = {}; for (j = 0; j < m2; j++) { var kk = sq2[j]; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i] = o; } return out; }
-      for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) if ((pl[j * pb + (i >> 3)] >> (i & 7)) & 1) { if (hasProto) setKey(o, keys[j], vals[j][ptr[j]++]); else o[keys[j]] = vals[j][ptr[j]++]; } out[i] = o; }
+      if (ordList) { for (i = 0; i < n; i++) { var sq2 = ordList[ordIds[i]], m2 = sq2.length; o = {}; for (j = 0; j < m2; j++) { var kk = sq2[j]; if (!vals[kk]) continue; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i] = o; } return out; }
+      for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) if (vals[j] && ((pl[j * pb + (i >> 3)] >> (i & 7)) & 1)) { if (hasProto) setKey(o, keys[j], vals[j][ptr[j]++]); else o[keys[j]] = vals[j][ptr[j]++]; } out[i] = o; }
       return out;
     }
     return { readBlock: readBlock };

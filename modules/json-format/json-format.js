@@ -472,19 +472,19 @@
     return { bytes: concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), rows: n, zone: zone, kind: 'f' };
   }
   function makeFlatReader(zs) {
-    function readBlock(bytes) {
+    function readBlock(bytes, want) {   // want: null, or an object whose own keys are the only keys to decode
       var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j;
       function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
       var meta = JSON.parse(td.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, vals = new Array(K), ordList = null, ordIds = null;
       if (meta.ord) { var om = meta.ord; ordList = JSON.parse(td.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, 0, n); }
       for (j = 0; j < K; j++) {
-        var c = meta.cols[j], fr = [];
-        for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
-        vals[j] = decodeColumn(c, zs, fr);
+        var c = meta.cols[j], fr = [], wanted = !want || Object.prototype.hasOwnProperty.call(want, meta.keys[j]);
+        for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (wanted) fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
+        vals[j] = wanted ? decodeColumn(c, zs, fr) : null;
       }
       var pb = (n + 7) >> 3, ptr = new Int32Array(K), out = new Array(n), keys = meta.keys, o, hasProto = keys.indexOf('__proto__') >= 0;
-      if (ordList) { for (i = 0; i < n; i++) { var sq2 = ordList[ordIds[i]], m2 = sq2.length; o = {}; for (j = 0; j < m2; j++) { var kk = sq2[j]; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i] = o; } return out; }
-      for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) if ((pl[j * pb + (i >> 3)] >> (i & 7)) & 1) { if (hasProto) setKey(o, keys[j], vals[j][ptr[j]++]); else o[keys[j]] = vals[j][ptr[j]++]; } out[i] = o; }
+      if (ordList) { for (i = 0; i < n; i++) { var sq2 = ordList[ordIds[i]], m2 = sq2.length; o = {}; for (j = 0; j < m2; j++) { var kk = sq2[j]; if (!vals[kk]) continue; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i] = o; } return out; }
+      for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) if (vals[j] && ((pl[j * pb + (i >> 3)] >> (i & 7)) & 1)) { if (hasProto) setKey(o, keys[j], vals[j][ptr[j]++]); else o[keys[j]] = vals[j][ptr[j]++]; } out[i] = o; }
       return out;
     }
     return { readBlock: readBlock };
@@ -617,9 +617,41 @@
     return x;
   }
   function rawRows(t) { return td.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
-  function unpack(bytes) {   // -> array of row objects
+  // zone maps: a block is skipped when the number column for opts.range.key has no value inside [min, max]
+  function blockMayMatch(file, i, range) {
+    if (!range || !file.zone || !file.zone[i]) return true;
+    var h = fnvStr('.' + range.key), z = file.zone[i], q;
+    for (q = 0; q < z.length; q++) if (z[q][0] === h) return !(z[q][2] < range.min || z[q][1] > range.max);
+    return true;
+  }
+  function keepRows(rows, range) {
+    if (!range) return rows;
+    var out = [], i, v; for (i = 0; i < rows.length; i++) { v = rows[i][range.key]; if (typeof v === 'number' && v >= range.min && v <= range.max) out.push(rows[i]); }
+    return out;
+  }
+  function projectRows(rows, want) {
+    var out = new Array(rows.length), i, k, o; for (i = 0; i < rows.length; i++) { o = {}; for (k in want) if (Object.prototype.hasOwnProperty.call(rows[i], k)) setKey(o, k, rows[i][k]); out[i] = o; }
+    return out;
+  }
+  // unpack(bytes, { keys: ['ts', 'ms'], range: { key: 'ts', min: 10, max: 20 } }): only those keys, only rows whose number is in range; blocks outside the range are never decoded
+  function unpack(bytes, opts) {   // -> array of row objects
+    if (opts) return unpackSome(bytes, opts);
     var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, r, j, kd;
     for (i = 0; i < file.blocks.length; i++) { kd = file.blocks[i][4]; r = kd === 'r' ? rawRows(readRawBlock(S.zdec, blockBytes(file, i))) : (kd === 'f' ? rf : rn).readBlock(blockBytes(file, i)); for (j = 0; j < r.length; j++) out.push(r[j]); }
+    return out;
+  }
+  function unpackSome(bytes, opts) {
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, j, r, kd, want = null, range = opts.range || null;
+    if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; if (range) want[range.key] = 1; }
+    for (i = 0; i < file.blocks.length; i++) {
+      if (!blockMayMatch(file, i, range)) continue;
+      kd = file.blocks[i][4];
+      if (kd === 'r') r = rawRows(readRawBlock(S.zdec, blockBytes(file, i))); else if (kd === 'f') r = rf.readBlock(blockBytes(file, i), want); else r = rn.readBlock(blockBytes(file, i));
+      if (want && kd !== 'f') r = projectRows(r, want);
+      r = keepRows(r, range);
+      if (opts.keys && range && opts.keys.indexOf(range.key) < 0) r = projectRows(r, (function () { var w = {}; opts.keys.forEach(function (k) { w[k] = 1; }); return w; })());
+      for (j = 0; j < r.length; j++) out.push(r[j]);
+    }
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
