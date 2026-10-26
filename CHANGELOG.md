@@ -26,7 +26,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
-| [gif-writer](modules/gif-writer/README.md) | 1.4.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
+| [gif-writer](modules/gif-writer/README.md) | 1.5.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.6.4 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.0.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
@@ -56,6 +56,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-10-25 · **test-runner** 1.3.0 · API 1: Noise guard: a fixed calibration loop that stops timings on a noisy machine.
 - 2026-10-25 · **image-decode** 1.2.1 · API 1: Image decoding now frees its temporary address if the browser throws immediately.
+- 2026-10-25 · **gif-writer** 1.5.0 · API 1: Optional picture filters, animation timing, a worker and a size tolerance, cut from Netflow Map.
 - 2026-10-25 · **elias-fano** 1.0.0 · API 1: New module: sorted number lists packed small and searched without unpacking.
 - 2026-10-24 · **webkit-driver** 1.4.1 · API 1: README says GNOME Web is no longer a test browser; the option still works. No code change.
 - 2026-10-24 · **walker-sim** 2.4.0 · API 2: sweep and exactEndpoints now run their rounds in a second 1 KB WebAssembly program in the default file: what-if sweeps are about 40% (Chromium) and 60% (Firefox) faster, the same numbers to the last digit. New hook WalkerSim.useSweepKernel.
