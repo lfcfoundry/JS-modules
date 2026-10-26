@@ -39,6 +39,8 @@ let sd = 1; for (const kind of ['dense', 'sparse', 'dups', 'clustered', 'full', 
       for (const i of idx) { ok(L.get(i) === a[i], name + ' [' + be + '] get ' + i); queries++; }
       const gm = L.getMany(Uint32Array.from(idx)); ok(idx.every((i, j) => gm[j] === a[i]), name + ' [' + be + '] getMany');
       for (const x of probes) { ok(L.nextGEQ(x) === lb(a, x), name + ' [' + be + '] nextGEQ ' + x + ': ' + L.nextGEQ(x) + ' vs ' + lb(a, x)); queries++; }
+      for (const x of probes.slice(0, 120)) { const want = a.filter((v) => v <= x).length; ok(L.rank(x) === want, name + ' [' + be + '] rank ' + x); queries++; }
+      const rm = L.rankMany(Uint32Array.from(probes)); ok(probes.every((x, j) => rm[j] === a.reduce((c, v) => c + (v <= x ? 1 : 0), 0)), name + ' [' + be + '] rankMany');
       const nm = L.nextGEQMany(Uint32Array.from(probes)); ok(probes.every((x, j) => nm[j] === lb(a, x)), name + ' [' + be + '] nextGEQMany');
       if (a.length > 5) { const s = L.slice(2, a.length - 2); ok(s.length === a.length - 4 && s.every((v, i) => v === a[i + 2]), name + ' [' + be + '] slice'); }
       L.free();
