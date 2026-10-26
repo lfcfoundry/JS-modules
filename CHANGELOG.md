@@ -35,7 +35,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.5.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.1.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -56,6 +56,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-10-25 · **test-runner** 1.3.0 · API 1: Noise guard: a fixed calibration loop that stops timings on a noisy machine.
+- 2026-10-25 · **netflow-scene** 1.2.0 · API 1: Optional look-settings file: one small object says how a map is colored and set in type.
 - 2026-10-25 · **image-decode** 1.2.1 · API 1: Image decoding now frees its temporary address if the browser throws immediately.
 - 2026-10-25 · **gif-writer** 1.5.0 · API 1: Optional picture filters, animation timing, a worker and a size tolerance, cut from Netflow Map.
 - 2026-10-25 · **elias-fano** 1.0.0 · API 1: New module: sorted number lists packed small and searched without unpacking.

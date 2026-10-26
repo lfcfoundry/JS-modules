@@ -418,7 +418,7 @@
     },
     {
       "id": "netflow-scene",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "api": 1,
       "global": "NetflowScene",
       "summary": "Turns a Netflow Map layout into plain drawing lists (dots, links, labels, ribbons, shapes) that Canvas 2D, WebGL2, WebGPU or SVG can draw the same way; big flat maps keep links in typed lists and reuse link looks between pictures.",

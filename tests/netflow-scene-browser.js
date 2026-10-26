@@ -6,10 +6,10 @@
 'use strict';
 const fs = require('fs'), path = require('path'), T = require('../tools/test-runner/runner.js');
 const root = path.resolve(__dirname, '..') + '/modules/', rd = (f) => fs.readFileSync(root + f, 'utf8');
-const files = { '/engine.js': rd('netflow-engine/netflow-engine.js'), '/scene.js': rd('netflow-scene/netflow-scene.js'), '/fixture.js': 'window.bigNetwork=(function(){var module={};' + rd('netflow-scene/test/fixture.js') + ';return module.exports})();' };
+const files = { '/engine.js': rd('netflow-engine/netflow-engine.js'), '/scene.js': rd('netflow-scene/netflow-scene.js'), '/look.js': rd('netflow-scene/netflow-scene-look.js'), '/fixture.js': 'window.bigNetwork=(function(){var module={};' + rd('netflow-scene/test/fixture.js') + ';return module.exports})();' };
 T.main(async (b, which, outFile) => {
-  const srv = await T.serve({ '/engine.js': files['/engine.js'], '/scene.js': files['/scene.js'], '/fixture.js': files['/fixture.js'],
-    '/page.html': '<!doctype html><meta charset=utf-8><title>t</title><script src="/engine.js"></script><script src="/scene.js"></script><script src="/fixture.js"></script>' });
+  const srv = await T.serve({ '/engine.js': files['/engine.js'], '/scene.js': files['/scene.js'], '/look.js': files['/look.js'], '/fixture.js': files['/fixture.js'],
+    '/page.html': '<!doctype html><meta charset=utf-8><title>t</title><script src="/engine.js"></script><script src="/scene.js"></script><script src="/look.js"></script><script src="/fixture.js"></script>' });
   const p = await b.newPage(); await p.goto(srv.base + '/page.html');
   const r = await p.evaluate(() => {
     const out = []; const ok = (c, m) => { if (!c) throw new Error(m); };
@@ -27,7 +27,9 @@ T.main(async (b, which, outFile) => {
       const snap2 = (S) => S.curves.map((c) => JSON.stringify([c.P, c.w, c.color, c.arrow, c.line, c.tip, c.edge, c.from, c.to, c.dash || 0, c.a], (k, v) => typeof v === 'number' ? Math.fround(v) : v));
       const fr = SC.make(L, Object.assign({ linkStyle: rules, curve: 0.1 }, base)), orr = SC.make(L, Object.assign({ linkStyle: rules, curve: 0.1, flat: false }, base)); ok(fr.curvesPacked() && !orr.curvesPacked(), 'rules build is packed');
       const a2 = snap2(fr), b2 = snap2(orr); ok(a2.length === b2.length, 'rules count'); for (let i = 0; i < a2.length; i++) ok(a2[i] === b2[i], 'rules link ' + i + ' differs');
-      out.push('flat ' + n + ' links equal; look plan ' + base0 + ' looks then 0');
+      const K = NetflowSceneLook, lk = K.clean({ base: 'dark', slots: { bg: '#102030' }, nodeScale: 1.4 }), nm = K.register(SC, lk, 'light'), SL = SC.make(L, { theme: nm.theme, palette: nm.palette, ramp: nm.ramp });
+      ok(/^look:/.test(nm.theme) && SC.THEMES[nm.theme] && SC.THEMES[nm.theme].bg === '#102030' && SL.curveCount() === n, 'look settings register and build'); ok(K.register(SC, lk, 'light').theme === nm.theme, 'the same look gets the same name');
+      out.push('flat ' + n + ' links equal; look plan ' + base0 + ' looks then 0; look settings register');
     } catch (e) { out.push('FAIL ' + e.message); }
     return out;
   });
