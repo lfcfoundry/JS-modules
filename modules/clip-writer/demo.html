@@ -1,0 +1,50 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : clip-writer demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>clip-writer demo</title>
+<style>:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--line:#ccc}@media (prefers-color-scheme:dark){:root{--bg:#161616;--fg:#eee;--mut:#aaa;--line:#444}}
+body{font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:42rem;margin:0 auto;padding:1rem 16px}
+button{font:inherit;padding:.4rem .8rem;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}video{max-width:100%;display:block;margin:.8rem 0}.m{color:var(--mut)}</style></head><body>
+<h1>clip-writer</h1>
+<p class="m">Draws 50 pictures of a moving ball, turns them into a video with your browser's own encoder, and plays the result. Nothing leaves this page.</p>
+<p><button id="go">Make the clip</button></p><p id="info">Press the button.</p><video id="v" controls loop muted></video>
+<script src="clip-writer.js"></script>
+<script>
+document.getElementById('go').onclick = function () {
+  var W = 320, H = 180, N = 50, info = document.getElementById('info');
+  ClipWriter.support(W, H, 25).then(function (s) {
+    var format = s.webm ? 'webm' : s.mp4 ? 'mp4' : null;   // WebM first: Firefox plays its own MP4 at the wrong size if (!format) { info.textContent = 'This browser cannot encode video here.'; return; }
+    var wr = ClipWriter.createWriter({ w: W, h: H, fps: 25, format: format }), c = document.createElement('canvas'), x = c.getContext('2d'), t0 = performance.now(), chain = Promise.resolve();
+    c.width = W; c.height = H;
+    for (var k = 0; k < N; k++) (function (k) { chain = chain.then(function () {
+      x.fillStyle = '#123'; x.fillRect(0, 0, W, H); x.fillStyle = '#fc3'; x.beginPath(); x.arc(30 + (W - 60) * Math.abs(Math.sin(k / N * Math.PI * 2)), H / 2 + 40 * Math.sin(k / 4), 22, 0, 7); x.fill();
+      return wr.add(x.getImageData(0, 0, W, H).data.buffer, 40); }); })(k);
+    return chain.then(function () { return wr.finish(); }).then(function (bytes) {
+      var v = document.getElementById('v'); v.src = URL.createObjectURL(new Blob([bytes], { type: format === 'mp4' ? 'video/mp4' : 'video/webm' })); v.play().catch(function () {});
+      info.textContent = format.toUpperCase() + ', ' + N + ' pictures, ' + bytes.length.toLocaleString() + ' bytes, made in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s.';
+    });
+  }).catch(function (e) { info.textContent = 'Failed: ' + e.message; });
+};
+</script></body></html>
