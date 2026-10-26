@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Source part of json-format.js (joined by build.py).
 
   // ================================================================ zstd on top of a wasm instance (wasm/zstd-glue.c)
   function makeZstd(inst) {

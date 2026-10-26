@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Source part of json-format.js (joined by build.py).
 
   // ================================================================ container: blocks, then footer v1 (sections), then the 16-byte trailer
   var MAJOR = 1, MINOR = 0, MAGIC = [76, 70, 67, 49];   // "LFC1"

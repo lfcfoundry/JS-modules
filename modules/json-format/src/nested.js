@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Source part of json-format.js (joined by build.py).
 
   // ================================================================ nested block (kind 'n'): shape table, per-block string dictionary, typed-byte columns, all zstd
   // Layout: u32 header length, JSON header, then zstd frames in this order: dictionary text, side strings, shapes, row shape ids, then each column.

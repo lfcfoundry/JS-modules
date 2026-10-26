@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Source part of json-format.js (joined by build.py).
 
   // ================================================================ WebAssembly modules (built from wasm/*.c by wasm/build.sh and wasm/build-core.sh; embedded by wasm/embed.py)
   var WASM = /*WASM:BEGIN*/{}/*WASM:END*/;
