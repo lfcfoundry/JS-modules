@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -461,7 +461,8 @@ var NFMScene = (function () {
     if (!isFinite(x0)) { x0 = 0; y0 = 0; x1 = 100; y1 = 100; }
     if (L.is3d && L.c3) { var R3 = (L.radius3 || 300) * 1.18; x0 = L.c3[0] - R3; x1 = L.c3[0] + R3; y0 = L.c3[1] - R3; y1 = L.c3[1] + R3; }
     S.x0 = x0 - pad; S.y0 = y0 - pad; S.w = x1 - x0 + 2 * pad; S.h = y1 - y0 + 2 * pad + (view === 'arc' ? 110 : 0);
-    buildGrid(S);
+    S.spatialMod = o.spatial || null; S.spatial = S.spatialMod ? S.spatialMod.build(S) : null;   /* big maps: the optional position index instead of the grid */
+    if (!S.spatial) buildGrid(S);
     curveStore(S, L);
     return S;
   }
@@ -474,11 +475,18 @@ var NFMScene = (function () {
     });
     S.grid = { cell: cell, cols: cols, rows: rows, map: g };
   }
+  /** After items moved: the grid, or the position index when the page asked for one, is worked out again. */
+  function refreshGrid(S) {
+    S.spatial = S.spatialMod ? S.spatialMod.build(S) : null;
+    if (!S.spatial) buildGrid(S);
+    S.gridStale = false;
+  }
   /** Which node box is under this world point (topmost = last drawn); slop is in world units. */
   function pick(S, wx, wy, slop) {
     slop = slop || 0;
     if (S.recStale) S.syncRecs();
-    if (S.gridStale) { buildGrid(S); S.gridStale = false; }
+    if (S.gridStale) refreshGrid(S);
+    if (S.spatial) return S.spatialMod.pick(S, S.spatial, wx, wy, slop);
     var G = S.grid, best = null, cs = G.cell;
     var c0 = Math.floor((wx - slop - S.x0) / cs), c1 = Math.floor((wx + slop - S.x0) / cs), r0 = Math.floor((wy - slop - S.y0) / cs), r1 = Math.floor((wy + slop - S.y0) / cs);
     for (var r = r0; r <= r1; r++) for (var c = c0; c <= c1; c++) {
@@ -496,6 +504,7 @@ var NFMScene = (function () {
   function inRect(S, ax, ay, bx, by) {
     var x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by), out = [];
     if (S.recStale) S.syncRecs();
+    if (S.spatialMod) { if (S.gridStale) refreshGrid(S); if (S.spatial) { var fast = S.spatialMod.rect(S, S.spatial, x0, y0, x1, y1); if (fast) return fast; } }   /* small boxes on big maps */
     S.nodes.forEach(function (n) { if (n.hidden || n.key.indexOf('shape:') === 0) return; var cx = n.x + n.w / 2, cy = n.y + n.h / 2; if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) out.push(n.key); });
     return out;
   }
