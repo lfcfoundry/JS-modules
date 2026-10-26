@@ -13,3 +13,8 @@ i = src.index(a); j = src.index(b)
 out = src[:i + len(a)] + lit + src[j:]
 open(os.path.join(here, 'lfc-pack.js'), 'w', encoding='utf-8').write(out)
 print('lfc-pack.js', len(out))
+# decoder-only build for pages that only open files: same code, only the 57 KB zstd decoder embedded
+lit2 = '{"zstd-dec":"%s"}' % base64.b64encode(open(os.path.join(here, mods['zstd-dec']), 'rb').read()).decode()
+out2 = src[:i + len(a)] + lit2 + src[j:]
+open(os.path.join(here, 'lfc-pack-read.js'), 'w', encoding='utf-8').write(out2)
+print('lfc-pack-read.js', len(out2))

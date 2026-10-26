@@ -12,7 +12,7 @@
     return c > 0;
   }
   function init(opts) {   // -> Promise; loads the wasm modules once. { readOnly: true } skips the zstd encoder.
-    var ro = !!(opts && opts.readOnly);
+    var ro = !!(opts && opts.readOnly) || !WASM['zstd-full'];   // the decoder-only build has no encoder inside
     if (S.ready && (ro || S.zfull)) return S.ready;
     var names = [ro ? 'zstd-dec' : 'zstd-full'].concat(ro ? [] : [coreName()]);
     S.ready = loadAsync(names).then(function (r) {

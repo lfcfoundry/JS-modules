@@ -96,3 +96,11 @@ Zstandard (Yann Collet and Meta Platforms, BSD-3-Clause) does the compression; t
 
 ## For AI agents
 Load `lfc-pack.js` (global `LfcPack`) or `require` it; call `init()` first and wait for it. Pack once with `pack(text)` and keep the `Uint8Array`. Read with `unpack(file, { keys, range })` when you need a few fields or a time slice (blocks outside the range are never decoded), and with `pool()` for files over a few blocks. Use `exact: true` only when the original bytes must come back. The sources are `src/*.js` joined by `build.py`; the wasm sources are in `wasm/` (`build.sh` for zstd, `build-core.sh` for the tokenizer and string dictionary); `python/lfc_pack.py` reads files in Python. Run `node test/roundtrip.cjs`, `node test/exact.cjs`, `node test/query.cjs`, `node test/pool.cjs` and `python3 -I test/pyread.py <file.lfc>=<source.ndjson>` after any change.
+
+## Decoder-only build
+
+`lfc-pack-read.js` is the same code with only the 57 KB zstd decoder embedded: 143 KB (51 KB gzipped) against 671 KB (214 KB gzipped) for `lfc-pack.js`. Use it on pages that only open files. `init()` loads the decoder, `unpack`, `unpackTables`, `info` and the helper pool work as usual, and writing (`pack`, `packRows`, `packTables`) throws. Written by `python3 build.py` next to `lfc-pack.js`.
+
+## Link-list columns
+
+A column whose values are arrays of whole numbers from 0 to 4,294,967,295 (neighbor or link lists) is stored as list lengths plus deltas. On 30,000 made-up nodes with out and in lists this was 211,344 bytes against 357,110 before, and reads back value-exact.
