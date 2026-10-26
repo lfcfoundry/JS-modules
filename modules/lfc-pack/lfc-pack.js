@@ -500,7 +500,15 @@
       for (j = 0; j < K; j++) vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr);
       var pb = (n + 7) >> 3, ptr = new Int32Array(K), out = new Array(n), keys = meta.keys, o, hasProto = keys.indexOf('__proto__') >= 0;
       if (ordList) { for (i = 0; i < n; i++) { var sq2 = ordList[ordIds[i]], m2 = sq2.length; o = {}; for (j = 0; j < m2; j++) { var kk = sq2[j]; if (!vals[kk]) continue; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i] = o; } return out; }
-      for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) if (vals[j] && ((pl[j * pb + (i >> 3)] >> (i & 7)) & 1)) { if (hasProto) setKey(o, keys[j], vals[j][ptr[j]++]); else o[keys[j]] = vals[j][ptr[j]++]; } out[i] = o; }
+      // column by column (the row-object rule): every row object is made first, then each key is assigned down its column, so the objects share one shape history
+      for (i = 0; i < n; i++) out[i] = {};
+      for (j = 0; j < K; j++) {
+        var v = vals[j]; if (!v) continue;
+        var key = keys[j], base = j * pb, c = 0, bits;
+        if (key === '__proto__') { for (i = 0; i < n; i++) if ((pl[base + (i >> 3)] >> (i & 7)) & 1) setKey(out[i], key, v[c++]); }
+        else if (v.length === n) { for (i = 0; i < n; i++) out[i][key] = v[i]; }
+        else { for (i = 0; i < n; i++) { if (i % 8 === 0) { bits = pl[base + (i >> 3)]; if (bits === 0) { i += 7; continue; } } if ((bits >> (i & 7)) & 1) out[i][key] = v[c++]; } }
+      }
       return out;
     }
     function readBlock(bytes, want) { return assemble(flatFrames(zs, bytes, want, false), want); }
