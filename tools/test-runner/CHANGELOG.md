@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-10-25
+- Noise guard: a fixed calibration loop that stops timings on a noisy machine.
+
 ## 1.2.1 · API 1 · 2026-10-24
 - GNOME Web is out of the default list: a full run is now three browsers, not four.
 

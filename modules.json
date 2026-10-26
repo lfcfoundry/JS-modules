@@ -603,7 +603,7 @@
     },
     {
       "id": "test-runner",
-      "version": "1.2.1",
+      "version": "1.3.0",
       "api": 1,
       "summary": "Shared pieces for browser checks and speed tests: warm browsers, a four-browser runner, fair timing, skip-unchanged wasm builds, a wasm-versus-JavaScript twin test, a picture fingerprint gate and an automatic bisect.",
       "short": "Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect.",
@@ -615,6 +615,7 @@
         "tools/test-runner/cli.js",
         "tools/test-runner/warmd.js",
         "tools/test-runner/twin.js",
+        "tools/test-runner/noise.js",
         "tools/test-runner/stamp.js",
         "tools/test-runner/fingerprint.js",
         "tools/test-runner/bisect.js"
