@@ -56,8 +56,20 @@ let sd = 1; for (const kind of ['run', 'bitmap', 'sparse', 'dups', 'mixed', 'off
       const all = L.toArray(); ok(all.length === a.length && all.every((v, i) => v === a[i]), tag + 'toArray'); L.free();
     }
   }
+  // damaged and hostile blobs: every one is refused at open, or opens and then answers every question without an error (JavaScript and WebAssembly)
+  const M = rng(1234); let refused = 0, opened = 0;
+  const bases = [mk('mixed', 700, 3), mk('bitmap', 400, 4), mk('dups', 300, 5), mk('run', 260, 6), mk('sparse', 150, 7)].map((a) => S.buildPartitioned(a, { chunk: 64 }));
+  for (let t = 0; t < 4000; t++) {
+    const blob = bases[t % bases.length].slice(), flips = 1 + Math.floor(M() * 3);
+    for (let f = 0; f < flips; f++) { const at = M() < 0.5 ? Math.floor(M() * 64) : Math.floor(M() * blob.length); blob[at] = M() < 0.3 ? blob[at] ^ (1 << Math.floor(M() * 8)) : Math.floor(M() * 256); }
+    let L = null; try { L = S.openPartitioned(blob); } catch (e) { ok(e instanceof RangeError || (e instanceof Error && /not a partitioned list/.test(e.message)), 'mutation ' + t + ': refused with the wrong kind of error: ' + e); refused++; continue; }
+    opened++;
+    for (const be of wasm ? ['js', 'wasm'] : ['js']) { S.setBackend(be); const L2 = S.openPartitioned(blob); try { for (let i = 0; i < L2.length; i += 7) L2.get(i); for (let q = 0; q < 20; q++) L2.nextGEQ(Math.floor(M() * 4294967296)); L2.toArray(); } catch (e) { ok(false, 'mutation ' + t + ' [' + be + '] opened but then failed: ' + e); } L2.free(); }
+  }
+  ok(refused > 1000, 'most mutations must be refused (' + refused + ')');
+  for (const f of [() => S.openPartitioned(new Uint8Array(10)), () => S.openPartitioned(new Uint8Array(48)), () => S.openPartitioned(new Uint8Array(bases[0].subarray(0, bases[0].length - 4))), () => S.openPartitioned(S.buildPartitioned([1, 2, 3]).subarray(4))]) { let r = false; try { f(); } catch (e) { r = e instanceof RangeError || e instanceof Error; } ok(r, 'truncated or cut blobs must be refused'); }
   S.setBackend('auto');
   let bad = 0; for (const f of [() => S.buildPartitioned([2, 1]), () => S.buildPartitioned([1], { chunk: 100 }), () => S.buildPartitioned([1], { chunk: 16 })]) { try { f(); bad++; } catch (e) { if (!(e instanceof RangeError)) bad++; } }
   ok(bad === 0, 'bad input must throw a RangeError');
-  console.log('ok   elias-fano partitioned: ' + sets.length + ' lists x 4 chunk sizes, ' + queries + ' single queries and all batches agree in JavaScript and WebAssembly; ' + fuzz + ' random-list queries; chunk kinds used: dense ' + kinds[0] + ', bitmap ' + kinds[1] + ', Elias-Fano ' + kinds[2] + '; ' + bytes + ' bytes vs ' + flat + ' as flat Elias-Fano');
+  console.log('ok   elias-fano partitioned: ' + sets.length + ' lists x 4 chunk sizes, ' + queries + ' single queries and all batches agree in JavaScript and WebAssembly; ' + fuzz + ' random-list queries; ' + refused + ' of 4000 damaged blobs refused at open, ' + opened + ' opened and answered safely; chunk kinds used: dense ' + kinds[0] + ', bitmap ' + kinds[1] + ', Elias-Fano ' + kinds[2] + '; ' + bytes + ' bytes vs ' + flat + ' as flat Elias-Fano');
 })();
