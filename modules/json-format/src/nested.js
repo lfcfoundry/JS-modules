@@ -35,9 +35,11 @@
       var t = typedColumn(c); zc.push([hash, t[0], t[1], zs.compress(t[2], level)]);
       if (hash !== CODES_KEY && c.length) { var mn = Infinity, mx = -Infinity, j; for (j = 0; j < c.length; j++) { if (c[j] < mn) mn = c[j]; if (c[j] > mx) mx = c[j]; } zone.push([hash, mn, mx, c.length]); }
     });
+    // column table (hash, width code, count, frame length) is its own zstd frame: files with many distinct paths have thousands of entries
+    var cmB = te.encode(JSON.stringify(zc.map(function (z) { return [z[0], z[1], z[2], z[3].length]; }))), zcm = zs.compress(cmB, level);
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, count: dN + ns, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
-      ids: [tid[0], tid[1], zids.length], cols: zc.map(function (z) { return [z[0], z[1], z[2], z[3].length]; }) }));
-    var parts = [u32le(hdr.length), hdr, ztext, zside, zskel, zids]; for (i = 0; i < zc.length; i++) parts.push(zc[i][3]);
+      ids: [tid[0], tid[1], zids.length], cm: [cmB.length, zcm.length] }));
+    var parts = [u32le(hdr.length), hdr, zcm, ztext, zside, zskel, zids]; for (i = 0; i < zc.length; i++) parts.push(zc[i][3]);
     return { bytes: concat(parts), rows: s.n, zone: zone, skelList: s.skelList, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
   }
 
@@ -83,6 +85,7 @@
     function openBlock(bytes) {
       var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i;
       function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
+      var cmeta = JSON.parse(td.decode(zs.decompressView(take(h.cm[1]), h.cm[0])));
       var D = tlat.decode(zs.decompressView(take(h.p[0]), h.len[0])).split('\0');
       var sd = JSON.parse(td.decode(zs.decompressView(take(h.p[1]), h.len[1])));
       for (i = 0; i < sd.idx.length; i++) D[sd.idx[i]] = sd.str[i];
@@ -91,7 +94,7 @@
         var w = KIND[kind].BYTES_PER_ELEMENT, raw = zs.decompress(take(plen), count * w); return new KIND[kind](raw.buffer, 0, count);
       }
       var ids = column(h.ids[0], h.ids[1], h.ids[2]), cols = new Map();
-      for (i = 0; i < h.cols.length; i++) { var cd = h.cols[i]; cols.set(cd[0], column(cd[1], cd[2], cd[3])); }
+      for (i = 0; i < cmeta.length; i++) { var cd = cmeta[i]; cols.set(cd[0], column(cd[1], cd[2], cd[3])); }
       return { n: h.n, ids: ids, skel: skel, cols: cols, dict: D, codes: cols.get(CODES_KEY) };
     }
     function rowsOf(b) {
