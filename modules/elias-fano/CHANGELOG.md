@@ -2,5 +2,8 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.1.0 · API 1 · 2026-10-25
+- New: rank(x) and rankMany(xs) (how many values are at or below x), answered without unpacking. The runtime version now reads the real label.
+
 ## 1.0.0 · API 1 · 2026-10-25
 - New module: sorted number lists packed small and searched without unpacking.

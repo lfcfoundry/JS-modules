@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.0.0 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node 22 twin test; Firefox 158, Chromium 155, WebKitGTK 2.52.6 with the noise guard
+**Tested in:** Node 22 twin test and 400-seed fuzz (JavaScript and WebAssembly); browsers not rerun, nothing on existing paths changed
 
 Keeps sorted whole numbers (ids, positions, timestamps, links of a graph) in about a third to a half of the memory of a plain 32-bit array, and still answers "what is value number i" and "where is the first value at or above x" without unpacking. It also keeps many sorted lists in one structure (the links of every item of a map) and decodes them all at once, fast. **One file, no dependencies, works offline.** A WebAssembly path (with SIMD where the browser has it) is compiled the moment the file loads; plain JavaScript answers until it is ready and gives the same answers.
 
@@ -21,11 +21,12 @@ Sorted number lists are everywhere: which items a link touches, which rows match
   list.get(3);          // 20
   list.nextGEQ(9);      // 3  (index of the first value >= 9; list.length when none)
   list.nextValue(9);    // 20
+  list.rank(8);         // 3  (how many values are <= 8; list.lowerBound(8) is how many are < 8)
   list.contains(8);     // true
   list.count(5, 100);   // how many values in [5, 100)
   list.slice(1, 4);     // Uint32Array [8, 8, 20]
   list.toArray();       // everything (fast: WebAssembly with SIMD when available)
-  list.getMany(idx); list.nextGEQMany(xs);   // batches: one call into WebAssembly
+  list.getMany(idx); list.nextGEQMany(xs); list.rankMany(xs);   // batches: one call into WebAssembly
 </script>
 ```
 

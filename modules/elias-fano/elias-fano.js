@@ -3,11 +3,12 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
  *   list.nextGEQ(9);                                 // 3 (the index of the first value >= 9); list.length when there is none
+ *   list.rank(8);                                    // 3 (how many values are <= 8)
  *   var set = EliasFano.openLists(EliasFano.buildLists([[1, 5], [], [2, 2, 9]]));  set.get(2);  // Uint32Array [2, 2, 9];  set.decodeAll() -> { offsets, values }
  */
 
@@ -16,7 +17,7 @@
   else root.EliasFano = factory();
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-  var VERSION = '0.1.0', MAGIC = 0x00014645, HDR = 64, SAMPLE_SHIFT = 7, MAX_N = 1073741824;
+  var MAGIC = 0x00014645, HDR = 64, SAMPLE_SHIFT = 7, MAX_N = 1073741824;
   if (new Uint8Array(new Uint32Array([1]).buffer)[0] !== 1) throw new Error('elias-fano: needs a little endian machine');
 
   /* ---- WebAssembly (wasm/ef.c): the same format and answers; compiled the moment this file loads, never blocking; the plain JavaScript below answers until it is ready ---- */
@@ -161,7 +162,8 @@
   P.free = function () { if (this._wm && W) { release(this._ptr, this.bytes.length); this._wm = false; this._ptr = 0; } };
   P.get = function (i) { if (!(i >= 0 && i < this.length) || i % 1 !== 0) return undefined; return this._wasm() ? W.ef_get(this._ptr, i) >>> 0 : this._getJS(i); };
   P.nextGEQ = function (x) { if (!(x > 0)) x = 0; if (x > 4294967295) return this.length; if (x % 1 !== 0) x = Math.ceil(x); return this._wasm() ? W.ef_next(this._ptr, x) >>> 0 : this._nextJS(x); };
-  P.lowerBound = P.nextGEQ;
+  P.lowerBound = P.nextGEQ;   // how many values are below x (same number as nextGEQ)
+  P.rank = function (x) { if (x !== x || x < 0) return 0; if (x >= 4294967295) return this.length; return this.nextGEQ(Math.floor(x) + 1); };   // how many values are at or below x
   P.nextValue = function (x) { var i = this.nextGEQ(x); return i < this.length ? this.get(i) : undefined; };
   P.contains = function (x) { var i = this.nextGEQ(x); return i < this.length && this.get(i) === x; };
   P.count = function (lo, hi) { return this.nextGEQ(hi) - this.nextGEQ(lo); };
@@ -181,6 +183,13 @@
       W.ef_next_many(this._ptr, ip, op, k); r.set(u32.subarray(op >>> 2, (op >>> 2) + k)); release(ip, k * 4); release(op, k * 4); return r;
     }
     for (j = 0; j < k; j++) r[j] = this._nextJS(xs[j]);
+    return r;
+  };
+  P.rankMany = function (xs, out) {   // rank of each x in one call; values at the top of the range are looked up one by one
+    var k = xs.length, r = out || new Uint32Array(k), q = new Uint32Array(k), j;
+    for (j = 0; j < k; j++) { var x = xs[j]; q[j] = x >= 4294967295 ? 4294967295 : x < 0 || x !== x ? 0 : Math.floor(x) + 1; }
+    this.nextGEQMany(q, r);
+    for (j = 0; j < k; j++) { var y = xs[j]; if (y !== y || y < 0) r[j] = 0; else if (y >= 4294967295) r[j] = this.length; }
     return r;
   };
   P.toArray = function () {
@@ -261,7 +270,7 @@
 
   start();   // compile early
   return {
-    version: VERSION, api: 0, build: build, open: open, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
+    version: '1.1.0', api: 1, build: build, open: open, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
     _buildJS: buildJS, _layout: layout
