@@ -1,0 +1,155 @@
+// Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
+
+  // ================================================================ public API
+  var BLOCK_BYTES = 21 << 20;
+  function flatSkeletons(list) {
+    for (var i = 0; i < list.length; i++) { var t = list[i]; if (t.charCodeAt(0) !== 123 || t.indexOf('{', 1) >= 0 || t.indexOf('[') >= 0) return false; }
+    return list.length > 0;
+  }
+  function init(opts) {   // -> Promise; loads the wasm modules once. { readOnly: true } skips the zstd encoder.
+    var ro = !!(opts && opts.readOnly);
+    if (S.ready && (ro || S.zfull)) return S.ready;
+    var names = [ro ? 'zstd-dec' : 'zstd-full'].concat(ro ? [] : [coreName()]);
+    S.ready = loadAsync(names).then(function (r) {
+      if (ro) S.zdec = makeZstd(r[0]); else { S.zfull = makeZstd(r[0]); S.core = r[1]; S.sh = makeShredder(r[1]); S.zdec = S.zfull; }
+      return api;
+    });
+    return S.ready;
+  }
+  function need(w) { if (w && !S.sh) throw new Error('LfcPack: call init() first'); if (!S.zdec) throw new Error('LfcPack: call init({readOnly:true}) or init() first'); }
+  function pack(input, opts) {
+    opts = opts || {}; need(true);
+    var b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, p = 0, blocks = [], parts = [], zone = [], off = 0, rows = 0;
+    var ctx = { zs: S.zfull, sh: S.sh }, exact = !!opts.exact, exc = {}, tail = b.length === 0 || b[b.length - 1] === 10, fatal = new TextDecoder('utf-8', { fatal: true });
+    var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
+    while (retry.length || p < b.length) {
+      if (retry.length) { r0 = retry.pop(); s0 = r0[0]; e = r0[1]; }
+      else { s0 = p; e = Math.min(b.length, p + bb); if (e < b.length) { var nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } p = e; }
+      chunk = b.subarray(s0, e); kind = opts.block; blk = null;
+      if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, 'r']); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
+      try {
+        if (kind === 'flat') blk = writeFlatBlock(ctx, chunk, opts);
+        if (kind !== 'flat' || !blk) {
+          blk = writeNestedBlock(ctx, chunk, opts);
+          // auto: the flat layout is also tried when every row is a flat object, or when shapes are nearly all different (it then keeps nested values as JSON text, which packs far smaller)
+          if (!kind && (flatSkeletons(blk.skelList) || blk.skelList.length * 4 > blk.rows)) { fb = writeFlatBlock(ctx, chunk, opts); if (fb && fb.bytes.length < blk.bytes.length) blk = fb; }
+        }
+      } catch (err) {   // a block over the wasm limits (rows, numbers, strings, bytes) is cut in two at a line end and both halves are tried again
+        mid = /capacity|too large/.test(String(err && err.message)) ? b.indexOf(10, s0 + ((e - s0) >> 1)) : -1;
+        if (mid < 0 || mid + 1 >= e) throw err;
+        retry.push([mid + 1, e], [s0, mid + 1]); continue;
+      }
+      if (exact) { ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) exc[blocks.length] = ex; }
+      blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, blk.kind || 'n']); zone.push(blk.zone); parts.push(blk.bytes);
+      off += blk.bytes.length; rows += blk.rows;
+    }
+    var secs = [
+      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.0' })) },
+      { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
+      { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
+      { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
+    ];
+    if (exact && Object.keys(exc).length) secs.push(excSection(exc));
+    parts.push(writeFooter(S.zfull, secs, true));
+    return concat(parts);
+  }
+  // ---- byte-exact switch: rows whose canonical text differs from the input line keep their original bytes (section 9, the raw-line store)
+  function exactSafe(chunk, fatal) {   // blank lines, carriage returns and invalid UTF-8 cannot be told apart from rows: those blocks are kept whole
+    if (chunk.indexOf(13) >= 0) return false;
+    var i = 0, n = chunk.length; if (n && chunk[0] === 10) return false;
+    for (; (i = chunk.indexOf(10, i)) >= 0; i++) if (chunk[i + 1] === 10) return false;
+    try { fatal.decode(chunk); } catch (e) { return false; }
+    return true;
+  }
+  function lineSpans(chunk) {
+    var out = [], p = 0, e; while (p < chunk.length) { e = chunk.indexOf(10, p); if (e < 0) e = chunk.length; out.push([p, e]); p = e + 1; } return out;
+  }
+  function exceptionsOf(blk, chunk, kind) {   // read the block back and compare each row's canonical text with its input line
+    var rows = (kind === 'f' ? makeFlatReader(S.zdec) : makeNestedReader(S.zdec)).readBlock(blk.bytes), sp = lineSpans(chunk), list = [], i, line;
+    if (rows.length !== sp.length) throw new Error('row count mismatch while checking exactness');
+    for (i = 0; i < rows.length; i++) { line = chunk.subarray(sp[i][0], sp[i][1]); var txt = null; try { txt = JSON.stringify(rows[i]); } catch (e) { txt = null; } if (txt === null || td.decode(line) !== txt) list.push([i, line]); }
+    return list.length ? list : null;
+  }
+  function excSection(exc) {
+    var idx = {}, parts = [], k;
+    for (k in exc) { idx[k] = exc[k].map(function (x) { parts.push(x[1]); return [x[0], x[1].length]; }); }
+    var hb = te.encode(JSON.stringify(idx));
+    return { id: SEC_RAW, flags: 1, payload: concat([u32le(hb.length), hb].concat(parts)) };
+  }
+  function readExc(b) {
+    if (!b) return {};
+    var hl = rd32(b, 0), idx = JSON.parse(td.decode(b.subarray(4, 4 + hl))), p = 4 + hl, out = {}, k, i;
+    for (k in idx) { out[k] = {}; for (i = 0; i < idx[k].length; i++) { out[k][idx[k][i][0]] = b.subarray(p, p + idx[k][i][1]); p += idx[k][i][1]; } }
+    return out;
+  }
+  // raw block (kind 'r'): the block text as one zstd frame; used by the byte-exact switch for text that is not plain rows
+  function writeRawBlock(zs, chunk, opts) {
+    var z = zs.compress(chunk, opts.level == null ? 3 : opts.level), n = 0, i = 0;
+    for (; (i = chunk.indexOf(10, i)) >= 0; i++) n++;
+    if (chunk.length && chunk[chunk.length - 1] !== 10) n++;
+    return { bytes: concat([u32le(chunk.length), z]), rows: n };
+  }
+  function readRawBlock(zs, bytes) { return zs.decompress(bytes.subarray(4), rd32(bytes, 0)); }
+  function unpackText(bytes) {   // -> Uint8Array: the NDJSON text. Byte-for-byte the input when the file was packed with { exact: true }; canonical JSON text per row otherwise
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), flags = jsonSec(file.footer.sec[SEC_FLAGS]) || {}, exc = readExc(file.footer.sec[SEC_RAW]), parts = [], i, j, rows, ex, last, nl = new Uint8Array([10]);
+    for (i = 0; i < file.blocks.length; i++) {
+      var kind = file.blocks[i][4], bb = blockBytes(file, i);
+      if (kind === 'r') { parts.push(readRawBlock(S.zdec, bb)); continue; }
+      rows = (kind === 'f' ? rf : rn).readBlock(bb); ex = exc[i] || {}; last = 0;
+      for (j = 0; j < rows.length; j++) parts.push(ex[j] ? ex[j] : te.encode(JSON.stringify(rows[j])), nl);
+    }
+    var out = concat(parts); if (flags.tail === false && out.length && file.blocks[file.blocks.length - 1][4] !== 'r') out = out.subarray(0, out.length - 1);
+    return out;
+  }
+  function openFile(bytes) {
+    need(false); bytes = bytesOf(bytes);
+    var f = readFooter(S.zdec, bytes), blocks = jsonSec(f.sec[SEC_BLOCKS]);
+    if (!blocks) throw new Error('damaged file: block table missing');
+    return { bytes: bytes, footer: f, blocks: blocks, header: jsonSec(f.sec[SEC_HEADER]), zone: jsonSec(f.sec[SEC_ZONE]) };
+  }
+  function blockBytes(file, i) {
+    var b = file.blocks[i], x = file.bytes.subarray(b[0], b[0] + b[1]);
+    if (b[0] + b[1] > file.footer.bodyEnd) throw new Error('block ' + i + ' out of range');
+    if (crcJS(x, 0) !== b[2]) throw new Error('block ' + i + ' checksum mismatch');
+    return x;
+  }
+  function rawRows(t) { return td.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
+  // zone maps: a block is skipped when the number column for opts.range.key has no value inside [min, max]
+  function blockMayMatch(file, i, range) {
+    if (!range || !file.zone || !file.zone[i]) return true;
+    var h = fnvStr('.' + range.key), z = file.zone[i], q;
+    for (q = 0; q < z.length; q++) if (z[q][0] === h) return !(z[q][2] < range.min || z[q][1] > range.max);
+    return true;
+  }
+  function keepRows(rows, range) {
+    if (!range) return rows;
+    var out = [], i, v; for (i = 0; i < rows.length; i++) { v = rows[i][range.key]; if (typeof v === 'number' && v >= range.min && v <= range.max) out.push(rows[i]); }
+    return out;
+  }
+  function projectRows(rows, want) {
+    var out = new Array(rows.length), i, k, o; for (i = 0; i < rows.length; i++) { o = {}; for (k in want) if (Object.prototype.hasOwnProperty.call(rows[i], k)) setKey(o, k, rows[i][k]); out[i] = o; }
+    return out;
+  }
+  // unpack(bytes, { keys: ['ts', 'ms'], range: { key: 'ts', min: 10, max: 20 } }): only those keys, only rows whose number is in range; blocks outside the range are never decoded
+  function unpack(bytes, opts) {   // -> array of row objects
+    if (opts) return unpackSome(bytes, opts);
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, r, j, kd;
+    for (i = 0; i < file.blocks.length; i++) { kd = file.blocks[i][4]; r = kd === 'r' ? rawRows(readRawBlock(S.zdec, blockBytes(file, i))) : (kd === 'f' ? rf : rn).readBlock(blockBytes(file, i)); for (j = 0; j < r.length; j++) out.push(r[j]); }
+    return out;
+  }
+  function unpackSome(bytes, opts) {
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, j, r, kd, want = null, range = opts.range || null;
+    if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; if (range) want[range.key] = 1; }
+    for (i = 0; i < file.blocks.length; i++) {
+      if (!blockMayMatch(file, i, range)) continue;
+      kd = file.blocks[i][4];
+      if (kd === 'r') r = rawRows(readRawBlock(S.zdec, blockBytes(file, i))); else if (kd === 'f') r = rf.readBlock(blockBytes(file, i), want); else r = rn.readBlock(blockBytes(file, i));
+      if (want && kd !== 'f') r = projectRows(r, want);
+      r = keepRows(r, range);
+      if (opts.keys && range && opts.keys.indexOf(range.key) < 0) r = projectRows(r, (function () { var w = {}; opts.keys.forEach(function (k) { w[k] = 1; }); return w; })());
+      for (j = 0; j < r.length; j++) out.push(r[j]);
+    }
+    return out;
+  }
+  function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
+  var api = { pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.0', apiVersion: 0 };

@@ -1,0 +1,71 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : lfc-pack demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>lfc-pack demo</title>
+<style>:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--line:#ccc}@media (prefers-color-scheme:dark){:root{--bg:#161616;--fg:#eee;--mut:#aaa;--line:#444}}
+body{font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:42rem;margin:0 auto;padding:1rem 16px}
+textarea{width:100%;box-sizing:border-box;height:9rem;font:13px/1.4 ui-monospace,monospace;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:.4rem}
+input,button,select{font:inherit;padding:.4rem .6rem;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+output{display:block;margin:.5rem 0;font-variant-numeric:tabular-nums;white-space:pre-wrap}.m{color:var(--mut)}label{margin-right:1rem}</style></head><body>
+<h1>lfc-pack</h1>
+<p class="m">Packs lines of JSON into LFC-pack (<code>.json.lfc</code>) in your browser, reads them back, and shows the size. Nothing leaves the page.</p>
+<p><button id="gen">Make 20,000 made-up log lines</button> or paste your own lines (one JSON value per line):</p>
+<textarea id="src" spellcheck="false"></textarea>
+<p><label><input type="checkbox" id="exact"> keep the exact original bytes</label><label>level <select id="lvl"><option value="3">3 (fast)</option><option value="19">19 (archive)</option></select></label></p>
+<p><button id="pack">Pack</button> <button id="save" disabled>Save .json.lfc</button> <label><input type="file" id="open" accept=".lfc"> open a file</label></p>
+<output id="out">Loading WebAssembly…</output>
+<script src="lfc-pack.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, packed = null, enc = new TextEncoder();
+  function note(t) { $('out').textContent = t; }
+  function gen() {
+    var seed = 7, r = function () { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }, lv = ['INFO', 'WARN', 'ERROR'], o = [];
+    for (var i = 0; i < 20000; i++) o.push(JSON.stringify({ ts: 1760000000 + i * 3, level: lv[Math.floor(r() * 3)], status: r() < 0.9 ? 200 : 500, ms: Math.round(r() * 5000) / 100, msg: 'request ' + Math.floor(r() * 1e6) + ' from host-' + Math.floor(r() * 99) + ' took ' + Math.floor(r() * 900) + ' ms' }));
+    $('src').value = o.join('\n');
+  }
+  LfcPack.init().then(function () {
+    gen(); note('Ready. Press Pack.');
+    $('gen').onclick = gen;
+    $('pack').onclick = function () {
+      var text = $('src').value, bytes = enc.encode(text);
+      try {
+        var t0 = performance.now(); packed = LfcPack.pack(bytes, { exact: $('exact').checked, level: +$('lvl').value }); var t1 = performance.now();
+        var rows = LfcPack.unpack(packed), t2 = performance.now(), ok = true;
+        if ($('exact').checked) { var back = LfcPack.unpackText(packed); ok = back.length === bytes.length; for (var i = 0; ok && i < back.length; i++) if (back[i] !== bytes[i]) ok = false; }
+        note(bytes.length.toLocaleString() + ' bytes of text became ' + packed.length.toLocaleString() + ' bytes (' + (100 * packed.length / Math.max(1, bytes.length)).toFixed(1) + '%).\n' + rows.length.toLocaleString() + ' rows read back' + ($('exact').checked ? (ok ? ', the original bytes match exactly.' : ', BYTES DIFFER.') : '.') + '\nPack ' + (t1 - t0).toFixed(0) + ' ms, unpack ' + (t2 - t1).toFixed(0) + ' ms on this device (one run, not a benchmark).\nFirst row: ' + JSON.stringify(rows[0]));
+        $('save').disabled = false;
+      } catch (e) { note('Could not pack: ' + e.message); }
+    };
+    $('save').onclick = function () { var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([packed])); a.download = 'data.json.lfc'; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000); };
+    $('open').onchange = function () {
+      var f = this.files[0]; if (!f) return;
+      f.arrayBuffer().then(function (b) { var u = new Uint8Array(b), rows = LfcPack.unpack(u), info = LfcPack.info(u); note(f.name + ': ' + info.rows.toLocaleString() + ' rows in ' + info.blocks + ' block(s), ' + info.size.toLocaleString() + ' bytes.\nFirst row: ' + JSON.stringify(rows[0])); packed = u; $('save').disabled = false; }).catch(function (e) { note('Could not open: ' + e.message); });
+    };
+  }, function (e) { note('This page needs WebAssembly: ' + e.message); });
+})();
+</script>
+<p class="m"><small>Forged by LFC Foundry</small></p>
+</body></html>
