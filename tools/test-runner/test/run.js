@@ -174,6 +174,8 @@ t('noise guard: judge flags more than 15% off, guarded reruns while noisy and gi
   i = 0; r = await N.guarded(fake, 'x', () => ++ran, { baseline: null, calibrate: cal, log: false, tries: 1 });
   ok(r.ok && !r.known, 'no baseline runs once');
   process.env.TEST_RUNNER_LEDGER = path.join(tmp, 'ledger-nb'); N.saveBaseline('firefox', 42.5); ok(N.baselineFor('firefox').rate === 42.5 && !N.baselineFor('webkit'), 'baseline file');
-  const L = new Function('return ' + N.pageLoop.toString())(); const out = L(50); ok(out.rate > 0 && out.chunks >= 1, 'page loop runs');
+  const L = new Function('return ' + N.pageLoop.toString())(); const out = L(150); ok(out.rate > 0 && out.parts.int.chunks >= 1 && out.parts.json.rate > 0 && out.parts.copy.rate > 0, 'page loop runs');
+  const bp = { rate: 100, parts: { int: { rate: 100 }, json: { rate: 100 }, copy: { rate: 100 } } }, mk = (a, b, c) => ({ rate: 1, parts: { int: { rate: a }, json: { rate: b }, copy: { rate: c } } });
+  ok(!N.judgeAll(mk(100, 95, 105), bp).noisy && N.judgeAll(mk(100, 70, 100), bp).noisy && /json -30\.0%/.test(N.judgeAll(mk(100, 70, 100), bp).note), 'one noisy part marks the batch noisy and is named');
 });
 pending.then(() => { fs.rmSync(tmp, { recursive: true, force: true }); console.log(bad ? 'test-runner: ' + bad + ' FAILED' : 'test-runner: all passed'); process.exit(bad ? 1 : 0); });

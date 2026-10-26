@@ -51,10 +51,11 @@ async function main() {
     const save = process.argv.includes('--save'), N = R.noise;
     for (const w of names(rest.concat(sub && sub !== '--save' ? [sub] : []).filter((a) => a !== '--save'))) {
       const b = await R.launch(w); try {
-        const n = save ? 5 : 1, rates = []; for (let i = 0; i < n; i++) rates.push((await N.calibrate(b)).rate);
-        const m = R.median(rates), j = N.judge(m, (N.baselineFor(w) || {}).rate);
-        console.log(w.padEnd(9) + m.toFixed(1) + ' M/s  ' + j.note + (j.noisy ? '  NOISY' : '') + (save ? '  (saved as the quiet baseline; spread ' + (Math.min(...rates)).toFixed(1) + '-' + Math.max(...rates).toFixed(1) + ')' : ''));
-        if (save) N.saveBaseline(w, m);
+        const n = save ? 5 : 1, runs = []; for (let i = 0; i < n; i++) runs.push(await N.calibrate(b));
+        const parts = {}; for (const k of ['int', 'json', 'copy']) parts[k] = { rate: R.median(runs.map((r) => r.parts[k].rate)), best: Math.max(...runs.map((r) => r.parts[k].best)) };
+        const m = { rate: R.median(runs.map((r) => r.rate)), parts }, base = N.baselineFor(w), j = N.judgeAll(m, base);
+        console.log(w.padEnd(9) + Object.keys(parts).map((k) => k + ' ' + parts[k].rate.toFixed(1) + ' (best ' + parts[k].best.toFixed(1) + ')').join('  ') + '\n         ' + j.note + (j.noisy ? '  NOISY' : '') + (save ? '  (saved as the quiet baseline from ' + n + ' runs)' : ''));
+        if (save) N.saveBaseline(w, m.rate, parts);
       } finally { await b.close(); }
     }
     return 0;
