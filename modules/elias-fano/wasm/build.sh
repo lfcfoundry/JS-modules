@@ -7,7 +7,7 @@
 set -e
 cd "$(dirname "$0")"
 FLAGS="--target=wasm32 -O3 -ffp-contract=off -mnontrapping-fptoint -mbulk-memory -nostdlib -ffreestanding -fno-builtin"
-LINK="-Wl,--no-entry -Wl,--export=ef_get -Wl,--export=ef_next -Wl,--export=ef_get_many -Wl,--export=ef_next_many -Wl,--export=ef_decode -Wl,--export=ef_build -Wl,--export-memory -Wl,--export=__heap_base -Wl,--initial-memory=131072 -Wl,-z,stack-size=8192 -Wl,--strip-all -Wl,--global-base=1024"
+LINK="-Wl,--no-entry -Wl,--export=ef_get -Wl,--export=ef_next -Wl,--export=ef_get_many -Wl,--export=ef_next_many -Wl,--export=ef_decode -Wl,--export=ef_build -Wl,--export=pef_get -Wl,--export=pef_next -Wl,--export=pef_get_many -Wl,--export=pef_next_many -Wl,--export=pef_decode_range -Wl,--export-memory -Wl,--export=__heap_base -Wl,--initial-memory=131072 -Wl,-z,stack-size=16384 -Wl,--strip-all -Wl,--global-base=1024"
 b() { clang $FLAGS $2 $LINK -o "$1" ef.c; }
 case "$1" in
   --check) T=$(mktemp); U=$(mktemp); b "$T" ""; b "$U" "-msimd128"; if cmp -s "$T" ef.wasm && cmp -s "$U" ef-simd.wasm; then echo "ef.wasm and ef-simd.wasm are what ef.c builds"; rm -f "$T" "$U"; else echo "the wasm files are NOT what ef.c builds"; rm -f "$T" "$U"; exit 1; fi ;;
