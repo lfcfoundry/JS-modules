@@ -24,6 +24,29 @@ let sd = 1; for (const kind of ['dense', 'sparse', 'dups', 'clustered', 'full', 
 (async () => {
   await S.ready(); const wasm = S.accelerated() && !process.argv.includes('--js-only');
   console.log('backend: ' + (wasm ? (S.simd() ? 'WebAssembly with SIMD and plain JavaScript' : 'WebAssembly and plain JavaScript') : 'plain JavaScript only'));
+  ok(/^1\.\d+\.\d+$/.test(S.version) && S.api === 1, 'runtime version and API match the published module label');
+  const one = S.build(new Uint32Array([7]));
+  const lyingCount = one.slice(); new DataView(lyingCount.buffer).setUint32(4, 1073741824, true);
+  let rejected = false; try { S.open(lyingCount); } catch (e) { rejected = e instanceof RangeError; }
+  ok(rejected, 'open refuses a header that promises more values than the blob contains');
+  const lyingLength = one.slice(); new DataView(lyingLength.buffer).setUint32(40, lyingLength.length + 8, true);
+  rejected = false; try { S.open(lyingLength); } catch (e) { rejected = e instanceof RangeError; }
+  ok(rejected, 'open refuses inconsistent section lengths');
+  const lists = S.buildLists([[1], [2, 3]]), lyingLists = lists.slice();
+  new DataView(lyingLists.buffer).setUint32(4, 1073741824, true);
+  rejected = false; try { S.openLists(lyingLists); } catch (e) { rejected = e instanceof RangeError; }
+  ok(rejected, 'openLists refuses a header that promises more lists than the offsets contain');
+  {   // damaged headers: refused at open, or the list answers every question without an error
+    const rr = rng(77); let refused = 0;
+    const flat = S.build(Uint32Array.from({ length: 900 }, (_, i) => i * 7 + (i % 5))), sets = S.buildLists([[1, 5, 9], [], [2, 2, 9, 40], [7]]);
+    for (const [blob, head, kind] of [[flat, 64, 'list'], [sets, 40, 'list set']]) for (let t = 0; t < 1500; t++) {
+      const b = blob.slice(); for (let f = 0; f < 1 + Math.floor(rr() * 2); f++) b[Math.floor(rr() * head)] = Math.floor(rr() * 256);
+      let L = null; try { L = kind === 'list' ? S.open(b) : S.openLists(b); } catch (e) { ok(e instanceof RangeError || e instanceof Error, 'damaged ' + kind + ' header refused with a non-error: ' + e); refused++; continue; }
+      try { if (kind === 'list') { L.get(0); L.nextGEQ(5000); L.slice(0, 5); } else { for (let i = 0; i < L.length; i++) L.get(i); } } catch (e) { ok(false, 'damaged ' + kind + ' header opened but then failed: ' + e); }
+      if (L.free) L.free();
+    }
+    ok(refused > 1000, 'most damaged headers must be refused: ' + refused);
+  }
   let queries = 0, bytes = 0;
   for (const [name, a] of sets) {
     S.setBackend('js'); const bj = S.build(a); S.setBackend('auto'); const bw = wasm ? S.build(a) : bj;
@@ -71,4 +94,3 @@ let sd = 1; for (const kind of ['dense', 'sparse', 'dups', 'clustered', 'full', 
   let bad = 0; for (const f of [() => S.buildLists([[2, 1]]), () => S.buildLists([[4294967295]])]) { try { f(); bad++; } catch (e) { if (!(e instanceof RangeError)) bad++; } } ok(bad === 0, 'list sets refuse bad input');
   console.log('ok   elias-fano: list sets, ' + checked + ' lists read back exact, chunking and empty lists included');
 })();
-
