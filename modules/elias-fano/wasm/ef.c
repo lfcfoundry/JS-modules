@@ -114,3 +114,83 @@ void ef_build(const u32 *v, u32 n, u32 l, u32 s, u32 lowOff, u32 highOff, u32 s1
   for (u32 k = 0, i = 0; i < n; k++, i += step) a1[k] = (v[i] >> l) + i;
   for (u32 k = 0, j = 0; j < zeros; k++, j += step) { while (c < n && (v[c] >> l) <= j) c++; a0[k] = j + c; }
 }
+
+// ---- partitioned lists (since 1.2.0): chunks of 2^logC values (the last one shorter), each coded as the cheapest of a dense range, a bitmap or Elias-Fano ----
+// Format (little endian, every section on a 4 byte boundary): header 48 bytes: 0 magic 46 50 01 00 | 4 n | 8 logC | 12 nc | 16 firstOff | 20 lastOff | 24 offOff | 28 metaOff | 32 payloadOff | 36 total
+//   first[nc]: first value of each chunk | last[nc]: last value | off[nc+1]: byte offset of each chunk's payload from payloadOff | meta[nc] (u8, padded to 4): type (0 dense, 1 bitmap, 2 Elias-Fano) in bits 0-1, l in bits 2-6
+//   dense: no payload (values first, first+1, ...) | bitmap: bit (v - first) for every value, span + 1 bits | Elias-Fano: (n*l bits + 32 spare bits, in words) low bits, then n + (span >> l) + 1 high bits in words
+static inline u32 popw(u32 x) { return (u32)__builtin_popcount(x); }
+static inline u32 ctzw(u32 x) { return (u32)__builtin_ctz(x); }
+static inline u32 selw(u32 x, u32 r) { while (r) { x &= x - 1; r--; } return ctzw(x); }   // r-th (from 0) set bit
+#define POPEN(B) const u32 *hd = (const u32 *)(B); u32 n = hd[1], logC = hd[2], nc = hd[3]; \
+  const u32 *first = hd + (hd[4] >> 2), *last = hd + (hd[5] >> 2), *off = hd + (hd[6] >> 2); const u8 *meta = (const u8 *)hd + hd[7]; const u32 *pay = hd + (hd[8] >> 2); (void)n; (void)nc
+static inline u32 chunkN(u32 n, u32 logC, u32 nc, u32 c) { return c + 1 < nc ? (1u << logC) : n - ((nc - 1) << logC); }
+static inline u32 lowW(const u32 *w, u32 l, u32 j) {
+  u32 p = j * l, i = p >> 5, sh = p & 31; u64 v = ((u64)w[i + 1] << 32) | w[i];
+  return (u32)((v >> sh) & mask(l));
+}
+static u32 pChunkGet(const u32 *p, u32 meta, u32 nci, u32 j, u32 f, u32 lastv) {   // value number j of a chunk with nci values
+  u32 t = meta & 3, l = meta >> 2;
+  (void)lastv;
+  if (t == 0) return f + j;
+  if (t == 1) { u32 w = 0, r = j, c; while (r >= (c = popw(p[w]))) { r -= c; w++; } return f + w * 32 + selw(p[w], r); }
+  const u32 *H = p + (((nci * l + 31) >> 5) + 1); u32 w = 0, r = j, c;
+  while (r >= (c = popw(H[w]))) { r -= c; w++; }
+  u32 pos = w * 32 + selw(H[w], r);
+  return f + (u32)((((u64)(pos - j)) << l) | lowW(p, l, j));
+}
+// index inside the chunk of the first value >= f + d, 1 <= d <= span (so there is one)
+static u32 pChunkNext(const u32 *p, u32 meta, u32 nci, u32 d, u32 span) {
+  u32 t = meta & 3, l = meta >> 2;
+  if (t == 0) return d;
+  if (t == 1) {
+    u32 wq = d >> 5, cnt = 0, w; for (w = 0; w < wq; w++) cnt += popw(p[w]);
+    if (d & 31) cnt += popw(p[wq] & ((1u << (d & 31)) - 1));
+    return cnt;
+  }
+  const u32 *H = p + (((nci * l + 31) >> 5) + 1); u32 nhw = (nci + (u32)(((u64)span) >> l) + 1 + 31) >> 5;
+  u32 h = (u32)((u64)d >> l), xl = (u32)((u64)d & mask(l)), j, q, w, c;
+  if (h == 0) { j = 0; q = 0; } else { u32 r = h - 1; w = 0; while (r >= (c = popw(~H[w]))) { r -= c; w++; } u32 pz = w * 32 + selw(~H[w], r); j = pz - (h - 1); q = pz + 1; }
+  while (j < nci) {
+    w = q >> 5; u32 x = H[w] & (0xffffffffu << (q & 31));
+    while (x == 0) { w++; if (w >= nhw) return nci; x = H[w]; }
+    u32 pos = w * 32 + ctzw(x), hj = pos - j;
+    if (hj > h) return j;
+    if (lowW(p, l, j) >= xl) return j;
+    j++; q = pos + 1;
+  }
+  return nci;
+}
+static void pChunkDecode(const u32 *p, u32 meta, u32 nci, u32 f, u32 *out) {
+  u32 t = meta & 3, l = meta >> 2, j = 0;
+  if (t == 0) { for (; j < nci; j++) out[j] = f + j; return; }
+  if (t == 1) { for (u32 w = 0; j < nci; w++) { u32 x = p[w]; while (x) { out[j++] = f + w * 32 + ctzw(x); x &= x - 1; } } return; }
+  const u32 *H = p + (((nci * l + 31) >> 5) + 1);
+  for (u32 w = 0; j < nci; w++) { u32 x = H[w]; while (x && j < nci) { u32 pos = w * 32 + ctzw(x); out[j] = f + (u32)((((u64)(pos - j)) << l) | lowW(p, l, j)); j++; x &= x - 1; } }
+}
+u32 pef_get(const u8 *b, u32 i) {
+  POPEN(b); u32 c = i >> logC, j = i & ((1u << logC) - 1);
+  return pChunkGet(pay + (off[c] >> 2), meta[c], chunkN(n, logC, nc, c), j, first[c], last[c]);
+}
+u32 pef_next(const u8 *b, u32 x) {
+  POPEN(b);
+  if (n == 0 || x <= first[0]) return 0;
+  if (x > last[nc - 1]) return n;
+  u32 lo = 0, hi = nc - 1;   // first chunk whose last value is >= x
+  while (lo < hi) { u32 m = (lo + hi) >> 1; if (last[m] >= x) hi = m; else lo = m + 1; }
+  u32 c = lo;
+  if (x <= first[c]) return c << logC;
+  return (c << logC) + pChunkNext(pay + (off[c] >> 2), meta[c], chunkN(n, logC, nc, c), x - first[c], last[c] - first[c]);
+}
+void pef_get_many(const u8 *b, const u32 *idx, u32 *out, u32 k) { for (u32 j = 0; j < k; j++) out[j] = pef_get(b, idx[j]); }
+void pef_next_many(const u8 *b, const u32 *xs, u32 *out, u32 k) { for (u32 j = 0; j < k; j++) out[j] = pef_next(b, xs[j]); }
+// values a up to (not including) e into out[e - a]
+void pef_decode_range(const u8 *b, u32 a, u32 e, u32 *out) {
+  POPEN(b); u32 tmp[1024];
+  if (e <= a) return;
+  for (u32 c = a >> logC; c <= (e - 1) >> logC; c++) {
+    u32 nci = chunkN(n, logC, nc, c), base = c << logC, from = a > base ? a - base : 0, to = e - base < nci ? e - base : nci;
+    pChunkDecode(pay + (off[c] >> 2), meta[c], nci, first[c], tmp);
+    for (u32 j = from; j < to; j++) out[base + j - a] = tmp[j];
+  }
+}

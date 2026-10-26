@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Node 22 twin test and 400-seed fuzz (JavaScript and WebAssembly); browsers not rerun, nothing on existing paths changed
+**Tested in:** Node 22 twin test (74 lists x 4 chunk sizes, 96,000 random queries); Firefox 158, Chromium 155, WebKitGTK 2.52.6 with the noise guard
 
 Keeps sorted whole numbers (ids, positions, timestamps, links of a graph) in about a third to a half of the memory of a plain 32-bit array, and still answers "what is value number i" and "where is the first value at or above x" without unpacking. It also keeps many sorted lists in one structure (the links of every item of a map) and decodes them all at once, fast. **One file, no dependencies, works offline.** A WebAssembly path (with SIMD where the browser has it) is compiled the moment the file loads; plain JavaScript answers until it is ready and gives the same answers.
 
@@ -56,6 +56,26 @@ Same page, alternating rounds, Firefox 158 / Chromium 155 / WebKitGTK 2.52.6 (de
 | Value number i, 20,000 random reads | 0.05 to 0.1 ms | 1.0 to 3.2 ms (14 to 40x slower) |
 
 It is for lists you search or scan, not for hammering single reads: keep a decoded copy (`toArray`, `decodeAll`) when you need those.
+
+## Partitioned lists (since 1.2.0)
+`buildPartitioned` cuts the list into chunks of 128 values (or 32, 64, 256, 512, 1024) and stores each chunk the cheapest way: as a plain run (no bits at all, when the numbers are consecutive), as a bitmap (when more than about a third of the numbers in its range are present) or as Elias-Fano. It wins where a list has dense stretches, such as the document ids of a common word, and costs about the same as the flat form elsewhere. It has the same questions as a single list (`get`, `nextGEQ`, `rank`, `contains`, `count`, `slice`, `toArray`, the batches, `free`) and one more, `stats()`, which says how many chunks took each form.
+
+```js
+var blob = EliasFano.buildPartitioned(sortedValues, { chunk: 256 });   // chunk: 32 .. 1024, default 128
+var list = EliasFano.openPartitioned(blob);
+list.nextGEQ(900); list.rank(900); list.stats();   // { chunks, dense, bitmap, eliasFano, bitsPerValue, ... }
+```
+
+| 1,000,000 values | Plain | Flat Elias-Fano | Partitioned 128 | Partitioned 256 |
+|---|---|---|---|---|
+| Sparse (random gaps) | 4,000,000 B | 1,586,608 B | 1,640,416 B | 1,567,380 B |
+| Clustered runs | 4,000,000 B | 1,637,752 B | 1,643,980 B | 1,618,508 B |
+| About every second number present | 4,000,000 B | 390,720 B | 302,456 B | 245,348 B |
+| Bursts like word postings | 4,000,000 B | 776,592 B | 602,752 B | 667,808 B |
+
+First value at or above x, 20,000 lookups, ms (Firefox / Chromium / WebKitGTK, WebAssembly): binary search 3.8 to 4.8; partitioned 3.2 to 3.8 on sparse lists, 2.0 to 2.4 on half-full ones, 2.8 to 3.8 on clustered and posting-shaped ones. Flat Elias-Fano is faster than the partitioned form on clustered, half-full and posting-shaped lists (1.4 to 2.0 ms), so choose the partitioned form for size, not for lookup speed. Single reads (`get`) are about 2x faster than flat Elias-Fano on sparse lists; decoding everything is 0.7 to 1.0x as fast.
+
+The builder is JavaScript only (WebAssembly reads and decodes; both give the same answers). The two forms are different blobs: open them with `open` and `openPartitioned`.
 
 ## Limits
 - Values are whole numbers from 0 to 4,294,967,295; at most 1,073,741,824 values per list or list set.
