@@ -2,7 +2,7 @@
 
 **Version 0.1.1 · API 0**
 
-**Version 0.1.0 · API 0**
+**Version 0.1.1 · API 0**
 
 **Tested in:** round trips, byte-exact and Python reader on made-up data; speed not yet guarded
 
@@ -70,7 +70,7 @@ Python (needs `pip install zstandard`, or Python 3.14): `python/lfc_pack.py` giv
 ## How it compares
 Sizes are exact byte counts, the same everywhere. Parquet numbers are from the project's research runs (pyarrow, zstd level 3 unless stated), see `columns-v2` in the LFC-pack research folder.
 
-| Data | Input | lfc-pack 0.1.0 | Parquet |
+| Data | Input | lfc-pack 0.1.1 | Parquet |
 |---|---|---|---|
 | FHIR resources (Synthea), first 21 MB, 11,448 rows | 20,972,170 | **620,636** | 1,467,703 (zstd 3) |
 | same, 260 MB, 140,468 rows | 259,998,467 | **7,708,261** | not measured here |
