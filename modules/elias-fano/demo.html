@@ -1,0 +1,51 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : elias-fano demo
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>elias-fano demo</title>
+<style>:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--line:#ccc}@media (prefers-color-scheme:dark){:root{--bg:#161616;--fg:#eee;--mut:#aaa;--line:#444}}
+body{font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:42rem;margin:0 auto;padding:1rem 16px}
+input,button{font:inherit;padding:.4rem .6rem;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+output{display:block;margin:.5rem 0;font-variant-numeric:tabular-nums}.m{color:var(--mut)}</style></head><body>
+<h1>elias-fano</h1>
+<p class="m">Makes a sorted list of whole numbers, packs it, and asks it questions without unpacking. Everything runs in this page.</p>
+<p><label>How many numbers <input id="n" type="number" value="1000000" min="1" max="20000000"></label> <button id="go">Build</button></p>
+<output id="info">Press Build.</output>
+<p><label>First value at or above <input id="x" type="number" value="123456"></label> <button id="ask" disabled>Ask</button></p>
+<output id="ans"></output>
+<script src="elias-fano.js"></script>
+<script>
+var list = null, vals = null;
+document.getElementById('go').onclick = function () {
+  var n = Math.max(1, Math.min(20000000, +document.getElementById('n').value | 0)), v = new Uint32Array(n), s = 0, i, seed = 1;
+  for (i = 0; i < n; i++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; s += seed % 1000; v[i] = s; }
+  var t0 = performance.now(), bytes = EliasFano.build(v), t1 = performance.now(); list = EliasFano.open(bytes); vals = v;
+  document.getElementById('info').textContent = n.toLocaleString() + ' numbers: ' + (n * 4).toLocaleString() + ' bytes plain, ' + bytes.length.toLocaleString() + ' bytes packed (' + (100 - bytes.length / (n * 4) * 100).toFixed(0) + '% smaller), built in ' + (t1 - t0).toFixed(0) + ' ms with ' + (EliasFano.accelerated() ? 'WebAssembly' : 'plain JavaScript') + '.';
+  document.getElementById('ask').disabled = false;
+};
+document.getElementById('ask').onclick = function () {
+  var x = +document.getElementById('x').value, i = list.nextGEQ(x);
+  document.getElementById('ans').textContent = i < list.length ? 'value number ' + i.toLocaleString() + ' is ' + list.get(i).toLocaleString() + ' (checked against the plain list: ' + (vals[i] === list.get(i) && (i === 0 || vals[i - 1] < x) ? 'same' : 'DIFFERENT') + ')' : 'no value that big';
+};
+</script></body></html>
