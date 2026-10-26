@@ -1,8 +1,8 @@
 # gif-writer
 
-**Version 1.4.0 · API 1**
+**Version 1.5.0 · API 1**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (gif-writer browser checks and timing); Node for pass/fail only; no real phone
+**Tested in:** Node 22 (gif-writer, filters, WebAssembly twin); Firefox 158, Chromium 155, WebKitGTK 2.52.6 (filters equal in all three)
 
 Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 38 KB (15 KB gzipped, of which about 12 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map's GIF maker.
 
@@ -10,6 +10,26 @@ It first builds one palette (the set of colors) for the whole animation from a f
 
 ## Why it exists
 A GIF of a game or a chart is mostly still: a background with something moving on it. Writing only the changed box in transparent pixels is the difference between a 23 KB file and a 160 KB one.
+
+## Looks, timing and a worker (since 1.5.0; optional files)
+
+**What.** Four extra files you add only when you want them, each loads on its own page next to `gif-writer.js` and gives a global of its own:
+- `gif-writer-fx.js` (`GifWriterFx`): picture filters on RGBA bytes (color grade with brightness, contrast, saturation, warmth, hue and five tones; blur; sharpen; glow; vignette), nine presets, and the timing of an animation: five easing curves, `delaysCs()` (GIF delays are whole hundredths of a second; this rounds so the running total never drifts, and 25 FPS is exactly 4 each), `spinPlan()` (turns, seconds per turn, a pause between turns, reverse, partial swings, names fading in). No DOM: runs in a page, a worker and Node. A 3.8 KB WebAssembly build (SIMD) does blur, sharpen, glow and grade after `GifWriterFx.initWasm()`; the JavaScript stays the fallback and gives the same bytes (125 test cases).
+- `gif-writer-worker.js` (`GifWriterWorker`): one message handler (`wasm`, `card`, `init`, `filter`, `palette`, `frame`, `finish`) that is the body of a Web Worker, or is called directly on the page where workers are missing. One worker writes the GIF, all workers can filter.
+- `gif-writer-card.js` (`GifWriterCard`): the same filters on the graphics card (WebGL 2) with the same arithmetic. `create()` returns `null` where WebGL 2 is missing and the caller keeps WebAssembly.
+- `tolerance` option of `createEncoder` (in `gif-writer.js` itself): `createEncoder(w, h, pal, { tolerance: 8 })` leaves a pixel transparent when it is already shown within that color distance. Smaller files, slightly lossy; uses the JavaScript path, not WebAssembly.
+
+**Why.** Netflow Map makes GIFs of maps that turn around. Filters were the cost, not the GIF coding: in Netflow Map's own measurement (400 item 3D map, 960 pixels wide, one worker, full filter chain), the WebAssembly filters took WebKitGTK from 9.7 to 3.9 s, Firefox from 5.7 to 2.9 s and Chromium from 5.4 to 3.2 s.
+
+```js
+GifWriterFx.initWasm().then(function () {
+  var f = { contrast: 0.12, saturation: 0.1, sharpen: 0.6 };      // see GifWriterFx.FILTER_PRESETS
+  GifWriterFx.apply(rgba, w, h, f);                                // in place; WebAssembly when ready
+});
+var delays = GifWriterFx.delaysCs([40, 40, 40]);                   // [4, 4, 4]
+```
+
+**Test it:** `node modules/gif-writer/test/fx.js` and `node modules/gif-writer/test/fx-wasm.js` (Node), and `tests/gif-writer-fx-browser.js` in the three browsers. Rebuild the filter WebAssembly with `sh wasm/build-fx.sh` then `python3 wasm/embed-fx.py`.
 
 ## Try it and test it
 **Test it:** `node modules/gif-writer/test/run.js` (an independent GIF decoder reads every file the writer makes and checks every pixel; about 0.2 s). **Try it:** `demo.html`.

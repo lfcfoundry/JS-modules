@@ -4,7 +4,7 @@
  * are left transparent, and every picture is compressed the moment it is added.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.0 (API 1)
+ * Version 1.5.0 (API 1)
  *
  *   var pal = GifWriter.makePalette([rgba1, rgba2], 255);          // rgba: Uint8ClampedArray from ctx.getImageData(...).data
  *   var enc = GifWriter.createEncoder(width, height, pal, { loop: true });
@@ -332,7 +332,8 @@
     for (j = 0; j < NP; j++) SI[j] = j;
     SI.sort(function (x, y) { return PG[x] - PG[y] || x - y; });
     for (j = 0; j < NP; j++) { SR[j] = PR[SI[j]]; SG[j] = PG[SI[j]]; SB[j] = PB[SI[j]]; }
-    var W = opts.wasm === false ? null : wasmEncoder(width, height, NP, SI, SR, SG, SB);   // WebAssembly does the picture work when it can; then the JavaScript tables below are not made
+    var tol2 = (opts.tolerance || 0) * (opts.tolerance || 0);   // lossy size choice: a pixel already shown within this color distance stays transparent (JavaScript path only; WebAssembly is skipped when it is set)
+    var W = opts.wasm === false || tol2 ? null : wasmEncoder(width, height, NP, SI, SR, SG, SB);   // WebAssembly does the picture work when it can; then the JavaScript tables below are not made
     var CAP = 1 << 20, ck = W ? null : new Int32Array(CAP).fill(-1), cv = W ? null : new Uint8Array(CAP), used = 0;
     var L1 = 1 << 14, l1k = W ? null : new Int32Array(L1).fill(-1), l1v = W ? null : new Uint8Array(L1);   // a small table that stays in the processor cache, in front of the big one
     var nearest = function (col) {
@@ -395,6 +396,7 @@
             for (x = i; x < rowEnd; x++) {
               var px = w[x];
               if (px === pr[x]) continue;
+              if (tol2) { var pi = prevIdx[x], er = (px & 255) - PR[pi], eg = ((px >> 8) & 255) - PG[pi], eb = ((px >> 16) & 255) - PB[pi]; if (er * er + eg * eg + eb * eb <= tol2) continue; }   /* lossy: a pixel that is already shown within the tolerance keeps its old color, so it stays transparent in this picture */
               if (px === last) idx[x] = lastIdx; else { last = px; lastIdx = nearest(rgbOf(px)); idx[x] = lastIdx; }
               if (idx[x] !== prevIdx[x]) { rowHit = true; chg[nchg++] = x; if (x - i < minx) minx = x - i; if (x - i > maxx) maxx = x - i; }
             }
