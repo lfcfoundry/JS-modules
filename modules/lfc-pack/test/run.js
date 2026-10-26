@@ -14,6 +14,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('byte-exact switch', 'node', ['exact.cjs']);
   step('key and range reads', 'node', ['query.cjs']);
   step('helper workers', 'node', ['pool.cjs']);
+  step('tables and plain values', 'node', ['tables.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);
   fs.rmSync(dir, { recursive: true, force: true });
   console.log(fail ? fail + ' step(s) failed' : 'all lfc-pack checks passed'); process.exit(fail ? 1 : 0);

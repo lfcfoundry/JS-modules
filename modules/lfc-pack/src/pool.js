@@ -42,7 +42,7 @@
       if (o.keys) { want = {}; for (k = 0; k < o.keys.length; k++) want[o.keys[k]] = 1; if (range) want[range.key] = 1; }
       var results = new Array(n), out = [];
       for (i2 = 0; i2 < n; i2++) (function (i) {
-        if (!blockMayMatch(file, i, range)) { results[i] = Promise.resolve([]); return; }
+        if ((o.table != null && (file.blocks[i][5] || 0) !== o.table) || !blockMayMatch(file, i, range)) { results[i] = Promise.resolve([]); return; }
         var b = file.blocks[i], kd = b[4];
         if (b[0] + b[1] > file.footer.bodyEnd) { results[i] = Promise.reject(new Error('block ' + i + ' out of range')); return; }
         if (kd === 'r') { results[i] = Promise.resolve(keepRows(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), range)); return; }

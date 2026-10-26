@@ -316,7 +316,7 @@ def _open(data):
 
 
 def _block(data, f, blocks, i):
-    off, ln, crc, rows, kind = blocks[i]
+    off, ln, crc, rows, kind = blocks[i][:5]
     if off + ln > f['body_end']: raise ValueError('block %d out of range' % i)
     b = data[off:off + ln]
     if zlib.crc32(b) != crc: raise ValueError('block %d checksum mismatch' % i)
@@ -340,6 +340,18 @@ def read(path_or_bytes):
         if kind == 'r': out.extend(json.loads(l) for l in _read_raw(b).decode('utf-8').split('\n') if l.strip())
         else: out.extend(_read_flat(b) if kind == 'f' else _read_nested(b))
     return out
+
+
+def read_tables(path_or_bytes):
+    """The object LfcPack.packTables was given: named tables come back as lists of rows, plain values as they were."""
+    data = _load(path_or_bytes); f, blocks = _open(data)
+    tables = (_json(f['sec'].get(1)) or {}).get('tables') or [['', 'rows']]
+    out = {name: [] for name, _ in tables}
+    for i in range(len(blocks)):
+        kind, b = _block(data, f, blocks, i); ti = blocks[i][5] if len(blocks[i]) > 5 else 0
+        rows = [json.loads(l) for l in _read_raw(b).decode('utf-8').split('\n') if l.strip()] if kind == 'r' else (_read_flat(b) if kind == 'f' else _read_nested(b))
+        out[tables[ti][0]].extend(rows)
+    return {name: (out[name][0]['v'] if out[name] else None) if k == 'value' else out[name] for name, k in tables}
 
 
 def read_text(path_or_bytes):

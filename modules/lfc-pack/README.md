@@ -47,7 +47,19 @@ LfcPack.pool({ workers: 3 }).then(function (pool) {                       // hel
 });
 ```
 
-Python (needs `pip install zstandard`, or Python 3.14): `python/lfc_pack.py` gives `read(path)`, `read_text(path)` and `info(path)`, with the same values.
+Row objects in, row objects out (no NDJSON text), and whole documents made of several tables plus plain values (a map with nodes, links, states and view settings):
+
+```js
+var bytes = LfcPack.packRows([{ id: 1, name: 'a' }, { id: 2 }]);        // array of objects -> file bytes
+var rows = LfcPack.unpack(bytes);                                       // the same rows back
+var file = LfcPack.packTables({ nodes: nodes, links: links, states: states, view: { zoom: 2.5 }, title: 'My map' });   // arrays become tables, other values are kept as they are
+var map = LfcPack.unpackTables(file);                                   // { nodes, links, states, view, title }, value-exact (JSON values only: -0 becomes 0, undefined and NaN are lost, as with JSON.stringify)
+LfcPack.unpackTables(file, { keys: ['id'] });                           // same options as unpack, per table
+```
+
+Works under a page policy of `script-src 'wasm-unsafe-eval'` and `worker-src blob:` only: no `eval`, no `new Function`, no remote scripts (the helper workers start from a blob made of this file).
+
+Python (needs `pip install zstandard`, or Python 3.14): `python/lfc_pack.py` gives `read(path)`, `read_tables(path)`, `read_text(path)` and `info(path)`, with the same values.
 
 ## How it works
 - **Nested blocks** (any JSON): each row is split into a *shape* (its keys, nesting and value kinds) and its values. Rows with the same shape share one entry. Strings of the block go into one dictionary (each distinct string once, rows hold small codes); numbers and booleans go into one column per path (`.actor.id`, `.payload.commits[].sha`), stored at the narrowest width that holds every value (8, 16, 32 bits or a 64-bit float). A WebAssembly tokenizer does the splitting and the dictionary.

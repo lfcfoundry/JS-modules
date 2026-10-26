@@ -17,16 +17,31 @@
     return S.ready;
   }
   function need(w) { if (w && !S.sh) throw new Error('LfcPack: call init() first'); if (!S.zdec) throw new Error('LfcPack: call init({readOnly:true}) or init() first'); }
-  function pack(input, opts) {
+  function pack(input, opts) { return packMany([{ name: null, bytes: bytesOf(input) }], opts); }
+  // ---- row objects in, bytes out (no NDJSON text needed); packTables keeps several named tables and plain values in one file
+  function rowsText(rows) { var o = new Array(rows.length), i; for (i = 0; i < rows.length; i++) o[i] = JSON.stringify(rows[i]); return o.length ? o.join('\n') + '\n' : ''; }
+  function packRows(rows, opts) { return pack(te.encode(rowsText(rows)), opts); }
+  function packTables(obj, opts) {
+    var names = Object.keys(obj), inputs = [], i, v;
+    for (i = 0; i < names.length; i++) {
+      v = obj[names[i]];
+      if (Array.isArray(v)) inputs.push({ name: names[i], kind: 'rows', bytes: te.encode(rowsText(v)) });
+      else inputs.push({ name: names[i], kind: 'value', bytes: te.encode(JSON.stringify({ v: v === undefined ? null : v }) + '\n') });
+    }
+    return packMany(inputs, opts);
+  }
+  function packMany(inputs, opts) {
     opts = opts || {}; need(true);
-    var b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, p = 0, blocks = [], parts = [], zone = [], off = 0, rows = 0;
-    var ctx = { zs: S.zfull, sh: S.sh }, exact = !!opts.exact, exc = {}, tail = b.length === 0 || b[b.length - 1] === 10, fatal = new TextDecoder('utf-8', { fatal: true });
+    var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], off = 0, rows = 0, tail = true;
+    var ctx = { zs: S.zfull, sh: S.sh }, exact = !!opts.exact, exc = {}, fatal = new TextDecoder('utf-8', { fatal: true });
     var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
+    for (ti = 0; ti < inputs.length; ti++) {
+    b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
     while (retry.length || p < b.length) {
       if (retry.length) { r0 = retry.pop(); s0 = r0[0]; e = r0[1]; }
       else { s0 = p; e = Math.min(b.length, p + bb); if (e < b.length) { var nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } p = e; }
       chunk = b.subarray(s0, e); kind = opts.block; blk = null;
-      if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, 'r']); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
+      if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, 'r', ti]); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
       try {
         if (kind === 'flat') blk = writeFlatBlock(ctx, chunk, opts);
         if (kind !== 'flat' || !blk) {
@@ -40,11 +55,12 @@
         retry.push([mid + 1, e], [s0, mid + 1]); continue;
       }
       if (exact) { ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) exc[blocks.length] = ex; }
-      blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, blk.kind || 'n']); zone.push(blk.zone); parts.push(blk.bytes);
+      blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, blk.kind || 'n', ti]); zone.push(blk.zone); parts.push(blk.bytes);
       off += blk.bytes.length; rows += blk.rows;
     }
+    }
     var secs = [
-      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.0' })) },
+      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify(inputs[0].name === null ? { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.0' } : { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.0', tables: inputs.map(function (x) { return [x.name, x.kind]; }) })) },
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
@@ -141,6 +157,7 @@
     var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, j, r, kd, want = null, range = opts.range || null;
     if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; if (range) want[range.key] = 1; }
     for (i = 0; i < file.blocks.length; i++) {
+      if (opts.table != null && (file.blocks[i][5] || 0) !== opts.table) continue;
       if (!blockMayMatch(file, i, range)) continue;
       kd = file.blocks[i][4];
       if (kd === 'r') r = rawRows(readRawBlock(S.zdec, blockBytes(file, i))); else if (kd === 'f') r = rf.readBlock(blockBytes(file, i), want); else r = rn.readBlock(blockBytes(file, i));
@@ -151,5 +168,11 @@
     }
     return out;
   }
+  // the object packTables was given: arrays come back as arrays of rows, other values as they were
+  function unpackTables(bytes, opts) {
+    var file = openFile(bytes), t = (file.header && file.header.tables) || [['', 'rows']], out = {}, i, r;
+    for (i = 0; i < t.length; i++) { r = unpackSome(file.bytes, Object.assign({}, opts || {}, { table: i })); out[t[i][0]] = t[i][1] === 'value' ? (r.length ? r[0].v : null) : r; }
+    return out;
+  }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.0', apiVersion: 0 };
+  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.0', apiVersion: 0 };
