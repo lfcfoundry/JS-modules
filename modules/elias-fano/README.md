@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Node 22 twin test (74 lists x 4 chunk sizes, 96,000 random queries); Firefox 158, Chromium 155, WebKitGTK 2.52.6 with the noise guard
+**Tested in:** Node 22 intersect test and earlier twin tests; Firefox 158, Chromium 155, WebKitGTK 2.52.6 with the noise guard
 
 Keeps sorted whole numbers (ids, positions, timestamps, links of a graph) in about a third to a half of the memory of a plain 32-bit array, and still answers "what is value number i" and "where is the first value at or above x" without unpacking. It also keeps many sorted lists in one structure (the links of every item of a map) and decodes them all at once, fast. **One file, no dependencies, works offline.** A WebAssembly path (with SIMD where the browser has it) is compiled the moment the file loads; plain JavaScript answers until it is ready and gives the same answers.
 
@@ -26,7 +26,8 @@ Sorted number lists are everywhere: which items a link touches, which rows match
   list.count(5, 100);   // how many values in [5, 100)
   list.slice(1, 4);     // Uint32Array [8, 8, 20]
   list.toArray();       // everything (fast: WebAssembly with SIMD when available)
-  list.getMany(idx); list.nextGEQMany(xs); list.rankMany(xs);   // batches: one call into WebAssembly
+  list.getMany(idx); list.nextGEQMany(xs); list.rankMany(xs);   // batches
+  EliasFano.intersect([listA, listB, listC]);   // values present in every list, as a Uint32Array (nothing is unpacked): one call into WebAssembly
 </script>
 ```
 
@@ -76,6 +77,21 @@ list.nextGEQ(900); list.rank(900); list.stats();   // { chunks, dense, bitmap, e
 First value at or above x, 20,000 lookups, ms (Firefox / Chromium / WebKitGTK, WebAssembly): binary search 3.8 to 4.8; partitioned 3.2 to 3.8 on sparse lists, 2.0 to 2.4 on half-full ones, 2.8 to 3.8 on clustered and posting-shaped ones. Flat Elias-Fano is faster than the partitioned form on clustered, half-full and posting-shaped lists (1.4 to 2.0 ms), so choose the partitioned form for size, not for lookup speed. Single reads (`get`) are about 2x faster than flat Elias-Fano on sparse lists; decoding everything is 0.7 to 1.0x as fast.
 
 The builder is JavaScript only (WebAssembly reads and decodes; both give the same answers). The two forms are different blobs: open them with `open` and `openPartitioned`.
+
+## Intersecting lists (since 1.3.0)
+`EliasFano.intersect([a, b, c, ...])` takes opened lists (flat, partitioned, or a mix; up to 64) and returns the values that are in all of them, each once, in order. It walks the lists with `nextGEQ`, starting from the shortest, and never unpacks any of them; WebAssembly does the whole walk in one call. Use it for "which ids match every word" and "which items touch all these links".
+
+Timings (1,000,000 ids in the big list; Firefox 158 / Chromium 155 / WebKitGTK 2.52.6, ms; test `tests/elias-fano-intersect-browser.js`):
+
+| Intersect 1,000,000 ids with | Plain binary search | Plain linear merge | Flat Elias-Fano | Partitioned 128 |
+|---|---|---|---|---|
+| 1,000 ids | 0.2 / 0.3 / 0.2 | 3.0 / 1.8 / 1.0 | 0.2 / 0.2 / 0.2 | 0.3 / 0.3 / 0.3 |
+| 10,000 ids | 2.0 / 3.4 / 1.6 | 3.0 / 2.4 / 2.0 | 2.2 / 2.0 / 2.1 | 2.8 / 2.9 / 3.5 |
+| 200,000 ids | 30 / 64 / 19 | 14 / 12 / 9 | 40 / 37 / 38 | 52 / 53 / 57 |
+| 1,000,000 ids | 129 / 275 / 74 | 55 / 42 / 30 | 157 / 138 / 142 | 212 / 204 / 210 |
+| 3 lists (1M, 200k, 50k) | 8 / 15 / 5 | 6 / 5 / 3 | 10 / 9 / 9 | 11 / 12 / 12 |
+
+So Elias-Fano intersection costs about the same as binary search on plain arrays when one list is small (and is faster in Chromium on big ones), while the lists take a sixth to a third of the memory. A plain linear merge is faster when both lists are large; keep a plain array for that case only if memory does not matter.
 
 ## Limits
 - Values are whole numbers from 0 to 4,294,967,295; at most 1,073,741,824 values per list or list set.
