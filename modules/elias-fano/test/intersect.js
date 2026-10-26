@@ -18,6 +18,12 @@ function mk(R, kind, n, span) {
   const fixed = [[[1, 2, 3], [2, 3, 4]], [[5], [5]], [[], [1]], [[4294967295], [4294967295]], [[0, 4294967295], [0, 4294967295], [4294967295]], [[1, 1, 2, 2], [2, 2, 3]], [[1, 2, 3]], [[1, 2, 3], [4, 5, 6]]];
   const sets = fixed.map((l) => l.map((a) => Uint32Array.from(a)));
   for (let t = 0; t < 300; t++) { const k = 1 + Math.floor(R() * 5), base = 40 + Math.floor(R() * 3000), span = [3, 5, 40, 2000][Math.floor(R() * 4)]; const ls = []; for (let i = 0; i < k; i++) ls.push(mk(R, Math.floor(R() * 4), Math.max(0, Math.floor(base * (R() < 0.5 ? 1 : R() * 0.2))), span)); sets.push(ls); }
+  // longer lists of similar size (they take the block-merge path), with overlaps, repeats and the top of the range
+  for (let t = 0; t < 14; t++) {
+    const base = mk(R, 1, 6000 + Math.floor(R() * 20000), 1), ls = [];
+    for (let i = 0; i < 2 + (t % 3); i++) { const keep = Array.from(base).filter(() => R() < 0.4 + 0.5 * R()); const extra = mk(R, t % 2 ? 2 : 3, Math.floor(R() * 8000), 4); const all = Uint32Array.from(keep.concat(Array.from(extra))).sort(); if (t === 13) all[all.length - 1] = 4294967295; ls.push(all); }
+    sets.push(ls);
+  }
   for (const ls of sets) {
     const want = plain(ls); ls.forEach((a) => a.sort());
     for (const mode of ['flat', 'pef', 'mixed']) for (const be of wasm ? ['js', 'wasm'] : ['js']) {
