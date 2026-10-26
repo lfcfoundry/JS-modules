@@ -96,15 +96,16 @@
     for (var i = 0; i < a.length; i++) { var x = a[i]; if (typeof x !== 'number' || !(x >= 0 && x < 4294967296) || x % 1 !== 0 || (x === 0 && 1 / x < 0)) return false; }
     return true;
   }
-  // writer-side sample check: rebuilding full lines from templates must not be slower than splitting plain strings (best of 5 on up to 2048 values; run only when templates are already smaller)
+  // writer-side sample check: rebuilding full lines from templates must not be slower than splitting plain strings (best of 5 on up to 8192 values, each line touched so joined strings are flattened; run only when templates are already smaller)
   var clock = (typeof performance !== 'undefined' && performance.now) ? function () { return performance.now(); } : function () { return Date.now(); };
+  function touch(a) { var x = 0, i; for (i = 0; i < a.length; i++) x += a[i].charCodeAt(0) | 0; return x; }   // reading a character flattens the joined strings, as any use of a line does
   function readNoSlower(v) {
-    var smp = v.length > 2048 ? v.slice(0, 2048) : v, tf = templateFrames(smp), plain, r, t0, bt = Infinity, bp = Infinity;
+    var smp = v.length > 8192 ? v.slice(0, 8192) : v, tf = templateFrames(smp), plain, r, t0, bt = Infinity, bp = Infinity;
     if (!tf) return false;
     plain = te.encode(smp.join('\0'));
     for (r = 0; r < 6; r++) {
-      t0 = clock(); untemplate(smp.length, tf.frames); t0 = clock() - t0; if (r && t0 < bt) bt = t0;
-      t0 = clock(); td.decode(plain).split('\0'); t0 = clock() - t0; if (r && t0 < bp) bp = t0;
+      t0 = clock(); touch(untemplate(smp.length, tf.frames)); t0 = clock() - t0; if (r && t0 < bt) bt = t0;
+      t0 = clock(); touch(td.decode(plain).split('\0')); t0 = clock() - t0; if (r && t0 < bp) bp = t0;
     }
     return bt <= bp * 1.05;
   }

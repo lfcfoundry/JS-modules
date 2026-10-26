@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.1.1 (API 0)
+ * Version 0.1.0 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -418,15 +418,16 @@
     for (var i = 0; i < a.length; i++) { var x = a[i]; if (typeof x !== 'number' || !(x >= 0 && x < 4294967296) || x % 1 !== 0 || (x === 0 && 1 / x < 0)) return false; }
     return true;
   }
-  // writer-side sample check: rebuilding full lines from templates must not be slower than splitting plain strings (best of 5 on up to 2048 values; run only when templates are already smaller)
+  // writer-side sample check: rebuilding full lines from templates must not be slower than splitting plain strings (best of 5 on up to 8192 values, each line touched so joined strings are flattened; run only when templates are already smaller)
   var clock = (typeof performance !== 'undefined' && performance.now) ? function () { return performance.now(); } : function () { return Date.now(); };
+  function touch(a) { var x = 0, i; for (i = 0; i < a.length; i++) x += a[i].charCodeAt(0) | 0; return x; }   // reading a character flattens the joined strings, as any use of a line does
   function readNoSlower(v) {
-    var smp = v.length > 2048 ? v.slice(0, 2048) : v, tf = templateFrames(smp), plain, r, t0, bt = Infinity, bp = Infinity;
+    var smp = v.length > 8192 ? v.slice(0, 8192) : v, tf = templateFrames(smp), plain, r, t0, bt = Infinity, bp = Infinity;
     if (!tf) return false;
     plain = te.encode(smp.join('\0'));
     for (r = 0; r < 6; r++) {
-      t0 = clock(); untemplate(smp.length, tf.frames); t0 = clock() - t0; if (r && t0 < bt) bt = t0;
-      t0 = clock(); td.decode(plain).split('\0'); t0 = clock() - t0; if (r && t0 < bp) bp = t0;
+      t0 = clock(); touch(untemplate(smp.length, tf.frames)); t0 = clock() - t0; if (r && t0 < bt) bt = t0;
+      t0 = clock(); touch(td.decode(plain).split('\0')); t0 = clock() - t0; if (r && t0 < bp) bp = t0;
     }
     return bt <= bp * 1.05;
   }
@@ -793,7 +794,7 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.1', apiVersion: 0 };
+  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.0', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
