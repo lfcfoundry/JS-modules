@@ -261,6 +261,15 @@ def _decode_col(c, fr):
     if t == 'I':
         r = fr[0]; return ['%d.%d.%d.%d' % tuple(r[4 * i:4 * i + 4]) for i in range(n)]
     if t == 's': return fr[0].decode('utf-8').split('\0') if n else []
+    if t == 'A':
+        lens = _varints(fr[0], n); vals = _varints(fr[1], p['m']); out = []; pos = 0
+        for ln in lens:
+            acc = 0; lst = []
+            for _ in range(int(ln)):
+                d = int(vals[pos]); pos += 1
+                acc += d if p['asc'] else _unzz(d); lst.append(acc)
+            out.append(lst)
+        return out
     if t == 'L': return _untemplate(n, fr)
     if t == 'D':
         lab = fr[0].decode('utf-8').split('\0')

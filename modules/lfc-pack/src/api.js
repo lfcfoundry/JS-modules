@@ -3,7 +3,7 @@
   // ================================================================ public API
   var BLOCK_BYTES = 21 << 20;
   function flatSkeletons(list) {
-    for (var i = 0; i < list.length; i++) { var t = list[i]; if (t.charCodeAt(0) !== 123 || t.indexOf('{', 1) >= 0 || t.indexOf('[') >= 0) return false; }
+    for (var i = 0; i < list.length; i++) { var t = list[i]; if (t.charCodeAt(0) !== 123 || t.indexOf('{', 1) >= 0) return false; }
     return list.length > 0;
   }
   function init(opts) {   // -> Promise; loads the wasm modules once. { readOnly: true } skips the zstd encoder.

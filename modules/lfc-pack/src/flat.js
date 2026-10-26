@@ -3,7 +3,7 @@
   // ================================================================ flat-rows block (kind 'f'): every row is an object; one presence bit plane per key, one typed column per key
   // Layout: u32 header length, JSON header, then zstd frames: meta (keys and column table), presence planes, then the frames of each column.
   // Column types: V varints (delta when sorted, zigzag otherwise, whole numbers or two-decimal numbers), B bit-packed offsets, F float64 bytes, T booleans,
-  // H fixed-length lowercase hex, L log templates (automatic: kept only when smaller than plain and a writer-side sample shows full-line reads are not slower (templates:true skips the read check, false turns them off)), U lowercase UUID as 16 bytes, I IPv4 as 4 bytes, D block dictionary plus codes, s strings, j JSON text (anything else).
+  // A lists of whole numbers (link lists: lengths plus deltas), H fixed-length lowercase hex, L log templates (automatic: kept only when smaller than plain and a writer-side sample shows full-line reads are not slower (templates:true skips the read check, false turns them off)), U lowercase UUID as 16 bytes, I IPv4 as 4 bytes, D block dictionary plus codes, s strings, j JSON text (anything else).
   var LV_FLAT = 3;
   function zz(x) { return x >= 0 ? x * 2 : -x * 2 - 1; }
   function unzz(x) { return (x % 2 === 0) ? x / 2 : -(x + 1) / 2; }
@@ -91,6 +91,11 @@
     }
     return out;
   }
+  function isIdList(a) {
+    if (!Array.isArray(a)) return false;
+    for (var i = 0; i < a.length; i++) { var x = a[i]; if (typeof x !== 'number' || !(x >= 0 && x < 4294967296) || x % 1 !== 0 || (x === 0 && 1 / x < 0)) return false; }
+    return true;
+  }
   // writer-side sample check: rebuilding full lines from templates must not be slower than splitting plain strings (best of 5 on up to 2048 values; run only when templates are already smaller)
   var clock = (typeof performance !== 'undefined' && performance.now) ? function () { return performance.now(); } : function () { return Date.now(); };
   function readNoSlower(v) {
@@ -150,6 +155,13 @@
         return best;
       }
     }
+    if (n && allOf(v, isIdList)) {   // link lists: each value is an array of whole numbers 0..2^32-1; lengths, then deltas (zigzag when some list is not ascending)
+      var ln = new Array(n), tot = 0, asc = true, a, q;
+      for (i = 0; i < n; i++) { a = v[i]; ln[i] = a.length; tot += a.length; for (q = 1; q < a.length; q++) if (a[q] < a[q - 1]) asc = false; }
+      var dl = new Array(tot), w = 0, pv;
+      for (i = 0; i < n; i++) { a = v[i]; pv = 0; for (q = 0; q < a.length; q++) { dl[w++] = asc ? a[q] - pv : zz(a[q] - pv); pv = a[q]; } }
+      cand('A', { m: tot, asc: asc }, [varints(ln), varints(dl)]);
+    }
     cand('j', {}, [te.encode(v.map(jsonText).join('\n'))]);
     return best;
   }
@@ -168,6 +180,12 @@
     if (t === 'H') { var bl = p.L / 2, r = frames[0]; o = new Array(n); for (i = 0; i < n; i++) { var h = ''; for (var k = 0; k < bl; k++) { var b = r[i * bl + k]; h += HEXC[b >> 4] + HEXC[b & 15]; } o[i] = h; } return o; }
     if (t === 'U') { var ur = frames[0]; o = new Array(n); for (i = 0; i < n; i++) { var us = ''; for (var q = 0; q < 16; q++) { var bq = ur[i * 16 + q]; us += HEXC[bq >> 4] + HEXC[bq & 15]; if (q === 3 || q === 5 || q === 7 || q === 9) us += '-'; } o[i] = us; } return o; }
     if (t === 'I') { var ir = frames[0]; o = new Array(n); for (i = 0; i < n; i++) o[i] = ir[4 * i] + '.' + ir[4 * i + 1] + '.' + ir[4 * i + 2] + '.' + ir[4 * i + 3]; return o; }
+    if (t === 'A') {
+      var al = unvarints(frames[0], n), av = unvarints(frames[1], p.m), ap = 0, aa, aj, ac, an, ar = p.asc;
+      o = new Array(n);
+      for (i = 0; i < n; i++) { an = al[i]; aa = new Array(an); ac = 0; for (aj = 0; aj < an; aj++) { ac += ar ? av[ap++] : unzz(av[ap++]); aa[aj] = ac; } o[i] = aa; }
+      return o;
+    }
     if (t === 'L') return untemplate(n, frames);
     if (t === 's') return n ? td.decode(frames[0]).split('\0') : [];
     if (t === 'D') { var lab = td.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
