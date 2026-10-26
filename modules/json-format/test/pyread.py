@@ -1,3 +1,4 @@
+# Copyright (c) 2026 LFC Foundry. MIT License.
 # Reads files written by json-format.js with python/lfc_pack.py and compares with json.loads of the source.
 import sys, json, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'python'))

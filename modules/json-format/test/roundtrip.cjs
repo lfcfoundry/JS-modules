@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License.
 // Node round-trip: pack rows, unpack, compare with JSON.parse (value-exact).
 const JF = require('../json-format.js'), assert = require('assert');
 const cases = require(process.argv[2] || '/mnt/project-files/json-format/tokenizer/cases.js');

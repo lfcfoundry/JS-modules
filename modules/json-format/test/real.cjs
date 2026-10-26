@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License.
 // Pack+unpack a real NDJSON file; compare to JSON.parse row by row; report sizes and times.
 const fs = require('fs'), JF = require('../json-format.js');
 (async () => {

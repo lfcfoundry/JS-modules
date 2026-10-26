@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LFC Foundry. MIT License.
 // Byte-exact switch: pack({exact:true}) then unpackText gives back the input bytes, for every edge case and for tricky layouts of the same lines.
 const JF = require('../json-format.js'), fs = require('fs'), cases = require('./cases.js');
 (async () => {
