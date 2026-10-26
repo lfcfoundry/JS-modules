@@ -265,7 +265,7 @@ t('explain: mentions solid backgrounds for reduced transparency and no-hover dev
   P._env(); assert.ok(!/hover tooltip/.test(P.explain().join(' ')));
 });
 t('capabilities: all false with nothing, true for each fake feature, never throws', function () {
-  P._env(); var c = P.capabilities();
+  reset({ navigator: {} }); var c = P.capabilities();
   ['webLocks', 'wakeLock', 'closeWatcher', 'gamepad', 'compressionStream', 'idleCallback', 'webAnimations', 'viewTransitions'].forEach(function (k) { assert.strictEqual(c[k], false, k); });
   var f = function () {};
   reset({ navigator: { locks: { request: f }, wakeLock: { request: f }, getGamepads: f }, window: { CloseWatcher: f, CompressionStream: f, requestIdleCallback: f, Element: { prototype: { animate: f } } }, document: { startViewTransition: f } });
