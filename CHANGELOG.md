@@ -48,11 +48,12 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [webkit-driver](tools/webkit-driver/README.md) | 1.4.1 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
 | [test-isolation](tools/test-isolation/README.md) | 1.1.0 · API 1 | [changelog](tools/test-isolation/CHANGELOG.md) |
 | [speed-lab](tools/speed-lab/README.md) | 1.1.1 · API 1 | [changelog](tools/speed-lab/CHANGELOG.md) |
-| [test-runner](tools/test-runner/README.md) | 1.2.1 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
+| [test-runner](tools/test-runner/README.md) | 1.3.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
 | [speed-guard](tools/speed-guard/README.md) | 1.0.0 · API 1 | [changelog](tools/speed-guard/CHANGELOG.md) |
 
 ## Changes since labels began
 
+- 2026-10-25 · **test-runner** 1.3.0 · API 1: Noise guard: a fixed calibration loop that stops timings on a noisy machine.
 - 2026-10-25 · **image-decode** 1.2.1 · API 1: Image decoding now frees its temporary address if the browser throws immediately.
 - 2026-10-24 · **webkit-driver** 1.4.1 · API 1: README says GNOME Web is no longer a test browser; the option still works. No code change.
 - 2026-10-24 · **walker-sim** 2.4.0 · API 2: sweep and exactEndpoints now run their rounds in a second 1 KB WebAssembly program in the default file: what-if sweeps are about 40% (Chromium) and 60% (Firefox) faster, the same numbers to the last digit. New hook WalkerSim.useSweepKernel.

@@ -1,8 +1,8 @@
 # test-runner
 
-**Version 1.2.1 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Node checks 25 pass (counts updated to three browsers); canvas-probe browsers.js through cli.js all in Firefox 158.0, ungoogled Chromium 155.0.8059.39-1 and WebKitGTK 2.52.6: all pass, 8.9 s total.
+**Tested in:** Node unit tests; calibrate in Firefox 158, Chromium 155, WebKitGTK 2.52.6
 
 The shared helpers every browser check and speed test in this repository (and the games that follow its rules) needs, in one folder: start the three test browsers once and keep them open, run one check in all four, compare two ways of doing the same job fairly, skip a build whose inputs did not change, prove that a WebAssembly path and its plain-JavaScript twin give the same answers to the last bit, catch a drawing that changed when nobody meant it, and name the commit that broke something. Node only, no packages of its own (`puppeteer-core` for Chromium and Firefox, as the checks already used).
 
@@ -38,7 +38,7 @@ The build is `TEST_RUNNER_BUILD` when set, otherwise a fingerprint of the commit
 A check written with `T.launch` / `T.main` takes a warm browser when there is one and starts a new one when there is not; line 1 says `(warm)` when it took one. Only one check uses a browser at a time (a lock file; a second one waits, and says so if it gives up), because two pages in one browser at once make timings flaky.
 
 ## API
-`runner.js`: `launch(which, { cold, lock, lockWaitMs })` gives `{ version(), newPage(), close(), warm }` · `main(fn)` · `serve(routes)` (a local page server; routes map a path to text, bytes or a function) · `pageResult(b, url, key)` (a fresh page, waits for `window[key]`) · `rotate(names, reps, run)` · `median(list)` · `speedGuard(rows, limit)` (more than 5% slower is flagged; the owner's rule) · `table(rows, columns)` · `warmInfo(which)` · `lock(which)` · `asText(fn)`.
+`runner.js`: `launch(which, { cold, lock, lockWaitMs })` gives `{ version(), newPage(), close(), warm }` · `main(fn)` · `serve(routes)` (a local page server; routes map a path to text, bytes or a function) · `pageResult(b, url, key)` (a fresh page, waits for `window[key]`) · `rotate(names, reps, run)` · `median(list)` · `speedGuard(rows, limit)` (more than 5% slower is flagged; the owner's rule) · `guarded(b, which, fn, opts)` (the noise guard: calibrates first, reruns `fn` while the machine is more than 15% off its quiet baseline, `ok: false` when every try was noisy; save the baseline once with `node tools/test-runner/cli.js calibrate --save` on a quiet machine) · `calibrate(b, ms)` · · `table(rows, columns)` · `warmInfo(which)` · `lock(which)` · `asText(fn)`.
 
 `twin.js`: `same(a, b)` compares by bits (0 and -0 differ, NaN equals NaN; typed arrays, arrays and objects item by item) · `twin(cases, jsSide, wasmSide)` gives `{ tried, differing, names }` · `twinSource` is the same code as text for a page.
 
