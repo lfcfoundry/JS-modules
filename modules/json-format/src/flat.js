@@ -156,8 +156,12 @@
     for (i = 0; i < lines.length; i++) { var l = lines[i]; if (l.charCodeAt(l.length - 1) === 13) l = l.slice(0, -1); if (!l.trim()) continue; try { r = JSON.parse(l); } catch (e) { return null; } if (r === null || typeof r !== 'object' || Array.isArray(r)) return null; rows.push(r); }
     var n = rows.length, keys = [], seen = new Map(), cols = [], k, v, jx;
     for (i = 0; i < n; i++) { r = rows[i]; for (k in r) if (!seen.has(k)) { seen.set(k, keys.length); keys.push(k); cols.push([]); } }
-    var pb = (n + 7) >> 3, planes = new Uint8Array(pb * keys.length);
-    for (i = 0; i < n; i++) { r = rows[i]; for (k in r) { jx = seen.get(k); planes[jx * pb + (i >> 3)] |= 1 << (i & 7); cols[jx].push(r[k]); } }
+    var pb = (n + 7) >> 3, planes = new Uint8Array(pb * keys.length), ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq;
+    for (i = 0; i < n; i++) {
+      r = rows[i]; sq = ord ? [] : null;
+      for (k in r) { jx = seen.get(k); planes[jx * pb + (i >> 3)] |= 1 << (i & 7); cols[jx].push(r[k]); if (sq) sq.push(jx); }
+      if (ord) { var sk = sq.join(','), oid = ord.map.get(sk); if (oid === undefined) { oid = ord.list.length; ord.map.set(sk, oid); ord.list.push(sq); } ord.ids[i] = oid; }
+    }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
     for (j = 0; j < cols.length; j++) {
       var e = encodeColumn(cols[j], zs, level, opts.templates === false); enc.push(e);
@@ -165,6 +169,7 @@
       for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
       if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && cols[j].length) { var mn = Infinity, mx = -Infinity, a = cols[j]; for (i = 0; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zone.push([fnvStr('.' + keys[j]), mn, mx, a.length]); }
     }
+    if (ord) { var oB = te.encode(JSON.stringify(ord.list)), oz = zs.compress(oB, level), od = typedColumn(ord.ids), odz = zs.compress(od[2], level); meta.ord = [oB.length, oz.length, od[0], od[2].length, odz.length]; frames.unshift(oz, odz); }
     var mB = te.encode(JSON.stringify(meta)), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
     var hdr = te.encode(JSON.stringify({ k: 'f', n: n, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
     return { bytes: concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), rows: n, zone: zone, kind: 'f' };
@@ -173,13 +178,15 @@
     function readBlock(bytes) {
       var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j;
       function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
-      var meta = JSON.parse(td.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, vals = new Array(K);
+      var meta = JSON.parse(td.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, vals = new Array(K), ordList = null, ordIds = null;
+      if (meta.ord) { var om = meta.ord; ordList = JSON.parse(td.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, 0, n); }
       for (j = 0; j < K; j++) {
         var c = meta.cols[j], fr = [];
         for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
         vals[j] = decodeColumn(c, zs, fr);
       }
       var pb = (n + 7) >> 3, ptr = new Int32Array(K), out = new Array(n), keys = meta.keys, o, hasProto = keys.indexOf('__proto__') >= 0;
+      if (ordList) { for (i = 0; i < n; i++) { var sq2 = ordList[ordIds[i]], m2 = sq2.length; o = {}; for (j = 0; j < m2; j++) { var kk = sq2[j]; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i] = o; } return out; }
       for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) if ((pl[j * pb + (i >> 3)] >> (i & 7)) & 1) { if (hasProto) setKey(o, keys[j], vals[j][ptr[j]++]); else o[keys[j]] = vals[j][ptr[j]++]; } out[i] = o; }
       return out;
     }

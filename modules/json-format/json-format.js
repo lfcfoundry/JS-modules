@@ -453,8 +453,12 @@
     for (i = 0; i < lines.length; i++) { var l = lines[i]; if (l.charCodeAt(l.length - 1) === 13) l = l.slice(0, -1); if (!l.trim()) continue; try { r = JSON.parse(l); } catch (e) { return null; } if (r === null || typeof r !== 'object' || Array.isArray(r)) return null; rows.push(r); }
     var n = rows.length, keys = [], seen = new Map(), cols = [], k, v, jx;
     for (i = 0; i < n; i++) { r = rows[i]; for (k in r) if (!seen.has(k)) { seen.set(k, keys.length); keys.push(k); cols.push([]); } }
-    var pb = (n + 7) >> 3, planes = new Uint8Array(pb * keys.length);
-    for (i = 0; i < n; i++) { r = rows[i]; for (k in r) { jx = seen.get(k); planes[jx * pb + (i >> 3)] |= 1 << (i & 7); cols[jx].push(r[k]); } }
+    var pb = (n + 7) >> 3, planes = new Uint8Array(pb * keys.length), ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq;
+    for (i = 0; i < n; i++) {
+      r = rows[i]; sq = ord ? [] : null;
+      for (k in r) { jx = seen.get(k); planes[jx * pb + (i >> 3)] |= 1 << (i & 7); cols[jx].push(r[k]); if (sq) sq.push(jx); }
+      if (ord) { var sk = sq.join(','), oid = ord.map.get(sk); if (oid === undefined) { oid = ord.list.length; ord.map.set(sk, oid); ord.list.push(sq); } ord.ids[i] = oid; }
+    }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
     for (j = 0; j < cols.length; j++) {
       var e = encodeColumn(cols[j], zs, level, opts.templates === false); enc.push(e);
@@ -462,6 +466,7 @@
       for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
       if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && cols[j].length) { var mn = Infinity, mx = -Infinity, a = cols[j]; for (i = 0; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zone.push([fnvStr('.' + keys[j]), mn, mx, a.length]); }
     }
+    if (ord) { var oB = te.encode(JSON.stringify(ord.list)), oz = zs.compress(oB, level), od = typedColumn(ord.ids), odz = zs.compress(od[2], level); meta.ord = [oB.length, oz.length, od[0], od[2].length, odz.length]; frames.unshift(oz, odz); }
     var mB = te.encode(JSON.stringify(meta)), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
     var hdr = te.encode(JSON.stringify({ k: 'f', n: n, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
     return { bytes: concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), rows: n, zone: zone, kind: 'f' };
@@ -470,13 +475,15 @@
     function readBlock(bytes) {
       var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j;
       function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
-      var meta = JSON.parse(td.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, vals = new Array(K);
+      var meta = JSON.parse(td.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, vals = new Array(K), ordList = null, ordIds = null;
+      if (meta.ord) { var om = meta.ord; ordList = JSON.parse(td.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, 0, n); }
       for (j = 0; j < K; j++) {
         var c = meta.cols[j], fr = [];
         for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
         vals[j] = decodeColumn(c, zs, fr);
       }
       var pb = (n + 7) >> 3, ptr = new Int32Array(K), out = new Array(n), keys = meta.keys, o, hasProto = keys.indexOf('__proto__') >= 0;
+      if (ordList) { for (i = 0; i < n; i++) { var sq2 = ordList[ordIds[i]], m2 = sq2.length; o = {}; for (j = 0; j < m2; j++) { var kk = sq2[j]; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i] = o; } return out; }
       for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) if ((pl[j * pb + (i >> 3)] >> (i & 7)) & 1) { if (hasProto) setKey(o, keys[j], vals[j][ptr[j]++]); else o[keys[j]] = vals[j][ptr[j]++]; } out[i] = o; }
       return out;
     }
@@ -486,7 +493,7 @@
 
   // ================================================================ container: blocks, then footer v1 (sections), then the 16-byte trailer
   var MAJOR = 1, MINOR = 0, MAGIC = [76, 70, 67, 49];   // "LFC1"
-  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_FLAGS = 12;
+  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_FLAGS = 12, SEC_RAW = 9;
   var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1 };   // 8 and 13 are reserved
   function writeFooter(zs, sections, compress) {
     var parts = [], i, s, h;
@@ -527,13 +534,15 @@
   function pack(input, opts) {
     opts = opts || {}; need(true);
     var b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, p = 0, blocks = [], parts = [], zone = [], off = 0, rows = 0;
-    var ctx = { zs: S.zfull, sh: S.sh };
+    var ctx = { zs: S.zfull, sh: S.sh }, exact = !!opts.exact, exc = {}, tail = b.length === 0 || b[b.length - 1] === 10, fatal = new TextDecoder('utf-8', { fatal: true });
     while (p < b.length) {
       var e = Math.min(b.length, p + bb);
       if (e < b.length) { var nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; }
       var chunk = b.subarray(p, e), kind = opts.block, blk = null;
+      if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, 'r']); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; p = e; continue; }
       if (kind !== 'nested') blk = writeFlatBlock(ctx, chunk, opts);
       if (kind !== 'flat' || !blk) { var nb = writeNestedBlock(ctx, chunk, opts); if (!blk || nb.bytes.length < blk.bytes.length) blk = nb; }
+      if (exact) { var ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) exc[blocks.length] = ex; }
       blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, blk.kind || 'n']); zone.push(blk.zone); parts.push(blk.bytes);
       off += blk.bytes.length; rows += blk.rows; p = e;
     }
@@ -541,10 +550,59 @@
       { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'json-format 0.1.0' })) },
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
-      { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false })) }
+      { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
     ];
+    if (exact && Object.keys(exc).length) secs.push(excSection(exc));
     parts.push(writeFooter(S.zfull, secs, true));
     return concat(parts);
+  }
+  // ---- byte-exact switch: rows whose canonical text differs from the input line keep their original bytes (section 9, the raw-line store)
+  function exactSafe(chunk, fatal) {   // blank lines, carriage returns and invalid UTF-8 cannot be told apart from rows: those blocks are kept whole
+    if (chunk.indexOf(13) >= 0) return false;
+    var i = 0, n = chunk.length; if (n && chunk[0] === 10) return false;
+    for (; (i = chunk.indexOf(10, i)) >= 0; i++) if (chunk[i + 1] === 10) return false;
+    try { fatal.decode(chunk); } catch (e) { return false; }
+    return true;
+  }
+  function lineSpans(chunk) {
+    var out = [], p = 0, e; while (p < chunk.length) { e = chunk.indexOf(10, p); if (e < 0) e = chunk.length; out.push([p, e]); p = e + 1; } return out;
+  }
+  function exceptionsOf(blk, chunk, kind) {   // read the block back and compare each row's canonical text with its input line
+    var rows = (kind === 'f' ? makeFlatReader(S.zdec) : makeNestedReader(S.zdec)).readBlock(blk.bytes), sp = lineSpans(chunk), list = [], i, line;
+    if (rows.length !== sp.length) throw new Error('row count mismatch while checking exactness');
+    for (i = 0; i < rows.length; i++) { line = chunk.subarray(sp[i][0], sp[i][1]); var txt = null; try { txt = JSON.stringify(rows[i]); } catch (e) { txt = null; } if (txt === null || td.decode(line) !== txt) list.push([i, line]); }
+    return list.length ? list : null;
+  }
+  function excSection(exc) {
+    var idx = {}, parts = [], k;
+    for (k in exc) { idx[k] = exc[k].map(function (x) { parts.push(x[1]); return [x[0], x[1].length]; }); }
+    var hb = te.encode(JSON.stringify(idx));
+    return { id: SEC_RAW, flags: 1, payload: concat([u32le(hb.length), hb].concat(parts)) };
+  }
+  function readExc(b) {
+    if (!b) return {};
+    var hl = rd32(b, 0), idx = JSON.parse(td.decode(b.subarray(4, 4 + hl))), p = 4 + hl, out = {}, k, i;
+    for (k in idx) { out[k] = {}; for (i = 0; i < idx[k].length; i++) { out[k][idx[k][i][0]] = b.subarray(p, p + idx[k][i][1]); p += idx[k][i][1]; } }
+    return out;
+  }
+  // raw block (kind 'r'): the block text as one zstd frame; used by the byte-exact switch for text that is not plain rows
+  function writeRawBlock(zs, chunk, opts) {
+    var z = zs.compress(chunk, opts.level == null ? 3 : opts.level), n = 0, i = 0;
+    for (; (i = chunk.indexOf(10, i)) >= 0; i++) n++;
+    if (chunk.length && chunk[chunk.length - 1] !== 10) n++;
+    return { bytes: concat([u32le(chunk.length), z]), rows: n };
+  }
+  function readRawBlock(zs, bytes) { return zs.decompress(bytes.subarray(4), rd32(bytes, 0)); }
+  function unpackText(bytes) {   // -> Uint8Array: the NDJSON text. Byte-for-byte the input when the file was packed with { exact: true }; canonical JSON text per row otherwise
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), flags = jsonSec(file.footer.sec[SEC_FLAGS]) || {}, exc = readExc(file.footer.sec[SEC_RAW]), parts = [], i, j, rows, ex, last, nl = new Uint8Array([10]);
+    for (i = 0; i < file.blocks.length; i++) {
+      var kind = file.blocks[i][4], bb = blockBytes(file, i);
+      if (kind === 'r') { parts.push(readRawBlock(S.zdec, bb)); continue; }
+      rows = (kind === 'f' ? rf : rn).readBlock(bb); ex = exc[i] || {}; last = 0;
+      for (j = 0; j < rows.length; j++) parts.push(ex[j] ? ex[j] : te.encode(JSON.stringify(rows[j])), nl);
+    }
+    var out = concat(parts); if (flags.tail === false && out.length && file.blocks[file.blocks.length - 1][4] !== 'r') out = out.subarray(0, out.length - 1);
+    return out;
   }
   function openFile(bytes) {
     need(false); bytes = bytesOf(bytes);
@@ -558,12 +616,13 @@
     if (crcJS(x, 0) !== b[2]) throw new Error('block ' + i + ' checksum mismatch');
     return x;
   }
+  function rawRows(t) { return td.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
   function unpack(bytes) {   // -> array of row objects
-    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, r, j;
-    for (i = 0; i < file.blocks.length; i++) { r = (file.blocks[i][4] === 'f' ? rf : rn).readBlock(blockBytes(file, i)); for (j = 0; j < r.length; j++) out.push(r[j]); }
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, r, j, kd;
+    for (i = 0; i < file.blocks.length; i++) { kd = file.blocks[i][4]; r = kd === 'r' ? rawRows(readRawBlock(S.zdec, blockBytes(file, i))) : (kd === 'f' ? rf : rn).readBlock(blockBytes(file, i)); for (j = 0; j < r.length; j++) out.push(r[j]); }
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { init: init, pack: pack, unpack: unpack, info: info, version: '0.1.0', apiVersion: 0 };
+  var api = { init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.0', apiVersion: 0 };
   return api;
 });

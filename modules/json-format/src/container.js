@@ -2,7 +2,7 @@
 
   // ================================================================ container: blocks, then footer v1 (sections), then the 16-byte trailer
   var MAJOR = 1, MINOR = 0, MAGIC = [76, 70, 67, 49];   // "LFC1"
-  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_FLAGS = 12;
+  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_FLAGS = 12, SEC_RAW = 9;
   var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1 };   // 8 and 13 are reserved
   function writeFooter(zs, sections, compress) {
     var parts = [], i, s, h;
