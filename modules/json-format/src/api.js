@@ -20,8 +20,10 @@
     while (p < b.length) {
       var e = Math.min(b.length, p + bb);
       if (e < b.length) { var nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; }
-      var blk = writeNestedBlock(ctx, b.subarray(p, e), opts);
-      blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, 'n']); zone.push(blk.zone); parts.push(blk.bytes);
+      var chunk = b.subarray(p, e), kind = opts.block, blk = null;
+      if (kind !== 'nested') blk = writeFlatBlock(ctx, chunk, opts);
+      if (kind !== 'flat' || !blk) { var nb = writeNestedBlock(ctx, chunk, opts); if (!blk || nb.bytes.length < blk.bytes.length) blk = nb; }
+      blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, blk.kind || 'n']); zone.push(blk.zone); parts.push(blk.bytes);
       off += blk.bytes.length; rows += blk.rows; p = e;
     }
     var secs = [
@@ -46,8 +48,8 @@
     return x;
   }
   function unpack(bytes) {   // -> array of row objects
-    var file = openFile(bytes), rd = makeNestedReader(S.zdec), out = [], i, r, j;
-    for (i = 0; i < file.blocks.length; i++) { r = rd.readBlock(blockBytes(file, i)); for (j = 0; j < r.length; j++) out.push(r[j]); }
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, r, j;
+    for (i = 0; i < file.blocks.length; i++) { r = (file.blocks[i][4] === 'f' ? rf : rn).readBlock(blockBytes(file, i)); for (j = 0; j < r.length; j++) out.push(r[j]); }
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }

@@ -7,6 +7,6 @@ const fs = require('fs'), JF = require('../json-format.js');
   const p = JF.pack(buf); const tw = Number(process.hrtime.bigint() - t) / 1e6;
   t = process.hrtime.bigint(); const rows = JF.unpack(p); const tr = Number(process.hrtime.bigint() - t) / 1e6;
   t = process.hrtime.bigint(); const want = buf.toString('utf8').split('\n').filter(l => l).map(l => JSON.parse(l)); const tp = Number(process.hrtime.bigint() - t) / 1e6;
-  let bad = 0; if (rows.length !== want.length) bad = -1; else for (let i = 0; i < rows.length; i++) if (JSON.stringify(rows[i]) !== JSON.stringify(want[i])) { if (++bad < 3) console.log('row differs', i); }
+  let bad = 0; if (rows.length !== want.length) bad = -1; else for (let i = 0; i < rows.length; i++) try { require('assert').deepStrictEqual(rows[i], want[i]); } catch (e) { if (++bad < 3) console.log('row differs', i); }
   console.log(JSON.stringify({ in: buf.length, out: p.length, rows: rows.length, writeMs: tw | 0, readMs: tr | 0, parseMs: tp | 0, bad, cpuMs: Math.round((process.cpuUsage(c0).user + process.cpuUsage(c0).system) / 1000) }));
 })();
