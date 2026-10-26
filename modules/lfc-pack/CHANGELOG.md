@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.1.1 · API 0 · 2026-10-26
-- Link-list columns (30,000 nodes with out and in lists: 357,110 down to 211,344 bytes). Nested blocks about 8 to 9% smaller (first-appearance flags). Log templates now automatic only when smaller and not slower to read. New decoder-only file lfc-pack-read.js (51 KB gzipped instead of 214 KB).
+- Link-list columns (357,110 down to 211,344 bytes on 30,000 nodes). Nested blocks 8 to 9% smaller. Log templates only when smaller and not slower to read. New decoder-only lfc-pack-read.js (51 KB gzipped, was 214 KB).
 
 ## 0.1.0 · API 0 · 2026-10-26
 - First version: packs NDJSON into LFC-pack (.json.lfc) and reads it back with JSON.parse values, in WebAssembly.
