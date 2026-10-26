@@ -61,6 +61,21 @@ static inline u32 nextOne(const u8 *b, u32 x) {
   }
   return n;
 }
+// like nextOne, and also gives the value found (valid when the answer is < n)
+static inline u32 nextOneV(const u8 *b, u32 x, u32 *val) {
+  OPEN(b)
+  if (n == 0 || x > maxv) return n;
+  u32 h = (u32)((u64)x >> l), i, sp;
+  u64 xl = (u64)x & mask(l);
+  if (h == 0) { i = 0; sp = 0; } else { u32 pz = select0(H, s0, s, h - 1); i = pz - (h - 1); sp = pz + 1; }
+  while (i < n) {
+    if (!((H[sp >> 6] >> (sp & 63)) & 1)) { *val = getOne(b, i); return i; }   // the bucket of h ended: this value is bigger than x
+    u64 lo = lowAt(low, l, i);
+    if (lo >= xl) { *val = (u32)(((u64)(sp - i) << l) | lo); return i; }
+    i++; sp++;
+  }
+  return n;
+}
 u32 ef_get(const u8 *b, u32 i) { return getOne(b, i); }
 u32 ef_next(const u8 *b, u32 x) { return nextOne(b, x); }
 void ef_get_many(const u8 *b, const u32 *idx, u32 *out, u32 k) { for (u32 j = 0; j < k; j++) out[j] = getOne(b, idx[j]); }
@@ -182,6 +197,23 @@ u32 pef_next(const u8 *b, u32 x) {
   if (x <= first[c]) return c << logC;
   return (c << logC) + pChunkNext(pay + (off[c] >> 2), meta[c], chunkN(n, logC, nc, c), x - first[c], last[c] - first[c]);
 }
+// pef_next, and the value found too (valid when the answer is < n)
+static u32 pefNextV(const u8 *b, u32 x, u32 *val, u32 *hint) {   // *hint: the chunk found last time (candidates only go up, so search on from there)
+  POPEN(b);
+  if (n == 0) return 0;
+  if (x <= first[0]) { *val = first[0]; return 0; }
+  if (x > last[nc - 1]) return n;
+  u32 lo = *hint < nc ? *hint : 0, hi, step = 1;
+  if (last[lo] < x) { lo++; while (lo + step < nc && last[lo + step] < x) { lo += step; step <<= 1; } hi = lo + step < nc - 1 ? lo + step : nc - 1; }
+  else hi = lo;
+  while (lo < hi) { u32 m = (lo + hi) >> 1; if (last[m] >= x) hi = m; else lo = m + 1; }
+  u32 c = lo; *hint = c;
+  if (x <= first[c]) { *val = first[c]; return c << logC; }
+  u32 nci = chunkN(n, logC, nc, c);
+  const u32 *p = pay + (off[c] >> 2); u32 j = pChunkNext(p, meta[c], nci, x - first[c], last[c] - first[c]);
+  *val = pChunkGet(p, meta[c], nci, j, first[c], last[c]);
+  return (c << logC) + j;
+}
 void pef_get_many(const u8 *b, const u32 *idx, u32 *out, u32 k) { for (u32 j = 0; j < k; j++) out[j] = pef_get(b, idx[j]); }
 void pef_next_many(const u8 *b, const u32 *xs, u32 *out, u32 k) { for (u32 j = 0; j < k; j++) out[j] = pef_next(b, xs[j]); }
 // values a up to (not including) e into out[e - a]
@@ -192,5 +224,29 @@ void pef_decode_range(const u8 *b, u32 a, u32 e, u32 *out) {
     u32 nci = chunkN(n, logC, nc, c), base = c << logC, from = a > base ? a - base : 0, to = e - base < nci ? e - base : nci;
     pChunkDecode(pay + (off[c] >> 2), meta[c], nci, first[c], tmp);
     for (u32 j = from; j < to; j++) out[base + j - a] = tmp[j];
+  }
+}
+
+// ---- intersection of sorted lists (since 1.3.0): leapfrog over nextGEQ, no list is decoded ----
+// h: k pairs {pointer to the blob, kind} (kind 0 flat Elias-Fano, 1 partitioned), the shortest list first. Writes each common value once into out (room for the shortest list's length) and returns how many.
+static inline u32 lenOf(const u8 *b) { return rd32(b, 4); }
+u32 ef_intersect(const u32 *h, u32 k, u32 *out) {
+  u32 o = 0, i, hint[64];
+  if (k > 64) return 0;
+  for (i = 0; i < 64; i++) hint[i] = 0;
+  const u8 *b0 = (const u8 *)h[0];
+  if (k == 0 || lenOf(b0) == 0) return 0;
+  for (i = 1; i < k; i++) if (lenOf((const u8 *)h[2 * i]) == 0) return 0;
+  u32 cand = h[1] == 0 ? getOne(b0, 0) : pef_get(b0, 0);
+  for (;;) {
+    u32 agree = 1;
+    for (i = 0; i < k; i++) {
+      const u8 *b = (const u8 *)h[2 * i]; u32 kind = h[2 * i + 1], len = lenOf(b);
+      u32 v, j;
+      if (kind == 0) j = nextOneV(b, cand, &v); else j = pefNextV(b, cand, &v, &hint[i]);
+      if (j >= len) return o;
+      if (v != cand) { cand = v; agree = 0; }
+    }
+    if (agree) { out[o++] = cand; if (cand == 0xffffffffu) return o; cand++; }
   }
 }
