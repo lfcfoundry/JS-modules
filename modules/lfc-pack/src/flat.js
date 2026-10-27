@@ -67,7 +67,39 @@
     var ib = new Uint8Array(n * 2); for (i = 0; i < n; i++) { ib[i] = ids[i] & 255; ib[n + i] = ids[i] >> 8; }
     return { frames: [te.encode(tl.join('\0')), ib, te.encode(txt.join('\0')), concat(num), Uint8Array.from(kinds)], nT: tl.length };
   }
+  // Rebuild of the template lines in a small wasm module (tpl4.c; build.sh makes tpl4.wasm, the string below is its base64): one pass writes every line as bytes, then one decode and one split like plain strings.
+  // Linear memory is sized from the frame lengths for every call (memory.grow, never shrunk); more than 1.5 GB or no WebAssembly -> the JS path below.
+  var TPLW = null, TPLB64 = "/*TPL:BEGIN*//*TPL:END*/";
+  function tplw() {
+    if (TPLW) return TPLW;
+    var bin = atob(TPLB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q);
+    var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
+    return (TPLW = { x: x, heap: x.__heap_base.value });
+  }
   function untemplate(n, fr) {
+    if (!n) return [];
+    if (typeof WebAssembly !== 'object' || fr[0].length > 8000000 || n > 4000000) return untemplateJS(n, fr);
+    var f0 = fr[0], ids = fr[1], nb = fr[3], tx = fr[2], kd = fr[4], q, t, nt = 1, nm = 0;
+    for (q = 0; q < f0.length; q++) { if (f0[q] === 0) nt++; else if (f0[q] === 1) nm++; }
+    if (nt > 65536) return untemplateJS(n, fr);
+    var tlen = new Uint32Array(nt), tmk = new Uint32Array(nt), cnt = new Uint32Array(nt);
+    for (q = 0, t = 0; q < f0.length; q++) { if (f0[q] === 0) t++; else { tlen[t]++; if (f0[q] === 1) tmk[t]++; } }
+    for (q = 0; q < n; q++) { t = ids[q] | (ids[n + q] << 8); if (t >= nt) return untemplateJS(n, fr); cnt[t]++; }
+    var bound = n + tx.length + 16;
+    for (t = 0; t < nt; t++) bound += cnt[t] * (tlen[t] - tmk[t] + tmk[t] * 21);
+    var W = tplw(), o = W.heap + 15 & ~15, P = {}, end;
+    function lay(name, bytes) { P[name] = o; o = (o + bytes + 15) & ~15; }
+    lay('tb', f0.length + 1); lay('ib', ids.length); lay('nb', nb.length + 1); lay('tx', tx.length + 1); lay('kd', Math.max(nm, 1)); lay('out', bound);
+    lay('toff', 4 * (nt + 1)); lay('sb', 4 * nt); lay('tc', 4 * nt); lay('seen', nt); lay('ms', 4 * (nt + 1)); lay('mk', 4 * Math.max(nm, 1)); lay('npos', 4 * Math.max(nm, 1)); lay('tpos', 4 * Math.max(nm, 1)); lay('acc', 8 * Math.max(nm, 1));
+    end = o; if (end > 1610612736) return untemplateJS(n, fr);
+    var mem = W.x.memory; if (end > mem.buffer.byteLength) mem.grow(Math.ceil((end - mem.buffer.byteLength) / 65536));
+    var m8 = new Uint8Array(mem.buffer);
+    m8.set(f0, P.tb); m8.set(ids, P.ib); m8.set(nb, P.nb); m8.set(tx, P.tx); m8.set(kd, P.kd);
+    var r = W.x.rebuild(P.tb, f0.length, nt, P.ib, n, P.nb, P.tx, tx.length, P.kd, P.out, P.toff, P.sb, P.tc, P.seen, P.ms, P.mk, P.npos, P.tpos, P.acc);
+    if (r > bound) throw new Error('LfcPack: template rebuild overran its buffer');
+    return td.decode(m8.subarray(P.out, P.out + r)).split('\0');
+  }
+  function untemplateJS(n, fr) {
     var tl = n ? td.decode(fr[0]).split('\0') : [], parts = tl.map(function (t) { return t.split('\x01'); }), ids = fr[1], kinds = fr[4], tx = fr[2].length ? td.decode(fr[2]).split('\0') : [], nb = fr[3];
     var i, k, cnt = new Uint32Array(tl.length), id, first = new Uint8Array(tl.length), order = [];
     for (i = 0; i < n; i++) { id = ids[i] | (ids[n + i] << 8); cnt[id]++; if (!first[id]) { first[id] = 1; for (k = 0; k < parts[id].length - 1; k++) order.push(id * 4096 + k); } }

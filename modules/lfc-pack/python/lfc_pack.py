@@ -91,7 +91,7 @@ def _jsdumps(o):
                 if i: stack.append(('text', ','))
         else:
             # JavaScript puts keys that look like array indexes first, in numeric order
-            keys = list(value.keys()); indexes = sorted((k for k in keys if k.isdigit() and (k == '0' or k[0] != '0') and len(k) < 10), key=int)
+            keys = list(value.keys()); indexes = sorted((k for k in keys if k.isascii() and k.isdigit() and (k == '0' or k[0] != '0') and len(k) <= 10 and int(k) < 4294967295), key=int)
             seen = set(indexes); keys = indexes + [k for k in keys if k not in seen]
             out.append('{'); stack.append(('text', '}'))
             for i in range(len(keys) - 1, -1, -1):

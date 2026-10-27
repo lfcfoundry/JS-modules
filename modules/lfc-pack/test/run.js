@@ -10,6 +10,9 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   await JF.init();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jf-py-')); let i = 0;
   for (const [, t] of cases) for (const block of [undefined, 'flat', 'nested']) for (const ex of [false, true]) { const nm = (i++) + (ex ? 'x' : ''); fs.writeFileSync(path.join(dir, nm + '.lfc'), JF.pack(t, { block, exact: ex })); fs.writeFileSync(path.join(dir, nm + '.src'), t); }
+  const canonicalText = '{"b":0,"١":1,"2":2}\n';
+  fs.writeFileSync(path.join(dir, 'canonical.lfc'), JF.pack(canonicalText));
+  fs.writeFileSync(path.join(dir, 'canonical.src'), canonicalText);
   step('round trips (auto, nested, flat)', 'node', ['roundtrip.cjs']);
   step('byte-exact switch', 'node', ['exact.cjs']);
   step('key and range reads', 'node', ['query.cjs']);
