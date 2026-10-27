@@ -169,6 +169,7 @@
       for (i = 0; i < n; i++) { a = v[i]; pv = 0; for (q = 0; q < a.length; q++) { dl[w++] = asc ? a[q] - pv : zz(a[q] - pv); pv = a[q]; } }
       cand('A', { m: tot, asc: asc }, [varints(ln), varints(dl)]);
     }
+    if (best && best.t === 'A') return best;   // lists of whole numbers: the list encoding wins over JSON text in every case measured, so the text candidate is not built
     cand('j', {}, [te.encode(v.map(jsonText).join('\n'))]);
     return best;
   }
