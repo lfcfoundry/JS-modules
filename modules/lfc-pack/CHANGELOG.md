@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.1.3 · API 0 · 2026-10-26
+- Python exact-text reads now match JavaScript for negative zero and numeric-looking keys.
+
 ## 0.1.2 · API 0 · 2026-10-26
 - Python exact-text reads now handle 5,000 levels of nested data.
 

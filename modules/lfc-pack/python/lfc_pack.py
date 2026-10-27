@@ -54,7 +54,7 @@ def _jsnum(x):
     if isinstance(x, int):
         return str(x) if abs(x) < 10 ** 21 else _jsnum(float(x))
     if x != x or x in (float('inf'), float('-inf')): return 'null'
-    if x == 0: return '-0' if str(x).startswith('-') else '0'
+    if x == 0: return '0'
     sign = '-' if x < 0 else ''
     d = Decimal(repr(abs(x))).normalize().as_tuple()
     digits = ''.join(map(str, d.digits)).rstrip('0') or '0'; k = len(digits); n = d.exponent + len(d.digits)   # value = 0.DIGITS * 10^n
@@ -91,7 +91,7 @@ def _jsdumps(o):
                 if i: stack.append(('text', ','))
         else:
             # JavaScript puts keys that look like array indexes first, in numeric order
-            keys = list(value.keys()); indexes = sorted((k for k in keys if k.isdigit() and (k == '0' or k[0] != '0') and len(k) < 10), key=int)
+            keys = list(value.keys()); indexes = sorted((k for k in keys if k.isascii() and k.isdigit() and (k == '0' or k[0] != '0') and len(k) <= 10 and int(k) < 4294967295), key=int)
             seen = set(indexes); keys = indexes + [k for k in keys if k not in seen]
             out.append('{'); stack.append(('text', '}'))
             for i in range(len(keys) - 1, -1, -1):
