@@ -82,6 +82,30 @@ def _jsdumps(o):
     sset = set(ik); ks = ik + [k for k in ks if k not in sset]
     return '{' + ','.join(_jsstr(k) + ':' + _jsdumps(o[k]) for k in ks) + '}'
 
+_NUM = re.compile(r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?')
+
+
+def _num_tokens(text):
+    out = []; i = 0; n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            i += 1
+            while i < n and text[i] != '"': i += 2 if text[i] == '\\' else 1
+            i += 1
+        elif c == '-' or c.isdigit():
+            m = _NUM.match(text, i); out.append((m.start(), m.end())); i = m.end()
+        else: i += 1
+    return out
+
+
+def _respell(canon, spells):
+    toks = _num_tokens(canon); rep = dict((k, t) for k, t in spells); out = []; p = 0
+    for k, (a, b) in enumerate(toks):
+        out.append(canon[p:a]); out.append(rep.get(k, canon[a:b])); p = b
+    out.append(canon[p:]); return ''.join(out)
+
+
 
 def read_footer(data):
     if len(data) < 17 or data[-4:] != MAGIC: raise ValueError('not an LFC-pack file')
@@ -92,7 +116,7 @@ def read_footer(data):
     if zlib.crc32(f) != fcrc: raise ValueError('footer checksum mismatch')
     body = _decompress(f[1:]) if f[0] == 1 else f[1:]
     sec, p = {}, 0
-    known = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14}
+    known = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15}   # 15 = number spellings (byte-exact files written with spelling mode)
     while p < len(body):
         sid, fl, ln = struct.unpack('<HHI', body[p:p + 8])
         if sid in known: sec[sid] = body[p + 8:p + 8 + ln]
@@ -377,13 +401,14 @@ def read_text(path_or_bytes):
         for k, lst in idx.items():
             exc[int(k)] = {}
             for row, ln in lst: exc[int(k)][row] = raw[p:p + ln]; p += ln
+    spell = json.loads(f['sec'][15].decode('utf-8')) if 15 in f['sec'] else {}
     parts = []
     for i in range(len(blocks)):
         kind, b = _block(data, f, blocks, i)
         if kind == 'r': parts.append(_read_raw(b)); continue
-        rows = _read_flat(b) if kind == 'f' else _read_nested(b); ex = exc.get(i, {})
+        rows = _read_flat(b) if kind == 'f' else _read_nested(b); ex = exc.get(i, {}); sp = dict((r, s) for r, s in spell.get(str(i), []))
         for j, r in enumerate(rows):
-            parts.append(ex[j] if j in ex else _jsdumps(r).encode('utf-8')); parts.append(b'\n')
+            parts.append(ex[j] if j in ex else (_respell(_jsdumps(r), sp[j]) if j in sp else _jsdumps(r)).encode('utf-8')); parts.append(b'\n')
     out = b''.join(parts)
     if flags.get('tail') is False and out and blocks[-1][4] != 'r': out = out[:-1]
     return out

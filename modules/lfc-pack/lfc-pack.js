@@ -594,8 +594,8 @@
 
   // ================================================================ container: blocks, then footer v1 (sections), then the 16-byte trailer
   var MAJOR = 1, MINOR = 0, MAGIC = [76, 70, 67, 49];   // "LFC1"
-  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_FLAGS = 12, SEC_RAW = 9;
-  var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1 };   // 8 and 13 are reserved
+  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15;
+  var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1, 15: 1 };   // 15 is the number-spelling section   // 8 and 13 are reserved
   function writeFooter(zs, sections, compress) {
     var parts = [], i, s, h;
     for (i = 0; i < sections.length; i++) { s = sections[i]; h = new Uint8Array(8); h[0] = s.id; h[1] = s.id >> 8; h[2] = s.flags; h[3] = s.flags >> 8; h.set(u32le(s.payload.length), 4); parts.push(h, s.payload); }
@@ -657,7 +657,7 @@
   function packMany(inputs, opts) {
     opts = opts || {}; need(true);
     var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], off = 0, rows = 0, tail = true;
-    var ctx = { zs: S.zfull, sh: S.sh }, exact = !!opts.exact, exc = {}, fatal = new TextDecoder('utf-8', { fatal: true });
+    var ctx = { zs: S.zfull, sh: S.sh }, exact = !!opts.exact, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
     var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
     for (ti = 0; ti < inputs.length; ti++) {
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
@@ -680,7 +680,7 @@
         if (mid < 0 || mid + 1 >= e) throw err;
         retry.push([mid + 1, e], [s0, mid + 1]); continue;
       }
-      if (exact) { ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) exc[blocks.length] = ex; }
+      if (exact) { ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) { if (ex.raw.length) exc[blocks.length] = ex.raw; if (ex.spell.length) spl[blocks.length] = ex.spell; } }
       blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, blk.kind || 'n', ti]); zone.push(blk.zone); parts.push(blk.bytes);
       off += blk.bytes.length; rows += blk.rows;
     }
@@ -692,6 +692,7 @@
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
     ];
     if (exact && Object.keys(exc).length) secs.push(excSection(exc));
+    if (exact && Object.keys(spl).length) secs.push(spellSection(spl));
     parts.push(writeFooter(S.zfull, secs, true));
     return concat(parts);
   }
@@ -709,14 +710,60 @@
   function exceptionsOf(blk, chunk, kind) {   // read the block back and compare each row's canonical text with its input line
     var rows = (kind === 'f' ? makeFlatReader(S.zdec) : makeNestedReader(S.zdec)).readBlock(blk.bytes), sp = lineSpans(chunk), list = [], i, line;
     if (rows.length !== sp.length) throw new Error('row count mismatch while checking exactness');
-    for (i = 0; i < rows.length; i++) { line = chunk.subarray(sp[i][0], sp[i][1]); var txt = null; try { txt = JSON.stringify(rows[i]); } catch (e) { txt = null; } if (txt === null || td.decode(line) !== txt) list.push([i, line]); }
-    return list.length ? list : null;
+    var spells = [];
+    for (i = 0; i < rows.length; i++) {
+      line = chunk.subarray(sp[i][0], sp[i][1]); var txt = null; try { txt = JSON.stringify(rows[i]); } catch (e) { txt = null; }
+      if (txt === null) { list.push([i, line]); continue; }
+      var lt = td.decode(line); if (lt === txt) continue;
+      var sw = spellDiff(txt, lt); if (sw) spells.push([i, sw]); else list.push([i, line]);
+    }
+    return list.length || spells.length ? { raw: list, spell: spells } : null;
+  }
+  // the line differs from the canonical text only in how some numbers are written: -> [[tokenIndex, spelledText], ...], else null
+  function spellDiff(canon, line) {
+    var a = numTokens(canon), b = numTokens(line), k, p = 0, q = 0, out = [];
+    if (a.length !== b.length) return null;
+    for (k = 0; k < a.length; k++) {
+      if (canon.slice(p, a[k][0]) !== line.slice(q, b[k][0])) return null;
+      var ct = canon.slice(a[k][0], a[k][1]), lt2 = line.slice(b[k][0], b[k][1]);
+      if (ct !== lt2) out.push([k, lt2]);
+      p = a[k][1]; q = b[k][1];
+    }
+    if (canon.slice(p) !== line.slice(q) || !out.length) return null;
+    return respell(canon, out) === line ? out : null;
+  }
+  function spellSection(sp) {
+    return { id: SEC_SPELL, flags: 1, payload: te.encode(JSON.stringify(sp)) };
   }
   function excSection(exc) {
     var idx = {}, parts = [], k;
     for (k in exc) { idx[k] = exc[k].map(function (x) { parts.push(x[1]); return [x[0], x[1].length]; }); }
     var hb = te.encode(JSON.stringify(idx));
     return { id: SEC_RAW, flags: 1, payload: concat([u32le(hb.length), hb].concat(parts)) };
+  }
+  // ---- number spellings (section 15): a row whose text differs from the canonical text only in how some numbers are written (0.0, 1E5, 1.50)
+  var RX_NUMTOK = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
+  function numTokens(text) {   // -> [[start, end], ...] of the number tokens outside strings, left to right
+    var out = [], i = 0, n = text.length, c, m;
+    while (i < n) {
+      c = text.charCodeAt(i);
+      if (c === 34) { i++; while (i < n && text.charCodeAt(i) !== 34) i += text.charCodeAt(i) === 92 ? 2 : 1; i++; }
+      else if (c === 45 || (c >= 48 && c <= 57)) { RX_NUMTOK.lastIndex = i; m = RX_NUMTOK.exec(text); if (!m) { i++; continue; } out.push([i, i + m[0].length]); i += m[0].length; }
+      else i++;
+    }
+    return out;
+  }
+  function respell(canon, spells) {   // spells: [[tokenIndex, text], ...]
+    var toks = numTokens(canon), rep = {}, out = '', p = 0, k;
+    for (k = 0; k < spells.length; k++) rep[spells[k][0]] = spells[k][1];
+    for (k = 0; k < toks.length; k++) { out += canon.slice(p, toks[k][0]) + (rep[k] !== undefined ? rep[k] : canon.slice(toks[k][0], toks[k][1])); p = toks[k][1]; }
+    return out + canon.slice(p);
+  }
+  function readSpell(b) {   // -> { blockIndex: { row: spells } }
+    if (!b) return {};
+    var raw = JSON.parse(td.decode(b)), out = {}, k, i;
+    for (k in raw) { out[k] = {}; for (i = 0; i < raw[k].length; i++) out[k][raw[k][i][0]] = raw[k][i][1]; }
+    return out;
   }
   function readExc(b) {
     if (!b) return {};
@@ -733,12 +780,12 @@
   }
   function readRawBlock(zs, bytes) { return zs.decompress(bytes.subarray(4), rd32(bytes, 0)); }
   function unpackText(bytes) {   // -> Uint8Array: the NDJSON text. Byte-for-byte the input when the file was packed with { exact: true }; canonical JSON text per row otherwise
-    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), flags = jsonSec(file.footer.sec[SEC_FLAGS]) || {}, exc = readExc(file.footer.sec[SEC_RAW]), parts = [], i, j, rows, ex, last, nl = new Uint8Array([10]);
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), flags = jsonSec(file.footer.sec[SEC_FLAGS]) || {}, exc = readExc(file.footer.sec[SEC_RAW]), spell = readSpell(file.footer.sec[SEC_SPELL]), sp, parts = [], i, j, rows, ex, last, nl = new Uint8Array([10]);
     for (i = 0; i < file.blocks.length; i++) {
       var kind = file.blocks[i][4], bb = blockBytes(file, i);
       if (kind === 'r') { parts.push(readRawBlock(S.zdec, bb)); continue; }
-      rows = (kind === 'f' ? rf : rn).readBlock(bb); ex = exc[i] || {}; last = 0;
-      for (j = 0; j < rows.length; j++) parts.push(ex[j] ? ex[j] : te.encode(JSON.stringify(rows[j])), nl);
+      rows = (kind === 'f' ? rf : rn).readBlock(bb); ex = exc[i] || {}; sp = spell[i] || {}; last = 0;
+      for (j = 0; j < rows.length; j++) parts.push(ex[j] ? ex[j] : te.encode(sp[j] ? respell(JSON.stringify(rows[j]), sp[j]) : JSON.stringify(rows[j])), nl);
     }
     var out = concat(parts); if (flags.tail === false && out.length && file.blocks[file.blocks.length - 1][4] !== 'r') out = out.subarray(0, out.length - 1);
     return out;
