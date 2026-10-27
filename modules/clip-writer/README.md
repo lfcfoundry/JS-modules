@@ -1,8 +1,8 @@
 # clip-writer
 
-**Version 1.0.0 · API 1**
+**Version 1.0.1 · API 1**
 
-**Tested in:** Node 22 read-back of every MP4 box and WebM element; Firefox 158, Chromium 155, WebKitGTK 2.52.6 real encode and playback
+**Tested in:** not recorded
 
 Turns pictures into a short MP4 or WebM video in the browser. The browser's own video encoder (WebCodecs) makes the H.264 or VP9 pictures and two small file writers here wrap them into a file you can save or play. **One file, no libraries, works offline.** The whole file is held in memory, which suits a slide-sized clip, not a film.
 
@@ -30,6 +30,7 @@ ClipWriter.support(640, 360, 25).then(function (s) {          // which formats t
 - Needs the browser's video encoder: Chromium has both MP4 and WebM, Firefox 158 both, WebKitGTK 2.52.6 WebM only here. Ask `support()` first and keep a GIF for the rest.
 - On Firefox 158 for Linux the MP4 made from Firefox's own H.264 encoder opens in Firefox at the wrong size (16 x 160); the same writer's MP4 from Chromium's encoder opens in Firefox at 320 x 180, so use WebM there.
 - WebKitGTK ignores the bitrate for VP9 and needs pictures that came from a canvas (this module always goes through one).
+- Frame durations must be finite and nonnegative. MP4 clips longer than 4,294,967,295 ms do not fit its 32-bit time field and are refused.
 - No sound, one track.
 
 ## Prior art and credits
