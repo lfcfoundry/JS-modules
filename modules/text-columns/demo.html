@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>text-columns demo</title>
+<style>:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--line:#ccc}@media (prefers-color-scheme:dark){:root{--bg:#161616;--fg:#eee;--mut:#aaa;--line:#444}}
+body{font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:46rem;margin:0 auto;padding:1rem 16px}
+button,input,textarea{font:inherit;padding:.4rem .7rem;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+textarea{width:100%;box-sizing:border-box;height:8rem;font-family:ui-monospace,monospace}
+table{border-collapse:collapse;width:100%;margin:.5rem 0}td,th{border:1px solid var(--line);padding:.25rem .5rem;text-align:left}.m{color:var(--mut)}</style></head><body>
+<h1>text-columns</h1>
+<p class="m">Paste CSV or TSV, or choose a file. Nothing leaves this page. Number columns become Float64Array; the rest stay text.</p>
+<textarea id="t" aria-label="CSV or TSV text">id,price,city
+1,2.50,Oslo
+2,-3,"Bergen, west"
+3,10.25,Tromsø</textarea>
+<p><button id="go">Split it</button> <label class="m">or a file <input type="file" id="f" accept=".csv,.tsv,.txt"></label></p>
+<p id="info" class="m"></p><div id="out"></div>
+<script src="text-columns.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function show(bytes) {
+    var t0 = performance.now(), delim = /\t/.test(new TextDecoder().decode(bytes.subarray(0, 2000))) && !/,/.test(new TextDecoder().decode(bytes.subarray(0, 2000))) ? '\t' : ',', r;
+    try { r = TextColumns.parse(bytes, { delimiter: delim }); } catch (e) { $('info').textContent = e.message; $('out').textContent = ''; return; }
+    var ms = performance.now() - t0;
+    $('info').textContent = r.count.toLocaleString() + ' rows, ' + r.names.length + ' columns in ' + ms.toFixed(1) + ' ms (' + (TextColumns.simd() ? 'WebAssembly SIMD' : TextColumns.ready() ? 'WebAssembly' : 'plain JavaScript') + '; first run includes compiling)';
+    var tb = '<table><tr>' + r.columns.map(function (c) { return '<th>' + esc(c.name) + '<br><span class="m">' + c.type + '</span></th>'; }).join('') + '</tr>';
+    for (var i = 0; i < Math.min(r.count, 8); i++) tb += '<tr>' + r.columns.map(function (c) { return '<td>' + esc(String(c.values[i])) + '</td>'; }).join('') + '</tr>';
+    $('out').innerHTML = tb + '</table>' + (r.count > 8 ? '<p class="m">First 8 rows shown.</p>' : '');
+  }
+  function esc(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  $('go').onclick = function () { show(new TextEncoder().encode($('t').value)); };
+  $('f').onchange = function () { var f = this.files[0]; if (f) f.arrayBuffer().then(function (b) { show(new Uint8Array(b)); }); };
+  show(new TextEncoder().encode($('t').value));
+})();
+</script></body></html>
