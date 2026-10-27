@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.5 · API 2 · 2026-10-26
+- Nested fields with unusual names no longer overwrite one another when unpacked.
+
 ## 2.6.4 · API 2 · 2026-10-24
 - Column pages keep nested objects, arrays, coordinate pairs and date-time columns in pieces and make each value when its row is read: scene-item page memory 312 to 148 KB, page open up to 2x faster; reading every row is 80 to 300 ns slower.
 
