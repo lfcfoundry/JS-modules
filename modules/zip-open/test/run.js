@@ -37,6 +37,22 @@ t('path tricks never escape (names only; nothing is written)', async function ()
   var r = await U.expand(u8(Z.makeZip([{ name: '../../etc/x.csv', data: csv }, { name: '/abs/y.csv', data: csv }, { name: 'a\\b\\z.csv', data: csv }])), 'x.zip');
   assert.deepEqual(r.files.map(function (f) { return f.path; }).sort(), ['a/b/z.csv', 'abs/y.csv', 'etc/x.csv']);
 });
+t('an EOCD signature in a ZIP comment does not replace the real directory', async function () {
+  var z = Z.makeZip([{ name: 'ok.csv', data: csv }]), eocd = z.length - 22, comment = Buffer.alloc(40);
+  comment.writeUInt32LE(0x06054b50, 0);
+  var withComment = Buffer.concat([z, comment]);
+  withComment.writeUInt16LE(comment.length, eocd + 20);
+  var toc = U.list(u8(withComment));
+  assert.deepEqual(toc.entries.map(function (e) { return e.path; }), ['ok.csv']);
+  var r = await U.expand(u8(withComment), 'comment.zip');
+  assert.deepEqual(r.files.map(function (f) { return f.name; }), ['ok.csv']);
+});
+t('a zip with bytes after the end record still opens', async function () {
+  var z = Z.makeZip([{ name: 'ok.csv', data: csv }]);
+  [Buffer.from('JUNK1234'), Buffer.alloc(512)].forEach(function (tail) {
+    assert.deepEqual(U.list(u8(Buffer.concat([z, tail]))).entries.map(function (e) { return e.path; }), ['ok.csv']);
+  });
+});
 t('Excel: sheets, text, numbers, dates, booleans, blank rows, sparse columns', async function () {
   var x = Z.makeXlsx([{ name: 'Edges', rows: [['source', 'target', 'weight', 'when'], ['A', 'B', 2.5, { d: 45000 }], [], ['B, "q"', 'C', 1, { d: 45000.5 }], ['C', 'A', null, null, { b: 1 }]] }, { name: 'People', rows: [['id', 'label', 'group'], ['A', 'Ann', 'red'], ['B', 'Bob', { inline: 'blue' }], ['C', 'Cy', 'red']] }]);
   var r = await U.expand(u8(x), 'book.xlsx');

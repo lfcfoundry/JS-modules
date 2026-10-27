@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.1 · API 1 · 2026-10-26
+- Fixed: a zip comment that contains end-record bytes no longer replaces the real directory; zips with extra bytes after the end record still open.
+
 ## 1.3.0 · API 1 · 2026-10-22
 - The WebAssembly checksum now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
 
