@@ -33,11 +33,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [elias-fano](modules/elias-fano/README.md) | 1.4.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.1.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.1.7 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
-| [text-columns](modules/text-columns/README.md) | 0.1.0 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
+| [text-columns](modules/text-columns/README.md) | 0.1.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.5.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -58,9 +58,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-27 · **text-columns** 0.1.1 · API 0: toRows() keeps a column named __proto__ as its own data, and a header with a repeated name now throws instead of silently dropping a column. Same speed.
 - 2026-10-27 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into Float64Array number columns and text columns with a WebAssembly SIMD scan (3 to 11 times faster than common parsers in the container), plain JavaScript fallback with the same answers.
 - 2026-10-27 · **save-kit** 1.2.2 · API 1: A zero limit in a schema now means zero: max 0 or maxKeys 0 rejects nonempty text and count entries.
 - 2026-10-27 · **pcodec-js** 1.6.1 · API 1: A maxCount of 0 now refuses every nonempty file (it used to be ignored); NaN and negative limits are refused; Infinity still means no limit. Same files, same speed.
+- 2026-10-27 · **netflow-layers** 1.5.1 · API 1: maxVertices: 0 is now a real cap (it used to fall back to 90000), and a bad value (NaN, negative, fractional, not a number) throws a clear error; Infinity still means no cap.
 - 2026-10-27 · **lfc-pack** 0.1.7 · API 0: Flat number-list columns decode to small integers (variant 19), faster hex, address and dictionary checks when packing text; files and rows unchanged.
 - 2026-10-27 · **lfc-pack** 0.1.7 · API 0: Flat number-list columns decode to small integers (variant 19), faster hex, address and dictionary checks when packing text; files and rows unchanged.
 - 2026-10-27 · **image-decode** 1.2.2 · API 1: Percent-coded data: addresses that hold binary pictures now load instead of being refused.
