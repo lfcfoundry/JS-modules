@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.1.1 (API 0)
+ * Version 0.1.2 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -389,7 +389,39 @@
     var ib = new Uint8Array(n * 2); for (i = 0; i < n; i++) { ib[i] = ids[i] & 255; ib[n + i] = ids[i] >> 8; }
     return { frames: [te.encode(tl.join('\0')), ib, te.encode(txt.join('\0')), concat(num), Uint8Array.from(kinds)], nT: tl.length };
   }
+  // Rebuild of the template lines in a small wasm module (tpl4.c; build.sh makes tpl4.wasm, the string below is its base64): one pass writes every line as bytes, then one decode and one split like plain strings.
+  // Linear memory is sized from the frame lengths for every call (memory.grow, never shrunk); more than 1.5 GB or no WebAssembly -> the JS path below.
+  var TPLW = null, TPLB64 = "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";
+  function tplw() {
+    if (TPLW) return TPLW;
+    var bin = atob(TPLB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q);
+    var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
+    return (TPLW = { x: x, heap: x.__heap_base.value });
+  }
   function untemplate(n, fr) {
+    if (!n) return [];
+    if (typeof WebAssembly !== 'object' || fr[0].length > 8000000 || n > 4000000) return untemplateJS(n, fr);
+    var f0 = fr[0], ids = fr[1], nb = fr[3], tx = fr[2], kd = fr[4], q, t, nt = 1, nm = 0;
+    for (q = 0; q < f0.length; q++) { if (f0[q] === 0) nt++; else if (f0[q] === 1) nm++; }
+    if (nt > 65536) return untemplateJS(n, fr);
+    var tlen = new Uint32Array(nt), tmk = new Uint32Array(nt), cnt = new Uint32Array(nt);
+    for (q = 0, t = 0; q < f0.length; q++) { if (f0[q] === 0) t++; else { tlen[t]++; if (f0[q] === 1) tmk[t]++; } }
+    for (q = 0; q < n; q++) { t = ids[q] | (ids[n + q] << 8); if (t >= nt) return untemplateJS(n, fr); cnt[t]++; }
+    var bound = n + tx.length + 16;
+    for (t = 0; t < nt; t++) bound += cnt[t] * (tlen[t] - tmk[t] + tmk[t] * 21);
+    var W = tplw(), o = W.heap + 15 & ~15, P = {}, end;
+    function lay(name, bytes) { P[name] = o; o = (o + bytes + 15) & ~15; }
+    lay('tb', f0.length + 1); lay('ib', ids.length); lay('nb', nb.length + 1); lay('tx', tx.length + 1); lay('kd', Math.max(nm, 1)); lay('out', bound);
+    lay('toff', 4 * (nt + 1)); lay('sb', 4 * nt); lay('tc', 4 * nt); lay('seen', nt); lay('ms', 4 * (nt + 1)); lay('mk', 4 * Math.max(nm, 1)); lay('npos', 4 * Math.max(nm, 1)); lay('tpos', 4 * Math.max(nm, 1)); lay('acc', 8 * Math.max(nm, 1));
+    end = o; if (end > 1610612736) return untemplateJS(n, fr);
+    var mem = W.x.memory; if (end > mem.buffer.byteLength) mem.grow(Math.ceil((end - mem.buffer.byteLength) / 65536));
+    var m8 = new Uint8Array(mem.buffer);
+    m8.set(f0, P.tb); m8.set(ids, P.ib); m8.set(nb, P.nb); m8.set(tx, P.tx); m8.set(kd, P.kd);
+    var r = W.x.rebuild(P.tb, f0.length, nt, P.ib, n, P.nb, P.tx, tx.length, P.kd, P.out, P.toff, P.sb, P.tc, P.seen, P.ms, P.mk, P.npos, P.tpos, P.acc);
+    if (r > bound) throw new Error('LfcPack: template rebuild overran its buffer');
+    return td.decode(m8.subarray(P.out, P.out + r)).split('\0');
+  }
+  function untemplateJS(n, fr) {
     var tl = n ? td.decode(fr[0]).split('\0') : [], parts = tl.map(function (t) { return t.split('\x01'); }), ids = fr[1], kinds = fr[4], tx = fr[2].length ? td.decode(fr[2]).split('\0') : [], nb = fr[3];
     var i, k, cnt = new Uint32Array(tl.length), id, first = new Uint8Array(tl.length), order = [];
     for (i = 0; i < n; i++) { id = ids[i] | (ids[n + i] << 8); cnt[id]++; if (!first[id]) { first[id] = 1; for (k = 0; k < parts[id].length - 1; k++) order.push(id * 4096 + k); } }
@@ -687,7 +719,7 @@
     }
     }
     var secs = [
-      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify(inputs[0].name === null ? { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.1' } : { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.1', tables: inputs.map(function (x) { return [x.name, x.kind]; }) })) },
+      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify(inputs[0].name === null ? { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.2' } : { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.1', tables: inputs.map(function (x) { return [x.name, x.kind]; }) })) },
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
@@ -849,7 +881,7 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.1', apiVersion: 0 };
+  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.2', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
