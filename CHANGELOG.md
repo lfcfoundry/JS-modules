@@ -31,6 +31,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [zip-open](modules/zip-open/README.md) | 1.3.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.6.5 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.4.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [graph-walk](modules/graph-walk/README.md) | 0.1.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.1.7 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.1.0 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
@@ -58,6 +59,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-10-27 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into Float64Array number columns and text columns with a WebAssembly SIMD scan (3 to 11 times faster than common parsers in the container), plain JavaScript fallback with the same answers.
+- 2026-10-27 · **graph-walk** 0.1.0 · API 0: First version: breadth-first distances and depth-first loop marking over a links-of-every-item layout, same answers as Netflow Map's inline walks and no slower in three browsers.
 - 2026-10-27 · **lfc-pack** 0.1.7 · API 0: Flat number-list columns decode to small integers (variant 19), faster hex, address and dictionary checks when packing text; files and rows unchanged.
 - 2026-10-27 · **lfc-pack** 0.1.7 · API 0: Flat number-list columns decode to small integers (variant 19), faster hex, address and dictionary checks when packing text; files and rows unchanged.
 - 2026-10-26 · **zip-open** 1.3.1 · API 1: Fixed: a zip comment that contains end-record bytes no longer replaces the real directory; zips with extra bytes after the end record still open.
@@ -73,6 +75,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-26 · **lfc-pack** 0.1.2 · API 0: Log-template columns read about 1.7 to 2.7 times faster (a small WebAssembly rebuild; the old code stays as the fallback).
 - 2026-10-26 · **lfc-pack** 0.1.1 · API 0: Link-list columns (357,110 down to 211,344 bytes on 30,000 nodes). Nested blocks 8 to 9% smaller. Log templates only when smaller and not slower to read. New decoder-only lfc-pack-read.js (51 KB gzipped, was 214 KB).
 - 2026-10-26 · **lfc-pack** 0.1.0 · API 0: First version: packs NDJSON into LFC-pack (.json.lfc) and reads it back with JSON.parse values, in WebAssembly. Nested and flat column layouts, automatic log templates, byte-exact switch, archive level, key and time-range reads, helper workers, Python reader. `packRows(rows)` takes row objects directly; `packTables({ nodes, links, view, ... })` / `unpackTables(file)` keep several tables and plain values in one file. The format is not frozen: 0.x files may not open in later versions.
+- 2026-10-26 · **graph-walk** 0.1.0 · API 0: First version: breadth-first distances and depth-first loop marking over link lists, same answers as Netflow Map's inline walks.
 - 2026-10-25 · **test-runner** 1.3.0 · API 1: Noise guard: a fixed calibration loop that stops timings on a noisy machine.
 - 2026-10-25 · **netflow-scene** 1.3.0 · API 1: New optional file netflow-scene-index.js: on maps of 100,000+ items, box selects and picks read a sorted Z-order index (Elias-Fano): small boxes about 150x faster, picks 3 to 4x. Nothing changes under 100,000 items.
 - 2026-10-25 · **netflow-scene** 1.2.0 · API 1: Optional look-settings file: one small object says how a map is colored and set in type.
