@@ -115,6 +115,8 @@ function fakeEnv(o) {
   await test('data: addresses become bytes with no fetch (base64 and percent-coded)', async () => {
     const env = fakeEnv({ navigator: { userAgent: 'Chrome/155' } }), I = ID.create(env);
     assert.strictEqual((await I.load('data:image/png;base64,' + PNG.toString('base64'))).kind, 'png');
+    const percentPng = 'data:image/png,' + Array.from(PNG, b => '%' + ('0' + b.toString(16)).slice(-2)).join('');
+    assert.strictEqual((await I.load(percentPng)).kind, 'png');
     assert.deepStrictEqual(env.log.filter(x => /^fetch/.test(x)), []);
     await assert.rejects(I.load('data:text/plain,hello%20there'), /cannot decode/);
   });
