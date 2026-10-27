@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.1.8 (API 0)
+ * Version 0.1.9 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1043,18 +1043,23 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.8', apiVersion: 0 };
+  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.9', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
-  function workerSource() {
-    return 'var JF = (' + jfFactory.toString() + ')(), ready = JF.init({ readOnly: true }), send, onMsg;\n' +
+  function workerSource(full) {
+    return 'var JF = (' + jfFactory.toString() + ')(), ready = JF.init(' + (full ? '{}' : '{ readOnly: true }') + '), send, onMsg;\n' +
       'if (typeof self === "undefined" && typeof require === "function") { var wt = require("worker_threads"); send = function (m, t) { wt.parentPort.postMessage(m, t); }; wt.parentPort.on("message", function (m) { onMsg(m); }); }\n' +
       'else { send = function (m, t) { self.postMessage(m, t); }; self.onmessage = function (e) { onMsg(e.data); }; }\n' +
-      'onMsg = function (m) { ready.then(function () { var r = JF._job(m); send(r.msg, r.transfer); }); };\n';
+      'onMsg = function (m) { ready.then(function () { if (m.kind === "p") send({ id: m.id, started: true }, []); var r = JF._job(m); send(r.msg, r.transfer); }); };\n';
   }
   function runJob(m) {   // in a helper: { id, kind, buf, crc, want } -> { msg, transfer }
     try {
+      if (m.kind === 'p') {   // pack one run of whole blocks: the slice is dropped as soon as it is packed
+        var out = packMany([{ name: null, bytes: m.buf }], m.opts); m.buf = null;
+        var f = openFile(out);
+        return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail }, transfer: [out.buffer] };
+      }
       var b = m.buf; if (crcJS(b, 0) !== m.crc) throw new Error('block ' + m.id + ' checksum mismatch');
       var F = m.kind === 'f' ? flatFrames(S.zdec, b, m.want, true) : nestedFrames(S.zdec, b);
       return { msg: { id: m.id, F: F }, transfer: m.kind === 'f' ? flatTransfer(F) : nestedTransfer(F) };
@@ -1105,6 +1110,53 @@
     }
     function wantOf(keys) { var w = {}; keys.forEach(function (k) { w[k] = 1; }); return w; }
     return Promise.resolve({ size: size, unpack: unpackPool, close: function () { ws.forEach(function (w) { w.kill(); }); if (url) URL.revokeObjectURL(url); } });
+  }
+
+  // ---- block-parallel pack (opt-in): consecutive blocks are cut exactly where one thread would cut them, each helper packs its run, and the parts are joined behind one footer; the file is the same bytes the single-thread pack writes
+  function packParallel(input, opts) {   // -> Promise of bytes
+    opts = opts || {};
+    return init().then(function () {
+      var b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
+      while (q < b.length) { e = Math.min(b.length, q + bb); if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
+      var nb = cuts.length - 1, w = Math.min(opts.workers || hc, 8, nb), per = Math.ceil(nb / Math.max(1, w)), groups = [], g;
+      if (opts.exact || w < 2) return pack(b, opts);   // exact mode and small inputs stay on one thread
+      for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
+      var jopts = {}, k; for (k in opts) if (k !== 'workers') jopts[k] = opts[k];
+      return new Promise(function (resolve, reject) {
+        var src = workerSource(true), url = null, ws = [], results = new Array(groups.length), left = groups.length, failed = false;
+        function stop() { ws.forEach(function (x) { x.kill(); }); if (url) URL.revokeObjectURL(url); ws = []; }
+        function fail(err) { if (failed) return; failed = true; stop(); reject(err instanceof Error ? err : new Error(String(err && err.message || err))); }
+        function onMsg(i, m, next) {
+          if (m.started) { next(); return; }
+          if (m.error) { fail(new Error(m.error)); return; }
+          results[i] = m; if (--left === 0 && !failed) { stop(); try { resolve(stitch(results, b.length, jopts)); } catch (er) { reject(er); } }
+        }
+        function start(i) {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
+          if (i >= groups.length || failed) return;
+          var w2, slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]), msg = { id: i, kind: 'p', buf: slice, opts: jopts }, nx = function () { start(i + 1); };
+          if (typeof Worker === 'function') { url = url || URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); w2 = new Worker(url); w2.onmessage = function (ev) { onMsg(i, ev.data, nx); }; w2.onerror = function (ev) { fail(new Error('helper worker failed: ' + (ev && ev.message))); }; w2.kill = function () { w2.terminate(); }; w2.postMessage(msg, [slice.buffer]); }
+          else { var WT = require('worker_threads').Worker; w2 = new WT(src, { eval: true }); w2.on('message', function (m) { onMsg(i, m, nx); }); w2.on('error', fail); w2.kill = function () { w2.terminate(); }; w2.postMessage(msg, [slice.buffer]); }
+          ws.push(w2);
+        }
+        start(0);
+      });
+    });
+  }
+  function stitch(results, inLen, jopts) {   // join the packed runs, renumber the block table, write the footer as pack does
+    var parts = [], blocks = [], zone = [], off = 0, rows = 0, i, j, r, bl;
+    for (i = 0; i < results.length; i++) {
+      r = results[i]; parts.push(r.bytes.subarray(0, r.bodyEnd));
+      for (j = 0; j < r.blocks.length; j++) { bl = r.blocks[j]; blocks.push([bl[0] + off, bl[1], bl[2], bl[3], bl[4], bl[5]]); rows += bl[3]; zone.push(r.zone[j]); }
+      off += r.bodyEnd;
+    }
+    var tail = results[results.length - 1].tail;
+    parts.push(writeFooter(S.zfull, [
+      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
+      { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
+      { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
+      { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }
+    ], true));
+    return concat(parts);
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 

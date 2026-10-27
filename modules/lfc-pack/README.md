@@ -1,10 +1,10 @@
 # lfc-pack
 
-**Version 0.1.8 · API 0**
+**Version 0.1.9 · API 0**
 
 **Version 0.1.7 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Node suite; Chromium 155, Firefox 158, WebKitGTK 2.52.6 byte-equality
 
 Packs newline-delimited JSON (NDJSON: one JSON value per line, the shape of logs, events and API dumps) into **LFC-pack** (`.json.lfc`, magic `LFC1`): the rows are cut into blocks of about 21 MB, every field becomes its own typed column, repeated strings are stored once, and each column is compressed with zstd. A footer at the end lists the blocks and the smallest and largest number of each column, so a reader can skip blocks without opening them. Reading gives back the same row objects `JSON.parse` would, and with `exact: true` the very same bytes. **One file, no dependencies, WebAssembly required** (zstd and the tokenizer are compiled to wasm32; a page needs `'wasm-unsafe-eval'` in its policy and nothing else).
 
@@ -42,6 +42,7 @@ Reading:
 LfcPack.unpack(file, { keys: ['ts', 'status'] });                         // only these keys (flat blocks never decode the others)
 LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } });   // rows whose number is in range; blocks outside it are not opened
 LfcPack.unpackText(file);                                                 // Uint8Array of NDJSON text (exact if packed with exact: true)
+LfcPack.packParallel(bytes, { workers: 4 }).then(function (file) { /* opt-in: same file bytes as pack(), blocks packed by helper Web Workers (max min(cores, 8)); exact mode and small inputs stay on one thread */ });
 LfcPack.pool({ workers: 3 }).then(function (pool) {                       // helper Web Workers do the byte work; rows are built on the calling thread; without workers you get 2 (at 105 MB more helpers did not help in Chromium and slowed Firefox)
   return pool.unpack(file).then(function (rows) { pool.close(); return rows; });   // same options as unpack
 });
