@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.5.0 · API 1**
+**Version 1.5.1 · API 1**
 
-**Tested in:** Node 22 (19 checks, wasm on, off and with code generation refused); Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 one at a time (same 800-stop picture with wasm allowed, with wasm blocked by the page rule, and with wasm off; speed runs 40 turns x 3 passes). Not run: GNOME Web, a real phone
+**Tested in:** not recorded
 
 Lays out a graph in rows (a layered, Sugiyama-style drawing): top to bottom or left to right, with long links drawn as tags, rows in the order of the story, a column for the pages every route passes, and tall maps cut into columns. It is the layered engine of Netflow Map, which draws Flow, Top-down, Spine, Lanes, Arc and Matrix from it. About 28 KB (28,868 bytes; 9.3 KB gzipped), no dependencies. Works in a browser (global `NetflowLayers`) and in Node (`module.exports`).
 
@@ -45,7 +45,7 @@ Your input is never changed: the result holds copies of your nodes and links wit
 | `lanes` | `true` puts nodes with the same `lane` number in their own band. |
 | `prev` | `{ id: 0-1 order from the last drawing }` keeps the order stable. |
 | `spread` | `"wide"` gives a looser, more tree-like drawing for wide screens: boxes beside each other get 2.4 times the gap top to bottom (1.4 times left to right), rows are 1.7 times further apart left to right (same top to bottom), and a box that leads to several boxes sits over the middle of them instead of over their weighted average. `"tight"` or nothing is the older, compact drawing exactly. |
-| `gapNode`, `gapLayer`, `maxVertices` | Spacing, and the stop limit (default 90,000 stand-in stops, then it throws with `tooBig: true`). |
+| `gapNode`, `gapLayer`, `maxVertices` | Spacing and the maximum total vertices (input nodes plus stand-in stops; default 90,000; zero refuses any nonempty graph). |
 
 All the switches are off by default; with everything off the drawing is exactly Netflow Map's older one (15 checks, 8 pinned fingerprints made by the app's own engine).
 

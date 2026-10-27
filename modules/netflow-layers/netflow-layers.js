@@ -2,7 +2,7 @@
  * netflow-layers.js: lay out a graph in rows (a Sugiyama-style layered drawing): top to bottom or left to right, with long links as tags, story order, a column for the pages every route passes, and tall maps cut into columns. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.0 (API 1)
+ * Version 1.5.1 (API 1)
  *
  *   var R = NetflowLayers.layout({ nodes: [{ id: "start", w: 140, h: 44 }, { id: "a", w: 140, h: 44 }], edges: [{ from: "start", to: "a" }], root: "start" }, { dir: "TB" });
  *   svgElement.innerHTML = NetflowLayers.toSvg(R);          // or draw R.nodes and R.edges yourself (see README)
@@ -154,6 +154,8 @@
    */
   function layered(G, opts) {
     opts = opts || {};
+    var maxVertices = opts.maxVertices == null ? 90000 : opts.maxVertices;
+    if (typeof maxVertices !== 'number' || !isFinite(maxVertices) || maxVertices < 0 || maxVertices !== Math.floor(maxVertices)) throw new RangeError('netflow-layers: maxVertices must be a finite non-negative whole number');
     var dir = opts.dir || 'LR', LR = dir === 'LR';
     var byNode = {}, outs = {}, ins = {};
     G.nodes.forEach(function (n) { byNode[n.id] = n; outs[n.id] = []; ins[n.id] = []; });
@@ -207,7 +209,7 @@
       for (var nk in need) count += need[nk];
       dummies = count;
     } else G.edges.forEach(function (e) { var s = Math.abs(layer[e.to] - layer[e.from]); if (tagged(layer[e.from], layer[e.to])) return; if (s > 1) dummies += s - 1; });
-    if (dummies + G.nodes.length > (opts.maxVertices || 90000)) {
+    if (dummies + G.nodes.length > maxVertices) {
       var err = new Error('too big for a layered drawing (' + (dummies + G.nodes.length) + ' stops); use the Network view or filter first');
       err.tooBig = true;
       throw err;
@@ -587,5 +589,5 @@
     return out.join('\n');
   }
 
-  return { version: '1.5.0', wasm: WASM, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
+  return { version: '1.5.1', wasm: WASM, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
 }));

@@ -56,6 +56,15 @@ t('tags: 20,000 pages that the plain drawing refuses draw in the time shown', ()
   const g = graph(story(20000, 10)); let refused = false; try { NL.layout(g, { dir: 'TB' }); } catch (e) { refused = !!e.tooBig; }
   ok(refused, 'the plain drawing should refuse'); const R = NL.layout(g, { dir: 'TB', tagLen: 8 }); ok(R.nodes.length >= 20000 && R.info.tags > 100, 'no drawing'); return R.info.rows + ' rows, ' + R.info.tags + ' tags';
 });
+t('maxVertices zero is an explicit cap', () => {
+  const g = { root: 'a', nodes: [{ id: 'a', w: 10, h: 10 }], edges: [] }; let e = null;
+  try { NL.layout(g, { maxVertices: 0 }); } catch (x) { e = x; }
+  ok(!!e && e.tooBig, 'a nonempty graph must exceed a zero vertex cap');
+});
+t('maxVertices rejects non-finite and fractional caps', () => {
+  const g = { root: 'a', nodes: [{ id: 'a', w: 10, h: 10 }], edges: [] };
+  for (const maxVertices of [NaN, Infinity, -1, 1.5]) { let e = null; try { NL.layout(g, { maxVertices }); } catch (x) { e = x; } ok(e instanceof RangeError, 'invalid maxVertices ' + maxVertices + ' must be rejected'); }
+});
 t('must-pass column: marked pages share one column', () => {
   const R = NL.layout(graph(story(300, 11)), { dir: 'TB', spine: true, tagLen: 8 }), ck = R.nodes.filter((n) => n.choke), xs = ck.map((n) => n.x + n.w / 2);
   ok(ck.length > 5 && Math.max.apply(null, xs) - Math.min.apply(null, xs) < 1, 'spread ' + (Math.max.apply(null, xs) - Math.min.apply(null, xs)));
