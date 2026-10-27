@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.6.4 (API 2)
+ * Version 2.6.5 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -3160,7 +3160,7 @@
 
   // builds rows from columns. Each column is described by [a, d, mode]: 0 a[i], 1 a[i] === 1, 2 d[a[i]], 3 d (a constant)
   function builder(keys, modes) {
-    var sig = 'b' + keys.join('\u0001') + '\u0002' + modes.join(''), f = GEN_CACHE[sig], j, src, expr, pk;
+    var sig = 'b' + JSON.stringify(keys) + '\u0002' + modes.join(''), f = GEN_CACHE[sig], j, src, expr, pk;
     if (f) return f;
     if (CAN_EVAL) {
       src = 'var out=new Array(n),i;for(i=0;i<n;i++){out[i]={';
@@ -3889,7 +3889,7 @@
     return out;
   };
   function recordRow(keys) {                                        // a function that gives a function making row i from the columns
-    var sig = 'r' + keys.join('\u0001') + '\u0002' + keys.length, f = GEN_CACHE[sig], j, src;
+    var sig = 'r' + JSON.stringify(keys), f = GEN_CACHE[sig], j, src;
     if (f) return f;
     src = 'return function(i){return {';
     for (j = 0; j < keys.length; j++) src += (j ? ',' : '') + (keys[j] === '__proto__' ? '["__proto__"]' : JSON.stringify(keys[j])) + ':c[' + j + '].get(i)';
