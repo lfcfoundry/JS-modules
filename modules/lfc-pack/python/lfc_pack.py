@@ -73,14 +73,33 @@ def _jsstr(s):
 
 
 def _jsdumps(o):
-    if o is None: return 'null'
-    if isinstance(o, str): return _jsstr(o)
-    if isinstance(o, (bool, int, float)): return _jsnum(o)
-    if isinstance(o, list): return '[' + ','.join(_jsdumps(x) for x in o) + ']'
-    # JavaScript puts keys that look like array indexes first, in numeric order
-    ks = list(o.keys()); ik = sorted((k for k in ks if k.isdigit() and (k == '0' or k[0] != '0') and len(k) < 10), key=int)
-    sset = set(ik); ks = ik + [k for k in ks if k not in sset]
-    return '{' + ','.join(_jsstr(k) + ':' + _jsdumps(o[k]) for k in ks) + '}'
+    out, stack = [], [('value', o)]
+    while stack:
+        kind, value = stack.pop()
+        if kind == 'text':
+            out.append(value)
+        elif value is None:
+            out.append('null')
+        elif isinstance(value, str):
+            out.append(_jsstr(value))
+        elif isinstance(value, (bool, int, float)):
+            out.append(_jsnum(value))
+        elif isinstance(value, list):
+            out.append('['); stack.append(('text', ']'))
+            for i in range(len(value) - 1, -1, -1):
+                stack.append(('value', value[i]))
+                if i: stack.append(('text', ','))
+        else:
+            # JavaScript puts keys that look like array indexes first, in numeric order
+            keys = list(value.keys()); indexes = sorted((k for k in keys if k.isdigit() and (k == '0' or k[0] != '0') and len(k) < 10), key=int)
+            seen = set(indexes); keys = indexes + [k for k in keys if k not in seen]
+            out.append('{'); stack.append(('text', '}'))
+            for i in range(len(keys) - 1, -1, -1):
+                key = keys[i]
+                stack.append(('value', value[key])); stack.append(('text', ':')); stack.append(('text', _jsstr(key)))
+                if i: stack.append(('text', ','))
+    return ''.join(out)
+
 
 _NUM = re.compile(r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?')
 

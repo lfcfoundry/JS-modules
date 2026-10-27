@@ -447,7 +447,7 @@
       var allInt = noNegZero && allOf(v, function (x) { return Number.isInteger(x) && Math.abs(x) < 9007199254740992 / 8; }), scale = 1, base = null;
       if (!noNegZero) base = null; else if (allInt) base = v; else { base = new Array(n); for (i = 0; i < n; i++) { x = Math.round(v[i] * 100); if (!(Math.abs(x) < 9007199254740992 / 8 && x / 100 === v[i])) { base = null; break; } base[i] = x; } if (base) scale = 100; }
       if (base) {
-        var mono = true, mn = Infinity, mx = -Infinity;
+        var mono = base.length === 0 || base[0] >= 0, mn = Infinity, mx = -Infinity;
         for (i = 0; i < n; i++) { if (i && base[i] < base[i - 1]) mono = false; if (base[i] < mn) mn = base[i]; if (base[i] > mx) mx = base[i]; }
         var d = base.slice(); if (mono) for (i = n - 1; i > 0; i--) d[i] -= d[i - 1]; else for (i = 0; i < n; i++) d[i] = zz(d[i]);
         cand('V', { mono: mono, scale: scale }, [varints(d)]);
