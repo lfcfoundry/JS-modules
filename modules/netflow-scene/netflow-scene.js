@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.3.1 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -417,7 +417,7 @@ var NFMScene = (function () {
       var inside = st.iconMode === 'inside';
       S.icons.push({ cx: cx, cy: cy, r: inside ? r * 0.58 : r * 0.92, icon: st.image ? null : st.icon, img: st.image || null, color: st.iconColor ? hex(st.iconColor) : (inside ? mix(T.fg, T.box, 0.1) : T.fg), node: rec.i, key: n.id, a: 1, replace: !inside, minK: 0.12 });
     };
-    var X = { S: S, L: L, T: T, o: o, lab: lab, addNode: addNode, fillOf: fillOf, valCol: valCol, gcol: gcol, nodeLabel: nodeLabel, look: look, tx: tx, labColor: labColor, LC: LC, addIcon: addIcon, autoA: autoA, endCol: endCol, nonStoryOdds: nonStoryOdds, classCol: classCol, colT: colT, nodeRamp: nodeRamp, numMode: numMode, story: story, linkText: function (e, r) { return r && r.label !== null && r.label !== undefined ? r.label : (o.linkLabelFn ? o.linkLabelFn(e) : e.label); } };
+    var X = { plainLook: !widthR && !ecR && !edgeCats && !o.linkStyle, S: S, L: L, T: T, o: o, lab: lab, addNode: addNode, fillOf: fillOf, valCol: valCol, gcol: gcol, nodeLabel: nodeLabel, look: look, tx: tx, labColor: labColor, LC: LC, addIcon: addIcon, autoA: autoA, endCol: endCol, nonStoryOdds: nonStoryOdds, classCol: classCol, colT: colT, nodeRamp: nodeRamp, numMode: numMode, story: story, linkText: function (e, r) { return r && r.label !== null && r.label !== undefined ? r.label : (o.linkLabelFn ? o.linkLabelFn(e) : e.label); } };
 
     if (L.kind === 'shape') shapeScene(X);
     else if (view === 'matrix') matrixScene(X);
@@ -1053,13 +1053,18 @@ var NFMScene = (function () {
       cg.forEach(function (c, g) { if (c.k > 1 && cg.size <= 40) lab(c.x / c.k, c.y / c.k, g || '(no group)', 18 * X.LC.groups.scale, mix(T.fg, gcol(g), 0.5), { bold: true, minK: 0.05, group: g, fixed: true }); });
     }
     /* a big flat map (straight or bent links, with or without link rules, dashes and arrowheads) goes straight into typed lists (see S.flatLinks) */
+    var looks = new Map();
     var FLAT = !n3 && !ST && o.flat !== false && m >= FLAT_MIN ? flatWriter(m, nodeIds) : null;
     L.edges.forEach(function (e, ei) {
       var s = ef ? (ef[ei] < 0 ? undefined : recs[ef[ei]]) : PN.get(e.from), t = et ? (et[ei] < 0 ? undefined : recs[et[ei]]) : PN.get(e.to);
       if (!s || !t || s === t || s.hide || t.hide) return;
       var sp = ST ? ST.edges[ei] : LKA ? LKA[ei] : undefined;
       if (sp === undefined) {
-        var same0 = s.n.group && s.n.group === t.n.group, lk0 = X.look(e, ei, { w: Math.min(1 + Math.log2(e.count) * 0.4, 2.5), color: same0 ? alpha(gcol(s.n.group), a + 0.1) : alpha(T.line, a), arrow: arrows });
+        var same0 = s.n.group && s.n.group === t.n.group, lk0;
+        if (X.plainLook) {   /* no per-link rule, width or color value: links with the same group pair and count look alike, so they share one look */
+          var gm = looks.get(same0 ? s.n.group : ''); if (!gm) looks.set(same0 ? s.n.group : '', gm = new Map());
+          lk0 = gm.get(e.count); if (lk0 === undefined) gm.set(e.count, lk0 = X.look(e, ei, { w: Math.min(1 + Math.log2(e.count) * 0.4, 2.5), color: same0 ? alpha(gcol(s.n.group), a + 0.1) : alpha(T.line, a), arrow: arrows }));
+        } else lk0 = X.look(e, ei, { w: Math.min(1 + Math.log2(e.count) * 0.4, 2.5), color: same0 ? alpha(gcol(s.n.group), a + 0.1) : alpha(T.line, a), arrow: arrows });
         sp = lk0.hide ? null : { lk: lk0, txt: X.linkText(e, lk0) };
         if (ST) ST.edges[ei] = sp; else if (LKA) LKA[ei] = sp;
       }
