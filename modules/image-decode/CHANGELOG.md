@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.2 · API 1 · 2026-10-27
+- Percent-coded data: addresses that hold binary pictures now load instead of being refused.
+
 ## 1.2.1 · API 1 · 2026-10-25
 - Image decoding now frees its temporary address if the browser throws immediately.
 
