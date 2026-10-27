@@ -530,6 +530,18 @@ t('2.6.4: nested columns (records, arrays, tuples) and dates stay in pieces in a
   v.release(); same(rows[4321], v.get(4321), 'after release');
   same(rows, J.view(J.pack(rows, opt({ mode: 'balanced' })), opt()).toArray(), 'balanced pages');
 });
+t('nested eager row builders distinguish key lists containing their separator', function () {
+  function nestedRows(keys) { return many(5000, function (i) { var inner = {}; inner[keys[0]] = i; inner[keys[1]] = i + 1; return { nested: inner }; }); }
+  var keysA = ['eager\u0001left', 'tail'], keysB = ['eager', 'left\u0001tail'];
+  var rowsA = nestedRows(keysA), rowsB = nestedRows(keysB), packedA = J.pack(rowsA, opt({ mode: 'fast' })), packedB = J.pack(rowsB, opt({ mode: 'fast' }));
+  same(rowsA, J.unpack(packedA, opt()), 'first key list'); same(rowsB, J.unpack(packedB, opt()), 'colliding key list');
+});
+t('nested lazy row builders distinguish key lists containing their separator', function () {
+  function nestedRows(keys) { return many(5000, function (i) { var inner = {}; inner[keys[0]] = i; inner[keys[1]] = i + 1; return { nested: inner }; }); }
+  var keysA = ['view\u0001left', 'tail'], keysB = ['view', 'left\u0001tail'];
+  var rowsA = nestedRows(keysA), rowsB = nestedRows(keysB), packedA = J.pack(rowsA, opt({ mode: 'fast' })), packedB = J.pack(rowsB, opt({ mode: 'fast' }));
+  same(rowsA, J.view(packedA, opt()).toArray(), 'first key list'); same(rowsB, J.view(packedB, opt()).toArray(), 'colliding key list');
+});
 t('2.0.2: view() of fewer than 16 objects works with the same calls; non-objects are still refused', function () {
   var rows = [{ a: 1, b: 'x' }, { a: 2 }, { a: 3, b: 'z', c: [1, 2] }], v = J.view(J.pack(rows, opt()), opt());
   assert.strictEqual(v.length, 3); assert.deepStrictEqual(v.keys, ['a', 'b', 'c']); assert.strictEqual(v.lazy, false);
