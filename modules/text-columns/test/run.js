@@ -46,6 +46,12 @@ t('toRows preserves __proto__ and other special header names as own fields', () 
     assert.strictEqual(row['__proto__'], 'proto'); assert.strictEqual(Object.getPrototypeOf(row), Object.prototype);
   }
 });
+t('toRows rejects duplicate headers instead of silently dropping a column', () => {
+  const parsed = F.parse('name,name\nfirst,second\n');
+  assert.strictEqual(parsed.columns.length, 2);
+  assert.deepStrictEqual(parsed.columns.map(c => c.values[0]), ['first', 'second']);
+  assert.throws(() => parsed.toRows(), /duplicate column name/);
+});
 t('errors: ragged rows, text after a closing quote, unclosed quote', () => {
   for (const plain of [false, true]) {
     assert.throws(() => F.parse('a,b\n1,2,3\n', { plain }), /same number of fields/);

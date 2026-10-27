@@ -1,6 +1,6 @@
 # text-columns
 
-**Version 0.1.1 · API 0**
+**Version 0.1.2 · API 0**
 
 **Tested in:** not recorded
 
@@ -26,6 +26,7 @@ Copy `text-columns.js` next to your page (`<script src="text-columns.js"></scrip
 - A column is a **number column** only when every field is a plain decimal of at most 15 digits, such as `-12` or `3.25`, with no leading zero (`007` stays text), no exponent (`1e5` stays text), no spaces and no empty field. Then the numbers are exactly what `Number()` gives for the same text. One field that does not fit keeps the whole column as text, so nothing is guessed.
 - Quoted fields work: `"a,b"`, `"say ""hi"""`, line breaks inside quotes. `\r\n` and `\n` line ends work; blank lines are skipped; a leading byte-order mark is dropped. The last line needs no line end.
 - Every row must have the same number of fields as the first row. A ragged file, text after a closing quote, or a quote that never closes throws an error with a plain message.
+- `toRows()` refuses duplicate header names rather than overwriting a column; both columns remain available through `columns`.
 - `plain: true` in the options forces the JavaScript path (used by the tests).
 - The WebAssembly memory grows to fit the biggest file you read and stays that size; the returned columns do not point into it.
 

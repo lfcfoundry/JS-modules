@@ -376,7 +376,7 @@
     },
     {
       "id": "text-columns",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "api": 0,
       "global": "TextColumns",
       "summary": "Reads CSV or TSV text into typed columns: plain decimal columns come out as Float64Array straight from the bytes, the rest as text. The field scan runs in WebAssembly SIMD; plain JavaScript gives the same answers.",
