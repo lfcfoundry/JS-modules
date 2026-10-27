@@ -338,7 +338,12 @@
   }
   function unvarints(b, n) {
     var out = new Float64Array(n), p = 0, i, c, u, m;
-    for (i = 0; i < n; i++) { c = b[p++]; if (c < 128) { out[i] = c; continue; } u = c & 127; m = 128; do { c = b[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); out[i] = u; }
+    for (i = 0; i < n; i++) {
+      c = b[p++]; if (c < 128) { out[i] = c; continue; }
+      u = c & 127; c = b[p++]; if (c < 128) { out[i] = u + c * 128; continue; }   // two bytes: the common case for ids below 16384
+      u += (c & 127) * 128; c = b[p++]; if (c < 128) { out[i] = u + c * 16384; continue; }
+      u += (c & 127) * 16384; m = 2097152; do { c = b[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); out[i] = u;
+    }
     return out;
   }
   function bitpack(codes, w) {
