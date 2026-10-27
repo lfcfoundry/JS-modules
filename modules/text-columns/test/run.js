@@ -39,6 +39,19 @@ t('quotes, \\r\\n, blank lines, BOM, no trailing newline, header off', () => {
   const y = F.parse('1,2\n3,4', { header: false }); assert.deepStrictEqual(y.names, ['c1', 'c2']); assert.deepStrictEqual(Array.from(y.columns[1].values), [2, 4]);
   assert.strictEqual(F.parse('').count, 0);
 });
+t('toRows preserves __proto__ and other special header names as own fields', () => {
+  for (const plain of [false, true]) {
+    const row = F.parse('__proto__,constructor,toString\nproto,ctor,string\n', { plain }).toRows()[0];
+    assert.deepStrictEqual(Object.keys(row), ['__proto__', 'constructor', 'toString']);
+    assert.strictEqual(row['__proto__'], 'proto'); assert.strictEqual(Object.getPrototypeOf(row), Object.prototype);
+  }
+});
+t('toRows rejects duplicate headers instead of silently dropping a column', () => {
+  const parsed = F.parse('name,name\nfirst,second\n');
+  assert.strictEqual(parsed.columns.length, 2);
+  assert.deepStrictEqual(parsed.columns.map(c => c.values[0]), ['first', 'second']);
+  assert.throws(() => parsed.toRows(), /duplicate column name/);
+});
 t('errors: ragged rows, text after a closing quote, unclosed quote', () => {
   for (const plain of [false, true]) {
     assert.throws(() => F.parse('a,b\n1,2,3\n', { plain }), /same number of fields/);
