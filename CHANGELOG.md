@@ -26,7 +26,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
-| [gif-writer](modules/gif-writer/README.md) | 1.5.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
+| [gif-writer](modules/gif-writer/README.md) | 1.5.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.0.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.6.5 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
@@ -58,6 +58,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-10-27 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into Float64Array number columns and text columns with a WebAssembly SIMD scan (3 to 11 times faster than common parsers in the container), plain JavaScript fallback with the same answers.
+- 2026-10-27 · **gif-writer** 1.5.1 · API 1: A frame delay above 655,350 ms is capped instead of wrapping in the GIF's 16-bit field.
 - 2026-10-26 · **zip-open** 1.3.1 · API 1: Fixed: a zip comment that contains end-record bytes no longer replaces the real directory; zips with extra bytes after the end record still open.
 - 2026-10-26 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into number and text columns with a WebAssembly SIMD scan, 3 to 11 times faster than common parsers.
 - 2026-10-26 · **memory-compression** 2.6.5 · API 2: Fixed: nested rows whose key names contain a control character could get another row shape's field names.
