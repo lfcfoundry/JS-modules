@@ -4,7 +4,7 @@
  * small number at a time, and tells you whether the browser can read WebP or AVIF.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.1 (API 1)
+ * Version 1.2.2 (API 1)
  *
  *   ImageDecode.load(source[, { strategy: 'auto' }])   -> Promise of a drawable (an ImageBitmap or an Image), ready to drawImage
  *   ImageDecode.loadAll(list[, { concurrency: 2, onEach: function (drawable, index) {} }])  -> Promise of an array, same order
@@ -72,6 +72,7 @@
     var nav = 'navigator' in env ? env.navigator : g.navigator;
     var ricFn = 'requestIdleCallback' in env ? env.requestIdleCallback : (g.requestIdleCallback && g.requestIdleCallback.bind(g));
     var timeoutFn = 'setTimeout' in env ? env.setTimeout : g.setTimeout.bind(g);
+    var TextEncoderCtor = 'TextEncoder' in env ? env.TextEncoder : g.TextEncoder;
 
     // Chromium family (Chrome, Edge, Opera, ungoogled Chromium, Android WebView) decodes off the main thread through
     // createImageBitmap only; everything else (Firefox, Safari, WebKitGTK, GNOME Web) through Image.decode().
@@ -83,6 +84,29 @@
     }
     var strategy = cib && (!ImageCtor || chromiumFamily()) ? 'bitmap' : (ImageCtor ? 'decode' : (cib ? 'bitmap' : ''));
 
+    function percentBytes(s) {
+      var out = new Uint8Array(Math.min(s.length, 8192)), n = 0, i = 0, hi, lo, from, bytes, j, c;
+      var enc = TextEncoderCtor ? new TextEncoderCtor() : null;
+      function room(count) {
+        if (n + count > out.length) { var next = new Uint8Array(Math.max(n + count, out.length * 2, 16)); next.set(out.subarray(0, n)); out = next; }
+      }
+      function hex(v) { if (v >= 48 && v <= 57) return v - 48; v |= 32; return v >= 97 && v <= 102 ? v - 87 : -1; }
+      while (i < s.length) {
+        if (s.charCodeAt(i) === 37) {
+          if (i + 2 >= s.length) throw new Error('bad percent escape');
+          hi = hex(s.charCodeAt(i + 1)); lo = hex(s.charCodeAt(i + 2));
+          if (hi < 0 || lo < 0) throw new Error('bad percent escape');
+          room(1); out[n++] = (hi << 4) | lo; i += 3;
+        } else {
+          from = i; while (i < s.length && s.charCodeAt(i) !== 37) i++;
+          if (enc) bytes = enc.encode(s.slice(from, i));
+          else { bytes = new Uint8Array(i - from); for (j = 0; j < bytes.length; j++) { c = s.charCodeAt(from + j); if (c > 127) throw new Error('TextEncoder is not available'); bytes[j] = c; } }
+          room(bytes.length); out.set(bytes, n); n += bytes.length;
+        }
+      }
+      return out.subarray(0, n);
+    }
+
     function toBlob(source) {
       if (BlobCtor && source instanceof BlobCtor) return Promise.resolve(source);
       var bytes = null;
@@ -92,12 +116,11 @@
       if (typeof source !== 'string') return Promise.reject(new Error('ImageDecode: the source must be a Blob, bytes, a data: address or a url'));
       var m = /^data:([^;,]*)((?:;[^;,]*)*?),/i.exec(source);
       if (m) {
-        var rest = source.slice(m[0].length), isB64 = /;base64/i.test(m[2]), raw;
+        var rest = source.slice(m[0].length), isB64 = /;base64/i.test(m[2]), raw, u8;
         try {
-          if (isB64) { if (!atobFn) throw new Error('no atob'); raw = atobFn(rest.replace(/\s+/g, '')); } else raw = decodeURIComponent(rest);
+          if (isB64) { if (!atobFn) throw new Error('no atob'); raw = atobFn(rest.replace(/\s+/g, '')); u8 = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i) & 255; }
+          else u8 = percentBytes(rest);
         } catch (e) { return Promise.reject(new Error('ImageDecode: the data: address is not valid')); }
-        var u8 = new Uint8Array(raw.length);
-        for (var i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i) & 255;
         return Promise.resolve(makeBlob(u8, m[1]));
       }
       if (!fetchFn) return Promise.reject(new Error('ImageDecode: this page cannot fetch a url'));
@@ -300,7 +323,7 @@
 
     function close(d) { if (d && typeof d.close === 'function') try { d.close(); } catch (e) { /* already closed */ } }
 
-    return { load: load, loadAll: loadAll, ahead: ahead, supports: supports, pick: pick, close: close, sniff: sniff, strategy: strategy, create: create, version: '1.2.1' };
+    return { load: load, loadAll: loadAll, ahead: ahead, supports: supports, pick: pick, close: close, sniff: sniff, strategy: strategy, create: create, version: '1.2.2' };
   }
 
   return create();

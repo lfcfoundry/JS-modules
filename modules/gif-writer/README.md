@@ -1,6 +1,6 @@
 # gif-writer
 
-**Version 1.5.0 · API 1**
+**Version 1.5.1 · API 1**
 
 **Tested in:** Node 22 (gif-writer, filters, WebAssembly twin); Firefox 158, Chromium 155, WebKitGTK 2.52.6 (filters equal in all three)
 
@@ -122,7 +122,7 @@ So on a mostly still animation the file is about 6.8 times smaller; when everyth
 - At most 255 colors plus one transparent entry (the GIF format allows 256). Photos will look posterized and dithering is not done.
 - Making the palette takes time in proportion to the number of different colors in the pictures you pass, not to how many pictures follow: 30 pictures of 640 x 480 with 7 colors take about 30 ms; 30 smooth photo-like pictures with about 513,000 colors take about 0.4 s in Node (smaller is better). Pass a few pictures, not all, to keep it quick.
 - The palette is fixed once you create the encoder. If later pictures bring colors the palette never saw, they are matched to the nearest palette color.
-- Frame delays are rounded to hundredths of a second, and browsers commonly show very short delays (10 ms or less) slower than asked.
+- Frame delays are rounded to hundredths of a second and capped at 655,350 ms (the GIF field limit), and browsers commonly show very short delays (10 ms or less) slower than asked.
 - All compressed pictures stay in memory until `finish()`.
 
 ## Prior art and credits
