@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-10-27
+- maxVertices: 0 is now a real cap (it used to fall back to 90000), and a bad value (NaN, negative, fractional, not a number) throws a clear error; Infinity still means no cap.
+
 ## 1.5.0 · API 1 · 2026-10-24
 - The row-order search and row placement now run in WebAssembly (8 KB embedded, 'wasm-unsafe-eval' only), 18-48% faster at 100 to 5,000 pages in three browsers; same pictures to the last digit; plain JavaScript stays as the fallback.
 
