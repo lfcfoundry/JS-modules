@@ -2,7 +2,7 @@
  * pcodec-js.js: Pcodec (a compressor for numbers) for web pages and Node, in one file with no dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.0 (API 1) · reader with the SIMD program: unpacks and streams, needs WebAssembly SIMD (pcodec-js.js works everywhere)
+ * Version 1.6.1 (API 1) · reader with the SIMD program: unpacks and streams, needs WebAssembly SIMD (pcodec-js.js works everywhere)
  *
  * Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (https://github.com/pcodec/pcodec, Apache-2.0, notice in NOTICE-pcodec.txt).
  * This file holds pco 1.0.4 as WebAssembly programs (built from wasm/ with wasm/build.sh), so it writes and reads ordinary Pcodec files: any other Pcodec can open what this writes, and this opens what any other Pcodec 1.x writes.
@@ -28,6 +28,7 @@
   var SIMD_PROBE = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]);
   var WARM = [[6,1024,"cGNvIQMACgABBAEG/wMAEo82jliLT+4bkQOAoZz///////9/BwsaAAAAAAAAgARSJQAAAAAAAIAGCAD8/////////wUALjk9AAAAAIB2DgtKCzyl66m+v5QRAcHWB37+XHwq8/CYLTYIzxp9EoborjRDZKUgVVC1sMue6vZ28LqUeOyejOUjgzgcx2DnEdNsEvHKnS+/ZDNiTfnDZYdN03T1Cjp6B37Jer1CX0MxMLy631LKeRJOo1OMXGAgkyJaiEmw0FbIEcWKxFUbBWsLra/N2f16KM1IDjousIoeLGG5PsPZ1WbiI+0fDhh4hyB2SVjhoGdCXmZUWWUTORssMFIw/s6NbcZb1lL8xWdX+rIubCqN6rYLm9ltC9VOiMvSa+hmtFPNJDrHiFL4lZbggLOTI318dpXdJLTeeFlzwf65Q/KTiTmyiQiT4We2Vs3ciTvOpsoq8ed5Y2mKpx7pOeTHwcsWLmfwthe92oBXVRaPqQuTjpcQ1yn1SipWvNhUa65aSVu9mmLVB4eIoRrP0OvM6zLgTl1YgIbhroFpTSnYcUXpihB+iA3Rg/76JItiDbw4JAeyFxjLw44GMAXdjnS0PEb9GPaPgqdkkp4+N2TVPp98RT/n4BExMKkp0Jg8AyYbyedQEf+t3+poaPXFqjy65q0lh0tsOcpyDz8+nDgMUt2uMFNTGb6HFLy0VotYOnEXMwsCsMJrC+krK+7kE3lyPpkuy8bTz4RgzmmgF0qCHnfR3KiSdeag+DTpXkTNDzFbfQFBz2twsjIdamDR2o7gXmqiVAtpm1PW8dTvcO6m1PiuB4PGF/x08CSjRl+wfwgdyKbUTL2FGAQu3jVUqtjVLnwfy+V1g1PhTbRT/6qD3R6ETCpbBOGGxxRFQcD48Apl4XTpouWI9zo0iC4He7xxUiKYdH024pxBidcpoJPoMRZQd/u73bkxJTIqcA5CgPWbJdmHrL6Io51OqpZjjeCNKI70YtAzqMy9czSYoUFB8MK02BJ6zSKinfuNEMuDfShU9JuGI0okSdrrGIfTsj43f8LMw+CPWhKq0q324hP3AY/SBTPIVnyUyqga2k1hOeFVY0J4DxUjVBzgAaGYgrMnv3hyq4fcDgzjTSrQMS8XioLcE7zbNOp3o6wzpFlpwprHIjG720M+vF3iVlEgZpXcgeXJ4TLadTDReU5eLedL7Ofj/3hYrd7b6z2lKtZDzugLSS/iJfWLIB+Waw47MeBJCbaOexVX4rKIYlrLxEZTjoYu5EmNA19z/U702CkTVotdT2N18tZzRxJp1Q2n3VqiRQeeU1kz7sSRDNYmihBUAwp77EpvWJjYyL69LbcPnEjni4D1947wSLKdEm/jdFUMcM/PunaNf4zEPxF7i5kweLZlS7luKAVUQFafSwICxH/6opsjYpjPDYVKHxSkG1KOZquC6rTK0r24A+mRXJK/iKULJ5hGFjLs5z/0gUbGwnO6gJdKheDlFZDAO27o4tnQE+UKzMgTTRflk+46tcJTqSEZurjD+zfQrbNBAKGYcYNMmfLW7bygFztcnwBhn7lU07stYMcszHbexhz+/UayF71f5FfT6xwA"],[3,1024,"cGNvIQMACgABBAED/wMAEIECABv7//+/Adn///+vAPgDAIBCdzHgMq6uOcGlEOkOR83dA18yH6u2RCdWSgv3KfNIsCHD0wLZqL8rBXR6ugShe/grEGcVaHl2MV7aE337r0YMdlKujNp3RWVXg6RYUOQuZqFtMnpc/utDKlAGalBrcSGvVka6TFfbs9+h780GL93c3SR9/tdbjBXotTRPXhirUg2RNya7JOH2uX5d1lyDGYQBId1KXOP4qQDbHF7+6Djngdf20YCYI7x8BGi6/QIU53FBTSoyGGlu/aB/xwAXHjnC2WTJAZtsoFYYx+KC8SO6nA4QV2s/I7DJONYr+jsPTDszLD83lroncfnHfriesypocAcI9i79I/rvDSlayL+ShYKM/3/NsWosOEVXd4tV4i+oCoUqwPnpMIxWMHyfdhbp1zVJ8/dOkAMgoMn2VEqnlh9iLfx5lV0NadpSGdgHTOasgj0wu/1YOqN3pmRCj1F396Mcavh3gAalJRE6tHWsNdRoo94OVpQto2G44bC/hRsyjbU4Odvumli4pr4tbjPWgQGv3NRSpGS9bSgw/dLhE+HusLLMaKN2VYRuyTUqHYTyNSbgdrZN9yFmKI8HdygvsW/Mx78mVH0lbRaZI3Dx1mT8gW9uffxrqNDYah+/rVy/dRsrYxcZesoqJDQkpbT9B+boUm5LW9bMNX/VIfz+LAzO5aL2OD07yxJt9GhnduEh/f4l/i3sz5J6mh79DWICGVpyyXoO8xZ1DIsSJhrYvsFuAbkdn8KhXDLj9a3ON3DqujLKBTX7HJ2IMLKy/oPJI0PoWcEWO1tWsLl/BwhAaiQuDq/McBiFsp/DmuMPoF5e9g0QuP7aSyWjsPzzTkY3r8SpxyJhbxD/klVRPMplGqlPgHrnC8N0rLlCfC99OLtFnjace8Srk0x6ODKYpkjHFbmZ787e54EsJPMAAA=="],[6,256,"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"]];                                                  // three tiny Pcodec files [kind, count, base64] that the warm-up unpacks in a loop
   var HAS_PACK = has('pack'), MAX_COUNT = 1 << 25, LEAN_MIN = 262144, LEAN_BATCH = 65536;   // unpack() of LEAN_MIN numbers or more decodes LEAN_BATCH numbers at a time straight into the result (see unpack)
+  function countLimit(opts) { var n = opts && opts.maxCount; return n == null ? MAX_COUNT : typeof n === 'number' && n >= 0 ? n : -1; }   // 0 refuses every nonempty file; NaN, negative and non-number limits refuse all; Infinity means no limit
   function has(k) { return Object.prototype.hasOwnProperty.call(PROGRAMS, k); }
   function now() { return typeof performance === 'object' && performance.now ? performance.now() : Date.now(); }
   function yieldNow() {                                                // gives the page a turn (a message, not a timer, so there is no 4 ms wait)
@@ -164,7 +165,7 @@
             var pk = peek(x, p, b.length); kind = pk.kind; type = KIND_NAME[kind];
             if (!type || !TYPES[type][1]) fail(-1);
             n = opts.count !== undefined ? opts.count : pk.count;
-            if (!(n > 0) || n !== Math.floor(n) || n > (opts.maxCount || MAX_COUNT)) throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or a larger { maxCount })' : ''));
+            if (!(n > 0) || n !== Math.floor(n) || n > countLimit(opts)) throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or a larger { maxCount })' : ''));
             T = TYPES[type][1]; w = T.BYTES_PER_ELEMENT;
             if (!opts.view && !opts.into && n >= LEAN_MIN && leanOn) return lean(x, p, b.length, kind, T, n);   // big copy: decode in batches into the result, so the program never holds all the numbers
             d = x.alloc(n * w);
@@ -190,7 +191,7 @@
         return Promise.resolve().then(function () {
           it = self.stream(src, { batch: 4096 });
           n = opts.count !== undefined ? opts.count : it.countHint;
-          if (!(n > 0) || n !== Math.floor(n) || n > (opts.maxCount || MAX_COUNT)) { it.return(); throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or { maxCount } if you trust it)' : '')); }
+          if (!(n > 0) || n !== Math.floor(n) || n > countLimit(opts)) { it.return(); throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or { maxCount } if you trust it)' : '')); }
           T = TYPES[it.type][1];
           if (opts.into) { if (!(opts.into instanceof T) || opts.into.length < n) { it.return(); throw new TypeError('PcodecJS: { into } must be a ' + T.name + ' of at least ' + n + ' numbers'); } out = opts.into; } else out = new T(n);
           return yieldNow().then(step);
@@ -285,7 +286,7 @@
       if (!T) fail(-1);
       n = c.total;
       if (opts.count !== undefined && opts.count !== n) fail(-3);
-      if (!(n > 0) || n > (opts.maxCount || MAX_COUNT)) throw new Error('PcodecJS: bad count ' + n + ' announced by the file (pass { maxCount } if you trust it)');
+      if (!(n > 0) || n > countLimit(opts)) throw new Error('PcodecJS: bad count ' + n + ' announced by the file (pass { maxCount } if you trust it)');
       if (opts.into) { if (!(opts.into instanceof T) || opts.into.length < n) throw new TypeError('PcodecJS: { into } must be a ' + T.name + ' of at least ' + n + ' numbers'); out = opts.into; } else out = new T(n);
       for (i = 0; i < c.parts.length; i++) { unpackPlain(c.parts[i], { count: p.counts[i], into: out.subarray(off, off + p.counts[i]) }); off += p.counts[i]; }
       return opts.into && out.length !== n ? out.subarray(0, n) : out;
@@ -511,7 +512,7 @@
         type = info.type; counts.push(info.count); total += info.count;
       }
       if (total !== c.total || !TYPES[type][1]) return Promise.reject(new Error('PcodecJS: ' + ERRORS['-2']));
-      if (!(total > 0) || total > ((o && o.maxCount) || MAX_COUNT)) return Promise.reject(new Error('PcodecJS: bad count ' + total + ' announced by the file (pass { maxCount } if you trust it)'));
+      if (!(total > 0) || total > countLimit(o)) return Promise.reject(new Error('PcodecJS: bad count ' + total + ' announced by the file (pass { maxCount } if you trust it)'));
       if (o && o.into && (o.parts || !(o.into instanceof TYPES[type][1]) || o.into.length < total)) return Promise.reject(new TypeError('PcodecJS: { into } must be a ' + TYPES[type][1].name + ' of at least ' + total + ' numbers'));
       k = lanesFor(c.parts.length, total * UNPACK_NS / 1e6);
       if (k === 1 && !(o && o.parts)) return lane(0).then(function (w) { return w.unpack(b, o); });   // too small to share out: the one worker opens the whole file in one go
@@ -548,5 +549,5 @@
       };
     });
   }
-  return { version: '1.6.0', load: load, worker: worker, pool: pool, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
+  return { version: '1.6.1', load: load, worker: worker, pool: pool, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
 });
