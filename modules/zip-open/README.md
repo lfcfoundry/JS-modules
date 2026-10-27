@@ -1,8 +1,8 @@
 # zip-open
 
-**Version 1.3.0 · API 1**
+**Version 1.3.1 · API 1**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web (Epiphany) 46.5
+**Tested in:** not recorded
 
 Opens `.zip` and Excel `.xlsx` files safely, in the browser or in Node. Text files come out as strings, every Excel sheet comes out as CSV text, and every problem is a note in plain words. About 31 KB (10.7 KB gzipped, of which about 2 KB is the embedded WebAssembly checksum), no dependencies. Cut from Netflow Map's file opener.
 
@@ -12,7 +12,7 @@ It reads the zip's list of entries, then unpacks each text file with the platfor
 Players and users drop files on a page. A zip is a few hundred bytes that can claim anything. The common libraries trust the sizes in the header, or hand you everything and leave the limits to you. This one turns "it said 1 KB, it was 1 GB" into a sentence you can show.
 
 ## Try it and test it
-**Test it:** `node modules/zip-open/test/run.js` (18 checks, including zip bombs, bad checksums, cut-off files, lying offsets and zips inside zips; about 2.6 s). **Try it:** `demo.html` (drop a file, or press the bomb button).
+**Test it:** `node modules/zip-open/test/run.js` (20 checks, including zip bombs, bad checksums, cut-off files, lying offsets, signatures in comments and zips inside zips; about 2.6 s). **Try it:** `demo.html` (drop a file, or press the bomb button).
 
 ## Use
 ```js
