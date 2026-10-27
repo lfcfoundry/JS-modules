@@ -1,6 +1,6 @@
 # lfc-pack
 
-**Version 0.1.7 · API 0**
+**Version 0.1.8 · API 0**
 
 **Version 0.1.7 · API 0**
 
@@ -42,7 +42,7 @@ Reading:
 LfcPack.unpack(file, { keys: ['ts', 'status'] });                         // only these keys (flat blocks never decode the others)
 LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } });   // rows whose number is in range; blocks outside it are not opened
 LfcPack.unpackText(file);                                                 // Uint8Array of NDJSON text (exact if packed with exact: true)
-LfcPack.pool({ workers: 3 }).then(function (pool) {                       // helper Web Workers do the byte work; rows are built on the calling thread
+LfcPack.pool({ workers: 3 }).then(function (pool) {                       // helper Web Workers do the byte work; rows are built on the calling thread; without workers you get 2 (at 105 MB more helpers did not help in Chromium and slowed Firefox)
   return pool.unpack(file).then(function (rows) { pool.close(); return rows; });   // same options as unpack
 });
 ```
