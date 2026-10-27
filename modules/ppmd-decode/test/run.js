@@ -174,7 +174,7 @@ check('the fixtures include memory that is not a multiple of 4', cases.some((c) 
   check('160 damaged or mismatched copies: the add-on and the JavaScript decoder end the same way (' + errs + ' ended in an Error)' + (disagree ? ' (differ:' + disagree + ')' : ''), agree === 160);
   const c = byName('js-5000'), good = [c.src, c.m.size, c.m.order, c.m.mem];
   let sameText = true, badList = '';
-  for (const [label, i, v] of [['order 1', 2, 1], ['order 65', 2, 65], ['order 2.5', 2, 2.5], ['memSize 100', 3, 100], ['memSize NaN', 3, NaN], ['memSize 2^31', 3, 2147483648], ['outSize -1', 1, -1], ['outSize 1.5', 1, 1.5]]) {
+  for (const [label, i, v] of [['order 1', 2, 1], ['order 65', 2, 65], ['order 2.5', 2, 2.5], ['memSize 100', 3, 100], ['memSize NaN', 3, NaN], ['memSize 2^31', 3, 2147483648], ['outSize -1', 1, -1], ['outSize 1.5', 1, 1.5], ['outSize Infinity', 1, Infinity]]) {
     const a = good.slice(); a[i] = v;
     const ra = attempt(() => ppmd7Decode.apply(null, a)), rb = attempt(() => W.apply(null, a));
     if (ra.ok || rb.ok || ra.err.message !== rb.err.message) { sameText = false; badList += ' ' + label; }
@@ -183,6 +183,8 @@ check('the fixtures include memory that is not a multiple of 4', cases.some((c) 
   check('a first byte that is not 0 and a result size of 0 behave like the JavaScript decoder', !attempt(() => W(Uint8Array.from([1, 0, 0, 0, 0, 0, 0]), 10, 12, 1 << 20)).ok && W(new Uint8Array(0), 0, 12, 1 << 20).length === 0 && W.engine === 'js');
   const okMax = attempt(() => W(c.src, c.m.size, c.m.order, c.m.mem, { maxSize: c.m.size - 1 }));
   check('maxSize smaller than outSize throws', ourError(okMax));
+  const zeroMax = attempt(() => W(c.src, c.m.size, c.m.order, c.m.mem, { maxSize: 0 }));
+  check('maxSize zero refuses every nonempty result', ourError(zeroMax));
   const t0 = process.hrtime.bigint(), big = attempt(() => W(c.src, 5e12, 12, 65536));
   check('an impossible result size is an Error, not a crash (' + ms(t0).toFixed(0) + ' ms)', ourError(big) && ms(t0) < 1500, big.err && big.err.message);
   // pages that forbid WebAssembly, or browsers without it: loading still works and every call goes to the JavaScript decoder
