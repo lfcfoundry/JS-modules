@@ -361,6 +361,19 @@
       "category": "efficiency"
     },
     {
+      "id": "graph-walk",
+      "version": "0.1.0",
+      "api": 0,
+      "global": "GraphWalk",
+      "summary": "Breadth-first distances and depth-first loop marking over a links-of-every-item layout in typed arrays, with no recursion. Same answers as Netflow Map's inline walks.",
+      "short": "Breadth-first distances and loop marking for link lists, in typed arrays.",
+      "file": "modules/graph-walk/graph-walk.js",
+      "readme": "modules/graph-walk/README.md",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "math"
+    },
+    {
       "id": "lfc-pack",
       "version": "0.1.5",
       "api": 0,
