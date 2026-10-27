@@ -1,8 +1,8 @@
 # text-columns
 
-**Version 0.1.0 · API 0**
+**Version 0.1.1 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** not recorded
 
 Reads CSV or TSV text into typed columns. A column of plain decimals (-12, 3.25) comes out as a `Float64Array` parsed straight from the bytes, with no string made for any number; every other column comes out as an array of strings. The field scan runs in WebAssembly with SIMD (16 bytes at a time) and falls back to plain JavaScript with the same answers.
 

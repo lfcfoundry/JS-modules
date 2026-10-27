@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.1.1 · API 0 · 2026-10-27
+- toRows now preserves a column named __proto__ as data.
+
 ## 0.1.0 · API 0 · 2026-10-26
 - First version: reads CSV and TSV into number and text columns with a WebAssembly SIMD scan, 3 to 11 times faster than common parsers.
 

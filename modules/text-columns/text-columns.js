@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.1.0 (API 0)
+ * Version 0.1.1 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -156,11 +156,11 @@
       toRows: function () {
         var out = new Array(nrows), r, c, o;
         for (r = 0; r < nrows; r++) out[r] = {};
-        for (c = 0; c < ncols; c++) { var cv = columns[c].values, nm = names[c]; for (r = 0; r < nrows; r++) out[r][nm] = cv[r]; }
+        for (c = 0; c < ncols; c++) { var cv = columns[c].values, nm = names[c]; for (r = 0; r < nrows; r++) { if (nm === '__proto__') Object.defineProperty(out[r], nm, { value: cv[r], writable: true, enumerable: true, configurable: true }); else out[r][nm] = cv[r]; } }
         return out;
       }
     };
   }
 
-  return { version: '0.1.0', parse: parse, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { version: '0.1.1', parse: parse, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));
