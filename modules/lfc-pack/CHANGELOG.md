@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.1.3 · API 0 · 2026-10-26
-- Faster pack for rows of plain numbers and number lists (a small WebAssembly scanner); such files are also smaller.
+- Faster pack for rows of plain numbers, and for link lists packed with { block: "flat" } (a small WebAssembly scanner); such files are also smaller.
 
 ## 0.1.2 · API 0 · 2026-10-26
 - Log-template columns read about 1.7 to 2.7 times faster (a small WebAssembly rebuild; the old code stays as the fallback).

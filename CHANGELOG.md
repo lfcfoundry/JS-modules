@@ -56,7 +56,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
-- 2026-10-26 · **lfc-pack** 0.1.3 · API 0: Faster pack for rows of plain numbers and number lists (a small WebAssembly scanner); such files are also smaller.
+- 2026-10-26 · **lfc-pack** 0.1.3 · API 0: Faster pack for rows of plain numbers, and for link lists packed with { block: "flat" } (a small WebAssembly scanner); such files are also smaller.
 - 2026-10-26 · **lfc-pack** 0.1.2 · API 0: Log-template columns read about 1.7 to 2.7 times faster (a small WebAssembly rebuild; the old code stays as the fallback).
 - 2026-10-26 · **lfc-pack** 0.1.1 · API 0: Link-list columns (357,110 down to 211,344 bytes on 30,000 nodes). Nested blocks 8 to 9% smaller. Log templates only when smaller and not slower to read. New decoder-only lfc-pack-read.js (51 KB gzipped, was 214 KB).
 - 2026-10-26 · **lfc-pack** 0.1.0 · API 0: First version: packs NDJSON into LFC-pack (.json.lfc) and reads it back with JSON.parse values, in WebAssembly. Nested and flat column layouts, automatic log templates, byte-exact switch, archive level, key and time-range reads, helper workers, Python reader. `packRows(rows)` takes row objects directly; `packTables({ nodes, links, view, ... })` / `unpackTables(file)` keep several tables and plain values in one file. The format is not frozen: 0.x files may not open in later versions.
