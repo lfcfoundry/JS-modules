@@ -1,10 +1,10 @@
 # lfc-pack
 
-**Version 0.1.3 · API 0**
+**Version 0.1.4 · API 0**
 
-**Version 0.1.3 · API 0**
+**Version 0.1.4 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Python 3.13 with zstandard 0.25; Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Packs newline-delimited JSON (NDJSON: one JSON value per line, the shape of logs, events and API dumps) into **LFC-pack** (`.json.lfc`, magic `LFC1`): the rows are cut into blocks of about 21 MB, every field becomes its own typed column, repeated strings are stored once, and each column is compressed with zstd. A footer at the end lists the blocks and the smallest and largest number of each column, so a reader can skip blocks without opening them. Reading gives back the same row objects `JSON.parse` would, and with `exact: true` the very same bytes. **One file, no dependencies, WebAssembly required** (zstd and the tokenizer are compiled to wasm32; a page needs `'wasm-unsafe-eval'` in its policy and nothing else).
 
@@ -60,6 +60,8 @@ LfcPack.unpackTables(file, { keys: ['id'] });                           // same 
 Works under a page policy of `script-src 'wasm-unsafe-eval'` and `worker-src blob:` only: no `eval`, no `new Function`, no remote scripts (the helper workers start from a blob made of this file).
 
 Python (needs `pip install zstandard`, or Python 3.14): `python/lfc_pack.py` gives `read(path)`, `read_tables(path)`, `read_text(path)` and `info(path)`, with the same values.
+
+Python writer: `python/lfc_pack_write.py` has `write(src, dst, level=3, exact=False)`, `pack(ndjson_bytes)`, `pack_rows(list)` and `pack_exact(ndjson_bytes, level, mode)` (mode `"lines"` or `"spelling"`). It writes nested and flat blocks and link-list columns, values exact (numbers are doubles); files open in `lfc-pack.js` and `lfc_pack.py`. No log templates, no helper-worker splitting. A block never ends up larger than plain zstd of its lines.
 
 ## How it works
 - **Nested blocks** (any JSON): each row is split into a *shape* (its keys, nesting and value kinds) and its values. Rows with the same shape share one entry. Strings of the block go into one dictionary (each distinct string once, rows hold small codes); numbers and booleans go into one column per path (`.actor.id`, `.payload.commits[].sha`), stored at the narrowest width that holds every value (8, 16, 32 bits or a 64-bit float). A WebAssembly tokenizer does the splitting and the dictionary.

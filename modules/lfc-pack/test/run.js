@@ -21,6 +21,8 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('negative first value', 'node', ['negfirst.cjs']);
   step('tables and plain values', 'node', ['tables.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);
+  step('python writer', 'python3', ['-I', 'pywriter.py', dir]);
+  step('python writer files in JS', 'node', ['pywriter.cjs', dir]);
   fs.rmSync(dir, { recursive: true, force: true });
   console.log(fail ? fail + ' step(s) failed' : 'all lfc-pack checks passed'); process.exit(fail ? 1 : 0);
 })();
