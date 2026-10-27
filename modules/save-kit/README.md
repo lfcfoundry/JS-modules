@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.2.1 · API 1**
+**Version 1.2.2 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/save-kit-browser.js 13 of 13 full and 13 of 13 lean in each; tests/save-kit-speed-browser.js: old and new store and load the same in each); 43 Node checks and 15 of 15 lean builds pass; 4,000 random saves give identical results old versus new. Not run: a phone, Safari itself
+**Tested in:** not recorded
 
 Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 27 KB with its comments, about 12.7 KB minified (5.4 KB gzipped), no dependencies.
 

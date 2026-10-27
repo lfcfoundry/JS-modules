@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.2 · API 1 · 2026-10-26
+- Zero schema limits now reject nonempty strings and count entries.
+
 ## 1.2.1 · API 1 · 2026-10-17
 - Loading and saving is a little faster. Nothing a game sees changes.
 

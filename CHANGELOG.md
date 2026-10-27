@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.0 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 1.2.2 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -56,6 +56,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-26 · **save-kit** 1.2.2 · API 1: Zero schema limits now reject nonempty strings and count entries.
 - 2026-10-26 · **lfc-pack** 0.1.0 · API 0: First version: packs NDJSON into LFC-pack (.json.lfc) and reads it back with JSON.parse values, in WebAssembly. Nested and flat column layouts, automatic log templates, byte-exact switch, archive level, key and time-range reads, helper workers, Python reader. `packRows(rows)` takes row objects directly; `packTables({ nodes, links, view, ... })` / `unpackTables(file)` keep several tables and plain values in one file. The format is not frozen: 0.x files may not open in later versions.
 - 2026-10-25 · **test-runner** 1.3.0 · API 1: Noise guard: a fixed calibration loop that stops timings on a noisy machine.
 - 2026-10-25 · **netflow-scene** 1.3.0 · API 1: New optional file netflow-scene-index.js: on maps of 100,000+ items, box selects and picks read a sorted Z-order index (Elias-Fano): small boxes about 150x faster, picks 3 to 4x. Nothing changes under 100,000 items.

@@ -213,10 +213,14 @@ function countUnpacked(counter) {
   });
 
   // ---------- 4. code form ----------
-  await regress('the shorter code form is used (small saves stay plain)', async K => {
+  await regress('the shorter code form is used', async K => {
     const k = K.create({ key: 'g', schema, storage: mem(), prefix: 'GM1' });
-    const small = await k.exportCode({ score: 1 });
-    assert.strictEqual(small[3], 'p', small);
+    const smallState = { score: 1 }, small = await k.exportCode(smallState), raw = Buffer.from(JSON.stringify(smallState));
+    let compressed = Infinity;
+    if (typeof CompressionStream === 'function' && typeof DecompressionStream === 'function') {
+      try { compressed = b64url(Buffer.from(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer())).length; } catch (e) {}
+    }
+    assert.strictEqual(small[3], compressed < b64url(raw).length ? 'z' : 'p', small);
     const bigState = { score: 1, owned: {} }; for (let i = 0; i < 80; i++) bigState.owned['item' + i] = i + 1;
     const big = await k.exportCode(bigState);
     assert.strictEqual(big[3], 'z', 'a larger save should be squeezed');
@@ -273,6 +277,12 @@ function countUnpacked(counter) {
     assert.strictEqual(Object.keys(K.validate({ o: 'counts' }, {}, { o: many }).o).length, 1000);
     assert.strictEqual(Object.keys(K.validate({ o: { type: 'counts', maxKeys: 3 } }, {}, { o: many }).o).length, 3);
     assert.strictEqual(Object.keys(K.validate({ o: { type: 'counts', max: 5, maxKeys: 5000 } }, {}, { o: many }).o).length, 5000);
+  });
+  await regress('zero schema bounds reject nonempty strings and count entries', async K => {
+    const clean = K.validate({ a: 'str:0', b: { type: 'str', max: 0 }, c: { type: 'counts', max: 0 }, d: { type: 'counts', maxKeys: 0 } },
+      { a: '', b: '', c: {}, d: {} }, { a: 'text', b: 'text', c: { apple: 1 }, d: { pear: 2 } });
+    assert.strictEqual(clean.a, ''); assert.strictEqual(clean.b, '');
+    assert.deepStrictEqual(Object.keys(clean.c), []); assert.deepStrictEqual(Object.keys(clean.d), []);
   });
   await regress('raw fields drop __proto__, constructor and prototype keys, at any depth', async K => {
     const input = JSON.parse('{"r":{"__proto__":{"x":1},"b":2,"constructor":3,"inner":[{"prototype":1,"ok":4}],"deep":{"__proto__":5,"keep":6}}}');
