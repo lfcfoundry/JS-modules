@@ -63,7 +63,6 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-27 · **save-kit** 1.2.2 · API 1: A zero limit in a schema now means zero: max 0 or maxKeys 0 rejects nonempty text and count entries.
 - 2026-10-27 · **pcodec-js** 1.6.1 · API 1: A maxCount of 0 now refuses every nonempty file (it used to be ignored); NaN and negative limits are refused; Infinity still means no limit. Same files, same speed.
 - 2026-10-27 · **netflow-layers** 1.5.1 · API 1: maxVertices: 0 is now a real cap (it used to fall back to 90000), and a bad value (NaN, negative, fractional, not a number) throws a clear error; Infinity still means no cap.
-- 2026-10-27 · **lfc-pack** 0.1.9 · API 0: opt-in packParallel: helper workers pack blocks at the same time, same file bytes
 - 2026-10-27 · **lfc-pack** 0.1.9 · API 0: New opt-in `packParallel(bytes, { workers })`: helper Web Workers pack runs of whole blocks at the same time (at most min(cores, 8)); the file has the same bytes as `pack`. Exact mode and small inputs stay on one thread.
 - 2026-10-27 · **lfc-pack** 0.1.8 · API 0: The unpack pool starts 2 helpers when you do not say how many (it used to start up to 16): at 105 MB more helpers did not read faster and ran Firefox out of memory. Ask for more with workers.
 - 2026-10-27 · **lfc-pack** 0.1.7 · API 0: Flat number-list columns decode to small integers (variant 19), faster hex, address and dictionary checks when packing text; files and rows unchanged.
