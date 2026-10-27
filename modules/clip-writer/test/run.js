@@ -9,6 +9,17 @@ const samples = (n) => Array.from({ length: n }, (_, i) => ({ data: Uint8Array.f
 function boxes(b, from, to) { const out = []; for (let p = from; p < to;) { const size = be(b, p, 4); out.push({ type: tag(b, p + 4), start: p, body: p + 8, end: p + size }); if (size < 8) throw new Error('bad box size'); p += size; } return out; }
 function find(list, t) { return list.find((x) => x.type === t); }
 const S = samples(23), avcC = Uint8Array.from([1, 100, 0, 40, 255, 225, 0, 4, 103, 100, 0, 40, 1, 0, 2, 104, 238]);
+{
+  const data = new Uint8Array([1, 2, 3]), key = { data, ms: 40, key: true };
+  let e = null; try { C.writeWebm([{ data, ms: Infinity, key: true }, key], 64, 64); } catch (x) { e = x; }
+  ok(e instanceof RangeError && /duration/.test(e.message), 'webm rejects infinite sample durations before writing timestamps');
+  e = null; try { C.writeMp4([{ data, ms: NaN, key: true }], 64, 64, avcC); } catch (x) { e = x; }
+  ok(e instanceof RangeError && /duration/.test(e.message), 'mp4 rejects NaN sample durations');
+  e = null; try { C.writeMp4([{ data, ms: 0x100000000, key: true }], 64, 64, avcC); } catch (x) { e = x; }
+  ok(e instanceof RangeError && /MP4 duration/.test(e.message), 'mp4 refuses a duration beyond its 32-bit time field');
+  e = null; try { C.writeWebm([key], Infinity, 64); } catch (x) { e = x; }
+  ok(e instanceof RangeError && /WebM integer/.test(e.message), 'webm refuses an infinite dimension');
+}
 const mp4 = C.writeMp4(S, 640, 360, avcC);
 {
   const top = boxes(mp4, 0, mp4.length); ok(top.map((x) => x.type).join() === 'ftyp,mdat,moov', 'mp4: top boxes are ftyp, mdat, moov');
