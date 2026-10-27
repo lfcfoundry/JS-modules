@@ -3,7 +3,7 @@
  * The writers hold the whole file in memory, which is fine for a slide-sized clip. About 8 times smaller than a GIF of the same pictures.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules. Cut from Netflow Map.
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.0.1 (API 1)
  *
  *   ClipWriter.support(w, h, fps).then(function (s) { ... s.mp4, s.webm ... });       // which formats this browser can make
  *   var wr = ClipWriter.createWriter({ w: 640, h: 360, fps: 25, format: 'mp4', bitsPerPixel: 0.1 });
@@ -16,9 +16,20 @@
   else root.ClipWriter = factory();
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
+  var MAX_MP4_DURATION = 0xffffffff, MAX_WEBM_INTEGER = 9007199254740991;
   function u32(n) { return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]; }
   function u16(n) { return [(n >>> 8) & 255, n & 255]; }
   function str(s) { var a = [], i; for (i = 0; i < s.length; i++) a.push(s.charCodeAt(i) & 255); return a; }
+  function durationTotal(samples, limit, format) {
+    var total = 0, i, ms;
+    for (i = 0; i < samples.length; i++) {
+      ms = samples[i] && samples[i].ms;
+      if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) throw new RangeError('clip-writer: frame duration must be a finite non-negative number');
+      total += ms;
+      if (!isFinite(total) || total > limit) throw new RangeError('clip-writer: ' + format + ' duration exceeds its supported range');
+    }
+    return total;
+  }
   function cat(parts) {   /* byte arrays (plain arrays or Uint8Arrays) into one Uint8Array */
     var n = 0, i, o, p = 0; for (i = 0; i < parts.length; i++) n += parts[i].length;
     o = new Uint8Array(n); for (i = 0; i < parts.length; i++) { o.set(parts[i], p); p += parts[i].length; } return o;
@@ -30,8 +41,8 @@
   var MATRIX = [].concat(u32(0x10000), u32(0), u32(0), u32(0), u32(0x10000), u32(0), u32(0), u32(0), u32(0x40000000));
   /** samples: [{ data: Uint8Array (length-prefixed H.264), ms: how long it shows, key: bool }]; avcC: the decoder configuration record. */
   function writeMp4(samples, w, h, avcC) {
-    var n = samples.length, total = 0, i, dur = 0, TS = 1000;
-    for (i = 0; i < n; i++) { total += samples[i].data.length; dur += samples[i].ms; }
+    var n = samples.length, total = 0, i, dur = durationTotal(samples, MAX_MP4_DURATION, 'MP4'), TS = 1000;
+    for (i = 0; i < n; i++) total += samples[i].data.length;
     var ftyp = box('ftyp', [str('isom'), u32(512), str('isom'), str('iso2'), str('avc1'), str('mp41')]);
     var mdatHead = cat([u32(total + 8), str('mdat')]), dataStart = ftyp.length + 8;
     var stts = [], run = 0, last = -1, runs = [];
@@ -51,12 +62,11 @@
   /* ---- WebM ---- */
   function vsize(n) { return [1, 0, 0, (n / 0x100000000) & 255, (n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]; }   /* an 8-byte size */
   function el(id, parts) { var body = cat(parts); return cat([id, vsize(body.length), body]); }
-  function uint(n) { var a = [], v = n; do { a.unshift(v & 255); v = Math.floor(v / 256); } while (v); return a; }
+  function uint(n) { if (!(n >= 0) || !isFinite(n) || n > MAX_WEBM_INTEGER) throw new RangeError('clip-writer: WebM integer is out of range'); var a = [], v = n; do { a.unshift(v & 255); v = Math.floor(v / 256); } while (v); return a; }
   function f64(x) { var b = new Uint8Array(8); new DataView(b.buffer).setFloat64(0, x); return b; }
   /** samples: [{ data, ms, key }] of VP9. */
   function writeWebm(samples, w, h) {
-    var n = samples.length, i, dur = 0, t = 0, clusters = [], cues = [], cur = null, pos = 0;
-    for (i = 0; i < n; i++) dur += samples[i].ms;
+    var n = samples.length, i, dur = durationTotal(samples, MAX_WEBM_INTEGER, 'WebM'), t = 0, clusters = [], cues = [], cur = null, pos = 0;
     var head = el([0x1a, 0x45, 0xdf, 0xa3], [el([0x42, 0x86], [[1]]), el([0x42, 0xf7], [[1]]), el([0x42, 0xf2], [[4]]), el([0x42, 0xf3], [[8]]), el([0x42, 0x82], [str('webm')]), el([0x42, 0x87], [[4]]), el([0x42, 0x85], [[2]])]);
     var info = el([0x15, 0x49, 0xa9, 0x66], [el([0x2a, 0xd7, 0xb1], [uint(1000000)]), el([0x4d, 0x80], [str('LFC Foundry')]), el([0x57, 0x41], [str('clip-writer')]), el([0x44, 0x89], [f64(dur)])]);
     var tracks = el([0x16, 0x54, 0xae, 0x6b], [el([0xae], [el([0xd7], [[1]]), el([0x73, 0xc5], [[1]]), el([0x83], [[1]]), el([0x86], [str('V_VP9')]), el([0xe0], [el([0xb0], [uint(w)]), el([0xba], [uint(h)])])])]);
@@ -129,5 +139,5 @@
       cancel: function () { try { enc.close(); } catch (e) { /* closed */ } }
     };
   }
-  return { version: '1.0.0', api: 1, support: support, createWriter: createWriter, writeMp4: writeMp4, writeWebm: writeWebm };
+  return { version: '1.0.1', api: 1, support: support, createWriter: createWriter, writeMp4: writeMp4, writeWebm: writeWebm };
 }));
