@@ -4,7 +4,7 @@
  * are left transparent, and every picture is compressed the moment it is added.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.0 (API 1)
+ * Version 1.5.1 (API 1)
  *
  *   var pal = GifWriter.makePalette([rgba1, rgba2], 255);          // rgba: Uint8ClampedArray from ctx.getImageData(...).data
  *   var enc = GifWriter.createEncoder(width, height, pal, { loop: true });
@@ -425,7 +425,10 @@
         for (i = 0; i < 256; i++) { var c = pal[i] || [0, 0, 0]; out[o++] = c[0]; out[o++] = c[1]; out[o++] = c[2]; }
         if (opts.loop !== false) { out[o++] = 0x21; out[o++] = 0xFF; out[o++] = 11; for (i = 0; i < 11; i++) out[o++] = 'NETSCAPE2.0'.charCodeAt(i); out[o++] = 3; out[o++] = 1; out[o++] = 0; out[o++] = 0; out[o++] = 0; }
         frames.forEach(function (fr) {
-          out[o++] = 0x21; out[o++] = 0xF9; out[o++] = 4; out[o++] = (1 << 2) | (fr.trans ? 1 : 0); le(Math.max(2, Math.round(fr.delay / 10))); out[o++] = TRANS; out[o++] = 0;
+          var delay = Math.round(fr.delay / 10);
+          if (!(delay >= 2)) delay = 2;
+          if (delay > 65535) delay = 65535;
+          out[o++] = 0x21; out[o++] = 0xF9; out[o++] = 4; out[o++] = (1 << 2) | (fr.trans ? 1 : 0); le(delay); out[o++] = TRANS; out[o++] = 0;
           out[o++] = 0x2C; le(fr.x); le(fr.y); le(fr.w); le(fr.h); out[o++] = 0;
           out[o++] = 8;
           for (var p = 0; p < fr.code.length; p += 255) { var len = Math.min(255, fr.code.length - p); out[o++] = len; out.set(fr.code.subarray(p, p + len), o); o += len; }

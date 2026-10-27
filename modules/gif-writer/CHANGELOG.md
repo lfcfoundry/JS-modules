@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-10-27
+- Long GIF frame delays now cap at 655,350 ms instead of wrapping.
+
 ## 1.5.0 · API 1 · 2026-10-25
 - Optional picture filters, animation timing, a worker and a size tolerance, cut from Netflow Map.
 

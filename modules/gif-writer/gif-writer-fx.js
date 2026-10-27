@@ -2,7 +2,7 @@
  * gif-writer-fx.js, an optional companion of gif-writer.js: animation helpers: when each picture of an animation is shown (easing, turns, pauses, reversals, exact GIF delays),
  * when names show, and picture filters (color grading, blur, sharpen, glow, vignette). No DOM; runs in the page, in a worker and in Node.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules. Cut from Netflow Map. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.5.0 (API 1)
+ * Version 1.5.1 (API 1)
  */
 var GifWriterFx = (function () {
   'use strict';
