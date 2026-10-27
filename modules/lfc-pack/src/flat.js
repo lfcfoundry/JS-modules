@@ -248,6 +248,18 @@
     for (i = 0; i < F.cols.length; i++) { c = F.cols[i]; if (!c) continue; if (c.pre) t.push(c.pre.buffer); else for (q = 0; q < c.fr.length; q++) t.push(c.fr[q].buffer); }
     return t;
   }
+  // one-time timing of the two ways to make dense row objects on the first big dense block (the whole block, alternating rounds after a warm-up, clone must be at least 20% faster, because the probe time and the real read time differ by a few percent in some engines)
+  var cloneBest = {};   // by number of keys
+  function probeClone(keys, vals, tpl, K) {
+    var m = vals[0].length, i, j, r, o, tc = Infinity, tp = Infinity, t0, sink = 0;
+    function plain() { var out = new Array(m); for (i = 0; i < m; i++) out[i] = {}; for (j = 0; j < K; j++) { var v = vals[j], key = keys[j]; for (i = 0; i < m; i++) out[i][key] = v[i]; } return out; }
+    function clone() { var out = new Array(m); for (i = 0; i < m; i++) out[i] = { ...tpl }; for (j = 0; j < K; j++) { var v = vals[j], key = keys[j]; for (i = 0; i < m; i++) out[i][key] = v[i]; } return out; }
+    for (r = 0; r < 3; r++) {
+      t0 = clock(); sink += plain().length; t0 = clock() - t0; if (r && t0 < tp) tp = t0;
+      t0 = clock(); sink += clone().length; t0 = clock() - t0; if (r && t0 < tc) tc = t0;
+    }
+    return sink > 0 && tc < tp * 0.8;
+  }
   function makeFlatReader(zs) {
     // assemble rows from the decompressed frames of flatFrames; want: null, or an object whose own keys are the only keys to decode
     function assemble(F, want) {
@@ -256,7 +268,14 @@
       var pb = (n + 7) >> 3, ptr = new Int32Array(K), out = new Array(n), keys = meta.keys, o, hasProto = keys.indexOf('__proto__') >= 0;
       if (ordList) { for (i = 0; i < n; i++) { var sq2 = ordList[ordIds[i]], m2 = sq2.length; o = {}; for (j = 0; j < m2; j++) { var kk = sq2[j]; if (!vals[kk]) continue; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i] = o; } return out; }
       // column by column (the row-object rule): every row object is made first, then each key is assigned down its column, so the objects share one shape history
-      for (i = 0; i < n; i++) out[i] = {};
+      // dense block (every key in every row): cloning one object that already has all the keys lays each row out once. Whether that is faster depends on the engine, so it is timed once against the plain way on the first dense block and the answer is kept per number of keys
+      var dense = !hasProto && K > 0 && K <= 250, tpl, ts;
+      for (j = 0; j < K && dense; j++) if (!vals[j] || vals[j].length !== n) dense = false;
+      if (dense) { for (j = 0, ts = '{'; j < K; j++) ts += (j ? ',' : '') + JSON.stringify(keys[j]) + ':null'; tpl = JSON.parse(ts + '}'); }
+      var useClone = dense && cloneBest[K];
+      if (dense && useClone === undefined && n >= 2000) useClone = cloneBest[K] = probeClone(keys, vals, tpl, K);
+      if (dense && useClone) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
+      else for (i = 0; i < n; i++) out[i] = {};
       for (j = 0; j < K; j++) {
         var v = vals[j]; if (!v) continue;
         var key = keys[j], base = j * pb, c = 0, bits;
