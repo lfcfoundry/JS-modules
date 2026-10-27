@@ -262,6 +262,84 @@
     var hdr = te.encode(JSON.stringify({ k: 'f', n: n, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
     return { bytes: concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), rows: n, zone: zone, kind: 'f' };
   }
+  // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
+  var FSW = null, FSB64 = "/*FS:BEGIN*//*FS:END*/";
+  function fsw() {
+    if (FSW) return FSW;
+    var bin = atob(FSB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q);
+    var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
+    return (FSW = { x: x, heap: x.__heap_base.value });
+  }
+  var P10 = [1, 10, 100];
+  function varintsT(a, m) {   // a: typed array of non-negative whole numbers (first m entries) -> varint bytes
+    var n = 0, i, u, o, p = 0;
+    for (i = 0; i < m; i++) { u = a[i]; n++; if (u >= 128) { n++; if (u >= 16384) { n++; if (u >= 2097152) { n++; if (u >= 268435456) { var w = Math.floor(u / 268435456); n++; while (w >= 128) { n++; w = Math.floor(w / 128); } } } } } }
+    o = new Uint8Array(n);
+    for (i = 0; i < m; i++) { u = a[i]; if (u < 2147483648) { while (u >= 128) { o[p++] = (u & 127) | 128; u >>>= 7; } o[p++] = u; } else { while (u >= 128) { o[p++] = (u % 128) | 128; u = Math.floor(u / 128); } o[p++] = u; } }
+    return o;
+  }
+  function writeFlatBlockFast(ctx, input, opts) {
+    if (opts.exact || typeof WebAssembly !== 'object' || input.length < 64) return null;
+    if (!opts.pre && input.length > 262144) {   // cheap bail: try the first 64 KB (up to a line end) before copying a whole block into wasm
+      var cut = input.subarray(0, 65536).lastIndexOf(10);
+      if (cut > 0 && !writeFlatBlockFast(ctx, input.subarray(0, cut + 1), Object.assign({}, opts, { pre: true }))) return null;
+    }
+    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, W = fsw(), len = input.length, o = (W.heap + 15) & ~15, P = {}, q, i, j, c, nrows;
+    function lay(name, bytes) { P[name] = o; o = (o + bytes + 15) & ~15; }
+    lay('in', len + 8); lay('cnt', 16);
+    var mem = W.x.memory; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
+    var m8 = new Uint8Array(mem.buffer); m8.set(input, P['in']); W.x.count(P['in'], len, P.cnt);
+    var cn = new Uint32Array(mem.buffer, P.cnt, 3), nl = cn[0], colons = cn[1], commas = cn[2];
+    nrows = nl + (input[len - 1] === 10 ? 0 : 1);
+    var pb = (nrows + 7) >> 3, NK = 128, cells = colons + 1, lvals = commas + colons + 16;
+    lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals);
+    if (o > 1610612736) return null;
+    if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
+    m8 = new Uint8Array(mem.buffer); m8.fill(0, P.planes, P.planes + NK * pb);
+    var rc = W.x.scan(P['in'], len, nrows, P.planes, pb, P.keyoff, P.keylen, P.ktype, P.kfd, P.st, P.ckey, P.cval, P.cfd, P.llen, P.lval);
+    if (rc !== 0) return null;
+    var st = new Uint32Array(mem.buffer, P.st, 8), nk = st[0], nc = st[1], nlist = st[2];
+    if (opts.noLists && nlist) return null;
+    var keys = [], ktype = new Uint8Array(mem.buffer, P.ktype, NK), kfd = new Uint8Array(mem.buffer, P.kfd, NK);
+    var ckey = new Uint8Array(mem.buffer, P.ckey, nc), cval = new Float64Array(mem.buffer, P.cval, nc), cfd = new Uint8Array(mem.buffer, P.cfd, nc), llen = new Uint32Array(mem.buffer, P.llen, nlist), lval = new Uint32Array(mem.buffer, P.lval, st[3]);
+    var koff = new Uint32Array(mem.buffer, P.keyoff, nk), klen = new Uint32Array(mem.buffer, P.keylen, nk);
+    for (j = 0; j < nk; j++) keys.push(td.decode(input.subarray(koff[j], koff[j] + klen[j])));
+    var count = new Uint32Array(nk), tot = new Float64Array(nk), pos = new Uint32Array(nk), colv = new Array(nk), coll = new Array(nk), vpos = new Uint32Array(nk);
+    for (i = 0; i < nc; i++) { j = ckey[i]; count[j]++; if (ktype[j] === 2) tot[j] += llen[cval[i]]; }
+    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(count[j]); else { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } }
+    var lp = 0, sc, m, v;
+    for (i = 0; i < nc; i++) {
+      j = ckey[i];
+      if (ktype[j] === 1) { sc = kfd[j] === 0 ? 1 : 100; v = cval[i] * (sc === 1 ? 1 : P10[2 - cfd[i]]); if (!(v < 1125899906842624 && v > -1125899906842624)) return null; colv[j][pos[j]++] = v; }
+      else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
+    }
+    var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
+    function stored(fr) { var tt = 0, zz2 = [], qq, cc; for (qq = 0; qq < fr.length; qq++) { cc = zs.compress(fr[qq], level); if (cc.length < fr[qq].length) zz2.push([fr[qq].length, cc, 1]); else zz2.push([fr[qq].length, fr[qq], 0]); tt += zz2[qq][1].length; } return { z: zz2, size: tt }; }
+    function cand(tn, p, fr, n) { var sv = stored(fr); if (!best || sv.size < best.size) best = { t: tn, p: p, z: sv.z, size: sv.size, n: n }; }
+    for (j = 0; j < nk; j++) {
+      best = null; c = count[j];
+      if (ktype[j] === 1) {
+        var base = colv[j], mono = c > 0 && base[0] >= 0, mn = Infinity, mx = -Infinity, scale = kfd[j] === 0 ? 1 : 100;
+        for (i = 0; i < c; i++) { v = base[i]; if (i && v < base[i - 1]) mono = false; if (v < mn) mn = v; if (v > mx) mx = v; }
+        var d = new Float64Array(c);
+        if (mono) { d[0] = base[0]; for (i = 1; i < c; i++) d[i] = base[i] - base[i - 1]; } else for (i = 0; i < c; i++) d[i] = base[i] >= 0 ? base[i] * 2 : -base[i] * 2 - 1;
+        cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
+        if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Uint32Array(c); for (i = 0; i < c; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)], c); }
+        if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
+      } else {
+        var ln = colv[j], dl = coll[j], asc = true, ai = 0, a0, pv, t2 = dl.length;
+        for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; if (v < pv) asc = false; pv = v; } ai += ln[i]; }
+        var dd = new Float64Array(t2); ai = 0;
+        for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; dd[ai + q] = asc ? v - pv : (v - pv >= 0 ? (v - pv) * 2 : -(v - pv) * 2 - 1); pv = v; } ai += ln[i]; }
+        cand('A', { m: t2, asc: asc }, [varintsT(ln, c), varintsT(dd, t2)], c);
+      }
+      meta.cols.push({ t: best.t, p: best.p, n: best.n, f: best.z.map(function (zz3) { return [zz3[0], zz3[1].length, zz3[2]]; }) });
+      for (i = 0; i < best.z.length; i++) frames.push(best.z[i][1]);
+    }
+    var planes = m8.slice(P.planes, P.planes + nk * pb), mB = te.encode(JSON.stringify(meta)), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
+    var hdr = te.encode(JSON.stringify({ k: 'f', n: nrows, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
+    return { bytes: concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), rows: nrows, zone: zone, kind: 'f' };
+  }
   // the byte work of reading a flat block: zstd for every wanted column, and (predecode, in helper workers) the number columns turned into Float64Arrays
   function flatFrames(zs, bytes, want, predecode) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j;

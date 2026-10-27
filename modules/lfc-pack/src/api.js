@@ -49,8 +49,9 @@
       if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, 'r', ti]); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
       try {
         // auto: big blocks whose first rows are all flat objects go straight to the flat layout (it won on every flat-object set measured, and skipping the nested pass saves about 30% of pack time)
-        if (!kind && chunk.length > 262144 && looksFlat(chunk)) { blk = writeFlatBlock(ctx, chunk, opts); if (blk) { kind = 'flat'; } }
-        else if (kind === 'flat') blk = writeFlatBlock(ctx, chunk, opts);
+        if ((!kind || kind === 'flat') && !exact) { blk = writeFlatBlockFast(ctx, chunk, kind ? opts : Object.assign({}, opts, { noLists: true })); if (blk) kind = 'flat'; }   // auto leaves rows with list columns to the nested layout (lists read faster there); { block: 'flat' } takes them
+        if (kind !== 'flat' && !kind && chunk.length > 262144 && looksFlat(chunk)) { blk = writeFlatBlock(ctx, chunk, opts); if (blk) { kind = 'flat'; } }
+        else if (kind === 'flat' && !blk) blk = writeFlatBlock(ctx, chunk, opts);
         if (kind !== 'flat' || !blk) {
           blk = writeNestedBlock(ctx, chunk, opts);
           // auto: the flat layout is also tried when every row is a flat object, or when shapes are nearly all different (it then keeps nested values as JSON text, which packs far smaller)
@@ -67,7 +68,7 @@
     }
     }
     var secs = [
-      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify(inputs[0].name === null ? { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.2' } : { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.1', tables: inputs.map(function (x) { return [x.name, x.kind]; }) })) },
+      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify(inputs[0].name === null ? { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.3' } : { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.1', tables: inputs.map(function (x) { return [x.name, x.kind]; }) })) },
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
@@ -229,4 +230,4 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.2', apiVersion: 0 };
+  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.3', apiVersion: 0 };
