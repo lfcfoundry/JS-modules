@@ -1,6 +1,6 @@
 # text-columns
 
-**Version 0.1.0 · API 0**
+**Version 0.1.1 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
