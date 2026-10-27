@@ -623,13 +623,12 @@
   // ================================================================ public API
   var BLOCK_BYTES = 21 << 20;
   function flatSkeletons(list) {
-    for (var i = 0; i < list.length; i++) { var t = list[i]; if (t.charCodeAt(0) !== 123 || t.indexOf('{', 1) >= 0) return false; }
+    for (var i = 0; i < list.length; i++) { var t = list[i]; if (t.charCodeAt(0) !== 123 || t.indexOf('{', 1) >= 0 || t.indexOf('[') >= 0) return false; }
     return list.length > 0;
   }
-  var RX_NUMLIST = /\[[-0-9.,eE+ ]*\]/g;   // an array of plain numbers
-  function looksFlat(chunk) {   // the first 40 lines are objects whose values are scalars or arrays of plain numbers
+  function looksFlat(chunk) {   // the first 40 lines are objects whose values are scalars
     var s0 = td.decode(chunk.subarray(0, Math.min(chunk.length, 16384))).split('\n'), i, l, c = 0;
-    for (i = 0; i < s0.length - 1 && c < 40; i++) { l = s0[i]; if (!l) return false; if (l.charCodeAt(0) !== 123 || l.indexOf('{', 1) >= 0 || (l.indexOf('[') >= 0 && l.replace(RX_NUMLIST, '').indexOf('[') >= 0)) return false; c++; }
+    for (i = 0; i < s0.length - 1 && c < 40; i++) { l = s0[i]; if (!l) return false; if (l.charCodeAt(0) !== 123 || l.indexOf('{', 1) >= 0 || l.indexOf('[') >= 0) return false; c++; }
     return c > 0;
   }
   function init(opts) {   // -> Promise; loads the wasm modules once. { readOnly: true } skips the zstd encoder.

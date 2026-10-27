@@ -103,4 +103,4 @@ Load `lfc-pack.js` (global `LfcPack`) or `require` it; call `init()` first and w
 
 ## Link-list columns
 
-A column whose values are arrays of whole numbers from 0 to 4,294,967,295 (neighbor or link lists) is stored as list lengths plus deltas. On 30,000 made-up nodes with out and in lists this was 211,344 bytes against 357,110 before, and reads back value-exact.
+A column whose values are arrays of whole numbers from 0 to 4,294,967,295 (neighbor or link lists) is stored as list lengths plus deltas when the block uses the flat layout. The writer does not pick the flat layout for such rows on its own, because that would make packing slower than 0.1.0: pass `{ block: "flat" }` to `pack`, `packRows` or `packTables` for link-list tables. On 30,000 made-up nodes with out and in lists this was 211,344 bytes against 357,110 before, and reads back value-exact.
