@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.1.5 (API 0)
+ * Version 0.1.7 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -336,9 +336,26 @@
     for (i = 0; i < a.length; i++) { u = a[i]; while (u >= 128) { o[p++] = (u % 128) | 128; u = Math.floor(u / 128); } o[p++] = u; }
     return o;
   }
+  // same as unvarints, into an Int32Array so list values stay small integers (packed integer arrays are cheaper to make and to read); null when a value needs 31 bits or more
+  function unvarints32(b, n) {
+    var out = new Int32Array(n), p = 0, i, c, u;
+    for (i = 0; i < n; i++) {
+      c = b[p++]; if (c < 128) { out[i] = c; continue; }
+      u = c & 127; c = b[p++]; if (c < 128) { out[i] = u + c * 128; continue; }
+      u += (c & 127) * 128; c = b[p++]; if (c < 128) { out[i] = u + c * 16384; continue; }
+      u += (c & 127) * 16384; c = b[p++]; if (c < 128) { out[i] = u + c * 2097152; continue; }
+      return null;   // 28 bits or more: leave it to the general reader
+    }
+    return out;
+  }
   function unvarints(b, n) {
     var out = new Float64Array(n), p = 0, i, c, u, m;
-    for (i = 0; i < n; i++) { c = b[p++]; if (c < 128) { out[i] = c; continue; } u = c & 127; m = 128; do { c = b[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); out[i] = u; }
+    for (i = 0; i < n; i++) {
+      c = b[p++]; if (c < 128) { out[i] = c; continue; }
+      u = c & 127; c = b[p++]; if (c < 128) { out[i] = u + c * 128; continue; }   // two bytes: the common case for ids below 16384
+      u += (c & 127) * 128; c = b[p++]; if (c < 128) { out[i] = u + c * 16384; continue; }
+      u += (c & 127) * 16384; m = 2097152; do { c = b[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); out[i] = u;
+    }
     return out;
   }
   function bitpack(codes, w) {
@@ -353,7 +370,9 @@
   }
   var HEXC = '0123456789abcdef', HEXA = new Uint8Array([48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102]), RX_HEX = /^[0-9a-f]+$/, RX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   var RX_IP = /^(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})$/, RX_LONE = /[\ud800-\udbff](?![\udc00-\udfff])|(?:[^\ud800-\udbff]|^)[\udc00-\udfff]/;
-  function wellFormed(s) { return !RX_LONE.test(s); }
+  var NATIVE_WF = typeof ''.isWellFormed === 'function';
+  function hexv(c) { return c < 58 ? c - 48 : c - 87; }   // '0'-'9', 'a'-'f' (the column check already proved the characters)
+  function wellFormed(s) { return NATIVE_WF ? s.isWellFormed() : !RX_LONE.test(s); }
   function allOf(v, f) { for (var i = 0; i < v.length; i++) if (!f(v[i])) return false; return true; }
   function hasNegZero(x) {
     var st = [x], v, k, i;
@@ -371,6 +390,12 @@
   function jsonText(x) { return hasNegZero(x) ? jsonx(x) : JSON.stringify(x); }
   // ---- log templates: digit and long-hex runs become slots; the template text, template ids, pooled numeric slots and pooled text slots are separate streams
   var RX_SLOT = /-?\d+|[0-9a-f]{8,}/g, RX_CANON = /^(-?[1-9]\d{0,14}|0)$/;
+  // auto mode only: templates can only be smaller when many values share a template, so look at up to 512 evenly spaced values first (near-unique columns skip the full pass, which cost half of the flat pack time on a 40-key set)
+  function templatesPlausible(v) {
+    var n = v.length, step = Math.max(1, Math.floor(n / 512)), seen = new Set(), c = 0, i;
+    for (i = 0; i < n && c < 512; i += step, c++) seen.add(v[i].replace(RX_SLOT, '\x01'));
+    return seen.size * 2 <= c;
+  }
   function templateFrames(v) {   // -> { frames, nT } or null
     var n = v.length, tmap = new Map(), tl = [], ids = new Array(n), slots = new Map(), i, k, t, id, ps, key, arr;
     for (i = 0; i < n; i++) {
@@ -492,7 +517,7 @@
     if (n && allOf(v, function (x) { return typeof x === 'string'; })) {
       var L = v[0].length, raw, p = 0, j;
       if (L >= 16 && L % 2 === 0 && allOf(v, function (x) { return x.length === L && RX_HEX.test(x); })) {
-        raw = new Uint8Array(n * L / 2); for (i = 0; i < n; i++) for (j = 0; j < L; j += 2) raw[p++] = parseInt(v[i].substr(j, 2), 16);
+        raw = new Uint8Array(n * L / 2); for (i = 0; i < n; i++) { x = v[i]; for (j = 0; j < L; j += 2) raw[p++] = (hexv(x.charCodeAt(j)) << 4) | hexv(x.charCodeAt(j + 1)); }
         cand('H', { L: L }, [raw]); return best;
       }
       if (L === 36 && allOf(v, function (x) { return RX_UUID.test(x); })) {
@@ -500,14 +525,14 @@
         cand('U', {}, [raw]); return best;
       }
       if (allOf(v, function (x) { var m = RX_IP.exec(x); return m && m[1] < 256 && m[2] < 256 && m[3] < 256 && m[4] < 256; })) {
-        raw = new Uint8Array(n * 4); for (i = 0; i < n; i++) { var m = v[i].split('.'); raw[p++] = +m[0]; raw[p++] = +m[1]; raw[p++] = +m[2]; raw[p++] = +m[3]; }
+        raw = new Uint8Array(n * 4); for (i = 0; i < n; i++) { x = v[i]; var o1 = x.indexOf('.'), o2 = x.indexOf('.', o1 + 1), o3 = x.indexOf('.', o2 + 1); raw[p++] = +x.slice(0, o1); raw[p++] = +x.slice(o1 + 1, o2); raw[p++] = +x.slice(o2 + 1, o3); raw[p++] = +x.slice(o3 + 1); }
         cand('I', {}, [raw]); return best;
       }
       if (allOf(v, function (x) { return x.indexOf('\0') < 0 && wellFormed(x); })) {
         var map = new Map(), labels = [], codes = new Array(n), c;
-        for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }
-        cand('s', {}, [te.encode(v.join('\0'))]);
-        if (n >= 16 && labels.length * 2 > n && tmode) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || (!tmplSlow && (readNoSlower(v) || (tmplSlow = true, false))))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
+        for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * 2 > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
+        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, [te.encode(v.join('\0'))]);   // a dictionary this small is the smaller layout; skip compressing the plain one as well
+        if (n >= 16 && labels.length * 2 > n && tmode && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || (!tmplSlow && (readNoSlower(v) || (tmplSlow = true, false))))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
           var wd = Math.max(1, 32 - Math.clz32(labels.length - 1)), cb = labels.length > 256 ? new Uint8Array(new Uint16Array(codes).buffer) : Uint8Array.from(codes);
           cand('D', { w: 0, wide: labels.length > 256 }, [te.encode(labels.join('\0')), cb]);
@@ -533,6 +558,34 @@
     for (i = 0; i < n; i++) { x = u[i]; if (x > 2147483647 || x < -2147483648) return u; o[i] = x; }
     return o;
   }
+  // which engine runs the list builders above; the output is the same either way, only the speed differs
+  var V8 = (typeof process === 'object' && process !== null && !!process.versions && !!process.versions.v8) || (typeof navigator === 'object' && navigator !== null && /Chrome\//.test(navigator.userAgent));
+  // ascending id lists for Firefox and WebKitGTK: array literals for 1 to 4 items (packed arrays, no growth), a push loop beyond. Kept out of decodeColumn on purpose: adding it inline slowed the plain fill that V8 uses
+  function ascLit(o, al, av, n) {
+    var i, an, aa, ac, aj, a3, ap = 0;
+    for (i = 0; i < n; i++) {
+      an = al[i];
+      if (an === 1) o[i] = [av[ap++]];
+      else if (an === 2) { ac = av[ap++]; o[i] = [ac, ac += av[ap++]]; }
+      else if (an === 3) { ac = av[ap++]; aj = ac + av[ap++]; o[i] = [ac, aj, aj + av[ap++]]; }
+      else if (an === 4) { ac = av[ap++]; aj = ac + av[ap++]; a3 = aj + av[ap++]; o[i] = [ac, aj, a3, a3 + av[ap++]]; }
+      else { aa = []; ac = 0; for (aj = 0; aj < an; aj++) { ac += av[ap++]; aa.push(ac); } o[i] = aa; }
+    }
+    return o;
+  }
+  // the same for lists that are not ascending (zigzag deltas)
+  function zzLit(o, al, av, n) {
+    var i, an, aa, ac, aj, a3, ap = 0;
+    for (i = 0; i < n; i++) {
+      an = al[i];
+      if (an === 1) o[i] = [unzz(av[ap++])];
+      else if (an === 2) { ac = unzz(av[ap++]); o[i] = [ac, ac += unzz(av[ap++])]; }
+      else if (an === 3) { ac = unzz(av[ap++]); aj = ac + unzz(av[ap++]); o[i] = [ac, aj, aj + unzz(av[ap++])]; }
+      else if (an === 4) { ac = unzz(av[ap++]); aj = ac + unzz(av[ap++]); a3 = aj + unzz(av[ap++]); o[i] = [ac, aj, a3, a3 + unzz(av[ap++])]; }
+      else { aa = []; ac = 0; for (aj = 0; aj < an; aj++) { ac += unzz(av[ap++]); aa.push(ac); } o[i] = aa; }
+    }
+    return o;
+  }
   function decodeColumn(c, zs, frames) {   // -> array-like of n values
     var n = c.n, i, u, o, t = c.t, p = c.p;
     if (t === 'V') { u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
@@ -544,8 +597,9 @@
     if (t === 'U') { var ur = frames[0], ub = new Uint8Array(n * 36), up = 0, uq, uv; for (i = 0; i < n; i++) { for (uq = 0; uq < 16; uq++) { uv = ur[i * 16 + uq]; ub[up++] = HEXA[uv >> 4]; ub[up++] = HEXA[uv & 15]; if (uq === 3 || uq === 5 || uq === 7 || uq === 9) ub[up++] = 45; } } var ubig = tlat.decode(ub); o = new Array(n); for (i = 0; i < n; i++) o[i] = ubig.substring(i * 36, i * 36 + 36); return o; }
     if (t === 'I') { var ir = frames[0], ib = new Uint8Array(n * 15), ip = 0, io = new Uint32Array(n + 1), iq, iv; for (i = 0; i < n; i++) { io[i] = ip; for (iq = 0; iq < 4; iq++) { iv = ir[4 * i + iq]; if (iv >= 100) { ib[ip++] = 48 + ((iv / 100) | 0); ib[ip++] = 48 + (((iv / 10) | 0) % 10); ib[ip++] = 48 + iv % 10; } else if (iv >= 10) { ib[ip++] = 48 + ((iv / 10) | 0); ib[ip++] = 48 + iv % 10; } else ib[ip++] = 48 + iv; if (iq < 3) ib[ip++] = 46; } } io[n] = ip; var ibig = tlat.decode(ib.subarray(0, ip)); o = new Array(n); for (i = 0; i < n; i++) o[i] = ibig.substring(io[i], io[i + 1]); return o; }
     if (t === 'A') {
-      var al = unvarints(frames[0], n), av = unvarints(frames[1], p.m), ap = 0, aa, aj, ac, an, ar = p.asc;
+      var al = unvarints32(frames[0], n) || unvarints(frames[0], n), av = unvarints32(frames[1], p.m) || unvarints(frames[1], p.m), ap = 0, aa, aj, ac, an, ar = p.asc;
       o = new Array(n);
+      if (!V8) return (ar ? ascLit : zzLit)(o, al, av, n);   // Firefox and WebKitGTK: see ascLit and zzLit
       for (i = 0; i < n; i++) { an = al[i]; aa = new Array(an); ac = 0; for (aj = 0; aj < an; aj++) { ac += ar ? av[ap++] : unzz(av[ap++]); aa[aj] = ac; } o[i] = aa; }
       return o;
     }
@@ -585,20 +639,25 @@
     return { bytes: concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), rows: n, zone: zone, kind: 'f' };
   }
   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
-  var FSW = null, FSB64 = "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";
+  var FSW = null, FSB64 = "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";
   function fsw() {
     if (FSW) return FSW;
     var bin = atob(FSB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q);
     var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
     return (FSW = { x: x, heap: x.__heap_base.value });
   }
-  var P10 = [1, 10, 100];
+  var P10 = [1, 10, 100], FSTD = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
   function varintsT(a, m) {   // a: typed array of non-negative whole numbers (first m entries) -> varint bytes
     var n = 0, i, u, o, p = 0;
     for (i = 0; i < m; i++) { u = a[i]; n++; if (u >= 128) { n++; if (u >= 16384) { n++; if (u >= 2097152) { n++; if (u >= 268435456) { var w = Math.floor(u / 268435456); n++; while (w >= 128) { n++; w = Math.floor(w / 128); } } } } } }
     o = new Uint8Array(n);
     for (i = 0; i < m; i++) { u = a[i]; if (u < 2147483648) { while (u >= 128) { o[p++] = (u & 127) | 128; u >>>= 7; } o[p++] = u; } else { while (u >= 128) { o[p++] = (u % 128) | 128; u = Math.floor(u / 128); } o[p++] = u; } }
     return o;
+  }
+  function repeats(a, c) {   // do at most half as many distinct values as entries appear (counts a sample of up to 65,536 entries)
+    var m = Math.min(c, 65536), seen = new Set(), i;
+    for (i = 0; i < m; i++) seen.add(a[i]);
+    return seen.size * 2 <= m;
   }
   function writeFlatBlockFast(ctx, input, opts) {
     if (opts.exact || typeof WebAssembly !== 'object' || input.length < 64) return null;
@@ -611,28 +670,31 @@
     lay('in', len + 8); lay('cnt', 16);
     var mem = W.x.memory; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
     var m8 = new Uint8Array(mem.buffer); m8.set(input, P['in']); W.x.count(P['in'], len, P.cnt);
-    var cn = new Uint32Array(mem.buffer, P.cnt, 3), nl = cn[0], colons = cn[1], commas = cn[2];
+    var cn = new Uint32Array(mem.buffer, P.cnt, 4), nl = cn[0], colons = cn[1], commas = cn[2], allowStr = 1;
     nrows = nl + (input[len - 1] === 10 ? 0 : 1);
     var pb = (nrows + 7) >> 3, NK = 128, cells = colons + 1, lvals = commas + colons + 16;
-    lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals);
+    lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals); lay('clen', 4 * cells);
     if (o > 1610612736) return null;
     if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
     m8 = new Uint8Array(mem.buffer); m8.fill(0, P.planes, P.planes + NK * pb);
-    var rc = W.x.scan(P['in'], len, nrows, P.planes, pb, P.keyoff, P.keylen, P.ktype, P.kfd, P.st, P.ckey, P.cval, P.cfd, P.llen, P.lval);
+    var rc = W.x.scan(P['in'], len, nrows, P.planes, pb, P.keyoff, P.keylen, P.ktype, P.kfd, P.st, P.ckey, P.cval, P.cfd, P.llen, P.lval, P.clen, allowStr);
     if (rc !== 0) return null;
     var st = new Uint32Array(mem.buffer, P.st, 8), nk = st[0], nc = st[1], nlist = st[2];
     if (opts.noLists && nlist) return null;
     var keys = [], ktype = new Uint8Array(mem.buffer, P.ktype, NK), kfd = new Uint8Array(mem.buffer, P.kfd, NK);
-    var ckey = new Uint8Array(mem.buffer, P.ckey, nc), cval = new Float64Array(mem.buffer, P.cval, nc), cfd = new Uint8Array(mem.buffer, P.cfd, nc), llen = new Uint32Array(mem.buffer, P.llen, nlist), lval = new Uint32Array(mem.buffer, P.lval, st[3]);
+    var ckey = new Uint8Array(mem.buffer, P.ckey, nc), cval = new Float64Array(mem.buffer, P.cval, nc), cfd = new Uint8Array(mem.buffer, P.cfd, nc), llen = new Uint32Array(mem.buffer, P.llen, nlist), lval = new Uint32Array(mem.buffer, P.lval, st[3]), clen = new Uint32Array(mem.buffer, P.clen, nc), text = null;
     var koff = new Uint32Array(mem.buffer, P.keyoff, nk), klen = new Uint32Array(mem.buffer, P.keylen, nk);
     for (j = 0; j < nk; j++) keys.push(td.decode(input.subarray(koff[j], koff[j] + klen[j])));
     var count = new Uint32Array(nk), tot = new Float64Array(nk), pos = new Uint32Array(nk), colv = new Array(nk), coll = new Array(nk), vpos = new Uint32Array(nk);
     for (i = 0; i < nc; i++) { j = ckey[i]; count[j]++; if (ktype[j] === 2) tot[j] += llen[cval[i]]; }
-    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(count[j]); else { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } }
+    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(count[j]); else if (ktype[j] === 2) { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } else { colv[j] = new Array(count[j]); if (ktype[j] === 3 && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
     var lp = 0, sc, m, v;
     for (i = 0; i < nc; i++) {
       j = ckey[i];
       if (ktype[j] === 1) { sc = kfd[j] === 0 ? 1 : 100; v = cval[i] * (sc === 1 ? 1 : P10[2 - cfd[i]]); if (!(v < 1125899906842624 && v > -1125899906842624)) return null; colv[j][pos[j]++] = v; }
+      else if (ktype[j] === 3) colv[j][pos[j]++] = text.slice(cval[i], cval[i] + clen[i]);
+      else if (ktype[j] === 4) colv[j][pos[j]++] = cfd[i] === 2 ? null : cval[i] === 1;
+      else if (ktype[j] === 5) colv[j][pos[j]++] = null;
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
     }
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
@@ -640,13 +702,15 @@
     function cand(tn, p, fr, n) { var sv = stored(fr); if (!best || sv.size < best.size) best = { t: tn, p: p, z: sv.z, size: sv.size, n: n }; }
     for (j = 0; j < nk; j++) {
       best = null; c = count[j];
-      if (ktype[j] === 1) {
+      if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1); }
+      else if (ktype[j] === 1) {
         var base = colv[j], mono = c > 0 && base[0] >= 0, mn = Infinity, mx = -Infinity, scale = kfd[j] === 0 ? 1 : 100;
         for (i = 0; i < c; i++) { v = base[i]; if (i && v < base[i - 1]) mono = false; if (v < mn) mn = v; if (v > mx) mx = v; }
         var d = new Float64Array(c);
         if (mono) { d[0] = base[0]; for (i = 1; i < c; i++) d[i] = base[i] - base[i - 1]; } else for (i = 0; i < c; i++) d[i] = base[i] >= 0 ? base[i] * 2 : -base[i] * 2 - 1;
         cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
         if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Uint32Array(c); for (i = 0; i < c; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)], c); }
+        if (c > 1 && !mono && best.size > c * 0.25 && repeats(base, c)) { var fv = new Float64Array(c); for (i = 0; i < c; i++) fv[i] = base[i] / scale; cand('F', {}, [new Uint8Array(fv.buffer)], c); }   /* raw doubles win when the values repeat a long pattern (zstd finds the repeat), as in the general writer; tried only when the other forms leave more than 2 bits a value and values do repeat */
         if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
       } else {
         var ln = colv[j], dl = coll[j], asc = true, ai = 0, a0, pv, t2 = dl.length;
@@ -979,7 +1043,7 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.5', apiVersion: 0 };
+  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.7', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

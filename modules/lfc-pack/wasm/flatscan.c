@@ -1,5 +1,5 @@
-// LFC-pack flat writer, fast path: scans NDJSON rows whose values are non-negative-or-negative numbers (integers or decimals with a plain fraction) and arrays of whole numbers,
-// straight from the text bytes. Anything else (strings, true/false/null, nested objects, escapes, exponents, blank lines, CR, duplicate keys, integer-like keys, __proto__) returns a bail code and the caller uses the JSON.parse path.
+// LFC-pack flat writer, fast path: scans NDJSON rows whose values are numbers (integers or decimals with a plain fraction), arrays of whole numbers, strings without escapes, true/false and null,
+// straight from the text bytes. Anything else (nested objects, escapes in strings, exponents, blank lines, CR, duplicate keys, integer-like keys, __proto__) returns a bail code and the caller uses the JSON.parse path.
 // No libc, no static buffers apart from two small tables; the caller lays every output array out in linear memory.
 typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u64; typedef long long i64;
 #define EXPORT(n) __attribute__((export_name(n)))
@@ -10,8 +10,9 @@ static const double P10[19]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e1
 // key outputs: keyoff/keylen (into the input), ktype (1 number, 2 list), kmaxfd (largest fraction digit count of the column)
 // cell outputs, in row-major order: ckey (key id), cval (number: signed mantissa as double; list: index into llen), cfd (fraction digits, numbers only)
 // list outputs: llen (length of each list), lval (values, pooled in the same order)
-EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyoff,u32*keylen,u8*ktype,u8*kmaxfd,u32*st,u8*ckey,double*cval,u8*cfd,u32*llen,u32*lval){
-  u32 p=0,row=0,nk=0,nc=0,nl=0,nlv=0;
+// ktype: 1 number, 2 list of whole numbers, 3 string without escapes (cval = start offset and clen = length, both in UTF-16 units of the decoded text; the caller has checked the bytes are valid UTF-8), 4 boolean (cval 1 or 0; cfd 2 marks a null in a boolean column), 5 null (every value of the column)
+EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyoff,u32*keylen,u8*ktype,u8*kmaxfd,u32*st,u8*ckey,double*cval,u8*cfd,u32*llen,u32*lval,u32*clen,u32 allowstr){
+  u32 p=0,row=0,nk=0,nc=0,nl=0,nlv=0,extra=0;   // extra = bytes minus UTF-16 units so far, for the strings' offsets in the decoded text
   for(u32 i=0;i<512;i++) HT[i]=0;
   for(u32 i=0;i<MAXK;i++) LASTROW[i]=0xFFFFFFFFu;
 #define BAIL(c) do{ st[0]=nk; st[1]=nc; st[2]=nl; st[3]=nlv; st[4]=row; st[5]=p; return (c); }while(0)
@@ -24,7 +25,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
     else for(;;){
       if(p>=len||in[p]!='"') BAIL(3);
       u32 ks=++p; u32 h=2166136261u; u32 alld=1;
-      while(p<len&&in[p]!='"'){ u8 c=in[p]; if(c=='\\'||c<0x20) BAIL(4); if(c<'0'||c>'9') alld=0; h=(h^c)*16777619u; p++; }
+      while(p<len&&in[p]!='"'){ u8 c=in[p]; if(c=='\\'||c<0x20) BAIL(4); if(c<'0'||c>'9') alld=0; if(c>=0xC0) extra+=(c>=0xE0)?2:1; h=(h^c)*16777619u; p++; }
       if(p>=len) BAIL(4);
       u32 kl=p-ks; p++;
       if(kl==0||alld) BAIL(5);   // integer-like keys are enumerated first by JavaScript: leave them to the other path
@@ -54,7 +55,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
           if(in[p]==']'){ p++; break; }
           BAIL(3);
         }
-        llen[nl]=cnt; ckey[nc]=(u8)id; cval[nc]=(double)nl; cfd[nc]=0; nc++; nl++;
+        llen[nl]=cnt; ckey[nc]=(u8)id; cval[nc]=(double)nl; cfd[nc]=0; clen[nc]=0; nc++; nl++;
       } else if(c=='-'||(c>='0'&&c<='9')){
         if(ktype[id]==0) ktype[id]=1; else if(ktype[id]!=1) BAIL(8);
         u32 neg=0; if(c=='-'){ neg=1; p++; }
@@ -71,7 +72,24 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
         if(neg&&m==0) BAIL(11);   // -0
         if(fd>2) BAIL(12);
         if(fd>kmaxfd[id]) kmaxfd[id]=(u8)fd;
-        ckey[nc]=(u8)id; cval[nc]=neg?-(double)m:(double)m; cfd[nc]=(u8)fd; nc++;
+        ckey[nc]=(u8)id; cval[nc]=neg?-(double)m:(double)m; cfd[nc]=(u8)fd; clen[nc]=0; nc++;
+      } else if(c=='"'){
+        if(!allowstr) BAIL(16);
+        if(ktype[id]==0) ktype[id]=3; else if(ktype[id]!=3) BAIL(8);
+        u32 ss=++p, ex0=extra;
+        while(p<len&&in[p]!='"'){ u8 ch=in[p]; if(ch<0x20||ch=='\\') BAIL(16); if(ch>=0xC0) extra+=(ch>=0xE0)?2:1; p++; }
+        if(p>=len) BAIL(16);
+        ckey[nc]=(u8)id; cval[nc]=(double)(ss-ex0); clen[nc]=(p-ss)-(extra-ex0); cfd[nc]=0; nc++; p++;
+      } else if(c=='t'||c=='f'){
+        if(ktype[id]==0||ktype[id]==5) ktype[id]=4; else if(ktype[id]!=4) BAIL(8);
+        u32 isT=(c=='t');
+        if(isT){ if(p+4>len||in[p+1]!='r'||in[p+2]!='u'||in[p+3]!='e') BAIL(17); p+=4; }
+        else { if(p+5>len||in[p+1]!='a'||in[p+2]!='l'||in[p+3]!='s'||in[p+4]!='e') BAIL(17); p+=5; }
+        ckey[nc]=(u8)id; cval[nc]=isT?1.0:0.0; cfd[nc]=0; nc++;
+      } else if(c=='n'){
+        if(ktype[id]==0) ktype[id]=5; else if(ktype[id]!=5&&ktype[id]!=4) BAIL(8);   // null mixes with true/false
+        if(p+4>len||in[p+1]!='u'||in[p+2]!='l'||in[p+3]!='l') BAIL(17);
+        p+=4; ckey[nc]=(u8)id; cval[nc]=0.0; cfd[nc]=2; clen[nc]=0; nc++;
       } else BAIL(13);
       planes[id*pb+(row>>3)]|=(u8)(1u<<(row&7));
       WS; if(p>=len) BAIL(3);
@@ -87,7 +105,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
   st[0]=nk; st[1]=nc; st[2]=nl; st[3]=nlv; st[4]=row; st[5]=p;
   return 0;
 }
-EXPORT("count") u32 count(const u8*in,u32 len,u32*out){   // newlines, colons, commas: bounds for the output arrays
-  u32 nl=0,co=0,cm=0; for(u32 i=0;i<len;i++){ u8 c=in[i]; nl+=(c==10); co+=(c==':'); cm+=(c==','); }
-  out[0]=nl; out[1]=co; out[2]=cm; return 0;
+EXPORT("count") u32 count(const u8*in,u32 len,u32*out){   // newlines, colons, commas: bounds for the output arrays; out[3] is 1 when some byte is 128 or more
+  u32 nl=0,co=0,cm=0,hi=0; for(u32 i=0;i<len;i++){ u8 c=in[i]; nl+=(c==10); co+=(c==':'); cm+=(c==','); hi|=(c>>7); }
+  out[0]=nl; out[1]=co; out[2]=cm; out[3]=hi; return 0;
 }
