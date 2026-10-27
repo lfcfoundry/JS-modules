@@ -22,7 +22,7 @@
     },
     {
       "id": "save-kit",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "api": 1,
       "global": "SaveKit",
       "summary": "Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to.",
@@ -361,8 +361,21 @@
       "category": "efficiency"
     },
     {
+      "id": "graph-walk",
+      "version": "0.1.0",
+      "api": 0,
+      "global": "GraphWalk",
+      "summary": "Breadth-first distances and depth-first loop marking over a links-of-every-item layout in typed arrays, with no recursion. Same answers as Netflow Map's inline walks.",
+      "short": "Breadth-first distances and loop marking for link lists, in typed arrays.",
+      "file": "modules/graph-walk/graph-walk.js",
+      "readme": "modules/graph-walk/README.md",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "math"
+    },
+    {
       "id": "lfc-pack",
-      "version": "0.1.5",
+      "version": "0.1.7",
       "api": 0,
       "global": "LfcPack",
       "summary": "Packs newline-delimited JSON (logs, events, API dumps) into LFC-pack (.json.lfc): every field becomes a typed column inside zstd blocks, with a footer of per-block number ranges. Reads back the same rows as JSON.parse (or the exact original bytes), only some keys, or only a time range, with helper workers for big files. WebAssembly is required; a Python reader is included.",
@@ -446,7 +459,7 @@
     },
     {
       "id": "netflow-scene",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "api": 1,
       "global": "NetflowScene",
       "summary": "Turns a Netflow Map layout into plain drawing lists (dots, links, labels, ribbons, shapes) that Canvas 2D, WebGL2, WebGPU or SVG can draw the same way; big flat maps keep links in typed lists and reuse link looks between pictures.",
