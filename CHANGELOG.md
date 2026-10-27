@@ -31,7 +31,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [zip-open](modules/zip-open/README.md) | 1.3.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.6.5 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.4.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.1.5 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.1.6 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.0 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
@@ -58,6 +58,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-10-26 · **zip-open** 1.3.1 · API 1: Fixed: a zip comment that contains end-record bytes no longer replaces the real directory; zips with extra bytes after the end record still open.
 - 2026-10-26 · **memory-compression** 2.6.5 · API 2: Fixed: nested rows whose key names contain a control character could get another row shape's field names.
+- 2026-10-26 · **lfc-pack** 0.1.6 · API 0: Flat writer also reads strings, true/false and null in wasm; flat list columns read faster in Firefox and WebKitGTK; output files unchanged.
 - 2026-10-26 · **lfc-pack** 0.1.5 · API 0: Dense rows (many keys per row) read much faster in Chromium and WebKitGTK; a one-time timing check keeps the old way where cloning would not help.
 - 2026-10-26 · **lfc-pack** 0.1.4 · API 0: New Python writer (python/lfc_pack_write.py): packs NDJSON from Python into files that open in lfc-pack.js, with the byte-exact switch.
 - 2026-10-26 · **lfc-pack** 0.1.3 · API 0: Faster pack for rows of plain numbers, and for link lists packed with { block: "flat" } (a small WebAssembly scanner); such files are also smaller.

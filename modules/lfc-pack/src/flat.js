@@ -31,7 +31,8 @@
   }
   var HEXC = '0123456789abcdef', HEXA = new Uint8Array([48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102]), RX_HEX = /^[0-9a-f]+$/, RX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   var RX_IP = /^(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})$/, RX_LONE = /[\ud800-\udbff](?![\udc00-\udfff])|(?:[^\ud800-\udbff]|^)[\udc00-\udfff]/;
-  function wellFormed(s) { return !RX_LONE.test(s); }
+  var NATIVE_WF = typeof ''.isWellFormed === 'function';
+  function wellFormed(s) { return NATIVE_WF ? s.isWellFormed() : !RX_LONE.test(s); }
   function allOf(v, f) { for (var i = 0; i < v.length; i++) if (!f(v[i])) return false; return true; }
   function hasNegZero(x) {
     var st = [x], v, k, i;
@@ -49,6 +50,12 @@
   function jsonText(x) { return hasNegZero(x) ? jsonx(x) : JSON.stringify(x); }
   // ---- log templates: digit and long-hex runs become slots; the template text, template ids, pooled numeric slots and pooled text slots are separate streams
   var RX_SLOT = /-?\d+|[0-9a-f]{8,}/g, RX_CANON = /^(-?[1-9]\d{0,14}|0)$/;
+  // auto mode only: templates can only be smaller when many values share a template, so look at up to 512 evenly spaced values first (near-unique columns skip the full pass, which cost half of the flat pack time on a 40-key set)
+  function templatesPlausible(v) {
+    var n = v.length, step = Math.max(1, Math.floor(n / 512)), seen = new Set(), c = 0, i;
+    for (i = 0; i < n && c < 512; i += step, c++) seen.add(v[i].replace(RX_SLOT, '\x01'));
+    return seen.size * 2 <= c;
+  }
   function templateFrames(v) {   // -> { frames, nT } or null
     var n = v.length, tmap = new Map(), tl = [], ids = new Array(n), slots = new Map(), i, k, t, id, ps, key, arr;
     for (i = 0; i < n; i++) {
@@ -184,8 +191,8 @@
       if (allOf(v, function (x) { return x.indexOf('\0') < 0 && wellFormed(x); })) {
         var map = new Map(), labels = [], codes = new Array(n), c;
         for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }
-        cand('s', {}, [te.encode(v.join('\0'))]);
-        if (n >= 16 && labels.length * 2 > n && tmode) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || (!tmplSlow && (readNoSlower(v) || (tmplSlow = true, false))))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
+        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, [te.encode(v.join('\0'))]);   // a dictionary this small is the smaller layout; skip compressing the plain one as well
+        if (n >= 16 && labels.length * 2 > n && tmode && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || (!tmplSlow && (readNoSlower(v) || (tmplSlow = true, false))))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
           var wd = Math.max(1, 32 - Math.clz32(labels.length - 1)), cb = labels.length > 256 ? new Uint8Array(new Uint16Array(codes).buffer) : Uint8Array.from(codes);
           cand('D', { w: 0, wide: labels.length > 256 }, [te.encode(labels.join('\0')), cb]);
@@ -211,6 +218,34 @@
     for (i = 0; i < n; i++) { x = u[i]; if (x > 2147483647 || x < -2147483648) return u; o[i] = x; }
     return o;
   }
+  // which engine runs the list builders above; the output is the same either way, only the speed differs
+  var V8 = (typeof process === 'object' && process !== null && !!process.versions && !!process.versions.v8) || (typeof navigator === 'object' && navigator !== null && /Chrome\//.test(navigator.userAgent));
+  // ascending id lists for Firefox and WebKitGTK: array literals for 1 to 4 items (packed arrays, no growth), a push loop beyond. Kept out of decodeColumn on purpose: adding it inline slowed the plain fill that V8 uses
+  function ascLit(o, al, av, n) {
+    var i, an, aa, ac, aj, a3, ap = 0;
+    for (i = 0; i < n; i++) {
+      an = al[i];
+      if (an === 1) o[i] = [av[ap++]];
+      else if (an === 2) { ac = av[ap++]; o[i] = [ac, ac += av[ap++]]; }
+      else if (an === 3) { ac = av[ap++]; aj = ac + av[ap++]; o[i] = [ac, aj, aj + av[ap++]]; }
+      else if (an === 4) { ac = av[ap++]; aj = ac + av[ap++]; a3 = aj + av[ap++]; o[i] = [ac, aj, a3, a3 + av[ap++]]; }
+      else { aa = []; ac = 0; for (aj = 0; aj < an; aj++) { ac += av[ap++]; aa.push(ac); } o[i] = aa; }
+    }
+    return o;
+  }
+  // the same for lists that are not ascending (zigzag deltas)
+  function zzLit(o, al, av, n) {
+    var i, an, aa, ac, aj, a3, ap = 0;
+    for (i = 0; i < n; i++) {
+      an = al[i];
+      if (an === 1) o[i] = [unzz(av[ap++])];
+      else if (an === 2) { ac = unzz(av[ap++]); o[i] = [ac, ac += unzz(av[ap++])]; }
+      else if (an === 3) { ac = unzz(av[ap++]); aj = ac + unzz(av[ap++]); o[i] = [ac, aj, aj + unzz(av[ap++])]; }
+      else if (an === 4) { ac = unzz(av[ap++]); aj = ac + unzz(av[ap++]); a3 = aj + unzz(av[ap++]); o[i] = [ac, aj, a3, a3 + unzz(av[ap++])]; }
+      else { aa = []; ac = 0; for (aj = 0; aj < an; aj++) { ac += unzz(av[ap++]); aa.push(ac); } o[i] = aa; }
+    }
+    return o;
+  }
   function decodeColumn(c, zs, frames) {   // -> array-like of n values
     var n = c.n, i, u, o, t = c.t, p = c.p;
     if (t === 'V') { u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
@@ -224,6 +259,7 @@
     if (t === 'A') {
       var al = unvarints(frames[0], n), av = unvarints(frames[1], p.m), ap = 0, aa, aj, ac, an, ar = p.asc;
       o = new Array(n);
+      if (!V8) return (ar ? ascLit : zzLit)(o, al, av, n);   // Firefox and WebKitGTK: see ascLit and zzLit
       for (i = 0; i < n; i++) { an = al[i]; aa = new Array(an); ac = 0; for (aj = 0; aj < an; aj++) { ac += ar ? av[ap++] : unzz(av[ap++]); aa[aj] = ac; } o[i] = aa; }
       return o;
     }
@@ -270,7 +306,7 @@
     var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
     return (FSW = { x: x, heap: x.__heap_base.value });
   }
-  var P10 = [1, 10, 100];
+  var P10 = [1, 10, 100], FSTD = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
   function varintsT(a, m) {   // a: typed array of non-negative whole numbers (first m entries) -> varint bytes
     var n = 0, i, u, o, p = 0;
     for (i = 0; i < m; i++) { u = a[i]; n++; if (u >= 128) { n++; if (u >= 16384) { n++; if (u >= 2097152) { n++; if (u >= 268435456) { var w = Math.floor(u / 268435456); n++; while (w >= 128) { n++; w = Math.floor(w / 128); } } } } } }
@@ -289,28 +325,31 @@
     lay('in', len + 8); lay('cnt', 16);
     var mem = W.x.memory; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
     var m8 = new Uint8Array(mem.buffer); m8.set(input, P['in']); W.x.count(P['in'], len, P.cnt);
-    var cn = new Uint32Array(mem.buffer, P.cnt, 3), nl = cn[0], colons = cn[1], commas = cn[2];
+    var cn = new Uint32Array(mem.buffer, P.cnt, 4), nl = cn[0], colons = cn[1], commas = cn[2], allowStr = 1;
     nrows = nl + (input[len - 1] === 10 ? 0 : 1);
     var pb = (nrows + 7) >> 3, NK = 128, cells = colons + 1, lvals = commas + colons + 16;
-    lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals);
+    lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals); lay('clen', 4 * cells);
     if (o > 1610612736) return null;
     if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
     m8 = new Uint8Array(mem.buffer); m8.fill(0, P.planes, P.planes + NK * pb);
-    var rc = W.x.scan(P['in'], len, nrows, P.planes, pb, P.keyoff, P.keylen, P.ktype, P.kfd, P.st, P.ckey, P.cval, P.cfd, P.llen, P.lval);
+    var rc = W.x.scan(P['in'], len, nrows, P.planes, pb, P.keyoff, P.keylen, P.ktype, P.kfd, P.st, P.ckey, P.cval, P.cfd, P.llen, P.lval, P.clen, allowStr);
     if (rc !== 0) return null;
     var st = new Uint32Array(mem.buffer, P.st, 8), nk = st[0], nc = st[1], nlist = st[2];
     if (opts.noLists && nlist) return null;
     var keys = [], ktype = new Uint8Array(mem.buffer, P.ktype, NK), kfd = new Uint8Array(mem.buffer, P.kfd, NK);
-    var ckey = new Uint8Array(mem.buffer, P.ckey, nc), cval = new Float64Array(mem.buffer, P.cval, nc), cfd = new Uint8Array(mem.buffer, P.cfd, nc), llen = new Uint32Array(mem.buffer, P.llen, nlist), lval = new Uint32Array(mem.buffer, P.lval, st[3]);
+    var ckey = new Uint8Array(mem.buffer, P.ckey, nc), cval = new Float64Array(mem.buffer, P.cval, nc), cfd = new Uint8Array(mem.buffer, P.cfd, nc), llen = new Uint32Array(mem.buffer, P.llen, nlist), lval = new Uint32Array(mem.buffer, P.lval, st[3]), clen = new Uint32Array(mem.buffer, P.clen, nc), text = null;
     var koff = new Uint32Array(mem.buffer, P.keyoff, nk), klen = new Uint32Array(mem.buffer, P.keylen, nk);
     for (j = 0; j < nk; j++) keys.push(td.decode(input.subarray(koff[j], koff[j] + klen[j])));
     var count = new Uint32Array(nk), tot = new Float64Array(nk), pos = new Uint32Array(nk), colv = new Array(nk), coll = new Array(nk), vpos = new Uint32Array(nk);
     for (i = 0; i < nc; i++) { j = ckey[i]; count[j]++; if (ktype[j] === 2) tot[j] += llen[cval[i]]; }
-    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(count[j]); else { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } }
+    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(count[j]); else if (ktype[j] === 2) { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } else { colv[j] = new Array(count[j]); if (ktype[j] === 3 && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
     var lp = 0, sc, m, v;
     for (i = 0; i < nc; i++) {
       j = ckey[i];
       if (ktype[j] === 1) { sc = kfd[j] === 0 ? 1 : 100; v = cval[i] * (sc === 1 ? 1 : P10[2 - cfd[i]]); if (!(v < 1125899906842624 && v > -1125899906842624)) return null; colv[j][pos[j]++] = v; }
+      else if (ktype[j] === 3) colv[j][pos[j]++] = text.slice(cval[i], cval[i] + clen[i]);
+      else if (ktype[j] === 4) colv[j][pos[j]++] = cfd[i] === 2 ? null : cval[i] === 1;
+      else if (ktype[j] === 5) colv[j][pos[j]++] = null;
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
     }
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
@@ -318,7 +357,8 @@
     function cand(tn, p, fr, n) { var sv = stored(fr); if (!best || sv.size < best.size) best = { t: tn, p: p, z: sv.z, size: sv.size, n: n }; }
     for (j = 0; j < nk; j++) {
       best = null; c = count[j];
-      if (ktype[j] === 1) {
+      if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1); }
+      else if (ktype[j] === 1) {
         var base = colv[j], mono = c > 0 && base[0] >= 0, mn = Infinity, mx = -Infinity, scale = kfd[j] === 0 ? 1 : 100;
         for (i = 0; i < c; i++) { v = base[i]; if (i && v < base[i - 1]) mono = false; if (v < mn) mn = v; if (v > mx) mx = v; }
         var d = new Float64Array(c);
