@@ -19,7 +19,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [field-report](modules/field-report/README.md) | 1.0.2 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
-| [image-decode](modules/image-decode/README.md) | 1.2.1 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
+| [image-decode](modules/image-decode/README.md) | 1.2.2 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
@@ -58,6 +58,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-10-27 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into Float64Array number columns and text columns with a WebAssembly SIMD scan (3 to 11 times faster than common parsers in the container), plain JavaScript fallback with the same answers.
+- 2026-10-27 · **image-decode** 1.2.2 · API 1: Percent-coded data: addresses that hold binary pictures now load instead of being refused.
 - 2026-10-26 · **zip-open** 1.3.1 · API 1: Fixed: a zip comment that contains end-record bytes no longer replaces the real directory; zips with extra bytes after the end record still open.
 - 2026-10-26 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into number and text columns with a WebAssembly SIMD scan, 3 to 11 times faster than common parsers.
 - 2026-10-26 · **memory-compression** 2.6.5 · API 2: Fixed: nested rows whose key names contain a control character could get another row shape's field names.
