@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.5.0 · API 1**
+**Version 1.5.1 · API 1**
 
-**Tested in:** Node 22 (19 checks, wasm on, off and with code generation refused); Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 one at a time (same 800-stop picture with wasm allowed, with wasm blocked by the page rule, and with wasm off; speed runs 40 turns x 3 passes). Not run: GNOME Web, a real phone
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Lays out a graph in rows (a layered, Sugiyama-style drawing): top to bottom or left to right, with long links drawn as tags, rows in the order of the story, a column for the pages every route passes, and tall maps cut into columns. It is the layered engine of Netflow Map, which draws Flow, Top-down, Spine, Lanes, Arc and Matrix from it. About 28 KB (28,868 bytes; 9.3 KB gzipped), no dependencies. Works in a browser (global `NetflowLayers`) and in Node (`module.exports`).
 
