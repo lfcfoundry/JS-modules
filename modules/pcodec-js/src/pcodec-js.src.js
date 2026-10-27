@@ -28,6 +28,7 @@
   var SIMD_PROBE = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]);
   var WARM = @WARM@;                                                  // three tiny Pcodec files [kind, count, base64] that the warm-up unpacks in a loop
   var HAS_PACK = has('pack'), MAX_COUNT = 1 << 25, LEAN_MIN = 262144, LEAN_BATCH = 65536;   // unpack() of LEAN_MIN numbers or more decodes LEAN_BATCH numbers at a time straight into the result (see unpack)
+  function countLimit(opts) { var n = opts && opts.maxCount; return n == null ? MAX_COUNT : typeof n === 'number' && n >= 0 ? n : -1; }   // 0 refuses every nonempty file; NaN, negative and non-number limits refuse all; Infinity means no limit
   function has(k) { return Object.prototype.hasOwnProperty.call(PROGRAMS, k); }
   function now() { return typeof performance === 'object' && performance.now ? performance.now() : Date.now(); }
   function yieldNow() {                                                // gives the page a turn (a message, not a timer, so there is no 4 ms wait)
@@ -164,7 +165,7 @@
             var pk = peek(x, p, b.length); kind = pk.kind; type = KIND_NAME[kind];
             if (!type || !TYPES[type][1]) fail(-1);
             n = opts.count !== undefined ? opts.count : pk.count;
-            if (!(n > 0) || n !== Math.floor(n) || n > (opts.maxCount || MAX_COUNT)) throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or a larger { maxCount })' : ''));
+            if (!(n > 0) || n !== Math.floor(n) || n > countLimit(opts)) throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or a larger { maxCount })' : ''));
             T = TYPES[type][1]; w = T.BYTES_PER_ELEMENT;
             if (!opts.view && !opts.into && n >= LEAN_MIN && leanOn) return lean(x, p, b.length, kind, T, n);   // big copy: decode in batches into the result, so the program never holds all the numbers
             d = x.alloc(n * w);
@@ -190,7 +191,7 @@
         return Promise.resolve().then(function () {
           it = self.stream(src, { batch: 4096 });
           n = opts.count !== undefined ? opts.count : it.countHint;
-          if (!(n > 0) || n !== Math.floor(n) || n > (opts.maxCount || MAX_COUNT)) { it.return(); throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or { maxCount } if you trust it)' : '')); }
+          if (!(n > 0) || n !== Math.floor(n) || n > countLimit(opts)) { it.return(); throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or { maxCount } if you trust it)' : '')); }
           T = TYPES[it.type][1];
           if (opts.into) { if (!(opts.into instanceof T) || opts.into.length < n) { it.return(); throw new TypeError('PcodecJS: { into } must be a ' + T.name + ' of at least ' + n + ' numbers'); } out = opts.into; } else out = new T(n);
           return yieldNow().then(step);
@@ -285,7 +286,7 @@
       if (!T) fail(-1);
       n = c.total;
       if (opts.count !== undefined && opts.count !== n) fail(-3);
-      if (!(n > 0) || n > (opts.maxCount || MAX_COUNT)) throw new Error('PcodecJS: bad count ' + n + ' announced by the file (pass { maxCount } if you trust it)');
+      if (!(n > 0) || n > countLimit(opts)) throw new Error('PcodecJS: bad count ' + n + ' announced by the file (pass { maxCount } if you trust it)');
       if (opts.into) { if (!(opts.into instanceof T) || opts.into.length < n) throw new TypeError('PcodecJS: { into } must be a ' + T.name + ' of at least ' + n + ' numbers'); out = opts.into; } else out = new T(n);
       for (i = 0; i < c.parts.length; i++) { unpackPlain(c.parts[i], { count: p.counts[i], into: out.subarray(off, off + p.counts[i]) }); off += p.counts[i]; }
       return opts.into && out.length !== n ? out.subarray(0, n) : out;
@@ -511,7 +512,7 @@
         type = info.type; counts.push(info.count); total += info.count;
       }
       if (total !== c.total || !TYPES[type][1]) return Promise.reject(new Error('PcodecJS: ' + ERRORS['-2']));
-      if (!(total > 0) || total > ((o && o.maxCount) || MAX_COUNT)) return Promise.reject(new Error('PcodecJS: bad count ' + total + ' announced by the file (pass { maxCount } if you trust it)'));
+      if (!(total > 0) || total > countLimit(o)) return Promise.reject(new Error('PcodecJS: bad count ' + total + ' announced by the file (pass { maxCount } if you trust it)'));
       if (o && o.into && (o.parts || !(o.into instanceof TYPES[type][1]) || o.into.length < total)) return Promise.reject(new TypeError('PcodecJS: { into } must be a ' + TYPES[type][1].name + ' of at least ' + total + ' numbers'));
       k = lanesFor(c.parts.length, total * UNPACK_NS / 1e6);
       if (k === 1 && !(o && o.parts)) return lane(0).then(function (w) { return w.unpack(b, o); });   // too small to share out: the one worker opens the whole file in one go

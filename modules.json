@@ -390,7 +390,7 @@
     },
     {
       "id": "pcodec-js",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "api": 1,
       "global": "PcodecJS",
       "summary": "Pcodec for web pages: unpacks (and optionally packs) big lists of numbers in a browser, one file, same bytes as any other Pcodec. The unpack-only file is 61 KB gzipped (the other JavaScript build of Pcodec is 324 KB), streams a 4,000,000-number file in 6.3 MB of memory, and WebAssembly is required (no plain-JavaScript backup).",
