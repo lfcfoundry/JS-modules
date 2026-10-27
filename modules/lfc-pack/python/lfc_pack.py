@@ -54,7 +54,7 @@ def _jsnum(x):
     if isinstance(x, int):
         return str(x) if abs(x) < 10 ** 21 else _jsnum(float(x))
     if x != x or x in (float('inf'), float('-inf')): return 'null'
-    if x == 0: return '-0' if str(x).startswith('-') else '0'
+    if x == 0: return '0'   # JSON.stringify(-0) is "0"
     sign = '-' if x < 0 else ''
     d = Decimal(repr(abs(x))).normalize().as_tuple()
     digits = ''.join(map(str, d.digits)).rstrip('0') or '0'; k = len(digits); n = d.exponent + len(d.digits)   # value = 0.DIGITS * 10^n
