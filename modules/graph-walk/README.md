@@ -6,7 +6,7 @@
 
 The two small walks that map and flow tools keep rewriting: breadth-first distances from an item, and a depth-first pass that marks every link that closes a loop. They work on the plain "links of every item" layout in typed arrays, with no recursion, so a 30,000 item network with 93,000 links takes about 1.5 and 3 milliseconds.
 
-Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. The name is a placeholder until the owner chooses (graph-walk, route-walk, link-walk or net-walk).
+Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
 ## Why it exists
 Netflow Map has four copies of the same breadth-first walk and two loop-dropping depth-first passes, each with its own queue and arrays. One tested copy means one place to fix and one place to speed up, and the loop marking (which link closes a loop) comes with it for free instead of being a side effect inside a bigger function.
