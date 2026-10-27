@@ -6,6 +6,9 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Flat writer also reads strings, true/false and null in wasm; flat list columns read faster (number decoder, Firefox and WebKitGTK builders); output files unchanged.
 
 ## 0.1.6 · API 0 · 2026-10-26
+- Flat writer also reads strings, true/false and null in wasm; flat list columns read faster (number decoder, Firefox and WebKitGTK builders); output files unchanged.
+
+## 0.1.6 · API 0 · 2026-10-26
 - Flat writer also reads strings, true/false and null in wasm; flat list columns read faster in Firefox and WebKitGTK; output files unchanged.
 
 ## 0.1.5 · API 0 · 2026-10-26
