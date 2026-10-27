@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.3.1 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -289,7 +289,9 @@
     var bad = function () { return new Error('This is not a zip file I can read (it may be cut off or damaged).'); };
     if (!u8 || u8.length < 22) throw bad();
     var d = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), eocd = -1, lo = Math.max(0, u8.length - 22 - 65535);
-    for (var p = u8.length - 22; p >= lo; p--) if (u8[p] === 0x50 && u8[p + 1] === 0x4b && u8[p + 2] === 5 && u8[p + 3] === 6) { eocd = p; break; }
+    // first the end record whose comment reaches exactly the end of the file (an end-record signature inside a zip comment is not the directory), then the last signature, so zips with bytes after the record still open
+    for (var p = u8.length - 22; p >= lo; p--) if (u8[p] === 0x50 && u8[p + 1] === 0x4b && u8[p + 2] === 5 && u8[p + 3] === 6 && p + 22 + u16(d, p + 20) === u8.length) { eocd = p; break; }
+    if (eocd < 0) for (p = u8.length - 22; p >= lo; p--) if (u8[p] === 0x50 && u8[p + 1] === 0x4b && u8[p + 2] === 5 && u8[p + 3] === 6) { eocd = p; break; }
     if (eocd < 0) throw bad();
     var count = u16(d, eocd + 10), cdSize = u32(d, eocd + 12), cdOff = u32(d, eocd + 16);
     if ((count === 0xffff || cdSize === 0xffffffff || cdOff === 0xffffffff) && eocd >= 20 && u32(d, eocd - 20) === 0x07064b50) {
