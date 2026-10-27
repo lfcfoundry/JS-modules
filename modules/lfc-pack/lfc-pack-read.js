@@ -654,6 +654,11 @@
     for (i = 0; i < m; i++) { u = a[i]; if (u < 2147483648) { while (u >= 128) { o[p++] = (u & 127) | 128; u >>>= 7; } o[p++] = u; } else { while (u >= 128) { o[p++] = (u % 128) | 128; u = Math.floor(u / 128); } o[p++] = u; } }
     return o;
   }
+  function repeats(a, c) {   // do at most half as many distinct values as entries appear (counts a sample of up to 65,536 entries)
+    var m = Math.min(c, 65536), seen = new Set(), i;
+    for (i = 0; i < m; i++) seen.add(a[i]);
+    return seen.size * 2 <= m;
+  }
   function writeFlatBlockFast(ctx, input, opts) {
     if (opts.exact || typeof WebAssembly !== 'object' || input.length < 64) return null;
     if (!opts.pre && input.length > 262144) {   // cheap bail: try the first 64 KB (up to a line end) before copying a whole block into wasm
@@ -705,6 +710,7 @@
         if (mono) { d[0] = base[0]; for (i = 1; i < c; i++) d[i] = base[i] - base[i - 1]; } else for (i = 0; i < c; i++) d[i] = base[i] >= 0 ? base[i] * 2 : -base[i] * 2 - 1;
         cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
         if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Uint32Array(c); for (i = 0; i < c; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)], c); }
+        if (c > 1 && !mono && best.size > c * 0.25 && repeats(base, c)) { var fv = new Float64Array(c); for (i = 0; i < c; i++) fv[i] = base[i] / scale; cand('F', {}, [new Uint8Array(fv.buffer)], c); }   /* raw doubles win when the values repeat a long pattern (zstd finds the repeat), as in the general writer; tried only when the other forms leave more than 2 bits a value and values do repeat */
         if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
       } else {
         var ln = colv[j], dl = coll[j], asc = true, ai = 0, a0, pv, t2 = dl.length;

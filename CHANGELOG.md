@@ -59,6 +59,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-10-27 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into Float64Array number columns and text columns with a WebAssembly SIMD scan (3 to 11 times faster than common parsers in the container), plain JavaScript fallback with the same answers.
 - 2026-10-27 · **lfc-pack** 0.1.7 · API 0: Flat number-list columns decode to small integers (variant 19), faster hex, address and dictionary checks when packing text; files and rows unchanged.
+- 2026-10-27 · **lfc-pack** 0.1.7 · API 0: Flat number-list columns decode to small integers (variant 19), faster hex, address and dictionary checks when packing text; files and rows unchanged.
 - 2026-10-26 · **zip-open** 1.3.1 · API 1: Fixed: a zip comment that contains end-record bytes no longer replaces the real directory; zips with extra bytes after the end record still open.
 - 2026-10-26 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into number and text columns with a WebAssembly SIMD scan, 3 to 11 times faster than common parsers.
 - 2026-10-26 · **memory-compression** 2.6.5 · API 2: Fixed: nested rows whose key names contain a control character could get another row shape's field names.
