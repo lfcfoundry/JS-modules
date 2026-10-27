@@ -59,6 +59,8 @@ function gen(type, n, shape) {
     e = null; try { rd.unpack(split, { maxCount: 0 }); } catch (x) { e = x; } ok(!!e, 'zero maxCount refuses a split file');
     ok(await rejectsCount(rd.unpackAsync(split, { maxCount: 0 })), 'zero maxCount refuses an async split file');
     const pool = await R.pool({ size: 1 }); try { ok(await rejectsCount(pool.unpack(split, { maxCount: 0 })), 'zero maxCount refuses a pooled split file'); } finally { pool.terminate(); }
+    for (const limit of [NaN, Infinity]) { e = null; try { rd.unpack(plain, { maxCount: limit }); } catch (x) { e = x; } ok(!!e, 'non-finite maxCount ' + limit + ' is refused'); }
+    ok(await rejectsCount(rd.unpackAsync(plain, { maxCount: NaN })), 'non-finite maxCount is refused by unpackAsync');
   }
   // 6. damaged data: always an error or the exact numbers, never a crash, and the object keeps working
   { const a = gen('f64', 20000, 'dec'), b = pk.pack(a); let errs = 0, wrongAccept = 0, accepted = 0; const N = 600;

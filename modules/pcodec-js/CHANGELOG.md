@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.2 · API 1 · 2026-10-27
+- Invalid maxCount values no longer disable the Pcodec read limit.
+
 ## 1.6.1 · API 1 · 2026-10-27
 - A zero maxCount now refuses every nonempty Pcodec file.
 
