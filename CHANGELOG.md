@@ -65,7 +65,6 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-27 · **netflow-layers** 1.5.1 · API 1: maxVertices: 0 is now a real cap (it used to fall back to 90000), and a bad value (NaN, negative, fractional, not a number) throws a clear error; Infinity still means no cap.
 - 2026-10-27 · **lfc-pack** 0.1.8 · API 0: The unpack pool starts 2 helpers when you do not say how many (it used to start up to 16): at 105 MB more helpers did not read faster and ran Firefox out of memory. Ask for more with workers.
 - 2026-10-27 · **lfc-pack** 0.1.7 · API 0: Flat number-list columns decode to small integers (variant 19), faster hex, address and dictionary checks when packing text; files and rows unchanged.
-- 2026-10-27 · **lfc-pack** 0.1.7 · API 0: Flat number-list columns decode to small integers (variant 19), faster hex, address and dictionary checks when packing text; files and rows unchanged.
 - 2026-10-27 · **image-decode** 1.2.2 · API 1: Percent-coded data: addresses that hold binary pictures now load instead of being refused.
 - 2026-10-27 · **graph-walk** 0.1.0 · API 0: First version: breadth-first distances and depth-first loop marking over a links-of-every-item layout, same answers as Netflow Map's inline walks and no slower in three browsers.
 - 2026-10-27 · **gif-writer** 1.5.1 · API 1: A frame delay above 655,350 ms is capped instead of wrapping in the GIF's 16-bit field.
