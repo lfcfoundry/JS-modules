@@ -1,8 +1,8 @@
 # pcodec-js
 
-**Version 1.6.0 · API 1**
+**Version 1.6.1 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time
+**Tested in:** not recorded
 
 Pcodec for web pages: unpack (and optionally pack) big lists of numbers in a browser, one file, no build step, no network.
 
@@ -49,7 +49,7 @@ const quick = pco.pack(float64Array, {smallest: 'quick'});     // pack file only
 - **Lean big unpacks (since 1.6.0).** `unpack(bytes)` of 262,144 numbers or more (main thread, worker and every pool lane) decodes in batches of 65,536 straight into the new result array, so the wasm memory stays about 6.3 MB for 4,000,000 numbers instead of 36.3 MB, and the numbers are the same. Time for that unpack (median, Chromium / Firefox / WebKitGTK / GNOME Web): on a program that already holds its memory -5% / -6% / +24% / +19% (WebKit-based browsers are slower here because the new result array must be zeroed before it is filled); on a fresh program, or after `release()`, -17% / -22% / -3% / -9%. `view`, `into` and `stream()` work as before. **`load({ lean: false })` is the 1.5.1 route for big copies (since 1.6.0):** the program decodes the whole result into its own memory and copies it out once. In WebKitGTK and GNOME Web that last copy is faster: the warm 4,000,000-number unpack takes 56 / 62 ms with `lean: false` against 57 / 60 ms in 1.5.1 and 73 / 77 ms lean (median of 40 turns, 3 fresh instances; 1.5.1 speed, within 5%). **It trades 36 MB for that speed:** the program holds a result-sized region (36.3 MB for 4,000,000 numbers) after every big unpack. Chromium and Firefox gain nothing from it (lean is 5 to 6% faster there). To limit that, such an object gives the memory back when it has not been called for `idleMs` (default 4000; `idleMs: 0` turns that off), and the next call starts a new program (the first call after a release took 96 / 77 / 97 / 98 ms for 4,000,000 numbers against 87 / 60 / 86 / 78 ms warm, in Chromium / Firefox / WebKitGTK / GNOME Web). `lean: false` also works on `worker({ lean: false })` and `pool({ lean: false })`. The default stays lean. `lean: false` gives you your own object, not the shared one `load()` returns without options.
 - **The pool gives memory back when idle (since 1.6.0).** A pool ends its workers after `idleMs` (default 4000 ms, 0 turns it off) with no job and starts them again at the next one, so an idle pool that has opened a 4,000,000-number file no longer keeps its 17 to 52 MB. The first job after parking costs about 20 to 40 ms for four small files in the four browsers (a warm pool needs 6 to 10 ms). `p.workers()` says how many workers run now and `p.idleMs` shows the setting. Workers start one per page turn, so the page task of a first job is 1 to 4 ms.
 - **Smaller files, cheaply (since 1.3.0).** `pack(x, { smallest: 'quick' })` checks whether a float column is made of decimals (multiples of 0.1, 0.01, ... 0.000001) and only then also packs with that setting, keeping the smaller file (never larger than plain). On our 39 test columns it helped 2 of 39 (one by 61%) and made all 39 files together 3.4% smaller at about 1.7 times the plain time; `smallest: true` is 4.0% smaller at 3.3 to 3.5 times.
-- `count` and `maxCount`: pass `count` when you know it; a wrong count is refused. `maxCount` defaults to 33,554,432 numbers so a damaged file cannot make the page reserve gigabytes.
+- `count` and `maxCount`: pass `count` when you know it; a wrong count is refused. `maxCount` defaults to 33,554,432 numbers so a damaged file cannot make the page reserve gigabytes; `maxCount: 0` refuses every nonempty file.
 - `stream()` hands back one view per batch (batch is a multiple of 256, default 4,096). Copy a part if you keep it.
 - Types: u16, i16, u32, i32, f32, u64, i64, f64 (64-bit whole numbers come back as BigInt64Array / BigUint64Array).
 - `release()` frees the wasm memory; `memoryBytes()` says how much it holds.

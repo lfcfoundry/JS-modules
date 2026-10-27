@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.1 · API 1 · 2026-10-27
+- A zero maxCount now refuses every nonempty Pcodec file.
+
 ## 1.6.0 · API 1 · 2026-10-23
 - Files 45-56% smaller (program stored deflated); big unpacks use 6 MB, not 36 MB, of wasm memory; idle pool workers end after idleMs (4 s). New load({ lean: false }) gives WebKit browsers 1.5.1 speed back (keeps 36 MB, freed when idle).
 

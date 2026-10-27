@@ -47,7 +47,19 @@ function gen(type, n, shape) {
   // 4. view mode
   { const v = rd.unpack(bb, { view: true }); ok(same(v, big), 'view result matches'); const v2 = rd.unpack(bb.slice(0, bb.length)); ok(same(v2, big), 'next call after a view still works'); }
   // 5. count rules
-  { const a = gen('i32', 1000, 'walk'), b = pk.pack(a); let e = null; try { rd.unpack(b, { count: 999 }); } catch (x) { e = x; } ok(!!e, 'wrong count (too small) is refused'); e = null; try { rd.unpack(b, { count: 1001 }); } catch (x) { e = x; } ok(!!e, 'wrong count (too big) is refused'); e = null; try { rd.unpack(b, { maxCount: 10 }); } catch (x) { e = x; } ok(!!e, 'maxCount is honored'); ok(same(rd.unpack(b, { count: 1000 }), a), 'right count works'); }
+  {
+    const a = gen('i32', 1000, 'walk'), plain = pk.pack(a), large = new Float64Array(300000).fill(1), split = pk.pack(large, { parts: 2 }); let e = null;
+    const rejectsCount = async p => { try { await p; return false; } catch (x) { return /bad count/.test(x.message); } };
+    try { rd.unpack(plain, { count: 999 }); } catch (x) { e = x; } ok(!!e, 'wrong count (too small) is refused');
+    e = null; try { rd.unpack(plain, { count: 1001 }); } catch (x) { e = x; } ok(!!e, 'wrong count (too big) is refused');
+    e = null; try { rd.unpack(plain, { maxCount: 10 }); } catch (x) { e = x; } ok(!!e, 'maxCount is honored');
+    ok(same(rd.unpack(plain, { count: 1000 }), a), 'right count works');
+    e = null; try { rd.unpack(plain, { maxCount: 0 }); } catch (x) { e = x; } ok(!!e, 'zero maxCount refuses a normal file');
+    ok(await rejectsCount(rd.unpackAsync(plain, { maxCount: 0 })), 'zero maxCount refuses an async normal file');
+    e = null; try { rd.unpack(split, { maxCount: 0 }); } catch (x) { e = x; } ok(!!e, 'zero maxCount refuses a split file');
+    ok(await rejectsCount(rd.unpackAsync(split, { maxCount: 0 })), 'zero maxCount refuses an async split file');
+    const pool = await R.pool({ size: 1 }); try { ok(await rejectsCount(pool.unpack(split, { maxCount: 0 })), 'zero maxCount refuses a pooled split file'); } finally { pool.terminate(); }
+  }
   // 6. damaged data: always an error or the exact numbers, never a crash, and the object keeps working
   { const a = gen('f64', 20000, 'dec'), b = pk.pack(a); let errs = 0, wrongAccept = 0, accepted = 0; const N = 600;
     for (let t = 0; t < N; t++) {
