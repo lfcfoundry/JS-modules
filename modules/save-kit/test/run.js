@@ -274,6 +274,12 @@ function countUnpacked(counter) {
     assert.strictEqual(Object.keys(K.validate({ o: { type: 'counts', maxKeys: 3 } }, {}, { o: many }).o).length, 3);
     assert.strictEqual(Object.keys(K.validate({ o: { type: 'counts', max: 5, maxKeys: 5000 } }, {}, { o: many }).o).length, 5000);
   });
+  await regress('zero schema bounds reject nonempty strings and count entries', async K => {
+    const clean = K.validate({ a: 'str:0', b: { type: 'str', max: 0 }, c: { type: 'counts', max: 0 }, d: { type: 'counts', maxKeys: 0 } },
+      { a: '', b: '', c: {}, d: {} }, { a: 'text', b: 'text', c: { apple: 1 }, d: { pear: 2 } });
+    assert.strictEqual(clean.a, ''); assert.strictEqual(clean.b, '');
+    assert.deepStrictEqual(Object.keys(clean.c), []); assert.deepStrictEqual(Object.keys(clean.d), []);
+  });
   await regress('raw fields drop __proto__, constructor and prototype keys, at any depth', async K => {
     const input = JSON.parse('{"r":{"__proto__":{"x":1},"b":2,"constructor":3,"inner":[{"prototype":1,"ok":4}],"deep":{"__proto__":5,"keep":6}}}');
     const r = K.validate({ r: 'raw' }, {}, input).r;
