@@ -1,6 +1,6 @@
 # image-decode
 
-**Version 1.2.1 · API 1**
+**Version 1.2.2 · API 1**
 
 **Tested in:** not recorded
 
