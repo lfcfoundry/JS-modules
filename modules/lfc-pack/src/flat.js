@@ -3,7 +3,7 @@
   // ================================================================ flat-rows block (kind 'f'): every row is an object; one presence bit plane per key, one typed column per key
   // Layout: u32 header length, JSON header, then zstd frames: meta (keys and column table), presence planes, then the frames of each column.
   // Column types: V varints (delta when sorted, zigzag otherwise, whole numbers or two-decimal numbers), B bit-packed offsets, F float64 bytes, T booleans,
-  // H fixed-length lowercase hex, L log templates (used when 5% smaller than the plain strings), U lowercase UUID as 16 bytes, I IPv4 as 4 bytes, D block dictionary plus codes, s strings, j JSON text (anything else).
+  // A lists of whole numbers (link lists: lengths plus deltas), H fixed-length lowercase hex, L log templates (automatic: kept only when 5% smaller than plain and a writer-side sample shows full-line reads are not slower (templates:true skips the read check, false turns them off)), U lowercase UUID as 16 bytes, I IPv4 as 4 bytes, D block dictionary plus codes, s strings, j JSON text (anything else).
   var LV_FLAT = 3;
   function zz(x) { return x >= 0 ? x * 2 : -x * 2 - 1; }
   function unzz(x) { return (x % 2 === 0) ? x / 2 : -(x + 1) / 2; }
@@ -29,7 +29,7 @@
     for (i = 0; i < n; i++) { byte = bp >> 3; out[i] = ((b[byte] | (b[byte + 1] << 8) | (b[byte + 2] << 16) | (b[byte + 3] << 24)) >>> (bp & 7)) & mask; bp += w; }
     return out;
   }
-  var HEXC = '0123456789abcdef', RX_HEX = /^[0-9a-f]+$/, RX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  var HEXC = '0123456789abcdef', HEXA = new Uint8Array([48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102]), RX_HEX = /^[0-9a-f]+$/, RX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   var RX_IP = /^(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})$/, RX_LONE = /[\ud800-\udbff](?![\udc00-\udfff])|(?:[^\ud800-\udbff]|^)[\udc00-\udfff]/;
   function wellFormed(s) { return !RX_LONE.test(s); }
   function allOf(v, f) { for (var i = 0; i < v.length; i++) if (!f(v[i])) return false; return true; }
@@ -78,16 +78,45 @@
       else vals = tx[tp++].split('\n');
       store.set(order[j], vals);
     }
-    var seen = new Uint32Array(tl.length), arr, s;
+    // per template: its slot value arrays, looked up once instead of once per cell
+    var slotArr = new Array(tl.length), arr, s, vs, m;
+    for (id = 0; id < tl.length; id++) { arr = parts[id]; vs = new Array(arr.length - 1); for (k = 1; k < arr.length; k++) vs[k - 1] = store.get(id * 4096 + k - 1); slotArr[id] = vs; }
+    var seen = new Uint32Array(tl.length);
     for (i = 0; i < n; i++) {
-      id = ids[i] | (ids[n + i] << 8); arr = parts[id]; s = arr[0]; c = seen[id]++;
-      for (k = 1; k < arr.length; k++) s += store.get(id * 4096 + k - 1)[c] + arr[k];
+      id = ids[i] | (ids[n + i] << 8); arr = parts[id]; vs = slotArr[id]; c = seen[id]++; m = arr.length;
+      if (m === 1) { out[i] = arr[0]; continue; }
+      s = arr[0];
+      for (k = 1; k < m; k++) s += vs[k - 1][c] + arr[k];
       out[i] = s;
     }
     return out;
   }
+  function isIdList(a) {
+    if (!Array.isArray(a)) return false;
+    for (var i = 0; i < a.length; i++) { var x = a[i]; if (typeof x !== 'number' || !(x >= 0 && x < 4294967296) || x % 1 !== 0 || (x === 0 && 1 / x < 0)) return false; }
+    return true;
+  }
+  // writer-side sample check: rebuilding full lines from templates must not be slower than splitting plain strings (best of 5 on up to 8192 values, each line touched so joined strings are flattened; run only when templates are already smaller)
+  var clock = (typeof performance !== 'undefined' && performance.now) ? function () { return performance.now(); } : function () { return Date.now(); };
+  function touch(a) { var x = 0, i; for (i = 0; i < a.length; i++) x += a[i].charCodeAt(0) | 0; return x; }   // reading a character flattens the joined strings, as any use of a line does
+  // time fn over enough repeats to fill about 8 ms (a 1 ms browser clock then reads within about 12%, enough for a 5% margin over several rounds), per call
+  function perCall(fn) {
+    var reps = 1, t0, dt;
+    for (;;) { t0 = clock(); for (var r = 0; r < reps; r++) fn(); dt = clock() - t0; if (dt >= 8 || reps >= 256) return dt / reps; reps *= 2; }
+  }
+  var tmplSlow = false;   // set when one column of the block being written failed the read check: the block's other columns skip it and stay plain
+  function readNoSlower(v) {
+    var smp = v.length > 8192 ? v.slice(0, 8192) : v, tf = templateFrames(smp), plain, r, bt = Infinity, bp = Infinity, x;
+    if (!tf) return false;
+    plain = te.encode(smp.join('\0'));
+    for (r = 0; r < 3; r++) {
+      x = perCall(function () { touch(untemplate(smp.length, tf.frames)); }); if (r && x < bt) bt = x;
+      x = perCall(function () { touch(td.decode(plain).split('\0')); }); if (r && x < bp) bp = x;
+    }
+    return bt <= bp * 1.05;
+  }
   // a column's candidate encodings; every frame is { raw: Uint8Array } and gets compressed by the caller
-  function encodeColumn(v, zs, level, opts_noTemplates) {
+  function encodeColumn(v, zs, level, tmode) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only
     var n = v.length, i, x, best = null;
     function stored(frames) { var t = 0, z = []; for (var q = 0; q < frames.length; q++) { var c = zs.compress(frames[q], level); if (c.length < frames[q].length) z.push([frames[q].length, c, 1]); else z.push([frames[q].length, frames[q], 0]); t += z[q][1].length; } return { z: z, size: t }; }
     function cand(t, p, frames) { var s = stored(frames); if (!best || s.size < best.size) best = { t: t, p: p, z: s.z, size: s.size, n: n }; }
@@ -96,7 +125,7 @@
       var allInt = noNegZero && allOf(v, function (x) { return Number.isInteger(x) && Math.abs(x) < 9007199254740992 / 8; }), scale = 1, base = null;
       if (!noNegZero) base = null; else if (allInt) base = v; else { base = new Array(n); for (i = 0; i < n; i++) { x = Math.round(v[i] * 100); if (!(Math.abs(x) < 9007199254740992 / 8 && x / 100 === v[i])) { base = null; break; } base[i] = x; } if (base) scale = 100; }
       if (base) {
-        var mono = true, mn = Infinity, mx = -Infinity;
+        var mono = base.length === 0 || base[0] >= 0, mn = Infinity, mx = -Infinity;
         for (i = 0; i < n; i++) { if (i && base[i] < base[i - 1]) mono = false; if (base[i] < mn) mn = base[i]; if (base[i] > mx) mx = base[i]; }
         var d = base.slice(); if (mono) for (i = n - 1; i > 0; i--) d[i] -= d[i - 1]; else for (i = 0; i < n; i++) d[i] = zz(d[i]);
         cand('V', { mono: mono, scale: scale }, [varints(d)]);
@@ -124,7 +153,7 @@
         var map = new Map(), labels = [], codes = new Array(n), c;
         for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }
         cand('s', {}, [te.encode(v.join('\0'))]);
-        if (n >= 16 && labels.length * 2 > n && !opts_noTemplates) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
+        if (n >= 16 && labels.length * 2 > n && tmode) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || (!tmplSlow && (readNoSlower(v) || (tmplSlow = true, false))))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
           var wd = Math.max(1, 32 - Math.clz32(labels.length - 1)), cb = labels.length > 256 ? new Uint8Array(new Uint16Array(codes).buffer) : Uint8Array.from(codes);
           cand('D', { w: 0, wide: labels.length > 256 }, [te.encode(labels.join('\0')), cb]);
@@ -133,18 +162,39 @@
         return best;
       }
     }
+    if (n && allOf(v, isIdList)) {   // link lists: each value is an array of whole numbers 0..2^32-1; lengths, then deltas (zigzag when some list is not ascending)
+      var ln = new Array(n), tot = 0, asc = true, a, q;
+      for (i = 0; i < n; i++) { a = v[i]; ln[i] = a.length; tot += a.length; for (q = 1; q < a.length; q++) if (a[q] < a[q - 1]) asc = false; }
+      var dl = new Array(tot), w = 0, pv;
+      for (i = 0; i < n; i++) { a = v[i]; pv = 0; for (q = 0; q < a.length; q++) { dl[w++] = asc ? a[q] - pv : zz(a[q] - pv); pv = a[q]; } }
+      cand('A', { m: tot, asc: asc }, [varints(ln), varints(dl)]);
+    }
+    if (best && best.t === 'A') return best;   // lists of whole numbers: the list encoding wins over JSON text in every case measured, so the text candidate is not built
     cand('j', {}, [te.encode(v.map(jsonText).join('\n'))]);
     return best;
   }
+  // whole numbers that fit 32 bits are handed out as Int32Array: reading one gives a small integer (no heap number), which makes the row objects lighter and the garbage collector's job smaller
+  function narrow(u) {
+    var n = u.length, o = new Int32Array(n), i, x;
+    for (i = 0; i < n; i++) { x = u[i]; if (x > 2147483647 || x < -2147483648) return u; o[i] = x; }
+    return o;
+  }
   function decodeColumn(c, zs, frames) {   // -> array-like of n values
     var n = c.n, i, u, o, t = c.t, p = c.p;
-    if (t === 'V') { u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) for (i = 0; i < n; i++) u[i] /= p.scale; return u; }
-    if (t === 'B') { var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return o; }
+    if (t === 'V') { u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
+    if (t === 'B') { var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
     if (t === 'F') { return new Float64Array(frames[0].buffer.slice(frames[0].byteOffset, frames[0].byteOffset + n * 8)); }
     if (t === 'T') { var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
-    if (t === 'H') { var bl = p.L / 2, r = frames[0]; o = new Array(n); for (i = 0; i < n; i++) { var h = ''; for (var k = 0; k < bl; k++) { var b = r[i * bl + k]; h += HEXC[b >> 4] + HEXC[b & 15]; } o[i] = h; } return o; }
-    if (t === 'U') { var ur = frames[0]; o = new Array(n); for (i = 0; i < n; i++) { var us = ''; for (var q = 0; q < 16; q++) { var bq = ur[i * 16 + q]; us += HEXC[bq >> 4] + HEXC[bq & 15]; if (q === 3 || q === 5 || q === 7 || q === 9) us += '-'; } o[i] = us; } return o; }
-    if (t === 'I') { var ir = frames[0]; o = new Array(n); for (i = 0; i < n; i++) o[i] = ir[4 * i] + '.' + ir[4 * i + 1] + '.' + ir[4 * i + 2] + '.' + ir[4 * i + 3]; return o; }
+    // hex, UUID and address columns: the ASCII text of the whole column is written into one buffer and decoded once, then every value is cut out of it (decode once per column, slice)
+    if (t === 'H') { var bl = p.L / 2, L2 = p.L, r = frames[0], hb = new Uint8Array(n * L2), hp = 0, hk, hv, big; for (i = 0; i < n * bl; i++) { hv = r[i]; hb[hp++] = HEXA[hv >> 4]; hb[hp++] = HEXA[hv & 15]; } big = tlat.decode(hb); o = new Array(n); for (i = 0; i < n; i++) o[i] = big.substring(i * L2, i * L2 + L2); return o; }
+    if (t === 'U') { var ur = frames[0], ub = new Uint8Array(n * 36), up = 0, uq, uv; for (i = 0; i < n; i++) { for (uq = 0; uq < 16; uq++) { uv = ur[i * 16 + uq]; ub[up++] = HEXA[uv >> 4]; ub[up++] = HEXA[uv & 15]; if (uq === 3 || uq === 5 || uq === 7 || uq === 9) ub[up++] = 45; } } var ubig = tlat.decode(ub); o = new Array(n); for (i = 0; i < n; i++) o[i] = ubig.substring(i * 36, i * 36 + 36); return o; }
+    if (t === 'I') { var ir = frames[0], ib = new Uint8Array(n * 15), ip = 0, io = new Uint32Array(n + 1), iq, iv; for (i = 0; i < n; i++) { io[i] = ip; for (iq = 0; iq < 4; iq++) { iv = ir[4 * i + iq]; if (iv >= 100) { ib[ip++] = 48 + ((iv / 100) | 0); ib[ip++] = 48 + (((iv / 10) | 0) % 10); ib[ip++] = 48 + iv % 10; } else if (iv >= 10) { ib[ip++] = 48 + ((iv / 10) | 0); ib[ip++] = 48 + iv % 10; } else ib[ip++] = 48 + iv; if (iq < 3) ib[ip++] = 46; } } io[n] = ip; var ibig = tlat.decode(ib.subarray(0, ip)); o = new Array(n); for (i = 0; i < n; i++) o[i] = ibig.substring(io[i], io[i + 1]); return o; }
+    if (t === 'A') {
+      var al = unvarints(frames[0], n), av = unvarints(frames[1], p.m), ap = 0, aa, aj, ac, an, ar = p.asc;
+      o = new Array(n);
+      for (i = 0; i < n; i++) { an = al[i]; aa = new Array(an); ac = 0; for (aj = 0; aj < an; aj++) { ac += ar ? av[ap++] : unzz(av[ap++]); aa[aj] = ac; } o[i] = aa; }
+      return o;
+    }
     if (t === 'L') return untemplate(n, frames);
     if (t === 's') return n ? td.decode(frames[0]).split('\0') : [];
     if (t === 'D') { var lab = td.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
@@ -152,9 +202,15 @@
   }
   // returns null when the input is not flat rows (some line is not a JSON object)
   function writeFlatBlock(ctx, input, opts) {
-    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, text = td.decode(input), lines = text.split('\n'), rows = [], i, j, r;
+    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, text = td.decode(input), lines, rows = [], i, j, r, nl = 0, at = -1;
+    // fast path: one JSON.parse of the whole block as an array (same row count as lines, or fall back to line by line)
+    while ((at = text.indexOf('\n', at + 1)) >= 0) nl++;
+    if (text.charCodeAt(text.length - 1) !== 10) nl++;
+    try { r = JSON.parse('[' + text.replace(/\n+$/, '').replace(/\n/g, ',') + ']'); if (r.length === nl) rows = r; } catch (e) { rows = []; }
+    if (rows.length) { for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) { rows = []; break; } } }
+    lines = rows.length ? [] : text.split('\n');
     for (i = 0; i < lines.length; i++) { var l = lines[i]; if (l.charCodeAt(l.length - 1) === 13) l = l.slice(0, -1); if (!l.trim()) continue; try { r = JSON.parse(l); } catch (e) { return null; } if (r === null || typeof r !== 'object' || Array.isArray(r)) return null; rows.push(r); }
-    var n = rows.length, keys = [], seen = new Map(), cols = [], k, v, jx;
+    var n = rows.length, keys = [], seen = new Map(), cols = [], k, v, jx; tmplSlow = false;
     for (i = 0; i < n; i++) { r = rows[i]; for (k in r) if (!seen.has(k)) { seen.set(k, keys.length); keys.push(k); cols.push([]); } }
     var pb = (n + 7) >> 3, planes = new Uint8Array(pb * keys.length), ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq;
     for (i = 0; i < n; i++) {
@@ -164,7 +220,7 @@
     }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
     for (j = 0; j < cols.length; j++) {
-      var e = encodeColumn(cols[j], zs, level, opts.templates === false); enc.push(e);
+      var e = encodeColumn(cols[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1); enc.push(e);
       meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }) });
       for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
       if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && cols[j].length) { var mn = Infinity, mx = -Infinity, a = cols[j]; for (i = 0; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zone.push([fnvStr('.' + keys[j]), mn, mx, a.length]); }

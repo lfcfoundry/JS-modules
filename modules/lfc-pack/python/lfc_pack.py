@@ -54,7 +54,7 @@ def _jsnum(x):
     if isinstance(x, int):
         return str(x) if abs(x) < 10 ** 21 else _jsnum(float(x))
     if x != x or x in (float('inf'), float('-inf')): return 'null'
-    if x == 0: return '-0' if str(x).startswith('-') else '0'
+    if x == 0: return '0'   # JSON.stringify(-0) is "0"
     sign = '-' if x < 0 else ''
     d = Decimal(repr(abs(x))).normalize().as_tuple()
     digits = ''.join(map(str, d.digits)).rstrip('0') or '0'; k = len(digits); n = d.exponent + len(d.digits)   # value = 0.DIGITS * 10^n
@@ -73,14 +73,57 @@ def _jsstr(s):
 
 
 def _jsdumps(o):
-    if o is None: return 'null'
-    if isinstance(o, str): return _jsstr(o)
-    if isinstance(o, (bool, int, float)): return _jsnum(o)
-    if isinstance(o, list): return '[' + ','.join(_jsdumps(x) for x in o) + ']'
-    # JavaScript puts keys that look like array indexes first, in numeric order
-    ks = list(o.keys()); ik = sorted((k for k in ks if k.isdigit() and (k == '0' or k[0] != '0') and len(k) < 10), key=int)
-    sset = set(ik); ks = ik + [k for k in ks if k not in sset]
-    return '{' + ','.join(_jsstr(k) + ':' + _jsdumps(o[k]) for k in ks) + '}'
+    out, stack = [], [('value', o)]
+    while stack:
+        kind, value = stack.pop()
+        if kind == 'text':
+            out.append(value)
+        elif value is None:
+            out.append('null')
+        elif isinstance(value, str):
+            out.append(_jsstr(value))
+        elif isinstance(value, (bool, int, float)):
+            out.append(_jsnum(value))
+        elif isinstance(value, list):
+            out.append('['); stack.append(('text', ']'))
+            for i in range(len(value) - 1, -1, -1):
+                stack.append(('value', value[i]))
+                if i: stack.append(('text', ','))
+        else:
+            # JavaScript puts keys that look like array indexes first, in numeric order
+            keys = list(value.keys()); indexes = sorted((k for k in keys if k.isdigit() and (k == '0' or k[0] != '0') and len(k) < 10), key=int)
+            seen = set(indexes); keys = indexes + [k for k in keys if k not in seen]
+            out.append('{'); stack.append(('text', '}'))
+            for i in range(len(keys) - 1, -1, -1):
+                key = keys[i]
+                stack.append(('value', value[key])); stack.append(('text', ':')); stack.append(('text', _jsstr(key)))
+                if i: stack.append(('text', ','))
+    return ''.join(out)
+
+
+_NUM = re.compile(r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?')
+
+
+def _num_tokens(text):
+    out = []; i = 0; n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            i += 1
+            while i < n and text[i] != '"': i += 2 if text[i] == '\\' else 1
+            i += 1
+        elif c == '-' or c.isdigit():
+            m = _NUM.match(text, i); out.append((m.start(), m.end())); i = m.end()
+        else: i += 1
+    return out
+
+
+def _respell(canon, spells):
+    toks = _num_tokens(canon); rep = dict((k, t) for k, t in spells); out = []; p = 0
+    for k, (a, b) in enumerate(toks):
+        out.append(canon[p:a]); out.append(rep.get(k, canon[a:b])); p = b
+    out.append(canon[p:]); return ''.join(out)
+
 
 
 def read_footer(data):
@@ -92,7 +135,7 @@ def read_footer(data):
     if zlib.crc32(f) != fcrc: raise ValueError('footer checksum mismatch')
     body = _decompress(f[1:]) if f[0] == 1 else f[1:]
     sec, p = {}, 0
-    known = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14}
+    known = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15}   # 15 = number spellings (byte-exact files written with spelling mode)
     while p < len(body):
         sid, fl, ln = struct.unpack('<HHI', body[p:p + 8])
         if sid in known: sec[sid] = body[p + 8:p + 8 + ln]
@@ -126,10 +169,15 @@ def _read_nested(b):
         D[ix] = sd['str'][i]
     skel = _decompress(c.take(h['p'][2])).decode('utf-8').split('\n')
     ids = _typed(_decompress(c.take(h['ids'][2])), h['ids'][0], h['ids'][1])
+    fa = h['fa']
+    flags = _decompress(c.take(fa[1])); rep = _typed(_decompress(c.take(fa[4])), fa[2], fa[3])
     cols = {}
     for key, kind, count, plen in cmeta:
         cols[key] = _typed(_decompress(c.take(plen)), kind, count)
-    codes = cols.get(CODES_KEY, [])
+    codes = []; nxt = 0; ri = 0
+    for i in range(fa[5]):
+        if (flags[i >> 3] >> (i & 7)) & 1: codes.append(nxt); nxt += 1
+        else: codes.append(int(rep[ri])); ri += 1
     strs = [D[k] for k in codes]
     state = {'ti': 0}
     cur = {}
@@ -261,6 +309,15 @@ def _decode_col(c, fr):
     if t == 'I':
         r = fr[0]; return ['%d.%d.%d.%d' % tuple(r[4 * i:4 * i + 4]) for i in range(n)]
     if t == 's': return fr[0].decode('utf-8').split('\0') if n else []
+    if t == 'A':
+        lens = _varints(fr[0], n); vals = _varints(fr[1], p['m']); out = []; pos = 0
+        for ln in lens:
+            acc = 0; lst = []
+            for _ in range(int(ln)):
+                d = int(vals[pos]); pos += 1
+                acc += d if p['asc'] else _unzz(d); lst.append(acc)
+            out.append(lst)
+        return out
     if t == 'L': return _untemplate(n, fr)
     if t == 'D':
         lab = fr[0].decode('utf-8').split('\0')
@@ -363,13 +420,14 @@ def read_text(path_or_bytes):
         for k, lst in idx.items():
             exc[int(k)] = {}
             for row, ln in lst: exc[int(k)][row] = raw[p:p + ln]; p += ln
+    spell = json.loads(f['sec'][15].decode('utf-8')) if 15 in f['sec'] else {}
     parts = []
     for i in range(len(blocks)):
         kind, b = _block(data, f, blocks, i)
         if kind == 'r': parts.append(_read_raw(b)); continue
-        rows = _read_flat(b) if kind == 'f' else _read_nested(b); ex = exc.get(i, {})
+        rows = _read_flat(b) if kind == 'f' else _read_nested(b); ex = exc.get(i, {}); sp = dict((r, s) for r, s in spell.get(str(i), []))
         for j, r in enumerate(rows):
-            parts.append(ex[j] if j in ex else _jsdumps(r).encode('utf-8')); parts.append(b'\n')
+            parts.append(ex[j] if j in ex else (_respell(_jsdumps(r), sp[j]) if j in sp else _jsdumps(r)).encode('utf-8')); parts.append(b'\n')
     out = b''.join(parts)
     if flags.get('tail') is False and out and blocks[-1][4] != 'r': out = out[:-1]
     return out

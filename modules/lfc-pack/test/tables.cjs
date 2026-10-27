@@ -15,5 +15,8 @@ const JF = require('../lfc-pack.js'), assert = require('assert');
   assert.deepStrictEqual(JF.unpack(JF.packRows(nodes)), nodes);
   const pool = await JF.pool({ workers: 2 }); const bytes = JF.packTables(map, { blockBytes: 50000 });
   assert.deepStrictEqual(await pool.unpack(bytes, { table: 1 }), links); pool.close();
+  // link lists: sorted, unsorted, empty, large ids, and a list that is not whole numbers (falls back to JSON text)
+  const lists = Array.from({ length: 300 }, (_, i) => ({ id: i, a: i % 7 ? [i, i + 3, i + 3, 4294967295] : [], b: i % 2 ? [9, 2, 5] : [1.5], c: [0, i] }));
+  for (const o of [{}, { exact: true }, { block: 'flat' }]) assert.deepStrictEqual(JF.unpack(JF.pack(lists.map((x) => JSON.stringify(x)).join('\n'), o)), lists);
   console.log('tables ok, map file', JF.packTables(map).length, 'bytes for', JSON.stringify(map).length, 'bytes of JSON');
 })().catch((e) => { console.log('FAIL', e); process.exit(1); });
