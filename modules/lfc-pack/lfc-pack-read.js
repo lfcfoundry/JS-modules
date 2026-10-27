@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.1.1 (API 0)
+ * Version 0.1.4 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -389,7 +389,39 @@
     var ib = new Uint8Array(n * 2); for (i = 0; i < n; i++) { ib[i] = ids[i] & 255; ib[n + i] = ids[i] >> 8; }
     return { frames: [te.encode(tl.join('\0')), ib, te.encode(txt.join('\0')), concat(num), Uint8Array.from(kinds)], nT: tl.length };
   }
+  // Rebuild of the template lines in a small wasm module (tpl4.c; build.sh makes tpl4.wasm, the string below is its base64): one pass writes every line as bytes, then one decode and one split like plain strings.
+  // Linear memory is sized from the frame lengths for every call (memory.grow, never shrunk); more than 1.5 GB or no WebAssembly -> the JS path below.
+  var TPLW = null, TPLB64 = "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";
+  function tplw() {
+    if (TPLW) return TPLW;
+    var bin = atob(TPLB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q);
+    var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
+    return (TPLW = { x: x, heap: x.__heap_base.value });
+  }
   function untemplate(n, fr) {
+    if (!n) return [];
+    if (typeof WebAssembly !== 'object' || fr[0].length > 8000000 || n > 4000000) return untemplateJS(n, fr);
+    var f0 = fr[0], ids = fr[1], nb = fr[3], tx = fr[2], kd = fr[4], q, t, nt = 1, nm = 0;
+    for (q = 0; q < f0.length; q++) { if (f0[q] === 0) nt++; else if (f0[q] === 1) nm++; }
+    if (nt > 65536) return untemplateJS(n, fr);
+    var tlen = new Uint32Array(nt), tmk = new Uint32Array(nt), cnt = new Uint32Array(nt);
+    for (q = 0, t = 0; q < f0.length; q++) { if (f0[q] === 0) t++; else { tlen[t]++; if (f0[q] === 1) tmk[t]++; } }
+    for (q = 0; q < n; q++) { t = ids[q] | (ids[n + q] << 8); if (t >= nt) return untemplateJS(n, fr); cnt[t]++; }
+    var bound = n + tx.length + 16;
+    for (t = 0; t < nt; t++) bound += cnt[t] * (tlen[t] - tmk[t] + tmk[t] * 21);
+    var W = tplw(), o = W.heap + 15 & ~15, P = {}, end;
+    function lay(name, bytes) { P[name] = o; o = (o + bytes + 15) & ~15; }
+    lay('tb', f0.length + 1); lay('ib', ids.length); lay('nb', nb.length + 1); lay('tx', tx.length + 1); lay('kd', Math.max(nm, 1)); lay('out', bound);
+    lay('toff', 4 * (nt + 1)); lay('sb', 4 * nt); lay('tc', 4 * nt); lay('seen', nt); lay('ms', 4 * (nt + 1)); lay('mk', 4 * Math.max(nm, 1)); lay('npos', 4 * Math.max(nm, 1)); lay('tpos', 4 * Math.max(nm, 1)); lay('acc', 8 * Math.max(nm, 1));
+    end = o; if (end > 1610612736) return untemplateJS(n, fr);
+    var mem = W.x.memory; if (end > mem.buffer.byteLength) mem.grow(Math.ceil((end - mem.buffer.byteLength) / 65536));
+    var m8 = new Uint8Array(mem.buffer);
+    m8.set(f0, P.tb); m8.set(ids, P.ib); m8.set(nb, P.nb); m8.set(tx, P.tx); m8.set(kd, P.kd);
+    var r = W.x.rebuild(P.tb, f0.length, nt, P.ib, n, P.nb, P.tx, tx.length, P.kd, P.out, P.toff, P.sb, P.tc, P.seen, P.ms, P.mk, P.npos, P.tpos, P.acc);
+    if (r > bound) throw new Error('LfcPack: template rebuild overran its buffer');
+    return td.decode(m8.subarray(P.out, P.out + r)).split('\0');
+  }
+  function untemplateJS(n, fr) {
     var tl = n ? td.decode(fr[0]).split('\0') : [], parts = tl.map(function (t) { return t.split('\x01'); }), ids = fr[1], kinds = fr[4], tx = fr[2].length ? td.decode(fr[2]).split('\0') : [], nb = fr[3];
     var i, k, cnt = new Uint32Array(tl.length), id, first = new Uint8Array(tl.length), order = [];
     for (i = 0; i < n; i++) { id = ids[i] | (ids[n + i] << 8); cnt[id]++; if (!first[id]) { first[id] = 1; for (k = 0; k < parts[id].length - 1; k++) order.push(id * 4096 + k); } }
@@ -552,6 +584,84 @@
     var hdr = te.encode(JSON.stringify({ k: 'f', n: n, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
     return { bytes: concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), rows: n, zone: zone, kind: 'f' };
   }
+  // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
+  var FSW = null, FSB64 = "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";
+  function fsw() {
+    if (FSW) return FSW;
+    var bin = atob(FSB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q);
+    var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
+    return (FSW = { x: x, heap: x.__heap_base.value });
+  }
+  var P10 = [1, 10, 100];
+  function varintsT(a, m) {   // a: typed array of non-negative whole numbers (first m entries) -> varint bytes
+    var n = 0, i, u, o, p = 0;
+    for (i = 0; i < m; i++) { u = a[i]; n++; if (u >= 128) { n++; if (u >= 16384) { n++; if (u >= 2097152) { n++; if (u >= 268435456) { var w = Math.floor(u / 268435456); n++; while (w >= 128) { n++; w = Math.floor(w / 128); } } } } } }
+    o = new Uint8Array(n);
+    for (i = 0; i < m; i++) { u = a[i]; if (u < 2147483648) { while (u >= 128) { o[p++] = (u & 127) | 128; u >>>= 7; } o[p++] = u; } else { while (u >= 128) { o[p++] = (u % 128) | 128; u = Math.floor(u / 128); } o[p++] = u; } }
+    return o;
+  }
+  function writeFlatBlockFast(ctx, input, opts) {
+    if (opts.exact || typeof WebAssembly !== 'object' || input.length < 64) return null;
+    if (!opts.pre && input.length > 262144) {   // cheap bail: try the first 64 KB (up to a line end) before copying a whole block into wasm
+      var cut = input.subarray(0, 65536).lastIndexOf(10);
+      if (cut > 0 && !writeFlatBlockFast(ctx, input.subarray(0, cut + 1), Object.assign({}, opts, { pre: true }))) return null;
+    }
+    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, W = fsw(), len = input.length, o = (W.heap + 15) & ~15, P = {}, q, i, j, c, nrows;
+    function lay(name, bytes) { P[name] = o; o = (o + bytes + 15) & ~15; }
+    lay('in', len + 8); lay('cnt', 16);
+    var mem = W.x.memory; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
+    var m8 = new Uint8Array(mem.buffer); m8.set(input, P['in']); W.x.count(P['in'], len, P.cnt);
+    var cn = new Uint32Array(mem.buffer, P.cnt, 3), nl = cn[0], colons = cn[1], commas = cn[2];
+    nrows = nl + (input[len - 1] === 10 ? 0 : 1);
+    var pb = (nrows + 7) >> 3, NK = 128, cells = colons + 1, lvals = commas + colons + 16;
+    lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals);
+    if (o > 1610612736) return null;
+    if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
+    m8 = new Uint8Array(mem.buffer); m8.fill(0, P.planes, P.planes + NK * pb);
+    var rc = W.x.scan(P['in'], len, nrows, P.planes, pb, P.keyoff, P.keylen, P.ktype, P.kfd, P.st, P.ckey, P.cval, P.cfd, P.llen, P.lval);
+    if (rc !== 0) return null;
+    var st = new Uint32Array(mem.buffer, P.st, 8), nk = st[0], nc = st[1], nlist = st[2];
+    if (opts.noLists && nlist) return null;
+    var keys = [], ktype = new Uint8Array(mem.buffer, P.ktype, NK), kfd = new Uint8Array(mem.buffer, P.kfd, NK);
+    var ckey = new Uint8Array(mem.buffer, P.ckey, nc), cval = new Float64Array(mem.buffer, P.cval, nc), cfd = new Uint8Array(mem.buffer, P.cfd, nc), llen = new Uint32Array(mem.buffer, P.llen, nlist), lval = new Uint32Array(mem.buffer, P.lval, st[3]);
+    var koff = new Uint32Array(mem.buffer, P.keyoff, nk), klen = new Uint32Array(mem.buffer, P.keylen, nk);
+    for (j = 0; j < nk; j++) keys.push(td.decode(input.subarray(koff[j], koff[j] + klen[j])));
+    var count = new Uint32Array(nk), tot = new Float64Array(nk), pos = new Uint32Array(nk), colv = new Array(nk), coll = new Array(nk), vpos = new Uint32Array(nk);
+    for (i = 0; i < nc; i++) { j = ckey[i]; count[j]++; if (ktype[j] === 2) tot[j] += llen[cval[i]]; }
+    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(count[j]); else { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } }
+    var lp = 0, sc, m, v;
+    for (i = 0; i < nc; i++) {
+      j = ckey[i];
+      if (ktype[j] === 1) { sc = kfd[j] === 0 ? 1 : 100; v = cval[i] * (sc === 1 ? 1 : P10[2 - cfd[i]]); if (!(v < 1125899906842624 && v > -1125899906842624)) return null; colv[j][pos[j]++] = v; }
+      else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
+    }
+    var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
+    function stored(fr) { var tt = 0, zz2 = [], qq, cc; for (qq = 0; qq < fr.length; qq++) { cc = zs.compress(fr[qq], level); if (cc.length < fr[qq].length) zz2.push([fr[qq].length, cc, 1]); else zz2.push([fr[qq].length, fr[qq], 0]); tt += zz2[qq][1].length; } return { z: zz2, size: tt }; }
+    function cand(tn, p, fr, n) { var sv = stored(fr); if (!best || sv.size < best.size) best = { t: tn, p: p, z: sv.z, size: sv.size, n: n }; }
+    for (j = 0; j < nk; j++) {
+      best = null; c = count[j];
+      if (ktype[j] === 1) {
+        var base = colv[j], mono = c > 0 && base[0] >= 0, mn = Infinity, mx = -Infinity, scale = kfd[j] === 0 ? 1 : 100;
+        for (i = 0; i < c; i++) { v = base[i]; if (i && v < base[i - 1]) mono = false; if (v < mn) mn = v; if (v > mx) mx = v; }
+        var d = new Float64Array(c);
+        if (mono) { d[0] = base[0]; for (i = 1; i < c; i++) d[i] = base[i] - base[i - 1]; } else for (i = 0; i < c; i++) d[i] = base[i] >= 0 ? base[i] * 2 : -base[i] * 2 - 1;
+        cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
+        if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Uint32Array(c); for (i = 0; i < c; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)], c); }
+        if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
+      } else {
+        var ln = colv[j], dl = coll[j], asc = true, ai = 0, a0, pv, t2 = dl.length;
+        for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; if (v < pv) asc = false; pv = v; } ai += ln[i]; }
+        var dd = new Float64Array(t2); ai = 0;
+        for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; dd[ai + q] = asc ? v - pv : (v - pv >= 0 ? (v - pv) * 2 : -(v - pv) * 2 - 1); pv = v; } ai += ln[i]; }
+        cand('A', { m: t2, asc: asc }, [varintsT(ln, c), varintsT(dd, t2)], c);
+      }
+      meta.cols.push({ t: best.t, p: best.p, n: best.n, f: best.z.map(function (zz3) { return [zz3[0], zz3[1].length, zz3[2]]; }) });
+      for (i = 0; i < best.z.length; i++) frames.push(best.z[i][1]);
+    }
+    var planes = m8.slice(P.planes, P.planes + nk * pb), mB = te.encode(JSON.stringify(meta)), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
+    var hdr = te.encode(JSON.stringify({ k: 'f', n: nrows, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
+    return { bytes: concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), rows: nrows, zone: zone, kind: 'f' };
+  }
   // the byte work of reading a flat block: zstd for every wanted column, and (predecode, in helper workers) the number columns turned into Float64Arrays
   function flatFrames(zs, bytes, want, predecode) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j;
@@ -688,8 +798,9 @@
       if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push([off, blk.bytes.length, crcJS(blk.bytes, 0), blk.rows, 'r', ti]); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
       try {
         // auto: big blocks whose first rows are all flat objects go straight to the flat layout (it won on every flat-object set measured, and skipping the nested pass saves about 30% of pack time)
-        if (!kind && chunk.length > 262144 && looksFlat(chunk)) { blk = writeFlatBlock(ctx, chunk, opts); if (blk) { kind = 'flat'; } }
-        else if (kind === 'flat') blk = writeFlatBlock(ctx, chunk, opts);
+        if ((!kind || kind === 'flat') && !exact) { blk = writeFlatBlockFast(ctx, chunk, kind ? opts : Object.assign({}, opts, { noLists: true })); if (blk) kind = 'flat'; }   // auto leaves rows with list columns to the nested layout (lists read faster there); { block: 'flat' } takes them
+        if (kind !== 'flat' && !kind && chunk.length > 262144 && looksFlat(chunk)) { blk = writeFlatBlock(ctx, chunk, opts); if (blk) { kind = 'flat'; } }
+        else if (kind === 'flat' && !blk) blk = writeFlatBlock(ctx, chunk, opts);
         if (kind !== 'flat' || !blk) {
           blk = writeNestedBlock(ctx, chunk, opts);
           // auto: the flat layout is also tried when every row is a flat object, or when shapes are nearly all different (it then keeps nested values as JSON text, which packs far smaller)
@@ -706,7 +817,7 @@
     }
     }
     var secs = [
-      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify(inputs[0].name === null ? { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.1' } : { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.1', tables: inputs.map(function (x) { return [x.name, x.kind]; }) })) },
+      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify(inputs[0].name === null ? { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.4' } : { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.1', tables: inputs.map(function (x) { return [x.name, x.kind]; }) })) },
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
@@ -868,7 +979,7 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.1', apiVersion: 0 };
+  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.4', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

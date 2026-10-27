@@ -10,6 +10,9 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   await JF.init();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jf-py-')); let i = 0;
   for (const [, t] of cases) for (const block of [undefined, 'flat', 'nested']) for (const ex of [false, true]) { const nm = (i++) + (ex ? 'x' : ''); fs.writeFileSync(path.join(dir, nm + '.lfc'), JF.pack(t, { block, exact: ex })); fs.writeFileSync(path.join(dir, nm + '.src'), t); }
+  const canonicalText = '{"b":0,"١":1,"2":2}\n';
+  fs.writeFileSync(path.join(dir, 'canonical.lfc'), JF.pack(canonicalText));
+  fs.writeFileSync(path.join(dir, 'canonical.src'), canonicalText);
   step('round trips (auto, nested, flat)', 'node', ['roundtrip.cjs']);
   step('byte-exact switch', 'node', ['exact.cjs']);
   step('key and range reads', 'node', ['query.cjs']);
@@ -18,6 +21,8 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('negative first value', 'node', ['negfirst.cjs']);
   step('tables and plain values', 'node', ['tables.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);
+  step('python writer', 'python3', ['-I', 'pywriter.py', dir]);
+  step('python writer files in JS', 'node', ['pywriter.cjs', dir]);
   fs.rmSync(dir, { recursive: true, force: true });
   console.log(fail ? fail + ' step(s) failed' : 'all lfc-pack checks passed'); process.exit(fail ? 1 : 0);
 })();
