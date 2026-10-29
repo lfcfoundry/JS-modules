@@ -1123,24 +1123,43 @@
       for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
       var jopts = {}, k; for (k in opts) if (k !== 'workers') jopts[k] = opts[k];
       return new Promise(function (resolve, reject) {
-        var src = workerSource(true), url = null, ws = [], results = new Array(groups.length), left = groups.length, failed = false;
-        function stop() { ws.forEach(function (x) { x.kill(); }); if (url) URL.revokeObjectURL(url); ws = []; }
-        function fail(err) { if (failed) return; failed = true; stop(); reject(err instanceof Error ? err : new Error(String(err && err.message || err))); }
+        var ws = [], results = new Array(groups.length), left = groups.length, failed = false;
+        function release(ok) {   // finished helpers wait 3 s for the next call (they already hold the loaded wasm); a failed run ends them
+          if (!ok) { ws.forEach(function (x) { x.kill(); }); ws = []; }
+          clearTimeout(idleTimer); idleHelpers = idleHelpers.concat(ws); ws = [];
+          idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, 3000); if (idleTimer.unref) idleTimer.unref();
+        }
+        function fail(err) { if (failed) return; failed = true; release(false); reject(err instanceof Error ? err : new Error(String(err && err.message || err))); }
         function onMsg(i, m, next) {
           if (m.started) { next(); return; }
           if (m.error) { fail(new Error(m.error)); return; }
-          results[i] = m; if (--left === 0 && !failed) { stop(); try { resolve(stitch(results, b.length, jopts)); } catch (er) { reject(er); } }
+          results[i] = m; if (--left === 0 && !failed) { release(true); try { resolve(stitch(results, b.length, jopts)); } catch (er) { reject(er); } }
         }
         function start(i) {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
           if (i >= groups.length || failed) return;
-          var w2, slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]), msg = { id: i, kind: 'p', buf: slice, opts: jopts }, nx = function () { start(i + 1); };
-          if (typeof Worker === 'function') { url = url || URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); w2 = new Worker(url); w2.onmessage = function (ev) { onMsg(i, ev.data, nx); }; w2.onerror = function (ev) { fail(new Error('helper worker failed: ' + (ev && ev.message))); }; w2.kill = function () { w2.terminate(); }; w2.postMessage(msg, [slice.buffer]); }
-          else { var WT = require('worker_threads').Worker; w2 = new WT(src, { eval: true }); w2.on('message', function (m) { onMsg(i, m, nx); }); w2.on('error', fail); w2.kill = function () { w2.terminate(); }; w2.postMessage(msg, [slice.buffer]); }
+          var w2 = takeHelper(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]), nx = function () { start(i + 1); };
+          w2.listen(function (m) { onMsg(i, m, nx); }, fail);
+          w2.post({ id: i, kind: 'p', buf: slice, opts: jopts }, [slice.buffer]);
           ws.push(w2);
         }
         start(0);
       });
     });
+  }
+  var idleHelpers = [], idleTimer = null, packUrl = null;
+  function takeHelper() {   // a helper kept from the last packParallel call, or a new one
+    clearTimeout(idleTimer); if (idleHelpers.length) return idleHelpers.pop();
+    var src = workerSource(true), w;
+    if (typeof Worker === 'function') {
+      packUrl = packUrl || URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); w = new Worker(packUrl);
+      w.listen = function (onm, one) { w.onmessage = function (ev) { onm(ev.data); }; w.onerror = function (ev) { one(new Error('helper worker failed: ' + (ev && ev.message))); }; };
+      w.post = function (m, t) { w.postMessage(m, t); }; w.kill = function () { w.terminate(); };
+    } else {
+      w = new (require('worker_threads').Worker)(src, { eval: true });
+      w.listen = function (onm, one) { w.removeAllListeners('message'); w.removeAllListeners('error'); w.on('message', onm); w.on('error', one); };
+      w.post = function (m, t) { w.postMessage(m, t); }; w.kill = function () { w.terminate(); };
+    }
+    return w;
   }
   function stitch(results, inLen, jopts) {   // join the packed runs, renumber the block table, write the footer as pack does
     var parts = [], blocks = [], zone = [], off = 0, rows = 0, i, j, r, bl;
