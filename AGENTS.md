@@ -16,6 +16,7 @@ This repository is meant to be read, copied from and extended by people and AI h
 - Keep the header on each file: `Copyright (c) 2026 LFC Foundry. MIT License`. Contributions are accepted under the same license.
 - Every HTML page here (demos, examples, tools, the front page) starts, right after `<!doctype html>`, with the LFC Foundry header comment in `tools/foundry-header.txt` (put the page's title where `{NAME}` stands; no `--` inside it). The one visible credit is a small footer line, `Forged by LFC Foundry • MIT Licensed`, at the end of each demo and tool page (not on internal test pages). Packed examples get the header added after packing, so it stays readable at the top. Commits are still authored and committed by JNFoo.
 - Do not add game art, characters, brand names or text from Apple Press. Do not add code you cannot license under MIT, and say where an idea came from in the module README ("Prior art and credits").
+- The demo pages (`modules/*/demo.html`) share one look, the landing's design: `tools/theme/theme.css` is inlined between marker comments by `python3 tools/theme/apply-theme.py` (run it after adding a demo; `--check` says which pages are out of date; `--remove` takes it out). Full-window demos and a page with a strict security policy are left alone; the list is at the top of the script.
 - Plain words in docs. Say what a thing does, then its limits.
 
 ## Version labels
