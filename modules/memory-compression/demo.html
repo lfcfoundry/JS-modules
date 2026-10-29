@@ -24,7 +24,7 @@
     ===================================================================================
     --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>memory-compression demo: objects</title>
-<style>body{font:16px system-ui,sans-serif;max-width:46rem;margin:1rem auto;padding:0 1rem}button{font:inherit;padding:.5rem .9rem;margin:.2rem .2rem .2rem 0}table{border-collapse:collapse;width:100%;margin:.6rem 0}td,th{border-bottom:1px solid #8884;padding:.35rem .4rem;text-align:left}.n{text-align:right;font-variant-numeric:tabular-nums}@media (prefers-color-scheme:dark){body{background:#181a1f;color:#e6e6e6}}</style>
+<style>body{font:16px system-ui,sans-serif;max-width:46rem;margin:1rem auto;padding:0 1rem}button{font:inherit;padding:.5rem .9rem;margin:.2rem .2rem .2rem 0}table{border-collapse:collapse;width:100%;margin:.6rem 0}td,th{border-bottom:1px solid #8884;padding:.35rem .4rem;text-align:left}.n{text-align:right;font-variant-numeric:tabular-nums}@media (max-width:40rem){table,tbody,tr,td{display:block}thead{position:absolute;left:-9999px}tr{border:1px solid #8885;border-radius:8px;padding:.7rem .8rem;margin:.8rem 0}td{border:0;padding:.2rem 0;display:flex;justify-content:space-between;gap:1rem;text-align:right}td:first-child{display:block;text-align:left;font-weight:700;margin-bottom:.35rem;overflow-wrap:anywhere}td[data-label]::before{content:attr(data-label);opacity:.7;text-align:left}}@media (prefers-color-scheme:dark){body{background:#181a1f;color:#e6e6e6}}</style>
 <!-- lfc-theme:start --><style>/* Copyright (c) 2026 LFC Foundry. MIT License. The shared look of the JS-modules pages (the landing's design), inlined into every demo page by tools/theme/apply-theme.py. */
 :root{--lfc-bg:#fff;--lfc-fg:#1b2433;--lfc-muted:#566277;--lfc-soft:#f1f4f9;--lfc-line:#dde3ee;--lfc-hero:#0f2a47;--lfc-hero-fg:#f3f7fc;--lfc-hero-muted:#a9bdd6;--lfc-accent:#1f7ae0;--lfc-accent-fg:#fff;--lfc-font:'Segoe UI',system-ui,sans-serif;--lfc-mono:ui-monospace,Consolas,monospace}
 @media (prefers-color-scheme:dark){:root{--lfc-bg:#0b1522;--lfc-fg:#e4ebf5;--lfc-muted:#9db0c8;--lfc-soft:#13233a;--lfc-line:#25364f;--lfc-hero:#08111d;--lfc-accent:#4c9bf5}}
@@ -80,7 +80,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   function best(fn, k) { var b = 1e9, v, i, t; for (i = 0; i < k; i++) { t = performance.now(); v = fn(); t = performance.now() - t; if (t < b) b = t; } return b; }
   function row(name, size, ref, p, u, ok) {
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + name + '</td><td class="n">' + (size / 1048576).toFixed(2) + ' MB (' + (100 * size / ref).toFixed(1) + '%)</td><td class="n">' + p.toFixed(0) + ' ms</td><td class="n">' + u.toFixed(0) + ' ms</td><td>' + (ok ? 'yes, every value' : 'NO') + '</td>';
+    tr.innerHTML = '<td>' + name + '</td><td class="n" data-label="Size">' + (size / 1048576).toFixed(2) + ' MB (' + (100 * size / ref).toFixed(1) + '%)</td><td class="n" data-label="Pack">' + p.toFixed(0) + ' ms</td><td class="n" data-label="Restore">' + u.toFixed(0) + ' ms</td><td data-label="Exactly the same?">' + (ok ? 'yes, every value' : 'NO') + '</td>';
     t.tBodies[0].appendChild(tr);
   }
   function run(n) {
