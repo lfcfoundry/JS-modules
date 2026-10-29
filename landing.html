@@ -138,13 +138,15 @@ footer a{margin-right:16px}
 
 <section><div class="wrap">
   <h2>Faster than the usual choice</h2>
-  <p class="lead">Measured in the test browsers against the common alternative.</p>
+  <p class="lead">Measured in the test browsers against the common alternative. Both charts come from the module READMEs.</p>
   <div class="bench">
     <div>
-      <h3>lfc-pack: pack 260 MB of FHIR records (seconds, lower is better)</h3>
-      <div class="row"><span>Parquet</span><div class="track"><div class="bar" style="width:100%">6.1 s</div></div></div>
-      <div class="row"><span>lfc-pack</span><div class="track"><div class="bar us" style="width:34%">2.05 s</div></div></div>
-      <p class="note">The packed file is 7.03 MB against 17.14 MB. Firefox and Chromium.</p>
+      <h3>memory-compression: size of 300,000 network links (MB, lower is better)</h3>
+      <div class="row"><span>JSON text</span><div class="track"><div class="bar" style="width:100%">57.3 MB</div></div></div>
+      <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:36.5%">20.9 MB</div></div></div>
+      <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:34.9%">20.0 MB</div></div></div>
+      <div class="row"><span>memory-compression</span><div class="track"><div class="bar us" style="width:13.7%">7.85 MB</div></div></div>
+      <p class="note">Fast mode, restored exactly. About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in all four browsers. Chromium, Firefox, WebKitGTK and GNOME Web. It loses on download size: 84.6 KB gzipped against 11 KB for msgpackr.</p>
     </div>
     <div>
       <h3>text-columns: read CSV (relative time, lower is better)</h3>
