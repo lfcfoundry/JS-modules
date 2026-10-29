@@ -1,10 +1,44 @@
+<div align="center">
+
 # JS-modules
 
-Small, dependency-free pieces for single-file browser games, taken out of **[Apple Press](https://github.com/lfcfoundry/apple-press)** ([play it](https://lfcfoundry.github.io/apple-press/)) and **[Fancy, the Banana](https://github.com/lfcfoundry/fancy-banana)** ([play it](https://lfcfoundry.github.io/fancy-banana/)) and cleaned up so anyone, or any AI helper working with a human, can drop them into another project.
+**Small, dependency-free pieces for single-file browser games and apps. Copy one file, get one fix.**
+
+[**Pick a module**](#pick-a-piece) · [**Live demos**](https://lfcfoundry.github.io/JS-modules/) · [**Changelog**](CHANGELOG.md)
+
+![license MIT](https://img.shields.io/badge/license-MIT-blue) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![modules and tools 49](https://img.shields.io/badge/modules%20and%20tools-49-informational) ![WebAssembly first](https://img.shields.io/badge/WebAssembly-first-654ff0)
+
+</div>
+
+## What it is and how it works
+
+JS-modules is a shelf of small browser libraries cut out of [Apple Press](https://github.com/lfcfoundry/apple-press) and [Fancy, the Banana](https://github.com/lfcfoundry/fancy-banana). Each module is one file with no dependencies. Add it with a script tag or `require`, call it, and read its folder README for limits. Every folder has a demo page that opens straight from disk.
+
+```html
+<script src="modules/save-kit/save-kit.js"></script>
+<script>var kit = SaveKit.create({ key: 'mygame', schema: { score: 'num' } });</script>
+```
+
+## Why it exists
+
+Only parts not already covered by open source were kept: small fixes learned by shipping real games to phones and desktops. Each module README names the closest existing project and says how this one differs.
+
+## Highlights
+
+| One file each | Fast by default | Tested in three browsers |
+|---|---|---|
+| Copy only what you need. No build step. | WebAssembly with SIMD, plain JavaScript fallback. | Firefox, Chromium, WebKitGTK. |
+
+## Compared with the usual choice
+
+| Measure (260 MB of FHIR records) | Parquet | lfc-pack |
+|---|---|---|
+| Pack time | 6.1 s | **2.05 s** |
+| File size | 17.14 MB | **7.03 MB** |
+
+text-columns reads CSV and TSV 8 to 11 times faster than Papa Parse.
 
 MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built with it. Keeping the license line is the only ask.
-
-Live demos: **https://lfcfoundry.github.io/JS-modules/**
 
 <!-- glance:start (written by tools/versions/versions.py) -->
 ## All at a glance
