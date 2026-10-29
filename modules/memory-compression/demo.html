@@ -25,6 +25,29 @@
     --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>memory-compression demo: objects</title>
 <style>body{font:16px system-ui,sans-serif;max-width:46rem;margin:1rem auto;padding:0 1rem}button{font:inherit;padding:.5rem .9rem;margin:.2rem .2rem .2rem 0}table{border-collapse:collapse;width:100%;margin:.6rem 0}td,th{border-bottom:1px solid #8884;padding:.35rem .4rem;text-align:left}.n{text-align:right;font-variant-numeric:tabular-nums}@media (prefers-color-scheme:dark){body{background:#181a1f;color:#e6e6e6}}</style>
+<!-- lfc-theme:start --><style>/* Copyright (c) 2026 LFC Foundry. MIT License. The shared look of the JS-modules pages (the landing's design), inlined into every demo page by tools/theme/apply-theme.py. */
+:root{--lfc-bg:#fff;--lfc-fg:#1b2433;--lfc-muted:#566277;--lfc-soft:#f1f4f9;--lfc-line:#dde3ee;--lfc-hero:#0f2a47;--lfc-hero-fg:#f3f7fc;--lfc-hero-muted:#a9bdd6;--lfc-accent:#1f7ae0;--lfc-accent-fg:#fff;--lfc-font:'Segoe UI',system-ui,sans-serif;--lfc-mono:ui-monospace,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--lfc-bg:#0b1522;--lfc-fg:#e4ebf5;--lfc-muted:#9db0c8;--lfc-soft:#13233a;--lfc-line:#25364f;--lfc-hero:#08111d;--lfc-accent:#4c9bf5}}
+.lfc-band{background:var(--lfc-hero);color:var(--lfc-hero-fg);font:15px/1.4 var(--lfc-font);margin:0 0 1rem;padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));box-sizing:border-box;max-width:none;width:100%}
+.lfc-band .lfc-in{max-width:1040px;margin:0 auto;display:flex;flex-wrap:wrap;gap:4px 18px;align-items:center}
+.lfc-band a{color:var(--lfc-hero-muted);text-decoration:none}.lfc-band a:hover{color:var(--lfc-hero-fg)}
+.lfc-band a:focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
+.lfc-band .lfc-brand{font:700 18px var(--lfc-font);color:var(--lfc-hero-fg)}
+.lfc-band .lfc-here{font:600 13px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-hero-muted)}
+.lfc-band nav{margin-left:auto;display:flex;flex-wrap:wrap;gap:4px 18px}
+/* lfc-page: the page's own typography and controls (pages that style their own body keep their look and get the band only) */
+html body{background:var(--lfc-bg);color:var(--lfc-fg);font-family:var(--lfc-font);line-height:1.55}
+html h1,html h2,html h3{font-family:var(--lfc-font);line-height:1.15}
+html h1{font-size:clamp(26px,4vw,38px);font-weight:800;letter-spacing:-.01em}
+html a{color:var(--lfc-accent)}
+html button:not([class]),html input[type=button],html input[type=submit]{font:inherit;font-weight:600;padding:.45rem .9rem;border-radius:6px;border:1px solid var(--lfc-line);background:var(--lfc-soft);color:var(--lfc-fg);cursor:pointer}
+html button:not([class]):hover{border-color:var(--lfc-accent)}
+html textarea,html input[type=text],html input[type=number],html select{font:inherit;color:var(--lfc-fg);background:var(--lfc-bg);border:1px solid var(--lfc-line);border-radius:6px;padding:.4rem .6rem;box-sizing:border-box}
+html pre,html code,html kbd,html samp{font-family:var(--lfc-mono)}
+html pre{background:var(--lfc-soft);border-radius:6px;padding:.75rem;overflow-x:auto}
+html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
+.lfc-band a.lfc-brand{color:var(--lfc-hero-fg)}</style><!-- lfc-theme:end -->
+<!-- lfc-band:start --><header class="lfc-band"><div class="lfc-in"><a class="lfc-brand" href="../../index.html">JS-modules</a><span class="lfc-here">memory-compression</span><nav aria-label="JS-modules"><a href="../../index.html">All demos</a><a href="README.md">Docs</a><a href="../../landing.html">Overview</a></nav></div></header><!-- lfc-band:end -->
 <h1>memory-compression demo: objects</h1>
 <p>Makes a pretend network (every link is a plain JavaScript object with ids, a weight, four coordinates, a color, a kind and a flag), keeps it as JSON text and as packed bytes, brings it back, and checks that every value came back exactly. Nothing leaves this page.</p>
 <p>Links: <button data-n="30000">30,000</button><button data-n="100000">100,000</button><button data-n="300000">300,000</button></p>

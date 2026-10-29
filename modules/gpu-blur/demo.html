@@ -39,6 +39,17 @@
   pre { background: #0d0f14; padding: .8rem; border-radius: .4rem; overflow: auto; font-size: .85rem; white-space: pre-wrap; }
   footer { margin-top: 2rem; color: #7e8596; font-size: .85rem; }
 </style></head><body>
+<!-- lfc-theme:start --><style>/* Copyright (c) 2026 LFC Foundry. MIT License. The shared look of the JS-modules pages (the landing's design), inlined into every demo page by tools/theme/apply-theme.py. */
+:root{--lfc-bg:#fff;--lfc-fg:#1b2433;--lfc-muted:#566277;--lfc-soft:#f1f4f9;--lfc-line:#dde3ee;--lfc-hero:#0f2a47;--lfc-hero-fg:#f3f7fc;--lfc-hero-muted:#a9bdd6;--lfc-accent:#1f7ae0;--lfc-accent-fg:#fff;--lfc-font:'Segoe UI',system-ui,sans-serif;--lfc-mono:ui-monospace,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--lfc-bg:#0b1522;--lfc-fg:#e4ebf5;--lfc-muted:#9db0c8;--lfc-soft:#13233a;--lfc-line:#25364f;--lfc-hero:#08111d;--lfc-accent:#4c9bf5}}
+.lfc-band{background:var(--lfc-hero);color:var(--lfc-hero-fg);font:15px/1.4 var(--lfc-font);margin:0 0 1rem;padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));box-sizing:border-box;max-width:none;width:100%}
+.lfc-band .lfc-in{max-width:1040px;margin:0 auto;display:flex;flex-wrap:wrap;gap:4px 18px;align-items:center}
+.lfc-band a{color:var(--lfc-hero-muted);text-decoration:none}.lfc-band a:hover{color:var(--lfc-hero-fg)}
+.lfc-band a:focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
+.lfc-band .lfc-brand{font:700 18px var(--lfc-font);color:var(--lfc-hero-fg)}
+.lfc-band .lfc-here{font:600 13px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-hero-muted)}
+.lfc-band nav{margin-left:auto;display:flex;flex-wrap:wrap;gap:4px 18px}</style><!-- lfc-theme:end -->
+<!-- lfc-band:start --><header class="lfc-band"><div class="lfc-in"><a class="lfc-brand" href="../../index.html">JS-modules</a><span class="lfc-here">gpu-blur</span><nav aria-label="JS-modules"><a href="../../index.html">All demos</a><a href="README.md">Docs</a><a href="../../landing.html">Overview</a></nav></div></header><!-- lfc-band:end -->
 <h1>gpu-blur</h1>
 <p>Blurs a picture on the graphics card (WebGL 2) when that is quicker on this device, otherwise in WebAssembly, otherwise in plain JavaScript. All three give the same picture. Pick a route to force it, or leave it on auto.</p>
 <div class="row">
