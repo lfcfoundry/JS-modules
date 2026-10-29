@@ -62,6 +62,8 @@ table{border-collapse:collapse;width:100%;margin-top:22px;font-size:16px}th,td{t
 .btn:hover{filter:brightness(1.12)}
 .badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:28px}
 .badge{font:600 13px var(--mono);padding:5px 11px;border:1px solid #35557a;border-radius:4px;color:var(--hero-muted)}
+.strip-badges{margin:0}.strip-badges .badge{border-color:var(--line);color:var(--muted);background:var(--soft)}
+section.strip{padding-block:22px 0}section.strip+section{border-top:0}
 section{padding-block:56px}
 section+section{border-top:1px solid var(--line)}
 h2{font-size:clamp(28px,4vw,40px);font-weight:700;margin-bottom:14px}
@@ -76,6 +78,7 @@ h2{font-size:clamp(28px,4vw,40px);font-weight:700;margin-bottom:14px}
 .track{background:var(--soft);border-radius:4px;height:30px;position:relative;min-width:0}
 .bar{height:100%;border-radius:4px;background:var(--bar-other);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font:600 13px var(--mono);color:#fff;min-width:max-content}
 .bar.us{background:var(--good)}
+.bar.out{overflow:visible;position:relative;min-width:6px;padding-right:0}.bar.out span{position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);white-space:nowrap;color:var(--fg);font-weight:700}
 .note{font-size:14px;color:var(--muted);margin-top:6px}
 @media (max-width:600px){.bench{gap:34px}.row{grid-template-columns:1fr;gap:5px;margin-bottom:16px}.row>span{font-size:15px;color:var(--muted)}.track{height:34px}.bar{font-size:14px;padding-right:10px}.note{font-size:15px;line-height:1.5}}
 .code{background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:20px;overflow-x:auto;font:15px/1.6 var(--mono);margin-top:22px}
@@ -102,17 +105,10 @@ footer a{margin-right:16px}
     <a class="btn alt" href="https://github.com/lfcfoundry/JS-modules">View on GitHub</a>
   </div>
   <div class="install"><code>&lt;script src="save-kit.js"&gt;&lt;/script&gt;</code><span>or</span><code>const SaveKit = require('./save-kit.js')</code></div>
-  <div class="badges"><span class="badge">49 modules and tools</span><span class="badge">0 dependencies</span><span class="badge">WebAssembly first, JS fallback</span><span class="badge">MIT</span></div>
 </div></header>
 
-<section><div class="wrap">
-  <h2>Quick start</h2>
-  <p class="lead">Save a game safely in three lines.</p>
-  <pre class="code"><span class="c">&lt;!-- copy modules/save-kit/save-kit.js next to your page --&gt;</span>
-&lt;script src=<span class="s">"save-kit.js"</span>&gt;&lt;/script&gt;
-&lt;script&gt;
-  <span class="k">var</span> kit = SaveKit.create({ key: <span class="s">'mygame'</span>, schema: { score: <span class="s">'num'</span> } });
-&lt;/script&gt;</pre>
+<section class="strip"><div class="wrap">
+  <div class="badges strip-badges"><span class="badge">49 modules and tools</span><span class="badge">0 dependencies</span><span class="badge">WebAssembly first, JS fallback</span><span class="badge">MIT</span></div>
 </div></section>
 
 <section><div class="wrap">
@@ -136,6 +132,16 @@ footer a{margin-right:16px}
 </div></section>
 
 <section><div class="wrap">
+  <h2>Quick start</h2>
+  <p class="lead">Save a game safely in three lines.</p>
+  <pre class="code"><span class="c">&lt;!-- copy modules/save-kit/save-kit.js next to your page --&gt;</span>
+&lt;script src=<span class="s">"save-kit.js"</span>&gt;&lt;/script&gt;
+&lt;script&gt;
+  <span class="k">var</span> kit = SaveKit.create({ key: <span class="s">'mygame'</span>, schema: { score: <span class="s">'num'</span> } });
+&lt;/script&gt;</pre>
+</div></section>
+
+<section><div class="wrap">
   <h2>Compared with the usual choice</h2>
   <p class="lead">lfc-pack against Parquet on 260 MB of real FHIR records, Firefox and Chromium.</p>
   <div class="scroll"><table><thead><tr><th>Measure</th><th>Parquet</th><th>lfc-pack</th></tr></thead><tbody><tr><td>Pack time</td><td>6.1 s</td><td class="win">2.05 s</td></tr><tr><td>File size</td><td>17.14 MB</td><td class="win">7.03 MB</td></tr></tbody></table></div>
@@ -147,16 +153,16 @@ footer a{margin-right:16px}
   <div class="bench">
     <div>
       <h3>memory-compression: size of 300,000 network links (MB, lower is better)</h3>
-      <div class="row"><span>JSON text</span><div class="track"><div class="bar" style="width:100%">57.3 MB</div></div></div>
-      <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:36.5%">20.9 MB</div></div></div>
-      <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:34.9%">20.0 MB</div></div></div>
-      <div class="row"><span>memory-compression</span><div class="track"><div class="bar us" style="width:13.7%">7.85 MB</div></div></div>
+      <div class="row"><span>JSON text</span><div class="track"><div class="bar" style="width:100%"><span>57.3 MB</span></div></div></div>
+      <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:36.5%"><span>20.9 MB</span></div></div></div>
+      <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:34.9%"><span>20.0 MB</span></div></div></div>
+      <div class="row"><span>memory-compression</span><div class="track"><div class="bar us out" style="width:13.7%"><span>7.85 MB</span></div></div></div>
       <p class="note">Fast mode, restored exactly. About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in all four browsers. Chromium, Firefox, WebKitGTK and GNOME Web. It loses on download size: 84.6 KB gzipped against 11 KB for msgpackr.</p>
     </div>
     <div>
       <h3>text-columns: read CSV (relative time, lower is better)</h3>
-      <div class="row"><span>Papa Parse</span><div class="track"><div class="bar" style="width:100%">8x to 11x</div></div></div>
-      <div class="row"><span>text-columns</span><div class="track"><div class="bar us" style="width:12%;min-width:70px">1x</div></div></div>
+      <div class="row"><span>Papa Parse</span><div class="track"><div class="bar" style="width:100%"><span>8x to 11x</span></div></div></div>
+      <div class="row"><span>text-columns</span><div class="track"><div class="bar us out" style="width:12%"><span>1x</span></div></div></div>
     </div>
   </div>
 </div></section>
