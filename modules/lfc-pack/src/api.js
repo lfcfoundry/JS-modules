@@ -230,4 +230,4 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.9', apiVersion: 0 };
+  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.10', apiVersion: 0 };

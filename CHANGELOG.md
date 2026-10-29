@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.6.5 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.4.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.1.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.1.9 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.1.10 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.1.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -58,6 +58,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-29 · **lfc-pack** 0.1.10 · API 0: packParallel starts all helpers at once and joins runs as they arrive; same file bytes
 - 2026-10-27 · **text-columns** 0.1.1 · API 0: toRows() keeps a column named __proto__ as its own data, and a header with a repeated name now throws instead of silently dropping a column. Same speed.
 - 2026-10-27 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into Float64Array number columns and text columns with a WebAssembly SIMD scan (3 to 11 times faster than common parsers in the container), plain JavaScript fallback with the same answers.
 - 2026-10-27 · **save-kit** 1.2.2 · API 1: A zero limit in a schema now means zero: max 0 or maxKeys 0 rejects nonempty text and count entries.

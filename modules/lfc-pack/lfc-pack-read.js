@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.1.9 (API 0)
+ * Version 0.1.10 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1043,7 +1043,7 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.9', apiVersion: 0 };
+  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.10', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
@@ -1130,19 +1130,21 @@
           idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, 3000); if (idleTimer.unref) idleTimer.unref();
         }
         function fail(err) { if (failed) return; failed = true; release(false); reject(err instanceof Error ? err : new Error(String(err && err.message || err))); }
-        function onMsg(i, m, next) {
-          if (m.started) { next(); return; }
+        var sb = stitcher(), nextAdd = 0;   // each run is joined as soon as every run before it has arrived, while later helpers are still packing
+        function onMsg(i, m) {
+          if (m.started || failed) return;
           if (m.error) { fail(new Error(m.error)); return; }
-          results[i] = m; if (--left === 0 && !failed) { release(true); try { resolve(stitch(results, b.length, jopts)); } catch (er) { reject(er); } }
+          results[i] = m; left--;
+          try { while (nextAdd < results.length && results[nextAdd]) { sb.add(results[nextAdd]); results[nextAdd] = null; nextAdd++; } } catch (er) { fail(er); return; }
+          if (left === 0) { release(true); try { resolve(sb.finish()); } catch (er2) { reject(er2); } }
         }
-        function start(i) {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
-          if (i >= groups.length || failed) return;
-          var w2 = takeHelper(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]), nx = function () { start(i + 1); };
-          w2.listen(function (m) { onMsg(i, m, nx); }, fail);
+        function start(i) {   // every helper gets its slice (one copy, then transferred) and starts packing at once
+          var w2 = takeHelper(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
+          w2.listen(function (m) { onMsg(i, m); }, fail);
           w2.post({ id: i, kind: 'p', buf: slice, opts: jopts }, [slice.buffer]);
           ws.push(w2);
         }
-        start(0);
+        for (g = 0; g < groups.length && !failed; g++) start(g);
       });
     });
   }
@@ -1161,21 +1163,24 @@
     }
     return w;
   }
-  function stitch(results, inLen, jopts) {   // join the packed runs, renumber the block table, write the footer as pack does
-    var parts = [], blocks = [], zone = [], off = 0, rows = 0, i, j, r, bl;
-    for (i = 0; i < results.length; i++) {
-      r = results[i]; parts.push(r.bytes.subarray(0, r.bodyEnd));
-      for (j = 0; j < r.blocks.length; j++) { bl = r.blocks[j]; blocks.push([bl[0] + off, bl[1], bl[2], bl[3], bl[4], bl[5]]); rows += bl[3]; zone.push(r.zone[j]); }
-      off += r.bodyEnd;
-    }
-    var tail = results[results.length - 1].tail;
-    parts.push(writeFooter(S.zfull, [
-      { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
-      { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
-      { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
-      { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }
-    ], true));
-    return concat(parts);
+  function stitcher() {   // join the packed runs in order, renumber the block table, write the footer as pack does
+    var parts = [], blocks = [], zone = [], off = 0, rows = 0, tail = true;
+    return {
+      add: function (r) {
+        var j, bl; parts.push(r.bytes.subarray(0, r.bodyEnd));
+        for (j = 0; j < r.blocks.length; j++) { bl = r.blocks[j]; blocks.push([bl[0] + off, bl[1], bl[2], bl[3], bl[4], bl[5]]); rows += bl[3]; zone.push(r.zone[j]); }
+        off += r.bodyEnd; tail = r.tail;
+      },
+      finish: function () {
+        parts.push(writeFooter(S.zfull, [
+          { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
+          { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
+          { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
+          { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }
+        ], true));
+        return concat(parts);
+      }
+    };
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
