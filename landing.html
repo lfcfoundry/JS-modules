@@ -1,0 +1,180 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : JS-modules landing page
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>JS-modules</title><meta name="description" content="Small, dependency-free pieces for single-file browser games and apps. Copy one file, get one fix.">
+<style>
+/* Layout: dark hero band, white content body, tiles + bar chart + code sample, like a library landing page. */
+:root{
+  --bg:#ffffff; --fg:#1b2433; --muted:#566277; --soft:#f1f4f9; --line:#dde3ee;
+  --hero:#0f2a47; --hero-fg:#f3f7fc; --hero-muted:#a9bdd6;
+  --accent:#1f7ae0; --accent-fg:#ffffff; --good:#1e9e6a; --bar-other:#9aa7bb; --code-bg:#0f1b2d; --code-fg:#dbe7f7;
+  --display:'Segoe UI',system-ui,sans-serif;
+  --body:'Segoe UI',system-ui,sans-serif;
+  --mono:ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b1522; --fg:#e4ebf5; --muted:#9db0c8; --soft:#13233a; --line:#25364f;
+  --hero:#08111d; --accent:#4c9bf5; --good:#3fc98f; --bar-other:#5d6c85; --code-bg:#050c16; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b1522; --fg:#e4ebf5; --muted:#9db0c8; --soft:#13233a; --line:#25364f;
+  --hero:#08111d; --accent:#4c9bf5; --good:#3fc98f; --bar-other:#5d6c85; --code-bg:#050c16; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:17px/1.6 var(--body)}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);line-height:1.15;text-wrap:balance;margin:0}
+.hero{background:var(--hero);color:var(--hero-fg);padding-block:64px 56px}
+.hero .eyebrow{font:600 13px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--hero-muted)}
+.hero h1{font-size:clamp(44px,8vw,84px);font-weight:800;letter-spacing:-.02em;margin:10px 0 14px}
+.hero p.pitch{font-size:clamp(19px,2.6vw,25px);max-width:36em;color:var(--hero-muted);margin:0 0 30px}
+.nav{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;margin-bottom:44px;font-size:15px}.nav b{font:700 18px var(--display);margin-right:auto}.nav a{color:var(--hero-muted);text-decoration:none}.nav a:hover{color:var(--hero-fg)}
+.install{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin-top:26px;color:var(--hero-muted);font-size:15px}.install code{background:#0000004d;padding:8px 12px;border-radius:4px;font:14px var(--mono);color:var(--hero-fg);overflow-wrap:anywhere}
+table{border-collapse:collapse;width:100%;margin-top:22px;font-size:16px}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}th{font:700 14px var(--mono);color:var(--muted)}td.win{color:var(--good);font-weight:600}.scroll{overflow-x:auto}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:20px}.cols h3{font-size:16px;margin-bottom:8px}.cols a{display:block;color:var(--muted);text-decoration:none;font-size:15px;margin-bottom:4px}.cols a:hover{color:var(--accent)}
+.btns{display:flex;flex-wrap:wrap;gap:12px}
+.btn{display:inline-block;padding:14px 26px;border-radius:6px;font:700 18px var(--display);text-decoration:none;border:2px solid var(--accent);background:var(--accent);color:var(--accent-fg)}
+.btn.alt{background:transparent;color:var(--hero-fg);border-color:var(--hero-muted)}
+.btn:hover{filter:brightness(1.12)}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:28px}
+.badge{font:600 13px var(--mono);padding:5px 11px;border:1px solid #35557a;border-radius:4px;color:var(--hero-muted)}
+section{padding-block:56px}
+section+section{border-top:1px solid var(--line)}
+h2{font-size:clamp(28px,4vw,40px);font-weight:700;margin-bottom:14px}
+.lead{max-width:44em;color:var(--muted);margin:0 0 8px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:28px}
+.tile{background:var(--soft);padding:22px;border-radius:8px;min-width:0}
+.tile h3{font-size:21px;margin-bottom:6px}
+.tile p{margin:0;color:var(--muted);font-size:16px}
+.bench{display:grid;gap:26px;margin-top:28px}
+.bench h3{font-size:19px;margin-bottom:10px}
+.row{display:grid;grid-template-columns:minmax(110px,170px) 1fr;gap:12px;align-items:center;margin-bottom:8px;font-size:15px}
+.track{background:var(--soft);border-radius:4px;height:30px;position:relative;min-width:0}
+.bar{height:100%;border-radius:4px;background:var(--bar-other);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font:600 13px var(--mono);color:#fff;min-width:max-content}
+.bar.us{background:var(--good)}
+.note{font-size:14px;color:var(--muted);margin-top:6px}
+.code{background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:20px;overflow-x:auto;font:15px/1.6 var(--mono);margin-top:22px}
+.code .c{color:#7d93b0}.code .k{color:#7cc0ff}.code .s{color:#9fe0b4}
+.mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:26px}
+.mod{display:block;border:1px solid var(--line);border-radius:6px;padding:16px;text-decoration:none;color:var(--fg);min-width:0}
+.mod:hover{border-color:var(--accent)}
+.mod b{font:700 17px var(--display);display:flex;justify-content:space-between;gap:8px}
+.mod b span{font:400 12px var(--mono);color:var(--muted)}
+.mod small{display:block;color:var(--muted);font-size:14.5px;line-height:1.45;margin-top:4px}
+footer{background:var(--soft);padding-block:36px;color:var(--muted);font-size:15px}
+footer a{margin-right:16px}
+@media (prefers-reduced-motion:no-preference){.btn,.mod{transition:filter .15s,border-color .15s}}
+</style>
+</head><body>
+<header class="hero"><div class="wrap">
+  <nav class="nav"><b>LFC Foundry</b><a href="#pick">Modules</a><a href="https://lfcfoundry.github.io/JS-modules/">Demos</a><a href="https://github.com/lfcfoundry/JS-modules">GitHub</a></nav>
+  <div class="eyebrow">MIT licensed</div>
+  <h1>JS-modules</h1>
+  <p class="pitch">Small, dependency-free pieces for single-file browser games and apps. Copy one file, get one fix.</p>
+  <div class="btns">
+    <a class="btn" href="#pick">Pick a module</a>
+    <a class="btn alt" href="https://lfcfoundry.github.io/JS-modules/">Live demos</a>
+    <a class="btn alt" href="https://github.com/lfcfoundry/JS-modules">View on GitHub</a>
+  </div>
+  <div class="install"><code>&lt;script src="save-kit.js"&gt;&lt;/script&gt;</code><span>or</span><code>const SaveKit = require('./save-kit.js')</code></div>
+  <div class="badges"><span class="badge">49 modules and tools</span><span class="badge">0 dependencies</span><span class="badge">WebAssembly first, JS fallback</span><span class="badge">MIT</span></div>
+</div></header>
+
+<section><div class="wrap">
+  <h2>Quick start</h2>
+  <p class="lead">Save a game safely in three lines.</p>
+  <pre class="code"><span class="c">&lt;!-- copy modules/save-kit/save-kit.js next to your page --&gt;</span>
+&lt;script src=<span class="s">"save-kit.js"</span>&gt;&lt;/script&gt;
+&lt;script&gt;
+  <span class="k">var</span> kit = SaveKit.create({ key: <span class="s">'mygame'</span>, schema: { score: <span class="s">'num'</span> } });
+&lt;/script&gt;</pre>
+</div></section>
+
+<section><div class="wrap">
+  <h2>What it is and how it works</h2>
+  <p class="lead">JS-modules is a shelf of small browser libraries cut out of two shipped games. Each module is one file with no dependencies. Add it with a script tag or <code>require</code>, call it, and read its folder README for limits. Every folder also has a demo page that opens straight from disk.</p>
+  <div class="tiles">
+    <div class="tile"><h3>One file each</h3><p>Copy only what you need. No build step, no package tree.</p></div>
+    <div class="tile"><h3>Fast by default</h3><p>Hot paths run in WebAssembly with SIMD, with plain JavaScript when wasm is missing.</p></div>
+    <div class="tile"><h3>Tested in three browsers</h3><p>Firefox, Chromium and WebKitGTK. Every release names the versions it ran in.</p></div>
+    <div class="tile"><h3>Works with AI helpers</h3><p>AGENTS.md, llms.txt and modules.json describe every piece for people and assistants.</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Why it exists</h2>
+  <p class="lead">Only parts not already covered by open source were kept. These are the small fixes learned by shipping real games to phones and desktops: a hold that dies on <code>pointercancel</code>, a save overwritten by a <code>NaN</code>, a curtain stuck out of place on Android. Each module README names the closest existing project and says how this one differs.</p>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Compared with the usual choice</h2>
+  <p class="lead">lfc-pack against Parquet on 260 MB of real FHIR records, Firefox and Chromium.</p>
+  <div class="scroll"><table><thead><tr><th>Measure</th><th>Parquet</th><th>lfc-pack</th></tr></thead><tbody><tr><td>Pack time</td><td>6.1 s</td><td class="win">2.05 s</td></tr><tr><td>File size</td><td>17.14 MB</td><td class="win">7.03 MB</td></tr></tbody></table></div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Faster than the usual choice</h2>
+  <p class="lead">Measured in the test browsers against the common alternative.</p>
+  <div class="bench">
+    <div>
+      <h3>lfc-pack: pack 260 MB of FHIR records (seconds, lower is better)</h3>
+      <div class="row"><span>Parquet</span><div class="track"><div class="bar" style="width:100%">6.1 s</div></div></div>
+      <div class="row"><span>lfc-pack</span><div class="track"><div class="bar us" style="width:34%">2.05 s</div></div></div>
+      <p class="note">The packed file is 7.03 MB against 17.14 MB. Firefox and Chromium.</p>
+    </div>
+    <div>
+      <h3>text-columns: read CSV (relative time, lower is better)</h3>
+      <div class="row"><span>Papa Parse</span><div class="track"><div class="bar" style="width:100%">8x to 11x</div></div></div>
+      <div class="row"><span>text-columns</span><div class="track"><div class="bar us" style="width:12%;min-width:70px">1x</div></div></div>
+    </div>
+  </div>
+</div></section>
+
+<section id="pick"><div class="wrap">
+  <h2>Pick a piece</h2>
+  <p class="lead">A small selection. The full list of 49 is in the repository README.</p>
+  <div class="mods">
+    <a class="mod" href="https://github.com/lfcfoundry/JS-modules/blob/main/modules/save-kit/README.md"><b>save-kit</b><small>Safe saves with a backup slot, checksums and copy-paste save codes.</small></a>
+    <a class="mod" href="https://github.com/lfcfoundry/JS-modules/blob/main/modules/fx-governor/README.md"><b>fx-governor</b><small>Steps effects down when the device cannot keep up.</small></a>
+    <a class="mod" href="https://github.com/lfcfoundry/JS-modules/blob/main/modules/lfc-pack/README.md"><b>lfc-pack</b><small>Packs NDJSON into small column files and reads rows back.</small></a>
+    <a class="mod" href="https://github.com/lfcfoundry/JS-modules/blob/main/modules/gif-writer/README.md"><b>gif-writer</b><small>Animated GIFs from canvas frames with one shared palette.</small></a>
+    <a class="mod" href="https://github.com/lfcfoundry/JS-modules/blob/main/modules/stage-curtains/README.md"><b>stage-curtains</b><small>Velvet curtains that slide shut over a page and fly open.</small></a>
+    <a class="mod" href="https://github.com/lfcfoundry/JS-modules/blob/main/modules/netflow-engine/README.md"><b>netflow-engine</b><small>Nine views and network layouts as an adaptable module.</small></a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div class="cols">
+    <div><h3>Modules</h3><a href="#pick">Pick a piece</a><a href="https://lfcfoundry.github.io/JS-modules/">Live demos</a></div>
+    <div><h3>Documentation</h3><a href="https://github.com/lfcfoundry/JS-modules/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/lfcfoundry/JS-modules/blob/main/AGENTS.md">AGENTS.md</a></div>
+    <div><h3>Community</h3><a href="https://github.com/lfcfoundry/JS-modules/issues">Issues</a><a href="https://github.com/lfcfoundry/JS-modules">Source code</a></div>
+    <div><h3>More from LFC Foundry</h3><a href="https://github.com/lfcfoundry/apple-press">Apple Press</a><a href="https://github.com/lfcfoundry/fancy-banana">Fancy Banana</a><a href="https://github.com/lfcfoundry/story-editor">Story Editor</a><a href="https://github.com/lfcfoundry/pineapple-defense">Pineapple Defense</a></div>
+  </div>
+  <p>MIT License. Copyright (c) 2026 LFC Foundry.</p>
+  <p>Forged by LFC Foundry &bull; MIT Licensed</p>
+</div></footer>
+</body></html>
