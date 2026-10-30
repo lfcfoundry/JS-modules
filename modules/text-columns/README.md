@@ -1,6 +1,6 @@
 # text-columns
 
-**Version 0.1.1 · API 0**
+**Version 0.2.0 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -21,6 +21,13 @@ t.columns[0].type;     // 'number' or 'text'
 t.toRows();            // [{ id: 1, price: 2.5, city: 'Oslo' }, ...]
 ```
 Copy `text-columns.js` next to your page (`<script src="text-columns.js"></script>` sets `TextColumns`) or `require` it in Node. Pass bytes when you have them (a fetch result, a file): a string is encoded first.
+
+## Big files: read in parallel (since 0.2.0)
+```js
+TextColumns.warm(4);                                                   // optional: start the helpers early
+var t = await TextColumns.parseParallel(bytes, { workers: 4 });        // same table as parse(); t.workers says how many helpers read it (0 = read directly)
+```
+The file is cut at line ends outside quotes, each Web Worker reads a piece with this same code, and the columns are joined. Files under 32 MB (`minBytes`), a quote in the middle of a plain field, any error, or no Workers: it reads the file directly, so answers and error messages are the same. Number columns gain most; text columns are bound by making strings on the main thread. Measured with helpers already started, 4 helpers against one thread (ms, lower is better; Firefox 158 / Chromium 155 / WebKitGTK 2.52.6): numbers 152 MB 1,089 / 850 / 524 against 3,032 / 1,524 / 2,821; numbers 45 MB 213 / 196 / 172 against 518 / 322 / 332; text-heavy 61 MB 1,258 / 870 / 736 against 1,622 / 830 / 1,126 (Chromium loses). Starting the helpers costs about 30 to 60 ms the first time.
 
 ## Rules
 - A column is a **number column** only when every field is a plain decimal of at most 15 digits, such as `-12` or `3.25`, with no leading zero (`007` stays text), no exponent (`1e5` stays text), no spaces and no empty field. Then the numbers are exactly what `Number()` gives for the same text. One field that does not fit keeps the whole column as text, so nothing is guessed.
