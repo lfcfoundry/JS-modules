@@ -86,4 +86,51 @@ const W = C.writeWebm(S, 320, 180);
   }
   ok(!bad, 'random sample sets: 300 rounds read back exactly in both formats' + (bad ? ' (' + bad + ')' : ''));
 }
+// fragmented MP4: read back with a separate parser (init, then moof + mdat pairs), including random sets
+function readFmp4(f) {
+  const top = boxes(f, 0, f.length), types = top.map((x) => x.type), res = { types, samples: [], frag: [], err: '' };
+  if (types[0] !== 'ftyp' || types[1] !== 'moov') res.err = 'order';
+  const moov = boxes(f, find(top, 'moov').body, find(top, 'moov').end); res.mvex = !!find(moov, 'mvex'); res.mvhdDur = be(f, find(moov, 'mvhd').body + 16, 4);
+  let t = 0, seq = 0;
+  for (let i = 2; i < top.length; i += 2) {
+    const mo = top[i], md = top[i + 1]; if (mo.type !== 'moof' || !md || md.type !== 'mdat') { res.err = res.err || 'pair ' + i; break; }
+    const k = boxes(f, mo.body, mo.end), mfhd = find(k, 'mfhd'), traf = boxes(f, find(k, 'traf').body, find(k, 'traf').end);
+    if (be(f, mfhd.body + 4, 4) !== ++seq) res.err = res.err || 'seq';
+    const tfhd = find(traf, 'tfhd'), tfdt = find(traf, 'tfdt'), trun = find(traf, 'trun'), tf = be(f, tfhd.body + 1, 3);
+    let q = tfhd.body + 8, defDur = 0, defFlags = 0; if (tf & 8) { defDur = be(f, q, 4); q += 4; } if (tf & 0x20) { defFlags = be(f, q, 4); q += 4; }
+    if (!(tf & 0x20000) || (tf & 1)) res.err = res.err || 'tfhd flags';
+    if (be(f, tfdt.body + 4, 8) !== t) res.err = res.err || 'tfdt ' + be(f, tfdt.body + 4, 8) + ' vs ' + t;
+    const tr = be(f, trun.body + 1, 3), n = be(f, trun.body + 4, 4), off = be(f, trun.body + 8, 4); q = trun.body + 12; let first = defFlags; if (tr & 4) { first = be(f, q, 4); q += 4; }
+    if (mo.start + off !== md.body) res.err = res.err || 'data offset';
+    let pos = md.body; const fr = { n, key: !!(first & 0x02000000) && !(first & 0x10000), ms: 0 };
+    for (let j = 0; j < n; j++) {
+      let d = defDur, sz; if (tr & 0x100) { d = be(f, q, 4); q += 4; } sz = be(f, q, 4); q += 4;
+      res.samples.push({ data: f.subarray(pos, pos + sz), ms: d, key: j === 0 && fr.key }); pos += sz; t += d; fr.ms += d;
+    }
+    if (pos !== md.end) res.err = res.err || 'mdat size';
+    res.frag.push(fr);
+  }
+  res.total = t; return res;
+}
+{
+  const f = C.writeFmp4(S, 640, 360, avcC), R = readFmp4(f), keyCount = S.filter((s) => s.key).length;
+  ok(!R.err && R.types.join() === ['ftyp', 'moov'].concat(...Array(keyCount).fill(['moof', 'mdat'])).join(), 'fmp4: ftyp, moov, then a moof + mdat pair for each of the ' + keyCount + ' key-picture runs' + (R.err ? ' (' + R.err + ')' : ''));
+  ok(R.mvex && R.mvhdDur === 0 && R.frag.every((x) => x.key), 'fmp4: moov has mvex, no duration of its own, and every run starts on a key picture');
+  ok(R.samples.length === S.length && R.samples.every((s, i) => s.ms === S[i].ms && Array.from(s.data).join() === Array.from(S[i].data).join()), 'fmp4: every picture comes back with its bytes and its time');
+  ok(R.total === S.reduce((a, s) => a + s.ms, 0), 'fmp4: the fragment times add up to the whole clip');
+  const seg = C.writeFmp4Segments(S, 640, 360, avcC), join = new Uint8Array(seg.init.length + seg.fragments.reduce((a, x) => a + x.length, 0)); let pp = 0; for (const x of [seg.init].concat(seg.fragments)) { join.set(x, pp); pp += x.length; }
+  ok(seg.fragments.length === keyCount && join.length === f.length && join.every((v, i) => v === f[i]), 'fmp4: writeFmp4Segments pieces joined are exactly the file');
+  ok(C.writeFmp4([], 64, 64, avcC).length === C.writeFmp4Segments([], 64, 64, avcC).init.length, 'fmp4: no pictures gives only the start-up header');
+  let e = null; try { C.writeFmp4([{ data: new Uint8Array(1), ms: -1, key: true }], 64, 64, avcC); } catch (x) { e = x; } ok(e instanceof RangeError, 'fmp4: refuses a bad frame time');
+  let seed = 5, bad = '';
+  const r = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+  for (let round = 0; round < 300 && !bad; round++) {
+    const n = 1 + Math.floor(r() * (round % 10 === 0 ? 400 : 40)), same = r() < 0.5, keyEvery = 1 + Math.floor(r() * 12);
+    const sm = Array.from({ length: n }, (_, i) => ({ data: Uint8Array.from({ length: 1 + Math.floor(Math.pow(r(), 3) * 2000) }, () => Math.floor(r() * 256)), ms: same ? 40 : 1 + Math.floor(r() * 200), key: i % keyEvery === 0 }));
+    const g = readFmp4(C.writeFmp4(sm, 2 + 2 * Math.floor(r() * 400), 2 + 2 * Math.floor(r() * 300), avcC));
+    if (g.err) bad = g.err + ' ' + round; else if (g.samples.length !== n) bad = 'count ' + round;
+    else for (let i = 0; i < n && !bad; i++) if (g.samples[i].ms !== sm[i].ms || g.samples[i].data.length !== sm[i].data.length || g.samples[i].data.some((v, k) => v !== sm[i].data[k])) bad = 'sample ' + i + ' round ' + round;
+  }
+  ok(!bad, 'fmp4: random sample sets (equal and different times): 300 rounds read back exactly' + (bad ? ' (' + bad + ')' : ''));
+}
 console.log(fails ? 'clip-writer: ' + fails + ' FAILED' : 'clip-writer: all passed'); process.exit(fails ? 1 : 0);
