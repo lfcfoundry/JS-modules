@@ -1,0 +1,99 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    🛠️ APPLICATION : lfc-pack file viewer
+    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    📜 LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LFC-pack viewer</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<style>:root{--bg:#fff;--fg:#1a1a1a;--mut:#5c5c5c;--line:#c9c9c9;--acc:#0b5cad;--card:#f4f6f8}
+@media (prefers-color-scheme:dark){:root{--bg:#161616;--fg:#eee;--mut:#aaa;--line:#444;--acc:#6db3f2;--card:#202327}}
+*{box-sizing:border-box}body{font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0;padding:1rem 16px;max-width:64rem;margin-inline:auto}
+h1{font-size:1.4rem;margin:.2rem 0}h2{font-size:1.05rem;margin:1.2rem 0 .4rem}p{margin:.3rem 0}.mut{color:var(--mut)}
+#drop{border:2px dashed var(--line);border-radius:10px;padding:1.2rem;text-align:center;margin:.8rem 0}#drop.over{border-color:var(--acc);background:var(--card)}
+button,label.btn{font:inherit;padding:.45rem .8rem;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);cursor:pointer;display:inline-block}
+button:disabled{opacity:.5;cursor:default}input[type=file]{position:absolute;left:-9999px}label.btn:focus-within,button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.6rem}.card{background:var(--card);border-radius:8px;padding:.5rem .7rem}.card b{display:block;font-size:1.15rem}
+pre{background:var(--card);border-radius:8px;padding:.6rem;overflow:auto;max-height:16rem;font:13px/1.4 ui-monospace,monospace;margin:.3rem 0}
+.wrap{overflow:auto;max-height:26rem;border:1px solid var(--line);border-radius:8px}table{border-collapse:collapse;font:13px/1.4 ui-monospace,monospace;min-width:100%}
+th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;white-space:nowrap;max-width:24rem;overflow:hidden;text-overflow:ellipsis}th{position:sticky;top:0;background:var(--card)}
+#err{color:#b00020;font-weight:600}@media (prefers-color-scheme:dark){#err{color:#ff8a80}}</style></head><body>
+<h1>LFC-pack viewer</h1>
+<p class="mut">Opens a <code>.json.lfc</code> file on this device and shows what is in it. Nothing is sent anywhere: the page makes no network calls and keeps nothing after you close it.</p>
+<div id="drop"><p>Drop a <code>.json.lfc</code> file here, or</p><p><label class="btn" id="pick">Choose a file<input type="file" id="file" accept=".lfc,.json.lfc,application/octet-stream"></label></p></div>
+<p id="err" role="alert"></p>
+<div id="out" hidden>
+<h2>File</h2><div class="cards" id="cards"></div>
+<h2>Metadata</h2><pre id="meta"></pre>
+<div id="tabsec"><h2>Tables</h2><p id="tabs"></p></div>
+<h2>First rows <span class="mut" id="shown"></span></h2><div class="wrap"><table id="tbl"></table></div>
+<p style="margin-top:.8rem"><button id="dl">Save all rows as NDJSON</button> <span class="mut" id="dlnote"></span></p>
+</div>
+<script>/*LFC-READ*/</script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, cur = null, ready = null, LIMIT = 50;
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fmtBytes(n) { return n < 1024 ? n + ' bytes' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB'; }
+  function cell(v) { var t = v === null ? 'null' : typeof v === 'object' ? JSON.stringify(v) : String(v); return t.length > 120 ? t.slice(0, 117) + '...' : t; }
+  function fail(m) { $('err').textContent = m; $('out').hidden = true; }
+  function show(rows, name) {
+    var keys = [], seen = {}, i, k, h = '<thead><tr>', b = '<tbody>', n = Math.min(rows.length, LIMIT), objs = true;
+    for (i = 0; i < n; i++) { if (rows[i] === null || typeof rows[i] !== 'object' || Array.isArray(rows[i])) { objs = false; break; } }
+    if (objs) { for (i = 0; i < n; i++) for (k in rows[i]) if (!seen[k]) { seen[k] = 1; keys.push(k); } }
+    if (!objs) keys = ['value'];
+    for (i = 0; i < keys.length; i++) h += '<th scope="col">' + esc(keys[i]) + '</th>';
+    for (i = 0; i < n; i++) { b += '<tr>'; for (var j = 0; j < keys.length; j++) b += '<td>' + esc(cell(objs ? rows[i][keys[j]] : rows[i])) + '</td>'; b += '</tr>'; }
+    $('tbl').innerHTML = h + '</tr></thead>' + b + '</tbody>'; $('shown').textContent = '(' + n + ' of ' + rows.length + (name ? ' in ' + name : '') + ')';
+  }
+  function open(name, bytes) {
+    $('err').textContent = '';
+    ready.then(function () {
+      var t0 = performance.now(), J = window.LfcPack, info, meta, tables = null, rows, hdr;
+      try { info = J.info(bytes); meta = J.metadata(bytes); rows = null;
+        try { var all = J.unpackTables(bytes), nm = Object.keys(all); if (nm.length > 1 || (nm.length && nm[0] !== '')) tables = all; else if (Array.isArray(all[''])) rows = all['']; } catch (e) { tables = null; rows = null; }
+        if (!tables && !rows) rows = J.unpack(bytes);
+      } catch (e) { return fail('This is not a readable LFC-pack file: ' + (e && e.message || e)); }
+      cur = { name: name, bytes: bytes, rows: rows, tables: tables };
+      var ms = performance.now() - t0, c = [['File', esc(name)], ['Size', fmtBytes(bytes.length)], ['Rows', info.rows.toLocaleString()], ['Blocks', info.blocks], ['Format', info.major + '.' + info.minor], ['Opened in', ms.toFixed(0) + ' ms']];
+      $('cards').innerHTML = c.map(function (x) { return '<div class="card"><span class="mut">' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
+      $('meta').textContent = meta ? JSON.stringify(meta, null, 2) : 'This file carries no metadata.';
+      if (tables) { var names = Object.keys(tables); $('tabsec').hidden = false; $('tabs').innerHTML = names.map(function (n) { var v = tables[n]; return '<button data-t="' + esc(n) + '">' + esc(n || '(unnamed)') + ' (' + (Array.isArray(v) ? v.length + ' rows' : 'value') + ')</button> '; }).join(''); pick(names[0]); }
+      else { $('tabsec').hidden = true; show(rows, ''); }
+      $('dlnote').textContent = 'Saves the rows as text, one JSON value per line.'; $('out').hidden = false;
+    });
+  }
+  function pick(n) { var v = cur.tables[n]; show(Array.isArray(v) ? v : [v], n || '(unnamed)'); }
+  $('tabs').addEventListener('click', function (e) { var t = e.target.getAttribute && e.target.getAttribute('data-t'); if (t !== null && t !== undefined) pick(t); });
+  $('dl').addEventListener('click', function () {
+    if (!cur) return; var txt = window.LfcPack.unpackText(cur.bytes), a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'application/x-ndjson' })); a.download = cur.name.replace(/\.json\.lfc$|\.lfc$/, '') + '.ndjson'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+  function load(f) { if (!f) return; var r = new FileReader(); r.onload = function () { open(f.name, new Uint8Array(r.result)); }; r.onerror = function () { fail('Could not read that file.'); }; r.readAsArrayBuffer(f); }
+  $('file').addEventListener('change', function (e) { load(e.target.files[0]); });
+  ['dragenter', 'dragover'].forEach(function (ev) { $('drop').addEventListener(ev, function (e) { e.preventDefault(); $('drop').classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (ev) { $('drop').addEventListener(ev, function (e) { e.preventDefault(); $('drop').classList.remove('over'); }); });
+  $('drop').addEventListener('drop', function (e) { load(e.dataTransfer.files[0]); });
+  ready = window.LfcPack.init({ readOnly: true });
+  window.lfcViewer = { open: open };   // for tests
+})();
+</script></body></html>
