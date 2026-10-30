@@ -3,7 +3,9 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.2.0 · API 0 · 2026-10-30
-- New optional `meta` option for pack, packStream and packParallel and new `LfcPack.metadata(bytes)` (Python: `lfc_pack.metadata(path)`): an app can store a small description of the file (title, tables, column names and units) in the footer and read it without opening any block. Files without it are unchanged.
+- Apps can store a small metadata section in the file.
+
+## 0.2.0 · API 0 · 2026-10-30
 
 ## 0.1.11 · API 0 · 2026-10-30
 - New packStream: feed text in pieces and write each block as it is ready, so packing a big file holds one block of text at a time
