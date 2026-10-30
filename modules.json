@@ -724,12 +724,12 @@
         "id": "twine-import",
         "summary": "Reads Twine stories (Twine 2 HTML, Twee 3, Twine 1) and turns SugarCube and Harlowe code into rules, with a plain-words report.",
         "short": "Reads Twine stories (Twine 2 HTML, Twee 3, Twine 1) and turns their code into rules.",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/twine-import/README.md",
         "category": "story-data",
         "file": "packages/twine-import/dist/twine-import.global.js",
-        "size": 95682,
-        "gz": 25578
+        "size": 96054,
+        "gz": 25703
       },
       {
         "id": "story-outline",
@@ -761,8 +761,8 @@
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md",
         "category": "story-validation",
         "file": "packages/story-check/dist/story-check.global.js",
-        "size": 73762,
-        "gz": 20441
+        "size": 75658,
+        "gz": 21000
       },
       {
         "id": "story-player",
@@ -783,8 +783,8 @@
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md",
         "category": "story-flow",
         "file": "packages/story-map/dist/story-map.global.js",
-        "size": 61459,
-        "gz": 18222
+        "size": 62509,
+        "gz": 18524
       },
       {
         "id": "zip-page",
@@ -805,8 +805,8 @@
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md",
         "category": "story-testing",
         "file": "packages/qa-kit/src",
-        "size": 95302,
-        "gz": 31031
+        "size": 95677,
+        "gz": 31191
       },
       {
         "id": "contract-kit",
@@ -826,11 +826,11 @@
         "readme": "https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md",
         "category": "ai-helper",
         "file": "packages/ai-collab-kit/GUIDE.md",
-        "size": 14103,
-        "gz": 6402
+        "size": 14202,
+        "gz": 6447
       }
     ],
-    "storyEditorCommit": "abc02a1"
+    "storyEditorCommit": "1361ee0"
   },
   "categories": {
     "pieces": {
