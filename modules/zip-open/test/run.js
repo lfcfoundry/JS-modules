@@ -190,4 +190,80 @@ t('compile early: wasmReady() settles to true and wasmModule() is the compiled m
     return b.wasmReady().then(function (w) { assert.strictEqual(w, false); assert.strictEqual(b.wasmModule(), null); assert.strictEqual(b.crc32(data), want); });
   }).then(function () { globalThis.WebAssembly = saved; }, function (e) { globalThis.WebAssembly = saved; throw e; });
 });
-chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); });
+
+// ---- 1.4.0: streaming from a Blob must give the very same answers (files, notes, errors) as the in-memory path ----
+var WT = require('worker_threads');
+function spawn(code) {   // Node worker threads standing in for Web Workers
+  var w = new WT.Worker("const {parentPort}=require('worker_threads');global.self=global;global.postMessage=(m)=>parentPort.postMessage(m);parentPort.on('message',d=>{if(global.onmessage)global.onmessage({data:d});});" + code, { eval: true }), o = { onmessage: null, onerror: null, postMessage: function (m) { w.postMessage(m); }, terminate: function () { w.terminate(); } };
+  w.on('message', function (d) { if (o.onmessage) o.onmessage({ data: d }); }); w.on('error', function (e) { if (o.onerror) o.onerror(e); }); return o;
+}
+var helperRuns = 0;
+async function both(buf, name, opts) {
+  var a, b, c;
+  try { a = await U.expand(u8(buf), name, opts); } catch (e) { a = { err: e.message }; }
+  try { b = await U.expandBlob(new Blob([buf]), name, opts); } catch (e) { b = { err: e.message }; }
+  try { c = await U.expandBlob(new Blob([buf]), name, Object.assign({ workers: 3, spawn: spawn, helperMinBytes: 0 }, opts)); helperRuns++; } catch (e) { c = { err: e.message }; }
+  assert.deepStrictEqual(c, a, 'with helpers: ' + name);
+  return [a, b];
+}
+t('streaming: expandBlob gives the same files and notes as expand for ordinary, odd and hostile zips', async function () {
+  var good = { name: 'ok.csv', data: csv }, big = Buffer.from('a,b\n' + 'x,y\n'.repeat(400000));
+  var zips = {
+    mixed: Z.makeZip([{ name: 'data/edges.csv', data: csv }, { name: 'data/nodes.json', data: '{"nodes":[{"id":"A"}],"edges":[]}' }, { name: 'img/logo.png', data: Buffer.from([137, 80, 78, 71, 0, 1]) }, { name: '__MACOSX/._e.csv', data: 'junk' }, { name: 'd/', data: '', method: 0 }]),
+    stored: Z.makeZip([{ name: 'e.csv', data: csv, method: 0 }]),
+    junkFront: Buffer.concat([Buffer.from('MZ junk header '.repeat(10)), Z.makeZip([{ name: 'e.csv', data: csv, method: 0 }, good])]),
+    utf16: Z.makeZip([{ name: 'a.csv', data: Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(csv, 'utf16le')]) }, { name: 'b.csv', data: Buffer.from('s,t\ncaf\xe9,x\n', 'latin1') }]),
+    nested: Z.makeZip([{ name: 'in.zip', data: Z.makeZip([{ name: 'e.csv', data: csv }]) }, { name: 'book.xlsx', data: Z.makeXlsx([{ name: 'S', rows: [['a', 'b'], ['1', '2']] }]) }]),
+    xlsx: Z.makeXlsx([{ name: 'One', rows: [['source', 'target'], ['a', 'b']] }, { name: 'Two', rows: [['x', 'y'], [1, 2.5], [{ d: 44000 }, { b: true }]] }]),
+    commentSig: (function () { var z = Z.makeZip([good]); var c = Buffer.concat([z, Buffer.from('xx')]); return c; })(),
+    bad: Z.makeZip([good, { name: 'crc.csv', data: csv, crc: 1234 }, { name: 'pw.csv', data: csv, flags: 1 }, { name: 'm.csv', data: csv, method: 14 }, { name: 'off.csv', data: csv, offset: 9999999 }, { name: 'us.csv', data: csv, usize: 3 }]),
+    bombSmall: Z.makeZip([{ name: 'a.csv', raw: bomb300(), data: csv, usize: 100, crc: 0 }, { name: 'b.csv', data: csv }]),
+    bombHuge: Z.makeZip([{ name: 'a.csv', raw: bomb300(), usize: 300e6, crc: 0 }, { name: 'b.csv', data: csv }]),
+    big: Z.makeZip([{ name: 'big.csv', data: big }, good]),
+    cut: Z.makeZip([good]).subarray(0, 40), text: Buffer.from('not a zip at all, just text, long enough to pass a size check'), empty: Buffer.alloc(0)
+  };
+  var names = Object.keys(zips);
+  for (var i = 0; i < names.length; i++) { var r = await both(zips[names[i]], names[i] + '.zip'); assert.deepStrictEqual(r[1], r[0], names[i]); }
+  var lim = await both(zips.big, 'big.zip', { maxEntryBytes: 1e6 }); assert.deepStrictEqual(lim[1], lim[0], 'entry limit');
+  var tot = await both(zips.big, 'big.zip', { maxTotalBytes: 2e6 }); assert.deepStrictEqual(tot[1], tot[0], 'total limit');
+  var z2 = Z.makeZip([good]); z2.writeUInt16LE(60000, z2.length - 22 + 10);   // count field lies
+  var lie = await both(z2, 'lie.zip'); assert.deepStrictEqual(lie[1], lie[0], 'count lies');
+});
+t('streaming: listBlob matches list, readBlob matches read for every entry', async function () {
+  var z = Z.makeZip([{ name: 'a.csv', data: csv }, { name: 'b.bin', data: Buffer.from([1, 2, 3, 0, 255]), method: 0 }, { name: 'c.csv', data: csv, crc: 5 }, { name: 'd.csv', data: Buffer.from('q\n'.repeat(70000)) }]);
+  var blob = new Blob([z]), L1 = U.list(u8(z)), L2 = await U.listBlob(blob);
+  assert.deepStrictEqual(L2, L1);
+  for (var i = 0; i < L1.entries.length; i++) {
+    var a = await U.read(u8(z), L1.entries[i]), b = await U.readBlob(blob, L1.entries[i], U.LIMITS.maxEntryBytes);
+    assert.deepStrictEqual(b.bytes ? Buffer.from(b.bytes) : b, a.bytes ? Buffer.from(a.bytes) : a, L1.entries[i].path);
+  }
+});
+t('streaming: byte flips and cuts give the same answer from a Blob as from memory', async function () {
+  var base = Z.makeZip([{ name: 'a.csv', data: csv }, { name: 'b.json', data: '{"nodes":[{"id":1}],"edges":[]}' }, { name: 'c.txt', data: 'x -> y' }]);
+  var x = Z.makeXlsx([{ name: 'S', rows: [['source', 'target'], ['a', 'b'], ['b', 'c']] }]);
+  var s = 11, rnd = function () { return (s = (s * 16807) % 2147483647) / 2147483647; }, same = 0;
+  for (var k = 0; k < 700; k++) {
+    var b = Buffer.from(k % 2 ? base : x), flips = 1 + Math.floor(rnd() * 6);
+    for (var f = 0; f < flips; f++) b[Math.floor(rnd() * b.length)] = Math.floor(rnd() * 256);
+    if (rnd() < 0.3) b = b.subarray(0, Math.floor(rnd() * b.length));
+    var r = await both(b, 'f.zip'); assert.deepStrictEqual(r[1], r[0], 'case ' + k); same++;
+  }
+  assert.ok(same === 700);
+});
+t('streaming: an entry with a long extra field in its local header (more than the one-read window) still opens from a Blob', async function () {
+  var z = Z.makeZip([{ name: 'a.csv', data: csv }, { name: 'b.csv', data: csv }]), extra = 5000;
+  var nl = z.readUInt16LE(26), at = 30 + nl, body = z.subarray(at, z.length), out = Buffer.concat([z.subarray(0, at), Buffer.alloc(extra), body]);
+  out.writeUInt16LE(extra, 28);
+  var eo = out.length - 22; out.writeUInt32LE(out.readUInt32LE(eo + 16) + extra, eo + 16);                 // directory moved
+  var cd = out.readUInt32LE(eo + 16), q = cd, n = out.readUInt16LE(eo + 10);
+  for (var i = 0; i < n; i++) { if (i > 0) out.writeUInt32LE(out.readUInt32LE(q + 42) + extra, q + 42); q += 46 + out.readUInt16LE(q + 28) + out.readUInt16LE(q + 30) + out.readUInt16LE(q + 32); }
+  var r = await both(out, 'extra.zip'); assert.deepStrictEqual(r[1], r[0]); assert.equal(r[0].files.length, 2);
+});
+t('streaming: helpers (workers) really ran, and many text files come out in order with limits applied the same way', async function () {
+  var files = []; for (var i = 0; i < 40; i++) files.push({ name: 'd/f' + String(i).padStart(2, '0') + '.csv', data: 'a,b\n' + (i + ',x\n').repeat(2000 + i * 37) });
+  var z = Z.makeZip(files), r = await both(z, 'many.zip'), r2 = await both(z, 'many.zip', { maxTotalBytes: 300000 }), r3 = await both(z, 'many.zip', { maxFiles: 7 }), r4 = await both(z, 'many.zip', { maxEntryBytes: 20000 });
+  assert.equal(r[0].files.length, 40); assert.deepStrictEqual(r[0].files.map(function (f) { return f.path; }), files.map(function (f) { return f.name; }));
+  assert.ok(r2[0].notes.some(function (q) { return /safety limit/.test(q); })); assert.equal(r3[0].files.length, 7); assert.ok(helperRuns > 20, 'helpers used ' + helperRuns);
+  U.closeHelpers();
+});
+chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });
