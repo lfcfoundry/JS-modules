@@ -2,7 +2,7 @@
 
 Status: draft. File formats are not frozen until a formal release; this text describes what `lfc-pack.js` (JavaScript) and `python/lfc_pack.py` (Python) both read and write today. The words MUST, SHOULD and MAY are used in the usual sense. American English. All integers are little-endian.
 
-Part 1 (this file) is the container: how to find the blocks and the index, and what every reader must do. Part 2, the byte layout inside the flat (`f`) and nested (`n`) blocks, is not written yet; until it is, a second implementation reads those blocks by following `src/flat.js`, `src/nested.js` and `python/lfc_pack.py`. The raw block (`r`) is fully specified here.
+Part 1 (this file) is the container: how to find the blocks and the index, and what every reader must do. Part 2, [LAYOUT-SPEC.md](LAYOUT-SPEC.md), is the byte layout inside the flat (`f`) and nested (`n`) blocks. The raw block (`r`) is fully specified here.
 
 ## 1. Names
 - Name: LFC-pack. File extension `.json.lfc`. Magic `LFC1` (bytes 4C 46 43 31). Global in the browser: `LfcPack`.
@@ -45,7 +45,7 @@ Payloads that are JSON are UTF-8 text.
 |---|---|---|
 | 1 header | required | JSON `{rows, blocks, writer}`; files with several tables also carry `tables: [[name, "rows"\|"value"], ...]` |
 | 2 block table | required | JSON array, one entry per block: `[offset, length, crc32, rows, kind, tableIndex]` |
-| 5 zone maps | optional | JSON array, one entry per block: a list of `[hash, min, max]` per number column (hash is FNV-1a of `"." + key`, as the reference code computes it); a block whose range for a key does not meet a query range can be skipped |
+| 5 zone maps | optional | JSON array, one entry per block: a list of `[hash, min, max, count]` per number column (hash is FNV-1a of `"." + key`, as the reference code computes it); a block whose range for a key does not meet a query range can be skipped |
 | 12 feature flags | required | JSON `{exact: bool, tail: bool}`. `tail: false` means the last line had no final newline. |
 | 9 raw-line store | required when present | byte-exact files only: u32 `hl`, `hl` bytes of JSON `{blockIndex: [[row, byteLength], ...]}`, then the raw bytes of those rows in the same order. Those rows are returned verbatim instead of re-serialized. |
 | 15 number spellings | required when present | byte-exact files only: JSON `{blockIndex: [[row, [[tokenIndex, text], ...]], ...]}`; the row is the canonical text with the listed number tokens (left to right, outside strings) replaced by `text` |
@@ -78,7 +78,6 @@ Ids 3, 4, 6, 7, 10, 11, 14 are reserved for the index, Bloom filter, metadata, r
 - Do not write a section id above 1000 as REQUIRED unless the file cannot be understood without it.
 
 ## 7. Open points
-- Part 2 (flat and nested block layouts) is unwritten.
 - Footer sections are JSON today; a compact binary form is possible and would only change section payloads, not the container.
 - Whole-file hash (design notes: XXH3-128) and per-block hash algorithm id are not implemented; CRC-32 is the only checksum.
 - Media type registration and a magic-number entry for `file(1)` wait for a release decision.
