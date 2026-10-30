@@ -362,7 +362,7 @@
     },
     {
       "id": "graph-walk",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "api": 0,
       "global": "GraphWalk",
       "summary": "Breadth-first distances and depth-first loop marking over a links-of-every-item layout in typed arrays, with no recursion. Same answers as Netflow Map's inline walks.",
