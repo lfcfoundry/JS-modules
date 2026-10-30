@@ -1,0 +1,7 @@
+lfcp-go.js contains:
+
+1. wasm_exec.js and the Go runtime and standard library compiled into the wasm.
+   Copyright 2009 The Go Authors. BSD-3-Clause license: https://go.dev/LICENSE
+
+2. github.com/klauspost/compress (zstd decoder). Copyright (c) 2019 Klaus Post and others. BSD-3-Clause; some files carry the Apache-2.0 license of their upstream source.
+   https://github.com/klauspost/compress/blob/master/LICENSE
