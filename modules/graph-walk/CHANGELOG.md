@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.0 · API 0 · 2026-10-30
+- New: betweennessAsync splits betweenness across helper threads (3.4x to 4.6x faster on 4 cores).
+
 ## 0.4.0 · API 0 · 2026-10-30
 - New: k-core numbers, minimum spanning forest, PageRank and betweenness (plain JavaScript and WebAssembly); the first two-ended path call allocates less.
 
