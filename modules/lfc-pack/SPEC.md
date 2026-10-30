@@ -44,7 +44,7 @@ Payloads that are JSON are UTF-8 text.
 | Id | Flags | Payload |
 |---|---|---|
 | 1 header | required | JSON `{rows, blocks, writer}`; files with several tables also carry `tables: [[name, "rows"\|"value"], ...]`, and each block's `tableIndex` points into that list. The rows of one table are its blocks' rows in block order. A table of kind `value` holds exactly one row, an object `{"v": value}`; the value is its `v` member. `rows` is the total over all tables. |
-| 2 block table | required | JSON array, one entry per block: `[offset, length, crc32, rows, kind, tableIndex]` |
+| 2 block table | required | JSON array, one entry per block: `[offset, length, crc32, rows, kind, tableIndex]`, optionally followed by a seventh item: the XXH64 (seed 0) of the block bytes as 16 lowercase hex digits (see 2.4) |
 | 5 zone maps | optional | JSON array, one entry per block: a list of `[hash, min, max, count]` per number column (hash is FNV-1a of `"." + key`, as the reference code computes it); a block whose range for a key does not meet a query range can be skipped |
 | 12 feature flags | required | JSON `{exact: bool, tail: bool}`. `tail: false` means the last line had no final newline. |
 | 6 metadata | optional | JSON `{v: 1, ...}` an app chose to carry with the file (title, producer, tables and columns, anything else); at most 64 KB; readers MUST NOT use it for decoding. See `PROPOSAL-metadata-section.md`. |
@@ -54,6 +54,8 @@ Payloads that are JSON are UTF-8 text.
 Ids 3, 4, 7, 10, 11, 14 are reserved for the index, Bloom filter, record-type map and file hash described in the design notes; a reader MUST accept and ignore them.
 
 ### 2.4 Block table entry
+Optional seventh item `xxh64`: writers that add it MUST still write the correct `crc32`. A reader that supports XXH64 MAY check the block with `xxh64` alone and skip `crc32` (about 2.5 to 3 times faster in WebAssembly); a reader that does not, or finds an item that is not 16 lowercase hex digits, checks `crc32` as before. Readers MUST ignore any further items.
+
 Writers write the blocks in table order, one after the other, starting at offset 0, so each block starts where the previous one ends and the last one ends where the footer starts. A reader only has to check that every block lies inside that range. `offset` and `length` locate the block bytes from the start of the file (`offset + length` MUST NOT pass the end of the last block, the start of the footer). `crc32` is the CRC-32 of those bytes and MUST be checked before use. `rows` is the row count. `kind` is one character: `f` flat block, `n` nested block, `r` raw block. `tableIndex` (default 0) names the table in the header.
 
 ## 3. Reading
