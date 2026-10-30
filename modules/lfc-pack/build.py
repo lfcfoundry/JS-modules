@@ -22,3 +22,9 @@ lit2 = '{"zstd-dec":"%s"}' % base64.b64encode(open(os.path.join(here, mods['zstd
 out2 = src[:i + len(a)] + lit2 + src[j:]
 open(os.path.join(here, 'lfc-pack-read.js'), 'w', encoding='utf-8').write(out2)
 print('lfc-pack-read.js', len(out2))
+# offline file viewer: the decoder-only build is inlined into viewer.html (one file, no network)
+vs = os.path.join(here, 'viewer.src.html')
+if os.path.exists(vs):
+    page = open(vs, encoding='utf-8').read().replace('/*LFC-READ*/', out2.replace('</script', '<\\/script'))
+    open(os.path.join(here, 'viewer.html'), 'w', encoding='utf-8').write(page)
+    print('viewer.html', len(page))

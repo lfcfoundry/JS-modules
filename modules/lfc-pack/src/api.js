@@ -179,10 +179,12 @@
     if (!blocks) throw new Error('damaged file: block table missing');
     return { bytes: bytes, footer: f, blocks: blocks, header: jsonSec(f.sec[SEC_HEADER]), zone: jsonSec(f.sec[SEC_ZONE]), meta: jsonSec(f.sec[SEC_META]) };
   }
+  // block checksum: the CRC-32 loop inside the zstd WebAssembly module when it is loaded (slicing by 8; both the full and the read-only build have it); the plain JavaScript loop otherwise or for small blocks
+  function crcOf(x) { return S.zdec && S.zdec.crc32 && x.length >= 4096 ? S.zdec.crc32(x) : crcJS(x, 0); }
   function blockBytes(file, i) {
     var b = file.blocks[i], x = file.bytes.subarray(b[0], b[0] + b[1]);
     if (b[0] + b[1] > file.footer.bodyEnd) throw new Error('block ' + i + ' out of range');
-    if (crcJS(x, 0) !== b[2]) throw new Error('block ' + i + ' checksum mismatch');
+    if (crcOf(x) !== b[2]) throw new Error('block ' + i + ' checksum mismatch');
     return x;
   }
   function rawRows(t) { return td.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
@@ -238,6 +240,24 @@
     return out;
   }
   function metadata(bytes) { var m = openFile(bytes).meta; return m === undefined ? null : m; }   // the metadata object the file was packed with (opts.meta), or null; reads the footer only
+  // unpackRows(bytes, { from, count, table }): the rows from..from+count-1 (of the table, default the first) without decoding blocks outside that range. Files with raw blocks (their block row count includes blank lines) are read whole and cut.
+  function unpackRows(bytes, opts) {
+    opts = opts || {}; var from = opts.from || 0, count = opts.count == null ? Infinity : opts.count, file = openFile(bytes), tb = opts.table || 0, i, kd, start = 0, out = [], r, b, lo, hi, rn, rf;
+    for (i = 0; i < file.blocks.length; i++) if (file.blocks[i][4] === 'r') return unpackSome(bytes, { table: tb }).slice(from, count === Infinity ? undefined : from + count);
+    rn = makeNestedReader(S.zdec); rf = makeFlatReader(S.zdec);
+    for (i = 0; i < file.blocks.length && out.length < count; i++) {
+      b = file.blocks[i]; if ((b[5] || 0) !== tb) continue;
+      if (start + b[3] > from) { kd = b[4]; r = (kd === 'f' ? rf : rn).readBlock(blockBytes(file, i)); lo = Math.max(0, from - start); hi = Math.min(r.length, lo + (count - out.length)); for (; lo < hi; lo++) out.push(r[lo]); }
+      start += b[3];
+    }
+    return out;
+  }
+  // stats(bytes): what the footer and the block headers say, without decoding any column: [{ kind, rows, table, keys: [{ key, type, n, distinct?, nulls? }] }] (keys only for flat blocks)
+  function stats(bytes) {
+    var file = openFile(bytes), rf = makeFlatReader(S.zdec), out = [], i, b, o;
+    for (i = 0; i < file.blocks.length; i++) { b = file.blocks[i]; o = { kind: b[4], rows: b[3], table: b[5] || 0 }; if (b[4] === 'f') o.keys = flatMeta(S.zdec, blockBytes(file, i)); out.push(o); }
+    return out;
+  }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
   // ---- streaming pack: packStream({ blockBytes }) -> { push(bytes) -> [Uint8Array blocks ready to write], finish() -> [last blocks + footer] }. The output parts joined are the same bytes pack() gives for the same text and blockBytes; only one block of text is held at a time. Value-exact mode only.
   function packStream(opts) {
@@ -279,4 +299,12 @@
       }
     };
   }
-  var api = { unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackText: unpackText, version: '0.2.0', apiVersion: 0 };
+  // hash(bytes, kind): 'crc32' (default; the number the file's checksums use) or 'xxh64' (16 lowercase hex digits); WebAssembly when init() has run, plain JavaScript for crc32 otherwise
+  function hash(bytes, kind) {
+    kind = kind || 'crc32'; if (!(bytes instanceof Uint8Array)) throw new Error('LfcPack: hash needs a Uint8Array');
+    if (kind === 'crc32') return S.zdec && S.zdec.crc32 ? S.zdec.crc32(bytes) : crcJS(bytes, 0);
+    if (kind !== 'xxh64') throw new Error('LfcPack: unknown hash ' + kind);
+    if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
+    var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
+  }
+  var api = { hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.2.0', apiVersion: 0 };

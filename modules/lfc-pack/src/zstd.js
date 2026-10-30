@@ -25,6 +25,13 @@
       heapUsed: function () { return X.heap_used(); },
       hasEncoder: !!X.compress
     };
+    // checksums computed inside the module (rebuilds from wasm/zstd-glue.c); the input goes through the module's input buffer in pieces of up to 4 MB
+    if (X.crc32) api.crc32 = function (b) {
+      var o, n, c = 0; for (o = 0; o < b.length; o += 4194304) { n = Math.min(4194304, b.length - o); ensureIn(n); view(inP, n).set(b.subarray(o, o + n)); c = X.crc32(inP, n, c) >>> 0; } return c;
+    };
+    if (X.xxh64) api.xxh64 = function (b) {   // XXH64, seed 0, of the whole input in one piece: [low 32 bits, high 32 bits]
+      ensureIn(b.length); view(inP, b.length).set(b); var lo = X.xxh64(inP, b.length) >>> 0; return [lo, X.xxh64_hi() >>> 0];
+    };
     if (X.compress) {
       api.compress = function (src, level, windowLog) {
         ensureIn(src.length); view(inP, src.length).set(src); var cap = X.bound(src.length); ensureOut(cap);

@@ -62,6 +62,8 @@ Works under a page policy of `script-src 'wasm-unsafe-eval'` and `worker-src blo
 
 Metadata: `pack`, `packStream` and `packParallel` take an optional `meta` object (a small JSON-able note about the file, kept in its own footer section that older readers skip). `LfcPack.metadata(bytes)` reads it back without decoding any block; in Python use `lfc_pack.metadata(path)`. See `SECTIONS.md`.
 
+Reading part of a file: `LfcPack.unpackRows(bytes, { from, count })` decodes only the blocks that hold those rows, `LfcPack.stats(bytes)` reads per-column facts from the footer, and `LfcPack.hash(bytes, kind)` gives `'crc32'` or `'xxh64'`. `viewer.html` is a single-file viewer for `.json.lfc` files (open it in a browser and drop a file on it).
+
 Specs: `SPEC.md` (container), `LAYOUT-SPEC.md` (flat and nested block layouts) and `INTEROP.md` (what every reader must agree on, with test vectors in `vectors/`). The Go reader in `go-reader/` is built from them.
 
 Python (needs `pip install zstandard`, or Python 3.14): `python/lfc_pack.py` gives `read(path)`, `read_tables(path)`, `read_text(path)` and `info(path)`, with the same values.
