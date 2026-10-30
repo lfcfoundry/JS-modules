@@ -48,6 +48,10 @@ Options: `name` (used in file names, `my-game-speed-20261022-1700.md`), `version
 - Files are saved with a download link and a Blob. If the browser will not (some in-app webviews), the text is shown in a box to copy; or pass `onSave`.
 - The panel is built with element styles, not a `<style>` tag or style attribute, so it works under a strict page policy (`style-src 'self'`). Nothing needs `'unsafe-inline'`.
 
+## See it in action
+
+Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/), [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/), [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense), [Story Editor](https://lfcfoundry.github.io/story-editor/), Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## Prior art and credits
 No code was taken from anywhere. The ideas of a ring buffer of frame times, "1% low" frame rate and the long-task entry are common practice in game and web performance tools; the long-task entry is the W3C Long Tasks API.
 

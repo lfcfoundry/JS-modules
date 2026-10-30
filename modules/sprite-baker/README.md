@@ -186,6 +186,10 @@ Baking a 24-frame, 192 px roll with an outline takes 240 ms in ungoogled Chromiu
 - Speed: 16 frames of a 160 x 96 capsule at `ss: 2` took roughly 0.3 s in Node on a modest machine (one run, not a benchmark; a phone will be slower). Bake in slices with `baker`; no worker needed. A classic worker (`importScripts`) should also work, with `toCanvas` returning `null`; not tested.
 - The module never reads a canvas back, so Firefox's canvas read-back noise cannot change what it bakes. Meshes are cached per part object: after changing `nu`, `nv` or `fn`, pass a new part object.
 
+## See it in action
+
+Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## For AI agents
 
 - Keep the sampling and depth rules (pixel centers `x + 0.5`, inclusive edges with the `-1e-5` tolerance, strict `z > stored z`, `-1e9` clear value) and the shading constants in `tri` unless you are changing the look on purpose; then update the pinned hash in `test/run.js` after looking at the picture.

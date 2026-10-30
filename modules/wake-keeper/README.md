@@ -89,6 +89,10 @@ Where it loses:
 - The 60 second release and the 20 second refusal wait are choices made here, not rules from MDN or the specification.
 - Tested with a fake browser; the real lock has not been tried on a phone by these tests.
 
+## See it in action
+
+Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/), [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## For AI agents
 
 Create the keeper once. Call `want(true)` when play starts and `want(false)` in your pause, card and title code paths; call `poke()` from your pointer and key handlers (or use `watchInput(document)`), and from your controller code if the game supports a pad. Do not request the lock yourself as well.

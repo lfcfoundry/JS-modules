@@ -40,6 +40,10 @@ Same answers, link for link, as the inline copies. The breadth-first differences
 - Depth-first covers what is reached from `start`; links elsewhere stay 0 in both `closes` and `keep`.
 - Memory is a few typed arrays of n or m entries per call.
 
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29.
+
 ## Prior art and credits
 Both walks are the textbook algorithms (breadth-first search, and depth-first search with a three-color mark where a link to a gray item closes a loop; Cormen et al., Introduction to Algorithms). The code was lifted from Netflow Map's engine and tested against it.
 
