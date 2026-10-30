@@ -3,12 +3,13 @@
  * The writers hold the whole file in memory, which is fine for a slide-sized clip. About 8 times smaller than a GIF of the same pictures.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules. Cut from Netflow Map.
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  *
  *   ClipWriter.support(w, h, fps).then(function (s) { ... s.mp4, s.webm ... });       // which formats this browser can make
  *   var wr = ClipWriter.createWriter({ w: 640, h: 360, fps: 25, format: 'mp4', bitsPerPixel: 0.1 });
  *   wr.add(rgbaArrayBuffer, 40);   // a picture (RGBA bytes) and how long it stays, in milliseconds; returns a promise to wait on
  *   wr.finish().then(function (bytes) { ... });                                       // Uint8Array: save as .mp4 or .webm
+ *   Options: output: 'blob' (finish() gives a Blob, no big copy), fastStart: true (MP4 index first), sidx: true (fragmented: seek index).
  *   Fragmented MP4: format 'fmp4' (with onSegment(bytes, isInit) to stream the pieces); sound: audio: { sampleRate: 48000, channels: 2, codec: 'opus' } and wr.addAudio([left, right]).
  */
 
@@ -74,30 +75,42 @@
     var mdia = box('mdia', [full('mdhd', 0, [u32(0), u32(0), u32(a.sampleRate), u32(ticks), u16(0x55c4), u16(0)]), full('hdlr', 0, [u32(0), str('soun'), u32(0), u32(0), u32(0), str('Sound'), [0]]), minf]);
     return box('trak', [full('tkhd', 3, [u32(0), u32(0), u32(2), u32(0), u32(movieMs), u32(0), u32(0), u16(0), u16(0), u16(0x100), u16(0), MATRIX, u32(0), u32(0)]), mdia]);
   }
-  /** samples: [{ data: Uint8Array (length-prefixed H.264), ms: how long it shows, key: bool }]; avcC: the decoder configuration record. */
-  function writeMp4(samples, w, h, avcC, audio) {
+  /** samples: [{ data: Uint8Array (length-prefixed H.264), ms: how long it shows, key: bool }]; avcC: the decoder configuration record. audio: optional sound track (see checkAudio). opts: { fastStart: true } puts the index before the pictures so a player can start early; { blob: true } returns a Blob without copying the picture bytes. */
+  function writeMp4(samples, w, h, avcC, audio, opts) {
     var n = samples.length, total = 0, i, dur = durationTotal(samples, MAX_MP4_DURATION, 'MP4'), atotal = 0, aticks = 0, atrak = null, movieDur = dur;
     for (i = 0; i < n; i++) total += samples[i].data.length;
     if (audio) { checkAudio(audio); for (i = 0; i < audio.samples.length; i++) atotal += audio.samples[i].data.length; aticks = audioTicks(audio); movieDur = Math.max(dur, Math.round(aticks * 1000 / audio.sampleRate)); if (movieDur > MAX_MP4_DURATION) throw new RangeError('clip-writer: MP4 duration exceeds its supported range'); }
-    var ftyp = box('ftyp', [str('isom'), u32(512), str('isom'), str('iso2'), str('avc1'), str('mp41')]);
+    var ftyp = box('ftyp', [str('isom'), u32(512), str('isom'), str('iso2'), str('avc1'), str('mp41')]), fast = !!(opts && opts.fastStart);
     var mdatHead = cat([u32(total + atotal + 8), str('mdat')]), dataStart = ftyp.length + 8;
     var stts = [], run = 0, last = -1, runs = [];
     for (i = 0; i < n; i++) { if (samples[i].ms === last) run++; else { if (run) runs.push([run, last]); run = 1; last = samples[i].ms; } } if (run) runs.push([run, last]);
     runs.forEach(function (r) { stts.push(u32(r[0]), u32(r[1])); });
     var stss = [], szs = []; for (i = 0; i < n; i++) { if (samples[i].key) stss.push(u32(i + 1)); szs.push(u32(samples[i].data.length)); }
-    var stbl = box('stbl', [full('stsd', 0, [u32(1), avc1Box(w, h, avcC)]), full('stts', 0, [u32(runs.length)].concat(stts)), full('stss', 0, [u32(stss.length)].concat(stss)), full('stsc', 0, [u32(1), u32(1), u32(n), u32(1)]), full('stsz', 0, [u32(0), u32(n)].concat(szs)), full('stco', 0, [u32(1), u32(dataStart)])]);
-    var trak = trakBox(w, h, dur, stbl);
+    var m = audio ? audio.samples.length : 0, astts = [], aszs = [];
     if (audio) {
-      var m = audio.samples.length, astts = [], arun = 0, alast = -1, aruns = [], aszs = [];
+      var arun = 0, alast = -1, aruns = [];
       for (i = 0; i < m; i++) { var tk = audio.samples[i].ticks >>> 0; if (tk === alast) arun++; else { if (arun) aruns.push([arun, alast]); arun = 1; alast = tk; } aszs.push(u32(audio.samples[i].data.length)); } if (arun) aruns.push([arun, alast]);
       aruns.forEach(function (r) { astts.push(u32(r[0]), u32(r[1])); });
-      atrak = audioTrakBox(audio, aticks, box('stbl', [full('stsd', 0, [u32(1), mp4aBox(audio)]), full('stts', 0, [u32(aruns.length)].concat(astts)), full('stsc', 0, [u32(1), u32(1), u32(m), u32(1)]), full('stsz', 0, [u32(0), u32(m)].concat(aszs)), full('stco', 0, [u32(1), u32(dataStart + total)])]));
+      var aruns_n = aruns.length;
     }
-    var moov = box('moov', atrak ? [mvhdBox(movieDur, 3), trak, atrak] : [mvhdBox(dur), trak]);
-    var parts = [ftyp, mdatHead]; for (i = 0; i < n; i++) parts.push(samples[i].data);
+    var buildMoov = function (start) {   /* start: where the first picture lies in the file */
+      var stbl = box('stbl', [full('stsd', 0, [u32(1), avc1Box(w, h, avcC)]), full('stts', 0, [u32(runs.length)].concat(stts)), full('stss', 0, [u32(stss.length)].concat(stss)), full('stsc', 0, [u32(1), u32(1), u32(n), u32(1)]), full('stsz', 0, [u32(0), u32(n)].concat(szs)), full('stco', 0, [u32(1), u32(start)])]);
+      var trak = trakBox(w, h, dur, stbl), at = null;
+      if (audio) at = audioTrakBox(audio, aticks, box('stbl', [full('stsd', 0, [u32(1), mp4aBox(audio)]), full('stts', 0, [u32(aruns_n)].concat(astts)), full('stsc', 0, [u32(1), u32(1), u32(m), u32(1)]), full('stsz', 0, [u32(0), u32(m)].concat(aszs)), full('stco', 0, [u32(1), u32(start + total)])]));
+      var mv = at ? mvhdBox(movieDur, 3) : mvhdBox(dur), mo = box('moov', at ? [mv, trak, at] : [mv, trak]);
+      mo.videoEnd = 8 + mv.length + trak.length;   /* each track ends with its chunk offset, so that is where a later patch goes */
+      return mo;
+    };
+    var moov, parts;
+    if (fast) {   /* the index sits before the pictures; its size does not depend on the offsets it holds, so build it once and write them in afterwards */
+      moov = buildMoov(0); var first = ftyp.length + moov.length + 8; w32(moov, moov.videoEnd - 4, first); if (audio) w32(moov, moov.length - 4, first + total);
+      parts = [ftyp, moov, mdatHead];
+    }
+    else { moov = buildMoov(dataStart); parts = [ftyp, mdatHead]; }
+    for (i = 0; i < n; i++) parts.push(samples[i].data);
     if (audio) for (i = 0; i < audio.samples.length; i++) parts.push(audio.samples[i].data);
-    parts.push(moov);
-    return cat(parts);
+    if (!fast) parts.push(moov);
+    return opts && opts.blob ? new Blob(parts, { type: 'video/mp4' }) : cat(parts);   /* a Blob keeps the pieces where they are: no copy into one array */
   }
 
   /* ---- fragmented MP4: a start-up header (ftyp + moov with no pictures in it), then one moof + mdat pair for every run of pictures that starts at a key picture.
@@ -119,7 +132,7 @@
   function fragSize(n, u, data, au) { return 24 + (n ? 8 + (u ? 24 : 20) + 20 + 24 + n * (u ? 4 : 8) : 0) + (au ? 64 + (au.b - au.a) * 8 : 0) + 8 + data + (au ? au.data : 0); }   /* moof header + mfhd, video traf (header, tfhd, tfdt, trun), audio traf (header 8, tfhd 16, tfdt 20, trun 20 + 8 per sample), mdat header, bytes */
   function w32(o, p, v) { o[p] = v >>> 24; o[p + 1] = (v >>> 16) & 255; o[p + 2] = (v >>> 8) & 255; o[p + 3] = v & 255; }
   /** writes pictures a..b-1 (none when a = b) and the audio part as one moof + mdat pair at out[pos]; t = the first picture's start in ms; u = every time the same (see uniform); data = total picture bytes; returns the end position */
-  function putFragment(samples, a, b, seq, t, out, pos, u, data, au) {
+  function putFragment(samples, a, b, seq, t, out, pos, u, data, au, noData) {
     var n = b - a, tfhd = u ? 24 : 20, trunV = n ? 24 + n * (u ? 4 : 8) : 0, trafV = n ? 8 + tfhd + 20 + trunV : 0, m = au ? au.b - au.a : 0, trafA = au ? 64 + m * 8 : 0, moof = 24 + trafV + trafA, p = pos, i, s;
     w32(out, p, moof); w32(out, p + 4, 0x6d6f6f66);                 /* moof */
     w32(out, p + 8, 16); w32(out, p + 12, 0x6d666864); w32(out, p + 16, 0); w32(out, p + 20, seq);   /* mfhd */
@@ -141,11 +154,12 @@
       for (i = au.a; i < au.b; i++) { w32(out, p, au.s[i].ticks >>> 0); w32(out, p + 4, au.s[i].data.length); p += 8; }
     }
     w32(out, p, 8 + data + (au ? au.data : 0)); w32(out, p + 4, 0x6d646174); p += 8;   /* mdat */
+    if (noData) return p;   /* the caller adds the picture and sound bytes after this header */
     for (i = a; i < b; i++) { s = samples[i].data; out.set(s, p); p += s.length; }
     if (au) for (i = au.a; i < au.b; i++) { s = au.s[i].data; out.set(s, p); p += s.length; }
     return p;
   }
-  function fmp4Build(samples, w, h, avcC, audio) {   /* one buffer: init, then every fragment; returns it with where each part starts */
+  function fmp4Build(samples, w, h, avcC, audio, opts) {   /* one buffer: init, then every fragment; returns it with where each part starts */
     var n = samples.length, init = fmp4Init(w, h, avcC, audio), cuts = [init.length], starts = [], us = [], datas = [], times = [], total = init.length, i, a = 0, ms, first = 0, u = true, data = 0, out, p, t = 0, ta = 0, aus = [], ai = 0, at = 0, as = audio ? audio.samples : null, end;
     durationTotal(samples, MAX_WEBM_INTEGER, 'MP4');
     for (i = 0; i <= n; i++) {   /* one pass: a run ends at every key picture, and at the end */
@@ -165,12 +179,28 @@
       }
       aus.push(au); total += fragSize(starts[i + 1] === undefined ? n - starts[i] : starts[i + 1] - starts[i], us[i], datas[i], au); cuts.push(total);
     }
-    out = new Uint8Array(total); out.set(init, 0); p = init.length;
+    var blob = !!(opts && opts.blob), sidx = null, k;
+    if (opts && opts.sidx && starts.length) {   /* a segment index after the header: where each piece is and how long it lasts, so a player can jump around */
+      sidx = new Uint8Array(32 + 12 * starts.length); w32(sidx, 0, sidx.length); w32(sidx, 4, 0x73696478); w32(sidx, 12, 1); w32(sidx, 16, 1000); sidx[30] = starts.length >>> 8; sidx[31] = starts.length & 255;
+      for (i = 0; i < starts.length; i++) { w32(sidx, 32 + i * 12, cuts[i + 1] - cuts[i]); w32(sidx, 36 + i * 12, (i + 1 < starts.length ? times[i + 1] : t) - times[i]); w32(sidx, 40 + i * 12, 0x90000000); }
+    }
+    if (blob) {   /* headers in small buffers, the picture and sound bytes are referenced, not copied */
+      var parts = [init]; if (sidx) parts.push(sidx);
+      for (i = 0; i < starts.length; i++) {
+        end = i + 1 < starts.length ? starts[i + 1] : n; var au2 = aus[i], hb = new Uint8Array(fragSize(end - starts[i], us[i], 0, au2 && { a: au2.a, b: au2.b, data: 0 }));
+        putFragment(samples, starts[i], end, i + 1, times[i], hb, 0, us[i], datas[i], au2, true); parts.push(hb);
+        for (k = starts[i]; k < end; k++) parts.push(samples[k].data);
+        if (au2) for (k = au2.a; k < au2.b; k++) parts.push(au2.s[k].data);
+      }
+      return { parts: parts, cuts: cuts };
+    }
+    out = new Uint8Array(total + (sidx ? sidx.length : 0)); out.set(init, 0); p = init.length;
+    if (sidx) { out.set(sidx, p); p += sidx.length; }
     for (i = 0; i < starts.length; i++) p = putFragment(samples, starts[i], i + 1 < starts.length ? starts[i + 1] : n, i + 1, times[i], out, p, us[i], datas[i], aus[i]);
     return { bytes: out, cuts: cuts };
   }
-  /** the whole fragmented file in one Uint8Array: init, then every fragment. Takes the same samples as writeMp4 (and the same optional audio). */
-  function writeFmp4(samples, w, h, avcC, audio) { return fmp4Build(samples, w, h, avcC, audio).bytes; }
+  /** the whole fragmented file in one Uint8Array: init, then every fragment. Takes the same samples as writeMp4 (and the same optional audio). opts: { sidx: true } adds a segment index after the header; { blob: true } returns a Blob without copying the picture bytes. */
+  function writeFmp4(samples, w, h, avcC, audio, opts) { var r = fmp4Build(samples, w, h, avcC, audio, opts); return r.parts ? new Blob(r.parts, { type: 'video/mp4' }) : r.bytes; }
   /** { init, fragments: [Uint8Array, ...] } as views into one buffer: append init, then each fragment, to a MediaSource or send them one at a time. */
   function writeFmp4Segments(samples, w, h, avcC, audio) {
     var r = fmp4Build(samples, w, h, avcC, audio), i, frags = [];
@@ -228,7 +258,7 @@
     var w = o.w & ~1, h = o.h & ~1, format = o.format, samples = [], desc = null, err = null, pending = [], count = 0, t = 0;
     var mp4ish = format === 'mp4' || format === 'fmp4', ao = o.audio, aenc = null, asamples = [], adesc = null, aPos = 0;
     if (ao && !mp4ish) throw new Error('clip-writer: sound goes into MP4 only (format mp4 or fmp4)');
-    var opus = !!(ao && ao.codec === 'opus');
+    var opus = !!(ao && ao.codec === 'opus'), wopts = { fastStart: !!o.fastStart, sidx: !!o.sidx, blob: o.output === 'blob' };
     var audioObj = function (list) { return adesc ? { samples: list, sampleRate: ao.sampleRate, channels: ao.channels, config: adesc, codec: opus ? 'opus' : 'aac' } : null; };
     /* fragmented MP4 with onSegment: each run of pictures is handed over as soon as the next key picture shows it is complete, and nothing is kept */
     var live = format === 'fmp4' && typeof o.onSegment === 'function', run = [], runT = 0, seq = 1, got = 0, sentInit = false, aq = [], aSent = 0;
@@ -297,12 +327,12 @@
           if (live) { if (got !== pending.length) throw new Error('the video encoder gave ' + got + ' pictures for ' + pending.length); sendRun(true); return null; }
           if (samples.length !== pending.length) throw new Error('the video encoder gave ' + samples.length + ' pictures for ' + pending.length);
           samples.forEach(function (s, i) { s.ms = pending[i]; });
-          if (mp4ish) { if (!desc) throw new Error('the encoder gave no H.264 settings'); return (format === 'mp4' ? writeMp4 : writeFmp4)(samples, w, h, desc, asamples.length ? audioObj(asamples) : null); }
-          return writeWebm(samples, w, h);
+          if (mp4ish) { if (!desc) throw new Error('the encoder gave no H.264 settings'); return (format === 'mp4' ? writeMp4 : writeFmp4)(samples, w, h, desc, asamples.length ? audioObj(asamples) : null, wopts); }
+          return wopts.blob ? new Blob([writeWebm(samples, w, h)], { type: 'video/webm' }) : writeWebm(samples, w, h);
         });
       },
       cancel: function () { try { enc.close(); } catch (e) { /* closed */ } try { if (aenc) aenc.close(); } catch (e) { /* closed */ } }
     };
   }
-  return { version: '1.2.0', api: 1, support: support, createWriter: createWriter, writeMp4: writeMp4, writeFmp4: writeFmp4, writeFmp4Segments: writeFmp4Segments, writeWebm: writeWebm };
+  return { version: '1.3.0', api: 1, support: support, createWriter: createWriter, writeMp4: writeMp4, writeFmp4: writeFmp4, writeFmp4Segments: writeFmp4Segments, writeWebm: writeWebm };
 }));
