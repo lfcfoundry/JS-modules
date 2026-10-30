@@ -1,12 +1,11 @@
-**Measured on a real laptop: Firefox 160, 16 cores, 2026.10.30.** Medians; lower is better for every time and size. This is one browser on one machine, and Firefox 160 is not one of our three cloud test browsers, so treat it as direction, not a guarantee.
+**Measured on a real laptop: Firefox 160 (Windows), 16 cores, 2026.10.30, 7:09 PM.** Medians; lower is better for every time, size and ratio. This is one browser on one machine, and Firefox 160 is not one of our three cloud test browsers, so treat it as direction, not a guarantee.
 
-Compared: netflow-sankey against d3-sankey (900 x 600, no loops, ms).
+Compared: netflow-sankey against d3-sankey (ms).
 
-| graph | default | restarts 0 | d3-sankey | d3 / default | d3 / restarts 0 |
-|---|---:|---:|---:|---:|---:|
-| 72 nodes, 200 links | 5.0 | 2.0 | 2.0 | 0.40x | 1.00x |
-| 200 nodes, 1500 links | 7.0 | 7.0 | 21 | 3.00x | 3.00x |
-| 500 nodes, 6000 links | 18 | 21 | 100 | 5.56x | 4.76x |
-Small graphs: with the crossing search on (default) we are 2.5x slower than d3; with restarts 0 we are level. From 200 nodes up we are 3x to 5.6x faster.
+| graph | netflow-sankey (default) | restarts 0 | d3-sankey | d3 / ours |
+|---|---:|---:|---:|---:|
+| 72 nodes | 2.0 | 0.6 | 1.0 | 0.5x (d3 is faster) |
+| 200 nodes | 3.0 | | 12 | 4.0x |
+| 500 nodes | 12 | | 62 | 5.2x |
 
-**Latest laptop run (7:09 PM).** At 72 nodes: 2.0 ms against d3-sankey's 1.0 ms, so d3 is still faster on small graphs. From 200 nodes up, netflow-sankey is 4x to 5x faster.
+On small graphs d3-sankey is faster with the default settings. The default searches for fewer crossings, about 6% fewer than with restarts 0. From 200 nodes up, netflow-sankey is 4x to 5x faster.
