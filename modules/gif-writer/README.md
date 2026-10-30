@@ -1,8 +1,8 @@
 # gif-writer
 
-**Version 1.5.1 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** Node 22 (gif-writer, filters, WebAssembly twin); Firefox 158, Chromium 155, WebKitGTK 2.52.6 (filters equal in all three)
+**Tested in:** not recorded.
 
 Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 38 KB (15 KB gzipped, of which about 12 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map's GIF maker.
 
@@ -77,6 +77,8 @@ A first small GIF on a fresh page (160 x 120, 4 pictures, start-up included): 44
 - Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it, or if anything goes wrong at the start, the JavaScript code runs and writes the same bytes. A picture area bigger than 4,194,304 pixels also uses the JavaScript code.
 - Each encoder has its own WebAssembly memory (about 5 MB plus the pictures); it is freed with the encoder.
 - Source `wasm/gif.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
+
+**Thorough palette (1.6.0, off by default).** `makePalette(pics, 255, { thorough: true })` counts every pixel instead of every 3rd or 5th. On 30 noisy frames of 320 x 240 (container Node, wasm on) it made the file 1.1% smaller (725,711 against 733,515 bytes) for about 4 times the palette time (about 316 ms against about 104 ms) when given 8 spread pictures, and 1.6% smaller (721,850) when given all 30 (about 650 ms). Smaller is better, lower time is better. Typical captures with a still background gain nothing worth the time, so leave it off for them.
 
 **Palette sampling (1.4.0).** Above 100,000 pixels in all, `makePalette` counts about every 3rd pixel (every 5th above 1,000,000), at a step with no common factor with the picture's pixel count (so never one that divides its width), and counts every pixel after all when the sample shows fewer than 4,096 distinct colors. WebAssembly and plain JavaScript count the same pixels and give the same palette. A GIF from big photo-like inputs is therefore not byte-identical to one from 1.3.0 (mean picture error within 0.3% on photo-like, gradient and one-pixel-line pictures in the tests); flat, pixel-art and most screenshot pictures give the same bytes as before.
 
