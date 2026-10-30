@@ -1,6 +1,6 @@
 # clip-writer
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -28,12 +28,14 @@ ClipWriter.support(640, 360, 25).then(function (s) {          // which formats t
 
 **Fragmented MP4** (`format: 'fmp4'`, H.264 like `mp4`): a small start-up header, then one piece for every run of pictures that starts at a key picture. Each piece can be appended to a `MediaSource`, sent over a connection, or the whole file saved as one. `writeFmp4Segments(...)` returns `{ init, fragments }` as views into one buffer. With `createWriter({ ..., format: 'fmp4', onSegment: function (bytes, isInit) { ... } })` each piece is handed over as soon as the next key picture arrives and nothing is kept, so `finish()` resolves to `null`. Key pictures come every 50 pictures; `support()` also reports `fmp4`.
 
+**Sound** (MP4 and fragmented MP4, one track): `writeMp4(samples, w, h, avcC, audio)` and `writeFmp4(..., audio)` take `audio = { samples: [{ data, ticks }], sampleRate, channels, config, codec }`: `data` is one encoded packet, `ticks` its length in 1 / sampleRate seconds (1024 for AAC, 960 for Opus), `config` the encoder's setup bytes (AAC: AudioSpecificConfig; Opus: the OpusHead record, `codec: 'opus'`, sample rate 48000). With the encoder doing the work: `createWriter({ ..., format: 'mp4' or 'fmp4', audio: { sampleRate: 48000, channels: 2, codec: 'opus', bitrate: 96000 } })`, then `wr.addAudio([left, right])` (Float32Array per channel, samples in -1..1) next to each `add`. `support()` reports `aac` and `opus` (Firefox 158 and ungoogled Chromium 155 here: Opus only). In a live `onSegment` stream the sound that has arrived goes into the next piece, each with its own start time.
+
 ## Limits
 - Needs the browser's video encoder: Chromium has both MP4 and WebM, Firefox 158 both, WebKitGTK 2.52.6 WebM only here. Ask `support()` first and keep a GIF for the rest.
 - On Firefox 158 for Linux the MP4 made from Firefox's own H.264 encoder opens in Firefox at the wrong size (16 x 160); the same writer's MP4 from Chromium's encoder opens in Firefox at 320 x 180, so use WebM there.
 - WebKitGTK ignores the bitrate for VP9 and needs pictures that came from a canvas (this module always goes through one).
 - Frame durations must be finite and nonnegative. MP4 clips longer than 4,294,967,295 ms do not fit its 32-bit time field and are refused.
-- No sound, one track.
+- One sound track at most, in MP4 only (not WebM). AAC needs a browser AAC encoder (none in the test browsers here; use Opus or bring packets from your own encoder).
 
 ## How it compares
 

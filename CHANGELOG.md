@@ -27,7 +27,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.5.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
-| [clip-writer](modules/clip-writer/README.md) | 1.1.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
+| [clip-writer](modules/clip-writer/README.md) | 1.2.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.6.6 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.4.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
@@ -59,6 +59,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-10-30 · **memory-compression** 2.6.6 · API 2: Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes
+- 2026-10-30 · **clip-writer** 1.2.0 · API 1: New: one sound track (Opus or AAC) in MP4 and fragmented MP4, with addAudio; fragmented pieces can be streamed into a MediaSource. Output without sound is unchanged.
 - 2026-10-30 · **clip-writer** 1.1.0 · API 1: New: fragmented MP4 output (writeFmp4, writeFmp4Segments, format 'fmp4' with live onSegment) for streaming and MediaSource. Normal MP4 and WebM files are unchanged.
 - 2026-10-27 · **text-columns** 0.1.1 · API 0: toRows() keeps a column named __proto__ as its own data, and a header with a repeated name now throws instead of silently dropping a column. Same speed.
 - 2026-10-27 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into Float64Array number columns and text columns with a WebAssembly SIMD scan (3 to 11 times faster than common parsers in the container), plain JavaScript fallback with the same answers.
