@@ -80,4 +80,74 @@ t('Python csv module reads the same fields', () => {
   }
   fs.rmSync(dir, { recursive: true, force: true }); assert.strictEqual(bad, 0, 'files that differ from Python csv: ' + bad);
 });
+
+// ---- 0.3.0: columns and lazy give exactly the columns parse gives (a subset in file order), and the quote counter agrees with plain JavaScript ----
+t('columns and lazy: same values as a full parse, cell by cell', () => {
+  for (let it = 0; it < 300; it++) {
+    const delim = R() < 0.3 ? '\t' : ',', cols = ri(1, 6), text = R() < 0.5 ? table(delim, ri(1, 60), cols, R() < 0.3 ? '\r\n' : '\n') : numeric(ri(1, 80), 6), header = R() < 0.8, d = text === undefined ? delim : delim;
+    let full; try { full = F.parse(text, { delimiter: delim, header }); } catch (e) { for (const o of [{ lazy: true }, { columns: [0] }]) assert.throws(() => F.parse(text, Object.assign({ delimiter: delim, header }, o)), /text-columns/); continue; }
+    const nc = full.names.length, pick = []; for (let c = 0; c < nc; c++) if (R() < 0.5) pick.push(c);
+    const byName = R() < 0.5 && new Set(full.names).size === nc;
+    for (const plain of [false, true]) for (const lazy of [false, true]) {
+      const o = { delimiter: delim, header, plain, lazy }; if (R() < 0.7) o.columns = byName ? pick.map(c => full.names[c]) : pick;
+      const got = F.parse(text, o), want = o.columns ? pick : full.names.map((_, c) => c);
+      assert.deepStrictEqual(got.names, want.map(c => full.names[c])); assert.strictEqual(got.count, full.count);
+      got.columns.forEach((c, i) => { const w = full.columns[want[i]]; assert.strictEqual(c.type, w.type); assert.strictEqual(c.name, w.name);
+        if (lazy && R() < 0.5) for (let r = 0; r < got.count; r++) assert.ok(Object.is(c.get(r), w.values[r]), 'get ' + r);
+        assert.deepStrictEqual(Array.from(c.values), Array.from(w.values)); });
+    }
+  }
+  assert.throws(() => F.parse('a,b\n1,2\n', { columns: ['zz'] }), /no column named "zz"/); assert.throws(() => F.parse('a,b\n1,2\n', { columns: [5] }), /no column number 5/);
+  assert.deepStrictEqual(F.parse('a,b\n1,2\n', { columns: [] }).names, []);
+});
+t('lazy: strings are not cut until read, and one cell can be read alone', () => {
+  const x = F.parse('a,b\n1,"he said ""x"""\n2,y\n', { lazy: true }), d = Object.getOwnPropertyDescriptor(x.columns[1], 'values');
+  assert.strictEqual(typeof d.get, 'function'); assert.strictEqual(x.columns[1].get(0), 'he said "x"'); assert.deepStrictEqual(x.columns[1].values, ['he said "x"', 'y']);
+  assert.deepStrictEqual(x.toRows(), [{ a: 1, b: 'he said "x"' }, { a: 2, b: 'y' }]);
+});
+t('the wasm quote counter equals the JavaScript one', () => {
+  for (let it = 0; it < 300; it++) {
+    const delim = R() < 0.5 ? ',' : '\t', len = ri(0, 90), u = new Uint8Array(len); for (let i = 0; i < len; i++) u[i] = [34, 34, 10, delim.charCodeAt(0), 97, 98, 13][ri(0, 6)];
+    const a = F._qscan(u, delim.charCodeAt(0)); let n = 0, ok = [1, 1]; u.forEach((c, p) => { if (c === 34) { const pv = p ? u[p - 1] : 10; ok[n & 1] &= (pv === 10 || pv === delim.charCodeAt(0) || pv === 34) ? 1 : 0; n++; } });
+    assert.deepStrictEqual(Array.from(a), [n & 1, ok[0], ok[1]]);
+  }
+});
+
+// ---- 0.2.0: parseParallel must give the very same columns (and errors) as parse. Helpers here are Node worker threads standing in for Web Workers. ----
+const { Worker } = require('worker_threads');
+function spawn(code) {
+  const w = new Worker("const {parentPort}=require('worker_threads');global.self=global;global.postMessage=(m,t)=>parentPort.postMessage(m,t||[]);parentPort.on('message',d=>{if(global.onmessage)global.onmessage({data:d});});" + code, { eval: true }), o = { onmessage: null, onerror: null, postMessage: (m, t) => w.postMessage(m, t), terminate: () => w.terminate() };
+  w.on('message', d => o.onmessage && o.onmessage({ data: d })); w.on('error', e => o.onerror && o.onerror(e)); return o;
+}
+const asTable = x => ({ names: x.names, count: x.count, cols: x.columns.map(c => [c.name, c.type, c.type === 'number' ? Array.from(c.values) : c.values]) });
+let used = 0;
+(async () => {
+  const both = async (text, o) => {
+    let a, b; try { a = asTable(F.parse(text, o)); } catch (e) { a = 'ERR ' + e.message; }
+    try { const pt = await F.parseParallel(text, Object.assign({ spawn, minBytes: 0 }, o)); b = asTable(pt); used += pt.workers > 1 ? 1 : 0; } catch (e) { b = 'ERR ' + e.message; }
+    assert.deepStrictEqual(b, a, JSON.stringify(text.slice(0, 80)));
+  };
+  const both3 = async (text, o) => { await both(text, o); await both(text, Object.assign({ lazy: true }, o)); if (!o.noCols) await both(text, Object.assign({ lazy: R() < 0.5, columns: [0] }, o)); };
+  for (let it = 0; it < 300; it++) {
+    const delim = R() < 0.3 ? '\t' : ',', rows = ri(1, 200), cols = ri(1, 6), eol = R() < 0.3 ? '\r\n' : '\n', text = table(delim, rows, cols, eol), header = R() < 0.8;
+    await both3(text, { delimiter: delim, header, workers: ri(2, 5) });
+  }
+  for (let it = 0; it < 60; it++) await both3(numeric(ri(1, 3000), ri(1, 8)), { workers: ri(2, 6) });
+  for (let it = 0; it < 30; it++) await both(numeric(ri(1, 3000), 6), { workers: ri(2, 6), lazy: R() < 0.5, columns: R() < 0.5 ? ['f', 'a', 'd'] : [5, 2] });
+  const mixedChunks = 'a,b\n' + '1,2\n'.repeat(500) + '1,x\n' + '1,2\n'.repeat(500);   // one column is numbers in some pieces and text in another
+  await both(mixedChunks, { workers: 4 }); await both('a,b\n1,2\n' + '3,4\n'.repeat(300) + '5,6', { workers: 3 }); await both('a,b\r\n' + '1,2\r\n'.repeat(400), { workers: 4 });
+  await both('a,b\n"multi\nline",1\n'.repeat(300), { workers: 4 }); await both('a,b\n' + '"he said ""hi""\nthere",2\n'.repeat(200), { workers: 5 });
+  await both('a,b\n' + '5" pipe,1\n"x\ny",2\n'.repeat(200), { workers: 4 });             // a quote in the middle of a plain field: the file is read whole
+  await both('a,b\n' + '1,2\n'.repeat(100) + '1,2,3\n' + '1,2\n'.repeat(100), { workers: 4 });   // ragged
+  await both('a,b\n' + '1,2\n'.repeat(100) + '"x,2\n' + '1,2\n'.repeat(100), { workers: 4 });   // unclosed quote
+  await both('a,b\n', { workers: 4 }); await both('', { workers: 4 }); await both('a\n1\n2\n', { workers: 8 }); await both('﻿a,b\n' + '1,2\n'.repeat(50), { workers: 4 });
+  await both('x,y\n' + '1,é日本\n'.repeat(300), { workers: 4 });
+  // splitting never lands inside quotes: every piece must start right after a line end that is outside quotes
+  const q = 'a,b\n' + Array.from({ length: 400 }, (_, i) => i % 3 ? '"line\none ' + i + '",' + i : i + ',"p,q"').join('\n') + '\n';
+  for (let w = 2; w <= 8; w++) { await both(q, { workers: w }); await both(q, { workers: w, lazy: true, columns: ['b'] }); }
+  assert.ok((await F.parseParallel('a\n1\n2\n', { spawn, workers: 4 })).count === 2, 'small input is read directly');
+  F.closeHelpers(); assert.ok(used > 250, 'the helpers must really be used: ' + used);
+  console.log('text-columns: parallel parse agrees with parse on ' + (300 + 60 + 20 + 7) + ' files; ' + used + ' of them went through 2 or more helpers');
+})().catch(e => { console.log('FAIL parallel', e && e.stack || e); process.exit(1); });
+
 console.log('text-columns: all ' + n + ' checks passed');
