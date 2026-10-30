@@ -3,6 +3,7 @@
  * Built by build.sh together with the pinned zstd release; ZS_DECODE_ONLY builds the decoder alone. */
 #include <stddef.h>
 #include "zstd.h"
+#include "xxhash.h"
 typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u64;
 #define EXPORT(n) __attribute__((export_name(n)))
 /* ---- memory: blocks carry a 16-byte header (size, free flag); free blocks are merged with neighbors; the heap grows a page at a time */
@@ -35,6 +36,21 @@ EXPORT("heap_used") u32 heap_used(void) { return (u32)(heapTop - heapLo); }
 EXPORT("decompress") u32 zs_decompress(void* dst, u32 dcap, const void* src, u32 n) { return (u32)ZSTD_decompress(dst, dcap, src, n); }
 EXPORT("content_size") u32 zs_content_size(const void* src, u32 n) { u64 s = ZSTD_getFrameContentSize(src, n); return s >= 0xFFFFFFF0ull ? 0xFFFFFFFFu : (u32)s; }
 EXPORT("is_error") u32 zs_is_error(u32 code) { return ZSTD_isError(code); }
+/* ---- checksums over a range of the module memory, so a page can check a block without a JavaScript loop.
+ * crc32: zlib polynomial, slicing by 8, continues from `c` (pass 0 to start); the same value as the footer and block checksums.
+ * xxh64: the XXH64 of the bundled xxhash (seed 0); returned as two 32-bit halves through the low word, high word kept for xxh64_hi. */
+static u32 CRCT[8][256]; static int crcInit; static u32 xxHi;
+static void crcMake(void) { for (u32 n = 0; n < 256; n++) { u32 c = n; for (int k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320u ^ (c >> 1) : c >> 1; CRCT[0][n] = c; }
+  for (u32 n = 0; n < 256; n++) { u32 c = CRCT[0][n]; for (int t = 1; t < 8; t++) { c = CRCT[0][c & 255] ^ (c >> 8); CRCT[t][n] = c; } } crcInit = 1; }
+EXPORT("crc32") u32 zs_crc32(const u8* p, u32 n, u32 c) {
+  if (!crcInit) crcMake(); c = ~c;
+  while (n >= 8) { u32 a = c ^ (p[0] | (u32)p[1] << 8 | (u32)p[2] << 16 | (u32)p[3] << 24), b = p[4] | (u32)p[5] << 8 | (u32)p[6] << 16 | (u32)p[7] << 24;
+    c = CRCT[7][a & 255] ^ CRCT[6][(a >> 8) & 255] ^ CRCT[5][(a >> 16) & 255] ^ CRCT[4][a >> 24] ^ CRCT[3][b & 255] ^ CRCT[2][(b >> 8) & 255] ^ CRCT[1][(b >> 16) & 255] ^ CRCT[0][b >> 24]; p += 8; n -= 8; }
+  while (n--) c = CRCT[0][(c ^ *p++) & 255] ^ (c >> 8);
+  return ~c;
+}
+EXPORT("xxh64") u32 zs_xxh64(const void* p, u32 n) { u64 h = ZSTD_XXH64(p, n, 0); xxHi = (u32)(h >> 32); return (u32)h; }
+EXPORT("xxh64_hi") u32 zs_xxh64_hi(void) { return xxHi; }
 #ifndef ZS_DECODE_ONLY
 EXPORT("bound") u32 zs_bound(u32 n) { return (u32)ZSTD_compressBound(n); }
 static ZSTD_CCtx* cctx;
