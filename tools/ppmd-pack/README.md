@@ -19,7 +19,7 @@ python3 tools/ppmd-pack/pack.py mypage.html mypage.packed.html --title "My page"
 python3 tools/ppmd-pack/pack.py mypage.html mypage.packed.html --compare      # also prints the LZMA packer's sizes
 ```
 
-Open `mypage.packed.html` by double-click. Examples: `example/packed-bytes.html` and `example/packed-base64.html` (both unpack `example/app.html`; bigger than the 2.7 KB original, since the loader alone is 7.3 KB: they show the mechanism, not the saving).
+Open `mypage.packed.html` by double-click. Examples: `example/packed-bytes.html` and `example/packed-base64.html` (both unpack `example/app.html`; bigger than the 3.2 KB original, since the loader alone is 7.3 KB: they show the mechanism, not the saving).
 
 Test it: `python3 tools/ppmd-pack/test/run.py` (Python 3 and Node.js, no browser, about 20 seconds) and `python3 tools/ppmd-pack/test/browser.py` (Playwright for Python with Chromium, offline; real unpack paths, a damaged payload, a re-saved file). The decoder is tested separately: `node modules/ppmd-decode/test/run.js`.
 

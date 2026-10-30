@@ -20,7 +20,7 @@ A single-file offline game or tool that has to stay one file can use a few extra
 python3 tools/lzma-pack/pack.py mypage.html mypage.packed.html --title "My page"
 ```
 
-Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` (5,287 bytes) and `example/packed-base64.html` (5,511 bytes); both unpack `example/app.html`.
+Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` (8,683 bytes) and `example/packed-base64.html` (10,340 bytes); both unpack `example/app.html`.
 
 **Test it:** `python3 tools/lzma-pack/test/run.py` (Python 3 and Node.js, no browser, a few seconds) and `python3 tools/lzma-pack/test/browser.py` (Playwright for Python with Chromium, offline). The embedded decoder is tested separately: `node modules/lzma-decode/test/run.js`.
 
