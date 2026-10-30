@@ -1,6 +1,6 @@
 # text-columns
 
-**Version 0.3.0 · API 0**
+**Version 0.4.0 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -32,6 +32,7 @@ The file is cut at line ends outside quotes, each Web Worker reads a piece with 
 ## Only what you need: `columns` and `lazy` (since 0.3.0)
 ```js
 var t = TextColumns.parse(bytes, { columns: ['price', 'city'] });   // names or 0-based numbers; the result holds just these, in file order
+var f = TextColumns.parse(bytes, { columns: function (name, i) { return name !== 'notes'; } });   // or a yes/no function (since 0.4.0)
 var u = TextColumns.parse(bytes, { lazy: true });                    // text columns cut their strings when .values is first read
 u.columns[3].get(41);                                                // one cell, without cutting the whole column
 ```

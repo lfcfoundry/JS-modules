@@ -3,13 +3,14 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.3.0 (API 0)
+ * Version 0.4.0 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
  *   t.columns[0].values;                                                            // Float64Array for a number column, array of strings otherwise
  *   t.toRows();                                                                     // array of row objects (numbers are numbers, the rest is text)
  *   TextColumns.parse(bytes, { columns: ['price', 'city'] });                       // only these columns (names or 0-based numbers), in file order; the rest are never converted
+ *   TextColumns.parse(bytes, { columns: function (name, index) { return name !== 'notes'; } });   // or a function that says yes or no for each column
  *   TextColumns.parse(bytes, { lazy: true });                                       // text columns build their strings when .values is first read (or one cell with .get(i)); keep the input bytes unchanged until then
  *
  * A column is a number column when every field is a plain decimal (-12, 3.25) of at most 15 digits without a leading zero; anything else (empty fields, 007, 1e5, text) keeps that column as text.
@@ -147,6 +148,7 @@
   /** Which columns to keep: names (matched to the header) and/or 0-based numbers; returns the numbers in file order. */
   function pickColumns(want, names, ncols) {
     if (want === undefined || want === null) return null;
+    if (typeof want === 'function') { var fo = [], fj; for (fj = 0; fj < ncols; fj++) if (want(names[fj], fj)) fo.push(fj); return fo; }
     var list = Array.isArray(want) ? want : [want], mark = new Uint8Array(ncols), out = [], w, j, hit, x;
     if (!ncols) return out;
     for (x = 0; x < list.length; x++) {
@@ -314,12 +316,12 @@
   /** Column numbers for a `columns` option that has names: reads just the first line (as many lines as a quoted header needs). null when the first line cannot be read on its own. */
   function selectColumns(u, delim, header, want) {
     var list = Array.isArray(want) ? want : [want], e = -1, tries, end, t, names, j;
-    if (list.every(function (w) { return typeof w === 'number'; })) return list;
+    if (typeof want !== 'function' && list.every(function (w) { return typeof w === 'number'; })) return list;
     for (tries = 0; tries < 50; tries++) {
       e = u.indexOf(10, e + 1); end = e < 0 ? u.length : e; if (end > 0 && u[end - 1] === 13) end--;
       try {
         t = parse(u.subarray(0, end), { delimiter: String.fromCharCode(delim), header: false, _text: true });
-        if (t.count === 1) { names = []; for (j = 0; j < t.columns.length; j++) names.push(header ? t.columns[j].values[0] : 'c' + (j + 1)); return pickColumns(list, names, names.length); }
+        if (t.count === 1) { names = []; for (j = 0; j < t.columns.length; j++) names.push(header ? t.columns[j].values[0] : 'c' + (j + 1)); return pickColumns(want, names, names.length); }
       } catch (err) { /* a quoted header with a line break: take one more line */ }
       if (e < 0) return null;
     }
@@ -425,5 +427,5 @@
     return col;
   }
 
-  return { version: '0.3.0', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { version: '0.4.0', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));

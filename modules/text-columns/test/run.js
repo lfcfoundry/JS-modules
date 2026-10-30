@@ -100,6 +100,10 @@ t('columns and lazy: same values as a full parse, cell by cell', () => {
   assert.throws(() => F.parse('a,b\n1,2\n', { columns: ['zz'] }), /no column named "zz"/); assert.throws(() => F.parse('a,b\n1,2\n', { columns: [5] }), /no column number 5/);
   assert.deepStrictEqual(F.parse('a,b\n1,2\n', { columns: [] }).names, []);
 });
+t('columns can be a function (names and numbers it is given)', () => {
+  const x = F.parse('a,b,c\n1,x,3\n', { columns: (nm, i) => nm !== 'b' && i < 5 }); assert.deepStrictEqual(x.names, ['a', 'c']);
+  assert.deepStrictEqual(F.parse('a,b,c\n1,x,3\n', { columns: () => false }).names, []);
+});
 t('lazy: strings are not cut until read, and one cell can be read alone', () => {
   const x = F.parse('a,b\n1,"he said ""x"""\n2,y\n', { lazy: true }), d = Object.getOwnPropertyDescriptor(x.columns[1], 'values');
   assert.strictEqual(typeof d.get, 'function'); assert.strictEqual(x.columns[1].get(0), 'he said "x"'); assert.deepStrictEqual(x.columns[1].values, ['he said "x"', 'y']);
@@ -145,6 +149,7 @@ let used = 0;
   // splitting never lands inside quotes: every piece must start right after a line end that is outside quotes
   const q = 'a,b\n' + Array.from({ length: 400 }, (_, i) => i % 3 ? '"line\none ' + i + '",' + i : i + ',"p,q"').join('\n') + '\n';
   for (let w = 2; w <= 8; w++) { await both(q, { workers: w }); await both(q, { workers: w, lazy: true, columns: ['b'] }); }
+  { const big = numeric(2000, 6), f = (nm) => nm >= 'c'; await both(big, { workers: 3, columns: f }); await both(big, { workers: 3, columns: f, lazy: true }); }
   assert.ok((await F.parseParallel('a\n1\n2\n', { spawn, workers: 4 })).count === 2, 'small input is read directly');
   F.closeHelpers(); assert.ok(used > 250, 'the helpers must really be used: ' + used);
   console.log('text-columns: parallel parse agrees with parse on ' + (300 + 60 + 20 + 7) + ' files; ' + used + ' of them went through 2 or more helpers');
