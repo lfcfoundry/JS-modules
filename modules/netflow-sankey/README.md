@@ -2,7 +2,7 @@
 
 **Version 2.3.1 · API 2**
 
-**Tested in:** Node tests only so far (netflow-sankey/test/run.js: all passed); the three test browsers not yet run
+**Tested in:** Node tests passed (test/run.js). New tests/netflow-sankey-seen-browser.js run in Firefox 158.0, ungoogled-chromium 155.0.8059.39-1 and WebKitGTK 2.52.6 in a cloud container, one at a time, no noise guard: pictures identical in all three; laptop run still to come
 
 Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 49 KB (17.7 KB gzipped, of which about 7 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
 
