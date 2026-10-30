@@ -2,7 +2,7 @@
 
 Status: draft. File formats are not frozen until a formal release. This is part 2 of the container spec in `SPEC.md`: the bytes inside the flat block (`f`) and the nested block (`n`). The raw block (`r`) is in `SPEC.md` section 4. It describes what `src/flat.js`, `src/nested.js`, `src/shred.js` and `python/lfc_pack.py` read and write today (lfc-pack 0.1.9). MUST, SHOULD and MAY are used in the usual sense. American English. All integers are little-endian.
 
-How this text was checked: `test/layoutcheck.py` was written from this text alone. It walks every block in `vectors/*.json.lfc` and `vectors/layout/*.json.lfc`, decodes every frame, and fails if a frame is missing, out of order, the wrong size, has no content size, or if any byte of a block is left over. Both readers (JavaScript and Python) also decode all 8 files in `vectors/layout/`. Section 8 lists what the check found.
+How this text was checked: `test/layoutcheck.py` was written from this text alone. It walks every block in `vectors/*.json.lfc` and `vectors/layout/*.json.lfc`, decodes every frame, and fails if a frame is missing, out of order, the wrong size, has no content size, or if any byte of a block is left over. Both readers (JavaScript and Python) also decode every file in `vectors/layout/`. Section 8 lists what the check found.
 
 ## 1. Building blocks
 
@@ -176,12 +176,17 @@ Corrects `SPEC.md` 2.3, which lists three numbers: each entry is `[hash, min, ma
 - Nested limits of the reference writer (not of the format): at most 262,144 rows and 48 MB of input text per nested block; at most 65,536 shapes; deeper than 100 levels becomes shape `5`. A writer that hits a limit cuts the block in two at a line end.
 
 ## 7. Conformance
-`vectors/` holds the eight files of `SPEC.md` section 5. They are small enough that the writer chose flat blocks for all of them, including the file called `nested`. `vectors/layout/` holds eight more (`NAME.ndjson` and `NAME.json.lfc`, value-exact):
+`vectors/` holds the eight files of `SPEC.md` section 5. They are small enough that the writer chose flat blocks for all of them, including the file called `nested`. `vectors/layout/` holds thirteen more (`NAME.ndjson` and `NAME.json.lfc`, value-exact) and one multi-table file (`tables.json.lfc` with `tables.expected.json`):
 
 | File | What it adds |
 |---|---|
 | `flat-all-types` | 40 rows, flat block with all column types `V B F T H U I s D A L j`, mono and not mono, `scale` 100, stored (uncompressed) frames |
 | `flat-key-order` | flat block with key-order lists (`meta.ord`) |
+| `flat-wide-dict` | 1,400 rows: `D` with more than 256 labels (`wide`), `B` with negative values at `scale` 100, `V` not mono |
+| `flat-negatives` | negative and large whole numbers, two-decimal fractions, zero |
+| `flat-surrogates` | lone surrogates and U+0000 in strings (column falls to `j`) |
+| `nested-surrogates` | the same in a nested block (side list) |
+| `nested-astral-key` | a key outside the Basic Multilingual Plane (FNV-1a over UTF-16 code units, 1.2) |
 | `multi-block` | three flat blocks in one file |
 | `nested-forced` | nested block: arrays, empty array and object, booleans, null, a side string with non-ASCII characters, first-appearance flags and repeats |
 | `nested-number-widths` | nested block with a number column of every width (u8 to f64) and `-0` |
@@ -189,7 +194,7 @@ Corrects `SPEC.md` 2.3, which lists three numbers: each entry is `[hash, min, ma
 | `nested-deep` | a row nested 120 levels deep (shape `5`) |
 | `nested-intkeys` | keys that look like array indexes (3.2) |
 
-Regenerate with `node test/genlayout.cjs` (same bytes every run), check the layout with `python3 test/layoutcheck.py`. A second implementation passes when it decodes every `NAME.json.lfc` in both folders to the rows of `json.loads` over the `.ndjson` lines (numbers compared as doubles).
+Regenerate with `node test/genlayout.cjs` (same bytes every run), check the layout with `python3 test/layoutcheck.py`. `python3 test/pylayout.py` runs the Python reader over the folder. A second implementation passes when it decodes every `NAME.json.lfc` in both folders to the rows of `json.loads` over the `.ndjson` lines (numbers compared as doubles), and `tables.json.lfc` to `tables.expected.json`.
 
 ## 8. Worked example
 `vectors/layout/nested-forced.json.lfc`, block 0. Source rows:
