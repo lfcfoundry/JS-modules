@@ -223,6 +223,13 @@
     }
     return out;
   }
+  // unpackColumns(bytes, { keys }): flat-row blocks come back as typed columns, no row objects (experimental): [{ n, keys, cols, present }] one entry per block; other block kinds throw
+  function unpackColumns(bytes, opts) {
+    var file = openFile(bytes), rf = makeFlatReader(S.zdec), out = [], i, want = null, k;
+    opts = opts || {}; if (opts.keys) { want = {}; for (k = 0; k < opts.keys.length; k++) want[opts.keys[k]] = 1; }
+    for (i = 0; i < file.blocks.length; i++) { if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: unpackColumns needs flat-row blocks'); out.push(rf.columnsOf(blockBytes(file, i), want)); }
+    return out;
+  }
   // the object packTables was given: arrays come back as arrays of rows, other values as they were
   function unpackTables(bytes, opts) {
     var file = openFile(bytes), t = (file.header && file.header.tables) || [['', 'rows']], out = {}, i, r;
@@ -230,4 +237,4 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.9', apiVersion: 0 };
+  var api = { unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.9', apiVersion: 0 };

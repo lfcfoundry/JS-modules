@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.1.9 (API 0)
+ * Version 0.1.10 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -782,7 +782,19 @@
       return out;
     }
     function readBlock(bytes, want) { return assemble(flatFrames(zs, bytes, want, false), want); }
-    return { readBlock: readBlock, assemble: assemble };
+    // typed-columns read (no row objects): { n, keys, cols: { key: values }, present: { key: Uint8Array bit plane or null when every row has it } }; a key missing from some rows has values only for the rows that carry it, in row order
+    function columns(F, want) {
+      var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, pb = (n + 7) >> 3, cols = {}, present = {}, j, v;
+      if (F.ordList) throw new Error('LfcPack: columns read needs a block without key-order lists');
+      for (j = 0; j < K; j++) {
+        if (want && !want[meta.keys[j]]) continue;
+        v = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr);
+        if (!v) continue;
+        cols[meta.keys[j]] = v; present[meta.keys[j]] = v.length === n ? null : pl.subarray(j * pb, (j + 1) * pb);
+      }
+      return { n: n, keys: Object.keys(cols), cols: cols, present: present };
+    }
+    return { readBlock: readBlock, assemble: assemble, columns: columns, columnsOf: function (bytes, want) { return columns(flatFrames(zs, bytes, want, false), want); } };
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
@@ -1036,6 +1048,13 @@
     }
     return out;
   }
+  // unpackColumns(bytes, { keys }): flat-row blocks come back as typed columns, no row objects (experimental): [{ n, keys, cols, present }] one entry per block; other block kinds throw
+  function unpackColumns(bytes, opts) {
+    var file = openFile(bytes), rf = makeFlatReader(S.zdec), out = [], i, want = null, k;
+    opts = opts || {}; if (opts.keys) { want = {}; for (k = 0; k < opts.keys.length; k++) want[opts.keys[k]] = 1; }
+    for (i = 0; i < file.blocks.length; i++) { if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: unpackColumns needs flat-row blocks'); out.push(rf.columnsOf(blockBytes(file, i), want)); }
+    return out;
+  }
   // the object packTables was given: arrays come back as arrays of rows, other values as they were
   function unpackTables(bytes, opts) {
     var file = openFile(bytes), t = (file.header && file.header.tables) || [['', 'rows']], out = {}, i, r;
@@ -1043,7 +1062,7 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.9', apiVersion: 0 };
+  var api = { unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.10', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
