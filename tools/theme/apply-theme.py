@@ -32,7 +32,7 @@ def build(name, t):
     page = css if name not in BAND_ONLY else band_css
     style = M['s'][0] + '<style>' + page.strip().replace('\n', '\n') + '</style>' + M['s'][1]
     band = (M['b'][0] + '<header class="lfc-band"><div class="lfc-in"><a class="lfc-brand" href="../../index.html">JS-modules</a><span class="lfc-here">%s</span>'
-            '<nav aria-label="JS-modules"><a href="../../index.html">All demos</a><a href="README.md">Docs</a><a href="../../landing.html">Overview</a></nav></div></header>' % name + M['b'][1])
+            '<nav aria-label="JS-modules"><a href="../../demos.html">All demos</a><a href="README.md">Docs</a><a href="../../index.html">Overview</a></nav></div></header>' % name + M['b'][1])
     # style goes just before the band, after the page's own styles (so it wins on equal weight); both land at the start of the body
     return t[:pos] + '\n' + style + '\n' + band + '\n' + t[pos:].lstrip('\n')
 def main(argv):

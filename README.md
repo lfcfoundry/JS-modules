@@ -4,7 +4,7 @@
 
 **Small, dependency-free pieces for single-file browser games and apps. Copy one file, get one fix.**
 
-[**Pick a module**](#pick-a-piece) · [**Live demos**](https://lfcfoundry.github.io/JS-modules/) · [**Changelog**](CHANGELOG.md)
+[**Pick a module**](#pick-a-piece) · [**Live demos**](https://lfcfoundry.github.io/JS-modules/demos.html) · [**Changelog**](CHANGELOG.md)
 
 ![license MIT](https://img.shields.io/badge/license-MIT-blue) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![modules and tools 49](https://img.shields.io/badge/modules%20and%20tools-49-informational) ![WebAssembly first](https://img.shields.io/badge/WebAssembly-first-654ff0)
 
