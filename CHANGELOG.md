@@ -60,6 +60,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips orderings it already followed: same pictures, up to 1.3x faster.
 - 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
+- 2026-10-30 · **lfc-pack** 0.1.10 · API 0: New experimental unpackColumns reads flat-row files as typed columns without building row objects.
 - 2026-10-30 · **elias-fano** 1.5.0 · API 1: New Lists.getMany reads many lists in one WebAssembly call.
 - 2026-10-29 · **lfc-pack** 0.1.10 · API 0: New experimental unpackColumns reads flat-row files as typed columns without building row objects.
 - 2026-10-27 · **text-columns** 0.1.1 · API 0: toRows() keeps a column named __proto__ as its own data, and a header with a repeated name now throws instead of silently dropping a column. Same speed.

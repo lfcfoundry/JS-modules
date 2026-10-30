@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.1.10 · API 0 · 2026-10-30
+- New experimental unpackColumns reads flat-row files as typed columns without building row objects.
+
 ## 0.1.10 · API 0 · 2026-10-29
 - New experimental unpackColumns reads flat-row files as typed columns without building row objects.
 
