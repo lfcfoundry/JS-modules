@@ -4,7 +4,7 @@ Status: draft, like `SPEC.md` (container) and `LAYOUT-SPEC.md` (block layouts). 
 
 ## 1. What an app can rely on
 - The file extension is `.json.lfc`; the last four bytes are `LFC1`. A program can find LFC-pack files by those four bytes and need not trust the name.
-- Proposed media type `application/vnd.lfc-pack` (not registered; waits for a release decision). Until then apps should use `application/octet-stream` and the extension. A `file(1)` rule would be: offset `-4` from the end, string `LFC1`. (Needs a reader that supports end-relative offsets; the first bytes of a file are a block, not a magic.)
+- No media type is named yet (owner decision 2026.10.30: decide at the formal release). Until then apps should use `application/octet-stream` and the extension. A `file(1)` rule would be: offset `-4` from the end, string `LFC1`. (Needs a reader that supports end-relative offsets; the first bytes of a file are a block, not a magic.)
 - A file is a list of rows (JSON values, normally objects), optionally several named tables and plain values (`packTables`). Rows come back in the order they were written.
 - The data model is JSON as `JSON.parse` reads it: numbers are doubles; integers above 2^53 are rounded to the nearest double unless the file is byte-exact (`exact: true` in footer section 12), where the original text comes back. `-0` is kept where the language has it.
 - Value-exact files give the same rows as the source, not the same bytes. Byte-exact files give back the source bytes, including spacing, CRLF, blank lines and number spellings.
@@ -19,7 +19,7 @@ An app states which level it supports. A reader of a level MUST refuse (not gues
 | R2 | R1 plus nested blocks (`n`) | `LAYOUT-SPEC.md` section 3 |
 | R3 | R2 plus footer sections 5 (zone maps), 9 (raw lines), 15 (number spellings): range skips and byte-exact output | `SPEC.md` 2.3, `LAYOUT-SPEC.md` 4 |
 
-The reference readers are `lfc-pack.js` (R3), `python/lfc_pack.py` (R3) and the Go reader on branch `claude/project-thread-rmb60f` (passes the vectors including the byte-exact ones, so R3 on those files; see its report). Conformance for every level: decode all files in `vectors/` and `vectors/layout/` as described in the two specs.
+The reference readers are `lfc-pack.js` (R3), `python/lfc_pack.py` (R3) and the Go reader in `go-reader/` (passes the vectors including the byte-exact ones, so R3 on those files; see its report). Conformance for every level: decode all files in `vectors/` and `vectors/layout/` as described in the two specs.
 
 ## 3. Versioning and unknown parts
 - The trailer holds format major and minor. A reader MUST refuse a major above its own. A higher minor MAY be read. Within one major, new things arrive only as: new optional footer sections, new keys in headers, meta or params, new ids in existing registries. A reader ignores unknown optional things.
@@ -30,6 +30,7 @@ The reference readers are `lfc-pack.js` (R3), `python/lfc_pack.py` (R3) and the 
 ## 4. Writing files other apps can read
 - Write sections 1, 2 and 12; write section 5 (zone maps) when you can. Keep blocks to whole lines. Check every CRC on read.
 - Do not rely on key order; value-exact files do not keep it.
+- To describe a file (title, producer, tables, columns, units) use the metadata section: `pack(bytes, { meta })` and `LfcPack.metadata(bytes)` (Python: `lfc_pack.metadata(path)`), footer section 6, at most 64 KB, never used for decoding.
 - Put app data you want to carry along in a section with id 1000 or more, or as an ordinary table (`packTables`). Never in a field the layouts define.
 - Name the table when a file holds more than one kind of row.
 - To share a file with an app that supports less, write rows as plain flat objects (smaller reader needed) or give the receiver R0 by writing byte-exact raw blocks only.
@@ -47,4 +48,4 @@ Treat every file as untrusted input.
 ## 6. Open points
 - Media type registration and `file(1)` entry (release decision).
 - A whole-file hash and per-block hash algorithm id are not written yet (`SPEC.md` 7).
-- A registry file listing application section ids 1000 and up, so two apps do not pick the same id, does not exist yet; until then use your app name inside the payload.
+- The section id registry is `SECTIONS.md`: add a row in the same change that starts using an id; no application ids are taken yet. Put your app name inside the payload as well.
