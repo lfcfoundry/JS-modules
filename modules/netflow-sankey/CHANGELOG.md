@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.1 · API 2 · 2026-10-30
+- The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
+
 ## 2.3.0 · API 2 · 2026-10-18
 - Small and medium flow charts lay out up to 1.9 times faster in Chromium and Firefox with WebAssembly, same pictures; the two WebKit browsers are about even. The wasm compiles in the background at load. Needs 'wasm-unsafe-eval'.
 
