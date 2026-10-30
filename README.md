@@ -225,7 +225,7 @@ Create, clean, import and save stories in one shared file format.
 | [story-diff](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-diff/README.md) | 1.0.0 | 6.1 | 2.0 | Says in plain words what one edit did to a story. | — |
 | [story-format](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-format/README.md) | 2.0.0 | 49.4 | 14.0 | Create, clean, search, import and export interactive stories as JSON, with a schema. | — |
 | [story-outline](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-outline/README.md) | 1.0.0 | 25.7 | 7.9 | Turns an indented outline into pages and choices, or a whole branching story. | — |
-| [twine-import](https://github.com/lfcfoundry/story-editor/blob/main/packages/twine-import/README.md) | 1.0.0 | 93.4 | 25.0 | Reads Twine stories (Twine 2 HTML, Twee 3, Twine 1) and turns their code into rules. | — |
+| [twine-import](https://github.com/lfcfoundry/story-editor/blob/main/packages/twine-import/README.md) | 1.0.1 | 93.8 | 25.1 | Reads Twine stories (Twine 2 HTML, Twee 3, Twine 1) and turns their code into rules. | — |
 
 #### Story validation
 
@@ -233,7 +233,7 @@ Find dead ends and endings nobody can reach before a reader does.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [story-check](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md) | 1.0.0 | 72.0 | 20.0 | Exact checker for branching stories: dead ends and endings no player can reach. | — |
+| [story-check](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-check/README.md) | 1.0.0 | 73.9 | 20.5 | Exact checker for branching stories: dead ends and endings no player can reach. | — |
 
 #### Story flow
 
@@ -241,7 +241,7 @@ See a story's shape: maps of its pages and simulated readers.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [story-map](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md) | 1.0.0 | 60.0 | 17.8 | Layered, arc and matrix drawings of a story graph, plus simulated players. | — |
+| [story-map](https://github.com/lfcfoundry/story-editor/blob/main/packages/story-map/README.md) | 1.0.0 | 61.0 | 18.1 | Layered, arc and matrix drawings of a story graph, plus simulated players. | — |
 
 #### Story build and distribute
 
@@ -266,7 +266,7 @@ Run tests on stock Firefox, generate random stories and keep two implementations
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [contract-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/contract-kit/README.md) | 1.1.0 | 16.3 | 5.7 | Keeps two implementations of one rule set in step: random inputs, side-by-side comparison. | — |
-| [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md) | 0.2.1 | 93.1 | 30.3 | Tiered test runner and Playwright-style API for stock Firefox, plus a random-story generator. | — |
+| [qa-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/qa-kit/README.md) | 0.2.1 | 93.4 | 30.5 | Tiered test runner and Playwright-style API for stock Firefox, plus a random-story generator. | — |
 
 ### AI knowledge base (1)
 
@@ -276,7 +276,7 @@ A written process for a person and an AI assistant building software together.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [ai-collab-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md) | — | 13.8 | 6.3 | A written process and templates for a person and an AI assistant building software together. | — |
+| [ai-collab-kit](https://github.com/lfcfoundry/story-editor/blob/main/packages/ai-collab-kit/README.md) | — | 13.9 | 6.3 | A written process and templates for a person and an AI assistant building software together. | — |
 <!-- tables:end -->
 
 ## How to use a module
