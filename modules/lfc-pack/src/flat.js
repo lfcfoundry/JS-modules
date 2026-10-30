@@ -460,5 +460,17 @@
       return out;
     }
     function readBlock(bytes, want) { return assemble(flatFrames(zs, bytes, want, false), want); }
-    return { readBlock: readBlock, assemble: assemble };
+    // typed-columns read (no row objects): { n, keys, cols: { key: values }, present: { key: Uint8Array bit plane or null when every row has it } }; a key missing from some rows has values only for the rows that carry it, in row order
+    function columns(F, want) {
+      var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, pb = (n + 7) >> 3, cols = {}, present = {}, j, v;
+      if (F.ordList) throw new Error('LfcPack: columns read needs a block without key-order lists');
+      for (j = 0; j < K; j++) {
+        if (want && !want[meta.keys[j]]) continue;
+        v = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr);
+        if (!v) continue;
+        cols[meta.keys[j]] = v; present[meta.keys[j]] = v.length === n ? null : pl.subarray(j * pb, (j + 1) * pb);
+      }
+      return { n: n, keys: Object.keys(cols), cols: cols, present: present };
+    }
+    return { readBlock: readBlock, assemble: assemble, columns: columns, columnsOf: function (bytes, want) { return columns(flatFrames(zs, bytes, want, false), want); } };
   }
