@@ -18,6 +18,11 @@ const CASES={
  'nested-sparse-wide': [L(Array.from({length:300},(_,i)=>({k:'s'+(i%7),n:i*1.5,t:i%2===0,o:{z:'q'+(i%300)}}))),{block:'nested'}],
  'nested-intkeys': [L([{b:'x','1':'y'},{b:'z','1':'w'}]),{block:'nested'}],
  'nested-number-widths': [L([{u8:200,u16:60000,u32:4e9,i8:-100,i16:-30000,i32:-2e9,f:1.5,z:-0,n:{x:[1,2]}},{u8:0,u16:1,u32:70000,i8:127,i16:32767,i32:2147483647,f:-2,z:0,n:{x:[3]}},{u8:7,u16:300,u32:5,i8:-128,i16:-1,i32:-2147483648,f:1e300,z:0,n:{x:[]}}]),{block:'nested'}],
+ 'flat-wide-dict': [L(Array.from({length:1400},(_,i)=>({k:'label-'+(i*7%300),n:-(i*37%2000)/100,m:((i*53)%999)-500}))),{block:'flat'}],
+ 'flat-negatives': [L([{a:-5,b:-0.25,c:3},{a:-1,b:100.5,c:-9007199254740},{a:-300,b:0,c:2}]),{block:'flat'}],
+ 'flat-surrogates': [L([{s:'\ud800 lone',t:'ok'},{s:'x',t:'\udc00'},{s:'a\u0000b',t:'y'}]),{block:'flat'}],
+ 'nested-surrogates': [L([{s:'\ud800 lone',t:{u:'ok'}},{s:'x',t:{u:'\udc00'}},{s:'a\u0000b',t:{u:'y'}}]),{block:'nested'}],
+ 'nested-astral-key': [L([{'\ud83d\ude00':1,'é':2,'k':'v'},{'\ud83d\ude00':3,'é':4,'k':'w'}]),{block:'nested'}],
  'multi-block': [L(Array.from({length:30},(_,i)=>({i,s:'r'+i}))),{block:'flat',blockBytes:200}],
 };
 for(const k in CASES){const [src,o]=CASES[k]; fs.writeFileSync(out+'/'+k+'.ndjson',src);}
@@ -26,4 +31,9 @@ for(const k in CASES){const [src,o]=CASES[k]; fs.writeFileSync(out+'/'+k+'.ndjso
   const want=src.split('\n').filter(Boolean).map(l=>JSON.parse(l));
   try{require('assert').deepStrictEqual(JF.unpack(f),want);console.log('js ok',k,f.length);}catch(e){console.log('JS MISMATCH',k,e.message.slice(0,200));}
   if(o.exact){const g=JF.pack(Buffer.from(src),Object.assign({},o)); }
- }})();
+ }
+ // several tables and a plain value in one file (header "tables", block table index): tables.json.lfc and tables.expected.json
+ const tb={people:[{id:1,n:'a'},{id:2,n:'b'}],cfg:{v:[1,2,{x:null}]},logs:[{t:1,m:'GET /1'},{t:2,m:'GET /2'}]};
+ fs.writeFileSync(out+'/tables.json.lfc',JF.packTables(tb)); fs.writeFileSync(out+'/tables.expected.json',JSON.stringify(tb));
+ require('assert').deepStrictEqual(JF.unpackTables(fs.readFileSync(out+'/tables.json.lfc')),tb); console.log('js ok tables');
+})();
