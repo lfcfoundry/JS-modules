@@ -9,6 +9,7 @@ T.main(async (b, which, outFile) => {
   const p = await b.newPage(); await p.goto(srv.base + '/page.html');
   if (!(await p.evaluate(() => GraphWalk.ready()))) { console.log('FAIL WebAssembly did not start in this browser'); return false; }
   const cores = await p.evaluate(() => navigator.hardwareConcurrency); console.log('cores reported: ' + cores);
+  await p.evaluate((st) => { window.SETTLE = st; }, +(process.env.SETTLE || 0));
   await p.evaluate(() => {
     let seed = 9; const rnd = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
     window.setup = (n, m) => {
@@ -21,10 +22,10 @@ T.main(async (b, which, outFile) => {
       'perCall-js': () => { GraphWalk.setBackend('js'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: false }); }, 'perCall-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: false }); },
       'kept-js': () => { GraphWalk.setBackend('js'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: true }); }, 'kept-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: true }); } };
     window.check = async () => { const a = await runs['sync-js'](), res = {}; for (const k of Object.keys(runs)) { const c = await runs[k](); res[k] = c.length === a.length && a.every((v, i) => Math.abs(v - c[i]) < 1e-9); } return res; };
-    window.time = async (k, calls) => { GraphWalk.closePool(); const t0 = performance.now(); for (let i = 0; i < calls; i++) await runs[k](); const dt = (performance.now() - t0) / calls; return dt; };
+    window.time = async (k, calls) => { GraphWalk.closePool(); await new Promise((r) => setTimeout(r, +(window.SETTLE || 0))); const t0 = performance.now(); for (let i = 0; i < calls; i++) await runs[k](); const dt = (performance.now() - t0) / calls; return dt; };
   });
   const rows = [], answers = [];
-  for (const [n, m] of [[500, 2000], [1000, 4000], [2000, 8000]]) {
+  for (const [n, m] of (process.env.SIZES ? JSON.parse(process.env.SIZES) : [[500, 2000], [1000, 4000], [2000, 8000]])) {
     await p.evaluate((a, c) => setup(a, c), n, m); answers.push(n + ' items, ' + m + ' links: ' + JSON.stringify(await p.evaluate(() => check())));
     const names = ['sync-js', 'sync-wasm', 'workers2-wasm', 'perCall-js', 'perCall-wasm', 'kept-js', 'kept-wasm'];
     for (const calls of [1, 3]) {
