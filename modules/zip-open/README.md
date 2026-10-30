@@ -1,6 +1,6 @@
 # zip-open
 
-**Version 1.3.1 · API 1**
+**Version 1.4.0 · API 1**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -38,6 +38,14 @@ Every limit is counted on the bytes that really come out, not on what the zip sa
 - Wrong checksums, cut-off data, sizes that lie, a count of files that lies, offsets that point nowhere, password-protected entries and unusual compression methods are skipped with a note, not thrown.
 - Names such as `__proto__` cannot reach an object's inner workings; macOS and editor junk (`__MACOSX`, `.DS_Store`, `.git`) is ignored.
 - XML is read by a small scanner that does not load outside files or expand entities beyond the basic five.
+
+## Big files: open a File in pieces, unpack side by side (since 1.4.0)
+```js
+var r = await ZipOpen.expandBlob(file, file.name);                      // file: a File or Blob; same answer and notes as expand(), but only the end of the file, the directory and the entry being unpacked are read
+var r = await ZipOpen.expandBlob(file, file.name, { workers: 4 });      // entries of 2 MB or more unpack in 4 Web Workers at once; ZipOpen.warm(4) starts them early; ZipOpen.closeHelpers() stops them
+var toc = await ZipOpen.listBlob(file); var got = await ZipOpen.readBlob(file, toc.entries[0], 5e6);
+```
+Same limits, same notes, same checksum checks as `expand`; the checksum is worked out while the bytes arrive. Helpers are off unless you ask (`workers`), and they help only when a zip holds several big entries: measured on 5 entries of 16 MB, 4 helpers took 400 / 429 / 478 ms against 784 / 530 / 835 ms in memory (Firefox 158 / Chromium 155 / WebKitGTK 2.52.6; lower is better). Tiny entries and a single entry gain nothing (about 20% slower with helpers), so small ones are never sent. Details: `tests/zip-open-stream-browser.html`.
 
 ## WebAssembly checksum (since 1.2.0)
 
