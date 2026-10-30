@@ -47,10 +47,11 @@ Payloads that are JSON are UTF-8 text.
 | 2 block table | required | JSON array, one entry per block: `[offset, length, crc32, rows, kind, tableIndex]` |
 | 5 zone maps | optional | JSON array, one entry per block: a list of `[hash, min, max, count]` per number column (hash is FNV-1a of `"." + key`, as the reference code computes it); a block whose range for a key does not meet a query range can be skipped |
 | 12 feature flags | required | JSON `{exact: bool, tail: bool}`. `tail: false` means the last line had no final newline. |
+| 6 metadata | optional | JSON `{v: 1, ...}` an app chose to carry with the file (title, producer, tables and columns, anything else); at most 64 KB; readers MUST NOT use it for decoding. See `PROPOSAL-metadata-section.md`. |
 | 9 raw-line store | required when present | byte-exact files only: u32 `hl`, `hl` bytes of JSON `{blockIndex: [[row, byteLength], ...]}`, then the raw bytes of those rows in the same order. Those rows are returned verbatim instead of re-serialized. |
 | 15 number spellings | required when present | byte-exact files only: JSON `{blockIndex: [[row, [[tokenIndex, text], ...]], ...]}`; the row is the canonical text with the listed number tokens (left to right, outside strings) replaced by `text` |
 
-Ids 3, 4, 6, 7, 10, 11, 14 are reserved for the index, Bloom filter, metadata, record-type map and file hash described in the design notes; a reader MUST accept and ignore them.
+Ids 3, 4, 7, 10, 11, 14 are reserved for the index, Bloom filter, record-type map and file hash described in the design notes; a reader MUST accept and ignore them.
 
 ### 2.4 Block table entry
 `offset` and `length` locate the block bytes from the start of the file (`offset + length` MUST NOT pass the end of the last block, the start of the footer). `crc32` is the CRC-32 of those bytes and MUST be checked before use. `rows` is the row count. `kind` is one character: `f` flat block, `n` nested block, `r` raw block. `tableIndex` (default 0) names the table in the header.
