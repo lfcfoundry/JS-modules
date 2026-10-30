@@ -65,7 +65,7 @@ It does a different job from the usual tools: it keeps a short note on the playe
 
 ## See it in action
 
-Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/play/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## Prior art and credits
 - [web-vitals](https://github.com/GoogleChrome/web-vitals) (Apache-2.0, 6.2.3): read as prior art for measuring interaction and page-load metrics. Not used and nothing taken. Use it when you want field metrics in your own analytics.

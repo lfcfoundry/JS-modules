@@ -75,7 +75,7 @@ Measures frame rate only, not memory or battery. You decide what each level mean
 
 ## See it in action
 
-Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/), [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/), [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## Prior art and credits
 - [drei PerformanceMonitor](https://drei.docs.pmnd.rs/performances/performance-monitor) (MIT, React Three Fiber only): read as prior art for measuring in short windows and setting limits relative to the display's refresh rate. Idea only, no code.
