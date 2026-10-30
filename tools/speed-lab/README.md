@@ -42,6 +42,14 @@ SpeedLab.panel({
 - Results vary run to run (heat, other apps); the heat step is there to show it. Run it twice before trusting a small difference.
 - The scene must be on the page and in the document flow so it can be scrolled into view.
 
+## How it compares
+
+| Alternative | What it does | Why it does not fit this job |
+|---|---|---|
+| Chrome DevTools, Lighthouse | Profile and audit a page | Need a computer attached; report in programmer terms |
+| stats.js and similar overlays | Show frames a second | Do not switch parts off or say which part costs frames |
+| **speed-lab** | Runs the same scene with parts switched off, on the phone itself, and answers in a plain sentence | Measures one scene at a time; not a general profiler |
+
 ## Prior art and credits
 - FPS meters such as [fps-m](https://www.npmjs.com/package/fps-m) (BSD-3-Clause, 1.1.3, 10.9 KB unpacked, "efficient and accurate FPS meter, with minimalistic UI") show a live number while you play; they do not run a comparison or give an answer.
 - Browser benchmarks such as MotionMark rate the browser on fixed scenes, not your page with parts switched off.

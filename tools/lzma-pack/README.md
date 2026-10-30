@@ -86,6 +86,10 @@ What is specific here: one HTML file, compressed bytes stored raw (the `windows-
 - **Character set after unpacking (reasoned, not tested).** In `bytes` mode the window stays windows-1252 after `document.write`; if your game builds URLs with non-ASCII text in the query string, test the packed copy once.
 - **A wait of about 30 ms** before unpacking lets the browser paint "Opening..." first; painting is up to the browser, not guaranteed.
 
+## See it in action
+
+The build steps of [Story Editor](https://lfcfoundry.github.io/story-editor/play/), [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/), [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/) and Netflow Map (not public yet) call the LZMA packer. Checked in each repository's main branch on 2026.10.30.
+
 ## For AI agents
 
 - `js_escape` only escapes NUL, CR, LF, quote, backslash and a `<` followed by `/` or `!`. If you change the wrapper, keep the payload in its own `<script>` so a minifier cannot fold it into the loader.
