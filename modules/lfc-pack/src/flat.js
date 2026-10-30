@@ -417,6 +417,7 @@
     }
     return { t: 'f', n: n, meta: meta, pl: pl, ordList: ordList, ordIds: ordIds, cols: cols };
   }
+  flatFrames = guard(flatFrames);
   function flatTransfer(F) {
     var t = [F.pl.buffer], i, c, q; if (F.ordIds) t.push(F.ordIds.buffer);
     for (i = 0; i < F.cols.length; i++) { c = F.cols[i]; if (!c) continue; if (c.pre) t.push(c.pre.buffer); else for (q = 0; q < c.fr.length; q++) t.push(c.fr[q].buffer); }
@@ -459,6 +460,7 @@
       }
       return out;
     }
+    assemble = guard(assemble);
     function readBlock(bytes, want) { return assemble(flatFrames(zs, bytes, want, false), want); }
     // typed-columns read (no row objects): { n, keys, cols: { key: values }, present: { key: Uint8Array bit plane or null when every row has it } }; a key missing from some rows has values only for the rows that carry it, in row order
     function columns(F, want) {

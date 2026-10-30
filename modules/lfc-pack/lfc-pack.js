@@ -49,6 +49,13 @@
     for (; p < len; p++) c = T[(c ^ b[p]) & 255] ^ (c >>> 8);
     return ~c >>> 0;
   }
+  // a block whose tables are damaged but whose checksum is right (or a bug) must give one plain error, not a stray TypeError
+  function guard(fn) {
+    return function () {
+      try { return fn.apply(this, arguments); }
+      catch (e) { var m = e && e.message; if (typeof m === 'string' && /^(zstd|LfcPack|damaged|not an LFC|block |footer)/.test(m)) throw e; throw new Error('damaged block: ' + m); }
+    };
+  }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ WebAssembly modules (built from wasm/*.c by wasm/build.sh and wasm/build-core.sh; embedded by wasm/embed.py)
@@ -265,6 +272,7 @@
     cols.push([CODES_KEY, ck, NC, new Uint8Array(codes.buffer)]);
     return { t: 'n', n: h.n, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
   }
+  nestedFrames = guard(nestedFrames);
   function nestedTransfer(F) { var t = [F.dict.buffer, F.ids[2].buffer], i; for (i = 0; i < F.cols.length; i++) t.push(F.cols[i][3].buffer); return t; }
   function makeNestedReader(zs) {
     var STRS = null, TI = 0, COLS = new Map(), PLAN = new Map();
@@ -318,6 +326,7 @@
       for (i = 0; i < b.n; i++) out[i] = build(fnById[ids[i]]);
       return out;
     }
+    openBlock = guard(openBlock); rowsOf = guard(rowsOf);
     return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes) { return rowsOf(openBlock(nestedFrames(zs, bytes))); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
@@ -739,6 +748,7 @@
     }
     return { t: 'f', n: n, meta: meta, pl: pl, ordList: ordList, ordIds: ordIds, cols: cols };
   }
+  flatFrames = guard(flatFrames);
   function flatTransfer(F) {
     var t = [F.pl.buffer], i, c, q; if (F.ordIds) t.push(F.ordIds.buffer);
     for (i = 0; i < F.cols.length; i++) { c = F.cols[i]; if (!c) continue; if (c.pre) t.push(c.pre.buffer); else for (q = 0; q < c.fr.length; q++) t.push(c.fr[q].buffer); }
@@ -781,6 +791,7 @@
       }
       return out;
     }
+    assemble = guard(assemble);
     function readBlock(bytes, want) { return assemble(flatFrames(zs, bytes, want, false), want); }
     // typed-columns read (no row objects): { n, keys, cols: { key: values }, present: { key: Uint8Array bit plane or null when every row has it } }; a key missing from some rows has values only for the rows that carry it, in row order
     function columns(F, want) {
