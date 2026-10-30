@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.1.10 (API 0)
+ * Version 0.1.11 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1062,7 +1062,47 @@
     return out;
   }
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
-  var api = { unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.10', apiVersion: 0 };
+  // ---- streaming pack: packStream({ blockBytes }) -> { push(bytes) -> [Uint8Array blocks ready to write], finish() -> [last blocks + footer] }. The output parts joined are the same bytes pack() gives for the same text and blockBytes; only one block of text is held at a time. Value-exact mode only.
+  function packStream(opts) {
+    opts = opts || {}; need(true);
+    if (opts.exact) throw new Error('LfcPack: packStream does not support exact mode yet');
+    var bb = opts.blockBytes || BLOCK_BYTES, buf = new Uint8Array(0), blocks = [], zone = [], off = 0, rows = 0, tail = true, done = false;
+    function cut(chunk) {   // one chunk of whole lines -> its block bytes, with the table entries moved to this file's offsets
+      var mini = pack(chunk, opts), f = openFile(mini), out = [], i, b, e;
+      for (i = 0; i < f.blocks.length; i++) {
+        b = f.blocks[i]; e = mini.subarray(b[0], b[0] + b[1]);
+        blocks.push([off, b[1], b[2], b[3], b[4], 0]); zone.push(f.zone[i] || []); off += b[1]; rows += b[3]; out.push(e);
+      }
+      return out;
+    }
+    function take(final) {
+      var out = [], e, nl;
+      while (buf.length) {
+        if (buf.length > bb && (nl = buf.indexOf(10, bb)) >= 0) e = nl + 1; else if (final) e = buf.length; else break;
+        out = out.concat(cut(buf.subarray(0, e))); buf = buf.subarray(e);
+      }
+      return out;
+    }
+    return {
+      push: function (bytes) {
+        if (done) throw new Error('LfcPack: packStream is finished');
+        bytes = bytesOf(bytes); if (!bytes.length) return [];
+        var nb = new Uint8Array(buf.length + bytes.length); nb.set(buf); nb.set(bytes, buf.length); buf = nb; tail = bytes[bytes.length - 1] === 10;
+        return take(false);
+      },
+      finish: function () {
+        if (done) throw new Error('LfcPack: packStream is finished');
+        done = true; var out = take(true);
+        out.push(writeFooter(S.zfull, [
+          { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
+          { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
+          { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
+          { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }], true));
+        return out;
+      }
+    };
+  }
+  var api = { unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, packStream: packStream, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.11', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
