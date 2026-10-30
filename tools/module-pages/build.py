@@ -107,7 +107,9 @@ def module_html(m, base_mods):
             used.add(t)
             if t != title and len(ts) > 1 or t not in (title, 'Why it exists', 'Use', 'Quick start', 'How it compares', 'See it in action'): body.append('<h3>%s</h3>' % esc(t))
             body.append(md(secs[t], folder))
-    body.append('<h2 id="numbers">Speed and efficiency numbers</h2><div class="ph"><p><strong>Placeholder.</strong> Measured speed, size and memory numbers for this module will appear here as they are collected. Each will name the browser and device it was measured on. Until then, only the numbers already in the comparison above are published.</p></div>')
+    nf = os.path.join(root, 'tools/module-pages/numbers', mid + '.md')
+    if os.path.exists(nf): body.append('<h2 id="numbers">Speed and efficiency numbers</h2>' + md(open(nf, encoding='utf-8').read(), folder))
+    else: body.append('<h2 id="numbers">Speed and efficiency numbers</h2><div class="ph"><p><strong>Placeholder.</strong> Measured speed, size and memory numbers for this module will appear here as they are collected. Each will name the browser and device it was measured on. Until then, only the numbers already in the comparison above are published.</p></div>')
     rest = [t for t in order if t not in used and t not in ('For AI agents', 'Prior art and credits', 'Full research notes')]
     if rest:
         body.append('<h2 id="more">More</h2>')
