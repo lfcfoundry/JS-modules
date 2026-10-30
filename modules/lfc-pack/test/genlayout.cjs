@@ -28,6 +28,7 @@ const CASES={
 for(const k in CASES){const [src,o]=CASES[k]; fs.writeFileSync(out+'/'+k+'.ndjson',src);}
 (async()=>{await JF.init();
  for(const k in CASES){const [src,o]=CASES[k]; const f=JF.pack(Buffer.from(src),o); fs.writeFileSync(out+'/'+k+'.json.lfc',f);
+  if(!o.exact){const x=JF.pack(Buffer.from(src),Object.assign({},o,{exact:true}));fs.writeFileSync(out+'/'+k+'.x.json.lfc',x); if(!Buffer.from(JF.unpackText(x)).equals(Buffer.from(src))) console.log('BYTE-EXACT MISMATCH',k);}
   const want=src.split('\n').filter(Boolean).map(l=>JSON.parse(l));
   try{require('assert').deepStrictEqual(JF.unpack(f),want);console.log('js ok',k,f.length);}catch(e){console.log('JS MISMATCH',k,e.message.slice(0,200));}
   if(o.exact){const g=JF.pack(Buffer.from(src),Object.assign({},o)); }

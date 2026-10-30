@@ -14,7 +14,7 @@ An app states which level it supports. A reader of a level MUST refuse (not gues
 
 | Level | Reads | Needs |
 |---|---|---|
-| R0 | container, footer, raw blocks (`r`), byte-exact files made of raw blocks | `SPEC.md` + a zstd decoder |
+| R0 | container, footer, raw blocks (`r`), byte-exact files made of raw blocks (the `tail` flag is not needed: a raw block's text already ends, or not, with LF) | `SPEC.md` + a zstd decoder |
 | R1 | R0 plus flat blocks (`f`) | `LAYOUT-SPEC.md` sections 1 and 2 |
 | R2 | R1 plus nested blocks (`n`) | `LAYOUT-SPEC.md` section 3 |
 | R3 | R2 plus footer sections 5 (zone maps), 9 (raw lines), 15 (number spellings): range skips and byte-exact output | `SPEC.md` 2.3, `LAYOUT-SPEC.md` 4 |
@@ -37,7 +37,7 @@ The reference readers are `lfc-pack.js` (R3), `python/lfc_pack.py` (R3) and the 
 
 ## 5. Safety for readers
 Treat every file as untrusted input.
-1. Cap sizes before allocating: the footer, section payloads, block table, every frame's declared raw length, and the sum of declared sizes. A frame that declares gigabytes is refused, not allocated.
+1. Cap sizes before allocating: the footer, section payloads, block table, every frame's declared raw length, and the sum of declared sizes. A frame that declares gigabytes is refused, not allocated. Suggested caps for a general-purpose reader (an app that expects bigger files raises them): footer 64 MB, section payload 256 MB, 1,048,576 blocks, one frame 1 GiB, all frames of one file 4 GiB. A reader SHOULD accept at least 128 levels of nesting in rows (the reference writer sends rows nested 100 levels or deeper to shape `5`) and MAY refuse deeper.
 2. Check every offset and length against the file size; blocks must lie between 0 and the footer start and not overlap the footer.
 3. Check CRCs (block and footer) before trusting content. CRC-32 finds damage, not tampering: for authenticity use a signature outside the format.
 4. Check every decoded frame size against the declared one; check column counts against the row count; check dictionary and template numbers against their tables; refuse bit widths above 24.
