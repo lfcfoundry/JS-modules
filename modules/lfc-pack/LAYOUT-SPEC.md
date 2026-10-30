@@ -1,6 +1,6 @@
 # LFC-pack block layouts, format 1.0 (draft), part 2
 
-Status: draft. File formats are not frozen until a formal release. This is part 2 of the container spec in `SPEC.md`: the bytes inside the flat block (`f`) and the nested block (`n`). The raw block (`r`) is in `SPEC.md` section 4. It describes what `src/flat.js`, `src/nested.js`, `src/shred.js` and `python/lfc_pack.py` read and write today (lfc-pack 0.1.9). MUST, SHOULD and MAY are used in the usual sense. American English. All integers are little-endian.
+Status: draft. File formats are not frozen until a formal release. This is part 2 of the container spec in `SPEC.md`: the bytes inside the flat block (`f`) and the nested block (`n`). The raw block (`r`) is in `SPEC.md` section 4. It describes what `src/flat.js`, `src/nested.js`, `src/shred.js` and `python/lfc_pack.py` read and write today (lfc-pack 0.1.9 to 0.1.11; no layout changed in between). MUST, SHOULD and MAY are used in the usual sense. American English. All integers are little-endian.
 
 How this text was checked: `test/layoutcheck.py` was written from this text alone. It walks every block in `vectors/*.json.lfc` and `vectors/layout/*.json.lfc`, decodes every frame, and fails if a frame is missing, out of order, the wrong size, has no content size, or if any byte of a block is left over. Both readers (JavaScript and Python) also decode every file in `vectors/layout/`. Section 8 lists what the check found.
 
@@ -212,9 +212,9 @@ Header: `{"k":"n","n":4,"count":4,"fa":[1,10,0,4,13,7],"len":[7,32,125],"p":[16,
 
 ## 9. What the check found (for the code owner)
 1. **No default vector reads a nested block.** All eight vectors in `vectors/` are flat blocks (the one called `nested` is a flat block with JSON-text columns), and no flat column type except `B V F s j A` and none of the key-order lists is used. `vectors/layout/` closes this. `layoutcheck.py` prints a coverage line; with both folders every column type, all seven nested widths and the key-order lists are covered.
-2. **`SPEC.md` 2.3 zone entry is short by one number** (count). Fixed in section 4 above; `SPEC.md` should be changed to match.
+2. **`SPEC.md` 2.3 zone entry was short by one number** (count). `SPEC.md` now matches section 4 above.
 3. **The log-template choice depends on a timing check**, so `--update` on a larger vector can change bytes between runs. The eight small vectors are safe (columns under 16 rows never use it). `genlayout.cjs` uses `templates: true`.
 4. **Skeleton key order is a hidden rule** (3.2). It works today because the writer already puts index-like keys first. It needs a vector (supplied) so a second writer cannot break JavaScript readers by accident.
-5. **Header `writer` text** reads `lfc-pack 0.1.5` (or `0.1.1` for several tables) although the module is 0.1.9; harmless, but a reader cannot tell the real writer version.
+5. **Header `writer` text** reads `lfc-pack 0.1.5` (or `0.1.1` for several tables) although the module is 0.1.11; harmless, but a reader cannot tell the real writer version.
 7. **Go reader report** (`lfc-pack-reader/RESULTS.md`) listed six gaps; this text covers them: path-hash grammar (3.3), the nested header tuples `cm p ids fa len` with named fields and sizes (3.1), bit-pack width limit (1.2: 24; the Go and Python windows are wide enough, the JavaScript writer cannot exceed it, checked in `bitpack` of `src/flat.js`, which assembles a value from at most 4 bytes), text columns as valid UTF-8 (2.5), footer byte 0 and short block-table entries (5.6). The sixth, block CRC, is in 5.6.
 8. **Dictionary decoding** is Latin-1 in JavaScript and ASCII in Python. Equal for valid files; a damaged file with bytes above 127 in the dictionary is read differently. The spec makes dictionary text ASCII-only so a strict reader may reject it.

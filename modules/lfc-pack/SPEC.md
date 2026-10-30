@@ -67,7 +67,7 @@ Ids 3, 4, 7, 10, 11, 14 are reserved for the index, Bloom filter, record-type ma
 `u32 n` (length of the original text) followed by one zstd frame holding that text. The text is whole lines separated by LF; a row is a non-blank line; the row count in the table is the number of LF-terminated lines plus one for an unterminated last line. Writers use it in byte-exact mode for text that is not plain rows (CRLF, blank lines, invalid UTF-8). A raw block can be decoded by any zstd library.
 
 ## 5. Conformance
-`vectors/` holds eight small sources (`NAME.ndjson`), their value-exact files (`NAME.json.lfc`) and their byte-exact files (`NAME.x.json.lfc`). A reader passes when:
+`vectors/` holds eight small sources (`NAME.ndjson`), their value-exact files (`NAME.json.lfc`) and their byte-exact files (`NAME.x.json.lfc`). They are all flat blocks; `vectors/layout/` adds files that use the nested block and every flat column type (see `LAYOUT-SPEC.md` 7; `node test/genlayout.cjs` writes them, `python3 test/layoutcheck.py` checks the byte layout, `python3 test/pylayout.py` runs the Python reader). A reader passes when:
 - every `NAME.json.lfc` decodes to the rows of `json.loads` over the `.ndjson` lines (numbers compared as doubles),
 - every `NAME.x.json.lfc` returns the `.ndjson` bytes exactly.
 
