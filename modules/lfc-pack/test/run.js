@@ -15,6 +15,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   fs.writeFileSync(path.join(dir, 'canonical.src'), canonicalText);
   step('round trips (auto, nested, flat)', 'node', ['roundtrip.cjs']);
   step('metadata section', 'node', ['meta.cjs']);
+  step('xxh64 block checks', 'node', ['xxh.cjs']);
   step('byte-exact switch', 'node', ['exact.cjs']);
   step('key and range reads', 'node', ['query.cjs']);
   step('helper workers', 'node', ['pool.cjs']);
