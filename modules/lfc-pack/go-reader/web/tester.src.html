@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LFC-pack Go reader tester</title>
+<style>
+body{font:16px/1.4 system-ui,sans-serif;margin:0 auto;max-width:56rem;padding:1rem 16px;background:#fff;color:#111}
+@media (prefers-color-scheme:dark){body{background:#151515;color:#eee}}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #8884;padding:.3rem .5rem;text-align:left}
+.ok{color:#198754}.bad{color:#d33;font-weight:700}.mono{font-family:ui-monospace,monospace;font-size:.9em}
+</style>
+<h1>LFC-pack Go reader tester</h1>
+<p>Runs the Go reader (WebAssembly) on the conformance vectors and checks it against the expected rows, the original bytes and the JavaScript reader. Pick your own <span class="mono">.json.lfc</span> files to compare them the same way. Nothing leaves this page.</p>
+<p><input id="pick" type="file" multiple accept=".lfc"> <span id="status">Starting...</span></p>
+<table id="t"><thead><tr><th>File</th><th>Rows vs source</th><th>Bytes vs source (.x)</th><th>Go vs JS reader</th></tr></thead><tbody></tbody></table>
+<p id="sum"></p>
+<script>var T0=performance.now()</script>
+<script src="../../lfc-pack.js"></script>
+<script>var T1=performance.now()</script>
+<script src="lfcp-go.js"></script>
+<script>var T2=performance.now()</script>
+<script>
+(async function () {
+  var VECTORS = /*@@VECTORS@@*/;
+  var td = new TextDecoder(), te = new TextEncoder(), tb = document.querySelector('#t tbody'), st = document.getElementById('status');
+  var fails = 0, runs = 0, res = { vectors: [], initMs: 0 };
+  function b64(s) { var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+  function lines(u) { return td.decode(u).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.stringify(JSON.parse(l)); }); }
+  function same(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
+  function cell(tr, v) { var c = tr.insertCell(); c.textContent = v === null ? 'n/a' : v ? 'pass' : 'FAIL'; c.className = v === null ? '' : v ? 'ok' : 'bad'; if (v === false) fails++; if (v !== null) runs++; return v; }
+  function run(name, bytes, src, exact) {
+    var tr = tb.insertRow(), r = { name: name }; tr.insertCell().textContent = name;
+    try {
+      var goRows = LfcpGo.rows(bytes), goText = LfcpGo.text(bytes), jsT = LfcPack.unpackText(bytes);
+      if (typeof jsT === 'string') jsT = te.encode(jsT);
+      r.rows = src ? cell(tr, same(lines(goRows), lines(src))) : cell(tr, null);
+      r.bytes = src && exact ? cell(tr, same(Array.from(goText), Array.from(src))) : cell(tr, null);
+      r.js = cell(tr, same(Array.from(goText), Array.from(jsT)));
+    } catch (e) { var c = tr.insertCell(); c.colSpan = 3; c.className = 'bad'; c.textContent = String(e.message || e); fails++; r.error = String(e.message || e); }
+    res.vectors.push(r);
+  }
+  try {
+    var t0 = performance.now(); await LfcPack.init(); var t1 = performance.now(); await LfcpGo.init(); var t2 = performance.now();
+    res.jsInitMs = t1 - t0; res.jsLoadMs = T1 - T0; res.goLoadMs = T2 - T1; res.initMs = t2 - t1; st.textContent = 'Go reader ready in ' + res.initMs.toFixed(0) + ' ms';
+    Object.keys(VECTORS).forEach(function (n) {
+      var v = VECTORS[n], src = b64(v.src);
+      run(n + '.json.lfc', b64(v.value), src, false); run(n + '.x.json.lfc', b64(v.exact), src, true);
+    });
+  } catch (e) { st.textContent = 'Could not start: ' + (e.message || e); fails++; res.error = String(e.message || e); }
+  function done() { document.getElementById('sum').textContent = runs + ' checks, ' + fails + ' failed.'; res.checks = runs; res.fails = fails; window.__lfcpResult = res; }
+  done();
+  document.getElementById('pick').onchange = async function (ev) {
+    for (var f of ev.target.files) run(f.name, new Uint8Array(await f.arrayBuffer()), null, false);
+    done();
+  };
+})();
+</script>

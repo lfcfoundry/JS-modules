@@ -1,3 +1,5 @@
+//go:build !js
+
 // Copyright (c) 2026 LFC Foundry. MIT License.
 // lfcp-read: read an LFC-pack file (.json.lfc) and write NDJSON.
 //

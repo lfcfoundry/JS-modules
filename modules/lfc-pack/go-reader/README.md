@@ -19,3 +19,12 @@ sh stress/compare.sh ./lfcp-read /tmp/lfcp-stress      # 40 files from the JavaS
 ```
 
 Layout: `lfcp.go` (container, footer, byte-exact text, shared decoders), `flat.go` and `nested.go` (block layouts), `json.go` (order-keeping JSON parser and JavaScript-style writer).
+
+## In a web page (`web/`)
+`web/lfcp-go.js` is the same reader as a one-file JS module (Go compiled to WebAssembly, gzipped and embedded; needs only `'wasm-unsafe-eval'`, no network):
+
+```js
+await LfcpGo.init();
+LfcpGo.info(bytes); LfcpGo.rows(bytes); LfcpGo.text(bytes);   // bytes = Uint8Array of a .json.lfc file; each throws on a file it refuses
+```
+`web/tester.html` runs the 8 vectors through it and compares with the expected rows, the original bytes and the JavaScript reader (`LfcPack.unpackText`); a file picker checks your own files the same way. Both are built by `sh web/build.sh` (Go 1.25, python3; the output is identical on every rebuild). Browser check: `node web/browser-check.js chromium|firefox|webkit` (or through `tools/test-runner/cli.js all`).
