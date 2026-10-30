@@ -4,7 +4,7 @@
 
 **Version 0.1.7 · API 0**
 
-**Tested in:** not recorded.
+**Tested in:** Node tests passed (test/columns.cjs, parallel.cjs, roundtrip.cjs). tests/lfc-pack-columns-browser.js in Firefox 158.0, ungoogled-chromium 155.0.8059.39-1 and WebKitGTK 2.52.6 in a cloud container, one at a time, no noise guard; laptop run still to come
 
 Packs newline-delimited JSON (NDJSON: one JSON value per line, the shape of logs, events and API dumps) into **LFC-pack** (`.json.lfc`, magic `LFC1`): the rows are cut into blocks of about 21 MB, every field becomes its own typed column, repeated strings are stored once, and each column is compressed with zstd. A footer at the end lists the blocks and the smallest and largest number of each column, so a reader can skip blocks without opening them. Reading gives back the same row objects `JSON.parse` would, and with `exact: true` the very same bytes. **One file, no dependencies, WebAssembly required** (zstd and the tokenizer are compiled to wasm32; a page needs `'wasm-unsafe-eval'` in its policy and nothing else).
 
