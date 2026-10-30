@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.0 · API 0 · 2026-10-30
+- New: k-core numbers, minimum spanning forest, PageRank and betweenness (plain JavaScript and WebAssembly); the first two-ended path call allocates less.
+
 ## 0.3.0 · API 0 · 2026-10-30
 - New: WebAssembly speeds up components, strongly connected groups, topological order and weighted paths to every item (1.2x to 2.2x in Firefox and Chromium, none in WebKitGTK); plain JavaScript stays as the fallback.
 
