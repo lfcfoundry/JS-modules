@@ -48,7 +48,7 @@ Meta (JSON, UTF-8, decoded length `m[0]`):
   "ord":  [listRaw, listFrame, idsKind, idsRaw, idsFrame]        // optional
 }
 ```
-`cols[j]` describes `keys[j]`. `keys` are in order of first appearance in the block. `n` is the number of rows that carry the key. `f` lists the column's frames in the order they follow in the block; see 2.4.
+`cols[j]` may also carry `distinct` (a `D` column: the number of dictionary entries) or `nulls` (a `j` column: how many values are `null`). Readers MUST ignore these and any other extra keys; they are statistics for tools (`LfcPack.stats`). `cols[j]` describes `keys[j]`. `keys` are in order of first appearance in the block. `n` is the number of rows that carry the key. `f` lists the column's frames in the order they follow in the block; see 2.4.
 
 ### 2.2 Presence planes
 The decoded planes are `K` planes of `pb = ceil(n_rows / 8)` bytes each, `K = keys.length`, so the raw length is `K * pb`. Plane `j` starts at `j * pb`. Row `i` has key `j` when bit `i & 7` of byte `i >> 3` of plane `j` is 1. A key that is in every row still has a plane (all ones). Unused high bits of the last byte of a plane are 0; a reader ignores them. The `n` of a column equals the number of ones in its plane.
@@ -158,6 +158,8 @@ For row `i`: look up shape `ids[i]` and build the value by the shape: objects ge
 - Flat block: one entry per key whose column type is `V`, `B` or `F`; `hash` is the FNV-1a hash of `"." + key`; `min` and `max` are the real values (after dividing by the scale); `count` is the column's `n`.
 - Nested block: one entry per number or boolean column (not the string codes); `hash` is the column hash of 3.3, which for a top-level key `a` is the hash of `".a"`, so the same as in a flat block; `min`, `max` over the column's values (a boolean column has 0 and 1).
 - A column that is absent from a block simply has no entry; a reader that finds none MUST NOT skip the block.
+
+Row ranges need no extra section: a reader gets block `i` starting row by adding up the `rows` of blocks `0..i-1` in the block table (footer section 2) and decodes only the blocks that overlap the wanted range. `LfcPack.unpackRows(bytes, {from, count})` does this; a file with a raw block (`r`) is read whole and cut.
 
 ## 5. Reader rules, short list
 1. Check block CRC (`SPEC.md` 2.4), then cut frames in order using the header; refuse the block if bytes are left over (a reader SHOULD; the reference JavaScript reader does not check yet).
