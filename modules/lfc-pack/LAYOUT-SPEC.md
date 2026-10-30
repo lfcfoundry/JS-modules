@@ -203,7 +203,7 @@ Header: `{"k":"n","n":4,"count":4,"fa":[1,10,0,4,13,7],"len":[7,32,125],"p":[16,
 - Skeletons: `{"p":{"q":[2,{"r":1}],"u":4},"v":1}`, `{"p":{"q":[],"u":{}},"v":1}`, `{"p":{"q":[3,3,2,2],"u":1},"v":1}`, `{"p":{"q":[2],"u":1},"v":1}`. Row shape ids: `00 01 02 03`.
 - Dictionary text `s\0w\0w2\0` (`E = 4`: `s`, `w`, `w2`, and one empty placeholder). Side list `{"idx":[3],"str":["café 😀"]}`.
 - There are `N = 7` string cells: `s`, `w` | `w2` | `café 😀`, `w` | `w`, `w`. Flags byte `07`: cells 0, 1, 2 are first uses (codes 0, 1, 2). Repeats `03 01 01 01` (u8, 4 entries): cell 3 is side string 0, so code `nu + 0 = 3`; cells 4, 5, 6 repeat code 1 (`w`).
-- Column table `[[216983282,6,4,35],[689263799,0,2,11]]`: the path `.p.q[]` (hash 216983282) is an f64 column of 4 numbers (1, 1, -2.5, 1099511627776 in row order is wrong: the numbers are `1, -2.5, 1099511627776, 1`, with the two booleans in the column of `.p.q[]?`, hash 689263799, values 1 and 0).
+- Column table `[[216983282,6,4,35],[689263799,0,2,11]]`: the path `.p.q[]` (hash 216983282) is an f64 column (kind 6) of 4 numbers, in walk order `1, -2.5, 1099511627776, 1`; the path `.p.q[]?` (hash 689263799) is a u8 column of 2 booleans, `1, 0`.
 
 ## 9. What the check found (for the code owner)
 1. **No default vector reads a nested block.** All eight vectors in `vectors/` are flat blocks (the one called `nested` is a flat block with JSON-text columns), and no flat column type except `B V F s j A` and none of the key-order lists is used. `vectors/layout/` closes this. `layoutcheck.py` prints a coverage line; with both folders every column type, all seven nested widths and the key-order lists are covered.
