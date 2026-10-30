@@ -179,13 +179,8 @@
     if (!blocks) throw new Error('damaged file: block table missing');
     return { bytes: bytes, footer: f, blocks: blocks, header: jsonSec(f.sec[SEC_HEADER]), zone: jsonSec(f.sec[SEC_ZONE]), meta: jsonSec(f.sec[SEC_META]) };
   }
-  // block checksum: the CRC-32 loop in the core WebAssembly module (slicing by 8) when it is loaded, in pieces that fit its input buffer; the plain JavaScript loop otherwise or for small blocks
-  function crcOf(x) {
-    if (!S.core || x.length < 4096) return crcJS(x, 0);
-    var X = S.core.exports, p = X.in_ptr(), o, n, c = 0;
-    for (o = 0; o < x.length; o += IN_CAP) { n = Math.min(IN_CAP, x.length - o); new Uint8Array(X.memory.buffer, p, n).set(x.subarray(o, o + n)); c = X.crc32(p, n, c) >>> 0; }
-    return c;
-  }
+  // block checksum: the CRC-32 loop inside the zstd WebAssembly module when it is loaded (slicing by 8; both the full and the read-only build have it); the plain JavaScript loop otherwise or for small blocks
+  function crcOf(x) { return S.zdec && S.zdec.crc32 && x.length >= 4096 ? S.zdec.crc32(x) : crcJS(x, 0); }
   function blockBytes(file, i) {
     var b = file.blocks[i], x = file.bytes.subarray(b[0], b[0] + b[1]);
     if (b[0] + b[1] > file.footer.bodyEnd) throw new Error('block ' + i + ' out of range');
@@ -304,4 +299,12 @@
       }
     };
   }
-  var api = { unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.1.9', apiVersion: 0 };
+  // hash(bytes, kind): 'crc32' (default; the number the file's checksums use) or 'xxh64' (16 lowercase hex digits); WebAssembly when init() has run, plain JavaScript for crc32 otherwise
+  function hash(bytes, kind) {
+    kind = kind || 'crc32'; if (!(bytes instanceof Uint8Array)) throw new Error('LfcPack: hash needs a Uint8Array');
+    if (kind === 'crc32') return S.zdec && S.zdec.crc32 ? S.zdec.crc32(bytes) : crcJS(bytes, 0);
+    if (kind !== 'xxh64') throw new Error('LfcPack: unknown hash ' + kind);
+    if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
+    var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
+  }
+  var api = { hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.1.9', apiVersion: 0 };
