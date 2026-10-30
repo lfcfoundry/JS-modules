@@ -182,4 +182,23 @@ function readFmp4(f) {
   ok(!bad, 'sound: 200 random clips read back exactly in fragmented MP4' + (bad ? ' (' + bad + ')' : ''));
   let e = null; try { C.writeMp4(S, 64, 64, avcC, { samples: [{ data: new Uint8Array(1), ticks: -1 }], sampleRate: 44100, channels: 2, config: Uint8Array.from([18, 16]) }); } catch (x) { e = x; } ok(e instanceof RangeError, 'sound: a bad sample length is refused');
 }
-console.log(fails ? 'clip-writer: ' + fails + ' FAILED' : 'clip-writer: all passed'); process.exit(fails ? 1 : 0);
+// output options: fast-start MP4, segment index, Blob output
+(async () => {
+  const A2 = { samples: Array.from({ length: 12 }, (_, i) => ({ data: Uint8Array.from({ length: 30 + i }, (_, k) => i * 5 + k & 255), ticks: 1024 })), sampleRate: 44100, channels: 2, config: Uint8Array.from([18, 16]) };
+  for (const au of [null, A2]) {
+    const nm = au ? ' with sound' : '', plain = C.writeMp4(S, 640, 360, avcC, au), fast = C.writeMp4(S, 640, 360, avcC, au, { fastStart: true });
+    const top = boxes(fast, 0, fast.length), moov = find(top, 'moov'), mdat = find(top, 'mdat');
+    ok(top.map((x) => x.type).join() === 'ftyp,moov,mdat' && fast.length === plain.length, 'fast-start' + nm + ': index before the pictures, same file size');
+    const tr = boxes(fast, moov.body, moov.end).filter((x) => x.type === 'trak'); let offsets = [];
+    for (const t of tr) { const k = boxes(fast, t.body, t.end), mdia = boxes(fast, find(k, 'mdia').body, find(k, 'mdia').end), minf = boxes(fast, find(mdia, 'minf').body, find(mdia, 'minf').end), stbl = boxes(fast, find(minf, 'stbl').body, find(minf, 'stbl').end), co = find(stbl, 'stco'); offsets.push(be(fast, co.body + 8, 4)); }
+    ok(offsets[0] === mdat.body && (!au || offsets[1] === mdat.body + S.reduce((a, x) => a + x.data.length, 0)), 'fast-start' + nm + ': chunk offsets point at the first picture' + (au ? ' and the first sound sample' : ''));
+    const pk = C.writeMp4(S, 640, 360, avcC, au, { blob: true }), fk = C.writeFmp4(S, 640, 360, avcC, au), fb = C.writeFmp4(S, 640, 360, avcC, au, { blob: true });
+    const same = async (a, b) => { const x = new Uint8Array(await b.arrayBuffer()); return a.length === x.length && a.every((v, i) => v === x[i]); };
+    ok(pk instanceof Blob && pk.type === 'video/mp4' && await same(plain, pk) && await same(fk, fb) && await same(fast, C.writeMp4(S, 640, 360, avcC, au, { fastStart: true, blob: true })), 'blob' + nm + ': Blob output holds exactly the same bytes as the array output (mp4, fast-start, fmp4)');
+    const si = C.writeFmp4(S, 640, 360, avcC, au, { sidx: true }), t2 = boxes(si, 0, si.length), sx = find(t2, 'sidx'), cnt = be(si, sx.body + 4 + 20 - 2, 2);
+    const frs = t2.filter((x) => x.type === 'moof'), keyN = S.filter((x) => x.key).length; let good = t2[2].type === 'sidx' && cnt === keyN && frs.length === keyN;
+    for (let i = 0; i < cnt && good; i++) { const e = sx.body + 24 + i * 12, size = be(si, e, 4), dur = be(si, e + 4, 4), want = t2.find((x, q) => x === frs[i]); const mdN = t2[t2.indexOf(frs[i]) + 1]; if (mdN.end - frs[i].start !== size) good = false; if (i === 0 && dur !== S.slice(0, S.findIndex((x, q) => q > 0 && x.key)).reduce((a, x) => a + x.ms, 0)) good = false; }
+    ok(good && await same(si, C.writeFmp4(S, 640, 360, avcC, au, { sidx: true, blob: true })), 'sidx' + nm + ': one entry per piece with the right byte size and the first piece length; Blob equals array');
+  }
+  console.log(fails ? 'clip-writer: ' + fails + ' FAILED' : 'clip-writer: all passed'); process.exit(fails ? 1 : 0);
+})();
