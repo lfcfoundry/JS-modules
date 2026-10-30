@@ -133,4 +133,53 @@ function readFmp4(f) {
   }
   ok(!bad, 'fmp4: random sample sets (equal and different times): 300 rounds read back exactly' + (bad ? ' (' + bad + ')' : ''));
 }
+// sound: one AAC track in MP4 and in fragmented MP4 (bytes only; real decoding was checked with ffmpeg)
+{
+  const mkAudio = (m, seed0) => { let sd = seed0; const r = () => (sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0) / 4294967296; return { samples: Array.from({ length: m }, (_, i) => ({ data: Uint8Array.from({ length: 20 + Math.floor(r() * 300) }, () => Math.floor(r() * 256)), ticks: i % 7 === 6 ? 512 : 1024 })), sampleRate: 44100, channels: 2, config: Uint8Array.from([18, 16]) }; };
+  const traks = (f) => { const top = boxes(f, 0, f.length), moov = find(top, 'moov'); return boxes(f, moov.body, moov.end).filter((x) => x.type === 'trak'); };
+  const trackInfo = (f, trak) => { const k = boxes(f, trak.body, trak.end), mdia = boxes(f, find(k, 'mdia').body, find(k, 'mdia').end), hdlr = find(mdia, 'hdlr'), mdhd = find(mdia, 'mdhd'); return { kind: tag(f, hdlr.body + 8), scale: be(f, mdhd.body + 12, 4), dur: be(f, mdhd.body + 16, 4), tkhd: find(k, 'tkhd'), mdia }; };
+  const A = mkAudio(30, 9), ticksAll = A.samples.reduce((a, x) => a + x.ticks, 0);
+  const f = C.writeMp4(S, 640, 360, avcC, A), tk = traks(f).map((t) => ({ t, i: trackInfo(f, t) }));
+  ok(tk.length === 2 && tk[0].i.kind === 'vide' && tk[1].i.kind === 'soun', 'mp4 + sound: a video track then a sound track');
+  const at = tk[1], minf = boxes(f, find(at.i.mdia, 'minf').body, find(at.i.mdia, 'minf').end), stbl = boxes(f, find(minf, 'stbl').body, find(minf, 'stbl').end);
+  ok(at.i.scale === 44100 && at.i.dur === ticksAll && be(f, at.i.tkhd.body + 12, 4) === 2, 'mp4 + sound: sound time scale is the sample rate, duration is the sum of the sample lengths, track number 2');
+  const stsz = find(stbl, 'stsz'), stco = find(stbl, 'stco'); let ap = be(f, stco.body + 8, 4), same = be(f, stsz.body + 8, 4) === A.samples.length;
+  A.samples.forEach((x, i) => { if (be(f, stsz.body + 12 + i * 4, 4) !== x.data.length) same = false; for (let q = 0; q < x.data.length; q++) if (f[ap + q] !== x.data[q]) same = false; ap += x.data.length; });
+  ok(same, 'mp4 + sound: every sound sample is where its table says');
+  const stsd = find(stbl, 'stsd'), mp4a = boxes(f, stsd.body + 8, stsd.end)[0], esds = boxes(f, mp4a.body + 28, mp4a.end)[0], ed = Array.from(f.subarray(esds.body + 4, esds.end)).join();
+  ok(mp4a.type === 'mp4a' && be(f, mp4a.body + 16, 2) === 2 && be(f, mp4a.body + 24, 2) === 44100 && esds.type === 'esds' && ed.includes('5,2,18,16,6,1,2'), 'mp4 + sound: mp4a has 2 channels, 44100 Hz and the AAC config in esds');
+  const top = boxes(f, 0, f.length), mdat = find(top, 'mdat'); ok(mdat.end - mdat.body === S.reduce((a, x) => a + x.data.length, 0) + A.samples.reduce((a, x) => a + x.data.length, 0), 'mp4 + sound: mdat holds the pictures then the sound');
+  ok(be(f, find(boxes(f, find(top, 'moov').body, find(top, 'moov').end), 'mvhd').body + 16, 4) === Math.max(S.reduce((a, x) => a + x.ms, 0), Math.round(ticksAll * 1000 / 44100)), 'mp4 + sound: movie length is the longer of the two');
+  // fragmented
+  function readFmp4av(g) {
+    const top = boxes(g, 0, g.length), res = { v: [], a: [], err: '' }, tr = traks(g); if (tr.length !== 2) res.err = 'tracks';
+    let at2 = 0; const trex = boxes(g, find(boxes(g, find(top, 'moov').body, find(top, 'moov').end), 'mvex').body, find(boxes(g, find(top, 'moov').body, find(top, 'moov').end), 'mvex').end).filter((x) => x.type === 'trex'); if (trex.length !== 2) res.err = res.err || 'trex';
+    for (let i = 2; i < top.length; i += 2) {
+      const mo = top[i], md = top[i + 1]; if (mo.type !== 'moof' || md.type !== 'mdat') { res.err = res.err || 'pair'; break; }
+      let used = 0;
+      for (const tf of boxes(g, mo.body, mo.end).filter((x) => x.type === 'traf')) {
+        const k = boxes(g, tf.body, tf.end), tfhd = find(k, 'tfhd'), id = be(g, tfhd.body + 4, 4), trun = find(k, 'trun'), tfdt = find(k, 'tfdt'), fl = be(g, trun.body + 1, 3), n = be(g, trun.body + 4, 4), off = be(g, trun.body + 8, 4);
+        let q = trun.body + 12, defDur = 0, tf0 = be(g, tfhd.body + 1, 3), z = tfhd.body + 8; if (tf0 & 8) { defDur = be(g, z, 4); z += 4; } if (fl & 4) q += 4;
+        let pos = mo.start + off; const base = be(g, tfdt.body + 4, 8);
+        for (let j = 0; j < n; j++) { let d = defDur; if (fl & 0x100) { d = be(g, q, 4); q += 4; } const sz = be(g, q, 4); q += 4; (id === 1 ? res.v : res.a).push({ data: g.subarray(pos, pos + sz), ms: d, base: j === 0 ? base : -1 }); pos += sz; used += sz; }
+      }
+      if (md.body + used !== md.end) res.err = res.err || 'mdat size';
+    }
+    return res;
+  }
+  let g = C.writeFmp4(S, 640, 360, avcC, A), R = readFmp4av(g);
+  ok(!R.err && R.v.length === S.length && R.a.length === A.samples.length, 'fmp4 + sound: every picture and every sound sample comes back' + (R.err ? ' (' + R.err + ')' : ''));
+  ok(R.a.every((x, i) => x.ms === A.samples[i].ticks && Array.from(x.data).join() === Array.from(A.samples[i].data).join()) && R.v.every((x, i) => x.ms === S[i].ms && Array.from(x.data).join() === Array.from(S[i].data).join()), 'fmp4 + sound: bytes and times are right for both tracks');
+  let cum = 0, okBase = true; R.a.forEach((x) => { if (x.base >= 0 && x.base !== cum) okBase = false; cum += x.ms; }); ok(okBase, 'fmp4 + sound: each sound piece starts at the right time (tfdt)');
+  const seg = C.writeFmp4Segments(S, 640, 360, avcC, A); ok(seg.fragments.length === S.filter((x) => x.key).length, 'fmp4 + sound: still one piece per key-picture run');
+  let bad = '', sd2 = 17; const r2 = () => (sd2 = (Math.imul(sd2, 1664525) + 1013904223) >>> 0) / 4294967296;
+  for (let round = 0; round < 200 && !bad; round++) {
+    const n = 1 + Math.floor(r2() * 50), ke = 1 + Math.floor(r2() * 8), sm = Array.from({ length: n }, (_, i) => ({ data: Uint8Array.from({ length: 1 + Math.floor(r2() * 300) }, () => Math.floor(r2() * 256)), ms: 40, key: i % ke === 0 })), Au = mkAudio(Math.floor(r2() * 120), round + 100);
+    const Q = Au.samples.length ? readFmp4av(C.writeFmp4(sm, 64, 48, avcC, Au)) : null; if (!Q) continue;
+    if (Q.err) bad = Q.err + ' ' + round; else if (Q.v.length !== n || Q.a.length !== Au.samples.length) bad = 'count ' + round; else if (Q.a.some((x, i) => x.ms !== Au.samples[i].ticks || x.data.some((v, k) => v !== Au.samples[i].data[k]))) bad = 'audio ' + round;
+    const P = C.writeMp4(sm, 64, 48, avcC, Au); if (!bad && P.length < 100) bad = 'mp4 ' + round;
+  }
+  ok(!bad, 'sound: 200 random clips read back exactly in fragmented MP4' + (bad ? ' (' + bad + ')' : ''));
+  let e = null; try { C.writeMp4(S, 64, 64, avcC, { samples: [{ data: new Uint8Array(1), ticks: -1 }], sampleRate: 44100, channels: 2, config: Uint8Array.from([18, 16]) }); } catch (x) { e = x; } ok(e instanceof RangeError, 'sound: a bad sample length is refused');
+}
 console.log(fails ? 'clip-writer: ' + fails + ' FAILED' : 'clip-writer: all passed'); process.exit(fails ? 1 : 0);
