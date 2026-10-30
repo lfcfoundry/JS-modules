@@ -78,7 +78,7 @@ Smaller than fflate and, of the ones measured, the only one that stops a lying z
 |---|---|---|---|---|
 | zip-open 1.2.0 (MIT, this module) | 18,955 bytes minified, 8,159 gzipped (31,479 as written; terser 5.51.2; 1.1.0 was 16,088 and 7,056) | Checksum on big buffers 1.3 to 1.7 times faster again with WebAssembly (20 MB: 16.5 to 12.9 ms in Chromium 155, 20 to 12 in Firefox 158, 15 to 9 in WebKitGTK 2.52.6, 16 to 10 in GNOME Web 46.5; lower is better). In 1.1.0 the checksum check was 3.9 times faster than in 1.0.0: 0.74 ms per MB in Chromium 155, 0.85 in Firefox 158, 0.7 in WebKitGTK 2.52.6 and GNOME Web 46.5 (smaller is better). Against the others in browsers: not measured | Reads zip and Excel .xlsx, limits counted on the bytes that really come out, plain-words notes | Wins on safety by default and Excel to CSV; loses on writing zips and on formats |
 | [fflate](https://github.com/101arrowz/fflate) (MIT, 0.8.3) | 33 KB, 12.6 KB gzipped | In browsers: not measured | Reads and writes zips and other formats; safety limits are left to you | On the 1 GB-of-zeros test it returned a 1,000-byte file with no error. Wins on features and on writing zips |
-| JSZip 3.10.2 (MIT or GPL-3.0-or-later) | Not measured | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |
+| JSZip 3.10.2 (MIT or GPL-3.0-or-later) | 97,591 bytes minified, 28,036 gzipped (whole library, terser 5.51.2 `-c passes=2 -m`) | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |
 | zip.js | Not measured | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |
 | SheetJS | Much larger (not measured) | Not measured | Reads many spreadsheet formats | Wins on formats; this module reads only the cell values of .xlsx |
 
