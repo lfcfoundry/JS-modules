@@ -117,6 +117,46 @@ for (let t = 0; t < 400; t++) {
   const g = G.csr(n, f, to); ok(G.components(g).count === 1 && G.scc(g).count === n && G.topo(g).complete && G.shortest(g, 0, new Float64Array(n - 1).fill(1)).dist[n - 1] === n - 1, 'long chain'); }
 { const g3 = G.csr(3, [0, 1], [1, 2]); let bad3 = false; try { G.path(g3, 0, 2, Float64Array.of(1, -1)); } catch (e) { bad3 = e instanceof RangeError; } ok(bad3, 'path refuses a negative weight'); const pp = G.path(g3, 0, 2, Float64Array.of(1, 2)); ok(pp && pp.cost === 3 && pp.links.join() === '0,1', 'path works again after a refused call'); }
 { let bad2 = false; try { G.shortest(G.csr(2, [0], [1]), 0, Float64Array.of(-1)); } catch (e) { bad2 = e instanceof RangeError; } ok(bad2, 'negative weight refused'); }
+
+// kcore, mst, pagerank, betweenness against slow references
+function moreChecks(name, n, f, t, w) {
+  const g = G.csr(n, f, t), m = f.length;
+  // k-core by repeated peeling
+  { const alive = new Uint8Array(n).fill(1), core = new Int32Array(n); const degOf = (v) => { let d = 0; for (let i = 0; i < m; i++) { if (f[i] === t[i]) continue; if ((f[i] === v && alive[t[i]]) || (t[i] === v && alive[f[i]])) d++; } return d; };
+    for (let k = 0, left = n; left > 0; k++) { let changed = true; while (changed) { changed = false; for (let v = 0; v < n; v++) if (alive[v] && degOf(v) < k) { alive[v] = 0; left--; core[v] = k - 1; changed = true; } } }
+    const kc = G.kcore(g); ok(same(kc.core, core) && kc.max === Math.max(0, ...core), name + ': kcore'); }
+  // minimum spanning forest: same total as Prim over each group, a forest, and spans every group
+  { const r = G.mst(g, Float64Array.from(w)), c = G.components(g); ok(r.links.length === n - c.count, name + ': mst link count');
+    const p = Array.from({ length: n }, (_, i) => i), find = (x) => { while (p[x] !== x) x = p[x]; return x; }; let tot = 0, fine = true;
+    for (const e of r.links) { const a = find(f[e]), b = find(t[e]); if (a === b) fine = false; p[a] = b; tot += w[e]; }
+    // Prim on the undirected view
+    let prim = 0; const seen = new Uint8Array(n);
+    for (let s0 = 0; s0 < n; s0++) { if (seen[s0]) continue; seen[s0] = 1; for (;;) { let be = -1; for (let i = 0; i < m; i++) { if (seen[f[i]] !== seen[t[i]] && (be < 0 || w[i] < w[be])) be = i; } if (be < 0) break; seen[f[be]] = 1; seen[t[be]] = 1; prim += w[be]; } }
+    ok(fine && Math.abs(tot - prim) < 1e-9 && Math.abs(r.total - prim) < 1e-9, name + ': mst total ' + tot + ' vs prim ' + prim);
+    for (let i = 1; i < r.links.length; i++) ok(w[r.links[i - 1]] <= w[r.links[i]], name + ': mst order'); }
+  // pagerank: dense power iteration with the same stopping rule
+  { const alpha = 0.85, out = new Float64Array(n); for (let i = 0; i < m; i++) out[f[i]]++;
+    let x = new Float64Array(n).fill(1 / n), it = 0, conv = false;
+    while (it < 100) { const y = new Float64Array(n); let dang = 0; for (let v = 0; v < n; v++) if (!out[v]) dang += x[v];
+      for (let v = 0; v < n; v++) y[v] = (alpha * dang + 1 - alpha) / n; for (let i = 0; i < m; i++) y[t[i]] += alpha * x[f[i]] / out[f[i]];
+      let err = 0; for (let v = 0; v < n; v++) err += Math.abs(y[v] - x[v]); x = y; it++; if (err < n * 1e-6) { conv = true; break; } }
+    const r = G.pagerank(g); let okp = r.iterations === it && r.converged === conv; for (let v = 0; v < n; v++) if (Math.abs(r.rank[v] - x[v]) > 1e-12) okp = false; ok(okp, name + ': pagerank');
+    if (m) { const ww = Float64Array.from(w, (v) => Math.abs(v) + 0.5), rw = G.pagerank(g, { weights: ww }); let s = 0; for (const v of rw.rank) s += v; ok(Math.abs(s - 1) < 1e-9, name + ': weighted pagerank sums to 1'); } }
+  // betweenness: count shortest paths between every pair with a plain BFS and add up the shares
+  { const adj = Array.from({ length: n }, () => []); for (let i = 0; i < m; i++) adj[f[i]].push(t[i]);
+    const cnt = (s) => { const d = new Array(n).fill(-1), c = new Array(n).fill(0), q = [s]; d[s] = 0; c[s] = 1; for (let h = 0; h < q.length; h++) { const v = q[h]; for (const u of adj[v]) { if (d[u] < 0) { d[u] = d[v] + 1; q.push(u); } if (d[u] === d[v] + 1) c[u] += c[v]; } } return { d, c }; };
+    const R = Array.from({ length: n }, (_, s) => cnt(s)), ref = new Float64Array(n);
+    for (let s = 0; s < n; s++) for (let tt = 0; tt < n; tt++) { if (s === tt || R[s].d[tt] < 0) continue; for (let v = 0; v < n; v++) { if (v === s || v === tt || R[s].d[v] < 0 || R[v].d[tt] < 0 || R[s].d[v] + R[v].d[tt] !== R[s].d[tt]) continue; ref[v] += R[s].c[v] * R[v].c[tt] / R[s].c[tt]; } }
+    const raw = G.betweenness(g, { normalized: false }); let okb = true; for (let v = 0; v < n; v++) if (Math.abs(raw[v] - ref[v]) > 1e-9) okb = false; ok(okb, name + ': betweenness');
+    if (n > 2) { const nb = G.betweenness(g); for (let v = 0; v < n; v++) if (Math.abs(nb[v] - ref[v] / ((n - 1) * (n - 2))) > 1e-12) okb = false; ok(okb, name + ': betweenness normalized'); } }
+}
+moreChecks('one item', 1, [], [], []); moreChecks('self link', 2, [0, 0], [0, 1], [1, 2]); moreChecks('triangle plus tail', 4, [0, 1, 2, 2], [1, 2, 0, 3], [1, 2, 3, 4]);
+moreChecks('repeated links', 3, [0, 0, 1], [1, 1, 2], [3, 1, 2]);
+for (let tt = 0; tt < 150; tt++) {
+  const n = 1 + Math.floor(r() * 14), m = Math.floor(r() * n * 3), f = [], to = [], w = [];
+  for (let i = 0; i < m; i++) { f.push(Math.floor(r() * n)); to.push(Math.floor(r() * n)); w.push(r() < 0.3 ? 2 : Math.floor(r() * 9) - 2 + r()); }
+  moreChecks('random3 ' + tt, n, f, to, w);
+}
 let bad = false; try { G.csr(2, [0], [5]); } catch (e) { bad = e instanceof RangeError; } ok(bad, 'csr rejects an item outside 0..n-1');
 bad = false; try { G.csr(2, [0], [1, 1]); } catch (e) { bad = e instanceof RangeError; } ok(bad, 'csr rejects lists of different length');
 ok(/^0\.\d+\.\d+$/.test(G.version) && G.api === 0, 'runtime version and API');
