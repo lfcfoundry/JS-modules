@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.0 · API 0 · 2026-10-30
+- New: betweennessAsync can keep its helper threads (pool: true) so repeated jobs are up to 1.75x faster; small jobs now run on the calling thread.
+
 ## 0.5.0 · API 0 · 2026-10-30
 - New: betweennessAsync splits betweenness across helper threads (3.4x to 4.6x faster on 4 cores).
 
