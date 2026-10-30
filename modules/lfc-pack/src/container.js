@@ -2,7 +2,7 @@
 
   // ================================================================ container: blocks, then footer v1 (sections), then the 16-byte trailer
   var MAJOR = 1, MINOR = 0, MAGIC = [76, 70, 67, 49];   // "LFC1"
-  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15;
+  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_META = 6, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15;
   var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1, 15: 1 };   // 15 is the number-spelling section   // 8 and 13 are reserved
   function writeFooter(zs, sections, compress) {
     var parts = [], i, s, h;
@@ -25,3 +25,11 @@
     return { major: major, minor: rd16(file, n - 6), bodyEnd: n - 16 - flen, sec: sec };
   }
   function jsonSec(b) { return b ? JSON.parse(td.decode(b)) : undefined; }
+  // optional metadata (footer section 6, see PROPOSAL-metadata-section.md): opts.meta is a plain object the app wants to travel with the file; stored as { v: 1, ...meta }, under 64 KB, optional for readers
+  function metaSecs(opts) {
+    var m = opts && opts.meta; if (m === undefined || m === null) return [];
+    if (typeof m !== 'object' || Array.isArray(m)) throw new TypeError('LfcPack: meta must be a plain object');
+    var o = { v: 1 }, k; for (k in m) if (k !== 'v') setKey(o, k, m[k]);
+    var p = te.encode(JSON.stringify(o)); if (p.length > 65536) throw new RangeError('LfcPack: meta is over 64 KB');
+    return [{ id: SEC_META, flags: 0, payload: p }];
+  }

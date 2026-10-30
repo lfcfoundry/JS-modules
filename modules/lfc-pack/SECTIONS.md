@@ -10,7 +10,7 @@ One place to see which footer section ids are taken. Rules are in `SPEC.md` 2.2 
 | 3 | row index | reserved | no | idea 2 in the format ideas list |
 | 4 | Bloom filter | reserved | no | `SPEC.md` 2.3 |
 | 5 | zone maps | written | no | `SPEC.md` 2.3, `LAYOUT-SPEC.md` 4 |
-| 6 | metadata | proposed, see `PROPOSAL-metadata-section.md` | no | proposal |
+| 6 | metadata | written when `meta` is given (packer option) | no | `SPEC.md` 2.3, `PROPOSAL-metadata-section.md` |
 | 7 | record-type map | reserved | no | design notes |
 | 8 | (never used) | reserved forever | | `SPEC.md` 2.2 |
 | 9 | raw-line store | written (byte-exact files) | yes when present | `SPEC.md` 2.3 |
