@@ -104,6 +104,16 @@ t('columns can be a function (names and numbers it is given)', () => {
   const x = F.parse('a,b,c\n1,x,3\n', { columns: (nm, i) => nm !== 'b' && i < 5 }); assert.deepStrictEqual(x.names, ['a', 'c']);
   assert.deepStrictEqual(F.parse('a,b,c\n1,x,3\n', { columns: () => false }).names, []);
 });
+t('types: dates and booleans are opt-in and fall back to text', () => {
+  const csv = 'when,ok,mix,n\n2024-02-29,true,2024-01-01,1\n1999-12-31,False,nope,2\n';
+  const d = F.parse(csv), x = F.parse(csv, { types: { when: 'date', ok: 'boolean', mix: 'date' } });
+  assert.deepStrictEqual(d.columns.map(c => c.type), ['text', 'text', 'text', 'number']);
+  assert.deepStrictEqual(x.columns.map(c => c.type), ['date', 'boolean', 'text', 'number']);
+  assert.deepStrictEqual(Array.from(x.columns[0].values), [Date.UTC(2024, 1, 29), Date.UTC(1999, 11, 31)]); assert.deepStrictEqual(x.columns[1].values, [true, false]); assert.strictEqual(x.columns[0].get(1), Date.UTC(1999, 11, 31));
+  assert.strictEqual(F.parse('d\n2023-02-29\n', { types: { d: 'date' } }).columns[0].type, 'text');
+  assert.throws(() => F.parse(csv, { types: { zz: 'date' } }), /no column named "zz"/); assert.throws(() => F.parse(csv, { types: { when: 'dates' } }), /unknown type/);
+  assert.deepStrictEqual(x.toRows()[0], { when: Date.UTC(2024, 1, 29), ok: true, mix: '2024-01-01', n: 1 });
+});
 t('lazy: strings are not cut until read, and one cell can be read alone', () => {
   const x = F.parse('a,b\n1,"he said ""x"""\n2,y\n', { lazy: true }), d = Object.getOwnPropertyDescriptor(x.columns[1], 'values');
   assert.strictEqual(typeof d.get, 'function'); assert.strictEqual(x.columns[1].get(0), 'he said "x"'); assert.deepStrictEqual(x.columns[1].values, ['he said "x"', 'y']);
@@ -149,6 +159,7 @@ let used = 0;
   // splitting never lands inside quotes: every piece must start right after a line end that is outside quotes
   const q = 'a,b\n' + Array.from({ length: 400 }, (_, i) => i % 3 ? '"line\none ' + i + '",' + i : i + ',"p,q"').join('\n') + '\n';
   for (let w = 2; w <= 8; w++) { await both(q, { workers: w }); await both(q, { workers: w, lazy: true, columns: ['b'] }); }
+  { const dt = 'd,b\n' + Array.from({ length: 3000 }, (_, i) => '20' + String(10 + i % 80) + '-0' + (1 + i % 9) + '-1' + (i % 9) + ',' + (i % 2 ? 'true' : 'FALSE')).join('\n') + '\n'; await both(dt, { workers: 3, types: { d: 'date', b: 'boolean' } }); const pt = await F.parseParallel(dt, { spawn, minBytes: 0, workers: 3, types: { d: 'date' } }); assert.strictEqual(pt.columns[0].type, 'date'); }
   { const big = numeric(2000, 6), f = (nm) => nm >= 'c'; await both(big, { workers: 3, columns: f }); await both(big, { workers: 3, columns: f, lazy: true }); }
   assert.ok((await F.parseParallel('a\n1\n2\n', { spawn, workers: 4 })).count === 2, 'small input is read directly');
   F.closeHelpers(); assert.ok(used > 250, 'the helpers must really be used: ' + used);
