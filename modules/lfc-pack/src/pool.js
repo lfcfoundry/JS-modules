@@ -125,7 +125,7 @@
     var parts = [], blocks = [], zone = [], off = 0, rows = 0, i, j, r, bl;
     for (i = 0; i < results.length; i++) {
       r = results[i]; parts.push(r.bytes.subarray(0, r.bodyEnd));
-      for (j = 0; j < r.blocks.length; j++) { bl = r.blocks[j]; blocks.push([bl[0] + off, bl[1], bl[2], bl[3], bl[4], bl[5]]); rows += bl[3]; zone.push(r.zone[j]); }
+      for (j = 0; j < r.blocks.length; j++) { bl = r.blocks[j]; blocks.push([bl[0] + off].concat(bl.slice(1))); rows += bl[3]; zone.push(r.zone[j]); }
       off += r.bodyEnd;
     }
     var tail = results[results.length - 1].tail;
