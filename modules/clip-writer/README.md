@@ -1,8 +1,8 @@
 # clip-writer
 
-**Version 1.0.1 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Node 22 read-back of every MP4 box and WebM element; Firefox 158, Chromium 155, WebKitGTK 2.52.6 real encode and playback
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Turns pictures into a short MP4 or WebM video in the browser. The browser's own video encoder (WebCodecs) makes the H.264 or VP9 pictures and two small file writers here wrap them into a file you can save or play. **One file, no libraries, works offline.** The whole file is held in memory, which suits a slide-sized clip, not a film.
 
@@ -24,7 +24,9 @@ ClipWriter.support(640, 360, 25).then(function (s) {          // which formats t
 });
 ```
 
-`add(buffer, ms, width)` returns a promise: wait for it, the encoder may be catching up. Sizes are rounded down to even numbers. `bitsPerPixel` (default 0.1) sets the quality and the size. `cancel()` stops and lets go of the encoder. `writeMp4(samples, w, h, avcC)` and `writeWebm(samples, w, h)` are the two file writers on their own (they work in Node), for encoded pictures you already have.
+`add(buffer, ms, width)` returns a promise: wait for it, the encoder may be catching up. Sizes are rounded down to even numbers. `bitsPerPixel` (default 0.1) sets the quality and the size. `cancel()` stops and lets go of the encoder. `writeMp4(samples, w, h, avcC)`, `writeFmp4(samples, w, h, avcC)` and `writeWebm(samples, w, h)` are the file writers on their own (they work in Node), for encoded pictures you already have.
+
+**Fragmented MP4** (`format: 'fmp4'`, H.264 like `mp4`): a small start-up header, then one piece for every run of pictures that starts at a key picture. Each piece can be appended to a `MediaSource`, sent over a connection, or the whole file saved as one. `writeFmp4Segments(...)` returns `{ init, fragments }` as views into one buffer. With `createWriter({ ..., format: 'fmp4', onSegment: function (bytes, isInit) { ... } })` each piece is handed over as soon as the next key picture arrives and nothing is kept, so `finish()` resolves to `null`. Key pictures come every 50 pictures; `support()` also reports `fmp4`.
 
 ## Limits
 - Needs the browser's video encoder: Chromium has both MP4 and WebM, Firefox 158 both, WebKitGTK 2.52.6 WebM only here. Ask `support()` first and keep a GIF for the rest.
