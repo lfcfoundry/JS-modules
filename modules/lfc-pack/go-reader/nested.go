@@ -1,0 +1,180 @@
+// Copyright (c) 2026 LFC Foundry. MIT License.
+package main
+
+// Nested block (kind n): a table of distinct row shapes ("skeletons"), a shape id per row, number and boolean columns found by path hash, and a pool of strings.
+
+type col struct {
+	v []float64
+	i int
+}
+
+type plan struct {
+	t     byte // s n b z j a o
+	c     *col
+	kids  []*plan
+	names []string
+}
+
+func readNested(b []byte) []any {
+	h, p := blockHeader(b)
+	c := &cursor{d: b, p: p}
+	cm := field(h, "cm").([]any)
+	cmeta, _ := jsonOf(unzstdB(c.take(num(cm[1])))).([]any)
+	pp := ints(field(h, "p"))
+	D := splitNul(unzstdB(c.take(pp[0])))
+	sd, _ := jsonOf(unzstdB(c.take(pp[1]))).(*Obj)
+	sidx := ints(field(sd, "idx"))
+	sstr, _ := field(sd, "str").([]any)
+	for i, ix := range sidx {
+		for len(D) <= ix {
+			D = append(D, "")
+		}
+		D[ix], _ = sstr[i].(string)
+	}
+	skel := splitNL(unzstdB(c.take(pp[2])))
+	idsM := ints(field(h, "ids")) // kind, count, packed length
+	ids := typed(unzstdB(c.take(idsM[2])), idsM[0], idsM[1])
+	fa := ints(field(h, "fa")) // [_, flagsLen, repKind, repCount, repLen, total]
+	flags := unzstdB(c.take(fa[1]))
+	rep := typed(unzstdB(c.take(fa[4])), fa[2], fa[3])
+	cols := map[uint32][]float64{}
+	for _, e := range cmeta {
+		a := e.([]any)
+		key := uint32(num(a[0]))
+		cols[key] = typed(unzstdB(c.take(num(a[3]))), num(a[1]), num(a[2]))
+	}
+	strs := make([]string, 0, fa[5])
+	next, ri := 0, 0
+	for i := 0; i < fa[5]; i++ {
+		var code int
+		if i>>3 < len(flags) && (flags[i>>3]>>(uint(i)&7))&1 == 1 {
+			code = next
+			next++
+		} else {
+			if ri >= len(rep) {
+				fail("string code list cut off")
+			}
+			code = int(rep[ri])
+			ri++
+		}
+		if code < 0 || code >= len(D) {
+			fail("string code %d out of range", code)
+		}
+		strs = append(strs, D[code])
+	}
+	cur := map[uint32]*col{}
+	getCol := func(hh uint32) *col {
+		if x, ok := cur[hh]; ok {
+			return x
+		}
+		x := &col{v: cols[hh]}
+		cur[hh] = x
+		return x
+	}
+	var desc func(s any, path string) *plan
+	desc = func(s any, path string) *plan {
+		switch x := s.(type) {
+		case float64:
+			switch int(x) {
+			case 1:
+				return &plan{t: 's'}
+			case 2:
+				return &plan{t: 'n', c: getCol(fnv(path))}
+			case 3:
+				return &plan{t: 'b', c: getCol(fnv(path + "?"))}
+			case 4:
+				return &plan{t: 'z'}
+			case 5:
+				return &plan{t: 'j'}
+			}
+			fail("bad shape code %v", x)
+		case []any:
+			pl := &plan{t: 'a'}
+			for _, k := range x {
+				pl.kids = append(pl.kids, desc(k, path+"[]"))
+			}
+			return pl
+		case *Obj:
+			pl := &plan{t: 'o', names: x.Keys}
+			for i, k := range x.Keys {
+				v := x.Vals[i]
+				if f, ok := v.(float64); ok && f >= 1 && f <= 4 {
+					switch int(f) {
+					case 1:
+						pl.kids = append(pl.kids, &plan{t: 's'})
+					case 2:
+						pl.kids = append(pl.kids, &plan{t: 'n', c: getCol(fnv(path + "." + k))})
+					case 3:
+						pl.kids = append(pl.kids, &plan{t: 'b', c: getCol(fnv(path + "." + k + "?"))})
+					case 4:
+						pl.kids = append(pl.kids, &plan{t: 'z'})
+					}
+				} else {
+					pl.kids = append(pl.kids, desc(v, path+"."+k))
+				}
+			}
+			return pl
+		}
+		fail("bad shape")
+		return nil
+	}
+	ti := 0
+	nextStr := func() string {
+		if ti >= len(strs) {
+			fail("string pool cut off")
+		}
+		s := strs[ti]
+		ti++
+		return s
+	}
+	nextNum := func(x *col) float64 {
+		if x.i >= len(x.v) {
+			fail("number column cut off")
+		}
+		v := x.v[x.i]
+		x.i++
+		return v
+	}
+	var build func(d *plan) any
+	build = func(d *plan) any {
+		switch d.t {
+		case 's':
+			return nextStr()
+		case 'n':
+			return nextNum(d.c)
+		case 'b':
+			return nextNum(d.c) == 1
+		case 'z':
+			return nil
+		case 'j':
+			return jsonOf([]byte(nextStr()))
+		case 'a':
+			out := make([]any, len(d.kids))
+			for i, k := range d.kids {
+				out[i] = build(k)
+			}
+			return out
+		}
+		o := &Obj{}
+		for i, k := range d.kids {
+			o.Set(d.names[i], build(k))
+		}
+		return o
+	}
+	plans := make([]*plan, len(skel))
+	for i, s := range skel {
+		plans[i] = desc(jsonOf([]byte(s)), "")
+	}
+	n := num(field(h, "n"))
+	if n > len(ids) {
+		fail("shape id list cut off")
+	}
+	rows := make([]any, 0, n)
+	for _, id := range ids[:n] {
+		if int(id) >= len(plans) {
+			fail("shape id out of range")
+		}
+		rows = append(rows, build(plans[int(id)]))
+	}
+	return rows
+}
