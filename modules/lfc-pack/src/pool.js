@@ -19,6 +19,7 @@
       return { msg: { id: m.id, F: F }, transfer: m.kind === 'f' ? flatTransfer(F) : nestedTransfer(F) };
     } catch (e) { return { msg: { id: m.id, error: String(e && e.message || e) }, transfer: [] }; }
   }
+  function tmNow() { return typeof performance !== 'undefined' ? performance.now() : Date.now(); }
   function makePool(opts) {   // -> Promise of { unpack(bytes, opts), size, close() }
     opts = opts || {};
     var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
@@ -45,17 +46,18 @@
       o = o || {}; need(false);
       var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), range = o.range || null, want = null, k, n = file.blocks.length, i2;
       if (o.keys) { want = {}; for (k = 0; k < o.keys.length; k++) want[o.keys[k]] = 1; if (range) want[range.key] = 1; }
-      var results = new Array(n), out = [];
+      var results = new Array(n), out = [], t0 = tmNow();
       for (i2 = 0; i2 < n; i2++) (function (i) {
         if ((o.table != null && (file.blocks[i][5] || 0) !== o.table) || !blockMayMatch(file, i, range)) { results[i] = Promise.resolve([]); return; }
         var b = file.blocks[i], kd = b[4];
         if (b[0] + b[1] > file.footer.bodyEnd) { results[i] = Promise.reject(new Error('block ' + i + ' out of range')); return; }
         if (kd === 'r') { results[i] = Promise.resolve(keepRows(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), range)); return; }
         results[i] = submit({ kind: kd, buf: file.bytes.slice(b[0], b[0] + b[1]), crc: b[2], want: kd === 'f' ? want : null }).then(function (F) {
-          var r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
+          var ta = tmNow(), r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
           if (want && kd !== 'f') r = projectRows(r, want);
           r = keepRows(r, range);
           if (o.keys && range && o.keys.indexOf(range.key) < 0) r = projectRows(r, wantOf(o.keys));
+          if (o.timing) { o.timing.assembleMs = (o.timing.assembleMs || 0) + (tmNow() - ta); o.timing.lastBlockAt = tmNow() - t0; }   // optional timing: main-thread row building after the helpers return columns
           return r;
         });
       })(i2);
