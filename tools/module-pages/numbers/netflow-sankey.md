@@ -8,3 +8,5 @@ Compared: netflow-sankey against d3-sankey (900 x 600, no loops, ms).
 | 200 nodes, 1500 links | 7.0 | 7.0 | 21 | 3.00x | 3.00x |
 | 500 nodes, 6000 links | 18 | 21 | 100 | 5.56x | 4.76x |
 Small graphs: with the crossing search on (default) we are 2.5x slower than d3; with restarts 0 we are level. From 200 nodes up we are 3x to 5.6x faster.
+
+**Latest laptop run (7:09 PM).** At 72 nodes: 2.0 ms against d3-sankey's 1.0 ms, so d3 is still faster on small graphs. From 200 nodes up, netflow-sankey is 4x to 5x faster.
