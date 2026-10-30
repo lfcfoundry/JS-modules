@@ -174,7 +174,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | [lfc-pack](modules/lfc-pack/README.md) | 0.1.10 | 700.3 | 224.0 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [memory-compression](modules/memory-compression/README.md) | 2.6.5 | 395.7 | 114.9 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
-| [text-columns](modules/text-columns/README.md) | 0.1.1 | 17.4 | 6.7 | Reads CSV and TSV into number and text columns, 3 to 11 times faster than common parsers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
+| [text-columns](modules/text-columns/README.md) | 0.3.0 | 37.5 | 13.6 | Reads CSV and TSV into number and text columns, 3 to 11 times faster than common parsers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
 #### Model simulation
 
@@ -208,7 +208,7 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 | 104.0 | 60.0 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 | 45.3 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.0 | 47.8 | 14.6 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
-| [zip-open](modules/zip-open/README.md) | 1.3.1 | 32.5 | 11.3 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
+| [zip-open](modules/zip-open/README.md) | 1.4.0 | 45.0 | 14.6 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 
 ### Story editor packages (10)
 
