@@ -6,7 +6,7 @@ Part 1 (this file) is the container: how to find the blocks and the index, and w
 
 ## 1. Names
 - Name: LFC-pack. File extension `.json.lfc`. Magic `LFC1` (bytes 4C 46 43 31). Global in the browser: `LfcPack`.
-- Proposed media type (not registered, needs a decision): `application/vnd.lfc-pack`.
+- No media type is named yet (owner decision 2026.10.30: decide at the formal release). Identify files by the extension and the magic bytes.
 - A file holds one or more tables of rows. A row is one JSON value, normally an object, stored the way NDJSON stores a line.
 
 ## 2. Layout
@@ -80,4 +80,4 @@ Ids 3, 4, 6, 7, 10, 11, 14 are reserved for the index, Bloom filter, metadata, r
 ## 7. Open points
 - Footer sections are JSON today; a compact binary form is possible and would only change section payloads, not the container.
 - Whole-file hash (design notes: XXH3-128) and per-block hash algorithm id are not implemented; CRC-32 is the only checksum.
-- Media type registration and a magic-number entry for `file(1)` wait for a release decision.
+- Media type naming, registration and a magic-number entry for `file(1)` wait for a release decision.
