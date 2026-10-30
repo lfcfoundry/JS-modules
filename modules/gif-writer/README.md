@@ -45,6 +45,8 @@ img.src = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
 ```
 Each picture is compressed the moment you add it, so memory holds the compressed pictures, not the raw ones.
 
+**Advice:** give `makePalette` pictures spread across the whole animation, not just the first few. In the worst case we measured, that made the file 5.5% smaller for 9% more time (container Chromium; the direction is reliable, the exact numbers are not).
+
 ## WebAssembly (since 1.2.0)
 
 **What.** The palette search (`makePalette`: color histogram, median cut, k-means) and the picture encoder (`createEncoder`: palette lookup of every pixel, comparison with the last picture, LZW coder) also exist as WebAssembly (9,903 bytes, `wasm/gif.c`), embedded in `gif-writer.js` and used first. They give the same colors and the same GIF bytes as the JavaScript code: 21 encoder scenes and 116 palette sets identical in Node, and 18 of 18 GIFs in every one of 18 browser runs. `GifWriter.wasmAvailable()` says whether the browser allows it; `makePalette(pics, n, { wasm: false })` and `createEncoder(w, h, pal, { wasm: false })` force the JavaScript code.
