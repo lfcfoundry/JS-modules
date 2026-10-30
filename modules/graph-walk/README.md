@@ -1,6 +1,6 @@
 # graph-walk
 
-**Version 0.6.0 · API 0**
+**Version 0.7.0 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -56,7 +56,7 @@ Against graphology 0.26 (with graphology-components 1.5, graphology-shortest-pat
 
 Strongly connected components: graphology's version runs out of call stack on this network in all three browsers (and at 10,000 items in Chromium); at 10,000 items where it runs, graphology needs 30 ms (Firefox) and 36 ms (WebKitGTK) against 1.0 and 0.8 ms. On a sparse network (100,000 items, 120,000 links) the figures are 301 / 19, 219 / 16 and 323 / 10 ms. On an acyclic 100,000 item network, topological order takes 1039 / 12 (Firefox), 514 / 8.9 (Chromium) and 1289 / 8.3 ms (WebKitGTK). The first `path` call on a graph builds a links-into-items index and working arrays and takes 3 to 23 ms at this size (graphology paid for the same thing inside its 2 second build). The full tables are kept privately.
 
-Breadth-first and loop marking are unchanged from 0.1.0 and match Netflow Map's inline copies. `betweennessAsync` on 4 reported cores, 5,000 items and 20,000 links: 2.1 to 2.9 seconds on one thread down to 0.59 to 0.83 seconds with JavaScript helpers (3.4x to 3.5x) and 0.56 to 0.69 seconds with WebAssembly helpers (3.5x to 4.6x) in Firefox 158, Chromium 155 and WebKitGTK 2.52.6. With `pool: true`, three jobs in a row on one graph average 1.2x to 1.75x faster per job than helpers made each time (1,000 to 2,000 items); the very first job is the same or, in Firefox at 1,000 items, about 17% slower. Needs `worker-src blob:` in the page policy. Not measured for these new jobs: a laptop or a phone.
+Breadth-first and loop marking are unchanged from 0.1.0 and match Netflow Map's inline copies. `betweennessAsync` on 4 reported cores, 5,000 items and 20,000 links: 2.1 to 2.9 seconds on one thread down to 0.59 to 0.83 seconds with JavaScript helpers (3.4x to 3.5x) and 0.56 to 0.69 seconds with WebAssembly helpers (3.5x to 4.6x) in Firefox 158, Chromium 155 and WebKitGTK 2.52.6. The helpers are kept by default: three jobs in a row on one graph average 1.2x to 1.75x faster per job than helpers made each time (1,000 to 2,000 items); the very first job is the same speed (a Firefox gap seen at first was a measuring artifact). Needs `worker-src blob:` in the page policy. Not measured for these new jobs: a laptop or a phone.
 
 ## Limits
 - Item numbers must be whole numbers from 0 to n-1; `csr` throws a RangeError otherwise.
