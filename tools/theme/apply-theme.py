@@ -25,19 +25,20 @@ def head_end(t):
         if m.start() != pos - i: break
         pos = i + m.end()
     return pos, False
-def build(name, t):
+EXTRA = ['tools/speed-lab/demo.html', 'modules/memory-compression/demo-arrays.html']   # more pages that get the same look
+def build(name, t, up='../../'):
     t = strip(t)
     if name in NONE: return t
     pos, has_body = head_end(t)
     page = css if name not in BAND_ONLY else band_css
     style = M['s'][0] + '<style>' + page.strip().replace('\n', '\n') + '</style>' + M['s'][1]
-    band = (M['b'][0] + '<header class="lfc-band"><div class="lfc-in"><a class="lfc-brand" href="../../index.html">JS-modules</a><span class="lfc-here">%s</span>'
-            '<nav aria-label="JS-modules"><a href="../../demos.html">All demos</a><a href="README.md">Docs</a><a href="../../index.html">Overview</a></nav></div></header>' % name + M['b'][1])
+    band = (M['b'][0] + '<header class="lfc-band"><div class="lfc-in"><a class="lfc-brand" href="%sindex.html">JS-modules</a><span class="lfc-here">%s</span>'
+            '<nav aria-label="JS-modules"><a href="%sdemos.html">All demos</a><a href="README.md">Docs</a><a href="%sindex.html">Overview</a></nav></div></header>' % (up, name, up, up) + M['b'][1])
     # style goes just before the band, after the page's own styles (so it wins on equal weight); both land at the start of the body
     return t[:pos] + '\n' + style + '\n' + band + '\n' + t[pos:].lstrip('\n')
 def main(argv):
     bad = 0
-    for f in sorted(glob.glob(os.path.join(root, 'modules', '*', 'demo.html'))):
+    for f in sorted(glob.glob(os.path.join(root, 'modules', '*', 'demo.html'))) + [os.path.join(root, e) for e in EXTRA]:
         name = os.path.basename(os.path.dirname(f)); t = open(f, encoding='utf-8').read()
         n = strip(t) if '--remove' in argv else build(name, t)
         if n != t:
