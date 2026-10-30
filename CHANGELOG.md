@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.0 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 1.2.2 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -61,6 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-30 · **zip-open** 1.4.0 · API 1: New: `expandBlob`, `listBlob` and `readBlob` open a File or Blob in pieces, so a big zip never has to sit whole in memory. Same files, same notes. New: `{ workers: n }` unpacks big entries (2 MB and up) side by side in Web Workers: about 1.2 to 1.8 times as fast on a zip of several big files. Off by default. Checks: 700 damaged zips give the same answer from a File as from memory.
 - 2026-10-30 · **text-columns** 0.3.0 · API 0: New: `columns` reads only the columns you name; `lazy: true` cuts text strings only when read (or one cell with `get(i)`). Big files with quotes split faster; a 150 MB number file reads up to 3 times faster.
 - 2026-10-30 · **text-columns** 0.2.0 · API 0: New: `parseParallel` reads a big CSV in Web Workers and gives the same table as `parse` (up to 2.9 times as fast on number columns of a 150 MB file). `warm` and `closeHelpers` start and stop the helpers. Files under 32 MB are read directly.
+- 2026-10-30 · **save-kit** 1.3.0 · API 1: New SaveKit.createLarge(): big saves in IndexedDB with a backup slot and an optional cross-tab lock. Up to 4x faster than idb-keyval and localForage on 16 MB; slower in a few cases (README). create() is unchanged.
 - 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips orderings it already followed: same pictures, up to 1.3x faster.
 - 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
 - 2026-10-30 · **lfc-pack** 0.1.11 · API 0: New packStream: feed text in pieces and write each block as it is ready, so packing a big file holds one block of text at a time
