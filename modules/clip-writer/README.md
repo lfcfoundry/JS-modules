@@ -33,6 +33,18 @@ ClipWriter.support(640, 360, 25).then(function (s) {          // which formats t
 - Frame durations must be finite and nonnegative. MP4 clips longer than 4,294,967,295 ms do not fit its 32-bit time field and are refused.
 - No sound, one track.
 
+## How it compares
+
+The nearest open-source substitutes are [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) and [webm-muxer](https://github.com/Vanilagy/webm-muxer) (both MIT, same author), which also wrap the browser's WebCodecs output in a file. Sizes are the whole library builds, minified with terser 5.51.2 (`-c passes=2 -m`) and gzipped with `gzip -9`, as in the other modules.
+
+| Alternative | Size (smaller is better) | Features | Where it wins or loses |
+|---|---|---|---|
+| clip-writer 1.0.1 (MIT, this module) | 7,059 bytes minified, 3,237 gzipped, for MP4 and WebM together | MP4 (H.264) and WebM (VP9) from RGBA pictures; the encoder is driven for you (`support()`, `add()`, `finish()`); no sound, one track | Wins on size and on being one call per picture. Loses: no audio, no streaming output, no fast-start options |
+| [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) 5.2.2 (MIT) | 31,783 bytes minified, 9,174 gzipped, MP4 only | MP4 only; takes encoded chunks you get from your own `VideoEncoder`; sound tracks, several fast-start modes, streaming and in-memory targets | Wins when you need sound, fragmented or streamed output. Loses: you write the encoder loop yourself and a WebM needs a second library |
+| [webm-muxer](https://github.com/Vanilagy/webm-muxer) 5.1.4 (MIT) | 29,904 bytes minified, 8,346 gzipped, WebM only | WebM only; same style (your own encoder, sound, streaming and in-memory targets) | Same trade as mp4-muxer; both together are 61,687 bytes minified, 17,520 gzipped |
+
+Speed against them in the three test browsers: not measured yet.
+
 ## Prior art and credits
 The file layouts follow ISO/IEC 14496-12 (MP4) and the Matroska/WebM specification; the encoders are the browser's.
 
