@@ -65,7 +65,7 @@ Where it loses:
 
 ## See it in action
 
-Used right now in [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+Used right now in [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## Prior art and credits
 The idea of an outline made from offset shadows is not new; the packaged recipe (three smooth rings, gradient fill, hard edge, one `font-size`) is this module's part.

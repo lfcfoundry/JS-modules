@@ -56,7 +56,7 @@ Where it loses:
 
 ## See it in action
 
-Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/play/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## Prior art and credits
 - Apple's Kids category page (above) names parental gates as a requirement, with the example of tasks "an adult can do"; it leaves the design to you.

@@ -188,7 +188,7 @@ Baking a 24-frame, 192 px roll with an outline takes 240 ms in ungoogled Chromiu
 
 ## See it in action
 
-Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## For AI agents
 

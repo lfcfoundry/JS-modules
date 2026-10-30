@@ -85,7 +85,7 @@ Smaller than the two leader-election libraries whose sizes are known, with the o
 
 ## See it in action
 
-Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/), [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense), Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/), [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/), Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## Prior art and credits
 - The Web Locks API (W3C specification, built into the browser): the whole guard is built on it, so the browser does the work of releasing the lock when the page unloads.

@@ -50,7 +50,7 @@ Options: `name` (used in file names, `my-game-speed-20261022-1700.md`), `version
 
 ## See it in action
 
-Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/), [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/), [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense), [Story Editor](https://lfcfoundry.github.io/story-editor/), Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/play/), [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/), [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/), [Story Editor](https://lfcfoundry.github.io/story-editor/play/), Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## Prior art and credits
 No code was taken from anywhere. The ideas of a ring buffer of frame times, "1% low" frame rate and the long-task entry are common practice in game and web performance tools; the long-task entry is the W3C Long Tasks API.
