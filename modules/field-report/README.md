@@ -52,6 +52,15 @@ Options: `name` (used in file names, `my-game-speed-20261022-1700.md`), `version
 
 Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/play/), [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/), [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/), [Story Editor](https://lfcfoundry.github.io/story-editor/play/), Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
+## How it compares
+
+| Alternative | What it does | Why it does not fit this job |
+|---|---|---|
+| Chrome DevTools and Lighthouse | Deep profiling and audits | Need a computer attached to the phone; nothing is saved on the device |
+| stats.js and similar overlays | Show frames a second on screen | Save nothing and record no errors |
+| Sentry and similar services | Collect errors from real users | Send them over the network, which these games never do |
+| **field-report** | Hidden speed button and error-log button, saved on the device for the owner to send back | Not a profiler; it reports numbers, it does not explain them |
+
 ## Prior art and credits
 No code was taken from anywhere. The ideas of a ring buffer of frame times, "1% low" frame rate and the long-task entry are common practice in game and web performance tools; the long-task entry is the W3C Long Tasks API.
 
