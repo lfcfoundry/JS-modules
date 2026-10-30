@@ -15,22 +15,26 @@ T.main(async (b, which, outFile) => {
       const seen = new Set(), from = [], to = []; while (from.length < m) { const a = Math.floor(rnd() * n), c = Math.floor(rnd() * n), k = Math.min(a, c) * n + Math.max(a, c); if (a === c || seen.has(k)) continue; seen.add(k); from.push(a); to.push(c); }
       window.G = GraphWalk.csr(n, from, to); window.ref = null;
     };
+    const A = () => Math.min(8, navigator.hardwareConcurrency);
     const runs = { 'sync-js': () => { GraphWalk.setBackend('js'); return Promise.resolve(GraphWalk.betweenness(G)); }, 'sync-wasm': () => { GraphWalk.setBackend('wasm'); return Promise.resolve(GraphWalk.betweenness(G)); },
-      'workers2-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: 2 }); }, 'workers-all-js': () => { GraphWalk.setBackend('js'); return GraphWalk.betweennessAsync(G, { workers: Math.min(8, navigator.hardwareConcurrency) }); },
-      'workers-all-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: Math.min(8, navigator.hardwareConcurrency) }); } };
+      'workers2-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: 2, pool: false }); },
+      'perCall-js': () => { GraphWalk.setBackend('js'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: false }); }, 'perCall-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: false }); },
+      'kept-js': () => { GraphWalk.setBackend('js'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: true }); }, 'kept-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: true }); } };
     window.check = async () => { const a = await runs['sync-js'](), res = {}; for (const k of Object.keys(runs)) { const c = await runs[k](); res[k] = c.length === a.length && a.every((v, i) => Math.abs(v - c[i]) < 1e-9); } return res; };
-    window.time = async (k) => { const t0 = performance.now(); await runs[k](); return performance.now() - t0; };
+    window.time = async (k, calls) => { GraphWalk.closePool(); const t0 = performance.now(); for (let i = 0; i < calls; i++) await runs[k](); const dt = (performance.now() - t0) / calls; return dt; };
   });
   const rows = [], answers = [];
-  for (const [n, m] of [[2000, 8000], [5000, 20000]]) {
+  for (const [n, m] of [[500, 2000], [1000, 4000], [2000, 8000]]) {
     await p.evaluate((a, c) => setup(a, c), n, m); answers.push(n + ' items, ' + m + ' links: ' + JSON.stringify(await p.evaluate(() => check())));
-    const names = ['sync-js', 'sync-wasm', 'workers2-wasm', 'workers-all-js', 'workers-all-wasm'];
-    const ms = await T.rotate(names, REPS, (k) => p.evaluate((x) => time(x), k));
-    for (const k of names) rows.push({ set: n + ' items, ' + m + ' links', name: k, ms: +ms[k].toFixed(1), vsSyncJs: (ms['sync-js'] / ms[k]).toFixed(2) });
+    const names = ['sync-js', 'sync-wasm', 'workers2-wasm', 'perCall-js', 'perCall-wasm', 'kept-js', 'kept-wasm'];
+    for (const calls of [1, 3]) {
+      const ms = await T.rotate(names, REPS, (k) => p.evaluate((x, c) => time(x, c), k, calls));
+      for (const k of names) rows.push({ set: n + ' items, ' + m + ' links', calls, name: k, ms: +ms[k].toFixed(1), vsSyncJs: (ms['sync-js'] / ms[k]).toFixed(2), vsPerCall: /^kept-/.test(k) ? (ms['perCall-' + k.slice(5)] / ms[k]).toFixed(2) : '' });
+    }
   }
   srv.close();
   console.log(answers.join('\n'));
-  console.log(T.table(rows, [{ key: 'set', title: 'graph', align: 'left' }, { key: 'name', title: 'mode', align: 'left' }, { key: 'ms', title: 'ms' }, { key: 'vsSyncJs', title: 'vs sync JS' }]));
+  console.log(T.table(rows, [{ key: 'set', title: 'graph', align: 'left' }, { key: 'calls', title: 'calls in a row' }, { key: 'name', title: 'mode', align: 'left' }, { key: 'ms', title: 'ms' }, { key: 'vsSyncJs', title: 'vs sync JS' }, { key: 'vsPerCall', title: 'kept vs per-call' }]));
   if (outFile) fs.writeFileSync(outFile, JSON.stringify({ which, cores, answers, rows }));
   return !answers.some((s) => /false/.test(s));
 });

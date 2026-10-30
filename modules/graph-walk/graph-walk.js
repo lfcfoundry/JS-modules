@@ -2,7 +2,7 @@
  * graph-walk.js: the small walks over a link list that map and flow tools keep rewriting: breadth-first distances from an item, and a depth-first pass that marks the links that close a loop and lists the items in finishing order, connected components, strongly connected components, topological order and shortest paths. Works on the plain "links of every item" layout (CSR) in typed arrays. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.5.0 (API 0)
+ * Version 0.6.0 (API 0)
  *
  *   var g = GraphWalk.csr(n, fromArray, toArray);         // item numbers 0..n-1; link i joins from[i] to to[i]
  *   var depth = GraphWalk.bfs(g, root);                    // Int32Array, -1 where not reached; bfs(g, root, skip) never enters item `skip`
@@ -390,66 +390,101 @@
   function betweenness(g, options) { return useWasm() ? betweennessW(g, options) : betweennessJS(g, options); }
 
 
-  /* ---- betweenness split across workers: the start items are dealt out to helper threads, each adds up its share, the shares are summed ---- */
-  /** Runs inside a worker (sent as text, so keep it free of outside names). Gets the graph's arrays, its share of start items and optionally the wasm bytes; answers with its partial sums. */
+  /* ---- betweenness split across workers: the start items are dealt out to helper threads, each adds up its share, the shares are summed; the helpers are kept for a while so repeated jobs skip the start-up ---- */
+  /** Runs inside a worker (sent as text, so keep it free of outside names). A message with `n` loads a graph (and the wasm bytes, when given) and keeps it; every message with `srcs` runs a share and answers with its partial sums. */
   function workerMain() {
-    onmessage = function (ev) {
-      var d = ev.data, n = d.n, os = d.os, oe = d.oe, to = d.to, is = d.is, ie = d.ie, from = d.from, srcs = d.srcs, ns = srcs.length;
-      function js() {
-        var bc = new Float64Array(n), dist = new Int32Array(n).fill(-1), sigma = new Float64Array(n), delta = new Float64Array(n), q = new Int32Array(n), si, s, h, t, v, w, k, end, dv, cnt0, coef;
-        for (si = 0; si < ns; si++) {
-          s = srcs[si]; h = 0; t = 0; q[t++] = s; dist[s] = 0; sigma[s] = 1;
-          while (h < t) { v = q[h++]; end = os[v + 1]; dv = dist[v] + 1; for (k = os[v]; k < end; k++) { w = to[oe[k]]; if (dist[w] < 0) { dist[w] = dv; q[t++] = w; } if (dist[w] === dv) sigma[w] += sigma[v]; } }
-          cnt0 = t;
-          while (t > 1) { w = q[--t]; end = is[w + 1]; dv = dist[w] - 1; coef = (1 + delta[w]) / sigma[w]; for (k = is[w]; k < end; k++) { v = from[ie[k]]; if (dist[v] === dv) delta[v] += sigma[v] * coef; } bc[w] += delta[w]; }
-          for (k = 0; k < cnt0; k++) { v = q[k]; dist[v] = -1; sigma[v] = 0; delta[v] = 0; }
-        }
-        return bc;
+    var cur = null;   // { n, os, oe, to, is, ie, from, X, P, ready }
+    function js(c, srcs) {
+      var n = c.n, os = c.os, oe = c.oe, to = c.to, is = c.is, ie = c.ie, from = c.from, ns = srcs.length;
+      var bc = new Float64Array(n), dist = new Int32Array(n).fill(-1), sigma = new Float64Array(n), delta = new Float64Array(n), q = new Int32Array(n), si, s, h, t, v, w, k, end, dv, cnt0, coef;
+      for (si = 0; si < ns; si++) {
+        s = srcs[si]; h = 0; t = 0; q[t++] = s; dist[s] = 0; sigma[s] = 1;
+        while (h < t) { v = q[h++]; end = os[v + 1]; dv = dist[v] + 1; for (k = os[v]; k < end; k++) { w = to[oe[k]]; if (dist[w] < 0) { dist[w] = dv; q[t++] = w; } if (dist[w] === dv) sigma[w] += sigma[v]; } }
+        cnt0 = t;
+        while (t > 1) { w = q[--t]; end = is[w + 1]; dv = dist[w] - 1; coef = (1 + delta[w]) / sigma[w]; for (k = is[w]; k < end; k++) { v = from[ie[k]]; if (dist[v] === dv) delta[v] += sigma[v] * coef; } bc[w] += delta[w]; }
+        for (k = 0; k < cnt0; k++) { v = q[k]; dist[v] = -1; sigma[v] = 0; delta[v] = 0; }
       }
-      function done(bc) { postMessage({ bc: bc }, [bc.buffer]); }
-      if (!d.wasm) { done(js()); return; }
-      WebAssembly.instantiate(d.wasm, {}).then(function (r) {
-        var X = r.instance.exports, mem = X.memory, at = (X.__heap_base.value + 7) & ~7, P = {}, list = [['os', os], ['oe', oe], ['to', to], ['is', is], ['ie', ie], ['from', from], ['srcs', srcs]], i, end;
+      return bc;
+    }
+    function load(d) {
+      var c = { n: d.n, os: d.os, oe: d.oe, to: d.to, is: d.is, ie: d.ie, from: d.from, X: null, P: null, ready: null };
+      if (d.wasm) c.ready = WebAssembly.instantiate(d.wasm, {}).then(function (r) {
+        var X = r.instance.exports, mem = X.memory, n = c.n, at = (X.__heap_base.value + 7) & ~7, P = {}, list = [['os', c.os], ['oe', c.oe], ['to', c.to], ['is', c.is], ['ie', c.ie], ['from', c.from]], i;
         for (i = 0; i < list.length; i++) { P[list[i][0]] = at; at = (at + 4 * list[i][1].length + 7) & ~7; }
-        P.bc = at; at += 8 * n; P.sigma = at; at += 8 * n; P.delta = at; at += 8 * n; P.dist = at; at += 4 * n; P.q = at; at += 4 * n; end = at;
-        if (end > mem.buffer.byteLength) mem.grow(Math.ceil((end - mem.buffer.byteLength) / 65536));
+        P.srcs = at; at += 4 * n; P.bc = at; at += 8 * n; P.sigma = at; at += 8 * n; P.delta = at; at += 8 * n; P.dist = at; at += 4 * n; P.q = at; at += 4 * n;
+        if (at > mem.buffer.byteLength) mem.grow(Math.ceil((at - mem.buffer.byteLength) / 65536));
         var all = new Int32Array(mem.buffer);
         for (i = 0; i < list.length; i++) all.set(list[i][1], P[list[i][0]] >> 2);
         new Int32Array(mem.buffer, P.dist, n).fill(-1);
-        X.gw_betweenness(n, P.os, P.oe, P.to, P.is, P.ie, P.from, P.srcs, ns, P.bc, P.dist, P.sigma, P.delta, P.q);
-        done(new Float64Array(mem.buffer, P.bc, n).slice());
-      }, function () { done(js()); });
+        c.X = X; c.P = P;
+      }, function () { c.X = null; });
+      return c;
+    }
+    onmessage = function (ev) {
+      var d = ev.data;
+      if (d.n !== undefined) cur = load(d);
+      function run() {
+        var c = cur, bc;
+        if (c.X) {
+          var mem = c.X.memory, P = c.P, n = c.n;
+          new Int32Array(mem.buffer, P.srcs, d.srcs.length).set(d.srcs);
+          new Float64Array(mem.buffer, P.bc, n).fill(0);
+          c.X.gw_betweenness(n, P.os, P.oe, P.to, P.is, P.ie, P.from, P.srcs, d.srcs.length, P.bc, P.dist, P.sigma, P.delta, P.q);
+          bc = new Float64Array(mem.buffer, P.bc, n).slice();
+        } else bc = js(c, d.srcs);
+        postMessage({ job: d.job, bc: bc }, [bc.buffer]);
+      }
+      if (cur.ready) cur.ready.then(run); else run();
     };
+  }
+  var pool = null, poolTimer = 0, gids = 0, jobs = 0;
+  /** Ends the kept helper threads now (they also end by themselves after `idleMs` without work, 5 seconds by default). */
+  function closePool() { if (poolTimer) { clearTimeout(poolTimer); poolTimer = 0; } if (pool) { for (var i = 0; i < pool.workers.length; i++) pool.workers[i].terminate(); try { URL.revokeObjectURL(pool.url); } catch (e) { /* gone */ } pool = null; } }
+  function getPool(count, onDead) {
+    if (pool && pool.workers.length === count) return pool;
+    closePool();
+    var url = URL.createObjectURL(new Blob(['(' + workerMain.toString() + ')()'], { type: 'text/javascript' })), P = { url: url, workers: [], loaded: [], jobs: {} }, i;
+    P.dead = function () { var js = P.jobs; closePool(); P.jobs = {}; for (var k in js) js[k].fail(); };
+    for (i = 0; i < count; i++) {
+      var wk = new Worker(url); P.workers.push(wk); P.loaded.push(null);
+      wk.onmessage = function (ev) { var j = P.jobs[ev.data.job]; if (j) j.add(ev.data.bc); };
+      wk.onerror = P.dead;
+    }
+    return (pool = P);
   }
   /**
    * Same answer as `betweenness`, but the start items are dealt out to `workers` helper threads (default: the cores the browser reports, at most 8) and the partial sums added; returns a Promise of the Float64Array.
-   * The helpers are made for the call and closed after it, each gets a copy of the graph's arrays. Falls back to the calling thread when there are no workers (older browsers, a page whose policy forbids blob workers, tiny jobs).
-   * options: as `betweenness`, plus workers.
+   * With `pool: true` the helpers stay alive for `idleMs` (default 5000) after the last job and keep the last graph they were given, so repeated jobs on one graph pay neither start-up nor the copy; by default they are made for the one call and closed after.
+   * Falls back to the calling thread when there are no workers (older browsers, a page whose policy forbids blob workers, tiny jobs). options: as `betweenness`, plus workers, pool, idleMs, minWork (start items times items-plus-links below which the calling thread does it, default 4e6).
    */
   function betweennessAsync(g, options) {
     options = options || {};
-    var n = g.n, srcs = [], i, k, hw = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, count = options.workers || Math.min(8, hw), src = options.sources, list;
+    var n = g.n, srcs = [], i, k, hw = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, count = options.workers || Math.min(8, hw), src = options.sources, keep = options.pool === true;
     for (i = 0; i < (src ? src.length : n); i++) { k = src ? src[i] : i; if (k >= 0 && k < n) srcs.push(k); }
-    if (count < 2 || typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || srcs.length < 2 * count) return Promise.resolve(betweenness(g, options));
+    if (count < 2 || typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || srcs.length < 2 * count || srcs.length * (n + g.m) < (options.minWork === undefined ? 4e6 : options.minWork)) return Promise.resolve(betweenness(g, options));   // small jobs finish faster on the calling thread
     reverse(g);
     return new Promise(function (resolve) {
-      var url, workers = [], total = new Float64Array(n), pending = count, failed = false, wasmBytes = useWasm() ? b64bytes(WASM_B64) : null;
-      function finish() {
-        var scale; for (i = 0; i < workers.length; i++) workers[i].terminate(); try { URL.revokeObjectURL(url); } catch (e) { /* gone */ }
-        if (failed) { resolve(betweenness(g, options)); return; }
-        if (options.normalized !== false && n > 2) { scale = 1 / ((n - 1) * (n - 2)); for (i = 0; i < n; i++) total[i] *= scale; }
+      var P, total = new Float64Array(n), pending = count, id = ++jobs, wasmOn = useWasm(), key, done = false;
+      function finish(ok) {
+        if (done) return; done = true; if (P) delete P.jobs[id];
+        if (!keep) closePool(); else { if (poolTimer) clearTimeout(poolTimer); poolTimer = setTimeout(closePool, options.idleMs === undefined ? 5000 : options.idleMs); }
+        if (!ok) { resolve(betweenness(g, options)); return; }
+        if (options.normalized !== false && n > 2) { var scale = 1 / ((n - 1) * (n - 2)); for (var j = 0; j < n; j++) total[j] *= scale; }
         resolve(total);
       }
       try {
-        url = URL.createObjectURL(new Blob(['(' + workerMain.toString() + ')()'], { type: 'text/javascript' }));
+        P = getPool(count);
+        if (poolTimer) { clearTimeout(poolTimer); poolTimer = 0; }
+        if (!g._gid) g._gid = ++gids;
+        key = g._gid + (wasmOn ? 'w' : 'j');
+        P.jobs[id] = { add: function (bc) { for (var j = 0; j < n; j++) total[j] += bc[j]; if (--pending === 0) finish(true); }, fail: function () { finish(false); } };
         for (i = 0; i < count; i++) {
-          list = new Int32Array(Math.ceil((srcs.length - i) / count)); for (k = 0; k < list.length; k++) list[k] = srcs[i + k * count];
-          var wk = new Worker(url); workers.push(wk);
-          wk.onmessage = function (ev) { var bc = ev.data.bc; for (var j = 0; j < n; j++) total[j] += bc[j]; if (--pending === 0) finish(); };
-          wk.onerror = function () { if (!failed) { failed = true; finish(); } };
-          wk.postMessage({ n: n, os: g.outStart, oe: g.outEdge, to: g.to, is: g.inStart, ie: g.inEdge, from: g.from, srcs: list, wasm: wasmBytes });
+          var list = new Int32Array(Math.ceil((srcs.length - i) / count)); for (k = 0; k < list.length; k++) list[k] = srcs[i + k * count];
+          var msg = { job: id, srcs: list };
+          if (P.loaded[i] !== key) { msg.n = n; msg.os = g.outStart; msg.oe = g.outEdge; msg.to = g.to; msg.is = g.inStart; msg.ie = g.inEdge; msg.from = g.from; msg.wasm = wasmOn ? b64bytes(WASM_B64) : null; P.loaded[i] = key; }
+          P.workers[i].postMessage(msg, [list.buffer]);
         }
-      } catch (e) { failed = true; finish(); }
+      } catch (e) { finish(false); }
     });
   }
 
@@ -594,5 +629,5 @@
     while ((e = r.via[v]) >= 0) { out.push(e); v = g.from[e]; }
     return out.reverse();
   }
-  return { version: '0.5.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
+  return { version: '0.6.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closePool: closePool, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
 }));
