@@ -34,3 +34,10 @@
     for (; p < len; p++) c = T[(c ^ b[p]) & 255] ^ (c >>> 8);
     return ~c >>> 0;
   }
+  // a block whose tables are damaged but whose checksum is right (or a bug) must give one plain error, not a stray TypeError
+  function guard(fn) {
+    return function () {
+      try { return fn.apply(this, arguments); }
+      catch (e) { var m = e && e.message; if (typeof m === 'string' && /^(zstd|LfcPack|damaged|not an LFC|block |footer)/.test(m)) throw e; throw new Error('damaged block: ' + m); }
+    };
+  }

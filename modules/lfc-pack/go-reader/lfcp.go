@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"math"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -62,6 +63,10 @@ func Open(data []byte) (f *File, err error) {
 		if r := recover(); r != nil {
 			if e, ok := r.(readErr); ok {
 				f, err = nil, e
+				return
+			}
+			if re, ok := r.(runtime.Error); ok {
+				f, err = nil, readErr("damaged file: "+re.Error())
 				return
 			}
 			panic(r)
@@ -203,6 +208,10 @@ func (f *File) ReadRows() (rows []any, err error) {
 				rows, err = nil, e
 				return
 			}
+			if re, ok := r.(runtime.Error); ok { // damaged lengths or tables that passed the checksums: refuse, do not crash
+				rows, err = nil, readErr("damaged block: "+re.Error())
+				return
+			}
 			panic(r)
 		}
 	}()
@@ -218,6 +227,10 @@ func (f *File) ReadText() (text []byte, err error) {
 		if r := recover(); r != nil {
 			if e, ok := r.(readErr); ok {
 				text, err = nil, e
+				return
+			}
+			if re, ok := r.(runtime.Error); ok {
+				text, err = nil, readErr("damaged block: "+re.Error())
 				return
 			}
 			panic(r)
@@ -510,6 +523,9 @@ func varints(b []byte, n int) []uint64 {
 			p++
 			u += uint64(c&127) * m
 			m *= 128
+			if u > 1<<53 || m > 1<<56 {
+				fail("varint over 2^53")
+			}
 			if c&128 == 0 {
 				break
 			}
