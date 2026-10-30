@@ -64,7 +64,7 @@ Where it loses:
 
 ## See it in action
 
-Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/play/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## Prior art and credits
 - [driver.js](https://github.com/kamranahmedse/driver.js) (MIT, 1.10.1): the closest match: a small, well-liked highlighter and tour library, 26.9 KB as one script (7.7 KB gzipped) plus a 1 KB (gzipped) stylesheet. It has more features (popover positioning, hints, a checklist). I did not check whether it remembers who has seen a tour or gives a finishing gift. Use it when you need those features.

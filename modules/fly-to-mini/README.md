@@ -99,7 +99,7 @@ Where it loses: it is code you ship where the two built-in options ship none; on
 
 ## See it in action
 
-Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/play/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## For AI agents
 
