@@ -14,6 +14,8 @@
 
 JS-modules is a shelf of small browser libraries cut out of [Apple Press](https://github.com/lfcfoundry/apple-press) and [Fancy, the Banana](https://github.com/lfcfoundry/fancy-banana). Each module is one file with no dependencies. Add it with a script tag or `require`, call it, and read its folder README for limits. Every folder has a demo page that opens straight from disk.
 
+The pieces are for more seasoned users and developers. The apps and games built from them need no install, no administrative privileges and no special computing knowledge.
+
 ```html
 <script src="modules/save-kit/save-kit.js"></script>
 <script>var kit = SaveKit.create({ key: 'mygame', schema: { score: 'num' } });</script>
