@@ -1,6 +1,6 @@
 # text-columns
 
-**Version 0.3.0 · API 0**
+**Version 0.5.0 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -32,9 +32,12 @@ The file is cut at line ends outside quotes, each Web Worker reads a piece with 
 ## Only what you need: `columns` and `lazy` (since 0.3.0)
 ```js
 var t = TextColumns.parse(bytes, { columns: ['price', 'city'] });   // names or 0-based numbers; the result holds just these, in file order
+var f = TextColumns.parse(bytes, { columns: function (name, i) { return name !== 'notes'; } });   // or a yes/no function (since 0.4.0)
 var u = TextColumns.parse(bytes, { lazy: true });                    // text columns cut their strings when .values is first read
 u.columns[3].get(41);                                                // one cell, without cutting the whole column
 ```
+Dates and booleans are opt-in (since 0.5.0): `{ types: { when: 'date', ok: 'boolean' } }` turns `YYYY-MM-DD` fields into milliseconds since 1970 UTC (a `Float64Array`, type `'date'`) and `true`/`false` (also `TRUE`/`FALSE`, `True`/`False`) into booleans (type `'boolean'`). One field that does not fit, or an impossible date such as 2023-02-29, leaves that column as text. Without `types`, output is exactly what it was.
+
 A column you do not ask for is never turned into numbers or strings. A lazy text column keeps where its fields are (about 9 bytes a row) and a reference to your input bytes, so do not change those bytes until you have read what you need; the values you get are exactly what `parse` returns. Both options work in `parseParallel` too (a big file with a lazy text column returns almost at once, because no string is made by the main thread). A missing name or number throws an error that says which.
 
 ## Rules
