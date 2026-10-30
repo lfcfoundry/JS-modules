@@ -1080,10 +1080,17 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     if (!blocks) throw new Error('damaged file: block table missing');
     return { bytes: bytes, footer: f, blocks: blocks, header: jsonSec(f.sec[SEC_HEADER]), zone: jsonSec(f.sec[SEC_ZONE]), meta: jsonSec(f.sec[SEC_META]) };
   }
+  // block checksum: the CRC-32 loop in the core WebAssembly module (slicing by 8) when it is loaded, in pieces that fit its input buffer; the plain JavaScript loop otherwise or for small blocks
+  function crcOf(x) {
+    if (!S.core || x.length < 4096) return crcJS(x, 0);
+    var X = S.core.exports, p = X.in_ptr(), o, n, c = 0;
+    for (o = 0; o < x.length; o += IN_CAP) { n = Math.min(IN_CAP, x.length - o); new Uint8Array(X.memory.buffer, p, n).set(x.subarray(o, o + n)); c = X.crc32(p, n, c) >>> 0; }
+    return c;
+  }
   function blockBytes(file, i) {
     var b = file.blocks[i], x = file.bytes.subarray(b[0], b[0] + b[1]);
     if (b[0] + b[1] > file.footer.bodyEnd) throw new Error('block ' + i + ' out of range');
-    if (crcJS(x, 0) !== b[2]) throw new Error('block ' + i + ' checksum mismatch');
+    if (crcOf(x) !== b[2]) throw new Error('block ' + i + ' checksum mismatch');
     return x;
   }
   function rawRows(t) { return td.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
