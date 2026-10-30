@@ -2,7 +2,7 @@
  * graph-walk.js: the small walks over a link list that map and flow tools keep rewriting: breadth-first distances from an item, and a depth-first pass that marks the links that close a loop and lists the items in finishing order, connected components, strongly connected components, topological order and shortest paths. Works on the plain "links of every item" layout (CSR) in typed arrays. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.2.0 (API 0)
+ * Version 0.3.0 (API 0)
  *
  *   var g = GraphWalk.csr(n, fromArray, toArray);         // item numbers 0..n-1; link i joins from[i] to to[i]
  *   var depth = GraphWalk.bfs(g, root);                    // Int32Array, -1 where not reached; bfs(g, root, skip) never enters item `skip`
@@ -75,7 +75,7 @@
   }
 
   /** Groups of items joined by links in either direction. id[v] counts up in order of each group's lowest item number; sizes[id] is the group's item count. Union-find over the link list (no walk, no queue). */
-  function components(g) {
+  function componentsJS(g) {
     var n = g.n, m = g.m, from = g.from, to = g.to, p = new Int32Array(n), i, a, b, t, id = new Int32Array(n), sizes, c = 0;
     for (i = 0; i < n; i++) p[i] = i;
     for (i = 0; i < m; i++) {
@@ -92,7 +92,7 @@
   }
 
   /** Strongly connected groups (Tarjan, no recursion). id[v] numbers groups sinks first: a link between two groups always goes from the higher id to the lower id, so counting ids down gives sources first. */
-  function scc(g) {
+  function sccJS(g) {
     var n = g.n, os = g.outStart, oe = g.outEdge, to = g.to, idx = new Int32Array(n).fill(-1), low = new Int32Array(n), id = new Int32Array(n).fill(-1), it = new Int32Array(n),
         st = new Int32Array(n), sp = 0, cs = new Int32Array(n), cp = 0, next = 0, count = 0, s, v, w, k, end;
     for (s = 0; s < n; s++) {
@@ -115,7 +115,7 @@
   }
 
   /** Items in an order where every link goes forward (Kahn). complete is true when all items are placed; with a loop (a self-link counts) the items on or behind it are left out and order is shorter. */
-  function topo(g) {
+  function topoJS(g) {
     var n = g.n, m = g.m, os = g.outStart, oe = g.outEdge, to = g.to, deg = new Int32Array(n), q = new Int32Array(n), h = 0, tl = 0, i, v, k, end;
     for (i = 0; i < m; i++) deg[to[i]]++;
     for (i = 0; i < n; i++) if (!deg[i]) q[tl++] = i;
@@ -176,7 +176,7 @@
    * Cheapest way from `src` to every item: dist[v] (Infinity when not reached) and via[v] (the last link into v, -1 for src and unreached items). With `weights` (one non-negative number per link, in input order) the cost
    * is the weight total, otherwise the number of links. With a `target` the search stops once the target is settled: dist[target] and the links on its path are exact, other entries may be partial (for one pair, `path` is faster).
    */
-  function shortest(g, src, weights, target) {
+  function shortestJS(g, src, weights, target) {
     var n = g.n, os = g.outStart, oe = g.outEdge, to = g.to, dist = new Float64Array(n).fill(Infinity), via = new Int32Array(n).fill(-1), v, k, e, w, nd, end, x, h;
     if (target === undefined || !(target >= 0 && target < n)) target = -1;
     if (src < 0 || src >= n) return { dist: dist, via: via };
@@ -277,6 +277,72 @@
     return { cost: best, links: links };
   }
 
+
+  /* ---- WebAssembly (wasm/graph-walk.c): the same algorithms and answers for components, scc, topo and weighted shortest paths to every item; compiled the moment this file loads, never blocking; the plain JavaScript answers until it is ready ---- */
+  var WASM_B64 = /*WASM:gw:BEGIN*/'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'/*WASM:gw:END*/;
+  var W = null, mem = null, backend = 'auto', permEnd = 0, readyPromise = null;
+  function b64bytes(t) { var bin, i; if (typeof atob === 'function') { var r = atob(t); bin = new Uint8Array(r.length); for (i = 0; i < r.length; i++) bin[i] = r.charCodeAt(i); } else bin = new Uint8Array(Buffer.from(t, 'base64')); return bin; }
+  function start() {
+    if (readyPromise) return readyPromise;
+    if (typeof WebAssembly !== 'object' || !WASM_B64) return (readyPromise = Promise.resolve(false));
+    try {
+      readyPromise = WebAssembly.instantiate(b64bytes(WASM_B64), {}).then(function (r) { W = r.instance.exports; mem = W.memory; permEnd = (W.__heap_base.value + 7) & ~7; return true; }, function () { return false; });
+    } catch (e) { readyPromise = Promise.resolve(false); }
+    return readyPromise;
+  }
+  function useWasm() { return W !== null && backend !== 'js'; }
+  function grow(end) { var have = mem.buffer.byteLength; if (end > have) mem.grow(Math.ceil((end - have) / 65536)); }
+  /** The graph's own arrays copied into wasm memory once and kept (g._wp); GraphWalk.free(g) gives the space back when it is the newest. */
+  function upload(g) {
+    if (g._wp && g._wp.mem === mem) return g._wp;
+    var n = g.n, m = g.m, start0 = permEnd, p = { mem: mem, start: start0, os: start0, oe: start0 + 4 * (n + 1), to: 0, from: 0, end: 0 };
+    p.to = p.oe + 4 * m; p.from = p.to + 4 * m; p.end = (p.from + 4 * m + 7) & ~7;
+    grow(p.end); permEnd = p.end;
+    var all = new Int32Array(mem.buffer);
+    all.set(g.outStart, p.os >> 2); all.set(g.outEdge, p.oe >> 2); all.set(g.to, p.to >> 2); all.set(g.from, p.from >> 2);
+    g._wp = p; return p;
+  }
+  /** Scratch space above the kept graphs for one call: sizes in bytes, returns the byte offsets. */
+  function scratch(sizes) {
+    var at = permEnd, out = [], i;
+    for (i = 0; i < sizes.length; i++) { out.push(at); at = (at + sizes[i] + 7) & ~7; }
+    grow(at); return out;
+  }
+  function componentsW(g) {
+    var n = g.n, m = g.m, p = upload(g), q = scratch([4 * n, 4 * n, 4 * n]), count = W.gw_components(n, m, p.from, p.to, q[0], q[1], q[2]), b = mem.buffer;
+    return { id: new Int32Array(b, q[1], n).slice(), count: count, sizes: new Int32Array(b, q[2], count).slice() };
+  }
+  function sccW(g) {
+    var n = g.n, p = upload(g), q = scratch([4 * n, 4 * n, 4 * n, 4 * n, 4 * n, 4 * n]), count = W.gw_scc(n, p.os, p.oe, p.to, q[0], q[1], q[2], q[3], q[4], q[5]);
+    return { id: new Int32Array(mem.buffer, q[2], n).slice(), count: count };
+  }
+  function topoW(g) {
+    var n = g.n, p = upload(g), q = scratch([4 * n, 4 * n]), placed = W.gw_topo(n, g.m, p.os, p.oe, p.to, q[0], q[1]), order = new Int32Array(mem.buffer, q[1], placed).slice();
+    return { order: order, complete: placed === n };
+  }
+  function shortestW(g, src, weights, target) {
+    var n = g.n, m = g.m, p = upload(g), q = scratch([8 * m, 8 * n, 4 * n, 4 * n, 4 * n]), b = mem.buffer, dist, via, bad;
+    new Float64Array(b, q[0], m).set(weights);
+    dist = new Float64Array(b, q[1], n).fill(Infinity); via = new Int32Array(b, q[2], n).fill(-1); new Int32Array(b, q[4], n).fill(-1);
+    bad = W.gw_dijkstra(n, p.os, p.oe, p.to, q[0], src, q[1], q[2], q[3], q[4]);
+    if (bad) throw new RangeError('link ' + (bad - 1) + ' has a negative or missing weight');
+    return { dist: dist.slice(), via: via.slice() };
+  }
+  function components(g) { return useWasm() ? componentsW(g) : componentsJS(g); }
+  function scc(g) { return useWasm() ? sccW(g) : sccJS(g); }
+  function topo(g) { return useWasm() ? topoW(g) : topoJS(g); }
+  /** As the JavaScript version; with `weights` and no `target` (cheapest paths to every item) the work runs in WebAssembly when it is ready. */
+  function shortest(g, src, weights, target) {
+    if (weights && (target === undefined || !(target >= 0)) && useWasm() && src >= 0 && src < g.n) {
+      if (weights.length !== g.m) throw new RangeError('weights needs one number per link');
+      return shortestW(g, src, weights, target);
+    }
+    return shortestJS(g, src, weights, target);
+  }
+  /** Gives back the WebAssembly copy of a graph's arrays when it is the newest one kept; otherwise the space stays until the page closes. */
+  function free(g) { var p = g._wp; if (p) { if (p.end === permEnd) permEnd = p.start; g._wp = null; } }
+  start();   // compile early
+
   /** Link numbers from the start of a `shortest` result to `target`, in walking order; [] when target is the start, null when it was not reached. */
   function pathTo(g, r, target) {
     if (!(target >= 0 && target < g.n) || r.dist[target] === Infinity) return null;
@@ -284,5 +350,5 @@
     while ((e = r.via[v]) >= 0) { out.push(e); v = g.from[e]; }
     return out.reverse();
   }
-  return { version: '0.2.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path };
+  return { version: '0.3.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
 }));

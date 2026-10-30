@@ -1,6 +1,6 @@
 # graph-walk
 
-**Version 0.2.0 · API 0**
+**Version 0.3.0 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -34,6 +34,9 @@ GraphWalk.path(g, src, target, weights);        // one pair, searched from both 
 ```
 `csr` also works if you already have the arrays: any object with `n`, `m`, `to`, `outStart` and `outEdge` (link numbers in input order) is accepted. Copy `graph-walk.js` next to your page (`<script src="graph-walk.js"></script>` sets `GraphWalk`) or `require` it in Node.
 
+## WebAssembly
+`components`, `scc`, `topo` and `shortest` with weights (to every item) run in WebAssembly (`wasm/graph-walk.c`, built with `wasm/build.sh`, embedded in the file as 3.4 KB of text) with identical answers, compiled the moment the file loads; until then, or on a page that forbids WebAssembly (it needs `'wasm-unsafe-eval'` in `script-src`), the plain JavaScript answers. `GraphWalk.ready()` resolves when it is on, `GraphWalk.accelerated()` says, `GraphWalk.setBackend('js' | 'wasm' | 'auto')` forces a side, and `GraphWalk.free(g)` gives back a graph's WebAssembly copy when it was the newest. Gain over the plain JavaScript on 10,000 to 100,000 item networks (one container run, not noise-guarded): Firefox 158 1.2x to 2.2x, ungoogled Chromium 155 1.2x to 2.1x, WebKitGTK 2.52.6 about 1.0x (no gain, within noise). The first call on a graph copies its arrays into WebAssembly memory once. `path`, `bfs` and `loops` stay in JavaScript.
+
 ## How it compares
 Against graphology 0.26 (with graphology-components 1.5, graphology-shortest-path 2.1 and graphology-dag 0.4), the same random network of 100,000 items and 400,000 links, milliseconds per job, median of 7 rounds taking turns, **graphology / graph-walk, lower is better**. Container, one browser at a time, not noise-guarded. Every answer was checked against graphology's before timing (same groups, same path costs).
 
@@ -61,4 +64,4 @@ Breadth-first and loop marking are unchanged from 0.1.0 and match Netflow Map's 
 The textbook algorithms (Cormen et al., Introduction to Algorithms): breadth-first search; depth-first search with a three-color mark where a link to a gray item closes a loop; union-find with path halving for components; Tarjan for strongly connected components; Kahn for topological order; Dijkstra with a four-ary heap that moves items up instead of storing copies; bidirectional Dijkstra for one pair. The first two were lifted from Netflow Map's engine and tested against it; the rest are tested against slow references (reachability matrix, Bellman-Ford) on 400 random graphs.
 
 ## For AI agents
-Checks: `node modules/graph-walk/test/run.js`; browser speed: `node tests/graph-walk-browser.js <chromium|firefox|webkit>` (inline walks) and `GRAPHOLOGY_BUNDLE=gra.js node tests/graph-walk-graphology-browser.js <chromium|firefox|webkit>` (against graphology; the bundle is graphology plus its components, shortest-path and dag packages built into one script that sets `window.GRA`). The reference walks in the test are verbatim copies of Netflow Map's inline code; if Netflow's copies change, update the references first.
+Checks: `node modules/graph-walk/test/run.js` and `node modules/graph-walk/test/run-wasm.js` (same checks with the WebAssembly kernels forced on); `sh modules/graph-walk/wasm/build.sh --check` proves the shipped `.wasm` is what the C builds, `python3 modules/graph-walk/wasm/embed.py --check` that the `.js` carries it; browser speed: `node tests/graph-walk-browser.js <chromium|firefox|webkit>` (inline walks) and `GRAPHOLOGY_BUNDLE=gra.js node tests/graph-walk-graphology-browser.js <chromium|firefox|webkit>` (against graphology; the bundle is graphology plus its components, shortest-path and dag packages built into one script that sets `window.GRA`). The reference walks in the test are verbatim copies of Netflow Map's inline code; if Netflow's copies change, update the references first.
