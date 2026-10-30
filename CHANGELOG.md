@@ -31,7 +31,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [zip-open](modules/zip-open/README.md) | 1.3.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.6.5 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.4.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
-| [graph-walk](modules/graph-walk/README.md) | 0.6.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
+| [graph-walk](modules/graph-walk/README.md) | 0.7.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.1.9 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.1.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
@@ -58,6 +58,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-30 · **graph-walk** 0.7.0 · API 0: Changed: betweennessAsync now keeps its helper threads by default (closing itself after 5 s idle); pool: false restores one-call helpers.
 - 2026-10-30 · **graph-walk** 0.6.0 · API 0: New: betweennessAsync can keep its helper threads (pool: true) so repeated jobs are up to 1.75x faster; small jobs now run on the calling thread.
 - 2026-10-30 · **graph-walk** 0.5.0 · API 0: New: betweennessAsync splits betweenness across helper threads (3.4x to 4.6x faster on 4 cores).
 - 2026-10-30 · **graph-walk** 0.4.0 · API 0: New: k-core numbers, minimum spanning forest, PageRank and betweenness (plain JavaScript and WebAssembly); the first two-ended path call allocates less.

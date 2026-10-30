@@ -20,7 +20,7 @@ T.main(async (b, which, outFile) => {
     const runs = { 'sync-js': () => { GraphWalk.setBackend('js'); return Promise.resolve(GraphWalk.betweenness(G)); }, 'sync-wasm': () => { GraphWalk.setBackend('wasm'); return Promise.resolve(GraphWalk.betweenness(G)); },
       'workers2-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: 2, pool: false }); },
       'perCall-js': () => { GraphWalk.setBackend('js'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: false }); }, 'perCall-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: false }); },
-      'kept-js': () => { GraphWalk.setBackend('js'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: true }); }, 'kept-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: A(), pool: true }); } };
+      'kept-js': () => { GraphWalk.setBackend('js'); return GraphWalk.betweennessAsync(G, { workers: A() }); }, 'kept-wasm': () => { GraphWalk.setBackend('wasm'); return GraphWalk.betweennessAsync(G, { workers: A() }); } };
     window.check = async () => { const a = await runs['sync-js'](), res = {}; for (const k of Object.keys(runs)) { const c = await runs[k](); res[k] = c.length === a.length && a.every((v, i) => Math.abs(v - c[i]) < 1e-9); } return res; };
     window.time = async (k, calls) => { GraphWalk.closePool(); await new Promise((r) => setTimeout(r, +(window.SETTLE || 0))); const t0 = performance.now(); for (let i = 0; i < calls; i++) await runs[k](); const dt = (performance.now() - t0) / calls; return dt; };
   });
