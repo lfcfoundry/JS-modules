@@ -70,12 +70,14 @@
   function packParallel(input, opts) {   // -> Promise of bytes
     opts = opts || {};
     return init().then(function () {
-      var b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
+      var T0 = Date.now(), b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
+      if (opts.balance && !opts.blockBytes) bb = Math.max(4 << 20, Math.min(bb, Math.ceil(b.length / Math.min(opts.workers || hc, 8))));   // experimental: about one block per helper; the file differs from pack() unless pack gets the same blockBytes
       while (q < b.length) { e = Math.min(b.length, q + bb); if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
       var nb = cuts.length - 1, w = Math.min(opts.workers || hc, 8, nb), per = Math.ceil(nb / Math.max(1, w)), groups = [], g;
       if (opts.exact || w < 2) return pack(b, opts);   // exact mode and small inputs stay on one thread
       for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
-      var jopts = {}, k; for (k in opts) if (k !== 'workers') jopts[k] = opts[k];
+      var jopts = {}, k, tm = opts.timing; for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k];
+      if (tm) { tm.cut = Date.now() - T0; tm.groups = []; }   // optional phase timing: ms from the call start, filled in as the run goes
       return new Promise(function (resolve, reject) {
         var ws = [], results = new Array(groups.length), left = groups.length, failed = false;
         function release(ok) {   // finished helpers wait 3 s for the next call (they already hold the loaded wasm); a failed run ends them
@@ -85,13 +87,15 @@
         }
         function fail(err) { if (failed) return; failed = true; release(false); reject(err instanceof Error ? err : new Error(String(err && err.message || err))); }
         function onMsg(i, m, next) {
-          if (m.started) { next(); return; }
+          if (m.started) { if (tm) tm.groups[i].started = Date.now() - T0; next(); return; }
           if (m.error) { fail(new Error(m.error)); return; }
-          results[i] = m; if (--left === 0 && !failed) { release(true); try { resolve(stitch(results, b.length, jopts)); } catch (er) { reject(er); } }
+          if (tm) tm.groups[i].done = Date.now() - T0;
+          results[i] = m; if (--left === 0 && !failed) { release(true); try { var ts = Date.now(); var out = stitch(results, b.length, jopts); if (tm) { tm.stitchMs = Date.now() - ts; tm.total = Date.now() - T0; } resolve(out); } catch (er) { reject(er); } }
         }
         function start(i) {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
           if (i >= groups.length || failed) return;
-          var w2 = takeHelper(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]), nx = function () { start(i + 1); };
+          var t1 = Date.now(), w2 = takeHelper(), t2 = Date.now(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]), nx = function () { start(i + 1); };
+          if (tm) tm.groups[i] = { takeMs: t2 - t1, copyMs: Date.now() - t2, posted: Date.now() - T0, bytes: slice.length };
           w2.listen(function (m) { onMsg(i, m, nx); }, fail);
           w2.post({ id: i, kind: 'p', buf: slice, opts: jopts }, [slice.buffer]);
           ws.push(w2);
