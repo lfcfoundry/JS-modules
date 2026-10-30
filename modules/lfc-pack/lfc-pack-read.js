@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.1.11 (API 0)
+ * Version 0.1.9 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -800,7 +800,7 @@
 
   // ================================================================ container: blocks, then footer v1 (sections), then the 16-byte trailer
   var MAJOR = 1, MINOR = 0, MAGIC = [76, 70, 67, 49];   // "LFC1"
-  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15;
+  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_META = 6, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15;
   var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1, 15: 1 };   // 15 is the number-spelling section   // 8 and 13 are reserved
   function writeFooter(zs, sections, compress) {
     var parts = [], i, s, h;
@@ -823,6 +823,14 @@
     return { major: major, minor: rd16(file, n - 6), bodyEnd: n - 16 - flen, sec: sec };
   }
   function jsonSec(b) { return b ? JSON.parse(td.decode(b)) : undefined; }
+  // optional metadata (footer section 6, see PROPOSAL-metadata-section.md): opts.meta is a plain object the app wants to travel with the file; stored as { v: 1, ...meta }, under 64 KB, optional for readers
+  function metaSecs(opts) {
+    var m = opts && opts.meta; if (m === undefined || m === null) return [];
+    if (typeof m !== 'object' || Array.isArray(m)) throw new TypeError('LfcPack: meta must be a plain object');
+    var o = { v: 1 }, k; for (k in m) if (k !== 'v') setKey(o, k, m[k]);
+    var p = te.encode(JSON.stringify(o)); if (p.length > 65536) throw new RangeError('LfcPack: meta is over 64 KB');
+    return [{ id: SEC_META, flags: 0, payload: p }];
+  }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ public API
@@ -898,6 +906,7 @@
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
     ];
+    secs = secs.concat(metaSecs(opts));
     if (exact && Object.keys(exc).length) secs.push(excSection(exc));
     if (exact && Object.keys(spl).length) secs.push(spellSection(spl));
     parts.push(writeFooter(S.zfull, secs, true));
@@ -1001,7 +1010,7 @@
     need(false); bytes = bytesOf(bytes);
     var f = readFooter(S.zdec, bytes), blocks = jsonSec(f.sec[SEC_BLOCKS]);
     if (!blocks) throw new Error('damaged file: block table missing');
-    return { bytes: bytes, footer: f, blocks: blocks, header: jsonSec(f.sec[SEC_HEADER]), zone: jsonSec(f.sec[SEC_ZONE]) };
+    return { bytes: bytes, footer: f, blocks: blocks, header: jsonSec(f.sec[SEC_HEADER]), zone: jsonSec(f.sec[SEC_ZONE]), meta: jsonSec(f.sec[SEC_META]) };
   }
   function blockBytes(file, i) {
     var b = file.blocks[i], x = file.bytes.subarray(b[0], b[0] + b[1]);
@@ -1061,6 +1070,7 @@
     for (i = 0; i < t.length; i++) { r = unpackSome(file.bytes, Object.assign({}, opts || {}, { table: i })); out[t[i][0]] = t[i][1] === 'value' ? (r.length ? r[0].v : null) : r; }
     return out;
   }
+  function metadata(bytes) { var m = openFile(bytes).meta; return m === undefined ? null : m; }   // the metadata object the file was packed with (opts.meta), or null; reads the footer only
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
   // ---- streaming pack: packStream({ blockBytes }) -> { push(bytes) -> [Uint8Array blocks ready to write], finish() -> [last blocks + footer] }. The output parts joined are the same bytes pack() gives for the same text and blockBytes; only one block of text is held at a time. Value-exact mode only.
   function packStream(opts) {
@@ -1097,12 +1107,12 @@
           { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
           { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
           { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
-          { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }], true));
+          { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }].concat(metaSecs(opts)), true));
         return out;
       }
     };
   }
-  var api = { unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, packStream: packStream, unpack: unpack, info: info, unpackText: unpackText, version: '0.1.11', apiVersion: 0 };
+  var api = { unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackText: unpackText, version: '0.1.9', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
@@ -1239,7 +1249,7 @@
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }
-    ], true));
+    ].concat(metaSecs(jopts)), true));
     return concat(parts);
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).

@@ -1,4 +1,6 @@
-# Proposal: footer section 6, metadata (draft, nothing implemented)
+# Footer section 6, metadata (implemented on branch claude/project-thread-cahtub: `pack(bytes, { meta })`, `LfcPack.metadata(bytes)`, `lfc_pack.metadata(path)`)
+
+The packer copies the object it is given (adds `v: 1`, refuses over 64 KB); it does not fill `rows` or `type` itself. Tests: `test/meta.cjs`.
 
 Goal: let any app show what a `.json.lfc` file holds (title, tables, column names and types, units, where it came from) by reading only the footer, without decoding a block.
 

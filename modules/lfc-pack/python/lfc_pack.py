@@ -385,6 +385,12 @@ def info(path_or_bytes):
     return {'rows': h.get('rows'), 'blocks': len(blocks), 'size': len(data), 'major': f['major'], 'minor': f['minor']}
 
 
+def metadata(path_or_bytes):
+    """The metadata object the file was packed with (footer section 6), or None. Reads the footer only."""
+    data = _load(path_or_bytes); f, _ = _open(data)
+    return _json(f['sec'].get(6))
+
+
 def _load(x):
     if isinstance(x, (bytes, bytearray, memoryview)): return bytes(x)
     with open(x, 'rb') as fh: return fh.read()
