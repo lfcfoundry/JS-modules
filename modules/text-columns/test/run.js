@@ -80,4 +80,40 @@ t('Python csv module reads the same fields', () => {
   }
   fs.rmSync(dir, { recursive: true, force: true }); assert.strictEqual(bad, 0, 'files that differ from Python csv: ' + bad);
 });
+
+// ---- 0.2.0: parseParallel must give the very same columns (and errors) as parse. Helpers here are Node worker threads standing in for Web Workers. ----
+const { Worker } = require('worker_threads');
+function spawn(code) {
+  const w = new Worker("const {parentPort}=require('worker_threads');global.self=global;global.postMessage=(m,t)=>parentPort.postMessage(m,t||[]);parentPort.on('message',d=>{if(global.onmessage)global.onmessage({data:d});});" + code, { eval: true }), o = { onmessage: null, onerror: null, postMessage: (m, t) => w.postMessage(m, t), terminate: () => w.terminate() };
+  w.on('message', d => o.onmessage && o.onmessage({ data: d })); w.on('error', e => o.onerror && o.onerror(e)); return o;
+}
+const asTable = x => ({ names: x.names, count: x.count, cols: x.columns.map(c => [c.name, c.type, c.type === 'number' ? Array.from(c.values) : c.values]) });
+let used = 0;
+(async () => {
+  const both = async (text, o) => {
+    let a, b; try { a = asTable(F.parse(text, o)); } catch (e) { a = 'ERR ' + e.message; }
+    try { const pt = await F.parseParallel(text, Object.assign({ spawn, minBytes: 0 }, o)); b = asTable(pt); used += pt.workers > 1 ? 1 : 0; } catch (e) { b = 'ERR ' + e.message; }
+    assert.deepStrictEqual(b, a, JSON.stringify(text.slice(0, 80)));
+  };
+  for (let it = 0; it < 300; it++) {
+    const delim = R() < 0.3 ? '\t' : ',', rows = ri(1, 200), cols = ri(1, 6), eol = R() < 0.3 ? '\r\n' : '\n', text = table(delim, rows, cols, eol), header = R() < 0.8;
+    await both(text, { delimiter: delim, header, workers: ri(2, 5) });
+  }
+  for (let it = 0; it < 60; it++) await both(numeric(ri(1, 3000), ri(1, 8)), { workers: ri(2, 6) });
+  const mixedChunks = 'a,b\n' + '1,2\n'.repeat(500) + '1,x\n' + '1,2\n'.repeat(500);   // one column is numbers in some pieces and text in another
+  await both(mixedChunks, { workers: 4 }); await both('a,b\n1,2\n' + '3,4\n'.repeat(300) + '5,6', { workers: 3 }); await both('a,b\r\n' + '1,2\r\n'.repeat(400), { workers: 4 });
+  await both('a,b\n"multi\nline",1\n'.repeat(300), { workers: 4 }); await both('a,b\n' + '"he said ""hi""\nthere",2\n'.repeat(200), { workers: 5 });
+  await both('a,b\n' + '5" pipe,1\n"x\ny",2\n'.repeat(200), { workers: 4 });             // a quote in the middle of a plain field: the file is read whole
+  await both('a,b\n' + '1,2\n'.repeat(100) + '1,2,3\n' + '1,2\n'.repeat(100), { workers: 4 });   // ragged
+  await both('a,b\n' + '1,2\n'.repeat(100) + '"x,2\n' + '1,2\n'.repeat(100), { workers: 4 });   // unclosed quote
+  await both('a,b\n', { workers: 4 }); await both('', { workers: 4 }); await both('a\n1\n2\n', { workers: 8 }); await both('﻿a,b\n' + '1,2\n'.repeat(50), { workers: 4 });
+  await both('x,y\n' + '1,é日本\n'.repeat(300), { workers: 4 });
+  // splitting never lands inside quotes: every piece must start right after a line end that is outside quotes
+  const q = 'a,b\n' + Array.from({ length: 400 }, (_, i) => i % 3 ? '"line\none ' + i + '",' + i : i + ',"p,q"').join('\n') + '\n';
+  for (let w = 2; w <= 8; w++) await both(q, { workers: w });
+  assert.ok((await F.parseParallel('a\n1\n2\n', { spawn, workers: 4 })).count === 2, 'small input is read directly');
+  F.closeHelpers(); assert.ok(used > 250, 'the helpers must really be used: ' + used);
+  console.log('text-columns: parallel parse agrees with parse on ' + (300 + 60 + 20 + 7) + ' files; ' + used + ' of them went through 2 or more helpers');
+})().catch(e => { console.log('FAIL parallel', e && e.stack || e); process.exit(1); });
+
 console.log('text-columns: all ' + n + ' checks passed');
