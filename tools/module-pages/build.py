@@ -83,7 +83,7 @@ def sections(readme):
     return head, secs, order
 GROUPS = [('Why it exists', ['Why it exists']),
           ('Highlights', ['Looks, timing and a worker', 'What it does that plain JSON saves do not', 'What is different', 'What it does differently', 'What it protects you from', 'Pick a file']),
-          ('How it compares', ['How it compares', 'Numbers', 'Measured', 'Compared']),
+          ('How it compares', ['How it compares', 'How it differs', 'Numbers', 'Measured', 'Compared']),
           ('How to use it', ['Use', 'Quick start', 'API', 'Options', 'Try it and test it', 'Lean builds', 'Lean build']),
           ('Who uses it', ['See it in action']),
           ('Good to know', ['Limits', 'What it is not', 'Good to know', 'Rules'])]
