@@ -73,6 +73,10 @@ Many "adaptive quality" snippets react to a single slow frame. This one averages
 ## Limits
 Measures frame rate only, not memory or battery. You decide what each level means in CSS or code. `expectedPeriod` only helps if you know the screen's normal rate (for example from frame-kit's `EvenDt`); a game that truly runs at 30 FPS on a 60 Hz screen looks the same as a 30 Hz screen when you pass the wrong period. No browser API says "this device cannot keep up", so frame timing is the only shared signal.
 
+## See it in action
+
+Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/), [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## Prior art and credits
 - [drei PerformanceMonitor](https://drei.docs.pmnd.rs/performances/performance-monitor) (MIT, React Three Fiber only): read as prior art for measuring in short windows and setting limits relative to the display's refresh rate. Idea only, no code.
 - [Babylon.js SceneOptimizer](https://doc.babylonjs.com/features/featuresDeepDive/scene/sceneOptimizer) (Apache-2.0): read as prior art for stepping through ranked cuts until a target rate is hit. Idea only, no code.

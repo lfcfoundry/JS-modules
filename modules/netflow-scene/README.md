@@ -77,6 +77,10 @@ var S = NetflowScene.make(L, { theme: names.theme, palette: names.palette, ramp:
 - Drawing itself (Canvas, WebGL, WebGPU) is not in this module.
 - Not tried on a real phone.
 
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## Prior art and credits
 The scene lists follow the common "scene graph for a chart" idea; links as typed arrays follow struct-of-arrays practice. No code from other projects.
 

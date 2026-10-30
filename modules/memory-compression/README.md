@@ -171,6 +171,10 @@ Fast mode restores faster than lz4-wasm in Firefox 158.0 and Chromium 155 but no
 
 `node modules/memory-compression/test/core.js` (packing core, 24 checks), `test/run.js` (object layer, 74 checks) and `test/router.js` (the one entry point, 15 checks), a few seconds each; `--js-only` runs without WebAssembly and `FULL=1` adds 10 times more random cases. Browser checks: `bench/lazy-start.js`, `bench/csp-and-speed.js` and `bench/browser-run.js` (see `bench/README.md`). Rebuild the file with `python3 modules/memory-compression/build.py`; rebuild the helper with `sh wasm/build.sh && python3 wasm/embed.py` (clang with the wasm32 target); the JavaScript and WebAssembly paths must stay byte-identical, and the tests check that.
 
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## For AI agents
 
 - `pack`/`unpack` for typed arrays and big arrays of similar objects you want to keep small or save; pass `width` equal to the record size in bytes for arrays of rows; `mode: 'small'` for anything restored rarely, `'fast'` for anything restored often, `'balanced'` for number-heavy data packed once.

@@ -101,6 +101,10 @@ All columns are smaller-is-better. Story order makes "going back" honest (links 
 - Rows are by fewest steps from `root` unless `rows: "story"`.
 - More than 90,000 stand-in stops (page boxes plus the stops long links need) throws; turn on `tagLen` first.
 
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## For AI agents
 
 - Give every node `w` and `h`, set `root`, and try `rows: "story"` and `tagLen: 8` for long stories; use `dir: "TB"` with `wrap: true` for tall maps. Handle the `tooBig` error by turning on `tagLen`.

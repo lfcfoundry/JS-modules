@@ -104,6 +104,10 @@ Where it loses: larger than a hand-written save (the lean build cuts parts a gam
 - **`flag` uses its default** when missing or broken, so a new on-by-default setting stays on for players who saved before it existed. A saved `0` stays `0`.
 - **Never throws:** `create()`, `load()`, `save()`, `exportCode()`, `importCode()`, `autosave()`. `save(null)` returns `false`; `exportCode(null)` rejects with a message; a `getState()` that throws is skipped for that tick.
 
+## See it in action
+
+Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/), [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/), [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## For AI agents
 
 - Call `SaveKit.create({ key, prefix, schema, defaults })` once, then `load()` at start, `autosave()` after, and `exportCode`/`importCode` for a "copy your save" box.
