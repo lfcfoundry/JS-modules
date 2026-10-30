@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-10-30
+- New Lists.getMany reads many lists in one WebAssembly call.
+
 ## 1.4.0 · API 1 · 2026-10-25
 - intersect is 1.4 to 2.5x faster than a plain linear merge on lists of similar size: blocks of both lists are unpacked and merged, and stretches that cannot match are skipped.
 
