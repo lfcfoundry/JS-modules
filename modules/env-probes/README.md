@@ -72,6 +72,10 @@ Detection is by behavior, so a future browser could round differently or add noi
 ## Quick start
 Open `demo.html` (the device check page), press the button, and copy the report. In code: `var r = EnvProbes.report(); if (r.canvasReadback !== 'ok') skipPixelAnalysis();`.
 
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## Prior art and credits
 - [CreepJS](https://github.com/abrahamjuliot/creepjs) (MIT) and [detectIncognito](https://github.com/Joe12387/detectIncognito) (MIT): read as prior art for spotting these modes; this module detects the effect, not the mode. Ideas only, no code.
 - [detect-gpu](https://github.com/pmndrs/detect-gpu) (MIT): rates the graphics chip, a different question. Nothing taken.

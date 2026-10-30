@@ -97,6 +97,10 @@ Where it loses: it is code you ship where the two built-in options ship none; on
 - Needs `IntersectionObserver` and `requestAnimationFrame`. Without `IntersectionObserver` it calls `onChange(true)` once and never flies.
 - Tested with a fake DOM in Node and with the demo in Chromium (both engines). Not measured on phones.
 
+## See it in action
+
+Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## For AI agents
 
 - Wire it with `big`, `mini`, `bar` (or `topInset` as a number) and an `onChange` that toggles a class on the bar. `hysteresis: 0.1`, `keepFocus: true` and `reducedFade: true` are good additions for a game. Add the CSS `.flying .your-art { opacity: 0 }`.
