@@ -39,3 +39,8 @@ Many small files are about 4.7x faster. For one big zip, reading a File in piece
 | 1.5.0 expandBlob, 4 helpers | 33 |
 
 Many small files are about 5.9x faster. Reading a File in pieces is slightly slower than in memory, and with 4 helpers it takes 0.55 of the time.
+
+
+**New in 1.5.1: a File of up to 16 MB opens in one read.** The code thread's cloud-browser runs (Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 on a shared machine, not noise-guarded, not the laptop). A laptop run will replace these.
+
+`expandBlob` on a 9 MB zip takes 0.80 to 0.93 of the earlier time, which brings it level with the in-memory open.

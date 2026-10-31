@@ -80,3 +80,15 @@ Whole read of 200-key rows in WebKitGTK: 1,324 ms down to 580 ms with row-by-row
 | lists (1.7 MB) | 16 | 15 | 5.0 | 6.0 | 365,098 | 365,098 |
 
 Note: one logs unpack run read slow (86 ms); two reruns gave level results, so it was noise and is not counted. Reading 100 rows from row 100,000 of the logs file takes 12 ms with `unpackRows`, against 77 ms to read everything and slice. 13 MB blocks against 21 MB: pack time 0.71 to 0.82 on five of six rows and 1.05 on one (logs, 4 helpers); size the same or slightly smaller.
+
+
+**New in 0.2.1: text-heavy files come out smaller.** The code thread's cloud-browser runs (Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 on a shared machine, not noise-guarded, not the laptop). A laptop run will replace these.
+
+| data | smaller by |
+|---|---:|
+| web logs | 3.4% |
+| FHIR records | 1.0% |
+| dense records | 1.0% |
+| events | 0.4% |
+
+Nothing came out larger, and pack time is within noise. Older readers open the files as before.
