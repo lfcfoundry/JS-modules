@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.8.0 · API 1 · 2026-10-31
+- Excel files are read much faster: 1.8 to 3.3 times as fast (45 to 70% less time) in cloud tests of Firefox, Chromium and WebKitGTK, with the same results. Sheets with formulas and sheets full of text gain the most.
+
 ## 1.7.0 · API 1 · 2026-10-31
 - Excel sheets are read faster: on a 16-core laptop 11 to 20% faster in Firefox and 23 to 24% faster in Chromium, with the same results.
 
