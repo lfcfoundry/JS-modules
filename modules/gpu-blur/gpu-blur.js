@@ -2,7 +2,7 @@
  * gpu-blur.js: blur a picture on the graphics card (WebGL 2), or in WebAssembly, or in plain JavaScript, and give the same picture every way.
  * The module picks the way by what the browser can do, never by the browser's name. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.2 (API 1)
+ * Version 1.2.3 (API 1)
  *
  *   GpuBlur.blur(source, width, height, radius[, opts])   -> Promise of { canvas | pixels | texture, width, height, route }
  *   GpuBlur.blurSync(source, width, height, radius[, opts]) -> the same result at once (the page waits for the whole job)
@@ -31,7 +31,7 @@
 })(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  var VERSION = '1.2.2';
+  var VERSION = '1.2.3';
   var MAX_PIXELS = 33554432;          // 8192 x 4096
   var STRIP = 16;                     // columns per vertical strip (the wasm kernel's limit)
   var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
@@ -283,10 +283,11 @@
       var w = m.w, h = m.hh, b = m.b, S = 16, img = al(w * h * 4);
       var rowA = 65536, rowB = rowA + al(w * 8), stA = rowB + al(w * 8), stB = stA + al(h * S * 4), col = stB + al(h * S * 4), pA = col + S * 16, pB = pA + img, end = pB + img;
       if (end > mem.buffer.byteLength) mem.grow(Math.ceil((end - mem.buffer.byteLength) / 65536));
-      new Uint8Array(mem.buffer, pA, w * h * 4).set(new Uint8Array(m.buf));
+      new Uint8Array(mem.buffer, pA, w * h * 4).set(new Uint8Array(m.buf, 0, w * h * 4));
       ex.hrows(pA, pB, rowA, rowB, w, 0, h, b);
       for (var x = 0; x < w; x += S) ex.vcols(pB, pA, stA, stB, col, w, h, x, Math.min(w, x + S), b);
-      var out = new Uint8Array(m.keep * w * 4); out.set(new Uint8Array(mem.buffer, pA + m.top * w * 4, m.keep * w * 4));
+      var out = m.reuse ? new Uint8Array(m.buf, 0, m.keep * w * 4) : new Uint8Array(m.keep * w * 4);   // reuse: the result goes back in the buffer that came in, so neither side makes megabytes of new memory per call
+      out.set(new Uint8Array(mem.buffer, pA + m.top * w * 4, m.keep * w * 4));
       postMessage({ id: m.id, buf: out.buffer }, [out.buffer]);
     };
   }
@@ -333,7 +334,9 @@
     return getHelpers(n).then(function (H) {
       if (H.timer) { clearTimeout(H.timer); H.timer = 0; }
       var halo = 3 * b, per = Math.ceil(h / n), jobs = [], res = { width: w, height: h, route: 'helpers' }, px = null, ctx = null, lease = null, sx = null, i;
-      if (out === 'pixels') res.pixels = px = new Uint8ClampedArray(w * h * 4);
+      var reuse = opts._reuse !== false;   // _reuse, _intoPx: test switches (tests/gpu-blur-pool-reuse-browser.js); _reuse: false = the 1.2.2 way
+      if (!H.bufs) H.bufs = [];
+      if (out === 'pixels') res.pixels = px = (opts._intoPx && opts._intoPx.length === w * h * 4) ? opts._intoPx : new Uint8ClampedArray(w * h * 4);
       else {
         var cv = opts.into || makeCanvas(w, h);
         if (!cv) throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"');
@@ -350,18 +353,21 @@
         var y0 = i * per, y1 = Math.min(h, y0 + per); if (y0 >= y1) break;
         (function (y0, y1, k) {
           var s0 = Math.max(0, y0 - halo), s1 = Math.min(h, y1 + halo), buf;
-          if (src) buf = src.slice(s0 * w * 4, s1 * w * 4).buffer;
+          if (src && reuse) { var need = (s1 - s0) * w * 4; buf = H.bufs[k] && H.bufs[k].byteLength >= need && H.bufs[k].byteLength <= 2 * need ? H.bufs[k] : new ArrayBuffer(need); H.bufs[k] = null; new Uint8Array(buf, 0, need).set(src.subarray(s0 * w * 4, s1 * w * 4)); }
+          else if (src) buf = src.slice(s0 * w * 4, s1 * w * 4).buffer;
           else { var d = sx.getImageData(0, s0, w, s1 - s0).data; buf = d.buffer.byteLength === d.byteLength ? d.buffer : d.slice().buffer; }
           jobs.push(new Promise(function (ok, bad) {
             var id = ++H.id;
             H.pending[id] = { fail: bad, done: function (rb) {
               try {
-                if (px) px.set(new Uint8ClampedArray(rb), y0 * w * 4);
-                else ctx.putImageData(new ImageData(new Uint8ClampedArray(rb), w, y1 - y0), 0, y0);
+                var got = new Uint8ClampedArray(rb, 0, (y1 - y0) * w * 4);
+                if (px) px.set(got, y0 * w * 4);
+                else ctx.putImageData(new ImageData(got, w, y1 - y0), 0, y0);
+                if (reuse) H.bufs[k] = rb;   // kept for this helper's next band
                 ok();
               } catch (e) { bad(e); }
             } };
-            H.ws[k].postMessage({ id: id, buf: buf, w: w, hh: s1 - s0, b: b, top: y0 - s0, keep: y1 - y0 }, [buf]);
+            H.ws[k].postMessage({ id: id, buf: buf, w: w, hh: s1 - s0, b: b, top: y0 - s0, keep: y1 - y0, reuse: reuse }, [buf]);
           }));
         })(y0, y1, i);
       }
@@ -455,7 +461,9 @@
           if (x0 < x1) vm.push({ op: 'v', A: A, B: B, stA: s + 2 * al(w * 8), stB: s + 2 * al(w * 8) + al(h * 64), col: s + 2 * al(w * 8) + 2 * al(h * 64), w: w, h: h, x0: x0, x1: x1, b: b, km: km });
         }
         return phaseRun(hm).then(function () { return phaseRun(vm); }).then(function () {
-          var px = new Uint8ClampedArray(w * h * 4); px.set(new Uint8Array(T.memory.buffer, A, w * h * 4));
+          var len = w * h * 4, px = out === 'pixels' ? (opts._intoPx && opts._intoPx.length === len ? opts._intoPx : new Uint8ClampedArray(len)) : (opts._reuse !== false && T.px && T.px.length === len ? T.px : new Uint8ClampedArray(len));   // canvas out: the copy out of shared memory is kept for the next call of this size
+          if (out !== 'pixels' && opts._reuse !== false) T.px = px;
+          px.set(new Uint8Array(T.memory.buffer, A, len));
           if (out === 'pixels') res.pixels = px;
           else {
             var cv = opts.into || makeCanvas(w, h);

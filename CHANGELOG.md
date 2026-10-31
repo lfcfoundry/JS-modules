@@ -11,7 +11,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
-| [gpu-blur](modules/gpu-blur/README.md) | 1.2.2 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
+| [gpu-blur](modules/gpu-blur/README.md) | 1.2.3 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 · API 1 | [changelog](modules/fly-to-mini/CHANGELOG.md) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
@@ -60,6 +60,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-10-31 · **text-columns** 0.5.2 · API 0: parseParallel reads files with accented or other non-ASCII text up to 4.8x faster.
 - 2026-10-31 · **graph-walk** 0.7.2 · API 0: betweennessAsync starts faster: up to 1.9x on the first call and on a new graph.
+- 2026-10-31 · **gpu-blur** 1.2.3 · API 1: The helpers route is up to 1.34x faster on repeat blurs.
 - 2026-10-30 · **zip-open** 1.5.1 · API 1: Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.
 - 2026-10-30 · **zip-open** 1.5.0 · API 1: Faster: entries of 4 KB or less (compressed) are unpacked by a small WebAssembly inflate, about 1.5 to 2.2 times as fast for thousands of tiny files. Module grows by 9.4 KB of WebAssembly. Same files, same notes.
 - 2026-10-30 · **zip-open** 1.4.0 · API 1: New: `expandBlob`, `listBlob` and `readBlob` open a File or Blob in pieces, so a big zip never has to sit whole in memory. Same files, same notes. New: `{ workers: n }` unpacks big entries (2 MB and up) side by side in Web Workers: about 1.2 to 1.8 times as fast on a zip of several big files. Off by default. Checks: 700 damaged zips give the same answer from a File as from memory.

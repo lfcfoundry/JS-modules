@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.3 · API 1 · 2026-10-31
+
+### Quick
+Helpers reuse their band memory between calls; same bytes, no new options. Bytes in, against 1.2.2: Chromium 1.22 to 1.31x, Firefox 1.10 to 1.34x, WebKitGTK 0.99 to 1.09x.
+
+### Details
+From the round 4 pool study: the pool's hidden cost was fresh multi-megabyte buffers on every call (zero-filled, paged in, later collected). Now the page keeps one band buffer per helper (reused when the next band is between 1x and 2x its size), the helper writes its result into the buffer it received and hands it back, and the page wraps it without another copy. The threads route keeps its out-of-shared-memory copy for canvas output the same way. tests/gpu-blur-pool-reuse-browser.js: 161 same-byte cases (sizes going up and down so buffers are reused, grown and dropped; canvas in and out), then 3 calls in a row per mode, 9 rounds, radius 12.
+
+### Deep
+Round 4 pool brief, item 1. Kept bands alone: Chromium 1.22/1.22/1.31x (960x540/1080p/4K), Firefox 1.24/1.10/1.34x, WebKitGTK 0.99/1.09/1.08x. Not shipped yet (needs the owner's card, a new option): letting the caller pass an output array to reuse: helpers kept bands + out 1.24 to 1.69x over 1.2.2 in Chromium, 1.36 to 1.61x Firefox, 1.12 to 1.56x WebKitGTK; 4K is 3.1 to 3.5x the one-thread speed.
+
 ## 1.2.2 · API 1 · 2026-10-30
 
 ### Quick
