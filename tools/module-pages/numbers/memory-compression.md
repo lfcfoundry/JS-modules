@@ -23,3 +23,14 @@ Compared: memory-compression against fflate and pako (ms; packed bytes).
 | users, 20,000 rows | 2.7 | 2.8 | 1.0000 |
 
 On these three lists `quickTries` changes nothing. Its 0 to 20% gain is for lists with several number columns.
+
+
+**Same tests in Firefox 160 (Windows), real laptop, 16 cores, 2026.10.30, 9:41 PM.** Medians; lower is better.
+
+| list (pack, ms) | quickTries off (default) | on | size on / off |
+|---|---:|---:|---:|
+| links, 60,000 rows | 6.0 | 6.0 | 1.0000 |
+| scene items, 30,000 rows | 5.0 | 5.0 | 1.0000 |
+| users, 20,000 rows | 3.0 | 2.5 | 1.0000 |
+
+`quickTries` changes nothing on two lists and is 16% faster on the third.
