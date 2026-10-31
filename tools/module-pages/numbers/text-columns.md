@@ -37,3 +37,14 @@ Same values. Plain parse is level with 0.1.1 and `parseParallel` does not help a
 
 
 **New in 0.5.1:** once helpers are running, parallel reading starts at 4 MB instead of 32 MB, taking about 0.6 to 0.9 of the time on mid-size files. Smaller files stay on one thread.
+
+
+**New in 0.5.2: faster parallel reads of accented text.** Cloud-browser runs (4 cores, shared machine, not noise-guarded, not the laptop). When a `parseParallel` piece holds non-ASCII text, a helper now sends it back as one decoded string with UTF-16 positions. Plain-ASCII pieces keep the 0.5.1 way, because the new way measured slower for them (0.82x in Chromium).
+
+| 32 MB accented text, ms (lower is better) | 0.5.1 | 0.5.2 |
+|---|---:|---:|
+| Chromium | 1,027 | 216 (4.8x faster) |
+| Firefox | 253 | 248 (even) |
+| WebKitGTK | 359 | 168 (2.1x faster) |
+
+In Firefox the total time is even, but more of the work now runs on the page's own thread: 156 ms, up from 46 ms.
