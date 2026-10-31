@@ -5,6 +5,7 @@
   // Column types: V varints (delta when sorted, zigzag otherwise, whole numbers or two-decimal numbers), B bit-packed offsets, F float64 bytes, T booleans,
   // A lists of whole numbers (link lists: lengths plus deltas), H fixed-length lowercase hex, L log templates (automatic: kept only when 5% smaller than plain and a writer-side sample shows full-line reads are not slower (templates:true skips the read check, false turns them off)), U lowercase UUID as 16 bytes, I IPv4 as 4 bytes, D block dictionary plus codes, s strings, j JSON text (anything else).
   var LV_FLAT = 3;
+  function vlen(x) { return x < 128 ? 1 : x < 16384 ? 2 : x < 2097152 ? 3 : x < 268435456 ? 4 : x < 34359738368 ? 5 : x < 4398046511104 ? 6 : x < 562949953421312 ? 7 : 8; }
   function zz(x) { return x >= 0 ? x * 2 : -x * 2 - 1; }
   function unzz(x) { return (x % 2 === 0) ? x / 2 : -(x + 1) / 2; }
   function varints(a) {
@@ -173,6 +174,19 @@
     return bt <= bp * 1.05;
   }
   // a column's candidate encodings; every frame is { raw: Uint8Array } and gets compressed by the caller
+  // numbers with up to 9 decimals: the smallest power of ten that turns every value into a whole number and back exactly (value = whole / scale), or 0 when there is none; the decimals are counted on up to 512 evenly spaced values and then checked on all of them (a miss counts all values once)
+  function decimalsOf(x) { var t = String(x), e = t.indexOf('.'); return e < 0 ? 0 : t.indexOf('e') >= 0 ? -1 : t.length - e - 1; }
+  function scaledInts(v, scale) { var n = v.length, b = new Array(n), i, x; for (i = 0; i < n; i++) { x = Math.round(v[i] * scale); if (!(Math.abs(x) < 9007199254740992 / 8 && x / scale === v[i])) return null; b[i] = x; } return b; }
+  function decimalScale(v) {
+    var n = v.length, st = Math.max(1, Math.floor(n / 512)), d = 0, i, q, pass, sc;
+    for (pass = 0; pass < 2; pass++) {
+      d = 0;
+      for (i = 0; i < n; i += pass ? 1 : st) { q = decimalsOf(v[i]); if (q < 0 || q > 9) return 0; if (q > d) d = q; }
+      sc = Math.pow(10, d); if (d && scaledInts(v, sc)) return sc;
+      if (pass === 0 && st === 1) return 0;
+    }
+    return 0;
+  }
   function encodeColumn(v, zs, level, tmode) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only
     var n = v.length, i, x, best = null;
     function stored(frames) { var t = 0, z = []; for (var q = 0; q < frames.length; q++) { var c = zs.compress(frames[q], level); if (c.length < frames[q].length) z.push([frames[q].length, c, 1]); else z.push([frames[q].length, frames[q], 0]); t += z[q][1].length; } return { z: z, size: t }; }
@@ -180,15 +194,18 @@
     if (allOf(v, function (x) { return typeof x === 'number'; })) {
       var noNegZero = allOf(v, function (x) { return !(x === 0 && 1 / x < 0); });
       var allInt = noNegZero && allOf(v, function (x) { return Number.isInteger(x) && Math.abs(x) < 9007199254740992 / 8; }), scale = 1, base = null;
-      if (!noNegZero) base = null; else if (allInt) base = v; else { base = new Array(n); for (i = 0; i < n; i++) { x = Math.round(v[i] * 100); if (!(Math.abs(x) < 9007199254740992 / 8 && x / 100 === v[i])) { base = null; break; } base[i] = x; } if (base) scale = 100; }
+      if (!noNegZero) base = null; else if (allInt) base = v; else { scale = decimalScale(v); base = scale ? scaledInts(v, scale) : null; if (!base) { scale = 1; base = null; } }
       if (base) {
         var mono = base.length === 0 || base[0] >= 0, mn = Infinity, mx = -Infinity;
         for (i = 0; i < n; i++) { if (i && base[i] < base[i - 1]) mono = false; if (base[i] < mn) mn = base[i]; if (base[i] > mx) mx = base[i]; }
         var d = base.slice(); if (mono) for (i = n - 1; i > 0; i--) d[i] -= d[i - 1]; else for (i = 0; i < n; i++) d[i] = zz(d[i]);
-        cand('V', { mono: mono, scale: scale }, [varints(d)]);
+        var dl2 = null, sa = 0, sb = 0;
+        if (!mono && n > 1) { dl2 = new Array(n); dl2[0] = zz(base[0]); for (i = 1; i < n; i++) dl2[i] = zz(base[i] - base[i - 1]); for (i = 0; i < n; i++) { sa += vlen(d[i]); sb += vlen(dl2[i]); } }
+        if (!dl2 || sa <= sb * 1.25) cand('V', { mono: mono, scale: scale }, [varints(d)]);   // only the variant whose varints are not clearly longer is compressed
+        if (dl2 && sb <= sa * 1.25) cand('V', { mono: false, scale: scale, delta: true }, [varints(dl2)]);   // differences between neighbors: slowly changing values (sensors, prices, coordinates) cost far less than their absolute values
         if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Array(n); for (i = 0; i < n; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)]); }
       }
-      var f = new Float64Array(v); cand('F', {}, [new Uint8Array(f.buffer)]);
+      if (!best || best.size > n * 2) { var f = new Float64Array(v); cand('F', {}, [new Uint8Array(f.buffer)]); }   // raw doubles are only tried when the scaled whole numbers did not already get under a quarter of their size
       return best;
     }
     if (n && allOf(v, function (x) { return typeof x === 'boolean'; })) { var bb = new Array(n); for (i = 0; i < n; i++) bb[i] = v[i] ? 1 : 0; cand('T', {}, [bitpack(bb, 1)]); return best; }
@@ -267,7 +284,7 @@
   }
   function decodeColumn(c, zs, frames) {   // -> array-like of n values
     var n = c.n, i, u, o, t = c.t, p = c.p;
-    if (t === 'V') { u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
+    if (t === 'V') { u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
     if (t === 'B') { var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
     if (t === 'F') { return new Float64Array(frames[0].buffer.slice(frames[0].byteOffset, frames[0].byteOffset + n * 8)); }
     if (t === 'T') { var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
@@ -388,6 +405,7 @@
         var d = new Float64Array(c);
         if (mono) { d[0] = base[0]; for (i = 1; i < c; i++) d[i] = base[i] - base[i - 1]; } else for (i = 0; i < c; i++) d[i] = base[i] >= 0 ? base[i] * 2 : -base[i] * 2 - 1;
         cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
+        if (!mono && c > 1) { var dz = new Float64Array(c); dz[0] = base[0] >= 0 ? base[0] * 2 : -base[0] * 2 - 1; for (i = 1; i < c; i++) { q = base[i] - base[i - 1]; dz[i] = q >= 0 ? q * 2 : -q * 2 - 1; } cand('V', { mono: false, scale: scale, delta: true }, [varintsT(dz, c)], c); }
         if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Uint32Array(c); for (i = 0; i < c; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)], c); }
         if (c > 1 && !mono && best.size > c * 0.25 && repeats(base, c)) { var fv = new Float64Array(c); for (i = 0; i < c; i++) fv[i] = base[i] / scale; cand('F', {}, [new Uint8Array(fv.buffer)], c); }   /* raw doubles win when the values repeat a long pattern (zstd finds the repeat), as in the general writer; tried only when the other forms leave more than 2 bits a value and values do repeat */
         if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);

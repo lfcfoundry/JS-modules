@@ -140,6 +140,12 @@ func decodeCol(c *Obj, fr [][]byte) []any {
 				s += int64(u[i])
 				vals[i] = float64(s)
 			}
+		} else if pb("delta") {
+			var s int64
+			for i := range u {
+				s += unzz(u[i])
+				vals[i] = float64(s)
+			}
 		} else {
 			for i := range u {
 				vals[i] = float64(unzz(u[i]))

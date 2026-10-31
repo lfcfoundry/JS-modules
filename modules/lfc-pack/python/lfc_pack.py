@@ -298,6 +298,9 @@ def _decode_col(c, fr):
         if p['mono']:
             s = 0
             for i in range(n): s += u[i]; u[i] = s
+        elif p.get('delta'):
+            s = 0
+            for i in range(n): s += _unzz(u[i]); u[i] = s
         else: u = [_unzz(x) for x in u]
         return [x / p['scale'] for x in u] if p['scale'] != 1 else u
     if t == 'B':
