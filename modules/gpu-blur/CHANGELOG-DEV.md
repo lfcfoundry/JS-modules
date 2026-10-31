@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.2 · API 1 · 2026-10-30
+
+### Quick
+Big canvases blur fully again (the top rows came back blank above about 0.5 megapixel).
+
+### Details
+The one-thread canvas route copies a big picture into its reading canvas in bands of 500,000 pixels. Each band was drawn with the 'copy' blend, which clears everything outside what it draws, so every band wiped the ones before it and only the last survived. Now only the first band uses 'copy'. Bytes in, the helpers route and the threads route were never affected. New test tests/gpu-blur-big-canvas-browser.js: 641x359 to 1920x1080, wasm and JavaScript, canvas to pixels and to canvas, every byte against blurring the bytes: 16 of 16 same in all three browsers; on 1.2.1, 12 of 16 differ (every case over 500,000 pixels).
+
+### Deep
+Fix: banded drawImage with 'copy' wiped earlier bands; only the first band uses 'copy'. Found while checking the round 4 pool work (the canvas reference itself was wrong). 16/16 same bytes in Chromium, Firefox, WebKitGTK; 1.2.1 failed 12/16.
+
 ## 1.2.1 · API 1 · 2026-10-30
 
 ### Quick
