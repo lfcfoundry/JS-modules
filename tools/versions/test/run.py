@@ -114,6 +114,12 @@ try:
     rc, out = run(root, "check"); check("a description over 100 characters is refused", rc == 1 and "short description is 101 characters" in out, out)
     reg2["modules"][1]["short"] = "B."; reg2["modules"][1]["file"] = "modules/beta/missing.js"; open(os.path.join(root, "modules.json"), "w").write(json.dumps(reg2, indent=2))
     rc, out = run(root, "check"); check("a row with no size and no sizeNote is refused", rc == 1 and "beta: no size" in out, out)
+    t0 = "# x\n\n## 1.1.0 \u00b7 API 1 \u00b7 2026-01-02\n- old a\n\n## 1.0.0 \u00b7 API 1 \u00b7 2026-01-01\n- first\n"
+    t1 = V0.put_entry(t0, "1.1.0", "## 1.1.0 \u00b7 API 1 \u00b7 2026-01-03\n- new 2\n")
+    check("set for an existing version replaces its entry, not a second copy", t1.count("## 1.1.0") == 1 and "- new 2" in t1 and "old a" not in t1 and "- first" in t1, t1)
+    t2 = V0.put_entry(t0, "1.0.0", "## 1.0.0 \u00b7 API 1 \u00b7 2026-01-03\n- redo 1\n")
+    check("replacing the last entry keeps the others", t2.count("## 1.0.0") == 1 and "old a" in t2 and t2.endswith("- redo 1\n"), t2)
+    check("a new version still goes on top", V0.put_entry(t0, "1.2.0", "## 1.2.0 \u00b7 API 1 \u00b7 2026-01-03\n- n 3\n").index("1.2.0") < t0.index("1.1.0") + 30)
 finally:
     shutil.rmtree(root, ignore_errors=True)
     shutil.rmtree(FULL, ignore_errors=True)
