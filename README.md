@@ -219,7 +219,7 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 |---|---|---:|---:|---|---|
 | [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 | 22.2 | 8.7 | LZMA decoder: WebAssembly first, small readable JavaScript fallback; tested against Python's lzma. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/lzma-pack/example/packed-base64.html) |
 | [lzma-pack](tools/lzma-pack/README.md) *(tool)* | 2.0.0 | 27.7 | 10.6 | Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3). | — |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 | 104.0 | 60.0 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 | 105.7 | 60.5 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 | 45.3 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.0 | 47.8 | 14.6 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
 | [zip-open](modules/zip-open/README.md) | 1.5.2 | 60.3 | 20.5 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |

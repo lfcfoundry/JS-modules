@@ -115,13 +115,13 @@
       throw new TypeError('PcodecJS: expected bytes (a Uint8Array or an ArrayBuffer)');
     }
     function putIn(x, bytes) { var p = x.alloc(bytes.length); new Uint8Array(x.memory.buffer, p, bytes.length).set(bytes); return p; }
-    function lean(x, p, len, kind, T, n) {                               // the stream route into a new array: same numbers as decompress, a few MB of program memory instead of the whole result
+    function lean(x, p, len, kind, T, n, into) {                               // the stream route into a new array: same numbers as decompress, a few MB of program memory instead of the whole result
       var h = x.stream_open(kind, p, len), w = T.BYTES_PER_ELEMENT, d = 0, out, pos = 0, r;
       if (h < 0) fail(h);
       try {
         d = x.alloc(LEAN_BATCH * w);
         if (!d) throw new Error('PcodecJS: out of memory');
-        out = new T(n);
+        out = into || new T(n);
         for (;;) {
           r = x.stream_read(h, d, LEAN_BATCH);
           if (r < 0) fail(r);
@@ -134,6 +134,31 @@
         try { x.stream_close(h); if (d) x.release(d, LEAN_BATCH * w); } catch (e) { /* the program stopped; run() starts a new one */ }
       }
       return out;
+    }
+    // Spare (since 1.6.2): the first write to a freshly made big array costs about 0.7 ms per MB in every browser (the system hands over
+    // untouched memory), and Firefox stalls 150-350 ms when big results keep coming. After a big unpack the page, when idle, makes and
+    // touches one array of the same type and length; the next unpack of that size fills it instead of a new one. Dropped after relMs
+    // (default 4 s) unused. opts.spare: false (in load) turns it off.
+    var spare = null, spareTimer = null, spareOn = mo.spare !== false;
+    function spareLater(T, n) {
+      if (!spareOn || typeof setTimeout !== 'function' || spare || spareTimer) return;
+      var go = function () {
+        spareTimer = null;
+        var a = new T(n), step = 4096 / T.BYTES_PER_ELEMENT, i;
+        for (i = 0; i < n; i += step) a[i] = 0;   // one write per memory page is enough to touch it
+        spare = a;
+        spareTimer = setTimeout(function () { spareTimer = null; spare = null; }, relMs || 4000);
+        if (spareTimer && typeof spareTimer.unref === 'function') spareTimer.unref();
+      };
+      spareTimer = typeof requestIdleCallback === 'function' ? -1 : setTimeout(go, 0);
+      if (spareTimer === -1) requestIdleCallback(function () { spareTimer = null; go(); }, { timeout: 1000 });
+      else if (spareTimer && typeof spareTimer.unref === 'function') spareTimer.unref();
+    }
+    function takeSpare(T, n) {
+      var a = spare;
+      if (!a || a.constructor !== T || a.length !== n) return null;
+      spare = null; if (spareTimer && spareTimer !== -1) { clearTimeout(spareTimer); spareTimer = null; }
+      return a;
     }
     var held = null;                                                     // the last { view: true } result, released on the next call
     function drop() { if (held && inst) { inst.release(held[0], held[1]); } held = null; }
@@ -167,7 +192,7 @@
             n = opts.count !== undefined ? opts.count : pk.count;
             if (!(n > 0) || n !== Math.floor(n) || n > countLimit(opts)) throw new Error('PcodecJS: bad count ' + n + (opts.count === undefined ? ' announced by the file (pass { count } or a larger { maxCount })' : ''));
             T = TYPES[type][1]; w = T.BYTES_PER_ELEMENT;
-            if (!opts.view && !opts.into && n >= LEAN_MIN && leanOn) return lean(x, p, b.length, kind, T, n);   // big copy: decode in batches into the result, so the program never holds all the numbers
+            if (!opts.view && !opts.into && n >= LEAN_MIN && leanOn) { out = lean(x, p, b.length, kind, T, n, takeSpare(T, n)); spareLater(T, n); return out; }   // big copy: decode in batches into the result, so the program never holds all the numbers
             d = x.alloc(n * w);
             if (!d) throw new Error('PcodecJS: out of memory');
             r = x.decompress(kind, p, b.length, d, n);
@@ -326,7 +351,7 @@
   // load({ lean: false, idleMs }) gives its own object that unpacks big copies the 1.5.1 way: the whole result in the program's memory, then one copy out. That is faster in WebKitGTK and GNOME Web (about 20% for 4,000,000 numbers) and no faster elsewhere, but it holds a result-sized region (36.3 MB for 4,000,000 numbers); the program is let go when no call has come for idleMs (default 4000, 0 = never) and the next call starts a new one. worker({ lean }) and pool({ lean }) pass it on.
   // load() gives the ready object. load({ program: 'plain' }) forces the program that needs no SIMD instead of the SIMD one when both are in the file. load({ warm: true }) also starts the warm-up (see api.warm).
   function load(opts) {
-    var w = (opts && opts.program) || '', warm = opts && opts.warm, p, mo = opts && (opts.lean === false || opts.idleMs !== undefined) ? { lean: opts.lean, idleMs: opts.idleMs } : null;
+    var w = (opts && opts.program) || '', warm = opts && opts.warm, p, mo = opts && (opts.lean === false || opts.idleMs !== undefined || opts.spare === false) ? { lean: opts.lean, idleMs: opts.idleMs, spare: opts.spare } : null;
     if (opts && opts.module) p = Promise.resolve({ name: opts.name || pick(w), module: opts.module }).then(function (c) { return make(c, mo); });   // already compiled (handed over by the page): nothing to compile here
     else p = start(w, mo);
     if (warm) p.then(function (pc) { pc.warm(typeof warm === 'number' ? warm : undefined).catch(function () {}); });

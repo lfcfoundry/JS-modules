@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.2 · API 1 · 2026-10-31
+
+### Quick
+After a big unpack, an idle-time spare array of the same size is made and touched; the next unpack fills it. Dropped after idleMs; load({spare:false}) turns it off.
+
+### Details
+The owner's pick (spare + docs). First write to fresh memory costs ~0.7 ms/MB in all 3 browsers (6-7x reused); Firefox stalls 150-350 ms on repeated big results. Repeated 5M-number unpacks every 150 ms, ratio new/old (90% range, rounds): Chromium 0.630 (0.614-0.793, 11, noisy), Firefox 0.799 (0.757-0.821, 6), WebKitGTK 0.866 (0.707-0.990, 6). Spare made with requestIdleCallback (timeout 1 s) or a timer, one write per 4 KB page, dropped after idleMs (4 s) unused. Research: round13-fresh-memory.
+
+### Deep
+Idle-time spare array for repeated big unpacks (0.63-0.87x the time).
+
 ## 1.6.1 · API 1 · 2026-10-27
 
 ### Quick
