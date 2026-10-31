@@ -158,13 +158,13 @@ footer a{margin-right:16px}
 
 <section><div class="wrap">
   <h2>Compared with the usual choice</h2>
-  <p class="lead">lfc-pack against Parquet on 260 MB of real FHIR records, Firefox and Chromium.</p>
+  <p class="lead">lfc-pack against Parquet on 260 MB of real FHIR records. Measured 2026.10.27 on an early lfc-pack in the cloud test browsers (Firefox 158 and Chromium 155 gave the same pack time); Parquet was written natively by pyarrow (zstd level 3, 4 threads). Not re-run on 0.4.0 yet.</p>
   <div class="scroll"><table><thead><tr><th>Measure</th><th>Parquet</th><th>lfc-pack</th></tr></thead><tbody><tr><td>Pack time</td><td>6.1 s</td><td class="win">2.05 s</td></tr><tr><td>File size</td><td>17.14 MB</td><td class="win">7.03 MB</td></tr></tbody></table></div>
 </div></section>
 
 <section><div class="wrap">
   <h2>Smaller and faster than the usual choice</h2>
-  <p class="lead">Measured in the test browsers against the common alternative. Both charts come from the module READMEs.</p>
+  <p class="lead">Measured against the common alternative. Each chart says where it ran; both come from the module pages.</p>
   <div class="bench">
     <div>
       <h3>memory-compression: size of 300,000 network links (MB, lower is better)</h3>
@@ -172,12 +172,15 @@ footer a{margin-right:16px}
       <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:36.5%"><span>20.9 MB</span></div></div></div>
       <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:34.9%"><span>20.0 MB</span></div></div></div>
       <div class="row"><span>memory-compression</span><div class="track"><div class="bar us out" style="width:13.7%"><span>7.85 MB</span></div></div></div>
-      <p class="note">Fast mode, restored exactly. About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in all four browsers. Chromium, Firefox, WebKitGTK and GNOME Web. It loses on download size: 84.6 KB gzipped against 11 KB for msgpackr.</p>
+      <p class="note">Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6 and GNOME Web 46.5. It loses on download size: about 116 KB gzipped in 2.8.2 against 11 KB for msgpackr.</p>
     </div>
     <div>
-      <h3>text-columns: read CSV (relative time, lower is better)</h3>
-      <div class="row"><span>Papa Parse</span><div class="track"><div class="bar" style="width:100%"><span>8x to 11x</span></div></div></div>
-      <div class="row"><span>text-columns</span><div class="track"><div class="bar us out" style="width:12%"><span>1x</span></div></div></div>
+      <h3>text-columns: read 200,000 CSV rows (ms, lower is better)</h3>
+      <div class="row"><span>Papa Parse, typed rows</span><div class="track"><div class="bar" style="width:100%"><span>166 ms</span></div></div></div>
+      <div class="row"><span>Papa Parse, arrays</span><div class="track"><div class="bar" style="width:51.8%"><span>86 ms</span></div></div></div>
+      <div class="row"><span>d3-dsv, arrays</span><div class="track"><div class="bar" style="width:48.2%"><span>80 ms</span></div></div></div>
+      <div class="row"><span>text-columns</span><div class="track"><div class="bar us out" style="width:31.3%"><span>52 ms</span></div></div></div>
+      <p class="note">Laptop, Firefox 160, 16 cores, text-columns 0.5.0, 2026.10.30; 6 columns, 7.9 MB. Papa Parse with typed rows takes 3.2 times as long here and 7 to 12 times as long in the cloud test browsers (Firefox 158, Chromium 155, WebKitGTK 2.52.6).</p>
     </div>
   </div>
 </div></section>

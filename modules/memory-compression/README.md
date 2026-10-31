@@ -140,7 +140,7 @@ Size is smaller-is-better and times are lower-is-better in every table. Every re
 | avsc 5.7.9 (needs a schema) | 18.767 MB | 38.1 and 31.2 | 59.6 and 94.0 | 67 and 83 | 54 and 67 |
 | JSON text | 57.258 MB | 73.5 and 38.3 | 69.6 and 52.3 | 52 and 33 | 56 and 40 |
 
-2.5 times smaller than msgpackr with records, and its unpack is as fast or faster in all four browsers; it loses on download size (about 84.6 KB gzipped against 11 KB for msgpackr) and on packing text-heavy records (up to 2.4 times slower than msgpackr in WebKit).
+2.5 times smaller than msgpackr with records, and its unpack is as fast or faster in all four browsers; it loses on download size (about 116 KB gzipped in 2.8.2, 84.6 KB when these runs were made at 2.0.1, against 11 KB for msgpackr) and on packing text-heavy records (up to 2.4 times slower than msgpackr in WebKit).
 
 **The same 60,000 links kept in pages of 2,048 rows, one page opened at a time** (version 2.2.0, `pager()` against page-by-page copies made with each library; median of 5 turns, one browser at a time; times in ms, lower is better, each cell is Chromium 155 / Firefox 158.0 / WebKitGTK 2.52.6 / GNOME Web 46.5; "open" is the mean of 29 pages timed as one block; every contender gave back equal rows):
 

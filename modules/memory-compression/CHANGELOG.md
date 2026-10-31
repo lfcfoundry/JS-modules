@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 2.8.2 · API 2 · 2026-10-31
-- view() stays lazy on pages that forbid eval (our policy): 25-60% faster opens, same rows.
+- view() stays lazy on pages that forbid eval (our policy): opening a view and reading a row takes 34 to 80% less time, same rows. Lists that are mostly numbers are unchanged.
 
 ## 2.8.1 · API 2 · 2026-10-31
 - After the idle trim, the two small wasm helpers are made again at once (about 6 MB held), so the first pack after a pause is as fast as the rest.

@@ -18,14 +18,6 @@ The order search skips repeating itself: same pictures, up to 2x faster when you
 ### Deep
 The order search now remembers the orderings it has already followed and stops a restart as soon as it reaches one (in JavaScript and in the WebAssembly, wasm/order.c rebuilt, 6,376 bytes). The search from an ordering is always the same, so the finished picture is unchanged: 600 of 600 layouts (300 random graphs, WebAssembly and plain JavaScript, some with loops) are identical in every field to 2.3.0. Container timing, direction only: default 8 restarts about the same (506 ms against 509 ms over 80 graphs, 3 runs each); 40 restarts on a 50-bar graph 3.70 ms down to 1.86 ms. No new settings and no default change.
 
-## 2.3.1 · API 2 · 2026-10-30
-
-### Quick
-The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
-
-### Deep
-The order search now remembers the orderings it has already followed and stops a restart as soon as it reaches one (in JavaScript and in the WebAssembly, wasm/order.c rebuilt, 6,376 bytes). The search from an ordering is always the same, so the finished picture is unchanged: 600 of 600 layouts (300 random graphs, WebAssembly and plain JavaScript, some with loops) are identical in every field to 2.3.0. Container timing, direction only: default 8 restarts about the same (506 ms against 509 ms over 80 graphs, 3 runs each); 40 restarts on a 50-bar graph 3.70 ms down to 1.86 ms. No new settings and no default change.
-
 ## 2.3.0 · API 2 · 2026-10-18
 
 ### Quick

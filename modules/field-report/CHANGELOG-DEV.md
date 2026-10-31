@@ -36,11 +36,3 @@ First version: five taps in a page corner open two hidden buttons that save a sp
 
 ### Deep
 New module. Five taps in a page corner (top-left by default) open a panel with Save speed report and Save error log; each saves one small Markdown file; no network request, no names. Speed report: start-up (first paint, DOMContentLoaded, load, your marks), average FPS, FPS of the slowest 1%, slowest five frames, frames over 33/50/100 ms, heavy tasks (task(), time(), and the browser's long tasks in Chromium), and a plain verdict. Error log: uncaught errors, rejected promises, failed loads, page-policy blocks, console.error/warn, repeats counted, last 200 kept. 44 of 44 Node checks; browser check 15 of 15 in Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5 under a strict page policy (no inline script or style): real-mouse five taps open the panel, both buttons save, every planted error kind is listed, frames recorded (average 41 to 58 FPS in the headless test pages), and no request beyond the page files. Size: field-report.js see the README table.
-
-## 1.0.0 · API 1 · 2026-10-22
-
-### Quick
-First version: five taps in a page corner open two hidden buttons that save a speed report and an error log from a real device as small files, with no network.
-
-### Deep
-New module. Five taps in a page corner (top-left by default) open a panel with Save speed report and Save error log; each saves one small Markdown file; no network request, no names. Speed report: start-up (first paint, DOMContentLoaded, load, your marks), average FPS, FPS of the slowest 1%, slowest five frames, frames over 33/50/100 ms, heavy tasks (task(), time(), and the browser's long tasks in Chromium), and a plain verdict. Error log: uncaught errors, rejected promises, failed loads, page-policy blocks, console.error/warn, repeats counted, last 200 kept. 44 of 44 Node checks; browser check 15 of 15 in Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5 under a strict page policy (no inline script or style): real-mouse five taps open the panel, both buttons save, every planted error kind is listed, frames recorded (average 41 to 58 FPS in the headless test pages), and no request beyond the page files. Size: field-report.js see the README table.
