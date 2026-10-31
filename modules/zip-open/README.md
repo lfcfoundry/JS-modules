@@ -1,8 +1,8 @@
 # zip-open
 
-**Version 1.5.2 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (zip-open thread); node checks 27/27
+**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud); laptop Chromium 156 and Firefox 160 (16 cores); all Node checks
 
 ## What it is and how it works
 
