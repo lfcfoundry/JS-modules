@@ -41,6 +41,11 @@ python3 tools/versions/versions.py list                 # every label
 python3 tools/versions/versions.py check                # do all copies agree? (exit 1 if not)
 python3 tools/versions/versions.py set fly-to-mini 1.2.0 --short "What a user will notice." --quick "One line for developers." --details "API and numbers." --note "Full entry with numbers."   # change one label everywhere; short entry in the repo, full entry in the private folder
 python3 tools/versions/versions.py set fly-to-mini 1.2.0 --tested "Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6" --short "..." --note "..."   # also records which browsers tested the release (in the full entry and the README)
+```
+
+Running `set` again for the same version replaces that version's entry in the repo changelog, the developer changelog and the full changelog, so a fix to the wording never leaves two entries. `check` flags a version listed twice.
+
+```
 python3 tools/versions/versions.py tested fly-to-mini 1.2.0 "WebKitGTK 2.52.6, Firefox 158"   # write or fix one full entry's Tested in line
 python3 tools/versions/versions.py changelog            # rebuild the root CHANGELOG.md
 python3 tools/versions/versions.py sizes [--story-editor DIR]   # rewrite the tables, the index and the front-page sizes; with a clone of the Story Editor repo, measure its packages and record them in modules.json (set does the rewrite too; check fails when the tables are old, a size is missing or a description is too long)
@@ -59,4 +64,4 @@ Written for this repository (LFC Foundry, MIT). `versions.py` uses only Python's
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
 
 ## What a changelog note must say
-Two kinds. The `--short` line is for users: plain words, what they will notice, no tables or jargon, at most 4 lines of 240 characters; a number only when it is the point ("about twice as fast"). The `--note` is the full entry for the private changelog: plain words, and numbers wherever there is something to count. Each improvement says how much (for example "3 times faster, 1.8 s instead of 5.4 s", "23 percent smaller") and where it was measured; each new feature says what it does and whether it is on by default; each fix says what went wrong before and what happens now. Say "not measured" rather than guess. The quantifying rule applies to the `--note` you pass to `versions.py set`.
+Two kinds. The `--short` line is for users: plain words, what they will notice, no tables or jargon, at most 4 lines of 240 characters; and each line carries a number, said plainly ("about twice as fast", "42 to 63% less memory"). The `--note` is the full entry for the private changelog: plain words, and numbers wherever there is something to count. Each improvement says how much (for example "3 times faster, 1.8 s instead of 5.4 s", "23 percent smaller") and where it was measured; each new feature says what it does and whether it is on by default; each fix says what went wrong before and what happens now. Say "not measured" rather than guess. The quantifying rule applies to the `--note` you pass to `versions.py set`.
