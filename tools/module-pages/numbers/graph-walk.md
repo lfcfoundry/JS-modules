@@ -48,3 +48,5 @@ New since 0.1.0: components 2.0 ms, scc 14 ms, shortest (fewest links) 9.0 ms, k
 **100 path questions on a 200 x 200 grid:** graphology's two-way Dijkstra took 6,951 / 14,822 / 12,504 ms and ngraph.path 2,009 / 4,311 / 2,308 ms. graph-walk's `path` took 307 / 396 / 250 ms, and `landmarkPath` 50 / 64 / 41 ms after a one-time 200 to 280 ms build of 8 landmarks. Both of those are plain JavaScript.
 
 Louvain is a heuristic, so its quality is compared instead of exact groups: modularity 0.8709 against graphology's 0.8649 to 0.8684. In WebKitGTK, closeness in wasm was 279 ms against 267 ms in JavaScript (4.5%, within noise).
+
+**New in 0.9.0: closeness on helper threads (opt-in).** `closenessAsync` splits closeness across the kept helper threads, sharing the same helpers and graph copy as `betweennessAsync`; answers are identical. On graphs of 1,500 nodes / 6,000 links, 3,000 / 12,000 and 8,000 / 32,000, in JavaScript and wasm, the helpers take 0.26 to 0.43 of the time of `closeness` on the calling thread. That is 2.3 to 3.8 times as fast on a 4-core cloud machine in Chromium 155, Firefox 158 and WebKitGTK 2.52.6.
