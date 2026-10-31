@@ -2,13 +2,38 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-10-31
+
+### Quick
+Faster xlsx sheet XML scanner: quote-position cache, indexOf tag ends, hand-written attribute parser with regex fallback, text decoded only when needed. Same output; no API change.
+
+### Details
+Early-stop A/B, 1.7.0 / 1.6.0 (lower is better): laptop Firefox 160 60k rows 0.887 (0.856-0.963), 6k 0.797 (0.732-0.913); laptop Chromium 156 60k 0.762 (0.664-0.902, noisy), 6k 0.767 (0.685-0.778); cloud Chromium 155 0.711, Firefox 158 0.782, WebKitGTK 0.766 at 60k. Differential test of new vs old scanner on 40,000 random XML pieces.
+
+### Deep
+Faster Excel sheet scanner: laptop Chromium 23-24% faster, laptop Firefox 11-20% faster, cloud 22-29% faster; same output (40,000-piece differential test).
+
+## 1.6.0 · API 1 · 2026-10-31
+
+### Quick
+One shared output buffer for text entries instead of a fresh buffer per entry; released after 5 s idle; concurrent opens never share it. No API change.
+
+### Details
+Paired A/B, 1.6.0 / 1.5.2 (lower is better), 12 rounds: laptop Chromium 156 bytes 0.86-0.98, File 0.91-1.02; laptop Firefox 160 (two runs) 0.93-1.00 except 400 small files from bytes 0.94 / 1.15 (ms-scale timings, range 0.84-1.22); cloud Chromium 153 0.82-0.92. Owner's pick: merge 1.6.0, laptop-check the 1.7.0 Excel reader first.
+
+### Deep
+Shared reusable output buffer for text entries: laptop Chromium 2-14% faster, laptop Firefox about even (one small-file case 0.94 and 1.15 in two runs), cloud 8-18% faster.
+
 ## 1.5.2 · API 1 · 2026-10-31
 
 ### Quick
-Quick: loading the file costs what it did before 1.5.0, and helpers stop holding memory when idle.
+Loading the file costs what it did before 1.5.0, and helpers stop holding memory when idle. No API change.
+
+### Details
+inflate.wasm (9.5 KB) split from crc32.wasm (back to 1,476 bytes), compiled the first time a 4 KB-or-smaller entry is opened; 2,000 tiny files still 1.4-1.9x faster than streams (Firefox 158 195 to 101 ms, Chromium 155 153 to 109, WebKitGTK 167 to 122). Helpers from expandBlob({workers}) close 5 s after the last call; idleMs changes it; restarting them cost nothing measurable in 3 browsers.
 
 ### Deep
-Quick: loading the file costs what it did before 1.5.0, and helpers stop holding memory when idle. Details: inflate.wasm (9.5 KB) split from crc32.wasm (back to 1,476 bytes), compiled the first time a 4 KB-or-smaller entry is opened; 2,000 tiny files still 1.4-1.9x faster than streams. Helpers from expandBlob({workers}) close 5 s after the last call; idleMs changes it. Deep: a pre-sized output buffer was tried and dropped (WebKitGTK single 42 MB entry +26%, Firefox small File +23%).
+A pre-sized output buffer was tried and dropped (WebKitGTK single 42 MB entry +26%, Firefox small File +23%).
 
 ## 1.5.1 · API 1 · 2026-10-30
 

@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.2 (API 1)
+ * Version 1.7.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -33,11 +33,11 @@
   var TAGEND = /[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/y;
   /** Walks XML text. h.open(name, attrs, selfClosing), h.close(name), h.text(string). Names lose their prefix (x:y -> y); attrs keep both forms. */
   function xmlScan(text, h) {
-    var i = 0, n = text.length, depth = 0, lt, e;
+    var i = 0, n = text.length, depth = 0, lt, e, dq = -2, sq = -2, wants = h.wants;   // dq, sq: where the next double / single quote is (found once, not once per tag)
     while (i < n) {
       lt = text.indexOf('<', i);
-      if (lt < 0) { if (h.text && i < n) h.text(xmlDecode(text.slice(i))); break; }
-      if (lt > i && h.text) h.text(xmlDecode(text.slice(i, lt)));
+      if (lt < 0) { if (h.text && i < n && (!wants || wants())) h.text(xmlDecode(text.slice(i))); break; }
+      if (lt > i && h.text && (!wants || wants())) h.text(xmlDecode(text.slice(i, lt)));
       if (text.charCodeAt(lt + 1) === 33) {                       // <!
         if ((text.charCodeAt(lt + 2) === 45 && text.charCodeAt(lt + 3) === 45)) { e = text.indexOf('-->', lt + 4); if (e < 0) throw new Error('The XML is cut off.'); i = e + 3; continue; }
         if (text.startsWith('<![CDATA[', lt)) { e = text.indexOf(']]>', lt + 9); if (e < 0) throw new Error('The XML is cut off.'); if (h.text) h.text(text.slice(lt + 9, e)); i = e + 3; continue; }
@@ -47,11 +47,19 @@
         i = e + 1; continue;
       }
       if (text.charCodeAt(lt + 1) === 63) { e = text.indexOf('?>', lt + 2); if (e < 0) throw new Error('The XML is cut off.'); i = e + 2; continue; }
-      TAGEND.lastIndex = lt + 1;
-      var m = TAGEND.exec(text);
-      if (!m) throw new Error('The XML is cut off.');
-      i = lt + 1 + m[0].length;
-      var body = m[0].slice(0, -1);
+      var gt = text.indexOf('>', lt + 1);
+      if (gt < 0) throw new Error('The XML is cut off.');
+      if (dq < lt) { dq = text.indexOf('"', lt); if (dq < 0) dq = n + 1; }
+      if (sq < lt) { sq = text.indexOf("'", lt); if (sq < 0) sq = n + 1; }
+      var body;
+      if (dq > gt && sq > gt) { body = text.slice(lt + 1, gt); i = gt + 1; }   // no quote inside the tag: the first > ends it
+      else {                                                                  // quotes inside: a > in a quoted value does not end the tag
+        TAGEND.lastIndex = lt + 1;
+        var m = TAGEND.exec(text);
+        if (!m) throw new Error('The XML is cut off.');
+        i = lt + 1 + m[0].length;
+        body = m[0].slice(0, -1);
+      }
       if (body.charCodeAt(0) === 47) {                            // </name>
         depth--;
         var cn = body.slice(1).trim(), cc = cn.indexOf(':');
@@ -60,16 +68,44 @@
       }
       var self = body.charCodeAt(body.length - 1) === 47;
       if (self) body = body.slice(0, -1);
-      var sp = body.search(/[\s]/), nm = sp < 0 ? body : body.slice(0, sp), col = nm.indexOf(':');
+      var sp = -1, bl = body.length, k0, cch;
+      for (k0 = 0; k0 < bl; k0++) { cch = body.charCodeAt(k0); if (cch <= 32 ? (cch === 32 || (cch >= 9 && cch <= 13)) : (cch === 160 || cch === 0xfeff || cch === 0x2028 || cch === 0x2029 || (cch >= 0x2000 && cch <= 0x200a) || cch === 0x1680 || cch === 0x202f || cch === 0x205f || cch === 0x3000)) { sp = k0; break; } }
+      var nm = sp < 0 ? body : body.slice(0, sp), col = nm.indexOf(':');
       var attrs = {};
       if (sp >= 0) {
-        ATTR.lastIndex = 0;
-        var am;
-        while ((am = ATTR.exec(body.slice(sp)))) {
-          var v = xmlDecode(am[2] !== undefined ? am[2] : am[3]), an = am[1], ac = an.indexOf(':');
+        // clean attribute lists (name="value" pairs split by spaces, the normal case) are read by hand; anything odd goes to the regular expression, which gives the answers the hand reader must match
+        var p0 = sp, ok = true, an, ns, ee, qc, raw, v, ac;
+        for (;;) {
+          while (p0 < bl && ((cch = body.charCodeAt(p0)) === 32 || cch === 10 || cch === 13 || cch === 9)) p0++;
+          if (p0 >= bl) break;
+          ns = p0;
+          while (p0 < bl && (cch = body.charCodeAt(p0)) > 32 && cch !== 61 && cch !== 47 && cch !== 34 && cch !== 39 && cch !== 60 && cch !== 62 && cch < 127) p0++;
+          if (p0 === ns) { ok = false; break; }
+          an = body.slice(ns, p0);
+          while (p0 < bl && ((cch = body.charCodeAt(p0)) === 32 || cch === 10 || cch === 13 || cch === 9)) p0++;
+          if (body.charCodeAt(p0) !== 61) { ok = false; break; }
+          p0++;
+          while (p0 < bl && ((cch = body.charCodeAt(p0)) === 32 || cch === 10 || cch === 13 || cch === 9)) p0++;
+          qc = body.charCodeAt(p0);
+          if (qc !== 34 && qc !== 39) { ok = false; break; }
+          ee = body.indexOf(qc === 34 ? '"' : "'", p0 + 1);
+          if (ee < 0) { ok = false; break; }
+          raw = body.slice(p0 + 1, ee); p0 = ee + 1;
+          v = xmlDecode(raw); ac = an.indexOf(':');
           if (BAD_KEYS[an]) continue;
           attrs[an] = v;
           if (ac >= 0 && !(an.slice(ac + 1) in attrs) && !BAD_KEYS[an.slice(ac + 1)]) attrs[an.slice(ac + 1)] = v;
+        }
+        if (!ok) {
+          attrs = {};
+          ATTR.lastIndex = sp;
+          var am;
+          while ((am = ATTR.exec(body))) {
+            v = xmlDecode(am[2] !== undefined ? am[2] : am[3]); an = am[1]; ac = an.indexOf(':');
+            if (BAD_KEYS[an]) continue;
+            attrs[an] = v;
+            if (ac >= 0 && !(an.slice(ac + 1) in attrs) && !BAD_KEYS[an.slice(ac + 1)]) attrs[an.slice(ac + 1)] = v;
+          }
         }
       }
       var local = col >= 0 ? nm.slice(col + 1) : nm;
@@ -80,7 +116,12 @@
 
   /* ------------------------------------------------------------ Excel: sheets of an .xlsx become tables */
   var XL_COLS = 16384;
-  function colIndex(ref) { var m = /^([A-Za-z]{1,3})/.exec(ref || ''); if (!m) return -1; var s = m[1].toUpperCase(), n = 0; for (var i = 0; i < s.length; i++) n = n * 26 + s.charCodeAt(i) - 64; return n - 1; }
+  function colIndex(ref) {   // 'AB12' -> 27: the letters before the first digit, at most 3 (no regular expression per cell)
+    if (!ref) return -1;
+    var n = 0, k = 0, c;
+    for (; k < 3; k++) { c = ref.charCodeAt(k); if (c >= 97 && c <= 122) c -= 32; if (c < 65 || c > 90) break; n = n * 26 + c - 64; }
+    return k === 0 ? -1 : n - 1;
+  }
   var XL_BUILTIN_DATES = { 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1, 21: 1, 22: 1, 45: 1, 46: 1, 47: 1 };
   function isDateFormat(code) { var c = String(code).replace(/"[^"]*"|\\.|\[[^\]]*\]|_.|\*./g, ''); return /[ymdhs]/i.test(c) && !/^(general|0|#)/i.test(c) || /[dy]{2}|m{1,2}[\/\-.]|[hH]:|:[sS]/.test(c) && /[ymdhs]/i.test(c); }
   function xlDate(serial, d1904) {
@@ -135,6 +176,7 @@
         row = null; rowHas = false;
       };
       xmlScan(xml, {
+        wants: function () { return cell !== null && inV; },
         open: function (t, a, self) {
           if (truncated) return;
           if (t === 'row') { flushRow(); row = []; lastCol = -1; }
@@ -371,9 +413,18 @@
 
   function noop() {}
   /** Raw deflate -> bytes, never more than `limit` bytes. */
-  async function inflateRaw(src, limit) {
+  /* One reusable output buffer for text entries (since 1.6.0): a text entry's bytes are turned into a string at once and dropped, so each one is unpacked into the same buffer instead of a fresh one
+     (a fresh big buffer costs a zero-fill and a first touch of every page, and the pieces then get copied again). It is let go 5 seconds after the last use. */
+  var SCRATCH = null, scratchTimer = 0, scratchBusy = false;
+  function scratchFor(n) {
+    if (!SCRATCH || SCRATCH.length < n) SCRATCH = new Uint8Array(Math.max(n, SCRATCH ? Math.min(SCRATCH.length * 2, n * 2) : n));
+    if (scratchTimer) clearTimeout(scratchTimer);
+    if (typeof setTimeout === 'function') { scratchTimer = setTimeout(function () { SCRATCH = null; scratchTimer = 0; }, 5000); if (scratchTimer && scratchTimer.unref) scratchTimer.unref(); }
+    return SCRATCH.subarray(0, n);
+  }
+  async function inflateRaw(src, limit, expect) {
     if (typeof DecompressionStream === 'function') {
-      var ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter(), rd = ds.readable.getReader(), chunks = [], total = 0;
+      var ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter(), rd = ds.readable.getReader(), chunks = [], total = 0, pre = expect > 0 && expect <= limit && expect <= 268435456 ? scratchFor(expect) : null;
       var feeding = w.write(src).then(function () { return w.close(); }).catch(function () { /* the read side reports it */ });
       try {
         for (;;) {
@@ -381,7 +432,7 @@
           if (r.done) break;
           total += r.value.length;
           if (total > limit) { var tooBig = new Error('TOOBIG'); throw tooBig; }
-          chunks.push(r.value);
+          if (pre && total <= expect) pre.set(r.value, total - r.value.length); else { if (pre) { chunks.push(pre.slice(0, total - r.value.length)); pre = null; } chunks.push(r.value); }
         }
       } catch (e) {
         try { rd.cancel().catch(noop); } catch (e2) { /* already closed */ }
@@ -389,6 +440,7 @@
         throw e;
       }
       await feeding;
+      if (pre) return pre.subarray(0, total);
       var out = new Uint8Array(total), at = 0;
       for (var i = 0; i < chunks.length; i++) { out.set(chunks[i], at); at += chunks[i].length; }
       return out;
@@ -399,7 +451,7 @@
   }
 
   /** Bytes of one entry, or { skip: 'plain-words reason' }. Verifies size and checksum against what the file promised. */
-  async function readEntry(u8, e, limit) {
+  async function readEntry(u8, e, limit, sc) {
     if (e.flags & 1) return { skip: 'is password-protected' };
     if (e.method !== 0 && e.method !== 8) return { skip: 'uses a compression method I can\'t open' };
     if (e.usize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' };
@@ -413,7 +465,7 @@
       var cap = Math.min(limit, e.usize + 1), w = e.csize <= INFLATE_MAX && cap <= 16777216 ? inflateWasm(body, cap) : null;
       if (w) { if (w.err) return { skip: w.err === -2 ? 'unpacks to more than it says it does' : 'looks damaged' }; out = w.bytes; }
       else {
-        try { out = await inflateRaw(body, cap); }
+        try { out = await inflateRaw(body, cap, sc ? e.usize : 0); }
         catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
       }
     }
@@ -452,13 +504,13 @@
   }
 
   /** Raw deflate (or stored) bytes of a Blob -> bytes, never more than `limit`; the checksum is worked out while the bytes arrive. Returns { bytes, crc }. */
-  async function inflateBlob(part, method, limit) {
+  async function inflateBlob(part, method, limit, expect) {
     if (typeof DecompressionStream !== 'function' || typeof part.stream !== 'function') {
       var src = new Uint8Array(await part.arrayBuffer()), o = method === 0 ? src : await inflateRaw(src, limit);
       if (o.length > limit) throw new Error('TOOBIG');
       return { bytes: o, crc: crc32(o) };
     }
-    var rs = part.stream(), crc = -1, total = 0, chunks = [], rd;
+    var rs = part.stream(), crc = -1, total = 0, chunks = [], rd, pre = expect > 0 && expect <= limit && expect <= 268435456 ? scratchFor(expect) : null;
     if (method === 8) rs = rs.pipeThrough(new DecompressionStream('deflate-raw'));
     rd = rs.getReader();
     try {
@@ -468,16 +520,17 @@
         total += r.value.length;
         if (total > limit) throw new Error('TOOBIG');
         crc = crcRun(r.value, crc);
-        chunks.push(r.value);
+        if (pre && total <= expect) pre.set(r.value, total - r.value.length); else { if (pre) { chunks.push(pre.slice(0, total - r.value.length)); pre = null; } chunks.push(r.value); }
       }
     } catch (e) { try { rd.cancel().catch(noop); } catch (e2) { /* already closed */ } throw e; }
     var out;
-    if (chunks.length === 1) out = chunks[0];
+    if (pre) out = pre.subarray(0, total);
+    else if (chunks.length === 1) out = chunks[0];
     else { out = new Uint8Array(total); for (var i = 0, at = 0; i < chunks.length; at += chunks[i].length, i++) out.set(chunks[i], at); }
     return { bytes: out, crc: (crc ^ -1) >>> 0 };
   }
   /** Same answers as read() for the same entry, but the entry is taken from a File or Blob a piece at a time. */
-  async function readBlobEntry(blob, e, limit, cache) {
+  async function readBlobEntry(blob, e, limit, cache, sc) {
     if (e.flags & 1) return { skip: 'is password-protected' };
     if (e.method !== 0 && e.method !== 8) return { skip: 'uses a compression method I can\'t open' };
     if (e.usize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' };
@@ -486,7 +539,7 @@
       var need = 30 + 1024 + e.csize, buf = cache && e.csize <= WINDOW / 16 ? cache.w : null, at = cache && cache.at;   // small entries sit close together: one read of a few MB serves the entries that follow (each read of a Blob costs about a millisecond in Chromium)
       if (!buf || e.start < at || (e.start - at + need > buf.length && at + buf.length < blob.size)) { at = e.start; buf = await bytesOf(blob, at, Math.min(blob.size, at + (cache && e.csize <= WINDOW / 16 ? WINDOW : need))); if (cache && e.csize <= WINDOW / 16) { cache.w = buf; cache.at = at; } }
       var win = buf.subarray(e.start - at, Math.min(buf.length, e.start - at + need)), wd = new DataView(win.buffer, win.byteOffset, win.byteLength);
-      if (!(win.length >= 30 && u32(wd, 0) === 0x04034b50 && 30 + u16(wd, 26) + u16(wd, 28) + e.csize > win.length && e.start + win.length < blob.size)) return readEntry(win, Object.assign({}, e, { start: 0 }), limit);   // else the header has a long extra field: read it the long way
+      if (!(win.length >= 30 && u32(wd, 0) === 0x04034b50 && 30 + u16(wd, 26) + u16(wd, 28) + e.csize > win.length && e.start + win.length < blob.size)) return readEntry(win, Object.assign({}, e, { start: 0 }), limit, sc);   // else the header has a long extra field: read it the long way
     }
     var h = await bytesOf(blob, e.start, e.start + 30), hd = new DataView(h.buffer, h.byteOffset, 30);
     if (u32(hd, 0) !== 0x04034b50) return { skip: 'looks damaged' };
@@ -494,16 +547,16 @@
     if (data + e.csize > blob.size) return { skip: 'looks damaged (cut off)' };
     var got;
     if (e.method === 0 && e.csize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' };
-    try { got = await inflateBlob(blob.slice(data, data + e.csize), e.method, e.method === 0 ? limit : Math.min(limit, e.usize + 1)); }
+    try { got = await inflateBlob(blob.slice(data, data + e.csize), e.method, e.method === 0 ? limit : Math.min(limit, e.usize + 1), sc ? e.usize : 0); }
     catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
     if (got.bytes.length !== e.usize) return { skip: 'looks damaged (its size is not what the zip says)' };
     if (got.crc !== e.crc) return { skip: 'looks damaged (its checksum does not match)' };
     return { bytes: got.bytes };
   }
   /** Where an archive's entries come from: bytes already in memory, or a File/Blob read in pieces. Everything above this line works with either. */
-  function memSource(u8) { return { list: function (lim) { return list(u8, lim); }, read: function (e, limit) { return readEntry(u8, e, limit); } }; }
+  function memSource(u8) { return { list: function (lim) { return list(u8, lim); }, read: function (e, limit, sc) { return readEntry(u8, e, limit, sc); } }; }
   function blobSource(blob, helpers) {
-    var src = { list: function (lim) { return listBlob(blob, lim); }, read: function (e, limit) { return readBlobEntry(blob, e, limit, cache); } }, cache = {};
+    var src = { list: function (lim) { return listBlob(blob, lim); }, read: function (e, limit, sc) { return readBlobEntry(blob, e, limit, cache, sc); } }, cache = {};
     if (helpers && helpers.length) {
       var next = 0;
       src.width = helpers.length;
@@ -626,11 +679,14 @@
           ctx.files.push({ name: baseOf(e.path), path: shown, text: pf.text }); continue;
         }
       }
-      var got = await src.read(e, kind === 'text' ? Math.min(lim.maxEntryBytes, room) : room);
+      var held = kind === 'text' && !scratchBusy, got, text;   // a text entry's bytes live in the shared buffer only until they are turned into a string just below; two opens at once never share it
+      if (held) scratchBusy = true;
+      try {
+        got = await src.read(e, kind === 'text' ? Math.min(lim.maxEntryBytes, room) : room, held);
+        if (!got.skip) { ctx.total += got.bytes.length; if (kind === 'text') text = decodeText(got.bytes); }
+      } finally { if (held) scratchBusy = false; }
       if (got.skip) { ctx.notes.push('"' + shown + '" ' + got.skip + '; skipped.'); continue; }
-      ctx.total += got.bytes.length;
       if (kind === 'text') {
-        var text = decodeText(got.bytes);
         if (text === null) { ctx.notes.push('"' + shown + '" looks like a binary file, not text; skipped.'); continue; }
         ctx.files.push({ name: baseOf(e.path), path: shown, text: text });
       } else await openArchive(memSource(got.bytes), baseOf(e.path), shown + '!/', ctx, depth + 1, kind === 'book');
@@ -670,5 +726,5 @@
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
   compileEarly();
-  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
+  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
 }));
