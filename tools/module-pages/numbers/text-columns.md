@@ -68,3 +68,12 @@ The page's own work falls to 17 to 142 ms, from 108 to 240 ms.
 
 
 **New in 0.6.3: repeated text kept once.** Cloud-browser runs (shared machine, not the laptop). After a parse, repeated text values are merged in idle time. Memory kept for a 16 MB file in Chromium drops from 29.4 to 10.9 MB with repeating columns, and from 25.6 to 15.0 MB with one mostly unique column (42 to 63% less). Parse speed is unchanged in all three browsers. The merge finishes 35 to 163 ms after the parse in Firefox and WebKitGTK, and within about a second of idle time in Chromium.
+
+**New in 0.6.4: number arrays ready for the next big parse.** After a big parse, the page prepares the next parse's number arrays in idle time and holds them for 4 s; `opts.spare: false` turns it off. Same results. Repeat parse, time new / old, lower is better.
+
+| Case | Laptop Chromium 156 | Laptop Firefox 160 | Cloud Chromium | Cloud Firefox | Cloud WebKitGTK |
+|---|---:|---:|---:|---:|---:|
+| 45 MB parse | 0.99 | 0.95 | 0.89 | 0.84 | 0.91 |
+| 45 MB with helpers | 0.92 | 0.84 | 0.94 | 0.91 | 0.82 |
+
+Small files get no spare arrays: a 5 MB parse took 12 ms before and after on the laptop in both browsers.

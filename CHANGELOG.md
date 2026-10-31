@@ -33,7 +33,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [elias-fano](modules/elias-fano/README.md) | 1.7.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.7.2 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.4 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
-| [text-columns](modules/text-columns/README.md) | 0.6.3 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
+| [text-columns](modules/text-columns/README.md) | 0.6.4 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.2 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
@@ -61,6 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **zip-open** 1.7.0 · API 1: Excel sheets are read faster: on a 16-core laptop 11 to 20% faster in Firefox and 23 to 24% faster in Chromium, with the same results.
 - 2026-10-31 · **zip-open** 1.6.0 · API 1: Text entries are unpacked into one shared buffer that is reused for the next entry (let go 5 s after the last one). Laptop Chromium: 2 to 14% faster on most zips; laptop Firefox: about even.
 - 2026-10-31 · **zip-open** 1.5.2 · API 1: Loading the module costs what it did before 1.5.0: the small-file unpacker is now a separate piece, prepared only when a small file is first opened. 2,000 tiny files still open 1.4 to 1.9x faster than with the browser's own unpacker. Helpers from expandBlob close 5 s after their last use and give their memory back (idleMs changes the delay).
+- 2026-10-31 · **text-columns** 0.6.4 · API 0: Parsing big files with number columns again is 1 to 17% faster (45 MB, three browsers): the page prepares the number arrays for the next parse in idle time.
 - 2026-10-31 · **text-columns** 0.6.3 · API 0: Repeated text values are kept once, so a parsed file keeps 42 to 63% less memory (16 MB file in Chromium: 29.4 to 10.9 MB). Parse speed is unchanged.
 - 2026-10-31 · **text-columns** 0.6.2 · API 0: The page builds text columns in short steps (longest stall 3-10x lower); big inputs are read in 4 MB windows (45 MB file: page 161 to 10.5 MB, helpers 120 to 45 MB); opt-in idleTrim(ms, keep).
 - 2026-10-31 · **text-columns** 0.6.1 · API 0: Big files with number columns: the page no longer copies them, so it stays responsive (Chromium 42 to 7 ms pause, up to 1.4x faster).
@@ -70,11 +71,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
 - 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option keeps a second copy of each save that survives a browser crash. In a real crash test, saves kept only in browser storage lost 29 to 30 of 80; with durable on, none were lost.
 - 2026-10-31 · **pcodec-js** 1.6.2 · API 1: Repeated big unpacks take 0.63 to 0.87 of the time (5 million numbers, three browsers): a ready array is prepared while the page is idle and dropped after 4 s unused.
-- 2026-10-31 · **memory-compression** 2.9.0 · API 2: New opt-in stream rows for unpackAsync: long lists are handed over a page at a time and let go, so they never hold every row.
+- 2026-10-31 · **memory-compression** 2.9.0 · API 2: New opt-in stream rows for unpackAsync: long lists arrive a page at a time and never hold every row. 300,000 rows: 0.60 of the time in laptop Chromium, 0.82 in Firefox, pauses 2 to 4x shorter.
 - 2026-10-31 · **memory-compression** 2.8.2 · API 2: view() stays lazy on pages that forbid eval (our policy): opening a view and reading a row takes 34 to 80% less time, same rows. Lists that are mostly numbers are unchanged.
 - 2026-10-31 · **memory-compression** 2.8.1 · API 2: After the idle trim, the two small wasm helpers are made again at once (about 6 MB held), so the first pack after a pause is as fast as the rest.
 - 2026-10-31 · **memory-compression** 2.8.0 · API 2: Packing lists of whole numbers (up to 100,000 rows) is 2 to 24% faster; files can be up to about 1% bigger. autoTries: false keeps the old bytes.
-- 2026-10-31 · **lfc-pack** 0.4.4 · API 0: New opt-in paths: 'auto' makes FHIR-like records 13% smaller and 12-18% faster to pack; defaults unchanged.
+- 2026-10-31 · **lfc-pack** 0.4.4 · API 0: Packing records with many shapes, like FHIR, is 10 to 15% faster: each shape's string paths are worked out once instead of once per block. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.3 · API 0: After 30 seconds without packing, the packer gives its memory back on its own (about 38 MB after a 66.6 MB pack, up to about 250 MB with big blocks). Reading memory is kept. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.2 · API 0: The first pack after trim() is no longer slower (laptop Chromium 4% slower before, now 2% faster): the packer keeps its warmed-up code. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.1 · API 0: Packing nested rows is 6 to 21% faster on a 16-core laptop (Chromium and Firefox), with the same files byte for byte.

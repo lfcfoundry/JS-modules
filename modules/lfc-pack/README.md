@@ -2,7 +2,7 @@
 
 **Version 0.4.4 · API 0**
 
-**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud, 4 cores), early-stop A/B
+**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud, 4 cores); early-stop A/B
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -51,7 +51,7 @@ Options for `pack(input, options)`:
 | `blockBytes` | block size, default 13 MB (faster parallel pack than 21 MB, same size). |
 | `share: true` | shared string and shape tables for nested blocks: a string or row shape seen again in a later block is kept once in the footer. Smaller files with small blocks (100,000 GeoJSON points: -17% at 32 KB blocks, -12% at 256 KB); about the same at the default block size (a few hundred bytes either way). `packParallel` packs on one thread with it. Off by default. |
 | `paths: false` | switch off per-path strings for nested blocks (on by default): each string path (`.properties.name`, `.items[].sku`) keeps its own dictionary run and repeat numbers, which are small and compress well. 100,000 GeoJSON points -11% at the default block size, -14% at 256 KB blocks; 100,000 orders -6% and -5%. Each block keeps whichever layout is smaller. With `share: true` too (stacked): 256 KB blocks GeoJSON -22%, orders -4%. Pack and read speed within noise of the old layout in Chromium, Firefox and WebKit. |
-| `paths: 'auto'` | try both string layouts on the first big nested block of a long input (5 blocks or more) and use the smaller one for the rest. Helps records with many paths that each hold few strings, like FHIR: 260 MB of real FHIR is 7.26 MB instead of 8.32 MB and packs 12-18% faster on one thread in Chromium, Firefox and WebKit. Off by default because the trial costs 6-9% with `packParallel` helpers on files where per-path strings win. pack and packParallel write the same bytes. |
+| `paths: 'auto'` | decide the string layout per big nested block: keep per-path strings unless the string text they would store twice is more than 11% of the block's text, then use the plain layout. Helps records with many paths that each hold few strings, like FHIR (260 MB of real FHIR is 12% smaller). No trial or sample, so pack and packParallel write the same bytes. Off by default for now. |
 | `access: 'random'` | the read-friendly preset: 256 KB blocks plus `share: true` (options given next to it win; per-path strings are on as everywhere). Reading 100 rows with `unpackRows` decodes one small block (20 to 60 times faster in tests); files 4 to 10% larger than at the default block size (GeoJSON and orders +10%, three flat test sets +4 to +5%). `'whole'` (default) changes nothing. |
 | `templates: false` | switch the automatic log templates off. |
 

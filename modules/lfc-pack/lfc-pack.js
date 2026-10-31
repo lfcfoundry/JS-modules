@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.4.4 (API 0)
+ * Version 0.4.5 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -346,7 +346,7 @@
   function pathOrder(s, codes) {   // the string cells regrouped by path -> { pc: codes path after path, st: where each path starts, ph: path hashes, cnt: cells per path }
     var N = codes.length, sk = s.skelList, K = sk.length, i, j, k, p, q, a, n, sp = new Array(K), pix = new Map(), ph = [], kn = new Uint32Array(K), ids = s.ids;
     if (SPH.size > 65536) SPH.clear();
-    for (k = 0; k < K; k++) { var hs = SPH.get(sk[k]); if (!hs) { var ps = stringPaths(sk[k]); hs = new Array(ps.length); for (j = 0; j < ps.length; j++) hs[j] = fnvStr(ps[j]); SPH.set(sk[k], hs); }   // path hashes per shape, kept across blocks
+    for (k = 0; k < K; k++) { var hs = SPH.get(sk[k]); if (!hs) { var ps = stringPaths(sk[k]); hs = new Array(ps.length); for (j = 0; j < ps.length; j++) hs[j] = fnvStr(ps[j]); SPH.set(sk[k], hs); }   // since 0.4.4: path hashes per shape, kept across blocks
       a = new Int32Array(hs.length); for (j = 0; j < hs.length; j++) { var h = hs[j]; q = pix.get(h); if (q === undefined) { q = ph.length; pix.set(h, q); ph.push(h); } a[j] = q; } sp[k] = a; }
     for (i = 0; i < s.n; i++) kn[ids[i]]++;
     var P = ph.length, cnt = new Uint32Array(P), tot = 0;
@@ -1643,7 +1643,7 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { trim: trim, _trimPacker: trimPacker, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.4', apiVersion: 0 };
+  var api = { trim: trim, _trimPacker: trimPacker, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.5', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
