@@ -2,6 +2,25 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## Next (not released yet)
+
+### Quick
+Packing with small blocks is 1.3 to 3.7 times faster; files are byte-identical, nothing in the API changes.
+
+### Details
+`dd_run` (wasm/core.c) cleared its whole 2^22-entry hash table (16 MB) on every call, which is once per nested block. It now sizes the table to the block's strings (the smallest power of two at least twice the count, from 2^10 up to 2^22) and clears only that. `reset()` cleared the 512 KB shape table on every block; it now clears only the slots that were filled. Pack ms, old / new, median of 5, 100,000 rows:
+
+| Browser | geo 32 KB | geo 256 KB | orders 32 KB | orders 256 KB |
+|---|---|---|---|---|
+| Chromium 155 | 1452 / 415 | 391 / 204 | 2572 / 1098 | 689 / 488 |
+| Firefox 158 | 1506 / 413 | 408 / 249 | 2658 / 897 | 795 / 542 |
+| WebKitGTK 2.52.6 | 1700 / 432 | 397 / 235 | 2762 / 881 | 704 / 531 |
+
+Default 13 MB blocks: unchanged (Chromium rerun, 2 rounds of 9: 151 / 151 and 147 / 150 ms geo, 322 / 321 and 316 / 332 ms orders).
+
+### Deep
+For a 256 KB block the memset was about 16 MB of writes against about 0.25 MB of input, so it dominated small-block packs, and it also touched 16 MB of memory that a small pack never needed. Output is unchanged because the table is exact (byte compare on every hit) and codes are given in first-seen order, so the table size changes only the probe path. Checked: 28 files (4 data sets x 7 option sets, nested, shared, per-path, flat) byte-identical between the old and new builds, and `node test/run.js` passes.
+
 ## 0.3.1 · API 0 · 2026-10-30
 
 ### Quick
