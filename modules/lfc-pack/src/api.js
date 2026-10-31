@@ -63,7 +63,7 @@
         retry.push([mid + 1, e], [s0, mid + 1]); continue;
       }
       if (exact) { ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) { if (ex.raw.length) exc[blocks.length] = ex.raw; if (ex.spell.length) spl[blocks.length] = ex.spell; } }
-      blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti)); zone.push(blk.zone); parts.push(blk.bytes);
+      blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti, blk.kind === 'f' ? blk.prefix : undefined)); zone.push(blk.zone); parts.push(blk.bytes);
       off += blk.bytes.length; rows += blk.rows;
     }
     }
@@ -182,11 +182,18 @@
   // block checksum: the CRC-32 loop inside the zstd WebAssembly module when it is loaded (slicing by 8; both the full and the read-only build have it); the plain JavaScript loop otherwise or for small blocks
   function crcOf(x) { return S.zdec && S.zdec.crc32 && x.length >= 4096 ? S.zdec.crc32(x) : crcJS(x, 0); }
   var RX_X64 = /^[0-9a-f]{16}$/;
-  // block table entry: [offset, length, crc32, rows, kind, table] and, with { check: 'xxh64' } (needs init()), a seventh item: the XXH64 of the block as 16 hex digits
-  function blockEntry(opts, off, bytes, rows, kind, ti) {
+  // block table entry: [offset, length, crc32, rows, kind, table] and, with { check: 'xxh64' } (needs init()), a seventh item: the XXH64 of the block as 16 hex digits, and for flat blocks an eighth: [length of the part before the column frames, its XXH64]
+  function blockEntry(opts, off, bytes, rows, kind, ti, prefix) {
     var e = [off, bytes.length, crcOf(bytes), rows, kind, ti];
-    if (opts && opts.check === 'xxh64') { if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: check xxh64 needs init() first'); e.push(hash(bytes, 'xxh64')); }
+    if (opts && opts.check === 'xxh64') { if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: check xxh64 needs init() first'); e.push(hash(bytes, 'xxh64')); if (typeof prefix === 'number') e.push([prefix, hash(bytes.subarray(0, prefix), 'xxh64')]); }
     return e;
+  }
+  // flat block read for some columns only: when the block table has item 8 and the prefix checks out, the block is not checked as a whole (flatFrames checks the wanted columns); null otherwise
+  function partialBytes(file, i) {
+    var b = file.blocks[i], q = b[7], x = file.bytes.subarray(b[0], b[0] + b[1]);
+    if (b[4] !== 'f' || !Array.isArray(q) || typeof q[0] !== 'number' || typeof q[1] !== 'string' || !RX_X64.test(q[1]) || !S.zdec || !S.zdec.xxh64 || q[0] < 0 || q[0] > b[1] || b[0] + b[1] > file.footer.bodyEnd) return null;
+    if (hash(x.subarray(0, q[0]), 'xxh64') !== q[1]) throw new Error('block ' + i + ' checksum mismatch');
+    return x;
   }
   function blockBytes(file, i) {
     var b = file.blocks[i], x = file.bytes.subarray(b[0], b[0] + b[1]);
@@ -225,7 +232,7 @@
       if (opts.table != null && (file.blocks[i][5] || 0) !== opts.table) continue;
       if (!blockMayMatch(file, i, range)) continue;
       kd = file.blocks[i][4];
-      if (kd === 'r') r = rawRows(readRawBlock(S.zdec, blockBytes(file, i))); else if (kd === 'f') r = rf.readBlock(blockBytes(file, i), want); else r = rn.readBlock(blockBytes(file, i));
+      if (kd === 'r') r = rawRows(readRawBlock(S.zdec, blockBytes(file, i))); else if (kd === 'f') { var pbk = want ? partialBytes(file, i) : null; r = rf.readBlock(pbk || blockBytes(file, i), want, !!pbk); } else r = rn.readBlock(blockBytes(file, i));
       if (want && kd !== 'f') r = projectRows(r, want);
       r = keepRows(r, range);
       if (opts.keys && range && opts.keys.indexOf(range.key) < 0) r = projectRows(r, (function () { var w = {}; opts.keys.forEach(function (k) { w[k] = 1; }); return w; })());
@@ -237,7 +244,7 @@
   function unpackColumns(bytes, opts) {
     var file = openFile(bytes), rf = makeFlatReader(S.zdec), out = [], i, want = null, k;
     opts = opts || {}; if (opts.keys) { want = {}; for (k = 0; k < opts.keys.length; k++) want[opts.keys[k]] = 1; }
-    for (i = 0; i < file.blocks.length; i++) { if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: unpackColumns needs flat-row blocks'); out.push(rf.columnsOf(blockBytes(file, i), want)); }
+    for (i = 0; i < file.blocks.length; i++) { if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: unpackColumns needs flat-row blocks'); { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc)); } }
     return out;
   }
   // the object packTables was given: arrays come back as arrays of rows, other values as they were
