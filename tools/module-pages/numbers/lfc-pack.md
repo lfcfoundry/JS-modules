@@ -140,3 +140,14 @@ Size as a share of 0.1.9 (Node, cloud, lower is better): map lines (GeoJSON-like
 | Chromium 155 | 657 ms | 598 ms | 9% less time |
 
 At 50 keys the difference is within noise.
+
+**Against Parquet on 260 MB of real FHIR records (0.4.0, measured 2026.10.31).** Cloud browsers on a shared 4-core machine, medians; lower is better. Parquet was written natively by pyarrow 26 after a DuckDB 2.0 read of the same JSON (zstd level 3, 4 threads): 7,443 ms and 18,739,427 bytes.
+
+| | Chromium 153 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| pack, one thread (ms) | 2,133 | 2,686 | 2,203 |
+| packParallel, 4 helpers (ms; wide spread) | 1,562 | 1,080 | 1,169 |
+| unpack (ms) | 1,049 | 1,280 | 1,013 |
+| JSON.parse line by line (ms) | 1,314 | 1,621 | 1,450 |
+
+The file is 8,323,554 bytes, 44% of Parquet's size, but 18% larger than the 7,026,554 bytes an early version (about 0.1.7) made on 2026.10.27, likely because later versions pick faster compression settings. Pack time against Parquet: 2.8 to 3.5 times as fast on one thread, 4.8 to 6.9 times with 4 helpers.

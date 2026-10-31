@@ -160,8 +160,9 @@ footer a{margin-right:16px}
 
 <section><div class="wrap">
   <h2>Compared with the usual choice</h2>
-  <p class="lead">lfc-pack against Parquet on 260 MB of real FHIR records. Measured 2026.10.27 on an early lfc-pack in the cloud test browsers (Firefox 158 and Chromium 155 gave the same pack time); Parquet was written natively by pyarrow (zstd level 3, 4 threads). Not re-run on 0.4.0 yet.</p>
-  <div class="scroll"><table><thead><tr><th>Measure</th><th>Parquet</th><th>lfc-pack</th></tr></thead><tbody><tr><td>Pack time</td><td>6.1 s</td><td class="win">2.05 s</td></tr><tr><td>File size</td><td>17.14 MB</td><td class="win">7.03 MB</td></tr></tbody></table></div>
+  <p class="lead">lfc-pack 0.4.0 against Parquet on 260 MB of real FHIR records (140,468 rows). Measured 2026.10.31 in the cloud test browsers (Chromium 153, Firefox 158, WebKitGTK 2.52.6) on a shared 4-core machine; medians. Parquet was written natively by pyarrow 26 after a DuckDB 2.0 read of the same JSON (zstd level 3, 4 threads).</p>
+  <div class="scroll"><table><thead><tr><th>Measure</th><th>Parquet</th><th>lfc-pack</th></tr></thead><tbody><tr><td>Pack time, one thread</td><td>7.44 s</td><td class="win">2.13 to 2.69 s</td></tr><tr><td>Pack time, 4 helpers</td><td>7.44 s</td><td class="win">1.08 to 1.56 s</td></tr><tr><td>File size</td><td>18.74 MB</td><td class="win">8.32 MB</td></tr></tbody></table></div>
+  <p class="note">2.8 to 3.5 times Parquet's speed on one thread and 4.8 to 6.9 times with 4 helpers, at 44% of its size. The lfc-pack file is 18% larger than the 7.03 MB an early version made on 2026.10.27, likely because later versions pick faster compression settings.</p>
 </div></section>
 
 <section><div class="wrap">
