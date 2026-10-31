@@ -21,14 +21,6 @@ Quick: the first save after a pause no longer pays to start the helpers. Details
 ## 2.8.0 · API 2 · 2026-10-31
 
 ### Quick
-New default autoTries: whole-number columns up to 100,000 values try every coding on the first block only (as quickTries), re-check every 32nd block.
-
-### Deep
-New default autoTries: whole-number columns up to 100,000 values try every coding on the first block only (as quickTries), re-check every 32nd block. Pack 1.02-1.24x faster across 3 browsers (lists 20k-300k rows), files +0 to 1.3% on 10k-100k whole-number lists, unchanged above. autoTries: false = 2.7.0 bytes. tests/memory-compression-auto-browser.js.
-
-## 2.8.0 · API 2 · 2026-10-31
-
-### Quick
 New default autoTries: whole-number columns of up to 100,000 values try every number coding on their first block only. Pack 1.02 to 1.24x faster, files 0 to 1.3% bigger on such lists; `autoTries: false` gives the 2.7.0 bytes. Old files open the same.
 
 ### Details

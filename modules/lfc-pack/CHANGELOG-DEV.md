@@ -158,22 +158,6 @@ Flat writer also reads strings, true/false and null in wasm; flat list columns r
 ### Deep
 Brief sections 29 and 30 (variant 16): wasm scanner takes strings/booleans/null for flat packing, cheaper template pre-check, no plain copy of small dictionaries, engine-selected list builders. Files identical to 0.1.5 on test sets (fuzz 120 files + 25 edge cases pass).
 
-## 0.1.6 · API 0 · 2026-10-26
-
-### Quick
-Flat writer also reads strings, true/false and null in wasm; flat list columns read faster in Firefox and WebKitGTK; output files unchanged.
-
-### Deep
-Brief sections 29 and 30 (variant 16): wasm scanner takes strings/booleans/null for flat packing, cheaper template pre-check, no plain copy of small dictionaries, engine-selected list builders. Files identical to 0.1.5 on test sets (fuzz 120 files + 25 edge cases pass).
-
-## 0.1.6 · API 0 · 2026-10-26
-
-### Quick
-Flat writer also reads strings, true/false and null in wasm; flat list columns read faster in Firefox and WebKitGTK; output files unchanged.
-
-### Deep
-Brief sections 29 and 30 (variant 16): wasm scanner takes strings/booleans/null for flat packing, cheaper template pre-check, no plain copy of small dictionaries, engine-selected list builders. Files identical to 0.1.5 on test sets (fuzz 120 files + 25 edge cases pass).
-
 ## 0.1.5 · API 0 · 2026-10-26
 
 ### Quick

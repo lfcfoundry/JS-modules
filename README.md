@@ -39,18 +39,20 @@ Single-file offline apps cannot load code from a server, must run on cheap phone
 
 ## Highlights
 
-| One file each | Fast by default | Tested in three browsers |
-|---|---|---|
-| Copy only what you need. No build step. | WebAssembly with SIMD, plain JavaScript fallback. | Firefox, Chromium, WebKitGTK. |
+| One file each | Fast by default | Gives memory back | Tested in three browsers |
+|---|---|---|---|
+| Copy only what you need. No build step. | WebAssembly with SIMD, plain JavaScript fallback. | Big jobs can hand memory back by `trim()` or an idle timer. | Firefox, Chromium, WebKitGTK. |
 
 ## Compared with the usual choice
+
+Measured 2026.10.27 on an early lfc-pack in cloud Firefox 158 and Chromium 155; Parquet written natively by pyarrow (zstd 3, 4 threads). Not re-run on 0.4.0 yet.
 
 | Measure (260 MB of FHIR records) | Parquet | lfc-pack |
 |---|---|---|
 | Pack time | 6.1 s | **2.05 s** |
 | File size | 17.14 MB | **7.03 MB** |
 
-text-columns reads CSV and TSV 8 to 11 times faster than Papa Parse.
+text-columns reads CSV 3 to 12 times faster than Papa Parse with typed rows: 3.2x on a laptop in Firefox 160, 7 to 12x in the cloud test browsers.
 
 MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built with it. Keeping the license line is the only ask.
 
@@ -188,7 +190,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.0 | 757.4 | 241.2 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [memory-compression](modules/memory-compression/README.md) | 2.8.2 | 398.8 | 115.9 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
-| [text-columns](modules/text-columns/README.md) | 0.6.3 | 61.1 | 20.9 | Reads CSV and TSV into number and text columns, 3 to 11 times faster than common parsers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
+| [text-columns](modules/text-columns/README.md) | 0.6.3 | 61.1 | 20.9 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
 #### Model simulation
 

@@ -6,9 +6,6 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Small graphs lay out about 15% faster with the same pictures.
 
 ## 2.3.1 · API 2 · 2026-10-30
-- The order search skips orderings it already followed: same pictures, up to 1.3x faster.
-
-## 2.3.1 · API 2 · 2026-10-30
 - The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
 
 ## 2.3.0 · API 2 · 2026-10-18

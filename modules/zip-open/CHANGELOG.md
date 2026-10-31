@@ -3,7 +3,8 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.5.2 · API 1 · 2026-10-31
-- Small-entry inflate in its own wasm module compiled on first use (page load back to 1.4 level); expandBlob helpers close 5 s after last use (idleMs).
+- Loading the module costs what it did before 1.5.0: the small-file unpacker is now a separate piece, prepared only when a small file is first opened. 2,000 tiny files still open 1.4 to 1.9x faster than with the browser's own unpacker.
+- Helpers from expandBlob close 5 s after their last use and give their memory back (idleMs changes the delay).
 
 ## 1.5.1 · API 1 · 2026-10-30
 - Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.
