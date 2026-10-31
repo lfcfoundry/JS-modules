@@ -181,3 +181,14 @@ Files are the same byte for byte.
 | Laptop, Chromium 156, 16 cores | 0.98 |
 | Laptop, Firefox 160, 16 cores | 1.02 |
 | Cloud, WebKitGTK 2.52.6 | 1.06 (inconclusive, range 1.00 to 1.13) |
+
+**New in 0.4.4: each shape's string paths are worked out once.** Files with many row shapes, like FHIR, pack faster; files are byte-identical. Cloud browsers on a shared 4-core machine, time new / old, lower is better.
+
+| Case | Chromium 153 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| FHIR 260 MB, one thread | 0.86 | 0.85 | 0.90 |
+| FHIR 260 MB, 4 helpers | 0.92 | 0.91 | 0.92 |
+| orders x5, one thread | 0.94 | 1.01 | 1.01 |
+| GeoJSON, 256 KB blocks | 0.93 | 0.99 | 0.98 |
+
+Files with few shapes, like orders and GeoJSON, are about the same. The WebKitGTK GeoJSON case was checked again because one of its runs read slower (1.13). Its later runs read 0.985 and 0.978, and a run comparing the same build with itself swung to 0.87, so that one slow reading was noise.
