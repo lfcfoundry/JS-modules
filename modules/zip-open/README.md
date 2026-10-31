@@ -1,8 +1,8 @@
 # zip-open
 
-**Version 1.7.0 · API 1**
+**Version 1.8.0 · API 1**
 
-**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (cloud); laptop Chromium 156 and Firefox 160 (16 cores); all Node checks
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud); laptop run pending
 
 ## What it is and how it works
 
