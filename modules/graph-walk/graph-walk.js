@@ -2,7 +2,7 @@
  * graph-walk.js: the small walks over a link list that map and flow tools keep rewriting: breadth-first distances from an item, and a depth-first pass that marks the links that close a loop and lists the items in finishing order, connected components, strongly connected components, topological order and shortest paths. Works on the plain "links of every item" layout (CSR) in typed arrays. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.7.1 (API 0)
+ * Version 0.7.2 (API 0)
  *
  *   var g = GraphWalk.csr(n, fromArray, toArray);         // item numbers 0..n-1; link i joins from[i] to to[i]
  *   var depth = GraphWalk.bfs(g, root);                    // Int32Array, -1 where not reached; bfs(g, root, skip) never enters item `skip`
@@ -429,7 +429,7 @@
       if (d.n !== undefined) cur = load(d);
       function run() {
         var c = cur, n = c.n, bc, j, fresh = !d.more || accJob !== d.job;
-        if (d.flush) { bc = c.X ? (accJob === d.job ? new Float64Array(c.X.memory.buffer, c.P.bc, n).slice() : new Float64Array(n)) : (accJob === d.job && acc ? acc : new Float64Array(n)); accJob = 0; acc = null; postMessage({ job: d.job, bc: bc }, [bc.buffer]); return; }
+        if (d.flush) { var into = d.buf && d.buf.byteLength === 8 * n ? new Float64Array(d.buf) : null; bc = c.X ? (accJob === d.job ? (into ? (into.set(new Float64Array(c.X.memory.buffer, c.P.bc, n)), into) : new Float64Array(c.X.memory.buffer, c.P.bc, n).slice()) : new Float64Array(n)) : (accJob === d.job && acc ? acc : new Float64Array(n)); accJob = 0; acc = null; postMessage({ job: d.job, bc: bc }, [bc.buffer]); return; }
         if (c.X) {
           var mem = c.X.memory, P = c.P;
           new Int32Array(mem.buffer, P.srcs, d.srcs.length).set(d.srcs);
@@ -458,7 +458,7 @@
     P.dead = function () { var js = P.jobs; if (pool === P) closePool(); else endPool(P); P.jobs = {}; for (var k in js) js[k].fail(); };
     for (i = 0; i < count; i++) {
       var wk = new Worker(url); P.workers.push(wk); P.loaded.push(null);
-      (function (wi) { wk.onmessage = function (ev) { var j = P.jobs[ev.data.job]; if (j) { if (ev.data.ask) j.ask(wi); else j.add(ev.data.bc); } }; })(i);
+      (function (wi) { wk.onmessage = function (ev) { var j = P.jobs[ev.data.job]; if (j) { if (ev.data.ask) j.ask(wi); else j.add(ev.data.bc, wi); } }; })(i);
       wk.onerror = P.dead;
     }
     return own ? P : (pool = P);
@@ -488,16 +488,18 @@
         if (keep && poolTimer) { clearTimeout(poolTimer); poolTimer = 0; }
         if (!g._gid) g._gid = ++gids;
         key = g._gid + (wasmOn ? 'w' : 'j');
-        var dyn = options._dyn !== undefined ? options._dyn : false, useMod = options._mod !== undefined ? options._mod : false, next = 0, chunk = 0, w;
+        var dyn = options._dyn !== false, useMod = options._mod !== false,   // _dyn, _mod: test switches only (false = the 0.7.1 way; kept for tests/graph-walk-pool-browser.js)
+        next = 0, chunk = 0, w;
         if (dyn) chunk = Math.max(1, Math.ceil(srcs.length / (count * (options._pieces || 8))));
         var out = new Int32Array(count);   // pieces each helper still has queued
         function piece(wi) { var e = Math.min(srcs.length, next + chunk), list = new Int32Array(srcs.slice(next, e)); next = e; out[wi]++; return list; }
         function send(wi, msg, list) {
           if (P.loaded[wi] !== key) { msg.n = n; msg.os = g.outStart; msg.oe = g.outEdge; msg.to = g.to; msg.is = g.inStart; msg.ie = g.inEdge; msg.from = g.from; msg.wasm = wasmOn ? (useMod && MOD ? MOD : b64bytes(WASM_B64)) : null; msg.keepInst = useMod; P.loaded[wi] = key; }
-          P.workers[wi].postMessage(msg, list ? [list.buffer] : []);
+          P.workers[wi].postMessage(msg, list ? [list.buffer || list] : []);
         }
-        P.jobs[id] = { add: function (bc) { for (var j = 0; j < n; j++) total[j] += bc[j]; if (--pending === 0) finish(true); }, fail: function () { finish(false); },
-          ask: function (wi) { out[wi]--; if (next < srcs.length) { var l = piece(wi); send(wi, { job: id, srcs: l, more: true }, l); } else if (out[wi] === 0) send(wi, { job: id, flush: 1 }, null); } };
+        var keepRes = options._keep !== false;   // _keep: test switch (false = a new result array from each helper per call)
+        P.jobs[id] = { add: function (bc, wi) { for (var j = 0; j < n; j++) total[j] += bc[j]; if (keepRes) { if (!P.res) P.res = []; P.res[wi] = bc.buffer; } if (--pending === 0) finish(true); }, fail: function () { finish(false); },
+          ask: function (wi) { out[wi]--; if (next < srcs.length) { var l = piece(wi); send(wi, { job: id, srcs: l, more: true }, l); } else if (out[wi] === 0) { var kb = keepRes && P.res && P.res[wi] && P.res[wi].byteLength === 8 * n ? P.res[wi] : null; if (kb) P.res[wi] = null; send(wi, { job: id, flush: 1, buf: kb }, kb ? kb : null); } } };
         for (w = 0; w < count; w++) {
           if (dyn) { var l1 = piece(w); send(w, { job: id, srcs: l1, more: true }, l1); if (next < srcs.length) { var l2 = piece(w); send(w, { job: id, srcs: l2, more: true }, l2); } continue; }
           var list = new Int32Array(Math.ceil((srcs.length - w) / count)); for (k = 0; k < list.length; k++) list[k] = srcs[w + k * count];
@@ -648,5 +650,5 @@
     while ((e = r.via[v]) >= 0) { out.push(e); v = g.from[e]; }
     return out.reverse();
   }
-  return { version: '0.7.1', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closePool: closePool, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
+  return { version: '0.7.2', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closePool: closePool, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
 }));
