@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.8.0 · API 1 · 2026-10-31
+
+### Quick
+Fast row reader for the usual <row><c><v> sheet shape, formulas skipped instead of falling back, plain shared strings read directly, whole-day dates worked out without Date; anything else falls back to the general reader. Same output; no API change.
+
+### Details
+Early-stop A/B, 1.8.0 / 1.7.0 on workbook-to-CSV (lower is better), cloud: Chromium 155 60k rows 0.334, 6k 0.353, 20k with formulas 0.331, 30k all-text 0.426; Firefox 158 0.394, 0.412, 0.554, 0.420; WebKitGTK 2.52.6 0.383, 0.389, 0.420, 0.304. Dropped after testing: direct CSV line building (WebKitGTK up to 1.41x slower) and a repeated-date memo (Firefox 1.24-1.60x slower). Tests: random-sheet differential (30,000 sheets incl. 9 formula shapes), 20,000 random shared-string lists, every whole-day date serial in both date systems.
+
+### Deep
+Excel reading 1.8 to 3.3 times as fast (45 to 70% less time) (cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; 60k, 6k, formula and all-text sheets), same output. Row reader + formula skip + shared strings + direct dates; per-cell scalars, plain-integer and csvCell fast paths. Results: js-modules-research/zip-open/RESULTS-xlsx-fast-rows-2026.10.31.md.
+
 ## 1.7.0 · API 1 · 2026-10-31
 
 ### Quick
