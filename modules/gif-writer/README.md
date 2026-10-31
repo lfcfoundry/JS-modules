@@ -6,30 +6,23 @@
 
 ## What it is and how it works
 
-gif-writer makes animated GIF files from pictures you draw on a canvas, in the browser or in Node. About 38 KB (15 KB gzipped, of which about 12 KB is the embedded WebAssembly), no dependencies. Optional add-on files apply picture filters (color grade, blur, sharpen, glow) and spread the work over Web Workers. It was cut out of Netflow Map's GIF maker.
+gif-writer makes animated GIFs from canvas pictures, in the browser or Node. One file, 15 KB gzipped, no dependencies. Optional add-ons apply filters and use Web Workers. It was cut out of Netflow Map's GIF maker.
 
-It works in three steps:
-
-1. **One palette for the whole animation.** A GIF shows at most 256 colors at a time. gif-writer samples a few of your pictures and picks the best shared set of colors (median cut, then refined by k-means), so colors do not flicker from frame to frame.
-2. **Store only what changed.** Each new picture is compared with the one before it. Unchanged pixels are written as transparent, and the frame is cropped to the box that did change.
-3. **Compress as it goes.** Each frame is compressed at once with the GIF format's own LZW method, in WebAssembly when the browser allows it.
-
-`finish()` returns the bytes of a plain GIF89a file that loops, which every image viewer and chat app can show.
+- One shared palette for the whole animation, so colors do not flicker.
+- Only pixels that changed since the last frame are stored, cropped to the changed area.
+- Each frame is compressed right away, in WebAssembly when available.
 
 ## Why it exists
 
-GIF is still the one animated format that plays almost everywhere without a video player: chat apps, issue trackers, documentation and email. And most GIFs made from apps, games or charts are mostly still: a fixed background with a small part moving. A writer that stores every pixel of every frame pays for that background again on each frame.
-
-The common open-source writers, gifenc and gif.js, store each frame in full. That is simple, and it suits video-like content, but for a screen capture it makes files several times larger than they need to be. On the laptop in Firefox 160, a typical 30-frame capture took 10 ms and 40 KB here, against gifenc's 105 ms and 195 KB and gif.js's 311 ms and 393 KB. When every pixel changes (noisy pictures), the advantage mostly goes: gifenc with one palette came out about 2% smaller in that case.
+Most GIFs of apps and games are a still background with a small moving part. Common writers like gifenc and gif.js store every frame in full, so the background is paid for again each frame. On the laptop in Firefox 160, a 30-frame capture was 40 KB here against 195 KB with gifenc.
 
 **Where it helps**
 
-- Short loops of a game or app for a store page, a README or a bug report.
-- Animated charts and maps, such as a rotating 3D map or a timeline playing out.
-- Letting people save a replay as a file they can share anywhere.
-- Making GIFs inside an offline page, with no upload to a converter site.
+- Short loops for a README, store page or bug report.
+- Animated charts and maps.
+- Shareable replays made inside an offline page.
 
-**Where something else fits better:** photographs (256 colors and no dithering will look posterized); pages where the size of the code matters most (gifenc is about 5.7 KB gzipped); and anywhere a video file is acceptable, since video compresses moving content far better.
+**Not for:** photos (256 colors, no dithering), or anywhere a video file works.
 
 ## Looks, timing and a worker (since 1.5.0; optional files)
 

@@ -12,15 +12,13 @@
 
 ## What it is and how it works
 
-JS-modules is a collection of 49 small browser libraries and tools. Each one solves a single problem that came up while building LFC Foundry's games and apps: [Apple Press](https://github.com/lfcfoundry/apple-press), [Fancy, the Banana](https://github.com/lfcfoundry/fancy-banana), [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense), [Story Editor](https://github.com/lfcfoundry/story-editor) and Netflow Map (a private app, so no link).
+JS-modules is a set of 49 small browser libraries and tools, each solving one problem met while building LFC Foundry's apps: [Apple Press](https://github.com/lfcfoundry/apple-press), [Fancy, the Banana](https://github.com/lfcfoundry/fancy-banana), [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense), [Story Editor](https://github.com/lfcfoundry/story-editor) and Netflow Map (private).
 
-Each module is one JavaScript file with no dependencies. You copy the file next to your page, load it with a script tag (or `require` in Node), and call it. There is no build step, package manager or framework to adopt.
+- Each module is one file with no dependencies: copy it, load it with a script tag or `require`, call it.
+- Heavy work runs in WebAssembly inside the same file, usually with a JavaScript fallback.
+- Every folder has a README with limits and comparisons, a demo page, tests and a changelog.
 
-- **Heavy work runs in WebAssembly** (with SIMD where it helps), embedded inside the same file. In most modules a plain JavaScript path gives the same results where WebAssembly is missing, only slower; each README says when a module needs WebAssembly.
-- **Every module folder** holds a README with its limits and comparisons, a demo page that opens straight from disk, tests and a changelog.
-- **Every published number is measured** in Firefox, Chromium and WebKitGTK, and names the browser and machine it came from.
-
-The modules are written for developers. The apps built from them need no install, no administrative privileges and no special computing knowledge.
+The modules are for developers; the apps built from them need no install and no special knowledge.
 
 ```html
 <script src="modules/save-kit/save-kit.js"></script>
@@ -29,19 +27,14 @@ The modules are written for developers. The apps built from them need no install
 
 ## Why it exists
 
-Single-file offline apps live under unusual limits. They cannot load code from a server, they have to run on cheap phones as well as desktops, and every kilobyte they carry is downloaded by everyone who opens them. Most popular libraries assume the opposite: a build step, a tree of packages, a network connection and a fast device.
-
-While the games and apps were being built, the same small problems kept coming back: a held button that lets go when the browser sends `pointercancel`, a save overwritten by a `NaN`, a chart that goes blank because the data had a loop, a page that runs out of memory on a phone. Each fix was worth keeping, and worth keeping on its own, so a change made for one app cannot break another.
-
-A module stays on the shelf only if it does something the nearest open-source option does not, or does it measurably better. Each README names that option and compares against it, including the cases where the other one wins.
+Single-file offline apps cannot load code from a server, must run on cheap phones, and every kilobyte is downloaded by everyone. Most libraries assume a build step, a network and a fast device. A module is kept only if it does something the nearest open-source option does not, or does it measurably better, and its README says where the other one wins.
 
 **Where it helps**
 
-- Single-file or offline web apps and games that must work with no server at all.
-- Projects that want one specific fix without adopting a framework.
-- Apps that must run on low-end phones, where memory, startup time and download size are tight.
-- Data-heavy pages (maps, charts, logs) that need compact storage and fast reading in the browser.
-- Teams that want to read and audit every line they ship: each piece is one readable file.
+- Offline or single-file web apps and games.
+- One specific fix without adopting a framework.
+- Low-end phones, where memory and download size are tight.
+- Data-heavy pages (maps, charts, logs) that need compact storage.
 
 ## Highlights
 
