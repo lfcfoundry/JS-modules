@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.2.1 · API 0 · 2026-10-30
+
+### Quick
+Large text-like column frames (256 KB or more, at the default level) now try two finer zstd settings on a sample from the middle of the frame and compress once with the winner. Logs 0.9658x the bytes, FHIR 0.9896x, nd_dense 0.9898x, events 0.9964x; other sets unchanged; pack time within noise in three browsers. The files are plain zstd frames, so every reader reads them.
+
+### Details
+zstd-glue.c gains an export tune(strategy, hashLog, chainLog, minMatch), applied on top of the level; zstd-dec.wasm is unchanged byte for byte. Candidates: level 3 as is, strategy fast with hashLog 18 and minMatch 6, then minMatch 7 (tried only if 6 won). Sample: the middle min(128 KB, frame/8). Text-like: about 2,048 evenly spaced bytes, at least 85% printable ASCII, newline or zero. Frames under 256 KB are not tuned: trying all three settings on the many mid-size dense columns made pack 6 to 15% slower, and sampling them made dense 0.1 to 0.2% larger. Python writer unchanged.
+
+### Deep
+lfc-pack 0.2.1: sample-choice zstd tuning on text-like frames of 256 KB or more. Sizes vs 0.2.0: logs 0.9658, events 0.9964, fhir 0.9896, nd_dense 0.9898, dense/links/lists/gen_logs/gen_config 1.0000. Pack ratio (container, 4 cores): Chromium 155 logs 0.94 events 0.98 dense 0.96 links 0.83; Firefox 158 1.03/0.99/0.98/0.99; WebKitGTK 1.02/1.06/1.02/0.98. Same rows back in all. Unpack bytes path unchanged (ratios 0.81 to 1.66 on identical files show the container noise). Tests: run.js, vectors, Python and Go readers pass. Layout vectors flat-all-types and flat-wide-dict regenerated.
+
 ## 0.2.0 · API 0 · 2026-10-30
 
 ### Quick
