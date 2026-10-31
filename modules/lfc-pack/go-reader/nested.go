@@ -21,13 +21,19 @@ func readNested(b []byte) []any {
 	cm := field(h, "cm").([]any)
 	cmeta, _ := jsonOf(unzstdB(c.take(num(cm[1])))).([]any)
 	pp := ints(field(h, "p"))
-	D := splitNul(unzstdB(c.take(pp[0])))
+	dtext := unzstdB(c.take(pp[0]))
+	for _, ch := range dtext {
+		if ch > 127 {
+			fail("dictionary text is not ASCII")
+		}
+	}
+	D := splitNul(dtext)
 	sd, _ := jsonOf(unzstdB(c.take(pp[1]))).(*Obj)
 	sidx := ints(field(sd, "idx"))
 	sstr, _ := field(sd, "str").([]any)
 	for i, ix := range sidx {
-		for len(D) <= ix {
-			D = append(D, "")
+		if ix < 0 || ix >= len(D) {
+			fail("side list index out of range")
 		}
 		D[ix], _ = sstr[i].(string)
 	}
