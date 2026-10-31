@@ -1,8 +1,8 @@
 # graph-walk
 
-**Version 0.7.1 · API 0**
+**Version 0.7.2 · API 0**
 
-**Tested in:** Firefox 158, Chromium 155 (container)
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 The walks that map and flow tools keep rewriting, on the plain "links of every item" layout in typed arrays with no recursion: breadth-first distances, loop marking, connected components, strongly connected components, topological order and shortest paths (by links or by weight, from one item to all or between two items). On a 100,000 item network with 400,000 links the build takes 7 milliseconds and components 5, where graphology needs 2.2 seconds and 0.5 to 1.5 seconds.
 
@@ -57,6 +57,9 @@ Against graphology 0.26 (with graphology-components 1.5, graphology-shortest-pat
 Strongly connected components: graphology's version runs out of call stack on this network in all three browsers (and at 10,000 items in Chromium); at 10,000 items where it runs, graphology needs 30 ms (Firefox) and 36 ms (WebKitGTK) against 1.0 and 0.8 ms. On a sparse network (100,000 items, 120,000 links) the figures are 301 / 19, 219 / 16 and 323 / 10 ms. On an acyclic 100,000 item network, topological order takes 1039 / 12 (Firefox), 514 / 8.9 (Chromium) and 1289 / 8.3 ms (WebKitGTK). The first `path` call on a graph builds a links-into-items index and working arrays and takes 3 to 23 ms at this size (graphology paid for the same thing inside its 2 second build). The full tables are kept privately.
 
 Breadth-first and loop marking are unchanged from 0.1.0 and match Netflow Map's inline copies. `betweennessAsync` on 4 reported cores, 5,000 items and 20,000 links: 2.1 to 2.9 seconds on one thread down to 0.59 to 0.83 seconds with JavaScript helpers (3.4x to 3.5x) and 0.56 to 0.69 seconds with WebAssembly helpers (3.5x to 4.6x) in Firefox 158, Chromium 155 and WebKitGTK 2.52.6. The helpers are kept by default: three jobs in a row on one graph average 1.2x to 1.75x faster per job than helpers made each time (1,000 to 2,000 items); the very first job is the same speed (a Firefox gap seen at first was a measuring artifact). Needs `worker-src blob:` in the page policy. Not measured for these new jobs: a laptop or a phone.
+
+Since 0.7.2 the helpers get the WebAssembly code already compiled and keep one instance across graphs, take start items in small pieces as each one finishes (so a helper that drew the costly items does not hold up the rest), and give their result arrays back to be reused. Same answers (`tests/graph-walk-pool-browser.js`). On 4 cores, first call and a new graph on a warm pool, 20,000 to 200,000 items, against 0.7.1: Chromium 155 0.98 to 1.14x faster, Firefox 158 1.45 to 1.9x, WebKitGTK 2.52.6 1.2 to 1.4x; repeat calls on one graph are within noise (0.96 to 1.13x).
+
 
 ## Limits
 - Item numbers must be whole numbers from 0 to n-1; `csr` throws a RangeError otherwise.

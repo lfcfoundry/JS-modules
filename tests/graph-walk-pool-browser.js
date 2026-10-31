@@ -21,10 +21,10 @@ T.main(async (b, which, outFile) => {
       }
       return GraphWalk.csr(n, from, to);
     };
-    window.MODES = { today: {}, module: { _mod: true }, pieces: { _dyn: true }, both: { _mod: true, _dyn: true } };
+    window.MODES = { today: { _mod: false, _dyn: false, _keep: false }, module: { _dyn: false, _keep: false }, pieces: { _mod: false, _keep: false }, kept: { _mod: false }, both: { _keep: false }, all: {} };
     window.setup = (kind, n, m, ns) => { window.G1 = make(kind, n, m); window.G2 = make(kind, n, m); window.SRC = ns ? Array.from({ length: ns }, (_, i) => Math.floor(i * n / ns)) : null; };
     window.check = async () => { GraphWalk.setBackend('wasm'); const ref = GraphWalk.betweenness(G1, { sources: SRC }), res = {};
-      for (const k of Object.keys(MODES)) for (const be of ['wasm', 'js']) { GraphWalk.setBackend(be); const c = await GraphWalk.betweennessAsync(G1, Object.assign({ sources: SRC, minWork: 0 }, MODES[k])); res[k + '-' + be] = ref.every((v, i) => Math.abs(v - c[i]) <= 1e-9 * Math.max(1, Math.abs(v))); }
+      for (const k of Object.keys(MODES)) for (const be of ['wasm', 'js']) { GraphWalk.setBackend(be); const c = await Promise.race([GraphWalk.betweennessAsync(G1, Object.assign({ sources: SRC, minWork: 0 }, MODES[k])), new Promise((r) => setTimeout(() => r(null), 20000))]); if (!c) { res[k + '-' + be] = 'hung'; GraphWalk.closePool(); continue; } res[k + '-' + be] = ref.every((v, i) => Math.abs(v - c[i]) <= 1e-9 * Math.max(1, Math.abs(v))); }
       GraphWalk.setBackend('wasm'); GraphWalk.closePool(); return res; };
     // one trial: cold call (no pool), warm repeat on the same graph, then a different graph on the warm pool
     window.trial = async (k) => { GraphWalk.closePool(); await new Promise((r) => setTimeout(r, 50)); const o = Object.assign({ sources: SRC, minWork: 0 }, MODES[k]);
@@ -33,13 +33,13 @@ T.main(async (b, which, outFile) => {
       t = performance.now(); await GraphWalk.betweennessAsync(G2, o); const swap = performance.now() - t;
       return [cold, warm, swap]; };
   });
-  const rows = [], answers = [], names = ['today', 'module', 'pieces', 'both'];
+  const rows = [], answers = [], names = process.env.MODES ? process.env.MODES.split(',') : ['today', 'module', 'pieces', 'kept', 'both', 'all'];
   const sets = process.env.SETS ? JSON.parse(process.env.SETS) : [['random', 20000, 80000, 256], ['hubs', 20000, 80000, 256], ['random', 3000, 12000, 0], ['hubs', 3000, 12000, 0]];
   for (const [kind, n, m, ns] of sets) {
     await p.evaluate((a, b2, c, d) => setup(a, b2, c, d), kind, n, m, ns);
     const ok = await p.evaluate(() => check()); answers.push(kind + ' ' + n + '/' + m + ': ' + JSON.stringify(ok));
     const acc = {}; for (const k of names) acc[k] = [[], [], []];
-    for (let r = 0; r < REPS; r++) for (const k of (r % 2 ? names.slice().reverse() : names)) { const v = await p.evaluate((x) => trial(x), k); for (let i = 0; i < 3; i++) acc[k][i].push(v[i]); }
+    for (let r = 0; r < REPS; r++) for (const k of (r % 2 ? names.slice().reverse() : names)) { if (process.env.TRACE) process.stderr.write(kind + n + ' r' + r + ' ' + k + '\n'); const v = await p.evaluate((x) => Promise.race([trial(x), new Promise((res) => setTimeout(() => res('hung'), 30000))]), k); if (v === 'hung') { console.log('HUNG ' + kind + ' ' + n + ' ' + k + ' rep ' + r); return false; } for (let i = 0; i < 3; i++) acc[k][i].push(v[i]); }
     const med = (a) => { const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
     for (const k of names) { const v = acc[k].map(med), b0 = acc.today.map(med); rows.push({ set: kind + ' ' + n + '/' + m + (ns ? ' ' + ns + ' starts' : ' all'), mode: k, cold: v[0].toFixed(1), warm: v[1].toFixed(1), swap: v[2].toFixed(1), gain: (b0[0] / v[0]).toFixed(2) + ' / ' + (b0[1] / v[1]).toFixed(2) + ' / ' + (b0[2] / v[2]).toFixed(2) }); }
   }
@@ -47,5 +47,5 @@ T.main(async (b, which, outFile) => {
   console.log(answers.join('\n'));
   console.log(T.table(rows, [{ key: 'set', title: 'graph', align: 'left' }, { key: 'mode', title: 'mode', align: 'left' }, { key: 'cold', title: 'cold ms' }, { key: 'warm', title: 'warm ms' }, { key: 'swap', title: 'new graph ms' }, { key: 'gain', title: 'today / mode (cold / warm / new)' }]));
   if (outFile) fs.writeFileSync(outFile, JSON.stringify({ which, cores, answers, rows }));
-  return !answers.some((s) => /false/.test(s));
+  return !answers.some((s) => /false|hung/.test(s));
 });
