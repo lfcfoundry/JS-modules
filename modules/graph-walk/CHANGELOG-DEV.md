@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.0 · API 0 · 2026-10-31
+
+### Quick
+Max-flow (Dinic), closeness, triangles, Louvain communities, critical path, landmark (ALT) paths, JS and wasm, rebased on 0.7.2.
+
+### Deep
+Max-flow (Dinic), closeness, triangles, Louvain communities, critical path, landmark (ALT) paths, JS and wasm, rebased on 0.7.2. Closeness keeps a per-graph array of link sources (one lookup less per link): WebKitGTK wasm went from 325 to 254 ms. Results: /mnt/project-files/js-modules-research/graph-walk/RESULTS-NEWJOBS-2026.10.31.md
+
 ## 0.7.2 · API 0 · 2026-10-31
 
 ### Quick
