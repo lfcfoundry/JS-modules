@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.9.0 · API 2 · 2026-10-31
+
+### Quick
+unpackAsync(bytes, {stream: true, onRows, page}) makes rows a page at a time (default 4,096), calls onRows, then clears them. Lists up to 131,072 rows take the plain path. No format change.
+
+### Details
+300k events: 0.60 (0.57-0.66) of unpackAsync time in laptop Chromium 156 and 0.82 (0.68-0.94) in Firefox 160; longest pause 2-4x shorter. Text columns stay uncut until a row needs them, and each page is built from plain per-page column slices by the same row builders. Lists up to 131,072 rows skip it because there it was 6-7% slower (the code path is then identical to unpackAsync). Caller rule: rows from..to-1 are cleared right after onRows returns.
+
+### Deep
+Shipped on the owner's card (Yes, ship it, 2026.10.31 about 3:46 PM ET). Research: js-modules-research/memory-compression-jso/ideas-round-9/gc-stream/stream-v3/RESULT-STREAM-V3-2026.10.31.md. Only the stream code was taken from the research layer (its other experiments were left out).
+
 ## 2.8.2 · API 2 · 2026-10-31
 
 ### Quick

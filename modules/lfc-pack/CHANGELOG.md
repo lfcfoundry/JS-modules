@@ -2,6 +2,15 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.5 · API 0 · 2026-10-31
+- packParallel is 7 to 25% faster when called again within 3 seconds: helpers keep their memory until they close.
+
+## 0.4.4 · API 0 · 2026-10-31
+- Packing records with many shapes, like FHIR, is 10 to 15% faster: each shape's string paths are worked out once instead of once per block. Same files byte for byte.
+
+## 0.4.3 · API 0 · 2026-10-31
+- After 30 seconds without packing, the packer gives its memory back on its own (about 38 MB after a 66.6 MB pack, up to about 250 MB with big blocks). Reading memory is kept. Same files byte for byte.
+
 ## 0.4.2 · API 0 · 2026-10-31
 - The first pack after trim() is no longer slower (laptop Chromium 4% slower before, now 2% faster): the packer keeps its warmed-up code. Same files byte for byte.
 

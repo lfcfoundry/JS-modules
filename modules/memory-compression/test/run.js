@@ -905,6 +905,27 @@ tAsync('2.6.0: unpackAsync onRows is called after each slice with contiguous ran
   });
   return Promise.all(jobs);
 });
+tAsync('2.9.0: stream: true hands long lists to onRows a page at a time (rows final when handed over, cleared right after), page sets the size; lists up to 131,072 rows take the plain path', function () {
+  var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13) + (i % 977 ? '' : 'x' + i), ok: i % 3 === 0, t: 1e12 + i * 977 }; }); };
+  var big = mk(140000), b = J.pack(big, opt({ mode: 'balanced' })), ref = J.unpack(b, opt()), jobs = [];
+  [[undefined, 4096], [1000, 1000]].forEach(function (pg) {
+    var next = 0, arr = null;
+    jobs.push(J.unpackAsync(b, opt({ stream: true, page: pg[0], onRows: function (rows, from, to) {
+      if (arr === null) arr = rows; if (rows !== arr) throw new Error('a different array in a later call');
+      if (from !== next || to - from > pg[1] || to <= from) throw new Error('page ' + from + '..' + to + ' after ' + next);
+      if (from > 0 && rows[from - 1] !== undefined) throw new Error('row ' + (from - 1) + ' was kept after its call');
+      for (var i = from; i < to; i++) { var e = D.same(ref[i], rows[i]); if (e) throw new Error('row ' + i + ': ' + e); }
+      next = to;
+    } })).then(function (x) {
+      if (next !== 140000) throw new Error('stream covered ' + next + ' rows');
+      if (x.length !== 140000 || x[0] !== undefined || x[139999] !== undefined) throw new Error('stream should give back a list of let-go rows');
+    }));
+  });
+  var short = mk(5000), b2 = J.pack(short, opt({ mode: 'balanced' })), calls = 0;
+  jobs.push(J.unpackAsync(b2, opt({ stream: true, onRows: function () { calls++; } })).then(function (x) { same(short, x, 'short list with stream'); if (!calls) throw new Error('short list: onRows not called'); }));
+  jobs.push(J.unpackAsync(b, opt({ stream: true })).then(function (x) { same(ref, x, 'stream without onRows is ignored'); }));
+  return Promise.all(jobs);
+});
 tAsync('2.6.0: onRows is not called for short lists, mixed shapes, other values, lists inside rows, and a value that is not a function is ignored', function () {
   var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5, tags: many(2, function (j) { return { k: j, i: i }; }) }; }); };
   var odd = mk(5000); odd[3000] = { id: 1, x: 2 };
