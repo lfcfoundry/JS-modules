@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.6.0 (API 0)
+ * Version 0.6.1 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -271,7 +271,7 @@
 
   /* ---- parallel parse (since 0.2.0): a big file is cut at line ends, each helper reads its piece with this same code, and the typed columns are joined ---- */
   function workerBody() {   // runs inside a helper; `TextColumns` is this file's code loaded there
-    var held = null, strict = null;
+    var held = null, kept = null, strict = null;
     function toUnits(u, os, oe) {   // byte positions -> UTF-16 positions, in place (both rise row by row and oe[z] <= os[z + 1])
       var p = 0, q = 0, n = os.length, z, t, c;
       for (z = 0; z < n; z++) {
@@ -292,11 +292,16 @@
     }
     // Since 0.6.0, for a File or Blob: this helper reads its own piece of the file (the page never reads or copies it). The piece starts after the first line end at or after
     // byte a - 1 (the start of the file for the first piece, after a byte order mark) and ends after the first line end at or after byte b - 1, so the pieces meet exactly.
+    function sliced(b, step) {   // _slice (test switch): read in slices of step bytes (WebKitGTK hands file data over on the page's thread, so smaller handovers mean shorter pauses there)
+      var out = new Uint8Array(b.size), at = 0;
+      function next() { if (at >= b.size) return Promise.resolve(out.buffer); var e = Math.min(b.size, at + step); return b.slice(at, e).arrayBuffer().then(function (x) { out.set(new Uint8Array(x), at); at = e; return next(); }); }
+      return next();
+    }
     function readPiece(m) {
       var size = m.blob.size, a = m.a, from = a === 0 ? 0 : a - 1, pad = 65536, s, end, nl;
       function more() {
         var to = m.last ? size : Math.min(size, m.b - 1 + pad);
-        return m.blob.slice(from, to).arrayBuffer().then(function (ab) {
+        return (m.slice > 0 ? sliced(m.blob.slice(from, to), m.slice) : m.blob.slice(from, to).arrayBuffer()).then(function (ab) {
           var buf = new Uint8Array(ab);
           if (a === 0) s = buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF ? 3 : 0; else { nl = buf.indexOf(10); s = nl < 0 ? buf.length : nl + 1; }
           nl = m.last ? -1 : buf.indexOf(10, Math.max(m.b - 1 - from, 0));
@@ -315,6 +320,8 @@
     function run(m) {
       var t, cols = [], types = [], tr = [], j, c, only, isText, ft, q;
       try {
+        if (m.op === 'fill') { for (j = 0; j < m.cols.length; j++) new Float64Array(m.bufs[j]).set(kept[m.cols[j]], m.at); if (!m.keep) kept = null; postMessage({ id: m.id, bufs: m.bufs }, m.bufs); return; }
+        if (m.op !== 'text') kept = null;
         if (m.op === 'hold') { held = { bytes: m.bytes }; q = TextColumns._qscan(m.bytes, m.delim.charCodeAt(0)); postMessage({ id: m.id, q: [q[0], q[1], q[2]] }); return; }
         if (m.op === 'parse') { if (m.bytes) held = { bytes: m.bytes }; held.delim = m.delim; held.header = m.header; held.sel = m.sel; held.lazy = m.lazy; }
         isText = m.op === 'text';
@@ -325,7 +332,7 @@
         for (j = 0; j < t.columns.length; j++) {
           if (only && only.indexOf(j) < 0) continue;
           c = t.columns[j]; types.push(c.type === 'number' ? 1 : c.off ? (c.offAscii ? 2 : 3) : 0); cols.push(c.off || c.values);
-          if (c.type === 'number') tr.push(c.values.buffer); else if (c.off) tr.push(c.off[0].buffer, c.off[1].buffer, c.off[2].buffer);
+          if (c.type === 'number') { if (m.join && !isText) { (kept = kept || [])[j] = c.values; cols[cols.length - 1] = null; } else tr.push(c.values.buffer); } else if (c.off) tr.push(c.off[0].buffer, c.off[1].buffer, c.off[2].buffer);
         }
         var out = { id: m.id, names: t.names, count: t.count, types: types, cols: cols };
         if (m.utf16 !== false) withText(out, held, isText);
@@ -425,11 +432,11 @@
       if (blob) { head = stripBom(new Uint8Array(await blob.slice(0, Math.min(len, 1048576)).arrayBuffer())); if (len > 1048576) head = head.subarray(0, head.lastIndexOf(10) + 1); }   // the column names from the first megabyte, cut at its last line end
       sel = selectColumns(head, delim, header, opts.columns); if (!sel) return serial();
     }
-    var cuts, hasQ, sendBytes = true, pb = null;
+    var cuts, hasQ, sendBytes = true, pb = null, join = opts._join !== false;   // _join: false = the page joins the number columns (0.6.0 way; test switch)
     function pieceEnd(c, k) { return k + 1 < c.length ? c[k + 1] : len; }
     if (blob) {   // every helper reads its own piece and parses it; the quote check comes after, and a file whose cuts fall inside quotes is read again the 0.5.2 way
       warm(n, opts);
-      for (k = 0; k < n; k++) jobs.push(ask(POOL[k], { op: 'read', blob: blob, a: Math.floor(len / n * k), b: Math.floor(len / n * (k + 1)), last: k === n - 1, delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16 }));
+      for (k = 0; k < n; k++) jobs.push(ask(POOL[k], { op: 'read', blob: blob, a: Math.floor(len / n * k), b: Math.floor(len / n * (k + 1)), last: k === n - 1, delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, slice: opts._slice }));
       if (T) T.post = performance.now() - t0;
       res = await Promise.all(jobs); jobs = [];
       var qpar = 0, qgood = true, qany = false, qerr = false;
@@ -455,7 +462,7 @@
       else { cuts = splitPoints(u, delim, n); if (!cuts || cuts.length < 2) return serial(); warm(cuts.length, opts); }
     }
     for (k = 0; k < cuts.length; k++) {
-      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16 }, tl = [];   // _utf16: false = the 0.5.1 way (test switch)
+      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join }, tl = [];   // _utf16: false = the 0.5.1 way (test switch)
       if (sendBytes) { msg.bytes = u.slice(cuts[k], pieceEnd(cuts, k)); tl.push(msg.bytes.buffer); }
       jobs.push(ask(POOL[k], msg, tl));
     }
@@ -511,10 +518,23 @@
         return d.d[2][row] ? sv.split('""').join('"') : sv;
       }
     }
-    var columns = [], v, a;
+    var columns = [], v, a, numVals = {};
+    if (join) {   // since 0.6.1: the helpers kept their number columns; the page makes each full-length column once and the columns travel through the helpers in groups,
+      // every helper copying its rows into a different group at each turn, so the page never copies them (a 45 MB number file no longer blocks the page for tens of ms)
+      var js = [], L = live.length, offs = [], gc = [], gb = [], o2 = 0, step, got;
+      for (j = 0; j < ncols; j++) if (!textCol[j]) js.push(j);
+      for (i = 0; i < L; i++) { offs.push(o2); o2 += cnt[i]; gc.push([]); gb.push([]); }
+      js.forEach(function (jj, q) { gc[q % L].push(jj); gb[q % L].push(new ArrayBuffer(total * 8)); });
+      for (step = 0; js.length && step < L; step++) {
+        got = await Promise.all(live.map(function (kk, ii) { var g = (ii + step) % L; return gb[g].length ? ask(POOL[kk], { op: 'fill', bufs: gb[g], cols: gc[g], at: offs[ii], keep: step < L - 1 }, gb[g]).then(function (m) { if (m.err || !m.bufs) return false; gb[g] = m.bufs; return true; }) : true; }));
+        if (got.indexOf(false) >= 0) return serial();
+      }
+      js.forEach(function (jj, q) { numVals[jj] = new Float64Array(gb[q % L][Math.floor(q / L)]); });
+    }
     for (j = 0; j < ncols; j++) {
       var col = { name: names[j], type: textCol[j] ? 'text' : 'number', values: null, get: getAt };
-      if (!textCol[j]) { v = new Float64Array(total); var at = 0; for (i = 0; i < live.length; i++) { a = res[live[i]].cols[j]; v.set(a, at); at += a.length; } col.values = v; }
+      if (numVals[j]) col.values = numVals[j];
+      else if (!textCol[j]) { v = new Float64Array(total); var at = 0; for (i = 0; i < live.length; i++) { a = res[live[i]].cols[j]; v.set(a, at); at += a.length; } col.values = v; }
       else if (lazy) col = lazyJoined(names[j], function (jj) { return function () { return fillText(jj); }; }(j), function (jj) { return function (row) { return cellText(jj, row); }; }(j));
       else col.values = fillText(j);
       columns.push(col);
@@ -530,5 +550,5 @@
     return col;
   }
 
-  return { version: '0.6.0', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { version: '0.6.1', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));
