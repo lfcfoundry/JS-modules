@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.3.0 · API 0 · 2026-10-30
+- Much smaller files for decimal numbers and map coordinates (map lines 0.30x the size, prices 0.78x), plus new row-range reads, file stats, metadata and hashing. Files that use the new number columns need this version's reader.
+
 ## 0.2.1 · API 0 · 2026-10-30
 - Text-heavy files come out smaller (web logs 3.4% smaller, FHIR records 1.0%) with the same pack and read speed; older readers open them as before.
 

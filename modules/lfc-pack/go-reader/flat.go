@@ -91,6 +91,11 @@ func readFlat(b []byte) []any {
 		}
 		out = append(out, o)
 	}
+	for j := 0; j < K && j < len(vals); j++ {
+		if ptr[j] != len(vals[j]) {
+			fail("presence bits do not match the column")
+		}
+	}
 	return out
 }
 
@@ -138,6 +143,18 @@ func decodeCol(c *Obj, fr [][]byte) []any {
 			var s int64
 			for i := range u {
 				s += int64(u[i])
+				vals[i] = float64(s)
+			}
+			if s > 1<<53 {
+				fail("number column out of range")
+			}
+		} else if pb("delta") {
+			var s int64
+			for i := range u {
+				s += unzz(u[i])
+				if s > 1<<53 || s < -(1<<53) {
+					fail("number column out of range")
+				}
 				vals[i] = float64(s)
 			}
 		} else {
