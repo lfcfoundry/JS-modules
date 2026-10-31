@@ -45,12 +45,15 @@ Single-file offline apps cannot load code from a server, must run on cheap phone
 
 ## Compared with the usual choice
 
-Measured 2026.10.27 on an early lfc-pack in cloud Firefox 158 and Chromium 155; Parquet written natively by pyarrow (zstd 3, 4 threads). Not re-run on 0.4.0 yet.
+lfc-pack 0.4.0 on 260 MB of real FHIR records, measured 2026.10.31 in cloud Chromium 153, Firefox 158 and WebKitGTK 2.52.6 (shared 4-core machine). Parquet written natively by pyarrow 26 after a DuckDB 2.0 read (zstd 3, 4 threads).
 
-| Measure (260 MB of FHIR records) | Parquet | lfc-pack |
+| Measure (260 MB of FHIR records) | Parquet | lfc-pack 0.4.0 |
 |---|---|---|
-| Pack time | 6.1 s | **2.05 s** |
-| File size | 17.14 MB | **7.03 MB** |
+| Pack time, one thread | 7.44 s | **2.13 to 2.69 s** |
+| Pack time, 4 helpers | 7.44 s | **1.08 to 1.56 s** |
+| File size | 18.74 MB | **8.32 MB** |
+
+The lfc-pack file is 18% larger than the 7.03 MB an early version made on 2026.10.27, likely because later versions pick faster compression settings.
 
 text-columns reads CSV 3 to 12 times faster than Papa Parse with typed rows: 3.2x on a laptop in Firefox 160, 7 to 12x in the cloud test browsers.
 
