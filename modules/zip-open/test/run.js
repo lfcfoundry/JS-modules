@@ -278,6 +278,14 @@ t('inflate in WebAssembly (1.5.0): same files and notes as the browser stream on
   }
   assert.equal(same, 400);
 });
+t('shared output buffer (1.6.0): two opens at the same time, and repeated opens, never mix up their files', async function () {
+  var mk = function (tag) { var f = []; for (var i = 0; i < 6; i++) f.push({ name: tag + i + '.csv', data: 'a,b\n' + (tag + i + ',x\n').repeat(3000 + i * 500) }); return f; };
+  var za = Z.makeZip(mk('A')), zb = Z.makeZip(mk('B'));
+  for (var round = 0; round < 3; round++) {
+    var r = await Promise.all([U.expand(u8(za), 'a.zip'), U.expandBlob(new Blob([zb]), 'b.zip'), U.expand(u8(zb), 'b.zip'), U.expandBlob(new Blob([za]), 'a.zip')]);
+    [[r[0], 'A'], [r[1], 'B'], [r[2], 'B'], [r[3], 'A']].forEach(function (p) { assert.equal(p[0].files.length, 6); p[0].files.forEach(function (f, i) { assert.ok(f.text.startsWith('a,b\n' + p[1] + i + ',x\n') && f.text.length === 4 + (p[1] + i + ',x\n').length * (3000 + i * 500), 'file ' + f.name); }); });
+  }
+});
 t('streaming: helpers (workers) really ran, and many text files come out in order with limits applied the same way', async function () {
   var files = []; for (var i = 0; i < 40; i++) files.push({ name: 'd/f' + String(i).padStart(2, '0') + '.csv', data: 'a,b\n' + (i + ',x\n').repeat(2000 + i * 37) });
   var z = Z.makeZip(files), r = await both(z, 'many.zip'), r2 = await both(z, 'many.zip', { maxTotalBytes: 300000 }), r3 = await both(z, 'many.zip', { maxFiles: 7 }), r4 = await both(z, 'many.zip', { maxEntryBytes: 20000 });
