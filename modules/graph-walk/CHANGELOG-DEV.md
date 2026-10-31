@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.11.0 · API 0 · 2026-10-31
+
+### Quick
+into option (components(g, r), kcore(g, r), shortest(g, s, w, undefined, r), pagerank(g, {into: r})): WebAssembly only, early-stop A/B 4-12 rounds, ratios 0.63-1.04 across browsers, never flagged slower; offered for the four biggest-result…
+
+### Deep
+into option (components(g, r), kcore(g, r), shortest(g, s, w, undefined, r), pagerank(g, {into: r})): WebAssembly only, early-stop A/B 4-12 rounds, ratios 0.63-1.04 across browsers, never flagged slower; offered for the four biggest-result calls only. Concurrency: closePool now fails running jobs so they finish on the calling thread, the idle timer only starts when no job is running, and a job started while the kept helpers are busy gets its own helpers; tests/graph-walk-concurrent-browser.js hangs on 0.10.0 and passes in all 3 browsers.
+
 ## 0.10.0 · API 0 · 2026-10-31
 
 ### Quick
