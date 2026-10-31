@@ -48,7 +48,7 @@ Meta (JSON, UTF-8, decoded length `m[0]`):
   "ord":  [listRaw, listFrame, idsKind, idsRaw, idsFrame]        // optional
 }
 ```
-`cols[j]` may also carry `distinct` (a `D` column: the number of dictionary entries) or `nulls` (a `j` column: how many values are `null`). Readers MUST ignore these and any other extra keys; they are statistics for tools (`LfcPack.stats`). `cols[j]` describes `keys[j]`. `keys` are in order of first appearance in the block. `n` is the number of rows that carry the key. `f` lists the column's frames in the order they follow in the block; see 2.4.
+`cols[j]` may also carry `distinct` (a `D` column: the number of dictionary entries) or `nulls` (a `j` column: how many values are `null`). Readers MUST ignore these and any other extra keys (`o` and `x` too, see SPEC.md 2.4); they are statistics for tools (`LfcPack.stats`). `cols[j]` describes `keys[j]`. `keys` are in order of first appearance in the block. `n` is the number of rows that carry the key. `f` lists the column's frames in the order they follow in the block; see 2.4.
 
 ### 2.2 Presence planes
 The decoded planes are `K` planes of `pb = ceil(n_rows / 8)` bytes each, `K = keys.length`, so the raw length is `K * pb`. Plane `j` starts at `j * pb`. Row `i` has key `j` when bit `i & 7` of byte `i >> 3` of plane `j` is 1. A key that is in every row still has a plane (all ones). Unused high bits of the last byte of a plane are 0; a reader ignores them. The `n` of a column equals the number of ones in its plane.
