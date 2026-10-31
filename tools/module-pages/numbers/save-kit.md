@@ -10,3 +10,14 @@ Compared: save-kit against idb-keyval and localForage (750 bytes of JSON, micros
 | localForage (localStorage driver) | 17 | 3.3 |
 
 After a damaged value, save-kit falls back to its backup slot and returns a valid state; the others return NaN with no check. localForage's localStorage driver is faster on load, but it has no backup slot and no check.
+
+**New in 1.3.1: loads with a raw field are 2 to 3 times faster.** Saves with a raw field (nested game state, maps, inventories) used to be copied four times on load. Now the parsed objects are used as they are, unless the text names a `__proto__`, `constructor` or `prototype` key. The state is just as clean. Saves without raw fields are unchanged. Measured by the code thread, median of repeated runs in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 (a shared cloud machine, not the laptop):
+
+| Load of a save with a raw field (microseconds) | Chromium | Firefox | WebKitGTK |
+|---|---:|---:|---:|
+| medium raw field, before | 196 | 225 | 264 |
+| medium raw field, after | 82 | 67 | 107 |
+
+A save that is migrated from an older version still takes the slower copy.
+
+**Start-up cost.** In the code thread's cold-start runs on the same machine, save-kit adds under 1 ms at start-up compared with the bare localStorage driver, and is 4x to 13x faster than any IndexedDB library.
