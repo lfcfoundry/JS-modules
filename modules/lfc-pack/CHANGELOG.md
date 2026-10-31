@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.4.8 · API 0 · 2026-10-31
-- Opening files is up to 1 to 14% faster (real FHIR records 6 to 10% on a laptop); it keeps one small buffer for 4 s after the last open.
+- Opening files takes up to 14% less time (real FHIR records 1 to 10% less on a laptop). One small buffer (3.7 MB for a 48 MB FHIR file) is kept 4 s after the last open; trim() frees it.
 
 ## 0.4.7 · API 0 · 2026-10-31
 - Fixed: warmPack(n) now keeps n helpers ready even when some were already waiting (it kept fewer before), and overlapping packParallel calls never share a helper.
