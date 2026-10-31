@@ -1,8 +1,8 @@
 # gpu-blur
 
-**Version 1.0.0 · API 1**
+**Version 1.0.1 · API 1**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, GNOME Web 46.5, Node 22 (pass or fail only)
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
 
 The version is also in code as `GpuBlur.version`. Run the tests (offline, about a second): `node modules/gpu-blur/test/run.js`; the same tests against seven deliberately broken copies: `node modules/gpu-blur/test/mutants.js`. The real-browser check is `tests/gpu-blur-browser.js`.
 

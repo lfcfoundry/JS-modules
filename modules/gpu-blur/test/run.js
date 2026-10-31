@@ -55,7 +55,7 @@ function oracle(px, w, h, radius) {
   ok(G.boxHalf(12) === 6 && G.boxHalf(1) === 1 && G.boxHalf(100) === 50 && G.boxHalf(1000) === 50, 'box half widths: 12 -> 6, 1 -> 1, 100 -> 50, larger radii stop at 100');
 
   // ---- wasm = JavaScript twin = brute-force definition, byte for byte
-  var sizes = [[1, 1], [1, 9], [9, 1], [2, 2], [5, 7], [16, 16], [17, 3], [33, 18], [40, 25], [64, 48]], radii = [0, 1, 2, 3, 5, 8, 12, 25, 60, 100], bad = 0, n = 0;
+  var sizes = [[1, 1], [1, 9], [9, 1], [2, 2], [5, 7], [16, 16], [17, 3], [33, 18], [40, 25], [64, 48], [37, 21], [129, 70], [300, 7]], radii = [0, 1, 2, 3, 5, 8, 12, 25, 60, 100], bad = 0, n = 0;
   sizes.forEach(function (sz, si) {
     radii.forEach(function (r, ri) {
       var px = picture(sz[0], sz[1], 100 + si * 17 + ri, (si + ri) % 3 === 0 ? 'noise' : 'art');
