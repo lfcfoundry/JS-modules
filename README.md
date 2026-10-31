@@ -12,9 +12,15 @@
 
 ## What it is and how it works
 
-JS-modules is a shelf of small browser libraries cut out of [Apple Press](https://github.com/lfcfoundry/apple-press) and [Fancy, the Banana](https://github.com/lfcfoundry/fancy-banana). Each module is one file with no dependencies. Add it with a script tag or `require`, call it, and read its folder README for limits. Every folder has a demo page that opens straight from disk.
+JS-modules is a collection of 49 small browser libraries and tools. Each one solves a single problem that came up while building LFC Foundry's games and apps: [Apple Press](https://github.com/lfcfoundry/apple-press), [Fancy, the Banana](https://github.com/lfcfoundry/fancy-banana), [Pineapple Defense](https://github.com/lfcfoundry/pineapple-defense), [Story Editor](https://github.com/lfcfoundry/story-editor) and Netflow Map (a private app, so no link).
 
-The pieces are for more seasoned users and developers. The apps and games built from them need no install, no administrative privileges and no special computing knowledge.
+Each module is one JavaScript file with no dependencies. You copy the file next to your page, load it with a script tag (or `require` in Node), and call it. There is no build step, package manager or framework to adopt.
+
+- **Heavy work runs in WebAssembly** (with SIMD where it helps), embedded inside the same file. In most modules a plain JavaScript path gives the same results where WebAssembly is missing, only slower; each README says when a module needs WebAssembly.
+- **Every module folder** holds a README with its limits and comparisons, a demo page that opens straight from disk, tests and a changelog.
+- **Every published number is measured** in Firefox, Chromium and WebKitGTK, and names the browser and machine it came from.
+
+The modules are written for developers. The apps built from them need no install, no administrative privileges and no special computing knowledge.
 
 ```html
 <script src="modules/save-kit/save-kit.js"></script>
@@ -23,7 +29,19 @@ The pieces are for more seasoned users and developers. The apps and games built 
 
 ## Why it exists
 
-Only parts not already covered by open source were kept: small fixes learned by shipping real games to phones and desktops. Each module README names the closest existing project and says how this one differs.
+Single-file offline apps live under unusual limits. They cannot load code from a server, they have to run on cheap phones as well as desktops, and every kilobyte they carry is downloaded by everyone who opens them. Most popular libraries assume the opposite: a build step, a tree of packages, a network connection and a fast device.
+
+While the games and apps were being built, the same small problems kept coming back: a held button that lets go when the browser sends `pointercancel`, a save overwritten by a `NaN`, a chart that goes blank because the data had a loop, a page that runs out of memory on a phone. Each fix was worth keeping, and worth keeping on its own, so a change made for one app cannot break another.
+
+A module stays on the shelf only if it does something the nearest open-source option does not, or does it measurably better. Each README names that option and compares against it, including the cases where the other one wins.
+
+**Where it helps**
+
+- Single-file or offline web apps and games that must work with no server at all.
+- Projects that want one specific fix without adopting a framework.
+- Apps that must run on low-end phones, where memory, startup time and download size are tight.
+- Data-heavy pages (maps, charts, logs) that need compact storage and fast reading in the browser.
+- Teams that want to read and audit every line they ship: each piece is one readable file.
 
 ## Highlights
 

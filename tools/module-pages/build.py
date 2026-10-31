@@ -99,7 +99,9 @@ def module_html(m, base_mods):
     head, secs, order = sections(readme)
     intro = [p for p in head.split('\n\n') if p.strip() and not p.startswith('#') and not p.startswith('**Version') and not p.startswith('**Tested') and not p.startswith('Part of')]
     used, body = set(), []
-    body.append('<h2 id="what">What it does</h2>' + md('\n\n'.join(intro[:3]), folder))
+    W = 'What it is and how it works'
+    if W in secs: used.add(W); body.append('<h2 id="what">%s</h2>' % W + md(secs[W], folder))
+    else: body.append('<h2 id="what">%s</h2>' % W + md('\n\n'.join(intro[:3]), folder))
     for title, keys in GROUPS:
         ts = [t for t in pick(secs, order, keys) if t not in used]
         if not ts: continue
