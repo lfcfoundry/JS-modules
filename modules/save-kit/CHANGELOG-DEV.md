@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-10-31
+
+### Quick
+New option, off by default: createLarge skipUnchangedMs.
+
+### Deep
+New option, off by default: createLarge skipUnchangedMs. A save whose fields equal the last stored one resolves true without a write until that many ms pass; save(state, true) always writes; the stamp is kept beside the text. Unchanged 16 MB save, ms (normal / with the option): Chromium 155 222.8 / 95.6, Firefox 158 168 / 61, WebKitGTK 2.52.6 102 / 35; 5 MB 39.2 / 27.1, 43 / 23, 20 / 8 (cloud container, median of 14, no noise guard). Not zero because the text is still built to compare. Option off: same code path as 1.4.0 (Chromium read slower in one run, 222.8 vs 155 to 182 earlier, treated as noise).
+
 ## 1.4.0 · API 1 · 2026-10-31
 
 ### Quick
