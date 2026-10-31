@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.3.1 · API 0 · 2026-10-30
+- Map coordinates and other decimal lists read faster: 0.38 to 0.86x the time of 0.3.0, now faster than before the decimal format too.
+
 ## 0.3.0 · API 0 · 2026-10-30
 - Much smaller files for decimal numbers and map coordinates (map lines 0.30x the size, prices 0.78x), plus new row-range reads, file stats, metadata and hashing. Files that use the new number columns need this version's reader.
 
