@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Reading a small range of rows and the whole file, for the same data packed with different block sizes (files made by the build under test beforehand: DIR/NAME.bBYTES.lfc). ms, smaller is better. Copyright (c) 2026 LFC Foundry. MIT License.
-// Run: node tests/lfc-pack-blocksize-browser.js <chromium|firefox|webkit> [out.json]     Env: DIR=/tmp/stack, NAMES=geo,orders, SIZES=32768,262144,0 (or s32768 for DIR/NAME.s32768.lfc, packed with share: true; p: paths: true; q: both; c: plain, a second copy to see the noise), REPS=9, FROM=70000, COUNT=100, PACK=1 (also time packing DIR/NAME.ndjson with each file's options)
+// Run: node tests/lfc-pack-blocksize-browser.js <chromium|firefox|webkit> [out.json]     Env: DIR=/tmp/stack, NAMES=geo,orders, SIZES=32768,262144,0 (or s32768 for DIR/NAME.s32768.lfc, packed with share: true; b and s with paths: false; p: paths: true; q: both; c: like b, a second copy to see the noise), REPS=9, FROM=70000, COUNT=100, PACK=1 (also time packing DIR/NAME.ndjson with each file's options)
 'use strict';
 const fs = require('fs'), path = require('path'), T = require('../tools/test-runner/runner.js');
 const LIB = fs.readFileSync(path.resolve(__dirname, '../modules/lfc-pack/lfc-pack.js'), 'utf8'), DIR = process.env.DIR || '/tmp/stack', REPS = +process.env.REPS || 9;
@@ -11,7 +11,7 @@ async function setup(list) { await window.LfcPack.init(); for (var i = 0; i < li
 function job(name) {
   var m = name.split(' '), f = files[m[1]], t = performance.now(), x;
   if (m[0] === 'range') { x = window.LfcPack.unpackRows(f, { from: ${FROM}, count: ${COUNT} }); if (x.length !== ${COUNT}) throw new Error('rows'); }
-  else if (m[0] === 'pack') { var q = m[1].split('.')[1], o = {}; if (+q.slice(1)) o.blockBytes = +q.slice(1); if (q[0] === 's' || q[0] === 'q') o.share = true; if (q[0] === 'p' || q[0] === 'q') o.paths = true; x = window.LfcPack.pack(srcs[m[1].split('.')[0]], o); if (x.length !== f.length) throw new Error('size ' + x.length); }
+  else if (m[0] === 'pack') { var q = m[1].split('.')[1], o = {}; if (+q.slice(1)) o.blockBytes = +q.slice(1); if (q[0] === 's' || q[0] === 'q') o.share = true; o.paths = q[0] === 'p' || q[0] === 'q'; x = window.LfcPack.pack(srcs[m[1].split('.')[0]], o); if (x.length !== f.length) throw new Error('size ' + x.length); }
   else { x = window.LfcPack.unpack(f); if (x.length < 1000) throw new Error('rows'); }
   return performance.now() - t;
 }`;
