@@ -10,3 +10,5 @@ Compared: memory-compression against fflate and pako (ms; packed bytes).
 | list of 80,000 objects: memory-compression | 148,749 | 11 | 6 |
 | fflate 6 | 800,641 | 176 | 21 |
 | pako 6 | 769,526 | 199 | 19 |
+
+**New in 2.7.0: faster packing on request.** The opt-in setting `quickTries: true` makes the packer try every number coding on the first block only. Packing is 0 to 20% faster on lists with several number columns, and files are 0 to 1.1% bigger. It is off by default, and the default output is byte-identical to 2.6.6. These figures come from the code thread's test runs; the browser is not recorded on this page.
