@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.7.0 · API 2 · 2026-10-30
+- New opt-in setting quickTries: true tries every number coding on the first block only: packing 0 to 20% faster on lists with number columns, files 0 to 1.1% bigger. Off by default; default output byte-identical.
+
 ## 2.6.6 · API 2 · 2026-10-30
 - Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes
 

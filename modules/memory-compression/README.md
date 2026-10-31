@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.6.6 · API 2**
+**Version 2.7.0 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (11 interleaved reps with a control copy); Node 82 checks.
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
 
@@ -98,6 +98,7 @@ Since 2.5.0 a view keeps each top-level text column whole until a row is read (p
 | `check` | `true` adds a checksum that `unpack()` verifies | off |
 | `fsst` / `front` / `patterns` | FSST codes for text (opt-in); front coding of sorted text; text patterns (the last two on by default) | see notes |
 | `float32` | `true` keeps fraction columns in 4 bytes (lossy, relative error at most about 6e-8) | off |
+| `quickTries` | `true` makes the number picker try every way on its first 8,192-number block only, not the first two (packing 0 to 20% faster on lists with several number columns; files 0 to 1.1% bigger, never smaller; opens the same) | off |
 | `wasm` | `false` forces plain JavaScript | use WebAssembly if available |
 | `maxSize`, `maxItems` | limits that stop a hostile or damaged input (1 GiB, 100,000,000) | as shown |
 
