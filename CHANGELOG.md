@@ -30,7 +30,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.10.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.9.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 1.7.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 1.8.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.11.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.7 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.4 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
@@ -98,6 +98,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **gpu-blur** 1.3.0 · API 1: New: opts.into takes your own pixel array for out 'pixels', so blurring every frame makes no new memory; 1.1 to 1.7x faster with the helpers.
 - 2026-10-31 · **gpu-blur** 1.2.3 · API 1: The helpers route is up to 1.34x faster on repeat blurs.
 - 2026-10-31 · **field-report** 1.1.0 · API 1: New frames modes: 'play' records only while the app says it is animating; 'external' takes frame times from the app's own loop (fr.frame(ts)), so there is no second animation-frame callback.
+- 2026-10-31 · **elias-fano** 1.8.0 · API 1: Repeat decodes of big lists are 20 to 35% faster: a spare array is prepared while the page is idle, and toArray(out) and slice(a, b, out) can fill your own Uint32Array.
 - 2026-10-31 · **elias-fano** 1.7.0 · API 1: New: trim() gives back memory that big lists left behind (24 MB to 1.8 MB after a 5-million-id build); autoTrim does it by itself after a big job (on by default; autoTrim(false) turns it off).
 - 2026-10-30 · **zip-open** 1.5.1 · API 1: Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.
 - 2026-10-30 · **zip-open** 1.5.0 · API 1: Faster: entries of 4 KB or less (compressed) are unpacked by a small WebAssembly inflate, about 1.5 to 2.2 times as fast for thousands of tiny files. Module grows by 9.4 KB of WebAssembly. Same files, same notes.
