@@ -1,8 +1,8 @@
 # text-columns
 
-**Version 0.6.2 · API 0**
+**Version 0.6.3 · API 0**
 
-**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (picked files, 4 helpers, 576 same-answer cases each)
+**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud); all Node checks
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -64,6 +64,10 @@ u.columns[3].get(41);                                                // one cell
 Dates and booleans are opt-in (since 0.5.0): `{ types: { when: 'date', ok: 'boolean' } }` turns `YYYY-MM-DD` fields into milliseconds since 1970 UTC (a `Float64Array`, type `'date'`) and `true`/`false` (also `TRUE`/`FALSE`, `True`/`False`) into booleans (type `'boolean'`). One field that does not fit, or an impossible date such as 2023-02-29, leaves that column as text. Without `types`, output is exactly what it was.
 
 A column you do not ask for is never turned into numbers or strings. A lazy text column keeps where its fields are (about 9 bytes a row) and a reference to your input bytes, so do not change those bytes until you have read what you need; the values you get are exactly what `parse` returns. Both options work in `parseParallel` too (a big file with a lazy text column returns almost at once, because no string is made by the main thread). A missing name or number throws an error that says which.
+
+## Repeated values kept once (since 0.6.3)
+
+A text column that repeats a few values (a city, a status) used to hold one string per row. Right after `parse()` or `parseParallel()` returns, the page now merges the repeats into one string per value, in slices of about 4 ms when it is idle, so the parse itself is not slower. Each column decides from its first 2,048 rows (at most one different value per 8 rows). The values stay exactly the same. A 16 MB file keeps 42 to 63% less memory in Chromium (29.4 to 10.9 MB with repeating columns, 25.6 to 15.0 MB with one mostly unique column). The merge takes 35 to 160 ms in Firefox and WebKitGTK, and up to about a second of idle time in Chromium. `_shareLater: false` skips it.
 
 ## Rules
 - A column is a **number column** only when every field is a plain decimal of at most 15 digits, such as `-12` or `3.25`, with no leading zero (`007` stays text), no exponent (`1e5` stays text), no spaces and no empty field. Then the numbers are exactly what `Number()` gives for the same text. One field that does not fit keeps the whole column as text, so nothing is guessed.
