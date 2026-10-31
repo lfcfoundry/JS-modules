@@ -33,7 +33,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [elias-fano](modules/elias-fano/README.md) | 1.5.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.7.2 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.3.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
-| [text-columns](modules/text-columns/README.md) | 0.5.2 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
+| [text-columns](modules/text-columns/README.md) | 0.6.0 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.2 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
@@ -58,6 +58,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-31 · **text-columns** 0.6.0 · API 0: New: parseParallel takes a picked file directly; each helper reads its own piece, so the page never holds the whole file (1.0 to 1.75x faster).
 - 2026-10-31 · **text-columns** 0.5.2 · API 0: parseParallel reads files with accented or other non-ASCII text up to 4.8x faster.
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
 - 2026-10-31 · **graph-walk** 0.7.2 · API 0: betweennessAsync starts faster: up to 1.9x on the first call and on a new graph.
