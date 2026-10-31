@@ -13,7 +13,7 @@ async function setup() {
   [5, 50, 200].forEach(function (K) {
     var rows = []; for (i = 0; i < 20000; i++) { var o = {}; for (k = 0; k < K; k++) o['k' + k] = k % 3 === 0 ? (i * (k + 1)) % 100000 : k % 3 === 1 ? 'v' + (rnd() % 300) : (rnd() % 10000) / 100; rows.push(JSON.stringify(o)); }
     files[K] = J.pack(rows.join('\\n') + '\\n', { block: 'flat', check: '__CHECK__' });
-    var a = J.unpack(files[K], { keys: ['k0'] }), b = window.LfcOld.unpack(files[K], { keys: ['k0'] }); if (a.length !== 20000 || JSON.stringify(a[77]) !== JSON.stringify(b[77])) bad.push(K);
+    var a = J.unpack(files[K], { keys: ['k0'] }), b = window.LfcOld.unpack(files[K], { keys: ['k0'] }); if (a.length !== 20000 || JSON.stringify(a[77]) !== JSON.stringify(b[77])) bad.push(K); var fa = J.unpack(files[K]), fb = window.LfcOld.unpack(files[K]); if (fa.length !== 20000 || [0, 77, 19999].some(function (q) { return JSON.stringify(fa[q]) !== JSON.stringify(fb[q]); })) bad.push('all ' + K);
   });
   var os = {}; [5, 50, 200].forEach(function (K) { os[K] = window.LfcOld.pack(window.LfcPack.unpack(files[K]).map(function (r) { return JSON.stringify(r); }).join('\\n') + '\\n', { block: 'flat', check: '__CHECK__' }).length; });
   return { bad: bad, sizes: { 5: files[5].length, 50: files[50].length, 200: files[200].length }, oldSizes: os };

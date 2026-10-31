@@ -789,17 +789,26 @@
     for (i = 0; i < F.cols.length; i++) { c = F.cols[i]; if (!c) continue; if (c.pre) t.push(c.pre.buffer); else for (q = 0; q < c.fr.length; q++) t.push(c.fr[q].buffer); }
     return t;
   }
-  // one-time timing of the two ways to make dense row objects on the first big dense block (the whole block, alternating rounds after a warm-up, clone must be at least 20% faster, because the probe time and the real read time differ by a few percent in some engines)
+  // one-time timing of the ways to make dense row objects on the first big dense block (the whole block, alternating rounds after a warm-up; a way must be at least 20% faster than the plain one, because the probe time and the real read time differ by a few percent in some engines; a way that is more than 2.5 times slower in the warm-up round is dropped at once). Answer: 0 plain (objects first, then one key at a time down each column), 1 clone (objects cloned from one with all the keys), 2 row by row (each object filled with all its keys before the next)
   var cloneBest = {};   // by number of keys
   function probeClone(keys, vals, tpl, K) {
-    var m = vals[0].length, i, j, r, o, tc = Infinity, tp = Infinity, t0, sink = 0;
+    var m = vals[0].length, i, j, r, t0, sink = 0, q, best = [Infinity, Infinity, Infinity], live = [true, true, true], ways;
     function plain() { var out = new Array(m); for (i = 0; i < m; i++) out[i] = {}; for (j = 0; j < K; j++) { var v = vals[j], key = keys[j]; for (i = 0; i < m; i++) out[i][key] = v[i]; } return out; }
     function clone() { var out = new Array(m); for (i = 0; i < m; i++) out[i] = { ...tpl }; for (j = 0; j < K; j++) { var v = vals[j], key = keys[j]; for (i = 0; i < m; i++) out[i][key] = v[i]; } return out; }
+    function rowMajor() { var out = new Array(m), o; for (i = 0; i < m; i++) { o = {}; for (j = 0; j < K; j++) o[keys[j]] = vals[j][i]; out[i] = o; } return out; }
+    ways = [plain, clone, rowMajor];
     for (r = 0; r < 3; r++) {
-      t0 = clock(); sink += plain().length; t0 = clock() - t0; if (r && t0 < tp) tp = t0;
-      t0 = clock(); sink += clone().length; t0 = clock() - t0; if (r && t0 < tc) tc = t0;
+      for (q = 0; q < 3; q++) {
+        if (!live[q]) continue;
+        t0 = clock(); sink += ways[q]().length; t0 = clock() - t0;
+        if (r && t0 < best[q]) best[q] = t0;
+        if (r === 0 && q === 0) best[3] = t0;
+        if (r === 0 && q && t0 > best[3] * 2.5) live[q] = false;
+      }
     }
-    return sink > 0 && tc < tp * 0.8;
+    var win = 0, wt = best[0] * 0.8;
+    for (q = 1; q < 3; q++) if (live[q] && best[q] < wt) { win = q; wt = best[q]; }
+    return sink > 0 ? win : 0;
   }
   function makeFlatReader(zs) {
     // assemble rows from the decompressed frames of flatFrames; want: null, or an object whose own keys are the only keys to decode
@@ -815,7 +824,8 @@
       if (dense) { for (j = 0, ts = '{'; j < K; j++) ts += (j ? ',' : '') + JSON.stringify(keys[j]) + ':null'; tpl = JSON.parse(ts + '}'); }
       var useClone = dense && cloneBest[K];
       if (dense && useClone === undefined && n >= 2000) useClone = cloneBest[K] = probeClone(keys, vals, tpl, K);
-      if (dense && useClone) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
+      if (dense && useClone === 2) { for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) o[keys[j]] = vals[j][i]; out[i] = o; } return out; }
+      if (dense && useClone === 1) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
       else for (i = 0; i < n; i++) out[i] = {};
       for (j = 0; j < K; j++) {
         var v = vals[j]; if (!v) continue;
