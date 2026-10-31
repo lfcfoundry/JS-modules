@@ -4,16 +4,27 @@
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time (checks only; no speed runs)
 
-Pcodec for web pages: unpack (and optionally pack) big lists of numbers in a browser, one file, no build step, no network.
-
-Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (Apache-2.0). This module is Pcodec 1.0.4 compiled to WebAssembly with a small interface designed for pages. It reads and writes ordinary Pcodec files, so anything that opens Pcodec opens these, and the other way around.
-
-You give it the bytes of a Pcodec file. It runs Pcodec's WebAssembly program (a compact compiled program the browser can run, held inside the one JavaScript file in packed form and opened when you call `load()`) and hands back the numbers as a typed array, such as a `Float64Array`. Packing runs the same Pcodec code the other way and writes ordinary Pcodec bytes.
-
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license (wrapper). Pcodec itself stays Apache-2.0; see `NOTICE-pcodec.txt`.
 
+## What it is and how it works
+
+Pcodec for web pages: unpack, and optionally pack, big lists of numbers in a browser. One file, no build step, no network. Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (Apache-2.0).
+
+- This is Pcodec 1.0.4 compiled to WebAssembly, packed inside one JavaScript file and opened by `load()`.
+- You pass the bytes of a Pcodec file and get a typed array back, such as a `Float64Array`.
+- Files are ordinary Pcodec, so anything that reads Pcodec reads these, and the other way around.
+
 ## Why it exists
-Pcodec is a compressor made for lists of numbers, and a web page that wants to open (or write) such files needs it as one file with no build step and no network. The only other JavaScript build I found, numcodecs-wasm-pco, is a 324,006 B download (gzipped) against 61,314 B for the unpack-only file here (see "How it compares").
+
+Pcodec is built for number lists, and a page that opens such files needs it as one file with no build step. The only other JavaScript build found was a 324,006-byte download (gzipped), against 61,314 bytes for the unpack-only file here.
+
+**Where it helps**
+
+- Shipping large numeric datasets inside a page.
+- Reading Pcodec files made by other tools.
+- Time series and sensor data in offline apps.
+
+**Not for:** text or mixed data; it is for lists of numbers.
 
 ## Pick a file
 

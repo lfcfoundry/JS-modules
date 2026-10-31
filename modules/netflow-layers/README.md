@@ -4,15 +4,27 @@
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
-Lays out a graph in rows (a layered, Sugiyama-style drawing): top to bottom or left to right, with long links drawn as tags, rows in the order of the story, a column for the pages every route passes, and tall maps cut into columns. It is the layered engine of Netflow Map, which draws Flow, Top-down, Spine, Lanes, Arc and Matrix from it. About 28 KB (28,868 bytes; 9.3 KB gzipped), no dependencies. Works in a browser (global `NetflowLayers`) and in Node (`module.exports`).
-
-It puts each page in a row (by fewest steps from the start, or in story order), reorders the pages inside each row to cut crossings, then gives every page a place. Links that skip many rows get stand-in stops along the way or, with `tagLen`, are drawn as short tags at each end. It returns places and link paths as plain data, and `toSvg` can draw them.
-
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
+
+## What it is and how it works
+
+Lays out a graph in rows (a layered drawing), top to bottom or left to right. It is the layered engine behind Netflow Map's Flow, Top-down, Spine, Lanes, Arc and Matrix views. 9.3 KB gzipped.
+
+- Each page goes in a row, by fewest steps from the start or in story order.
+- Pages in each row are reordered to cut crossings, then placed.
+- Long links get stand-in stops or short tags; `toSvg` can draw the result.
 
 ## Why it exists
 
-Netflow Map draws how people move through many pages, including long stories with thousands of pages, where the ordinary layered drawing makes a mess of "going back" links and very long links. This is that drawing engine cut out of Netflow Map, with switches aimed at such maps (tags for long links, story order, a column for the pages every route passes, columns for tall maps), so other pages can use it too.
+Ordinary layered drawings make a mess of "going back" links and very long links in stories with thousands of pages. This engine has switches for exactly those maps.
+
+**Where it helps**
+
+- Story and branching-narrative maps.
+- User-flow and page-journey diagrams.
+- Tall maps that should be cut into columns.
+
+**Not for:** link labels, ports or curved routing around boxes.
 
 ## Use
 

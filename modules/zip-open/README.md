@@ -4,12 +4,25 @@
 
 **Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
 
-Opens `.zip` and Excel `.xlsx` files safely, in the browser or in Node. Text files come out as strings, every Excel sheet comes out as CSV text, and every problem is a note in plain words. About 31 KB (10.7 KB gzipped, of which about 2 KB is the embedded WebAssembly checksum), no dependencies. Cut from Netflow Map's file opener.
+## What it is and how it works
 
-It reads the zip's list of entries, then unpacks each text file with the platform's own deflate (`DecompressionStream("deflate-raw")` in browsers, `zlib` in Node) and checks its checksum. Every limit is counted on the bytes that really come out, not on what the zip says about itself, so a zip bomb (a tiny file that claims a small size but unpacks to gigabytes) stops at the limit. An Excel file is a zip of XML files; a small scanner reads the cell values from them and writes each sheet as CSV text.
+Opens `.zip` and Excel `.xlsx` files safely, in the browser or Node. About 10.7 KB gzipped, no dependencies.
+
+- Text files come out as strings, and every Excel sheet comes out as CSV text.
+- Each entry is unpacked with the platform's own deflate and its checksum is checked.
+- Limits are counted on the bytes that really come out, so a zip bomb stops at the limit.
 
 ## Why it exists
-Players and users drop files on a page. A zip is a few hundred bytes that can claim anything. The common libraries trust the sizes in the header, or hand you everything and leave the limits to you. This one turns "it said 1 KB, it was 1 GB" into a sentence you can show.
+
+Users drop files on a page, and a zip can claim anything in its header. Common libraries trust those sizes or leave the limits to you. This one turns "it said 1 KB, it was 1 GB" into a plain sentence.
+
+**Where it helps**
+
+- Importing CSV or Excel data from user files.
+- Opening zips of many small text files.
+- Pages that must not crash on hostile uploads.
+
+**Not for:** creating zips; it only opens them.
 
 ## Try it and test it
 **Test it:** `node modules/zip-open/test/run.js` (18 checks, including zip bombs, bad checksums, cut-off files, lying offsets and zips inside zips; about 2.6 s). **Try it:** `demo.html` (drop a file, or press the bomb button).

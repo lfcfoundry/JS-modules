@@ -4,12 +4,25 @@
 
 **Tested in:** Node: 33 checks pass (16 new). Real key presses (Enter and Space, hold 1.1 s, quick tap, hold then tap): ungoogled Chromium 155.0.8059.39-1 and Firefox 158.0. Idle cost compared old and new in those two plus WebKitGTK 2.52.6 and GNOME Web 46.5; keyboard hold by script key events in the last two. Not run: touch on a real phone, the browser-side Space click swallow in WebKitGTK and GNOME Web (script keys send no click)
 
-"Hold to keep pressing" for a button or any element, on mouse, touch and pen. About 9 KB, no dependencies.
+## What it is and how it works
 
-It listens for a press on the element with pointer events (mouse, finger or pen) and also follows the finger directly with touch events. When the press lasts longer than a delay (400 ms by default) it calls your `onPress`, then calls it again every 200 ms by default, until the finger lifts, the page is hidden, or your `canPress` says no. After a hold it swallows the click the browser sends on release, so letting go never adds an extra press.
+"Hold to keep pressing" for a button, on mouse, touch and pen. About 9 KB, no dependencies.
+
+- After a short delay (400 ms) it calls your `onPress`, then repeats every 200 ms.
+- It follows the finger with touch events too, so a hold lasts until the finger really lifts.
+- It swallows the click the browser sends on release, so letting go never adds a press.
 
 ## Why it exists
-A game button that keeps adding points while you hold it needs the repeat to last as long as the finger is down. On Android Chrome the browser can send `pointercancel` in the middle of a long press while the finger is still down, and code that listens only to pointer events stops repeating there. The click the browser sends on release would also add one extra press. This module follows the touch itself and drops that release click, so a hold lasts until the finger really lifts (see "The bug it fixes" below).
+
+On Android Chrome the browser can send `pointercancel` mid-hold while the finger is still down, and code that listens only to pointer events stops repeating. The release click also adds one press too many.
+
+**Where it helps**
+
+- Buttons that add points or buy items while held.
+- Steppers and counters on touch screens.
+- Any repeat action that must stop exactly when the finger lifts.
+
+**Not for:** switch devices (keyboard hold is opt-in, switch hold is not covered).
 
 ## Try it and test it
 **Test it:** `node modules/hold-press/test/run.js` (fake touch, pointer and key events and a fake clock, 33 checks, no browser).

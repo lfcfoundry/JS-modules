@@ -4,12 +4,25 @@
 
 **Tested in:** Node checks; tests/pieces-browser.js slow-note one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1 (errors, rejections, slow tap and slow frame seen), Firefox 158.0 and WebKitGTK 2.52.6 (errors, rejections and slow tap seen; kept across a reload). GNOME Web (Epiphany) 46.5: errors and rejections noted; the slow-tap part is not checked there (its WebDriver refuses clicks and the driver sends script events, which the browser does not time as taps). Not run: a phone, Safari itself.
 
-A short note, kept only on the player's device, of the slow and broken moments a page lived through: errors, rejected promises, taps the browser calls slow and long frames. The player can copy it as plain text and paste it into a message when "it felt slow". 9.7 KB (3.7 KB gzipped), no dependencies. Cut from Apple Press.
+## What it is and how it works
 
-It listens to what the browser already measures: script errors and rejected promises, slow taps (Event Timing) and long frames (Long Animation Frames). When one happens (not in the first 4 seconds after load, and at most one of each kind per second) it adds one line to a short list that keeps the last 30, saved in the page's `localStorage` on the player's device. `note.text()` or `note.copy()` turns the list into plain text. Nothing is sent anywhere.
+A short note, kept only on the player's device, of the slow and broken moments a page lived through. 3.7 KB gzipped. Nothing is sent anywhere.
+
+- It listens to errors, rejected promises, slow taps and long frames the browser already measures.
+- It keeps the last 30 lines in `localStorage`, at most one of each kind per second.
+- `note.copy()` gives the player plain text to paste into a message.
 
 ## Why it exists
-"It felt slow on my phone" cannot be fixed without a hint of where. The browser already measures slow taps and long frames; this keeps the last few where the player can copy them, and sends nothing to anyone. That also means no privacy notice and no network use.
+
+"It felt slow on my phone" cannot be fixed without a hint of where. The browser already measures slow taps and long frames; this keeps a few where the player can copy them, with no network and no privacy notice needed.
+
+**Where it helps**
+
+- Bug reports from players.
+- Spotting slow taps on real phones.
+- Apps that must never send data.
+
+**Not for:** graphics-chip slowdowns the browser does not report.
 
 ## Try it and test it
 **Test it:** `node modules/slow-note/test/run.js` (7 checks on the log, about 0.2 s) and `node tests/pieces-browser.js` (a real page in Firefox 158 and ungoogled Chromium 155). **Try it:** `demo.html`.
