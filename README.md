@@ -35,6 +35,7 @@ Single-file offline apps cannot load code from a server, must run on cheap phone
 - One specific fix without adopting a framework.
 - Low-end phones, where memory and download size are tight.
 - Data-heavy pages (maps, charts, logs) that need compact storage.
+- Higher-end hardware and larger projects: because the code is efficient, it scales up with the project as far as modern browsers allow.
 
 ## Highlights
 
