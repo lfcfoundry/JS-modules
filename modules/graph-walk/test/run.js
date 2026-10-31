@@ -157,6 +157,76 @@ for (let tt = 0; tt < 150; tt++) {
   for (let i = 0; i < m; i++) { f.push(Math.floor(r() * n)); to.push(Math.floor(r() * n)); w.push(r() < 0.3 ? 2 : Math.floor(r() * 9) - 2 + r()); }
   moreChecks('random3 ' + tt, n, f, to, w);
 }
+
+// maxflow against Edmonds-Karp on a dense matrix, plus conservation, capacity and cut checks
+function flowChecks(name, n, f, t, cap) {
+  const g = G.csr(n, f, t), m = f.length;
+  for (const [s0, t0] of [[0, n - 1], [n - 1, 0], [Math.floor(n / 2), 0]]) {
+    if (s0 === t0 || n < 2) continue;
+    const C = Array.from({ length: n }, () => new Float64Array(n)); for (let i = 0; i < m; i++) if (f[i] !== t[i]) C[f[i]][t[i]] += cap[i];
+    let ref = 0; for (;;) { const par = new Int32Array(n).fill(-1); par[s0] = s0; const q = [s0]; for (let h = 0; h < q.length && par[t0] < 0; h++) { const v = q[h]; for (let w = 0; w < n; w++) if (par[w] < 0 && C[v][w] > 1e-12) { par[w] = v; q.push(w); } } if (par[t0] < 0) break; let b = Infinity; for (let v = t0; v !== s0; v = par[v]) b = Math.min(b, C[par[v]][v]); for (let v = t0; v !== s0; v = par[v]) { C[par[v]][v] -= b; C[v][par[v]] += b; } ref += b; }
+    const r = G.maxflow(g, s0, t0, Float64Array.from(cap)); let okf = Math.abs(r.value - ref) < 1e-9;
+    const bal = new Float64Array(n); for (let i = 0; i < m; i++) { if (r.flow[i] < -1e-12 || r.flow[i] > cap[i] + 1e-12) okf = false; if (f[i] === t[i] && r.flow[i] !== 0) okf = false; bal[f[i]] -= r.flow[i]; bal[t[i]] += r.flow[i]; }
+    for (let v = 0; v < n; v++) { if (v === s0) { if (Math.abs(bal[v] + r.value) > 1e-9) okf = false; } else if (v === t0) { if (Math.abs(bal[v] - r.value) > 1e-9) okf = false; } else if (Math.abs(bal[v]) > 1e-9) okf = false; }
+    let cutCap = 0; for (const e of r.cut) { cutCap += cap[e]; if (!r.side[f[e]] || r.side[t[e]]) okf = false; }
+    if (Math.abs(cutCap - r.value) > 1e-9 || !r.side[s0] || r.side[t0]) okf = false;
+    ok(okf, name + ': maxflow ' + s0 + ' to ' + t0 + ' value ' + r.value + ' vs ' + ref);
+  }
+}
+flowChecks('chain', 3, [0, 1], [1, 2], [5, 3]); flowChecks('diamond', 4, [0, 0, 1, 2, 1], [1, 2, 3, 3, 2], [3, 2, 2, 3, 1]); flowChecks('parallel and self', 3, [0, 0, 1, 1], [1, 1, 2, 1], [1, 2, 4, 9]);
+for (let tt = 0; tt < 300; tt++) {
+  const n = 2 + Math.floor(r() * 12), m = Math.floor(r() * n * 3), f = [], to = [], cap = [];
+  for (let i = 0; i < m; i++) { f.push(Math.floor(r() * n)); to.push(Math.floor(r() * n)); cap.push(r() < 0.15 ? 0 : Math.floor(r() * 9) + (r() < 0.3 ? r() : 0)); }
+  flowChecks('random4 ' + tt, n, f, to, cap);
+}
+{ let bad = false; try { G.maxflow(G.csr(2, [0], [1]), 0, 0); } catch (e) { bad = e instanceof RangeError; } ok(bad, 'maxflow refuses source = sink'); }
+
+// closeness, triangles, communities, criticalPath, landmarks against slow references
+function groupChecks(name, n, f, t, w) {
+  const g = G.csr(n, f, t), m = f.length;
+  // closeness: BFS walking backwards from every item
+  { const radj = Array.from({ length: n }, () => []); for (let i = 0; i < m; i++) radj[t[i]].push(f[i]);
+    for (const wf of [false, true]) { const c = G.closeness(g, { wassermanFaust: wf }); for (let s0 = 0; s0 < n; s0++) { const d = new Array(n).fill(-1); d[s0] = 0; const q = [s0]; let tot = 0; for (let h = 0; h < q.length; h++) for (const u of radj[q[h]]) if (d[u] < 0) { d[u] = d[q[h]] + 1; tot += d[u]; q.push(u); } let want = tot > 0 && n > 1 ? (q.length - 1) / tot : 0; if (wf && want) want *= (q.length - 1) / (n - 1); ok(Math.abs(c[s0] - want) < 1e-12, name + ': closeness ' + s0); } }
+    const sub = G.closeness(g, { sources: [0] }); ok(sub[0] === G.closeness(g)[0] && sub.every((v, i) => i === 0 || v === 0), name + ': closeness sources'); }
+  // triangles: all triples on the undirected simple closure
+  { const A = Array.from({ length: n }, () => new Uint8Array(n)); for (let i = 0; i < m; i++) if (f[i] !== t[i]) { A[f[i]][t[i]] = 1; A[t[i]][f[i]] = 1; }
+    let tot = 0, triples = 0; const per = new Int32Array(n); for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) for (let c = b + 1; c < n; c++) if (A[a][b] && A[b][c] && A[a][c]) { tot++; per[a]++; per[b]++; per[c]++; }
+    const deg = A.map((row) => row.reduce((x, y) => x + y, 0)); for (const d of deg) triples += d * (d - 1) / 2;
+    const r = G.triangles(g); let okt = r.total === tot && same(r.perItem, per) && Math.abs(r.transitivity - (triples ? 3 * tot / triples : 0)) < 1e-12;
+    for (let v = 0; v < n; v++) { const want = deg[v] > 1 ? per[v] / (deg[v] * (deg[v] - 1) / 2) : 0; if (Math.abs(r.clustering[v] - want) > 1e-12) okt = false; }
+    ok(okt, name + ': triangles'); }
+  // communities: valid ids, modularity recomputed by the textbook sum, never worse than one group per item or one group
+  { const ww = Float64Array.from(w, (v) => Math.abs(v) + 0.25); for (const weights of [undefined, ww]) {
+      const r = G.communities(g, { weights }); let okc = r.id.length === n && r.count === (n ? Math.max(...r.id) + 1 : 0);
+      const Qof = (id) => { let m2 = 0; const k = new Float64Array(n); for (let i = 0; i < m; i++) { const x = weights ? weights[i] : 1; k[f[i]] += x; k[t[i]] += x; m2 += 2 * x; } if (!m2) return 0; const ins = {}, tot = {}; for (let v = 0; v < n; v++) tot[id[v]] = (tot[id[v]] || 0) + k[v]; for (let i = 0; i < m; i++) if (id[f[i]] === id[t[i]]) ins[id[f[i]]] = (ins[id[f[i]]] || 0) + 2 * (weights ? weights[i] : 1); let q = 0; for (const c in tot) q += (ins[c] || 0) / m2 - (tot[c] / m2) * (tot[c] / m2); return q; };
+      if (Math.abs(Qof(r.id) - r.modularity) > 1e-9) okc = false;
+      if (r.modularity < Qof(new Int32Array(n)) - 1e-9 || r.modularity < Qof(Int32Array.from({ length: n }, (_, i) => i)) - 1e-9) okc = false;
+      const sizes = new Int32Array(r.count); r.id.forEach((c) => sizes[c]++); for (let i = 1; i < r.count; i++) if (sizes[i] > sizes[i - 1]) okc = false;
+      ok(okc, name + ': communities' + (weights ? ' weighted' : '')); } }
+  // landmark path = path, for a few landmark counts
+  { const wn = Float64Array.from(w, (v) => Math.abs(v)); for (const cnt of [1, 3]) { const ix = G.landmarks(g, { count: cnt, weights: wn }); for (let k = 0; k < 6; k++) { const a = Math.floor(r() * n), b = Math.floor(r() * n), p1 = G.landmarkPath(ix, a, b), p2 = G.path(g, a, b, wn); let okl = (p1 === null) === (p2 === null); if (okl && p1) { let sum = 0, at = a; for (const e of p1.links) { if (f[e] !== at) okl = false; at = t[e]; sum += wn[e]; } if (at !== b || Math.abs(sum - p2.cost) > 1e-9 || Math.abs(p1.cost - p2.cost) > 1e-9) okl = false; } ok(okl, name + ': landmarkPath ' + a + ' to ' + b + ' with ' + cnt); } } }
+}
+function dagCheck(name, n, f, t, w) {
+  const g = G.csr(n, f, t), m = f.length, r1 = G.criticalPath(g, Float64Array.from(w)), topo = G.topo(g);
+  ok(r1.complete === topo.complete, name + ': criticalPath complete flag'); if (!topo.complete) return;
+  // best path ending at each item by trying every path with a DFS over the small DAG
+  const out = Array.from({ length: n }, () => []); for (let i = 0; i < m; i++) out[f[i]].push(i);
+  const best = new Float64Array(n); const dfs = (v, d) => { if (d > best[v]) best[v] = d; for (const e of out[v]) dfs(t[e], d + w[e]); }; for (let v = 0; v < n; v++) dfs(v, 0);
+  let okp = true; for (let v = 0; v < n; v++) if (Math.abs(best[v] - r1.dist[v]) > 1e-9) okp = false;
+  let sum = 0, at = n ? r1.end : -1; const links = Array.from(r1.links); let start = n ? r1.end : -1; for (let i = links.length - 1; i >= 0; i--) { if (t[links[i]] !== start) okp = false; start = f[links[i]]; } for (const e of links) sum += w[e];
+  if (n && Math.abs(sum - r1.length) > 1e-9) okp = false; if (n && Math.abs(r1.length - Math.max(...best)) > 1e-9) okp = false;
+  ok(okp, name + ': criticalPath');
+}
+groupChecks('triangle and tail', 5, [0, 1, 2, 2, 3], [1, 2, 0, 3, 4], [1, 1, 1, 1, 1]);
+groupChecks('two cliques', 6, [0, 1, 2, 3, 4, 5, 2], [1, 2, 0, 4, 5, 3, 3], [1, 1, 1, 1, 1, 1, 1]);
+{ const r2 = G.communities(G.csr(6, [0, 1, 2, 3, 4, 5, 2], [1, 2, 0, 4, 5, 3, 3])); ok(r2.count === 2 && r2.id[0] === r2.id[1] && r2.id[1] === r2.id[2] && r2.id[3] === r2.id[4] && r2.id[0] !== r2.id[3], 'communities find two triangles joined by one link'); }
+for (let tt = 0; tt < 120; tt++) {
+  const n = 1 + Math.floor(r() * 12), m = Math.floor(r() * n * 3), f = [], to = [], w = [];
+  for (let i = 0; i < m; i++) { f.push(Math.floor(r() * n)); to.push(Math.floor(r() * n)); w.push(Math.floor(r() * 7) + r()); }
+  groupChecks('random5 ' + tt, n, f, to, w);
+  const df = [], dt = [], dw = []; for (let i = 0; i < m; i++) { let a = Math.floor(r() * n), b = Math.floor(r() * n); if (a === b) continue; if (a > b) { const x = a; a = b; b = x; } df.push(a); dt.push(b); dw.push(Math.floor(r() * 9) - 3 + r()); }
+  dagCheck('dag ' + tt, n, df, dt, dw); dagCheck('maybe cyclic ' + tt, n, f, to, w);
+}
 let bad = false; try { G.csr(2, [0], [5]); } catch (e) { bad = e instanceof RangeError; } ok(bad, 'csr rejects an item outside 0..n-1');
 bad = false; try { G.csr(2, [0], [1, 1]); } catch (e) { bad = e instanceof RangeError; } ok(bad, 'csr rejects lists of different length');
 ok(/^0\.\d+\.\d+$/.test(G.version) && G.api === 0, 'runtime version and API');
