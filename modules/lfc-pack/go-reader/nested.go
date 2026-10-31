@@ -21,13 +21,19 @@ func readNested(b []byte) []any {
 	cm := field(h, "cm").([]any)
 	cmeta, _ := jsonOf(unzstdB(c.take(num(cm[1])))).([]any)
 	pp := ints(field(h, "p"))
-	D := splitNul(unzstdB(c.take(pp[0])))
+	dtext := unzstdB(c.take(pp[0]))
+	for _, ch := range dtext {
+		if ch > 127 {
+			fail("dictionary text is not ASCII")
+		}
+	}
+	D := splitNul(dtext)
 	sd, _ := jsonOf(unzstdB(c.take(pp[1]))).(*Obj)
 	sidx := ints(field(sd, "idx"))
 	sstr, _ := field(sd, "str").([]any)
 	for i, ix := range sidx {
-		for len(D) <= ix {
-			D = append(D, "")
+		if ix < 0 || ix >= len(D) {
+			fail("side list index out of range")
 		}
 		D[ix], _ = sstr[i].(string)
 	}
@@ -41,7 +47,18 @@ func readNested(b []byte) []any {
 	for _, e := range cmeta {
 		a := e.([]any)
 		key := uint32(num(a[0]))
-		cols[key] = typed(unzstdB(c.take(num(a[3]))), num(a[1]), num(a[2]))
+		if num(a[1]) == 7 {
+			if len(a) < 5 {
+				fail("decimal column without raw length")
+			}
+			raw := unzstdB(c.take(num(a[3])))
+			if len(raw) != num(a[4]) {
+				fail("decimal column length mismatch")
+			}
+			cols[key] = decimals(raw, num(a[2]))
+		} else {
+			cols[key] = typed(unzstdB(c.take(num(a[3]))), num(a[1]), num(a[2]))
+		}
 	}
 	strs := make([]string, 0, fa[5])
 	next, ri := 0, 0

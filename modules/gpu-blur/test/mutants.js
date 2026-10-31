@@ -14,7 +14,7 @@ var mutants = [
 ];
 var haveClang = cp.spawnSync('clang', ['--version']).status === 0;
 if (haveClang) mutants.push(['the wasm kernel starts each box with b instead of b+1 copies of the first pixel', function (s) {
-  var c = once(fs.readFileSync(path.join(root, 'wasm', 'blur.c'), 'utf8'), 'wasm_i32x4_mul(ldi(s), wasm_i32x4_splat(b + 1));\n  for (int t = 1; t <= b; t++) sum = wasm_i32x4_add(sum, ldi(s + (long)(t < n ? t : n - 1) * 4));', 'wasm_i32x4_mul(ldi(s), wasm_i32x4_splat(b));\n  for (int t = 1; t <= b; t++) sum = wasm_i32x4_add(sum, ldi(s + (long)(t < n ? t : n - 1) * 4));');
+  var c = once(fs.readFileSync(path.join(root, 'wasm', 'blur.c'), 'utf8'), 'wasm_i16x8_mul(ldpair(r0, r1), wasm_i16x8_splat(b + 1));', 'wasm_i16x8_mul(ldpair(r0, r1), wasm_i16x8_splat(b));');
   var cf = path.join(tmp, 'blur.c'), wf = path.join(tmp, 'blur.wasm'); fs.writeFileSync(cf, c);
   var flags = fs.readFileSync(path.join(root, 'wasm', 'build.sh'), 'utf8').match(/FLAGS="([^"]*)"/)[1].split(' ');
   var r = cp.spawnSync('clang', flags.concat(['-o', wf, cf])); if (r.status !== 0) throw new Error('mutant build failed: ' + r.stderr);

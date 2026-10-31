@@ -78,7 +78,7 @@
     },
     {
       "id": "gpu-blur",
-      "version": "1.0.0",
+      "version": "1.2.1",
       "api": 1,
       "global": "GpuBlur",
       "summary": "Blurs a picture (a canvas, an ImageBitmap or RGBA bytes) on the graphics card with WebGL 2, or in WebAssembly, or in plain JavaScript, whichever the device does best; every way gives the same picture, and a big blur never freezes the page.",
@@ -292,7 +292,7 @@
     },
     {
       "id": "gif-writer",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "api": 1,
       "global": "GifWriter",
       "summary": "Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation).",
@@ -320,7 +320,7 @@
     },
     {
       "id": "zip-open",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "api": 1,
       "global": "ZipOpen",
       "summary": "Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note.",
@@ -375,7 +375,7 @@
     },
     {
       "id": "lfc-pack",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "api": 0,
       "global": "LfcPack",
       "summary": "Packs newline-delimited JSON (logs, events, API dumps) into LFC-pack (.json.lfc): every field becomes a typed column inside zstd blocks, with a footer of per-block number ranges. Reads back the same rows as JSON.parse (or the exact original bytes), only some keys, or only a time range, with helper workers for big files. WebAssembly is required; a Python reader is included.",

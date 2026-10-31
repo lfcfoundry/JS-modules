@@ -35,3 +35,17 @@ A save that is migrated from an older version still takes the slower copy.
 | 16 MB: load | 52 | 94 | 80 |
 
 Saved and loaded back the same in every case.
+
+
+**Same tests in Firefox 160 (Windows), real laptop, 16 cores, 2026.10.30, 9:41 PM.** Medians; lower is better.
+
+**Big saves with `createLarge` (IndexedDB, ms):**
+
+| save | save-kit createLarge | idb-keyval | localForage |
+|---|---:|---:|---:|
+| 1 MB: save | 4.0 | 15 | 14 |
+| 1 MB: load | 3.1 | 11 | 10 |
+| 16 MB: save | 70 | 161 | 156 |
+| 16 MB: load | 71 | 147 | 148 |
+
+Roughly 2x to 3.7x faster than idb-keyval and localForage here; saved and loaded back the same in every case. Small saves (750 bytes, microseconds per save and load): save-kit 13 and 6.7, idb-keyval 203 and 93, localForage (IndexedDB) 210 and 93, localForage (localStorage driver) 17 and 3.3. After one damaged value save-kit falls back to its backup slot and returns a valid state.

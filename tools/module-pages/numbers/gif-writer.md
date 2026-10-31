@@ -27,3 +27,17 @@ Typical capture: about 5x smaller and 6x to 31x faster. Worst case: gif-writer's
 | thorough palette (option), 1.6.0 | 597 | 863,825 |
 
 The default output is the same bytes as 1.5.1. On this noisy worst case the thorough palette saves under 0.1% for about 35% more time.
+
+
+**Same tests in Firefox 160 (Windows), real laptop, 16 cores, 2026.10.30, 9:41 PM.** Medians; lower is better.
+
+| way (30 noisy pictures, 320 x 240) | ms | bytes |
+|---|---:|---:|
+| default palette, 1.5.1 | 340 | 864,532 |
+| default palette, 1.6.0 | 334 | 864,532 |
+| thorough palette (option), 1.6.0 | 479 | 863,825 |
+
+Same bytes by default. The thorough palette saves under 0.1% for about 40% more time on this worst case.
+
+
+**New in 1.6.1: faster picture effects, same pictures.** Cloud-browser runs (Chromium, Firefox and WebKitGTK on a shared machine, not noise-guarded, not the laptop). At 1920 x 1080 the time is 0.73 to 0.77 of before for glow, 0.74 to 0.78 for Soft dream, 0.79 to 0.85 for blur and 0.87 to 0.92 for sharpen. A laptop run will replace these.
