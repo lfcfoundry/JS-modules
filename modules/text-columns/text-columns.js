@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.5.1 (API 0)
+ * Version 0.6.1 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -12,6 +12,7 @@
  *   TextColumns.parse(bytes, { columns: ['price', 'city'] });                       // only these columns (names or 0-based numbers), in file order; the rest are never converted
  *   TextColumns.parse(bytes, { columns: function (name, index) { return name !== 'notes'; } });   // or a function that says yes or no for each column
  *   TextColumns.parse(bytes, { types: { when: 'date', ok: 'boolean' } });          // opt in: YYYY-MM-DD becomes milliseconds (Float64Array), true/false becomes booleans; other columns unchanged
+ *   await TextColumns.parseParallel(file, opts);                                    // a big file read by helpers at once; file may be a picked File (each helper reads its own piece)
  *   TextColumns.parse(bytes, { lazy: true });                                       // text columns build their strings when .values is first read (or one cell with .get(i)); keep the input bytes unchanged until then
  *
  * A column is a number column when every field is a plain decimal (-12, 3.25) of at most 15 digits without a leading zero; anything else (empty fields, 007, 1e5, text) keeps that column as text.
@@ -270,24 +271,78 @@
 
   /* ---- parallel parse (since 0.2.0): a big file is cut at line ends, each helper reads its piece with this same code, and the typed columns are joined ---- */
   function workerBody() {   // runs inside a helper; `TextColumns` is this file's code loaded there
-    var held = null;
+    var held = null, kept = null, strict = null;
+    function toUnits(u, os, oe) {   // byte positions -> UTF-16 positions, in place (both rise row by row and oe[z] <= os[z + 1])
+      var p = 0, q = 0, n = os.length, z, t, c;
+      for (z = 0; z < n; z++) {
+        for (t = os[z]; p < t; p++) { c = u[p]; if ((c & 0xC0) !== 0x80) q += c >= 0xF0 ? 2 : 1; } os[z] = q;
+        for (t = oe[z]; p < t; p++) { c = u[p]; if ((c & 0xC0) !== 0x80) q += c >= 0xF0 ? 2 : 1; } oe[z] = q;
+      }
+    }
+    // Since 0.6.0, for a piece with non-ASCII text: the piece's text is decoded once here (strictly, so positions stay exact) and sent as one string, with every text column's positions in that string;
+    // the page then only cuts substrings, instead of decoding the piece itself or (non-ASCII text) every field one by one. A piece that is not valid UTF-8 keeps the byte positions.
+    function withText(out, h, again) {
+      var j, any = false;
+      for (j = 0; j < out.types.length; j++) if (out.types[j] === 3) any = true;   // plain-ASCII pieces keep 0.5.1's way (the page decodes the piece once): sending their text was slower
+      if (!any || h.bad) return;
+      if (h.text === undefined) { try { strict = strict || new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }); h.text = strict.decode(h.bytes); } catch (x) { h.bad = true; return; } }
+      for (j = 0; j < out.types.length; j++) if (out.types[j] === 3) { toUnits(h.bytes, out.cols[j][0], out.cols[j][1]); out.types[j] = 2; }
+      if (!again || !h.sent) out.text = h.text;
+      h.sent = true;
+    }
+    // Since 0.6.0, for a File or Blob: this helper reads its own piece of the file (the page never reads or copies it). The piece starts after the first line end at or after
+    // byte a - 1 (the start of the file for the first piece, after a byte order mark) and ends after the first line end at or after byte b - 1, so the pieces meet exactly.
+    function sliced(b, step) {   // _slice (test switch): read in slices of step bytes (WebKitGTK hands file data over on the page's thread, so smaller handovers mean shorter pauses there)
+      var out = new Uint8Array(b.size), at = 0;
+      function next() { if (at >= b.size) return Promise.resolve(out.buffer); var e = Math.min(b.size, at + step); return b.slice(at, e).arrayBuffer().then(function (x) { out.set(new Uint8Array(x), at); at = e; return next(); }); }
+      return next();
+    }
+    function readPiece(m) {
+      var size = m.blob.size, a = m.a, from = a === 0 ? 0 : a - 1, pad = 65536, s, end, nl;
+      function more() {
+        var to = m.last ? size : Math.min(size, m.b - 1 + pad);
+        return (m.slice > 0 ? sliced(m.blob.slice(from, to), m.slice) : m.blob.slice(from, to).arrayBuffer()).then(function (ab) {
+          var buf = new Uint8Array(ab);
+          if (a === 0) s = buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF ? 3 : 0; else { nl = buf.indexOf(10); s = nl < 0 ? buf.length : nl + 1; }
+          nl = m.last ? -1 : buf.indexOf(10, Math.max(m.b - 1 - from, 0));
+          if (nl >= 0) end = nl + 1; else if (to === size) end = buf.length; else { pad *= 4; return more(); }
+          return buf.subarray(Math.min(s, end), end);
+        });
+      }
+      return more();
+    }
     onmessage = function (e) {
-      var m = e.data, t, cols = [], types = [], tr = [], j, c, only, isText, ft, q;
+      var m = e.data;
+      if (m.op !== 'read') return run(m);
+      readPiece(m).then(function (u) { held = { bytes: u, delim: m.delim, header: m.header, sel: m.sel, lazy: m.lazy }; m.q = u.indexOf(34) >= 0 ? TextColumns._qscan(u, m.delim.charCodeAt(0)) : null; run(m); },
+        function (err) { postMessage({ id: m.id, err: String(err && err.message || err) }); });
+    };
+    function run(m) {
+      var t, cols = [], types = [], tr = [], j, c, only, isText, ft, q;
       try {
+        if (m.op === 'fill') { for (j = 0; j < m.cols.length; j++) new Float64Array(m.bufs[j]).set(kept[m.cols[j]], m.at); if (!m.keep) kept = null; postMessage({ id: m.id, bufs: m.bufs }, m.bufs); return; }
+        if (m.op !== 'text') kept = null;
         if (m.op === 'hold') { held = { bytes: m.bytes }; q = TextColumns._qscan(m.bytes, m.delim.charCodeAt(0)); postMessage({ id: m.id, q: [q[0], q[1], q[2]] }); return; }
         if (m.op === 'parse') { if (m.bytes) held = { bytes: m.bytes }; held.delim = m.delim; held.header = m.header; held.sel = m.sel; held.lazy = m.lazy; }
         isText = m.op === 'text';
+        if (isText && m.bytes) held.bytes = m.bytes;   // a piece read from a file whose bytes went to the page
         if (isText) ft = m.cols.map(function (p) { return held.sel ? held.sel[p] : p; });
-        t = TextColumns.parse(held.bytes, { delimiter: held.delim, header: held.header, columns: held.sel, _text: ft, _off: isText ? 1 : held.lazy ? 2 : 1 });
+        t = TextColumns.parse(held.bytes, { delimiter: held.delim, header: held.header, columns: held.sel, _text: ft, _off: m.utf16 !== false || (!isText && held.lazy) ? 2 : 1 });   // 2: positions for every text column (non-ASCII too), turned into UTF-16 positions by withText
         only = isText ? m.cols : null;
         for (j = 0; j < t.columns.length; j++) {
           if (only && only.indexOf(j) < 0) continue;
           c = t.columns[j]; types.push(c.type === 'number' ? 1 : c.off ? (c.offAscii ? 2 : 3) : 0); cols.push(c.off || c.values);
-          if (c.type === 'number') tr.push(c.values.buffer); else if (c.off) tr.push(c.off[0].buffer, c.off[1].buffer, c.off[2].buffer);
+          if (c.type === 'number') { if (m.join && !isText) { (kept = kept || [])[j] = c.values; cols[cols.length - 1] = null; } else tr.push(c.values.buffer); } else if (c.off) tr.push(c.off[0].buffer, c.off[1].buffer, c.off[2].buffer);
         }
-        postMessage({ id: m.id, names: t.names, count: t.count, types: types, cols: cols }, tr);
+        var out = { id: m.id, names: t.names, count: t.count, types: types, cols: cols };
+        if (m.utf16 !== false) withText(out, held, isText);
+        if (m.op === 'read' || m.giveBytes) {
+          if (m.q) out.q = [m.q[0], m.q[1], m.q[2]];
+          if (held.bytes) for (j = 0; j < types.length; j++) if (m.bytes || types[j] === 3 || (types[j] === 2 && out.text === undefined)) { out.bytes = held.bytes; tr.push(held.bytes.buffer); held.bytes = null; break; }   // bytes the page sent always go back   // the page cuts this piece's strings itself: it gets the bytes (moved, not copied)
+        }
+        postMessage(out, tr);
       } catch (err) { postMessage({ id: m.id, err: String(err && err.message || err) }); }
-    };
+    }
   }
   var POOL = [], nextId = 1, PAR_MIN = 32000000, WARM_MIN = 4000000;   // floors: helpers still to start (about 30 to 130 ms) / helpers already running
   function helperCount(opts) {
@@ -355,23 +410,45 @@
     return null;
   }
   /**
-   * Same answers as parse(), but a big file is read by several helpers at once (Web Workers). Returns a promise. Falls back to parse() when the file is small, there are no workers,
+   * Same answers as parse(), but a big file is read by several helpers at once (Web Workers). Returns a promise. input: bytes, a string, or (since 0.6.0) a File or Blob, such as one picked
+   * with <input type=file>: then each helper reads its own piece straight from the file, so the page never holds the whole file (about half the memory) and nothing is copied to the helpers. Falls back to parse() when the file is small, there are no workers,
    * the quotes are odd or any helper fails (so errors are the same plain-words errors). opts as parse() (columns and lazy work the same), plus: workers (default: the cores, at most 8), minBytes (default 4,000,000 when the helpers are already running, from warm() or an earlier call, else 32,000,000; call warm() early to start the helpers ahead of time).
    * A file with quote marks is cut at plain line ends and each helper counts the quote marks of its piece (WebAssembly) so the cuts are known to fall outside quotes; if one does not, the older single-thread cut is used.
    */
   async function parseParallel(input, opts) { var t = await parseParallelCore(input, opts); return opts && opts.types ? applyTypes(t, opts.types) : t; }
+  function isBlob(x) { return typeof Blob === 'function' && x instanceof Blob; }
   async function parseParallelCore(input, opts) {
     opts = opts || {};
-    var delim = (opts.delimiter || ',').charCodeAt(0), header = opts.header !== false, u = stripBom(toBytes(input)), len = u.length, serial = function () { var t = parse(u, opts); t.workers = 0; return t; };
-    var n = helperCount(opts), T = opts._timing, t0 = T ? performance.now() : 0;
-    if (opts.plain || n < 2 || len < (opts.minBytes === undefined ? (POOL.length >= n ? WARM_MIN : PAR_MIN) : opts.minBytes) || (!opts.spawn && (typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || !URL.createObjectURL))) return serial();
-    if (opts.delimiter && opts.delimiter.length !== 1 || delim > 127 || delim === 10 || delim === 13 || delim === 34) return serial();
-    var sel, lazy = !!opts.lazy, dch = String.fromCharCode(delim);
-    if (opts.columns !== undefined && opts.columns !== null) { sel = selectColumns(u, delim, header, opts.columns); if (!sel) return serial(); }
-    var hasQ = u.indexOf(34) >= 0, cuts = lineCuts(u, n), k, jobs = [], res, sendBytes = true, i, j, r;
+    var blob = isBlob(input) ? input : null, n = helperCount(opts), T = opts._timing, t0 = T ? performance.now() : 0, len = blob ? blob.size : 0;
+    var noHelpers = opts.plain || n < 2 || (!opts.spawn && (typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || !URL.createObjectURL));
+    var delim = (opts.delimiter || ',').charCodeAt(0), header = opts.header !== false, badDelim = opts.delimiter && opts.delimiter.length !== 1 || delim > 127 || delim === 10 || delim === 13 || delim === 34;
+    var floor = opts.minBytes === undefined ? (POOL.length >= n ? WARM_MIN : PAR_MIN) : opts.minBytes, u = null, sel, lazy = !!opts.lazy, dch = String.fromCharCode(delim), k, i, j, r, jobs = [], res;
+    if (blob && (noHelpers || badDelim || len < floor || opts._file === false)) { input = new Uint8Array(await blob.arrayBuffer()); blob = null; }   // _file: false = read the whole file on the page, the 0.5.2 way (test switch)
+    if (!blob) { u = stripBom(toBytes(input)); len = u.length; }
+    var serial = async function () { if (!u) u = stripBom(new Uint8Array(await blob.arrayBuffer())); var t = parse(u, opts); t.workers = 0; return t; };
+    if (noHelpers || len < floor || badDelim) return serial();
+    if (opts.columns !== undefined && opts.columns !== null) {
+      var head = u;
+      if (blob) { head = stripBom(new Uint8Array(await blob.slice(0, Math.min(len, 1048576)).arrayBuffer())); if (len > 1048576) head = head.subarray(0, head.lastIndexOf(10) + 1); }   // the column names from the first megabyte, cut at its last line end
+      sel = selectColumns(head, delim, header, opts.columns); if (!sel) return serial();
+    }
+    var cuts, hasQ, sendBytes = true, pb = null, join = opts._join !== false;   // _join: false = the page joins the number columns (0.6.0 way; test switch)
+    function pieceEnd(c, k) { return k + 1 < c.length ? c[k + 1] : len; }
+    if (blob) {   // every helper reads its own piece and parses it; the quote check comes after, and a file whose cuts fall inside quotes is read again the 0.5.2 way
+      warm(n, opts);
+      for (k = 0; k < n; k++) jobs.push(ask(POOL[k], { op: 'read', blob: blob, a: Math.floor(len / n * k), b: Math.floor(len / n * (k + 1)), last: k === n - 1, delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, slice: opts._slice }));
+      if (T) T.post = performance.now() - t0;
+      res = await Promise.all(jobs); jobs = [];
+      var qpar = 0, qgood = true, qany = false, qerr = false;
+      for (k = 0; k < res.length; k++) { if (res[k].err) qerr = true; if (res[k].q) { qany = true; if (!(qpar ? res[k].q[2] : res[k].q[1])) qgood = false; qpar ^= res[k].q[0]; } if (k + 1 < res.length && qpar) qgood = false; }
+      if (qany && (!qgood || qpar)) { opts = Object.assign({}, opts, { _file: false }); return parseParallelCore(new Uint8Array(await blob.arrayBuffer()), opts); }
+      if (qerr) return serial();
+      pb = res.map(function (x) { return x.bytes || null; });
+      cuts = res.map(function () { return 0; });
+    } else {
+    hasQ = u.indexOf(34) >= 0; cuts = lineCuts(u, n);
     if (cuts.length < 2) return serial();
     warm(cuts.length, opts);
-    function pieceEnd(c, k) { return k + 1 < c.length ? c[k + 1] : len; }
     if (hasQ) {   // phase 1: every helper keeps its piece and counts its quote marks; a cut is good when the quotes before it pair up and every quote that opens a field is where a field starts
       for (k = 0; k < cuts.length; k++) { var pc = u.slice(cuts[k], pieceEnd(cuts, k)); jobs.push(ask(POOL[k], { op: 'hold', bytes: pc, delim: dch }, [pc.buffer])); }
       res = await Promise.all(jobs); jobs = [];
@@ -385,12 +462,13 @@
       else { cuts = splitPoints(u, delim, n); if (!cuts || cuts.length < 2) return serial(); warm(cuts.length, opts); }
     }
     for (k = 0; k < cuts.length; k++) {
-      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy }, tl = [];
+      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join }, tl = [];   // _utf16: false = the 0.5.1 way (test switch)
       if (sendBytes) { msg.bytes = u.slice(cuts[k], pieceEnd(cuts, k)); tl.push(msg.bytes.buffer); }
       jobs.push(ask(POOL[k], msg, tl));
     }
     if (T) T.post = performance.now() - t0;
     res = await Promise.all(jobs);
+    }
     if (T) T.wait = performance.now() - t0;
     for (k = 0; k < res.length; k++) if (res[k].err) return serial();
     var names = res[0].names, ncols = 0, total = 0, live = [], cnt = [];
@@ -405,14 +483,18 @@
     for (j = 0; j < ncols; j++) { textCol[j] = live.some(function (kk) { return res[kk].types[j] !== 1; }); }
     for (i = 0; i < live.length; i++) {
       k = live[i]; var need = []; for (j = 0; j < ncols; j++) if (textCol[j] && res[k].types[j] === 1) need.push(j);
-      if (need.length) again.push(ask(POOL[k], { op: 'text', cols: need }).then(function (kk, nd) { return function (m) { return { k: kk, need: nd, m: m }; }; }(k, need)));
+      if (need.length) again.push(ask(POOL[k], { op: 'text', cols: need, utf16: opts._utf16, giveBytes: !!pb, bytes: pb && pb[k] ? pb[k] : undefined }, pb && pb[k] ? [pb[k].buffer] : []).then(function (kk, nd) { return function (m) { return { k: kk, need: nd, m: m }; }; }(k, need)));
     }
     var extra = await Promise.all(again);
     for (i = 0; i < extra.length; i++) if (extra[i].m.err) return serial();
+    if (pb) extra.forEach(function (x) { if (x.m.bytes) pb[x.k] = x.m.bytes; });   // a file piece's bytes, back from the helper when its re-asked column needs them
     var textOf = {}; extra.forEach(function (x) { x.need.forEach(function (c, ix) { textOf[x.k + ':' + c] = { t: x.m.types[ix], d: x.m.cols[ix] }; }); });
     function desc(k, j) { return textOf[k + ':' + j] || { t: res[k].types[j], d: res[k].cols[j] }; }
     var pieceText = {};
-    function pieceStr(k) { if (pieceText[k] === undefined) pieceText[k] = td.decode(u.subarray(cuts[k], pieceEnd(cuts, k))); return pieceText[k]; }
+    for (k = 0; k < res.length; k++) if (res[k].text !== undefined) pieceText[k] = res[k].text;
+    extra.forEach(function (x) { if (x.m.text !== undefined) pieceText[x.k] = x.m.text; });
+    function pieceBytes(k) { return pb ? pb[k] : u.subarray(cuts[k], pieceEnd(cuts, k)); }
+    function pieceStr(k) { if (pieceText[k] === undefined) pieceText[k] = td.decode(pieceBytes(k)); return pieceText[k]; }
     function fillText(j) {
       var v = new Array(total), at = 0, d, z, sv, tx, os, oe, oq, base, a;
       for (i = 0; i < live.length; i++) {
@@ -421,8 +503,8 @@
           tx = pieceStr(k); os = d.d[0]; oe = d.d[1]; oq = d.d[2];
           for (z = 0; z < os.length; z++) { sv = tx.substring(os[z], oe[z]); v[at++] = oq[z] ? sv.split('""').join('"') : sv; }
         } else if (d.t === 3) {   // the same for a piece with non-ASCII text: the positions are bytes
-          os = d.d[0]; oe = d.d[1]; oq = d.d[2]; base = cuts[k];
-          for (z = 0; z < os.length; z++) { sv = td.decode(u.subarray(base + os[z], base + oe[z])); v[at++] = oq[z] ? sv.split('""').join('"') : sv; }
+          os = d.d[0]; oe = d.d[1]; oq = d.d[2]; base = pieceBytes(k);
+          for (z = 0; z < os.length; z++) { sv = td.decode(base.subarray(os[z], oe[z])); v[at++] = oq[z] ? sv.split('""').join('"') : sv; }
         } else { a = d.d; for (z = 0; z < a.length; z++) v[at++] = a[z]; }
       }
       return v;
@@ -432,20 +514,33 @@
       for (var ii = 0; ii < live.length; ii++) {
         if (row >= cnt[ii]) { row -= cnt[ii]; continue; }
         kk = live[ii]; d = desc(kk, j);
-        if (d.t === 2) sv = pieceStr(kk).substring(d.d[0][row], d.d[1][row]); else if (d.t === 3) sv = td.decode(u.subarray(cuts[kk] + d.d[0][row], cuts[kk] + d.d[1][row])); else return d.d[row];
+        if (d.t === 2) sv = pieceStr(kk).substring(d.d[0][row], d.d[1][row]); else if (d.t === 3) sv = td.decode(pieceBytes(kk).subarray(d.d[0][row], d.d[1][row])); else return d.d[row];
         return d.d[2][row] ? sv.split('""').join('"') : sv;
       }
     }
-    var columns = [], v, a;
+    var columns = [], v, a, numVals = {};
+    if (join) {   // since 0.6.1: the helpers kept their number columns; the page makes each full-length column once and the columns travel through the helpers in groups,
+      // every helper copying its rows into a different group at each turn, so the page never copies them (a 45 MB number file no longer blocks the page for tens of ms)
+      var js = [], L = live.length, offs = [], gc = [], gb = [], o2 = 0, step, got;
+      for (j = 0; j < ncols; j++) if (!textCol[j]) js.push(j);
+      for (i = 0; i < L; i++) { offs.push(o2); o2 += cnt[i]; gc.push([]); gb.push([]); }
+      js.forEach(function (jj, q) { gc[q % L].push(jj); gb[q % L].push(new ArrayBuffer(total * 8)); });
+      for (step = 0; js.length && step < L; step++) {
+        got = await Promise.all(live.map(function (kk, ii) { var g = (ii + step) % L; return gb[g].length ? ask(POOL[kk], { op: 'fill', bufs: gb[g], cols: gc[g], at: offs[ii], keep: step < L - 1 }, gb[g]).then(function (m) { if (m.err || !m.bufs) return false; gb[g] = m.bufs; return true; }) : true; }));
+        if (got.indexOf(false) >= 0) return serial();
+      }
+      js.forEach(function (jj, q) { numVals[jj] = new Float64Array(gb[q % L][Math.floor(q / L)]); });
+    }
     for (j = 0; j < ncols; j++) {
       var col = { name: names[j], type: textCol[j] ? 'text' : 'number', values: null, get: getAt };
-      if (!textCol[j]) { v = new Float64Array(total); var at = 0; for (i = 0; i < live.length; i++) { a = res[live[i]].cols[j]; v.set(a, at); at += a.length; } col.values = v; }
+      if (numVals[j]) col.values = numVals[j];
+      else if (!textCol[j]) { v = new Float64Array(total); var at = 0; for (i = 0; i < live.length; i++) { a = res[live[i]].cols[j]; v.set(a, at); at += a.length; } col.values = v; }
       else if (lazy) col = lazyJoined(names[j], function (jj) { return function () { return fillText(jj); }; }(j), function (jj) { return function (row) { return cellText(jj, row); }; }(j));
       else col.values = fillText(j);
       columns.push(col);
     }
     if (T) T.merge = performance.now() - t0;
-    var out = makeTable(names, total, columns); out.workers = cuts.length;   // how many helpers read it (0 when it was read directly)
+    var out = makeTable(names, total, columns); out.workers = res.length;   // how many helpers read it (0 when it was read directly)
     return out;
   }
   function lazyJoined(name, make, one) {
@@ -455,5 +550,5 @@
     return col;
   }
 
-  return { version: '0.5.1', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { version: '0.6.1', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));
