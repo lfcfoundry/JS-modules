@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.3.2 · API 0 · 2026-10-31
+
+### Quick
+Quick: small-block packs no longer clear 16 MB per block.
+
+### Deep
+Quick: small-block packs no longer clear 16 MB per block. Details: dd_run sized its hash table to the block's strings (at least twice their count, up to 2^22 slots) and reset() clears only the shape slots used (SHSLOT). Pack ms old/new: Chromium geo 32 KB 1452/415, 256 KB 391/204, orders 32 KB 2572/1098, 256 KB 689/488; Firefox 1506/413, 408/249, 2658/897, 795/542; WebKitGTK 1700/432, 397/235, 2762/881, 704/531. Default 13 MB blocks unchanged (Chromium 151/151, 322/321). 28 files byte-identical. Deep: cherry-picked from the LFCP branch (463ff97) onto main; core.wasm rebuilt from main's core.c plus the fix (same size as the branch build).
+
 ## 0.3.1 · API 0 · 2026-10-30
 
 ### Quick
