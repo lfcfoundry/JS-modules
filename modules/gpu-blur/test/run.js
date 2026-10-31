@@ -162,9 +162,11 @@ function oracle(px, w, h, radius) {
   G.release(); var after = await G.blur(pic, 40, 30, 5, { out: 'pixels' });
   ok(after.route === 'wasm' && same(after.pixels, G.reference(pic, 40, 30, 5)), 'after release() the next call starts again by itself');
 
-  // ---- the page-policy rules: nothing here needs eval, a blob address or a worker
-  var code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/'(?:[^'\\\n]|\\.)*'/g, "''");
-  ok(!/\beval\s*\(|new\s+Function|createObjectURL|\bBlob\b|\bWorker\b|importScripts|import\s*\(/.test(code), 'no eval, new Function, blob address, Blob or Worker in the code (only wasm-unsafe-eval is needed)');
+  // ---- the page-policy rules: nothing here needs eval; a blob address and workers only in the opt-in helpers route (worker-src blob:)
+  var hb = src.indexOf('//@helpers-begin'), he = src.indexOf('//@helpers-end');
+  ok(hb > 0 && he > hb, 'the helpers route is marked off');
+  var code = (src.slice(0, hb) + src.slice(he)).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/'(?:[^'\\\n]|\\.)*'/g, "''");
+  ok(!/\beval\s*\(|new\s+Function|createObjectURL|\bBlob\b|\bWorker\b|importScripts|import\s*\(/.test(code), 'no eval, new Function, blob address, Blob or Worker outside the opt-in helpers route (only wasm-unsafe-eval is needed)');
   ok(!/\bsetInterval\b|document\.write|innerHTML|localStorage|fetch\s*\(|XMLHttpRequest/.test(code), 'no timers left running, no storage, no network');
   ok(!/navigator\.(userAgent|vendor|platform)|userAgent|\bsafari\b|\bchrome\b|\bfirefox\b/i.test(code), 'the code never looks at a browser name');
   var hv = /Version (\d+\.\d+\.\d+) \(API 1\)/.exec(src.slice(0, 1800)), cv = /var VERSION = '(\d+\.\d+\.\d+)'/.exec(src);

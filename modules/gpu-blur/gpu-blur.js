@@ -2,7 +2,7 @@
  * gpu-blur.js: blur a picture on the graphics card (WebGL 2), or in WebAssembly, or in plain JavaScript, and give the same picture every way.
  * The module picks the way by what the browser can do, never by the browser's name. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.1 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   GpuBlur.blur(source, width, height, radius[, opts])   -> Promise of { canvas | pixels | texture, width, height, route }
  *   GpuBlur.blurSync(source, width, height, radius[, opts]) -> the same result at once (the page waits for the whole job)
@@ -14,11 +14,13 @@
  * source: a canvas, an OffscreenCanvas, an ImageBitmap, an Image that has loaded, an ImageData, or RGBA bytes (Uint8Array or Uint8ClampedArray, width * height * 4).
  * radius: 0 to 100, about the same look as the 2 * sigma of a Gaussian (radius 12 is the look of CSS blur(6px)). Edges repeat the border pixel.
  * opts.out:    'canvas' (default; a canvas you draw with drawImage), 'pixels' (RGBA bytes in a Uint8ClampedArray) or 'texture' (needs opts.gl: stays on the card).
- * opts.route:  'auto' (default), 'webgl2', 'wasm' or 'js'. A route that cannot run gives way to the next one (webgl2, wasm, js); result.route says which one ran.
+ * opts.route:  'auto' (default), 'webgl2', 'wasm', 'js' or 'helpers'. A route that cannot run gives way to the next one (webgl2 or helpers, then wasm, then js); result.route says which one ran.
+ * opts.workers: helpers for the 'helpers' route (blur() only, opt-in; default cores - 1, and giving a number turns the route on). Used above about 0.3 megapixel with 3 or more cores;
+ *               the wasm kernel runs on row bands in background workers made from a blob: address (needs worker-src blob:), same bytes. opts.idleMs: how long they wait for the next job (5000).
  * opts.into:   a canvas to draw the result into (out 'canvas'); opts.gl: your own WebGL 2 context (out 'texture'); opts.budget: ms of work per slice (default 3).
  *
  * The blur is three box passes along each axis (a close Gaussian), in whole numbers, so WebGL 2, wasm and JavaScript give the same bytes.
- * No eval, no new Function, no blob: address, no worker; WebAssembly needs 'wasm-unsafe-eval' in script-src and falls back to JavaScript without it.
+ * No eval, no new Function; no blob: address and no worker unless the 'helpers' route is asked for. WebAssembly needs 'wasm-unsafe-eval' in script-src and falls back to JavaScript without it.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(root);
@@ -26,7 +28,7 @@
 })(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  var VERSION = '1.0.1';
+  var VERSION = '1.1.0';
   var MAX_PIXELS = 33554432;          // 8192 x 4096
   var STRIP = 16;                     // columns per vertical strip (the wasm kernel's limit)
   var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
@@ -262,6 +264,110 @@
     return runPhases(phases, opts.budget || 3, false).then(done, failed);
   }
 
+
+  // ------------------------------------------------------------------ helpers route (opt-in): the wasm kernel on row bands in background workers
+  // Each helper blurs its band plus 3b rows above and below (the reach of three box passes), then sends back the middle rows, so the bytes are the ones the one-thread kernel gives.
+  // Only for blur(), only when asked (route: 'helpers' or workers: n), only above about 0.3 megapixel and with 3 or more cores; anything that stops it (no Worker, a page policy
+  // without worker-src blob:, a helper that fails) gives way to the one-thread wasm route. The helpers stay for idleMs (default 5000) after the last job; release() ends them now.
+  //@helpers-begin (the only part that makes a blob: address or a Worker; it runs only when the helpers route is asked for)
+  var HELPER_MIN_PX = 300000, helpers = null;
+  function helperMain() {
+    var ex = null, mem = null, al = function (n) { return (n + 15) & ~15; };
+    onmessage = function (e) {
+      var m = e.data;
+      if (m.module) { try { ex = new WebAssembly.Instance(m.module, {}).exports; mem = ex.memory; postMessage({ ready: 1 }); } catch (err) { postMessage({ ready: 0 }); } return; }
+      var w = m.w, h = m.hh, b = m.b, S = 16, img = al(w * h * 4);
+      var rowA = 65536, rowB = rowA + al(w * 8), stA = rowB + al(w * 8), stB = stA + al(h * S * 4), col = stB + al(h * S * 4), pA = col + S * 16, pB = pA + img, end = pB + img;
+      if (end > mem.buffer.byteLength) mem.grow(Math.ceil((end - mem.buffer.byteLength) / 65536));
+      new Uint8Array(mem.buffer, pA, w * h * 4).set(new Uint8Array(m.buf));
+      ex.hrows(pA, pB, rowA, rowB, w, 0, h, b);
+      for (var x = 0; x < w; x += S) ex.vcols(pB, pA, stA, stB, col, w, h, x, Math.min(w, x + S), b);
+      var out = new Uint8Array(m.keep * w * 4); out.set(new Uint8Array(mem.buffer, pA + m.top * w * 4, m.keep * w * 4));
+      postMessage({ id: m.id, buf: out.buffer }, [out.buffer]);
+    };
+  }
+  function closeHelpers() {
+    var H = helpers; helpers = null; if (!H) return;
+    if (H.timer) clearTimeout(H.timer);
+    for (var i = 0; i < H.ws.length; i++) H.ws[i].terminate();
+    try { URL.revokeObjectURL(H.url); } catch (e) { /* gone */ }
+    for (var k in H.pending) H.pending[k].fail(new Error('gpu-blur: helpers closed'));
+  }
+  function getHelpers(n) {                // -> Promise of the pool; rejects when helpers cannot start here
+    if (helpers && helpers.ws.length === n) return helpers.ready;
+    closeHelpers();
+    var H = { ws: [], pending: {}, id: 0, timer: 0, url: null }, url, starts = [];
+    try { url = URL.createObjectURL(new Blob(['(' + helperMain.toString() + ')()'], { type: 'text/javascript' })); } catch (e) { return Promise.reject(e); }
+    H.url = url; helpers = H;
+    var dead = function (e) { if (helpers === H) closeHelpers(); for (var k in H.pending) H.pending[k].fail(e); };
+    try {
+      for (var i = 0; i < n; i++) (function () {
+        var wk = new Worker(url); H.ws.push(wk);
+        starts.push(new Promise(function (ok, bad) {
+          wk.onerror = function (e) { e && e.preventDefault && e.preventDefault(); bad(new Error('gpu-blur: a helper could not start')); dead(new Error('gpu-blur: a helper failed')); };
+          wk.onmessage = function (ev) {
+            if (!ev.data.ready) { bad(new Error('gpu-blur: a helper could not start the kernel')); return; }
+            wk.onmessage = function (e2) { var j = H.pending[e2.data.id]; if (j) { delete H.pending[e2.data.id]; j.done(e2.data.buf); } };
+            ok();
+          };
+        }));
+        wk.postMessage({ module: wasm.module });
+      })();
+    } catch (e) { closeHelpers(); return Promise.reject(e); }
+    H.ready = Promise.all(starts).then(function () { return H; }, function (e) { if (helpers === H) closeHelpers(); throw e; });
+    return H.ready;
+  }
+  function helperCount(opts, w, h) {
+    var cores = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, n = opts.workers > 0 ? Math.floor(opts.workers) : cores - 1;
+    return Math.max(0, Math.min(n, 16, h));
+  }
+  function helpersRoute(inp, w, h, b, out, opts) {
+    var cores = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, n = helperCount(opts, w, h);
+    if (wasm.state !== 'ready' || !wasm.module) return Promise.reject(new Error('gpu-blur: wasm is not available'));
+    if (typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || !URL.createObjectURL) return Promise.reject(new Error('gpu-blur: no workers here'));
+    if (n < 2 || (!(opts.workers > 0) && cores < 3) || w * h < (opts.helperMinPixels === undefined ? HELPER_MIN_PX : opts.helperMinPixels)) return Promise.reject(new Error('gpu-blur: too small or too few cores for helpers'));
+    return getHelpers(n).then(function (H) {
+      if (H.timer) { clearTimeout(H.timer); H.timer = 0; }
+      var halo = 3 * b, per = Math.ceil(h / n), jobs = [], res = { width: w, height: h, route: 'helpers' }, px = null, ctx = null, lease = null, sx = null, i;
+      if (out === 'pixels') res.pixels = px = new Uint8ClampedArray(w * h * 4);
+      else {
+        var cv = opts.into || makeCanvas(w, h);
+        if (!cv) throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"');
+        if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+        ctx = cv.getContext('2d'); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
+        res.canvas = cv;
+      }
+      if (inp.kind !== 'bytes') {
+        lease = scratchCtx(w, h); if (!lease) throw new Error('gpu-blur: no 2D canvas to read the picture');
+        sx = lease.x; sx.drawImage(inp.dom, 0, 0, w, h, 0, 0, w, h);
+      }
+      var src = inp.kind === 'bytes' ? (inp.bytes instanceof Uint8Array ? inp.bytes : new Uint8Array(inp.bytes.buffer, inp.bytes.byteOffset, inp.bytes.byteLength)) : null;
+      for (i = 0; i < n; i++) {
+        var y0 = i * per, y1 = Math.min(h, y0 + per); if (y0 >= y1) break;
+        (function (y0, y1, k) {
+          var s0 = Math.max(0, y0 - halo), s1 = Math.min(h, y1 + halo), buf;
+          if (src) buf = src.slice(s0 * w * 4, s1 * w * 4).buffer;
+          else { var d = sx.getImageData(0, s0, w, s1 - s0).data; buf = d.buffer.byteLength === d.byteLength ? d.buffer : d.slice().buffer; }
+          jobs.push(new Promise(function (ok, bad) {
+            var id = ++H.id;
+            H.pending[id] = { fail: bad, done: function (rb) {
+              try {
+                if (px) px.set(new Uint8ClampedArray(rb), y0 * w * 4);
+                else ctx.putImageData(new ImageData(new Uint8ClampedArray(rb), w, y1 - y0), 0, y0);
+                ok();
+              } catch (e) { bad(e); }
+            } };
+            H.ws[k].postMessage({ id: id, buf: buf, w: w, hh: s1 - s0, b: b, top: y0 - s0, keep: y1 - y0 }, [buf]);
+          }));
+        })(y0, y1, i);
+      }
+      if (lease) { lease.release(); lease = null; }
+      var idle = function () { if (helpers === H) { if (H.timer) clearTimeout(H.timer); H.timer = setTimeout(closeHelpers, opts.idleMs === undefined ? 5000 : opts.idleMs); } };
+      return Promise.all(jobs).then(function () { idle(); return res; }, function (e) { idle(); throw e; });
+    });
+  }
+  //@helpers-end
+
   // ------------------------------------------------------------------ WebGL 2 route
   var VS = '#version 300 es\nvoid main(){vec2 p=vec2(float((gl_VertexID&1)*2),float((gl_VertexID>>1)*2));gl_Position=vec4(p*2.-1.,0.,1.);}';
   var FS = '#version 300 es\nprecision highp float;precision highp int;\n' +
@@ -480,6 +586,8 @@
   function routeOrder(opts, out) {
     var forced = opts.route && opts.route !== 'auto' ? opts.route : null;
     if (out === 'texture') return ['webgl2'];
+    if (forced && ['auto', 'webgl2', 'wasm', 'js', 'helpers'].indexOf(forced) < 0) throw new RangeError('gpu-blur: route must be auto, webgl2, wasm, js or helpers');
+    if (forced === 'helpers' || (!forced && opts.workers > 0)) return ['helpers', 'wasm', 'js'];
     if (forced === 'webgl2') return ['webgl2', 'wasm', 'js'];
     if (forced === 'wasm') return ['wasm', 'js'];
     if (forced === 'js') return ['js'];
@@ -503,6 +611,7 @@
     var i = 0, lastErr = null;
     function attempt(r) {
       if (r === 'webgl2') return glRoute(q.inp, q.w, q.h, q.b, q.out, q.opts, sync);
+      if (r === 'helpers') { if (sync) throw new Error('gpu-blur: helpers need blur(), not blurSync()'); return helpersRoute(q.inp, q.w, q.h, q.b, q.out, q.opts); }
       if (r === 'wasm') {
         if (sync ? !wasmNow() : wasm.state !== 'ready') throw new Error('gpu-blur: wasm is not available');
         return cpuRoute('wasm', q.inp, q.w, q.h, q.b, q.out, q.opts, sync);
@@ -549,6 +658,7 @@
   }
   function ready() { return calibrate().then(function () { return info(); }); }
   function release() {
+    closeHelpers();
     wasm.pool = [];
     if (scratch) { scratch.c.width = scratch.c.height = 1; scratch = null; }
     if (own.gl) { try { var ext = own.gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); } catch (e) { /* already gone */ } }
