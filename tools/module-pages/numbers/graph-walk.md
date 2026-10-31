@@ -51,12 +51,14 @@ Louvain is a heuristic, so its quality is compared instead of exact groups: modu
 
 **New in 0.9.0: closeness on helper threads (opt-in).** `closenessAsync` splits closeness across the kept helper threads, sharing the same helpers and graph copy as `betweennessAsync`; answers are identical. On graphs of 1,500 nodes / 6,000 links, 3,000 / 12,000 and 8,000 / 32,000, in JavaScript and wasm, the helpers take 0.26 to 0.43 of the time of `closeness` on the calling thread. That is 2.3 to 3.8 times as fast on a 4-core cloud machine in Chromium 155, Firefox 158 and WebKitGTK 2.52.6.
 
-**New in 0.10.0: `trim()` gives memory back (opt-in).** WebAssembly memory only grows, so after a big job it stays large until the page closes. `trim()` gives it back; nothing runs unless you call it. Cloud browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6):
+**New in 0.10.0: `trim()` gives memory back (opt-in).** WebAssembly memory only grows, so after a big job it stays large until the page closes. `trim()` gives it back; nothing runs unless you call it. Memory measured in Node; times in the cloud browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6):
 
 | | Without trim | After trim |
 |---|---:|---:|
-| Memory after a 200,000-item, 1,000,000-link job | 50 MB | 21 MB |
+| Memory after a 200,000-item, 1,000,000-link job (Node) | 50 MB | 21 MB |
 | First call afterward, big graph | 8 to 9 ms | 17 to 18 ms |
 | First call afterward, 20,000 items | 1 ms | 2 ms |
 
 `trim()` itself takes 0 to 1 ms. The first call after a trim is slower because it copies the graph back in.
+
+**New in 0.11.0: reuse the previous result's arrays (opt-in, WebAssembly only).** `components`, `kcore`, `shortest` and `pagerank` can take the previous result back and fill its arrays instead of making new ones. On repeated big calls, time new / old was 0.63 to 1.04 across Chromium 155, Firefox 158 and WebKitGTK 2.52.6 (cloud), and no case was flagged slower; the best case is about 1.6 times as fast, in Firefox. Also fixed: two helper jobs at once could hang; a job started while the kept helpers are busy now gets helpers of its own.
