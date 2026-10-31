@@ -68,6 +68,7 @@ section{padding-block:56px}
 section+section{border-top:1px solid var(--line)}
 h2{font-size:clamp(28px,4vw,40px);font-weight:700;margin-bottom:14px}
 .lead{max-width:44em;color:var(--muted);margin:0 0 8px}
+.uses{padding-left:1.2em}.uses li{margin:0 0 6px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:28px}
 .tile{background:var(--soft);padding:22px;border-radius:8px;min-width:0}
 .tile h3{font-size:21px;margin-bottom:6px}
@@ -113,13 +114,29 @@ footer a{margin-right:16px}
 
 <section><div class="wrap">
   <h2>What it is and how it works</h2>
-  <p class="lead">JS-modules is a shelf of small browser libraries cut out of two shipped games. Each module is one file with no dependencies. Add it with a script tag or <code>require</code>, call it, and read its folder README for limits. Every folder also has a demo page that opens straight from disk.</p>
-  <p class="lead">The pieces are for more seasoned users and developers. The apps and games built from them need no install, no administrative privileges and no special computing knowledge.</p>
+  <p class="lead">JS-modules is a collection of 49 small browser libraries and tools. Each one solves a single problem that came up while building LFC Foundry's games and apps: Apple Press, Fancy, the Banana, Pineapple Defense, Story Editor and Netflow Map.</p>
+  <p class="lead">Each module is one JavaScript file with no dependencies. You copy the file next to your page, load it with a script tag (or <code>require</code> in Node), and call it. There is no build step, package manager or framework to adopt.</p>
+  <ul class="lead uses">
+    <li><strong>Heavy work runs in WebAssembly</strong> (with SIMD where it helps), embedded inside the same file. In most modules a plain JavaScript path gives the same results where WebAssembly is missing, only slower; each README says when a module needs WebAssembly.</li>
+    <li><strong>Every module folder</strong> holds a README with its limits and comparisons, a demo page that opens straight from disk, tests and a changelog.</li>
+    <li><strong>Every published number is measured</strong> in Firefox, Chromium and WebKitGTK, and names the browser and machine it came from.</li>
+  </ul>
+  <p class="lead">The modules are written for developers. The apps built from them need no install, no administrative privileges and no special computing knowledge.</p>
 </div></section>
 
 <section><div class="wrap">
   <h2>Why it exists</h2>
-  <p class="lead">Only parts not already covered by open source were kept. These are the small fixes learned by shipping real games to phones and desktops: a hold that dies on <code>pointercancel</code>, a save overwritten by a <code>NaN</code>, a curtain stuck out of place on Android. Each module README names the closest existing project and says how this one differs.</p>
+  <p class="lead">Single-file offline apps live under unusual limits. They cannot load code from a server, they have to run on cheap phones as well as desktops, and every kilobyte they carry is downloaded by everyone who opens them. Most popular libraries assume the opposite: a build step, a tree of packages, a network connection and a fast device.</p>
+  <p class="lead">While the games and apps were being built, the same small problems kept coming back: a held button that lets go when the browser sends <code>pointercancel</code>, a save overwritten by a <code>NaN</code>, a chart that goes blank because the data had a loop, a page that runs out of memory on a phone. Each fix was worth keeping, and worth keeping on its own, so a change made for one app cannot break another.</p>
+  <p class="lead">A module stays on the shelf only if it does something the nearest open-source option does not, or does it measurably better. Each README names that option and compares against it, including the cases where the other one wins.</p>
+  <h3>Where it helps</h3>
+  <ul class="lead uses">
+    <li>Single-file or offline web apps and games that must work with no server at all.</li>
+    <li>Projects that want one specific fix without adopting a framework.</li>
+    <li>Apps that must run on low-end phones, where memory, startup time and download size are tight.</li>
+    <li>Data-heavy pages (maps, charts, logs) that need compact storage and fast reading in the browser.</li>
+    <li>Teams that want to read and audit every line they ship: each piece is one readable file.</li>
+  </ul>
 </div></section>
 
 <section><div class="wrap">
