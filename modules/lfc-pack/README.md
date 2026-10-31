@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.4.2 · API 0**
+**Version 0.4.3 · API 0**
 
-**Tested in:** laptop Chromium 156 and Firefox 160 (16 cores); cloud Chromium 155, WebKitGTK 2.52.6; all Node checks
+**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud, 4 cores), early-stop A/B
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
