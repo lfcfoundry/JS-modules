@@ -1,8 +1,8 @@
 # graph-walk
 
-**Version 0.7.2 · API 0**
+**Version 0.8.0 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -51,11 +51,18 @@ GraphWalk.kcore(g);                             // { core: Int32Array, max }: pe
 GraphWalk.mst(g, weights);                      // cheapest links joining every group (directions ignored): { links (ascending weight), total }
 GraphWalk.pagerank(g, { alpha: 0.85, tolerance: 1e-6, maxIterations: 100, weights });   // { rank (sums to 1), iterations, converged }
 GraphWalk.betweenness(g, { normalized: true, sources });   // Float64Array: share of fewest-link paths between other pairs that run through each item; `sources` (array of items) gives a sampled estimate
+GraphWalk.maxflow(g, source, sink, capacity);   // most that can flow from source to sink (one non-negative capacity per link; omit for 1 each): { value, flow (per link), cut (links that are full and cross the cut), side (1 for items on the source side) }
+GraphWalk.closeness(g, { wassermanFaust, sources });   // Float64Array: how close each item is to all it can be reached from (same definition as graphology-metrics)
+GraphWalk.triangles(g);                         // { total, perItem, clustering, transitivity }: directions and repeated links ignored
+GraphWalk.communities(g, { resolution, weights, minGain });   // Louvain groups: { id (biggest group first), count, modularity }
+GraphWalk.criticalPath(g, weights);             // longest chain through a graph without loops: { complete, length, links, end, dist, via }
+var ix = GraphWalk.landmarks(g, { count: 8, weights });   // build once ...
+GraphWalk.landmarkPath(ix, src, target);        // ... then answer many questions: same { cost, links } as path(), searched with landmark bounds (A*)
 ```
 `csr` also works if you already have the arrays: any object with `n`, `m`, `to`, `outStart` and `outEdge` (link numbers in input order) is accepted. Copy `graph-walk.js` next to your page (`<script src="graph-walk.js"></script>` sets `GraphWalk`) or `require` it in Node.
 
 ## WebAssembly
-`components`, `scc`, `topo`, `shortest` with weights (to every item), `kcore`, `mst`, `pagerank` and `betweenness` run in WebAssembly (`wasm/graph-walk.c`, built with `wasm/build.sh`, embedded in the file as 15 KB of text) with identical answers, compiled the moment the file loads; until then, or on a page that forbids WebAssembly (it needs `'wasm-unsafe-eval'` in `script-src`), the plain JavaScript answers. `GraphWalk.ready()` resolves when it is on, `GraphWalk.accelerated()` says, `GraphWalk.setBackend('js' | 'wasm' | 'auto')` forces a side, and `GraphWalk.free(g)` gives back a graph's WebAssembly copy when it was the newest. Gain figures are in the comparison below and in the private tables (one container run, not noise-guarded). The first call on a graph copies its arrays into WebAssembly memory once. `path`, `bfs` and `loops` stay in JavaScript.
+`components`, `scc`, `topo`, `shortest` with weights (to every item), `kcore`, `mst`, `pagerank`, `betweenness`, `maxflow`, `closeness`, `triangles` and `communities` run in WebAssembly (`wasm/graph-walk.c`, built with `wasm/build.sh`, embedded in the file as 15 KB of text) with identical answers, compiled the moment the file loads; until then, or on a page that forbids WebAssembly (it needs `'wasm-unsafe-eval'` in `script-src`), the plain JavaScript answers. `GraphWalk.ready()` resolves when it is on, `GraphWalk.accelerated()` says, `GraphWalk.setBackend('js' | 'wasm' | 'auto')` forces a side, and `GraphWalk.free(g)` gives back a graph's WebAssembly copy when it was the newest. Gain figures are in the comparison below and in the private tables (one container run, not noise-guarded). The first call on a graph copies its arrays into WebAssembly memory once. `path`, `bfs` and `loops` stay in JavaScript.
 
 ## How it compares
 Against graphology 0.26 (with graphology-components 1.5, graphology-shortest-path 2.1 and graphology-dag 0.4), the same random network of 100,000 items and 400,000 links, milliseconds per job, median of 7 rounds taking turns, **graphology / graph-walk, lower is better**. Container, one browser at a time, not noise-guarded. Every answer was checked against graphology's before timing (same groups, same path costs).
