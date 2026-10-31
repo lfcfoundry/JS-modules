@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.4.0 · API 1**
+**Version 1.5.0 · API 1**
 
-**Tested in:** Node 22 intersect, twin, fuzz, partitioned and run tests; Firefox 158, Chromium 155, WebKitGTK 2.52.6 with the noise guard
+**Tested in:** Node tests (test/run.js, fuzz.js, intersect.js, partitioned.js, lists-many.js) passed. Speed ratios measured in Firefox 158.0, ungoogled-chromium 155.0.8059.39-1 and WebKitGTK 2.52.6 in a cloud container, one at a time, no noise guard; laptop run still to come
 
 Keeps sorted whole numbers (ids, positions, timestamps, links of a graph) in about a third to a half of the memory of a plain 32-bit array, and still answers "what is value number i" and "where is the first value at or above x" without unpacking. It also keeps many sorted lists in one structure (the links of every item of a map) and decodes them all at once, fast. **One file, no dependencies, works offline.** A WebAssembly path (with SIMD where the browser has it) is compiled the moment the file loads; plain JavaScript answers until it is ready and gives the same answers.
 
