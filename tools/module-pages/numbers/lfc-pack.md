@@ -151,3 +151,16 @@ At 50 keys the difference is within noise.
 | JSON.parse line by line (ms) | 1,314 | 1,621 | 1,450 |
 
 The file is 8,323,554 bytes, 44% of Parquet's size, but 18% larger than the 7,026,554 bytes an early version (about 0.1.7) made on 2026.10.27, likely because later versions pick faster compression settings. Pack time against Parquet: 2.8 to 3.5 times as fast on one thread, 4.8 to 6.9 times with 4 helpers.
+
+**New in 0.4.1: faster row-shape lookup, same files byte for byte.** Pack time with 0.4.1 divided by 0.4.0, lower is better; 100,000 rows of orders and of GeoJSON points, at default and 256 KB blocks.
+
+| Where | Pack time new / old |
+|---|---:|
+| Laptop, Chromium 156, 16 cores | 0.79 to 0.94 |
+| Laptop, Firefox 160, 16 cores (two runs) | 0.81 to 0.93 |
+| Cloud, Chromium 155 | 0.73 to 0.83 |
+| Cloud, Firefox 158 | 0.71 to 0.87 |
+| Cloud, WebKitGTK 2.52.6 | 0.91 to 1.01 (within noise) |
+| Real FHIR 260 MB, cloud Chromium 153 / Firefox 158 / WebKitGTK | 0.96 / 0.93 / 0.99 |
+
+The Parquet comparison above was measured on 0.4.0, before this change.
