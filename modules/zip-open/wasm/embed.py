@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-"""Puts wasm/crc32.wasm into zip-open.js between the WASM:BEGIN and WASM:END markers (base64 text).
+"""Puts wasm/crc32.wasm and wasm/inflate.wasm into zip-open.js between their markers (base64 text).
 Run after build.sh:  python3 modules/zip-open/wasm/embed.py            (--check only compares and exits 1 when they differ)"""
 import base64, os, re, sys
 here = os.path.dirname(os.path.abspath(__file__))
 js_path = os.path.join(here, '..', 'zip-open.js')
-b64 = base64.b64encode(open(os.path.join(here, 'crc32.wasm'), 'rb').read()).decode()
-src = open(js_path).read()
-new, n = re.subn(r"(/\*WASM:BEGIN\*/)'[^']*'(/\*WASM:END\*/)", lambda m: m.group(1) + "'" + b64 + "'" + m.group(2), src)
-if n != 1: sys.exit('markers not found exactly once')
+src = new = open(js_path).read()
+for marker, name in (('WASM', 'crc32.wasm'), ('WASMINF', 'inflate.wasm')):
+    b64 = base64.b64encode(open(os.path.join(here, name), 'rb').read()).decode()
+    new, n = re.subn(r"(/\*%s:BEGIN\*/)'[^']*'(/\*%s:END\*/)" % (marker, marker), lambda m: m.group(1) + "'" + b64 + "'" + m.group(2), new)
+    if n != 1: sys.exit('markers %s not found exactly once' % marker)
 if '--check' in sys.argv:
-    if new != src: print('zip-open.js does not carry the current crc32.wasm: run wasm/embed.py'); sys.exit(1)
-    print('zip-open.js carries the current crc32.wasm'); sys.exit(0)
+    if new != src: print('zip-open.js does not carry the current wasm files: run wasm/embed.py'); sys.exit(1)
+    print('zip-open.js carries the current crc32.wasm and inflate.wasm'); sys.exit(0)
 open(js_path, 'w').write(new)
-print('embedded %d bytes as %d characters' % (len(base64.b64decode(b64)), len(b64)))
+print('embedded crc32.wasm and inflate.wasm')

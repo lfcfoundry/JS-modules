@@ -1,13 +1,19 @@
 #!/bin/sh
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Builds crc32.wasm (the WebAssembly checksum) from crc32.c and prints its size. Needs clang (18 or newer) with the wasm32 target; the link step uses wasm-ld, which clang calls itself.
-#   sh modules/zip-open/wasm/build.sh            crc32.wasm
-#   sh modules/zip-open/wasm/build.sh --check    builds to a temporary file and exits 1 when it is not byte for byte the crc32.wasm that ships
-# Then run embed.py to put the file into ../zip-open.js.
+# Builds crc32.wasm (the WebAssembly checksum) from crc32.c and inflate.wasm (small-entry inflate) from inflate.c, and prints their sizes. Needs clang (18 or newer) with the wasm32 target; the link step uses wasm-ld, which clang calls itself.
+#   sh modules/zip-open/wasm/build.sh            crc32.wasm and inflate.wasm
+#   sh modules/zip-open/wasm/build.sh --check    builds to temporary files and exits 1 when either is not byte for byte the file that ships
+# Then run embed.py to put the files into ../zip-open.js.
 set -e
 cd "$(dirname "$0")"
-FLAGS="--target=wasm32 -O3 -ffp-contract=off -nostdlib -DSLICE=16 -Wl,--no-entry -Wl,--export=init -Wl,--export=crc -Wl,--export=inflate -Wl,--export=__heap_base -Wl,--export-memory -Wl,-z,stack-size=4096 -Wl,--strip-all"
+BASE="--target=wasm32 -O3 -ffp-contract=off -nostdlib -Wl,--no-entry -Wl,--export=__heap_base -Wl,--export-memory -Wl,-z,stack-size=4096 -Wl,--strip-all"
+CRC="$BASE -DSLICE=16 -Wl,--export=init -Wl,--export=crc"
+INF="$BASE -Wl,--export=inflate"
 case "$1" in
-  --check) T=$(mktemp); clang $FLAGS -o "$T" crc32.c; if cmp -s "$T" crc32.wasm; then echo "crc32.wasm is what crc32.c builds"; rm -f "$T"; else echo "crc32.wasm is NOT what crc32.c builds"; rm -f "$T"; exit 1; fi ;;
-  *) clang $FLAGS -o crc32.wasm crc32.c; wc -c crc32.wasm ;;
+  --check) ok=0
+    for p in crc32 inflate; do
+      T=$(mktemp); if [ $p = crc32 ]; then clang $CRC -o "$T" $p.c; else clang $INF -o "$T" $p.c; fi
+      if cmp -s "$T" $p.wasm; then echo "$p.wasm is what $p.c builds"; else echo "$p.wasm is NOT what $p.c builds"; ok=1; fi; rm -f "$T"
+    done; exit $ok ;;
+  *) clang $CRC -o crc32.wasm crc32.c; clang $INF -o inflate.wasm inflate.c; wc -c crc32.wasm inflate.wasm ;;
 esac
