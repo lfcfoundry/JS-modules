@@ -4,19 +4,31 @@
 
 **Tested in:** Node 22 checks (140), ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time
 
-The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
+## What it is and how it works
 
-A tiny software 3D rasterizer for Canvas 2D games. You describe a few smooth parametric shapes, it shades them with a toon color ramp on the CPU (no WebGL), and it bakes the result into ordinary 2D sprites: one picture, or N pictures of the shape rolling about a fixed horizontal axis. Your game then draws those pictures with `drawImage` and never touches 3D again.
+A tiny software 3D renderer that bakes glossy, rounded shapes into ordinary 2D sprites for canvas games. No WebGL, no dependencies.
 
-Each shape becomes a grid of points, the grid is cut into small triangles, and every triangle is filled into a pixel buffer that keeps a depth value per pixel, so nearer surfaces cover farther ones. Each pixel's color comes from the light direction and the color ramp you gave the part. About 985 lines of plain JavaScript (55,804 bytes with its notes), no dependencies, no build step. The core works in Node without a canvas; the browser helpers are optional.
+- You describe smooth shapes; each becomes a mesh of small triangles.
+- Triangles are filled with depth and shaded with a toon color ramp.
+- The result is one picture, or N pictures of the shape rolling, that the game draws with `drawImage`.
 
 ![A capsule with five ridges baked into 16 frames, and a torus with a bead baked into 12 frames](preview.png)
 
 ## Why it exists
 
-It was extracted from a shipped single-file browser game that wanted glossy, rounded characters and props with only one HTML file, no image assets and no WebGL context to manage. Each pose is baked once at load time into a cached picture, so the game only stamps pictures. The rasterizer is small enough to read in one sitting, so it is also a fair starting point if you want to change the shading. The pieces are small, readable and tested; the ideas are not new (see below).
+A single-file game wanted glossy 3D-looking characters with no image files and no WebGL context to manage. Each pose is baked once at load, so the game only stamps pictures. The code is small enough to read in one sitting.
+
+**Where it helps**
+
+- Characters and props for canvas games without image files.
+- Rolling or spinning sprites baked at load time.
+- A readable starting point for custom shading.
+
+**Not for:** perspective, transparency or shadows; it is orthographic and meant for sprites.
 
 ## Use
+
+The version is also in code as `SpriteBaker.version`. Run the tests (offline, about a second): `node modules/sprite-baker/test/run.js`
 
 Copy `sprite-baker.js` (browser global `SpriteBaker`, or `require` in Node). `demo.html` is the full example.
 

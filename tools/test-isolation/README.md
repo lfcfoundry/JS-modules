@@ -4,10 +4,25 @@
 
 **Tested in:** Firefox 158.0 (reports 158.0b5), ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5 for the page checks in tests/pieces-browser.js, one at a time (2026-10-17); the 7 property probes and key-loop timings were measured by the Apple Press thread in Firefox 158.0, Chromium 155 and WebKitGTK 2.52.6; not run: GNOME Web for the timings, a phone
 
-Keeps a test page away from the player's real saved game. It swaps `localStorage` (and `sessionStorage` if you ask) for a copy that puts a prefix in front of every key, so a test page, a speed test or a random-play run can never read or overwrite the real keys. 6.6 KB (4.2 KB minified, 1.8 KB gzipped), no dependencies. Cut from Apple Press, where a speed-test page once wrote into a real saved game on a phone.
+## What it is and how it works
+
+Keeps a test page away from the player's real saved game. 1.8 KB gzipped, no dependencies.
+
+- It swaps `localStorage` (and `sessionStorage` if asked) for a copy that prefixes every key.
+- A test, speed run or random-play run can never read or overwrite the real keys.
+- An inline snippet puts it in place before the game script runs.
 
 ## Why it exists
-A diagnostic page is often the same file as the game with extra buttons. Opened from a file, or from the same address as the game, it shares the game's saved data, and a run that resets or fills the save wipes the real one. The cure has to be in place before the game script runs, which is why there is an inline snippet.
+
+A test page is often the game file with extra buttons, and it shares the game's saved data. In Apple Press a speed-test page once wrote into a real saved game on a phone.
+
+**Where it helps**
+
+- Test and diagnostic builds of games.
+- Speed tests on a tester's own phone.
+- Random-play runs that reset saves.
+
+**Not for:** sandboxing; it guards against honest mistakes only.
 
 ## Try it and test it
 **Test it:** `node tools/test-isolation/test/run.js` (10 checks on a fake Storage, about 0.1 s) and `node tests/pieces-browser.js` (real localStorage, plus the `fresh`, `seed`, inline snippet and property-style checks, in Firefox, ungoogled Chromium and WebKitGTK).

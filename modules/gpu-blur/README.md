@@ -4,17 +4,29 @@
 
 **Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (container, 4 cores)
 
-The version is also in code as `GpuBlur.version`. Run the tests (offline, about a second): `node modules/gpu-blur/test/run.js`; the same tests against seven deliberately broken copies: `node modules/gpu-blur/test/mutants.js`. The real-browser check is `tests/gpu-blur-browser.js`.
+## What it is and how it works
 
-Blurs a picture: a canvas, an ImageBitmap, an ImageData or plain RGBA bytes go in, a canvas you can `drawImage`, a texture in your own WebGL 2 context, or RGBA bytes come out. It has three ways to do the same blur and takes the best one the device offers: WebGL 2 (the graphics card, where the blurred picture stays on the card and is never read back), then WebAssembly (SIMD), then plain JavaScript. All three give the same picture, byte for byte.
+Blurs a picture the same way on every device: a canvas, ImageBitmap, ImageData or RGBA bytes in, a drawable canvas, a WebGL texture or bytes out.
 
-The blur is three box passes along each axis (a close Gaussian: a bell shape that stays within 1.7 of 255 on average of a true Gaussian of the same width on the test picture). A box pass keeps a running sum, so the work does not grow with the radius. The sums are whole numbers, so there is no rounding noise, and the three ways agree exactly. The WebAssembly and JavaScript ways cut a big job into short slices (3 ms of work, then back to the browser), so the page keeps moving. The module picks its way by what the browser can do and how fast it is on a small probe, never by the browser's name. About 37 KB with its comments (the WebAssembly file inside it is 2,400 bytes), no dependencies.
+- Three ways behind one call: WebGL 2, WebAssembly (SIMD, optionally on several cores) and plain JavaScript.
+- It measures the device once and picks the best way.
+- All ways give the same picture byte for byte, using three box passes per axis (a close Gaussian).
 
 ## Why it exists
 
-A glow behind a sprite, a soft shadow, a frosted panel or a depth-of-field backdrop needs a blur that the browser's own `ctx.filter` does not give everywhere (WebKit has no `ctx.filter`), and a blur written in plain JavaScript freezes the page for a third of a second at 1920 x 1080. The graphics card does the work well when the blurred picture is only drawn, but a page cannot count on a card path that is fast and honest: some devices answer with a slow software path, a card can be lost mid-game, and reading the result back to the processor costs about as much as doing the blur in WebAssembly. This module has all three ways behind one call, checks that they agree, and measures the device once to pick. It was first measured in a lab test on a midrange phone (Android, Chrome) and a laptop with integrated graphics, where WebGL 2 did a 1920 x 1080 blur in 12.8 and 6 ms against 37.5 and 33 ms for the WebAssembly box blur; that test used a 25-tap two-pass shader, not the shader shipped here (see "Measured").
+WebKit has no canvas `ctx.filter`, a plain JavaScript blur freezes the page for a third of a second at 1080p, and a graphics-card path can be slow, lost mid-game or costly to read back. This keeps all three behind one call and makes them agree.
+
+**Where it helps**
+
+- Glows, soft shadows and frosted panels in games.
+- Depth-of-field backdrops.
+- Effects that must look identical in every browser.
+
+**Not for:** the fastest possible blur where the browser's own filter exists and exact output does not matter.
 
 ## Use
+
+The version is also in code as `GpuBlur.version`. Run the tests (offline, about a second): `node modules/gpu-blur/test/run.js`; the same tests against seven deliberately broken copies: `node modules/gpu-blur/test/mutants.js`. The real-browser check is `tests/gpu-blur-browser.js`.
 
 Copy `gpu-blur.js` (browser global `GpuBlur`, or `require` in Node, where only the WebAssembly and JavaScript ways exist). `demo.html` is a page with a radius slider, a route picker and a speed check for your own device.
 

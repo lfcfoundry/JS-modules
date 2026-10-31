@@ -4,10 +4,25 @@
 
 **Tested in:** Node unit tests; calibrate in Firefox 158, Chromium 155, WebKitGTK 2.52.6
 
-The shared helpers every browser check and speed test in this repository (and the games that follow its rules) needs, in one folder: start the three test browsers once and keep them open, run one check in all four, compare two ways of doing the same job fairly, skip a build whose inputs did not change, prove that a WebAssembly path and its plain-JavaScript twin give the same answers to the last bit, catch a drawing that changed when nobody meant it, and name the commit that broke something. Node only, no packages of its own (`puppeteer-core` for Chromium and Firefox, as the checks already used).
+## What it is and how it works
+
+The shared helpers every browser check here needs, in one folder. Node only.
+
+- Starts the test browsers once and keeps them open.
+- Runs fair head-to-head timing, skips builds whose inputs did not change, and proves a WebAssembly path matches its JavaScript twin.
+- Catches drawings that changed by accident and names the commit that broke something.
 
 ## Why it exists
-Each thread was writing the same scaffolding again: a local page server, a browser launch block, "take turns so the second runner is not favored", a table, a fresh page for a cold start. Starting a browser takes seconds on every single run (WebKitGTK the longest), and a wasm-versus-JavaScript equality check was rewritten for each module. Putting them in one place makes a check shorter to write, quicker to run and the same everywhere.
+
+Each check was rewriting the same server, browser launch, fair-turn timing and tables, and starting a browser cost seconds on every run. One place makes checks shorter to write and quicker to run.
+
+**Where it helps**
+
+- Cross-browser checks for modules and games.
+- Speed comparisons that are fair to both sides.
+- Faster test loops with warm browsers.
+
+**Not for:** checks that need a blank profile unless you ask for a cold launch.
 
 ## Quick start
 ```js

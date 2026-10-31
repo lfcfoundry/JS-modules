@@ -4,12 +4,25 @@
 
 **Tested in:** Chromium 141 and Chromium 153. Not run: Firefox, ungoogled Chromium 155, WebKitGTK, Windows, a phone.
 
-One page, one button. It tells you in plain words whether pages opened from **different files** on this device share their saved data (localStorage, locks, storage events). Save the page twice (another name or folder), open both, press the button in each.
+## What it is and how it works
 
-Each copy of the page writes one small entry (key `storage-probe:v1`) to localStorage that names its own address, and reads the entries other copies wrote. It also listens for the `storage` event and a `BroadcastChannel` reply, tries a Web Lock, and looks in IndexedDB, then turns what it saw into a one-sentence verdict.
+One page, one button: it tells you in plain words whether pages opened from different files on a device share their saved data.
+
+- Save the page twice under different names, open both and press the button in each.
+- Each copy writes one small entry and reads what the other wrote.
+- It also checks storage events, a `BroadcastChannel`, Web Locks and IndexedDB.
 
 ## Why it exists
-The Story Editor and the games are single files that people keep in several folders. Whether two copies share one save, and whether one copy can tell the other is open, decides how the autosave, the one-window guard and every storage key must be designed. This tool answers it on the reader's own phone or computer, without a developer.
+
+The Story Editor and the games are single files people keep in several folders. Whether two copies share one save decides how autosave and the one-window guard must work. This answers it on the reader's own device.
+
+**Where it helps**
+
+- Designing storage for single-file apps.
+- Checking a new phone or browser.
+- Explaining storage behavior to non-developers.
+
+**Not for:** cookies, `sessionStorage` or the Cache API.
 
 ## What it reports
 - Address type and origin. In Chromium the origin of a page opened from a file is the text `file://`, the same in every folder (measured 2026-10-17); other browsers may report `null`, which has not been checked.
