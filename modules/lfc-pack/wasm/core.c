@@ -19,7 +19,7 @@ typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u
 #define MAXD 100
 static u8 IN[IN_CAP]; static u8 TEXT[TEXT_CAP]; static f64 NUMV[NUM_CAP]; static u32 NUMP[NUM_CAP];
 static u32 SIDE[SIDE_CAP*3]; static u32 IDS[ROW_CAP]; static u32 ROWSTART[ROW_CAP]; static u32 ROWEND[ROW_CAP]; static u8 SK[SK_CAP];
-static u8 SHAPES[SHAPE_CAP]; static u32 SHOFF[SHAPE_N+1]; static u32 SHTAB[SHAPE_N*2]; // open addressing: [id+1]
+static u8 SHAPES[SHAPE_CAP]; static u32 SHOFF[SHAPE_N+1]; static u32 SHTAB[SHAPE_N*2]; static u32 SHSLOT[SHAPE_N]; // open addressing: [id+1]; SHSLOT: the slot each shape took, so reset clears only those
 static u32 SLOWN[(1u<<19)*3]; static u32 slowN;
 static u8 ODD[1u<<18]; static u32 odd; static u32 NODD[(1u<<20)*4]; static u32 nOddN, rowNumK, exactMode;
 static u32 fbBeg;
@@ -37,7 +37,7 @@ EXPORT("nodd_ptr") u32* nodd_ptr(void){return NODD;}
 EXPORT("odd_ptr") u8* odd_ptr(void){return ODD;}
 EXPORT("state_ptr") u32* state_ptr(void){static u32 s[16]; s[0]=textPos;s[1]=numN;s[2]=sideN;s[3]=strN;s[4]=rowN;s[5]=shapeN;s[6]=fbStart;s[7]=fbEnd;s[8]=pos;s[9]=slowN;s[10]=fbBeg;s[11]=nOddN;return s;}
 EXPORT("set_state") void set_state(u32 a,u32 b,u32 c,u32 d,u32 e){textPos=a;numN=b;sideN=c;strN=d;rowN=e;}
-EXPORT("reset") void reset(u32 len){nOddN=0;inLen=len;pos=0;textPos=0;numN=0;sideN=0;slowN=0;strN=0;rowN=0;shapeN=0;shapeBytes=0;SHOFF[0]=0;for(u32 i=0;i<SHAPE_N*2;i++)SHTAB[i]=0;}
+EXPORT("reset") void reset(u32 len){nOddN=0;inLen=len;pos=0;textPos=0;numN=0;sideN=0;slowN=0;strN=0;rowN=0;for(u32 i=0;i<shapeN;i++)SHTAB[SHSLOT[i]]=0;shapeN=0;shapeBytes=0;SHOFF[0]=0;}
 static inline u32 fnv(u32 h,u8 c){return (h^c)*16777619u;}
 static u64 fnv64(const u8*p,u32 n){u64 h=1469598103934665603ull;for(u32 i=0;i<n;i++){h^=p[i];h*=1099511628211ull;}return h;}
 static const f64 P10[]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,1e15,1e16,1e17,1e18,1e19,1e20,1e21,1e22};
@@ -115,7 +115,7 @@ static u32 shapeFor(const u8*s,u32 n){
   u32 h=(u32)(fnv64(s,n)>>20)&(SHAPE_N*2-1);
   for(;;){ u32 t=SHTAB[h]; if(!t)break; u32 id=t-1; u32 a=SHOFF[id],l=SHOFF[id+1]-a; if(l==n){u32 same=1;for(u32 i=0;i<n;i++)if(SHAPES[a+i]!=s[i]){same=0;break;} if(same)return id;} h=(h+1)&(SHAPE_N*2-1); }
   if(shapeN>=SHAPE_N||shapeBytes+n>SHAPE_CAP)return 0xFFFFFFFFu;
-  for(u32 i=0;i<n;i++)SHAPES[shapeBytes+i]=s[i]; SHOFF[shapeN]=shapeBytes; shapeBytes+=n; SHOFF[shapeN+1]=shapeBytes; SHTAB[h]=shapeN+1; return shapeN++;
+  for(u32 i=0;i<n;i++)SHAPES[shapeBytes+i]=s[i]; SHOFF[shapeN]=shapeBytes; shapeBytes+=n; SHOFF[shapeN+1]=shapeBytes; SHTAB[h]=shapeN+1; SHSLOT[shapeN]=h; return shapeN++;
 }
 EXPORT("commit_shape") u32 commit_shape(u32 n){return shapeFor(SK,n);}
 // Parse rows from pos. Returns 0 when the block is done, 1 when row fbStart..fbEnd needs the JS path (rows before it are done), 2 on capacity error.
@@ -142,8 +142,10 @@ EXPORT("dd_out_len") u32 dd_out_len(void){return ddOutLen;} EXPORT("dd_n") u32 d
 static int ddEq(const u8*a,const u8*b,u32 n){ for(u32 i=0;i<n;i++) if(a[i]!=b[i]) return 0; return 1; }
 /* input: TEXT[0..inlen) holding `count` NUL-terminated strings (the last terminator may be missing). Returns count, or 0xFFFFFFFF on overflow. */
 EXPORT("dd_run") u32 dd_run(u32 inlen, u32 count){
-  for(u32 i=0;i<(1u<<DD_TBITS);i++) DDTAB[i]=0;
-  ddN=0; ddOutLen=0; u32 pos=0; const u32 mask=(1u<<DD_TBITS)-1;
+  /* the hash table is sized to the strings of this call (at least twice their count, up to 2^DD_TBITS): clearing all 16 MB of it for every block cost more than the work itself on small blocks */
+  u32 tb=10; while(tb<DD_TBITS && (1u<<tb)<count*2u) tb++;
+  for(u32 i=0;i<(1u<<tb);i++) DDTAB[i]=0;
+  ddN=0; ddOutLen=0; u32 pos=0; const u32 mask=(1u<<tb)-1;
   if(count>DD_MAXS) return 0xFFFFFFFFu;
   for(u32 s=0;s<count;s++){
     u32 st=pos; u64 h=1469598103934665603ull;
