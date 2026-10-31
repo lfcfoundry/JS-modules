@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.7.0 · API 1 · 2026-10-31
-- Faster Excel (.xlsx) sheet reading: the XML scanner finds tag ends and attributes without regular expressions on the common path and skips text nobody asked for. About 20 to 30% less time on big sheets. Same cells, same notes.
+- Excel sheets are read faster: on a 16-core laptop 11 to 24% faster in Firefox and 23 to 24% faster in Chromium, with the same results.
 
 ## 1.6.0 · API 1 · 2026-10-31
 - Text entries are unpacked into one shared buffer that is reused for the next entry (let go 5 s after the last one). Laptop Chromium: 2 to 14% faster on most zips; laptop Firefox: about even.
