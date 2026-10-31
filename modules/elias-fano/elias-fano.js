@@ -178,7 +178,15 @@
   P.nextValue = function (x) { var i = this.nextGEQ(x); return i < this.length ? this.get(i) : undefined; };
   P.contains = function (x) { var i = this.nextGEQ(x); return i < this.length && this.get(i) === x; };
   P.count = function (lo, hi) { return this.nextGEQ(hi) - this.nextGEQ(lo); };
+  // getMany takes positions 0 .. length - 1 only (whole numbers); anything else is refused, because the readers do not check each one (out of range used to hang or read past the list)
+  function checkIdx(idx, n) {
+    var j, k = idx.length, i, bad = -1;
+    if (idx instanceof Uint32Array) { for (j = 0; j < k; j++) if (idx[j] >= n) { bad = j; break; } }   // whole and not negative already: one compare each
+    else for (j = 0; j < k; j++) { i = idx[j]; if (!(i >= 0 && i < n) || i % 1 !== 0) { bad = j; break; } }
+    if (bad >= 0) throw new RangeError('elias-fano: getMany position ' + idx[bad] + ' is outside the list (0 to ' + (n - 1) + ')');
+  }
   P.getMany = function (idx, out) {
+    checkIdx(idx, this.length);
     var k = idx.length, r = out || new Uint32Array(k), j;
     if (this._wasm()) {
       var ip = alloc(k * 4), op = alloc(k * 4); u32.set(idx instanceof Uint32Array ? idx : Uint32Array.from(idx), ip >>> 2);
@@ -466,7 +474,8 @@
       return r;
     };
   }
-  PP.getMany = manyP('getMany', function (i) { return this._cget(i >>> this._logC, i & ((1 << this._logC) - 1)); }, 'pef_get_many');
+  var getManyP = manyP('getMany', function (i) { return this._cget(i >>> this._logC, i & ((1 << this._logC) - 1)); }, 'pef_get_many');
+  PP.getMany = function (idx, out) { checkIdx(idx, this.length); return getManyP.call(this, idx, out); };
   PP.nextGEQMany = manyP('nextGEQMany', PP._nextJS, 'pef_next_many');
   PP.slice = function (a, b) {
     var n = this.length; a = Math.max(0, a | 0); b = Math.min(n, b === undefined ? n : b | 0); if (b <= a) return new Uint32Array(0);
