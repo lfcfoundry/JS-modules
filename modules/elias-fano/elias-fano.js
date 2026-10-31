@@ -120,9 +120,7 @@
   function List(bytes) {
     var h = listHeader(bytes);
     this.bytes = bytes; this.length = h[1]; this._maxv = h[2]; this._l = h[3]; this._s = h[4]; this._nbits = h[5]; this._ptr = 0; this._wm = false;
-    var b = bytes.buffer, o = bytes.byteOffset;
-    this._low = new Uint32Array(b, o + h[6], (h[7] - h[6]) >>> 2); this._hi = new Uint32Array(b, o + h[7], (h[8] - h[7]) >>> 2);
-    this._s1 = new Uint32Array(b, o + h[8], (h[9] - h[8]) >>> 2); this._s0 = new Uint32Array(b, o + h[9], (h[10] - h[9]) >>> 2);
+    this._views(bytes);
     this._pw = Math.pow(2, this._l); this._m = this._l === 0 ? 0 : ((1 << this._l) - 1) >>> 0;
   }
   var P = List.prototype;
@@ -167,10 +165,25 @@
   /* ---- reading in WebAssembly: the list is copied into the module's memory the first time it is asked, and let go by free() ---- */
   P._wasm = function () {
     if (backend === 'js' || W === null) return false;
-    if (!this._wm) { this._ptr = alloc(this.bytes.length); u8.set(this.bytes, this._ptr); this._wm = true; }
+    if (!this._wm) { this._ptr = alloc(this.bytes.length); u8.set(this.bytes, this._ptr); this._wm = true; this._blen = this.bytes.length; }
     return true;
   };
-  P.free = function () { if (this._wm && W) { release(this._ptr, this.bytes.length); this._wm = false; this._ptr = 0; } };
+  P.free = function () { if (this._wm && W) { if (!this.bytes) this._back(); release(this._ptr, this._blen); this._wm = false; this._ptr = 0; } };
+  /* compact(): once the list sits in the module's memory, let go of the JavaScript copy of its bytes, so one copy is kept instead of two (memory in use about halves).
+     Returns false (and keeps both) when WebAssembly is not in use. Drop your own reference to the bytes you opened too, or they stay in memory.
+     The plain JavaScript path (setBackend('js'), slice) and free() copy the bytes back out first. */
+  P.compact = function () {
+    if (!this._wasm()) return false;
+    if (this.bytes) { this.bytes = null; this._views(null); }
+    return true;
+  };
+  P._views = function (bytes) {
+    if (!bytes) { this._low = this._hi = this._s1 = this._s0 = null; return; }
+    var h = listHeader(bytes), b = bytes.buffer, o = bytes.byteOffset;
+    this._low = new Uint32Array(b, o + h[6], (h[7] - h[6]) >>> 2); this._hi = new Uint32Array(b, o + h[7], (h[8] - h[7]) >>> 2);
+    this._s1 = new Uint32Array(b, o + h[8], (h[9] - h[8]) >>> 2); this._s0 = new Uint32Array(b, o + h[9], (h[10] - h[9]) >>> 2);
+  };
+  P._back = function () { if (!this.bytes) { this.bytes = u8.slice(this._ptr, this._ptr + this._blen); this._views(this.bytes); } };
   P.get = function (i) { if (!(i >= 0 && i < this.length) || i % 1 !== 0) return undefined; return this._wasm() ? W.ef_get(this._ptr, i) >>> 0 : this._getJS(i); };
   P.nextGEQ = function (x) { if (!(x > 0)) x = 0; if (x > 4294967295) return this.length; if (x % 1 !== 0) x = Math.ceil(x); return this._wasm() ? W.ef_next(this._ptr, x) >>> 0 : this._nextJS(x); };
   P.lowerBound = P.nextGEQ;   // how many values are below x (same number as nextGEQ)
@@ -217,12 +230,16 @@
     }
     return r;
   };
-  P.stats = function () { return { count: this.length, bytes: this.bytes.length, bitsPerValue: this.length ? this.bytes.length * 8 / this.length : 0, lowBits: this._l }; };
+  P.stats = function () { var bl = this.bytes ? this.bytes.length : this._blen; return { count: this.length, bytes: bl, bitsPerValue: this.length ? bl * 8 / this.length : 0, lowBits: this._l, compact: !this.bytes }; };
+  // the plain JavaScript readers need the bytes in JavaScript: after compact() they are copied back out the first time
+  function backFirst(proto, names) { names.forEach(function (n) { var f = proto[n]; proto[n] = function (a, b, c) { if (!this.bytes) this._back(); return f.call(this, a, b, c); }; }); }
+  backFirst(P, ['_getJS', '_nextJS', '_decodeJS', 'slice']);
 
-  function open(bytes) {
+  // opts.compact: call compact() right away (after ready(), when WebAssembly is in use)
+  function open(bytes, opts) {
     if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes);
     if (bytes.byteOffset % 4 !== 0) bytes = bytes.slice();
-    return new List(bytes);
+    var r = new List(bytes); if (opts && opts.compact) r.compact(); return r;
   }
 
 
@@ -327,7 +344,11 @@
     return { offsets: offsets, values: values };
   };
   LP.free = function () { this._off.free(); for (var c = 0; c < this._chunks.length; c++) if (this._chunks[c]) this._chunks[c].free(); };
-  function openLists(bytes) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); if (bytes.byteOffset % 8 !== 0) bytes = bytes.slice(); return new Lists(bytes); }
+  LP.compact = function () {   // as List.compact(), for the offsets and every chunk; the shared bytes are let go only when all of them made it into the module's memory
+    var ok = this._off.compact(), c; for (c = 0; c < this._chunks.length; c++) if (this._chunks[c] && !this._chunks[c].compact()) ok = false;
+    if (ok) this.bytes = null; return ok;
+  };
+  function openLists(bytes, opts) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); if (bytes.byteOffset % 8 !== 0) bytes = bytes.slice(); var r = new Lists(bytes); if (opts && opts.compact) r.compact(); return r; }
 
   /* ---- partitioned lists (since 1.2.0): chunks of 2^logC values (the last one shorter); each chunk is stored as the cheapest of a dense range (no bits at all), a bitmap or Elias-Fano. Same format as wasm/ef.c describes. ---- */
   var PMAGIC = 0x00015046, PHDR = 48;
@@ -406,8 +427,8 @@
   }
   function PList(bytes) {
     var h = pHeader(bytes);
-    this.bytes = bytes; this.length = h[1]; this._logC = h[2]; this._nc = h[3]; var W32 = new Uint32Array(bytes.buffer, bytes.byteOffset, bytes.length >> 2);
-    this._h = W32; this._F = h[4] >> 2; this._L = h[5] >> 2; this._O = h[6] >> 2; this._M = h[7]; this._P = h[8] >> 2; this._wm = false; this._ptr = 0;
+    this.bytes = bytes; this.length = h[1]; this._logC = h[2]; this._nc = h[3];
+    this._h = new Uint32Array(bytes.buffer, bytes.byteOffset, bytes.length >> 2); this._F = h[4] >> 2; this._L = h[5] >> 2; this._O = h[6] >> 2; this._M = h[7]; this._P = h[8] >> 2; this._wm = false; this._ptr = 0;
   }
   var PP = PList.prototype;
   PP._cn = function (c) { return c + 1 < this._nc ? (1 << this._logC) : this.length - ((this._nc - 1) << this._logC); };
@@ -454,7 +475,9 @@
     return out;
   };
   PP._wasm = P._wasm;
-  PP.free = P.free;
+  PP.free = P.free; PP.compact = P.compact;
+  PP._views = function (bytes) { this._h = bytes ? new Uint32Array(bytes.buffer, bytes.byteOffset, bytes.length >> 2) : null; };
+  PP._back = P._back;
   PP.get = function (i) { if (!(i >= 0 && i < this.length) || i % 1 !== 0) return undefined; return this._wasm() ? W.pef_get(this._ptr, i) >>> 0 : this._cget(i >>> this._logC, i & ((1 << this._logC) - 1)); };
   PP.nextGEQ = function (x) { if (!(x > 0)) x = 0; if (x > 4294967295) return this.length; if (x % 1 !== 0) x = Math.ceil(x); return this._wasm() ? W.pef_next(this._ptr, x) >>> 0 : this._nextJS(x); };
   PP.lowerBound = PP.nextGEQ; PP.rank = P.rank; PP.nextValue = P.nextValue; PP.contains = P.contains; PP.count = P.count; PP.rankMany = P.rankMany;
@@ -476,10 +499,11 @@
   };
   PP.toArray = function () { return this.slice(0, this.length); };
   PP.stats = function () {
-    var kinds = [0, 0, 0], c; for (c = 0; c < this._nc; c++) kinds[this.bytes[this._M + c] & 3]++;
-    return { count: this.length, bytes: this.bytes.length, bitsPerValue: this.length ? this.bytes.length * 8 / this.length : 0, chunk: 1 << this._logC, chunks: this._nc, dense: kinds[0], bitmap: kinds[1], eliasFano: kinds[2] };
+    var B = this.bytes || u8.subarray(this._ptr, this._ptr + this._blen), kinds = [0, 0, 0], c; for (c = 0; c < this._nc; c++) kinds[B[this._M + c] & 3]++;
+    return { count: this.length, bytes: B.length, bitsPerValue: this.length ? B.length * 8 / this.length : 0, compact: !this.bytes, chunk: 1 << this._logC, chunks: this._nc, dense: kinds[0], bitmap: kinds[1], eliasFano: kinds[2] };
   };
-  function openPartitioned(bytes) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); if (bytes.byteOffset % 8 !== 0) bytes = bytes.slice(); return new PList(bytes); }
+  backFirst(PP, ['_cget', '_cnext', '_nextJS', '_decodeJS']);
+  function openPartitioned(bytes, opts) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); if (bytes.byteOffset % 8 !== 0) bytes = bytes.slice(); var r = new PList(bytes); if (opts && opts.compact) r.compact(); return r; }
 
   /* ---- intersection of sorted lists: leapfrog over nextGEQ, nothing is decoded. Lists may be flat or partitioned, in any mix; each common value comes out once ---- */
   function intersect(lists) {
