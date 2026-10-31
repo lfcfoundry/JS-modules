@@ -6,7 +6,7 @@
 # Then run embed.py to put the file into ../netflow-sankey.js.
 set -e
 cd "$(dirname "$0")"
-FLAGS="--target=wasm32 -O3 -mbulk-memory -ffp-contract=off -nostdlib -Wl,--no-entry -Wl,--export=bind -Wl,--export=run -Wl,--export=__heap_base -Wl,--export-memory -Wl,-z,stack-size=8192 -Wl,--strip-all"
+FLAGS="--target=wasm32 -O3 -mbulk-memory -ffp-contract=off -nostdlib -Wl,--no-entry -Wl,--export=bind -Wl,--export=run -Wl,--export=relax -Wl,--export=__heap_base -Wl,--export-memory -Wl,-z,stack-size=8192 -Wl,--strip-all"
 case "$1" in
   --check) T=$(mktemp); clang $FLAGS -o "$T" order.c; if cmp -s "$T" order.wasm; then echo "order.wasm is what order.c builds"; rm -f "$T"; else echo "order.wasm is NOT what order.c builds"; rm -f "$T"; exit 1; fi ;;
   *) clang $FLAGS -o order.wasm order.c; wc -c order.wasm ;;
