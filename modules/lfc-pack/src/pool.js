@@ -87,7 +87,7 @@
         var ws = [], results = new Array(groups.length), left = groups.length, failed = false;
         function release(ok) {   // finished helpers wait 3 s for the next call (they already hold the loaded wasm); a failed run ends them
           if (!ok) { ws.forEach(function (x) { x.kill(); }); ws = []; }
-          else ws.forEach(function (x) { x.post({ kind: 't' }, []); });   // a waiting helper gives back its packer memory (it keeps the compiled wasm and its zstd memory, so the next call is as fast)
+          else if (HELPER_TRIM_MS >= 0) { clearTimeout(trimTimer); trimTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.post({ kind: 't' }, []); }); }, HELPER_TRIM_MS); if (trimTimer.unref) trimTimer.unref(); }   // HELPER_TRIM_MS -1 (default): helpers keep their packer memory until they close 3 s after the last call; giving it back at once made every call grow it again (7-25% slower helper packs)
           clearTimeout(idleTimer); idleHelpers = idleHelpers.concat(ws); ws = [];
           idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, 3000); if (idleTimer.unref) idleTimer.unref();
         }
@@ -115,7 +115,7 @@
       });
     });
   }
-  var idleHelpers = [], idleTimer = null, packUrl = null;
+  var idleHelpers = [], idleTimer = null, trimTimer = null, HELPER_TRIM_MS = -1, packUrl = null;
   // warmPack(n, { keepMs }): start n pack helpers now (default: as many as packParallel would use, at most 8) and keep them keepMs (default 10,000) for the next packParallel call, which then skips the helper start-up
   function warmPack(n, o) {
     return init().then(function () {
@@ -129,7 +129,7 @@
     });
   }
   function takeHelper() {   // a helper kept from the last packParallel call, or a new one
-    clearTimeout(idleTimer); if (idleHelpers.length) return idleHelpers.pop();
+    clearTimeout(idleTimer); clearTimeout(trimTimer); if (idleHelpers.length) return idleHelpers.pop();
     var src = workerSource(true), w;
     if (typeof Worker === 'function') {
       packUrl = packUrl || URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); w = new Worker(packUrl);
