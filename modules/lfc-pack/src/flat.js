@@ -472,8 +472,19 @@
     for (q = 1; q < 3; q++) if (live[q] && best[q] < wt) { win = q; wt = best[q]; }
     return sink > 0 ? win : 0;
   }
+  // opt-in generated row builders ({ rows: 'generated' }): one function per key set that fills a row with plain assignments. Needs 'unsafe-eval' in the page's security policy; if the engine refuses, the normal ways are used. Never used unless asked for.
+  var genCache = {}, genRefused = false;
+  function rowBuilder(keys) {
+    var id = keys.join('\u0000') + '\u0001' + keys.length, f = genCache[id], j, src;
+    if (f !== undefined) return f;
+    if (genRefused) return null;
+    try { src = 'var o={};'; for (j = 0; j < keys.length; j++) src += 'o[' + JSON.stringify(keys[j]) + ']=c[' + j + '][i];'; f = genCache[id] = new Function('c', 'i', src + 'return o;'); }
+    catch (e) { genRefused = true; return null; }
+    return f;
+  }
   function makeFlatReader(zs) {
     // assemble rows from the decompressed frames of flatFrames; want: null, or an object whose own keys are the only keys to decode
+    var gen = false;
     function assemble(F, want) {
       var meta = F.meta, n = F.n, K = meta.keys.length, vals = new Array(K), pl = F.pl, ordList = F.ordList, ordIds = F.ordIds, i, j;
       for (j = 0; j < K; j++) vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr);
@@ -486,6 +497,7 @@
       if (dense) { for (j = 0, ts = '{'; j < K; j++) ts += (j ? ',' : '') + JSON.stringify(keys[j]) + ':null'; tpl = JSON.parse(ts + '}'); }
       var useClone = dense && cloneBest[K];
       if (dense && useClone === undefined && n >= 2000) useClone = cloneBest[K] = probeClone(keys, vals, tpl, K);
+      if (dense && gen && n >= 1) { var mk = rowBuilder(keys); if (mk) { for (i = 0; i < n; i++) out[i] = mk(vals, i); return out; } }
       if (dense && useClone === 2) { for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) o[keys[j]] = vals[j][i]; out[i] = o; } return out; }
       if (dense && useClone === 1) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
       else for (i = 0; i < n; i++) out[i] = {};
@@ -512,5 +524,5 @@
       }
       return { n: n, keys: Object.keys(cols), cols: cols, present: present };
     }
-    return { readBlock: readBlock, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
+    return { generated: function (on) { gen = !!on; }, readBlock: readBlock, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
   }
