@@ -23,6 +23,8 @@ file carries it), the first lines of its README, the root README tables, the fro
                                                           (use "\n" between lines for more than one; at most 4 lines of 240 characters); --note is the full
                                                           entry for the private changelog. --tested says which browsers (with versions) the release was
                                                           tested in ("not recorded" when left out). Without --short, the first sentence of --note is used.
+                                                          --ratios "0.988,0.835" (new/old times from the A/B table): {faster} in --short, --quick,
+                                                          --details or --note becomes "1 to 17% faster", worked out from the ratios under 1.
   python3 tools/versions/versions.py tested ID X.Y.Z "Firefox 158, ..."
                                                           write or fix the "Tested in" line of an existing entry (and the README line when it is the newest)
   python3 tools/versions/versions.py changelog            rebuild the root CHANGELOG.md
@@ -669,6 +671,27 @@ def find_root(start):
         d = n
 
 
+def faster_range(text):
+    """'0.988, 0.835, 1.040' (new time / old time, from the A/B table) -> '1 to 17% faster', from the ratios under 1 (rounded half up).
+    When a ratio is under 0.5: '0.039,0.047,0.023' -> '21 to 43 times as fast (95 to 98% less time)'."""
+    vals = [float(x) for x in re.split(r"[,\s]+", text.strip()) if x]
+    if not vals or any(v <= 0 for v in vals):
+        raise ValueError("give the new/old time ratios, for example 0.988,0.835")
+    pct = sorted(int((1 - v) * 100 + 0.5) for v in vals if v < 1)
+    pct = [p for p in pct if p > 0]
+    if not pct:
+        raise ValueError("no ratio is under 1, so nothing is faster: write the line by hand")
+    if min(vals) < 0.5:   # a big gain reads better as "times as fast": 0.039 -> 26 times as fast (96% less time)
+        def times(x):
+            f = 1 / x
+            return ("%d" % int(f + 0.5)) if f >= 10 else ("%.1f" % (int(f * 10 + 0.5) / 10)).replace(".0", "")
+        fast = sorted(v for v in vals if v < 1)
+        tm = times(fast[-1]) if fast[0] == fast[-1] else "%s to %s" % (times(fast[-1]), times(fast[0]))
+        less = "%d%%" % pct[0] if pct[0] == pct[-1] else "%d to %d%%" % (pct[0], pct[-1])
+        return "%s times as fast (%s less time)" % (tm, less)
+    return "%d%% faster" % pct[0] if pct[0] == pct[-1] else "%d to %d%% faster" % (pct[0], pct[-1])
+
+
 def main(argv):
     root = None
     if "--root" in argv:
@@ -713,6 +736,11 @@ def main(argv):
                 del argv[k:k + 2]
                 if flag == "--quick": quick = val
                 else: details = val
+        ratios = None
+        if "--ratios" in argv:
+            k = argv.index("--ratios")
+            ratios = argv[k + 1] if k + 1 < len(argv) else ""
+            del argv[k:k + 2]
         if "--tested" in argv:
             k = argv.index("--tested")
             tested = argv[k + 1] if k + 1 < len(argv) else None
@@ -727,6 +755,14 @@ def main(argv):
             argv = argv[:k]
         if len(argv) != 3 or not SEMVER.match(argv[2]) or not note:
             sys.exit('usage: versions.py set ID X.Y.Z [--tested "..."] [--short "one plain line"] [--quick "..."] [--details "..."] --note "full entry"')
+        if ratios is not None:
+            try:
+                fast = faster_range(ratios)
+            except ValueError as err:
+                sys.exit("versions: --ratios: %s" % err)
+            if not any("{faster}" in (t or "") for t in (short, quick, details, note)):
+                sys.exit("versions: --ratios given but no {faster} in --short, --quick, --details or --note")
+            short, quick, details, note = [t.replace("{faster}", fast) if t else t for t in (short, quick, details, note)]
         e = next((x for _, x in entries(reg) if x["id"] == argv[1]), None)
         if not e:
             sys.exit("versions: no module or tool called " + argv[1])

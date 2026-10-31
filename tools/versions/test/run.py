@@ -120,6 +120,10 @@ try:
     t2 = V0.put_entry(t0, "1.0.0", "## 1.0.0 \u00b7 API 1 \u00b7 2026-01-03\n- redo 1\n")
     check("replacing the last entry keeps the others", t2.count("## 1.0.0") == 1 and "old a" in t2 and t2.endswith("- redo 1\n"), t2)
     check("a new version still goes on top", V0.put_entry(t0, "1.2.0", "## 1.2.0 \u00b7 API 1 \u00b7 2026-01-03\n- n 3\n").index("1.2.0") < t0.index("1.1.0") + 30)
+    check("faster range from A/B ratios (three corrected lines of 2026.10.31)", V0.faster_range("0.988,0.835,1.040") == "1 to 17% faster" and V0.faster_range("0.797 0.887") == "11 to 20% faster" and V0.faster_range("0.66,0.2") == "1.5 to 5 times as fast (34 to 80% less time)" and V0.faster_range("0.039,0.047,0.023") == "21 to 43 times as fast (95 to 98% less time)" and V0.faster_range("0.4") == "2.5 times as fast (60% less time)" and V0.faster_range("0.95") == "5% faster")
+    rc, out = run(root, "set", "alpha", "2.4.2", "--ratios", "0.988,0.835", "--short", "Parsing is {faster}.", "--note", "Parsing is {faster} (laptop)."); check("set --ratios fills {faster}", rc == 0 and "Parsing is 1 to 17% faster." in r(root, "modules/alpha/CHANGELOG.md"), out + r(root, "modules/alpha/CHANGELOG.md")[:400])
+    rc, out = run(root, "set", "alpha", "2.4.3", "--ratios", "0.9", "--short", "No placeholder.", "--note", "x"); check("--ratios without {faster} is refused", rc != 0 and "{faster}" in out, out)
+    rc, out = run(root, "set", "alpha", "2.4.3", "--ratios", "1.02", "--short", "{faster}", "--note", "x"); check("--ratios with nothing under 1 is refused", rc != 0 and "nothing is faster" in out, out)
 finally:
     shutil.rmtree(root, ignore_errors=True)
     shutil.rmtree(FULL, ignore_errors=True)
