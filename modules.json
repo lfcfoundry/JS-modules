@@ -22,7 +22,7 @@
     },
     {
       "id": "save-kit",
-      "version": "1.3.1",
+      "version": "1.4.0",
       "api": 1,
       "global": "SaveKit",
       "summary": "Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to.",
@@ -154,7 +154,7 @@
     },
     {
       "id": "field-report",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "api": 1,
       "global": "FieldReport",
       "summary": "Two hidden buttons for a game or app: five taps in a corner open a panel that saves a speed report (start-up, frames a second, slowest frames, heavy tasks, plain verdict) and an error log, as small Markdown files. No network.",
@@ -320,7 +320,7 @@
     },
     {
       "id": "zip-open",
-      "version": "1.5.1",
+      "version": "1.5.2",
       "api": 1,
       "global": "ZipOpen",
       "summary": "Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note.",
@@ -389,7 +389,7 @@
     },
     {
       "id": "text-columns",
-      "version": "0.6.2",
+      "version": "0.6.3",
       "api": 0,
       "global": "TextColumns",
       "summary": "Reads CSV or TSV text into typed columns: plain decimal columns come out as Float64Array straight from the bytes, the rest as text. The field scan runs in WebAssembly SIMD; plain JavaScript gives the same answers.",
@@ -403,7 +403,7 @@
     },
     {
       "id": "pcodec-js",
-      "version": "1.6.1",
+      "version": "1.6.2",
       "api": 1,
       "global": "PcodecJS",
       "summary": "Pcodec for web pages: unpacks (and optionally packs) big lists of numbers in a browser, one file, same bytes as any other Pcodec. The unpack-only file is 61 KB gzipped (the other JavaScript build of Pcodec is 324 KB), streams a 4,000,000-number file in 6.3 MB of memory, and WebAssembly is required (no plain-JavaScript backup).",
@@ -672,7 +672,7 @@
     },
     {
       "id": "test-runner",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "api": 1,
       "summary": "Shared pieces for browser checks and speed tests: warm browsers, a four-browser runner, fair timing, skip-unchanged wasm builds, a wasm-versus-JavaScript twin test, a picture fingerprint gate and an automatic bisect.",
       "short": "Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect.",

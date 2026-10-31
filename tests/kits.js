@@ -114,6 +114,7 @@ var steps = [
   ['zip-open checksums', 'node', ['tests/zip-open-crc-browser.js'], true, true],   // optional like the one above (the checksum against a plain bit-by-bit CRC in Node and in each browser, with timings)
   ['sprite-baker Fancy pixels', 'node', ['tests/sprite-baker-fancy-browser.js'], true, true],   // optional like the one above (Fancy Banana's own filler against sprite-baker, byte for byte, in Node and in each browser, with timings)
   ['save-kit speed', 'node', ['tests/save-kit-speed-browser.js'], true, true],   // optional like the one above (one game-sized save and load, new file against an older one with OLD=, in Node and in each browser)
+  ['save-kit durable', 'node', ['tests/save-kit-durable-browser.js'], true, true],   // optional: durable option checks, its cost, and a real crash with CRASH=1
   ['save-kit large saves', 'node', ['tests/save-kit-large-browser.js'], true, true],   // optional like the one above (createLarge: 23 checks in each browser; LIBS=<folder with idb-keyval and localforage> adds the speed table)
   ['memory-compression browser', 'node', ['tests/memory-compression-browser.js'], true, true],   // optional: the module's own 36 checks inside each browser page (about 6 to 8 s per browser)
   ['memory-compression pager browser', 'node', ['tests/memory-compression-pager-browser.js'], true, true],   // optional: pager() exactness (pages, background, real IndexedDB spill) and page-open timings in each browser

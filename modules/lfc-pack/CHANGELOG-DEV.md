@@ -28,6 +28,8 @@ Nested blocks keep strings per string path by default (sp:1, LAYOUT-SPEC 3.5a): 
 ### Deep
 Per-path strings by default, share and access:'random' options, trim(), lower helper memory, faster packing.
 
+## Next (not released yet)
+
 ### Details (number grouping)
 `shred()` grouped the numbers of a nested block by path with two JavaScript Map lookups per number. The path hashes are 32-bit, which are slow as Map keys. On its own that loop took about 60 ns per number in all three browsers (2,000,000 numbers in 96 to 143 ms). A direct-mapped cache in front of the Map was slower still (132 to 194 ms), so it was dropped.
 

@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.1 (API 1)
+ * Version 1.4.0 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -218,6 +218,71 @@
   function escapeRe(t) { return t.replace(/[.*+?^${}()|[\]\\\/-]/g, '\\$&'); }
 //@end
 
+//@begin durable
+  // ---- durable mirror (IndexedDB copy of create()'s saves) ----
+  // Each save is also put in IndexedDB with durability 'strict' (written through to disk before the browser says done), newest only:
+  // while one write runs, later saves wait and only the newest is written. The record already there when the page opened is read once
+  // (boot) before any write, so a save made before recover() runs can never cover up the newer copy recover() is looking for.
+  function durableMirror(name, given) {
+    var idb = given !== undefined ? given : typeof indexedDB !== 'undefined' ? indexedDB : null, dbp = null, busy = false, pend = null, waiters = [], boot;
+    function db() {
+      if (!dbp) dbp = new Promise(function (ok) {
+        if (!idb) { ok(null); return; }
+        try {
+          var rq = idb.open(name, 1);
+          rq.onupgradeneeded = function () { rq.result.createObjectStore('slots'); };
+          rq.onsuccess = function () { var d = rq.result; d.onversionchange = d.onclose = function () { try { d.close(); } catch (e) {} dbp = null; }; ok(d); };
+          rq.onerror = rq.onblocked = function () { dbp = null; ok(null); };
+        } catch (e) { dbp = null; ok(null); }
+      });
+      return dbp;
+    }
+    function read() {
+      return db().then(function (d) {
+        return new Promise(function (ok) {
+          if (!d) { ok(null); return; }
+          try { var rq = d.transaction('slots', 'readonly').objectStore('slots').get('main'); rq.onsuccess = function () { ok(rq.result || null); }; rq.onerror = function () { ok(null); }; } catch (e) { ok(null); }
+        });
+      });
+    }
+    function done(r) { var w = waiters; waiters = []; for (var i = 0; i < w.length; i++) w[i](r); }
+    function run() {
+      if (busy || !pend) return;
+      busy = true;
+      var job = pend; pend = null;
+      boot.then(db).then(function (d) {
+        return new Promise(function (ok) {
+          if (!d) { ok(false); return; }
+          try {
+            var t = d.transaction('slots', 'readwrite', { durability: 'strict' });
+            t.objectStore('slots').put(job, 'main');
+            t.oncomplete = function () { ok(true); }; t.onerror = t.onabort = function () { ok(false); };
+          } catch (e) { ok(false); }
+        });
+      }).then(function (r) { busy = false; if (pend) run(); else done(r); });
+    }
+    boot = read();
+    return {
+      boot: boot,
+      write: function (t, at) { pend = { t: t, n: t.length, at: at }; run(); },
+      flushed: function () { return !busy && !pend ? Promise.resolve(true) : new Promise(function (ok) { waiters.push(ok); }); }
+    };
+  }
+  // durableCopy(name, { indexedDB }) -> { write(text, seq), newer(seq), flushed() }: the same strict IndexedDB copy for any text (an app with its
+  // own save format and checks). write() never throws and keeps only the newest waiting text. newer(seq) -> Promise<{ text, seq } or null>:
+  // the copy that was there when this page opened, when its seq is above the given one (the seq of what the app loaded) and its text is whole.
+  function durableCopy(name, o) {
+    var m = durableMirror(String(name || 'save-kit-durable'), o && 'indexedDB' in o ? o.indexedDB : undefined);
+    return {
+      write: function (text, seq) { if (typeof text === 'string' && isNum(seq)) m.write(text, seq); },
+      newer: function (seq) {
+        return m.boot.then(function (r) { return r && typeof r.t === 'string' && r.t.length === r.n && isNum(r.at) && r.at > (isNum(seq) ? seq : -Infinity) ? { text: r.t, seq: r.at } : null; }, function () { return null; });
+      },
+      flushed: m.flushed
+    };
+  }
+//@end
+
   // ---- the store ----
   // create({ key, schema, defaults, soundKeys, prefix, storage, maxCodeBytes, maxCodeChars, backupEveryMs })
   //   key: localStorage key. schema/defaults: see validate(). soundKeys: numeric fields that must be sound to write a save
@@ -254,6 +319,10 @@
 //@end
     var stamp = o.stamp || 'seen', bak = o.backupKey || key + '-backup', damaged = o.damagedKey || '', after = typeof o.afterValidate === 'function' ? o.afterValidate : null;
     var orphan = o.readBackupWithoutMain !== false;   // false: a missing main slot never brings back a leftover backup
+//@begin durable
+    // durable: true (database 'save-kit-durable:<key>') or a database name: every save is also kept in IndexedDB, see recover().
+    var mirror = o.durable ? durableMirror(o.durable === true ? 'save-kit-durable:' + key : String(o.durable), o.indexedDB) : null, loadedAt = null;
+//@end
 
 //@begin migrate
     // Runs the game's migrate(save, fromVersion) on a save written with a lower `version` (no `v` counts as 0); a migrate that
@@ -315,6 +384,9 @@
             }
           }
           if (damaged && mt && (!a || used !== a)) { try { storage.setItem(damaged, mt); } catch (e) {} }
+//@begin durable
+          loadedAt = used && isNum(used[stamp]) ? used[stamp] : 0;
+//@end
           return out;
         } catch (e) { return null; }
       },
@@ -338,6 +410,9 @@
           state[stamp] = now;
           var txt = JSON.stringify(state);
           storage.setItem(key, txt);
+//@begin durable
+          if (mirror) mirror.write(txt, now);
+//@end
 //@begin skipUnchanged
           lastProbe = probe; lastWriteAt = now; lastSeen = now;
 //@end
@@ -353,6 +428,31 @@
         }
       },
       forceBackupNext: function () { backupAt = 0; },
+//@begin durable
+      // With the durable option: -> Promise<clean state or null>, never rejects. Resolves the IndexedDB copy when it is newer (by `seen`)
+      // than the save load() returned (or, before any load(), than the main slot), else null. A browser that crashed can lose the last
+      // stretch of localStorage writes (Chromium about a minute, Firefox about 10 s) while the strict IndexedDB copy keeps every finished
+      // save. load() stays synchronous and fast; call recover() right after it and switch to the state it gives, if any. The newer copy is
+      // also written back to the main slot.
+      recover: function () {
+        if (!mirror) return Promise.resolve(null);
+        return mirror.boot.then(function (rec) {
+          try {
+            if (off || !rec || typeof rec.t !== 'string' || rec.t.length !== rec.n) return null;
+            var base = loadedAt;
+            if (base === null) { var l = readSlot(key); base = l && isNum(l[stamp]) ? l[stamp] : 0; }
+            if (isNum(rec.at) && rec.at <= base) return null;   // the usual case, nothing lost: no need to parse the copy
+            var x = parseSlot(rec.t);
+            if (!x || badFields(x) > 0 || !isNum(x[stamp]) || x[stamp] <= base) return null;
+            var out = finish(x);
+            if (out) { try { storage.setItem(key, rec.t); } catch (e) {} }
+            return out;
+          } catch (e) { return null; }
+        });
+      },
+      // With the durable option: -> Promise<boolean> once the newest save so far is in IndexedDB (false if IndexedDB refused it).
+      flushed: function () { return mirror ? mirror.flushed() : Promise.resolve(false); },
+//@end
       // Switches saving off (true) or on (false). Used while a loaded save waits for a page reload, so the old game can't overwrite it.
       pause: function (v) { off = v !== false; },
 //@begin autosave
@@ -653,6 +753,9 @@
 
   return {
     create: create,
+//@begin durable
+    durableCopy: durableCopy,
+//@end
 //@begin large
     createLarge: createLarge,
 //@end
