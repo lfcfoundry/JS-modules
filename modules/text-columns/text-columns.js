@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.6.3 (API 0)
+ * Version 0.6.4 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -135,7 +135,7 @@
     }
     return t;
   }
-  function parse(input, opts) { var t; if (TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } try { t = parseWindows(input, opts) || parseCore(input, opts); } finally { trimLater(); } shareLater(t, opts); return opts && opts.types ? applyTypes(t, opts.types) : t; }
+  function parse(input, opts) { var t; if (TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } try { t = parseWindows(input, opts) || parseCore(input, opts); } finally { trimLater(); } shareLater(t, opts); spareLater(t, opts); return opts && opts.types ? applyTypes(t, opts.types) : t; }
   /* Since 0.6.3: a text column that repeats a few values (a city, a status) holds one string per value instead of one per row. After a parse returns,
      the page merges the repeats in slices of about 4 ms when it is idle (requestIdleCallback, else a timer), so the parse itself is not slower.
      Decided per column from its first 2,048 rows (at most 1 different value per 8 rows); at most 4,096 different values kept. Every value stays
@@ -218,7 +218,7 @@
         for (at = 0, k = 0; k < parts.length; k++) { if (!parts[k].count) continue; a = parts[k].columns[j]; sh = cuts[k]; if (!a.offAscii) asc = false; for (i = 0; i < a.off[0].length; i++) { os[at + i] = a.off[0][i] + sh; oe[at + i] = a.off[1][i] + sh; } oq.set(a.off[2], at); at += a.off[0].length; }
         col.off = [os, oe, oq]; col.offAscii = asc;
       } else {
-        v = kind === 'n' ? new Float64Array(total) : new Array(total); at = 0;
+        v = kind === 'n' ? spareF64(total) : new Array(total); at = 0;
         for (k = 0; k < parts.length; k++) { if (!parts[k].count) continue; a = parts[k].columns[j].values; if (kind === 'n') v.set(a, at); else for (i = 0; i < a.length; i++) v[at + i] = a[i]; at += a.length; parts[k].columns[j].values = null; }
         col.values = v;
       }
@@ -319,7 +319,7 @@
     for (si = 0; si < (sel ? sel.length : ncols); si++) {
       j = sel ? sel[si] : si; outNames.push(names[j]);
       var col = { name: names[j], type: 'text', values: null, get: getAt }, nums = null;
-      if (nrows > 0 && !(forceText && (forceText === true || forceText.indexOf(j) >= 0))) { nums = new Float64Array(nrows); if (!numFn(j, nums, nrows, firstRow)) nums = null; }
+      if (nrows > 0 && !(forceText && (forceText === true || forceText.indexOf(j) >= 0))) { nums = spareF64(nrows); if (!numFn(j, nums, nrows, firstRow)) nums = null; }
       if (nums) { col.type = 'number'; col.values = nums; }
       else if ((wantOff && (ascii || wantOff === 2)) || (lazy && nrows > 0)) {   // field positions instead of strings: a helper hands these back (strings cost more to send than to cut on the other side), and lazy columns keep them until read
         var os = new Uint32Array(nrows), oe = new Uint32Array(nrows), oq = new Uint8Array(nrows), kk;
@@ -429,7 +429,7 @@
         isText = m.op === 'text';
         if (isText && m.bytes) held.bytes = m.bytes;   // a piece read from a file whose bytes went to the page
         if (isText) ft = m.cols.map(function (p) { return held.sel ? held.sel[p] : p; });
-        t = TextColumns.parse(held.bytes, { _shareLater: false, delimiter: held.delim, header: held.header, columns: held.sel, _text: ft, _off: m.utf16 !== false || (!isText && held.lazy) ? 2 : 1 });   // 2: positions for every text column (non-ASCII too), turned into UTF-16 positions by withText
+        t = TextColumns.parse(held.bytes, { _shareLater: false, spare: false, delimiter: held.delim, header: held.header, columns: held.sel, _text: ft, _off: m.utf16 !== false || (!isText && held.lazy) ? 2 : 1 });   // 2: positions for every text column (non-ASCII too), turned into UTF-16 positions by withText
         only = isText ? m.cols : null;
         for (j = 0; j < t.columns.length; j++) {
           if (only && only.indexOf(j) < 0) continue;
@@ -505,7 +505,7 @@
     for (tries = 0; tries < 50; tries++) {
       e = u.indexOf(10, e + 1); end = e < 0 ? u.length : e; if (end > 0 && u[end - 1] === 13) end--;
       try {
-        t = parse(u.subarray(0, end), { delimiter: String.fromCharCode(delim), header: false, _text: true, _shareLater: false });
+        t = parse(u.subarray(0, end), { delimiter: String.fromCharCode(delim), header: false, _text: true, _shareLater: false, spare: false });
         if (t.count === 1) { names = []; for (j = 0; j < t.columns.length; j++) names.push(header ? t.columns[j].values[0] : 'c' + (j + 1)); return pickColumns(want, names, names.length); }
       } catch (err) { /* a quoted header with a line break: take one more line */ }
       if (e < 0) return null;
@@ -521,8 +521,32 @@
   async function parseParallel(input, opts) {
     var t; HIDLE.busy++; if (HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; }
     try { t = await parseParallelCore(input, opts); } finally { HIDLE.busy--; idleClose(); }
-    shareLater(t, opts);
+    shareLater(t, opts); spareLater(t, opts);
     return opts && opts.types ? applyTypes(t, opts.types) : t;
+  }
+  /* Since 0.6.4: the first write to a freshly made big array costs about 0.7 ms per MB in every browser (the system hands the memory over page by page),
+     and Firefox adds long pauses when big results keep coming. So after a parse with number columns of 262,144 rows or more, the page makes arrays of
+     the same lengths in idle time (requestIdleCallback, else a timer), touches one number per 4 KB, and the next parse of the same shape fills those
+     instead. Unused spares are let go after 4 s. opts.spare: false skips it (the helpers always skip it). */
+  var SPARE = { a: [], timer: 0, drop: 0 };
+  function spareF64(n) {
+    for (var i = 0; i < SPARE.a.length; i++) if (SPARE.a[i].length === n) return SPARE.a.splice(i, 1)[0];
+    return new Float64Array(n);
+  }
+  function spareLater(t, opts) {
+    if (!t || !t.columns || (opts && opts.spare === false) || typeof setTimeout !== 'function' || SPARE.timer) return;
+    var want = [], j, c;
+    for (j = 0; j < t.columns.length; j++) { c = t.columns[j]; if (c.type === 'number' && c.values && c.values.length >= 262144) want.push(c.values.length); }
+    if (!want.length) return;
+    function go() {
+      SPARE.timer = 0;
+      SPARE.a = want.map(function (n) { var a = new Float64Array(n); for (var i = 0; i < n; i += 512) a[i] = 0; return a; });
+      if (SPARE.drop) clearTimeout(SPARE.drop);
+      SPARE.drop = setTimeout(function () { SPARE.drop = 0; SPARE.a = []; }, 4000);
+      if (SPARE.drop.unref) SPARE.drop.unref();
+    }
+    if (typeof requestIdleCallback === 'function') { SPARE.timer = -1; requestIdleCallback(go, { timeout: 1000 }); }
+    else { SPARE.timer = setTimeout(go, 0); if (SPARE.timer.unref) SPARE.timer.unref(); }
   }
   /* Since 0.6.2: helpers hold their memory (and a thread) while they live, so _helperIdle(ms) closes them after ms with no call (-1 = never, the default and the 0.6.1 way).
      The next call starts them again (and, like a fresh page, a file under 32 MB is then read on the page). */
@@ -657,7 +681,7 @@
       var js = [], L = live.length, offs = [], gc = [], gb = [], o2 = 0, step, got;
       for (j = 0; j < ncols; j++) if (!textCol[j]) js.push(j);
       for (i = 0; i < L; i++) { offs.push(o2); o2 += cnt[i]; gc.push([]); gb.push([]); }
-      js.forEach(function (jj, q) { gc[q % L].push(jj); gb[q % L].push(new ArrayBuffer(total * 8)); });
+      js.forEach(function (jj, q) { gc[q % L].push(jj); gb[q % L].push(spareF64(total).buffer); });
       for (step = 0; js.length && step < L; step++) {
         got = await Promise.all(live.map(function (kk, ii) { var g = (ii + step) % L; return gb[g].length ? ask(POOL[kk], { op: 'fill', bufs: gb[g], cols: gc[g], at: offs[ii], keep: step < L - 1 }, gb[g]).then(function (m) { if (m.err || !m.bufs) return false; gb[g] = m.bufs; return true; }) : true; }));
         if (got.indexOf(false) >= 0) return serial();
@@ -667,7 +691,7 @@
     for (j = 0; j < ncols; j++) {
       var col = { name: names[j], type: textCol[j] ? 'text' : 'number', values: null, get: getAt };
       if (numVals[j]) col.values = numVals[j];
-      else if (!textCol[j]) { v = new Float64Array(total); var at = 0; for (i = 0; i < live.length; i++) { a = res[live[i]].cols[j]; v.set(a, at); at += a.length; } col.values = v; }
+      else if (!textCol[j]) { v = spareF64(total); var at = 0; for (i = 0; i < live.length; i++) { a = res[live[i]].cols[j]; v.set(a, at); at += a.length; } col.values = v; }
       else if (lazy) col = lazyJoined(names[j], function (jj) { return function () { return fillText(jj); }; }(j), function (jj) { return function (row) { return cellText(jj, row); }; }(j));
       else col.values = slicedBuild ? await fillSliced(j, clock) : fillText(j);
       columns.push(col);
@@ -683,5 +707,5 @@
     return col;
   }
 
-  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _sharePending: function () { return SHARE.q.length; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.6.3', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _sharePending: function () { return SHARE.q.length; }, _spareCount: function () { return SPARE.a.length; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.6.4', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));
