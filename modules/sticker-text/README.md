@@ -4,13 +4,25 @@
 
 **Tested in:** ungoogled Chromium 155.0.8059.39, Firefox 158.0 and WebKitGTK 2.52.6 (one at a time): the 17 Node checks, the demo page loading without errors, and the measurements above. Not tested: a real screen reader, Windows high contrast, Safari itself.
 
-Die-cut "sticker" lettering for logos and titles in plain HTML and CSS: no images, scales with `font-size`. About 4.8 KB JS + CSS minified (about 2.1 KB gzipped); the files as shipped are about 9 KB with comments. (The earlier "about 2 KB" was wrong: version 1.0.0 measures about 3.8 KB minified.)
+## What it is and how it works
 
-The word is drawn three times in the same place: the real text, invisible, which keeps the layout and is what screen readers read; a copy behind it with a ring of 32 zero-blur shadows in the outline color; and a gradient-filled copy on top. A stacked drop-shadow adds a hard lower edge and a soft ground shadow. Sizes are in `em`, so everything scales with `font-size`.
+Die-cut "sticker" lettering for titles in plain HTML and CSS: no images, scales with `font-size`. About 2.1 KB gzipped.
+
+- The real text stays in place, invisible, for layout and screen readers.
+- A copy behind it gets a ring of 32 sharp shadows as the outline.
+- A gradient copy sits on top, with a hard lower edge and a soft ground shadow.
 
 ## Why it exists
 
-CSS has no good text stroke: `-webkit-text-stroke` straddles the glyph edge and chews up thin letters, and the other routes (SVG text, canvas, a script that draws behind live text) need different markup or more code (see "How it compares"). This module gives a title a die-cut sticker look with a class on a plain element.
+CSS has no good text stroke: `-webkit-text-stroke` eats into thin letters, and SVG or canvas text needs different markup. This gives a sticker look with one class on a normal element.
+
+**Where it helps**
+
+- Game logos and titles.
+- Bold headings that must stay real, selectable text.
+- Playful lettering that scales on every screen.
+
+**Not for:** long body text; it is meant for short titles.
 
 ## Quick start
 

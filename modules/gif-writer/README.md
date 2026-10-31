@@ -1,15 +1,28 @@
 # gif-writer
 
-**Version 1.6.0 · API 1**
+**Version 1.6.1 · API 1**
 
-**Tested in:** not recorded.
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
 
-Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 38 KB (15 KB gzipped, of which about 12 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map's GIF maker.
+## What it is and how it works
 
-It first builds one palette (the set of colors) for the whole animation from a few of your pictures, by median cut and then k-means. Each picture you add is compared with the one before it: pixels that did not change are written as transparent, the picture is cropped to the box that did change, and the result is compressed with the GIF format's own LZW method at once. `finish()` returns the bytes of a plain GIF89a file with a loop block.
+gif-writer makes animated GIFs from canvas pictures, in the browser or Node. One file, 15 KB gzipped, no dependencies. Optional add-ons apply filters and use Web Workers. It was cut out of Netflow Map's GIF maker.
+
+- One shared palette for the whole animation, so colors do not flicker.
+- Only pixels that changed since the last frame are stored, cropped to the changed area.
+- Each frame is compressed right away, in WebAssembly when available.
 
 ## Why it exists
-A GIF of a game or a chart is mostly still: a background with something moving on it. Writing only the changed box in transparent pixels is the difference between a 23 KB file and a 160 KB one.
+
+Most GIFs of apps and games are a still background with a small moving part. Common writers like gifenc and gif.js store every frame in full, so the background is paid for again each frame. On the laptop in Firefox 160, a 30-frame capture was 40 KB here against 195 KB with gifenc.
+
+**Where it helps**
+
+- Short loops for a README, store page or bug report.
+- Animated charts and maps.
+- Shareable replays made inside an offline page.
+
+**Not for:** photos (256 colors, no dithering), or anywhere a video file works.
 
 ## Looks, timing and a worker (since 1.5.0; optional files)
 

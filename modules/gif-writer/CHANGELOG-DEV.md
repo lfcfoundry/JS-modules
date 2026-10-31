@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.1 · API 1 · 2026-10-30
+
+### Quick
+WebAssembly picture effects: blur in 16-bit lanes (32-bit above radius 128), sharpen 4 bytes per step, glow column terms once per column, grade two pixels per step when there is no vignette. 0.67 to 1.00x the time for every filter at 480x270, 960x540 and 1920x1080 in three browsers; same bytes.
+
+### Details
+wasm/pixfx.c from research brief E (round 2), rebuilt with wasm/build-fx.sh (pixfx.wasm 9,193 bytes) and embedded with embed-fx.py. glow_up uses a static table for up to 8,192 columns; wider pictures take the old loop. Container medians at 1920x1080, old to new ms: blur 3 Chromium 68.5 to 54.5, Firefox 61 to 52, WebKitGTK 70 to 56; glow 0.6 104 to 80, 88 to 67, 103 to 75; Soft dream preset 127 to 95, 109 to 85, 128 to 94; everything 172 to 150, 151 to 130, 194 to 171. 60 random filters and sizes gave the same bytes in every browser; test/fx-wasm.js, fx.js and run.js pass.
+
+### Deep
+gif-writer 1.6.1: faster WebAssembly picture effects (brief E). Same bytes (60 random filters x 3 browsers + 15 timed cases). New/old time: Chromium 0.68-0.88, Firefox 0.67-1.00, WebKitGTK 0.71-1.00 (480x270 to 1920x1080; the 1.00s are 1 ms timer steps at 480x270).
+
 ## 1.6.0 · API 1 · 2026-10-30
 
 ### Quick

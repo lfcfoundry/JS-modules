@@ -4,13 +4,25 @@
 
 **Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 and WebKitGTK 2.52.6 (crowd-check.js incl. the new pause check: out-of-view heroes paused, in-view playing); 105 Node checks. Cost numbers: Chromium 155 only.
 
-A written style guide plus a working demo for the soft, glossy "toy" look in plain CSS and SVG: flat vector shapes that feel like squishy 3D. There is no code library to import. The value is in the numbers, copied from a published single-file game: where the light comes from, the four gradients, the face proportions, the shadow and glow recipes, the squash-and-stretch timings and the calm background scenery.
+## What it is and how it works
 
-You copy the color tokens and gradient definitions into your page, draw your own silhouette in a 200 x 200 box, fill it with the body gradient, add the shade, rim and highlight layers, then place the face from the face table. A small check reads the skin tables as text and tests that every label color is readable.
+A written style guide and a working demo for the soft, glossy "toy" look in plain CSS and SVG. There is no code to import; the value is in the numbers.
+
+- Copy the color tokens and gradients into your page.
+- Draw a silhouette in a 200 x 200 box and add the body, shade, rim and highlight layers.
+- Place the face from the face table; a small check confirms every label color is readable.
 
 ## Why it exists
 
-The soft, glossy toy look depends on many small numbers that have to agree: the light direction, four gradients, face proportions, shadows and animation timings. This kit keeps one set of numbers, taken from working code, so a new character or screen can match the look.
+The toy look depends on many small numbers that must agree: light direction, four gradients, face proportions, shadows and timings. This keeps one set of numbers, taken from a published game, so new characters match.
+
+**Where it helps**
+
+- New characters or screens that match the existing games.
+- Flat vector art that should feel squishy and 3D.
+- Keeping a consistent look across several apps.
+
+**Not for:** projects that need an importable library.
 
 ## Use
 

@@ -4,13 +4,25 @@
 
 **Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 and WebKitGTK 2.52.6 (`test/browsers.js`, 10 grouped checks each), 18 of 18 `browser.py` checks in Chromium 155 and in Firefox 158 (through the Firefox stand-in), 94 Node checks. Not run: a phone.
 
-A test-build-only counter for a canvas 2D game. It wraps the drawing methods of `CanvasRenderingContext2D`, counts what the game really asks the browser to do each frame, and tells you in plain words where the work is wasteful or leaking.
+## What it is and how it works
 
-Once installed, it replaces each drawing method and style setting with a wrapper that adds one to a counter and then runs the original call. Your loop calls `probe.frame()` once per frame, which closes the counts for that frame and keeps the last few; `probe.text()` turns the counts into plain sentences and `probe.check()` gives a pass or fail for a test run. One file, `src/canvas-probe.js`, no dependencies.
+A test-build counter for canvas 2D games. It wraps the drawing calls, counts what the game asks the browser to do each frame, and reports waste in plain words. One file, no dependencies.
+
+- Each drawing method and style setting gets a counter.
+- `probe.frame()` closes the counts once per frame.
+- `probe.text()` explains them, and `probe.check()` gives pass or fail.
 
 ## Why it exists
 
-A game can look fine on screen while it quietly wastes work: a `save()` that is never matched by `restore()`, a path that grows because `beginPath()` is missing, a picture shrunk every frame. The browser's profiler shows where time goes, not these counts, and a small library that does this from inside a page was searched for and not found. Use it in test builds, as a baseline to compare before and after a change.
+A game can look fine while it wastes work: a `save()` with no `restore()`, a path that keeps growing, a picture shrunk every frame. The browser's profiler shows time, not these counts.
+
+**Where it helps**
+
+- Finding leaks in canvas drawing code.
+- Comparing draw work before and after a change.
+- Test runs that fail when draw calls grow.
+
+**Not for:** shipped builds; it is for testing only.
 
 ## Use
 

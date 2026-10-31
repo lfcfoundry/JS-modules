@@ -53,7 +53,9 @@ EXPORT("xxh64") u32 zs_xxh64(const void* p, u32 n) { u64 h = ZSTD_XXH64(p, n, 0)
 EXPORT("xxh64_hi") u32 zs_xxh64_hi(void) { return xxHi; }
 #ifndef ZS_DECODE_ONLY
 EXPORT("bound") u32 zs_bound(u32 n) { return (u32)ZSTD_compressBound(n); }
-static ZSTD_CCtx* cctx;
+static ZSTD_CCtx* cctx; static int tS, tH, tC, tM;
+/* optional finer settings on top of the level (0 = the level's own): strategy, hash table bits, chain table bits, shortest match */
+EXPORT("tune") void zs_tune(int s, int h, int c, int m) { tS = s; tH = h; tC = c; tM = m; }
 /* level: 1..22; window_log 0 = zstd's choice for the level */
 EXPORT("compress") u32 zs_compress(void* dst, u32 dcap, const void* src, u32 n, int level, u32 window_log) {
   if (!cctx) cctx = ZSTD_createCCtx(); if (!cctx) return (u32)-1;
@@ -62,6 +64,10 @@ EXPORT("compress") u32 zs_compress(void* dst, u32 dcap, const void* src, u32 n, 
   ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 0);
   ZSTD_CCtx_setParameter(cctx, ZSTD_c_contentSizeFlag, 1);
   if (window_log) ZSTD_CCtx_setParameter(cctx, ZSTD_c_windowLog, (int)window_log);
+  if (tS) ZSTD_CCtx_setParameter(cctx, ZSTD_c_strategy, tS);
+  if (tH) ZSTD_CCtx_setParameter(cctx, ZSTD_c_hashLog, tH);
+  if (tC) ZSTD_CCtx_setParameter(cctx, ZSTD_c_chainLog, tC);
+  if (tM) ZSTD_CCtx_setParameter(cctx, ZSTD_c_minMatch, tM);
   return (u32)ZSTD_compress2(cctx, dst, dcap, src, n);
 }
 EXPORT("release") void zs_release(void) { if (cctx) { ZSTD_freeCCtx(cctx); cctx = 0; } }

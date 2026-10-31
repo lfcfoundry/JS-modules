@@ -4,13 +4,25 @@
 
 **Tested in:** Node: 112 checks pass (18 new). Module browser suite passes in ungoogled Chromium 155.0.8059.39-1. Candidate search compared old and new (same answers, 847 of 1000) in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5. Not run: that browser suite in Firefox 158.0, WebKitGTK and GNOME Web, a real controller, a phone
 
-Gamepad navigation for ordinary on-screen DOM menus and panels, in one file with no dependencies. It reads the browser's [Gamepad API](https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API) once per frame. The D-pad or left stick moves focus to the nearest visible, enabled button in the direction pressed; A clicks it; B calls your `onBack`, Start calls your `onStart`. A on a slider (`input[type=range]`) enters adjust mode (left and right change the value one step); A on a drop-down (`select`) moves to the next option. The open panel scrolls to keep the focus in view, and a one-line hint ("D-pad: move    A: pick    B: back") appears after the pad is first used, then fades. Only the topmost open panel (the "scope") is navigable; you tell it which element that is.
+## What it is and how it works
 
-It is built to be left running: `step()` never throws (failures, including in your callbacks, go to `onError`), a worn stick resting near the press point does not flip every frame, and unplugging a controller hides the hint and ring and calls `onDisconnect`.
+Gamepad navigation for ordinary on-screen HTML menus, in one file with no dependencies.
+
+- The D-pad or stick moves focus to the nearest button in that direction; A clicks, B goes back.
+- Sliders and drop-downs can be adjusted from the pad.
+- A short hint appears after first use, and only the top open panel is navigable.
 
 ## Why it exists
 
-It was pulled out of a single-file browser game whose menus are plain HTML buttons. Controller players could flap and steer but could not get around the menus, and most game-pad libraries assume you draw everything on a canvas. This is the small, tested version of that menu code, with the game-specific parts removed.
+Controller players could play a game but not get around its HTML menus, and most gamepad libraries assume everything is drawn on a canvas. This is that menu code, tested and with the game-specific parts removed.
+
+**Where it helps**
+
+- Games with HTML menus and controller support.
+- Settings panels on TVs and handhelds.
+- Kiosk-style pages driven by a pad.
+
+**Not for:** pads that do not report the standard mapping (skipped by default).
 
 ## Use
 

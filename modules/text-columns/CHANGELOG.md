@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.1 · API 0 · 2026-10-30
+- Parallel parsing now starts at 4 MB once its helpers are running (it was 32 MB), about 0.6 to 0.9x the time on mid-size files.
+
 ## 0.5.0 · API 0 · 2026-10-30
 - New, opt-in: types option turns YYYY-MM-DD columns into dates (milliseconds) and true/false columns into booleans. Without it nothing changes.
 

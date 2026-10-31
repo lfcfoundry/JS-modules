@@ -4,12 +4,25 @@
 
 **Tested in:** Node: 16 checks pass; no code change (a label word in the demo and README prose); the demo page was not opened in the four test browsers this time
 
-Steps visual effects down by itself when the device cannot keep up, and **never steps back up behind the player's back**. About 6.4 KB with comments.
+## What it is and how it works
 
-It counts frames over a measuring window (3 seconds by default) and works out the average FPS. If the average is under the line (36 FPS by default) for two windows in a row, it moves one level down your list of levels, for example from `full` to `lite`. A window far under the line (under 18 FPS) counts as both strikes at once. A pause, such as a hidden tab or a gap between frames longer than 250 ms, restarts the count instead of being blamed on the device. It never moves back up by itself: only the player's `choose` or `release` does.
+Steps visual effects down when a device cannot keep up, and never steps back up behind the player's back. About 6.4 KB with comments.
+
+- It measures average FPS over 3-second windows.
+- Two slow windows in a row move one level down (one very slow window counts as both).
+- Pauses such as a hidden tab restart the count instead of being blamed on the device.
 
 ## Why it exists
-Many "adaptive quality" snippets react to a single slow frame, so one hiccup gets blamed on the device. No browser feature says "this device cannot keep up", so frame timing is the only shared signal. This module turns your effects down when the frame rate shows the device is struggling, ignores pauses, and leaves going back up to the player, so the game never changes its look behind their back.
+
+Many adaptive-quality snippets react to one slow frame, so a single hiccup gets blamed on the device. Frame timing is the only signal every browser shares, so this reads it carefully and leaves going back up to the player.
+
+**Where it helps**
+
+- Games with optional particles, glow or shadows.
+- Pages that must stay smooth on low-end phones.
+- Keeping the look stable once it settles.
+
+**Not for:** memory or battery limits; it measures frame rate only.
 
 ## Use
 ```js

@@ -4,10 +4,25 @@
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5 (it reads their rows; it runs no browser)
 
-A one-command speed check for a release. It reads the speed-history files, compares the newest release of every step with the release before it, and says which steps got slower. It runs nothing, so it costs no browser time.
+## What it is and how it works
+
+A one-command speed check for a release. It runs nothing, so it costs no browser time.
+
+- It reads the speed-history files.
+- It compares each step's newest release with the one before.
+- It lists steps that got more than about 5% slower, and which browser checks to re-run.
 
 ## Why it exists
-The owner's speed guard says a slowdown of more than about 5% needs his OK. Checking that by eye across four browsers and many steps is slow and easy to get wrong. Every thread already adds rows to `speed-history/<product>.tsv` at each release; this reads those rows and does the comparison, direction-aware ("lower is better" or "higher is better"). It also lists the browser checks a change affects, so only those are re-run.
+
+Any slowdown over about 5% needs the owner's OK, and checking that by eye across browsers and steps is slow and error-prone.
+
+**Where it helps**
+
+- Release checks before merging.
+- Spotting slowdowns early.
+- Re-running only the checks a change affects.
+
+**Not for:** trends over many releases; it compares the last two.
 
 ## Use
 ```
