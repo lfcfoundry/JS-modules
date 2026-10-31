@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.3 · API 2 · 2026-10-31
+- Number labels are made 95 to 98% faster.
+
 ## 2.2.2 · API 2 · 2026-10-22
 - 2.2.2: Flow, Down, Spine and Lanes build layered drawings up to 250,000 stops (was 90,000), so maps of about 5,000 to 6,500 pages now draw in 0.5 to 1.6 s instead of being refused.
 
