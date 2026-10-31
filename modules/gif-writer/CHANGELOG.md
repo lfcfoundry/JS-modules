@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-10-30
+- Optional thorough palette: counts every pixel for slightly smaller files.
+
 ## 1.5.1 · API 1 · 2026-10-27
 - A frame delay above 655,350 ms is capped instead of wrapping in the GIF's 16-bit field.
 
