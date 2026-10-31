@@ -4,7 +4,7 @@
  * are left transparent, and every picture is compressed the moment it is added.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.1 (API 1)
+ * Version 1.6.0 (API 1)
  *
  *   var pal = GifWriter.makePalette([rgba1, rgba2], 255);          // rgba: Uint8ClampedArray from ctx.getImageData(...).data
  *   var enc = GifWriter.createEncoder(width, height, pal, { loop: true });
@@ -68,7 +68,7 @@
     for (;;) { a = n; b = s; while (b) { t = a % b; a = b; b = t; } if (a === 1) return s; s += 2; }
   }
   /** The palette search in WebAssembly (color histogram, median cut, k-means): the same colors as makePaletteJs, to the last digit. Null when it cannot run (the JavaScript code then does). */
-  function makePaletteWasm(pictures, maxColors) {
+  function makePaletteWasm(pictures, maxColors, thorough) {
     var mod = wasmModule();
     if (!mod) return null;
     try {
@@ -79,7 +79,7 @@
       var al = function (v) { return (v + 15) & ~15; };
       ex = new WebAssembly.Instance(mod, {}).exports;
       var CH = 16384, stage = al(ex.__heap_base.value), tbl = al(stage + Math.min(maxn, CH) * 4), ensure = function (end) { var have = ex.memory.buffer.byteLength; if (end > have) ex.memory.grow(Math.ceil((end - have) / 65536)); };
-      var sampled = total > 100000, pass, early = false, full = total > 1000000 ? 2 : 1;
+      var sampled = !thorough && total > 100000, pass, early = false, full = !thorough && total > 1000000 ? 2 : 1;
       for (pass = 0; pass < 2; pass++) {
         HB = 16; mask = 0xffffff; early = false;
         for (attempt = 0; attempt < 6; attempt++) {
@@ -114,14 +114,14 @@
   }
   /** Up to maxColors colors that stand for the pictures. Runs in WebAssembly when the browser allows it; makePalette(pictures, maxColors, { wasm: false }) never does. */
   function makePalette(pictures, maxColors, opts) {
-    var r = opts && opts.wasm === false ? null : makePaletteWasm(pictures, maxColors);
-    return r || makePaletteJs(pictures, maxColors);
+    var r = opts && opts.wasm === false ? null : makePaletteWasm(pictures, maxColors, opts && opts.thorough);
+    return r || makePaletteJs(pictures, maxColors, opts && opts.thorough);
   }
-  function makePaletteJs(pictures, maxColors) {
+  function makePaletteJs(pictures, maxColors, thorough) {
     maxColors = Math.min(255, maxColors || 255);
     var HB = 16, HS = 1 << HB, mask = 0xffffff, attempt, uniq = 0, p, i;
     var total = 0; for (p = 0; p < pictures.length; p++) total += pictures[p].length >> 2;
-    var sampled = total > 100000, full = total > 1000000 ? 2 : 1, pass, early = false;   // big inputs: look at every 3rd pixel (every 5th above 1,000,000 pixels; see sampleStride), the histogram is the largest steady cost
+    var sampled = !thorough && total > 100000, full = !thorough && total > 1000000 ? 2 : 1, pass, early = false;   // big inputs: look at every 3rd pixel (every 5th above 1,000,000 pixels; see sampleStride), the histogram is the largest steady cost
     var tbl;   // one table of pairs: [color + 1, count] (0 = empty slot), so a lookup touches one cache line
     for (pass = 0; pass < 2; pass++) {
       HB = 16; HS = 1 << HB; mask = 0xffffff; early = false;

@@ -2,7 +2,7 @@
  * gif-writer-card.js, an optional companion of gif-writer.js: GIF looks on the graphics card (WebGL 2). Same steps and same arithmetic as GifWriterFx.applyJs, one shader pass each.
  * create() returns null where WebGL 2 is missing or a pass fails, and the caller keeps using WebAssembly/JavaScript.
  * Needs GifWriterFx (gif-writer-fx.js). Works on a page canvas or an OffscreenCanvas in a worker. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.5.1 (API 1)
+ * Version 1.6.0 (API 1)
  */
 var GifWriterCard = (function () {
   'use strict';
