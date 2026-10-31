@@ -111,3 +111,5 @@ Nothing came out larger, and pack time is within noise. Older readers open the f
 | Epoch milliseconds + random big ints (50,000) | 466,513 | 399,701 | -14% |
 
 Size as a share of 0.1.9 (Node, cloud, lower is better): map lines (GeoJSON-like) 0.30, prices and rates 0.78, web logs 1.00, dense records 1.03. Pack and unpack times are within noise. Row ranges, column stats, metadata and hash are also new in this release. Measured and not built: trained dictionaries (files grew) and a shared string table (under 0.1% possible).
+
+**New in 0.3.1: decimal columns decode in one pass.** Cloud-browser run (shared machine, not the laptop): unpacking the map-lines file takes 70 ms in Chromium, 69 ms in Firefox and 31 ms in WebKitGTK, faster than 0.2.1 in all three.
