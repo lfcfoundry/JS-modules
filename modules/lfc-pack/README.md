@@ -6,7 +6,7 @@
 
 **Tested in:** not recorded.
 
-Packs newline-delimited JSON (NDJSON: one JSON value per line, the shape of logs, events and API dumps) into **LFC-pack** (`.json.lfc`, magic `LFC1`): the rows are cut into blocks of about 21 MB, every field becomes its own typed column, repeated strings are stored once, and each column is compressed with zstd. A footer at the end lists the blocks and the smallest and largest number of each column, so a reader can skip blocks without opening them. Reading gives back the same row objects `JSON.parse` would, and with `exact: true` the very same bytes. **One file, no dependencies, WebAssembly required** (zstd and the tokenizer are compiled to wasm32; a page needs `'wasm-unsafe-eval'` in its policy and nothing else).
+Packs newline-delimited JSON (NDJSON: one JSON value per line, the shape of logs, events and API dumps) into **LFC-pack** (`.json.lfc`, magic `LFC1`): the rows are cut into blocks of about 13 MB, every field becomes its own typed column, repeated strings are stored once, and each column is compressed with zstd. A footer at the end lists the blocks and the smallest and largest number of each column, so a reader can skip blocks without opening them. Reading gives back the same row objects `JSON.parse` would, and with `exact: true` the very same bytes. **One file, no dependencies, WebAssembly required** (zstd and the tokenizer are compiled to wasm32; a page needs `'wasm-unsafe-eval'` in its policy and nothing else).
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -33,7 +33,7 @@ Options for `pack(input, options)`:
 | `exact: true` | the byte-exact switch: `unpackText(file)` returns the input bytes unchanged (spacing, key order, escapes, `1.0` spelled as written, CRLF, blank lines, invalid UTF-8). Costs size: rows whose text is not the canonical form keep their original line. Default is value-exact (same values, keys in first-seen order). |
 | `level: 19` | the archive setting: slower to write (about 15x), about 12% smaller. Default is 3. |
 | `block: 'nested' \| 'flat'` | force one layout. Default: each block is written as nested columns and, when it could win, as flat columns too, and the smaller one is kept. |
-| `blockBytes` | block size, default 21 MB. |
+| `blockBytes` | block size, default 13 MB (faster parallel pack than 21 MB, same size). |
 | `templates: false` | switch the automatic log templates off. |
 
 Reading:

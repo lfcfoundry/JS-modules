@@ -915,7 +915,7 @@
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ public API
-  var BLOCK_BYTES = 21 << 20;
+  var BLOCK_BYTES = 13 << 20;
   function flatSkeletons(list) {
     for (var i = 0; i < list.length; i++) { var t = list[i]; if (t.charCodeAt(0) !== 123 || t.indexOf('{', 1) >= 0 || t.indexOf('[') >= 0) return false; }
     return list.length > 0;
