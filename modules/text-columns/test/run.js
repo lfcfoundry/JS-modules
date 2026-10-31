@@ -172,6 +172,19 @@ let used = 0;
     assert.strictEqual(JSON.stringify(a.columns.map(c => Array.from(c.values))), before, 'values unchanged by sharing');
     assert.strictEqual(before, JSON.stringify(b.columns.map(c => Array.from(c.values))), 'same as without sharing');
   }
+  { // spare arrays (0.6.4): a big number parse leaves spares of the same lengths; the next parse of that shape uses them and gives the same numbers
+    const rows = Array.from({ length: 300000 }, (_, i) => i + ',' + (i * 0.5) + ',x' + (i % 7)), txt = 'a,b,c\n' + rows.join('\n') + '\n';
+    const one = F.parse(txt); let end = Date.now() + 3000; while (!F._spareCount() && Date.now() < end) await new Promise(r => setTimeout(r, 5));
+    assert.strictEqual(F._spareCount(), 2, 'two spares made in idle time');
+    const two = F.parse(txt); assert.strictEqual(F._spareCount(), 0, 'the next parse takes both spares');
+    for (let j = 0; j < 2; j++) assert.deepStrictEqual(Array.from(two.columns[j].values.subarray(0, 5)), Array.from(one.columns[j].values.subarray(0, 5)));
+    assert.ok(two.columns[1].values[299999] === 149999.5 && two.columns[0].values !== one.columns[0].values, 'fresh result, same numbers');
+    end = Date.now() + 3000; while (!F._spareCount() && Date.now() < end) await new Promise(r => setTimeout(r, 5));
+    F.parse('a\n1\n'); assert.strictEqual(F._spareCount(), 2, 'a small parse leaves the spares alone');
+    end = Date.now() + 6000; while (F._spareCount() && Date.now() < end) await new Promise(r => setTimeout(r, 50));
+    assert.strictEqual(F._spareCount(), 0, 'unused spares are let go after 4 s');
+    F.parse(txt, { spare: false }); await new Promise(r => setTimeout(r, 50)); assert.strictEqual(F._spareCount(), 0, 'spare: false makes none');
+  }
   F.closeHelpers(); assert.ok(used > 250, 'the helpers must really be used: ' + used);
   console.log('text-columns: parallel parse agrees with parse on ' + (300 + 60 + 20 + 7) + ' files; ' + used + ' of them went through 2 or more helpers');
 })().catch(e => { console.log('FAIL parallel', e && e.stack || e); process.exit(1); });

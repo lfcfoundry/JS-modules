@@ -50,3 +50,12 @@ On these three lists `quickTries` changes nothing. Its 0 to 20% gain is for list
 | Firefox, Users | 17 | 6 |
 | Chromium, Features | 19.2 | 12.7 |
 | WebKitGTK, Features | 35 | 16 |
+
+**New in 2.9.0: stream rows (opt-in).** `unpackAsync(bytes, { stream: true, onRows, page })` hands rows over a page at a time (4,096 by default) and lets each page go after `onRows` returns, so a long list never holds every row at once. 300,000 events, time divided by plain `unpackAsync` with its 90% range; lower is better.
+
+| Laptop, 16 cores | Time new / old | Longest pause |
+|---|---:|---:|
+| Chromium 156 | 0.60 (0.57 to 0.66) | 2 to 4 times shorter |
+| Firefox 160 | 0.82 (0.68 to 0.94) | 2 to 4 times shorter |
+
+Lists of 131,072 rows or fewer take the plain path, because streaming them was 6 to 7% slower. WebKitGTK was not measured for this change.

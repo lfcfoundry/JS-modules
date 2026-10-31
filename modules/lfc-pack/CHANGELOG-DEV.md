@@ -5,13 +5,13 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 0.4.4 · API 0 · 2026-10-31
 
 ### Quick
-New option paths: 'auto': a long input tries both string layouts on its first big nested block and keeps the smaller one. Default files are byte-identical to 0.4.3.
+The string path hashes of each row shape are kept across blocks (up to 65,536 shapes), so per-path strings stop re-walking every shape in every block. Files are byte-identical; no API change.
 
 ### Details
-Per-path strings (0.4.0) make records with many paths that each hold few strings larger: real FHIR grew 15%. With paths: 'auto', an input of 5 blocks or more builds its first big nested block both ways and the rest follow the smaller layout; shorter inputs keep per-path strings. 260 MB of real FHIR: 7.26 MB instead of 8.32 MB, and one-thread pack 0.82 / 0.88 / 0.88 of the default time (Chromium / Firefox / WebKitGTK). packParallel writes the same bytes: blocks sent before block 0 answers try both and are redone if they picked the other way. The shape list and row id frames are now built once per block for both layouts (same bytes, neutral speed).
+260 MB of real FHIR, one thread, new/old (lower is better): Chromium 0.86, Firefox 0.85, WebKitGTK 0.90 (with the per-path rule build; this build with 4 helpers 0.92 / 0.91 / 0.92). orders x5 one thread: 0.94 / 1.01 / 1.01. GeoJSON 256 KB blocks: Chromium 0.93, Firefox 0.99, WebKitGTK 1.03 inconclusive, rechecked 1.13 slower then 0.96 ok (80 ms packs on a noisy box). Bytes checked identical on orders, GeoJSON and FHIR.
 
 ### Deep
-Off by default because with 4 packParallel helpers the trial costs 6-9% on big files where per-path strings win (orders x5: Chromium 1.09, WebKitGTK 1.08, Firefox 1.06, inconclusive). A variant where only block 0 tries both fixed that but made FHIR with helpers 17% slower in Chromium. Details: js-modules-research/lfc-pack/fhir-rerun-2026.10.31/PATHS-PICK.md.
+Found while profiling the FHIR layout rule: pathOrder() called stringPaths() and FNV-hashed every path of every shape in every block; FHIR has hundreds of shapes per block, so this was about 20 ms of a 100 ms block. Cache: Map from shape string to its path hashes, cleared above 65,536 entries. Research: js-modules-research/lfc-pack/fhir-rerun-2026.10.31/PATHS-PICK.md.
 
 ## 0.4.3 · API 0 · 2026-10-31
 

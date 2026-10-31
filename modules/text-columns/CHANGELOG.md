@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.4 · API 0 · 2026-10-31
+- Parsing big files with number columns again is 1 to 17% faster (45 MB, three browsers): the page prepares the number arrays for the next parse in idle time.
+
 ## 0.6.3 · API 0 · 2026-10-31
 - Repeated text values are kept once, so a parsed file keeps 42 to 63% less memory (16 MB file in Chromium: 29.4 to 10.9 MB). Parse speed is unchanged.
 

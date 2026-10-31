@@ -115,7 +115,7 @@
   function pathOrder(s, codes) {   // the string cells regrouped by path -> { pc: codes path after path, st: where each path starts, ph: path hashes, cnt: cells per path }
     var N = codes.length, sk = s.skelList, K = sk.length, i, j, k, p, q, a, n, sp = new Array(K), pix = new Map(), ph = [], kn = new Uint32Array(K), ids = s.ids;
     if (SPH.size > 65536) SPH.clear();
-    for (k = 0; k < K; k++) { var hs = SPH.get(sk[k]); if (!hs) { var ps = stringPaths(sk[k]); hs = new Array(ps.length); for (j = 0; j < ps.length; j++) hs[j] = fnvStr(ps[j]); SPH.set(sk[k], hs); }   // path hashes per shape, kept across blocks
+    for (k = 0; k < K; k++) { var hs = SPH.get(sk[k]); if (!hs) { var ps = stringPaths(sk[k]); hs = new Array(ps.length); for (j = 0; j < ps.length; j++) hs[j] = fnvStr(ps[j]); SPH.set(sk[k], hs); }   // since 0.4.4: path hashes per shape, kept across blocks
       a = new Int32Array(hs.length); for (j = 0; j < hs.length; j++) { var h = hs[j]; q = pix.get(h); if (q === undefined) { q = ph.length; pix.set(h, q); ph.push(h); } a[j] = q; } sp[k] = a; }
     for (i = 0; i < s.n; i++) kn[ids[i]]++;
     var P = ph.length, cnt = new Uint32Array(P), tot = 0;
