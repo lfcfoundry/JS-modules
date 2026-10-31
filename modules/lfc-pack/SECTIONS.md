@@ -20,7 +20,8 @@ One place to see which footer section ids are taken. Rules are in `SPEC.md` 2.2 
 | 13 | (never used) | reserved forever | | `SPEC.md` 2.2 |
 | 14 | file hash (older name) | reserved | no | design notes |
 | 15 | number spellings | written (byte-exact files) | yes when present | `SPEC.md` 2.3 |
-| 16 to 999 | later parts of this format | reserved | | |
+| 16 | shared tables | written (`share: true`) | yes when present | `LAYOUT-SPEC.md` 3.6 |
+| 17 to 999 | later parts of this format | reserved | | |
 
 ## Application ids (1000 and up)
 Pick the next free id, put your app name and a version inside the payload, and make the section optional unless the file is meaningless without it.

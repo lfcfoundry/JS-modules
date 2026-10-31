@@ -22,7 +22,7 @@
     },
     {
       "id": "save-kit",
-      "version": "1.3.1",
+      "version": "1.4.0",
       "api": 1,
       "global": "SaveKit",
       "summary": "Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to.",
@@ -154,7 +154,7 @@
     },
     {
       "id": "field-report",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "api": 1,
       "global": "FieldReport",
       "summary": "Two hidden buttons for a game or app: five taps in a corner open a panel that saves a speed report (start-up, frames a second, slowest frames, heavy tasks, plain verdict) and an error log, as small Markdown files. No network.",
@@ -375,7 +375,7 @@
     },
     {
       "id": "lfc-pack",
-      "version": "0.3.2",
+      "version": "0.4.0",
       "api": 0,
       "global": "LfcPack",
       "summary": "Packs newline-delimited JSON (logs, events, API dumps) into LFC-pack (.json.lfc): every field becomes a typed column inside zstd blocks, with a footer of per-block number ranges. Reads back the same rows as JSON.parse (or the exact original bytes), only some keys, or only a time range, with helper workers for big files. WebAssembly is required; a Python reader is included.",
@@ -389,7 +389,7 @@
     },
     {
       "id": "text-columns",
-      "version": "0.6.1",
+      "version": "0.6.3",
       "api": 0,
       "global": "TextColumns",
       "summary": "Reads CSV or TSV text into typed columns: plain decimal columns come out as Float64Array straight from the bytes, the rest as text. The field scan runs in WebAssembly SIMD; plain JavaScript gives the same answers.",

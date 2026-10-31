@@ -88,6 +88,7 @@ GROUPS = [('Why it exists', ['Why it exists']),
           ('How to use it', ['Use', 'Quick start', 'API', 'Options', 'Try it and test it', 'Lean builds', 'Lean build']),
           ('Who uses it', ['See it in action']),
           ('Good to know', ['Limits', 'What it is not', 'Good to know', 'Rules'])]
+NUMKEYS = ['Speed', 'Size', 'Cost when idle', 'What each step saves', 'Compile early']
 def pick(secs, order, keys):
     got = []
     for t in order:
@@ -111,8 +112,12 @@ def module_html(m, base_mods):
             if t != title and len(ts) > 1 or t not in (title, 'Why it exists', 'Use', 'Quick start', 'How it compares', 'See it in action'): body.append('<h3>%s</h3>' % esc(t))
             body.append(md(secs[t], folder))
     nf = os.path.join(root, 'tools/module-pages/numbers', mid + '.md')
-    if os.path.exists(nf): body.append('<h2 id="numbers">Speed and efficiency numbers</h2>' + md(open(nf, encoding='utf-8').read(), folder))
-    else: body.append('<h2 id="numbers">Speed and efficiency numbers</h2><div class="ph"><p><strong>Placeholder.</strong> Measured speed, size and memory numbers for this module will appear here as they are collected. Each will name the browser and device it was measured on. Until then, only the numbers already in the comparison above are published.</p></div>')
+    nts = [t for t in order if t not in used and any(t.startswith(k) for k in NUMKEYS)]
+    nb = '<h2 id="numbers">Speed and efficiency numbers</h2>'
+    if os.path.exists(nf): nb += md(open(nf, encoding='utf-8').read(), folder)
+    elif not nts: nb += '<div class="ph"><p><strong>Not measured yet.</strong> No speed, size or memory measurements are published for this piece yet. They will appear here when a measured run includes it, each naming the browser and device it ran on. Any numbers already in the comparison above still apply.</p></div>'
+    for t in nts: used.add(t); nb += '<h3>%s</h3>' % esc(t) + md(secs[t], folder)
+    body.append(nb)
     rest = [t for t in order if t not in used and t not in ('For AI agents', 'Prior art and credits', 'Full research notes')]
     if rest:
         body.append('<h2 id="more">More</h2>')

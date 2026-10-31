@@ -162,6 +162,16 @@ let used = 0;
   { const dt = 'd,b\n' + Array.from({ length: 3000 }, (_, i) => '20' + String(10 + i % 80) + '-0' + (1 + i % 9) + '-1' + (i % 9) + ',' + (i % 2 ? 'true' : 'FALSE')).join('\n') + '\n'; await both(dt, { workers: 3, types: { d: 'date', b: 'boolean' } }); const pt = await F.parseParallel(dt, { spawn, minBytes: 0, workers: 3, types: { d: 'date' } }); assert.strictEqual(pt.columns[0].type, 'date'); }
   { const big = numeric(2000, 6), f = (nm) => nm >= 'c'; await both(big, { workers: 3, columns: f }); await both(big, { workers: 3, columns: f, lazy: true }); }
   assert.ok((await F.parseParallel('a\n1\n2\n', { spawn, workers: 4 })).count === 2, 'small input is read directly');
+  { // sharing repeats after the parse (0.6.3): values stay the same, the queue empties, few-repeat and number columns are left alone
+    const W = ['north', 'south', 'east', 'west'], rows = Array.from({ length: 9000 }, (_, i) => i + ',' + W[i % 4] + ',u' + i + ',"q""' + (i % 3) + '"');
+    const txt = 'n,w,u,q\n' + rows.join('\n') + '\n';
+    const a = F.parse(txt), b = F.parse(txt, { _shareLater: false }), before = JSON.stringify(a.columns.map(c => Array.from(c.values)));
+    assert.ok(F._sharePending() > 0, 'sharing is queued after parse');
+    const end = Date.now() + 5000; while (F._sharePending() && Date.now() < end) await new Promise(r => setTimeout(r, 5));
+    assert.strictEqual(F._sharePending(), 0, 'sharing finishes');
+    assert.strictEqual(JSON.stringify(a.columns.map(c => Array.from(c.values))), before, 'values unchanged by sharing');
+    assert.strictEqual(before, JSON.stringify(b.columns.map(c => Array.from(c.values))), 'same as without sharing');
+  }
   F.closeHelpers(); assert.ok(used > 250, 'the helpers must really be used: ' + used);
   console.log('text-columns: parallel parse agrees with parse on ' + (300 + 60 + 20 + 7) + ' files; ' + used + ' of them went through 2 or more helpers');
 })().catch(e => { console.log('FAIL parallel', e && e.stack || e); process.exit(1); });
