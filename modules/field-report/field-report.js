@@ -4,7 +4,7 @@
  * "Save error log" writes every error the page raised, in plain words. Both save one small Markdown file on the device. No network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.2 (API 1)
+ * Version 1.1.0 (API 1)
  *
  *   <script src="field-report.js"></script>      // put it FIRST, so errors during start-up are caught too
  *   var fr = FieldReport.start({ name: 'my-game', version: '2026.10.22.1700' });
@@ -17,7 +17,8 @@
  *
  * Options: name (file names), version (your release stamp, shown in the reports), corner ('top-left' | 'top-right' | 'bottom-left' |
  * 'bottom-right'), taps (5) within ms (2500) in a square of `size` px (64), fps (60: what "smooth" means for this page), frames (true:
- * watch frames from the start), console (true: also keep console.error and console.warn lines), onSave(text, fileName, kind) (replace the
+ * watch frames from the start with its own animation-frame callback; 'play': only between fr.frames(true) and fr.frames(false), so a still screen
+ * costs nothing; 'external': no callback of its own, the app calls fr.frame(ts) from its own loop; false: no frames), console (true: also keep console.error and console.warn lines), onSave(text, fileName, kind) (replace the
  * file download, for example to share it), onOpen / onClose.
  *
  * What it records, and the limits:
@@ -38,7 +39,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var VERSION = '1.0.2';
+  var VERSION = '1.1.0';
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function stamp(d) { return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()); }
@@ -105,15 +106,26 @@
 
     // ---- frames ----
     var ring = typeof Float32Array === 'function' ? new Float32Array(keep) : new Array(keep), rn = 0, rw = 0, last = 0, raf = 0, hidden = false;
+    function note(ts) { if (last && !hidden) { var d = ts - last; if (d > 0 && d < 5000) { ring[rw] = d; rw = (rw + 1) % keep; if (rn < keep) rn++; } } last = ts; }
     function frame(ts) {
-      raf = 0; if (stopped) return;
-      if (last && !hidden) { var d = ts - last; if (d > 0 && d < 5000) { ring[rw] = d; rw = (rw + 1) % keep; if (rn < keep) rn++; } }
-      last = ts;
+      raf = 0; if (stopped || !framesOn) return;
+      note(ts);
       raf = win.requestAnimationFrame(frame);
     }
     function framesNow() { var a = [], i, from = rn < keep ? 0 : rw; for (i = 0; i < rn; i++) a.push(ring[(from + i) % keep]); return a; }
     function onVis() { hidden = doc.visibilityState === 'hidden'; last = 0; }
-    if (fr.supported && o.frames !== false && typeof win.requestAnimationFrame === 'function') { raf = win.requestAnimationFrame(frame); doc.addEventListener('visibilitychange', onVis); }
+    // Since 1.1.0. frames: true (default) runs its own animation-frame callback from the start; 'play' runs it only between frames(true) and frames(false), so a still
+    // screen costs nothing; 'external' never runs one: the app calls frame(ts) from its own loop (no second callback), and frames(false) / frames(true) pause and resume.
+    var mode = o.frames === false ? 'off' : o.frames === 'play' || o.frames === 'external' ? o.frames : 'own', framesOn = false, hasRaf = !!win && typeof win.requestAnimationFrame === 'function';
+    function framesStart() {
+      if (framesOn || stopped || !fr.supported || mode === 'off' || (mode !== 'external' && !hasRaf)) return;
+      framesOn = true; last = 0; hidden = doc.visibilityState === 'hidden'; doc.addEventListener('visibilitychange', onVis);
+      if (mode !== 'external') raf = win.requestAnimationFrame(frame);
+    }
+    function framesStop() { if (!framesOn) return; framesOn = false; if (raf && win.cancelAnimationFrame) win.cancelAnimationFrame(raf); raf = 0; last = 0; doc.removeEventListener('visibilitychange', onVis); }
+    fr.frames = function (on) { if (on === false) framesStop(); else framesStart(); return framesOn; };
+    fr.frame = function (ts) { if (mode === 'external' && framesOn && !stopped) note(typeof ts === 'number' ? ts : now()); };
+    if (mode === 'own' || mode === 'external') framesStart();
 
     // ---- tasks, marks, long tasks ----
     var tasks = [], marks = [], longs = [], po = null;
@@ -286,7 +298,7 @@
       if (stopped) return; stopped = true;
       if (raf && win.cancelAnimationFrame) win.cancelAnimationFrame(raf);
       if (fr.supported) {
-        doc.removeEventListener('visibilitychange', onVis); win.removeEventListener('error', onError, true); win.removeEventListener('unhandledrejection', onRej);
+        framesStop(); win.removeEventListener('error', onError, true); win.removeEventListener('unhandledrejection', onRej);
         doc.removeEventListener('securitypolicyviolation', onCsp); win.removeEventListener('pointerdown', onDown, true);
       }
       undoConsole.forEach(function (u) { u(); }); undoConsole = [];
