@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.6.5 (API 2)
+ * Version 2.6.6 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1166,20 +1166,20 @@
       var res = new Uint32Array(n), i; for (i = 0; i < n; i++) res[i] = a[i] - base;
       bpWrite(w, res, n, bw);
     }
-    function bpReadF(r, n, bw, base) {            // n values of bw bits, each plus base, as doubles
+    function bpReadF(r, n, bw, base, into) {      // n values of bw bits, each plus base, as doubles (into: a zeroed Float64Array of n to fill instead of making one)
       var kw = KWC, out, res, i, bytes, sP, oP, src;
       if (bw > 32) pfail('bad bit width');
-      if (!bw) { out = new Float64Array(n); if (base) out.fill(base); return out; }
+      if (!bw) { out = into || new Float64Array(n); if (base) out.fill(base); return out; }
       if (kw && n >= 1024) {
         bytes = Math.ceil(n * bw / 8); sP = kw.base; oP = kal(sP + bytes + 16);
         if (kwRoom(oP + n * 8 - kw.base + 64)) {
           src = r.bytes(bytes);
           new Uint8Array(kw.mem.buffer, sP, bytes + 8).fill(0, bytes).set(src);
           kw.x.bp_unpack(sP, n, bw, base, oP);
-          out = new Float64Array(n); out.set(new Float64Array(kw.mem.buffer, oP, n)); return out;
+          out = into || new Float64Array(n); out.set(new Float64Array(kw.mem.buffer, oP, n)); return out;
         }
       }
-      res = bpRead(r, n, bw); out = new Float64Array(n); for (i = 0; i < n; i++) out[i] = res[i] + base; return out;
+      res = bpRead(r, n, bw); out = into || new Float64Array(n); for (i = 0; i < n; i++) out[i] = res[i] + base; return out;
     }
     function bpRead(r, n, bw) {
       var out = new Uint32Array(n), bytes, src, tmp, mask, pos = 0, i, idx, off, v;
@@ -1292,8 +1292,8 @@
       for (i = 1; i < n; i++) { x = a[i] - a[i - 1]; x = x < 0 ? -2 * x - 1 : 2 * x; d[i - 1] = x; if (x > y) y = x; }
       return y;
     }
-    function undeltaOf(d, n, c0) {    // out[0] = c0; out[i] = out[i - 1] + unzigzag(d[i - 1])
-      var kw = KWC, dP, oP, out = new Float64Array(n), i, c = c0, z;
+    function undeltaOf(d, n, c0, into) {    // out[0] = c0; out[i] = out[i - 1] + unzigzag(d[i - 1])  (into: a zeroed Float64Array of n to fill)
+      var kw = KWC, dP, oP, out = into || new Float64Array(n), i, c = c0, z;
       if (kw && n >= 1024) {
         dP = kw.base; oP = kal(dP + n * 8);
         if (kwRoom(oP + n * 8 - kw.base + 64)) {
@@ -1410,12 +1410,12 @@
       return best;
     }
     function tryInt(sch, a, depth, opt, mm, bound) { try { return encIntWith(sch, a, depth, opt, mm, bound); } catch (e) { return null; } }
-    function decInts(r, n, depth) {
-      var sch = r.u8(), out = new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div;
+    function decInts(r, n, depth, into) {
+      var sch = r.u8(), out = into || new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div;
       if (depth > MAX_DEPTH) pfail('data nested too deep');
       if (sch === IS.RAW) { for (i = 0; i < n; i++) out[i] = r.f64(); return out; }
       if (sch === IS.CONST) { out.fill(r.zi()); return out; }
-      if (sch === IS.FOR) { mn = r.zi(); bw = r.u8(); return bpReadF(r, n, bw, mn); }
+      if (sch === IS.FOR) { mn = r.zi(); bw = r.u8(); return bpReadF(r, n, bw, mn, into); }
       if (sch === IS.ENT) {
         mn = r.zi(); sh = r.u8(); if (sh > 40) pfail('bad shift'); t = readTable(r); rl = r.vi();
         syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot); low = bpRead(r, n, sh); div = Math.pow(2, sh);
@@ -1425,7 +1425,7 @@
       if (sch === IS.DELTA) {
         if (n < 1) pfail('bad column');
         c = r.zi(); d = decInts(r, n - 1, depth + 1);
-        return undeltaOf(d, n, c);
+        return undeltaOf(d, n, c, into);
       }
       if (sch === IS.DIV) { b = r.zi(); g = r.vi(); d = decInts(r, n, depth + 1); for (i = 0; i < n; i++) out[i] = d[i] * g + b; return out; }
       if (sch === IS.RLE) {
@@ -1443,7 +1443,7 @@
       }
       if (sch === IS.PFOR) {
         mn = r.zi(); bw = r.u8(); ne = r.vi(); if (ne > n || bw > 31) pfail('bad outliers');
-        out = bpReadF(r, n, bw, mn); gaps = decInts(r, ne, depth + 1); hi = decInts(r, ne, depth + 1); lim1 = Math.pow(2, bw);
+        out = bpReadF(r, n, bw, mn, into); gaps = decInts(r, ne, depth + 1); hi = decInts(r, ne, depth + 1); lim1 = Math.pow(2, bw);
         p = -1; for (k = 0; k < ne; k++) { p += gaps[k] + 1; if (!(p >= 0 && p < n)) pfail('bad outlier position'); out[p] += hi[k] * lim1; }
         return out;
       }
@@ -1512,8 +1512,8 @@
       }
       return w.out();
     }
-    function decALP(r, n, depth) {
-      var e = r.u8(), f = r.u8(), ne = r.vi(), ints, out = new Float64Array(n), i, gaps, near, at, p, k, c, q, z;
+    function decALP(r, n, depth, into) {
+      var e = r.u8(), f = r.u8(), ne = r.vi(), ints, out = into || new Float64Array(n), i, gaps, near, at, p, k, c, q, z;
       if (e > 22 || f > e || ne > n) pfail('bad decimal column');
       ints = decInts(r, n, depth + 1);
       for (i = 0; i < n; i++) out[i] = ints[i] * F10[f] / F10[e];
@@ -1759,10 +1759,11 @@
       if (!best || best.length >= a.length * 8) { best = rawDoubles(a); bs = CS.RAWF; }
       w = new Wr(); w.u8(bs); w.bytes(best); return w.out();
     }
-    function decChunk(r, n) {
+    function into1(out, at, n, got) { if (got.buffer !== out.buffer || got.byteOffset !== out.byteOffset + at * 8) out.set(got, at); }      // a block that was not decoded in place is copied in
+    function decChunk(r, n, into) {
       var id = r.u8(), out, i;
-      if (id === CS.INTS) return decInts(r, n, 0);
-      if (id === CS.ALP) return decALP(r, n, 0);
+      if (id === CS.INTS) return decInts(r, n, 0, into);
+      if (id === CS.ALP) return decALP(r, n, 0, into);
       if (id === CS.RD) return decRD(r, n, 0);
       if (id === CS.FDICT) return decFDict(r, n, 0);
       if (id === CS.PLANES) return decPlanes(r, n);
@@ -1806,7 +1807,7 @@
       var r = new Rd(bytes), n = r.vi(), c = r.vi(), out, i, len, c2;
       if (n !== count || c < 1 || c > 1048576) pfail('the data does not match the column');
       out = new Float64Array(n);
-      for (i = 0; i < n; i += c) { len = r.vi(); c2 = Math.min(c, n - i); out.set(decChunk(new Rd(r.bytes(len)), c2), i); }
+      for (i = 0; i < n; i += c) { len = r.vi(); c2 = Math.min(c, n - i); into1(out, i, c2, decChunk(new Rd(r.bytes(len)), c2, out.subarray(i, i + c2))); }
       return out;
     }
     function available() { return LE; }
@@ -1821,7 +1822,7 @@
       var k, len, c2;
       KWC = st.wasm === false ? null : kwGet();
       try {
-        for (k = 0; k < blocks && st.i < st.n; k++) { len = st.r.vi(); c2 = Math.min(st.c, st.n - st.i); st.out.set(decChunk(new Rd(st.r.bytes(len)), c2), st.i); st.i += st.c; }
+        for (k = 0; k < blocks && st.i < st.n; k++) { len = st.r.vi(); c2 = Math.min(st.c, st.n - st.i); into1(st.out, st.i, c2, decChunk(new Rd(st.r.bytes(len)), c2, st.out.subarray(st.i, st.i + c2))); st.i += st.c; }
       } finally { KWC = null; }
       return st.i >= st.n;
     }

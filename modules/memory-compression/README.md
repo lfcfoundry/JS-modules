@@ -1,6 +1,6 @@
 # memory-compression
 
-**Version 2.6.5 · API 2**
+**Version 2.6.6 · API 2**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
