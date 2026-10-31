@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.1 · API 1 · 2026-10-31
+- With worker: true, the curtain is ready up to 4x sooner.
+
 ## 1.4.0 · API 1 · 2026-10-24
 - The curtain's velvet paints 60 to 70% faster in a browser with WebAssembly SIMD. The picture matches the plain-JavaScript one to within 5 of 255 on 99.99% of pixels; stepped curtains are unchanged.
 
