@@ -167,7 +167,8 @@ function oracle(px, w, h, radius) {
   ok(!/\beval\s*\(|new\s+Function|createObjectURL|\bBlob\b|\bWorker\b|importScripts|import\s*\(/.test(code), 'no eval, new Function, blob address, Blob or Worker in the code (only wasm-unsafe-eval is needed)');
   ok(!/\bsetInterval\b|document\.write|innerHTML|localStorage|fetch\s*\(|XMLHttpRequest/.test(code), 'no timers left running, no storage, no network');
   ok(!/navigator\.(userAgent|vendor|platform)|userAgent|\bsafari\b|\bchrome\b|\bfirefox\b/i.test(code), 'the code never looks at a browser name');
-  ok(/Version 1\.0\.0 \(API 1\)/.test(src.slice(0, 1800)) && /var VERSION = '1\.0\.0'/.test(src), 'the header and the code say the same version');
+  var hv = /Version (\d+\.\d+\.\d+) \(API 1\)/.exec(src.slice(0, 1800)), cv = /var VERSION = '(\d+\.\d+\.\d+)'/.exec(src);
+  ok(hv && cv && hv[1] === cv[1] && G.version === cv[1], 'the header and the code say the same version');
 
   // ---- the wasm source rebuilds to the shipped bytes (needs clang with the wasm32 target; skipped, and counted as skipped, where it is missing)
   var have = cp.spawnSync('clang', ['--version']);
