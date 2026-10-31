@@ -35,7 +35,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lfc-pack](modules/lfc-pack/README.md) | 0.1.9 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.1.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
@@ -58,6 +58,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips orderings it already followed: same pictures, up to 1.3x faster.
+- 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
 - 2026-10-30 · **memory-compression** 2.6.6 · API 2: Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes
 - 2026-10-30 · **gif-writer** 1.6.0 · API 1: Optional thorough palette: counts every pixel for slightly smaller files.
 - 2026-10-27 · **text-columns** 0.1.1 · API 0: toRows() keeps a column named __proto__ as its own data, and a header with a repeated name now throws instead of silently dropping a column. Same speed.
