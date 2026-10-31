@@ -5,7 +5,7 @@ the frames come in the specified order with the declared lengths, and no byte of
 usage: python3 test/layoutcheck.py [file.json.lfc ...]   (no arguments: vectors/*.json.lfc and vectors/layout/*.json.lfc; needs the zstandard package)"""
 import sys, json, struct, zlib, zstandard
 Z = zstandard.ZstdDecompressor()
-COV=set()
+COV=set(); SHARED=None
 def dz(b, n=None):
     fp = zstandard.get_frame_parameters(b)
     assert fp.content_size >= 0, 'zstd frame without content size'
@@ -54,8 +54,15 @@ def nested(b, log):
     cm = json.loads(dz(take(h['cm'][1], 'colmeta'), h['cm'][0]))
     dz(take(h['p'][0], 'dict'), h['len'][0]); dz(take(h['p'][1], 'side'), h['len'][1]); sk = dz(take(h['p'][2], 'skel'), h['len'][2]).decode().split('\n')
     dz(take(h['ids'][2], 'row-shape-ids'), h['ids'][1] * W[h['ids'][0]])
-    dz(take(h['fa'][1], 'first-flags'), h['fa'][0]); assert h['fa'][0] == (h['fa'][5] + 7) // 8
-    dz(take(h['fa'][4], 'repeats'), h['fa'][3] * W[h['fa'][2]])
+    if h.get('g') == 1:   # shared tables (3.6): string codes as typed bytes instead of flags and repeats
+        assert h['cd'][0] in (0, 1, 2), 'string code width'
+        dz(take(h['cd'][2], 'string-codes'), h['cd'][1] * W[h['cd'][0]])
+        assert (h['kc'] == 0 and sk == ['']) or len(sk) == h['kc'], 'shape count'
+        assert SHARED is not None, 'block with g = 1 but no section 16'
+        COV.add('nested-shared')
+    else:
+        dz(take(h['fa'][1], 'first-flags'), h['fa'][0]); assert h['fa'][0] == (h['fa'][5] + 7) // 8
+        dz(take(h['fa'][4], 'repeats'), h['fa'][3] * W[h['fa'][2]])
     for ent in cm:
         key, kd, cnt, ln = ent[:4]
         if kd == 7:
@@ -73,7 +80,10 @@ def main():
     for fn in files:
         d = open(fn, 'rb').read()
         try:
+            global SHARED
             sec, end = footer(d); blocks = json.loads(sec[2]); pos = 0
+            SHARED = json.loads(sec[16]) if 16 in sec else None
+            if SHARED is not None: assert isinstance(SHARED.get('s'), list) and isinstance(SHARED.get('k'), list), 'section 16 needs s and k lists'
             for i, (off, ln, crc, rows, kind, *t) in enumerate(blocks):
                 assert off == pos, 'gap before block %d' % i; pos = off+ln
                 b = d[off:off+ln]; assert zlib.crc32(b) == crc
