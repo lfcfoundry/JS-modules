@@ -1222,7 +1222,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.2.0', apiVersion: 0 };
+  var api = { hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.2.0', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
@@ -1239,6 +1239,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
         var f = openFile(out);
         return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail }, transfer: [out.buffer] };
       }
+      if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };   // helper start-up only: the wasm is loaded by the time this answers
       var b = m.buf; if (crcJS(b, 0) !== m.crc) throw new Error('block ' + m.id + ' checksum mismatch');
       var F = m.kind === 'f' ? flatFrames(S.zdec, b, m.want, true) : nestedFrames(S.zdec, b);
       return { msg: { id: m.id, F: F }, transfer: m.kind === 'f' ? flatTransfer(F) : nestedTransfer(F) };
@@ -1299,10 +1300,12 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     return init().then(function () {
       var T0 = Date.now(), b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
       if (opts.balance && !opts.blockBytes) bb = Math.max(4 << 20, Math.min(bb, Math.ceil(b.length / Math.min(opts.workers || hc, 8))));   // experimental: about one block per helper; the file differs from pack() unless pack gets the same blockBytes
+      if (opts.balance === 'even' && !opts.blockBytes) { var nb0 = Math.ceil(b.length / bb), w0 = Math.min(opts.workers || hc, 8); if (w0 > 1 && nb0 > 1) bb = Math.ceil(b.length / (Math.ceil(nb0 / w0) * w0)); }   // experimental: as many blocks as a whole number of rounds for the helpers, so none waits alone at the end; the file differs from pack() unless pack gets the same blockBytes
       while (q < b.length) { e = Math.min(b.length, q + bb); if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
-      var nb = cuts.length - 1, w = Math.min(opts.workers || hc, 8, nb), per = Math.ceil(nb / Math.max(1, w)), groups = [], g;
+      var nb = cuts.length - 1, w = Math.min(opts.workers || hc, 8, nb), per = Math.ceil(nb / Math.max(1, w)), groups = [], g, dyn = opts.dynamic !== false;
       if (opts.exact || w < 2) return pack(b, opts);   // exact mode and small inputs stay on one thread
-      for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
+      if (dyn) for (g = 0; g < nb; g++) groups.push([cuts[g], cuts[g + 1]]);   // one job per block; a helper that finishes takes the next block, so the run does not wait on one slow run of blocks
+      else for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
       var jopts = {}, k, tm = opts.timing; for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k];
       if (tm) { tm.cut = Date.now() - T0; tm.groups = []; }   // optional phase timing: ms from the call start, filled in as the run goes
       return new Promise(function (resolve, reject) {
@@ -1313,25 +1316,42 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
           idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, 3000); if (idleTimer.unref) idleTimer.unref();
         }
         function fail(err) { if (failed) return; failed = true; release(false); reject(err instanceof Error ? err : new Error(String(err && err.message || err))); }
-        function onMsg(i, m, next) {
-          if (m.started) { if (tm) tm.groups[i].started = Date.now() - T0; next(); return; }
+        function onMsg(i, m, next, w2) {
+          if (m.started) { if (tm) tm.groups[i].started = Date.now() - T0; if (next) { var n2 = next; next = null; n2(); } return; }
           if (m.error) { fail(new Error(m.error)); return; }
           if (tm) tm.groups[i].done = Date.now() - T0;
-          results[i] = m; if (--left === 0 && !failed) { release(true); try { var ts = Date.now(); var out = stitch(results, b.length, jopts); if (tm) { tm.stitchMs = Date.now() - ts; tm.total = Date.now() - T0; } resolve(out); } catch (er) { reject(er); } }
+          results[i] = m; if (w2 && dyn) give(w2, null); if (--left === 0 && !failed) { release(true); try { var ts = Date.now(); var out = stitch(results, b.length, jopts); if (tm) { tm.stitchMs = Date.now() - ts; tm.total = Date.now() - T0; } resolve(out); } catch (er) { reject(er); } }
         }
-        function start(i) {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
-          if (i >= groups.length || failed) return;
-          var t1 = Date.now(), w2 = takeHelper(), t2 = Date.now(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]), nx = function () { start(i + 1); };
-          if (tm) tm.groups[i] = { takeMs: t2 - t1, copyMs: Date.now() - t2, posted: Date.now() - T0, bytes: slice.length };
-          w2.listen(function (m) { onMsg(i, m, nx); }, fail);
+        var nextGroup = 0, helpersStarted = 0;
+        function give(w2, nx) {   // hand this helper the next job, or keep it for later calls when none is left
+          if (failed) return;
+          if (nextGroup >= groups.length) { if (nx) nx(); return; }
+          var i = nextGroup++, t1 = Date.now(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
+          if (tm) tm.groups[i] = { takeMs: 0, copyMs: Date.now() - t1, posted: Date.now() - T0, bytes: slice.length };
+          w2.listen(function (m) { onMsg(i, m, nx, w2); }, fail);
           w2.post({ id: i, kind: 'p', buf: slice, opts: jopts }, [slice.buffer]);
-          ws.push(w2);
         }
-        start(0);
+        function start() {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
+          if (helpersStarted >= w || nextGroup >= groups.length || failed) return;
+          helpersStarted++; var w2 = takeHelper(); ws.push(w2); give(w2, start);
+        }
+        start();
       });
     });
   }
   var idleHelpers = [], idleTimer = null, packUrl = null;
+  // warmPack(n, { keepMs }): start n pack helpers now (default: as many as packParallel would use, at most 8) and keep them keepMs (default 10,000) for the next packParallel call, which then skips the helper start-up
+  function warmPack(n, o) {
+    return init().then(function () {
+      var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, k = Math.min(n || hc, 8), keep = (o && o.keepMs) || 10000, made = [], i;
+      clearTimeout(idleTimer); for (i = idleHelpers.length; i < k; i++) made.push(takeHelper());
+      var all = idleHelpers.concat(made), pending = made.map(function (w2, j) { return new Promise(function (res, rej) { w2.listen(function (m) { if (m.error) rej(new Error(m.error)); else res(); }, rej); w2.post({ id: -1 - j, kind: 'w' }, []); }); });
+      return Promise.all(pending).then(function () {
+        idleHelpers = all; clearTimeout(idleTimer); idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, keep); if (idleTimer.unref) idleTimer.unref();
+        return all.length;
+      });
+    });
+  }
   function takeHelper() {   // a helper kept from the last packParallel call, or a new one
     clearTimeout(idleTimer); if (idleHelpers.length) return idleHelpers.pop();
     var src = workerSource(true), w;
