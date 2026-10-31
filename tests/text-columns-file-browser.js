@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// text-columns 0.6.0 parseParallel(File or Blob): each helper reads its own piece of the file (idea A) against the page reading the whole file first (0.5.2, _file: false),
-// each alone and stacked with the one-string text of 0.5.2 (idea B, _utf16: false turns it off). Same answers as parse() first, then wall time, the page's own work and its longest stall.
-// Run: node tests/text-columns-file-browser.js <chromium|firefox|webkit> [out.json]     Env: REPS (default 7), FILES (JSON list of [kind, MB])
+// text-columns parseParallel(File or Blob). Round 5 (0.6.0): each helper reads its own piece of the file (idea A) against the page reading the whole file first (0.5.2, _file: false),
+// each alone and stacked with the one-string text of 0.5.2 (idea B, _utf16: false turns it off). Round 6 (0.6.1): the helpers join the number columns (C2, _join: false turns it off) and read in slices (D, _slice: bytes), alone and stacked. Same answers as parse() first, then wall time, the page's own work and its longest stall.
+// Run: node tests/text-columns-file-browser.js <chromium|firefox|webkit> [out.json]     Env: REPS (default 7), FILES (JSON list of [kind, MB]), ROUND=5 (the 0.6.0 modes), ONLY (JSON list of mode names)
 'use strict';
 const fs = require('fs'), path = require('path'), T = require('../tools/test-runner/runner.js');
 const root = path.resolve(__dirname, '..') + '/modules/', REPS = +(process.env.REPS || 7);
@@ -51,7 +51,7 @@ T.main(async (b, which, outFile) => {
     };
     for (const [name, u] of Object.entries(cases)) for (const o of [{}, { columns: ['b'] }, { columns: [1] }, { lazy: true }, { header: false }, { types: { a: 'boolean' } }]) {
       let ref; try { ref = TextColumns.parse(u, o); } catch (e) { ref = 'error: ' + e.message; }
-      for (const m of [{}, { _utf16: false }, { workers: 3 }, { workers: 7 }]) {
+      for (const m of [{}, { _utf16: false }, { workers: 3 }, { workers: 7 }, { _join: false }, { _slice: 4096 }]) {
         let r, ok; try { r = await TextColumns.parseParallel(new Blob([u]), Object.assign({ minBytes: 0 }, o, m)); ok = typeof ref === 'string' ? 'no error, expected ' + ref : same(r, ref); } catch (e) { r = { workers: '?' }; ok = typeof ref === 'string' && ref === 'error: ' + e.message ? true : 'error: ' + e.message; }
         if (ok === true && r && r.columns && o.lazy) { ok = same(r, ref); }
         out[name + ' ' + JSON.stringify(o) + ' ' + JSON.stringify(m) + ' (' + r.workers + ' helpers)'] = ok;
@@ -65,8 +65,9 @@ T.main(async (b, which, outFile) => {
   const rows = [];
   for (const [kind, mb] of (process.env.FILES ? JSON.parse(process.env.FILES) : [['num', 45], ['mixed', 32], ['accented', 32]])) {
     await p.evaluate((k, m) => { window.B = new Blob([make(k, m)]); }, kind, mb);
-    const MODES = { '1 thread': null, '0.5.1 way (neither)': { _file: false, _utf16: false }, 'A alone (File)': { _utf16: false }, '0.5.2 (B alone)': { _file: false }, '0.6.0 (A + B)': {} };
-    const names = Object.keys(MODES), ms = {}, page = {}, stall = {};
+    const MB = 1048576, MODES = process.env.ROUND === '5' ? { '1 thread': null, '0.5.1 way (neither)': { _file: false, _utf16: false, _join: false }, 'A alone (File)': { _utf16: false, _join: false }, '0.5.2 (B alone)': { _file: false, _join: false }, '0.6.0 (A + B)': { _join: false } }
+      : { '0.5.2 (B)': { _file: false, _join: false }, '0.6.0 (A + B)': { _join: false }, 'C2 alone': { _file: false, _utf16: false }, '0.6.1 (A + B + C2)': {}, 'A + D 4 MB': { _utf16: false, _join: false, _slice: 4 * MB }, 'A + B + C2 + D 4 MB': { _slice: 4 * MB }, 'A + B + C2 + D 1 MB': { _slice: MB } };
+    const names = Object.keys(MODES).filter((k) => !process.env.ONLY || JSON.parse(process.env.ONLY).includes(k)), ms = {}, page = {}, stall = {};
     for (const k of names) { ms[k] = []; page[k] = []; stall[k] = []; }
     for (let r = 0; r < REPS + 1; r++) for (const k of (r % 2 ? names.slice().reverse() : names)) {
       const v = await p.evaluate(async (o) => {
@@ -82,10 +83,10 @@ T.main(async (b, which, outFile) => {
       if (r) { ms[k].push(v[0]); page[k].push(v[1]); stall[k].push(v[2]); }
     }
     const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
-    for (const k of names) rows.push({ file: kind + ' ' + mb + ' MB', mode: k, ms: med(ms[k]).toFixed(1), page: med(page[k]).toFixed(1), stall: med(stall[k]).toFixed(1), vs: (med(ms['0.5.2 (B alone)']) / med(ms[k])).toFixed(2) });
+    for (const k of names) rows.push({ file: kind + ' ' + mb + ' MB', mode: k, ms: med(ms[k]).toFixed(1), page: med(page[k]).toFixed(1), stall: med(stall[k]).toFixed(1), vs: (med(ms[process.env.ROUND === '5' ? '0.5.2 (B alone)' : '0.6.0 (A + B)'] || ms[names[0]]) / med(ms[k])).toFixed(2) });
   }
   srv.close();
-  console.log(T.table(rows, [{ key: 'file', title: 'file (a Blob)', align: 'left' }, { key: 'mode', title: 'mode', align: 'left' }, { key: 'ms', title: 'wall ms' }, { key: 'page', title: 'page ms' }, { key: 'stall', title: 'longest stall ms' }, { key: 'vs', title: 'x faster than 0.5.2' }]));
+  console.log(T.table(rows, [{ key: 'file', title: 'file (a Blob)', align: 'left' }, { key: 'mode', title: 'mode', align: 'left' }, { key: 'ms', title: 'wall ms' }, { key: 'page', title: 'page ms' }, { key: 'stall', title: 'longest stall ms' }, { key: 'vs', title: process.env.ROUND === '5' ? 'x faster than 0.5.2' : 'x faster than 0.6.0' }]));
   if (outFile) fs.writeFileSync(outFile, JSON.stringify({ which, same, rows }));
   return bad.length === 0;
 });
