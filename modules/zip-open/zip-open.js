@@ -133,6 +133,14 @@
   }
   function csvCell(v) { return /[",\r\n]/.test(v) || /^\s|\s$/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   /** parts: { 'xl/workbook.xml': text, ... } (only the ones that exist). Returns [{ sheet, csv, rows }]. */
+  /** True for 1 to 15 digits with no leading zero: String(Number(v)) would give v back unchanged, so it is skipped. */
+  function plainInt(v) {
+    var n = v.length, c = v.charCodeAt(0);
+    if (n > 15 || c < 49 || c > 57) return n === 1 && c === 48;
+    for (var i = 1; i < n; i++) { c = v.charCodeAt(i); if (c < 48 || c > 57) return false; }
+    return true;
+  }
+
   function xlsxSheets(parts, opts) {
     opts = opts || {};
     var maxRows = opts.maxRows || 2000000, sst = [], dateXf = {}, d1904 = false, sheets = [], rels = {};
@@ -163,7 +171,7 @@
       target = target.replace(/^\/?(xl\/)?/, '').replace(/^\.\//, '');
       var xml = parts['xl/' + target];
       if (!xml) return;
-      var lines = [], row = null, rowHas = false, c = null, cell = null, inV = false, inIs = false, rowCount = 0, lastCol = -1, truncated = false;
+      var lines = [], row = null, rowHas = false, c = null, cell = false, cType = '', cXf = 0, cCol = 0, cV = '', inV = false, inIs = false, rowCount = 0, lastCol = -1, truncated = false;
       var flushRow = function () {
         if (!row) return;
         if (rowHas) {
@@ -176,32 +184,32 @@
         row = null; rowHas = false;
       };
       xmlScan(xml, {
-        wants: function () { return cell !== null && inV; },
+        wants: function () { return cell && inV; },
         open: function (t, a, self) {
           if (truncated) return;
           if (t === 'row') { flushRow(); row = []; lastCol = -1; }
           else if (t === 'c') {
-            cell = { type: a.t || 'n', xf: Number(a.s) || 0, v: '' };
+            cType = a.t || 'n'; cXf = a.s ? Number(a.s) || 0 : 0; cV = ''; cell = true;
             var ci = colIndex(a.r); if (ci < 0) ci = lastCol + 1;
-            if (ci >= XL_COLS) { cell = null; return; }
-            cell.col = ci; lastCol = ci;
-            if (self) cell = null;
+            if (ci >= XL_COLS) { cell = false; return; }
+            cCol = ci; lastCol = ci;
+            if (self) cell = false;
           }
           else if (t === 'v' && cell) inV = true;
           else if (t === 'is' && cell) inIs = true;
           else if (t === 't' && cell && inIs) inV = true;
         },
-        text: function (s) { if (cell && inV && cell.v.length < 40000) cell.v += s; },
+        text: function (s) { if (cell && inV && cV.length < 40000) cV += s; },
         close: function (t) {
           if (t === 'v' || (t === 't' && inIs)) inV = false;
           else if (t === 'is') inIs = false;
           else if (t === 'c' && cell) {
-            var v = cell.v;
-            if (cell.type === 's') v = sst[Number(v)] !== undefined ? sst[Number(v)] : '';
-            else if (cell.type === 'b') v = v === '1' ? 'TRUE' : 'FALSE';
-            else if (cell.type === 'n' || cell.type === '') { if (v !== '' && dateXf[cell.xf]) { var dt = xlDate(Number(v), d1904); if (dt) v = dt; } else if (v !== '' && isFinite(Number(v))) v = String(Number(v)); }
-            if (v !== '' && row) { if (!row) row = []; row[cell.col] = v; rowHas = true; }
-            cell = null;
+            var v = cV;
+            if (cType === 's') { var sv = sst[Number(v)]; v = sv !== undefined ? sv : ''; }
+            else if (cType === 'b') v = v === '1' ? 'TRUE' : 'FALSE';
+            else if (cType === 'n' || cType === '') { if (v !== '' && dateXf[cXf]) { var dt = xlDate(Number(v), d1904); if (dt) v = dt; } else if (v !== '' && !plainInt(v) && isFinite(Number(v))) v = String(Number(v)); }
+            if (v !== '' && row) { row[cCol] = v; rowHas = true; }
+            cell = false;
           }
           else if (t === 'row') flushRow();
         }
