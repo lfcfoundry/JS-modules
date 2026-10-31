@@ -1299,7 +1299,7 @@
   }
   // paths: 'auto' pick from a sample: the first PATHS_SAMPLE bytes of the input packed with per-path strings everywhere and with none; the smaller wins.
   // pack() and packParallel() both pick this way before any block is made, so they write the same bytes with no second try
-  var PATHS_SAMPLE = 131072;
+  var PATHS_SAMPLE = 0;   // off: a 128 KB sample picked wrong on some data (see PATHS-PICK.md); the trial decides
   function samplePick(b, opts) {
     var e = b.length > PATHS_SAMPLE ? b.indexOf(10, PATHS_SAMPLE) : -1, sb = e < 0 ? b : b.subarray(0, e + 1), o = {}, k;
     for (k in opts) if (k !== 'share' && k !== '_st' && k !== 'timing' && k !== 'workers') o[k] = opts[k];
