@@ -255,5 +255,12 @@ function gen(type, n, shape) {
         await sleep(100); ok(live.size === 0, 'no worker thread left at the end');
       } finally { delete globalThis.Worker; globalThis.Blob = OB; URL.createObjectURL = cu; for (const x of [...live]) x.terminate(); } }
   }
+  { // spare (1.6.2): after a big unpack a touched spare of the same size is made when idle; the next unpack fills it, same numbers; spare: false makes none
+    const a = gen('f64', 300000, 'dec'), b = pk.pack(a), r2 = await R.load({ idleMs: 2000 });
+    const x1 = r2.unpack(b); await new Promise((ok) => setTimeout(ok, 30));
+    const x2 = r2.unpack(b); ok(same(x1, a) && same(x2, a) && x1 !== x2, 'spare: two big unpacks give the same numbers in different arrays');
+    await new Promise((ok) => setTimeout(ok, 30)); const x3 = r2.unpack(b); ok(same(x3, a) && x3 !== x2, 'spare: a third unpack is a new array too');
+    const r3 = await R.load({ spare: false }); ok(same(r3.unpack(b), a) && same(r3.unpack(b), a), 'spare: false still unpacks right');
+  }
   console.log(`\n${pass} checks passed, ${fail} failed`); process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });
