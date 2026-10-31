@@ -182,6 +182,7 @@ def _decimals(raw, n):
 
 def _read_nested(b, shared=None):
     h, p = _block_header(b); c = _Cur(b, p)
+    if (h.get('sp') == 1 and h.get('g') == 1) or (h.get('sp') == 2 and h.get('g') != 1): raise ValueError('bad string layout')
     if h.get('g') == 1: return _read_nested_shared(b, h, c, shared)
     cmeta = json.loads(_dz(c.take(h['cm'][1]), h['cm'][0]).decode('utf-8'))
     D = _dz(c.take(h['p'][0]), h['len'][0]).decode('ascii').split('\0')
@@ -341,21 +342,15 @@ def _read_nested_shared(b, h, c, shared):
     if len(skel) != LK: raise ValueError('shape count')
     ids = _typed(_dz(c.take(h['ids'][2]), h['ids'][1] * _ITEM[h['ids'][0]]), h['ids'][0], h['ids'][1])
     tab = None
-    if h.get('sp') == 1:   # with per-path strings: path entries, each the block's next own string (0) or shared string v - 1
-        tab, ecodes, ET = _path_codes(h, c)
-        gr = h['gr']
-        if gr[0] not in (0, 1, 2) or gr[1] != ET: raise ValueError('bad string entry list')
-        gra = _typed(_dz(c.take(gr[2]), gr[1] * _ITEM[gr[0]]), gr[0], gr[1])
-        GE, lt = [], 0
-        for v in gra:
-            v = int(v)
-            if v == 0: GE.append(lt); lt += 1
-            else: GE.append(L + v - 1)
-        if lt != L: raise ValueError('string entry list')
-        codes = [GE[k] for k in ecodes]
-    else:
-        if h['cd'][0] not in (0, 1, 2): raise ValueError('bad string code width')
-        codes = _typed(_dz(c.take(h['cd'][2]), h['cd'][1] * _ITEM[h['cd'][0]]), h['cd'][0], h['cd'][1])
+    if h.get('sp') == 2:   # with per-path strings: a path table [hash, cells], then the codes as below, path after path
+        t2 = json.loads(_dz(c.take(h['pt'][1]), h['pt'][0]).decode('utf-8'))
+        if not isinstance(t2, list): raise ValueError('string path table')
+        for e in t2:
+            if not isinstance(e, list) or len(e) < 2 or not all(isinstance(x, int) and not isinstance(x, bool) for x in e[:2]) or e[1] < 0: raise ValueError('string path table')
+        if len({e[0] for e in t2}) != len(t2) or sum(e[1] for e in t2) != h['cd'][1]: raise ValueError('string path table')
+        tab = [[e[0], 0, e[1]] for e in t2]
+    if h['cd'][0] not in (0, 1, 2): raise ValueError('bad string code width')
+    codes = _typed(_dz(c.take(h['cd'][2]), h['cd'][1] * _ITEM[h['cd'][0]]), h['cd'][0], h['cd'][1])
     cols = {}
     for ent in cmeta:
         key, kind, count, plen = ent[:4]

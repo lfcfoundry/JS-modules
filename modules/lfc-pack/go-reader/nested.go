@@ -97,18 +97,23 @@ func readNested(b []byte, sh *sharedTables) []any {
 	var fa []int
 	var flags []byte
 	var rep, gcodes []float64
-	// sp = 1: per-path strings; a table [hash, entries, cells] per string path, each path's dictionary entries in turn, its own flags (from a fresh byte) and repeats
-	spm := false
+	// sp = 1: per-path strings; a table [hash, entries, cells] per string path, each path's dictionary entries in turn, its own flags (from a fresh byte) and repeats.
+	// sp = 2 (with g = 1): a table [hash, cells] and the typed codes of the shared-table block, path after path. Either way the string cells of a row read from their path (spm).
+	spv := 0
 	if sv, ok := h.Get("sp"); ok {
-		if x, ok := sv.(float64); ok && x == 1 {
-			spm = true
+		if x, ok := sv.(float64); ok && (x == 1 || x == 2) {
+			spv = int(x)
 		}
 	}
+	if (spv == 1 && g) || (spv == 2 && !g) {
+		fail("bad string layout")
+	}
+	spm := spv != 0
 	var stab []any
 	var sfl []byte
 	var srep []float64
 	var sf []int
-	var sgr []float64
+	var ptab []any
 	readPaths := func() {
 		sf = ints(field(h, "sf")) // tableRaw, tableLen, flagsRaw, flagsLen, repKind, repCount, repLen
 		stab, _ = jsonOf(unzstdB(c.take(sf[1]))).([]any)
@@ -132,20 +137,15 @@ func readNested(b []byte, sh *sharedTables) []any {
 		} else if len(skel) != LK {
 			fail("shape count")
 		}
-		if spm { // with per-path strings: path entries, each the block's next own string (0) or shared string v - 1
-			readPaths()
-			gr := ints(field(h, "gr"))
-			if gr[0] < 0 || gr[0] > 2 {
-				fail("bad string entry list")
-			}
-			sgr = typed(unzstdB(c.take(gr[2])), gr[0], gr[1])
-		} else {
-			cd := ints(field(h, "cd")) // kind, count, packed length
-			if cd[0] < 0 || cd[0] > 2 {
-				fail("bad string code width")
-			}
-			gcodes = typed(unzstdB(c.take(cd[2])), cd[0], cd[1])
+		if spm {
+			pt := ints(field(h, "pt")) // tableRaw, tableLen
+			ptab, _ = jsonOf(unzstdB(c.take(pt[1]))).([]any)
 		}
+		cd := ints(field(h, "cd")) // kind, count, packed length
+		if cd[0] < 0 || cd[0] > 2 {
+			fail("bad string code width")
+		}
+		gcodes = typed(unzstdB(c.take(cd[2])), cd[0], cd[1])
 	}
 	if g {
 	} else if spm {
@@ -187,9 +187,31 @@ func readNested(b []byte, sh *sharedTables) []any {
 		}
 	}
 	spc := map[uint32]*scol{}
-	if spm {
+	if spm && g {
+		at := 0
+		for _, x := range ptab {
+			a, ok := x.([]any)
+			if !ok || len(a) < 2 {
+				fail("string path table")
+			}
+			hf, ok1 := a[0].(float64)
+			nf, ok2 := a[1].(float64)
+			if !ok1 || !ok2 || hf < 0 || hf > 4294967295 || hf != float64(int64(hf)) || nf < 0 || nf != float64(int64(nf)) || at+int(nf) > len(strs) {
+				fail("string path table")
+			}
+			if _, dup := spc[uint32(hf)]; dup {
+				fail("string path table")
+			}
+			spc[uint32(hf)] = &scol{v: strs[at : at+int(nf)]}
+			at += int(nf)
+		}
+		if at != len(strs) {
+			fail("string path table")
+		}
+	}
+	if spm && !g {
 		count := num(field(h, "count"))
-		if !g && count > 0 && len(D) != count {
+		if count > 0 && len(D) != count {
 			fail("dictionary count")
 		}
 		ET, RT, FT := 0, 0, 0
@@ -220,33 +242,7 @@ func readNested(b []byte, sh *sharedTables) []any {
 			FT += (n + 7) >> 3
 			pl = append(pl, pent{uint32(v[0]), e, n})
 		}
-		// the string of every path entry: the dictionary itself, or with shared tables the block's own strings and the shared ones by the entry list
 		ES := D
-		if g {
-			if len(sgr) != ET {
-				fail("bad string entry list")
-			}
-			ES = make([]string, ET)
-			lt := 0
-			for j, v := range sgr {
-				k := int(v)
-				if k == 0 {
-					if lt >= len(D) || lt >= L {
-						fail("string entry list")
-					}
-					ES[j] = D[lt]
-					lt++
-				} else if k-1 < len(sh.s) {
-					ES[j] = sh.s[k-1]
-				} else {
-					fail("string code %d out of range", k)
-				}
-			}
-			if lt != L {
-				fail("string entry list")
-			}
-			count = ET
-		}
 		if ET != count || RT != len(srep) || RT != sf[5] || FT != len(sfl) || FT != sf[2] {
 			fail("string path table")
 		}

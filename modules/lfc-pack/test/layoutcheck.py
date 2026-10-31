@@ -63,9 +63,11 @@ def nested(b, log):
         assert all(0 <= e[1] <= e[2] and (e[1] > 0 or e[2] == 0) for e in tab), 'path table entry'
         assert sum(e[2] - e[1] for e in tab) == sf[5] and sum((e[2] + 7) // 8 for e in tab) == sf[2], 'path table sums'
         return sum(e[1] for e in tab)
-    if h.get('g') == 1 and h.get('sp') == 1:   # shared tables and per-path strings (3.6, 3.5a): path entries list instead of typed codes
-        ET = paths(); gr = h['gr']; assert gr[0] in (0, 1, 2) and gr[1] == ET, 'entry list'
-        dz(take(gr[2], 'string-entries'), gr[1] * W[gr[0]])
+    if h.get('g') == 1 and h.get('sp') == 2:   # shared tables with per-path strings (3.6): path table [hash, cells], then the typed codes in path order
+        pt = json.loads(dz(take(h['pt'][1], 'path-table'), h['pt'][0]))
+        assert len({e[0] for e in pt}) == len(pt) and all(e[1] >= 0 for e in pt) and sum(e[1] for e in pt) == h['cd'][1], 'path table'
+        assert h['cd'][0] in (0, 1, 2), 'string code width'
+        dz(take(h['cd'][2], 'string-codes'), h['cd'][1] * W[h['cd'][0]])
         assert SHARED is not None, 'block with g = 1 but no section 16'
         COV.add('nested-shared-paths')
     elif h.get('g') == 1:   # shared tables (3.6): string codes as typed bytes instead of flags and repeats
