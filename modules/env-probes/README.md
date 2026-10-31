@@ -4,12 +4,25 @@
 
 **Tested in:** Node checks; tests/pieces-browser.js env-probes (the demo page loads, report() sees a page, canvas read-back and storage work, explain() gives sentences) one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, all passed. Not run: Firefox privacy-profile test, a phone.
 
-Tiny checks for browsers that quietly change what your page can do. About 11 KB minified (about 4.4 KB gzipped; measured with terser 5.36.0), no dependencies. Open `demo.html` for the one-button device check page. Never throws, in a page, a Worker or Node.
+## What it is and how it works
 
-Each check tests the real behavior instead of asking for a browser name: it reads `performance.now()` in a short loop to see how big its smallest step is, draws a small patch of pixels and reads them back to see if they changed, writes and removes one small storage key, and asks the browser's media queries about motion, touch and contrast. Results are plain values, and `explain()` turns them into short sentences.
+Tiny checks for browsers that quietly change what a page can do. About 4.4 KB gzipped, no dependencies, never throws.
+
+- It tests real behavior instead of reading the browser name: clock steps, canvas read-back, storage, media queries.
+- Results are plain values, and `explain()` turns them into short sentences.
+- Works in a page, a Worker or Node.
 
 ## Why it exists
-With a rounded clock, per-frame meters measure nothing. With scrambled canvas read-back, anything that analyzes pixels turns into noise. Tor Browser also shows a permission prompt on read-back, which is why the canvas test is not tried when the clock is rounded. Run these first and skip the code that cannot work.
+
+Privacy browsers round the clock and scramble canvas pixels, so frame meters and pixel analysis turn into noise. Checking first lets a page skip code that cannot work there.
+
+**Where it helps**
+
+- Turning off frame meters when the clock is rounded.
+- Skipping pixel analysis when canvas read-back is scrambled.
+- A one-button device check page for testers.
+
+**Not for:** browser detection by name; a future browser could round or add noise differently.
 
 ## The calls
 

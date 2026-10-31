@@ -4,17 +4,29 @@
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6, one at a time (tests/image-decode-browser.js, all checks pass in each)
 
-The version is also in code as `ImageDecode.version`. Run the tests (offline, about a second): `node modules/image-decode/test/run.js`. The real-browser check is `tests/image-decode-browser.js`.
+## What it is and how it works
 
-Turns a picture file (PNG, JPEG, WebP, AVIF or GIF) into something a canvas can draw, so the page does not freeze at the first `drawImage`. About 12 KB with its comments, no dependencies.
+Turns a picture file (PNG, JPEG, WebP, AVIF or GIF) into something a canvas can draw, without freezing the page at the first `drawImage`. About 12 KB with comments.
 
-A picture is normally decoded (turned from file bytes into pixels) at the moment it is first drawn, on the page's main thread, and a 2048 x 2048 sheet freezes the page for 45 to 95 ms. Browsers can decode off the main thread, but each one does it through a different door: Chromium only through `createImageBitmap`, Firefox and WebKit only through `Image.decode()` (their `createImageBitmap` freezes the page for the whole decode, and Chromium's `Image.decode()` is decoded again at the first draw). `ImageDecode.load` picks the right door for the browser, hands back something `drawImage` accepts, and tries the other door once if the first fails. `loadAll` loads a list in order, a couple at a time. `supports` and `pick` tell you whether the browser can read WebP or AVIF, so a page can ship the smallest format it can read.
+- It decodes off the main thread through the door each browser supports (`createImageBitmap` in Chromium, `Image.decode()` in Firefox and WebKit).
+- If the first door fails, it tries the other once.
+- `loadAll` loads a list a couple at a time, and `ahead()` decodes before pictures are needed.
 
 ## Why it exists
 
-A game should decode its built-in pictures off the main thread before they are first needed, and ship WebP or AVIF where that is smaller. Doing that by hand means knowing which of two browser features works in which browser (measured below: the answer is opposite in Chromium and in Firefox/WebKit), keeping a one-pixel probe per format, and not starting twenty decodes at once. The sprite sheets in the games are the case this was made for: a 2048 sheet drawn the plain way froze the page for 44 ms in Chromium, 45 in Firefox and 87 to 94 in WebKit, well over the 8 ms a page task should stay under. No library for this was found that stays under a few lines of the browser's own calls; this module is those lines, chosen per browser and tested.
+A 2048 x 2048 sprite sheet drawn the plain way froze the page for 44 to 94 ms in the test browsers, far over the 8 ms a task should take. The right browser feature is opposite in Chromium and in Firefox and WebKit, which is easy to get wrong by hand.
+
+**Where it helps**
+
+- Sprite sheets and backgrounds in games.
+- Large images shown right after a page loads.
+- Choosing WebP or AVIF where they are smaller.
+
+**Not for:** editing pixels; it only decodes.
 
 ## Use
+
+The version is also in code as `ImageDecode.version`. Run the tests (offline, about a second): `node modules/image-decode/test/run.js`. The real-browser check is `tests/image-decode-browser.js`.
 
 Copy `image-decode.js` (browser global `ImageDecode`, or `require` in Node). `demo.html` is a one-button comparison on your own browser.
 

@@ -4,20 +4,32 @@
 
 **Tested in:** Docs only, code unchanged; fuzz-kit Node checks 215 pass.
 
-A small, seeded, reproducible random-input fuzzer for **stateful pages and games**, plus the pattern that makes such a page testable without shipping test code. No dependencies; the engine needs only `Promise`.
+## What it is and how it works
 
-You give it weighted *operations* (taps, key presses, menu clicks, "load a damaged save"), *invariants* (what must be true after every operation) and an optional *liveness* check (from anywhere, ordinary input must lead somewhere). A seeded random generator picks the operations, so one seed always gives the same sequence. After every operation your rules are checked; a failure carries the tail of operation names that led to it, and the run can be cut down (delta debugging) to the few operations that matter.
+A small, seeded random-input tester for pages and games that keep state, plus a pattern for testing a page without shipping test code. No dependencies.
+
+- You give it weighted actions (taps, keys, "load a damaged save") and rules that must always hold.
+- A seed picks the actions, so a seed always gives the same run.
+- A failure comes with the actions that led to it, cut down to the few that matter.
+
+## Why it exists
+
+In the game this came from, a few hundred thousand random actions found bugs that careful reading and scripted tests had missed. Each came with a seed, so it could be reproduced in seconds and fixed with a regression test.
+
+**Where it helps**
+
+- Games and apps with menus, saves and many states.
+- Finding bugs scripted tests miss.
+- Turning each found bug into a repeatable test.
+
+**Not for:** apps with hidden randomness or real-time timing you cannot control (runs will not repeat).
+
+## Use
 
 - `src/fuzz-core.js`: the engine (ES5, UMD: browser global `Fuzzer` plus `module.exports`), with input helpers (`Fuzzer.Input`), ready-made invariants (`Fuzzer.Invariants`) and a bridge to real mouse and keyboard (`Fuzzer.Real`).
 - `runner/fuzz_playwright.py` and `runner/fuzz_puppeteer.mjs`: command-line runners, a fresh browser context per seed; a failing seed exits non-zero.
 - `tools/strip-test-hooks.js` and `tools/check-shipped.js`: remove the test handle from the page you ship and check nothing leaked.
 - `example/`: a tiny app (`app.html`) with a planted bug, the adapter you would write (`adapter.js`) and `generic-adapter.js` (random clicks, taps, keys and the junk-text rule, no game code) for a first look at any click page.
-
-## Why it exists
-
-In the game this came from, a few hundred thousand random operations across two browsers found bugs that careful reading and scripted tests had missed: a Help window that redrew icons with the wrong data, spending that came back after a reload, a win that could be undone by bumping something. Each finding came with a seed and an operation tail, so it could be reproduced in seconds and fixed with a regression test.
-
-## Use
 
 1. Give the page a test handle that is stripped from the shipped copy, and make the simulation steppable by hand (stop the real-time loop in tests; that is what makes runs repeat exactly):
    ```js

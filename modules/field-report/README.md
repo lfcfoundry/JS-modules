@@ -4,12 +4,25 @@
 
 **Tested in:** field-report checks 45/45 (one new: header version equals FR.version)
 
-Two hidden buttons for a game or app, so a person on a real phone or laptop can hand over what happened: **Save speed report** and **Save error log**. Five quick taps in a corner of the page open a small panel with the two buttons; each saves one small Markdown file on the device. The module draws nothing until then, makes no network request, and keeps no names.
+## What it is and how it works
 
-How it works: `FieldReport.start()` begins watching the moment the file runs. A tiny `requestAnimationFrame` loop keeps the last 3,600 frame times in a ring of numbers (no garbage per frame). The browser's own timeline gives first paint, DOMContentLoaded and load. Page errors, rejected promises, files that failed to load, page-policy blocks and `console.error` / `console.warn` lines go into a list of the last 200 different lines, repeats counted. Taps are counted from the page's own pointer events in the corner square, so nothing sits over your game and it cannot steal a tap. The speed report ends in a plain-words verdict such as "Mostly smooth. 56 FPS on average (higher is better), the slowest 1% of frames run at 12 FPS, the slowest frame took 83 ms (lower is better), 0 frame(s) took over 100 ms."
+Two hidden buttons that let a tester on a real device save a **speed report** and an **error log** as small Markdown files. No network, no names.
+
+- Five quick taps in a corner open a small panel; nothing is drawn before that.
+- It keeps the last 3,600 frame times and the last 200 distinct errors and warnings.
+- The speed report ends in a plain-words verdict.
 
 ## Why it exists
-The project rule is that every game and app has a hidden real-device speed button and a hidden error-log button, so the owner can test on a phone and send back numbers instead of "it felt slow". The same two buttons were being written again in each game; this is the one shared copy. Closest alternatives: Chrome DevTools and Lighthouse need a computer attached; `stats.js` and similar overlays show frames a second on screen but save nothing and record no errors; Sentry and similar services collect errors but send them over the network, which the games here never do.
+
+Every game and app here needs a way to test on a phone and send back numbers instead of "it felt slow". DevTools needs a computer attached, FPS overlays save nothing, and error services send data over the network, which these apps never do.
+
+**Where it helps**
+
+- Testing a release on real phones and laptops.
+- Collecting error logs from testers without a server.
+- Comparing speed before and after a change.
+
+**Not for:** errors that happen before the file runs; load it first.
 
 ## Quick start
 ```html

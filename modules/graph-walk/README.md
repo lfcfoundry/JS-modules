@@ -4,12 +4,27 @@
 
 **Tested in:** Firefox 158, Chromium 155 (container)
 
-The walks that map and flow tools keep rewriting, on the plain "links of every item" layout in typed arrays with no recursion: breadth-first distances, loop marking, connected components, strongly connected components, topological order and shortest paths (by links or by weight, from one item to all or between two items). On a 100,000 item network with 400,000 links the build takes 7 milliseconds and components 5, where graphology needs 2.2 seconds and 0.5 to 1.5 seconds.
-
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
+## What it is and how it works
+
+The graph walks that map and flow tools keep rewriting, on typed arrays with no recursion: distances, loops, components, topological order and shortest paths.
+
+- Links are kept in a compact "links of every item" layout.
+- Each walk uses a few typed arrays, so big graphs do not create millions of objects.
+- Loop marking says exactly which link closes each loop.
+
 ## Why it exists
-Netflow Map has four copies of the same breadth-first walk and two loop-dropping depth-first passes, each with its own queue and arrays. One tested copy means one place to fix and one place to speed up, and the loop marking (which link closes a loop) comes with it for free instead of being a side effect inside a bigger function.
+
+Netflow Map had four copies of the same breadth-first walk and two loop-dropping passes. One tested copy means one place to fix and speed up. On 100,000 items the build takes milliseconds where graphology needs seconds.
+
+**Where it helps**
+
+- Network and flow maps.
+- Finding loops and dependency order.
+- Shortest paths on large graphs in the browser.
+
+**Not for:** graphs whose items are not numbered 0 to n-1.
 
 ## Use
 ```js

@@ -4,15 +4,27 @@
 
 **Tested in:** Python 3.13 (25 lzma-pack checks); tests/pack-default-browser.js one browser at a time on 2026-10-18: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; a page without the wasm policy word opened in all four
 
-Turns one HTML file into one smaller, self-unpacking HTML file using LZMA, and checks a hash of the result before running it. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader).
-
-`pack.py` compresses the page with LZMA and writes a wrapper page: the compressed bytes plus a minified loader built from [`modules/lzma-decode`](../../modules/lzma-decode/README.md) (2,340 bytes in `bytes` mode and 2,148 in `base64` mode with terser on the example page; the "Opening..." line adds roughly 0.1 KB). While it unpacks, an "Opening..." line shows on the page's own background color (read from the input page, or given with `--bg`), so a dark game never flashes white. Opening the file unpacks the page, verifies the hash and replaces itself with the real page. If the hash does not match (the file was saved as text, or cut short) it shows a plain message and runs nothing.
-
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
+
+## What it is and how it works
+
+Turns one HTML file into one smaller, self-unpacking HTML file using LZMA, and checks a hash before running it. Python 3 standard library only.
+
+- `pack.py` compresses the page and wraps it with a small loader built from [`lzma-decode`](../../modules/lzma-decode/README.md).
+- While it unpacks, an "Opening..." line shows on the page's own background color.
+- If the hash does not match, it shows a plain message and runs nothing.
 
 ## Why it exists
 
-A single-file offline game or tool that has to stay one file can use a few extra percent. **How much it gains depends on the file.** In the game this came from, LZMA made the file 24.7% smaller than ordinary deflate (147,730 to 111,241 bytes) with a loader of about 2.6 KB. On a page already squeezed with Zopfli the gain was only about 10% (249,190 to 224,251 bytes). Expect 10 to 25 percent; try both packers on your own file. An automatic mode that builds both and keeps the smaller is an idea, not part of this tool.
+A single-file page that must stay one file can use a few extra percent. In the game it came from, LZMA was 24.7% smaller than deflate; on a page already squeezed with Zopfli the gain was about 10%. Try both on your own file.
+
+**Where it helps**
+
+- Offline single-file games and tools.
+- Pages sent as email attachments or files.
+- Squeezing the last 10 to 25%.
+
+**Not for:** `bytes` mode on servers that send a UTF-8 header, such as GitHub Pages (use `base64` there).
 
 ## Use
 
