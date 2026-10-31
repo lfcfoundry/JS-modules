@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.4.1 (API 0)
+ * Version 0.4.2 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -152,8 +152,9 @@
   }
   var SIDE_CAP = 1 << 19, ROW_CAP = 1 << 18, NUM_CAP = 4 << 20, IN_CAP = 48 << 20;
   function makeShredder(inst) {
-    var X = inst.exports, mem = X.memory;
-    var v = {
+    // bind(): views over one core instance; rebind() points the same functions at a fresh instance (trim), so the engine keeps its warmed-up code
+    var X, mem, v;
+    function bind(i) { X = i.exports; mem = X.memory; v = {
       IN: new Uint8Array(mem.buffer, X.in_ptr(), IN_CAP), TEXT: new Uint8Array(mem.buffer, X.text_ptr(), 48 << 20),
       NODD: new Uint32Array(mem.buffer, X.nodd_ptr(), (1 << 20) * 4), ODD: new Uint8Array(mem.buffer, X.odd_ptr(), 1 << 18),
       RS: new Uint32Array(mem.buffer, X.rowstart_ptr(), ROW_CAP), RE: new Uint32Array(mem.buffer, X.rowend_ptr(), ROW_CAP),
@@ -162,7 +163,8 @@
       IDS: new Uint32Array(mem.buffer, X.ids_ptr(), ROW_CAP), SK: new Uint8Array(mem.buffer, X.sk_ptr(), 1 << 20),
       SHAPES: new Uint8Array(mem.buffer, X.shapes_ptr(), 16 << 20), SHOFF: new Uint32Array(mem.buffer, X.shoff_ptr(), (1 << 16) + 1),
       ST: new Uint32Array(mem.buffer, X.state_ptr(), 16)
-    };
+    }; }
+    bind(inst);
     // opts.exact: also collect the lists that restore the original bytes (rows with odd spacing or escapes, number spellings)
     function shred(bytes, opts) {
       var exact = !!(opts && opts.exact); X.set_exact(exact ? 1 : 0);
@@ -224,7 +226,8 @@
       var skelList = []; for (i = 0; i < shapeN; i++) skelList.push(td.decode(v.SHAPES.subarray(v.SHOFF[i], v.SHOFF[i + 1])));
       return { textLen: Math.max(textLen - 1, 0), count: strN2, side: sideAll, cols: cols, skelList: skelList, ids: v.IDS.slice(0, rowN2), n: rowN2, fallback: fb, oddRows: oddRows, spell: spell };
     }
-    return { shred: shred, x: X, mem: mem, text: function () { return v.TEXT; } };
+    var o = { shred: shred, x: X, mem: mem, text: function () { return v.TEXT; }, rebind: function (i) { bind(i); o.x = X; o.mem = mem; } };
+    return o;
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
@@ -1258,7 +1261,7 @@
   // the packer's memory only (the tokenizer and string dictionary, which holds most of what a pack grows): the zstd memory stays, so the next job does not grow it again.
   // Pack helpers do this when they go idle (pool.js): back-to-back packParallel calls stay as fast, and the waiting helpers hold 200 MB to 1.1 GB less.
   function trimPacker() {
-    if (S.core) { S.core = loadSync(coreName()); S.sh = makeShredder(S.core); }
+    if (S.core) { S.core = loadSync(coreName()); S.sh.rebind(S.core); }
     dropSmallWasm();
   }
   function need(w) { if (w && !S.sh) throw new Error('LfcPack: call init() first'); if (!S.zdec) throw new Error('LfcPack: call init({readOnly:true}) or init() first'); }
@@ -1587,7 +1590,7 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { trim: trim, _trimPacker: trimPacker, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.1', apiVersion: 0 };
+  var api = { trim: trim, _trimPacker: trimPacker, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.2', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
