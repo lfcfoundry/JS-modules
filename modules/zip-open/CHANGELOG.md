@@ -6,10 +6,11 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Faster Excel (.xlsx) sheet reading: the XML scanner finds tag ends and attributes without regular expressions on the common path and skips text nobody asked for. About 20 to 30% less time on big sheets. Same cells, same notes.
 
 ## 1.6.0 · API 1 · 2026-10-31
-- Faster and lighter: text entries are unpacked into one shared buffer that is reused for the next entry (and let go 5 seconds after the last one), instead of a fresh buffer and a list of pieces each time. Typically 5 to 25% faster on big zips; two opens at the same time never share it.
+- Text entries are unpacked into one shared buffer that is reused for the next entry (let go 5 s after the last one). Laptop Chromium: 2 to 14% faster on most zips; laptop Firefox: about even.
 
 ## 1.5.2 · API 1 · 2026-10-31
-- Small-entry inflate in its own wasm module compiled on first use (page load back to 1.4 level); expandBlob helpers close 5 s after last use (idleMs).
+- Loading the module costs what it did before 1.5.0: the small-file unpacker is now a separate piece, prepared only when a small file is first opened. 2,000 tiny files still open 1.4 to 1.9x faster than with the browser's own unpacker.
+- Helpers from expandBlob close 5 s after their last use and give their memory back (idleMs changes the delay).
 
 ## 1.5.1 · API 1 · 2026-10-30
 - Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.1 · API 0 · 2026-10-31
+- Packing nested rows is 6 to 21% faster on a 16-core laptop (Chromium and Firefox), with the same files byte for byte.
+
 ## 0.4.0 · API 0 · 2026-10-31
 - Smaller nested files by default: strings are kept per path (`paths: false` turns it off), 5 to 14% smaller. Older readers refuse such blocks.
 - New pack options: `share: true` (one string and shape table for the whole file) and `access: 'random'` (256 KB blocks plus share, for fast small reads).
@@ -29,9 +32,6 @@ What changed in each version, newest first, in plain words. The full details (nu
 ## 0.1.11 · API 0 · 2026-10-30
 - New packStream: feed text in pieces and write each block as it is ready, so packing a big file holds one block of text at a time
 
-## 0.1.10 · API 0 · 2026-10-30
-- New experimental unpackColumns reads flat-row files as typed columns without building row objects.
-
 ## 0.1.10 · API 0 · 2026-10-29
 - New experimental unpackColumns reads flat-row files as typed columns without building row objects.
 
@@ -46,12 +46,6 @@ What changed in each version, newest first, in plain words. The full details (nu
 
 ## 0.1.6 · API 0 · 2026-10-26
 - Flat writer also reads strings, true/false and null in wasm; flat list columns read faster (number decoder, Firefox and WebKitGTK builders); output files unchanged.
-
-## 0.1.6 · API 0 · 2026-10-26
-- Flat writer also reads strings, true/false and null in wasm; flat list columns read faster (number decoder, Firefox and WebKitGTK builders); output files unchanged.
-
-## 0.1.6 · API 0 · 2026-10-26
-- Flat writer also reads strings, true/false and null in wasm; flat list columns read faster in Firefox and WebKitGTK; output files unchanged.
 
 ## 0.1.5 · API 0 · 2026-10-26
 - Dense rows (many keys per row) read much faster in Chromium and WebKitGTK; a one-time timing check keeps the old way where cloning would not help.

@@ -39,18 +39,23 @@ Single-file offline apps cannot load code from a server, must run on cheap phone
 
 ## Highlights
 
-| One file each | Fast by default | Tested in three browsers |
-|---|---|---|
-| Copy only what you need. No build step. | WebAssembly with SIMD, plain JavaScript fallback. | Firefox, Chromium, WebKitGTK. |
+| One file each | Fast by default | Gives memory back | Tested in three browsers |
+|---|---|---|---|
+| Copy only what you need. No build step. | WebAssembly with SIMD, plain JavaScript fallback. | Big jobs can hand memory back by `trim()` or an idle timer. | Firefox, Chromium, WebKitGTK. |
 
 ## Compared with the usual choice
 
-| Measure (260 MB of FHIR records) | Parquet | lfc-pack |
-|---|---|---|
-| Pack time | 6.1 s | **2.05 s** |
-| File size | 17.14 MB | **7.03 MB** |
+lfc-pack 0.4.0 on 260 MB of real FHIR records, measured 2026.10.31 in cloud Chromium 153, Firefox 158 and WebKitGTK 2.52.6 (shared 4-core machine). Parquet written natively by pyarrow 26 after a DuckDB 2.0 read (zstd 3, 4 threads).
 
-text-columns reads CSV and TSV 8 to 11 times faster than Papa Parse.
+| Measure (260 MB of FHIR records) | Parquet | lfc-pack 0.4.0 |
+|---|---|---|
+| Pack time, one thread | 7.44 s | **2.13 to 2.69 s** |
+| Pack time, 4 helpers | 7.44 s | **1.08 to 1.56 s** |
+| File size | 18.74 MB | **8.32 MB** |
+
+The lfc-pack file is 18% larger than the 7.03 MB an early version made on 2026.10.27, likely because later versions pick faster compression settings.
+
+text-columns reads CSV 3 to 12 times faster than Papa Parse with typed rows: 3.2x on a laptop in Firefox 160, 7 to 12x in the cloud test browsers.
 
 MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built with it. Keeping the license line is the only ask.
 
@@ -185,10 +190,10 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 1.7.0 | 71.6 | 23.7 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.4.0 | 757.4 | 241.2 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.4.1 | 758.9 | 242.1 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [memory-compression](modules/memory-compression/README.md) | 2.8.2 | 398.8 | 115.9 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
-| [text-columns](modules/text-columns/README.md) | 0.6.3 | 61.1 | 20.9 | Reads CSV and TSV into number and text columns, 3 to 11 times faster than common parsers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
+| [text-columns](modules/text-columns/README.md) | 0.6.3 | 61.1 | 20.9 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
 #### Model simulation
 
@@ -222,7 +227,7 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 | 105.7 | 60.5 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 | 45.3 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.0 | 47.8 | 14.6 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
-| [zip-open](modules/zip-open/README.md) | 1.5.2 | 60.3 | 20.5 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
+| [zip-open](modules/zip-open/README.md) | 1.6.0 | 62.1 | 21.0 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 
 ### Story editor packages (10)
 

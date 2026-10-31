@@ -5,14 +5,6 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 1.7.0 · API 1 · 2026-10-31
 
 ### Quick
-trim() (fresh module instance, compacted lists moved, kept-bytes lists copy in again) and autoTrim(on), off by default.
-
-### Deep
-trim() (fresh module instance, compacted lists moved, kept-bytes lists copy in again) and autoTrim(on), off by default. 14.1->1.8 MB (12 compacted lists, 10 freed), 24.4->1.8 MB (5M build); trim 1.8-4 ms; reads unchanged. Fixed a prototype bug that lost recompacted lists. test/trim.js, tests/elias-fano-trim-browser.js.
-
-## 1.7.0 · API 1 · 2026-10-31
-
-### Quick
 New: `trim()` gives WebAssembly memory back (it only grows otherwise), and autoTrim does it by itself after a call that leaves most of it unused (on by default, as the owner picked; `autoTrim(false)` turns it off). Old code is unaffected. Twelve compacted 1M-id lists with ten freed: 14.1 MB to 1.8 MB; one 5M-id build: 24.4 MB to 1.8 MB.
 
 ### Details
