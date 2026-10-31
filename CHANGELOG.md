@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.5.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.7.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.8.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.5.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.7.2 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.3.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -61,6 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **text-columns** 0.6.0 · API 0: New: parseParallel takes a picked file directly; each helper reads its own piece, so the page never holds the whole file (1.0 to 1.75x faster).
 - 2026-10-31 · **text-columns** 0.5.2 · API 0: parseParallel reads files with accented or other non-ASCII text up to 4.8x faster.
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
+- 2026-10-31 · **memory-compression** 2.8.0 · API 2: Packing lists of whole numbers (up to 100,000 rows) is 2 to 24% faster; files can be up to about 1% bigger. autoTries: false keeps the old bytes.
 - 2026-10-31 · **graph-walk** 0.7.2 · API 0: betweennessAsync starts faster: up to 1.9x on the first call and on a new graph.
 - 2026-10-31 · **gpu-blur** 1.3.0 · API 1: New: opts.into takes your own pixel array for out 'pixels', so blurring every frame makes no new memory; 1.1 to 1.7x faster with the helpers.
 - 2026-10-31 · **gpu-blur** 1.2.3 · API 1: The helpers route is up to 1.34x faster on repeat blurs.

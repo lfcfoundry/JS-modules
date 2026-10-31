@@ -198,6 +198,7 @@
     this.fsst = !!(opts && opts.fsst);                                  // opt-in: text columns may be stored as FSST codes (any one string readable alone); costs training time
     this.patterns = !(opts && opts.patterns === false);                 // text patterns on by default; off saves time on text-heavy data at the cost of size
     this.quick = !!(opts && opts.quickTries);                           // opt-in: the picker tries every way on the first block only (faster pack, up to about 1% bigger)
+    this.auto = !(opts && opts.autoTries === false);                    // since 2.8.0, on by default: whole-number columns of up to 100,000 values try every way on their first block only (as quickTries); autoTries: false = the 2.7.0 bytes
     this.float32 = !!(opts && opts.float32);                       // opt-in and lossy: columns of fractions that need 8 bytes each are kept in 4
     this.seen = this.refs ? new Map() : null;
     this.keys = new Map(); this.depth = 0;
@@ -438,20 +439,20 @@
     var a = PK, small = this.mode === 'small', best, z = 0, p, ne, probe, got, got0, plain, tryNe = true, i;
     try {
       if (src.length >= 32768) {                    // a long column is first tried on its first 8,192 numbers; if the chooser gains under 5% there, the rest is not tried
-        probe = src.subarray(0, 8192); got = got0 = a.pack(probe, { sample: true, quick: this.quick, wasm: this.mcOpts.wasm });
+        probe = src.subarray(0, 8192); got = got0 = a.pack(probe, { sample: true, quick: this.quick, auto: this.auto, wasm: this.mcOpts.wasm });
         if (small) { p = MC.pack(got, this.mcOpts); if (p.length < got.length) got = p; }
         plain = MC.pack(probe, this.mcOpts);
         if (got.length > plain.length * 0.95) return null;
         if (small) {                                // the second pass (no entropy coding, then deflate) is only worth its time when it comes close on the same 8,192 numbers
-          ne = a.pack(probe, { sample: true, quick: this.quick, noEntropy: true, wasm: this.mcOpts.wasm });
+          ne = a.pack(probe, { sample: true, quick: this.quick, auto: this.auto, noEntropy: true, wasm: this.mcOpts.wasm });
           if (ne.length === got0.length) { for (i = 0; i < ne.length && ne[i] === got0[i]; i++); tryNe = i < ne.length; }   // the very same bytes: the second pass would only repeat the first
           if (tryNe) { p = MC.pack(ne, this.mcOpts); tryNe = p.length < got.length * 1.02; }
         }
       }
-      best = a.pack(src, { sample: true, quick: this.quick, wasm: this.mcOpts.wasm, hint: this.hints ? (this.hints[this.path] || (this.hints[this.path] = {})) : null });
+      best = a.pack(src, { sample: true, quick: this.quick, auto: this.auto, wasm: this.mcOpts.wasm, hint: this.hints ? (this.hints[this.path] || (this.hints[this.path] = {})) : null });
       if (small) {
         p = MC.pack(best, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
-        if (tryNe) { ne = a.pack(src, { sample: true, quick: this.quick, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; } }
+        if (tryNe) { ne = a.pack(src, { sample: true, quick: this.quick, auto: this.auto, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; } }
       }
     } catch (err) { return null; }
     return { bytes: best, z: z };
@@ -2408,7 +2409,7 @@
     runner = opts.workers && typeof opts.workers.run === 'function' ? opts.workers.run : function (jobs) {
       return Promise.resolve().then(function () { return jobs.map(function (j) { return j.kind === 1 ? colsFor(j.src, j.n, j.a, j.wopts) : adaptFor(j.src, e.mode, e.mcOpts.wasm, e.quick); }); });
     };
-    var tB = T ? performance.now() : 0, wopts = { mode: opts.mode, picker: opts.picker, level: opts.level, float32: opts.float32, quickTries: opts.quickTries, wasm: opts.wasm };
+    var tB = T ? performance.now() : 0, wopts = { mode: opts.mode, picker: opts.picker, level: opts.level, float32: opts.float32, quickTries: opts.quickTries, autoTries: opts.autoTries, wasm: opts.wasm };
     var jobsMsg = defer.jobs.map(function (j) { return j.kind === 1 ? { kind: 1, src: j.src, n: j.n, a: j.a, wopts: wopts, mode: e.mode, wasm: e.mcOpts.wasm } : { kind: 0, src: j.src, n: j.n, e: j.e, plainLen: j.plainLen, mode: e.mode, wasm: e.mcOpts.wasm, quick: e.quick }; });
     var pr = runner(jobsMsg); if (T) T.post = performance.now() - tB;
     return pr.then(function (res) {
