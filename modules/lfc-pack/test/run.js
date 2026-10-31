@@ -22,6 +22,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('helper workers', 'node', ['pool.cjs']);
   step('block-parallel pack', 'node', ['parallel.cjs']);
   step('decoder-only build', 'node', ['readonly.cjs']);
+  step('trim (fresh wasm memory)', 'node', ['trim.cjs']);
   step('negative first value', 'node', ['negfirst.cjs']);
   step('tables and plain values', 'node', ['tables.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);

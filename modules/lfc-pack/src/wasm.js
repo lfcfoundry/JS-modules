@@ -9,6 +9,8 @@
   function coreName() { return hasSimd() ? 'core' : 'core-plain'; }
   // async: the page's main thread may not compile big modules synchronously
   function loadAsync(names) {
-    return Promise.all(names.map(function (n) { return WebAssembly.instantiate(wasmBytes(n), {}).then(function (r) { return r.instance; }); }));
+    return Promise.all(names.map(function (n) { return MODS[n] ? new WebAssembly.Instance(MODS[n], {}) : WebAssembly.instantiate(wasmBytes(n), {}).then(function (r) { MODS[n] = r.module; return r.instance; }); }));
   }
-  function loadSync(name) { return new WebAssembly.Instance(new WebAssembly.Module(wasmBytes(name)), {}); }
+  // compiled modules are kept, so trim() makes a fresh instance (fresh, small memory) without compiling again: a new compile starts on the browser's first, slower code tier
+  var MODS = {};
+  function loadSync(name) { return new WebAssembly.Instance(MODS[name] || (MODS[name] = new WebAssembly.Module(wasmBytes(name))), {}); }
