@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.3.2 · API 0**
+**Version 0.4.0 · API 0**
 
-**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (LFCP thread, median of 5, 100,000 rows); all lfc-pack checks
+**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (LFCP thread); all lfc-pack checks (JS, Python, Go readers)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -49,6 +49,9 @@ Options for `pack(input, options)`:
 | `level: 19` | the archive setting: slower to write (about 15x), about 12% smaller. Default is 3. |
 | `block: 'nested' \| 'flat'` | force one layout. Default: each block is written as nested columns and, when it could win, as flat columns too, and the smaller one is kept. |
 | `blockBytes` | block size, default 13 MB (faster parallel pack than 21 MB, same size). |
+| `share: true` | shared string and shape tables for nested blocks: a string or row shape seen again in a later block is kept once in the footer. Smaller files with small blocks (100,000 GeoJSON points: -17% at 32 KB blocks, -12% at 256 KB); about the same at the default block size (a few hundred bytes either way). `packParallel` packs on one thread with it. Off by default. |
+| `paths: false` | switch off per-path strings for nested blocks (on by default): each string path (`.properties.name`, `.items[].sku`) keeps its own dictionary run and repeat numbers, which are small and compress well. 100,000 GeoJSON points -11% at the default block size, -14% at 256 KB blocks; 100,000 orders -6% and -5%. Each block keeps whichever layout is smaller. With `share: true` too (stacked): 256 KB blocks GeoJSON -22%, orders -4%. Pack and read speed within noise of the old layout in Chromium, Firefox and WebKit. |
+| `access: 'random'` | the read-friendly preset: 256 KB blocks plus `share: true` (options given next to it win; per-path strings are on as everywhere). Reading 100 rows with `unpackRows` decodes one small block (20 to 60 times faster in tests); files 4 to 10% larger than at the default block size (GeoJSON and orders +10%, three flat test sets +4 to +5%). `'whole'` (default) changes nothing. |
 | `templates: false` | switch the automatic log templates off. |
 
 Reading:
@@ -119,7 +122,7 @@ Speed: the browser check `tests/lfc-pack-browser.js` prints pack time, unpack ti
 Zstandard (Yann Collet and Meta Platforms, BSD-3-Clause) does the compression; the library is compiled unchanged by `wasm/build.sh` (see [NOTICE-zstd.txt](NOTICE-zstd.txt)). The ideas of columns plus a footer with per-block statistics come from Apache Parquet and ORC; the shape-plus-columns split for nested data follows the "shredding" of Dremel (Melnik et al., Google, 2010) and the Parquet and Arrow nesting rules, with a simpler path-hash column naming. Log templates follow the log-parsing line of work (Drain, He et al. 2017; LogHub samples by the Logpai group were used for tests). The code here is written from scratch for this repository.
 
 ## For AI agents
-Load `lfc-pack.js` (global `LfcPack`) or `require` it; call `init()` first and wait for it. Pack once with `pack(text)` and keep the `Uint8Array`. Read with `unpack(file, { keys, range })` when you need a few fields or a time slice (blocks outside the range are never decoded), and with `pool()` for files over a few blocks. Use `exact: true` only when the original bytes must come back. The sources are `src/*.js` joined by `build.py`; the wasm sources are in `wasm/` (`build.sh` for zstd, `build-core.sh` for the tokenizer and string dictionary); `python/lfc_pack.py` reads files in Python. Run `node test/roundtrip.cjs`, `node test/exact.cjs`, `node test/query.cjs`, `node test/pool.cjs` and `python3 -I test/pyread.py <file.lfc>=<source.ndjson>` after any change.
+Load `lfc-pack.js` (global `LfcPack`) or `require` it; call `init()` first and wait for it. Pack once with `pack(text)` and keep the `Uint8Array`. Read with `unpack(file, { keys, range })` when you need a few fields or a time slice (blocks outside the range are never decoded), and with `pool()` for files over a few blocks. Use `exact: true` only when the original bytes must come back. WebAssembly memory only grows, so after a big job call `trim()` to give back what it grew: the next call starts with fresh, small memory and gives the same results. The sources are `src/*.js` joined by `build.py`; the wasm sources are in `wasm/` (`build.sh` for zstd, `build-core.sh` for the tokenizer and string dictionary); `python/lfc_pack.py` reads files in Python. Run `node test/roundtrip.cjs`, `node test/exact.cjs`, `node test/query.cjs`, `node test/pool.cjs` and `python3 -I test/pyread.py <file.lfc>=<source.ndjson>` after any change.
 
 ## Decoder-only build
 

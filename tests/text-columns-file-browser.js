@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // text-columns parseParallel(File or Blob). Round 5 (0.6.0): each helper reads its own piece of the file (idea A) against the page reading the whole file first (0.5.2, _file: false),
 // each alone and stacked with the one-string text of 0.5.2 (idea B, _utf16: false turns it off). Round 6 (0.6.1): the helpers join the number columns (C2, _join: false turns it off) and read in slices (D, _slice: bytes), alone and stacked. Same answers as parse() first, then wall time, the page's own work and its longest stall.
-// Run: node tests/text-columns-file-browser.js <chromium|firefox|webkit> [out.json]     Env: REPS (default 7), FILES (JSON list of [kind, MB]), ROUND=5 (the 0.6.0 modes), ONLY (JSON list of mode names)
+// Run: node tests/text-columns-file-browser.js <chromium|firefox|webkit> [out.json]     Env: PICK=1 (files picked from disk, not in-memory Blobs), REPS (default 7), MODES (JSON {name: options}; _budget = ms between yields), FILES (JSON list of [kind, MB]), ROUND=5 / ROUND=6 (the 0.6.0 / 0.6.1 modes; default: 0.6.2 sliced string build), ONLY (JSON list of mode names)
 'use strict';
 const fs = require('fs'), path = require('path'), T = require('../tools/test-runner/runner.js');
 const root = path.resolve(__dirname, '..') + '/modules/', REPS = +(process.env.REPS || 7);
@@ -64,9 +64,18 @@ T.main(async (b, which, outFile) => {
   if (process.env.SAME_ONLY) { srv.close(); return bad.length === 0; }
   const rows = [];
   for (const [kind, mb] of (process.env.FILES ? JSON.parse(process.env.FILES) : [['num', 45], ['mixed', 32], ['accented', 32]])) {
-    await p.evaluate((k, m) => { window.B = new Blob([make(k, m)]); }, kind, mb);
-    const MB = 1048576, MODES = process.env.ROUND === '5' ? { '1 thread': null, '0.5.1 way (neither)': { _file: false, _utf16: false, _join: false }, 'A alone (File)': { _utf16: false, _join: false }, '0.5.2 (B alone)': { _file: false, _join: false }, '0.6.0 (A + B)': { _join: false } }
+    if (process.env.PICK) {   // a real file picked from disk (the browser's own disk-backed File), as an app gets it
+      const file = '/tmp/tc-' + kind + '-' + mb + 'mb.csv';
+      if (!fs.existsSync(file)) { const src = fs.readFileSync(__filename, 'utf8'), a = src.indexOf('window.make = ') + 'window.make = '.length, z = src.indexOf('    window.same = '); const enc = new TextEncoder(); fs.writeFileSync(file, eval(src.slice(a, z).trim().replace(/;$/, ''))(kind, mb)); }   // the same maker as the page's
+      await p.evaluate(() => { let f = document.getElementById('f'); if (f) f.remove(); f = document.createElement('input'); f.type = 'file'; f.id = 'f'; document.body.appendChild(f); });
+      if (p.uploadFile) await p.uploadFile('#f', file); else await (await p.$('#f')).uploadFile(file);
+      await p.evaluate(() => new Promise((ok) => { const w = () => (document.getElementById('f').files.length ? ok() : setTimeout(w, 50)); w(); }));
+      await p.evaluate(() => { window.B = document.getElementById('f').files[0]; });
+    } else await p.evaluate((k, m) => { window.B = new Blob([make(k, m)]); }, kind, mb);
+    const MB = 1048576; let MODES = process.env.MODES ? JSON.parse(process.env.MODES) : process.env.ROUND === '6' || process.env.ROUND === '5' ? null : { '0.6.1': { _sliceBuild: false }, 'read slices 1 MB (struck)': { _slice: MB, _sliceBuild: false }, '0.6.2 (sliced string build)': {} };
+    const MODES0 = process.env.ROUND === '5' ? { '1 thread': null, '0.5.1 way (neither)': { _file: false, _utf16: false, _join: false }, 'A alone (File)': { _utf16: false, _join: false }, '0.5.2 (B alone)': { _file: false, _join: false }, '0.6.0 (A + B)': { _join: false } }
       : { '0.5.2 (B)': { _file: false, _join: false }, '0.6.0 (A + B)': { _join: false }, 'C2 alone': { _file: false, _utf16: false }, '0.6.1 (A + B + C2)': {}, 'A + D 4 MB': { _utf16: false, _join: false, _slice: 4 * MB }, 'A + B + C2 + D 4 MB': { _slice: 4 * MB }, 'A + B + C2 + D 1 MB': { _slice: MB } };
+    if (!MODES) MODES = MODES0;
     const names = Object.keys(MODES).filter((k) => !process.env.ONLY || JSON.parse(process.env.ONLY).includes(k)), ms = {}, page = {}, stall = {};
     for (const k of names) { ms[k] = []; page[k] = []; stall[k] = []; }
     for (let r = 0; r < REPS + 1; r++) for (const k of (r % 2 ? names.slice().reverse() : names)) {
@@ -76,17 +85,17 @@ T.main(async (b, which, outFile) => {
         await new Promise((ok) => setTimeout(ok, 5)); worst = 0; last = performance.now();
         const Tm = {}, t0 = performance.now(); let pg;
         if (!o) { TextColumns.parse(new Uint8Array(await B.arrayBuffer())); pg = performance.now() - t0; }
-        else { await TextColumns.parseParallel(B, Object.assign({ minBytes: 0, _timing: Tm }, o)); pg = Tm.post + (Tm.merge - Tm.wait); }
+        else { const oo = Object.assign({ minBytes: 0, _timing: Tm }, o); if (oo.auto) delete oo.auto; else if (oo._slice === undefined) oo._slice = 0; await TextColumns.parseParallel(B, oo); pg = Tm.post + (Tm.merge - Tm.wait); }
         const wall = performance.now() - t0; on = false; const g = performance.now() - last; if (g > worst) worst = g;
         return [wall, pg, worst];
       }, MODES[k]);
       if (r) { ms[k].push(v[0]); page[k].push(v[1]); stall[k].push(v[2]); }
     }
     const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
-    for (const k of names) rows.push({ file: kind + ' ' + mb + ' MB', mode: k, ms: med(ms[k]).toFixed(1), page: med(page[k]).toFixed(1), stall: med(stall[k]).toFixed(1), vs: (med(ms[process.env.ROUND === '5' ? '0.5.2 (B alone)' : '0.6.0 (A + B)'] || ms[names[0]]) / med(ms[k])).toFixed(2) });
+    for (const k of names) rows.push({ file: kind + ' ' + mb + ' MB', mode: k, ms: med(ms[k]).toFixed(1), page: med(page[k]).toFixed(1), stall: med(stall[k]).toFixed(1), vs: (med(ms[process.env.ROUND === '5' ? '0.5.2 (B alone)' : process.env.ROUND === '6' ? '0.6.0 (A + B)' : '0.6.1'] || ms[names[0]]) / med(ms[k])).toFixed(2) });
   }
   srv.close();
-  console.log(T.table(rows, [{ key: 'file', title: 'file (a Blob)', align: 'left' }, { key: 'mode', title: 'mode', align: 'left' }, { key: 'ms', title: 'wall ms' }, { key: 'page', title: 'page ms' }, { key: 'stall', title: 'longest stall ms' }, { key: 'vs', title: process.env.ROUND === '5' ? 'x faster than 0.5.2' : 'x faster than 0.6.0' }]));
+  console.log(T.table(rows, [{ key: 'file', title: 'file (a Blob)', align: 'left' }, { key: 'mode', title: 'mode', align: 'left' }, { key: 'ms', title: 'wall ms' }, { key: 'page', title: 'page ms' }, { key: 'stall', title: 'longest stall ms' }, { key: 'vs', title: process.env.ROUND === '5' ? 'x faster than 0.5.2' : process.env.ROUND === '6' ? 'x faster than 0.6.0' : 'x faster than 0.6.1' }]));
   if (outFile) fs.writeFileSync(outFile, JSON.stringify({ which, same, rows }));
   return bad.length === 0;
 });
