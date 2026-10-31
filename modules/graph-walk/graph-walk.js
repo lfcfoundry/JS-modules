@@ -2,7 +2,7 @@
  * graph-walk.js: the small walks over a link list that map and flow tools keep rewriting: breadth-first distances from an item, and a depth-first pass that marks the links that close a loop and lists the items in finishing order, connected components, strongly connected components, topological order and shortest paths. Works on the plain "links of every item" layout (CSR) in typed arrays. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.7.0 (API 0)
+ * Version 0.7.1 (API 0)
  *
  *   var g = GraphWalk.csr(n, fromArray, toArray);         // item numbers 0..n-1; link i joins from[i] to to[i]
  *   var depth = GraphWalk.bfs(g, root);                    // Int32Array, -1 where not reached; bfs(g, root, skip) never enters item `skip`
@@ -440,17 +440,19 @@
   var pool = null, poolTimer = 0, gids = 0, jobs = 0;
   /** Ends the kept helper threads now (they also end by themselves after `idleMs` without work, 5 seconds by default). */
   function closePool() { if (poolTimer) { clearTimeout(poolTimer); poolTimer = 0; } if (pool) { for (var i = 0; i < pool.workers.length; i++) pool.workers[i].terminate(); try { URL.revokeObjectURL(pool.url); } catch (e) { /* gone */ } pool = null; } }
-  function getPool(count, onDead) {
-    if (pool && pool.workers.length === count) return pool;
-    closePool();
+  // own: helpers for one call only (pool: false); they never touch the kept pool, so a pool: false call does not close helpers that other calls kept warm
+  function endPool(P) { for (var i = 0; i < P.workers.length; i++) P.workers[i].terminate(); try { URL.revokeObjectURL(P.url); } catch (e) { /* gone */ } }
+  function getPool(count, own) {
+    if (!own && pool && pool.workers.length === count) return pool;
+    if (!own) closePool();
     var url = URL.createObjectURL(new Blob(['(' + workerMain.toString() + ')()'], { type: 'text/javascript' })), P = { url: url, workers: [], loaded: [], jobs: {} }, i;
-    P.dead = function () { var js = P.jobs; closePool(); P.jobs = {}; for (var k in js) js[k].fail(); };
+    P.dead = function () { var js = P.jobs; if (pool === P) closePool(); else endPool(P); P.jobs = {}; for (var k in js) js[k].fail(); };
     for (i = 0; i < count; i++) {
       var wk = new Worker(url); P.workers.push(wk); P.loaded.push(null);
       wk.onmessage = function (ev) { var j = P.jobs[ev.data.job]; if (j) j.add(ev.data.bc); };
       wk.onerror = P.dead;
     }
-    return (pool = P);
+    return own ? P : (pool = P);
   }
   /**
    * Same answer as `betweenness`, but the start items are dealt out to `workers` helper threads (default: the cores the browser reports, at most 8) and the partial sums added; returns a Promise of the Float64Array.
@@ -467,14 +469,14 @@
       var P, total = new Float64Array(n), pending = count, id = ++jobs, wasmOn = useWasm(), key, done = false;
       function finish(ok) {
         if (done) return; done = true; if (P) delete P.jobs[id];
-        if (!keep) closePool(); else { if (poolTimer) clearTimeout(poolTimer); poolTimer = setTimeout(closePool, options.idleMs === undefined ? 5000 : options.idleMs); }
+        if (!keep) { if (P) endPool(P); } else { if (poolTimer) clearTimeout(poolTimer); poolTimer = setTimeout(closePool, options.idleMs === undefined ? 5000 : options.idleMs); }
         if (!ok) { resolve(betweenness(g, options)); return; }
         if (options.normalized !== false && n > 2) { var scale = 1 / ((n - 1) * (n - 2)); for (var j = 0; j < n; j++) total[j] *= scale; }
         resolve(total);
       }
       try {
-        P = getPool(count);
-        if (poolTimer) { clearTimeout(poolTimer); poolTimer = 0; }
+        P = getPool(count, !keep);
+        if (keep && poolTimer) { clearTimeout(poolTimer); poolTimer = 0; }
         if (!g._gid) g._gid = ++gids;
         key = g._gid + (wasmOn ? 'w' : 'j');
         P.jobs[id] = { add: function (bc) { for (var j = 0; j < n; j++) total[j] += bc[j]; if (--pending === 0) finish(true); }, fail: function () { finish(false); } };
@@ -629,5 +631,5 @@
     while ((e = r.via[v]) >= 0) { out.push(e); v = g.from[e]; }
     return out.reverse();
   }
-  return { version: '0.7.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closePool: closePool, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
+  return { version: '0.7.1', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closePool: closePool, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
 }));
