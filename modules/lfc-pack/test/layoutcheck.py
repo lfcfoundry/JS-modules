@@ -54,20 +54,28 @@ def nested(b, log):
     cm = json.loads(dz(take(h['cm'][1], 'colmeta'), h['cm'][0]))
     dz(take(h['p'][0], 'dict'), h['len'][0]); dz(take(h['p'][1], 'side'), h['len'][1]); sk = dz(take(h['p'][2], 'skel'), h['len'][2]).decode().split('\n')
     dz(take(h['ids'][2], 'row-shape-ids'), h['ids'][1] * W[h['ids'][0]])
-    if h.get('g') == 1:   # shared tables (3.6): string codes as typed bytes instead of flags and repeats
-        assert h['cd'][0] in (0, 1, 2), 'string code width'
-        dz(take(h['cd'][2], 'string-codes'), h['cd'][1] * W[h['cd'][0]])
-        assert (h['kc'] == 0 and sk == ['']) or len(sk) == h['kc'], 'shape count'
-        assert SHARED is not None, 'block with g = 1 but no section 16'
-        COV.add('nested-shared')
-    elif h.get('sp') == 1:   # per-path strings (3.5a): path table, per-path flags and repeats
+    def paths():
         sf = h['sf']; assert 'fa' not in h, 'sp block with fa'
         tab = json.loads(dz(take(sf[1], 'path-table'), sf[0]))
         dz(take(sf[3], 'path-flags'), sf[2]); assert sf[4] in (0, 1, 2), 'repeat width'
         dz(take(sf[6], 'path-repeats'), sf[5] * W[sf[4]])
         assert len({e[0] for e in tab}) == len(tab), 'path hash twice'
         assert all(0 <= e[1] <= e[2] and (e[1] > 0 or e[2] == 0) for e in tab), 'path table entry'
-        assert sum(e[1] for e in tab) == h['count'] and sum(e[2] - e[1] for e in tab) == sf[5] and sum((e[2] + 7) // 8 for e in tab) == sf[2], 'path table sums'
+        assert sum(e[2] - e[1] for e in tab) == sf[5] and sum((e[2] + 7) // 8 for e in tab) == sf[2], 'path table sums'
+        return sum(e[1] for e in tab)
+    if h.get('g') == 1 and h.get('sp') == 1:   # shared tables and per-path strings (3.6, 3.5a): path entries list instead of typed codes
+        ET = paths(); gr = h['gr']; assert gr[0] in (0, 1, 2) and gr[1] == ET, 'entry list'
+        dz(take(gr[2], 'string-entries'), gr[1] * W[gr[0]])
+        assert SHARED is not None, 'block with g = 1 but no section 16'
+        COV.add('nested-shared-paths')
+    elif h.get('g') == 1:   # shared tables (3.6): string codes as typed bytes instead of flags and repeats
+        assert h['cd'][0] in (0, 1, 2), 'string code width'
+        dz(take(h['cd'][2], 'string-codes'), h['cd'][1] * W[h['cd'][0]])
+        assert (h['kc'] == 0 and sk == ['']) or len(sk) == h['kc'], 'shape count'
+        assert SHARED is not None, 'block with g = 1 but no section 16'
+        COV.add('nested-shared')
+    elif h.get('sp') == 1:   # per-path strings (3.5a): path table, per-path flags and repeats
+        assert paths() == h['count'], 'path table sums'
         COV.add('nested-paths')
     else:
         dz(take(h['fa'][1], 'first-flags'), h['fa'][0]); assert h['fa'][0] == (h['fa'][5] + 7) // 8
