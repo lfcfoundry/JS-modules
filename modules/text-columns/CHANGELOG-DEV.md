@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.0 · API 0 · 2026-10-31
+
+### Quick
+New: parseParallel takes a File or Blob (a picked file); each helper reads its own piece, so the page never holds the whole file. Old code is unaffected. Against 0.5.2 with a picked file: Chromium 1.11 to 1.21x, Firefox 1.01 to 1.27x, WebKitGTK 1.63 to 1.75x.
+
+### Details
+Round 5 pool study, idea A, stacked with 0.5.2's one-string text (idea B); the owner picked "Add File input" on its card. Each helper gets the Blob (posting a File does not copy it) and a byte range [a, b): it reads from a - 1 to past b, starts after the first line end at or after a - 1 (or at 0 after a byte order mark) and ends after the first line end at or after b - 1, so neighbors meet exactly; it widens the read 4x until it finds that line end. Quotes are checked after the parse (each helper counts its piece's quote marks, the page checks parity at every cut and at the end); a file whose cuts fall inside quotes is read again the 0.5.2 way. A piece whose text the page still has to cut (plain-ASCII text, or bytes that are not UTF-8) sends its bytes back, moved not copied; a column that is numbers in one piece and text in another is asked again with those bytes moved back to the helper and returned. `columns` by name reads the names from the first megabyte. Small files (under minBytes), no workers or an unusual delimiter: the page reads the file and goes the old way. Private switch `_file: false` = the 0.5.2 way. tests/text-columns-file-browser.js: 384 same-answer cases per browser (16 files x 6 option sets x 4 helper settings); then a 45 MB numbers file and 32 MB mixed and accented files as Blobs, 5 rounds, wall ms, page ms and the longest stall (1 ms timer).
+
+### Deep
+Wall ms, 0.5.1 way / A alone / B alone (0.5.2) / A + B (0.6.0): Chromium numbers 203/175/213/192, mixed 219/227/272/233, accented 1,143/1,209/343/282; Firefox numbers 177/136/199/159, mixed 217/156/202/159, accented 326/258/221/218; WebKitGTK numbers 226/143/252/150, mixed 229/144/268/153, accented 512/476/350/215. A alone is the fastest on numbers and mixed text in two browsers (B costs a little there), but only A + B fixes accented text, so they ship stacked. Page ms with A + B: 17 to 142 (0.5.2: 108 to 240). Longest stall with A + B: Chromium 41/146/73 ms, Firefox 35/118/83, WebKitGTK 24/68/48 (0.5.2: 78/168/123, 45/123/100, 66/87/58). Two bugs found by the new test before release: a piece read near the end of the file took the rest of the file as its own, and a piece's bytes could be lost on the number/text re-ask. Next (round 6): helpers join the number columns themselves (C2) and read in slices for WebKitGTK (D).
+
 ## 0.5.2 · API 0 · 2026-10-31
 
 ### Quick
