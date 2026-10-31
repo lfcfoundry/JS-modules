@@ -30,6 +30,7 @@
   // Pack helpers do this when they go idle (pool.js): back-to-back packParallel calls stay as fast, and the waiting helpers hold 200 MB to 1.1 GB less.
   function trimPacker() {
     if (S.idle) { clearTimeout(S.idle); S.idle = null; }
+    dropScratch();   // the per-block cell buffers of the string-layout pass (nested.js)
     if (S.core) { S.core = loadSync(coreName()); S.sh.rebind(S.core); }
     dropSmallWasm();
   }
