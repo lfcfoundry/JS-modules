@@ -1,0 +1,32 @@
+<!doctype html><meta charset=utf-8><title>text-columns parallel</title>
+<script>window.addEventListener("error",function(e){window.__res={error:String(e.message)}});window.addEventListener("unhandledrejection",function(e){window.__res={error:String(e.reason&&e.reason.stack||e.reason)}});</script>
+<script src="/r/modules/text-columns/text-columns.js"></script><script src="/v/papaparse/papaparse.min.js"></script><script>
+// Serial against parallel parse of big CSV files, in one browser. Run with tests/bench-page.js (VENDOR must hold papaparse). Copyright (c) 2026 LFC Foundry. MIT License.
+(async function () {
+  var q = new URLSearchParams(location.search), QUICK = q.get('quick') === '1', seed = 11, r = function () { return (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296; };
+  function mk(N, kind) {
+    var L = [], i, j, h;
+    if (kind === 'mixed') { L.push('id,price,qty,city,note,code'); for (i = 0; i < N; i++) L.push([i, (r() * 1000 - 300).toFixed(2), Math.floor(r() * 99), 'city' + Math.floor(r() * 500), r() < 0.1 ? '"say ""hi"", ok"' : 'note ' + Math.floor(r() * 1e5), '0' + Math.floor(r() * 99)].join(',')); }
+    else { h = []; for (j = 0; j < 10; j++) h.push('n' + j); L.push(h.join(',')); for (i = 0; i < N; i++) { var row = []; for (j = 0; j < 10; j++) row.push(j < 3 ? Math.floor(r() * 1e6) : (r() * 1000).toFixed(3)); L.push(row.join(',')); } }
+    return new TextEncoder().encode(L.join('\n') + '\n');
+  }
+  function med(a) { a = a.slice().sort(function (x, y) { return x - y; }); return +a[a.length >> 1].toFixed(1); }
+  function sig(t) { var s = t.count + ':' + t.names.join('|'); t.columns.forEach(function (c) { if (c.type === 'number') { var x = 0, i; for (i = 0; i < c.values.length; i++) x += c.values[i]; s += ':n' + x.toFixed(3); } else s += ':t' + c.values.length + c.values[0] + c.values[c.values.length - 1] + c.values[c.values.length >> 1]; }); return s; }
+  var hc = navigator.hardwareConcurrency, REPS = QUICK ? 3 : 7, counts = [2, 4].concat(hc >= 8 ? [8] : []).concat(hc > 8 ? [hc] : []), out = { cores: hc, reps: REPS, simd: TextColumns.simd(), rows: [] };
+  var sets = QUICK ? [['mixed', 100000], ['numeric', 200000]] : [['mixed', 60000], ['mixed', 400000], ['mixed', 1500000], ['numeric', 100000], ['numeric', 600000], ['numeric', 2000000]];
+  for (var s = 0; s < sets.length; s++) {
+    var kind = sets[s][0], N = sets[s][1], b = mk(N, kind), row = { kind: kind, rows: N, mb: +(b.length / 1e6).toFixed(1), same: true }, base = sig(TextColumns.parse(b)), t, i, a, w;
+    var ser = []; for (i = 0; i < REPS; i++) { a = performance.now(); TextColumns.parse(b); ser.push(performance.now() - a); } row.serial = med(ser);
+    for (w = 0; w < counts.length; w++) {
+      TextColumns.closeHelpers(); var cold = [];
+      for (i = 0; i < 3; i++) { TextColumns.closeHelpers(); a = performance.now(); t = await TextColumns.parseParallel(b, { workers: counts[w], minBytes: 0 }); cold.push(performance.now() - a); }
+      row.same = row.same && sig(t) === base && t.workers > 1;
+      var warm = []; for (i = 0; i < REPS; i++) { a = performance.now(); t = await TextColumns.parseParallel(b, { workers: counts[w], minBytes: 0 }); warm.push(performance.now() - a); }
+      row['w' + counts[w]] = { cold: med(cold), warm: med(warm), used: t.workers };
+    }
+    if (!QUICK || s === 0) { var ptxt = new TextDecoder().decode(b), pp = []; for (i = 0; i < 1; i++) { a = performance.now(); Papa.parse(ptxt, { header: true, dynamicTyping: true, skipEmptyLines: true }); pp.push(performance.now() - a); } row.papaTyped = med(pp); }
+    out.rows.push(row);
+  }
+  window.__res = out;
+})();
+</script>
