@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.0 · API 1 · 2026-10-31
+
+### Quick
+New WebAssembly Excel reader (wasm/xlsx.c, source and reproducible build shipped) reads sheet and shared-strings bytes straight to CSV, so the big sheet is never decoded to text; anything unusual falls back to the JavaScript reader. Fix: expandBlob helpers were closed by an orphaned idle timer while another open used them. No API change.
+
+### Details
+Early-stop A/B, whole expand() 1.10.0 / 1.9.0 (lower is better), cloud: Chromium 155 60k rows 0.365, 6k 0.335, 20k with formulas 0.383, 30k all-text 0.361; Firefox 158 0.300, 0.276, 0.300, 0.340; WebKitGTK 2.52.6 0.405, 0.415, 0.357, 0.521. Falls back for: not the usual shape, not strict UTF-8, UTF-16, inline strings, out-of-order cells, maxRows. Numbers JavaScript prints differently and non-whole dates are finished in JavaScript. One wasm instance reused, let go 5 s after the last workbook. Tests: every xlsx test also through the wasm reader, 8,000 random byte-level sheets in the suite (120,000 offline, 0 differences), helper-close regression test.
+
+### Deep
+Excel whole open 1.9 to 3.6 times as fast (48 to 72% less time) than 1.9.0 with a WebAssembly reader on raw bytes (cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6), same output; helper idle-timer hang fixed. Results: js-modules-research/zip-open/RESULTS-xlsx-fast-rows-2026.10.31.md (rounds 7-8).
+
 ## 1.9.0 · API 1 · 2026-10-31
 
 ### Quick
