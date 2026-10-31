@@ -37,3 +37,6 @@ Plain arrays still read single lists faster, at about 2x the memory.
 | 20,000 lists: one by one (1.4.0) against `getMany` (1.5.0) | 14 | 4.0 |
 
 `getMany` takes about 0.3 of the time.
+
+
+**New in 1.6.0 and 1.7.0: less memory in use.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop). `compact()` halves the memory a list set uses. `trim()`, and `autoTrim` (on by default), give WebAssembly memory back to the browser: after building 5 million ids it drops from 24.4 MB to 1.8 MB, and with 12 compacted lists of which 10 are freed it drops from 14.1 MB to 1.8 MB. A trim takes 2 to 4 ms, and reads are unchanged.
