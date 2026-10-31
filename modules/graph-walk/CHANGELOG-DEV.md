@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.7.2 · API 0 · 2026-10-31
+
+### Quick
+betweennessAsync's helpers start and share work faster; same answers, no new options. First call / new graph: Chromium up to 1.14x, Firefox 1.45 to 1.9x, WebKitGTK 1.2 to 1.4x.
+
+### Details
+Three pool changes, each tested alone and together (tests/graph-walk-pool-browser.js, 4 cores; random and hub-heavy graphs, 3,000 to 200,000 items). (1) The compiled WebAssembly.Module goes to the helpers instead of the bytes, and each helper keeps its instance across graphs: Firefox 1.36 to 1.66x on first calls, WebKitGTK 1.07 to 1.4x, Chromium flat. (2) Start items go out in pieces (8 per helper, two queued) as each helper finishes, and the helper keeps its running sum until the last piece: Firefox 1.26 to 1.68x on first calls, others flat. (3) Each helper's result array goes back to it on the next call: within noise alone. All three: Chromium 0.98 to 1.14x first call, 0.96 to 1.07x repeat, 1.04 to 1.09x new graph (15 rounds); Firefox 1.39 to 1.66x first, 1.40 to 1.82x new graph; WebKitGTK 1.0 to 1.2x first, 1.2 to 1.37x new graph.
+
+### Deep
+Pool work from the owner's 'creatively optimize pools' ask. Known and older than this change: in WebKitGTK 2.52.6, after about 40 pool restarts (closePool then a new call) a call can stop answering; 0.7.1 stalled at restart 40 and 44 in a stress test, 0.7.2 held for 60 in 2 runs but the mixed test still hit it once. Kept pools (the default) do not restart.
+
 ## 0.7.1 · API 0 · 2026-10-30
 
 ### Quick
