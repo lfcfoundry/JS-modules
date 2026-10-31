@@ -2,6 +2,25 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-10-31
+
+### Quick
+trim() (fresh module instance, compacted lists moved, kept-bytes lists copy in again) and autoTrim(on), off by default.
+
+### Deep
+trim() (fresh module instance, compacted lists moved, kept-bytes lists copy in again) and autoTrim(on), off by default. 14.1->1.8 MB (12 compacted lists, 10 freed), 24.4->1.8 MB (5M build); trim 1.8-4 ms; reads unchanged. Fixed a prototype bug that lost recompacted lists. test/trim.js, tests/elias-fano-trim-browser.js.
+
+## 1.7.0 · API 1 · 2026-10-31
+
+### Quick
+New: `trim()` gives WebAssembly memory back (it only grows otherwise), and `autoTrim(true)` does it by itself after a call that leaves most of it unused (off by default). Old code is unaffected. Twelve compacted 1M-id lists with ten freed: 14.1 MB to 1.8 MB; one 5M-id build: 24.4 MB to 1.8 MB.
+
+### Details
+Research round 7. trim() makes a new instance of the compiled module (kept from the first compile) with a small memory, moves every compacted list (tracked with a WeakRef from compact()) and lets the old memory go; a generation number per list makes lists that still hold their bytes copy themselves in again on their next query; lists dropped without free() are simply not moved. autoTrim(true): release() queues a trim for the next tick when the memory is 8 MB or more and under a quarter of it is in use; it never trims inside a call. The research prototype could lose a list: a compacted list that got its bytes back (the plain JavaScript reader) and was compacted again was no longer tracked, so a trim left it pointing into freed memory; fixed (test/trim.js section 2 fails on the prototype). New test/trim.js (flat, partitioned and list sets; moved, kept-bytes, freed and recompacted lists; a 5M build; autoTrim), run in Node and in three browsers (tests/elias-fano-trim-browser.js).
+
+### Deep
+Memory sizes were identical in Chromium, Firefox and WebKitGTK. Trim time 1.8 (Chromium), 2.0 (Firefox), 4.0 ms (WebKitGTK) for 5 moved lists. 200,000 get calls on a moved compacted 1M list: 20.2 to 15.9 ms Chromium, 20.0 to 19.0 Firefox, 12 to 12 WebKitGTK. Stacked with compact() (1.6.0) this is the step change: two kept lists go from 20.4 MB of WebAssembly memory plus their JavaScript copies to 2.8 MB in all (research numbers); trim alone frees the WebAssembly side but keeps the JavaScript copies, compact alone keeps the stuck memory.
+
 ## 1.6.0 · API 1 · 2026-10-30
 
 ### Quick
