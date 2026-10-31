@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-10-31
+
+### Quick
+One shared output buffer for text entries instead of a fresh buffer per entry; released after 5 s idle; concurrent opens never share it. No API change.
+
+### Details
+Paired A/B, 1.6.0 / 1.5.2 (lower is better), 12 rounds: laptop Chromium 156 bytes 0.86-0.98, File 0.91-1.02; laptop Firefox 160 (two runs) 0.93-1.00 except 400 small files from bytes 0.94 / 1.15 (ms-scale timings, range 0.84-1.22); cloud Chromium 153 0.82-0.92. Owner's pick: merge 1.6.0, laptop-check the 1.7.0 Excel reader first.
+
+### Deep
+Shared reusable output buffer for text entries: laptop Chromium 2-14% faster, laptop Firefox about even (one small-file case 0.94 and 1.15 in two runs), cloud 8-18% faster.
+
 ## 1.5.2 · API 1 · 2026-10-31
 
 ### Quick
