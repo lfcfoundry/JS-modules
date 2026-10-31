@@ -3,13 +3,15 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.3.0 (API 0)
+ * Version 0.5.0 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
  *   t.columns[0].values;                                                            // Float64Array for a number column, array of strings otherwise
  *   t.toRows();                                                                     // array of row objects (numbers are numbers, the rest is text)
  *   TextColumns.parse(bytes, { columns: ['price', 'city'] });                       // only these columns (names or 0-based numbers), in file order; the rest are never converted
+ *   TextColumns.parse(bytes, { columns: function (name, index) { return name !== 'notes'; } });   // or a function that says yes or no for each column
+ *   TextColumns.parse(bytes, { types: { when: 'date', ok: 'boolean' } });          // opt in: YYYY-MM-DD becomes milliseconds (Float64Array), true/false becomes booleans; other columns unchanged
  *   TextColumns.parse(bytes, { lazy: true });                                       // text columns build their strings when .values is first read (or one cell with .get(i)); keep the input bytes unchanged until then
  *
  * A column is a number column when every field is a plain decimal (-12, 3.25) of at most 15 digits without a leading zero; anything else (empty fields, 007, 1e5, text) keeps that column as text.
@@ -98,7 +100,33 @@
   }
   function stripBom(u) { return u.length >= 3 && u[0] === 0xEF && u[1] === 0xBB && u[2] === 0xBF ? u.subarray(3) : u; }
 
-  function parse(input, opts) {
+  var ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+  /** Opt-in types (since 0.5.0): turns the named text columns into 'date' (YYYY-MM-DD as milliseconds since 1970 UTC, Float64Array) or 'boolean' (true/false, TRUE/FALSE, True/False as an array of booleans). A column that has any other field stays text. */
+  function applyTypes(t, types) {
+    var key, c, ci, v, i, n, out, m, ms, d, want, hit;
+    for (key in types) {
+      want = types[key]; if (want !== 'date' && want !== 'boolean' && want !== 'text' && want !== 'number') throw new Error('text-columns: unknown type "' + want + '" (use date, boolean, text or number)');
+      hit = false;
+      for (ci = 0; ci < t.columns.length; ci++) {
+        c = t.columns[ci]; if (c.name !== key && String(ci) !== key) continue; hit = true;
+        if (c.type !== 'text' || want === 'text' || want === 'number') continue;
+        v = c.values; n = v.length; if (!n) continue;
+        if (want === 'boolean') {
+          out = new Array(n);
+          for (i = 0; i < n; i++) { m = v[i]; if (m === 'true' || m === 'TRUE' || m === 'True') out[i] = true; else if (m === 'false' || m === 'FALSE' || m === 'False') out[i] = false; else { out = null; break; } }
+          if (out) { c.type = 'boolean'; delete c.values; c.values = out; }
+        } else {
+          out = new Float64Array(n);
+          for (i = 0; i < n; i++) { m = ISO_DATE.exec(v[i]); if (!m) { out = null; break; } ms = Date.UTC(+m[1], m[2] - 1, +m[3]); d = new Date(ms); if (d.getUTCFullYear() !== +m[1] || d.getUTCMonth() !== m[2] - 1 || d.getUTCDate() !== +m[3]) { out = null; break; } out[i] = ms; }
+          if (out) { c.type = 'date'; delete c.values; c.values = out; }
+        }
+      }
+      if (!hit) throw new Error('text-columns: there is no column named "' + key + '" for types');
+    }
+    return t;
+  }
+  function parse(input, opts) { var t = parseCore(input, opts); return opts && opts.types ? applyTypes(t, opts.types) : t; }
+  function parseCore(input, opts) {
     opts = opts || {};
     var delim = (opts.delimiter || ',').charCodeAt(0), header = opts.header !== false, u = stripBom(toBytes(input)), len = u.length, i, j, rc;
     if (opts.delimiter && opts.delimiter.length !== 1) throw new Error('text-columns: the delimiter is one character');
@@ -147,6 +175,7 @@
   /** Which columns to keep: names (matched to the header) and/or 0-based numbers; returns the numbers in file order. */
   function pickColumns(want, names, ncols) {
     if (want === undefined || want === null) return null;
+    if (typeof want === 'function') { var fo = [], fj; for (fj = 0; fj < ncols; fj++) if (want(names[fj], fj)) fo.push(fj); return fo; }
     var list = Array.isArray(want) ? want : [want], mark = new Uint8Array(ncols), out = [], w, j, hit, x;
     if (!ncols) return out;
     for (x = 0; x < list.length; x++) {
@@ -314,12 +343,12 @@
   /** Column numbers for a `columns` option that has names: reads just the first line (as many lines as a quoted header needs). null when the first line cannot be read on its own. */
   function selectColumns(u, delim, header, want) {
     var list = Array.isArray(want) ? want : [want], e = -1, tries, end, t, names, j;
-    if (list.every(function (w) { return typeof w === 'number'; })) return list;
+    if (typeof want !== 'function' && list.every(function (w) { return typeof w === 'number'; })) return list;
     for (tries = 0; tries < 50; tries++) {
       e = u.indexOf(10, e + 1); end = e < 0 ? u.length : e; if (end > 0 && u[end - 1] === 13) end--;
       try {
         t = parse(u.subarray(0, end), { delimiter: String.fromCharCode(delim), header: false, _text: true });
-        if (t.count === 1) { names = []; for (j = 0; j < t.columns.length; j++) names.push(header ? t.columns[j].values[0] : 'c' + (j + 1)); return pickColumns(list, names, names.length); }
+        if (t.count === 1) { names = []; for (j = 0; j < t.columns.length; j++) names.push(header ? t.columns[j].values[0] : 'c' + (j + 1)); return pickColumns(want, names, names.length); }
       } catch (err) { /* a quoted header with a line break: take one more line */ }
       if (e < 0) return null;
     }
@@ -330,7 +359,8 @@
    * the quotes are odd or any helper fails (so errors are the same plain-words errors). opts as parse() (columns and lazy work the same), plus: workers (default: the cores, at most 8), minBytes (default 32,000,000; call warm() early to start the helpers ahead of time).
    * A file with quote marks is cut at plain line ends and each helper counts the quote marks of its piece (WebAssembly) so the cuts are known to fall outside quotes; if one does not, the older single-thread cut is used.
    */
-  async function parseParallel(input, opts) {
+  async function parseParallel(input, opts) { var t = await parseParallelCore(input, opts); return opts && opts.types ? applyTypes(t, opts.types) : t; }
+  async function parseParallelCore(input, opts) {
     opts = opts || {};
     var delim = (opts.delimiter || ',').charCodeAt(0), header = opts.header !== false, u = stripBom(toBytes(input)), len = u.length, serial = function () { var t = parse(u, opts); t.workers = 0; return t; };
     var n = helperCount(opts), T = opts._timing, t0 = T ? performance.now() : 0;
@@ -425,5 +455,5 @@
     return col;
   }
 
-  return { version: '0.3.0', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { version: '0.5.0', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));

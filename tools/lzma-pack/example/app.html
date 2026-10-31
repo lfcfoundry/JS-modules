@@ -25,7 +25,14 @@
     -->
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>lzma-pack example</title>
-<body style="font:16px system-ui;margin:2rem;max-width:34rem">
+<style>
+body{font:16px/1.55 'Segoe UI',system-ui,sans-serif;margin:0;color:#1b2433;background:#fff}
+@media(prefers-color-scheme:dark){body{color:#e4ebf5;background:#0b1522}a{color:#4c9bf5}}
+body>*{margin-left:2rem;margin-right:2rem;max-width:34rem}
+h1{margin:0 0 1rem;padding:14px 2rem;max-width:none;background:#0f2a47;color:#f3f7fc;font-size:1.25rem;line-height:1.2}
+button{font:inherit;font-weight:600;padding:.45rem .9rem;border-radius:6px;border:1px solid #9db0c8;background:#f1f4f9;color:#1b2433;cursor:pointer}
+</style>
+<body>
 <h1 id="h">Hello from a packed page</h1>
 <p>This page was stored LZMA-compressed inside <code>packed-bytes.html</code> (or <code>packed-base64.html</code>), unpacked by a small decoder, and written into the browser. Unicode survives the trip: caf&eacute; &#9731; &#127820; &mdash; &ldquo;quotes&rdquo;.</p>
 <button id="b">Count clicks: 0</button>

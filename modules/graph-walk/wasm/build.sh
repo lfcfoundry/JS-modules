@@ -7,7 +7,7 @@
 set -e
 cd "$(dirname "$0")"
 FLAGS="--target=wasm32 -O3 -ffp-contract=off -mnontrapping-fptoint -mbulk-memory -nostdlib -ffreestanding -fno-builtin"
-LINK="-Wl,--no-entry -Wl,--export=gw_components -Wl,--export=gw_scc -Wl,--export=gw_topo -Wl,--export=gw_dijkstra -Wl,--export-memory -Wl,--export=__heap_base -Wl,--initial-memory=131072 -Wl,-z,stack-size=4096 -Wl,--strip-all -Wl,--global-base=1024"
+LINK="-Wl,--no-entry -Wl,--export=gw_components -Wl,--export=gw_scc -Wl,--export=gw_topo -Wl,--export=gw_dijkstra -Wl,--export=gw_kcore -Wl,--export=gw_pagerank -Wl,--export=gw_betweenness -Wl,--export=gw_mst -Wl,--export-memory -Wl,--export=__heap_base -Wl,--initial-memory=131072 -Wl,-z,stack-size=4096 -Wl,--strip-all -Wl,--global-base=1024"
 b() { clang $FLAGS $LINK -o "$1" graph-walk.c; }
 case "$1" in
   --check) T=$(mktemp); b "$T"; if cmp -s "$T" graph-walk.wasm; then echo "graph-walk.wasm is what graph-walk.c builds"; rm -f "$T"; else echo "graph-walk.wasm is NOT what graph-walk.c builds"; rm -f "$T"; exit 1; fi ;;

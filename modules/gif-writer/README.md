@@ -1,8 +1,8 @@
 # gif-writer
 
-**Version 1.5.1 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** Node 22 (gif-writer, filters, WebAssembly twin); Firefox 158, Chromium 155, WebKitGTK 2.52.6 (filters equal in all three)
+**Tested in:** not recorded.
 
 Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 38 KB (15 KB gzipped, of which about 12 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map's GIF maker.
 
@@ -45,6 +45,8 @@ img.src = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
 ```
 Each picture is compressed the moment you add it, so memory holds the compressed pictures, not the raw ones.
 
+**Advice:** give `makePalette` pictures spread across the whole animation, not just the first few. In the worst case we measured, that made the file 5.5% smaller for 9% more time (container Chromium; the direction is reliable, the exact numbers are not).
+
 ## WebAssembly (since 1.2.0)
 
 **What.** The palette search (`makePalette`: color histogram, median cut, k-means) and the picture encoder (`createEncoder`: palette lookup of every pixel, comparison with the last picture, LZW coder) also exist as WebAssembly (9,903 bytes, `wasm/gif.c`), embedded in `gif-writer.js` and used first. They give the same colors and the same GIF bytes as the JavaScript code: 21 encoder scenes and 116 palette sets identical in Node, and 18 of 18 GIFs in every one of 18 browser runs. `GifWriter.wasmAvailable()` says whether the browser allows it; `makePalette(pics, n, { wasm: false })` and `createEncoder(w, h, pal, { wasm: false })` force the JavaScript code.
@@ -76,6 +78,8 @@ A first small GIF on a fresh page (160 x 120, 4 pictures, start-up included): 44
 - Each encoder has its own WebAssembly memory (about 5 MB plus the pictures); it is freed with the encoder.
 - Source `wasm/gif.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
 
+**Thorough palette (1.6.0, off by default).** `makePalette(pics, 255, { thorough: true })` counts every pixel instead of every 3rd or 5th. On 30 noisy frames of 320 x 240 (container Node, wasm on) it made the file 1.1% smaller (725,711 against 733,515 bytes) for about 4 times the palette time (about 316 ms against about 104 ms) when given 8 spread pictures, and 1.6% smaller (721,850) when given all 30 (about 650 ms). Smaller is better, lower time is better. Typical captures with a still background gain nothing worth the time, so leave it off for them.
+
 **Palette sampling (1.4.0).** Above 100,000 pixels in all, `makePalette` counts about every 3rd pixel (every 5th above 1,000,000), at a step with no common factor with the picture's pixel count (so never one that divides its width), and counts every pixel after all when the sample shows fewer than 4,096 distinct colors. WebAssembly and plain JavaScript count the same pixels and give the same palette. A GIF from big photo-like inputs is therefore not byte-identical to one from 1.3.0 (mean picture error within 0.3% on photo-like, gradient and one-pixel-line pictures in the tests); flat, pixel-art and most screenshot pictures give the same bytes as before.
 
 **Honest limits.** The palette search is slower than the JavaScript code in the two WebKit browsers on flat pictures: scrolling bands 0.89x in WebKitGTK (14.5 to 16.3 ms), the small moving block 0.95x in GNOME Web (19.8 to 20.8 ms) and the flat game picture 0.97x in both (1 ms or less, inside the clock's step). The cost is copying every picture into WebAssembly memory (it now goes in pieces of 16,384 pixels so the copy stays in the processor cache, which moved WebKitGTK from 0.87x to the numbers above); the JavaScript code counts such pictures in runs at about the same speed. Everything else is 1.07x or faster, and encoding is 1.08x or faster everywhere. The `lzw()` function you can call directly is unchanged JavaScript. Costs bytes: +20,124 as written (20,789 to 40,913), +16,195 minified (9,115 to 25,310) and +7,929 gzipped (4,349 to 12,278) with terser 5.51.2 (smaller is better). Not run: a phone, Safari.
@@ -93,6 +97,8 @@ Much smaller files than gifenc when most of the picture stays still, about the s
 |---|---|---|---|---|
 | gif-writer 1.2.0 (MIT, this module) | 25,310 bytes minified, 12,278 gzipped (40,913 as written; terser 5.51.2; 1.1.0 was 9,115 and 4,349) | Encoding 1.1 to 2.3 times faster and the palette search 0.9 to 1.7 times (the two tables above); before that, the palette for a busy animation, 1.1.0 against 1.0.0 (faster is better): 1.3 times in Chromium 155, 1.7 in Firefox 158, 3.0 in WebKitGTK 2.52.6, 2.95 in GNOME Web 46.5. Against gifenc in browsers: not measured | One palette for the whole animation, only changed pixels stored, GIF89a with loop | Wins on file size for still backgrounds; loses on code size |
 | [gifenc](https://github.com/mattdesl/gifenc) (MIT, 1.0.3) | About 5.7 KB gzipped | In browsers: not measured | Palette quantizing, global or per-picture palettes, writes every pixel of every picture | Wins on code size; loses on file size for mostly still animations |
+| [gif.js](https://github.com/jnordberg/gif.js) 0.2.0 (MIT) | 10,430 bytes minified, 3,572 gzipped, plus its worker file, 10,874 bytes minified, 4,057 gzipped (terser 5.51.2 `-c passes=2 -m`) | In browsers: not measured | NeuQuant color search, optional dithering, encodes in Web Workers; writes every picture in full | Wins on code size and on dithering. Loses on file size for mostly still animations, and needs its worker file served next to the page |
+| [omggif](https://github.com/deanm/omggif) 1.0.10 (MIT) | 6,582 bytes minified, 2,554 gzipped | In browsers: not measured | Reads and writes GIFs; you supply the palette and the indexed pixels, no color search | Wins on code size. Loses: no palette search, cropping or transparency handling for you |
 | Your own encoder | A few hundred lines | Not measured | Whatever you write | You must test it yourself; the tests here include an independent decoder |
 
 File size, measured (smaller is better): a mostly still animation (30 pictures of 640 x 400, a small ball over a still background) is 23.3 KB here and 159 KB with gifenc (global palette); a worst case with every pixel changing is 1.09 MB here and 1.14 MB with gifenc.

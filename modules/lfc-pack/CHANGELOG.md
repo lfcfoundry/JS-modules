@@ -13,6 +13,12 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Wide row objects: the one-time timing of how to build dense rows now also tries filling each row with all its keys before the next (before: plain or cloned only), and drops a way at once when it is more than 2.5 times slower in the warm-up round (the clone way took 5 s per round on 200 keys in WebKit). Whole read of 20,000 rows with 200 keys: WebKitGTK 1,324 to 580 ms; Chromium and Firefox unchanged (the timing picks per browser and varies a little from run to run).
 - New read option `{ rows: 'generated' }` (off by default): wide dense row objects are built by one generated function per key set. It needs `unsafe-eval` in the page's security policy; if the engine refuses it, the normal ways are used. Whole read of 20,000 rows with 200 keys: WebKitGTK 628 to 183 ms, Chromium 585 to 465, Firefox 286 to 264; 50 keys: WebKitGTK 49 to 32, Firefox 69 to 55.
 
+## 0.2.0 · API 0 · 2026-10-30
+- Default block size 13 MB (was 21 MB): parallel pack 34-36% faster on a 16-core laptop, same size; `packParallel` hands out one block at a time (7 to 27% faster); `warmPack(n)`.
+- New `meta` option with `LfcPack.metadata(bytes)`, `LfcPack.unpackRows(bytes, {from, count})` (decodes only the blocks it needs, builds only those rows) and `LfcPack.stats(bytes)` (column facts from the footer).
+- Faster one-column reads and wide row objects (WebKit 200-key whole read 1,324 to 580 ms).
+- New `LfcPack.hash(bytes, kind)`, a file viewer (viewer.html), readers that refuse damaged blocks with a plain message, and an optional `check: 'xxh64'` block check with per-column checks (one-column reads about 40 to 50% faster).
+
 ## 0.1.11 · API 0 · 2026-10-30
 - New packStream: feed text in pieces and write each block as it is ready, so packing a big file holds one block of text at a time
 

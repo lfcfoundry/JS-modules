@@ -22,6 +22,16 @@ python3 tools/speed-guard/speed-guard.py --plan [BASE]         # the browser che
 - **Ties:** a step whose values differ by 1 ms or less is a tie, because Firefox and WebKit read whole milliseconds (`--floor`).
 - **Steps with one release** are not compared.
 
+## How it compares
+
+| Alternative | What it does | Why it does not fit this job |
+|---|---|---|
+| Lighthouse CI | Tracks audit scores over time | Built for served pages and its own scores, not our per-browser speed rows |
+| github-action-benchmark | Compares benchmark results in CI | Tied to GitHub Actions; our rows come from real-device runs |
+| **speed-guard** | Reads the speed-history rows, compares them direction-aware against the 5% rule and lists which browser checks a change affects | Only as good as the rows added at each release |
+
+This is a feature comparison from each project's public documentation. No speed comparison was measured.
+
 ## Limits
 - It trusts the rows. The same `test` and `browser` text must be used at every release, as the speed-history rules already say, or the steps are not matched.
 - It compares the newest release with the one before it, not a trend.

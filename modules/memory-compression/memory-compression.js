@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.6.5 (API 2)
+ * Version 2.7.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1166,20 +1166,20 @@
       var res = new Uint32Array(n), i; for (i = 0; i < n; i++) res[i] = a[i] - base;
       bpWrite(w, res, n, bw);
     }
-    function bpReadF(r, n, bw, base) {            // n values of bw bits, each plus base, as doubles
+    function bpReadF(r, n, bw, base, into) {      // n values of bw bits, each plus base, as doubles (into: a zeroed Float64Array of n to fill instead of making one)
       var kw = KWC, out, res, i, bytes, sP, oP, src;
       if (bw > 32) pfail('bad bit width');
-      if (!bw) { out = new Float64Array(n); if (base) out.fill(base); return out; }
+      if (!bw) { out = into || new Float64Array(n); if (base) out.fill(base); return out; }
       if (kw && n >= 1024) {
         bytes = Math.ceil(n * bw / 8); sP = kw.base; oP = kal(sP + bytes + 16);
         if (kwRoom(oP + n * 8 - kw.base + 64)) {
           src = r.bytes(bytes);
           new Uint8Array(kw.mem.buffer, sP, bytes + 8).fill(0, bytes).set(src);
           kw.x.bp_unpack(sP, n, bw, base, oP);
-          out = new Float64Array(n); out.set(new Float64Array(kw.mem.buffer, oP, n)); return out;
+          out = into || new Float64Array(n); out.set(new Float64Array(kw.mem.buffer, oP, n)); return out;
         }
       }
-      res = bpRead(r, n, bw); out = new Float64Array(n); for (i = 0; i < n; i++) out[i] = res[i] + base; return out;
+      res = bpRead(r, n, bw); out = into || new Float64Array(n); for (i = 0; i < n; i++) out[i] = res[i] + base; return out;
     }
     function bpRead(r, n, bw) {
       var out = new Uint32Array(n), bytes, src, tmp, mask, pos = 0, i, idx, off, v;
@@ -1292,8 +1292,8 @@
       for (i = 1; i < n; i++) { x = a[i] - a[i - 1]; x = x < 0 ? -2 * x - 1 : 2 * x; d[i - 1] = x; if (x > y) y = x; }
       return y;
     }
-    function undeltaOf(d, n, c0) {    // out[0] = c0; out[i] = out[i - 1] + unzigzag(d[i - 1])
-      var kw = KWC, dP, oP, out = new Float64Array(n), i, c = c0, z;
+    function undeltaOf(d, n, c0, into) {    // out[0] = c0; out[i] = out[i - 1] + unzigzag(d[i - 1])  (into: a zeroed Float64Array of n to fill)
+      var kw = KWC, dP, oP, out = into || new Float64Array(n), i, c = c0, z;
       if (kw && n >= 1024) {
         dP = kw.base; oP = kal(dP + n * 8);
         if (kwRoom(oP + n * 8 - kw.base + 64)) {
@@ -1410,12 +1410,12 @@
       return best;
     }
     function tryInt(sch, a, depth, opt, mm, bound) { try { return encIntWith(sch, a, depth, opt, mm, bound); } catch (e) { return null; } }
-    function decInts(r, n, depth) {
-      var sch = r.u8(), out = new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div;
+    function decInts(r, n, depth, into) {
+      var sch = r.u8(), out = into || new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div;
       if (depth > MAX_DEPTH) pfail('data nested too deep');
       if (sch === IS.RAW) { for (i = 0; i < n; i++) out[i] = r.f64(); return out; }
       if (sch === IS.CONST) { out.fill(r.zi()); return out; }
-      if (sch === IS.FOR) { mn = r.zi(); bw = r.u8(); return bpReadF(r, n, bw, mn); }
+      if (sch === IS.FOR) { mn = r.zi(); bw = r.u8(); return bpReadF(r, n, bw, mn, into); }
       if (sch === IS.ENT) {
         mn = r.zi(); sh = r.u8(); if (sh > 40) pfail('bad shift'); t = readTable(r); rl = r.vi();
         syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot); low = bpRead(r, n, sh); div = Math.pow(2, sh);
@@ -1425,7 +1425,7 @@
       if (sch === IS.DELTA) {
         if (n < 1) pfail('bad column');
         c = r.zi(); d = decInts(r, n - 1, depth + 1);
-        return undeltaOf(d, n, c);
+        return undeltaOf(d, n, c, into);
       }
       if (sch === IS.DIV) { b = r.zi(); g = r.vi(); d = decInts(r, n, depth + 1); for (i = 0; i < n; i++) out[i] = d[i] * g + b; return out; }
       if (sch === IS.RLE) {
@@ -1443,7 +1443,7 @@
       }
       if (sch === IS.PFOR) {
         mn = r.zi(); bw = r.u8(); ne = r.vi(); if (ne > n || bw > 31) pfail('bad outliers');
-        out = bpReadF(r, n, bw, mn); gaps = decInts(r, ne, depth + 1); hi = decInts(r, ne, depth + 1); lim1 = Math.pow(2, bw);
+        out = bpReadF(r, n, bw, mn, into); gaps = decInts(r, ne, depth + 1); hi = decInts(r, ne, depth + 1); lim1 = Math.pow(2, bw);
         p = -1; for (k = 0; k < ne; k++) { p += gaps[k] + 1; if (!(p >= 0 && p < n)) pfail('bad outlier position'); out[p] += hi[k] * lim1; }
         return out;
       }
@@ -1512,8 +1512,8 @@
       }
       return w.out();
     }
-    function decALP(r, n, depth) {
-      var e = r.u8(), f = r.u8(), ne = r.vi(), ints, out = new Float64Array(n), i, gaps, near, at, p, k, c, q, z;
+    function decALP(r, n, depth, into) {
+      var e = r.u8(), f = r.u8(), ne = r.vi(), ints, out = into || new Float64Array(n), i, gaps, near, at, p, k, c, q, z;
       if (e > 22 || f > e || ne > n) pfail('bad decimal column');
       ints = decInts(r, n, depth + 1);
       for (i = 0; i < n; i++) out[i] = ints[i] * F10[f] / F10[e];
@@ -1759,10 +1759,11 @@
       if (!best || best.length >= a.length * 8) { best = rawDoubles(a); bs = CS.RAWF; }
       w = new Wr(); w.u8(bs); w.bytes(best); return w.out();
     }
-    function decChunk(r, n) {
+    function into1(out, at, n, got) { if (got.buffer !== out.buffer || got.byteOffset !== out.byteOffset + at * 8) out.set(got, at); }      // a block that was not decoded in place is copied in
+    function decChunk(r, n, into) {
       var id = r.u8(), out, i;
-      if (id === CS.INTS) return decInts(r, n, 0);
-      if (id === CS.ALP) return decALP(r, n, 0);
+      if (id === CS.INTS) return decInts(r, n, 0, into);
+      if (id === CS.ALP) return decALP(r, n, 0, into);
       if (id === CS.RD) return decRD(r, n, 0);
       if (id === CS.FDICT) return decFDict(r, n, 0);
       if (id === CS.PLANES) return decPlanes(r, n);
@@ -1782,11 +1783,11 @@
       try { return packRun(values, opts); } finally { KWC = null; STAT = null; }
     }
     function packRun(values, opts) {
-      var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
+      var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy), quick: !!(opts && opts.quick) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
       if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
-        k++; full = !(k > 2 && k % 8 !== 0 && won.length);
+        k++; full = !(k > (o.quick ? 1 : 2) && k % 8 !== 0 && won.length);
         o.prefer = full || !wonInts.length ? null : wonInts; o.top = 2;
         part = encChunk(a.subarray(i, Math.min(n, i + CHUNK)), 2, o, full ? null : won);   // a block tries every way for the first blocks and every 8th; the rest try only the ways that have won before
         if (won.indexOf(part[0]) < 0 && part[0] !== CS.RAWF) won.push(part[0]);
@@ -1806,7 +1807,7 @@
       var r = new Rd(bytes), n = r.vi(), c = r.vi(), out, i, len, c2;
       if (n !== count || c < 1 || c > 1048576) pfail('the data does not match the column');
       out = new Float64Array(n);
-      for (i = 0; i < n; i += c) { len = r.vi(); c2 = Math.min(c, n - i); out.set(decChunk(new Rd(r.bytes(len)), c2), i); }
+      for (i = 0; i < n; i += c) { len = r.vi(); c2 = Math.min(c, n - i); into1(out, i, c2, decChunk(new Rd(r.bytes(len)), c2, out.subarray(i, i + c2))); }
       return out;
     }
     function available() { return LE; }
@@ -1821,7 +1822,7 @@
       var k, len, c2;
       KWC = st.wasm === false ? null : kwGet();
       try {
-        for (k = 0; k < blocks && st.i < st.n; k++) { len = st.r.vi(); c2 = Math.min(st.c, st.n - st.i); st.out.set(decChunk(new Rd(st.r.bytes(len)), c2), st.i); st.i += st.c; }
+        for (k = 0; k < blocks && st.i < st.n; k++) { len = st.r.vi(); c2 = Math.min(st.c, st.n - st.i); into1(st.out, st.i, c2, decChunk(new Rd(st.r.bytes(len)), c2, st.out.subarray(st.i, st.i + c2))); st.i += st.c; }
       } finally { KWC = null; }
       return st.i >= st.n;
     }
@@ -2026,6 +2027,7 @@
     this.front = !(opts && opts.front === false);                       // text columns that share long starts with the row before (sorted words, paths) may be stored as 'start length + new end'
     this.fsst = !!(opts && opts.fsst);                                  // opt-in: text columns may be stored as FSST codes (any one string readable alone); costs training time
     this.patterns = !(opts && opts.patterns === false);                 // text patterns on by default; off saves time on text-heavy data at the cost of size
+    this.quick = !!(opts && opts.quickTries);                           // opt-in: the picker tries every way on the first block only (faster pack, up to about 1% bigger)
     this.float32 = !!(opts && opts.float32);                       // opt-in and lossy: columns of fractions that need 8 bytes each are kept in 4
     this.seen = this.refs ? new Map() : null;
     this.keys = new Map(); this.depth = 0;
@@ -2266,20 +2268,20 @@
     var a = PK, small = this.mode === 'small', best, z = 0, p, ne, probe, got, got0, plain, tryNe = true, i;
     try {
       if (src.length >= 32768) {                    // a long column is first tried on its first 8,192 numbers; if the chooser gains under 5% there, the rest is not tried
-        probe = src.subarray(0, 8192); got = got0 = a.pack(probe, { sample: true, wasm: this.mcOpts.wasm });
+        probe = src.subarray(0, 8192); got = got0 = a.pack(probe, { sample: true, quick: this.quick, wasm: this.mcOpts.wasm });
         if (small) { p = MC.pack(got, this.mcOpts); if (p.length < got.length) got = p; }
         plain = MC.pack(probe, this.mcOpts);
         if (got.length > plain.length * 0.95) return null;
         if (small) {                                // the second pass (no entropy coding, then deflate) is only worth its time when it comes close on the same 8,192 numbers
-          ne = a.pack(probe, { sample: true, noEntropy: true, wasm: this.mcOpts.wasm });
+          ne = a.pack(probe, { sample: true, quick: this.quick, noEntropy: true, wasm: this.mcOpts.wasm });
           if (ne.length === got0.length) { for (i = 0; i < ne.length && ne[i] === got0[i]; i++); tryNe = i < ne.length; }   // the very same bytes: the second pass would only repeat the first
           if (tryNe) { p = MC.pack(ne, this.mcOpts); tryNe = p.length < got.length * 1.02; }
         }
       }
-      best = a.pack(src, { sample: true, wasm: this.mcOpts.wasm, hint: this.hints ? (this.hints[this.path] || (this.hints[this.path] = {})) : null });
+      best = a.pack(src, { sample: true, quick: this.quick, wasm: this.mcOpts.wasm, hint: this.hints ? (this.hints[this.path] || (this.hints[this.path] = {})) : null });
       if (small) {
         p = MC.pack(best, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
-        if (tryNe) { ne = a.pack(src, { sample: true, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; } }
+        if (tryNe) { ne = a.pack(src, { sample: true, quick: this.quick, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; } }
       }
     } catch (err) { return null; }
     return { bytes: best, z: z };
@@ -4234,10 +4236,10 @@
     if (T) T.encode = performance.now() - tA;
     if (!defer.jobs.length) return Promise.resolve(finishPack(e, e.ctl.done(), e.blobs, opts));
     runner = opts.workers && typeof opts.workers.run === 'function' ? opts.workers.run : function (jobs) {
-      return Promise.resolve().then(function () { return jobs.map(function (j) { return j.kind === 1 ? colsFor(j.src, j.n, j.a, j.wopts) : adaptFor(j.src, e.mode, e.mcOpts.wasm); }); });
+      return Promise.resolve().then(function () { return jobs.map(function (j) { return j.kind === 1 ? colsFor(j.src, j.n, j.a, j.wopts) : adaptFor(j.src, e.mode, e.mcOpts.wasm, e.quick); }); });
     };
-    var tB = T ? performance.now() : 0, wopts = { mode: opts.mode, picker: opts.picker, level: opts.level, float32: opts.float32, wasm: opts.wasm };
-    var jobsMsg = defer.jobs.map(function (j) { return j.kind === 1 ? { kind: 1, src: j.src, n: j.n, a: j.a, wopts: wopts, mode: e.mode, wasm: e.mcOpts.wasm } : { kind: 0, src: j.src, n: j.n, e: j.e, plainLen: j.plainLen, mode: e.mode, wasm: e.mcOpts.wasm }; });
+    var tB = T ? performance.now() : 0, wopts = { mode: opts.mode, picker: opts.picker, level: opts.level, float32: opts.float32, quickTries: opts.quickTries, wasm: opts.wasm };
+    var jobsMsg = defer.jobs.map(function (j) { return j.kind === 1 ? { kind: 1, src: j.src, n: j.n, a: j.a, wopts: wopts, mode: e.mode, wasm: e.mcOpts.wasm } : { kind: 0, src: j.src, n: j.n, e: j.e, plainLen: j.plainLen, mode: e.mode, wasm: e.mcOpts.wasm, quick: e.quick }; });
     var pr = runner(jobsMsg); if (T) T.post = performance.now() - tB;
     return pr.then(function (res) {
       var tC = T ? performance.now() : 0, ctl = e.ctl.done(), flat, pos = 0, ctlOut = new Out(), blobOut = [], bpos = 0, i, j, r, tag, acc = [], d, at, dc, db, t, total = 0;
@@ -4277,9 +4279,9 @@
     flat = new Uint8Array(blobs.size()); blobs.copyTo(flat, 0);
     return { ctl: e2.ctl.done().slice(), blob: flat, v5: !!e2.needsV5 };
   }
-  function adaptFor(src, mode, wasm) {                                 // what the picker answers for one column, for a worker or the page
+  function adaptFor(src, mode, wasm, quick) {                                 // what the picker answers for one column, for a worker or the page
     var mcOpts = { mode: mode }; if (wasm === false) mcOpts.wasm = false;
-    return Enc.prototype.adaptBytes.call({ mode: mode, mcOpts: mcOpts, hints: null, path: '' }, src);
+    return Enc.prototype.adaptBytes.call({ mode: mode, mcOpts: mcOpts, hints: null, path: '', quick: !!quick }, src);
   }
   function open(bytes, opts) {
     opts = opts || {};
@@ -5100,7 +5102,7 @@
       var src, i, w;
       if (!usable || ws.length) return;
       try {
-        src = 'var MC=' + unified.workerSource() + ';self.onmessage=function(ev){var d=ev.data,out=[],tr=[],i,r,b;for(i=0;i<d.jobs.length;i++){r=null;try{if(d.jobs[i].kind===1){r=MC.objects.cols(d.jobs[i].src,d.jobs[i].n,d.jobs[i].a,d.jobs[i].wopts);out.push({id:d.jobs[i].id,ctl:r.ctl,blob:r.blob,v5:r.v5});tr.push(r.ctl.buffer);tr.push(r.blob.buffer);continue;}r=MC.objects.adapt(d.jobs[i].src,d.jobs[i].mode,d.jobs[i].wasm);}catch(e){r=null;if(d.jobs[i].kind===1){out.push({id:d.jobs[i].id,fail:1});continue;}}if(r&&r.bytes){b=r.bytes.slice();out.push({id:d.jobs[i].id,bytes:b,z:r.z});tr.push(b.buffer);}else out.push({id:d.jobs[i].id,bytes:null,z:0});}self.postMessage({out:out},tr);};';
+        src = 'var MC=' + unified.workerSource() + ';self.onmessage=function(ev){var d=ev.data,out=[],tr=[],i,r,b;for(i=0;i<d.jobs.length;i++){r=null;try{if(d.jobs[i].kind===1){r=MC.objects.cols(d.jobs[i].src,d.jobs[i].n,d.jobs[i].a,d.jobs[i].wopts);out.push({id:d.jobs[i].id,ctl:r.ctl,blob:r.blob,v5:r.v5});tr.push(r.ctl.buffer);tr.push(r.blob.buffer);continue;}r=MC.objects.adapt(d.jobs[i].src,d.jobs[i].mode,d.jobs[i].wasm,d.jobs[i].quick);}catch(e){r=null;if(d.jobs[i].kind===1){out.push({id:d.jobs[i].id,fail:1});continue;}}if(r&&r.bytes){b=r.bytes.slice();out.push({id:d.jobs[i].id,bytes:b,z:r.z});tr.push(b.buffer);}else out.push({id:d.jobs[i].id,bytes:null,z:0});}self.postMessage({out:out},tr);};';
         url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
         for (i = 0; i < size; i++) {
           w = new Worker(url);
@@ -5114,7 +5116,7 @@
     function run(jobs) {
       var order = [], load = [], mine = [], i, k, w, ps = [], rows = 0, timer = null, results = new Array(jobs.length), all;
       begin();
-      if (!usable || !ws.length) return Promise.resolve(jobs.map(function (j) { return j.kind === 1 ? colsFor(j.src, j.n, j.a, j.wopts) : adaptFor(j.src, j.mode, j.wasm); }));
+      if (!usable || !ws.length) return Promise.resolve(jobs.map(function (j) { return j.kind === 1 ? colsFor(j.src, j.n, j.a, j.wopts) : adaptFor(j.src, j.mode, j.wasm, j.quick); }));
       for (i = 0; i < jobs.length; i++) { order.push(i); rows += jobs[i].n; }
       order.sort(function (a, b) { return jobs[b].n - jobs[a].n; });
       for (w = 0; w < ws.length; w++) { load.push(0); mine.push([]); }
@@ -5124,7 +5126,7 @@
         (function (w) {
           var msg = [], tr = [];
           mine[w].forEach(function (ix) {
-            var id = nextId++; msg.push({ id: id, kind: jobs[ix].kind, src: jobs[ix].src, n: jobs[ix].n, a: jobs[ix].a, wopts: jobs[ix].wopts, mode: jobs[ix].mode, wasm: jobs[ix].wasm }); tr.push(jobs[ix].src.buffer);
+            var id = nextId++; msg.push({ id: id, kind: jobs[ix].kind, src: jobs[ix].src, n: jobs[ix].n, a: jobs[ix].a, wopts: jobs[ix].wopts, mode: jobs[ix].mode, wasm: jobs[ix].wasm, quick: jobs[ix].quick }); tr.push(jobs[ix].src.buffer);
             ps.push(new Promise(function (res, rej) { pending[id] = { fail: function (why) { rej(new Error('MemoryCompression pool: ' + why)); }, ok: function (o) { results[ix] = o.fail ? { fail: 1 } : o.ctl ? { ctl: o.ctl, blob: o.blob, v5: o.v5 } : { bytes: o.bytes || null, z: o.z }; res(); } }; }));
           });
           try { ws[w].postMessage({ jobs: msg }, tr); } catch (err) { fail('postMessage failed'); }
