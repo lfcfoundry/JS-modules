@@ -4,11 +4,27 @@
  * and the rounding is exact integer math: q = ((2 * sum + n) * M) >> k, with M and k picked per n so it equals floor((2 * sum + n) / (2 * n)).
  *   hrows(A, B, rowA, rowB, w, y0, y1, b): rows two at a time; rowA and rowB are scratch of w * 8 bytes (two rows interleaved pixel by pixel)
  *   vcols(B, A, stA, stB, col, w, h, x0, x1, b): as blur.c (strips of at most 16 columns); col is 16 * 16 bytes
+ * Built with -DTHREADS (blurmt.wasm, the opt-in threads route) it keeps no static data, so many workers can run it on one shared memory:
+ *   km(n) returns pick's answer (k << 24 | M); hrows and vcols take it as a last argument, and vcols walks any number of columns in strips of 16.
  */
 #include <wasm_simd128.h>
 typedef unsigned char u8;
 typedef unsigned short u16;
 
+#ifdef THREADS
+__attribute__((export_name("km"))) unsigned km(int n) {
+  for (int k = 16; k < 32; k++) {
+    unsigned M = (unsigned)(((1ull << k) + 2 * n - 1) / (2 * n));
+    if ((unsigned long long)(2 * 255 * n + n) * M >= (1ull << 32)) break;
+    int ok = 1;
+    for (int s = 0; s <= 255 * n && ok; s++) if ((((unsigned long long)(2 * s + n)) * M) >> k != (unsigned)((2 * s + n) / (2 * n))) ok = 0;
+    if (ok) return ((unsigned)k << 24) | M;
+  }
+  return 0;
+}
+#define KM_ARG , unsigned km
+#define SETUP(n) unsigned M_MUL = km & 0xffffff; int K_SH = (int)(km >> 24)
+#else
 static int K_SH; static unsigned M_MUL;
 static void pick(int n) {   /* smallest k with M = ceil(2^k / 2n) exact for every sum 0..255n (checked offline for all n = 3..101) */
   for (int k = 16; k < 32; k++) {
@@ -21,6 +37,9 @@ static void pick(int n) {   /* smallest k with M = ceil(2^k / 2n) exact for ever
 }
 static int last_n = -1;
 static inline void setup(int n) { if (n != last_n) { pick(n); last_n = n; } }
+#define KM_ARG
+#define SETUP(n) setup(n)
+#endif
 
 /* 8 x u16 sums -> 8 bytes rounded (two pixels), result in the low 8 bytes */
 static inline v128_t round8(v128_t sum, v128_t nv, v128_t mv, int k) {
@@ -71,8 +90,8 @@ static void box_pair_out(const u8 *s, u8 *o0, u8 *o1, int n, int b, v128_t nv, v
   }
 }
 
-__attribute__((export_name("hrows"))) void hrows(const u8 *A, u8 *B, u8 *rowA, u8 *rowB, int w, int y0, int y1, int b) {
-  int n = 2 * b + 1; setup(n); v128_t nv = wasm_i16x8_splat(n), mv = wasm_i16x8_splat((short)M_MUL); int k = K_SH;
+__attribute__((export_name("hrows"))) void hrows(const u8 *A, u8 *B, u8 *rowA, u8 *rowB, int w, int y0, int y1, int b KM_ARG) {
+  int n = 2 * b + 1; SETUP(n); v128_t nv = wasm_i16x8_splat(n), mv = wasm_i16x8_splat((short)M_MUL); int k = K_SH;
   long rs = (long)w * 4;
   for (int y = y0; y < y1; y += 2) {
     int two = y + 1 < y1;
@@ -106,10 +125,17 @@ static void box_strip(const u8 *s, long ss, u8 *d, long ds, int sw, int n, int b
   }
 }
 
-__attribute__((export_name("vcols"))) void vcols(const u8 *B, u8 *A, u8 *stA, u8 *stB, v128_t *col, int w, int h, int x0, int x1, int b) {
-  int n = 2 * b + 1; setup(n); v128_t nv = wasm_i16x8_splat(n), mv = wasm_i16x8_splat((short)M_MUL); int k = K_SH;
-  int sw = x1 - x0; long sb = (long)sw * 4;
+static inline void strip3(const u8 *B, u8 *A, u8 *stA, u8 *stB, v128_t *col, int w, int h, int x0, int sw, int b, v128_t nv, v128_t mv, int k) {
+  long sb = (long)sw * 4;
   box_strip(B + (long)x0 * 4, (long)w * 4, stA, sb, sw, h, b, nv, mv, k, col);
   box_strip(stA, sb, stB, sb, sw, h, b, nv, mv, k, col);
   box_strip(stB, sb, A + (long)x0 * 4, (long)w * 4, sw, h, b, nv, mv, k, col);
+}
+__attribute__((export_name("vcols"))) void vcols(const u8 *B, u8 *A, u8 *stA, u8 *stB, v128_t *col, int w, int h, int x0, int x1, int b KM_ARG) {
+  int n = 2 * b + 1; SETUP(n); v128_t nv = wasm_i16x8_splat(n), mv = wasm_i16x8_splat((short)M_MUL); int k = K_SH;
+#ifdef THREADS
+  for (; x0 < x1; x0 += 16) strip3(B, A, stA, stB, col, w, h, x0, x1 - x0 < 16 ? x1 - x0 : 16, b, nv, mv, k);
+#else
+  strip3(B, A, stA, stB, col, w, h, x0, x1 - x0, b, nv, mv, k);
+#endif
 }
