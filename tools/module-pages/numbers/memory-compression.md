@@ -34,3 +34,6 @@ On these three lists `quickTries` changes nothing. Its 0 to 20% gain is for list
 | users, 20,000 rows | 3.0 | 2.5 | 1.0000 |
 
 `quickTries` changes nothing on two lists and is 16% faster on the third.
+
+
+**New in 2.8.0: faster packing of lists by default.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop). The new `autoTries` setting, on by default, packs lists of 20,000 to 300,000 rows 1.02 to 1.24x faster in Chromium, Firefox and WebKitGTK. Packed size is 0 to 1.3% bigger for whole-number lists of 10,000 to 100,000 rows, and unchanged above that. `autoTries: false` gives the same bytes as 2.7.0.
