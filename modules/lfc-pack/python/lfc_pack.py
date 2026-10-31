@@ -20,6 +20,13 @@ except ImportError:
     import zstandard as _zs
     def _decompress(b): return _zs.ZstdDecompressor().decompressobj().decompress(b)
 
+def _dz(b, n):
+    # a frame must decode to exactly the length the block layout declares (LAYOUT-SPEC.md 1.1)
+    out = _decompress(b)
+    if len(out) != n: raise ValueError('zstd frame decodes to %d bytes, layout says %d' % (len(out), n))
+    return out
+
+
 MAGIC = b'LFC1'
 _WIDTH = ['<u1', '<u2', '<u4', '<i1', '<i2', '<i4', '<f8']
 _ITEM = [1, 2, 4, 1, 2, 4, 8]
@@ -161,19 +168,19 @@ def _block_header(b):
 # ---------------------------------------------------------------- nested blocks
 def _read_nested(b):
     h, p = _block_header(b); c = _Cur(b, p)
-    cmeta = json.loads(_decompress(c.take(h['cm'][1])).decode('utf-8'))
-    D = _decompress(c.take(h['p'][0])).decode('ascii').split('\0')
-    sd = json.loads(_decompress(c.take(h['p'][1])).decode('utf-8'))
+    cmeta = json.loads(_dz(c.take(h['cm'][1]), h['cm'][0]).decode('utf-8'))
+    D = _dz(c.take(h['p'][0]), h['len'][0]).decode('ascii').split('\0')
+    sd = json.loads(_dz(c.take(h['p'][1]), h['len'][1]).decode('utf-8'))
     for i, ix in enumerate(sd['idx']):
         while len(D) <= ix: D.append('')
         D[ix] = sd['str'][i]
-    skel = _decompress(c.take(h['p'][2])).decode('utf-8').split('\n')
-    ids = _typed(_decompress(c.take(h['ids'][2])), h['ids'][0], h['ids'][1])
+    skel = _dz(c.take(h['p'][2]), h['len'][2]).decode('utf-8').split('\n')
+    ids = _typed(_dz(c.take(h['ids'][2]), h['ids'][1] * _ITEM[h['ids'][0]]), h['ids'][0], h['ids'][1])
     fa = h['fa']
-    flags = _decompress(c.take(fa[1])); rep = _typed(_decompress(c.take(fa[4])), fa[2], fa[3])
+    flags = _dz(c.take(fa[1]), fa[0]); rep = _typed(_dz(c.take(fa[4]), fa[3] * _ITEM[fa[2]]), fa[2], fa[3])
     cols = {}
     for key, kind, count, plen in cmeta:
-        cols[key] = _typed(_decompress(c.take(plen)), kind, count)
+        cols[key] = _typed(_dz(c.take(plen), count * _ITEM[kind]), kind, count)
     codes = []; nxt = 0; ri = 0
     for i in range(fa[5]):
         if (flags[i >> 3] >> (i & 7)) & 1: codes.append(nxt); nxt += 1
@@ -243,6 +250,7 @@ def _varints(b, n):
         u, m = c & 127, 128
         while True:
             c = b[p]; p += 1; u += (c & 127) * m; m *= 128
+            if u > 2 ** 53 or m > 2 ** 56: raise ValueError('varint over 2^53')
             if not c & 128: break
         out[i] = u
     return out
@@ -331,19 +339,19 @@ def _decode_col(c, fr):
 
 def _read_flat(b):
     h, p = _block_header(b); c = _Cur(b, p)
-    meta = json.loads(_decompress(c.take(h['m'][1])).decode('utf-8'))
+    meta = json.loads(_dz(c.take(h['m'][1]), h['m'][0]).decode('utf-8'))
     n = h['n']; keys = meta['keys']; K = len(keys)
-    pl = _decompress(c.take(h['pl'][1]))
+    pl = _dz(c.take(h['pl'][1]), h['pl'][0])
     ordl = ordids = None
     if 'ord' in meta:
         om = meta['ord']
-        ordl = json.loads(_decompress(c.take(om[1])).decode('utf-8'))
-        ordids = _typed(_decompress(c.take(om[4])), om[2], n)
+        ordl = json.loads(_dz(c.take(om[1]), om[0]).decode('utf-8'))
+        ordids = _typed(_dz(c.take(om[4]), om[3]), om[2], n)
     vals = []
     for cm in meta['cols']:
         fr = []
         for rawlen, slen, z in cm['f']:
-            sb = c.take(slen); fr.append(_decompress(sb) if z else bytes(sb))
+            sb = c.take(slen); fr.append(_dz(sb, rawlen) if z else bytes(sb))
         vals.append(_decode_col(cm, fr))
     ptr = [0] * K; out = []
     if ordl is not None:
@@ -362,7 +370,7 @@ def _read_flat(b):
 
 
 def _read_raw(b):
-    return _decompress(b[4:])
+    return _dz(b[4:], struct.unpack('<I', b[:4])[0])
 
 
 def _open(data):
@@ -370,6 +378,15 @@ def _open(data):
     blocks = _json(f['sec'].get(2))
     if blocks is None: raise ValueError('damaged file: block table missing')
     return f, blocks
+
+
+def _decode(kind, b, i):
+    # damaged tables that passed the checksums must give one plain error, not a stray IndexError or UnicodeDecodeError
+    try: return _read_flat(b) if kind == 'f' else _read_nested(b)
+    except ValueError as e:
+        if not isinstance(e, UnicodeError): raise
+        raise ValueError('damaged block %d: invalid text' % i)
+    except Exception as e: raise ValueError('damaged block %d: %s: %s' % (i, type(e).__name__, str(e)[:80]))
 
 
 def _block(data, f, blocks, i):
@@ -385,6 +402,12 @@ def info(path_or_bytes):
     return {'rows': h.get('rows'), 'blocks': len(blocks), 'size': len(data), 'major': f['major'], 'minor': f['minor']}
 
 
+def metadata(path_or_bytes):
+    """The metadata object the file was packed with (footer section 6), or None. Reads the footer only."""
+    data = _load(path_or_bytes); f, _ = _open(data)
+    return _json(f['sec'].get(6))
+
+
 def _load(x):
     if isinstance(x, (bytes, bytearray, memoryview)): return bytes(x)
     with open(x, 'rb') as fh: return fh.read()
@@ -395,7 +418,7 @@ def read(path_or_bytes):
     for i in range(len(blocks)):
         kind, b = _block(data, f, blocks, i)
         if kind == 'r': out.extend(json.loads(l) for l in _read_raw(b).decode('utf-8').split('\n') if l.strip())
-        else: out.extend(_read_flat(b) if kind == 'f' else _read_nested(b))
+        else: out.extend(_decode(kind, b, i))
     return out
 
 
@@ -406,7 +429,7 @@ def read_tables(path_or_bytes):
     out = {name: [] for name, _ in tables}
     for i in range(len(blocks)):
         kind, b = _block(data, f, blocks, i); ti = blocks[i][5] if len(blocks[i]) > 5 else 0
-        rows = [json.loads(l) for l in _read_raw(b).decode('utf-8').split('\n') if l.strip()] if kind == 'r' else (_read_flat(b) if kind == 'f' else _read_nested(b))
+        rows = [json.loads(l) for l in _read_raw(b).decode('utf-8').split('\n') if l.strip()] if kind == 'r' else _decode(kind, b, i)
         out[tables[ti][0]].extend(rows)
     return {name: (out[name][0]['v'] if out[name] else None) if k == 'value' else out[name] for name, k in tables}
 
@@ -425,7 +448,7 @@ def read_text(path_or_bytes):
     for i in range(len(blocks)):
         kind, b = _block(data, f, blocks, i)
         if kind == 'r': parts.append(_read_raw(b)); continue
-        rows = _read_flat(b) if kind == 'f' else _read_nested(b); ex = exc.get(i, {}); sp = dict((r, s) for r, s in spell.get(str(i), []))
+        rows = _decode(kind, b, i); ex = exc.get(i, {}); sp = dict((r, s) for r, s in spell.get(str(i), []))
         for j, r in enumerate(rows):
             parts.append(ex[j] if j in ex else (_respell(_jsdumps(r), sp[j]) if j in sp else _jsdumps(r)).encode('utf-8')); parts.append(b'\n')
     out = b''.join(parts)

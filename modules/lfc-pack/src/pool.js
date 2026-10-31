@@ -14,11 +14,13 @@
         var f = openFile(out);
         return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail }, transfer: [out.buffer] };
       }
+      if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };   // helper start-up only: the wasm is loaded by the time this answers
       var b = m.buf; if (crcJS(b, 0) !== m.crc) throw new Error('block ' + m.id + ' checksum mismatch');
       var F = m.kind === 'f' ? flatFrames(S.zdec, b, m.want, true) : nestedFrames(S.zdec, b);
       return { msg: { id: m.id, F: F }, transfer: m.kind === 'f' ? flatTransfer(F) : nestedTransfer(F) };
     } catch (e) { return { msg: { id: m.id, error: String(e && e.message || e) }, transfer: [] }; }
   }
+  function tmNow() { return typeof performance !== 'undefined' ? performance.now() : Date.now(); }
   function makePool(opts) {   // -> Promise of { unpack(bytes, opts), size, close() }
     opts = opts || {};
     var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
@@ -45,17 +47,18 @@
       o = o || {}; need(false);
       var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), range = o.range || null, want = null, k, n = file.blocks.length, i2;
       if (o.keys) { want = {}; for (k = 0; k < o.keys.length; k++) want[o.keys[k]] = 1; if (range) want[range.key] = 1; }
-      var results = new Array(n), out = [];
+      var results = new Array(n), out = [], t0 = tmNow();
       for (i2 = 0; i2 < n; i2++) (function (i) {
         if ((o.table != null && (file.blocks[i][5] || 0) !== o.table) || !blockMayMatch(file, i, range)) { results[i] = Promise.resolve([]); return; }
         var b = file.blocks[i], kd = b[4];
         if (b[0] + b[1] > file.footer.bodyEnd) { results[i] = Promise.reject(new Error('block ' + i + ' out of range')); return; }
         if (kd === 'r') { results[i] = Promise.resolve(keepRows(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), range)); return; }
         results[i] = submit({ kind: kd, buf: file.bytes.slice(b[0], b[0] + b[1]), crc: b[2], want: kd === 'f' ? want : null }).then(function (F) {
-          var r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
+          var ta = tmNow(), r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
           if (want && kd !== 'f') r = projectRows(r, want);
           r = keepRows(r, range);
           if (o.keys && range && o.keys.indexOf(range.key) < 0) r = projectRows(r, wantOf(o.keys));
+          if (o.timing) { o.timing.assembleMs = (o.timing.assembleMs || 0) + (tmNow() - ta); o.timing.lastBlockAt = tmNow() - t0; }   // optional timing: main-thread row building after the helpers return columns
           return r;
         });
       })(i2);
@@ -70,12 +73,16 @@
   function packParallel(input, opts) {   // -> Promise of bytes
     opts = opts || {};
     return init().then(function () {
-      var b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
+      var T0 = Date.now(), b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
+      if (opts.balance && !opts.blockBytes) bb = Math.max(4 << 20, Math.min(bb, Math.ceil(b.length / Math.min(opts.workers || hc, 8))));   // experimental: about one block per helper; the file differs from pack() unless pack gets the same blockBytes
+      if (opts.balance === 'even' && !opts.blockBytes) { var nb0 = Math.ceil(b.length / bb), w0 = Math.min(opts.workers || hc, 8); if (w0 > 1 && nb0 > 1) bb = Math.ceil(b.length / (Math.ceil(nb0 / w0) * w0)); }   // experimental: as many blocks as a whole number of rounds for the helpers, so none waits alone at the end; the file differs from pack() unless pack gets the same blockBytes
       while (q < b.length) { e = Math.min(b.length, q + bb); if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
-      var nb = cuts.length - 1, w = Math.min(opts.workers || hc, 8, nb), per = Math.ceil(nb / Math.max(1, w)), groups = [], g;
+      var nb = cuts.length - 1, w = Math.min(opts.workers || hc, 8, nb), per = Math.ceil(nb / Math.max(1, w)), groups = [], g, dyn = opts.dynamic !== false;
       if (opts.exact || w < 2) return pack(b, opts);   // exact mode and small inputs stay on one thread
-      for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
-      var jopts = {}, k; for (k in opts) if (k !== 'workers') jopts[k] = opts[k];
+      if (dyn) for (g = 0; g < nb; g++) groups.push([cuts[g], cuts[g + 1]]);   // one job per block; a helper that finishes takes the next block, so the run does not wait on one slow run of blocks
+      else for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
+      var jopts = {}, k, tm = opts.timing; for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k];
+      if (tm) { tm.cut = Date.now() - T0; tm.groups = []; }   // optional phase timing: ms from the call start, filled in as the run goes
       return new Promise(function (resolve, reject) {
         var ws = [], results = new Array(groups.length), left = groups.length, failed = false;
         function release(ok) {   // finished helpers wait 3 s for the next call (they already hold the loaded wasm); a failed run ends them
@@ -84,23 +91,42 @@
           idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, 3000); if (idleTimer.unref) idleTimer.unref();
         }
         function fail(err) { if (failed) return; failed = true; release(false); reject(err instanceof Error ? err : new Error(String(err && err.message || err))); }
-        function onMsg(i, m, next) {
-          if (m.started) { next(); return; }
+        function onMsg(i, m, next, w2) {
+          if (m.started) { if (tm) tm.groups[i].started = Date.now() - T0; if (next) { var n2 = next; next = null; n2(); } return; }
           if (m.error) { fail(new Error(m.error)); return; }
-          results[i] = m; if (--left === 0 && !failed) { release(true); try { resolve(stitch(results, b.length, jopts)); } catch (er) { reject(er); } }
+          if (tm) tm.groups[i].done = Date.now() - T0;
+          results[i] = m; if (w2 && dyn) give(w2, null); if (--left === 0 && !failed) { release(true); try { var ts = Date.now(); var out = stitch(results, b.length, jopts); if (tm) { tm.stitchMs = Date.now() - ts; tm.total = Date.now() - T0; } resolve(out); } catch (er) { reject(er); } }
         }
-        function start(i) {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
-          if (i >= groups.length || failed) return;
-          var w2 = takeHelper(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]), nx = function () { start(i + 1); };
-          w2.listen(function (m) { onMsg(i, m, nx); }, fail);
+        var nextGroup = 0, helpersStarted = 0;
+        function give(w2, nx) {   // hand this helper the next job, or keep it for later calls when none is left
+          if (failed) return;
+          if (nextGroup >= groups.length) { if (nx) nx(); return; }
+          var i = nextGroup++, t1 = Date.now(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
+          if (tm) tm.groups[i] = { takeMs: 0, copyMs: Date.now() - t1, posted: Date.now() - T0, bytes: slice.length };
+          w2.listen(function (m) { onMsg(i, m, nx, w2); }, fail);
           w2.post({ id: i, kind: 'p', buf: slice, opts: jopts }, [slice.buffer]);
-          ws.push(w2);
         }
-        start(0);
+        function start() {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
+          if (helpersStarted >= w || nextGroup >= groups.length || failed) return;
+          helpersStarted++; var w2 = takeHelper(); ws.push(w2); give(w2, start);
+        }
+        start();
       });
     });
   }
   var idleHelpers = [], idleTimer = null, packUrl = null;
+  // warmPack(n, { keepMs }): start n pack helpers now (default: as many as packParallel would use, at most 8) and keep them keepMs (default 10,000) for the next packParallel call, which then skips the helper start-up
+  function warmPack(n, o) {
+    return init().then(function () {
+      var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, k = Math.min(n || hc, 8), keep = (o && o.keepMs) || 10000, made = [], i;
+      clearTimeout(idleTimer); for (i = idleHelpers.length; i < k; i++) made.push(takeHelper());
+      var all = idleHelpers.concat(made), pending = made.map(function (w2, j) { return new Promise(function (res, rej) { w2.listen(function (m) { if (m.error) rej(new Error(m.error)); else res(); }, rej); w2.post({ id: -1 - j, kind: 'w' }, []); }); });
+      return Promise.all(pending).then(function () {
+        idleHelpers = all; clearTimeout(idleTimer); idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, keep); if (idleTimer.unref) idleTimer.unref();
+        return all.length;
+      });
+    });
+  }
   function takeHelper() {   // a helper kept from the last packParallel call, or a new one
     clearTimeout(idleTimer); if (idleHelpers.length) return idleHelpers.pop();
     var src = workerSource(true), w;
@@ -119,7 +145,7 @@
     var parts = [], blocks = [], zone = [], off = 0, rows = 0, i, j, r, bl;
     for (i = 0; i < results.length; i++) {
       r = results[i]; parts.push(r.bytes.subarray(0, r.bodyEnd));
-      for (j = 0; j < r.blocks.length; j++) { bl = r.blocks[j]; blocks.push([bl[0] + off, bl[1], bl[2], bl[3], bl[4], bl[5]]); rows += bl[3]; zone.push(r.zone[j]); }
+      for (j = 0; j < r.blocks.length; j++) { bl = r.blocks[j]; blocks.push([bl[0] + off].concat(bl.slice(1))); rows += bl[3]; zone.push(r.zone[j]); }
       off += r.bodyEnd;
     }
     var tail = results[results.length - 1].tail;
@@ -128,6 +154,6 @@
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }
-    ], true));
+    ].concat(metaSecs(jopts)), true));
     return concat(parts);
   }
