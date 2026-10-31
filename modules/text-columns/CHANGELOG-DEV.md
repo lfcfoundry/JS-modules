@@ -2,6 +2,25 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.1 · API 0 · 2026-10-31
+
+### Quick
+Helpers join number columns (C2).
+
+### Deep
+Helpers join number columns (C2). vs 0.6.0 picked file: Chromium 1.17-1.41x, stall 42->7 ms; Firefox 0.97-1.17x; WebKitGTK 0.94-0.99x. 576 same-answer cases per browser.
+
+## 0.6.1 · API 0 · 2026-10-31
+
+### Quick
+parseParallel: the helpers join the number columns, so the page no longer copies them (no new options). Against 0.6.0 with a picked file: Chromium 1.17 to 1.41x and its longest page stall 42 to 7 ms on a 45 MB number file; Firefox 0.97 to 1.17x; WebKitGTK 0.94 to 0.99x.
+
+### Details
+Round 6, idea C2. Helpers keep their number columns (op 'parse'/'read' with join); the page makes one zero-filled ArrayBuffer per number column (total rows x 8 bytes), splits the columns into one group per helper and runs one turn per helper: at each turn every helper gets a different group (moved, not copied), copies its rows in at its row offset and hands the group back. After the last turn the page wraps the buffers as the Float64Array columns. A helper that fails sends the call to parse() as before. Private switch `_join: false` = 0.6.0's page-side join. Also in the code, off by default: `_slice` (bytes) makes helpers read their range in slices (round 6 idea D, on a card). tests/text-columns-file-browser.js: 576 same-answer cases per browser (adds _join: false and 4 KB slices); times for 0.5.2, 0.6.0, C2 alone (bytes in), 0.6.1, and D stacked, 5 rounds, then 11 rounds of 0.6.0 vs 0.6.1 in Firefox and WebKitGTK.
+
+### Deep
+Wall ms 0.6.0 / 0.6.1 (longest stall): Chromium numbers 164/140 (42/7), mixed 227/161 (132/69), accented 263/223 (96/48); Firefox (11 rounds) numbers 120/103 (37/8), mixed 133/133 (98/85), accented 236/243 (142/138); WebKitGTK (11 rounds) numbers 135/140 (22/16), mixed 128/133 (61/59), accented 177/189 (52/50). C2 alone (bytes in, no File): mixed text Chromium 1.43x, else 0.21 to 0.95x; it needs A (helpers read the file) to pay off, as round 6 predicted. D (4 MB / 1 MB slices) stacked on 0.6.1: Chromium 0.69 to 1.14x of 0.6.0 (always slower than 0.6.1), Firefox 0.78 to 1.02x, WebKitGTK 0.81 to 1.01x, stall gains of 1 to 12 ms in WebKitGTK; from an in-memory Blob here, so the picked-file effect research saw is not reproduced on this machine.
+
 ## 0.6.0 · API 0 · 2026-10-31
 
 ### Quick
