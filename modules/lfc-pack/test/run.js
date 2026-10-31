@@ -17,6 +17,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('metadata section', 'node', ['meta.cjs']);
   step('xxh64 block checks', 'node', ['xxh.cjs']);
   step('packParallel dispatch', 'node', ['dispatch.cjs']);
+  step('overlapping helper calls', 'node', ['overlap.cjs']);
   step('byte-exact switch', 'node', ['exact.cjs']);
   step('per-path strings pick', 'node', ['pathspick.cjs']);
   step('key and range reads', 'node', ['query.cjs']);
