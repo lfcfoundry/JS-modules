@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.0 · API 1 · 2026-10-31
+- Excel files open much faster again: 1.9 to 3.6 times as fast (48 to 72% less time) than 1.9.0 (whole open, cloud Firefox, Chromium and WebKitGTK), same results. Fixed: two big zips opened at once with helpers could leave one never finishing.
+
 ## 1.9.0 · API 1 · 2026-10-31
 - Excel files are read faster again: 6 to 31% faster than 1.8.0 in cloud tests of Firefox, Chromium and WebKitGTK, with the same results.
 

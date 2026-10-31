@@ -2,6 +2,7 @@
 'use strict';
 var assert = require('assert'), zlib = require('zlib');
 var U = require('../zip-open.js'), Z = require('./zipmake.js');
+var viaBytes = function (parts) { var q = {}, enc = new TextEncoder(); for (var k in parts) q[k] = /sharedStrings|worksheets/.test(k) && typeof parts[k] === 'string' ? enc.encode(parts[k]) : parts[k]; return q; };   // what openBook hands the wasm reader
 var n = 0, pending = [], chain = Promise.resolve();
 function t(name, fn) { chain = chain.then(function () { return Promise.resolve().then(fn); }).then(function () { n++; }, function (e) { console.log('FAIL', name, '\n  ', e && e.stack || e); process.exitCode = 1; }); pending.push(chain); }
 var u8 = function (b) { return new Uint8Array(b.buffer, b.byteOffset, b.length); };
@@ -360,7 +361,8 @@ t('xml scanner: same events and errors as the previous scanner on 40,000 random 
     assert.deepStrictEqual([ev2, e2], [ev1, e1], JSON.stringify(xml));
   }
 });
-t('xlsx fast row reader gives the same sheets as the general reader on 30,000 random sheets', function () {
+t('xlsx fast row reader and the WebAssembly reader give the same sheets as the general reader on 30,000 random sheets', function () {
+  var used = {};
   var seed = 11, R = function (n) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return Math.floor(seed / 4294967296 * n); };
   var pick = function (a) { return a[R(a.length)]; };
   var base = { 'xl/workbook.xml': '<workbook xmlns="x" xmlns:r="y"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>', 'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/sharedStrings.xml': '<sst><si><t>a,b</t></si><si><t> pad </t></si><si><t>q"q</t></si></sst>', 'xl/styles.xml': '<styleSheet><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>' };
@@ -387,7 +389,10 @@ t('xlsx fast row reader gives the same sheets as the general reader on 30,000 ra
     try { a = U._xlsxSheets(parts, {}); } catch (e) { ea = e.message; }
     try { b = U._xlsxSheets(parts, { _slow: true }); } catch (e) { eb = e.message; }
     assert.deepStrictEqual([a, ea], [b, eb], xml);
+    var c, ec = null; try { c = U._xlsxSheets(viaBytes(parts), { _used: used }); } catch (e) { ec = e.message; }
+    assert.deepStrictEqual([c, ec], [b, eb], 'wasm: ' + xml);
   }
+  assert.ok(used.wasm > 300, 'wasm reader used on ' + used.wasm + ' sheets');
 });
 t('xlsx fast shared-strings reader gives the same text values as the general reader on 20,000 random lists', function () {
   var seed = 29, R = function (n) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return Math.floor(seed / 4294967296 * n); };
@@ -404,6 +409,8 @@ t('xlsx fast shared-strings reader gives the same text values as the general rea
     try { a = U._xlsxSheets(parts, {}); } catch (e) { ea = e.message; }
     try { b = U._xlsxSheets(parts, { _slow: true }); } catch (e) { eb = e.message; }
     assert.deepStrictEqual([a, ea], [b, eb], x);
+    var c, ec = null; try { c = U._xlsxSheets(viaBytes(parts), {}); } catch (e) { ec = e.message; }
+    assert.deepStrictEqual([c, ec], [b, eb], 'wasm: ' + x);
   }
 });
 t('xlsx dates: every whole-day serial in both date systems gives the same text as the Date-based reference', function () {
@@ -417,6 +424,7 @@ t('xlsx dates: every whole-day serial in both date systems gives the same text a
     var want = vals.map(function (v) { var r = ref(Number(v), d1904); r = r || String(Number(v)); return r + ',' + r; }).join('\n');
     assert.equal(U._xlsxSheets(parts, {})[0].csv, want);
     assert.equal(U._xlsxSheets(parts, { _slow: true })[0].csv, want);
+    var used = {}; assert.equal(U._xlsxSheets(viaBytes(parts), { _used: used })[0].csv, want); assert.equal(used.wasm, 1);
   });
 });
 t('xlsx CSV quoting: every short text from a tricky alphabet is quoted exactly as the reference rule says', function () {
@@ -430,12 +438,65 @@ t('xlsx CSV quoting: every short text from a tricky alphabet is quoted exactly a
   assert.equal(got.join('\n'), slow);
   var want = all.map(function (v) { var q = ref(v); return q + ',' + q + ',' + q; }).join('\n');
   assert.equal(got.join('\n'), want);
+  assert.equal(U._xlsxSheets(viaBytes(parts), {})[0].csv, want);   // inline text: the wasm reader hands this sheet back
+  var rows2 = all.map(function (v, i) { return '<row r="' + (i + 1) + '"><c r="A' + (i + 1) + '" t="s"><v>' + i + '</v></c><c r="B' + (i + 1) + '" t="str"><v>' + esc(v) + '</v></c></row>'; }).join('');
+  var used = {}, p2 = Object.assign({}, parts, { 'xl/worksheets/sheet1.xml': '<worksheet><sheetData>' + rows2 + '</sheetData></worksheet>' });
+  assert.equal(U._xlsxSheets(viaBytes(p2), { _used: used })[0].csv, all.map(function (v) { var q = ref(v); return q + ',' + q; }).join('\n')); assert.equal(used.wasm, 1);
 });
+t('xlsx WebAssembly reader on raw bytes gives what the JavaScript reader gives on the decoded text, on 8,000 random sheets with broken bytes, cut tags, entities and odd numbers', function () {
+  var L = U, N = 8000, enc = new TextEncoder(), seed = 41, R = function (n) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return Math.floor(seed / 4294967296 * n); }, pick = function (a) { return a[R(a.length)]; };
+  var used = {}, wasmUsed = 0;
+  var decodeText = u8=>{if(u8.length>=2&&((u8[0]===0xff&&u8[1]===0xfe)||(u8[0]===0xfe&&u8[1]===0xff)))return new TextDecoder(u8[0]===0xff?'utf-16le':'utf-16be').decode(u8.subarray(2));for(let i=0;i<Math.min(u8.length,8192);i++)if(u8[i]===0)return '';try{return new TextDecoder('utf-8',{fatal:true}).decode(u8)}catch(e){return new TextDecoder('windows-1252').decode(u8)}};
+const texts=['a','a,b','q"q',' pad','pad ',' x','x　','été','中文','&amp;','&lt;b&gt;','&#233;','&#x1F600;','&#0;','&#xD800;','&QUOT;','& co','line\nbreak','cr\rx','﻿bom','\t','1,5','',' ','x y','😀'];
+const nums=['1','0','-3','12.5','12.50','007','1e3','0.1','0.30000000000000004','123456789012345','1234567890123456','-0','0.000001','0.0000001','100000000000000000000000',' 5','abc','45000','45000.5','2958465','2958466','-1','1.5E-7','+1','.5','5.'];
+const col=i=>{let s='';i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return s;};
+var bad=0;
+for(var k=0;k<N;k++){
+  const sst=[];const ns=R(8);for(let i=0;i<ns;i++)sst.push(pick(texts));
+  const sstX='<?xml version="1.0"?><sst xmlns="x">'+sst.map(t=>pick(['<si><t>'+t+'</t></si>','<si><t xml:space="preserve">'+t+'</t></si>','<si><t>'+t+'</t></si>']) ).join('')+'</sst>';
+  let x='<?xml version="1.0"?><worksheet xmlns="x"><sheetData>';const rows=1+R(6);
+  for(let r=0;r<rows;r++){x+='<row r="'+(r+1)+'"'+pick(['',' spans="1:4"',' x14ac:dyDescent="0.25"'])+'>';const nc=R(6);let c0=0;
+    for(let c=0;c<nc;c++){c0+=R(3);const ref=R(10)?' r="'+col(R(12)===0?c0-1:c0)+(r+1)+'"':'';c0++;
+      const t=R(6);
+      if(t===0)x+='<c'+ref+' t="s"><v>'+(R(9)===0?pick(['','01','9','x']):R(Math.max(1,ns+1)))+'</v></c>';
+      else if(t===1)x+='<c'+ref+pick(['',' s="1"',' s="2"',' s="0"'])+'>'+(R(5)===0?pick(['<f>A1</f>','<f t="shared" si="0"/>']):'')+(R(8)?'<v>'+pick(nums)+'</v>':'')+'</c>';
+      else if(t===2)x+='<c'+ref+' t="b"><v>'+pick(['1','0','','true'])+'</v></c>';
+      else if(t===3)x+='<c'+ref+' t="str">'+(R(3)===0?'<f>"a"</f>':'')+'<v>'+pick(texts)+'</v></c>';
+      else if(t===4)x+='<c'+ref+pick([' t="e"',' t="d"',' t=""',' t="n"'])+'><v>'+pick(texts.concat(nums))+'</v></c>';
+      else x+='<c'+ref+pick(['/>',' s="1"/>','></c>']);
+    }
+    x+='</row>';}
+  x+='</sheetData></worksheet>';
+  let sb=enc.encode(x),tb=enc.encode(sstX);
+  const mut=R(4);
+  const mutate=b=>{b=Array.from(b);const m=1+R(3);for(let i=0;i<m;i++){const p=R(b.length);const op=R(4);if(op===0)b[p]=pick([0xc3,0xa9,0xff,0xe2,0x80,0xed,0xa0,0x3c,0x22,0x26,0x20,0x00]);else if(op===1)b.splice(p,0,pick([0xc3,0xe2,0x80,0xf0,0x9f,0xc0,0xaf]));else if(op===2)b.splice(p,1);else b.splice(p,0,...enc.encode(pick(['<c r="A1"><v>1</v></c>','<row>','</row>','"','<!--x-->','&amp;'])));}return new Uint8Array(b);};
+  if(mut===1)sb=mutate(sb);else if(mut===2)tb=mutate(tb);
+  const meta={'xl/workbook.xml':'<workbook xmlns:r="y">'+(R(5)===0?'<workbookPr date1904="1"/>':'')+'<sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>','xl/_rels/workbook.xml.rels':'<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>','xl/styles.xml':'<styleSheet><cellXfs count="3"><xf numFmtId="0"/><xf numFmtId="14"/><xf numFmtId="22"/></cellXfs></styleSheet>'};
+  const pb=Object.assign({},meta,{'xl/worksheets/sheet1.xml':sb}),pt=Object.assign({},meta,{'xl/worksheets/sheet1.xml':decodeText(sb)});
+  if(ns||R(2)){pb['xl/sharedStrings.xml']=tb;pt['xl/sharedStrings.xml']=decodeText(tb);}
+  let a,b,ea=null,eb=null;const mr=R(10)===0?2:undefined;
+  try{a=L._xlsxSheets(pb,{maxRows:mr,_used:used});}catch(e){ea=e.message}
+  try{b=L._xlsxSheets(pt,{_js:true,maxRows:mr});}catch(e){eb=e.message}
+  assert.deepStrictEqual([a,ea],[b,eb],JSON.stringify(decodeText(sb))+' / '+JSON.stringify(decodeText(tb)));
+}
+assert.ok(used.wasm > 2000, 'wasm reader used on ' + used.wasm + ' sheets');
+});
+
 t('streaming: helpers (workers) really ran, and many text files come out in order with limits applied the same way', async function () {
   var files = []; for (var i = 0; i < 40; i++) files.push({ name: 'd/f' + String(i).padStart(2, '0') + '.csv', data: 'a,b\n' + (i + ',x\n').repeat(2000 + i * 37) });
   var z = Z.makeZip(files), r = await both(z, 'many.zip'), r2 = await both(z, 'many.zip', { maxTotalBytes: 300000 }), r3 = await both(z, 'many.zip', { maxFiles: 7 }), r4 = await both(z, 'many.zip', { maxEntryBytes: 20000 });
   assert.equal(r[0].files.length, 40); assert.deepStrictEqual(r[0].files.map(function (f) { return f.path; }), files.map(function (f) { return f.name; }));
   assert.ok(r2[0].notes.some(function (q) { return /safety limit/.test(q); })); assert.equal(r3[0].files.length, 7); assert.ok(helperRuns > 20, 'helpers used ' + helperRuns);
+  U.closeHelpers();
+});
+t('helpers are never closed while another open still uses them (two opens at once, short idle time)', async function () {
+  var files = []; for (var i = 0; i < 30; i++) files.push({ name: 'f' + i + '.csv', data: 'a,b\n' + (i + ',x\n').repeat(20000) });
+  var big = new Blob([u8(Z.makeZip(files))]), small = new Blob([u8(Z.makeZip([{ name: 's.csv', data: 'a\n1' }]))]);
+  var o = { workers: 3, spawn: spawn, helperMinBytes: 0, idleMs: 1 };
+  var a = U.expandBlob(big, 'big.zip', o), b = U.expandBlob(small, 'small.zip', o);
+  await b; await new Promise(function (r) { setTimeout(r, 30); });   // the small open's idle time is long over while the big one runs
+  var timer, r = await Promise.race([a, new Promise(function (ok) { timer = setTimeout(function () { ok(null); }, 20000); })]); clearTimeout(timer);
+  assert.ok(r && r.files.length === 30, 'the big open finished');
   U.closeHelpers();
 });
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });
