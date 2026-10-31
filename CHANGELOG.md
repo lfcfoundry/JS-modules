@@ -53,7 +53,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [webkit-driver](tools/webkit-driver/README.md) | 1.4.1 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
 | [test-isolation](tools/test-isolation/README.md) | 1.1.0 · API 1 | [changelog](tools/test-isolation/CHANGELOG.md) |
 | [speed-lab](tools/speed-lab/README.md) | 1.1.1 · API 1 | [changelog](tools/speed-lab/CHANGELOG.md) |
-| [test-runner](tools/test-runner/README.md) | 1.3.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
+| [test-runner](tools/test-runner/README.md) | 1.4.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
 | [speed-guard](tools/speed-guard/README.md) | 1.0.0 · API 1 | [changelog](tools/speed-guard/CHANGELOG.md) |
 
 ## Changes since labels began
@@ -64,6 +64,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **text-columns** 0.6.1 · API 0: Big files with number columns: the page no longer copies them, so it stays responsive (Chromium 42 to 7 ms pause, up to 1.4x faster).
 - 2026-10-31 · **text-columns** 0.6.0 · API 0: New: parseParallel takes a picked file directly; each helper reads its own piece, so the page never holds the whole file (1.0 to 1.75x faster).
 - 2026-10-31 · **text-columns** 0.5.2 · API 0: parseParallel reads files with accented or other non-ASCII text up to 4.8x faster.
+- 2026-10-31 · **test-runner** 1.4.0 · API 1: New ab.js: the early-stop A/B timing rule for the 5% check.
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
 - 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option: a crash can no longer lose your last saves.
 - 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option: a crash can no longer lose your last saves.

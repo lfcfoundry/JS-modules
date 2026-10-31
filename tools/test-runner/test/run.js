@@ -178,4 +178,13 @@ t('noise guard: judge flags more than 15% off, guarded reruns while noisy and gi
   const bp = { rate: 100, parts: { int: { rate: 100 }, json: { rate: 100 }, copy: { rate: 100 } } }, mk = (a, b, c) => ({ rate: 1, parts: { int: { rate: a }, json: { rate: b }, copy: { rate: c } } });
   ok(!N.judgeAll(mk(100, 95, 105), bp).noisy && N.judgeAll(mk(100, 70, 100), bp).noisy && /json -30\.0%/.test(N.judgeAll(mk(100, 70, 100), bp).note), 'one noisy part marks the batch noisy and is named');
 });
+t('ab: the early-stop A/B rule says ok, slower and faster when it should, within 16 rounds', async () => {
+  const A = require('../ab.js');
+  let t = 0; const same = await A.abSequential(() => 100 + (t++ % 3), () => 100 + (t++ % 3), { limit: 0.05 });
+  ok(same.verdict === 'ok' && same.rounds <= 16, 'ab: equal timings are ok (' + same.verdict + ', ' + same.rounds + ' rounds)');
+  const slow = await A.abSequential(() => 100, () => 130 + (t++ % 2), { limit: 0.05 });
+  ok(slow.verdict === 'slower' && slow.ratio > 1.25, 'ab: 30% slower is flagged (' + slow.verdict + ')');
+  const fast = await A.abSequential(() => 100, () => 70, { limit: 0.05 });
+  ok(fast.verdict === 'faster', 'ab: 30% faster is faster (' + fast.verdict + ')');
+});
 pending.then(() => { fs.rmSync(tmp, { recursive: true, force: true }); console.log(bad ? 'test-runner: ' + bad + ' FAILED' : 'test-runner: all passed'); process.exit(bad ? 1 : 0); });

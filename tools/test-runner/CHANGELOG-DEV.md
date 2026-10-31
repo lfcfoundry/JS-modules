@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-10-31
+
+### Quick
+abSequential(timeA, timeB, opts) stops once the 90% interval of the median ratio is clear of 5%; verdicts slower/ok/faster/inconclusive.
+
+### Details
+Copied from qa-guide/ab-sequential/ab-sequential.js 1.0.0 (approved by the owner 2026-10-31 1:58 PM Eastern). Paired rounds with alternating order, seeded bootstrap 90% interval of the median ratio, minRounds 4, maxRounds 16, noisy when MAD sigma > 0.15. Old rule false-flags 23-36% on noisy machines, new 0.3-8.5% (QA-SPEEDUP-AUDIT-2026.10.31.md section 2).
+
+### Deep
+ab.js: early-stop A/B timing rule.
+
 ## 1.3.0 · API 1 · 2026-10-25
 
 ### Quick
