@@ -348,10 +348,10 @@ var refScan = (function () {
 
   return xmlScan;
 })();
-t('xml scanner: same events and errors as the previous scanner on 20,000 random pieces of XML', function () {
+t('xml scanner: same events and errors as the previous scanner on 40,000 random pieces of XML', function () {
   var s = 99, rnd = function () { return (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; }, pick = function (a) { return a[Math.floor(rnd() * a.length)]; };
-  var frags = ['<a>', '</a>', '<b x="1" y=\'2\'>', '<c r="A1" t="s"/>', '<v>', '</v>', '<x:y z:k="v">', '</x:y>', '<a b="c>d">', "<a b='c>d'>", '<!-- note -->', '<![CDATA[ <raw> ]]>', '<?xml version="1.0"?>', '<!DOCTYPE a [ <!ENTITY e "x"> ]>', 'text', ' &amp; ', '&#65;&lt;&#x41;', '\u00a0', '<a\u00a0k="v">', '<a\tk="v"\n/>', '<a k=v>', '"', "'", '<', '>', '<a b="unclosed', '<__proto__ __proto__="p">', '<a  b = "1"  c="2" />', '</', '<!', '<!-', '<a/b>'];
-  for (var k = 0; k < 20000; k++) {
+  var frags = ['<a>', '</a>', '<b x="1" y=\'2\'>', '<c r="A1" t="s"/>', '<v>', '</v>', '<x:y z:k="v">', '</x:y>', '<a b="c>d">', "<a b='c>d'>", '<!-- note -->', '<![CDATA[ <raw> ]]>', '<?xml version="1.0"?>', '<!DOCTYPE a [ <!ENTITY e "x"> ]>', 'text', ' &amp; ', '&#65;&lt;&#x41;', '\u00a0', '<a\u00a0k="v">', '<a\tk="v"\n/>', '<a k=v>', '"', "'", '<', '>', '<a b="unclosed', '<__proto__ __proto__="p">', '<a  b = "1"  c="2" />', '</', '<!', '<!-', '<a/b>', '<a b="1"c="2">', '<a b="1" \'x\'>', '<a =x>', '<a b="&amp;&#x41;" c=\'&lt;\'>', '<a\u3000b="1">', '<a b = \'1\' c\n=\n"2">', '<a b="1" / c="2">', '<é k="ü">'];
+  for (var k = 0; k < 40000; k++) {
     var xml = '', n = 1 + Math.floor(rnd() * 12); for (var i = 0; i < n; i++) xml += pick(frags);
     var ev1 = [], ev2 = [], e1 = null, e2 = null;
     var mk = function (log) { return { open: function (t, a, sf) { log.push(['o', t, JSON.stringify(Object.keys(a).sort().map(function (q) { return [q, a[q]]; })), !!sf]); }, close: function (t) { log.push(['c', t]); }, text: function (x) { log.push(['t', x]); } }; };

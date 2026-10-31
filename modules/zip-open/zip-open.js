@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.0 (API 1)
+ * Version 1.7.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -73,13 +73,39 @@
       var nm = sp < 0 ? body : body.slice(0, sp), col = nm.indexOf(':');
       var attrs = {};
       if (sp >= 0) {
-        ATTR.lastIndex = sp;
-        var am;
-        while ((am = ATTR.exec(body))) {
-          var v = xmlDecode(am[2] !== undefined ? am[2] : am[3]), an = am[1], ac = an.indexOf(':');
+        // clean attribute lists (name="value" pairs split by spaces, the normal case) are read by hand; anything odd goes to the regular expression, which gives the answers the hand reader must match
+        var p0 = sp, ok = true, an, ns, ee, qc, raw, v, ac;
+        for (;;) {
+          while (p0 < bl && ((cch = body.charCodeAt(p0)) === 32 || cch === 10 || cch === 13 || cch === 9)) p0++;
+          if (p0 >= bl) break;
+          ns = p0;
+          while (p0 < bl && (cch = body.charCodeAt(p0)) > 32 && cch !== 61 && cch !== 47 && cch !== 34 && cch !== 39 && cch !== 60 && cch !== 62 && cch < 127) p0++;
+          if (p0 === ns) { ok = false; break; }
+          an = body.slice(ns, p0);
+          while (p0 < bl && ((cch = body.charCodeAt(p0)) === 32 || cch === 10 || cch === 13 || cch === 9)) p0++;
+          if (body.charCodeAt(p0) !== 61) { ok = false; break; }
+          p0++;
+          while (p0 < bl && ((cch = body.charCodeAt(p0)) === 32 || cch === 10 || cch === 13 || cch === 9)) p0++;
+          qc = body.charCodeAt(p0);
+          if (qc !== 34 && qc !== 39) { ok = false; break; }
+          ee = body.indexOf(qc === 34 ? '"' : "'", p0 + 1);
+          if (ee < 0) { ok = false; break; }
+          raw = body.slice(p0 + 1, ee); p0 = ee + 1;
+          v = xmlDecode(raw); ac = an.indexOf(':');
           if (BAD_KEYS[an]) continue;
           attrs[an] = v;
           if (ac >= 0 && !(an.slice(ac + 1) in attrs) && !BAD_KEYS[an.slice(ac + 1)]) attrs[an.slice(ac + 1)] = v;
+        }
+        if (!ok) {
+          attrs = {};
+          ATTR.lastIndex = sp;
+          var am;
+          while ((am = ATTR.exec(body))) {
+            v = xmlDecode(am[2] !== undefined ? am[2] : am[3]); an = am[1]; ac = an.indexOf(':');
+            if (BAD_KEYS[an]) continue;
+            attrs[an] = v;
+            if (ac >= 0 && !(an.slice(ac + 1) in attrs) && !BAD_KEYS[an.slice(ac + 1)]) attrs[an.slice(ac + 1)] = v;
+          }
         }
       }
       var local = col >= 0 ? nm.slice(col + 1) : nm;
