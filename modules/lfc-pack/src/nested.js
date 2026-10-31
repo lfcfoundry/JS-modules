@@ -329,7 +329,7 @@
   var NONASCII = /[\x80-\xff]/;   // dictionary text is ASCII (LAYOUT-SPEC 3.4)
   // tables: the file's shared tables ({ s: strings, k: row shapes }, footer section 16), or null
   function makeNestedReader(zs, tables) {
-    var STRS = null, TI = 0, COLS = new Map(), SCOLS = new Map(), PLAN = new Map(), SPLAN = new Map(), GPLN = [], GPLS = [], SPM = false;
+    var STRS = null, CD = null, IDN = new Uint32Array(0), TI = 0, COLS = new Map(), SCOLS = new Map(), PLAN = new Map(), SPLAN = new Map(), GPLN = [], GPLS = [], SPM = false;
     // plans are cached per shape text; blocks with per-path strings (sp) get their own plans, whose string cells read from the column of their path
     function planOf(t) { var P = SPM ? SPLAN : PLAN, f = P.get(t); if (!f) { f = desc(JSON.parse(t), ''); P.set(t, f); } return f; }
     function col(h) { var c = COLS.get(h); if (!c) { c = { h: h, a: null, i: 0 }; COLS.set(h, c); } return c; }
@@ -353,18 +353,18 @@
       if (t === 7) {
         var keys = p.keys, kind = p.kind, cc = p.cc, subs = p.subs, n = p.n, o = {}, v;
         for (i = 0; i < n; i++) {
-          switch (kind[i]) { case 1: v = STRS[TI++]; break; case 8: c = cc[i]; v = c.a[c.i++]; break; case 2: c = cc[i]; v = c.a[c.i++]; break; case 3: c = cc[i]; v = c.a[c.i++] === 1; break; case 4: v = null; break; default: v = build(subs[i]); }
+          switch (kind[i]) { case 1: v = STRS[CD[TI++]]; break; case 8: c = cc[i]; v = STRS[CD[c.i++]]; break; case 2: c = cc[i]; v = c.a[c.i++]; break; case 3: c = cc[i]; v = c.a[c.i++] === 1; break; case 4: v = null; break; default: v = build(subs[i]); }
           if (p.proto && keys[i] === '__proto__') Object.defineProperty(o, keys[i], { value: v, enumerable: true, writable: true, configurable: true }); else o[keys[i]] = v;
         }
         return o;
       }
-      if (t === 1) return STRS[TI++];
+      if (t === 1) return STRS[CD[TI++]];
       if (t === 2) { c = p.c; return c.a[c.i++]; }
       if (t === 3) { c = p.c; return c.a[c.i++] === 1; }
       if (t === 4) return null;
-      if (t === 5) return JSON.parse(STRS[TI++]);
-      if (t === 8) { c = p.c; return c.a[c.i++]; }
-      if (t === 9) { c = p.c; return JSON.parse(c.a[c.i++]); }
+      if (t === 5) return JSON.parse(STRS[CD[TI++]]);
+      if (t === 8) { c = p.c; return STRS[CD[c.i++]]; }
+      if (t === 9) { c = p.c; return JSON.parse(STRS[CD[c.i++]]); }
       var sb = p.subs, m = sb.length, arr = new Array(m); for (i = 0; i < m; i++) arr[i] = build(sb[i]); return arr;
     }
     // assemble one block from its decompressed frames (nestedFrames): the dictionary strings and column arrays the row builder reads
@@ -381,10 +381,12 @@
       return { n: F.n, g: g, sp: F.sp || null, L: g ? F.count : 0, ids: new KIND[F.ids[0]](F.ids[2].buffer, F.ids[2].byteOffset, F.ids[1]), skel: skl, cols: cols, dict: D, codes: cols.get(CODES_KEY) };
     }
     function rowsOf(b) {
-      var D = b.dict, cd = b.codes, n = cd ? cd.length : 0, E = new Array(n), i, c;
-      if (b.g) { var L = b.L, GS = tables.s; for (i = 0; i < n; i++) { c = cd[i]; if ((E[i] = c < L ? D[c] : GS[c - L]) === undefined) throw new Error('damaged block: string code out of range'); } }
-      else for (i = 0; i < n; i++) { if ((E[i] = D[cd[i]]) === undefined) throw new Error('damaged block: string code out of range'); }
-      STRS = E; TI = 0; SPM = !!b.sp;
+      var D = b.dict, cd = b.codes || IDN.subarray(0, 0), n = cd.length, i, c, E;
+      // string cells read the dictionary through the codes (STRS[CD[k]]); only shared-table blocks, whose codes point into two lists, build one list of the cells' strings first
+      if (b.g) { var L = b.L, GS = tables.s; E = new Array(n); for (i = 0; i < n; i++) { c = cd[i]; if ((E[i] = c < L ? D[c] : GS[c - L]) === undefined) throw new Error('damaged block: string code out of range'); }
+        if (IDN.length < n) { IDN = new Uint32Array(Math.max(n, IDN.length * 2)); for (i = 0; i < IDN.length; i++) IDN[i] = i; } STRS = E; CD = IDN; }
+      else { var DL = D.length; for (i = 0; i < n; i++) if (cd[i] >= DL) throw new Error('damaged block: string code out of range'); STRS = D; CD = cd; }
+      TI = 0; SPM = !!b.sp;
       var sl = b.skel, fnById = new Array(sl.length);
       for (i = 0; i < sl.length; i++) fnById[i] = planOf(sl[i]);
       var ids = b.ids, out = new Array(b.n), LK = sl.length, id, tab = b.sp, sc, GPL = SPM ? GPLS : GPLN;
@@ -393,7 +395,7 @@
       if (tab) {   // every path of the table reads its own stretch of the codes; a path no shape has, two entries for one path, or a stretch not read to its end is damage
         SCOLS.forEach(function (x) { x.a = null; x.i = 0; });
         var ends = new Uint32Array(tab.length);
-        for (i = 0, c = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (!sc || sc.a !== null) throw new Error('damaged block: string path table'); sc.a = E; sc.i = c; c += tab[i][2]; ends[i] = c; }
+        for (i = 0, c = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (!sc || sc.a !== null) throw new Error('damaged block: string path table'); sc.a = CD; sc.i = c; c += tab[i][2]; ends[i] = c; }
       }
       COLS.forEach(function (c) { c.a = b.cols.get(c.h); c.i = 0; });
       if (b.g) for (i = 0; i < b.n; i++) { id = ids[i]; out[i] = build(id < LK ? fnById[id] : GPL[id - LK]); }
