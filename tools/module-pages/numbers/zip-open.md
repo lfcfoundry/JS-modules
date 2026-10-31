@@ -101,3 +101,15 @@ In the cloud, 1.8.0 and 1.9.0 together read these sheets in 0.22 to 0.45 of 1.7.
 | 6,000 rows | 0.40 | 0.37 |
 | 20,000 rows with formulas | 0.39 | 0.31 |
 | 30,000 rows of text | 0.45 (noisy) | 0.55 |
+
+**New in 1.10.0: a WebAssembly Excel reader.** It reads the sheet's raw bytes straight to CSV; anything unusual still goes to the JavaScript reader. Whole open, time 1.10.0 / 1.9.0, lower is better (laptop runs 2026.10.31, 6:50 PM, early-stop A/B, 4 rounds each).
+
+| Where | 60,000 rows | 6,000 rows | 20,000 rows with formulas | 30,000 rows of text |
+|---|---:|---:|---:|---:|
+| Laptop, Chromium 156, 16 cores | 0.34 | 0.42 | 0.40 | 0.41 |
+| Laptop, Firefox 160, 16 cores | 0.30 | 0.30 (noisy) | 0.27 | 0.37 |
+| Cloud, Chromium 155 | 0.37 | 0.34 | 0.38 | 0.36 |
+| Cloud, Firefox 158 | 0.30 | 0.28 | 0.30 | 0.34 |
+| Cloud, WebKitGTK 2.52.6 | 0.41 | 0.42 | 0.36 | 0.52 |
+
+With 1.8.0 and 1.9.0, Excel files now open on the laptop in 0.11 to 0.22 of the 1.7.0 time (about 4.5 to 9.5 times as fast). Size: 21.8 KB gzipped before 1.8.0, 32.4 KB now. A big sheet still runs as one main-thread task (115 ms for 60,000 rows in Chromium 155, down from 387 ms); moving it into a helper is the next step.

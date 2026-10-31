@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.9.0 (API 1)
+ * Version 1.10.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -184,10 +184,44 @@
       pos = e + 9;
     }
   }
+  /* WebAssembly Excel reader (wasm/xlsx.c): sheet and shared-strings bytes straight to CSV bytes, the usual shape only (anything else: the JavaScript reader). */
+  var XLSX_B64 = /*WASMXLSX:BEGIN*/'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'/*WASMXLSX:END*/, XMOD;
+  function xlsxModule() {
+    if (XMOD === undefined) { XMOD = null; try { var raw = typeof atob === 'function' ? atob(XLSX_B64) : null, bin; if (raw) { bin = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); } else bin = new Uint8Array(Buffer.from(XLSX_B64, 'base64')); XMOD = new WebAssembly.Module(bin); } catch (e) { XMOD = null; } }
+    return XMOD;
+  }
+  var XINST = null, xinstTimer = 0;
+  function xlsxInstance() {   // one instance, reused while workbooks keep coming; let go 5 s after the last one, so its memory (which only grows) is given back
+    if (!XINST) XINST = new WebAssembly.Instance(XMOD, {}).exports;
+    if (xinstTimer) clearTimeout(xinstTimer);
+    if (typeof setTimeout === 'function') { xinstTimer = setTimeout(function () { XINST = null; xinstTimer = 0; }, 5000); if (xinstTimer && xinstTimer.unref) xinstTimer.unref(); }
+    return XINST;
+  }
+  function rawUtf8Like(u8) {   // what decodeText would read as plain UTF-8 (the wasm then checks it strictly)
+    if (u8.length >= 2 && ((u8[0] === 0xff && u8[1] === 0xfe) || (u8[0] === 0xfe && u8[1] === 0xff))) return false;
+    for (var i = 0, n = Math.min(u8.length, 8192); i < n; i++) if (u8[i] === 0) return false;
+    return true;
+  }
   function xlsxSheets(parts, opts) {
     opts = opts || {};
     var maxRows = opts.maxRows || 2000000, sstCsv = [], sst = [], dateXf = {}, d1904 = false, sheets = [], rels = {};
-    if (parts['xl/sharedStrings.xml'] && (opts._slow || !fastStrings(parts['xl/sharedStrings.xml'], sst))) {
+    var txt = function (p) { var v = parts[p]; if (v !== undefined && typeof v !== 'string') v = parts[p] = decodeText(v) || ''; return v; };
+    var W = null, mem = null, H = 0, sstState = 0, sstDone = false, sstB = parts['xl/sharedStrings.xml'], need = function (bytes) { var have = mem.buffer.byteLength; if (bytes > have) mem.grow(Math.ceil((bytes - have) / 65536)); return new Uint8Array(mem.buffer); };
+    if (!opts._slow && !opts._js && typeof WebAssembly === 'object' && xlsxModule()) {
+      try { W = xlsxInstance(); mem = W.memory; H = W.__heap_base.value; } catch (e) { W = null; }
+    }
+    var sstPos = 0, sstTab = 0, sstEnd = H;
+    if (W) {
+      if (sstB === undefined) { W.nosst(); sstState = 1; }
+      else if (typeof sstB !== 'string' && rawUtf8Like(sstB)) {
+        sstPos = H; sstTab = (H + sstB.length + 7) & ~7; var tcap = (sstB.length >> 4) + 1; sstEnd = sstTab + tcap * 8;
+        need(sstEnd).set(sstB, sstPos);
+        if (W.utf8ok(sstPos, sstB.length) && W.sst(sstPos, sstB.length, sstTab, tcap) >= 0) sstState = 1;
+      }
+    }
+    var jsStrings = function () { if (sstDone) return; sstDone = true; jsStrings0(); };
+    var jsStrings0 = function () {
+    if (txt('xl/sharedStrings.xml') && (opts._slow || !fastStrings(parts['xl/sharedStrings.xml'], sst))) {
       var cur = null, inT = false; sst.length = 0;
       xmlScan(parts['xl/sharedStrings.xml'], {
         open: function (t, a) { if (t === 'si') cur = ''; else if (t === 't' && cur !== null) inT = true; else if ((t === 'rPh' || t === 'phoneticPr') && cur !== null) inT = false; },
@@ -195,7 +229,9 @@
         close: function (t) { if (t === 't') inT = false; else if (t === 'si') { sst.push(cur || ''); cur = null; if (sst.length > 5000000) throw new Error('This workbook has too many distinct text values.'); } }
       });
     }
-    if (parts['xl/styles.xml']) {
+    };
+    if (!sstState) jsStrings();
+    if (txt('xl/styles.xml')) {
       var fmts = {}, inXfs = false, xi = 0;
       xmlScan(parts['xl/styles.xml'], {
         open: function (t, a) {
@@ -206,13 +242,50 @@
         close: function (t) { if (t === 'cellXfs') inXfs = false; }
       });
     }
-    if (parts['xl/workbook.xml']) xmlScan(parts['xl/workbook.xml'], { open: function (t, a) { if (t === 'sheet') sheets.push({ name: a.name || 'Sheet' + (sheets.length + 1), rid: a['r:id'] || a.id }); else if (t === 'workbookPr' && /^(1|true)$/i.test(a.date1904 || '')) d1904 = true; } });
-    if (parts['xl/_rels/workbook.xml.rels']) xmlScan(parts['xl/_rels/workbook.xml.rels'], { open: function (t, a) { if (t === 'Relationship' && a.Id) rels[a.Id] = a.Target || ''; } });
+    if (txt('xl/workbook.xml')) xmlScan(parts['xl/workbook.xml'], { open: function (t, a) { if (t === 'sheet') sheets.push({ name: a.name || 'Sheet' + (sheets.length + 1), rid: a['r:id'] || a.id }); else if (t === 'workbookPr' && /^(1|true)$/i.test(a.date1904 || '')) d1904 = true; } });
+    if (txt('xl/_rels/workbook.xml.rels')) xmlScan(parts['xl/_rels/workbook.xml.rels'], { open: function (t, a) { if (t === 'Relationship' && a.Id) rels[a.Id] = a.Target || ''; } });
     var out = [];
     sheets.forEach(function (sh, si) {
       var target = rels[sh.rid] || 'worksheets/sheet' + (si + 1) + '.xml';
       target = target.replace(/^\/?(xl\/)?/, '').replace(/^\.\//, '');
-      var xml = parts['xl/' + target];
+      var xb = parts['xl/' + target];
+      if (W && sstState && xb !== undefined && typeof xb !== 'string' && rawUtf8Like(xb)) {
+        var xfMax = 0, k; for (k in dateXf) if (+k + 1 > xfMax) xfMax = +k + 1;
+        var xfPos = sstEnd, shPos = (xfPos + xfMax + 7) & ~7, outPos = (shPos + xb.length + 7) & ~7, outCap = xb.length + 65536, fixCap = (xb.length >> 7) + 1024, len, m8;
+        m8 = need(outPos); m8.set(xb, shPos); for (k = 0; k < xfMax; k++) m8[xfPos + k] = dateXf[k] ? 1 : 0;
+        if (W.utf8ok(shPos, xb.length)) {
+          for (;;) {
+            var fixPos = (outPos + outCap + 7) & ~7; need(fixPos + fixCap * 16);
+            len = W.sheet(shPos, xb.length, xfPos, xfMax, d1904 ? 1 : 0, outPos, outCap, fixPos, fixCap, maxRows);
+            if (len === -2) { outCap *= 2; continue; }
+            if (len === -3) { fixCap *= 4; continue; }
+            break;
+          }
+          if (len >= 0) {
+            var nl = W.lines();
+            if (nl) {
+              m8 = new Uint8Array(mem.buffer); var dec = new TextDecoder('utf-8', { ignoreBOM: true }), nf = W.fixups(), csv;
+              if (!nf) csv = dec.decode(m8.subarray(outPos, outPos + len));
+              else {
+                var f32 = new Uint32Array(mem.buffer, fixPos, nf * 4), parts2 = [], at = outPos, fi, v, dt;
+                for (fi = 0; fi < nf; fi++) {
+                  parts2.push(dec.decode(m8.subarray(at, outPos + f32[fi * 4])));
+                  v = dec.decode(m8.subarray(shPos + f32[fi * 4 + 1], shPos + f32[fi * 4 + 1] + f32[fi * 4 + 2]));
+                  if (f32[fi * 4 + 3]) { dt = xlDate(Number(v), d1904); parts2.push(dt || csvCell(v)); }
+                  else parts2.push(isFinite(Number(v)) ? String(Number(v)) : csvCell(v));
+                  at = outPos + f32[fi * 4];
+                }
+                parts2.push(dec.decode(m8.subarray(at, outPos + len))); csv = parts2.join('');
+              }
+              out.push({ sheet: sh.name, csv: csv, rows: nl, truncated: false });
+            }
+            if (opts._used) opts._used.wasm = (opts._used.wasm || 0) + 1;   // test hook: how many sheets the wasm reader did
+            return;
+          }
+        }
+      }
+      if (!sstDone) jsStrings();
+      var xml = txt('xl/' + target);
       if (!xml) return;
       var lines = [], row = null, rowHas = false, c = null, cell = false, cType = '', cXf = 0, cCol = 0, cV = '', inV = false, inIs = false, rowCount = 0, lastCol = -1, truncated = false;
       var flushRow = function () {
@@ -741,14 +814,19 @@
   /** Same as expand() for a File or Blob (a dropped file, a fetch result): a big zip is read in pieces, so it never has to sit whole in memory. Same answers, same notes. A zip of up to 16 MB without helpers is read in one go (0.80 to 0.93x the time of reading it in pieces). */
   async function expandBlob(blob, fileName, opts) {
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = 0; }
+    blobOpens++;
     var h = helpersFor(opts);
     try {
       if (!h && blob.size <= (opts && opts._wholeMax !== undefined ? opts._wholeMax : WHOLE_MAX) && typeof blob.arrayBuffer === 'function') return await expandFrom(memSource(new Uint8Array(await blob.arrayBuffer())), fileName || blob.name, opts);
       return await expandFrom(blobSource(blob, h), fileName || blob.name, opts);
-    } finally { if (POOL.length && typeof setTimeout === 'function') { idleTimer = setTimeout(function () { idleTimer = 0; closeHelpers(); }, (opts && opts.idleMs) || 5000); if (idleTimer && idleTimer.unref) idleTimer.unref(); } }   // helpers keep their memory while they live: close them after a quiet spell
+    } finally {   // helpers keep their memory while they live: close them after a quiet spell, and never while another open is still using them
+      blobOpens--;
+      if (idleTimer) { clearTimeout(idleTimer); idleTimer = 0; }
+      if (!blobOpens && POOL.length && typeof setTimeout === 'function') { idleTimer = setTimeout(function () { idleTimer = 0; if (!blobOpens) closeHelpers(); }, (opts && opts.idleMs) || 5000); if (idleTimer && idleTimer.unref) idleTimer.unref(); }
+    }
   }
   var WHOLE_MAX = 16777216;   // opts._wholeMax (tests only) changes it
-  var idleTimer = 0;
+  var idleTimer = 0, blobOpens = 0;
   async function expandFrom(src, fileName, opts) {
     var lim = Object.assign({}, LIMITS, opts || {}), ctx = { lim: lim, files: [], notes: [], total: 0, other: {}, stopped: false };
     var label = baseOf(fileName || 'archive');
@@ -822,7 +900,7 @@
       var got = await src.read(e, room);
       if (got.skip) { ctx.notes.push('Part "' + e.path + '" of "' + label + '" ' + got.skip + '; skipped.'); continue; }
       ctx.total += got.bytes.length;
-      parts[e.path.replace(/^xl\/worksheets\//i, 'xl/worksheets/')] = decodeText(got.bytes) || '';
+      parts[e.path.replace(/^xl\/worksheets\//i, 'xl/worksheets/')] = /^xl\/(sharedStrings\.xml|worksheets\/)/i.test(e.path) && xlsxModule() ? got.bytes : decodeText(got.bytes) || '';   // the wasm reader takes these as bytes (decoded only if it hands them back)
     }
     if (!parts['xl/workbook.xml']) { ctx.notes.push('"' + label + '" does not look like an Excel workbook; skipped.'); return; }
     var sheets;
