@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.3.1 · API 0 · 2026-10-30
+
+### Quick
+Nested decimal columns (width 7) decode in one pass with whole-number zigzag for varints up to three bytes. 30,000 GeoJSON-like lines unpack, 0.3.1 / 0.3.0: Chromium 0.77, Firefox 0.86, WebKitGTK 0.38; against 0.2.1 (no decimal format): 0.92, 0.90, 0.58. Same rows; files unchanged.
+
+### Details
+Laptop Chromium showed 0.3.0 map lines unpack at 1.17x of 0.2.1. A profile put 12 ms per read in decodeDecimalColumn: a separate varint pass into a Float64Array, then zigzag with % on doubles, then a running-sum array. Now one pass: varint, zigzag with integer ops when the value fits 21 bits (doubles above), the running sum kept in a ring of k values, and s / 10^d (division kept, so the same doubles). A cut-off column now throws 'damaged block'.
+
+### Deep
+lfc-pack 0.3.1: decimal decode in one pass. Container, 3 rounds of 11, medians ms (0.2.1 / 0.3.0 / 0.3.1): Chromium 76.4 / 91.2 / 70.2, Firefox 77 / 80 / 69, WebKitGTK 53 / 82 / 31. Found by the laptop Chromium run (41 vs 48 ms). All lfc-pack checks pass.
+
 ## 0.3.0 · API 0 · 2026-10-30
 
 ### Quick
