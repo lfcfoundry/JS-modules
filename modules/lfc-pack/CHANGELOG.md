@@ -5,7 +5,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 ## 0.2.0 · API 0 · 2026-10-30
 - New optional `meta` option and `LfcPack.metadata(bytes)` (Python `lfc_pack.metadata(path)`): a small note about the file in its own footer section; older readers skip it.
 - New `LfcPack.unpackRows(bytes, {from, count})` reads just a range of rows by decoding only the blocks that hold them, and `LfcPack.stats(bytes)` reads column facts from the footer.
-- Faster one-column reads (checksum in WebAssembly); `packParallel` hands out one block at a time (same bytes, 7 to 27% faster in a container test) and `warmPack(n)` starts helpers early.
+- Faster one-column reads and wide row objects (WebKit 200-key whole read 1,324 to 580 ms); `packParallel` hands out one block at a time (same bytes, 7 to 27% faster in a container test); `warmPack(n)`.
 - New `LfcPack.hash(bytes, kind)`, a file viewer (viewer.html), readers that refuse damaged blocks with a plain message, and an optional `check: 'xxh64'` block check with per-column checks (one-column reads about 40 to 50% faster).
 
 ## 0.1.11 · API 0 · 2026-10-30
