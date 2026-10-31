@@ -17,15 +17,20 @@
   // width 7: a column of whole numbers or decimals (up to nine decimals, exact) whose varints are clearly shorter than its typed bytes, kept when it also compresses smaller: byte 0 is the decimals d (bit 7 set: differences between neighbors instead of the numbers), then the varints of z(whole) or z(whole - previous whole) with whole = value * 10^d; value = whole / 10^d. null when it does not pay (not exact, or the varints would take half of the doubles' size or more)
   function decimalColumn(c, rawBytes) {
     var n = c.length, i, sc, d, x, p = 0, prev, sa = 0, sb = 0, allInt = true, out, u, delta;
-    if (n < 2) return null;
+    if (n < 2 || rawBytes <= n) return null;   // one byte per value or less: varints (at least one byte each) cannot be clearly shorter
     for (i = 0; i < n; i++) { x = c[i]; if (!(x - x === 0) || (x === 0 && 1 / x < 0)) return null; if (allInt && !(Number.isInteger(x) && x < 1125899906842624 && x > -1125899906842624)) allInt = false; }
     if (allInt) sc = 1; else { sc = decimalScale(c); if (!sc) return null; }
-    var b = new Float64Array(n);
-    for (i = 0; i < n; i++) b[i] = Math.round(c[i] * sc);   // exactness was checked by decimalScale for decimals; whole numbers need no rounding
-    prev = 0;
-    for (i = 0; i < n; i++) { x = b[i]; sa += vlen(x >= 0 ? x * 2 : -x * 2 - 1); u = x - prev; sb += vlen(u >= 0 ? u * 2 : -u * 2 - 1); prev = x; }
+    var b = allInt ? c : DS_INTS; DS_INTS = null;   // decimalScale left the exact whole numbers behind
+    // varint sizes: counted on the whole column up to 4096 values, otherwise on 8 windows of 512 values spread evenly (the choice only has to be clear, the frame that is written is exact)
+    var win = n <= 4096 ? 1 : 8, wl = n <= 4096 ? n : 512, w, from, cnt = 0;
+    for (w = 0; w < win; w++) {
+      from = win === 1 ? 0 : Math.floor((n - wl) * w / (win - 1)); prev = from ? b[from - 1] : 0;
+      for (i = from; i < from + wl; i++) { x = b[i]; sa += vlen(x >= 0 ? x * 2 : -x * 2 - 1); u = x - prev; sb += vlen(u >= 0 ? u * 2 : -u * 2 - 1); prev = x; cnt++; }
+    }
+    sa = sa * n / cnt; sb = sb * n / cnt;
     if (Math.min(sa, sb) >= rawBytes * 0.6) return null;   // only a column whose varints are clearly shorter than its typed bytes is compressed both ways
-    delta = sb < sa; d = Math.round(Math.log10(sc)); out = new Uint8Array(1 + (delta ? sb : sa)); out[0] = d | (delta ? 128 : 0); p = 1; prev = 0;
+    delta = sb < sa;
+    var tot = 0; prev = 0; for (i = 0; i < n; i++) { x = b[i]; u = delta ? x - prev : x; prev = x; tot += vlen(u >= 0 ? u * 2 : -u * 2 - 1); } d = Math.round(Math.log10(sc)); out = new Uint8Array(1 + tot); out[0] = d | (delta ? 128 : 0); p = 1; prev = 0;
     for (i = 0; i < n; i++) {
       x = b[i]; u = delta ? x - prev : x; prev = x; u = u >= 0 ? u * 2 : -u * 2 - 1;
       while (u >= 128) { out[p++] = (u % 128) | 128; u = Math.floor(u / 128); }

@@ -177,12 +177,13 @@
   // numbers with up to 9 decimals: the smallest power of ten that turns every value into a whole number and back exactly (value = whole / scale), or 0 when there is none; the decimals are counted on up to 512 evenly spaced values and then checked on all of them (a miss counts all values once)
   function decimalsOf(x) { var t = String(x), e = t.indexOf('.'); return e < 0 ? 0 : t.indexOf('e') >= 0 ? -1 : t.length - e - 1; }
   function scaledInts(v, scale) { var n = v.length, b = new Array(n), i, x; for (i = 0; i < n; i++) { x = Math.round(v[i] * scale); if (!(Math.abs(x) < 9007199254740992 / 8 && x / scale === v[i])) return null; b[i] = x; } return b; }
+  var DS_INTS = null;   // the whole numbers of the column decimalScale just accepted (so the caller does not compute them again)
   function decimalScale(v) {
     var n = v.length, st = Math.max(1, Math.floor(n / 512)), d = 0, i, q, pass, sc;
     for (pass = 0; pass < 2; pass++) {
       d = 0;
       for (i = 0; i < n; i += pass ? 1 : st) { q = decimalsOf(v[i]); if (q < 0 || q > 9) return 0; if (q > d) d = q; }
-      sc = Math.pow(10, d); if (d && scaledInts(v, sc)) return sc;
+      sc = Math.pow(10, d); if (d && (DS_INTS = scaledInts(v, sc))) return sc;
       if (pass === 0 && st === 1) return 0;
     }
     return 0;
@@ -194,7 +195,7 @@
     if (allOf(v, function (x) { return typeof x === 'number'; })) {
       var noNegZero = allOf(v, function (x) { return !(x === 0 && 1 / x < 0); });
       var allInt = noNegZero && allOf(v, function (x) { return Number.isInteger(x) && Math.abs(x) < 9007199254740992 / 8; }), scale = 1, base = null;
-      if (!noNegZero) base = null; else if (allInt) base = v; else { scale = decimalScale(v); base = scale ? scaledInts(v, scale) : null; if (!base) { scale = 1; base = null; } }
+      if (!noNegZero) base = null; else if (allInt) base = v; else { scale = decimalScale(v); base = scale ? DS_INTS : null; DS_INTS = null; if (!base) { scale = 1; base = null; } }
       if (base) {
         var mono = base.length === 0 || base[0] >= 0, mn = Infinity, mx = -Infinity;
         for (i = 0; i < n; i++) { if (i && base[i] < base[i - 1]) mono = false; if (base[i] < mn) mn = base[i]; if (base[i] > mx) mx = base[i]; }
