@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.6.0 · API 1 · 2026-10-31
-- Faster and lighter: text entries are unpacked into one shared buffer that is reused for the next entry (and let go 5 seconds after the last one), instead of a fresh buffer and a list of pieces each time. Typically 5 to 25% faster on big zips; two opens at the same time never share it.
+- Text entries are unpacked into one shared buffer that is reused for the next entry (let go 5 s after the last one). Laptop Chromium: 2 to 14% faster on most zips; laptop Firefox: about even.
 
 ## 1.5.2 · API 1 · 2026-10-31
 - Loading the module costs what it did before 1.5.0: the small-file unpacker is now a separate piece, prepared only when a small file is first opened. 2,000 tiny files still open 1.4 to 1.9x faster than with the browser's own unpacker.
