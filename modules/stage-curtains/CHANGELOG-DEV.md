@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.1 · API 1 · 2026-10-31
+
+### Quick
+worker: true: prepare() resolves when the worker's pixels arrive, not at the next idle slice; same pixels, no new options. Chromium 1.7 to 2.5x sooner, Firefox 2.8 to 4.4x, WebKitGTK 1.5 to 2.0x.
+
+### Details
+Round 5 pool study. (1) Wake on arrival: the worker's message now steps the painters at once when prepare() is resting between slices (guarded so only one slice loop runs; a resting timer is cleared first). Alone: Chromium 1.52 to 2.33x sooner, Firefox 2.78 to 4.38x, WebKitGTK 1.49 to 1.96x. (2) No copy: the arrived buffer is wrapped in an ImageData instead of copied into one (copy kept where ImageData is missing). Alone 0.98 to 1.04x (noise). Both: Chromium 1.71/2.53x, Firefox 2.78/4.38x, WebKitGTK 1.53/1.96x (1920x1080 / 1280x720). The third idea (one worker per half) was left out: the research run showed no clear gain on 4 cores; it needs the laptop page.
+
+### Deep
+tests/stage-curtains-wake-browser.js (time to prepare(), 15 rounds, modes via the _test switches copy/noWake); same pixels: tests/stage-curtains-worker-browser.js 12/12 halves in all three browsers; modules/stage-curtains/test/run.js 46 passed.
+
 ## 1.4.0 · API 1 · 2026-10-24
 
 ### Quick
