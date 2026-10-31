@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.11.0 · API 1 · 2026-10-31
+- With helpers on (the workers option), Excel files are read inside a helper, so a big sheet no longer freezes the page (185 ms down to 6 ms on a laptop). Total time is about the same, up to 18% longer on some sheets.
+
 ## 1.10.0 · API 1 · 2026-10-31
 - Excel files open much faster again: 1.9 to 3.6 times as fast (48 to 72% less time) than 1.9.0 (cloud Firefox, Chromium and WebKitGTK), same results. Fixed: two big zips opened at once with helpers could leave one never finishing.
 
