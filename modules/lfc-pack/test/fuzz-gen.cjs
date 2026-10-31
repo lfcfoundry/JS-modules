@@ -8,6 +8,7 @@ fs.mkdirSync(out, { recursive: true });
 let sd = SEED >>> 0; const R = () => ((sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0) / 4294967296), I = (n) => Math.floor(R() * n), P = (a) => a[I(a.length)];
 const WORDS = ['info', 'warn', 'error', 'alpha', 'beta', 'gamma', 'x', '', 'café', '日本語', '😀 smile', 'a"b', 'back\\slash', 'line\nbreak', 'tab\there', 'nul\u0000x', '\ud800lone', 'lone\udc00', 'GET /a/1 took 5 ms', '__proto__', 'constructor', '0', '1', '007'];
 const hex = (n) => Array.from({ length: n }, () => '0123456789abcdef'[I(16)]).join('');
+let WALK = 20;
 function scalar(kind) {
   switch (kind) {
     case 0: return I(100); case 1: return I(2 ** 31) - 2 ** 30; case 2: return Math.round(R() * 1e6) / 100; case 3: return R() * 1e6 - 5e5;
@@ -16,28 +17,30 @@ function scalar(kind) {
     case 8: return hex(16); case 9: return hex(8) + '-' + hex(4) + '-' + hex(4) + '-' + hex(4) + '-' + hex(12);
     case 10: return I(256) + '.' + I(256) + '.' + I(256) + '.' + I(256);
     case 11: return 'GET /item/' + I(1000) + ' took ' + I(90) + ' ms id=' + hex(10); case 12: return 'w' + I(40); case 13: return 'x'.repeat(I(300));
+    case 14: return Math.round(R() * 1e7) / 1e4; case 15: return I(1e6) / 1e9;
+    case 16: WALK = Math.round((WALK + (R() - 0.5) * 0.01) * 1e3) / 1e3; return WALK;
     default: return I(10);
   }
 }
 const intList = () => { const n = I(6), a = []; let v = I(50); for (let i = 0; i < n; i++) { v += R() < 0.8 ? I(20) : -I(30); if (v < 0) v = 0; a.push(v); } return a; };
 function tree(d) {
   const t = R();
-  if (d > 5 || t < 0.5) return scalar(I(14));
+  if (d > 5 || t < 0.5) return scalar(I(17));
   if (t < 0.75) { const o = {}, n = I(5); for (let i = 0; i < n; i++) o[P(['a', 'b', 'c', 'k1', '1', '0', 'é', '😀', '__proto__', 'x y'])] = tree(d + 1); return o; }
   const a = [], n = I(5); for (let i = 0; i < n; i++) a.push(tree(d + 1)); return a;
 }
 function makeRows() {
   const n = P([1, 2, 5, 20, 60, 300, 1500]), mode = I(5), rows = [];
   if (mode === 0 || mode === 1) {   // flat objects; every key has a favorite kind and sometimes a stray value
-    const keys = Array.from({ length: 1 + I(12) }, (_, i) => P(['id', 'ts', 'name', 'k' + i, 'é' + i, '5', 'level', 'msg', 'ip', 'tags']) + i), kind = keys.map(() => I(14)), sparse = mode === 1 ? 0.5 : 0;
-    for (let r = 0; r < n; r++) { const o = {}; const order = R() < 0.2 ? keys.slice().reverse() : keys; for (const k of order) { if (R() < sparse) continue; const j = keys.indexOf(k); o[k] = R() < 0.05 ? scalar(I(14)) : kind[j] === 14 ? intList() : scalar(kind[j]); } if (R() < 0.1) o.list = intList(); rows.push(o); }
+    const keys = Array.from({ length: 1 + I(12) }, (_, i) => P(['id', 'ts', 'name', 'k' + i, 'é' + i, '5', 'level', 'msg', 'ip', 'tags']) + i), kind = keys.map(() => I(17)), sparse = mode === 1 ? 0.5 : 0;
+    for (let r = 0; r < n; r++) { const o = {}; const order = R() < 0.2 ? keys.slice().reverse() : keys; for (const k of order) { if (R() < sparse) continue; const j = keys.indexOf(k); o[k] = R() < 0.05 ? scalar(I(17)) : kind[j] === 14 ? intList() : scalar(kind[j]); } if (R() < 0.1) o.list = intList(); rows.push(o); }
   } else if (mode === 2) { const shapes = Array.from({ length: 1 + I(4) }, () => tree(0)); for (let r = 0; r < n; r++) rows.push(R() < 0.7 ? JSON.parse(JSON.stringify(P(shapes))) : tree(0)); }
   else if (mode === 3) for (let r = 0; r < n; r++) rows.push(tree(0));
-  else for (let r = 0; r < n; r++) rows.push(R() < 0.5 ? intList() : scalar(I(14)));
+  else for (let r = 0; r < n; r++) rows.push(R() < 0.5 ? intList() : scalar(I(17)));
   return rows;
 }
 const canon = (v) => v === null || typeof v !== 'object' ? (Object.is(v, -0) ? '-0' : JSON.stringify(v)) : Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' : '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
-const MODES = [{}, { block: 'flat' }, { block: 'nested' }, { exact: true }, { exact: true, block: 'flat' }];
+const MODES = [{}, { block: 'flat' }, { block: 'nested' }, { exact: true }, { exact: true, block: 'flat' }, { check: 'xxh64' }, { check: 'xxh64', block: 'flat' }, { check: 'xxh64', block: 'nested' }];
 (async () => {
   await JF.init(); let bad = 0, files = 0, bytes = 0; const t0 = Date.now();
   for (let c = 0; c < N; c++) {
