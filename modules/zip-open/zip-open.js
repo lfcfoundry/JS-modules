@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.1 (API 1)
+ * Version 1.5.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -13,9 +13,10 @@
  */
 
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.ZipOpen = factory();
-}(typeof self !== 'undefined' ? self : this, function () {
+  var api = factory(factory.toString());
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.ZipOpen = api;
+}(typeof self !== 'undefined' ? self : this, function (SELF_SRC) {
   'use strict';
   var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
   var XML_MAX_DEPTH = 2000;
@@ -186,14 +187,15 @@
 
   var CRC_T = null, LE = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
   /** CRC-32 (the zip checksum). "Slicing by 8": eight table lookups handle eight bytes at once, and where the bytes sit on a 4-byte boundary they are read as whole words. */
-  function crc32js(u8) {
+  function crc32js(u8) { return (crcJsRun(u8, -1) ^ -1) >>> 0; }
+  function crcJsRun(u8, crc) {   // from the running state `crc` (start with -1), returns the new running state; the final answer is state ^ -1
     var t = CRC_T, n, c, k, i;
     if (!t) {   // table 0 is the classic one; table j holds the effect of a byte followed by j zero bytes
       t = CRC_T = new Int32Array(2048);
       for (n = 0; n < 256; n++) { c = n; for (k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1; t[n] = c; }
       for (n = 0; n < 256; n++) { c = t[n]; for (k = 1; k < 8; k++) { c = t[c & 255] ^ (c >>> 8); t[k * 256 + n] = c; } }
     }
-    var crc = -1, L = u8.length, hi;
+    var L = u8.length, hi;
     i = 0;
     if (LE && L >= 8 && typeof u8.byteOffset === 'number' && (u8.byteOffset & 3) === 0) {
       var w = new Int32Array(u8.buffer, u8.byteOffset, L >> 2), j = 0, e = (L >> 3) << 1;
@@ -209,11 +211,11 @@
       }
     }
     for (; i < L; i++) crc = (crc >>> 8) ^ t[(crc ^ u8[i]) & 255];
-    return (crc ^ -1) >>> 0;
+    return crc;
   }
   /* The same checksum in WebAssembly ("slicing by 16", 1.2.0): 1.3 to 1.8 times as fast on big buffers in the four test browsers. It is used from 1,024 bytes up; shorter pieces use the plain loop above,
      which is as fast there. If the browser refuses WebAssembly (a page policy without 'wasm-unsafe-eval'), or anything goes wrong, crc32js gives the same answer. Source: wasm/crc32.c. */
-  var WASM_B64 = /*WASM:BEGIN*/'AGFzbQEAAAABCwJgAABgA39/fwF/AwMCAAEFAwEAAQYPAn8BQYCoAQt/AEGAqAELByUEBm1lbW9yeQIABGluaXQAAANjcmMAAQtfX2hlYXBfYmFzZQMBCuoKAsAGAQR/QQAhAEGAiICAACEBA0AgASAAQQF2IgJBoIbi7X5zIAIgAEEBcRsiAkEBdiIDQaCG4u1+cyADIAJBAXEbIgJBAXYiA0GghuLtfnMgAyACQQFxGyICQQF2IgNBoIbi7X5zIAMgAkEBcRsiAkEBdiIDQaCG4u1+cyADIAJBAXEbIgJBAXYiA0GghuLtfnMgAyACQQFxGyICQQF2IgNBoIbi7X5zIAMgAkEBcRsiAkEBdiIDQaCG4u1+cyADIAJBAXEbNgIAIAFBBGohASAAQQFqIgBBgAJHDQALQYB4IQADQCAAQYCYgIAAaiAAQYCQgIAAaigCACIBQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCggIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCogIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCwgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYC4gIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDAgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDIgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDQgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDYgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDggIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDogIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYDwgIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYD4gIAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCAgYAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnMiATYCACAAQYCIgYAAaiABQf8BcUECdEGAiICAAGooAgAgAUEIdnM2AgAgAEEEaiIADQALC6UEAQF/AkAgAUEQSQ0AA0AgACgCACACcyICQQZ2QfwHcUGA+ICAAGooAgAgAkH/AXFBAnRBgICBgABqKAIAcyACQQ52QfwHcUGA8ICAAGooAgBzIAJBFnZB/AdxQYDogIAAaigCAHMgACgCBCICQf8BcUECdEGA4ICAAGooAgBzIAJBBnZB/AdxQYDYgIAAaigCAHMgAkEOdkH8B3FBgNCAgABqKAIAcyACQRZ2QfwHcUGAyICAAGooAgBzIAAoAggiAkH/AXFBAnRBgMCAgABqKAIAcyACQQZ2QfwHcUGAuICAAGooAgBzIAJBDnZB/AdxQYCwgIAAaigCAHMgAkEWdkH8B3FBgKiAgABqKAIAcyAAKAIMIgJB/wFxQQJ0QYCggIAAaigCAHMgAkEGdkH8B3FBgJiAgABqKAIAcyACQQ52QfwHcUGAkICAAGooAgBzIAJBFnZB/AdxQYCIgIAAaigCAHMhAiAAQRBqIQAgAUFwaiIBQQ9LDQALCwJAIAFFDQACQAJAIAFBAXENACABIQMMAQsgAC0AACACc0H/AXFBAnRBgIiAgABqKAIAIAJBCHZzIQIgAEEBaiEAIAFBf2ohAwsgAUEBRg0AA0AgAEEBai0AACAALQAAIAJzQf8BcUECdEGAiICAAGooAgAgAkEIdnMiAnNB/wFxQQJ0QYCIgIAAaigCACACQQh2cyECIABBAmohACADQX5qIgMNAAsLIAIL'/*WASM:END*/, WASM_MIN = 1024, WASM_CHUNK = 1 << 20, K;
+  var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/, WASM_MIN = 1024, WASM_CHUNK = 1 << 20, K;
   /* compile early (since 1.3.0): the engine compiles the program on another thread as soon as this file loads, so the page keeps running; the first big checksum then only starts it. A checksum asked
      for before the compile is done compiles on the spot as it always did, so nothing waits and the answers do not change. */
   var ZM, zbin = null, earlyP = null;
@@ -255,19 +257,36 @@
     } catch (e) { K = null; }
     return K;
   }
-  /** CRC-32 of a Uint8Array as an unsigned number. WebAssembly from 1,024 bytes up when the browser allows it; crc32(bytes, true) forces the plain JavaScript loop. */
-  function crc32(u8, plain) {
-    var k = plain === true || u8.length < WASM_MIN || typeof u8.subarray !== 'function' ? null : kernel();
-    if (!k) return crc32js(u8);
+  var INFLATE_MAX = 4096;   // compressed bytes up to which the WebAssembly inflate is used (bigger entries use the browser's own stream, which is faster once it is running)
+  /** Raw deflate -> { bytes } or { err: -1 damaged | -2 more than cap }, in WebAssembly, for small entries; null when there is no WebAssembly. */
+  function inflateWasm(src, cap) {
+    var k = kernel();
+    if (!k || typeof k.ex.inflate !== 'function') return null;
     try {
-      var s = -1, L = u8.length, o = 0, n;
+      var need = k.base + src.length + cap + 64, mem = k.ex.memory;
+      if (need > mem.buffer.byteLength) mem.grow(Math.ceil((need - mem.buffer.byteLength) / 65536));
+      new Uint8Array(mem.buffer, k.base, src.length).set(src);
+      var po = (k.base + src.length + 15) & ~15, n = k.ex.inflate(k.base, src.length, po, cap);
+      if (n < 0) return { err: n };
+      var out = new Uint8Array(n); out.set(new Uint8Array(mem.buffer, po, n));
+      return { bytes: out };
+    } catch (e) { return null; }
+  }
+  /** CRC-32 of a Uint8Array as an unsigned number. WebAssembly from 1,024 bytes up when the browser allows it; crc32(bytes, true) forces the plain JavaScript loop. */
+  function crc32(u8, plain) { return (crcRun(u8, -1, plain === true) ^ -1) >>> 0; }
+  /** Running CRC-32: continues from `s` (start with -1) over `u8`; the final answer is the state ^ -1. Streams use it so the checksum is done while the bytes arrive. */
+  function crcRun(u8, s, plain) {
+    var k = plain === true || u8.length < WASM_MIN || typeof u8.subarray !== 'function' ? null : kernel();
+    if (!k) return crcJsRun(u8, s);
+    try {
+      var L = u8.length, o = 0, n, s0 = s;
       while (o < L) {
         n = L - o < WASM_CHUNK ? L - o : WASM_CHUNK;
         new Uint8Array(k.ex.memory.buffer, k.base, n).set(o === 0 && n === L ? u8 : u8.subarray(o, o + n));
         s = k.ex.crc(k.base, n, s); o += n;
       }
-      return (s ^ -1) >>> 0;
-    } catch (e) { K = null; return crc32js(u8); }
+      return s;
+    } catch (e) { K = null; return crcJsRun(u8, s0); }
   }
   function isZip(u8) { return u8 && u8.length >= 4 && u8[0] === 0x50 && u8[1] === 0x4b && (u8[2] === 3 || u8[2] === 5) && (u8[3] === 4 || u8[3] === 6); }
 
@@ -301,7 +320,12 @@
     if (!isFinite(count) || !isFinite(cdSize) || !isFinite(cdOff)) throw bad();
     var shift = 0;                                              // zips with something in front (self-extracting, email) keep offsets relative to the zip's own start
     if (cdOff + cdSize > eocd || u32(d, cdOff) !== 0x02014b50) { shift = eocd - cdSize - cdOff; if (shift < 0 || u32(d, cdOff + shift) !== 0x02014b50) { if (count) throw bad(); } }
-    var entries = [], notes = [], q = cdOff + shift, seen = 0, truncated = false;
+    return parseCd(u8.subarray(cdOff + shift), count, shift, lim);
+  }
+
+  /** The entries of a central directory. `cd` starts at the first directory record; `shift` is the number of bytes in front of the zip. */
+  function parseCd(cd, count, shift, lim) {
+    var d = new DataView(cd.buffer, cd.byteOffset, cd.byteLength), u8 = cd, entries = [], notes = [], q = 0, seen = 0, truncated = false;
     while (seen < count && q + 46 <= u8.length && u32(d, q) === 0x02014b50) {
       if (entries.length >= lim.maxEntries) { truncated = true; break; }
       var flags = u16(d, q + 8), method = u16(d, q + 10), crc = u32(d, q + 16), csize = u32(d, q + 20), usize = u32(d, q + 24);
@@ -371,12 +395,143 @@
     var body = u8.subarray(data, data + e.csize), out;
     if (e.method === 0) { if (e.csize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' }; out = body; }
     else {
-      try { out = await inflateRaw(body, Math.min(limit, e.usize + 1)); }
-      catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
+      var cap = Math.min(limit, e.usize + 1), w = e.csize <= INFLATE_MAX && cap <= 16777216 ? inflateWasm(body, cap) : null;
+      if (w) { if (w.err) return { skip: w.err === -2 ? 'unpacks to more than it says it does' : 'looks damaged' }; out = w.bytes; }
+      else {
+        try { out = await inflateRaw(body, cap); }
+        catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
+      }
     }
     if (out.length !== e.usize) return { skip: 'looks damaged (its size is not what the zip says)' };
     if (crc32(out) !== e.crc) return { skip: 'looks damaged (its checksum does not match)' };
     return { bytes: out };
+  }
+
+  /* ---- streaming from a File or Blob (since 1.4.0): only the end of the file, the table of contents and the entry asked for are read; nothing else is loaded ---- */
+  var SMALL_ENTRY = 4194304, WINDOW = 4194304, PAR_ENTRY = 2097152, BAD_ZIP = 'This is not a zip file I can read (it may be cut off or damaged).';
+  async function bytesOf(blob, a, b) { return new Uint8Array(await blob.slice(a, b).arrayBuffer()); }
+  /** The table of contents of a File or Blob. Same answers as list() on the same bytes; reads the last 64 KB and the directory, not the entries. */
+  async function listBlob(blob, lim) {
+    lim = lim || LIMITS;
+    var bad = function () { return new Error(BAD_ZIP); }, size = blob.size;
+    if (size < 22) throw bad();
+    var tailStart = Math.max(0, size - 22 - 65535 - 20), tail = await bytesOf(blob, tailStart, size), d = new DataView(tail.buffer, tail.byteOffset, tail.byteLength), eocd = -1, lo = Math.max(0, tail.length - 22 - 65535), p;
+    for (p = tail.length - 22; p >= lo; p--) if (tail[p] === 0x50 && tail[p + 1] === 0x4b && tail[p + 2] === 5 && tail[p + 3] === 6 && p + 22 + u16(d, p + 20) === tail.length) { eocd = p; break; }
+    if (eocd < 0) for (p = tail.length - 22; p >= lo; p--) if (tail[p] === 0x50 && tail[p + 1] === 0x4b && tail[p + 2] === 5 && tail[p + 3] === 6) { eocd = p; break; }
+    if (eocd < 0) throw bad();
+    var eocdAt = tailStart + eocd, count = u16(d, eocd + 10), cdSize = u32(d, eocd + 12), cdOff = u32(d, eocd + 16);
+    if ((count === 0xffff || cdSize === 0xffffffff || cdOff === 0xffffffff) && eocd >= 20 && u32(d, eocd - 20) === 0x07064b50) {
+      var z = u64(d, eocd - 20 + 8);
+      if (z + 56 <= size) { var zr = await bytesOf(blob, z, z + 56), zd = new DataView(zr.buffer, zr.byteOffset, zr.byteLength); if (u32(zd, 0) === 0x06064b50) { count = u64(zd, 32); cdSize = u64(zd, 40); cdOff = u64(zd, 48); } }
+    }
+    if (!isFinite(count) || !isFinite(cdSize) || !isFinite(cdOff)) throw bad();
+    var shift = 0, sig = cdOff + 4 <= size ? await bytesOf(blob, cdOff, cdOff + 4) : null;
+    if (cdOff + cdSize > eocdAt || !sig || u32(new DataView(sig.buffer, sig.byteOffset, 4), 0) !== 0x02014b50) {
+      shift = eocdAt - cdSize - cdOff;
+      if (shift < 0) { if (count) throw bad(); }
+      else { var s2 = await bytesOf(blob, cdOff + shift, cdOff + shift + 4); if (s2.length < 4 || u32(new DataView(s2.buffer, s2.byteOffset, 4), 0) !== 0x02014b50) { if (count) throw bad(); } }
+    }
+    if (cdSize > 67108864) throw bad();
+    var cdStart = cdOff + shift;   // read the directory and the end record (the whole rest of a normal file, which is all the in-memory path looks at); a directory claiming to be tiny still gets 1 MB of slack
+    return parseCd(await bytesOf(blob, cdStart, Math.min(size, cdStart + Math.max(cdSize, 1048576) + size - eocdAt)), count, shift, lim);
+  }
+
+  /** Raw deflate (or stored) bytes of a Blob -> bytes, never more than `limit`; the checksum is worked out while the bytes arrive. Returns { bytes, crc }. */
+  async function inflateBlob(part, method, limit) {
+    if (typeof DecompressionStream !== 'function' || typeof part.stream !== 'function') {
+      var src = new Uint8Array(await part.arrayBuffer()), o = method === 0 ? src : await inflateRaw(src, limit);
+      if (o.length > limit) throw new Error('TOOBIG');
+      return { bytes: o, crc: crc32(o) };
+    }
+    var rs = part.stream(), crc = -1, total = 0, chunks = [], rd;
+    if (method === 8) rs = rs.pipeThrough(new DecompressionStream('deflate-raw'));
+    rd = rs.getReader();
+    try {
+      for (;;) {
+        var r = await rd.read();
+        if (r.done) break;
+        total += r.value.length;
+        if (total > limit) throw new Error('TOOBIG');
+        crc = crcRun(r.value, crc);
+        chunks.push(r.value);
+      }
+    } catch (e) { try { rd.cancel().catch(noop); } catch (e2) { /* already closed */ } throw e; }
+    var out;
+    if (chunks.length === 1) out = chunks[0];
+    else { out = new Uint8Array(total); for (var i = 0, at = 0; i < chunks.length; at += chunks[i].length, i++) out.set(chunks[i], at); }
+    return { bytes: out, crc: (crc ^ -1) >>> 0 };
+  }
+  /** Same answers as read() for the same entry, but the entry is taken from a File or Blob a piece at a time. */
+  async function readBlobEntry(blob, e, limit, cache) {
+    if (e.flags & 1) return { skip: 'is password-protected' };
+    if (e.method !== 0 && e.method !== 8) return { skip: 'uses a compression method I can\'t open' };
+    if (e.usize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' };
+    if (e.start + 30 > blob.size) return { skip: 'looks damaged' };
+    if (e.csize <= SMALL_ENTRY) {   // a small entry comes in one read (header and data together); the read-and-check code is the in-memory one
+      var need = 30 + 1024 + e.csize, buf = cache && e.csize <= WINDOW / 16 ? cache.w : null, at = cache && cache.at;   // small entries sit close together: one read of a few MB serves the entries that follow (each read of a Blob costs about a millisecond in Chromium)
+      if (!buf || e.start < at || (e.start - at + need > buf.length && at + buf.length < blob.size)) { at = e.start; buf = await bytesOf(blob, at, Math.min(blob.size, at + (cache && e.csize <= WINDOW / 16 ? WINDOW : need))); if (cache && e.csize <= WINDOW / 16) { cache.w = buf; cache.at = at; } }
+      var win = buf.subarray(e.start - at, Math.min(buf.length, e.start - at + need)), wd = new DataView(win.buffer, win.byteOffset, win.byteLength);
+      if (!(win.length >= 30 && u32(wd, 0) === 0x04034b50 && 30 + u16(wd, 26) + u16(wd, 28) + e.csize > win.length && e.start + win.length < blob.size)) return readEntry(win, Object.assign({}, e, { start: 0 }), limit);   // else the header has a long extra field: read it the long way
+    }
+    var h = await bytesOf(blob, e.start, e.start + 30), hd = new DataView(h.buffer, h.byteOffset, 30);
+    if (u32(hd, 0) !== 0x04034b50) return { skip: 'looks damaged' };
+    var data = e.start + 30 + u16(hd, 26) + u16(hd, 28);
+    if (data + e.csize > blob.size) return { skip: 'looks damaged (cut off)' };
+    var got;
+    if (e.method === 0 && e.csize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' };
+    try { got = await inflateBlob(blob.slice(data, data + e.csize), e.method, e.method === 0 ? limit : Math.min(limit, e.usize + 1)); }
+    catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
+    if (got.bytes.length !== e.usize) return { skip: 'looks damaged (its size is not what the zip says)' };
+    if (got.crc !== e.crc) return { skip: 'looks damaged (its checksum does not match)' };
+    return { bytes: got.bytes };
+  }
+  /** Where an archive's entries come from: bytes already in memory, or a File/Blob read in pieces. Everything above this line works with either. */
+  function memSource(u8) { return { list: function (lim) { return list(u8, lim); }, read: function (e, limit) { return readEntry(u8, e, limit); } }; }
+  function blobSource(blob, helpers) {
+    var src = { list: function (lim) { return listBlob(blob, lim); }, read: function (e, limit) { return readBlobEntry(blob, e, limit, cache); } }, cache = {};
+    if (helpers && helpers.length) {
+      var next = 0;
+      src.width = helpers.length;
+      src.prefetch = function (e, limit) {
+        var h = helpers[next++ % helpers.length];
+        if (h.blob !== blob) { h.blob = blob; try { h.w.postMessage({ op: 'open', blob: blob }); } catch (err) { /* the job below reports it */ } }
+        return ask(h, { op: 'job', entry: e, limit: limit });
+      };
+    }
+    return src;
+  }
+  /** One entry as text, worked out in one go (used by helpers): { text, size } | { text: null, size } for a binary file | { skip }. */
+  async function textJob(blob, e, limit, cache) {
+    var got = await readBlobEntry(blob, e, limit, cache);
+    return got.skip ? got : { text: decodeText(got.bytes), size: got.bytes.length };
+  }
+  function workerBody() {   // runs inside a helper; `ZipOpen` is this file's code loaded there
+    var cur = null, cache = {};
+    onmessage = function (ev) {
+      var m = ev.data;
+      if (m.op === 'open') { cur = m.blob; cache = {}; return; }
+      ZipOpen._textJob(cur, m.entry, m.limit, cache).then(function (r) { postMessage({ id: m.id, r: r }); }, function (err) { postMessage({ id: m.id, r: { skip: 'looks damaged' } }); });
+    };
+  }
+  var POOL = [], nextId = 1;
+  function makeHelper(spawn) {
+    var code = 'var ZipOpen=(' + SELF_SRC + ')();(' + workerBody.toString() + ')();', w, h;
+    if (typeof spawn === 'function') w = spawn(code);
+    else { var url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' })); w = new Worker(url); URL.revokeObjectURL(url); }
+    h = { w: w, wait: {} };
+    w.onmessage = function (ev) { var m = ev.data, r = h.wait[m.id]; if (r) { delete h.wait[m.id]; r(m.r); } };
+    w.onerror = function (ev) { Object.keys(h.wait).forEach(function (id) { var r = h.wait[id]; delete h.wait[id]; r({ skip: 'looks damaged' }); }); if (ev && ev.preventDefault) ev.preventDefault(); };
+    return h;
+  }
+  function ask(h, msg) { return new Promise(function (ok) { var id = nextId++; msg.id = id; h.wait[id] = ok; try { h.w.postMessage(msg); } catch (e) { delete h.wait[id]; ok({ skip: 'looks damaged' }); } }); }
+  /** Starts n helpers ahead of time (Web Workers; each compiles the checksum program), so the first big zip does not pay for it. Returns how many are ready. */
+  function warm(n, spawn) { while (POOL.length < n) POOL.push(makeHelper(spawn)); return POOL.length; }
+  function closeHelpers() { POOL.forEach(function (h) { try { h.w.terminate(); } catch (e) { /* gone */ } }); POOL = []; }
+  function helpersFor(opts) {
+    var n = opts && opts.workers > 0 ? Math.min(Math.floor(opts.workers), 32) : 0;
+    if (n < 2 || (!opts.spawn && (typeof Worker !== 'function' || typeof URL !== 'function' || !URL.createObjectURL))) return null;
+    try { warm(n, opts.spawn); } catch (e) { return null; }
+    return POOL.slice(0, n);
   }
 
   function decodeText(u8) {
@@ -395,10 +550,13 @@
    * bytes: Uint8Array of a .zip or .xlsx. Returns { files: [{ name, path, text }], notes: [plain words] }.
    * Never throws for a bad inner file (it is skipped with a note); throws for a bad outer file or when nothing readable is inside.
    */
-  async function expand(bytes, fileName, opts) {
+  async function expand(bytes, fileName, opts) { return expandFrom(memSource(bytes), fileName, opts); }
+  /** Same as expand() for a File or Blob (a dropped file, a fetch result): the file is read in pieces, so a big zip never has to sit whole in memory. Same answers, same notes. */
+  async function expandBlob(blob, fileName, opts) { return expandFrom(blobSource(blob, helpersFor(opts)), fileName || blob.name, opts); }
+  async function expandFrom(src, fileName, opts) {
     var lim = Object.assign({}, LIMITS, opts || {}), ctx = { lim: lim, files: [], notes: [], total: 0, other: {}, stopped: false };
     var label = baseOf(fileName || 'archive');
-    await openArchive(bytes, label, '', ctx, 0, /\.(xlsx|xlsm)$/i.test(label));
+    await openArchive(src, label, '', ctx, 0, /\.(xlsx|xlsm)$/i.test(label));
     var otherN = 0, otherExt = [];
     Object.keys(ctx.other).forEach(function (k) { otherN += ctx.other[k]; otherExt.push(k ? '.' + k : 'no extension'); });
     if (otherN) ctx.notes.push(otherN + ' file' + (otherN === 1 ? '' : 's') + ' of other kinds (' + otherExt.slice(0, 6).join(', ') + (otherExt.length > 6 ? ', …' : '') + ') ' + (otherN === 1 ? 'was' : 'were') + ' left alone.');
@@ -406,15 +564,24 @@
     return { files: ctx.files, notes: ctx.notes };
   }
 
-  async function openArchive(bytes, label, prefix, ctx, depth, asBook) {
+  async function openArchive(src, label, prefix, ctx, depth, asBook) {
     var lim = ctx.lim, toc;
-    try { toc = list(bytes, lim); } catch (e) { if (depth === 0) throw e; ctx.notes.push('"' + label + '" is not a zip I can open; skipped.'); return; }
+    try { toc = await src.list(lim); } catch (e) { if (depth === 0) throw e; ctx.notes.push('"' + label + '" is not a zip I can open; skipped.'); return; }
     toc.notes.forEach(function (n) { ctx.notes.push(n); });
     var entries = toc.entries.filter(function (e) { return !e.dir && e.path && !JUNK.test(e.path); });
     // a workbook is a zip too: gather its parts, then turn each sheet into a table
     var isBook = asBook || entries.some(function (e) { return e.path === 'xl/workbook.xml'; }) && entries.some(function (e) { return e.path === '[Content_Types].xml'; });
-    if (isBook) return openBook(bytes, entries, label, prefix, ctx);
+    if (isBook) return openBook(src, entries, label, prefix, ctx);
     entries.sort(function (a, b) { return a.path < b.path ? -1 : a.path > b.path ? 1 : 0; });
+    var pre = {}, pending = 0;
+    function fill(from) {   // with helpers: start the next few text entries now, so they unpack side by side; the loop below still takes them in order and applies the same limits
+      for (var j = from, started = 0; j < entries.length && started < src.width; j++) {
+        var ej = entries[j], ex = extOf(ej.path);
+        if (pre[j] !== undefined || ej.usize < (lim.helperMinBytes === undefined ? PAR_ENTRY : lim.helperMinBytes) || ex === 'zip' || ex === 'xlsx' || ex === 'xlsm' || ex === 'xls' || ex === 'ods' || ex === 'numbers' || !(lim.textExt || TEXT_EXT).test(ej.path)) continue;
+        if (ej.usize > lim.maxEntryBytes || ej.usize > lim.maxTotalBytes - ctx.total - pending || pending > 268435456) continue;
+        pre[j] = src.prefetch(ej, Math.min(lim.maxEntryBytes, lim.maxTotalBytes - ctx.total)); pending += ej.usize; started++;
+      }
+    }
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i], ext = extOf(e.path), shown = prefix + e.path;
       if (ctx.stopped) break;
@@ -425,25 +592,35 @@
       if (kind === 'zip' && depth + 1 >= lim.maxDepth) { ctx.notes.push('"' + shown + '" is a zip inside zips inside zips; skipped.'); continue; }
       var left = lim.maxTotalBytes - ctx.total, room = Math.min(kind === 'text' ? lim.maxEntryBytes : lim.maxTotalBytes, left);
       if (room <= 0 || (e.usize > left && e.usize <= (kind === 'text' ? lim.maxEntryBytes : Infinity))) { ctx.stopped = true; ctx.notes.push('Stopped opening files after ' + Math.round(lim.maxTotalBytes / 1e6) + ' MB of unpacked data (a safety limit).'); break; }
-      var got = await readEntry(bytes, e, kind === 'text' ? Math.min(lim.maxEntryBytes, room) : room);
+      if (kind === 'text' && src.prefetch) {
+        fill(i);
+        if (pre[i] !== undefined) {
+          var pf = await pre[i]; pending -= e.usize;
+          if (pf.skip) { ctx.notes.push('"' + shown + '" ' + pf.skip + '; skipped.'); continue; }
+          ctx.total += pf.size;
+          if (pf.text === null) { ctx.notes.push('"' + shown + '" looks like a binary file, not text; skipped.'); continue; }
+          ctx.files.push({ name: baseOf(e.path), path: shown, text: pf.text }); continue;
+        }
+      }
+      var got = await src.read(e, kind === 'text' ? Math.min(lim.maxEntryBytes, room) : room);
       if (got.skip) { ctx.notes.push('"' + shown + '" ' + got.skip + '; skipped.'); continue; }
       ctx.total += got.bytes.length;
       if (kind === 'text') {
         var text = decodeText(got.bytes);
         if (text === null) { ctx.notes.push('"' + shown + '" looks like a binary file, not text; skipped.'); continue; }
         ctx.files.push({ name: baseOf(e.path), path: shown, text: text });
-      } else await openArchive(got.bytes, baseOf(e.path), shown + '!/', ctx, depth + 1, kind === 'book');
+      } else await openArchive(memSource(got.bytes), baseOf(e.path), shown + '!/', ctx, depth + 1, kind === 'book');
     }
   }
 
-  async function openBook(bytes, entries, label, prefix, ctx) {
+  async function openBook(src, entries, label, prefix, ctx) {
     var lim = ctx.lim, wanted = /^xl\/(workbook\.xml|_rels\/workbook\.xml\.rels|sharedStrings\.xml|styles\.xml|worksheets\/[^\/]+\.xml)$/i, parts = {};
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i];
       if (!wanted.test(e.path)) continue;
       var room = Math.min(lim.maxPartBytes, lim.maxTotalBytes - ctx.total);
       if (room <= 0) { ctx.stopped = true; ctx.notes.push('Stopped opening the workbook after ' + Math.round(lim.maxTotalBytes / 1e6) + ' MB of unpacked data (a safety limit).'); break; }
-      var got = await readEntry(bytes, e, room);
+      var got = await src.read(e, room);
       if (got.skip) { ctx.notes.push('Part "' + e.path + '" of "' + label + '" ' + got.skip + '; skipped.'); continue; }
       ctx.total += got.bytes.length;
       parts[e.path.replace(/^xl\/worksheets\//i, 'xl/worksheets/')] = decodeText(got.bytes) || '';
@@ -469,5 +646,5 @@
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
   compileEarly();
-  return { expand: expand, list: list, read: read, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, LIMITS: LIMITS };
+  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
 }));

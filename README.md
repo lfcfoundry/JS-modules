@@ -105,7 +105,7 @@ Keep a player's progress safe and let them move it between devices.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [save-kit](modules/save-kit/README.md) | 1.2.2 | 26.6 | 9.1 | Safe saves in localStorage: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
+| [save-kit](modules/save-kit/README.md) | 1.3.0 | 36.3 | 11.4 | Safe saves in localStorage: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 | 9.6 | 3.4 | Keeps one tab in charge so two tabs never overwrite each other's saves. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/tab-guard/demo.html) |
 
 #### Games - Looks and effects
@@ -147,7 +147,7 @@ The numbers behind idle and clicker games.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [graph-walk](modules/graph-walk/README.md) | 0.1.0 | 4.0 | 1.7 | Breadth-first distances and loop marking for link lists, in typed arrays. | — |
+| [graph-walk](modules/graph-walk/README.md) | 0.7.0 | 55.6 | 18.4 | Breadth-first distances and loop marking for link lists, in typed arrays. | — |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 | 22.8 | 7.7 | Tested maths for idle and clicker games: costs, buy-max, away income, number format. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/idle-core/demo.html) |
 
 #### Games - Testing
@@ -172,7 +172,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [elias-fano](modules/elias-fano/README.md) | 1.4.0 | 62.3 | 20.5 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
+| [elias-fano](modules/elias-fano/README.md) | 1.5.0 | 65.6 | 21.7 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.1.9 | 697.5 | 223.3 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [memory-compression](modules/memory-compression/README.md) | 2.6.6 | 396.2 | 115.1 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
@@ -210,7 +210,7 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 | 104.0 | 60.0 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 | 45.3 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.0 | 47.8 | 14.6 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
-| [zip-open](modules/zip-open/README.md) | 1.3.1 | 32.5 | 11.3 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
+| [zip-open](modules/zip-open/README.md) | 1.5.0 | 58.5 | 20.0 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 
 ### Story editor packages (10)
 
