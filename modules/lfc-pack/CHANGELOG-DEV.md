@@ -15,6 +15,7 @@ What changed in each version, newest first, for developers, in three depths: Qui
 | Laptop Chromium 156 | 1.042 [1.019, 1.057] inconclusive | 0.984 [0.968, 0.999] ok |
 | Laptop Firefox 160 | 1.015 [0.992, 1.064] inconclusive | 1.017 [0.984, 1.021] ok |
 | Cloud Chromium 155 | 1.060 [0.933, 1.133] noisy | 0.941 [0.868, 1.035] ok |
+| Cloud WebKitGTK 2.52.6 | n/a | 1.056 [0.995, 1.134] inconclusive (vs rebuild: 1.019 [0.960, 1.035] ok) |
 
 ### Deep
 The Linux page map of the Firefox content process shows that a 66.6 MB pack writes only 38.1 MB of the core's 384 MB, in 13 runs: the input copy, text, numbers, the number-grouping scratch and the dedupe table. Huge pages are not used. So a trim frees about 38 MB here, and the next pack faults those pages back in: about 27 ms at 0.7 ms per MB, or about 1% of the pack. Faulting cost 10 ms per MB on a busy cloud box, which explains an earlier +16% result there.
