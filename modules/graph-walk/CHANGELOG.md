@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.0 · API 0 · 2026-10-31
+- New: max-flow and min-cut, closeness, triangle counts, communities (Louvain), critical path and landmark paths, in plain JavaScript and WebAssembly; 1.5x to 230x faster than graphology, ngraph and a Dinic library in all three test browsers.
+
 ## 0.7.2 · API 0 · 2026-10-31
 - betweennessAsync starts faster: up to 1.9x on the first call and on a new graph.
 
