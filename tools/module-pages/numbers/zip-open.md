@@ -9,3 +9,18 @@ Compared: zip-open against fflate and JSZip (400 CSV files, 2.45 MB zip, ms).
 | JSZip | 66 |
 
 zip-open also checks every checksum and size limit and refuses zip bombs; the others do the plain work.
+
+
+**Version against version, real laptop, ungoogled Chromium 156 (Windows), 16 cores, 2026.10.30, 9:47 PM.** Medians; lower is better. One browser on one machine.
+
+| work | 1.3.1 ms | 1.5.0 ms |
+|---|---:|---:|
+| 3,000 small text files (WebAssembly inflate in 1.5.0) | 71 | 15 |
+
+| big zip from a File (5 CSV files, 9.0 MB) | ms |
+|---|---:|
+| 1.3.1 expand (whole zip in memory) | 64 |
+| 1.5.0 expandBlob (File in pieces) | 82 |
+| 1.5.0 expandBlob, 4 helpers | 53 |
+
+Many small files are about 4.7x faster. For one big zip, reading a File in pieces is slower than in memory (it saves memory instead) and helpers bring it level.
