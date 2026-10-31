@@ -23,3 +23,14 @@ Papa Parse with typed rows takes 3.4x as long as text-columns columns. d3-dsv cs
 | parseParallel 0.5.0, 4 helpers | 33 |
 
 Same values from both. At this size the plain parse is within about 10% of 0.1.1 and `parseParallel` does not help; the parallel path is meant for much bigger files.
+
+
+**Same tests in Firefox 160 (Windows), real laptop, 16 cores, 2026.10.30, 9:41 PM.** Medians; lower is better.
+
+| way (200,000 rows x 6 columns, 7.8 MB) | ms |
+|---|---:|
+| parse 0.1.1 | 43 |
+| parse 0.5.0 | 44 |
+| parseParallel 0.5.0, 4 helpers | 44 |
+
+Same values. Plain parse is level with 0.1.1 and `parseParallel` does not help at this size. Against other libraries in Firefox 160 (200,000 rows x 6 columns, 7.9 MB): text-columns columns 52 ms, row objects 59 ms, Papa Parse typed rows 166 ms (3.2x), Papa Parse arrays 86 ms, d3-dsv arrays 80 ms.
