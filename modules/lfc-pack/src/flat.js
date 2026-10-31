@@ -126,7 +126,7 @@
     return td.decode(m8.subarray(P.out, P.out + r)).split('\0');
   }
   function untemplateJS(n, fr) {
-    var tl = n ? td.decode(fr[0]).split('\0') : [], parts = tl.map(function (t) { return t.split('\x01'); }), ids = fr[1], kinds = fr[4], tx = fr[2].length ? td.decode(fr[2]).split('\0') : [], nb = fr[3];
+    var tl = n ? tdr.decode(fr[0]).split('\0') : [], parts = tl.map(function (t) { return t.split('\x01'); }), ids = fr[1], kinds = fr[4], tx = fr[2].length ? td.decode(fr[2]).split('\0') : [], nb = fr[3];
     var i, k, cnt = new Uint32Array(tl.length), id, first = new Uint8Array(tl.length), order = [];
     for (i = 0; i < n; i++) { id = ids[i] | (ids[n + i] << 8); cnt[id]++; if (!first[id]) { first[id] = 1; for (k = 0; k < parts[id].length - 1; k++) order.push(id * 4096 + k); } }
     var store = new Map(), np = 0, tp = 0, j, m, c, u, mul, a, vals, out = new Array(n);
@@ -301,9 +301,9 @@
       return o;
     }
     if (t === 'L') return untemplate(n, frames);
-    if (t === 's') return n ? td.decode(frames[0]).split('\0') : [];
-    if (t === 'D') { var lab = td.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
-    var js = n ? td.decode(frames[0]).split('\n') : []; o = new Array(n); for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
+    if (t === 's') return n ? tdr.decode(frames[0]).split('\0') : [];
+    if (t === 'D') { var lab = tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
+    var js = n ? tdr.decode(frames[0]).split('\n') : []; o = new Array(n); for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
   }
   // returns null when the input is not flat rows (some line is not a JSON object)
   function writeFlatBlock(ctx, input, opts) {
@@ -441,8 +441,8 @@
   function flatFrames(zs, bytes, want, predecode, verify) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j, base;
     function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
-    var meta = JSON.parse(td.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
-    if (meta.ord) { var om = meta.ord; ordList = JSON.parse(td.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, 0, n); }
+    var meta = JSON.parse(tdr.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
+    if (meta.ord) { var om = meta.ord; ordList = JSON.parse(tdr.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, 0, n); }
     base = p;
     for (j = 0; j < K; j++) {
       var c = meta.cols[j], fr = [], wanted = !want || Object.prototype.hasOwnProperty.call(want, meta.keys[j]);
@@ -461,7 +461,7 @@
   flatFrames = guard(flatFrames);
   // the footer-sized view of a flat block: keys, column types, counts and the optional statistics, from the meta frame only
   function flatMeta(zs, bytes) {
-    var ph = parseBlockHeader(bytes), h = ph.h, m = JSON.parse(td.decode(zs.decompressView(bytes.subarray(ph.p, ph.p + h.m[1]), h.m[0])));
+    var ph = parseBlockHeader(bytes), h = ph.h, m = JSON.parse(tdr.decode(zs.decompressView(bytes.subarray(ph.p, ph.p + h.m[1]), h.m[0])));
     return m.keys.map(function (k, j) { var c = m.cols[j], o = { key: k, type: c.t, n: c.n }; if (c.st) for (var q in c.st) o[q] = c.st[q]; return o; });
   }
   flatMeta = guard(flatMeta);

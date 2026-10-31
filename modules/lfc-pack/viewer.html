@@ -66,7 +66,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ small helpers
-  var te = new TextEncoder(), td = new TextDecoder(), tlat = new TextDecoder('latin1');
+  var te = new TextEncoder(), td = new TextDecoder(), tlat = new TextDecoder('latin1'), tdr = new TextDecoder('utf-8', { fatal: true });   // tdr: readers; text that is not valid UTF-8 is refused (SPEC 3), the writer's td replaces bad bytes
   var hasBuffer = typeof Buffer !== 'undefined' && Buffer.from;
   function concat(parts) {
     var n = 0, i; for (i = 0; i < parts.length; i++) n += parts[i].length;
@@ -341,16 +341,16 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
 
   // ---- reader: one shared descriptor walker builds the rows of every shape; plans are cached per shape for the whole file
   function parseBlockHeader(bytes) {
-    var hl = rd32(bytes, 0); return { h: JSON.parse(td.decode(bytes.subarray(4, 4 + hl))), p: 4 + hl };
+    var hl = rd32(bytes, 0); return { h: JSON.parse(tdr.decode(bytes.subarray(4, 4 + hl))), p: 4 + hl };
   }
   // the byte work of reading a block (zstd and parsing the small tables); also what a helper worker runs. Everything returned owns its buffer, so it can be transferred.
   function nestedFrames(zs, bytes) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i;
     function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
-    var cmeta = JSON.parse(td.decode(zs.decompressView(take(h.cm[1]), h.cm[0])));
+    var cmeta = JSON.parse(tdr.decode(zs.decompressView(take(h.cm[1]), h.cm[0])));
     var dict = zs.decompress(take(h.p[0]), h.len[0]);
-    var side = JSON.parse(td.decode(zs.decompressView(take(h.p[1]), h.len[1])));
-    var skel = td.decode(zs.decompressView(take(h.p[2]), h.len[2]));
+    var side = JSON.parse(tdr.decode(zs.decompressView(take(h.p[1]), h.len[1])));
+    var skel = tdr.decode(zs.decompressView(take(h.p[2]), h.len[2]));
     var ids = [h.ids[0], h.ids[1], zs.decompress(take(h.ids[2]), h.ids[1] * KIND[h.ids[0]].BYTES_PER_ELEMENT)], cols = [];
     var zfl = zs.decompress(take(h.fa[1]), h.fa[0]), zrp = zs.decompress(take(h.fa[4]), h.fa[3] * KIND[h.fa[2]].BYTES_PER_ELEMENT);
     for (i = 0; i < cmeta.length; i++) { var cd = cmeta[i]; if (cd[1] === 7) cols.push([cd[0], 6, cd[2], decodeDecimalColumn(zs.decompress(take(cd[3]), cd[4]), cd[2])]); else cols.push([cd[0], cd[1], cd[2], zs.decompress(take(cd[3]), cd[2] * KIND[cd[1]].BYTES_PER_ELEMENT)]); }
@@ -552,7 +552,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     return td.decode(m8.subarray(P.out, P.out + r)).split('\0');
   }
   function untemplateJS(n, fr) {
-    var tl = n ? td.decode(fr[0]).split('\0') : [], parts = tl.map(function (t) { return t.split('\x01'); }), ids = fr[1], kinds = fr[4], tx = fr[2].length ? td.decode(fr[2]).split('\0') : [], nb = fr[3];
+    var tl = n ? tdr.decode(fr[0]).split('\0') : [], parts = tl.map(function (t) { return t.split('\x01'); }), ids = fr[1], kinds = fr[4], tx = fr[2].length ? td.decode(fr[2]).split('\0') : [], nb = fr[3];
     var i, k, cnt = new Uint32Array(tl.length), id, first = new Uint8Array(tl.length), order = [];
     for (i = 0; i < n; i++) { id = ids[i] | (ids[n + i] << 8); cnt[id]++; if (!first[id]) { first[id] = 1; for (k = 0; k < parts[id].length - 1; k++) order.push(id * 4096 + k); } }
     var store = new Map(), np = 0, tp = 0, j, m, c, u, mul, a, vals, out = new Array(n);
@@ -727,9 +727,9 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       return o;
     }
     if (t === 'L') return untemplate(n, frames);
-    if (t === 's') return n ? td.decode(frames[0]).split('\0') : [];
-    if (t === 'D') { var lab = td.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
-    var js = n ? td.decode(frames[0]).split('\n') : []; o = new Array(n); for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
+    if (t === 's') return n ? tdr.decode(frames[0]).split('\0') : [];
+    if (t === 'D') { var lab = tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
+    var js = n ? tdr.decode(frames[0]).split('\n') : []; o = new Array(n); for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
   }
   // returns null when the input is not flat rows (some line is not a JSON object)
   function writeFlatBlock(ctx, input, opts) {
@@ -867,8 +867,8 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
   function flatFrames(zs, bytes, want, predecode, verify) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j, base;
     function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
-    var meta = JSON.parse(td.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
-    if (meta.ord) { var om = meta.ord; ordList = JSON.parse(td.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, 0, n); }
+    var meta = JSON.parse(tdr.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
+    if (meta.ord) { var om = meta.ord; ordList = JSON.parse(tdr.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, 0, n); }
     base = p;
     for (j = 0; j < K; j++) {
       var c = meta.cols[j], fr = [], wanted = !want || Object.prototype.hasOwnProperty.call(want, meta.keys[j]);
@@ -887,7 +887,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
   flatFrames = guard(flatFrames);
   // the footer-sized view of a flat block: keys, column types, counts and the optional statistics, from the meta frame only
   function flatMeta(zs, bytes) {
-    var ph = parseBlockHeader(bytes), h = ph.h, m = JSON.parse(td.decode(zs.decompressView(bytes.subarray(ph.p, ph.p + h.m[1]), h.m[0])));
+    var ph = parseBlockHeader(bytes), h = ph.h, m = JSON.parse(tdr.decode(zs.decompressView(bytes.subarray(ph.p, ph.p + h.m[1]), h.m[0])));
     return m.keys.map(function (k, j) { var c = m.cols[j], o = { key: k, type: c.t, n: c.n }; if (c.st) for (var q in c.st) o[q] = c.st[q]; return o; });
   }
   flatMeta = guard(flatMeta);
@@ -997,7 +997,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       p += 8 + len; }
     return { major: major, minor: rd16(file, n - 6), bodyEnd: n - 16 - flen, sec: sec };
   }
-  function jsonSec(b) { return b ? JSON.parse(td.decode(b)) : undefined; }
+  function jsonSec(b) { return b ? JSON.parse(tdr.decode(b)) : undefined; }
   // optional metadata (footer section 6, see PROPOSAL-metadata-section.md): opts.meta is a plain object the app wants to travel with the file; stored as { v: 1, ...meta }, under 64 KB, optional for readers
   function metaSecs(opts) {
     var m = opts && opts.meta; if (m === undefined || m === null) return [];
@@ -1152,13 +1152,13 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
   }
   function readSpell(b) {   // -> { blockIndex: { row: spells } }
     if (!b) return {};
-    var raw = JSON.parse(td.decode(b)), out = {}, k, i;
+    var raw = JSON.parse(tdr.decode(b)), out = {}, k, i;
     for (k in raw) { out[k] = {}; for (i = 0; i < raw[k].length; i++) out[k][raw[k][i][0]] = raw[k][i][1]; }
     return out;
   }
   function readExc(b) {
     if (!b) return {};
-    var hl = rd32(b, 0), idx = JSON.parse(td.decode(b.subarray(4, 4 + hl))), p = 4 + hl, out = {}, k, i;
+    var hl = rd32(b, 0), idx = JSON.parse(tdr.decode(b.subarray(4, 4 + hl))), p = 4 + hl, out = {}, k, i;
     for (k in idx) { out[k] = {}; for (i = 0; i < idx[k].length; i++) { out[k][idx[k][i][0]] = b.subarray(p, p + idx[k][i][1]); p += idx[k][i][1]; } }
     return out;
   }
@@ -1209,7 +1209,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     if (typeof b[6] === 'string' && RX_X64.test(b[6]) && S.zdec && S.zdec.xxh64 ? hash(x, 'xxh64') !== b[6] : crcOf(x) !== b[2]) throw new Error('block ' + i + ' checksum mismatch');
     return x;
   }
-  function rawRows(t) { return td.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
+  function rawRows(t) { return tdr.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
   // zone maps: a block is skipped when the number column for opts.range.key has no value inside [min, max]
   function blockMayMatch(file, i, range) {
     if (!range || !file.zone || !file.zone[i]) return true;

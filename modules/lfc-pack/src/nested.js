@@ -92,16 +92,16 @@
 
   // ---- reader: one shared descriptor walker builds the rows of every shape; plans are cached per shape for the whole file
   function parseBlockHeader(bytes) {
-    var hl = rd32(bytes, 0); return { h: JSON.parse(td.decode(bytes.subarray(4, 4 + hl))), p: 4 + hl };
+    var hl = rd32(bytes, 0); return { h: JSON.parse(tdr.decode(bytes.subarray(4, 4 + hl))), p: 4 + hl };
   }
   // the byte work of reading a block (zstd and parsing the small tables); also what a helper worker runs. Everything returned owns its buffer, so it can be transferred.
   function nestedFrames(zs, bytes) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i;
     function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
-    var cmeta = JSON.parse(td.decode(zs.decompressView(take(h.cm[1]), h.cm[0])));
+    var cmeta = JSON.parse(tdr.decode(zs.decompressView(take(h.cm[1]), h.cm[0])));
     var dict = zs.decompress(take(h.p[0]), h.len[0]);
-    var side = JSON.parse(td.decode(zs.decompressView(take(h.p[1]), h.len[1])));
-    var skel = td.decode(zs.decompressView(take(h.p[2]), h.len[2]));
+    var side = JSON.parse(tdr.decode(zs.decompressView(take(h.p[1]), h.len[1])));
+    var skel = tdr.decode(zs.decompressView(take(h.p[2]), h.len[2]));
     var ids = [h.ids[0], h.ids[1], zs.decompress(take(h.ids[2]), h.ids[1] * KIND[h.ids[0]].BYTES_PER_ELEMENT)], cols = [];
     var zfl = zs.decompress(take(h.fa[1]), h.fa[0]), zrp = zs.decompress(take(h.fa[4]), h.fa[3] * KIND[h.fa[2]].BYTES_PER_ELEMENT);
     for (i = 0; i < cmeta.length; i++) { var cd = cmeta[i]; if (cd[1] === 7) cols.push([cd[0], 6, cd[2], decodeDecimalColumn(zs.decompress(take(cd[3]), cd[4]), cd[2])]); else cols.push([cd[0], cd[1], cd[2], zs.decompress(take(cd[3]), cd[2] * KIND[cd[1]].BYTES_PER_ELEMENT)]); }
