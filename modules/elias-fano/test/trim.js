@@ -8,6 +8,7 @@ function answers(L, xs) { const n = L.length, idx = xs.map(x => x % Math.max(1, 
 const MB = (b) => (b / 1048576).toFixed(1) + ' MB';
 (async () => {
   await EF.ready(); assert.ok(EF.accelerated(), 'needs WebAssembly');
+  EF.autoTrim(false);   // on by default; the steps below trim by hand first
   const out = [];
   // 1: twelve compacted lists (flat and partitioned), free ten, trim: the two kept ones move, answers stay
   const sets = [], lists = [], want = [];
@@ -44,6 +45,5 @@ const MB = (b) => (b / 1048576).toFixed(1) + ' MB';
   assert.ok(EF._memBytes() < peak / 4, 'autoTrim gave memory back');
   for (let i = 0; i < 2; i++) assert.strictEqual(answers(lists[i], xs[i]), want[i], 'moved list after autoTrim ' + i);
   assert.strictEqual(look(), sw);
-  EF.autoTrim(false);
   console.log('elias-fano trim: all checks passed; ' + out.join('; '));
 })().catch((e) => { console.error(e); process.exit(1); });

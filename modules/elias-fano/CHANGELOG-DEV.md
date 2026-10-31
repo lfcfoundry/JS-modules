@@ -13,7 +13,7 @@ trim() (fresh module instance, compacted lists moved, kept-bytes lists copy in a
 ## 1.7.0 · API 1 · 2026-10-31
 
 ### Quick
-New: `trim()` gives WebAssembly memory back (it only grows otherwise), and `autoTrim(true)` does it by itself after a call that leaves most of it unused (off by default). Old code is unaffected. Twelve compacted 1M-id lists with ten freed: 14.1 MB to 1.8 MB; one 5M-id build: 24.4 MB to 1.8 MB.
+New: `trim()` gives WebAssembly memory back (it only grows otherwise), and autoTrim does it by itself after a call that leaves most of it unused (on by default, as the owner picked; `autoTrim(false)` turns it off). Old code is unaffected. Twelve compacted 1M-id lists with ten freed: 14.1 MB to 1.8 MB; one 5M-id build: 24.4 MB to 1.8 MB.
 
 ### Details
 Research round 7. trim() makes a new instance of the compiled module (kept from the first compile) with a small memory, moves every compacted list (tracked with a WeakRef from compact()) and lets the old memory go; a generation number per list makes lists that still hold their bytes copy themselves in again on their next query; lists dropped without free() are simply not moved. autoTrim(true): release() queues a trim for the next tick when the memory is 8 MB or more and under a quarter of it is in use; it never trims inside a call. The research prototype could lose a list: a compacted list that got its bytes back (the plain JavaScript reader) and was compacted again was no longer tracked, so a trim left it pointing into freed memory; fixed (test/trim.js section 2 fails on the prototype). New test/trim.js (flat, partitioned and list sets; moved, kept-bytes, freed and recompacted lists; a 5M build; autoTrim), run in Node and in three browsers (tests/elias-fano-trim-browser.js).
