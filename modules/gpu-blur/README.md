@@ -1,8 +1,8 @@
 # gpu-blur
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
+**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (container, 4 cores)
 
 The version is also in code as `GpuBlur.version`. Run the tests (offline, about a second): `node modules/gpu-blur/test/run.js`; the same tests against seven deliberately broken copies: `node modules/gpu-blur/test/mutants.js`. The real-browser check is `tests/gpu-blur-browser.js`.
 
@@ -54,6 +54,7 @@ GpuBlur.ready().then(function (info) { /* info.canvasRoute: the way a drawn pict
 4. **Fallbacks.** No WebGL 2, a lost context (`webglcontextlost`; the module also uses the way again after `webglcontextrestored`), a card way that throws, no WebAssembly, a page policy without `'wasm-unsafe-eval'`, or a WebAssembly file whose self-test differs from the JavaScript twin: the next way answers and the picture is the same. Each of those is a check in `tests/gpu-blur-browser.js`.
 
 5. **Helpers (opt-in, `route: 'helpers'` or `workers: n`, `blur()` only).** The WebAssembly kernel runs on row bands in background workers; each band also takes the 3b rows above and below that three box passes reach, so the bytes are the ones the one-thread kernel gives. It is used above about 0.3 megapixel with 3 or more cores (default helpers: cores - 1), and gives way to one-thread WebAssembly when the page policy has no `worker-src blob:` or a helper fails. The helpers stay 5 seconds after the last job (`idleMs`); `release()` ends them now. Container with 4 cores, `out: 'pixels'`, helpers against one-thread WebAssembly: Chromium 155 0.51 to 0.85x the time, Firefox 158 0.50 to 0.85x, WebKitGTK 2.52.6 0.87 to 1.06x (no gain there), from 1280 x 720 to 3840 x 2160 at radius 4, 12 and 40. `tests/gpu-blur-helpers-browser.js` checks the same bytes in 90 cases (prime sizes, radius 0 to 100, bands thinner than the blur's reach, canvas in and out) and the fallback under a strict policy.
+6. **Threads (opt-in, `route: 'threads'`, `blur()` only, cross-origin isolated pages only).** The same kernel built for WebAssembly threads (`wasm/blurmt.wasm`, embedded) runs on one shared memory: the page copies the picture in once, every helper blurs its share of the rows, then its share of the column strips, so there are no halo rows and no band copies. It needs a page sent with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` (so a page opened from a file never has it, and the offline apps never use it). Where it cannot run it gives way to helpers, then one-thread WebAssembly; WebKitGTK 2.52.6 cannot hand shared memory to a worker, so there it runs as helpers. `info().threads` says whether this page can use it; `workers` and `idleMs` work as for helpers. Container with 4 cores, `out: 'pixels'`, 1280 x 720 to 3840 x 2160 at radius 4, 12 and 40: threads against helpers Chromium 155 0.78 to 1.12x the time, Firefox 158 0.74 to 1.14x (most sizes 0.8 to 0.9x); against one-thread WebAssembly 0.45 to 0.80x; against 1.0.0's one-thread WebAssembly 0.32 to 0.52x. `tests/gpu-blur-threads-browser.js` checks the same bytes in 91 cases (prime sizes, radius 0 to 100, 2, 3 and 7 threads, canvas in and out, two jobs at once) and the fallback on a page without isolation.
 
 ## Same picture every way
 
@@ -70,7 +71,7 @@ A page task over about 8 ms is felt as a stutter. The WebAssembly and JavaScript
 
 ## Under a strict Content-Security-Policy
 
-Nothing here needs more than `'wasm-unsafe-eval'` in `script-src`: no `eval`, no `new Function`, no `blob:` address (no `img-src blob:`), no worker, no storage, no network. The one exception is the opt-in helpers route, which makes its workers from a `blob:` address and so needs `worker-src blob:`; without it the module quietly uses one-thread WebAssembly. Without `'wasm-unsafe-eval'` the module uses plain JavaScript. `tests/gpu-blur-browser.js` runs on a page with `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src data:`.
+Nothing here needs more than `'wasm-unsafe-eval'` in `script-src`: no `eval`, no `new Function`, no `blob:` address (no `img-src blob:`), no worker, no storage, no network. The one exception is the opt-in helpers and threads routes, which make their workers from a `blob:` address and so need `worker-src blob:`; without it the module quietly uses one-thread WebAssembly. Without `'wasm-unsafe-eval'` the module uses plain JavaScript. `tests/gpu-blur-browser.js` runs on a page with `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src data:`.
 
 ## Measured (the four test browsers, one at a time)
 

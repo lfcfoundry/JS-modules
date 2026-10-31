@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-10-30
+
+### Quick
+route: 'threads' in blur() runs the 16-bit kernel as WebAssembly threads on one shared memory (rows, then column strips; no halo rows, no band copies), same bytes. Needs a cross-origin isolated page; otherwise gives way to helpers, then one-thread wasm. Container 4 cores against helpers: Chromium 0.78-1.12x, Firefox 0.74-1.14x (most 0.8-0.9x); against 1.0.0 one-thread wasm 0.32-0.52x. WebKitGTK cannot hand shared memory to a worker and runs helpers.
+
+### Details
+Research brief F, stacked on D (16-bit kernel) and B (helpers). wasm/blur.c builds a second time with -DTHREADS into blurmt.wasm (2,768 bytes, embedded between WASMT:BEGIN/END): no static data, shared imported memory, km(n) exported and passed into hrows/vcols, vcols walks any number of strips. The default blur.wasm is byte for byte unchanged (build.sh --check covers both). One pool of n workers (cores - 1 or opts.workers) per shared memory, maximum sized to the next power of two of the job's pages; jobs on it run one at a time; idleMs and release() as for helpers. info().threads tells whether this page can use it. A failed start is remembered until release(). New tests/gpu-blur-threads-browser.js: 91 same-byte cases, fallback on a page without isolation, timings of 1.0.0 wasm, wasm, helpers and threads.
+
+### Deep
+gpu-blur 1.2.0: opt-in threads route (brief F) stacked on helpers (B) and the 16-bit kernel (D). Same bytes in 91 cases x 3 browsers (WebKitGTK through helpers). Container REPS 7, threads/helpers: Chromium 0.85, 0.96, 0.83 at 1280x720 r4/12/40; 1.12, 0.84, 0.92 at 1920x1080; 0.80, 0.97, 0.78 at 3840x2160. Firefox 1.00, 1.06, 0.74; 0.90, 0.79, 0.81; 0.86, 1.14, 0.91. Fastest multicore route against 1.0.0 one-thread wasm: Chromium 0.32-0.52, Firefox 0.32-0.49, WebKitGTK (helpers) 0.27-0.43.
+
 ## 1.1.0 · API 1 · 2026-10-30
 
 ### Quick

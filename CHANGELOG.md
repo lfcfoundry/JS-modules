@@ -11,7 +11,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
-| [gpu-blur](modules/gpu-blur/README.md) | 1.1.0 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
+| [gpu-blur](modules/gpu-blur/README.md) | 1.2.0 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 · API 1 | [changelog](modules/fly-to-mini/CHANGELOG.md) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
@@ -82,6 +82,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-30 · **graph-walk** 0.4.0 · API 0: New: k-core numbers, minimum spanning forest, PageRank and betweenness (plain JavaScript and WebAssembly); the first two-ended path call allocates less.
 - 2026-10-30 · **graph-walk** 0.3.0 · API 0: New: WebAssembly speeds up components, strongly connected groups, topological order and weighted paths to every item (1.2x to 2.2x in Firefox and Chromium, none in WebKitGTK); plain JavaScript stays as the fallback.
 - 2026-10-30 · **graph-walk** 0.2.0 · API 0: New: connected components, strongly connected components, topological order, weighted shortest paths and a fast two-ended path between two items; building the link index is faster.
+- 2026-10-30 · **gpu-blur** 1.2.0 · API 1: New opt-in threads route for web pages served with the isolation headers: big pictures blur on several cores sharing one memory, often a little faster than the helpers route, with the same picture.
 - 2026-10-30 · **gpu-blur** 1.1.0 · API 1: New opt-in helpers route: big pictures blur on several cores at once, about 0.5 to 0.85x the time in Chromium and Firefox, with the same picture.
 - 2026-10-30 · **gpu-blur** 1.0.1 · API 1: Blurring in WebAssembly is about a third faster (0.60 to 0.80x the time) with exactly the same picture.
 - 2026-10-30 · **gif-writer** 1.6.1 · API 1: Picture effects (blur, sharpen, glow, color grade) run faster: 0.67 to 0.92x the time, with exactly the same pictures.
