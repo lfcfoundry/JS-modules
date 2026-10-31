@@ -81,3 +81,16 @@ Whole read of 200-key rows in WebKitGTK: 1,324 ms down to 580 ms with row-by-row
 **Also new:** read rows 5,000 to 5,100 without reading the rest; counts of distinct and empty values per column without decoding; checksums in WebAssembly with an optional faster XXH64 check, so reading a few columns checks only those columns; a metadata section and a one-file viewer.
 
 **Measured and not built:** trained dictionaries (files grew) and a shared string table (under 0.1% possible).
+
+
+**Same tests in Firefox 160 (Windows), real laptop, 16 cores, 2026.10.30, 9:41 PM.** Medians; lower is better.
+
+| set | pack 0.1.9 | pack 0.2.0 | unpack 0.1.9 | unpack 0.2.0 | bytes 0.1.9 | bytes 0.2.0 |
+|---|---:|---:|---:|---:|---:|---:|
+| logs (22.0 MB) | 445 | 391 | 56 | see note | 3,275,919 | 3,275,094 |
+| events (10.5 MB) | 68 | 66 | 25 | 18 | 958,009 | 958,009 |
+| dense (19.7 MB) | 351 | 333 | 39 | 39 | 2,412,516 | 2,421,412 |
+| links (5.2 MB) | 39 | 39 | 9.0 | 9.0 | 79,083 | 79,104 |
+| lists (1.7 MB) | 16 | 15 | 5.0 | 6.0 | 365,098 | 365,098 |
+
+Note: one logs unpack run read slow (86 ms); two reruns gave level results, so it was noise and is not counted. Reading 100 rows from row 100,000 of the logs file takes 12 ms with `unpackRows`, against 77 ms to read everything and slice. 13 MB blocks against 21 MB: pack time 0.71 to 0.82 on five of six rows and 1.05 on one (logs, 4 helpers); size the same or slightly smaller.
