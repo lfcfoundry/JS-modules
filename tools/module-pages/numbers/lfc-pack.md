@@ -173,3 +173,11 @@ The Parquet comparison above was measured on 0.4.0, before this change.
 | Firefox 160 | 1.02 | 1.02 |
 
 Files are the same byte for byte.
+
+**New in 0.4.3: the packer gives its memory back after 30 s without packing.** About 38 MB comes back after a 66.6 MB pack, and up to about 250 MB with big blocks; the reader's memory is kept. Same files byte for byte. First pack after an idle trim, divided by no trim (lower is better; 1.00 means the trim costs nothing):
+
+| Where | After / no trim |
+|---|---:|
+| Laptop, Chromium 156, 16 cores | 0.98 |
+| Laptop, Firefox 160, 16 cores | 1.02 |
+| Cloud, WebKitGTK 2.52.6 | 1.06 (inconclusive, range 1.00 to 1.13) |
