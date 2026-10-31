@@ -9,3 +9,14 @@ Compared: netflow-sankey against d3-sankey (ms).
 | 500 nodes | 12 | | 62 | 5.2x |
 
 On small graphs d3-sankey is faster with the default settings. The default searches for fewer crossings, about 6% fewer than with restarts 0. From 200 nodes up, netflow-sankey is 4x to 5x faster.
+
+
+**Version against version, real laptop, ungoogled Chromium 156 (Windows), 16 cores, 2026.10.30, 9:47 PM.** Medians; lower is better. One browser on one machine.
+
+| work | 2.3.1 ms | 2.3.2 ms |
+|---|---:|---:|
+| 72 items, 200 links | 3.2 | 2.1 |
+| 200 items, 1500 links | 3.1 | 3.1 |
+| 500 items, 6000 links | 7.6 | 7.8 |
+
+Same order and crossings from both versions. Only the smallest graph is faster.

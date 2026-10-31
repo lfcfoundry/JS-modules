@@ -12,3 +12,14 @@ Compared: memory-compression against fflate and pako (ms; packed bytes).
 | pako 6 | 769,526 | 199 | 19 |
 
 **New in 2.7.0: faster packing on request.** The opt-in setting `quickTries: true` makes the packer try every number coding on the first block only. Packing is 0 to 20% faster on lists with several number columns, and files are 0 to 1.1% bigger. It is off by default, and the default output is byte-identical to 2.6.6. These figures come from the code thread's test runs; the browser is not recorded on this page.
+
+
+**Version against version, real laptop, ungoogled Chromium 156 (Windows), 16 cores, 2026.10.30, 9:47 PM.** Medians; lower is better. One browser on one machine.
+
+| list (pack, ms) | quickTries off (default) | on | size on / off |
+|---|---:|---:|---:|
+| links, 60,000 rows | 5.4 | 5.4 | 1.0000 |
+| scene items, 30,000 rows | 3.3 | 3.3 | 1.0000 |
+| users, 20,000 rows | 2.7 | 2.8 | 1.0000 |
+
+On these three lists `quickTries` changes nothing. Its 0 to 20% gain is for lists with several number columns.
