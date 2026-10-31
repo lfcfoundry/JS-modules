@@ -19,6 +19,7 @@ const CASES={
  'nested-intkeys': [L([{b:'x','1':'y'},{b:'z','1':'w'}]),{block:'nested'}],
  'nested-number-widths': [L([{u8:200,u16:60000,u32:4e9,i8:-100,i16:-30000,i32:-2e9,f:1.5,z:-0,n:{x:[1,2]}},{u8:0,u16:1,u32:70000,i8:127,i16:32767,i32:2147483647,f:-2,z:0,n:{x:[3]}},{u8:7,u16:300,u32:5,i8:-128,i16:-1,i32:-2147483648,f:1e300,z:0,n:{x:[]}}]),{block:'nested'}],
  'flat-wide-dict': [L(Array.from({length:1400},(_,i)=>({k:'label-'+(i*7%300),n:-(i*37%2000)/100,m:((i*53)%999)-500}))),{block:'flat'}],
+ 'flat-decimals-delta': [L(Array.from({length:600},(_,i)=>({t:+(20+Math.sin(i/9)*3+i*0.001).toFixed(3),g:+(40+Math.cos(i/50)*0.01).toFixed(5),q:((i*7919)%1000)/10,w:i%5?-i:i*3}))),{block:'flat'}],
  'flat-negatives': [L([{a:-5,b:-0.25,c:3},{a:-1,b:100.5,c:-9007199254740},{a:-300,b:0,c:2}]),{block:'flat'}],
  'flat-surrogates': [L([{s:'\ud800 lone',t:'ok'},{s:'x',t:'\udc00'},{s:'a\u0000b',t:'y'}]),{block:'flat'}],
  'nested-surrogates': [L([{s:'\ud800 lone',t:{u:'ok'}},{s:'x',t:{u:'\udc00'}},{s:'a\u0000b',t:{u:'y'}}]),{block:'nested'}],
