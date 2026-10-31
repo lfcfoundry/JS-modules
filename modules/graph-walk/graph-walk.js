@@ -2,7 +2,7 @@
  * graph-walk.js: the small walks over a link list that map and flow tools keep rewriting: breadth-first distances from an item, and a depth-first pass that marks the links that close a loop and lists the items in finishing order, connected components, strongly connected components, topological order and shortest paths. Works on the plain "links of every item" layout (CSR) in typed arrays. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.10.0 (API 0)
+ * Version 0.11.0 (API 0)
  *
  *   var g = GraphWalk.csr(n, fromArray, toArray);         // item numbers 0..n-1; link i joins from[i] to to[i]
  *   var depth = GraphWalk.bfs(g, root);                    // Int32Array, -1 where not reached; bfs(g, root, skip) never enters item `skip`
@@ -322,9 +322,15 @@
     for (i = 0; i < sizes.length; i++) { out.push(at); at = (at + sizes[i] + 7) & ~7; }
     grow(at); return out;
   }
-  function componentsW(g) {
+  /** Copies a result out of WebAssembly memory: into the array of the same kind and length handed back from a previous call (prev[key], or prev itself when key is null), otherwise a fresh copy. */
+  function give(prev, key, view) {
+    var a = prev && (key ? prev[key] : prev);
+    if (a && a.constructor === view.constructor && a.length === view.length) { a.set(view); return a; }
+    return view.slice();
+  }
+  function componentsW(g, into) {
     var n = g.n, m = g.m, p = upload(g), q = scratch([4 * n, 4 * n, 4 * n]), count = W.gw_components(n, m, p.from, p.to, q[0], q[1], q[2]), b = mem.buffer;
-    return { id: new Int32Array(b, q[1], n).slice(), count: count, sizes: new Int32Array(b, q[2], count).slice() };
+    return { id: give(into, 'id', new Int32Array(b, q[1], n)), count: count, sizes: new Int32Array(b, q[2], count).slice() };
   }
   function sccW(g) {
     var n = g.n, p = upload(g), q = scratch([4 * n, 4 * n, 4 * n, 4 * n, 4 * n, 4 * n]), count = W.gw_scc(n, p.os, p.oe, p.to, q[0], q[1], q[2], q[3], q[4], q[5]);
@@ -334,29 +340,29 @@
     var n = g.n, p = upload(g), q = scratch([4 * n, 4 * n]), placed = W.gw_topo(n, g.m, p.os, p.oe, p.to, q[0], q[1]), order = new Int32Array(mem.buffer, q[1], placed).slice();
     return { order: order, complete: placed === n };
   }
-  function shortestW(g, src, weights, target) {
+  function shortestW(g, src, weights, into) {
     var n = g.n, m = g.m, p = upload(g), q = scratch([8 * m, 8 * n, 4 * n, 4 * n, 4 * n]), b = mem.buffer, dist, via, bad;
     new Float64Array(b, q[0], m).set(weights);
     dist = new Float64Array(b, q[1], n).fill(Infinity); via = new Int32Array(b, q[2], n).fill(-1); new Int32Array(b, q[4], n).fill(-1);
     bad = W.gw_dijkstra(n, p.os, p.oe, p.to, q[0], src, q[1], q[2], q[3], q[4]);
     if (bad) throw new RangeError('link ' + (bad - 1) + ' has a negative or missing weight');
-    return { dist: dist.slice(), via: via.slice() };
+    return { dist: give(into, 'dist', dist), via: give(into, 'via', via) };
   }
-  function components(g) { return useWasm() ? componentsW(g) : componentsJS(g); }
+  function components(g, into) { return useWasm() ? componentsW(g, into) : componentsJS(g); }
   function scc(g) { return useWasm() ? sccW(g) : sccJS(g); }
   function topo(g) { return useWasm() ? topoW(g) : topoJS(g); }
   /** As the JavaScript version; with `weights` and no `target` (cheapest paths to every item) the work runs in WebAssembly when it is ready. */
-  function shortest(g, src, weights, target) {
+  function shortest(g, src, weights, target, into) {
     if (weights && (target === undefined || !(target >= 0)) && useWasm() && src >= 0 && src < g.n) {
       if (weights.length !== g.m) throw new RangeError('weights needs one number per link');
-      return shortestW(g, src, weights, target);
+      return shortestW(g, src, weights, into);
     }
     return shortestJS(g, src, weights, target);
   }
 
-  function kcoreW(g) {
+  function kcoreW(g, into) {
     var n = g.n, p = uploadRev(g, upload(g)), q = scratch([4 * n, 4 * n, 4 * n, 4 * (2 * g.m + 2)]), max = W.gw_kcore(n, p.os, p.oe, p.to, p.is, p.ie, p.from, q[0], q[1], q[2], q[3]);
-    return { core: new Int32Array(mem.buffer, q[0], n).slice(), max: max };
+    return { core: give(into, 'core', new Int32Array(mem.buffer, q[0], n)), max: max };
   }
   function pagerankW(g, options) {
     options = options || {};
@@ -370,7 +376,7 @@
     new Int32Array(b, q[2], dang.length).set(dang);
     if (w) { new Float64Array(b, q[3], m).set(w); new Float64Array(b, q[4], n).set(wsum); }
     var r = W.gw_pagerank(n, p.os, p.oe, p.to, w ? q[3] : 0, w ? q[4] : 0, q[2], dang.length, options.alpha === undefined ? 0.85 : options.alpha, options.tolerance === undefined ? 1e-6 : options.tolerance, options.maxIterations === undefined ? 100 : options.maxIterations, q[0], q[1]);
-    return { rank: new Float64Array(mem.buffer, q[0], n).slice(), iterations: r >> 1, converged: (r & 1) === 1 };
+    return { rank: give(options.into, 'rank', new Float64Array(mem.buffer, q[0], n)), iterations: r >> 1, converged: (r & 1) === 1 };
   }
   function betweennessW(g, options) {
     options = options || {};
@@ -431,7 +437,7 @@
   function maxflow(g, source, sink, capacity) { return useWasm() ? maxflowW(g, source, sink, capacity) : maxflowJS(g, source, sink, capacity); }
   function closeness(g, options) { return useWasm() ? closenessW(g, options) : closenessJS(g, options); }
   function triangles(g) { return useWasm() ? trianglesW(g) : trianglesJS(g); }
-  function kcore(g) { return useWasm() ? kcoreW(g) : kcoreJS(g); }
+  function kcore(g, into) { return useWasm() ? kcoreW(g, into) : kcoreJS(g); }
   function mst(g, weights) { return useWasm() ? mstW(g, weights) : mstJS(g, weights); }
   function pagerank(g, options) { return useWasm() ? pagerankW(g, options) : pagerankJS(g, options); }
   function betweenness(g, options) { return useWasm() ? betweennessW(g, options) : betweennessJS(g, options); }
@@ -520,7 +526,19 @@
   }
   var pool = null, poolTimer = 0, gids = 0, jobs = 0;
   /** Ends the kept helper threads now (they also end by themselves after `idleMs` without work, 5 seconds by default). */
-  function closePool() { if (poolTimer) { clearTimeout(poolTimer); poolTimer = 0; } if (pool) { for (var i = 0; i < pool.workers.length; i++) pool.workers[i].terminate(); try { URL.revokeObjectURL(pool.url); } catch (e) { /* gone */ } pool = null; } }
+  function closePool() {
+    if (poolTimer) { clearTimeout(poolTimer); poolTimer = 0; }
+    if (pool) {
+      var P = pool, js = P.jobs, k;
+      for (var i = 0; i < P.workers.length; i++) P.workers[i].terminate();
+      try { URL.revokeObjectURL(P.url); } catch (e) { /* gone */ }
+      pool = null; P.jobs = {};
+      for (k in js) js[k].fail();   // a job still running on these helpers would wait forever: it finishes on the calling thread instead
+    }
+  }
+  /** Starts the idle countdown after a job, but only when no other job is still running on the kept helpers (an early timer would end that job's helpers). */
+  function busy() { if (pool) for (var k in pool.jobs) return true; return false; }
+  function idleLater(P, ms) { if (poolTimer) { clearTimeout(poolTimer); poolTimer = 0; } if (pool !== P) return; for (var k in P.jobs) return; poolTimer = setTimeout(closePool, ms); }
   // own: helpers for one call only (pool: false); they never touch the kept pool, so a pool: false call does not close helpers that other calls kept warm
   function endPool(P) { for (var i = 0; i < P.workers.length; i++) P.workers[i].terminate(); try { URL.revokeObjectURL(P.url); } catch (e) { /* gone */ } }
   function getPool(count, own) {
@@ -542,7 +560,7 @@
    */
   function betweennessAsync(g, options) {
     options = options || {};
-    var n = g.n, srcs = [], i, k, hw = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, count = options.workers || Math.min(8, hw), src = options.sources, keep = options.pool !== false;
+    var n = g.n, srcs = [], i, k, hw = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, count = options.workers || Math.min(8, hw), src = options.sources, keep = options.pool !== false && !busy();   // a second job while the kept helpers are busy gets helpers of its own (the kept ones hold one graph and one running sum)
     for (i = 0; i < (src ? src.length : n); i++) { k = src ? src[i] : i; if (k >= 0 && k < n) srcs.push(k); }
     if (count < 2 || typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || srcs.length < 2 * count || srcs.length * (n + g.m) < (options.minWork === undefined ? 4e6 : options.minWork)) return Promise.resolve(betweenness(g, options));   // small jobs finish faster on the calling thread
     reverse(g);
@@ -550,7 +568,7 @@
       var P, total = new Float64Array(n), pending = count, id = ++jobs, wasmOn = useWasm(), key, done = false;
       function finish(ok) {
         if (done) return; done = true; if (P) delete P.jobs[id];
-        if (!keep) { if (P) endPool(P); } else { if (poolTimer) clearTimeout(poolTimer); poolTimer = setTimeout(closePool, options.idleMs === undefined ? 5000 : options.idleMs); }
+        if (!keep) { if (P) endPool(P); } else if (P) idleLater(P, options.idleMs === undefined ? 5000 : options.idleMs);
         if (!ok) { resolve(betweenness(g, options)); return; }
         if (options.normalized !== false && n > 2) { var scale = 1 / ((n - 1) * (n - 2)); for (var j = 0; j < n; j++) total[j] *= scale; }
         resolve(total);
@@ -587,7 +605,7 @@
    */
   function closenessAsync(g, options) {
     options = options || {};
-    var n = g.n, srcs = [], i, k, hw = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, count = options.workers || Math.min(8, hw), src = options.sources, keep = options.pool !== false;
+    var n = g.n, srcs = [], i, k, hw = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, count = options.workers || Math.min(8, hw), src = options.sources, keep = options.pool !== false && !busy();   // a second job while the kept helpers are busy gets helpers of its own (the kept ones hold one graph and one running sum)
     for (i = 0; i < (src ? src.length : n); i++) { k = src ? src[i] : i; if (k >= 0 && k < n) srcs.push(k); }
     if (count < 2 || typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || srcs.length < 2 * count || srcs.length * (n + g.m) < (options.minWork === undefined ? 4e6 : options.minWork)) return Promise.resolve(closeness(g, options));
     reverse(g);
@@ -595,7 +613,7 @@
       var P, total = new Float64Array(n), pending = count, id = ++jobs, wasmOn = useWasm(), key, done = false, w;
       function finish(ok) {
         if (done) return; done = true; if (P) delete P.jobs[id];
-        if (!keep) { if (P) endPool(P); } else { if (poolTimer) clearTimeout(poolTimer); poolTimer = setTimeout(closePool, options.idleMs === undefined ? 5000 : options.idleMs); }
+        if (!keep) { if (P) endPool(P); } else if (P) idleLater(P, options.idleMs === undefined ? 5000 : options.idleMs);
         resolve(ok ? total : closeness(g, options));
       }
       try {
@@ -1015,5 +1033,5 @@
     while ((e = r.via[v]) >= 0) { out.push(e); v = g.from[e]; }
     return out.reverse();
   }
-  return { version: '0.10.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, maxflow: maxflow, closeness: closeness, triangles: triangles, communities: communitiesJS, criticalPath: criticalPath, landmarks: landmarks, landmarkPath: landmarkPath, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closenessAsync: closenessAsync, closePool: closePool, trim: trim, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
+  return { version: '0.11.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, maxflow: maxflow, closeness: closeness, triangles: triangles, communities: communitiesJS, criticalPath: criticalPath, landmarks: landmarks, landmarkPath: landmarkPath, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closenessAsync: closenessAsync, closePool: closePool, trim: trim, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
 }));

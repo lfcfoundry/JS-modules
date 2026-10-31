@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.8.0 · API 1 · 2026-10-31
+
+### Quick
+Automatic: after a toArray or slice of 1 MB or more, one array of that length is made and touched in idle time, used by the next result of that length, dropped after 4 s (setSpare(false) turns it off). New opt-in out argument on toArray and slice. Old code needs no change.
+
+### Details
+8M values, early-stop A/B new/old. Automatic spare, plain toArray vs 1.7.0: Chromium 155 0.746 (0.662 with 5 ms gaps), Firefox 158 0.803 (0.784), WebKitGTK 2.52.6 0.979 (1.051 inconclusive with 5 ms gaps; it has no requestIdleCallback). slice of 2M: 1.013 / 0.771 / 0.890 (5 ms gaps: 1.047 inconclusive / 0.878 / 1.000). toArray(out) vs toArray(): 0.798 / 0.720 / 0.648. Owner picked 'Both' on the card (2026.10.31 7:28 PM ET).
+
+### Deep
+Fresh-memory first touch (about 0.7 ms per MB) dominated repeat decodes: toArray decoded into wasm scratch then copied into a brand-new array. The spare moves that first touch into idle time; out skips it entirely. Measurement note: alternating plain and out slices on ONE page made the out call read 2.1-2.7x slower in WebKitGTK in 3 of 4 A/Bs, because the plain call's 8 MB of garbage is collected during the next call; one style per page shows out equal or faster. The wasm out-slice is its own function (sliceOutWasm). Checks: test/out.js, test/spare.js, test/run.js.
+
 ## 1.7.0 · API 1 · 2026-10-31
 
 ### Quick

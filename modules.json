@@ -78,7 +78,7 @@
     },
     {
       "id": "gpu-blur",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "api": 1,
       "global": "GpuBlur",
       "summary": "Blurs a picture (a canvas, an ImageBitmap or RGBA bytes) on the graphics card with WebGL 2, or in WebAssembly, or in plain JavaScript, whichever the device does best; every way gives the same picture, and a big blur never freezes the page.",
@@ -348,7 +348,7 @@
     },
     {
       "id": "elias-fano",
-      "version": "1.7.0",
+      "version": "1.8.0",
       "api": 1,
       "global": "EliasFano",
       "summary": "Keeps sorted whole numbers (ids, positions, links of every item of a map) in a third to a half of the memory of plain arrays and still answers 'value number i' and 'first value at or above x' without unpacking; also keeps many sorted lists in one structure and decodes them all at once. WebAssembly with SIMD, plain JavaScript fallback with the same answers.",
@@ -362,7 +362,7 @@
     },
     {
       "id": "graph-walk",
-      "version": "0.10.0",
+      "version": "0.11.0",
       "api": 0,
       "global": "GraphWalk",
       "summary": "Breadth-first distances and depth-first loop marking over a links-of-every-item layout in typed arrays, with no recursion. Same answers as Netflow Map's inline walks.",
@@ -375,7 +375,7 @@
     },
     {
       "id": "lfc-pack",
-      "version": "0.4.6",
+      "version": "0.4.7",
       "api": 0,
       "global": "LfcPack",
       "summary": "Packs newline-delimited JSON (logs, events, API dumps) into LFC-pack (.json.lfc): every field becomes a typed column inside zstd blocks, with a footer of per-block number ranges. Reads back the same rows as JSON.parse (or the exact original bytes), only some keys, or only a time range, with helper workers for big files. WebAssembly is required; a Python reader is included.",

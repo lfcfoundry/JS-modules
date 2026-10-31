@@ -231,5 +231,14 @@ let bad = false; try { G.csr(2, [0], [5]); } catch (e) { bad = e instanceof Rang
 bad = false; try { G.csr(2, [0], [1, 1]); } catch (e) { bad = e instanceof RangeError; } ok(bad, 'csr rejects lists of different length');
 { const g0 = G.csr(5, [0, 1, 2, 3], [1, 2, 3, 4]); G.closenessAsync(g0).then((a) => { const b = G.closeness(g0); ok(a.every((v, i) => v === b[i]), 'closenessAsync without workers answers like closeness'); }); }
 { const g1 = G.csr(6, [0, 1, 2, 3, 4], [1, 2, 3, 4, 5]); const a1 = G.components(g1); G.ready().then(() => G.trim()).then(() => { const b1 = G.components(g1), c1 = G.closeness(g1); ok(a1.count === b1.count && a1.id.every((v, i) => v === b1.id[i]) && c1.length === 6, 'answers are the same after trim()'); }); }
+{ // handing a previous result back: same answers, and the same arrays reused where the kernel is WebAssembly
+  const g2 = G.csr(7, [0, 1, 2, 3, 5, 4, 1], [1, 2, 0, 4, 6, 3, 5]), w2 = Float64Array.from([1, 2, 3, 1, 2, 5, 1]), same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  const reuse = G.accelerated();
+  const c1 = G.components(g2), c2 = G.components(g2, c1); ok(same(c1.id, c2.id) && c2.count === c1.count && (!reuse || c2.id === c1.id), 'components with a previous result');
+  const k1 = G.kcore(g2), k2 = G.kcore(g2, k1); ok(same(k1.core, k2.core) && (!reuse || k2.core === k1.core), 'kcore with a previous result');
+  const d1 = G.shortest(g2, 0, w2), d2 = G.shortest(g2, 0, w2, undefined, d1); ok(same(d1.dist, d2.dist) && same(d1.via, d2.via) && (!reuse || d2.dist === d1.dist), 'shortest with a previous result');
+  const p1 = G.pagerank(g2), p2 = G.pagerank(g2, { into: p1 }); ok(same(p1.rank, p2.rank) && (!reuse || p2.rank === p1.rank), 'pagerank with a previous result');
+  const g3 = G.csr(9, [0, 1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7]), c3 = G.components(g3, c1); ok(c3.id.length === 9 && c3.count === 2, 'a previous result of another size is ignored');
+}
 ok(/^0\.\d+\.\d+$/.test(G.version) && G.api === 0, 'runtime version and API');
 console.log('graph-walk: all checks passed (' + graphs + ' graphs)');
