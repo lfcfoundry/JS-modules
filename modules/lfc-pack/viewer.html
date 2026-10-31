@@ -485,7 +485,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     }
     return { tab: tab, codes: pco, NT: NT, ET: ET };
   }
-  function codeColumn(a, top) { var k = top < 256 ? 0 : top < 65536 ? 1 : 2, o = new KIND[k](a.length), i; for (i = 0; i < a.length; i++) o[i] = a[i]; return [CODES_KEY, k, a.length, new Uint8Array(o.buffer)]; }
+  function codeColumn(a) { return [CODES_KEY, 2, a.length, new Uint8Array(a.buffer)]; }   // a: Uint32Array (kind 2), used as it is
   // ---- reader: one shared descriptor walker builds the rows of every shape; plans are cached per shape for the whole file
   function parseBlockHeader(bytes) {
     var hl = rd32(bytes, 0); return { h: JSON.parse(tdr.decode(bytes.subarray(4, 4 + hl))), p: 4 + hl };
@@ -508,7 +508,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
         for (i = 0; i < gq.ET; i++) { GE[i] = gra[i] === 0 ? lt++ : h.count + gra[i] - 1; if (GE[i] > top) top = GE[i]; }
         if (lt !== h.count) throw new Error('damaged block: string entry list');
         var gco = gq.codes; for (i = 0; i < gco.length; i++) gco[i] = GE[gco[i]];
-        gtab = gq.tab; gcc = codeColumn(gco, top);
+        gtab = gq.tab; gcc = codeColumn(gco);
       } else if (!(h.cd[0] >= 0 && h.cd[0] <= 2)) throw new Error('damaged block: bad string code width');
       var gcd = gcc ? null : zs.decompress(take(h.cd[2]), h.cd[1] * KIND[h.cd[0]].BYTES_PER_ELEMENT);
       for (i = 0; i < cmeta.length; i++) { var cg = cmeta[i]; if (cg[1] === 7) cols.push([cg[0], 6, cg[2], decodeDecimalColumn(zs.decompress(take(cg[3]), cg[4]), cg[2])]); else cols.push([cg[0], cg[1], cg[2], zs.decompress(take(cg[3]), cg[2] * KIND[cg[1]].BYTES_PER_ELEMENT)]); }
@@ -519,7 +519,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       var pq = pathCodes(zs, h, take);
       for (i = 0; i < cmeta.length; i++) { var cs = cmeta[i]; if (cs[1] === 7) cols.push([cs[0], 6, cs[2], decodeDecimalColumn(zs.decompress(take(cs[3]), cs[4]), cs[2])]); else cols.push([cs[0], cs[1], cs[2], zs.decompress(take(cs[3]), cs[2] * KIND[cs[1]].BYTES_PER_ELEMENT)]); }
       if (pq.ET !== h.count) throw new Error('damaged block: string path table');
-      cols.push(codeColumn(pq.codes, pq.ET));
+      cols.push(codeColumn(pq.codes));
       return { t: 'n', n: h.n, sp: pq.tab, count: h.count, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
     }
     var zfl = zs.decompress(take(h.fa[1]), h.fa[0]), zrp = zs.decompress(take(h.fa[4]), h.fa[3] * KIND[h.fa[2]].BYTES_PER_ELEMENT);
@@ -546,7 +546,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     // plans are cached per shape text; blocks with per-path strings (sp) get their own plans, whose string cells read from the column of their path
     function planOf(t) { var P = SPM ? SPLAN : PLAN, f = P.get(t); if (!f) { f = desc(JSON.parse(t), ''); P.set(t, f); } return f; }
     function col(h) { var c = COLS.get(h); if (!c) { c = { h: h, a: null, i: 0 }; COLS.set(h, c); } return c; }
-    function scol(h) { var c = SCOLS.get(h); if (!c) { c = { h: h, a: null, i: 0, e: 0 }; SCOLS.set(h, c); } return c; }
+    function scol(h) { var c = SCOLS.get(h); if (!c) { c = { h: h, a: null, i: 0 }; SCOLS.set(h, c); } return c; }   // same shape as a number column, so the row builder sees one kind of object
     function desc(s, p) {
       if (s === 1) return SPM ? { t: 8, c: scol(fnvStr(p)) } : { t: 1 };
       if (s === 2) return { t: 2, c: col(fnvStr(p)) };
@@ -604,13 +604,14 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       if (b.g) { var GK = tables.k;   // plans of the shared shapes this block uses, before the columns are bound (a plan registers its columns)
         for (i = 0; i < b.n; i++) { id = ids[i]; if (id >= LK && GPL[id - LK] === undefined) { if (id - LK >= GK.length) throw new Error('damaged block: shape id out of range'); GPL[id - LK] = planOf(GK[id - LK]); } } }
       if (tab) {   // every path of the table reads its own stretch of the codes; a path no shape has, two entries for one path, or a stretch not read to its end is damage
-        SCOLS.forEach(function (x) { x.a = null; x.i = 0; x.e = -1; });
-        for (i = 0, c = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (!sc || sc.e !== -1) throw new Error('damaged block: string path table'); sc.a = E; sc.i = c; c += tab[i][2]; sc.e = c; }
+        SCOLS.forEach(function (x) { x.a = null; x.i = 0; });
+        var ends = new Uint32Array(tab.length);
+        for (i = 0, c = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (!sc || sc.a !== null) throw new Error('damaged block: string path table'); sc.a = E; sc.i = c; c += tab[i][2]; ends[i] = c; }
       }
       COLS.forEach(function (c) { c.a = b.cols.get(c.h); c.i = 0; });
       if (b.g) for (i = 0; i < b.n; i++) { id = ids[i]; out[i] = build(id < LK ? fnById[id] : GPL[id - LK]); }
       else for (i = 0; i < b.n; i++) out[i] = build(fnById[ids[i]]);
-      if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== sc.e) throw new Error('damaged block: string cells left over'); }
+      if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== ends[i]) throw new Error('damaged block: string cells left over'); }
       return out;
     }
     openBlock = guard(openBlock); rowsOf = guard(rowsOf);
