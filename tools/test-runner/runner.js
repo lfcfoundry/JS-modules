@@ -1,7 +1,7 @@
 /*!
  * test-runner: the shared pieces every browser check and speed test in this repository needs, in one file. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.4.0 (API 1)
  *
  *   const T = require('./tools/test-runner/runner.js');
  *   T.main(async (b, which) => {                       // b: the browser, already launched (or taken from a warm one); line 1 of the output is its real version
@@ -151,4 +151,4 @@ function table(rows, columns) {
 }
 
 const N = require('./noise.js');
-module.exports = { noise: N, calibrate: N.calibrate, guarded: N.guarded, BROWSERS, needPuppeteer, launch, main, serve, pageResult, rotate, median, asText, speedGuard, table, warmInfo, warmDir, lock, sleep, version: '1.3.0' };
+module.exports = { noise: N, calibrate: N.calibrate, guarded: N.guarded, BROWSERS, needPuppeteer, launch, main, serve, pageResult, rotate, median, asText, speedGuard, table, warmInfo, warmDir, lock, sleep, version: '1.4.0' };

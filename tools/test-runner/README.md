@@ -1,8 +1,8 @@
 # test-runner
 
-**Version 1.3.0 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Node unit tests; calibrate in Firefox 158, Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Node checks
 
 ## What it is and how it works
 
@@ -54,6 +54,8 @@ A check written with `T.launch` / `T.main` takes a warm browser when there is on
 
 ## API
 `runner.js`: `launch(which, { cold, lock, lockWaitMs })` gives `{ version(), newPage(), close(), warm }` · `main(fn)` · `serve(routes)` (a local page server; routes map a path to text, bytes or a function) · `pageResult(b, url, key)` (a fresh page, waits for `window[key]`) · `rotate(names, reps, run)` · `median(list)` · `speedGuard(rows, limit)` (more than 5% slower is flagged; the owner's rule) · `guarded(b, which, fn, opts)` (the noise guard: calibrates first, reruns `fn` while the machine is more than 15% off its quiet baseline, `ok: false` when every try was noisy; save the baseline once with `node tools/test-runner/cli.js calibrate --save` on a quiet machine) · `calibrate(b, ms)` · · `table(rows, columns)` · `warmInfo(which)` · `lock(which)` · `asText(fn)`.
+
+`ab.js` (since 1.4.0, the owner's rule for every timing from 2026-10-31): `abSequential(timeA, timeB, { limit: 0.05, minRounds: 4, maxRounds: 16 })` times A (before) and B (after) once per round, order turning around, one warm-up round dropped, and stops as soon as the 90% interval of the median B/A ratio is clear of the 5% line. It resolves `{ verdict, ratio, low, high, rounds, noisy }`: `'slower'` and `'inconclusive'` both go on a card, `noisy: true` means rerun later under the noise guard. Report the ratio with its low-high range and the rounds used. `decide(ratios, opts)` gives the verdict for ratios you already have. It replaces `rotate` + `speedGuard` for the 5% question (the old pair is kept for older scripts).
 
 `twin.js`: `same(a, b)` compares by bits (0 and -0 differ, NaN equals NaN; typed arrays, arrays and objects item by item) · `twin(cases, jsSide, wasmSide)` gives `{ tried, differing, names }` · `twinSource` is the same code as text for a page.
 
