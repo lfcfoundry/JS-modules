@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.4.0 · API 1**
+**Version 1.5.0 · API 1**
 
-**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud); 50 Node checks, 17 lean builds
+**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time: tests/save-kit-large-browser.js 25 of 25 in each; 50 Node checks and 17 of 17 lean builds. Not run: a phone, Safari itself, a laptop
 
 ## What it is and how it works
 
