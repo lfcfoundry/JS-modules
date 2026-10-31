@@ -69,7 +69,7 @@ section+section{border-top:1px solid var(--line)}
 h2{font-size:clamp(28px,4vw,40px);font-weight:700;margin-bottom:14px}
 .lead{max-width:44em;color:var(--muted);margin:0 0 8px}
 .uses{padding-left:1.2em}.uses li{margin:0 0 6px}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:28px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:28px}
 .tile{background:var(--soft);padding:22px;border-radius:8px;min-width:0}
 .tile h3{font-size:21px;margin-bottom:6px}
 .tile p{margin:0;color:var(--muted);font-size:16px}
@@ -141,8 +141,10 @@ footer a{margin-right:16px}
   <div class="tiles">
     <div class="tile"><h3>One file each</h3><p>Copy only what you need. No build step, no package tree.</p></div>
     <div class="tile"><h3>Fast by default</h3><p>Hot paths run in WebAssembly with SIMD, with plain JavaScript when wasm is missing.</p></div>
+    <div class="tile"><h3>Gives memory back</h3><p>The heavy modules hand memory back after big jobs, by a trim() call or an idle timer.</p></div>
     <div class="tile"><h3>Tested in three browsers</h3><p>Firefox, Chromium and WebKitGTK. Every release names the versions it ran in.</p></div>
     <div class="tile"><h3>Works with AI helpers</h3><p>AGENTS.md, llms.txt and modules.json describe every piece for people and assistants.</p></div>
+    <div class="tile"><h3>Numbers you can check</h3><p>Every number names the browser and machine it ran on, and slower cases are stated.</p></div>
   </div>
 </div></section>
 
