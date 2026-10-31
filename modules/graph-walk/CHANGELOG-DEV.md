@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.9.0 · API 0 · 2026-10-31
+
+### Quick
+closenessAsync: independent shares per helper, partial arrays summed, same helpers and graph copy as betweennessAsync.
+
+### Deep
+closenessAsync: independent shares per helper, partial arrays summed, same helpers and graph copy as betweennessAsync. Early-stop A/B (ab.js, 4 rounds each) helpers/calling thread = 0.26-0.43 across 1500/6000, 3000/12000, 8000/32000 in Chromium, Firefox, WebKitGTK, JS and wasm; answers identical.
+
 ## 0.8.0 · API 0 · 2026-10-31
 
 ### Quick

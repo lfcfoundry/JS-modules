@@ -2,7 +2,7 @@
  * graph-walk.js: the small walks over a link list that map and flow tools keep rewriting: breadth-first distances from an item, and a depth-first pass that marks the links that close a loop and lists the items in finishing order, connected components, strongly connected components, topological order and shortest paths. Works on the plain "links of every item" layout (CSR) in typed arrays. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.8.0 (API 0)
+ * Version 0.9.0 (API 0)
  *
  *   var g = GraphWalk.csr(n, fromArray, toArray);         // item numbers 0..n-1; link i joins from[i] to to[i]
  *   var depth = GraphWalk.bfs(g, root);                    // Int32Array, -1 where not reached; bfs(g, root, skip) never enters item `skip`
@@ -444,13 +444,23 @@
       }
       return bc;
     }
+    function closeJS(c, srcs, wf) {
+      var n = c.n, is = c.is, ie = c.ie, from = c.from, out = new Float64Array(n), dist = new Int32Array(n).fill(-1), q = new Int32Array(n), si, s, h, t, v, w, k, end, dv, total, i;
+      for (si = 0; si < srcs.length; si++) {
+        s = srcs[si]; h = 0; t = 0; q[t++] = s; dist[s] = 0; total = 0;
+        while (h < t) { v = q[h++]; end = is[v + 1]; dv = dist[v] + 1; for (k = is[v]; k < end; k++) { w = from[ie[k]]; if (dist[w] < 0) { dist[w] = dv; q[t++] = w; total += dv; } } }
+        if (total > 0 && n > 1) { out[s] = (t - 1) / total; if (wf) out[s] *= (t - 1) / (n - 1); }
+        for (i = 0; i < t; i++) dist[q[i]] = -1;
+      }
+      return out;
+    }
     var inst = null;   // one WebAssembly instance per helper, kept across graphs (its memory only grows)
     function load(d) {
       var c = { n: d.n, os: d.os, oe: d.oe, to: d.to, is: d.is, ie: d.ie, from: d.from, X: null, P: null, ready: null };
       function lay(X) {
         var mem = X.memory, n = c.n, at = (X.__heap_base.value + 7) & ~7, P = {}, list = [['os', c.os], ['oe', c.oe], ['to', c.to], ['is', c.is], ['ie', c.ie], ['from', c.from]], i;
         for (i = 0; i < list.length; i++) { P[list[i][0]] = at; at = (at + 4 * list[i][1].length + 7) & ~7; }
-        P.srcs = at; at += 4 * n; P.bc = at; at += 8 * n; P.sigma = at; at += 8 * n; P.delta = at; at += 8 * n; P.dist = at; at += 4 * n; P.q = at; at += 4 * n;
+        P.srcs = at; at += 4 * n; P.bc = at; at += 8 * n; P.sigma = at; at += 8 * n; P.delta = at; at += 8 * n; P.dist = at; at += 4 * n; P.q = at; at += 4 * n; P.end = at;
         if (at > mem.buffer.byteLength) mem.grow(Math.ceil((at - mem.buffer.byteLength) / 65536));
         var all = new Int32Array(mem.buffer);
         for (i = 0; i < list.length; i++) all.set(list[i][1], P[list[i][0]] >> 2);
@@ -468,6 +478,21 @@
       function run() {
         var c = cur, n = c.n, bc, j, fresh = !d.more || accJob !== d.job;
         if (d.flush) { var into = d.buf && d.buf.byteLength === 8 * n ? new Float64Array(d.buf) : null; bc = c.X ? (accJob === d.job ? (into ? (into.set(new Float64Array(c.X.memory.buffer, c.P.bc, n)), into) : new Float64Array(c.X.memory.buffer, c.P.bc, n).slice()) : new Float64Array(n)) : (accJob === d.job && acc ? acc : new Float64Array(n)); accJob = 0; acc = null; postMessage({ job: d.job, bc: bc }, [bc.buffer]); return; }
+        if (d.op === 1) {   // closeness share: independent of the betweenness pieces; answers with its own n-long array (zero except for its start items)
+          if (c.X) {
+            var X1 = c.X, P1 = c.P, m1 = c.ie.length, at1, k1;
+            if (!P1.isrc) {
+              P1.isrc = P1.end; P1.cl = (P1.isrc + 4 * m1 + 7) & ~7; at1 = P1.cl + 8 * n;
+              if (at1 > X1.memory.buffer.byteLength) X1.memory.grow(Math.ceil((at1 - X1.memory.buffer.byteLength) / 65536));
+              var all1 = new Int32Array(X1.memory.buffer), ieA = c.ie, frA = c.from, ib = P1.isrc >> 2; for (k1 = 0; k1 < m1; k1++) all1[ib + k1] = frA[ieA[k1]];
+            }
+            new Int32Array(X1.memory.buffer, P1.srcs, d.srcs.length).set(d.srcs);
+            new Float64Array(X1.memory.buffer, P1.cl, n).fill(0);
+            X1.gw_closeness(n, P1.is, P1.isrc, P1.srcs, d.srcs.length, P1.cl, P1.dist, P1.q, d.wf ? 1 : 0);
+            bc = new Float64Array(X1.memory.buffer, P1.cl, n).slice();
+          } else bc = closeJS(c, d.srcs, d.wf);
+          postMessage({ job: d.job, bc: bc }, [bc.buffer]); return;
+        }
         if (c.X) {
           var mem = c.X.memory, P = c.P;
           new Int32Array(mem.buffer, P.srcs, d.srcs.length).set(d.srcs);
@@ -542,6 +567,39 @@
           if (dyn) { var l1 = piece(w); send(w, { job: id, srcs: l1, more: true }, l1); if (next < srcs.length) { var l2 = piece(w); send(w, { job: id, srcs: l2, more: true }, l2); } continue; }
           var list = new Int32Array(Math.ceil((srcs.length - w) / count)); for (k = 0; k < list.length; k++) list[k] = srcs[w + k * count];
           send(w, { job: id, srcs: list }, list);
+        }
+      } catch (e) { finish(false); }
+    });
+  }
+
+  /**
+   * Same answer as `closeness`, with the start items dealt out to the kept helper threads (see betweennessAsync); returns a Promise of the Float64Array. options: as `closeness`, plus workers, pool, idleMs, minWork.
+   * Closeness only ever reads the incoming lists, so the shares are independent and the partial arrays (zero except for each share's own items) are added up.
+   */
+  function closenessAsync(g, options) {
+    options = options || {};
+    var n = g.n, srcs = [], i, k, hw = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, count = options.workers || Math.min(8, hw), src = options.sources, keep = options.pool !== false;
+    for (i = 0; i < (src ? src.length : n); i++) { k = src ? src[i] : i; if (k >= 0 && k < n) srcs.push(k); }
+    if (count < 2 || typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || srcs.length < 2 * count || srcs.length * (n + g.m) < (options.minWork === undefined ? 4e6 : options.minWork)) return Promise.resolve(closeness(g, options));
+    reverse(g);
+    return new Promise(function (resolve) {
+      var P, total = new Float64Array(n), pending = count, id = ++jobs, wasmOn = useWasm(), key, done = false, w;
+      function finish(ok) {
+        if (done) return; done = true; if (P) delete P.jobs[id];
+        if (!keep) { if (P) endPool(P); } else { if (poolTimer) clearTimeout(poolTimer); poolTimer = setTimeout(closePool, options.idleMs === undefined ? 5000 : options.idleMs); }
+        resolve(ok ? total : closeness(g, options));
+      }
+      try {
+        P = getPool(count, !keep);
+        if (keep && poolTimer) { clearTimeout(poolTimer); poolTimer = 0; }
+        if (!g._gid) g._gid = ++gids;
+        key = g._gid + (wasmOn ? 'w' : 'j');
+        P.jobs[id] = { add: function (bc) { for (var j = 0; j < n; j++) total[j] += bc[j]; if (--pending === 0) finish(true); }, fail: function () { finish(false); }, ask: function () { /* closeness shares answer once */ } };
+        for (w = 0; w < count; w++) {
+          var list = new Int32Array(Math.ceil((srcs.length - w) / count)), msg = { job: id, op: 1, wf: options.wassermanFaust ? 1 : 0, srcs: list };
+          for (k = 0; k < list.length; k++) list[k] = srcs[w + k * count];
+          if (P.loaded[w] !== key) { msg.n = n; msg.os = g.outStart; msg.oe = g.outEdge; msg.to = g.to; msg.is = g.inStart; msg.ie = g.inEdge; msg.from = g.from; msg.wasm = wasmOn ? (MOD || b64bytes(WASM_B64)) : null; msg.keepInst = true; P.loaded[w] = key; }
+          P.workers[w].postMessage(msg, [list.buffer]);
         }
       } catch (e) { finish(false); }
     });
@@ -948,5 +1006,5 @@
     while ((e = r.via[v]) >= 0) { out.push(e); v = g.from[e]; }
     return out.reverse();
   }
-  return { version: '0.8.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, maxflow: maxflow, closeness: closeness, triangles: triangles, communities: communitiesJS, criticalPath: criticalPath, landmarks: landmarks, landmarkPath: landmarkPath, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closePool: closePool, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
+  return { version: '0.9.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, maxflow: maxflow, closeness: closeness, triangles: triangles, communities: communitiesJS, criticalPath: criticalPath, landmarks: landmarks, landmarkPath: landmarkPath, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closenessAsync: closenessAsync, closePool: closePool, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
 }));
