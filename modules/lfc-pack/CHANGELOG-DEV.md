@@ -8,7 +8,7 @@ What changed in each version, newest first, for developers, in three depths: Qui
 Reads reuse one kept buffer for unpacked pieces; held up to 4 s after the last read and dropped by trim(). Old code needs no change.
 
 ### Details
-Laptop (16 cores), new/old open time: FHIR 48 MB Chromium 156 0.942, Firefox 160 0.896; logs 0.940 / 1.000 (inconclusive); events 0.989 / 1.000. Cloud WebKitGTK 2.52.6: FHIR 0.868, logs 0.865, events 1.000. Held memory: 1.25x the largest block's unpacked pieces (3.7 MB for the FHIR slice).
+Laptop (16 cores), new/old open time: FHIR 48 MB Chromium 156 0.942 and 0.995 (two runs), Firefox 160 0.896; logs 0.940 and 0.976 / 1.000 (inconclusive); events 0.989 and 0.972 (noisy) / 1.000. Cloud WebKitGTK 2.52.6: FHIR 0.868, logs 0.865, events 1.000. Held memory: 1.25x the largest block's unpacked pieces (3.7 MB for the FHIR slice).
 
 ### Deep
 Each piece was unpacked into wasm memory and copied out into fresh memory (FHIR 48 MB slice: 145 copies, 10.9 MB per open; copy time swung 4-56 ms run to run). Main-thread reads (unpack, keys/range, unpackRows, unpackText) now put a block's pieces into one kept ArrayBuffer at 8-byte steps; rows never point into pieces (test/arena.cjs). Helpers, unpackColumns and raw blocks keep owned copies. Also fixed: flat.js read row-order ids at byte offset 0. Variant dropping the buffer right after each open: never better, events up to 1.41x slower; dropped. Two-libraries-on-one-page cloud A/B had a 6-13% order bias here; numbers above use one library per page or one frame per build. Owner's card: see thread.

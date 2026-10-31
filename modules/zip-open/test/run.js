@@ -499,4 +499,22 @@ t('helpers are never closed while another open still uses them (two opens at onc
   assert.ok(r && r.files.length === 30, 'the big open finished');
   U.closeHelpers();
 });
+t('Excel with helpers: the workbook is read inside a helper (page stays free), same answer, and a helper that dies falls back to the page', async function () {
+  var rows = [['id', 'name', 'when', 'n']]; for (var i = 0; i < 3000; i++) rows.push([i, 'name ' + (i % 97), { d: 44000 + i }, i * 1.5]);
+  var x = Z.makeXlsx([{ name: 'Big', rows: rows }, { name: 'Two', rows: [['a'], ['b']] }]), want = await U.expand(u8(x), 'b.xlsx'), books = 0;
+  function counting(code) { var o = spawn(code), pm = o.postMessage; o.postMessage = function (m) { if (m && m.op === 'book') books++; pm(m); }; return o; }
+  U.closeHelpers();
+  var got = await U.expandBlob(new Blob([u8(x)]), 'b.xlsx', { workers: 2, spawn: counting, idleMs: 1 });
+  assert.deepStrictEqual(got, want); assert.equal(books, 1, 'book jobs sent to helpers');
+  U.closeHelpers();
+  function dying(code) { var o = spawn(code), pm = o.postMessage; o.postMessage = function (m) { if (m && m.op === 'book') { setTimeout(function () { if (o.onerror) o.onerror({}); }, 1); return; } pm(m); }; return o; }
+  var fell = await U.expandBlob(new Blob([u8(x)]), 'b.xlsx', { workers: 2, spawn: dying, idleMs: 1 });
+  assert.deepStrictEqual(fell, want, 'a helper that dies: read on the page instead');
+  for (var m = 2000; m <= 64000; m *= 4) {
+    var lim, limW; try { lim = await U.expandBlob(new Blob([u8(x)]), 'b.xlsx', { workers: 2, spawn: spawn, idleMs: 1, maxTotalBytes: m }); } catch (e) { lim = e.message; }
+    try { limW = await U.expand(u8(x), 'b.xlsx', { maxTotalBytes: m }); } catch (e) { limW = e.message; }
+    assert.deepStrictEqual(lim, limW, 'limits apply the same inside a helper (' + m + ')');
+  }
+  U.closeHelpers();
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });

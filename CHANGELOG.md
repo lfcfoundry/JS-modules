@@ -28,9 +28,9 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.10.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.11.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.9.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 1.7.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 1.8.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.11.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.8 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.4 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
@@ -63,6 +63,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **zip-open** 1.7.0 · API 1: Excel sheets are read faster: on a 16-core laptop 11 to 20% faster in Firefox and 23 to 24% faster in Chromium, with the same results.
 - 2026-10-31 · **zip-open** 1.6.0 · API 1: Text entries are unpacked into one shared buffer that is reused for the next entry (let go 5 s after the last one). Laptop Chromium: 2 to 14% faster on most zips; laptop Firefox: about even.
 - 2026-10-31 · **zip-open** 1.5.2 · API 1: Loading the module costs what it did before 1.5.0: the small-file unpacker is now a separate piece, prepared only when a small file is first opened. 2,000 tiny files still open 1.4 to 1.9x faster than with the browser's own unpacker. Helpers from expandBlob close 5 s after their last use and give their memory back (idleMs changes the delay).
+- 2026-10-31 · **zip-open** 1.11.0 · API 1: With helpers on (the workers option), Excel files are read inside a helper, so a big sheet no longer freezes the page (185 ms down to 6 ms on a laptop). Total time is about the same, up to 18% longer on some sheets.
 - 2026-10-31 · **zip-open** 1.10.0 · API 1: Excel files open much faster again: 1.9 to 3.6 times as fast (48 to 72% less time) than 1.9.0 (cloud Firefox, Chromium and WebKitGTK), same results. Fixed: two big zips opened at once with helpers could leave one never finishing.
 - 2026-10-31 · **text-columns** 0.6.4 · API 0: Parsing big files with number columns again is 1 to 17% faster (45 MB, three browsers): the page prepares the number arrays for the next parse in idle time.
 - 2026-10-31 · **text-columns** 0.6.3 · API 0: Repeated text values are kept once, so a parsed file keeps 42 to 63% less memory (16 MB file in Chromium: 29.4 to 10.9 MB). Parse speed is unchanged.
@@ -99,6 +100,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **gpu-blur** 1.3.0 · API 1: New: opts.into takes your own pixel array for out 'pixels', so blurring every frame makes no new memory; 1.1 to 1.7x faster with the helpers.
 - 2026-10-31 · **gpu-blur** 1.2.3 · API 1: The helpers route is up to 1.34x faster on repeat blurs.
 - 2026-10-31 · **field-report** 1.1.0 · API 1: New frames modes: 'play' records only while the app says it is animating; 'external' takes frame times from the app's own loop (fr.frame(ts)), so there is no second animation-frame callback.
+- 2026-10-31 · **elias-fano** 1.8.0 · API 1: Repeat decodes of big lists are 2 to 25% faster by themselves (a spare array is made while idle), and 20 to 35% faster when toArray(out) or slice(a, b, out) fills your own Uint32Array.
 - 2026-10-31 · **elias-fano** 1.7.0 · API 1: New: trim() gives back memory that big lists left behind (24 MB to 1.8 MB after a 5-million-id build); autoTrim does it by itself after a big job (on by default; autoTrim(false) turns it off).
 - 2026-10-30 · **zip-open** 1.5.1 · API 1: Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.
 - 2026-10-30 · **zip-open** 1.5.0 · API 1: Faster: entries of 4 KB or less (compressed) are unpacked by a small WebAssembly inflate, about 1.5 to 2.2 times as fast for thousands of tiny files. Module grows by 9.4 KB of WebAssembly. Same files, same notes.
