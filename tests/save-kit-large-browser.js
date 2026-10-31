@@ -79,7 +79,13 @@ async function battery(src) {
   nm = id(); a = mk({ name: nm }); b = mk({ name: nm }); var heard = null; a.onOtherTab(function (x) { heard = x; });
   await a.load(); s = st(); s.gold = 77; await b.save(s); for (i = 0; i < 40 && !heard; i++) await wait(25);
   check('other tab save is heard', heard && heard.gold === 77); check('own save is not echoed', await (async function () { var c = 0; b.onOtherTab(function () { c++; }); s = st(); s.gold = 5; await b.save(s); await wait(100); return c === 0; })());
-  // 11 no IndexedDB: everything quietly false/null
+  // 11 skipUnchangedMs
+  nm = id(); a = mk({ name: nm, skipUnchangedMs: 60000 }); s = st();
+  await a.save(s); var wrote = 0; var origPut = IDBObjectStore.prototype.put; IDBObjectStore.prototype.put = function () { wrote++; return origPut.apply(this, arguments); };
+  var r1 = await a.save(st()); var r2 = await a.save(st(), true); s = st(); s.gold = 9; var r3 = await a.save(s); IDBObjectStore.prototype.put = origPut;
+  check('skipUnchanged: unchanged save resolves true without a write, forced and changed saves write', r1 === true && r2 === true && r3 === true && wrote === 2);
+  got = await a.load(); check('skipUnchanged: the stored save loads with its stamp', got && got.gold === 9);
+  // 12 no IndexedDB: everything quietly false/null
   var none = mk({ indexedDB: null }); check('no IndexedDB: save false, load null', (await none.save(st())) === false && (await none.load()) === null);
   return out;
 }
@@ -92,6 +98,7 @@ async function bench(src, libs, sizes, rounds, only) {
   var schema = { gold: 'num', name: 'str:20', items: { type: 'counts', maxKeys: 5000 }, world: { type: 'raw' } }, defaults = { gold: 0, name: '', items: {}, world: [] };
   var ours = M.createLarge({ name: 'ours-' + Date.now(), schema: schema, defaults: defaults, backupEveryMs: 60000 });
   var oursB = M.createLarge({ name: 'oursB-' + Date.now(), schema: schema, defaults: defaults, backupEveryMs: 0 });
+  var oursS = M.createLarge({ name: 'oursS-' + Date.now(), schema: schema, defaults: defaults, skipUnchangedMs: 60000 });
   var customStore = idbk.createStore('idbk-bench-' + Date.now(), 'kv');
   function state(mb) {   // world tiles ~55 bytes of JSON each
     var n = Math.round(mb * 1e6 / 55), world = [], i, items = {};
@@ -105,16 +112,15 @@ async function bench(src, libs, sizes, rounds, only) {
   for (var z = 0; z < sizes.length; z++) {
     var s = state(sizes[z]), kb = Math.round(JSON.stringify(s).length / 1024), ts = {}, k, r;
     var ops = {
-      'ours save': function () { return ours.save(s); }, 'ours save (backup every time)': function () { return oursB.save(s); },
+      'ours save': function () { return ours.save(s); }, 'ours save (backup every time)': function () { return oursB.save(s); }, 'ours save (skipUnchangedMs, same state)': function () { return oursS.save(s); },
       'idb-keyval set': function () { return idbk.set('k', s, customStore); }, 'localForage setItem': function () { return lf.setItem('k', s); }
     };
     var lops = {
-      'ours load': function () { return ours.load(); }, 'ours load (backup every time)': function () { return oursB.load(); },
+      'ours load': function () { return ours.load(); }, 'ours load (backup every time)': function () { return oursB.load(); }, 'ours load (skipUnchangedMs)': function () { return oursS.load(); },
       'idb-keyval get': function () { return idbk.get('k', customStore); }, 'localForage getItem': function () { return lf.getItem('k'); }
     };
-    if (only) { [ops, lops].forEach(function (g) { Object.keys(g).forEach(function (k) { if (k.indexOf(only) < 0) delete g[k]; }); }); }
     // Each library runs its own block of rounds (so one library's leftover garbage does not land on the next one), blocks run forward and then in reverse, round 0 of each block is a warm-up.
-    var groups = [['ours save', 'ours load'], ['ours save (backup every time)', 'ours load (backup every time)'], ['idb-keyval set', 'idb-keyval get'], ['localForage setItem', 'localForage getItem']];
+    var groups = [['ours save', 'ours load'], ['ours save (backup every time)', 'ours load (backup every time)'], ['ours save (skipUnchangedMs, same state)', 'ours load (skipUnchangedMs)'], ['idb-keyval set', 'idb-keyval get'], ['localForage setItem', 'localForage getItem']];
     if (only) groups = groups.filter(function (g) { return g[0].indexOf(only) >= 0; });
     for (var pass = 0; pass < 2; pass++) {
       var gs = pass ? groups.slice().reverse() : groups;
