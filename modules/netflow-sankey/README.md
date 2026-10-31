@@ -4,12 +4,25 @@
 
 **Tested in:** Chromium 155 container, same output as 2.3.1 on 6,000 random layouts (wasm and JavaScript paths)
 
-Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 49 KB (17.7 KB gzipped, of which about 7 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
+## What it is and how it works
 
-It reads your list of links, puts each item in a column by the direction of the flow, and makes each band as thick as its flow on one scale for the whole picture. A long link passes through the columns in between. It then searches for the order of items in each column that gives the fewest weighted crossings (big flows crossing big flows cost most), restarting several times within a time budget and keeping the best order (the counting and sorting of that search runs as WebAssembly when the browser allows it, and as the same JavaScript otherwise). Backward links are drawn as bands under the picture, and `toSvg` draws the result as an SVG.
+netflow-sankey lays out a flow chart (a Sankey diagram) from a list of links (`from`, `to`, `value`) and can draw it as an SVG. One file, 17.7 KB gzipped, no dependencies. Version 1.x had a different name; a project on 1.x only changes the folder, file and global to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
+
+- Items go into columns by flow direction, and every band is as thick as its flow.
+- It searches for the order with the fewest crossings, counting big flows crossing big flows as the worst.
+- Backward links (loops) are drawn under the chart instead of stopping it.
 
 ## Why it exists
-Flow charts are read by the thick bands. If the thick ones tangle, the chart is useless, so the search spends its effort there. And data from real life has loops, which must not crash the page.
+
+A flow chart is read through its thick bands, so a crossing between two big flows matters far more than one between thin ones. d3-sankey counts every crossing the same and throws an error when the data has a loop. On three test charts netflow-sankey left about half the weighted crossings of d3-sankey.
+
+**Where it helps**
+
+- Budgets and money flows.
+- Energy, material and supply chains, including recycling loops.
+- User journeys where people go back a step.
+
+**Not for:** pages that already ship D3, have no loops and want the smallest code (d3-sankey is about 2 KB gzipped).
 
 ## Try it and test it
 **Test it:** `node modules/netflow-sankey/test/run.js` (31 checks, about 1 s). **Try it:** `demo.html` (type links, the chart redraws).

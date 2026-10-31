@@ -1,16 +1,28 @@
 # stage-curtains
 
-**Version 1.4.0 · API 1**
+**Version 1.4.1 · API 1**
 
-**Tested in:** ungoogled Chromium 155.0.8059.39, Firefox 158.0, WebKitGTK 2.52.6 (MiniBrowser; GNOME Web not used); Node suite (quick, FULL=1, --js-only) 46 passed; tests/stage-curtains-wasm-browser.js (picture gate, exact stepped, simulated no-SIMD) and tests/stage-curtains-worker-browser.js PASS in all three; 15 alternating fresh-page turns of paint stall in each browser, plus Chromium 40 turns x 3 passes with a same-file control; real phones, a browser without SIMD and a real GPU upload not run
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
-Velvet stage curtains that slide shut over a page, then fly open. A scene-change transition for games and shows. About 37 KB (about 2 KB of it is the embedded WebAssembly painter), no images (the velvet is painted with canvas).
+## What it is and how it works
 
-`prepare()` paints the velvet onto canvas in small slices of idle time, one canvas for each half. `close()` slides the two halves shut over the container with the browser's Web Animations, and `open()` parts them and zooms the whole thing away. Each slide writes its end position into the element itself and has a timer as a safety net, and every method returns a promise that always resolves, so your scene change is never blocked.
+Velvet stage curtains that slide shut over a page, then fly open: a scene-change transition for games and shows. About 37 KB, no images.
+
+- `prepare()` paints the velvet on canvas in small slices of idle time.
+- `close()` and `open()` slide the halves with the browser's Web Animations, with a timer as a safety net.
+- Every call returns a promise that always resolves, so a scene change is never blocked.
 
 ## Why it exists
 
-A game or show that changes scenes needs something to hide the swap, and a theater curtain fits a stage look. The built-in View Transitions API makes the page wait on your update callback, which is awkward for a game still running behind it, and no ready curtain with fallbacks for stalled animations turned up. This module paints a themed curtain and leaves the page running.
+A scene change needs something to hide the swap, and the built-in View Transitions API makes the page wait on your update, which is awkward while a game keeps running. No ready-made curtain with fallbacks for stalled animations turned up.
+
+**Where it helps**
+
+- Level and scene changes in games.
+- Show-style reveals of a title or result screen.
+- Hiding a slow rebuild behind a themed transition.
+
+**Not for:** long scrolled pages (only the first screen is covered).
 
 ## Use
 
@@ -80,6 +92,9 @@ curtains.prepare()                    // paints the velvet in small slices of id
 **What.** `create({ worker: true })` paints the velvet in a background worker. The page only hands over the size and color, then puts the finished pixels on the canvas. The worker runs the same code as the page (the WebAssembly loop, or the plain loop when WebAssembly cannot start), so the picture is byte for byte the same: 12 of 12 test curtains match with the worker allowed and 12 of 12 with the worker refused, in all four browsers. The painter reports `engine` as `'worker+wasm'` or `'worker+js'`, and as `'wasm'` or `'js'` when it fell back to the page.
 
 **Why.** One phone-size curtain half no longer holds up the page. Page busy time (milliseconds of the page's own work to get both halves painted; lower is better) and the longest single stall (lower is better), median of seven fresh pages, main thread now → worker:
+
+Since 1.4.1 the page puts a half on its canvas the moment the worker's pixels arrive, instead of at its next idle slice (up to 45 ms later, plus the wait for an idle moment), and uses the arrived pixels without copying them. Same pixels. Time until `prepare()` resolves, 1280 x 720 and 1920 x 1080 pages, against 1.4.0: Chromium 155 1.7 to 2.5x sooner (77 to 45 ms at 1920 x 1080), Firefox 158 2.8 to 4.4x (128 to 46 ms), WebKitGTK 2.52.6 1.5 to 2.0x (`tests/stage-curtains-wake-browser.js`, 15 rounds).
+
 
 | Browser | Page busy, ms | Longest stall, ms | Both halves ready, ms (lower is better) |
 |---|---|---|---|

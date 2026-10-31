@@ -4,12 +4,25 @@
 
 **Tested in:** tests/pieces-browser.js grown-ups-door one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, all passed (hold, early lift, slide off, keyboard, tap-then-tap, guarded link). GNOME Web is driven with script events, so it needed webkit-driver 1.2.0, which sends pointer events, pointer capture, focus and click counts like a real mouse. Not run: a phone. There is no Node test for this module.
 
-A short task that a young child will not finish, placed in front of the buttons and links a grown-up should press (start over, save and load, links to other sites). Press and hold a round button for 3 seconds, then drag the item into the target (or tap the item, then the target; the keyboard works too). Once passed, the guarded controls stay open for 2 minutes. 15 KB (5.2 KB gzipped), no dependencies, adds its own small stylesheet. Cut from Apple Press, with the apple art made replaceable.
+## What it is and how it works
 
-**It is a speed bump, not security.** A determined older child, or anyone who can read the page, can get past it. It helps stop accidental and curious taps from a small child; it is not a legal age check and does not by itself make a game meet any store's rules for children's apps.
+A short task a young child will not finish, placed in front of buttons a grown-up should press (start over, save and load, links out). 5.2 KB gzipped.
+
+- Hold a round button for 3 seconds, then drag an item to a target (tap or keyboard also work).
+- Once passed, the guarded controls stay open for 2 minutes.
+- It is a speed bump, not security, and not a legal age check.
 
 ## Why it exists
-A children's game has buttons that can erase progress or leave the game for the web. A child will press anything that glows. A task that needs a 3-second hold and a drag is something most adults finish at once and most small children do not, with no reading and no math. Apple's page on the Kids category lists parental gates among its requirements, describing them as "adult-level tasks that must be completed in order to continue", with purchases and links out of the app as the examples; the page shows a plain task, a math task and a question task as gate styles. This module is the plain-task kind, and your game still has to meet whatever rules apply to where you publish it.
+
+Children's games have buttons that erase progress or leave for the web, and a child presses anything that glows. A hold-and-drag task needs no reading or math and is easy for adults. Apple's Kids category asks for this kind of "adult-level task".
+
+**Where it helps**
+
+- Reset and delete buttons in kids' games.
+- Links that leave the game.
+- Settings parents should change, not children.
+
+**Not for:** real security; anyone who can read the page can get past it.
 
 ## Try it and test it
 **Test it:** `node tests/pieces-browser.js` (hold, early lift, sliding off, drag, tap then tap, keyboard only, Escape and focus, links, touch, and the open time running out; Firefox 158 and ungoogled Chromium 155). **Try it:** `demo.html`.

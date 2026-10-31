@@ -4,13 +4,25 @@
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/small-lean-browser.js: 0 failures in each of the four; Chromium and Firefox used the real CloseWatcher with the real Escape key and the browser's own wake lock; WebKitGTK and GNOME Web have no CloseWatcher, so 3 back-close situations say 'not available', and they refuse the wake lock request (NotAllowedError), so their 6 wake-keeper situations ran with a stand-in lock). Not run: a phone, Safari itself; node modules/back-close/test/lean.js 12 of 12, 30 older Node checks
 
-Makes a phone's back swipe (or back button) close the top panel instead of leaving the page. About 7 KB, no dependencies, one file: `back-close.js`.
+## What it is and how it works
 
-You point it at a panel and give it the function that closes that panel. While the panel is shown, it keeps one `CloseWatcher` (the browser's own close-request channel) armed on it; when the back swipe, back button or Escape key arrives, the browser hands the request to that watcher and your close function runs. When the panel is hidden, the watcher is removed again. In browsers without `CloseWatcher`, an opt-in fallback pushes one history entry while the panel is shown and closes the panel when the user steps back.
+Makes a phone's back swipe or back button close the top panel instead of leaving the page. About 7 KB, one file.
+
+- While a panel is open, it keeps the browser's `CloseWatcher` armed on it.
+- Back swipe, back button or Escape runs your close function.
+- An opt-in fallback uses one history entry in browsers without `CloseWatcher`.
 
 ## Why it exists
 
-On a phone, a pop-up that does not respond to the back gesture sends the player out of the game or to the previous site. `CloseWatcher` is the browser's own "close request" channel (Escape, the Android back gesture and other platform close gestures all go through it), so one hook covers them.
+On a phone, a pop-up that ignores the back gesture sends the player out of the game. `CloseWatcher` is the browser's own close-request channel, so one hook covers every platform's close gesture.
+
+**Where it helps**
+
+- Menus, dialogs and help panels in mobile games.
+- Full-screen viewers that should close on back.
+- Any overlay a phone user expects to dismiss with back.
+
+**Not for:** Safari on iPhone, which has no `CloseWatcher` yet.
 
 ## Use
 

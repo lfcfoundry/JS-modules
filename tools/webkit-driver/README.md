@@ -4,14 +4,25 @@
 
 **Tested in:** Docs only, code unchanged.
 
-A Node file with no dependencies that starts **WebKitGTK** (the WebKit engine for Linux, the nearest thing to Safari a Linux test machine can run) or **GNOME Web** and gives you the small set of page controls that Playwright and Puppeteer give: `goto`, `evaluate`, `waitForFunction`, `mouse.move/down/up/click/wheel`, `keyboard.press`, `screenshot`, `setViewport`, and `on('pageerror')` / `on('console')`.
+## What it is and how it works
 
-It starts `WebKitWebDriver` (the WebDriver program WebKitGTK ships) and sends it each call over plain HTTP in the W3C WebDriver protocol, then hands the answer back as the Playwright-style call result.
+A Node file with no dependencies that starts WebKitGTK (the nearest thing to Safari on Linux) and gives you the common page controls Playwright and Puppeteer give.
 
-**GNOME Web is no longer a test browser (2026-10-24).** The `epiphany` option still launches it for anyone who wants it, but `tools/test-runner` and the repository's checks use WebKitGTK only; older results that name GNOME Web are kept as measured.
+- It starts `WebKitWebDriver`, the WebDriver program WebKitGTK ships.
+- Each call is sent over plain HTTP in the W3C WebDriver protocol.
+- `goto`, `evaluate`, mouse, keyboard, screenshots and page errors work as you would expect.
 
 ## Why it exists
-Playwright and Puppeteer cannot drive WebKitGTK (Playwright only drives its own patched WebKit build, which many networks do not let you download). WebKitGTK ships its own WebDriver, `WebKitWebDriver`, and this file speaks the W3C WebDriver protocol to it over plain HTTP.
+
+Playwright and Puppeteer cannot drive WebKitGTK, and Playwright's own WebKit build often cannot be downloaded. WebKitGTK already ships a WebDriver; this file speaks to it.
+
+**Where it helps**
+
+- Testing Safari-like behavior on Linux.
+- Adding a third browser to existing checks.
+- Screenshots in a WebKit engine.
+
+**Not for:** real graphics speed or iPhone-only problems; WebKitGTK is not Safari.
 
 ## Try it and test it
 **Test it:** `node tools/webkit-driver/test/run.js` (pretend driver, no browser, 7 checks) and `node tools/webkit-driver/test/webkit.js` (a real WebKitGTK 2.52.6, 17 checks, about 5 seconds; `node tools/webkit-driver/test/webkit.js epiphany` does the same in GNOME Web 46.5, about 8 seconds).
@@ -54,6 +65,8 @@ It needs `WebKitWebDriver` on the machine, plus `xvfb-run` and `dbus-run-session
 `selenium-webdriver` and WebdriverIO can talk to WebKitGTK too, but they are large packages and they have their own page API, so a test written for Playwright or Puppeteer has to be rewritten. This file is about 200 lines, has no dependencies and copies the Playwright and Puppeteer call names for the handful of calls a test needs, so an existing test needs only a new launch line. Its sibling [firefox-stand-in](../firefox-stand-in/README.md) does the same job for stock Firefox and Playwright for Python. The smoke test in the knowledge base's `browsers` branch (`webkitgtk/webdriver-smoke.py`) proves the driver starts; this is what you then write tests with.
 
 ## Limits
+
+**GNOME Web is no longer a test browser (2026-10-24).** The `epiphany` option still launches it for anyone who wants it, but `tools/test-runner` and the repository's checks use WebKitGTK only; older results that name GNOME Web are kept as measured.
 
 - **Linux only**, and WebKitGTK is not Safari: it catches many but not all iPhone-only problems. It runs software drawing in a container, so it says nothing about real graphics speed. WebGPU is not available in it.
 - Errors thrown **while the page is loading** are not seen on a plain `file://` page (the hook goes in right after the load event); with the `serve` option they are. Errors after the load are always seen.

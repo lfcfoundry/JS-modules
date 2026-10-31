@@ -4,10 +4,25 @@
 
 **Tested in:** tests/pieces-browser.js spotlight-tour one browser at a time on 2026-10-24: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, all passed (new check: scroll and resize listeners exist only while the tour is open); finger scroll under an open tour on a midrange phone (Android, Chrome 155), window drift 0.0 px; not tried with a screen reader
 
-A short guided look at the parts of a page: one dimmed layer, one bright window over the current part (measured live, so it follows scrolling, resizing and the page reflowing), and a card beside it with Skip, Back and Next. It remembers that a visitor has seen it, and it can hand out a finishing gift once, only to people who reach the end. 12.6 KB including its own stylesheet (4.9 KB gzipped), no dependencies. Cut from Apple Press's first-time tour, with the game's own steps taken out.
+## What it is and how it works
+
+A short guided tour of a page: one dimmed layer, a bright window over the current part, and a card with Skip, Back and Next. 4.9 KB gzipped.
+
+- The window is measured live, so it follows scrolling and resizing.
+- It remembers that a visitor has seen the tour.
+- It can give a finishing gift once, only to people who reach the end.
 
 ## Why it exists
-A first visit is the one time you can explain a page, and a long tour gets skipped. Remembering "seen" apart from "gift given" lets the tour come back on request without handing out the gift twice, and keeps the gift for people who finished. The `#tour` address lets a test force the tour without clearing storage.
+
+A first visit is the one chance to explain a page, and long tours get skipped. Keeping "seen" apart from "gift given" lets the tour come back on request without giving the gift twice.
+
+**Where it helps**
+
+- First-time tours in games and apps.
+- Pointing out new features after an update.
+- Help that can be replayed any time.
+
+**Not for:** several tours or pop-ups at once.
 
 ## Try it and test it
 **Test it:** `node modules/spotlight-tour/test/run.js` (5 checks on where the window and card go) and `node tests/pieces-browser.js` (the whole tour in Firefox 158 and ungoogled Chromium 155: opens once, window over the part, Back, Skip, Escape, Tab, `#tour`, the gift, scrolling to a far part, blocked storage). **Try it:** `demo.html`.

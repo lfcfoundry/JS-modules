@@ -68,6 +68,7 @@ section{padding-block:56px}
 section+section{border-top:1px solid var(--line)}
 h2{font-size:clamp(28px,4vw,40px);font-weight:700;margin-bottom:14px}
 .lead{max-width:44em;color:var(--muted);margin:0 0 8px}
+.uses{padding-left:1.2em}.uses li{margin:0 0 6px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:28px}
 .tile{background:var(--soft);padding:22px;border-radius:8px;min-width:0}
 .tile h3{font-size:21px;margin-bottom:6px}
@@ -113,13 +114,26 @@ footer a{margin-right:16px}
 
 <section><div class="wrap">
   <h2>What it is and how it works</h2>
-  <p class="lead">JS-modules is a shelf of small browser libraries cut out of two shipped games. Each module is one file with no dependencies. Add it with a script tag or <code>require</code>, call it, and read its folder README for limits. Every folder also has a demo page that opens straight from disk.</p>
-  <p class="lead">The pieces are for more seasoned users and developers. The apps and games built from them need no install, no administrative privileges and no special computing knowledge.</p>
+  <p class="lead">JS-modules is a set of 49 small browser libraries and tools, each solving one problem met while building LFC Foundry's apps: Apple Press, Fancy, the Banana, Pineapple Defense, Story Editor and Netflow Map.</p>
+  <ul class="lead uses">
+    <li>Each module is one file with no dependencies: copy it, load it with a script tag or <code>require</code>, call it.</li>
+    <li>Heavy work runs in WebAssembly inside the same file, usually with a JavaScript fallback.</li>
+    <li>Every folder has a README with limits and comparisons, a demo page, tests and a changelog.</li>
+  </ul>
+  <p class="lead">The modules are for developers; the apps built from them need no install and no special knowledge.</p>
 </div></section>
 
 <section><div class="wrap">
   <h2>Why it exists</h2>
-  <p class="lead">Only parts not already covered by open source were kept. These are the small fixes learned by shipping real games to phones and desktops: a hold that dies on <code>pointercancel</code>, a save overwritten by a <code>NaN</code>, a curtain stuck out of place on Android. Each module README names the closest existing project and says how this one differs.</p>
+  <p class="lead">Single-file offline apps cannot load code from a server, must run on cheap phones, and every kilobyte is downloaded by everyone. Most libraries assume a build step, a network and a fast device. A module is kept only if it does something the nearest open-source option does not, or does it measurably better, and its README says where the other one wins.</p>
+  <h3>Where it helps</h3>
+  <ul class="lead uses">
+    <li>Offline or single-file web apps and games.</li>
+    <li>One specific fix without adopting a framework.</li>
+    <li>Low-end phones, where memory and download size are tight.</li>
+    <li>Data-heavy pages (maps, charts, logs) that need compact storage.</li>
+    <li>Higher-end hardware and larger projects: because the code is efficient, it scales up with the project as far as modern browsers allow.</li>
+  </ul>
 </div></section>
 
 <section><div class="wrap">

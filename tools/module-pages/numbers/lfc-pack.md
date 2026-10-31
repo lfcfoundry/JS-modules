@@ -80,3 +80,36 @@ Whole read of 200-key rows in WebKitGTK: 1,324 ms down to 580 ms with row-by-row
 | lists (1.7 MB) | 16 | 15 | 5.0 | 6.0 | 365,098 | 365,098 |
 
 Note: one logs unpack run read slow (86 ms); two reruns gave level results, so it was noise and is not counted. Reading 100 rows from row 100,000 of the logs file takes 12 ms with `unpackRows`, against 77 ms to read everything and slice. 13 MB blocks against 21 MB: pack time 0.71 to 0.82 on five of six rows and 1.05 on one (logs, 4 helpers); size the same or slightly smaller.
+
+
+**New in 0.2.1: text-heavy files come out smaller.** The code thread's cloud-browser runs (Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 on a shared machine, not noise-guarded, not the laptop). A laptop run will replace these.
+
+| data | smaller by |
+|---|---:|
+| web logs | 3.4% |
+| FHIR records | 1.0% |
+| dense records | 1.0% |
+| events | 0.4% |
+
+Nothing came out larger, and pack time is within noise. Older readers open the files as before.
+
+
+**New in 0.3.0: decimals take 40 to 85% less space.** Cloud runs in Node and three browsers (not the laptop). Files that use the new columns need a 0.3.0 reader.
+
+| File size of decimal data, flat rows (100,000 rows, bytes) | Before | Now | Change |
+|---|---:|---:|---:|
+| Sensor readings, 3 decimals | 257,878 | 106,089 | -59% |
+| GPS latitude, 5 decimals | 185,942 | 68,141 | -63% |
+| Price, 4 decimals | 310,402 | 161,698 | -48% |
+| Random values, 3 decimals | 358,103 | 212,902 | -41% |
+
+| File size of decimal data in nested rows (bytes) | Before | Now | Change |
+|---|---:|---:|---:|
+| Sensor rows with ids and lists (100,000 rows) | 504,211 | 106,246 | -79% |
+| GeoJSON points (50,000) | 421,852 | 146,499 | -65% |
+| Orders with 2-decimal prices (50,000) | 449,125 | 226,975 | -50% |
+| Epoch milliseconds + random big ints (50,000) | 466,513 | 399,701 | -14% |
+
+Size as a share of 0.1.9 (Node, cloud, lower is better): map lines (GeoJSON-like) 0.30, prices and rates 0.78, web logs 1.00, dense records 1.03. Pack and unpack times are within noise. Row ranges, column stats, metadata and hash are also new in this release. Measured and not built: trained dictionaries (files grew) and a shared string table (under 0.1% possible).
+
+**New in 0.3.1: decimal columns decode in one pass.** Cloud-browser run (shared machine, not the laptop): unpacking the map-lines file takes 70 ms in Chromium, 69 ms in Firefox and 31 ms in WebKitGTK, faster than 0.2.1 in all three.

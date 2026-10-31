@@ -38,3 +38,6 @@ The default output is the same bytes as 1.5.1. On this noisy worst case the thor
 | thorough palette (option), 1.6.0 | 479 | 863,825 |
 
 Same bytes by default. The thorough palette saves under 0.1% for about 40% more time on this worst case.
+
+
+**New in 1.6.1: faster picture effects, same pictures.** Cloud-browser runs (Chromium, Firefox and WebKitGTK on a shared machine, not noise-guarded, not the laptop). At 1920 x 1080 the time is 0.73 to 0.77 of before for glow, 0.74 to 0.78 for Soft dream, 0.79 to 0.85 for blur and 0.87 to 0.92 for sharpen. A laptop run will replace these.

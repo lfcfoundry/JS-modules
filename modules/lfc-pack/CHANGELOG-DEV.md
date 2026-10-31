@@ -2,6 +2,39 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.3.1 · API 0 · 2026-10-30
+
+### Quick
+Nested decimal columns (width 7) decode in one pass with whole-number zigzag for varints up to three bytes. 30,000 GeoJSON-like lines unpack, 0.3.1 / 0.3.0: Chromium 0.77, Firefox 0.86, WebKitGTK 0.38; against 0.2.1 (no decimal format): 0.92, 0.90, 0.58. Same rows; files unchanged.
+
+### Details
+Laptop Chromium showed 0.3.0 map lines unpack at 1.17x of 0.2.1. A profile put 12 ms per read in decodeDecimalColumn: a separate varint pass into a Float64Array, then zigzag with % on doubles, then a running-sum array. Now one pass: varint, zigzag with integer ops when the value fits 21 bits (doubles above), the running sum kept in a ring of k values, and s / 10^d (division kept, so the same doubles). A cut-off column now throws 'damaged block'.
+
+### Deep
+lfc-pack 0.3.1: decimal decode in one pass. Container, 3 rounds of 11, medians ms (0.2.1 / 0.3.0 / 0.3.1): Chromium 76.4 / 91.2 / 70.2, Firefox 77 / 80 / 69, WebKitGTK 53 / 82 / 31. Found by the laptop Chromium run (41 vs 48 ms). All lfc-pack checks pass.
+
+## 0.3.0 · API 0 · 2026-10-30
+
+### Quick
+Decimal number columns (up to nine decimals as scaled whole numbers), delta columns and nested number width 7 (with lag 1 to 4 for interleaved coordinates); unpackRows, stats, metadata/meta, hash, check: 'xxh64', rows: 'generated'; stricter damaged-file checks in JS, Python and Go. Files using delta or width 7 are refused by 0.2.x readers. Stacked on 0.2.1's tuned zstd; sizes as a share of 0.1.9: map lines 0.3045, prices 0.7787, dense 1.0258, logs 0.9991; times within container noise.
+
+### Details
+The LFCP spec thread's format branch, merged with main (13 MB blocks from 0.2.0, tuned zstd from 0.2.1). Each change alone, then all together (Node, container): the decimal branch and tuned zstd act on different columns, so the stack keeps both gains with no interaction. Readers: JS, Python (142 vector files), Go (main vectors), layout checker (nested width 0 to 7). Layout vectors regenerated with test/genlayout.cjs. wasm unchanged (main's tuned build).
+
+### Deep
+lfc-pack 0.3.0: decimal format branch stacked on 0.2.1. Node container sizes vs 0.1.9: prices 12.7 MB 0.7787, GeoJSON-like 11.4 MB 0.3045, web logs 22 MB 0.9991, dense 21.7 MB 1.0260. Pack/unpack within +-10% over 3 rounds of 7. The tester section 004 times 0.1.9, 0.2.0, 0.2.1, decimal-on-0.2.0 and the stack side by side. Owner picked 'Merge as 0.3.0 now' on the card.
+
+## 0.2.1 · API 0 · 2026-10-30
+
+### Quick
+Large text-like column frames (256 KB or more, at the default level) now try two finer zstd settings on a sample from the middle of the frame and compress once with the winner. Logs 0.9658x the bytes, FHIR 0.9896x, nd_dense 0.9898x, events 0.9964x; other sets unchanged; pack time within noise in three browsers. The files are plain zstd frames, so every reader reads them.
+
+### Details
+zstd-glue.c gains an export tune(strategy, hashLog, chainLog, minMatch), applied on top of the level; zstd-dec.wasm is unchanged byte for byte. Candidates: level 3 as is, strategy fast with hashLog 18 and minMatch 6, then minMatch 7 (tried only if 6 won). Sample: the middle min(128 KB, frame/8). Text-like: about 2,048 evenly spaced bytes, at least 85% printable ASCII, newline or zero. Frames under 256 KB are not tuned: trying all three settings on the many mid-size dense columns made pack 6 to 15% slower, and sampling them made dense 0.1 to 0.2% larger. Python writer unchanged.
+
+### Deep
+lfc-pack 0.2.1: sample-choice zstd tuning on text-like frames of 256 KB or more. Sizes vs 0.2.0: logs 0.9658, events 0.9964, fhir 0.9896, nd_dense 0.9898, dense/links/lists/gen_logs/gen_config 1.0000. Pack ratio (container, 4 cores): Chromium 155 logs 0.94 events 0.98 dense 0.96 links 0.83; Firefox 158 1.03/0.99/0.98/0.99; WebKitGTK 1.02/1.06/1.02/0.98. Same rows back in all. Unpack bytes path unchanged (ratios 0.81 to 1.66 on identical files show the container noise). Tests: run.js, vectors, Python and Go readers pass. Layout vectors flat-all-types and flat-wide-dict regenerated.
+
 ## 0.2.0 · API 0 · 2026-10-30
 
 ### Quick

@@ -4,13 +4,25 @@
 
 **Tested in:** not recorded.
 
-An LZMA1 decoder that tries WebAssembly first and falls back by itself to a small JavaScript decoder (about 135 lines with ES5 syntax, one ES2015 method, see limits: readable, commented, tested against Python's own `lzma` module). Use it to unpack LZMA data in the browser, which can only unpack gzip and deflate natively. The matching packer is [`tools/lzma-pack`](../../tools/lzma-pack/README.md).
+## What it is and how it works
 
-It reads the compressed bytes one bit at a time through a range coder with the standard LZMA probability model, and writes the result into one output buffer that also serves as the dictionary for copying earlier data forward. It was written from the published LZMA specification and takes the stream and the exact decoded length as input.
+An LZMA decoder for the browser: WebAssembly first, with a small readable JavaScript fallback (about 135 lines). The matching packer is [`tools/lzma-pack`](../../tools/lzma-pack/README.md).
+
+- It reads the compressed bits through a range coder with the standard LZMA model.
+- Output goes into one buffer that also serves as the dictionary.
+- It was written from the published specification and tested against Python's `lzma`.
 
 ## Why it exists
 
-A browser can only unpack gzip and deflate natively, so a page packed with LZMA needs a decoder that travels with it. This one is small and readable in one sitting, which suits the self-unpacking pages made by `tools/lzma-pack`; it only decodes, so it stays short.
+Browsers can only unpack gzip and deflate natively, so a page packed with LZMA needs a decoder that travels with it. This one only decodes, so it stays short.
+
+**Where it helps**
+
+- Self-unpacking single-file pages made by `lzma-pack`.
+- Shipping LZMA-packed data inside a page.
+- Reading a decoder you can check line by line.
+
+**Not for:** very old phone browsers (it uses one ES2015 method).
 
 ## Use
 

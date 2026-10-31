@@ -4,12 +4,27 @@
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
-Turns pictures into a short MP4 or WebM video in the browser. The browser's own video encoder (WebCodecs) makes the H.264 or VP9 pictures and two small file writers here wrap them into a file you can save or play. **One file, no libraries, works offline.** The whole file is held in memory, which suits a slide-sized clip, not a film.
-
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Cut from Netflow Map, where it saves animations next to [gif-writer](../gif-writer/README.md).
 
+## What it is and how it works
+
+Turns pictures into a short MP4 or WebM video in the browser. One file, no libraries, works offline.
+
+- The browser's own video encoder (WebCodecs) makes the H.264 or VP9 frames.
+- Two small file writers here wrap them into a file you can save or play.
+- Same shape as gif-writer: `add` a picture, `finish` for the bytes.
+
 ## Why it exists
-A GIF of a moving picture is big. In Netflow Map a 30,000 item map takes about 5 MB per 100 pictures as a GIF and about 0.65 MB as an MP4 (about 8 times smaller). The browser can already encode video, but it hands back raw encoded pictures without a file around them. This module is the missing file writer, and it is the same shape as gif-writer (`add` a picture, `finish` for the bytes), so a project that makes GIFs can offer video too.
+
+A GIF of a moving picture is big: in Netflow Map a large map took about 5 MB per 100 pictures as a GIF and about 0.65 MB as MP4. The browser can encode video but gives back raw frames with no file around them; this is the missing file writer.
+
+**Where it helps**
+
+- Saving animations from a canvas as video.
+- Offering video next to GIF export.
+- Short clips made inside an offline page.
+
+**Not for:** long videos (the whole file is held in memory).
 
 ## Use
 

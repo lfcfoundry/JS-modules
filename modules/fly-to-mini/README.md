@@ -4,13 +4,25 @@
 
 **Tested in:** 33 Node checks; the demo ran clean in Chromium 141, Chromium 153 and Firefox 157. Not run: Firefox 158, ungoogled Chromium 155, WebKitGTK, a phone.
 
-When a big element scrolls away, a copy of its small stand-in **flies** from it to the sticky mini version, and back again when you scroll up. A shared-element transition for scrolling, with an arc, a tilt and a squash. About 7.4 KB minified (3.1 KB gzipped); the commented source is about 18 KB.
+## What it is and how it works
 
-It watches the big element with `IntersectionObserver`. When the big element is mostly off screen, it clones the mini's first child, draws the clone in a fixed layer on top of the page, moves it frame by frame (`requestAnimationFrame`) along an arc to where the mini sits, lands it, and tells your code to show the mini through `onChange`. Scrolling back up runs the same flight in reverse. Timers and a failsafe make sure the copy always lands.
+When a big element scrolls away, a copy of its small stand-in flies to the sticky mini version, and back when you scroll up. About 3.1 KB gzipped.
+
+- `IntersectionObserver` notices when the big element leaves the screen.
+- A clone flies along an arc with a tilt and squash, frame by frame.
+- Timers and a failsafe make sure it always lands, then `onChange` shows the mini.
 
 ## Why it exists
 
-A game or page with a big picture at the top and a small sticky version in the bar needs the two to feel like the same object. Without a flight, the big one just disappears and the small one just appears. The browser's built-in tools do not cover this case: neither flies a copy to a separately placed sticky mini as the page scrolls (see "How it compares"). This module was cut from the games of the same maker, where that effect was wanted.
+A big picture and its small sticky copy should feel like one object. Without a flight, one just vanishes and the other appears, and the browser's built-in transitions do not fly to a separately placed sticky element.
+
+**Where it helps**
+
+- A game's mascot that moves into the top bar.
+- A product image that shrinks into a sticky header.
+- Any big-to-small handoff while scrolling.
+
+**Not for:** more than one pair per instance.
 
 ## Use
 
