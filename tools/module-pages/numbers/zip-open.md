@@ -57,3 +57,15 @@ The small-entry inflate is now its own 9.5 KB module, compiled only when a small
 | WebKitGTK 2.52.6 | 167 | 122 |
 
 Helpers from `expandBlob({ workers })` close 5 s after the last call (`idleMs` changes it); starting them again cost nothing measurable in all three browsers.
+
+
+**New in 1.6.0: one reused buffer for text entries.** Text entries are unpacked into one shared buffer that is reused for the next entry and let go 5 s after the last one. Paired runs, time with 1.6.0 divided by 1.5.2, 12 rounds; lower is better.
+
+| Where | Time new / old |
+|---|---:|
+| Laptop, Chromium 156, 16 cores, zip in memory | 0.86 to 0.98 |
+| Laptop, Chromium 156, 16 cores, zip from a File | 0.91 to 1.02 |
+| Laptop, Firefox 160, 16 cores (two runs) | 0.93 to 1.00 |
+| Cloud, Chromium 153 | 0.82 to 0.92 |
+
+One Firefox case was slower in one run: 400 small files from bytes took 0.94 of the time in one run and 1.15 in the other. Those timings are a few milliseconds each, so the range is wide (0.84 to 1.22). WebKitGTK was not measured for this change.
