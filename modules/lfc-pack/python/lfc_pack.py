@@ -166,6 +166,18 @@ def _block_header(b):
 
 
 # ---------------------------------------------------------------- nested blocks
+def _decimals(raw, n):
+    # width-7 number column: byte 0 is the decimals d (bit 7: differences between neighbors), then n varints of the zigzag whole numbers; value = whole / 10^d
+    if len(raw) < 1 or (raw[0] & 127) > 9: raise ValueError('bad decimal column')
+    d, delta = raw[0] & 127, raw[0] & 128
+    u = _varints(raw[1:], n); sc = 10 ** d; out = []; s = 0
+    for x in u:
+        v = _unzz(x)
+        if delta: s += v; v = s
+        out.append(v / sc)
+    return out
+
+
 def _read_nested(b):
     h, p = _block_header(b); c = _Cur(b, p)
     cmeta = json.loads(_dz(c.take(h['cm'][1]), h['cm'][0]).decode('utf-8'))
@@ -179,8 +191,12 @@ def _read_nested(b):
     fa = h['fa']
     flags = _dz(c.take(fa[1]), fa[0]); rep = _typed(_dz(c.take(fa[4]), fa[3] * _ITEM[fa[2]]), fa[2], fa[3])
     cols = {}
-    for key, kind, count, plen in cmeta:
-        cols[key] = _typed(_dz(c.take(plen), count * _ITEM[kind]), kind, count)
+    for ent in cmeta:
+        key, kind, count, plen = ent[:4]
+        if kind == 7:
+            if len(ent) < 5: raise ValueError('decimal column without raw length')
+            cols[key] = _decimals(_dz(c.take(plen), ent[4]), count)
+        else: cols[key] = _typed(_dz(c.take(plen), count * _ITEM[kind]), kind, count)
     codes = []; nxt = 0; ri = 0
     for i in range(fa[5]):
         if (flags[i >> 3] >> (i & 7)) & 1: codes.append(nxt); nxt += 1

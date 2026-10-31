@@ -56,7 +56,12 @@ def nested(b, log):
     dz(take(h['ids'][2], 'row-shape-ids'), h['ids'][1] * W[h['ids'][0]])
     dz(take(h['fa'][1], 'first-flags'), h['fa'][0]); assert h['fa'][0] == (h['fa'][5] + 7) // 8
     dz(take(h['fa'][4], 'repeats'), h['fa'][3] * W[h['fa'][2]])
-    for key, kd, cnt, ln in cm: dz(take(ln, 'col %d' % key), cnt * W[kd])
+    for ent in cm:
+        key, kd, cnt, ln = ent[:4]
+        if kd == 7:
+            assert len(ent) == 5, 'width 7 needs a raw length'
+            dz(take(ln, 'col %d' % key), ent[4])
+        else: dz(take(ln, 'col %d' % key), cnt * W[kd])
     assert p == len(b), 'nested block: %d bytes unaccounted' % (len(b)-p)
     COV.add('block-n'); COV.update('nested-width-%d'%c[1] for c in cm)
     if '5' in sk: COV.add('nested-raw-row'); 
