@@ -192,3 +192,13 @@ Files are the same byte for byte.
 | GeoJSON, 256 KB blocks | 0.93 | 0.99 | 0.98 |
 
 Files with few shapes, like orders and GeoJSON, are about the same. The WebKitGTK GeoJSON case was checked again because one of its runs read slower (1.13). Its later runs read 0.985 and 0.978, and a run comparing the same build with itself swung to 0.87, so that one slow reading was noise.
+
+**New in 0.4.5: packParallel helpers keep their memory between calls.** Helpers now keep their packing memory until they close, 3 s after the last call, instead of giving it back after every call. A call made within those 3 s no longer has to grow it again. 48 MB of Synthea FHIR, 2 helpers, cloud browsers (not the laptop), time new / old, lower is better:
+
+| Browser | New / old |
+|---|---:|
+| Chromium 153 | 0.85 |
+| Firefox 158 | 0.75 |
+| WebKitGTK 2.52.6 | 0.93 |
+
+That is 7 to 25% faster when packParallel is called again within 3 s. Idle helpers hold that memory up to 3 s longer. Same files byte for byte.

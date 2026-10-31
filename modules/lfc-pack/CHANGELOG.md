@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.5 · API 0 · 2026-10-31
+- packParallel is 7 to 25% faster when called again within 3 seconds: helpers keep their memory until they close.
+
 ## 0.4.4 · API 0 · 2026-10-31
 - Packing records with many shapes, like FHIR, is 10 to 15% faster: each shape's string paths are worked out once instead of once per block. Same files byte for byte.
 

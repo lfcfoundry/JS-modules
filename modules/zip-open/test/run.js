@@ -360,6 +360,77 @@ t('xml scanner: same events and errors as the previous scanner on 40,000 random 
     assert.deepStrictEqual([ev2, e2], [ev1, e1], JSON.stringify(xml));
   }
 });
+t('xlsx fast row reader gives the same sheets as the general reader on 30,000 random sheets', function () {
+  var seed = 11, R = function (n) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return Math.floor(seed / 4294967296 * n); };
+  var pick = function (a) { return a[R(a.length)]; };
+  var base = { 'xl/workbook.xml': '<workbook xmlns="x" xmlns:r="y"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>', 'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/sharedStrings.xml': '<sst><si><t>a,b</t></si><si><t> pad </t></si><si><t>q"q</t></si></sst>', 'xl/styles.xml': '<styleSheet><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>' };
+  var vals = ['1', '0', '007', '12.50', '-3', '1e3', '123456789012345', '1234567890123456', '45000', 'abc', '', '&amp;x', '&lt;', ' 5', '0.1', '-0', '1,5', '2'];
+  var cellAttrs = [' r="A1"', ' r="B2" s="1"', ' r="C3" t="s"', ' r="D4" t="b"', ' r="E5" t="str"', ' s="1"', '', ' t="n"', ' r="AAA1"', ' r="XFE1"', ' r="a1"', ' r="B2" r="C2"', ' x:r="Z9"', ' r="A1" spans="1:2"', ' r=\'A1\'', ' r="A1"t="s"', ' r="A&amp;1"', ' r="A1" t="s" s="0"'];
+  var junk = ['<f>SUM(A1)</f>', '<is><t>hi</t></is>', '<!-- c -->', ' ', '\n', '<extLst/>', '<v>1</v>', '<f t="shared" ref="A1:A3" si="0">A1*2</f>', '<f t="shared" si="0"/>', '<f>a&lt;b</f>', '<f a="1>2">x</f>', "<f t='x'>1</f>", '<f><v>1</v></f>', '<f>', '<f/>', '<fx>1</fx>', '<f\n>1</f>'];
+  var tails = ['', '<mergeCells count="1"><mergeCell ref="A1:B2"/></mergeCells>', '<row r="99"><c r="A99"><v>5</v></c></row>', '<c r="A1"><v>1</v></c>'];
+  for (var k = 0; k < 30000; k++) {
+    var xml = '<?xml version="1.0"?><worksheet xmlns="x">' + (R(20) === 0 ? '<dimension ref="A1"/>' : '') + (R(40) === 0 ? '<sheetData/>' : '<sheetData>'), rows = 1 + R(5), i, j;
+    for (i = 0; i < rows; i++) {
+      var self = R(30) === 0;
+      xml += '<row' + pick(['', ' r="' + (i + 1) + '"', ' r="1" spans="1:3" ht="15"', ' a="1>2"', ' a=\'x\'']) + (self ? '/>' : '>');
+      if (self) continue;
+      var cells = R(5);
+      for (j = 0; j < cells; j++) {
+        var sc = R(25) === 0, v = pick(vals);
+        xml += '<c' + pick(cellAttrs) + (sc ? '/>' : '>') + (sc ? '' : (R(12) === 0 ? pick(junk) : '') + (R(8) === 0 ? '' : '<v>' + v + '</v>') + (R(15) === 0 ? pick(junk) : '') + '</c>');
+      }
+      xml += R(40) === 0 ? '<row>' : '</row>';
+    }
+    xml += R(50) === 0 ? '' : '</sheetData>';
+    xml += pick(tails) + (R(60) === 0 ? '' : '</worksheet>');
+    var parts = Object.assign({}, base, { 'xl/worksheets/sheet1.xml': xml }), a, b, ea = null, eb = null;
+    try { a = U._xlsxSheets(parts, {}); } catch (e) { ea = e.message; }
+    try { b = U._xlsxSheets(parts, { _slow: true }); } catch (e) { eb = e.message; }
+    assert.deepStrictEqual([a, ea], [b, eb], xml);
+  }
+});
+t('xlsx fast shared-strings reader gives the same text values as the general reader on 20,000 random lists', function () {
+  var seed = 29, R = function (n) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return Math.floor(seed / 4294967296 * n); };
+  var pick = function (a) { return a[R(a.length)]; };
+  var sheet = '<worksheet><sheetData><row r="1">' + [0, 1, 2, 3, 4, 5].map(function (i) { return '<c r="' + 'ABCDEF'[i] + '1" t="s"><v>' + i + '</v></c>'; }).join('') + '</row></sheetData></worksheet>';
+  var base = { 'xl/workbook.xml': '<workbook xmlns:r="y"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>', 'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/worksheets/sheet1.xml': sheet };
+  var texts = ['a', '', 'a,b', ' pad ', 'q"q', '&amp;x', '&lt;b&gt;', 'x>y', '&#233;', 'line\nbreak', 'é中'];
+  var items = function () { var t = pick(texts); return pick(['<si><t>' + t + '</t></si>', '<si><t xml:space="preserve">' + t + '</t></si>', '<si><t/></si>', '<si><r><t>' + t + '</t></r><r><rPr/><t>2</t></r></si>', '<si><t>' + t + '</t><rPh sb="0"><t>p</t></rPh></si>', '<si><t><![CDATA[' + t + ']]></t></si>', '<si>\n<t>' + t + '</t>\n</si>', '<si><t xml:space=\'preserve\'>' + t + '</t></si>', '<!-- <si><t>z</t></si> -->', '\n', '<si><t>' + t + '</t>', '<si/>', '<si><t>' + t + '</t></si>', '<si><t>' + t + '</t></si>']); };
+  for (var k = 0; k < 20000; k++) {
+    var x = pick(['<?xml version="1.0"?>', '', '<!-- top -->']) + pick(['<sst xmlns="x" count="3">', '<sst>', '<x:sst xmlns:x="x">']), m = R(7), i;
+    for (i = 0; i < m; i++) x += items();
+    x += pick(['</sst>', '</sst>', '</x:sst>', '', '</sst><si><t>after</t></si>']);
+    var parts = Object.assign({}, base, { 'xl/sharedStrings.xml': x }), a, b, ea = null, eb = null;
+    try { a = U._xlsxSheets(parts, {}); } catch (e) { ea = e.message; }
+    try { b = U._xlsxSheets(parts, { _slow: true }); } catch (e) { eb = e.message; }
+    assert.deepStrictEqual([a, ea], [b, eb], x);
+  }
+});
+t('xlsx dates: every whole-day serial in both date systems gives the same text as the Date-based reference', function () {
+  var ref = function (serial, d1904) { if (!isFinite(serial) || serial < 0 || serial > 2958465) return null; var d = new Date(Math.round((serial - (d1904 ? 24107 : 25569)) * 86400000)); if (isNaN(d.getTime())) return null; var iso = d.toISOString(); return serial % 1 === 0 ? iso.slice(0, 10) : iso.slice(0, 19).replace('T', ' '); };
+  [false, true].forEach(function (d1904) {
+    var vals = [], s;
+    for (s = 0; s <= 2958465; s += 97) vals.push(s);
+    vals.push(1, 59, 60, 61, 366, 2958464, 2958465, 2958466, 2957003, 2957004, 2957005, 0.5, 45000.25, 1e3, -1);
+    var rows = vals.map(function (v, i) { return '<row r="' + (i + 1) + '"><c r="A' + (i + 1) + '" s="1"><v>' + v + '</v></c><c r="B' + (i + 1) + '" s="1"><v>' + v + '</v></c></row>'; }).join('');
+    var parts = { 'xl/workbook.xml': '<workbook xmlns:r="y">' + (d1904 ? '<workbookPr date1904="1"/>' : '') + '<sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>', 'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/styles.xml': '<styleSheet><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>', 'xl/worksheets/sheet1.xml': '<worksheet><sheetData>' + rows + '</sheetData></worksheet>' };
+    var want = vals.map(function (v) { var r = ref(Number(v), d1904); r = r || String(Number(v)); return r + ',' + r; }).join('\n');
+    assert.equal(U._xlsxSheets(parts, {})[0].csv, want);
+    assert.equal(U._xlsxSheets(parts, { _slow: true })[0].csv, want);
+  });
+});
+t('xlsx CSV quoting: every short text from a tricky alphabet is quoted exactly as the reference rule says', function () {
+  var ref = function (v) { return /[",\r\n]/.test(v) || /^\s|\s$/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  var al = ['a', ' ', '"', ',', '\n', '\r', '\t', 'é', ' ', '1', ' ', '　', '﻿'], all = [];
+  (function rec(s, d) { if (s) all.push(s); if (d < 4) al.forEach(function (c) { rec(s + c, d + 1); }); })('', 0);
+  var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\r/g, '&#13;'); };
+  var rows = all.map(function (v, i) { return '<row r="' + (i + 1) + '"><c r="A' + (i + 1) + '" t="inlineStr"><is><t xml:space="preserve">' + esc(v) + '</t></is></c><c r="B' + (i + 1) + '" t="s"><v>' + i + '</v></c><c r="C' + (i + 1) + '" t="str"><v>' + esc(v) + '</v></c></row>'; }).join('');
+  var parts = { 'xl/workbook.xml': '<workbook xmlns:r="y"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>', 'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/sharedStrings.xml': '<sst>' + all.map(function (v) { return '<si><t xml:space="preserve">' + esc(v) + '</t></si>'; }).join('') + '</sst>', 'xl/worksheets/sheet1.xml': '<worksheet><sheetData>' + rows + '</sheetData></worksheet>' };
+  var got = U._xlsxSheets(parts, {})[0].csv.split('\n'), slow = U._xlsxSheets(parts, { _slow: true })[0].csv;
+  assert.equal(got.join('\n'), slow);
+  var want = all.map(function (v) { var q = ref(v); return q + ',' + q + ',' + q; }).join('\n');
+  assert.equal(got.join('\n'), want);
+});
 t('streaming: helpers (workers) really ran, and many text files come out in order with limits applied the same way', async function () {
   var files = []; for (var i = 0; i < 40; i++) files.push({ name: 'd/f' + String(i).padStart(2, '0') + '.csv', data: 'a,b\n' + (i + ',x\n').repeat(2000 + i * 37) });
   var z = Z.makeZip(files), r = await both(z, 'many.zip'), r2 = await both(z, 'many.zip', { maxTotalBytes: 300000 }), r3 = await both(z, 'many.zip', { maxFiles: 7 }), r4 = await both(z, 'many.zip', { maxEntryBytes: 20000 });
