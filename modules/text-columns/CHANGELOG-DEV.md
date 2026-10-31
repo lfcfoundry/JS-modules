@@ -5,6 +5,14 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 0.6.0 · API 0 · 2026-10-31
 
 ### Quick
+parseParallel(File or Blob): helpers read their own piece (blob.slice), stacked with 0.5.2's one-string text.
+
+### Deep
+parseParallel(File or Blob): helpers read their own piece (blob.slice), stacked with 0.5.2's one-string text. Same answers as parse() in 384 cases per browser. Picked file vs 0.5.2: Chromium 1.11-1.21x, Firefox 1.01-1.27x, WebKitGTK 1.63-1.75x; page work 17-142 ms (was 108-240). tests/text-columns-file-browser.js.
+
+## 0.6.0 · API 0 · 2026-10-31
+
+### Quick
 New: parseParallel takes a File or Blob (a picked file); each helper reads its own piece, so the page never holds the whole file. Old code is unaffected. Against 0.5.2 with a picked file: Chromium 1.11 to 1.21x, Firefox 1.01 to 1.27x, WebKitGTK 1.63 to 1.75x.
 
 ### Details
