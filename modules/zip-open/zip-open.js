@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.0 (API 1)
+ * Version 1.7.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -33,11 +33,11 @@
   var TAGEND = /[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/y;
   /** Walks XML text. h.open(name, attrs, selfClosing), h.close(name), h.text(string). Names lose their prefix (x:y -> y); attrs keep both forms. */
   function xmlScan(text, h) {
-    var i = 0, n = text.length, depth = 0, lt, e;
+    var i = 0, n = text.length, depth = 0, lt, e, dq = -2, sq = -2, wants = h.wants;   // dq, sq: where the next double / single quote is (found once, not once per tag)
     while (i < n) {
       lt = text.indexOf('<', i);
-      if (lt < 0) { if (h.text && i < n) h.text(xmlDecode(text.slice(i))); break; }
-      if (lt > i && h.text) h.text(xmlDecode(text.slice(i, lt)));
+      if (lt < 0) { if (h.text && i < n && (!wants || wants())) h.text(xmlDecode(text.slice(i))); break; }
+      if (lt > i && h.text && (!wants || wants())) h.text(xmlDecode(text.slice(i, lt)));
       if (text.charCodeAt(lt + 1) === 33) {                       // <!
         if ((text.charCodeAt(lt + 2) === 45 && text.charCodeAt(lt + 3) === 45)) { e = text.indexOf('-->', lt + 4); if (e < 0) throw new Error('The XML is cut off.'); i = e + 3; continue; }
         if (text.startsWith('<![CDATA[', lt)) { e = text.indexOf(']]>', lt + 9); if (e < 0) throw new Error('The XML is cut off.'); if (h.text) h.text(text.slice(lt + 9, e)); i = e + 3; continue; }
@@ -47,11 +47,19 @@
         i = e + 1; continue;
       }
       if (text.charCodeAt(lt + 1) === 63) { e = text.indexOf('?>', lt + 2); if (e < 0) throw new Error('The XML is cut off.'); i = e + 2; continue; }
-      TAGEND.lastIndex = lt + 1;
-      var m = TAGEND.exec(text);
-      if (!m) throw new Error('The XML is cut off.');
-      i = lt + 1 + m[0].length;
-      var body = m[0].slice(0, -1);
+      var gt = text.indexOf('>', lt + 1);
+      if (gt < 0) throw new Error('The XML is cut off.');
+      if (dq < lt) { dq = text.indexOf('"', lt); if (dq < 0) dq = n + 1; }
+      if (sq < lt) { sq = text.indexOf("'", lt); if (sq < 0) sq = n + 1; }
+      var body;
+      if (dq > gt && sq > gt) { body = text.slice(lt + 1, gt); i = gt + 1; }   // no quote inside the tag: the first > ends it
+      else {                                                                  // quotes inside: a > in a quoted value does not end the tag
+        TAGEND.lastIndex = lt + 1;
+        var m = TAGEND.exec(text);
+        if (!m) throw new Error('The XML is cut off.');
+        i = lt + 1 + m[0].length;
+        body = m[0].slice(0, -1);
+      }
       if (body.charCodeAt(0) === 47) {                            // </name>
         depth--;
         var cn = body.slice(1).trim(), cc = cn.indexOf(':');
@@ -60,16 +68,44 @@
       }
       var self = body.charCodeAt(body.length - 1) === 47;
       if (self) body = body.slice(0, -1);
-      var sp = body.search(/[\s]/), nm = sp < 0 ? body : body.slice(0, sp), col = nm.indexOf(':');
+      var sp = -1, bl = body.length, k0, cch;
+      for (k0 = 0; k0 < bl; k0++) { cch = body.charCodeAt(k0); if (cch <= 32 ? (cch === 32 || (cch >= 9 && cch <= 13)) : (cch === 160 || cch === 0xfeff || cch === 0x2028 || cch === 0x2029 || (cch >= 0x2000 && cch <= 0x200a) || cch === 0x1680 || cch === 0x202f || cch === 0x205f || cch === 0x3000)) { sp = k0; break; } }
+      var nm = sp < 0 ? body : body.slice(0, sp), col = nm.indexOf(':');
       var attrs = {};
       if (sp >= 0) {
-        ATTR.lastIndex = 0;
-        var am;
-        while ((am = ATTR.exec(body.slice(sp)))) {
-          var v = xmlDecode(am[2] !== undefined ? am[2] : am[3]), an = am[1], ac = an.indexOf(':');
+        // clean attribute lists (name="value" pairs split by spaces, the normal case) are read by hand; anything odd goes to the regular expression, which gives the answers the hand reader must match
+        var p0 = sp, ok = true, an, ns, ee, qc, raw, v, ac;
+        for (;;) {
+          while (p0 < bl && ((cch = body.charCodeAt(p0)) === 32 || cch === 10 || cch === 13 || cch === 9)) p0++;
+          if (p0 >= bl) break;
+          ns = p0;
+          while (p0 < bl && (cch = body.charCodeAt(p0)) > 32 && cch !== 61 && cch !== 47 && cch !== 34 && cch !== 39 && cch !== 60 && cch !== 62 && cch < 127) p0++;
+          if (p0 === ns) { ok = false; break; }
+          an = body.slice(ns, p0);
+          while (p0 < bl && ((cch = body.charCodeAt(p0)) === 32 || cch === 10 || cch === 13 || cch === 9)) p0++;
+          if (body.charCodeAt(p0) !== 61) { ok = false; break; }
+          p0++;
+          while (p0 < bl && ((cch = body.charCodeAt(p0)) === 32 || cch === 10 || cch === 13 || cch === 9)) p0++;
+          qc = body.charCodeAt(p0);
+          if (qc !== 34 && qc !== 39) { ok = false; break; }
+          ee = body.indexOf(qc === 34 ? '"' : "'", p0 + 1);
+          if (ee < 0) { ok = false; break; }
+          raw = body.slice(p0 + 1, ee); p0 = ee + 1;
+          v = xmlDecode(raw); ac = an.indexOf(':');
           if (BAD_KEYS[an]) continue;
           attrs[an] = v;
           if (ac >= 0 && !(an.slice(ac + 1) in attrs) && !BAD_KEYS[an.slice(ac + 1)]) attrs[an.slice(ac + 1)] = v;
+        }
+        if (!ok) {
+          attrs = {};
+          ATTR.lastIndex = sp;
+          var am;
+          while ((am = ATTR.exec(body))) {
+            v = xmlDecode(am[2] !== undefined ? am[2] : am[3]); an = am[1]; ac = an.indexOf(':');
+            if (BAD_KEYS[an]) continue;
+            attrs[an] = v;
+            if (ac >= 0 && !(an.slice(ac + 1) in attrs) && !BAD_KEYS[an.slice(ac + 1)]) attrs[an.slice(ac + 1)] = v;
+          }
         }
       }
       var local = col >= 0 ? nm.slice(col + 1) : nm;
@@ -80,7 +116,12 @@
 
   /* ------------------------------------------------------------ Excel: sheets of an .xlsx become tables */
   var XL_COLS = 16384;
-  function colIndex(ref) { var m = /^([A-Za-z]{1,3})/.exec(ref || ''); if (!m) return -1; var s = m[1].toUpperCase(), n = 0; for (var i = 0; i < s.length; i++) n = n * 26 + s.charCodeAt(i) - 64; return n - 1; }
+  function colIndex(ref) {   // 'AB12' -> 27: the letters before the first digit, at most 3 (no regular expression per cell)
+    if (!ref) return -1;
+    var n = 0, k = 0, c;
+    for (; k < 3; k++) { c = ref.charCodeAt(k); if (c >= 97 && c <= 122) c -= 32; if (c < 65 || c > 90) break; n = n * 26 + c - 64; }
+    return k === 0 ? -1 : n - 1;
+  }
   var XL_BUILTIN_DATES = { 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1, 21: 1, 22: 1, 45: 1, 46: 1, 47: 1 };
   function isDateFormat(code) { var c = String(code).replace(/"[^"]*"|\\.|\[[^\]]*\]|_.|\*./g, ''); return /[ymdhs]/i.test(c) && !/^(general|0|#)/i.test(c) || /[dy]{2}|m{1,2}[\/\-.]|[hH]:|:[sS]/.test(c) && /[ymdhs]/i.test(c); }
   function xlDate(serial, d1904) {
@@ -135,6 +176,7 @@
         row = null; rowHas = false;
       };
       xmlScan(xml, {
+        wants: function () { return cell !== null && inV; },
         open: function (t, a, self) {
           if (truncated) return;
           if (t === 'row') { flushRow(); row = []; lastCol = -1; }
@@ -684,5 +726,5 @@
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
   compileEarly();
-  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
+  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
 }));
