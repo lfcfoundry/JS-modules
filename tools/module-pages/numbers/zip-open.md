@@ -80,3 +80,13 @@ One Firefox case was slower in one run: 400 small files from bytes took 0.94 of 
 | Cloud, Chromium 155 | not run | 0.71 |
 | Cloud, Firefox 158 | not run | 0.78 |
 | Cloud, WebKitGTK 2.52.6 | not run | 0.77 |
+
+
+**zip-open 1.9.0 against 1.7.0, Excel files, real laptop, 16 cores, 2026.10.31, 6:28 PM.** Whole open including unzip; early-stop A/B, 4 rounds each; time 1.9.0 / 1.7.0, lower is better.
+
+| Excel file | Firefox 160 | Chromium 156 |
+|---|---:|---:|
+| 60,000 rows | 0.41 | 0.35 |
+| 6,000 rows | 0.40 | 0.37 |
+| 20,000 rows with formulas | 0.39 | 0.31 |
+| 30,000 rows of text | 0.45 (noisy) | 0.55 |
