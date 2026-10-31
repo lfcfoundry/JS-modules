@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.7.1 · API 0 · 2026-10-30
+- Graph centrality with helpers kept is now faster than without: a pool: false call no longer shuts the kept helpers down.
+
 ## 0.7.0 · API 0 · 2026-10-30
 - Changed: betweennessAsync now keeps its helper threads by default (closing itself after 5 s idle); pool: false restores one-call helpers.
 

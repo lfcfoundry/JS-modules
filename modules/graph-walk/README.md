@@ -1,8 +1,8 @@
 # graph-walk
 
-**Version 0.7.0 · API 0**
+**Version 0.7.1 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, Chromium 155 (container)
 
 The walks that map and flow tools keep rewriting, on the plain "links of every item" layout in typed arrays with no recursion: breadth-first distances, loop marking, connected components, strongly connected components, topological order and shortest paths (by links or by weight, from one item to all or between two items). On a 100,000 item network with 400,000 links the build takes 7 milliseconds and components 5, where graphology needs 2.2 seconds and 0.5 to 1.5 seconds.
 
