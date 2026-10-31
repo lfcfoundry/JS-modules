@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.4.4 (API 0)
+ * Version 0.4.5 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1262,7 +1262,7 @@
     trimPacker();
   }
   // the packer's memory only (the tokenizer and string dictionary, which holds most of what a pack grows): the zstd memory stays, so the next job does not grow it again.
-  // Pack helpers do this when they go idle (pool.js): back-to-back packParallel calls stay as fast, and the waiting helpers hold 200 MB to 1.1 GB less.
+  // Pack helpers can do this when they go idle (pool.js, _helperTrimMs); by default they keep it until they close 3 s after the last call, since growing it again cost every call 7 to 25%.
   function trimPacker() {
     if (S.idle) { clearTimeout(S.idle); S.idle = null; }
     if (S.core) { S.core = loadSync(coreName()); S.sh.rebind(S.core); }
@@ -1607,7 +1607,7 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { trim: trim, _trimPacker: trimPacker, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.4', apiVersion: 0 };
+  var api = { trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.5', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
@@ -1697,7 +1697,7 @@
         var ws = [], results = new Array(groups.length), left = groups.length, failed = false;
         function release(ok) {   // finished helpers wait 3 s for the next call (they already hold the loaded wasm); a failed run ends them
           if (!ok) { ws.forEach(function (x) { x.kill(); }); ws = []; }
-          else ws.forEach(function (x) { x.post({ kind: 't' }, []); });   // a waiting helper gives back its packer memory (it keeps the compiled wasm and its zstd memory, so the next call is as fast)
+          else if (HELPER_TRIM_MS >= 0) { clearTimeout(trimTimer); trimTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.post({ kind: 't' }, []); }); }, HELPER_TRIM_MS); if (trimTimer.unref) trimTimer.unref(); }   // HELPER_TRIM_MS -1 (default): helpers keep their packer memory until they close 3 s after the last call; giving it back at once made every call grow it again (7-25% slower helper packs)
           clearTimeout(idleTimer); idleHelpers = idleHelpers.concat(ws); ws = [];
           idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, 3000); if (idleTimer.unref) idleTimer.unref();
         }
@@ -1725,7 +1725,7 @@
       });
     });
   }
-  var idleHelpers = [], idleTimer = null, packUrl = null;
+  var idleHelpers = [], idleTimer = null, trimTimer = null, HELPER_TRIM_MS = -1, packUrl = null;
   // warmPack(n, { keepMs }): start n pack helpers now (default: as many as packParallel would use, at most 8) and keep them keepMs (default 10,000) for the next packParallel call, which then skips the helper start-up
   function warmPack(n, o) {
     return init().then(function () {
@@ -1739,7 +1739,7 @@
     });
   }
   function takeHelper() {   // a helper kept from the last packParallel call, or a new one
-    clearTimeout(idleTimer); if (idleHelpers.length) return idleHelpers.pop();
+    clearTimeout(idleTimer); clearTimeout(trimTimer); if (idleHelpers.length) return idleHelpers.pop();
     var src = workerSource(true), w;
     if (typeof Worker === 'function') {
       packUrl = packUrl || URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); w = new Worker(packUrl);
