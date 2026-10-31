@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.8.0 · API 1 · 2026-10-31
+
+### Quick
+New opt-in out argument on toArray and slice; without it nothing changes. Old code needs no change.
+
+### Details
+toArray(out) / slice(a, b, out): out must be a Uint32Array of exactly the result length (TypeError otherwise) and is returned. Early-stop A/B, 8M values, toArray(out) vs toArray(): Chromium 155 0.798, Firefox 158 0.720, WebKitGTK 2.52.6 0.648 (new/old). Plain toArray against 1.7.0: within noise (0.858 / 1.000 / 0.848). slice of 2M values with out, one style per page: equal or faster (Chromium 33 vs 35 ms, Firefox 38 vs 42, WebKitGTK 15-25 vs 17-35).
+
+### Deep
+Fresh-memory first touch (about 0.7 ms per MB, see fresh-memory-first-touch-2026-10-31) dominated repeat decodes: toArray decoded into wasm scratch and then copied into a brand-new array. With out the copy goes into memory the caller already has. Measurement note: alternating plain and out slices on ONE page made the out call read 2.1-2.7x slower in WebKitGTK in 3 of 4 A/Bs (0.72 in the other), because the plain call's 8 MB of garbage is collected during the next call; one style per page shows out equal or faster, which is how a page would use it. The wasm out-slice is its own function (sliceOutWasm). Check: test/out.js (JS, WebAssembly, after compact(); wrong out refused); test/run.js all agree.
+
 ## 1.7.0 · API 1 · 2026-10-31
 
 ### Quick

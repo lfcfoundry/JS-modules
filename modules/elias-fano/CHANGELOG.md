@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.8.0 · API 1 · 2026-10-31
+- New: toArray(out) and slice(a, b, out) fill your own Uint32Array, so repeat decodes make no new memory; toArray of 8 million values 20 to 35% faster.
+
 ## 1.7.0 · API 1 · 2026-10-31
 - New: trim() gives back memory that big lists left behind (24 MB to 1.8 MB after a 5-million-id build); autoTrim does it by itself after a big job (on by default; autoTrim(false) turns it off).
 
