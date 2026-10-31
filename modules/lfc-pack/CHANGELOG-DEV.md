@@ -30,8 +30,11 @@ New `trim()`: a fresh instance of each compiled wasm module takes over and the g
 - Pack after `trim()` (3 packs of the 66.6 MB file at `access: 'random'`, each side of two trims) stays within the run's noise in all three browsers. Test: `tests/lfc-pack-memory-browser.js` (STEPS), `test/trim.cjs`.
 - A job that is still running keeps its own instance (it holds it), so calling `trim()` between the awaits of `pool()` or `packParallel` is safe. The memory then goes when that job ends.
 
+### Details (pack helpers)
+`packParallel` helpers that wait for the next call (3 s; `warmPack` keepMs) now give back their packer memory as soon as they go idle. They keep the compiled wasm and their zstd memory, so the next call is as fast. Browser memory held between calls (median after 0.7 s idle, 4 helpers, 66.6 MB input, before / after): Chromium 1697 / 1501 and 1809 / 1476 MB, Firefox 1914 / 1592 and 1940 / 1591 MB, WebKitGTK 2234 / 1077 MB. The median of 7 back-to-back calls, before / after: Chromium 1216 / 1242 and 1214 / 1186 ms, Firefox 1312 / 1381 and 1336 / 1282 ms, WebKitGTK 1551 / 1475 ms. Giving back the zstd memory too was tried, and made Chromium back-to-back calls 6 to 10% slower, so the zstd memory stays.
+
 ### Deep (trim)
-`packParallel` helpers each hold about 402 MB of reserved wasm (1.6 GB for 4) and add 330 to 650 MB of browser memory for about 10 s after each call (keepMs). `trim()` does not touch them; how long they stay is a separate setting.
+`packParallel` helpers each reserve about 402 MB of wasm (1.6 GB for 4). Pages that are never touched cost nothing, and the packer pages they touched now go when they idle (above). Main-thread `trim()` does not reach the helpers.
 
 ## 0.3.1 · API 0 · 2026-10-30
 

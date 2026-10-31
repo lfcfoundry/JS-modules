@@ -24,7 +24,7 @@ async function step(what) {
   else if (what === 'trim') { window.LfcPack.trim(); }
   else if (what === 'ppack') { f = await window.LfcPack.packParallel(src); window._f = f; }
   else if (what === 'upool') { var pl = await window.LfcPack.pool(); r = await pl.unpack(window._f); r = r.length; pl.close && pl.close(); }
-  else if (what === 'wait') { }
+  else if (what === 'wait' || what === 'nap') { }
   var ms = Math.round(performance.now() - t), all = await WASM_MEM.all(400);
   return { what: what, ms: ms, file: window._f ? MB(window._f.length) : 0, wasm: { page: MB(all.page), workers: MB(all.workers), helpers: all.workerCount } };
 }`;
@@ -37,7 +37,7 @@ T.main(async (b, which, outFile) => {
   const ir = await p.evaluate(() => doInit(true)); s.rssInitRead = rss(which); s.initRead = ir;
   const iw = await p.evaluate(() => doInit(false)); s.rssInit = rss(which); s.init = iw;
   console.log('input', s.input, 'MB; browser RSS: page', rss0, 'MB, input loaded', s.rssLoaded, 'MB, read-only init', s.rssInitRead, 'MB (' + ir.ms + ' ms), full init', s.rssInit, 'MB (' + iw.ms + ' ms); wasm', JSON.stringify(iw.wasm));
-  for (const w of (process.env.STEPS || 'pack,unpack,unpackRows,drop,pack,drop,wait,trim,wait,pack,drop,trim,wait').split(',')) { if (w === 'wait') await new Promise((res) => setTimeout(res, 3000)); const r = await p.evaluate((a) => step(a), w); r.rss = rss(which); steps.push(r); console.log(w.padEnd(12), String(r.ms).padStart(6), 'ms  file', r.file, 'MB  RSS', r.rss, 'MB  wasm', JSON.stringify(r.wasm)); }
+  for (const w of (process.env.STEPS || 'pack,unpack,unpackRows,drop,pack,drop,wait,trim,wait,pack,drop,trim,wait').split(',')) { if (w === 'wait') await new Promise((res) => setTimeout(res, 3000)); if (w === 'nap') await new Promise((res) => setTimeout(res, 700)); const r = await p.evaluate((a) => step(a), w); r.rss = rss(which); steps.push(r); console.log(w.padEnd(12), String(r.ms).padStart(6), 'ms  file', r.file, 'MB  RSS', r.rss, 'MB  wasm', JSON.stringify(r.wasm)); }
   if (outFile) fs.writeFileSync(outFile, JSON.stringify({ browser: which, setup: s, steps }, null, 1));
   await p.close().catch(() => {}); srv.close();
 });

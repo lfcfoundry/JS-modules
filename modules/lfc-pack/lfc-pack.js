@@ -1247,6 +1247,11 @@
   // trim(): gives back the WebAssembly memory that earlier jobs grew (memory only grows; a new instance of each compiled module starts small and the old memory goes with the old instance). Call it between jobs, never during one.
   function trim() {
     if (S.zfull) { S.zfull = makeZstd(loadSync('zstd-full')); S.zdec = S.zfull; } else if (S.zdec) S.zdec = makeZstd(loadSync('zstd-dec'));
+    trimPacker();
+  }
+  // the packer's memory only (the tokenizer and string dictionary, which holds most of what a pack grows): the zstd memory stays, so the next job does not grow it again.
+  // Pack helpers do this when they go idle (pool.js): back-to-back packParallel calls stay as fast, and the waiting helpers hold 200 MB to 1.1 GB less.
+  function trimPacker() {
     if (S.core) { S.core = loadSync(coreName()); S.sh = makeShredder(S.core); }
     dropSmallWasm();
   }
@@ -1576,7 +1581,7 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { trim: trim, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.3.1', apiVersion: 0 };
+  var api = { trim: trim, _trimPacker: trimPacker, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.3.1', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
@@ -1584,7 +1589,7 @@
     return 'var JF = (' + jfFactory.toString() + ')(), ready = JF.init(' + (full ? '{}' : '{ readOnly: true }') + '), send, onMsg;\n' +
       'if (typeof self === "undefined" && typeof require === "function") { var wt = require("worker_threads"); send = function (m, t) { wt.parentPort.postMessage(m, t); }; wt.parentPort.on("message", function (m) { onMsg(m); }); }\n' +
       'else { send = function (m, t) { self.postMessage(m, t); }; self.onmessage = function (e) { onMsg(e.data); }; }\n' +
-      'onMsg = function (m) { ready.then(function () { if (m.kind === "p") send({ id: m.id, started: true }, []); var r = JF._job(m); send(r.msg, r.transfer); }); };\n';
+      'onMsg = function (m) { ready.then(function () { if (m.kind === "t") { JF._trimPacker(); return; } if (m.kind === "p") send({ id: m.id, started: true }, []); var r = JF._job(m); send(r.msg, r.transfer); }); };\n';
   }
   function runJob(m) {   // in a helper: { id, kind, buf, crc, want } -> { msg, transfer }
     try {
@@ -1666,6 +1671,7 @@
         var ws = [], results = new Array(groups.length), left = groups.length, failed = false;
         function release(ok) {   // finished helpers wait 3 s for the next call (they already hold the loaded wasm); a failed run ends them
           if (!ok) { ws.forEach(function (x) { x.kill(); }); ws = []; }
+          else ws.forEach(function (x) { x.post({ kind: 't' }, []); });   // a waiting helper gives back its packer memory (it keeps the compiled wasm and its zstd memory, so the next call is as fast)
           clearTimeout(idleTimer); idleHelpers = idleHelpers.concat(ws); ws = [];
           idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, 3000); if (idleTimer.unref) idleTimer.unref();
         }
