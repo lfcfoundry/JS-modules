@@ -14,5 +14,12 @@ const text = rows.join('\n') + '\n';
     if (u1 !== u2 || u1 !== u3) { bad++; console.log('unpack differs after trim', JSON.stringify(o)); }
     L.trim(); if (JSON.stringify(L.unpackRows(a, { from: 15000, count: 7 })) !== JSON.stringify(L.unpack(a).slice(15000, 15007))) { bad++; console.log('unpackRows differs after trim', JSON.stringify(o)); }
   }
+  // idle auto-trim (30 s by default; 5 ms here): packs before and after it, and a packStream that idles between chunks, give the same bytes
+  L._autoTrimMs(5); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (const o of opts) {
+    const a = L.pack(text, o); await wait(30); const b = L.pack(text, o);
+    if (Buffer.compare(Buffer.from(a), Buffer.from(b))) { bad++; console.log('pack differs after idle auto-trim', JSON.stringify(o)); }
+  }
+  L._autoTrimMs(30000);
   console.log('trim: ' + opts.length + ' option sets, bad ' + bad); process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
