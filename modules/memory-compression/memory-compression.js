@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.7.0 (API 2)
+ * Version 2.8.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1782,14 +1782,21 @@
       KWC = opts && opts.wasm === false ? null : kwGet(); STAT = null;
       try { return packRun(values, opts); } finally { KWC = null; STAT = null; }
     }
+    var AUTO_MAX = 100000;
     function packRun(values, opts) {
       var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy), quick: !!(opts && opts.quick) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
+      var autoQ = !!(opts && opts.auto), stable = false, prevBpn = 0, blk, qk;   // opts.auto (2.8.0, on by default from the JSO layer): a whole-number column of up to AUTO_MAX values tries every way on its first block only
       if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
-        k++; full = !(k > (o.quick ? 1 : 2) && k % 8 !== 0 && won.length);
+        k++; blk = a.subarray(i, Math.min(n, i + CHUNK));
+        qk = o.quick || (autoQ && stable && n <= AUTO_MAX);
+        full = !(k > (qk ? 1 : 2) && k % (autoQ && stable ? 32 : 8) !== 0 && won.length);
         o.prefer = full || !wonInts.length ? null : wonInts; o.top = 2;
-        part = encChunk(a.subarray(i, Math.min(n, i + CHUNK)), 2, o, full ? null : won);   // a block tries every way for the first blocks and every 8th; the rest try only the ways that have won before
+        part = encChunk(blk, 2, o, full ? null : won);   // a block tries every way for the first blocks and every 8th (every 32nd for a whole-number column under opts.auto); the rest try only the ways that have won before
+        if (autoQ && !full && stable && prevBpn > 0 && part.length / blk.length > prevBpn * 99) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stable = false; }   // a block far worse than the one before: try every way again and stop skipping
+        prevBpn = part.length / blk.length;
+        if (autoQ && k === 1) stable = part[0] === CS.INTS;
         if (won.indexOf(part[0]) < 0 && part[0] !== CS.RAWF) won.push(part[0]);
         if (part[0] === CS.INTS && wonInts.indexOf(part[1]) < 0 && part[1] !== IS.RAW) wonInts.push(part[1]);
         w.vi(part.length); w.bytes(part);
@@ -2028,6 +2035,7 @@
     this.fsst = !!(opts && opts.fsst);                                  // opt-in: text columns may be stored as FSST codes (any one string readable alone); costs training time
     this.patterns = !(opts && opts.patterns === false);                 // text patterns on by default; off saves time on text-heavy data at the cost of size
     this.quick = !!(opts && opts.quickTries);                           // opt-in: the picker tries every way on the first block only (faster pack, up to about 1% bigger)
+    this.auto = !(opts && opts.autoTries === false);                    // since 2.8.0, on by default: whole-number columns of up to 100,000 values try every way on their first block only (as quickTries); autoTries: false = the 2.7.0 bytes
     this.float32 = !!(opts && opts.float32);                       // opt-in and lossy: columns of fractions that need 8 bytes each are kept in 4
     this.seen = this.refs ? new Map() : null;
     this.keys = new Map(); this.depth = 0;
@@ -2268,20 +2276,20 @@
     var a = PK, small = this.mode === 'small', best, z = 0, p, ne, probe, got, got0, plain, tryNe = true, i;
     try {
       if (src.length >= 32768) {                    // a long column is first tried on its first 8,192 numbers; if the chooser gains under 5% there, the rest is not tried
-        probe = src.subarray(0, 8192); got = got0 = a.pack(probe, { sample: true, quick: this.quick, wasm: this.mcOpts.wasm });
+        probe = src.subarray(0, 8192); got = got0 = a.pack(probe, { sample: true, quick: this.quick, auto: this.auto, wasm: this.mcOpts.wasm });
         if (small) { p = MC.pack(got, this.mcOpts); if (p.length < got.length) got = p; }
         plain = MC.pack(probe, this.mcOpts);
         if (got.length > plain.length * 0.95) return null;
         if (small) {                                // the second pass (no entropy coding, then deflate) is only worth its time when it comes close on the same 8,192 numbers
-          ne = a.pack(probe, { sample: true, quick: this.quick, noEntropy: true, wasm: this.mcOpts.wasm });
+          ne = a.pack(probe, { sample: true, quick: this.quick, auto: this.auto, noEntropy: true, wasm: this.mcOpts.wasm });
           if (ne.length === got0.length) { for (i = 0; i < ne.length && ne[i] === got0[i]; i++); tryNe = i < ne.length; }   // the very same bytes: the second pass would only repeat the first
           if (tryNe) { p = MC.pack(ne, this.mcOpts); tryNe = p.length < got.length * 1.02; }
         }
       }
-      best = a.pack(src, { sample: true, quick: this.quick, wasm: this.mcOpts.wasm, hint: this.hints ? (this.hints[this.path] || (this.hints[this.path] = {})) : null });
+      best = a.pack(src, { sample: true, quick: this.quick, auto: this.auto, wasm: this.mcOpts.wasm, hint: this.hints ? (this.hints[this.path] || (this.hints[this.path] = {})) : null });
       if (small) {
         p = MC.pack(best, this.mcOpts); if (p.length < best.length) { best = p; z = 1; }
-        if (tryNe) { ne = a.pack(src, { sample: true, quick: this.quick, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; } }
+        if (tryNe) { ne = a.pack(src, { sample: true, quick: this.quick, auto: this.auto, noEntropy: true }); p = MC.pack(ne, this.mcOpts); if (p.length < best.length) { best = p; z = 1; } }
       }
     } catch (err) { return null; }
     return { bytes: best, z: z };
@@ -4238,7 +4246,7 @@
     runner = opts.workers && typeof opts.workers.run === 'function' ? opts.workers.run : function (jobs) {
       return Promise.resolve().then(function () { return jobs.map(function (j) { return j.kind === 1 ? colsFor(j.src, j.n, j.a, j.wopts) : adaptFor(j.src, e.mode, e.mcOpts.wasm, e.quick); }); });
     };
-    var tB = T ? performance.now() : 0, wopts = { mode: opts.mode, picker: opts.picker, level: opts.level, float32: opts.float32, quickTries: opts.quickTries, wasm: opts.wasm };
+    var tB = T ? performance.now() : 0, wopts = { mode: opts.mode, picker: opts.picker, level: opts.level, float32: opts.float32, quickTries: opts.quickTries, autoTries: opts.autoTries, wasm: opts.wasm };
     var jobsMsg = defer.jobs.map(function (j) { return j.kind === 1 ? { kind: 1, src: j.src, n: j.n, a: j.a, wopts: wopts, mode: e.mode, wasm: e.mcOpts.wasm } : { kind: 0, src: j.src, n: j.n, e: j.e, plainLen: j.plainLen, mode: e.mode, wasm: e.mcOpts.wasm, quick: e.quick }; });
     var pr = runner(jobsMsg); if (T) T.post = performance.now() - tB;
     return pr.then(function (res) {

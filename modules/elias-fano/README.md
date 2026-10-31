@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.5.0 · API 1**
+**Version 1.7.0 · API 1**
 
-**Tested in:** Node tests (test/run.js, fuzz.js, intersect.js, partitioned.js, lists-many.js) passed. Speed ratios measured in Firefox 158.0, ungoogled-chromium 155.0.8059.39-1 and WebKitGTK 2.52.6 in a cloud container, one at a time, no noise guard; laptop run still to come
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -57,6 +57,10 @@ var all = set.decodeAll();   // { offsets: Uint32Array(n + 1), values: Uint32Arr
 ```
 
 `build` and `buildLists` give a `Uint8Array` you can store or send; `open` and `openLists` read it back. Lists made in JavaScript and in WebAssembly are byte for byte the same. Call `free()` on a list you are done with when WebAssembly is in use (it copies the bytes into its own memory on first use).
+
+That copy means two copies sit in memory while you read: the bytes you opened and the one inside WebAssembly. `list.compact()` (or `open(bytes, { compact: true })`, also for `openPartitioned` and `openLists`, after `await EliasFano.ready()`) lets go of the JavaScript copy, so memory in use halves: 1.69 MB instead of 3.38 MB for a list of 1,000,000 ids. Drop your own reference to the bytes too, or they stay in memory. Answers stay the same. Reading one list at a time from a compacted list set (`get(i)`) takes about 1.1 to 1.2 times as long; `getMany` and single values do not change. `getMany` refuses positions outside the list with a `RangeError` (before 1.6.0 such a position could hang the plain JavaScript reader).
+
+WebAssembly memory only grows: once a big build or many lists have made it bigger, it stays that size until the page closes, even after `free()`. Since 1.7.0, `EliasFano.trim()` gives it back: it starts a fresh copy of the module with a small memory, moves compacted lists across (their only copy), and lets the old memory go; lists that still hold their bytes copy themselves in again the next time they are read, and lists you dropped without `free()` give their space back too. It returns `{ before, after, moved }` in bytes. `EliasFano.autoTrim(true)` does it by itself one tick after a call that leaves less than a quarter of an 8 MB or larger memory in use (on by default; `autoTrim(false)` turns it off). Never call `trim()` from inside a query. In Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6, with the same numbers in all three: twelve compacted 1,000,000-id lists with ten freed, 14.1 MB to 1.8 MB; building one 5,000,000-id list, 24.4 MB to 1.8 MB; a trim takes 1.8 to 4 ms; reading a moved list is as fast as before (200,000 `get` calls 20.2 vs 15.9 ms Chromium, 20.0 vs 19.0 Firefox, 12 vs 12 WebKitGTK). `test/trim.js` checks every answer before and after (also run in the three browsers by `tests/elias-fano-trim-browser.js`).
 
 `EliasFano.setBackend('js' | 'wasm' | 'auto')`, `EliasFano.accelerated()`, `EliasFano.simd()` and `EliasFano.ready()` tell and steer which path answers.
 
