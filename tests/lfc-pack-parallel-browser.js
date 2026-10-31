@@ -15,6 +15,13 @@ async function pageWork() {
     out.rows.push(name + ' workers ' + w + ': ' + b.length + ' bytes, ' + J.info(b).blocks + ' blocks, ' + t.toFixed(0) + ' ms (unguarded)');
   }
   let err = null; try { await J.packParallel(new TextEncoder().encode('{"a":1}\nnotjson\n'.repeat(20000)), { blockBytes: 100000, workers: 3 }); } catch (e) { err = e; } if (!err) out.bad.push('bad input must reject');
+  // overlapping calls (0.4.7): warmPack(4) with 2 idle helpers keeps 4; calls during and after warmPack and three at once never share or close a busy helper
+  await J.packParallel(full, { blockBytes: 300000, workers: 2 }); const wn = await J.warmPack(4); if (wn !== 4) out.bad.push('warmPack(4) after 2 idle helpers kept ' + wn);
+  const big = new TextEncoder().encode((rows.join('\n') + '\n').repeat(4)), wantBig = J.pack(big, { blockBytes: 300000 }), want = J.pack(full, { blockBytes: 300000 }), o2 = { blockBytes: 300000, workers: 2 };
+  const pw = J.warmPack(6), p1 = J.packParallel(big, o2); await pw; const p2 = J.packParallel(full, o2);
+  const ov = await Promise.all([p1, p2, J.packParallel(full, o2), J.packParallel(full, o2)]);
+  if (!eq(ov[0], wantBig)) out.bad.push('overlap: long call bytes'); for (let k = 1; k < 4; k++) if (!eq(ov[k], want)) out.bad.push('overlap: call ' + k + ' bytes');
+  out.rows.push('overlapping calls: ' + (out.bad.some((x) => /overlap|warmPack/.test(x)) ? 'problems' : 'ok'));
   const ex = await J.packParallel(full, { exact: true, blockBytes: 300000 }); if (!eq(ex, J.pack(full, { exact: true, blockBytes: 300000 }))) out.bad.push('exact falls back to one thread');
   return out;
 }
