@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.8.1 · API 2 · 2026-10-31
+
+### Quick
+Quick: the first save after a pause no longer pays to start the helpers.
+
+### Deep
+Quick: the first save after a pause no longer pays to start the helpers. Details: the jso-layer idle timer (2 s) frees buffers, trims, then calls MC.ready() and kwGet() (RESERVE). First pack after idle, 40,000 events, balanced: Chromium 40.0 -> 35.9 ms, Firefox 33 -> 34 (noise), WebKitGTK 44 -> 40 (13 reps; a 7-rep run read 40 -> 43, noise); warm 36-42. Memory over 4 MB is still released. Deep: research round 9 (wasm-stuck) measured WebKitGTK 63 -> 40 ms; the round 7 hook.js overstated stuck memory because it kept old memories alive.
+
 ## 2.8.0 · API 2 · 2026-10-31
 
 ### Quick
