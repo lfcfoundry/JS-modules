@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.3 · API 0 · 2026-10-31
+- New opt-in paths: 'auto' makes FHIR-like records 13% smaller and 12-18% faster to pack; defaults unchanged.
+
 ## 0.4.2 · API 0 · 2026-10-31
 - The first pack after trim() is no longer slower (laptop Chromium 4% slower before, now 2% faster): the packer keeps its warmed-up code. Same files byte for byte.
 

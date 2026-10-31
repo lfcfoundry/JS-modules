@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.3 · API 0 · 2026-10-31
+
+### Quick
+New option paths: 'auto': a long input tries both string layouts on its first big nested block and keeps the smaller one. Default files are byte-identical to 0.4.2.
+
+### Details
+Per-path strings (0.4.0) make records with many paths that each hold few strings larger: real FHIR grew 15%. With paths: 'auto', an input of 5 blocks or more builds its first big nested block both ways and the rest follow the smaller layout; shorter inputs keep per-path strings. 260 MB of real FHIR: 7.26 MB instead of 8.32 MB, and one-thread pack 0.82 / 0.88 / 0.88 of 0.4.2 time (Chromium / Firefox / WebKitGTK). packParallel writes the same bytes: blocks sent before block 0 answers try both and are redone if they picked the other way. The shape list and row id frames are now built once per block for both layouts (same bytes, neutral speed).
+
+### Deep
+Off by default because with 4 packParallel helpers the trial costs 6-9% on big files where per-path strings win (orders x5: Chromium 1.09, WebKitGTK 1.08, Firefox 1.06, inconclusive). A variant where only block 0 tries both fixed that but made FHIR with helpers 17% slower in Chromium. Details: js-modules-research/lfc-pack/fhir-rerun-2026.10.31/PATHS-PICK.md.
+
 ## 0.4.2 · API 0 · 2026-10-31
 
 ### Quick
