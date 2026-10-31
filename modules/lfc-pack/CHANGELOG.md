@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.3.2 · API 0 · 2026-10-31
+- Packing with small blocks is 1.3-3.7x faster: the string and shape tables are cleared only as far as each block used them. Same bytes.
+
 ## 0.3.1 · API 0 · 2026-10-30
 - Map coordinates and other decimal lists read faster: 0.38 to 0.86x the time of 0.3.0, now faster than before the decimal format too.
 

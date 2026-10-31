@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.8.0 · API 2**
+**Version 2.8.2 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 under the real policy (research, median of 11); 82 node checks; 24 eval/no-eval view compares
 
 ## What it is and how it works
 
