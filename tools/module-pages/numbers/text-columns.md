@@ -65,3 +65,6 @@ The page's own work falls to 17 to 142 ms, from 108 to 240 ms.
 
 
 **New in 0.6.2: much less memory after big files.** Cloud-browser runs (shared machine, not the laptop). 4 MB windows are on by default. After a 45 MB file, memory falls from 161 to 10.5 MB on the page and from 120 to 45 MB in the helpers, with times within noise. The longest page stall drops from 42 to 209 ms down to 14 to 23 ms. `idleTrim()` is opt-in.
+
+
+**New in 0.6.3: repeated text kept once.** Cloud-browser runs (shared machine, not the laptop). After a parse, repeated text values are merged in idle time. Memory kept for a 16 MB file in Chromium drops from 29.4 to 10.9 MB with repeating columns, and from 25.6 to 15.0 MB with one mostly unique column (42 to 63% less). Parse speed is unchanged in all three browsers. The merge finishes 35 to 163 ms after the parse in Firefox and WebKitGTK, and within about a second of idle time in Chromium.
