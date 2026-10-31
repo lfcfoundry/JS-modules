@@ -26,16 +26,16 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
-| [gif-writer](modules/gif-writer/README.md) | 1.5.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
-| [clip-writer](modules/clip-writer/README.md) | 1.0.1 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
+| [gif-writer](modules/gif-writer/README.md) | 1.6.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
+| [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.3.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.6.5 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.6.6 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.4.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.7.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.1.9 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
-| [text-columns](modules/text-columns/README.md) | 0.1.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
+| [text-columns](modules/text-columns/README.md) | 0.5.0 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
@@ -58,12 +58,23 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-30 · **text-columns** 0.5.0 · API 0: New, opt-in: types option turns YYYY-MM-DD columns into dates (milliseconds) and true/false columns into booleans. Without it nothing changes.
+- 2026-10-30 · **text-columns** 0.4.0 · API 0: New: columns can be a function that says yes or no for each column name. Nothing else changed; same speed.
+- 2026-10-30 · **text-columns** 0.3.0 · API 0: New: `columns` reads only the columns you name; `lazy: true` cuts text strings only when read (or one cell with `get(i)`). Big files with quotes split faster; a 150 MB number file reads up to 3 times faster.
+- 2026-10-30 · **text-columns** 0.2.0 · API 0: New: `parseParallel` reads a big CSV in Web Workers and gives the same table as `parse` (up to 2.9 times as fast on number columns of a 150 MB file). `warm` and `closeHelpers` start and stop the helpers. Files under 32 MB are read directly.
+- 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips orderings it already followed: same pictures, up to 1.3x faster.
+- 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
+- 2026-10-30 · **memory-compression** 2.6.6 · API 2: Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes
 - 2026-10-30 · **graph-walk** 0.7.0 · API 0: Changed: betweennessAsync now keeps its helper threads by default (closing itself after 5 s idle); pool: false restores one-call helpers.
 - 2026-10-30 · **graph-walk** 0.6.0 · API 0: New: betweennessAsync can keep its helper threads (pool: true) so repeated jobs are up to 1.75x faster; small jobs now run on the calling thread.
 - 2026-10-30 · **graph-walk** 0.5.0 · API 0: New: betweennessAsync splits betweenness across helper threads (3.4x to 4.6x faster on 4 cores).
 - 2026-10-30 · **graph-walk** 0.4.0 · API 0: New: k-core numbers, minimum spanning forest, PageRank and betweenness (plain JavaScript and WebAssembly); the first two-ended path call allocates less.
 - 2026-10-30 · **graph-walk** 0.3.0 · API 0: New: WebAssembly speeds up components, strongly connected groups, topological order and weighted paths to every item (1.2x to 2.2x in Firefox and Chromium, none in WebKitGTK); plain JavaScript stays as the fallback.
 - 2026-10-30 · **graph-walk** 0.2.0 · API 0: New: connected components, strongly connected components, topological order, weighted shortest paths and a fast two-ended path between two items; building the link index is faster.
+- 2026-10-30 · **gif-writer** 1.6.0 · API 1: Optional thorough palette: counts every pixel for slightly smaller files.
+- 2026-10-30 · **clip-writer** 1.3.0 · API 1: New saving options: fastStart (MP4 index first), sidx (seek index for fragmented MP4) and output 'blob'. All off by default; existing files are unchanged.
+- 2026-10-30 · **clip-writer** 1.2.0 · API 1: New: one sound track (Opus or AAC) in MP4 and fragmented MP4, with addAudio; fragmented pieces can be streamed into a MediaSource. Output without sound is unchanged.
+- 2026-10-30 · **clip-writer** 1.1.0 · API 1: New: fragmented MP4 output (writeFmp4, writeFmp4Segments, format 'fmp4' with live onSegment) for streaming and MediaSource. Normal MP4 and WebM files are unchanged.
 - 2026-10-27 · **text-columns** 0.1.1 · API 0: toRows() keeps a column named __proto__ as its own data, and a header with a repeated name now throws instead of silently dropping a column. Same speed.
 - 2026-10-27 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into Float64Array number columns and text columns with a WebAssembly SIMD scan (3 to 11 times faster than common parsers in the container), plain JavaScript fallback with the same answers.
 - 2026-10-27 · **save-kit** 1.2.2 · API 1: A zero limit in a schema now means zero: max 0 or maxKeys 0 rejects nonempty text and count entries.

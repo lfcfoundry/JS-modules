@@ -99,6 +99,10 @@ Where it loses: it cannot compress, it does not read `.xz` (LZMA2; decoders for 
 - **lc 5-8 are accepted but untested:** liblzma (what Python and xz use) only writes streams with lc + lp of 4 or less.
 - The output buffer doubles as the dictionary, so the dictionary size in a `.lzma` header is ignored.
 
+## See it in action
+
+The build steps of [Story Editor](https://lfcfoundry.github.io/story-editor/play/), [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/), [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/) and Netflow Map (not public yet) call the LZMA packer. Checked in each repository's main branch on 2026.10.30.
+
 ## For AI agents
 
 - The decoder is a direct state machine from the LZMA specification: `isMatch`, `isRep`, `isRepG0/G1/G2`, `isRep0Long`, `posSlot`, `posSpecial`, `align`, two length coders, and `literal`. Do not "simplify" the order of bit decodes: one misplaced call corrupts everything after it, usually without an error.
