@@ -129,3 +129,14 @@ Size as a share of 0.1.9 (Node, cloud, lower is better): map lines (GeoJSON-like
 - **`access: 'random'`** (256 KB blocks plus share): reading 100 rows is 20 to 60x faster than with default blocks, with files about the size of today's defaults.
 - **Memory:** `trim()` gives back 80 to 90 MB after a 66.6 MB job, and idle `packParallel` helpers give back 200 MB to 1.1 GB.
 - **Packing:** number-heavy files pack 3 to 25% faster with the same bytes (one Firefox round was slower, 359 to 384 ms), on top of 0.3.2's small-block gains.
+- **Stricter reader:** damaged files are refused the same way by the JavaScript, Python and Go readers (four new checks in the layout spec, plus invalid UTF-8 in JavaScript). Files from the writers are unchanged.
+
+**Wide whole reads (fix shipped in 0.3.0).** Reading every column of a 200-key, 20,000-row file, 0.2.0 vs the branch that became 0.3.0 and 0.4.0. Cloud-browser runs (shared machine, not the laptop).
+
+| Browser | 0.2.0 | After the fix | Change |
+|---|---:|---:|---:|
+| WebKitGTK | 1,122 ms | 590 ms | 47% less time |
+| Firefox 158 | 552 ms | 289 ms | 48% less time |
+| Chromium 155 | 657 ms | 598 ms | 9% less time |
+
+At 50 keys the difference is within noise.
