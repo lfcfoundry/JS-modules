@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.0 · API 0 · 2026-10-31
+- New: trim() gives the WebAssembly memory back after a big job (it only ever grows otherwise); nothing runs unless you call it.
+
 ## 0.9.0 · API 0 · 2026-10-31
 - New: closenessAsync splits closeness across kept helper threads (about 3.5x faster on 4 cores in all three test browsers).
 
