@@ -1,7 +1,7 @@
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ small helpers
-  var te = new TextEncoder(), td = new TextDecoder(), tlat = new TextDecoder('latin1');
+  var te = new TextEncoder(), td = new TextDecoder(), tlat = new TextDecoder('latin1'), tdr = new TextDecoder('utf-8', { fatal: true });   // tdr: readers; text that is not valid UTF-8 is refused (SPEC 3), the writer's td replaces bad bytes
   var hasBuffer = typeof Buffer !== 'undefined' && Buffer.from;
   function concat(parts) {
     var n = 0, i; for (i = 0; i < parts.length; i++) n += parts[i].length;

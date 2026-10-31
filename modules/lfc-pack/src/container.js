@@ -24,7 +24,7 @@
       p += 8 + len; }
     return { major: major, minor: rd16(file, n - 6), bodyEnd: n - 16 - flen, sec: sec };
   }
-  function jsonSec(b) { return b ? JSON.parse(td.decode(b)) : undefined; }
+  function jsonSec(b) { return b ? JSON.parse(tdr.decode(b)) : undefined; }
   // optional metadata (footer section 6, see PROPOSAL-metadata-section.md): opts.meta is a plain object the app wants to travel with the file; stored as { v: 1, ...meta }, under 64 KB, optional for readers
   function metaSecs(opts) {
     var m = opts && opts.meta; if (m === undefined || m === null) return [];

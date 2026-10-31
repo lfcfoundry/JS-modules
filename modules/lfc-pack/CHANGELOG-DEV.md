@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.3.0 · API 0 · 2026-10-30
+
+### Quick
+Decimal number columns (up to nine decimals as scaled whole numbers), delta columns and nested number width 7 (with lag 1 to 4 for interleaved coordinates); unpackRows, stats, metadata/meta, hash, check: 'xxh64', rows: 'generated'; stricter damaged-file checks in JS, Python and Go. Files using delta or width 7 are refused by 0.2.x readers. Stacked on 0.2.1's tuned zstd; sizes as a share of 0.1.9: map lines 0.3045, prices 0.7787, dense 1.0258, logs 0.9991; times within container noise.
+
+### Details
+The LFCP spec thread's format branch, merged with main (13 MB blocks from 0.2.0, tuned zstd from 0.2.1). Each change alone, then all together (Node, container): the decimal branch and tuned zstd act on different columns, so the stack keeps both gains with no interaction. Readers: JS, Python (142 vector files), Go (main vectors), layout checker (nested width 0 to 7). Layout vectors regenerated with test/genlayout.cjs. wasm unchanged (main's tuned build).
+
+### Deep
+lfc-pack 0.3.0: decimal format branch stacked on 0.2.1. Node container sizes vs 0.1.9: prices 12.7 MB 0.7787, GeoJSON-like 11.4 MB 0.3045, web logs 22 MB 0.9991, dense 21.7 MB 1.0260. Pack/unpack within +-10% over 3 rounds of 7. The tester section 004 times 0.1.9, 0.2.0, 0.2.1, decimal-on-0.2.0 and the stack side by side. Owner picked 'Merge as 0.3.0 now' on the card.
+
 ## 0.2.1 · API 0 · 2026-10-30
 
 ### Quick
