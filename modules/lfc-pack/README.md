@@ -113,7 +113,7 @@ Speed: measured results, each labeled with its browser and machine (the real lap
 - WebAssembly is required; there is no plain-JavaScript fallback for zstd.
 - Input is NDJSON, one value per line. Blank lines and `\r` are dropped in value mode (kept in `exact` mode). Lines that are not valid JSON make `pack` throw.
 - Value mode returns the values `JSON.parse` returns: numbers are doubles (9007199254740993 comes back as 9007199254740992), `1.0` comes back as `1`, `-0` stays `-0`, duplicate keys keep the last value, object keys come back in first-seen order per block (integer-like keys first, as in any JavaScript object).
-- Memory: the writer's wasm instance reserves about 400 MB of address space (not all touched) for a 21 MB block; since 0.4.0 `trim()` gives grown memory back after a job, and idle `packParallel` helpers give back theirs. Blocks are capped at 48 MB, 4 million numbers and 262,144 rows; a block that exceeds the caps is split.
+- Memory: the writer's wasm instance reserves about 400 MB of address space (not all touched) for a 21 MB block; since 0.4.0 `trim()` gives grown memory back after a job, and idle `packParallel` helpers give back theirs; the packer also gives its memory back by itself after 30 s without packing. Blocks are capped at 48 MB, 4 million numbers and 262,144 rows; a block that exceeds the caps is split.
 - Rows are objects; a file of bare numbers or arrays works (nested layout) but gains little.
 - **The format is not frozen until a formal release**: files written by 0.x versions may not open in later ones.
 - Not built yet: the number-spelling section (smaller `exact` files), a streaming reader, the SQL subset, Parquet and CSV converters, and a command-line tool.

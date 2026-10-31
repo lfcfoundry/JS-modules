@@ -2,6 +2,22 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## Next (not released yet)
+
+### Quick
+Idle auto-trim: 30 s after the last `pack`, `packRows`, `packTables` or `packStream` chunk, the packer's wasm instance is replaced (`trimPacker()`). The zstd memory stays. Files are unchanged, and there is no API change. Jawad picked 30 s on a card, 2026-10-31.
+
+### Details
+- `packMany()` clears any pending idle timer, packs, then arms a 30 s `setTimeout`. In Node the timer is unref'd, so it never keeps a process alive. `trim()` and `trimPacker()` cancel a pending timer.
+- `_autoTrimMs(ms)` is an internal test hook; `test/trim.cjs` uses 5 ms.
+- First pack after an idle trim (3.7 s idle in the test, 66.6 MB, after / no trim):
+  - laptop Chromium 156: 0.984 [0.968, 0.999] ok
+  - laptop Firefox 160: 1.017 [0.984, 1.021] ok
+  - cloud WebKitGTK 2.52.6: 1.056 [0.995, 1.134], inconclusive. That cost comes from the fresh pages, and the 30 s wait limits it to packs after long pauses.
+
+### Deep
+The Linux page map shows that a 66.6 MB pack writes 38.1 MB of the core's 384 MB, so that's what an idle trim gives back. Big blocks touch more: input, text and the dedupe output are each up to 48 MB. See 0.4.2 for why the shredder is rebound rather than rebuilt.
+
 ## 0.4.2 · API 0 · 2026-10-31
 
 ### Quick
