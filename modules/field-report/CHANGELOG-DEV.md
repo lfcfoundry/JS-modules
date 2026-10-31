@@ -5,10 +5,10 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 1.1.0 · API 1 · 2026-10-31
 
 ### Quick
-Quick: games can stop paying for a second frame loop.
+Games can stop paying for a second frame loop.
 
-### Deep
-Quick: games can stop paying for a second frame loop. Details: frames 'play' (from Pineapple Defense's patch: the default loop cost about 39 ms a second on an idle title screen) runs the callback only between fr.frames(true) and fr.frames(false); frames 'external' (asked by Fancy Banana) runs none, and fr.frame(ts) records from the app's loop; fr.frames(false/true) pauses and resumes any mode, and the gap is not counted. The default (true) is unchanged.
+### Details
+frames 'play' (from Pineapple Defense's patch: the default loop cost about 39 ms a second on an idle title screen) runs the callback only between fr.frames(true) and fr.frames(false); frames 'external' (asked by Fancy Banana) runs none, and fr.frame(ts) records from the app's loop; fr.frames(false/true) pauses and resumes any mode, and the gap is not counted. The default (true) is unchanged.
 
 ## 1.0.2 · API 1 · 2026-10-22
 
