@@ -80,6 +80,7 @@
     cols.push([CODES_KEY, ck, NC, new Uint8Array(codes.buffer)]);
     return { t: 'n', n: h.n, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
   }
+  nestedFrames = guard(nestedFrames);
   function nestedTransfer(F) { var t = [F.dict.buffer, F.ids[2].buffer], i; for (i = 0; i < F.cols.length; i++) t.push(F.cols[i][3].buffer); return t; }
   function makeNestedReader(zs) {
     var STRS = null, TI = 0, COLS = new Map(), PLAN = new Map();
@@ -133,5 +134,6 @@
       for (i = 0; i < b.n; i++) out[i] = build(fnById[ids[i]]);
       return out;
     }
+    openBlock = guard(openBlock); rowsOf = guard(rowsOf);
     return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes) { return rowsOf(openBlock(nestedFrames(zs, bytes))); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
   }

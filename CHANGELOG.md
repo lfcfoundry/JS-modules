@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.6.6 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.5.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.7.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.1.9 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.2.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.5.0 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.2 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -69,6 +69,9 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips orderings it already followed: same pictures, up to 1.3x faster.
 - 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
 - 2026-10-30 · **memory-compression** 2.6.6 · API 2: Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes
+- 2026-10-30 · **lfc-pack** 0.2.0 · API 0: Default block size 13 MB (was 21 MB): parallel pack 34-36% faster on a 16-core laptop, same size; `packParallel` hands out one block at a time (7 to 27% faster); `warmPack(n)`. New `meta` option with `LfcPack.metadata(bytes)`, `LfcPack.unpackRows(bytes, {from, count})` (decodes only the blocks it needs, builds only those rows) and `LfcPack.stats(bytes)` (column facts from the footer). Faster one-column reads and wide row objects (WebKit 200-key whole read 1,324 to 580 ms). New `LfcPack.hash(bytes, kind)`, a file viewer (viewer.html), readers that refuse damaged blocks with a plain message, and an optional `check: 'xxh64'` block check with per-column checks (one-column reads about 40 to 50% faster).
+- 2026-10-30 · **lfc-pack** 0.1.11 · API 0: New packStream: feed text in pieces and write each block as it is ready, so packing a big file holds one block of text at a time
+- 2026-10-30 · **lfc-pack** 0.1.10 · API 0: New experimental unpackColumns reads flat-row files as typed columns without building row objects.
 - 2026-10-30 · **graph-walk** 0.7.0 · API 0: Changed: betweennessAsync now keeps its helper threads by default (closing itself after 5 s idle); pool: false restores one-call helpers.
 - 2026-10-30 · **graph-walk** 0.6.0 · API 0: New: betweennessAsync can keep its helper threads (pool: true) so repeated jobs are up to 1.75x faster; small jobs now run on the calling thread.
 - 2026-10-30 · **graph-walk** 0.5.0 · API 0: New: betweennessAsync splits betweenness across helper threads (3.4x to 4.6x faster on 4 cores).
@@ -80,6 +83,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-30 · **clip-writer** 1.3.0 · API 1: New saving options: fastStart (MP4 index first), sidx (seek index for fragmented MP4) and output 'blob'. All off by default; existing files are unchanged.
 - 2026-10-30 · **clip-writer** 1.2.0 · API 1: New: one sound track (Opus or AAC) in MP4 and fragmented MP4, with addAudio; fragmented pieces can be streamed into a MediaSource. Output without sound is unchanged.
 - 2026-10-30 · **clip-writer** 1.1.0 · API 1: New: fragmented MP4 output (writeFmp4, writeFmp4Segments, format 'fmp4' with live onSegment) for streaming and MediaSource. Normal MP4 and WebM files are unchanged.
+- 2026-10-29 · **lfc-pack** 0.1.10 · API 0: New experimental unpackColumns reads flat-row files as typed columns without building row objects.
 - 2026-10-27 · **text-columns** 0.1.1 · API 0: toRows() keeps a column named __proto__ as its own data, and a header with a repeated name now throws instead of silently dropping a column. Same speed.
 - 2026-10-27 · **text-columns** 0.1.0 · API 0: First version: reads CSV and TSV into Float64Array number columns and text columns with a WebAssembly SIMD scan (3 to 11 times faster than common parsers in the container), plain JavaScript fallback with the same answers.
 - 2026-10-27 · **save-kit** 1.2.2 · API 1: A zero limit in a schema now means zero: max 0 or maxKeys 0 rejects nonempty text and count entries.

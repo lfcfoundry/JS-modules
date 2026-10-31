@@ -24,7 +24,7 @@ except ImportError:
 
 CODES_KEY = 2147483001
 _FMT = ['B', 'H', 'I', 'b', 'h', 'i', 'd']
-BLOCK_BYTES = 21 << 20
+BLOCK_BYTES = 13 << 20
 BLOCK_ROWS = 200000
 USE_FLAT = True     # tests set this False to force nested blocks
 SIZE_GUARD = True   # tests set this False to force nested blocks

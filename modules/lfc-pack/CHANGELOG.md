@@ -2,6 +2,21 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.2.0 · API 0 · 2026-10-30
+- Default block size 13 MB (was 21 MB): parallel pack 34-36% faster on a 16-core laptop, same size; `packParallel` hands out one block at a time (7 to 27% faster); `warmPack(n)`.
+- New `meta` option with `LfcPack.metadata(bytes)`, `LfcPack.unpackRows(bytes, {from, count})` (decodes only the blocks it needs, builds only those rows) and `LfcPack.stats(bytes)` (column facts from the footer).
+- Faster one-column reads and wide row objects (WebKit 200-key whole read 1,324 to 580 ms).
+- New `LfcPack.hash(bytes, kind)`, a file viewer (viewer.html), readers that refuse damaged blocks with a plain message, and an optional `check: 'xxh64'` block check with per-column checks (one-column reads about 40 to 50% faster).
+
+## 0.1.11 · API 0 · 2026-10-30
+- New packStream: feed text in pieces and write each block as it is ready, so packing a big file holds one block of text at a time
+
+## 0.1.10 · API 0 · 2026-10-30
+- New experimental unpackColumns reads flat-row files as typed columns without building row objects.
+
+## 0.1.10 · API 0 · 2026-10-29
+- New experimental unpackColumns reads flat-row files as typed columns without building row objects.
+
 ## 0.1.9 · API 0 · 2026-10-27
 - New opt-in `packParallel(bytes, { workers })`: helper Web Workers pack runs of whole blocks at the same time (at most min(cores, 8)); the file has the same bytes as `pack`. Exact mode and small inputs stay on one thread.
 
