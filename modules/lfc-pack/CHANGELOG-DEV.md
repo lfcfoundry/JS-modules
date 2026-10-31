@@ -4,23 +4,6 @@ What changed in each version, newest first, for developers, in three depths: Qui
 
 ## Next (not released yet)
 
-### Quick
-Packing with small blocks is 1.3 to 3.7 times faster; files are byte-identical, nothing in the API changes.
-
-### Details
-`dd_run` (wasm/core.c) cleared its whole 2^22-entry hash table (16 MB) on every call, which is once per nested block. It now sizes the table to the block's strings (the smallest power of two at least twice the count, from 2^10 up to 2^22) and clears only that. `reset()` cleared the 512 KB shape table on every block; it now clears only the slots that were filled. Pack ms, old / new, median of 5, 100,000 rows:
-
-| Browser | geo 32 KB | geo 256 KB | orders 32 KB | orders 256 KB |
-|---|---|---|---|---|
-| Chromium 155 | 1452 / 415 | 391 / 204 | 2572 / 1098 | 689 / 488 |
-| Firefox 158 | 1506 / 413 | 408 / 249 | 2658 / 897 | 795 / 542 |
-| WebKitGTK 2.52.6 | 1700 / 432 | 397 / 235 | 2762 / 881 | 704 / 531 |
-
-Default 13 MB blocks: unchanged (Chromium rerun, 2 rounds of 9: 151 / 151 and 147 / 150 ms geo, 322 / 321 and 316 / 332 ms orders).
-
-### Deep
-For a 256 KB block the memset was about 16 MB of writes against about 0.25 MB of input, so it dominated small-block packs, and it also touched 16 MB of memory that a small pack never needed. Output is unchanged because the table is exact (byte compare on every hit) and codes are given in first-seen order, so the table size changes only the probe path. Checked: 28 files (4 data sets x 7 option sets, nested, shared, per-path, flat) byte-identical between the old and new builds, and `node test/run.js` passes.
-
 ### Details (number grouping)
 `shred()` grouped the numbers of a nested block by path with two JavaScript Map lookups per number. The path hashes are 32-bit, which are slow as Map keys. On its own that loop took about 60 ns per number in all three browsers (2,000,000 numbers in 96 to 143 ms). A direct-mapped cache in front of the Map was slower still (132 to 194 ms), so it was dropped.
 
@@ -50,6 +33,13 @@ New `trim()`: a fresh instance of each compiled wasm module takes over and the g
 
 ### Deep (trim)
 `packParallel` helpers each reserve about 402 MB of wasm (1.6 GB for 4). Pages that are never touched cost nothing, and the packer pages they touched now go when they idle (above). Main-thread `trim()` does not reach the helpers.
+## 0.3.2 · API 0 · 2026-10-31
+
+### Quick
+Quick: small-block packs no longer clear 16 MB per block.
+
+### Deep
+Quick: small-block packs no longer clear 16 MB per block. Details: dd_run sized its hash table to the block's strings (at least twice their count, up to 2^22 slots) and reset() clears only the shape slots used (SHSLOT). Pack ms old/new: Chromium geo 32 KB 1452/415, 256 KB 391/204, orders 32 KB 2572/1098, 256 KB 689/488; Firefox 1506/413, 408/249, 2658/897, 795/542; WebKitGTK 1700/432, 397/235, 2762/881, 704/531. Default 13 MB blocks unchanged (Chromium 151/151, 322/321). 28 files byte-identical. Deep: cherry-picked from the LFCP branch (463ff97) onto main; core.wasm rebuilt from main's core.c plus the fix (same size as the branch build).
 
 ## 0.3.1 · API 0 · 2026-10-30
 

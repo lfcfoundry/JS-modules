@@ -682,14 +682,21 @@
       KWC = opts && opts.wasm === false ? null : kwGet(); STAT = null;
       try { return packRun(values, opts); } finally { KWC = null; STAT = null; }
     }
+    var AUTO_MAX = 100000;
     function packRun(values, opts) {
       var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy), quick: !!(opts && opts.quick) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
+      var autoQ = !!(opts && opts.auto), stable = false, prevBpn = 0, blk, qk;   // opts.auto (2.8.0, on by default from the JSO layer): a whole-number column of up to AUTO_MAX values tries every way on its first block only
       if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
-        k++; full = !(k > (o.quick ? 1 : 2) && k % 8 !== 0 && won.length);
+        k++; blk = a.subarray(i, Math.min(n, i + CHUNK));
+        qk = o.quick || (autoQ && stable && n <= AUTO_MAX);
+        full = !(k > (qk ? 1 : 2) && k % (autoQ && stable ? 32 : 8) !== 0 && won.length);
         o.prefer = full || !wonInts.length ? null : wonInts; o.top = 2;
-        part = encChunk(a.subarray(i, Math.min(n, i + CHUNK)), 2, o, full ? null : won);   // a block tries every way for the first blocks and every 8th; the rest try only the ways that have won before
+        part = encChunk(blk, 2, o, full ? null : won);   // a block tries every way for the first blocks and every 8th (every 32nd for a whole-number column under opts.auto); the rest try only the ways that have won before
+        if (autoQ && !full && stable && prevBpn > 0 && part.length / blk.length > prevBpn * 99) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stable = false; }   // a block far worse than the one before: try every way again and stop skipping
+        prevBpn = part.length / blk.length;
+        if (autoQ && k === 1) stable = part[0] === CS.INTS;
         if (won.indexOf(part[0]) < 0 && part[0] !== CS.RAWF) won.push(part[0]);
         if (part[0] === CS.INTS && wonInts.indexOf(part[1]) < 0 && part[1] !== IS.RAW) wonInts.push(part[1]);
         w.vi(part.length); w.bytes(part);

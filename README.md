@@ -128,7 +128,7 @@ Curtains, flying elements, lettering and 3D-looking sprites.
 |---|---|---:|---:|---|---|
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 | 50.3 | 20.6 | A written style guide and demo for the soft, glossy cartoon 3D look in CSS and SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/cartoon-3d-kit/demo.html) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 | 18.1 | 6.3 | A big element scrolls away and a copy flies to its sticky mini version. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fly-to-mini/demo.html) |
-| [gpu-blur](modules/gpu-blur/README.md) | 1.2.3 | 59.3 | 18.3 | Blurs a picture on the card (WebGL 2), in WebAssembly or plain JavaScript; same picture every way. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gpu-blur/demo.html) |
+| [gpu-blur](modules/gpu-blur/README.md) | 1.3.0 | 59.9 | 18.5 | Blurs a picture on the card (WebGL 2), in WebAssembly or plain JavaScript; same picture every way. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gpu-blur/demo.html) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 | 54.6 | 18.0 | Tiny software 3D rasterizer that bakes shaded sprites to canvases. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sprite-baker/demo.html) |
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.1 | 47.4 | 16.9 | Velvet stage curtains that slide shut over a page and fly open. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/stage-curtains/demo.html) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 | 5.0 | 2.1 | Die-cut sticker lettering in plain CSS, no images. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sticker-text/demo.html) |
@@ -184,11 +184,11 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [elias-fano](modules/elias-fano/README.md) | 1.5.0 | 65.6 | 21.7 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.3.1 | 730.1 | 233.3 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
-| [memory-compression](modules/memory-compression/README.md) | 2.7.0 | 396.6 | 115.2 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [elias-fano](modules/elias-fano/README.md) | 1.7.0 | 71.6 | 23.7 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.3.2 | 730.9 | 233.1 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [memory-compression](modules/memory-compression/README.md) | 2.8.2 | 398.8 | 115.9 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
-| [text-columns](modules/text-columns/README.md) | 0.5.1 | 40.3 | 14.4 | Reads CSV and TSV into number and text columns, 3 to 11 times faster than common parsers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
+| [text-columns](modules/text-columns/README.md) | 0.6.1 | 49.3 | 17.2 | Reads CSV and TSV into number and text columns, 3 to 11 times faster than common parsers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
 #### Model simulation
 

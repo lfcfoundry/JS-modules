@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.7.0 · API 2**
+**Version 2.8.2 · API 2**
 
-**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (11 interleaved reps with a control copy); Node 82 checks.
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 under the real policy (research, median of 11); 82 node checks; 24 eval/no-eval view compares
 
 ## What it is and how it works
 
@@ -110,7 +110,8 @@ Since 2.5.0 a view keeps each top-level text column whole until a row is read (p
 | `check` | `true` adds a checksum that `unpack()` verifies | off |
 | `fsst` / `front` / `patterns` | FSST codes for text (opt-in); front coding of sorted text; text patterns (the last two on by default) | see notes |
 | `float32` | `true` keeps fraction columns in 4 bytes (lossy, relative error at most about 6e-8) | off |
-| `quickTries` | `true` makes the number picker try every way on its first 8,192-number block only, not the first two (packing 0 to 20% faster on lists with several number columns; files 0 to 1.1% bigger, never smaller; opens the same) | off |
+| `autoTries` | since 2.8.0: a whole-number column of up to 100,000 values tries every way on its first block only (as `quickTries` does there) and re-checks every 32nd block. Pack 1.02 to 1.24x faster in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 on lists of 20,000 to 300,000 rows; files 0 to 1.3% bigger on whole-number lists of 10,000 to 100,000 rows, unchanged above; opens the same. `false` gives the 2.7.0 bytes | on |
+| `quickTries` | `true` makes the number picker try every way on its first 8,192-number block only, not the first two (packing 0 to 20% faster on lists with several number columns; files 0 to 1.1% bigger, never smaller; opens the same) ; forces it at every size | off |
 | `wasm` | `false` forces plain JavaScript | use WebAssembly if available |
 | `maxSize`, `maxItems` | limits that stop a hostile or damaged input (1 GiB, 100,000,000) | as shown |
 

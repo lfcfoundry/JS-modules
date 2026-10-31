@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-10-31
+- New: opts.into takes your own pixel array for out 'pixels', so blurring every frame makes no new memory; 1.1 to 1.7x faster with the helpers.
+
 ## 1.2.3 · API 1 · 2026-10-31
 - The helpers route is up to 1.34x faster on repeat blurs.
 

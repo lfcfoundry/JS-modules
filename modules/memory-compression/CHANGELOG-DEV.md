@@ -2,6 +2,41 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.8.2 · API 2 · 2026-10-31
+
+### Quick
+Quick: on pages without 'unsafe-eval', view() no longer builds every object and string up front.
+
+### Deep
+Quick: on pages without 'unsafe-eval', view() no longer builds every object and string up front. Details: recordRowPlain (one loop over keys) replaces the generated row maker when CAN_EVAL is false, and lazy template strings use a closure row; two CAN_EVAL gates on laziness removed. view open + get, under the policy: Firefox Events 10 -> 2 ms, Users 17 -> 6; Chromium Features 19.2 -> 12.7; WebKitGTK Features 35 -> 16; Links unchanged (numbers dominate). Pages that allow eval run the same code as before. Deep: clone-template rows (object spread) were tried and dropped (Firefox 10-20% slower, ES2018). Pack scanners still have a no-eval gap (Chromium Links 153 vs 105 ms), not fixed here.
+
+## 2.8.1 · API 2 · 2026-10-31
+
+### Quick
+Quick: the first save after a pause no longer pays to start the helpers.
+
+### Deep
+Quick: the first save after a pause no longer pays to start the helpers. Details: the jso-layer idle timer (2 s) frees buffers, trims, then calls MC.ready() and kwGet() (RESERVE). First pack after idle, 40,000 events, balanced: Chromium 40.0 -> 35.9 ms, Firefox 33 -> 34 (noise), WebKitGTK 44 -> 40 (13 reps; a 7-rep run read 40 -> 43, noise); warm 36-42. Memory over 4 MB is still released. Deep: research round 9 (wasm-stuck) measured WebKitGTK 63 -> 40 ms; the round 7 hook.js overstated stuck memory because it kept old memories alive.
+
+## 2.8.0 · API 2 · 2026-10-31
+
+### Quick
+New default autoTries: whole-number columns up to 100,000 values try every coding on the first block only (as quickTries), re-check every 32nd block.
+
+### Deep
+New default autoTries: whole-number columns up to 100,000 values try every coding on the first block only (as quickTries), re-check every 32nd block. Pack 1.02-1.24x faster across 3 browsers (lists 20k-300k rows), files +0 to 1.3% on 10k-100k whole-number lists, unchanged above. autoTries: false = 2.7.0 bytes. tests/memory-compression-auto-browser.js.
+
+## 2.8.0 · API 2 · 2026-10-31
+
+### Quick
+New default autoTries: whole-number columns of up to 100,000 values try every number coding on their first block only. Pack 1.02 to 1.24x faster, files 0 to 1.3% bigger on such lists; `autoTries: false` gives the 2.7.0 bytes. Old files open the same.
+
+### Details
+The owner picked "Yes, automatic" on the card (2026-10-31). The number picker (packRun) gets `auto` from the object layer: when the first block of a column comes out as whole numbers, the column counts as stable and later blocks skip the full tries as quickTries does, but only while the column has at most 100,000 values; a stable column re-checks every way every 32nd block (was every 8th). A block far worse than the one before (99x the bytes per value) would turn the full tries back on. packAsync workers get autoTries too. Byte-identical to the research build (memory-compression-auto4) on 30 list/option pairs in Node. tests/memory-compression-auto-browser.js: 2.8.0 against autoTries: false, mode 'balanced', 9 rounds, then 21 rounds for the cells that looked slower.
+
+### Deep
+Pack ms, autoTries vs false (x faster), bytes: links 60k Chromium 1.12x, Firefox 1.16x, WebKitGTK 1.05x, +0.30%; events 40k 1.24/1.13/1.09x, +1.13%; users 20k 1.02/1.11/1.15x, +0.27%; events 100k 1.19/1.12/1.12x, +1.30%; links 150k 1.12/0.99/1.05x, +0.13%; events 300k 1.07/1.02/1.03x, 0.00%; users 150k 1.10/1.23/1.06x, -0.03%. The first 9-round run showed Chromium events 100k at 0.91x and 300k at 0.94x and Firefox events 40k at 0.91x; at 21 rounds they were 1.19x, 1.07x and 1.13x (noise). Research history: an 8% worse-block guard, a margin gate and a runner-up hedge were tried and dropped (each spent the time back); the range cap kept the gain where it is.
+
 ## 2.7.0 · API 2 · 2026-10-30
 
 ### Quick

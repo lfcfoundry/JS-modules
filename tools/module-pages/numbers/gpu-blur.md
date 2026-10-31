@@ -25,3 +25,12 @@ Threads time divided by helpers time: Chromium 0.78 to 1.12, Firefox 0.74 to 1.1
 
 
 **New in 1.2.1 to 1.2.3: helpers use every core, a fix, and faster repeat blurs.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop). 1.2.1 lets the helpers route use every core. 1.2.2 fixes a bug where a canvas over about 0.5 megapixel blurred on one thread came back with its top rows blank. 1.2.3 keeps the helpers' working memory between calls, so repeat blurs on the helpers route take less time than in 1.2.2: 1.22 to 1.31x faster in Chromium, 1.10 to 1.34x in Firefox, and 0.99 to 1.09x in WebKitGTK (about even).
+
+
+**New in 1.3.0: blur into your own pixel array.** Cloud-browser runs (4 cores, shared machine, not noise-guarded, not the laptop). With `out: 'pixels'`, `opts.into` takes your own `Uint8ClampedArray` or `Uint8Array` (width x height x 4), and every route writes into it, so no new array is made per blur. Same bytes in all three browsers.
+
+| Bytes in, radius 12, 960 x 540 up to 4K (x faster, higher is better) | Chromium | Firefox | WebKitGTK |
+|---|---:|---:|---:|
+| Helpers with kept bands + `into`, against 1.2.2 | 1.19 to 1.43 | 1.47 to 1.74 | 1.09 to 1.32 |
+
+On one thread (WebAssembly), `into` runs 0.91 to 1.49x as fast as a fresh array: slightly slower at some sizes, up to about 1.5x faster at others.

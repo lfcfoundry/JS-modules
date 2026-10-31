@@ -12,3 +12,4 @@ Opt-in, defaults unchanged. Source: /mnt/project-files/js-modules-research/lfc-p
 - `paths: true` (per-path strings): 11% smaller at default blocks, 14% smaller at 256 KB.
 - Both together: 256 KB blocks come out about the size of today's default files, while 100-row range reads stay 20 to 60x faster.
 - `access: 'random'`: read preset, 256 KB blocks plus share.
+
