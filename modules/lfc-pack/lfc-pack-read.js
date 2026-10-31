@@ -560,7 +560,7 @@
   var NONASCII = /[\x80-\xff]/;   // dictionary text is ASCII (LAYOUT-SPEC 3.4)
   // tables: the file's shared tables ({ s: strings, k: row shapes }, footer section 16), or null
   function makeNestedReader(zs, tables) {
-    var STRS = null, CD = null, IDN = new Uint32Array(0), TI = 0, COLS = new Map(), SCOLS = new Map(), PLAN = new Map(), SPLAN = new Map(), GPLN = [], GPLS = [], SPM = false;
+    var STRS = null, CD = null, IDN = new Uint32Array(0), CD32 = new Uint32Array(0), TI = 0, COLS = new Map(), SCOLS = new Map(), PLAN = new Map(), SPLAN = new Map(), GPLN = [], GPLS = [], SPM = false;
     // plans are cached per shape text; blocks with per-path strings (sp) get their own plans, whose string cells read from the column of their path
     function planOf(t) { var P = SPM ? SPLAN : PLAN, f = P.get(t); if (!f) { f = desc(JSON.parse(t), ''); P.set(t, f); } return f; }
     function col(h) { var c = COLS.get(h); if (!c) { c = { h: h, a: null, i: 0 }; COLS.set(h, c); } return c; }
@@ -616,7 +616,10 @@
       // string cells read the dictionary through the codes (STRS[CD[k]]); only shared-table blocks, whose codes point into two lists, build one list of the cells' strings first
       if (b.g) { var L = b.L, GS = tables.s; E = new Array(n); for (i = 0; i < n; i++) { c = cd[i]; if ((E[i] = c < L ? D[c] : GS[c - L]) === undefined) throw new Error('damaged block: string code out of range'); }
         if (IDN.length < n) { IDN = new Uint32Array(Math.max(n, IDN.length * 2)); for (i = 0; i < IDN.length; i++) IDN[i] = i; } STRS = E; CD = IDN; }
-      else { var DL = D.length; for (i = 0; i < n; i++) if (cd[i] >= DL) throw new Error('damaged block: string code out of range'); STRS = D; CD = cd; }
+      else { var DL = D.length;   // codes come as 8-, 16- or 32-bit arrays; reading them always as one kind keeps the row builder's reads on one fast path (mixed kinds made Chromium 12% slower)
+        if (cd instanceof Uint32Array) { for (i = 0; i < n; i++) if (cd[i] >= DL) throw new Error('damaged block: string code out of range'); CD = cd; }
+        else { if (CD32.length < n) CD32 = new Uint32Array(Math.max(n, CD32.length * 2)); for (i = 0; i < n; i++) { if ((c = cd[i]) >= DL) throw new Error('damaged block: string code out of range'); CD32[i] = c; } CD = CD32; }
+        STRS = D; }
       TI = 0; SPM = !!b.sp;
       var sl = b.skel, fnById = new Array(sl.length);
       for (i = 0; i < sl.length; i++) fnById[i] = planOf(sl[i]);
