@@ -1,6 +1,6 @@
 # gpu-blur
 
-**Version 1.0.1 · API 1**
+**Version 1.1.0 · API 1**
 
 **Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
 
@@ -53,6 +53,8 @@ GpuBlur.ready().then(function (info) { /* info.canvasRoute: the way a drawn pict
 3. **A texture (`out: 'texture'`).** The card, in your context.
 4. **Fallbacks.** No WebGL 2, a lost context (`webglcontextlost`; the module also uses the way again after `webglcontextrestored`), a card way that throws, no WebAssembly, a page policy without `'wasm-unsafe-eval'`, or a WebAssembly file whose self-test differs from the JavaScript twin: the next way answers and the picture is the same. Each of those is a check in `tests/gpu-blur-browser.js`.
 
+5. **Helpers (opt-in, `route: 'helpers'` or `workers: n`, `blur()` only).** The WebAssembly kernel runs on row bands in background workers; each band also takes the 3b rows above and below that three box passes reach, so the bytes are the ones the one-thread kernel gives. It is used above about 0.3 megapixel with 3 or more cores (default helpers: cores - 1), and gives way to one-thread WebAssembly when the page policy has no `worker-src blob:` or a helper fails. The helpers stay 5 seconds after the last job (`idleMs`); `release()` ends them now. Container with 4 cores, `out: 'pixels'`, helpers against one-thread WebAssembly: Chromium 155 0.51 to 0.85x the time, Firefox 158 0.50 to 0.85x, WebKitGTK 2.52.6 0.87 to 1.06x (no gain there), from 1280 x 720 to 3840 x 2160 at radius 4, 12 and 40. `tests/gpu-blur-helpers-browser.js` checks the same bytes in 90 cases (prime sizes, radius 0 to 100, bands thinner than the blur's reach, canvas in and out) and the fallback under a strict policy.
+
 ## Same picture every way
 
 The definition is: three horizontal box passes (width `2b + 1`, with `b` from the radius), then three vertical ones; every pass rounds half up to a whole number; the edge pixel repeats. WebAssembly and JavaScript compute it with a running whole-number sum. The card way runs six passes with whole-number sums in the shader, because a first version that added floating-point colors was off by one level in 8 to 19% of the values in WebKit's graphics path. The checks compare every way to a slow brute-force version of the definition and to each other:
@@ -68,7 +70,7 @@ A page task over about 8 ms is felt as a stutter. The WebAssembly and JavaScript
 
 ## Under a strict Content-Security-Policy
 
-Nothing here needs more than `'wasm-unsafe-eval'` in `script-src`: no `eval`, no `new Function`, no `blob:` address (no `img-src blob:`), no worker, no storage, no network. Without `'wasm-unsafe-eval'` the module uses plain JavaScript. `tests/gpu-blur-browser.js` runs on a page with `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src data:`.
+Nothing here needs more than `'wasm-unsafe-eval'` in `script-src`: no `eval`, no `new Function`, no `blob:` address (no `img-src blob:`), no worker, no storage, no network. The one exception is the opt-in helpers route, which makes its workers from a `blob:` address and so needs `worker-src blob:`; without it the module quietly uses one-thread WebAssembly. Without `'wasm-unsafe-eval'` the module uses plain JavaScript. `tests/gpu-blur-browser.js` runs on a page with `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src data:`.
 
 ## Measured (the four test browsers, one at a time)
 
