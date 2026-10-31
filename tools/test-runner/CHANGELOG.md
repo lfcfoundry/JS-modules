@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-10-31
+- New ab.js: the early-stop A/B timing rule for the 5% check.
+
 ## 1.3.0 · API 1 · 2026-10-25
 - Noise guard: a fixed calibration loop that stops timings on a noisy machine.
 
