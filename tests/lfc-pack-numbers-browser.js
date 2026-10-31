@@ -5,18 +5,18 @@
 const fs = require('fs'), path = require('path'), T = require('../tools/test-runner/runner.js');
 const NEW = fs.readFileSync(path.resolve(__dirname, '../modules/lfc-pack/lfc-pack.js'), 'utf8'), OLD = fs.readFileSync(process.env.OLD || '/tmp/lfc-pack-old.js', 'utf8'), REPS = +process.env.REPS || 11;
 const PAGE = (`
-var TEXT = {}, FILES = {}, SETS = ['sensor 3 dec', 'GPS 5 dec', 'random 3 dec', 'price 4 dec', 'noisy 2 dec'];
+var TEXT = {}, FILES = {}, SETS = ['sensor 3 dec', 'GPS 5 dec', 'random 3 dec', 'price 4 dec', 'noisy 2 dec', 'pairs 5 dec'];
 async function setup() {
-  var J = window.LfcPack, sd = 5, i, x = 20, la = 40, p = 100, c = {}, n = +'__N__', bad = [];
+  var J = window.LfcPack, sd = 5, i, x = 20, la = 40, lo = -74, p = 100, c = {}, n = +'__N__', bad = [];
   await J.init(); await window.LfcOld.init();
   var r = function () { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; return sd / 4294967296; };
   var g = function () { var u = r() || 1e-9, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
   SETS.forEach(function (s) { c[s] = []; });
-  for (i = 0; i < n; i++) { x += g() * 0.05; c['sensor 3 dec'].push(+x.toFixed(3)); la += g() * 0.0001; c['GPS 5 dec'].push(+la.toFixed(5)); c['random 3 dec'].push(+(r() * 100).toFixed(3)); p *= 1 + g() * 0.0005; c['price 4 dec'].push(+p.toFixed(4)); c['noisy 2 dec'].push(Math.round(1000 + g() * 30) / 100); }
+  for (i = 0; i < n; i++) { x += g() * 0.05; c['sensor 3 dec'].push(+x.toFixed(3)); la += g() * 0.0001; c['GPS 5 dec'].push(+la.toFixed(5)); c['random 3 dec'].push(+(r() * 100).toFixed(3)); p *= 1 + g() * 0.0005; c['price 4 dec'].push(+p.toFixed(4)); c['noisy 2 dec'].push(Math.round(1000 + g() * 30) / 100); lo += g() * 0.0001; c['pairs 5 dec'].push([+lo.toFixed(5), +la.toFixed(5)]); }
   SETS.forEach(function (s) {
     TEXT[s] = c[s].map(function (v, k) { return JSON.stringify(__ROW__); }).join('\\n') + '\\n';
     FILES[s] = { old: window.LfcOld.pack(TEXT[s]), neu: J.pack(TEXT[s]) };
-    var a = J.unpack(FILES[s].neu), b = J.unpack(FILES[s].old); if (a.length !== n || a[n - 1].v !== c[s][n - 1] || a[777].v !== c[s][777] || b[777].v !== c[s][777]) bad.push(s);
+    var a = J.unpack(FILES[s].neu), b = J.unpack(FILES[s].old); if (a.length !== n || JSON.stringify(a[n - 1].v) !== JSON.stringify(c[s][n - 1]) || JSON.stringify(a[777].v) !== JSON.stringify(c[s][777]) || JSON.stringify(b[777].v) !== JSON.stringify(c[s][777])) bad.push(s);
   });
   return { bad: bad, sizes: SETS.map(function (s) { return { s: s, old: FILES[s].old.length, neu: FILES[s].neu.length }; }) };
 }

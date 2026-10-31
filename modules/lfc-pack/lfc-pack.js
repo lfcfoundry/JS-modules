@@ -213,33 +213,40 @@
     var k = colKind(c), t = (c instanceof KIND[k]) ? c : KIND[k].from(c);
     return [k, c.length, new Uint8Array(t.buffer, t.byteOffset, t.byteLength)];
   }
-  // width 7: a column of whole numbers or decimals (up to nine decimals, exact) whose varints are clearly shorter than its typed bytes, kept when it also compresses smaller: byte 0 is the decimals d (bit 7 set: differences between neighbors instead of the numbers), then the varints of z(whole) or z(whole - previous whole) with whole = value * 10^d; value = whole / 10^d. null when it does not pay (not exact, or the varints would take half of the doubles' size or more)
+  // width 7: a column of whole numbers or decimals (up to nine decimals, exact) whose varints are clearly shorter than its typed bytes, kept when it also compresses smaller: byte 0 is the decimals d in bits 0 to 3 (bit 7 set: differences against the value k places back instead of the numbers, with k - 1 in bits 4 to 6), then the varints of z(whole) or z(whole - previous whole) with whole = value * 10^d; value = whole / 10^d. null when it does not pay (not exact, or the varints would take half of the doubles' size or more)
   function decimalColumn(c, rawBytes) {
     var n = c.length, i, sc, d, x, p = 0, prev, sa = 0, sb = 0, allInt = true, out, u, delta;
     if (n < 2 || rawBytes <= n) return null;   // one byte per value or less: varints (at least one byte each) cannot be clearly shorter
     for (i = 0; i < n; i++) { x = c[i]; if (!(x - x === 0) || (x === 0 && 1 / x < 0)) return null; if (allInt && !(Number.isInteger(x) && x < 1125899906842624 && x > -1125899906842624)) allInt = false; }
     if (allInt) sc = 1; else { sc = decimalScale(c); if (!sc) return null; }
     var b = allInt ? c : DS_INTS; DS_INTS = null;   // decimalScale left the exact whole numbers behind
-    // varint sizes: counted on the whole column up to 4096 values, otherwise on 8 windows of 512 values spread evenly (the choice only has to be clear, the frame that is written is exact)
-    var win = n <= 4096 ? 1 : 8, wl = n <= 4096 ? n : 512, w, from, cnt = 0;
+    // varint sizes: counted on the whole column up to 4096 values, otherwise on 8 windows of 512 values spread evenly (the choice only has to be clear, the frame that is written is exact). Differences are taken against the value k places back, k = 1 to 4: a column that interleaves series (the x and y of coordinate pairs) is much smaller with k = 2
+    var win = n <= 4096 ? 1 : 8, wl = n <= 4096 ? n : 512, w, from, cnt = 0, k, sk = [0, 0, 0, 0, 0];
     for (w = 0; w < win; w++) {
-      from = win === 1 ? 0 : Math.floor((n - wl) * w / (win - 1)); prev = from ? b[from - 1] : 0;
-      for (i = from; i < from + wl; i++) { x = b[i]; sa += vlen(x >= 0 ? x * 2 : -x * 2 - 1); u = x - prev; sb += vlen(u >= 0 ? u * 2 : -u * 2 - 1); prev = x; cnt++; }
+      from = win === 1 ? 0 : Math.floor((n - wl) * w / (win - 1));
+      for (i = from; i < from + wl; i++) {
+        x = b[i]; sa += vlen(x >= 0 ? x * 2 : -x * 2 - 1); cnt++;
+        for (k = 1; k <= 4; k++) { u = x - (i >= k ? b[i - k] : 0); sk[k] += vlen(u >= 0 ? u * 2 : -u * 2 - 1); }
+      }
     }
-    sa = sa * n / cnt; sb = sb * n / cnt;
+    sa = sa * n / cnt; for (k = 1; k <= 4; k++) sk[k] = sk[k] * n / cnt;
+    var bk = 1; for (k = 2; k <= 4; k++) if (sk[k] < sk[bk] * 0.95) bk = k;   // a larger stride has to be clearly better
+    sb = sk[bk];
     if (Math.min(sa, sb) >= rawBytes * 0.6) return null;   // only a column whose varints are clearly shorter than its typed bytes is compressed both ways
     delta = sb < sa;
-    var tot = 0; prev = 0; for (i = 0; i < n; i++) { x = b[i]; u = delta ? x - prev : x; prev = x; tot += vlen(u >= 0 ? u * 2 : -u * 2 - 1); } d = Math.round(Math.log10(sc)); out = new Uint8Array(1 + tot); out[0] = d | (delta ? 128 : 0); p = 1; prev = 0;
+    var tot = 0; for (i = 0; i < n; i++) { x = b[i]; u = delta ? x - (i >= bk ? b[i - bk] : 0) : x; tot += vlen(u >= 0 ? u * 2 : -u * 2 - 1); }
+    d = Math.round(Math.log10(sc)); out = new Uint8Array(1 + tot); out[0] = d | (delta ? 128 | ((bk - 1) << 4) : 0); p = 1;
     for (i = 0; i < n; i++) {
-      x = b[i]; u = delta ? x - prev : x; prev = x; u = u >= 0 ? u * 2 : -u * 2 - 1;
+      x = b[i]; u = delta ? x - (i >= bk ? b[i - bk] : 0) : x; u = u >= 0 ? u * 2 : -u * 2 - 1;
       while (u >= 128) { out[p++] = (u % 128) | 128; u = Math.floor(u / 128); }
       out[p++] = u;
     }
     return out;
   }
   function decodeDecimalColumn(raw, n) {
-    var d = raw[0] & 127, delta = raw[0] & 128, u = unvarints(raw.subarray(1), n), sc = Math.pow(10, d), o = new Float64Array(n), i, s = 0;
-    for (i = 0; i < n; i++) { if (delta) { s += unzz(u[i]); o[i] = s / sc; } else o[i] = unzz(u[i]) / sc; }
+    var d = raw[0] & 15, delta = raw[0] & 128, k = ((raw[0] >> 4) & 7) + 1, u = unvarints(raw.subarray(1), n), sc = Math.pow(10, d), o = new Float64Array(n), w = new Float64Array(n), i, s;
+    if (d > 9) throw new Error('damaged block: bad decimal column');
+    for (i = 0; i < n; i++) { if (delta) { s = (i >= k ? w[i - k] : 0) + unzz(u[i]); w[i] = s; o[i] = s / sc; } else o[i] = unzz(u[i]) / sc; }
     return new Uint8Array(o.buffer);
   }
   function writeNestedBlock(ctx, input, opts) {
