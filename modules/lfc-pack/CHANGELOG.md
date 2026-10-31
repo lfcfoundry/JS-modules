@@ -2,8 +2,8 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
-## Next (not released yet)
-- The first pack after `trim()` is no longer slower: the packer keeps its warmed-up code and just points it at the fresh memory. Same files byte for byte.
+## 0.4.2 · API 0 · 2026-10-31
+- The first pack after trim() is no longer slower (laptop Chromium 4% slower before, now 2% faster): the packer keeps its warmed-up code. Same files byte for byte.
 
 ## 0.4.1 · API 0 · 2026-10-31
 - Packing nested rows is 6 to 21% faster on a 16-core laptop (Chromium and Firefox), with the same files byte for byte.
