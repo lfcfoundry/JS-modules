@@ -126,6 +126,11 @@
   function isDateFormat(code) { var c = String(code).replace(/"[^"]*"|\\.|\[[^\]]*\]|_.|\*./g, ''); return /[ymdhs]/i.test(c) && !/^(general|0|#)/i.test(c) || /[dy]{2}|m{1,2}[\/\-.]|[hH]:|:[sS]/.test(c) && /[ymdhs]/i.test(c); }
   function xlDate(serial, d1904) {
     if (!isFinite(serial) || serial < 0 || serial > 2958465) return null;
+    if (serial % 1 === 0) {   // whole days: the calendar date worked out directly (same answer as Date, without making one)
+      var z = serial - (d1904 ? 24107 : 25569) + 719468, era = Math.floor(z / 146097), doe = z - era * 146097, yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365);
+      var doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100)), mp = Math.floor((5 * doy + 2) / 153), dd = doy - Math.floor((153 * mp + 2) / 5) + 1, mm = mp < 10 ? mp + 3 : mp - 9, yy = yoe + era * 400 + (mm <= 2 ? 1 : 0);
+      if (yy <= 9999) return yy + (mm < 10 ? '-0' : '-') + mm + (dd < 10 ? '-0' : '-') + dd;
+    }
     var ms = Math.round((serial - (d1904 ? 24107 : 25569)) * 86400000), d = new Date(ms);
     if (isNaN(d.getTime())) return null;
     var iso = d.toISOString();
@@ -145,11 +150,29 @@
     return true;
   }
 
+  /* The usual shared-strings shape (<si><t>text</t></si>, or <t xml:space="preserve">) is read straight from the text. Anything else (rich text runs,
+     phonetic parts, comments, odd spacing) returns false and the general reader redoes the whole list. */
+  function fastStrings(x, sst) {
+    var pos = x.indexOf('<si'), lt, e, t;
+    if (pos < 0 || x.lastIndexOf('<!', pos) >= 0) return false;   // a comment or CDATA before the list: general reader
+    for (;;) {
+      lt = x.indexOf('<', pos); if (lt < 0) return false;
+      if (x.startsWith('<si><t>', lt)) pos = lt + 7;
+      else if (x.startsWith('<si><t xml:space="preserve">', lt)) pos = lt + 28;
+      else if (x.startsWith('</sst>', lt)) return x.indexOf('<si', lt) < 0;
+      else return false;
+      e = x.indexOf('<', pos); if (e < 0 || !x.startsWith('</t></si>', e)) return false;
+      t = x.slice(pos, e); if (t.indexOf('&') >= 0) t = xmlDecode(t);
+      sst.push(t);
+      if (sst.length > 5000000) throw new Error('This workbook has too many distinct text values.');
+      pos = e + 9;
+    }
+  }
   function xlsxSheets(parts, opts) {
     opts = opts || {};
     var maxRows = opts.maxRows || 2000000, sst = [], dateXf = {}, d1904 = false, sheets = [], rels = {};
-    if (parts['xl/sharedStrings.xml']) {
-      var cur = null, inT = false;
+    if (parts['xl/sharedStrings.xml'] && (opts._slow || !fastStrings(parts['xl/sharedStrings.xml'], sst))) {
+      var cur = null, inT = false; sst.length = 0;
       xmlScan(parts['xl/sharedStrings.xml'], {
         open: function (t, a) { if (t === 'si') cur = ''; else if (t === 't' && cur !== null) inT = true; else if ((t === 'rPh' || t === 'phoneticPr') && cur !== null) inT = false; },
         text: function (s) { if (inT && cur !== null && cur.length < 40000) cur += s; },
@@ -187,37 +210,104 @@
         }
         row = null; rowHas = false;
       };
-      xmlScan(xml, {
-        wants: function () { return cell && inV; },
-        open: function (t, a, self) {
-          if (truncated) return;
-          if (t === 'row') { flushRow(); row = []; lastCol = -1; }
-          else if (t === 'c') {
-            cType = a.t || 'n'; cXf = a.s ? Number(a.s) || 0 : 0; cV = ''; cell = true;
-            var ci = colIndex(a.r); if (ci < 0) ci = lastCol + 1;
-            if (ci >= XL_COLS) { cell = false; return; }
-            cCol = ci; lastCol = ci;
-            if (self) cell = false;
-          }
-          else if (t === 'v' && cell) inV = true;
-          else if (t === 'is' && cell) inIs = true;
-          else if (t === 't' && cell && inIs) inV = true;
-        },
-        text: function (s) { if (cell && inV && cV.length < 40000) cV += s; },
-        close: function (t) {
-          if (t === 'v' || (t === 't' && inIs)) inV = false;
-          else if (t === 'is') inIs = false;
-          else if (t === 'c' && cell) {
-            var v = cV;
-            if (cType === 's') { var sv = sst[Number(v)]; v = sv !== undefined ? sv : ''; }
-            else if (cType === 'b') v = v === '1' ? 'TRUE' : 'FALSE';
-            else if (cType === 'n' || cType === '') { if (v !== '' && dateXf[cXf]) { var dt = xlDate(Number(v), d1904); if (dt) v = dt; } else if (v !== '' && !plainInt(v) && isFinite(Number(v))) v = String(Number(v)); }
-            if (v !== '' && row) { row[cCol] = v; rowHas = true; }
-            cell = false;
-          }
-          else if (t === 'row') flushRow();
+      var startCell = function (r, ty, s, self) {
+        cType = ty || 'n'; cXf = s ? Number(s) || 0 : 0; cV = ''; cell = true;
+        var ci = colIndex(r); if (ci < 0) ci = lastCol + 1;
+        if (ci >= XL_COLS) { cell = false; return; }
+        cCol = ci; lastCol = ci;
+        if (self) cell = false;
+      };
+      var endCell = function () {
+        var v = cV;
+        if (cType === 's') { var sv = sst[Number(v)]; v = sv !== undefined ? sv : ''; }
+        else if (cType === 'b') v = v === '1' ? 'TRUE' : 'FALSE';
+        else if (cType === 'n' || cType === '') { if (v !== '' && dateXf[cXf]) { var dt = xlDate(Number(v), d1904); if (dt) v = dt; } else if (v !== '' && !plainInt(v) && isFinite(Number(v))) v = String(Number(v)); }
+        if (v !== '' && row) { row[cCol] = v; rowHas = true; }
+        cell = false;
+      };
+      /* The usual sheet shape (<row ..><c r=".." t=".." s=".."><v>text</v></c>..</row>) is read straight from the text, without making a tag object per element. Anything else
+         (inline text, formulas, odd attributes, comments, stray tags, a cut-off file) returns false at once and the general reader below does the whole sheet from the start. */
+      var fastRows = function () {
+        var sd = xml.indexOf('<sheetData'), pos, lt, gt, k, ch, q, nm, val, rs, ts, ss, self, ve;
+        if (sd < 0 || xml.indexOf('<row') < sd || xml.indexOf('<c ') < sd) return false;
+        pos = xml.indexOf('>', sd); if (pos < 0 || xml.charCodeAt(pos - 1) === 47) return false;
+        pos++;
+        for (;;) {
+          lt = xml.indexOf('<', pos); if (lt < 0) return false;
+          ch = xml.charCodeAt(lt + 1);
+          if (ch === 114 && xml.startsWith('row', lt + 1) && ((k = xml.charCodeAt(lt + 4)) === 32 || k === 62 || k === 47)) {   // <row
+            gt = xml.indexOf('>', lt + 4); if (gt < 0) return false;
+            for (k = lt + 4, q = 0; k < gt; k++) { ch = xml.charCodeAt(k); if (ch === 34) q++; else if (ch === 39 || ch === 60) return false; }
+            if (q & 1) return false;
+            flushRow(); row = []; lastCol = -1;
+            if (xml.charCodeAt(gt - 1) === 47) flushRow();
+            if (truncated) return false;
+            pos = gt + 1;
+          } else if (ch === 99 && xml.charCodeAt(lt + 2) === 32) {                                                              // <c
+            rs = ts = ss = undefined; k = lt + 3;
+            for (;;) {
+              while (xml.charCodeAt(k) === 32) k++;
+              ch = xml.charCodeAt(k);
+              if (ch === 62) { self = false; gt = k; break; }
+              if (ch === 47) { if (xml.charCodeAt(k + 1) !== 62) return false; self = true; gt = k + 1; break; }
+              q = k; while ((ch = xml.charCodeAt(k)) >= 97 && ch <= 122 || ch >= 65 && ch <= 90) k++;
+              if (k === q || xml.charCodeAt(k) !== 61 || xml.charCodeAt(k + 1) !== 34) return false;
+              nm = xml.slice(q, k); ve = xml.indexOf('"', k + 2); if (ve < 0) return false;
+              val = xml.slice(k + 2, ve); k = ve + 1;
+              if (nm === 'r') { if (rs !== undefined) return false; rs = val; }
+              else if (nm === 't') { if (ts !== undefined) return false; ts = val; }
+              else if (nm === 's') { if (ss !== undefined) return false; ss = val; }
+              else if (nm === 'xmlns') return false;
+              if (val.indexOf('&') >= 0 || val.indexOf('<') >= 0 || val.indexOf('>') >= 0) return false;
+              if (k < xml.length && xml.charCodeAt(k) !== 32 && xml.charCodeAt(k) !== 62 && xml.charCodeAt(k) !== 47) return false;
+            }
+            if (truncated) return false;
+            startCell(rs, ts, ss, self);
+            pos = gt + 1;
+            if (self) continue;
+            if (xml.charCodeAt(pos) === 60 && xml.charCodeAt(pos + 1) === 102 && ((ch = xml.charCodeAt(pos + 2)) === 62 || ch === 32 || ch === 47)) {   // <f>: a formula, never read; skipped
+              gt = xml.indexOf('>', pos + 2); if (gt < 0) return false;
+              for (k = pos + 2, q = 0; k < gt; k++) { ch = xml.charCodeAt(k); if (ch === 34) q++; else if (ch === 39 || ch === 60) return false; }
+              if (q & 1) return false;
+              if (xml.charCodeAt(gt - 1) === 47) pos = gt + 1;
+              else { ve = xml.indexOf('</f>', gt + 1); if (ve < 0) return false; for (k = gt + 1; k < ve; k++) if (xml.charCodeAt(k) === 60) return false; pos = ve + 4; }
+            }
+            if (xml.startsWith('<v>', pos)) {
+              ve = xml.indexOf('<', pos + 3); if (ve < 0 || xml.charCodeAt(ve + 1) !== 47 || xml.charCodeAt(ve + 2) !== 118 || xml.charCodeAt(ve + 3) !== 62) return false;
+              if (cell) { val = xml.slice(pos + 3, ve); if (val.indexOf('&') >= 0) val = xmlDecode(val); if (cV.length < 40000) cV += val; }
+              pos = ve + 4;
+            }
+            if (!xml.startsWith('</c>', pos)) return false;
+            pos += 4;
+            if (cell) endCell();
+          } else if (ch === 47) {                                                                                               // </row> or </sheetData>
+            if (xml.startsWith('</row>', lt)) { flushRow(); pos = lt + 6; }
+            else if (xml.startsWith('</sheetData>', lt)) { if (xml.indexOf('<row', lt) >= 0 || xml.indexOf('<c ', lt) >= 0) return false; flushRow(); return true; }
+            else return false;
+          } else return false;
         }
-      });
+      };
+      if (opts._slow || !fastRows()) {
+        lines = []; row = null; rowHas = false; cell = false; inV = false; inIs = false; rowCount = 0; lastCol = -1; truncated = false; cV = '';
+        xmlScan(xml, {
+          wants: function () { return cell && inV; },
+          open: function (t, a, self) {
+            if (truncated) return;
+            if (t === 'row') { flushRow(); row = []; lastCol = -1; }
+            else if (t === 'c') startCell(a.r, a.t, a.s, self);
+            else if (t === 'v' && cell) inV = true;
+            else if (t === 'is' && cell) inIs = true;
+            else if (t === 't' && cell && inIs) inV = true;
+          },
+          text: function (s) { if (cell && inV && cV.length < 40000) cV += s; },
+          close: function (t) {
+            if (t === 'v' || (t === 't' && inIs)) inV = false;
+            else if (t === 'is') inIs = false;
+            else if (t === 'c' && cell) endCell();
+            else if (t === 'row') flushRow();
+          }
+        });
+      }
       flushRow();
       if (lines.length) out.push({ sheet: sh.name, csv: lines.join('\n'), rows: lines.length, truncated: truncated });
     });
@@ -738,5 +828,5 @@
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
   compileEarly();
-  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
+  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
 }));
