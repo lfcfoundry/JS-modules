@@ -1,0 +1,1 @@
+Numbers files here are ready but not published: the code they describe is not on main yet. When the code merges, append the file to the module's file one folder up (`cat numbers/pending/<id>.md >> numbers/<id>.md`, then delete the pending copy) and run `build.py <id>`.

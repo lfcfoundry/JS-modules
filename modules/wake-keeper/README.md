@@ -70,7 +70,7 @@ Much smaller than NoSleep.js and larger than the plain request-and-listen code; 
 | Alternative | Size (smaller is better) | Features | Where it wins / loses |
 |---|---|---|---|
 | The plain MDN pattern by hand (`navigator.wakeLock.request`, listen for `visibilitychange`, request again; built in) | about 566 bytes (Fancy, the Banana keeps about 10 lines) | releases on hidden, asks again on visible; no idle release, no refusal wait, no guard for late answers | Wins on size. Loses: the lock is held through a title screen or forgotten tab, and a refused request is easy to retry in a loop. |
-| [NoSleep.js](https://github.com/richtr/NoSleep.js) 0.12.0 (MIT) | 16,732 bytes minified (gzipped: not measured) | wraps the Wake Lock API and is reported to use a hidden looping video in browsers without it; needs a tap to enable | Wins on reach to old browsers. Loses: about 6.3 times the size of this module; the video fallback is no longer needed in Safari on iPhone 16.4 and later. |
+| [NoSleep.js](https://github.com/richtr/NoSleep.js) 0.12.0 (MIT) | 16,732 bytes minified, 7,215 gzipped (the published `NoSleep.min.js`; terser 5.51.2 `-c passes=2 -m` leaves its size unchanged and gzip -9 gives the second figure) | wraps the Wake Lock API and is reported to use a hidden looping video in browsers without it; needs a tap to enable | Wins on reach to old browsers. Loses: about 6.3 times the size of this module; the video fallback is no longer needed in Safari on iPhone 16.4 and later. |
 | `useWakeLock` hooks for React (various packages; not checked) | not measured | tied to the framework | Wins inside a React app; no use outside React. |
 | **wake-keeper 1.1.0** | 2,648 bytes minified, 1,105 gzipped for the whole file; 1,417 and 660 for the smallest set (46% and 40% smaller) | idle release after `idleMs`, refusal wait, late-answer guard, `watchInput`, lean build | |
 
@@ -78,7 +78,7 @@ Where it loses:
 - Larger than the plain MDN code (the smallest set, 1,417 bytes minified, is about 2.5 times Fancy's inline code of about 566 bytes), in exchange for being shared and tested.
 - No fallback for browsers without the Wake Lock API (NoSleep.js has one). Without `navigator.wakeLock`, `supported` is `false` and nothing happens.
 - Not tried on a phone: the real lock was used only in Chromium and Firefox; WebKitGTK and GNOME Web refuse the request, so a stand-in lock was used there.
-- Not measured: speed in any browser, and the gzipped size of NoSleep.js.
+- Not measured: speed in any browser.
 
 ## What it is not
 
@@ -88,6 +88,10 @@ Where it loses:
 - The operating system can refuse at its own level while the page still sees success, so `held` can be `true` while the screen sleeps (the specification says this can happen). Treat the lock as a request, not a promise.
 - The 60 second release and the 20 second refusal wait are choices made here, not rules from MDN or the specification.
 - Tested with a fake browser; the real lock has not been tried on a phone by these tests.
+
+## See it in action
+
+Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/), [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## For AI agents
 

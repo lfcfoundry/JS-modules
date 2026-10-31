@@ -161,6 +161,10 @@ The libraries do more than this engine (drawing, routing, bundling, hundreds of 
 
 Version meaning: patch for a fix, minor for something new that breaks nobody, major when someone could be caught out (the API number equals the major).
 
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link). Checked in its shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## For AI agents
 
 The file is generated; do not hand-edit `netflow-engine.js`. It is made from Netflow Map's `src/engine.js` and `src/columns.js` by `node tools/build-engine-module.mjs X.Y.Z out.js`, and `node tools/check-engine-module.mjs out.js` proves it matches the app. To change the engine, change it in Netflow Map and publish a new version here. Bump with `python3 tools/versions/versions.py set netflow-engine X.Y.Z --tested "..." --note "..."`. Keep the engine free of any code that belongs to one add-on.

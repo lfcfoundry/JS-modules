@@ -4,12 +4,14 @@ typedef int i32; typedef double f64;
 static i32 nV, nL;
 static i32 *layerOf, *layerStart, *ord, *pos, *tmp, *best, *uS, *uI, *dS, *dI, *xBot, *seenOrd, *seenRem;
 static i32 nSeen, seenCap;
+static i32 *memo, memoN, stamp, *lver, *sig;   /* swapPass shortcuts: decisions kept per pair for one call, and layers whose neighborhood did not change since they last settled */
 static f64 *lenOf, *bary, *uO, *dO, *xW, *xBit;
 
 void bind(i32 nV_, i32 nL_, i32 *layerOf_, i32 *layerStart_, i32 *ord_, i32 *pos_, f64 *lenOf_, f64 *bary_, i32 *tmp_, i32 *best_,
-          i32 *uS_, i32 *uI_, f64 *uO_, i32 *dS_, i32 *dI_, f64 *dO_, i32 *xBot_, f64 *xW_, f64 *xBit_, i32 *seenOrd_, i32 *seenRem_, i32 seenCap_) {
+          i32 *uS_, i32 *uI_, f64 *uO_, i32 *dS_, i32 *dI_, f64 *dO_, i32 *xBot_, f64 *xW_, f64 *xBit_, i32 *seenOrd_, i32 *seenRem_, i32 seenCap_, i32 *memo_, i32 memoN_, i32 *lver_, i32 *sig_) {
   nV = nV_; nL = nL_; layerOf = layerOf_; layerStart = layerStart_; ord = ord_; pos = pos_; lenOf = lenOf_; bary = bary_; tmp = tmp_; best = best_;
   uS = uS_; uI = uI_; uO = uO_; dS = dS_; dI = dI_; dO = dO_; xBot = xBot_; xW = xW_; xBit = xBit_; seenOrd = seenOrd_; seenRem = seenRem_; seenCap = seenCap_; nSeen = 0;
+  memo = memo_; memoN = memoN_; stamp = 0; lver = lver_; sig = sig_;
 }
 
 /* Orderings already followed: the search from an ordering is the same every time (sweeps, swaps and tie breaks only read the ordering), so a run that
@@ -87,31 +89,47 @@ static void sweep(i32 q, i32 goUp) {
     bary[v] = w != 0 ? s / w : ((f64)pos[v] + 0.5) / len;
   }
   sortSlots(list, n, bary, 1);
-  for (j = 0; j < n; j++) pos[list[j]] = j;
+  e = 0; for (j = 0; j < n; j++) { if (pos[list[j]] != j) e = 1; pos[list[j]] = j; }
+  if (e) lver[q]++;
 }
 
+/* A pair's decision (swap or not) reads only the two bars and the positions of their neighbors in the layers above and below, which this pass does
+   not move, so it is kept for the rest of the call (memo, by place at the start of the call). A layer whose own order and both neighbor layers are
+   as they were when it last settled (a pass with no swap) would settle again with no swap, so it is skipped (sig). Same decisions as before. */
+static i32 pairSwaps(i32 a, i32 b) {
+  i32 side, xs, xe, ys, ye, px, py, *S, *I; f64 before = 0, after = 0, *O;
+  for (side = 0; side < 2; side++) {
+    if (side) { S = dS; I = dI; O = dO; } else { S = uS; I = uI; O = uO; }
+    for (xs = S[a], xe = S[a + 1]; xs < xe; xs++) {
+      px = pos[I[xs]];
+      for (ys = S[b], ye = S[b + 1]; ys < ye; ys++) { py = pos[I[ys]]; if (px > py) before += O[xs] * O[ys]; else if (px < py) after += O[xs] * O[ys]; }
+    }
+  }
+  return after < before - 1e-12;
+}
 static void swapPass(i32 q) {
-  i32 *list = ord + layerStart[q], n = layerStart[q + 1] - layerStart[q], improved = 1, guard = 0, j, a, b, side, xs, xe, ys, ye, px, py, *S, *I; f64 before, after, *O;
+  i32 *list = ord + layerStart[q], n = layerStart[q + 1] - layerStart[q], improved = 1, guard = 0, j, a, b, d, m, k, s0, s2, useMemo;
+  s0 = q > 0 ? lver[q - 1] : -1; s2 = q + 1 < nL ? lver[q + 1] : -1;
+  if (sig[3 * q] == s0 && sig[3 * q + 1] == lver[q] && sig[3 * q + 2] == s2) return;
+  useMemo = n <= memoN; if (useMemo) { stamp++; for (j = 0; j < n; j++) tmp[list[j]] = j; }
   while (improved && guard++ < 6) {
     improved = 0;
     for (j = 0; j + 1 < n; j++) {
-      a = list[j]; b = list[j + 1]; before = 0; after = 0;
-      for (side = 0; side < 2; side++) {
-        if (side) { S = dS; I = dI; O = dO; } else { S = uS; I = uI; O = uO; }
-        for (xs = S[a], xe = S[a + 1]; xs < xe; xs++) {
-          px = pos[I[xs]];
-          for (ys = S[b], ye = S[b + 1]; ys < ye; ys++) { py = pos[I[ys]]; if (px > py) before += O[xs] * O[ys]; else if (px < py) after += O[xs] * O[ys]; }
-        }
-      }
-      if (after < before - 1e-12) { list[j] = b; list[j + 1] = a; pos[a] = j + 1; pos[b] = j; improved = 1; }
+      a = list[j]; b = list[j + 1];
+      if (useMemo) { k = tmp[a] * memoN + tmp[b]; m = memo[k]; if ((m >> 1) == stamp) d = m & 1; else { d = pairSwaps(a, b); memo[k] = (stamp << 1) | d; } }
+      else d = pairSwaps(a, b);
+      if (d) { list[j] = b; list[j + 1] = a; pos[a] = j + 1; pos[b] = j; improved = 1; }
     }
+    if (improved) lver[q]++;
   }
+  if (!improved) { sig[3 * q] = s0; sig[3 * q + 1] = lver[q]; sig[3 * q + 2] = s2; } else sig[3 * q] = -2;
 }
 
 /* rounds of (sweep down, sweep up, neighbor swaps when doSwap) with the best order kept; leaves the best order in place and returns its crossing weight */
 f64 run(i32 rounds, i32 doSwap) {
   i32 r, q, i; f64 bestC, cur;
   for (i = 0; i < nV; i++) best[i] = ord[i];
+  for (q = 0; q < nL; q++) { lver[q] = 0; sig[3 * q] = -2; }   /* the caller may have reordered: nothing is known to be settled */
   bestC = totalAll();
   seenCheck(rounds);
   for (r = 0; r < rounds && bestC > 0; r++) {
@@ -123,6 +141,7 @@ f64 run(i32 rounds, i32 doSwap) {
     if (seenCheck(rounds - r - 1)) break;
   }
   for (i = 0; i < nV; i++) ord[i] = best[i];
+  for (q = 0; q < nL; q++) sig[3 * q] = -2;
   for (q = 0; q < nL; q++) for (i = layerStart[q]; i < layerStart[q + 1]; i++) pos[ord[i]] = i - layerStart[q];
   return bestC;
 }

@@ -78,7 +78,7 @@ Writers write the blocks in table order, one after the other, starting at offset
 `node test/vectors.cjs` runs this for the JavaScript reader and `python3 test/pyvectors.py` for the Python reader. `node test/vectors.cjs --update` rewrites the files; do that only when the format changes on purpose, and say so in the changelog.
 
 ## 6. For writers
-- Blocks hold whole lines. The default block target is 21 MB of input text.
+- Blocks hold whole lines. The default block target is 13 MB of input text (21 MB before 0.2.0).
 - A writer MUST write sections 1, 2 and 12, SHOULD write section 5, and MUST write sections 9 and 15 only for byte-exact files with exceptions.
 - Do not write a section id above 1000 as REQUIRED unless the file cannot be understood without it.
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ public API
-  var BLOCK_BYTES = 21 << 20;
+  var BLOCK_BYTES = 13 << 20;
   function flatSkeletons(list) {
     for (var i = 0; i < list.length; i++) { var t = list[i]; if (t.charCodeAt(0) !== 123 || t.indexOf('{', 1) >= 0 || t.indexOf('[') >= 0) return false; }
     return list.length > 0;
@@ -262,7 +262,7 @@
     rn = makeNestedReader(S.zdec); rf = makeFlatReader(S.zdec);
     for (i = 0; i < file.blocks.length && out.length < count; i++) {
       b = file.blocks[i]; if ((b[5] || 0) !== tb) continue;
-      if (start + b[3] > from) { kd = b[4]; r = (kd === 'f' ? rf : rn).readBlock(blockBytes(file, i)); lo = Math.max(0, from - start); hi = Math.min(r.length, lo + (count - out.length)); for (; lo < hi; lo++) out.push(r[lo]); }
+      if (start + b[3] > from) { kd = b[4]; lo = Math.max(0, from - start); hi = Math.min(b[3], lo + (count - out.length)); if (kd === 'f') { r = rf.readRange(blockBytes(file, i), lo, hi); for (lo = 0; lo < r.length; lo++) out.push(r[lo]); } else { r = rn.readBlock(blockBytes(file, i)); hi = Math.min(r.length, hi); for (; lo < hi; lo++) out.push(r[lo]); } }
       start += b[3];
     }
     return out;
@@ -322,4 +322,4 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.1.9', apiVersion: 0 };
+  var api = { hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.2.0', apiVersion: 0 };

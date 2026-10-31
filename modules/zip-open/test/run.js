@@ -259,6 +259,23 @@ t('streaming: an entry with a long extra field in its local header (more than th
   for (var i = 0; i < n; i++) { if (i > 0) out.writeUInt32LE(out.readUInt32LE(q + 42) + extra, q + 42); q += 46 + out.readUInt16LE(q + 28) + out.readUInt16LE(q + 30) + out.readUInt16LE(q + 32); }
   var r = await both(out, 'extra.zip'); assert.deepStrictEqual(r[1], r[0]); assert.equal(r[0].files.length, 2);
 });
+t('inflate in WebAssembly (1.5.0): same files and notes as the browser stream on valid, stored, fixed-table, damaged and cut entries', async function () {
+  var s = 3, rnd = function () { return (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; }, same = 0;
+  for (var k = 0; k < 400; k++) {
+    var len = Math.floor(rnd() * rnd() * 30000), txt = Buffer.alloc(len);
+    for (var i = 0; i < len; i++) txt[i] = k % 3 === 0 ? 97 + Math.floor(rnd() * 5) : k % 3 === 1 ? 32 + Math.floor(rnd() * 90) : (rnd() < 0.9 ? 44 : 10);
+    var lvl = [0, 1, 6, 9][k % 4], body = zlib.deflateRawSync(txt, { level: lvl, strategy: k % 5 === 0 ? zlib.constants.Z_FIXED : 0 });
+    if (k % 2) { body = Buffer.from(body); if (body.length) body[Math.floor(rnd() * body.length)] ^= 1 << Math.floor(rnd() * 8); }
+    if (k % 7 === 0) body = body.subarray(0, Math.max(0, body.length - 1 - Math.floor(rnd() * 4)));
+    var z = Z.makeZip([{ name: 'a.csv', raw: body, data: txt, method: 8 }, { name: 'b.csv', data: csv }]), a, b;
+    U._inflateMax(4096); try { a = await U.expand(u8(z), 'x.zip'); } catch (e) { a = { err: e.message }; }
+    U._inflateMax(-1); try { b = await U.expand(u8(z), 'x.zip'); } catch (e) { b = { err: e.message }; }
+    U._inflateMax(4096);
+    [a, b].forEach(function (x) { if (x.notes) x.notes = x.notes.map(function (q) { return q.replace('unpacks to more than it says it does', 'looks damaged'); }); });   // damaged data that also runs past its size: either wording is right
+    assert.deepStrictEqual(a, b, 'case ' + k); same++;
+  }
+  assert.equal(same, 400);
+});
 t('streaming: helpers (workers) really ran, and many text files come out in order with limits applied the same way', async function () {
   var files = []; for (var i = 0; i < 40; i++) files.push({ name: 'd/f' + String(i).padStart(2, '0') + '.csv', data: 'a,b\n' + (i + ',x\n').repeat(2000 + i * 37) });
   var z = Z.makeZip(files), r = await both(z, 'many.zip'), r2 = await both(z, 'many.zip', { maxTotalBytes: 300000 }), r3 = await both(z, 'many.zip', { maxFiles: 7 }), r4 = await both(z, 'many.zip', { maxEntryBytes: 20000 });

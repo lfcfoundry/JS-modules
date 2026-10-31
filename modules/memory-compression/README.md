@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.6.5 · API 2**
+**Version 2.7.0 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (11 interleaved reps with a control copy); Node 82 checks.
 
 Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
 
@@ -98,6 +98,7 @@ Since 2.5.0 a view keeps each top-level text column whole until a row is read (p
 | `check` | `true` adds a checksum that `unpack()` verifies | off |
 | `fsst` / `front` / `patterns` | FSST codes for text (opt-in); front coding of sorted text; text patterns (the last two on by default) | see notes |
 | `float32` | `true` keeps fraction columns in 4 bytes (lossy, relative error at most about 6e-8) | off |
+| `quickTries` | `true` makes the number picker try every way on its first 8,192-number block only, not the first two (packing 0 to 20% faster on lists with several number columns; files 0 to 1.1% bigger, never smaller; opens the same) | off |
 | `wasm` | `false` forces plain JavaScript | use WebAssembly if available |
 | `maxSize`, `maxItems` | limits that stop a hostile or damaged input (1 GiB, 100,000,000) | as shown |
 
@@ -170,6 +171,10 @@ Fast mode restores faster than lz4-wasm in Firefox 158.0 and Chromium 155 but no
 ## Test it and rebuild it
 
 `node modules/memory-compression/test/core.js` (packing core, 24 checks), `test/run.js` (object layer, 74 checks) and `test/router.js` (the one entry point, 15 checks), a few seconds each; `--js-only` runs without WebAssembly and `FULL=1` adds 10 times more random cases. Browser checks: `bench/lazy-start.js`, `bench/csp-and-speed.js` and `bench/browser-run.js` (see `bench/README.md`). Rebuild the file with `python3 modules/memory-compression/build.py`; rebuild the helper with `sh wasm/build.sh && python3 wasm/embed.py` (clang with the wasm32 target); the JavaScript and WebAssembly paths must stay byte-identical, and the tests check that.
+
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## For AI agents
 

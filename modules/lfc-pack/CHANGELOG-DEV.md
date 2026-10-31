@@ -1,0 +1,143 @@
+# lfc-pack developer changelog
+
+What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
+
+## 0.2.0 · API 0 · 2026-10-30
+
+### Quick
+Default block size 13 MB (was 21 MB): parallel pack 34-36% faster on a 16-core laptop, same size; `packParallel` hands out one block at a time (7 to 27% faster); `warmPack(n)`. New `meta` option with `LfcPack.metadata(bytes)`, `LfcPack.unpackRows(bytes, {from, count})` (decodes only the blocks it needs, builds only those rows) and `LfcPack.stats(bytes)` (column facts from the footer). Faster one-column reads and wide row objects (WebKit 200-key whole read 1,324 to 580 ms). New `LfcPack.hash(bytes, kind)`, a file viewer (viewer.html), readers that refuse damaged blocks with a plain message, and an optional `check: 'xxh64'` block check with per-column checks (one-column reads about 40 to 50% faster).
+
+### Deep
+- New optional `meta` option for pack, packStream and packParallel and new `LfcPack.metadata(bytes)` (Python: `lfc_pack.metadata(path)`): an app can store a small description of the file (title, tables, column names and units) in the footer and read it without opening any block. Files without it are unchanged.
+- New `LfcPack.unpackRows(bytes, {from, count})`: reads just a range of rows by decoding only the blocks that hold them (8 to 17 times faster than unpack and cut on a 200,000-row, 9-block file in Chromium, Firefox and WebKit). New `LfcPack.stats(bytes)`: per-block row counts and per-column distinct and null counts, read from block metadata without decoding any column. Files grow by about 230 bytes per 9 blocks (statistics in block metadata); older readers ignore them.
+- Faster reads of one column from wide files: the block checksum now runs in the WebAssembly loop of the core module when it is loaded (before: plain JavaScript over the whole block, which was 75 to 95% of a one-column read of a 200-key file). One-column read of 20,000 rows with 200 keys: Chromium 15.6 to 9.3 ms, Firefox 21 to 8 ms, WebKit 12 to 9 ms; whole reads unchanged. The loop now sits in the zstd module itself (rebuilt with `wasm/build.sh`, same pinned zstd 1.5.7; the rebuild of the unchanged source reproduced the old files byte for byte first), so the read-only build has it too.
+- New `LfcPack.hash(bytes, kind)`: `'crc32'` (default) or `'xxh64'` (16 hex digits, seed 0, from the xxhash already inside zstd). On 21 MB: crc32 about 1 GB/s, xxh64 about 2.8 to 3.2 GB/s in Chromium, Firefox and WebKit. Not used for anything inside the file yet.
+
+
+
+- 0.2.0 (helper a054e41): wide row objects: the one-time timing of how to build dense rows also tries filling each row with all its keys, and drops a way more than 2.5 times slower in the warm-up round; WebKit 200-key whole read 1,324 to 580 ms.
+- unpackRows makes row objects only for the asked range: 100 of 150,000 log rows, 64-82 ms to 30 ms in Node (whole read 78-85 ms). Laptop Firefox before: 139 ms vs whole 140 ms.
+- Default block size 21 MB to 13 MB (owner card 2026.10.30 9:11 PM ET). Laptop Firefox 160, 4 helpers: logs 953->969 ms, events 340->224, dense 895->571; bytes 1.000/1.000/0.996. Container 3 browsers, 3 workers on 4 cores: pack within noise, sizes same or smaller.
+
+## 0.1.11 · API 0 · 2026-10-30
+
+### Quick
+New packStream: feed text in pieces and write each block as it is ready, so packing a big file holds one block of text at a time
+
+### Deep
+packStream({blockBytes}) -> push(bytes) returns finished blocks, finish() returns the last blocks and the footer. Joined output is byte-identical to pack() for the same text and blockBytes (test/stream.cjs: 5 inputs, 3 push sizes each; Node correctness check, no speed claim). Value-exact mode only; exact mode throws. Built on pack() per block, so no new block code.
+
+## 0.1.10 · API 0 · 2026-10-30
+
+### Quick
+New experimental unpackColumns reads flat-row files as typed columns without building row objects.
+
+### Deep
+New experimental LfcPack.unpackColumns(bytes, {keys}): returns each flat-row block as typed columns with presence bit planes, skipping row-object building. Container sample (direction only, 150k-row web-log blocks x3): 209 ms against 448 ms for unpack. No change to pack, unpack or file bytes. Laptop numbers to follow.
+
+## 0.1.10 · API 0 · 2026-10-29
+
+### Quick
+New experimental unpackColumns reads flat-row files as typed columns without building row objects.
+
+### Deep
+New experimental LfcPack.unpackColumns(bytes, {keys}): returns each flat-row block as typed columns with presence bit planes, skipping row-object building. Container sample (direction only, 150k-row web-log blocks x3): 209 ms against 448 ms for unpack. No change to pack, unpack or file bytes. Laptop numbers to follow.
+
+## 0.1.9 · API 0 · 2026-10-27
+
+### Quick
+New opt-in `packParallel(bytes, { workers })`: helper Web Workers pack runs of whole blocks at the same time (at most min(cores, 8)); the file has the same bytes as `pack`. Exact mode and small inputs stay on one thread.
+
+### Deep
+New opt-in packParallel(bytes, { workers }): helper Web Workers pack runs of whole blocks at the same time (at most min(cores, 8)); the file has the same bytes as pack. Exact mode and small inputs stay on one thread.
+
+## 0.1.8 · API 0 · 2026-10-27
+
+### Quick
+The unpack pool starts 2 helpers when you do not say how many (it used to start up to 16): at 105 MB more helpers did not read faster and ran Firefox out of memory. Ask for more with workers.
+
+### Deep
+pool default size 2 (was min(16, max(3, cores-1))). Laptop 105.5 MB events: Chromium unpack 1/2/4/15 helpers 291/262/282/274 ms (JSON.parse 565); Firefox 159 1/2/4 helpers 451/421/806 ms (JSON.parse 533), 15 helpers out of memory. Files and rows unchanged.
+
+## 0.1.7 · API 0 · 2026-10-27
+
+### Quick
+Flat number-list columns decode to small integers (variant 19), faster hex, address and dictionary checks when packing text; files and rows unchanged.
+
+### Deep
+Brief section 30 fifth addendum, variant 19. Container unguarded flat/nested unpack at 300,000 rows: Chromium 1.04 to 1.20 (noisy), WebKitGTK 0.85 to 0.89, Firefox 0.81; flat stays opt-in until the laptop guard.
+
+## 0.1.6 · API 0 · 2026-10-26
+
+### Quick
+Flat writer also reads strings, true/false and null in wasm; flat list columns read faster in Firefox and WebKitGTK; output files unchanged.
+
+### Deep
+Brief sections 29 and 30 (variant 16): wasm scanner takes strings/booleans/null for flat packing, cheaper template pre-check, no plain copy of small dictionaries, engine-selected list builders. Files identical to 0.1.5 on test sets (fuzz 120 files + 25 edge cases pass).
+
+## 0.1.6 · API 0 · 2026-10-26
+
+### Quick
+Flat writer also reads strings, true/false and null in wasm; flat list columns read faster in Firefox and WebKitGTK; output files unchanged.
+
+### Deep
+Brief sections 29 and 30 (variant 16): wasm scanner takes strings/booleans/null for flat packing, cheaper template pre-check, no plain copy of small dictionaries, engine-selected list builders. Files identical to 0.1.5 on test sets (fuzz 120 files + 25 edge cases pass).
+
+## 0.1.6 · API 0 · 2026-10-26
+
+### Quick
+Flat writer also reads strings, true/false and null in wasm; flat list columns read faster in Firefox and WebKitGTK; output files unchanged.
+
+### Deep
+Brief sections 29 and 30 (variant 16): wasm scanner takes strings/booleans/null for flat packing, cheaper template pre-check, no plain copy of small dictionaries, engine-selected list builders. Files identical to 0.1.5 on test sets (fuzz 120 files + 25 edge cases pass).
+
+## 0.1.5 · API 0 · 2026-10-26
+
+### Quick
+Dense rows (many keys per row) read much faster in Chromium and WebKitGTK; a one-time timing check keeps the old way where cloning would not help.
+
+### Deep
+Dense-row clone: container A/B on 40k dense rows, unpack Chromium 174 to 103 ms, WebKitGTK 336 to 103 (second run 77 vs 79, probe declines), Firefox 92 vs 92 (probe declines). Unguarded; laptop Chromium and Firefox runs pending.
+
+## 0.1.4 · API 0 · 2026-10-26
+
+### Quick
+New Python writer (python/lfc_pack_write.py): packs NDJSON from Python into files that open in lfc-pack.js, with the byte-exact switch.
+
+### Deep
+Section 24: Python writer added from /mnt/project-files/json-format/python-writer. Checks: new python writer and JS-opens-Python steps in test/run.js (139 files incl. deep nesting, both value-exact and byte-exact lines). No JS code change.
+
+## 0.1.3 · API 0 · 2026-10-26
+
+### Quick
+Faster pack for rows of plain numbers, and for link lists packed with { block: "flat" } (a small WebAssembly scanner); such files are also smaller.
+
+### Deep
+Section 28: fast flat writer (wasm/flatscan.c). Container, unguarded, noisy: links30k 497,468 to 440,238 bytes; 90k number-list rows 638,537 to 412,241 bytes; pack Chromium links 36.9 to 28.2 ms, nums 72 to 45; Firefox 37 to 26 and 98 to 80; WebKitGTK swings 30 to 63 run to run, so it needs the laptop page. Fuzz 120 files and 25 edge cases pass.
+
+## 0.1.2 · API 0 · 2026-10-26
+
+### Quick
+Log-template columns read about 1.7 to 2.7 times faster (a small WebAssembly rebuild; the old code stays as the fallback).
+
+### Deep
+Section 27: log-template rebuild in wasm (wasm/tpl4.c, 3.6 KB). Container A/B, unguarded: 100k template lines unpack Chromium 89.5 to 32.9 ms, Firefox 47 to 27, WebKitGTK 71 to 41. JS fallback when no WebAssembly, frame over 8 MB, over 4M rows, over 65,536 templates, or memory over 1.5 GB.
+
+## 0.1.1 · API 0 · 2026-10-26
+
+### Quick
+Link-list columns (357,110 down to 211,344 bytes on 30,000 nodes). Nested blocks 8 to 9% smaller. Log templates only when smaller and not slower to read. New decoder-only lfc-pack-read.js (51 KB gzipped, was 214 KB).
+
+### Deep
+Link-list columns store lists of whole numbers as lengths plus deltas: made-up 30,000 nodes with out and in lists went from 357,110 to 211,344 bytes. First-appearance flags for the string code column make nested blocks smaller: made-up events 1,039,963 to 949,619 bytes (-8.7%), FHIR 21 MB 620,633 to 570,752 (-8.0%). Log templates are chosen only when smaller than plain and a writer-side sample shows full-line reads are not slower. Flat rows pack with one JSON.parse per block and big flat-object blocks skip the nested pass. New decoder-only file lfc-pack-read.js: 143 KB (51 KB gzipped) against 671 KB (214 KB gzipped).
+
+## 0.1.0 · API 0 · 2026-10-26
+
+### Quick
+First version: packs NDJSON into LFC-pack (.json.lfc) and reads it back with JSON.parse values, in WebAssembly. Nested and flat column layouts, automatic log templates, byte-exact switch, archive level, key and time-range reads, helper workers, Python reader. `packRows(rows)` takes row objects directly; `packTables({ nodes, links, view, ... })` / `unpackTables(file)` keep several tables and plain values in one file. The format is not frozen: 0.x files may not open in later versions.
+
+### Deep
+First version of lfc-pack (LFC-pack). Own zstd 1.5.7 build, tokenizer and string dictionary in wasm; nested and flat blocks; AUTO log templates; exact switch; level 19; keys and range reads; worker pool; Python reader. FHIR 21 MB 620,636 bytes; 260 MB 7,708,261; 757 MB 22,637,152 (Parquet zstd 3: 1,467,703 and 45,140,567). Speed not yet measured under the noise guard.
+
+### 0.1.3 follow-up 2026.10.27 2238 ET
+Lab A/B (Chromium, WebKitGTK) showed number-list rows read slower from flat blocks (Chromium 5.4 to 7.9 ms, WebKitGTK 34 to 50). Auto mode now leaves rows with list columns to the nested layout; { block: "flat" } still takes the fast writer. Lists file back to 365,098 bytes, unpack equal to 0.1.1 in all three browsers.

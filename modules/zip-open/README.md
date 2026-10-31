@@ -1,6 +1,6 @@
 # zip-open
 
-**Version 1.4.0 · API 1**
+**Version 1.5.0 · API 1**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -47,6 +47,9 @@ var toc = await ZipOpen.listBlob(file); var got = await ZipOpen.readBlob(file, t
 ```
 Same limits, same notes, same checksum checks as `expand`; the checksum is worked out while the bytes arrive. Helpers are off unless you ask (`workers`), and they help only when a zip holds several big entries: measured on 5 entries of 16 MB, 4 helpers took 400 / 429 / 478 ms against 784 / 530 / 835 ms in memory (Firefox 158 / Chromium 155 / WebKitGTK 2.52.6; lower is better). Tiny entries and a single entry gain nothing (about 20% slower with helpers), so small ones are never sent. Details: `tests/zip-open-stream-browser.html`.
 
+## Small entries: inflate in WebAssembly (since 1.5.0)
+Entries that are 4 KB or less compressed are unpacked by a 9 KB WebAssembly inflate (in the same module as the checksum) instead of a browser stream each, because a stream costs more to start than a small entry costs to unpack. 2,000 files of 100 rows (4.7 MB), from bytes, ms, lower is better: Firefox 158 124 against 269, Chromium 155 119 against 189, WebKitGTK 2.52.6 128 against 200 (fflate unzipSync: 124 / 108 / 257). Larger entries still use the browser's stream: at 8 KB and up the WebAssembly inflate was up to 1.5x slower in Chromium and Firefox, so the cutoff is 4 KB. Same files and notes: the WebAssembly inflate matches zlib on 9,000 random valid, damaged and cut streams, and 400 zips compare equal to the stream path. Without WebAssembly the stream is used.
+
 ## WebAssembly checksum (since 1.2.0)
 
 **What.** The checksum that proves every unpacked file is intact (CRC-32) also exists as a 1,476-byte WebAssembly function ("slicing by 16"), embedded in `zip-open.js`. `crc32` uses it for 1,024 bytes and more; shorter pieces use the plain JavaScript loop, which is as fast there. `ZipOpen.wasmAvailable()` says whether the browser allows it.
@@ -86,7 +89,7 @@ Smaller than fflate and, of the ones measured, the only one that stops a lying z
 |---|---|---|---|---|
 | zip-open 1.2.0 (MIT, this module) | 18,955 bytes minified, 8,159 gzipped (31,479 as written; terser 5.51.2; 1.1.0 was 16,088 and 7,056) | Checksum on big buffers 1.3 to 1.7 times faster again with WebAssembly (20 MB: 16.5 to 12.9 ms in Chromium 155, 20 to 12 in Firefox 158, 15 to 9 in WebKitGTK 2.52.6, 16 to 10 in GNOME Web 46.5; lower is better). In 1.1.0 the checksum check was 3.9 times faster than in 1.0.0: 0.74 ms per MB in Chromium 155, 0.85 in Firefox 158, 0.7 in WebKitGTK 2.52.6 and GNOME Web 46.5 (smaller is better). Against the others in browsers: not measured | Reads zip and Excel .xlsx, limits counted on the bytes that really come out, plain-words notes | Wins on safety by default and Excel to CSV; loses on writing zips and on formats |
 | [fflate](https://github.com/101arrowz/fflate) (MIT, 0.8.3) | 33 KB, 12.6 KB gzipped | In browsers: not measured | Reads and writes zips and other formats; safety limits are left to you | On the 1 GB-of-zeros test it returned a 1,000-byte file with no error. Wins on features and on writing zips |
-| JSZip 3.10.2 (MIT or GPL-3.0-or-later) | Not measured | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |
+| JSZip 3.10.2 (MIT or GPL-3.0-or-later) | 97,591 bytes minified, 28,036 gzipped (whole library, terser 5.51.2 `-c passes=2 -m`) | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |
 | zip.js | Not measured | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |
 | SheetJS | Much larger (not measured) | Not measured | Reads many spreadsheet formats | Wins on formats; this module reads only the cell values of .xlsx |
 

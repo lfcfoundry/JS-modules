@@ -113,7 +113,7 @@ Order: `node tools/fuzz-kit/tools/strip-test-hooks.js src/game.html build/game.h
 - **[fast-check](https://github.com/dubzzz/fast-check)** and other property-based and stateful testing libraries have the same idea with a much more capable shrinker (they also shrink the values inside each command); `Fuzzer.shrink` removes whole operations only. They are better when your logic runs in Node; this kit adds the browser-page workflow: injecting into a live page, a steppable clock, a fresh context per seed, runners for Chromium and Firefox.
 - **Playwright and Puppeteer** are the drivers; this kit is a layer above them.
 
-gremlins.js and fast-check were not installed or benchmarked for this comparison (no numbers).
+Sizes, measured the same way as the module tables (terser 5.51.2 `-c passes=2 -m`, gzip -9): gremlins.js 2.2.0 `gremlins.min.js` is 231,096 bytes minified and 76,784 gzipped; fast-check 4.10.2 ships as many files, so it has no single-file size here. Neither was benchmarked for speed or for how many bugs it finds (no numbers).
 
 ## What it is not
 

@@ -83,6 +83,10 @@ Smaller than the two leader-election libraries whose sizes are known, with the o
 - Firefox partitions some storage by top-level site in embedded frames; whether Web Locks inside a third-party frame is shared is not checked here.
 - The checks in `test/run.js` use a model of the lock manager, not a real browser. `test/run.py` runs the real thing in Chromium and Firefox.
 
+## See it in action
+
+Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/), [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/), Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## Prior art and credits
 - The Web Locks API (W3C specification, built into the browser): the whole guard is built on it, so the browser does the work of releasing the lock when the page unloads.
 - The "navigator.locks leader" pattern in the MDN guide (MDN code examples are public domain, CC0) and Web Locks leader-election libraries (`tab-election`, `broadcast-channel`, `leader-tab`): read as prior art for electing one tab. Ideas only, no code.

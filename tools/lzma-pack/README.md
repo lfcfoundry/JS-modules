@@ -20,7 +20,7 @@ A single-file offline game or tool that has to stay one file can use a few extra
 python3 tools/lzma-pack/pack.py mypage.html mypage.packed.html --title "My page"
 ```
 
-Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` (5,287 bytes) and `example/packed-base64.html` (5,511 bytes); both unpack `example/app.html`.
+Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-bytes.html` (8,683 bytes) and `example/packed-base64.html` (10,340 bytes); both unpack `example/app.html`.
 
 **Test it:** `python3 tools/lzma-pack/test/run.py` (Python 3 and Node.js, no browser, a few seconds) and `python3 tools/lzma-pack/test/browser.py` (Playwright for Python with Chromium, offline). The embedded decoder is tested separately: `node modules/lzma-decode/test/run.js`.
 
@@ -85,6 +85,10 @@ What is specific here: one HTML file, compressed bytes stored raw (the `windows-
 - **The background color is a guess.** `auto` reads simple CSS only, not colors set by script. Check a dark game's first moment once, or pass `--bg`.
 - **Character set after unpacking (reasoned, not tested).** In `bytes` mode the window stays windows-1252 after `document.write`; if your game builds URLs with non-ASCII text in the query string, test the packed copy once.
 - **A wait of about 30 ms** before unpacking lets the browser paint "Opening..." first; painting is up to the browser, not guaranteed.
+
+## See it in action
+
+The build steps of [Story Editor](https://lfcfoundry.github.io/story-editor/play/), [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/), [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/) and Netflow Map (not public yet) call the LZMA packer. Checked in each repository's main branch on 2026.10.30.
 
 ## For AI agents
 

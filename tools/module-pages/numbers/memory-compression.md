@@ -1,0 +1,36 @@
+**Measured on a real laptop: Firefox 160 (Windows), 16 cores, 2026.10.30, 7:09 PM.** Medians; lower is better for every time, size and ratio. This is one browser on one machine, and Firefox 160 is not one of our three cloud test browsers, so treat it as direction, not a guarantee.
+
+Compared: memory-compression against fflate and pako (ms; packed bytes).
+
+| case | packed bytes | pack ms | unpack ms |
+|---|---:|---:|---:|
+| Float32 sensor data, 8 MB: memory-compression | 4,772,682 | 5 | 6 |
+| fflate 6 | 7,269,120 | 278 | 88 |
+| pako 6 | 7,329,598 | 540 | 66 |
+| list of 80,000 objects: memory-compression | 148,749 | 11 | 6 |
+| fflate 6 | 800,641 | 176 | 21 |
+| pako 6 | 769,526 | 199 | 19 |
+
+**New in 2.7.0: faster packing on request.** The opt-in setting `quickTries: true` makes the packer try every number coding on the first block only. Packing is 0 to 20% faster on lists with several number columns, and files are 0 to 1.1% bigger. It is off by default, and the default output is byte-identical to 2.6.6. These figures come from the code thread's test runs; the browser is not recorded on this page.
+
+
+**Version against version, real laptop, ungoogled Chromium 156 (Windows), 16 cores, 2026.10.30, 9:47 PM.** Medians; lower is better. One browser on one machine.
+
+| list (pack, ms) | quickTries off (default) | on | size on / off |
+|---|---:|---:|---:|
+| links, 60,000 rows | 5.4 | 5.4 | 1.0000 |
+| scene items, 30,000 rows | 3.3 | 3.3 | 1.0000 |
+| users, 20,000 rows | 2.7 | 2.8 | 1.0000 |
+
+On these three lists `quickTries` changes nothing. Its 0 to 20% gain is for lists with several number columns.
+
+
+**Same tests in Firefox 160 (Windows), real laptop, 16 cores, 2026.10.30, 9:41 PM.** Medians; lower is better.
+
+| list (pack, ms) | quickTries off (default) | on | size on / off |
+|---|---:|---:|---:|
+| links, 60,000 rows | 6.0 | 6.0 | 1.0000 |
+| scene items, 30,000 rows | 5.0 | 5.0 | 1.0000 |
+| users, 20,000 rows | 3.0 | 2.5 | 1.0000 |
+
+`quickTries` changes nothing on two lists and is 16% faster on the third.

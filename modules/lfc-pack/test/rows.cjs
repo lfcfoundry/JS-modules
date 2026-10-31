@@ -13,6 +13,16 @@ const assert = require('assert'), JF = require('../lfc-pack.js');
       assert.deepStrictEqual(got, want, JSON.stringify(o) + ' ' + from + ',' + count);
     }
   }
+  // row objects made for the range only: same objects and key order as a whole read, on sparse keys, mixed key orders and an own __proto__ key
+  let seed = 3; const r = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+  const shapes = [
+    (i) => { const o = {}; if (r() < 0.7) o.a = i; if (r() < 0.5) o.b = 's' + (i % 50); if (r() < 0.3) o.c = [1, 2, i]; if (r() < 0.2) o.d = { x: i }; return o; },
+    (i) => { const o = {}, ks = ['p', 'q', 'r', 's']; if (r() < 0.5) ks.reverse(); for (const kk of ks) if (r() < 0.8) o[kk] = i % 9; return o; },
+    (i) => JSON.parse('{"__proto__":' + i + ',"z":"' + i + '"}')];
+  for (const sh of shapes) for (const bb of [4096, undefined]) {
+    const txt = Array.from({ length: 3000 }, (_, i) => JSON.stringify(sh(i))).join('\n') + '\n', f = JF.pack(txt, bb ? { blockBytes: bb } : {}), all = JF.unpack(f);
+    for (let q = 0; q < 10; q++) { const from = Math.floor(r() * 3300), count = Math.floor(r() * 1500) + (q % 3); assert.strictEqual(JSON.stringify(JF.unpackRows(f, { from, count })), JSON.stringify(all.slice(from, from + count))); }
+  }
   const t = JF.packTables({ a: rows.slice(0, 3000), b: rows.slice(3000) }, { blockBytes: 20000 });
   assert.deepStrictEqual(JF.unpackRows(t, { from: 10, count: 5, table: 1 }), rows.slice(3010, 3015));
   const raw = JF.pack(Buffer.from('{"a":1}\r\n\n{"a":2}\r\n'), { exact: true }); assert.deepStrictEqual(JF.unpackRows(raw, { from: 1, count: 1 }), [{ a: 2 }]);

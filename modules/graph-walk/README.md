@@ -1,6 +1,6 @@
 # graph-walk
 
-**Version 0.3.0 · API 0**
+**Version 0.7.0 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -31,11 +31,16 @@ var r = GraphWalk.shortest(g, src);             // fewest links from src to ever
 var r2 = GraphWalk.shortest(g, src, weights);   // cheapest by weight (one non-negative number per link, input order; throws on a negative one)
 GraphWalk.pathTo(g, r2, target);                // link numbers from src to target, or null
 GraphWalk.path(g, src, target, weights);        // one pair, searched from both ends: { cost, links } or null (weights optional)
+
+GraphWalk.kcore(g);                             // { core: Int32Array, max }: peel off items with fewer than k links (both directions, self-links ignored) again and again; core[v] is the biggest k v survives
+GraphWalk.mst(g, weights);                      // cheapest links joining every group (directions ignored): { links (ascending weight), total }
+GraphWalk.pagerank(g, { alpha: 0.85, tolerance: 1e-6, maxIterations: 100, weights });   // { rank (sums to 1), iterations, converged }
+GraphWalk.betweenness(g, { normalized: true, sources });   // Float64Array: share of fewest-link paths between other pairs that run through each item; `sources` (array of items) gives a sampled estimate
 ```
 `csr` also works if you already have the arrays: any object with `n`, `m`, `to`, `outStart` and `outEdge` (link numbers in input order) is accepted. Copy `graph-walk.js` next to your page (`<script src="graph-walk.js"></script>` sets `GraphWalk`) or `require` it in Node.
 
 ## WebAssembly
-`components`, `scc`, `topo` and `shortest` with weights (to every item) run in WebAssembly (`wasm/graph-walk.c`, built with `wasm/build.sh`, embedded in the file as 3.4 KB of text) with identical answers, compiled the moment the file loads; until then, or on a page that forbids WebAssembly (it needs `'wasm-unsafe-eval'` in `script-src`), the plain JavaScript answers. `GraphWalk.ready()` resolves when it is on, `GraphWalk.accelerated()` says, `GraphWalk.setBackend('js' | 'wasm' | 'auto')` forces a side, and `GraphWalk.free(g)` gives back a graph's WebAssembly copy when it was the newest. Gain over the plain JavaScript on 10,000 to 100,000 item networks (one container run, not noise-guarded): Firefox 158 1.2x to 2.2x, ungoogled Chromium 155 1.2x to 2.1x, WebKitGTK 2.52.6 about 1.0x (no gain, within noise). The first call on a graph copies its arrays into WebAssembly memory once. `path`, `bfs` and `loops` stay in JavaScript.
+`components`, `scc`, `topo`, `shortest` with weights (to every item), `kcore`, `mst`, `pagerank` and `betweenness` run in WebAssembly (`wasm/graph-walk.c`, built with `wasm/build.sh`, embedded in the file as 15 KB of text) with identical answers, compiled the moment the file loads; until then, or on a page that forbids WebAssembly (it needs `'wasm-unsafe-eval'` in `script-src`), the plain JavaScript answers. `GraphWalk.ready()` resolves when it is on, `GraphWalk.accelerated()` says, `GraphWalk.setBackend('js' | 'wasm' | 'auto')` forces a side, and `GraphWalk.free(g)` gives back a graph's WebAssembly copy when it was the newest. Gain figures are in the comparison below and in the private tables (one container run, not noise-guarded). The first call on a graph copies its arrays into WebAssembly memory once. `path`, `bfs` and `loops` stay in JavaScript.
 
 ## How it compares
 Against graphology 0.26 (with graphology-components 1.5, graphology-shortest-path 2.1 and graphology-dag 0.4), the same random network of 100,000 items and 400,000 links, milliseconds per job, median of 7 rounds taking turns, **graphology / graph-walk, lower is better**. Container, one browser at a time, not noise-guarded. Every answer was checked against graphology's before timing (same groups, same path costs).
@@ -51,7 +56,7 @@ Against graphology 0.26 (with graphology-components 1.5, graphology-shortest-pat
 
 Strongly connected components: graphology's version runs out of call stack on this network in all three browsers (and at 10,000 items in Chromium); at 10,000 items where it runs, graphology needs 30 ms (Firefox) and 36 ms (WebKitGTK) against 1.0 and 0.8 ms. On a sparse network (100,000 items, 120,000 links) the figures are 301 / 19, 219 / 16 and 323 / 10 ms. On an acyclic 100,000 item network, topological order takes 1039 / 12 (Firefox), 514 / 8.9 (Chromium) and 1289 / 8.3 ms (WebKitGTK). The first `path` call on a graph builds a links-into-items index and working arrays and takes 3 to 23 ms at this size (graphology paid for the same thing inside its 2 second build). The full tables are kept privately.
 
-Breadth-first and loop marking are unchanged from 0.1.0 and match Netflow Map's inline copies. Not measured for these new jobs: a laptop or a phone.
+Breadth-first and loop marking are unchanged from 0.1.0 and match Netflow Map's inline copies. `betweennessAsync` on 4 reported cores, 5,000 items and 20,000 links: 2.1 to 2.9 seconds on one thread down to 0.59 to 0.83 seconds with JavaScript helpers (3.4x to 3.5x) and 0.56 to 0.69 seconds with WebAssembly helpers (3.5x to 4.6x) in Firefox 158, Chromium 155 and WebKitGTK 2.52.6. The helpers are kept by default: three jobs in a row on one graph average 1.2x to 1.75x faster per job than helpers made each time (1,000 to 2,000 items); the very first job is the same speed (a Firefox gap seen at first was a measuring artifact). Needs `worker-src blob:` in the page policy. Not measured for these new jobs: a laptop or a phone.
 
 ## Limits
 - Item numbers must be whole numbers from 0 to n-1; `csr` throws a RangeError otherwise.
@@ -59,6 +64,10 @@ Breadth-first and loop marking are unchanged from 0.1.0 and match Netflow Map's 
 - Memory is a few typed arrays of n or m entries per call. `path` keeps about 20 numbers per item on the graph after its first use.
 - `topo` and `scc` need no recursion, so a million-item chain is fine.
 - Weights must be non-negative; the shortest-path jobs do not handle negative links.
+
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29.
 
 ## Prior art and credits
 The textbook algorithms (Cormen et al., Introduction to Algorithms): breadth-first search; depth-first search with a three-color mark where a link to a gray item closes a loop; union-find with path halving for components; Tarjan for strongly connected components; Kahn for topological order; Dijkstra with a four-ary heap that moves items up instead of storing copies; bidirectional Dijkstra for one pair. The first two were lifted from Netflow Map's engine and tested against it; the rest are tested against slow references (reachability matrix, Bellman-Ford) on 400 random graphs.

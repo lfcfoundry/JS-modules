@@ -501,6 +501,7 @@
     catch (e) { genRefused = true; return null; }
     return f;
   }
+  var popc8 = new Uint8Array(256); (function () { for (var i = 1; i < 256; i++) popc8[i] = (i & 1) + popc8[i >> 1]; })();
   function makeFlatReader(zs) {
     // assemble rows from the decompressed frames of flatFrames; want: null, or an object whose own keys are the only keys to decode
     var gen = false;
@@ -531,6 +532,30 @@
     }
     assemble = guard(assemble);
     function readBlock(bytes, want, verify) { return assemble(flatFrames(zs, bytes, want, false, verify), want); }
+    // rows lo..hi-1 of a block only: the columns are decoded whole, but row objects are made for the range alone (making them is most of a whole read). Same objects, same key order, as readBlock(...).slice(lo, hi)
+    function readRange(bytes, lo, hi, verify) {
+      var F = flatFrames(zs, bytes, null, false, verify), meta = F.meta, n = F.n, K = meta.keys.length, vals = new Array(K), pl = F.pl, keys = meta.keys, i, j, o, m, hasProto = keys.indexOf('__proto__') >= 0;
+      lo = Math.max(0, Math.min(lo, n)); hi = Math.max(lo, Math.min(hi, n)); m = hi - lo;
+      for (j = 0; j < K; j++) vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr);
+      var out = new Array(m), ptr = new Int32Array(K), pb = (n + 7) >> 3;
+      if (F.ordList) {
+        var ordList = F.ordList, ordIds = F.ordIds, sq, kk;
+        for (i = 0; i < lo; i++) { sq = ordList[ordIds[i]]; for (j = 0; j < sq.length; j++) ptr[sq[j]]++; }
+        for (i = lo; i < hi; i++) { sq = ordList[ordIds[i]]; o = {}; for (j = 0; j < sq.length; j++) { kk = sq[j]; if (!vals[kk]) continue; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i - lo] = o; }
+        return out;
+      }
+      for (i = 0; i < m; i++) out[i] = {};
+      for (j = 0; j < K; j++) {
+        var v = vals[j]; if (!v) continue;
+        var key = keys[j], base = j * pb, c = 0, b;
+        if (v.length === n && key !== '__proto__') { for (i = lo; i < hi; i++) out[i - lo][key] = v[i]; continue; }
+        for (b = 0; b < (lo >> 3); b++) c += popc8[pl[base + b]];
+        for (i = lo & ~7; i < lo; i++) if ((pl[base + (i >> 3)] >> (i & 7)) & 1) c++;
+        for (i = lo; i < hi; i++) if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (key === '__proto__') setKey(out[i - lo], key, v[c++]); else out[i - lo][key] = v[c++]; }
+      }
+      return out;
+    }
+    readRange = guard(readRange);
     // typed-columns read (no row objects): { n, keys, cols: { key: values }, present: { key: Uint8Array bit plane or null when every row has it } }; a key missing from some rows has values only for the rows that carry it, in row order
     function columns(F, want) {
       var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, pb = (n + 7) >> 3, cols = {}, present = {}, j, v;
@@ -543,5 +568,5 @@
       }
       return { n: n, keys: Object.keys(cols), cols: cols, present: present };
     }
-    return { generated: function (on) { gen = !!on; }, readBlock: readBlock, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
+    return { generated: function (on) { gen = !!on; }, readBlock: readBlock, readRange: readRange, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
   }
