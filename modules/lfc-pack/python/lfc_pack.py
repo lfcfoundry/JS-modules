@@ -166,21 +166,39 @@ def _block_header(b):
 
 
 # ---------------------------------------------------------------- nested blocks
+def _decimals(raw, n):
+    # width-7 number column: byte 0 is the decimals d (bits 0-3; bit 7: differences against the value k places back, k - 1 in bits 4-6), then n varints of the zigzag whole numbers; value = whole / 10^d
+    if len(raw) < 1 or (raw[0] & 15) > 9: raise ValueError('bad decimal column')
+    d, delta, k = raw[0] & 15, raw[0] & 128, ((raw[0] >> 4) & 7) + 1
+    u = _varints(raw[1:], n); sc = 10 ** d; out = []; w = []
+    for i, x in enumerate(u):
+        v = _unzz(x)
+        if delta:
+            v += w[i - k] if i >= k else 0
+            if abs(v) > 2 ** 53: raise ValueError('number column out of range')
+        w.append(v); out.append(v / sc)
+    return out
+
+
 def _read_nested(b):
     h, p = _block_header(b); c = _Cur(b, p)
     cmeta = json.loads(_dz(c.take(h['cm'][1]), h['cm'][0]).decode('utf-8'))
     D = _dz(c.take(h['p'][0]), h['len'][0]).decode('ascii').split('\0')
     sd = json.loads(_dz(c.take(h['p'][1]), h['len'][1]).decode('utf-8'))
     for i, ix in enumerate(sd['idx']):
-        while len(D) <= ix: D.append('')
+        if not 0 <= ix < len(D): raise ValueError('side list index out of range')
         D[ix] = sd['str'][i]
     skel = _dz(c.take(h['p'][2]), h['len'][2]).decode('utf-8').split('\n')
     ids = _typed(_dz(c.take(h['ids'][2]), h['ids'][1] * _ITEM[h['ids'][0]]), h['ids'][0], h['ids'][1])
     fa = h['fa']
     flags = _dz(c.take(fa[1]), fa[0]); rep = _typed(_dz(c.take(fa[4]), fa[3] * _ITEM[fa[2]]), fa[2], fa[3])
     cols = {}
-    for key, kind, count, plen in cmeta:
-        cols[key] = _typed(_dz(c.take(plen), count * _ITEM[kind]), kind, count)
+    for ent in cmeta:
+        key, kind, count, plen = ent[:4]
+        if kind == 7:
+            if len(ent) < 5: raise ValueError('decimal column without raw length')
+            cols[key] = _decimals(_dz(c.take(plen), ent[4]), count)
+        else: cols[key] = _typed(_dz(c.take(plen), count * _ITEM[kind]), kind, count)
     codes = []; nxt = 0; ri = 0
     for i in range(fa[5]):
         if (flags[i >> 3] >> (i & 7)) & 1: codes.append(nxt); nxt += 1
@@ -298,6 +316,12 @@ def _decode_col(c, fr):
         if p['mono']:
             s = 0
             for i in range(n): s += u[i]; u[i] = s
+            if s > 2 ** 53: raise ValueError('number column out of range')
+        elif p.get('delta'):
+            s = 0
+            for i in range(n):
+                s += _unzz(u[i]); u[i] = s
+                if abs(s) > 2 ** 53: raise ValueError('number column out of range')
         else: u = [_unzz(x) for x in u]
         return [x / p['scale'] for x in u] if p['scale'] != 1 else u
     if t == 'B':
@@ -366,6 +390,8 @@ def _read_flat(b):
         for j in range(K):
             if (pl[j * pb + (i >> 3)] >> (i & 7)) & 1: o[keys[j]] = vals[j][ptr[j]]; ptr[j] += 1
         out.append(o)
+    for j in range(K):
+        if ptr[j] != len(vals[j]): raise ValueError('presence bits do not match the column')
     return out
 
 

@@ -4,13 +4,25 @@
 
 **Tested in:** Python 3.13 (30 ppmd-pack checks); tests/pack-default-browser.js one browser at a time on 2026-10-18: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; a page without the wasm policy word opened in all four
 
-Turns one HTML file into one smaller, self-unpacking HTML file using PPMd (the "PPMd7" / variant H compressor that 7-Zip offers), and checks a hash of the result before running it. It is the heavier sibling of [`lzma-pack`](../lzma-pack/README.md): the same wrapper page and options, a stronger compressor for text and code, and a bigger, slower decoder. Python 3 standard library only (an optional minifier, terser or esbuild, shrinks the loader); the encoder is pure Python, nothing is compiled or downloaded.
+## What it is and how it works
 
-`pack.py` compresses the page with PPMd and writes a wrapper page: the compressed bytes plus a minified loader built from [`modules/ppmd-decode`](../../modules/ppmd-decode/ppmd-decode.js). While it unpacks, an "Opening..." line shows on the page's own background color, so a dark game never flashes white. The loader checks a hash of the compressed bytes, unpacks, checks a hash of the result, and replaces itself with the real page; if a hash does not match (the file was re-saved as text, or cut short) it shows a plain message instead of running anything. `ppmd7_encode.py` also works on its own: `encode(data, order, mem)` returns the raw 7z-style PPMd7 stream, byte for byte what the 7-Zip C encoder writes.
+Turns one HTML file into one smaller, self-unpacking HTML file using PPMd, and checks a hash before running it. The heavier sibling of [`lzma-pack`](../lzma-pack/README.md). Pure Python, nothing compiled or downloaded.
+
+- `pack.py` compresses the page and wraps it with a loader built from [`ppmd-decode`](../../modules/ppmd-decode/ppmd-decode.js).
+- The loader checks hashes before and after unpacking, then replaces itself with the real page.
+- A dark page never flashes white while it opens.
 
 ## Why it exists
 
-A single-file page or game ships as one HTML file, so a smaller file is a faster download. PPMd compresses text and code better than LZMA (4 to 16% smaller data on the test set below), but it needs a bigger and slower decoder in the page, so it pays off only for larger pages. That is why it is its own tool next to `lzma-pack` and the Zopfli packer, not a replacement for them.
+PPMd packs text and code 4 to 16% smaller than LZMA on the test set, but needs a bigger, slower decoder. It pays off only for larger pages, so it sits next to `lzma-pack` instead of replacing it.
+
+**Where it helps**
+
+- Larger single-file pages where size matters most.
+- Text-heavy apps and story files.
+- Comparing packers on your own file.
+
+**Not for:** low-memory devices (it allocates up to 16 MB while opening).
 
 ## Use
 

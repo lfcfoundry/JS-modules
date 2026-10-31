@@ -2,7 +2,7 @@
 
   // ================================================================ nested block (kind 'n'): shape table, per-block string dictionary, typed-byte columns, all zstd
   // Layout: u32 header length, JSON header, then zstd frames in this order: dictionary text, side strings, shapes, row shape ids, then each column.
-  // Column = typed bytes at the narrowest width that holds every value: 0 u8, 1 u16, 2 u32, 3 i8, 4 i16, 5 i32, 6 f64.
+  // Column = typed bytes at the narrowest width that holds every value: 0 u8, 1 u16, 2 u32, 3 i8, 4 i16, 5 i32, 6 f64, 7 decimals (writer only: see decimalColumn).
   var KIND = [Uint8Array, Uint16Array, Uint32Array, Int8Array, Int16Array, Int32Array, Float64Array];
   function colKind(c) {
     var mn = Infinity, mx = -Infinity, i, x;
@@ -13,6 +13,50 @@
   function typedColumn(c) {   // -> [kind, count, bytes]
     var k = colKind(c), t = (c instanceof KIND[k]) ? c : KIND[k].from(c);
     return [k, c.length, new Uint8Array(t.buffer, t.byteOffset, t.byteLength)];
+  }
+  // width 7: a column of whole numbers or decimals (up to nine decimals, exact) whose varints are clearly shorter than its typed bytes, kept when it also compresses smaller: byte 0 is the decimals d in bits 0 to 3 (bit 7 set: differences against the value k places back instead of the numbers, with k - 1 in bits 4 to 6), then the varints of z(whole) or z(whole - previous whole) with whole = value * 10^d; value = whole / 10^d. null when it does not pay (not exact, or the varints would take half of the doubles' size or more)
+  function decimalColumn(c, rawBytes) {
+    var n = c.length, i, sc, d, x, p = 0, prev, sa = 0, sb = 0, allInt = true, out, u, delta;
+    if (n < 2 || rawBytes <= n) return null;   // one byte per value or less: varints (at least one byte each) cannot be clearly shorter
+    for (i = 0; i < n; i++) { x = c[i]; if (!(x - x === 0) || (x === 0 && 1 / x < 0)) return null; if (allInt && !(Number.isInteger(x) && x < 1125899906842624 && x > -1125899906842624)) allInt = false; }
+    if (allInt) sc = 1; else { sc = decimalScale(c); if (!sc) return null; }
+    var b = allInt ? c : DS_INTS; DS_INTS = null;   // decimalScale left the exact whole numbers behind
+    // varint sizes: counted on the whole column up to 4096 values, otherwise on 8 windows of 512 values spread evenly (the choice only has to be clear, the frame that is written is exact). Differences are taken against the value k places back, k = 1 to 4: a column that interleaves series (the x and y of coordinate pairs) is much smaller with k = 2
+    var win = n <= 4096 ? 1 : 8, wl = n <= 4096 ? n : 512, w, from, cnt = 0, k, sk = [0, 0, 0, 0, 0];
+    for (w = 0; w < win; w++) {
+      from = win === 1 ? 0 : Math.floor((n - wl) * w / (win - 1));
+      for (i = from; i < from + wl; i++) {
+        x = b[i]; sa += vlen(x >= 0 ? x * 2 : -x * 2 - 1); cnt++;
+        for (k = 1; k <= 4; k++) { u = x - (i >= k ? b[i - k] : 0); sk[k] += vlen(u >= 0 ? u * 2 : -u * 2 - 1); }
+      }
+    }
+    sa = sa * n / cnt; for (k = 1; k <= 4; k++) sk[k] = sk[k] * n / cnt;
+    var bk = 1; for (k = 2; k <= 4; k++) if (sk[k] < sk[bk] * 0.95) bk = k;   // a larger stride has to be clearly better
+    sb = sk[bk];
+    if (Math.min(sa, sb) >= rawBytes * 0.6) return null;   // only a column whose varints are clearly shorter than its typed bytes is compressed both ways
+    delta = sb < sa;
+    var tot = 0; for (i = 0; i < n; i++) { x = b[i]; u = delta ? x - (i >= bk ? b[i - bk] : 0) : x; tot += vlen(u >= 0 ? u * 2 : -u * 2 - 1); }
+    d = Math.round(Math.log10(sc)); out = new Uint8Array(1 + tot); out[0] = d | (delta ? 128 | ((bk - 1) << 4) : 0); p = 1;
+    for (i = 0; i < n; i++) {
+      x = b[i]; u = delta ? x - (i >= bk ? b[i - bk] : 0) : x; u = u >= 0 ? u * 2 : -u * 2 - 1;
+      while (u >= 128) { out[p++] = (u % 128) | 128; u = Math.floor(u / 128); }
+      out[p++] = u;
+    }
+    return out;
+  }
+  function decodeDecimalColumn(raw, n) {   // one pass: varint, zigzag, the running sum k places back (a ring of k values) and the scale
+    var d = raw[0] & 15, delta = raw[0] & 128, k = ((raw[0] >> 4) & 7) + 1, sc = Math.pow(10, d), o = new Float64Array(n), w = delta ? new Float64Array(k) : null, p = 1, j = 0, i, c, u, m, s;
+    if (d > 9) throw new Error('damaged block: bad decimal column');
+    for (i = 0; i < n; i++) {
+      c = raw[p++];
+      if (c < 128) u = (c >>> 1) ^ -(c & 1);   // up to three bytes: whole-number zigzag (the common case)
+      else { u = c & 127; c = raw[p++]; if (c < 128) { u |= c << 7; u = (u >>> 1) ^ -(u & 1); } else { u |= (c & 127) << 7; c = raw[p++]; if (c < 128) { u |= c << 14; u = (u >>> 1) ^ -(u & 1); }
+        else { u |= (c & 127) << 14; m = 2097152; do { c = raw[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); u = (u % 2 === 0) ? u / 2 : -(u + 1) / 2; } } }
+      if (delta) { s = w[j] + u; if (s > 9007199254740992 || s < -9007199254740992) throw new Error('damaged block: number column out of range'); w[j] = s; if (++j === k) j = 0; o[i] = s / sc; }
+      else o[i] = u / sc;
+    }
+    if (p > raw.length) throw new Error('damaged block: decimal column cut off');
+    return new Uint8Array(o.buffer);
   }
   function writeNestedBlock(ctx, input, opts) {
     var zs = ctx.zs, level = opts.level == null ? 3 : opts.level;
@@ -41,11 +85,13 @@
     var tid = typedColumn(s.ids), zids = zs.compress(tid[2], level);
     var zc = [], zone = [];
     cols.forEach(function (c, hash) {
-      var t = typedColumn(c); zc.push([hash, t[0], t[1], zs.compress(t[2], level)]);
+      var t = typedColumn(c), dc = hash !== CODES_KEY ? decimalColumn(c, t[2].length) : null, zdc = dc ? zs.compress(dc, level) : null, zraw = null;
+      if (zdc && dc.length <= t[2].length * 0.3) zc.push([hash, 7, t[1], zdc, dc.length]);   // varints under 30% of the typed bytes: the typed bytes are not even compressed
+      else { zraw = zs.compress(t[2], level); if (zdc && zdc.length < zraw.length) zc.push([hash, 7, t[1], zdc, dc.length]); else zc.push([hash, t[0], t[1], zraw]); }
       if (hash !== CODES_KEY && c.length) { var mn = Infinity, mx = -Infinity, j; for (j = 0; j < c.length; j++) { if (c[j] < mn) mn = c[j]; if (c[j] > mx) mx = c[j]; } zone.push([hash, mn, mx, c.length]); }
     });
     // column table (hash, width code, count, frame length) is its own zstd frame: files with many distinct paths have thousands of entries
-    var cmB = te.encode(JSON.stringify(zc.map(function (z) { return [z[0], z[1], z[2], z[3].length]; }))), zcm = zs.compress(cmB, level);
+    var cmB = te.encode(JSON.stringify(zc.map(function (z) { return z.length > 4 ? [z[0], z[1], z[2], z[3].length, z[4]] : [z[0], z[1], z[2], z[3].length]; }))), zcm = zs.compress(cmB, level);
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, count: E, fa: [flags.length, zflags.length, repT[0], repT[1], zrep.length, N], len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], cm: [cmB.length, zcm.length] }));
     var parts = [u32le(hdr.length), hdr, zcm, ztext, zside, zskel, zids, zflags, zrep]; for (i = 0; i < zc.length; i++) parts.push(zc[i][3]);
@@ -54,19 +100,19 @@
 
   // ---- reader: one shared descriptor walker builds the rows of every shape; plans are cached per shape for the whole file
   function parseBlockHeader(bytes) {
-    var hl = rd32(bytes, 0); return { h: JSON.parse(td.decode(bytes.subarray(4, 4 + hl))), p: 4 + hl };
+    var hl = rd32(bytes, 0); return { h: JSON.parse(tdr.decode(bytes.subarray(4, 4 + hl))), p: 4 + hl };
   }
   // the byte work of reading a block (zstd and parsing the small tables); also what a helper worker runs. Everything returned owns its buffer, so it can be transferred.
   function nestedFrames(zs, bytes) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i;
     function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
-    var cmeta = JSON.parse(td.decode(zs.decompressView(take(h.cm[1]), h.cm[0])));
+    var cmeta = JSON.parse(tdr.decode(zs.decompressView(take(h.cm[1]), h.cm[0])));
     var dict = zs.decompress(take(h.p[0]), h.len[0]);
-    var side = JSON.parse(td.decode(zs.decompressView(take(h.p[1]), h.len[1])));
-    var skel = td.decode(zs.decompressView(take(h.p[2]), h.len[2]));
+    var side = JSON.parse(tdr.decode(zs.decompressView(take(h.p[1]), h.len[1])));
+    var skel = tdr.decode(zs.decompressView(take(h.p[2]), h.len[2]));
     var ids = [h.ids[0], h.ids[1], zs.decompress(take(h.ids[2]), h.ids[1] * KIND[h.ids[0]].BYTES_PER_ELEMENT)], cols = [];
     var zfl = zs.decompress(take(h.fa[1]), h.fa[0]), zrp = zs.decompress(take(h.fa[4]), h.fa[3] * KIND[h.fa[2]].BYTES_PER_ELEMENT);
-    for (i = 0; i < cmeta.length; i++) { var cd = cmeta[i]; cols.push([cd[0], cd[1], cd[2], zs.decompress(take(cd[3]), cd[2] * KIND[cd[1]].BYTES_PER_ELEMENT)]); }
+    for (i = 0; i < cmeta.length; i++) { var cd = cmeta[i]; if (cd[1] === 7) cols.push([cd[0], 6, cd[2], decodeDecimalColumn(zs.decompress(take(cd[3]), cd[4]), cd[2])]); else cols.push([cd[0], cd[1], cd[2], zs.decompress(take(cd[3]), cd[2] * KIND[cd[1]].BYTES_PER_ELEMENT)]); }
     // codes back from the flags: a flagged cell takes the next new number, any other cell takes the next stored repeat
     var NC = h.fa[5], rp = new KIND[h.fa[2]](zrp.buffer, zrp.byteOffset, h.fa[3]), ck = h.count < 256 ? 0 : h.count < 65536 ? 1 : 2, codes = new KIND[ck](NC), nxt = 0, r = 0;
     var fb, e8, q, ib = 0;
@@ -82,6 +128,7 @@
   }
   nestedFrames = guard(nestedFrames);
   function nestedTransfer(F) { var t = [F.dict.buffer, F.ids[2].buffer], i; for (i = 0; i < F.cols.length; i++) t.push(F.cols[i][3].buffer); return t; }
+  var NONASCII = /[\x80-\xff]/;   // dictionary text is ASCII (LAYOUT-SPEC 3.4)
   function makeNestedReader(zs) {
     var STRS = null, TI = 0, COLS = new Map(), PLAN = new Map();
     function col(h) { var c = COLS.get(h); if (!c) { c = { h: h, a: null, i: 0 }; COLS.set(h, c); } return c; }
@@ -118,14 +165,16 @@
     }
     // assemble one block from its decompressed frames (nestedFrames): the dictionary strings and column arrays the row builder reads
     function openBlock(F) {
-      var D = tlat.decode(F.dict).split('\0'), sd = F.side, i, cols = new Map();
-      for (i = 0; i < sd.idx.length; i++) D[sd.idx[i]] = sd.str[i];
+      var dt = tlat.decode(F.dict), D, sd = F.side, i, cols = new Map();
+      if (NONASCII.test(dt)) throw new Error('damaged block: dictionary text is not ASCII');
+      D = dt.split('\0');
+      for (i = 0; i < sd.idx.length; i++) { if (!(sd.idx[i] >= 0 && sd.idx[i] < D.length)) throw new Error('damaged block: side list index out of range'); D[sd.idx[i]] = sd.str[i]; }
       for (i = 0; i < F.cols.length; i++) { var cd = F.cols[i]; cols.set(cd[0], new KIND[cd[1]](cd[3].buffer, cd[3].byteOffset, cd[2])); }
       return { n: F.n, ids: new KIND[F.ids[0]](F.ids[2].buffer, F.ids[2].byteOffset, F.ids[1]), skel: F.skel.split('\n'), cols: cols, dict: D, codes: cols.get(CODES_KEY) };
     }
     function rowsOf(b) {
       var D = b.dict, cd = b.codes, n = cd ? cd.length : 0, E = new Array(n), i;
-      for (i = 0; i < n; i++) E[i] = D[cd[i]];
+      for (i = 0; i < n; i++) { if ((E[i] = D[cd[i]]) === undefined) throw new Error('damaged block: string code out of range'); }
       STRS = E; TI = 0;
       var sl = b.skel, fnById = new Array(sl.length);
       for (i = 0; i < sl.length; i++) { var f = PLAN.get(sl[i]); if (!f) { f = desc(JSON.parse(sl[i]), ''); PLAN.set(sl[i], f); } fnById[i] = f; }

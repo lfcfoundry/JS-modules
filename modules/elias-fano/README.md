@@ -4,12 +4,27 @@
 
 **Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
 
-Keeps sorted whole numbers (ids, positions, timestamps, links of a graph) in about a third to a half of the memory of a plain 32-bit array, and still answers "what is value number i" and "where is the first value at or above x" without unpacking. It also keeps many sorted lists in one structure (the links of every item of a map) and decodes them all at once, fast. **One file, no dependencies, works offline.** A WebAssembly path (with SIMD where the browser has it) is compiled the moment the file loads; plain JavaScript answers until it is ready and gives the same answers.
-
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
+## What it is and how it works
+
+Keeps sorted whole numbers (ids, positions, timestamps, graph links) in about a third to half the memory of a plain array, and still answers lookups without unpacking. One file, no dependencies.
+
+- Each number costs about 2 bits plus the bits needed for the average gap.
+- "Value number i" and "first value at or above x" stay fast.
+- Many lists can share one structure and be decoded together, in WebAssembly when ready.
+
 ## Why it exists
-Sorted number lists are everywhere: which items a link touches, which rows match a word, where each record starts. As plain arrays they cost 4 bytes per number whatever the numbers are. Elias-Fano coding spends about 2 bits plus log2(range / count) bits per number and keeps the order, so lookups and "next value at or above x" stay fast. Netflow Map's 30,000 lists of 94,597 links shrink from 498 KB to 223 KB, and the LFC-pack file format uses the same coding for its id lists.
+
+Sorted number lists are everywhere, and as plain arrays they cost 4 bytes per number whatever the values. Netflow Map's 30,000 link lists shrink from 498 KB to 223 KB, and LFC-pack uses the same coding for its id lists.
+
+**Where it helps**
+
+- Graph links per item in maps and networks.
+- Search indexes (which rows contain a word).
+- Row offsets and sorted timestamps.
+
+**Not for:** unsorted data or values above 4,294,967,295.
 
 ## Use
 

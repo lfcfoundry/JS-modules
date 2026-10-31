@@ -1,18 +1,30 @@
 # memory-compression
 
-**Version 2.7.0 · API 2**
+**Version 2.8.0 · API 2**
 
-**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (11 interleaved reps with a control copy); Node 82 checks.
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
-Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
+## What it is and how it works
 
-`MemoryCompression.pack(anything)` picks the layer from what you pass. Bytes and typed arrays go through a packing core: it shuffles the bytes so similar parts sit together, takes the difference between neighbors in each column, then squeezes the result with an LZ4-class coder (fast mode) or deflate (small mode). Lists of records go through an object layer: records are stored by column, each column picks its cheapest form (repeated values, narrow whole numbers, decimals as scaled whole numbers, a dictionary for repeated text, text patterns, dates), and the number columns go through the packing core. `unpack` reads the first two bytes to see which layer wrote the data. Two small WebAssembly helpers are inside the file and optional: the plain JavaScript does the same work and writes the same bytes, only slower.
+memory-compression keeps large data packed in memory and gives it back exactly: bytes, typed arrays and long lists of objects. One file, no dependencies, works offline.
+
+- Numbers are regrouped and stored as differences from their neighbors before compressing, so they shrink far more.
+- Lists of objects are stored by column, and each column picks its cheapest form.
+- `view()` reads one row without unpacking the rest, and `pager()` keeps only the pages in use open.
 
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license.
 
 ## Why it exists
 
-Big scenes, undo steps, save data and large tables take a lot of memory when kept as they are, and a general compressor treats floats and records as plain bytes. This module first rearranges the data so numbers pack better, and it gives everything back exactly. It is for data that sits still and is restored when needed, not for what is drawn this frame (restoring a 120 MB scene takes 140 to 250 ms).
+Browser apps hit memory limits early, and phones close pages that use too much. Much of what an app holds is idle (old undo steps, rows out of view). General compressors treat numbers as plain bytes and return one big blob. On the laptop in Firefox 160, an 8 MB float array packed to 4.8 MB in 5 ms, against fflate's 7.3 MB in 278 ms.
+
+**Where it helps**
+
+- Undo history in editors.
+- Maps, graphs and scenes that are off screen.
+- Big tables and logs read a page at a time.
+
+**Not for:** data drawn every frame, or noisy floats, which shrink only 8 to 20%.
 
 ## Install and use
 
@@ -98,7 +110,8 @@ Since 2.5.0 a view keeps each top-level text column whole until a row is read (p
 | `check` | `true` adds a checksum that `unpack()` verifies | off |
 | `fsst` / `front` / `patterns` | FSST codes for text (opt-in); front coding of sorted text; text patterns (the last two on by default) | see notes |
 | `float32` | `true` keeps fraction columns in 4 bytes (lossy, relative error at most about 6e-8) | off |
-| `quickTries` | `true` makes the number picker try every way on its first 8,192-number block only, not the first two (packing 0 to 20% faster on lists with several number columns; files 0 to 1.1% bigger, never smaller; opens the same) | off |
+| `autoTries` | since 2.8.0: a whole-number column of up to 100,000 values tries every way on its first block only (as `quickTries` does there) and re-checks every 32nd block. Pack 1.02 to 1.24x faster in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 on lists of 20,000 to 300,000 rows; files 0 to 1.3% bigger on whole-number lists of 10,000 to 100,000 rows, unchanged above; opens the same. `false` gives the 2.7.0 bytes | on |
+| `quickTries` | `true` makes the number picker try every way on its first 8,192-number block only, not the first two (packing 0 to 20% faster on lists with several number columns; files 0 to 1.1% bigger, never smaller; opens the same) ; forces it at every size | off |
 | `wasm` | `false` forces plain JavaScript | use WebAssembly if available |
 | `maxSize`, `maxItems` | limits that stop a hostile or damaged input (1 GiB, 100,000,000) | as shown |
 

@@ -4,13 +4,25 @@
 
 **Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (two runs each, 11 rounds); Node 45 checks, 16 lean builds, 10 raw equivalence cases.
 
-Safe `localStorage` saves, a rolling backup slot, and checksummed copy-paste save codes. About 27 KB with its comments, about 12.7 KB minified (5.4 KB gzipped), no dependencies.
+## What it is and how it works
 
-You describe your save as a schema (each field's name and type). On load it reads the main slot and a backup slot and rebuilds the state field by field from the better one, so one damaged number costs only that number. On save it refuses to write when a number is broken and copies the last good save to the backup slot at most once a minute. A save code is the save packed into text with a short checksum, so a code cut off while copying is caught.
+save-kit stores game or app progress in the browser safely. One file, 5.4 KB gzipped, no dependencies. `createLarge` does the same over IndexedDB for big saves.
+
+- You describe the save as a schema, and every field is checked on save and load.
+- A backup slot is kept, and a damaged value falls back alone instead of ruining the save.
+- Saves can be copied out as text codes with a checksum, and pasted back.
 
 ## Why it exists
 
-A game's progress lives in `localStorage`, where one bad value or one buggy save can ruin or overwrite everything, and phones close hidden pages without warning. Hand-written `JSON.stringify` and `JSON.parse` is smaller but has none of these protections. This module also lets players copy their save out as text and paste it back, and it checks pasted text before trusting it.
+Browser saves fail quietly: a `NaN` gets written, a phone closes the page before it saves, two tabs overwrite each other. Plain `JSON.stringify` into `localStorage` loses everything when that happens, and storage libraries like localForage store whatever they are given. save-kit was cut out of Apple Press and Fancy, the Banana.
+
+**Where it helps**
+
+- Progress and settings in browser games.
+- Moving a save between devices by copy and paste, with no account.
+- Changing the save format later without breaking old saves.
+
+**Not for:** secrets or anti-cheat (codes can be edited), or shapeless key-value storage.
 
 ## Use
 

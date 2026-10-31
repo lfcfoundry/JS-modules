@@ -144,13 +144,13 @@
   }
   function readSpell(b) {   // -> { blockIndex: { row: spells } }
     if (!b) return {};
-    var raw = JSON.parse(td.decode(b)), out = {}, k, i;
+    var raw = JSON.parse(tdr.decode(b)), out = {}, k, i;
     for (k in raw) { out[k] = {}; for (i = 0; i < raw[k].length; i++) out[k][raw[k][i][0]] = raw[k][i][1]; }
     return out;
   }
   function readExc(b) {
     if (!b) return {};
-    var hl = rd32(b, 0), idx = JSON.parse(td.decode(b.subarray(4, 4 + hl))), p = 4 + hl, out = {}, k, i;
+    var hl = rd32(b, 0), idx = JSON.parse(tdr.decode(b.subarray(4, 4 + hl))), p = 4 + hl, out = {}, k, i;
     for (k in idx) { out[k] = {}; for (i = 0; i < idx[k].length; i++) { out[k][idx[k][i][0]] = b.subarray(p, p + idx[k][i][1]); p += idx[k][i][1]; } }
     return out;
   }
@@ -201,7 +201,7 @@
     if (typeof b[6] === 'string' && RX_X64.test(b[6]) && S.zdec && S.zdec.xxh64 ? hash(x, 'xxh64') !== b[6] : crcOf(x) !== b[2]) throw new Error('block ' + i + ' checksum mismatch');
     return x;
   }
-  function rawRows(t) { return td.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
+  function rawRows(t) { return tdr.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
   // zone maps: a block is skipped when the number column for opts.range.key has no value inside [min, max]
   function blockMayMatch(file, i, range) {
     if (!range || !file.zone || !file.zone[i]) return true;
@@ -227,6 +227,7 @@
   }
   function unpackSome(bytes, opts) {
     var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, j, r, kd, want = null, range = opts.range || null;
+    rf.generated(opts.rows === 'generated');
     if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; if (range) want[range.key] = 1; }
     for (i = 0; i < file.blocks.length; i++) {
       if (opts.table != null && (file.blocks[i][5] || 0) !== opts.table) continue;
@@ -321,4 +322,4 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.2.0', apiVersion: 0 };
+  var api = { hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.3.1', apiVersion: 0 };

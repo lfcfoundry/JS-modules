@@ -4,13 +4,25 @@
 
 **Tested in:** Python 3 test file: 21 checks pass, 1 skipped (svgo not installed). No browser run for this change; the packed loader is unchanged.
 
-Shrinking a game that is one HTML file with fonts and pictures inside it. These are the steps used for the owner's single-file games, each optional (`build-example.sh` runs them all).
+## What it is and how it works
 
-Each step reads the page as text and rewrites one kind of content. `optfonts.py` collects every character the file can show and cuts each embedded font down to those characters. `optsvg.js` tightens the inline pictures without renaming anything a style or script uses. `pack.py` squeezes the whole page with Zopfli into a small page that unpacks itself with the browser's own unzipper. `build-example.sh` runs them in that order.
+Steps for shrinking a game that is one HTML file with fonts and pictures inside it. Each step is optional; `build-example.sh` runs them all.
+
+- `optfonts.py` cuts each embedded font down to the characters the file can show.
+- `optsvg.js` tightens inline pictures without renaming anything a script uses.
+- `pack.py` squeezes the page with Zopfli into a page that unpacks itself with the browser's own unzipper.
 
 ## Why it exists
 
-A game that is one HTML file carries its fonts, pictures and scripts inside it, so every extra byte is part of the one download. General-purpose minifiers do not know which characters a one-file game can print or which picture ids its script uses (see "Prior art and credits"), so these tools are small and conservative on purpose, and each one is optional.
+In a one-file game every extra byte is part of the one download. General minifiers do not know which characters a game can print or which picture ids its script uses, so these tools stay small and careful.
+
+**Where it helps**
+
+- Single-file games and apps with embedded fonts.
+- Pages with many inline SVG pictures.
+- Cutting download size without a build system.
+
+**Not for:** browsers older than 2023 (the packed page needs `DecompressionStream`).
 
 ## The tools
 

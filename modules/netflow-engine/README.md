@@ -4,13 +4,27 @@
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5, one at a time
 
-The engine of Netflow Map as a module you can copy and adapt. You give it a list of items and links; it works out where everything goes (as a story laid out in rows, arcs, a matrix, a shape, or as a network of any size), scores the drawing, and hands back plain numbers ready to draw. It runs with no page, so it works in a worker, in Node, or on the main thread. It reads and prepares the data into flat typed arrays, finds choke points and traffic, then places items with a layered, force or distance-based method (the heavy force and distance steps run in WebAssembly when the page allows it and in plain JavaScript when not, with identical results).
-
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license.
+
+## What it is and how it works
+
+The engine of Netflow Map as a module you can copy and adapt. You give it items and links; it works out where everything goes and hands back plain numbers ready to draw.
+
+- Data is prepared into flat typed arrays, with choke points and traffic found first.
+- Items are placed with a layered, force or distance-based method, or as a story in rows, arcs, a matrix or a shape.
+- Heavy steps run in WebAssembly when allowed, with identical results in JavaScript. It needs no page, so it runs in a worker or Node.
 
 ## Why it exists
 
-Netflow Map keeps getting faster and lighter, and those gains live in its engine: a 30,000-item network went from 42 seconds to under a second in one week. The owner's rule (2026-10-18) is that **every significant update to the Netflow Map engine is also published here as a new version of this module**, so other people can adapt it for their own special cases. The optimized add-ons (layered drawing, Sankey flow chart, regular network maps) bolt onto this engine and are versioned on their own; none of them is the engine.
+Netflow Map's gains live in its engine: a 30,000-item network went from 42 seconds to under a second in one week. Every significant engine update is published here so others can adapt it for their own cases.
+
+**Where it helps**
+
+- Network and flow maps in your own app.
+- Laying out large graphs off the main thread.
+- A starting point for custom layouts with add-ons.
+
+**Not for:** drawing; it returns positions, not pictures.
 
 ## Use
 

@@ -4,18 +4,28 @@
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (tests/frame-kit-browser.js: the module's 67 checks inside each page plus about 1.5 s of real animation frames, 67 of 67 in all four, the badge read 60 FPS in Chromium and Firefox and 62 FPS in WebKitGTK and GNOME Web; 3 to 8 s each including start-up; Node 67 checks)
 
-Four tiny, independent helpers for browser games and other `requestAnimationFrame` loops. **Each is one file with no dependencies; use any one without the others.** You call each from your frame loop; none touches the DOM, timers or `requestAnimationFrame` itself. Time is in milliseconds.
+## What it is and how it works
+
+Four tiny, independent helpers for `requestAnimationFrame` loops. Each is one file with no dependencies; use any one alone.
 
 | Helper | File | One line |
 | --- | --- | --- |
-| `EvenDt` | `even-dt.js` | Smooths the uneven frame gaps a browser reports by snapping them to the screen's learned refresh period (median of recent gaps; the leftover is paid back slowly). |
-| `QualityGovernor` | `quality-governor.js` | Steps a quality level down after a run of slow frames and up after a long calm stretch, with hysteresis. |
-| `JobPump` | `job-pump.js` | Runs queued build steps (functions or generators) for about N milliseconds per frame, so a big pre-render never hitches a frame. |
-| `FrameMeter` | `frame-meter.js` | A speed meter: FPS, the slowest frame, hitches with a plain-words cause (game or device) and the delay from a tap to the next frame. |
+| `EvenDt` | `even-dt.js` | Smooths uneven frame gaps by snapping them to the screen's learned refresh period. |
+| `QualityGovernor` | `quality-governor.js` | Steps quality down after slow frames and up after a long calm stretch. |
+| `JobPump` | `job-pump.js` | Runs queued build steps for a few milliseconds per frame, so big bakes never hitch. |
+| `FrameMeter` | `frame-meter.js` | FPS, slowest frame, hitches with a plain-words cause, and tap-to-frame delay. |
 
 ## Why it exists
 
-Browsers report frame gaps that wobble by a millisecond or two even when every frame is on time, which shows as a faint shiver in scrolling scenery (`EvenDt`). A game fine at full quality on one machine needs fewer particles or a smaller canvas on another (`QualityGovernor` decides when; you decide what a level means). Procedural art and texture bakes can freeze the page for hundreds of milliseconds (`JobPump` spreads them over frames). They were extracted from a real, shipped single-file browser game and rewritten to stand alone.
+Browsers report frame gaps that wobble even when every frame is on time, which shows as a faint shiver in scrolling scenery. Quality needs to adapt per device, and long bakes freeze the page. These came out of a shipped game and were rewritten to stand alone.
+
+**Where it helps**
+
+- Smooth scrolling backgrounds.
+- Adapting effects to the device.
+- Spreading heavy setup work over frames.
+
+**Not for:** code that needs exact times (`EvenDt` trades exactness for smoothness).
 
 ## Use
 

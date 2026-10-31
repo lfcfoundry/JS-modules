@@ -26,3 +26,14 @@ Plain arrays still read single lists faster, at about 2x the memory.
 | 20,000 lists: one by one (1.4.0) against `getMany` (1.5.0) | 18 | 6.9 |
 
 `getMany` gives the same lists as `get` and takes about 0.4 of the time.
+
+
+**Same tests in Firefox 160 (Windows), real laptop, 16 cores, 2026.10.30, 9:41 PM.** Medians; lower is better.
+
+| work | 1.4.0 ms | 1.5.0 ms |
+|---|---:|---:|
+| build (100,000 lists) | 19 | 16 |
+| 20,000 lists one by one | 14 | 14 |
+| 20,000 lists: one by one (1.4.0) against `getMany` (1.5.0) | 14 | 4.0 |
+
+`getMany` takes about 0.3 of the time.

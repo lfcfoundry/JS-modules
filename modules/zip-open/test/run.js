@@ -203,6 +203,8 @@ async function both(buf, name, opts) {
   try { a = await U.expand(u8(buf), name, opts); } catch (e) { a = { err: e.message }; }
   try { b = await U.expandBlob(new Blob([buf]), name, opts); } catch (e) { b = { err: e.message }; }
   try { c = await U.expandBlob(new Blob([buf]), name, Object.assign({ workers: 3, spawn: spawn, helperMinBytes: 0 }, opts)); helperRuns++; } catch (e) { c = { err: e.message }; }
+  var p; try { p = await U.expandBlob(new Blob([buf]), name, Object.assign({ _wholeMax: 0 }, opts)); } catch (e) { p = { err: e.message }; }
+  if (JSON.stringify(p) !== JSON.stringify(b)) throw new Error(name + ': read in pieces differs from read in one go');
   assert.deepStrictEqual(c, a, 'with helpers: ' + name);
   return [a, b];
 }

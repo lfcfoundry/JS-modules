@@ -4,13 +4,25 @@
 
 **Tested in:** Node 22 checks; compile-early timing in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
 
-A PPMd decoder (the "var.H" flavor that 7-Zip calls PPMd7) that tries WebAssembly first and falls back by itself to plain ES5 JavaScript (one function), no dependencies. PPMd predicts each byte from the bytes before it; on the web-page samples measured here it came out about 10% smaller than LZMA, at the price of a bigger decoder and slower unpacking. Use it to unpack PPMd data in the browser or in Node, for example the page data of a single-file app that a packer squeezed. The matching encoder is [`tools/ppmd-pack/ppmd7_encode.py`](../../tools/ppmd-pack/ppmd7_encode.py).
+## What it is and how it works
 
-It rebuilds, step by step, the same prediction model the encoder used, and a range decoder (the kind 7-Zip's `.7z` format uses) turns the compressed bytes back into one byte at a time using that model's predictions. That is why it needs the same `order` and `memSize` the encoder used.
+A PPMd decoder (the PPMd7 flavor 7-Zip uses) for the browser or Node: WebAssembly first, plain ES5 JavaScript as the fallback. The matching encoder is [`tools/ppmd-pack`](../../tools/ppmd-pack/README.md).
+
+- It rebuilds the same prediction model the encoder used, byte by byte.
+- A range decoder turns the compressed bits back into bytes from those predictions.
+- It needs the same `order` and memory size the encoder used.
 
 ## Why it exists
 
-A single-file app or game with a smaller download needs something to unpack its squeezed page data in the browser. LZMA does that in a very small decoder, but PPMd compresses web-page text and code better, and I found no other PPMd decoder that is a standalone piece of JavaScript: the working ones are whole archive tools compiled to WebAssembly. This module is for the case where a few KB of plain JavaScript in one file is the constraint. [`tools/ppmd-pack`](../../tools/ppmd-pack/README.md) uses it to build self-unpacking pages.
+PPMd packs web-page text and code about 10% smaller than LZMA on the samples here. No other standalone PPMd decoder in plain JavaScript was found; the working ones are whole archive tools compiled to WebAssembly.
+
+**Where it helps**
+
+- Larger self-unpacking pages where every KB counts.
+- Unpacking PPMd data in a browser or Node.
+- Pages where a few KB of plain JavaScript is the limit.
+
+**Not for:** small pages (the decoder is bigger and slower than LZMA's).
 
 ## Use
 

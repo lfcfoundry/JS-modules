@@ -4,12 +4,27 @@
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
-Turns a map laid out by [netflow-engine](../netflow-engine/README.md) into plain drawing lists (dots, links, labels, ribbons, shapes, a legend) that Canvas 2D, WebGL2, WebGPU or an SVG export can all draw the same way. It decides colors, widths, dashes, arrows, which labels fit and what a click would hit; it never touches a page. Big flat maps (2,000 or more straight links) keep their links in typed lists instead of one object per link, and a map rebuilt only because items moved or labels changed reuses each link's look from the last picture.
-
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 
+## What it is and how it works
+
+Turns a map laid out by [netflow-engine](../netflow-engine/README.md) into plain drawing lists (dots, links, labels, shapes, a legend) that Canvas 2D, WebGL2, WebGPU or SVG can all draw the same way.
+
+- It decides colors, widths, dashes, arrows and which labels fit.
+- It works out what a click would hit, without touching the page.
+- Big maps keep links in typed lists, and a rebuild after moving items reuses each link's look.
+
 ## Why it exists
-Netflow Map draws maps of up to 100,000 items with four different drawing backends. Each one needs the same answers (where, what color, how thick), so those answers live in one place with no page code in it. Others who draw their own networks, flows or matrices can take the same step and draw the lists with whatever they like.
+
+Netflow Map draws up to 100,000 items with four drawing backends, and each needs the same answers: where, what color, how thick. Keeping those answers in one place lets anyone draw the lists with whatever they like.
+
+**Where it helps**
+
+- Drawing networks with more than one renderer.
+- SVG export that matches the on-screen picture.
+- Large maps that redraw often.
+
+**Not for:** layouts not shaped like netflow-engine 2.2.2 or newer.
 
 ## Use
 

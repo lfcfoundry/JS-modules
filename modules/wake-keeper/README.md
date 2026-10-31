@@ -4,13 +4,25 @@
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/small-lean-browser.js: 0 failures in each of the four; Chromium and Firefox used the real CloseWatcher with the real Escape key and the browser's own wake lock; WebKitGTK and GNOME Web have no CloseWatcher, so 3 back-close situations say 'not available', and they refuse the wake lock request (NotAllowedError), so their 6 wake-keeper situations ran with a stand-in lock). Not run: a phone, Safari itself; node modules/wake-keeper/test/lean.js 12 of 12, 42 older Node checks
 
-Keeps a phone or tablet screen awake **only while a game really wants it**. About 7 KB, no dependencies.
+## What it is and how it works
 
-It asks the browser's Screen Wake Lock for a lock when you call `want(true)`, and gives it back when you call `want(false)`, when the tab is hidden, or after `idleMs` without a tap or key press (`poke()`). It asks again when the tab comes back, holds one lock at a time, and waits a while before asking again after a refusal.
+Keeps a phone or tablet screen awake only while a game really needs it. About 7 KB, no dependencies.
+
+- `want(true)` asks the browser's Screen Wake Lock for a lock; `want(false)` gives it back.
+- It lets go when the tab is hidden or nobody has tapped for a while, and asks again when the tab returns.
+- It holds one lock at a time and waits before retrying after a refusal.
 
 ## Why it exists
 
-The raw API is three lines, but a game that grabs the lock on load and never lets go drains the battery on a title screen or a forgotten tab. The core rules (release when hidden, ask again when visible, one lock at a time, show when it is held) follow MDN and the specification. Releasing after a quiet spell and the refusal wait are this module's own additions, not platform rules.
+The raw API is three lines, but a game that grabs the lock on load and never lets go drains the battery on a title screen or a forgotten tab.
+
+**Where it helps**
+
+- Games played without touching the screen for a while.
+- Timers, recipes and presentations on a phone.
+- Keeping the screen on only during active play.
+
+**Not for:** browsers without `navigator.wakeLock` (it does nothing there).
 
 ## Use
 

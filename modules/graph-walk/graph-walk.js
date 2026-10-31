@@ -2,7 +2,7 @@
  * graph-walk.js: the small walks over a link list that map and flow tools keep rewriting: breadth-first distances from an item, and a depth-first pass that marks the links that close a loop and lists the items in finishing order, connected components, strongly connected components, topological order and shortest paths. Works on the plain "links of every item" layout (CSR) in typed arrays. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.7.0 (API 0)
+ * Version 0.7.2 (API 0)
  *
  *   var g = GraphWalk.csr(n, fromArray, toArray);         // item numbers 0..n-1; link i joins from[i] to to[i]
  *   var depth = GraphWalk.bfs(g, root);                    // Int32Array, -1 where not reached; bfs(g, root, skip) never enters item `skip`
@@ -281,13 +281,13 @@
 
   /* ---- WebAssembly (wasm/graph-walk.c): the same algorithms and answers for components, scc, topo and weighted shortest paths to every item; compiled the moment this file loads, never blocking; the plain JavaScript answers until it is ready ---- */
   var WASM_B64 = /*WASM:gw:BEGIN*/'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EEEBcUUNACALIA0gEkECdGooAgAiD0EDdCISakIANwMAIAogD0ECdGpBfzYCACAMIBJqQgA3AwALIA5BAWoiDiAIRw0ACwsL8RgCBn8BfgJAIAFBAUgNACABQQFxIQxBACENAkAgAUEBRg0AIAFB/v///wdxIQ5BACENIAchDyAFIRAgBCERA0AgECARKQMAIhJCf4UgEkKAgICAgICAgIB/hCASQgBTGzcDACAPIA02AgAgD0EEaiANQQFqNgIAIBBBCGogEUEIaikDACISQn+FIBJCgICAgICAgICAf4QgEkIAUxs3AwAgD0EIaiEPIBBBEGohECARQRBqIREgDUECaiINIA5HDQALCyAMRQ0AIAcgDUECdGogDTYCACAFIA1BA3QiDWogBCANaikDACISQn+FIBJCgICAgICAgICAf4QgEkIAUxs3AwALIAlBBGohEEEAIQ8DfyAJIA9qIg1BADYCAAJAIA9BgIAQRw0AAkAgAUEBSA0AIAFBAXEhBEEAIQ8CQCABQQFGDQAgAUH+////B3EhDkEAIQ8gBSENA0AgECANLwEAQQJ0aiIRIBEoAgBBAWo2AgAgECANQQhqLwEAQQJ0aiIRIBEoAgBBAWo2AgAgDUEQaiENIA4gD0ECaiIPRw0ACwsgBEUNACAQIAUgD0EDdGovAQBBAnRqIg0gDSgCAEEBajYCAAsgCSgCACERQQAhDwNAIAkgD2oiDUEEaiIOIA4oAgAgEWoiETYCACANQQhqIg4gDigCACARaiIRNgIAIA1BDGoiDiAOKAIAIBFqIhE2AgAgDUEQaiINIA0oAgAgEWoiETYCACAPQRBqIg9BgIAQRw0ACwJAIAFBAUgNACABQQFxIQxBACEOAkAgAUEBRg0AIAFB/v///wdxIQRBACEOIAchDSAFIQ8DQCAJIA8pAwAiEqdB//8DcUECdGoiESARKAIAIhFBAWo2AgAgBiARQQN0aiASNwMAIAggEUECdGogDSgCADYCACAJIA9BCGopAwAiEqdB//8DcUECdGoiESARKAIAIhFBAWo2AgAgBiARQQN0aiASNwMAIAggEUECdGogDUEEaigCADYCACANQQhqIQ0gD0EQaiEPIAQgDkECaiIORw0ACwsgDEUNACAJIAUgDkEDdGopAwAiEqdB//8DcUECdGoiDSANKAIAIg1BAWo2AgAg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'/*WASM:gw:END*/;
-  var W = null, mem = null, backend = 'auto', permEnd = 0, readyPromise = null;
+  var W = null, MOD = null, mem = null, backend = 'auto', permEnd = 0, readyPromise = null;
   function b64bytes(t) { var bin, i; if (typeof atob === 'function') { var r = atob(t); bin = new Uint8Array(r.length); for (i = 0; i < r.length; i++) bin[i] = r.charCodeAt(i); } else bin = new Uint8Array(Buffer.from(t, 'base64')); return bin; }
   function start() {
     if (readyPromise) return readyPromise;
     if (typeof WebAssembly !== 'object' || !WASM_B64) return (readyPromise = Promise.resolve(false));
     try {
-      readyPromise = WebAssembly.instantiate(b64bytes(WASM_B64), {}).then(function (r) { W = r.instance.exports; mem = W.memory; permEnd = (W.__heap_base.value + 7) & ~7; return true; }, function () { return false; });
+      readyPromise = WebAssembly.compile(b64bytes(WASM_B64)).then(function (m) { MOD = m; return WebAssembly.instantiate(m, {}); }).then(function (r) { W = r.exports; mem = W.memory; permEnd = (W.__heap_base.value + 7) & ~7; return true; }, function () { return false; });
     } catch (e) { readyPromise = Promise.resolve(false); }
     return readyPromise;
   }
@@ -406,32 +406,41 @@
       }
       return bc;
     }
+    var inst = null;   // one WebAssembly instance per helper, kept across graphs (its memory only grows)
     function load(d) {
       var c = { n: d.n, os: d.os, oe: d.oe, to: d.to, is: d.is, ie: d.ie, from: d.from, X: null, P: null, ready: null };
-      if (d.wasm) c.ready = WebAssembly.instantiate(d.wasm, {}).then(function (r) {
-        var X = r.instance.exports, mem = X.memory, n = c.n, at = (X.__heap_base.value + 7) & ~7, P = {}, list = [['os', c.os], ['oe', c.oe], ['to', c.to], ['is', c.is], ['ie', c.ie], ['from', c.from]], i;
+      function lay(X) {
+        var mem = X.memory, n = c.n, at = (X.__heap_base.value + 7) & ~7, P = {}, list = [['os', c.os], ['oe', c.oe], ['to', c.to], ['is', c.is], ['ie', c.ie], ['from', c.from]], i;
         for (i = 0; i < list.length; i++) { P[list[i][0]] = at; at = (at + 4 * list[i][1].length + 7) & ~7; }
         P.srcs = at; at += 4 * n; P.bc = at; at += 8 * n; P.sigma = at; at += 8 * n; P.delta = at; at += 8 * n; P.dist = at; at += 4 * n; P.q = at; at += 4 * n;
         if (at > mem.buffer.byteLength) mem.grow(Math.ceil((at - mem.buffer.byteLength) / 65536));
         var all = new Int32Array(mem.buffer);
         for (i = 0; i < list.length; i++) all.set(list[i][1], P[list[i][0]] >> 2);
-        new Int32Array(mem.buffer, P.dist, n).fill(-1);
+        new Int32Array(mem.buffer, P.dist, n).fill(-1); new Float64Array(mem.buffer, P.sigma, 2 * n).fill(0);
         c.X = X; c.P = P;
-      }, function () { c.X = null; });
+      }
+      if (d.wasm && d.keepInst && inst) lay(inst);
+      else if (d.wasm) c.ready = WebAssembly.instantiate(d.wasm, {}).then(function (r) { var X = (r.instance || r).exports; if (d.keepInst) inst = X; lay(X); }, function () { c.X = null; });
       return c;
     }
+    var accJob = 0, acc = null;   // the job being done in pieces (more: true) and, without WebAssembly, its running sum (with it, the sum stays in wasm memory)
     onmessage = function (ev) {
       var d = ev.data;
       if (d.n !== undefined) cur = load(d);
       function run() {
-        var c = cur, bc;
+        var c = cur, n = c.n, bc, j, fresh = !d.more || accJob !== d.job;
+        if (d.flush) { var into = d.buf && d.buf.byteLength === 8 * n ? new Float64Array(d.buf) : null; bc = c.X ? (accJob === d.job ? (into ? (into.set(new Float64Array(c.X.memory.buffer, c.P.bc, n)), into) : new Float64Array(c.X.memory.buffer, c.P.bc, n).slice()) : new Float64Array(n)) : (accJob === d.job && acc ? acc : new Float64Array(n)); accJob = 0; acc = null; postMessage({ job: d.job, bc: bc }, [bc.buffer]); return; }
         if (c.X) {
-          var mem = c.X.memory, P = c.P, n = c.n;
+          var mem = c.X.memory, P = c.P;
           new Int32Array(mem.buffer, P.srcs, d.srcs.length).set(d.srcs);
-          new Float64Array(mem.buffer, P.bc, n).fill(0);
+          if (fresh) new Float64Array(mem.buffer, P.bc, n).fill(0);
           c.X.gw_betweenness(n, P.os, P.oe, P.to, P.is, P.ie, P.from, P.srcs, d.srcs.length, P.bc, P.dist, P.sigma, P.delta, P.q);
-          bc = new Float64Array(mem.buffer, P.bc, n).slice();
-        } else bc = js(c, d.srcs);
+          if (!d.more) bc = new Float64Array(mem.buffer, P.bc, n).slice();
+        } else {
+          bc = js(c, d.srcs);
+          if (d.more) { if (fresh || !acc) acc = bc; else for (j = 0; j < n; j++) acc[j] += bc[j]; }
+        }
+        if (d.more) { accJob = d.job; postMessage({ job: d.job, ask: 1 }); return; }
         postMessage({ job: d.job, bc: bc }, [bc.buffer]);
       }
       if (cur.ready) cur.ready.then(run); else run();
@@ -440,17 +449,19 @@
   var pool = null, poolTimer = 0, gids = 0, jobs = 0;
   /** Ends the kept helper threads now (they also end by themselves after `idleMs` without work, 5 seconds by default). */
   function closePool() { if (poolTimer) { clearTimeout(poolTimer); poolTimer = 0; } if (pool) { for (var i = 0; i < pool.workers.length; i++) pool.workers[i].terminate(); try { URL.revokeObjectURL(pool.url); } catch (e) { /* gone */ } pool = null; } }
-  function getPool(count, onDead) {
-    if (pool && pool.workers.length === count) return pool;
-    closePool();
+  // own: helpers for one call only (pool: false); they never touch the kept pool, so a pool: false call does not close helpers that other calls kept warm
+  function endPool(P) { for (var i = 0; i < P.workers.length; i++) P.workers[i].terminate(); try { URL.revokeObjectURL(P.url); } catch (e) { /* gone */ } }
+  function getPool(count, own) {
+    if (!own && pool && pool.workers.length === count) return pool;
+    if (!own) closePool();
     var url = URL.createObjectURL(new Blob(['(' + workerMain.toString() + ')()'], { type: 'text/javascript' })), P = { url: url, workers: [], loaded: [], jobs: {} }, i;
-    P.dead = function () { var js = P.jobs; closePool(); P.jobs = {}; for (var k in js) js[k].fail(); };
+    P.dead = function () { var js = P.jobs; if (pool === P) closePool(); else endPool(P); P.jobs = {}; for (var k in js) js[k].fail(); };
     for (i = 0; i < count; i++) {
       var wk = new Worker(url); P.workers.push(wk); P.loaded.push(null);
-      wk.onmessage = function (ev) { var j = P.jobs[ev.data.job]; if (j) j.add(ev.data.bc); };
+      (function (wi) { wk.onmessage = function (ev) { var j = P.jobs[ev.data.job]; if (j) { if (ev.data.ask) j.ask(wi); else j.add(ev.data.bc, wi); } }; })(i);
       wk.onerror = P.dead;
     }
-    return (pool = P);
+    return own ? P : (pool = P);
   }
   /**
    * Same answer as `betweenness`, but the start items are dealt out to `workers` helper threads (default: the cores the browser reports, at most 8) and the partial sums added; returns a Promise of the Float64Array.
@@ -467,22 +478,32 @@
       var P, total = new Float64Array(n), pending = count, id = ++jobs, wasmOn = useWasm(), key, done = false;
       function finish(ok) {
         if (done) return; done = true; if (P) delete P.jobs[id];
-        if (!keep) closePool(); else { if (poolTimer) clearTimeout(poolTimer); poolTimer = setTimeout(closePool, options.idleMs === undefined ? 5000 : options.idleMs); }
+        if (!keep) { if (P) endPool(P); } else { if (poolTimer) clearTimeout(poolTimer); poolTimer = setTimeout(closePool, options.idleMs === undefined ? 5000 : options.idleMs); }
         if (!ok) { resolve(betweenness(g, options)); return; }
         if (options.normalized !== false && n > 2) { var scale = 1 / ((n - 1) * (n - 2)); for (var j = 0; j < n; j++) total[j] *= scale; }
         resolve(total);
       }
       try {
-        P = getPool(count);
-        if (poolTimer) { clearTimeout(poolTimer); poolTimer = 0; }
+        P = getPool(count, !keep);
+        if (keep && poolTimer) { clearTimeout(poolTimer); poolTimer = 0; }
         if (!g._gid) g._gid = ++gids;
         key = g._gid + (wasmOn ? 'w' : 'j');
-        P.jobs[id] = { add: function (bc) { for (var j = 0; j < n; j++) total[j] += bc[j]; if (--pending === 0) finish(true); }, fail: function () { finish(false); } };
-        for (i = 0; i < count; i++) {
-          var list = new Int32Array(Math.ceil((srcs.length - i) / count)); for (k = 0; k < list.length; k++) list[k] = srcs[i + k * count];
-          var msg = { job: id, srcs: list };
-          if (P.loaded[i] !== key) { msg.n = n; msg.os = g.outStart; msg.oe = g.outEdge; msg.to = g.to; msg.is = g.inStart; msg.ie = g.inEdge; msg.from = g.from; msg.wasm = wasmOn ? b64bytes(WASM_B64) : null; P.loaded[i] = key; }
-          P.workers[i].postMessage(msg, [list.buffer]);
+        var dyn = options._dyn !== false, useMod = options._mod !== false,   // _dyn, _mod: test switches only (false = the 0.7.1 way; kept for tests/graph-walk-pool-browser.js)
+        next = 0, chunk = 0, w;
+        if (dyn) chunk = Math.max(1, Math.ceil(srcs.length / (count * (options._pieces || 8))));
+        var out = new Int32Array(count);   // pieces each helper still has queued
+        function piece(wi) { var e = Math.min(srcs.length, next + chunk), list = new Int32Array(srcs.slice(next, e)); next = e; out[wi]++; return list; }
+        function send(wi, msg, list) {
+          if (P.loaded[wi] !== key) { msg.n = n; msg.os = g.outStart; msg.oe = g.outEdge; msg.to = g.to; msg.is = g.inStart; msg.ie = g.inEdge; msg.from = g.from; msg.wasm = wasmOn ? (useMod && MOD ? MOD : b64bytes(WASM_B64)) : null; msg.keepInst = useMod; P.loaded[wi] = key; }
+          P.workers[wi].postMessage(msg, list ? [list.buffer || list] : []);
+        }
+        var keepRes = options._keep !== false;   // _keep: test switch (false = a new result array from each helper per call)
+        P.jobs[id] = { add: function (bc, wi) { for (var j = 0; j < n; j++) total[j] += bc[j]; if (keepRes) { if (!P.res) P.res = []; P.res[wi] = bc.buffer; } if (--pending === 0) finish(true); }, fail: function () { finish(false); },
+          ask: function (wi) { out[wi]--; if (next < srcs.length) { var l = piece(wi); send(wi, { job: id, srcs: l, more: true }, l); } else if (out[wi] === 0) { var kb = keepRes && P.res && P.res[wi] && P.res[wi].byteLength === 8 * n ? P.res[wi] : null; if (kb) P.res[wi] = null; send(wi, { job: id, flush: 1, buf: kb }, kb ? kb : null); } } };
+        for (w = 0; w < count; w++) {
+          if (dyn) { var l1 = piece(w); send(w, { job: id, srcs: l1, more: true }, l1); if (next < srcs.length) { var l2 = piece(w); send(w, { job: id, srcs: l2, more: true }, l2); } continue; }
+          var list = new Int32Array(Math.ceil((srcs.length - w) / count)); for (k = 0; k < list.length; k++) list[k] = srcs[w + k * count];
+          send(w, { job: id, srcs: list }, list);
         }
       } catch (e) { finish(false); }
     });
@@ -629,5 +650,5 @@
     while ((e = r.via[v]) >= 0) { out.push(e); v = g.from[e]; }
     return out.reverse();
   }
-  return { version: '0.7.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closePool: closePool, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
+  return { version: '0.7.2', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closePool: closePool, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
 }));

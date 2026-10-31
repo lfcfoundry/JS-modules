@@ -4,10 +4,25 @@
 
 **Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (tests/pieces-browser.js: speed-lab's real timed steps and its report text pass in all four; GNOME Web failed once on the old frames-per-step minimum of 5 (one step counted 4 frames) and passed 3 of 3 reruns, one on unchanged main; Node: 12 speed-lab and 16 fx-governor checks)
 
-A one-button speed test for a page, run on the device that has the problem. You describe the comparison as data: steps, each measured for a few seconds (nothing moving, everything moving, everything moving with one part switched off). It runs them one after another, keeps the thing you are measuring in view and uncovered, redoes a step that was disturbed, and says the answer in plain sentences with a table you can copy and paste into a message. 21.1 KB (7.7 KB gzipped), no dependencies. Cut from Apple Press's phone speed test, with the game's own steps taken out.
+## What it is and how it works
+
+A one-button speed test for a page, run on the device that has the problem. 7.7 KB gzipped.
+
+- You describe steps as data: nothing moving, everything moving, everything with one part off.
+- It runs them in turn, keeps the measured part in view, and redoes a disturbed step.
+- The answer is plain sentences plus a table to paste into a message.
 
 ## Why it exists
-"It feels choppy on my phone" cannot be fixed by guessing. Running the same scene with parts switched off, on the phone itself, shows which part costs the frames, and the answer is a sentence a non-programmer can read. The safeguards exist because the first Apple Press run was invalid: the play area sat behind the sticky bar, so it measured something nobody could see.
+
+"It feels choppy on my phone" cannot be fixed by guessing. Running the same scene with parts switched off, on the phone itself, shows which part costs the frames.
+
+**Where it helps**
+
+- Finding which effect slows a game on a phone.
+- Testers who are not programmers.
+- Before-and-after checks of a fix.
+
+**Not for:** graphics-chip load that does not drop frames.
 
 ## Try it and test it
 **Test it:** `node tools/speed-lab/test/run.js` (12 checks on the numbers and the answer) and `node tests/pieces-browser.js` (a real run in Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6: five steps, a covering card closed and reported, an unclosable card marking steps disturbed, a page that draws no frames, a hidden page, a slow first baseline and a one-off slow load measured again). **Try it:** `demo.html` (about 20 seconds; add `#fast` to the address for 4 seconds).

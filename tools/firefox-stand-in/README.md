@@ -4,10 +4,25 @@
 
 **Tested in:** Firefox 158.0 (24 checks of the stand-in, 25 s; pad-nav 105, back-close 11, canvas-probe 18, lzma-pack, frame-kit example). Not run: ungoogled Chromium 155, WebKitGTK.
 
-Run a Playwright-for-Python test in **stock Firefox** without rewriting it. Playwright cannot drive the Firefox you download from Mozilla (it needs its own patched build, which some environments cannot fetch), so tests written for Playwright could only run in Chromium. `run-in-firefox.py` serves the test's `from playwright.sync_api import sync_playwright` from `pwfirefox.py`, a small copy of the Playwright calls this repository's tests use, driving Firefox through Selenium and geckodriver.
+## What it is and how it works
+
+Runs a Playwright-for-Python test in stock Firefox without rewriting it.
+
+- `run-in-firefox.py` swaps in `pwfirefox.py`, a small copy of the Playwright calls these tests use.
+- That copy drives Firefox through Selenium and geckodriver.
+- The test file stays unchanged.
 
 ## Why it exists
-Playwright cannot drive the Firefox you download from Mozilla, so a test written for Playwright could only run in Chromium. This stand-in lets such a test run in real stock Firefox without being rewritten.
+
+Playwright cannot drive the Firefox you download from Mozilla (it needs its own patched build, which some environments cannot fetch), so Playwright tests could only run in Chromium.
+
+**Where it helps**
+
+- Running existing tests in real Firefox.
+- Machines that cannot download Playwright's browsers.
+- Checking Firefox-only bugs.
+
+**Not for:** Playwright calls outside the small set these tests use.
 
 ## Use
 ```

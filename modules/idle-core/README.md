@@ -4,13 +4,25 @@
 
 **Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time, in a same-answers run of one fixed set of calls (tests/idle-core-browser.js, readable and minified file); 37 Node checks (8 new).
 
-The small maths every idle / clicker game ends up needing, tested. 23 KB readable (with its notes) or 7.5 KB as `idle-core.min.js` (3.2 KB gzip); pure functions (also runs in Node, no dependencies, ES5 syntax). The two files give the same answers.
+## What it is and how it works
 
-Every function takes plain numbers and gives plain numbers back; none of them stores, draws or runs a timer. A price is the base price times the growth rate to the power of the copies owned, rounded up. A "buy 10" or "buy max" sum is one closed-form calculation, not a loop. Time away is counted as a percent of normal income, capped, from a gap measured with the wall clock. A few small helpers (boost timers, number formatting) keep the edges from breaking.
+The small math every idle or clicker game needs, tested. 3.2 KB gzipped as `idle-core.min.js`, pure functions.
+
+- Prices grow by a rate per copy owned, rounded up.
+- "Buy 10" and "buy max" are one closed-form calculation, not a loop.
+- Time away pays a capped share of normal income, from a wall-clock gap.
 
 ## Why it exists
 
-Idle-game maths are usually copied from blog posts and re-fixed. The parts that hurt are the edges: a gap in time that pays too much or too little, a boost that stacks into a runaway, a number format that shows `1000M` or `NaN`. Those are covered by tests here.
+Idle-game math is usually copied from blog posts and fixed again and again. The edges hurt: offline time that pays too much, boosts that stack into a runaway, a display that shows `1000M` or `NaN`. These are covered by tests here.
+
+**Where it helps**
+
+- Prices, bulk buys and offline earnings in idle games.
+- Number formatting for very large values.
+- Boost timers that cannot stack by mistake.
+
+**Not for:** saving, drawing or timing; it is pure math.
 
 ## Use
 

@@ -458,6 +458,34 @@ func ints(v any) []int {
 var itemSize = [7]int{1, 2, 4, 1, 2, 4, 8}
 
 // typed reads n numbers of width kind: 0 u8, 1 u16, 2 u32, 3 i8, 4 i16, 5 i32, 6 f64 (little-endian).
+// decimals decodes a width-7 number column: byte 0 is the decimals d (bits 0 to 3; bit 7: differences against the value k places back, k - 1 in bits 4 to 6), then n varints of the zigzag whole numbers; value = whole / 10^d.
+func decimals(raw []byte, n int) []float64 {
+	if len(raw) < 1 || n < 0 || n > len(raw) {
+		fail("decimal column cut off")
+	}
+	d := int(raw[0] & 15)
+	if d > 9 {
+		fail("decimal column: too many decimals")
+	}
+	k := int((raw[0]>>4)&7) + 1
+	sc := math.Pow(10, float64(d))
+	u := varints(raw[1:], n)
+	out := make([]float64, n)
+	w := make([]int64, n)
+	for i := range u {
+		v := unzz(u[i])
+		if raw[0]&128 != 0 && i >= k {
+			v += w[i-k]
+		}
+		if v > 1<<53 || v < -(1<<53) {
+			fail("number column out of range")
+		}
+		w[i] = v
+		out[i] = float64(v) / sc
+	}
+	return out
+}
+
 func typed(raw []byte, kind, n int) []float64 {
 	if kind < 0 || kind > 6 {
 		fail("bad number kind %d", kind)

@@ -1,0 +1,1 @@
+**New in 1.4.1: the worker curtain is ready sooner, same pixels.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop). With `worker: true`, the worker's pixels go on the canvas as soon as they arrive, so the curtain is ready 1.7 to 2.5x sooner in Chromium, 2.8 to 4.4x sooner in Firefox and 1.5 to 2.0x sooner in WebKitGTK.
