@@ -131,7 +131,11 @@
     var iso = d.toISOString();
     return serial % 1 === 0 ? iso.slice(0, 10) : iso.slice(0, 19).replace('T', ' ');
   }
-  function csvCell(v) { return /[",\r\n]/.test(v) || /^\s|\s$/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function csvCell(v) {
+    for (var i = 0, n = v.length, c; i < n; i++) { c = v.charCodeAt(i); if (c < 33 || c > 126 || c === 34 || c === 44) return csvCellSlow(v); }   // plain printable ASCII: nothing to quote
+    return v;
+  }
+  function csvCellSlow(v) { return /[",\r\n]/.test(v) || /^\s|\s$/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   /** parts: { 'xl/workbook.xml': text, ... } (only the ones that exist). Returns [{ sheet, csv, rows }]. */
   /** True for 1 to 15 digits with no leading zero: String(Number(v)) would give v back unchanged, so it is skipped. */
   function plainInt(v) {
