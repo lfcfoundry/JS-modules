@@ -1,8 +1,8 @@
 # field-report
 
-**Version 1.0.2 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** field-report checks 45/45 (one new: header version equals FR.version)
+**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (15 browser checks each); 53 node checks
 
 ## What it is and how it works
 
@@ -47,7 +47,7 @@ Then tap the top-left corner five times. Open `demo.html` to try it.
 | `fr.saveSpeed()` / `fr.saveErrors()` | Save without the panel. Return `{ text, file, saved }`. |
 | `fr.stop()` | Stops everything and puts the console back. |
 
-Options: `name` (used in file names, `my-game-speed-20261022-1700.md`), `version` (your release stamp, shown in the reports), `corner` (`'top-left'` by default, or `'top-right'`, `'bottom-left'`, `'bottom-right'`), `taps` (5) within `within` ms (2500) inside a square of `size` px (64), `fps` (60: what "smooth" means for this page; use 30 for a 30 FPS game), `frames` (`false` skips the frame loop), `console` (`false` leaves the console alone), `onSave(text, fileName, kind)` (replaces the file download, for example to open a share sheet), `onOpen`, `onClose`.
+Options: `name` (used in file names, `my-game-speed-20261022-1700.md`), `version` (your release stamp, shown in the reports), `corner` (`'top-left'` by default, or `'top-right'`, `'bottom-left'`, `'bottom-right'`), `taps` (5) within `within` ms (2500) inside a square of `size` px (64), `fps` (60: what "smooth" means for this page; use 30 for a 30 FPS game), `frames` (`true` by default: its own animation-frame callback from the start; `'play'`: only between `fr.frames(true)` and `fr.frames(false)`, so a still screen costs nothing; `'external'`: no callback of its own, call `fr.frame(ts)` from your own loop; `false` skips frames), `console` (`false` leaves the console alone), `onSave(text, fileName, kind)` (replaces the file download, for example to open a share sheet), `onOpen`, `onClose`.
 
 ## What a report holds
 - **Speed report:** device lines (browser string, cores, memory class, screen, pixel ratio, WebAssembly and Worker yes/no), the verdict, a start-up table (first paint, DOMContentLoaded, load, your marks), frame numbers (average FPS, FPS of the slowest 1%, slowest five frames, counts over 33, 50 and 100 ms) and the 15 heaviest tasks.
@@ -56,7 +56,7 @@ Options: `name` (used in file names, `my-game-speed-20261022-1700.md`), `version
 ## Limits
 - Errors raised before this file ran cannot be seen; put it first.
 - Heavy tasks from the browser's own long-task report exist in Chromium only. In Firefox and Safari engines, wrap known heavy jobs in `task()` or `time()`; frame gaps still show the freezes.
-- Frames while the page is hidden are dropped. A page that draws only when something changes has few frames; use `frames: false` there.
+- Frames while the page is hidden are dropped. A page that draws only when something changes has few frames; use `frames: 'play'` (and call `fr.frames(true)` while it animates) or `frames: false` there. A game with its own loop can pass `frames: 'external'` and call `fr.frame(ts)` once a frame, so the page runs one animation-frame callback instead of two. Since 1.1.0.
 - The memory class is rounded by the browser and missing in Firefox and Safari engines. Nothing about the person (no name, no storage, no cookies) is read.
 - Files are saved with a download link and a Blob. If the browser will not (some in-app webviews), the text is shown in a box to copy; or pass `onSave`.
 - The panel is built with element styles, not a `<style>` tag or style attribute, so it works under a strict page policy (`style-src 'self'`). Nothing needs `'unsafe-inline'`.

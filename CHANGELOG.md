@@ -16,7 +16,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
-| [field-report](modules/field-report/README.md) | 1.0.2 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
+| [field-report](modules/field-report/README.md) | 1.1.0 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.2 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
@@ -73,6 +73,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **graph-walk** 0.7.2 · API 0: betweennessAsync starts faster: up to 1.9x on the first call and on a new graph.
 - 2026-10-31 · **gpu-blur** 1.3.0 · API 1: New: opts.into takes your own pixel array for out 'pixels', so blurring every frame makes no new memory; 1.1 to 1.7x faster with the helpers.
 - 2026-10-31 · **gpu-blur** 1.2.3 · API 1: The helpers route is up to 1.34x faster on repeat blurs.
+- 2026-10-31 · **field-report** 1.1.0 · API 1: New frames modes: 'play' records only while the app says it is animating; 'external' takes frame times from the app's own loop (fr.frame(ts)), so there is no second animation-frame callback.
 - 2026-10-31 · **elias-fano** 1.7.0 · API 1: New: trim() gives back memory that big lists left behind (24 MB to 1.8 MB after a 5-million-id build); autoTrim(true) does it by itself.
 - 2026-10-30 · **zip-open** 1.5.1 · API 1: Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.
 - 2026-10-30 · **zip-open** 1.5.0 · API 1: Faster: entries of 4 KB or less (compressed) are unpacked by a small WebAssembly inflate, about 1.5 to 2.2 times as fast for thousands of tiny files. Module grows by 9.4 KB of WebAssembly. Same files, same notes.
