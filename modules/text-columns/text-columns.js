@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.5.0 (API 0)
+ * Version 0.5.1 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -289,7 +289,7 @@
       } catch (err) { postMessage({ id: m.id, err: String(err && err.message || err) }); }
     };
   }
-  var POOL = [], nextId = 1, PAR_MIN = 32000000;
+  var POOL = [], nextId = 1, PAR_MIN = 32000000, WARM_MIN = 4000000;   // floors: helpers still to start (about 30 to 130 ms) / helpers already running
   function helperCount(opts) {
     var hc = typeof navigator === 'object' && navigator && navigator.hardwareConcurrency || 4;
     return Math.max(1, Math.min(opts && opts.workers > 0 ? Math.floor(opts.workers) : Math.min(hc, 8), 64));
@@ -356,7 +356,7 @@
   }
   /**
    * Same answers as parse(), but a big file is read by several helpers at once (Web Workers). Returns a promise. Falls back to parse() when the file is small, there are no workers,
-   * the quotes are odd or any helper fails (so errors are the same plain-words errors). opts as parse() (columns and lazy work the same), plus: workers (default: the cores, at most 8), minBytes (default 32,000,000; call warm() early to start the helpers ahead of time).
+   * the quotes are odd or any helper fails (so errors are the same plain-words errors). opts as parse() (columns and lazy work the same), plus: workers (default: the cores, at most 8), minBytes (default 4,000,000 when the helpers are already running, from warm() or an earlier call, else 32,000,000; call warm() early to start the helpers ahead of time).
    * A file with quote marks is cut at plain line ends and each helper counts the quote marks of its piece (WebAssembly) so the cuts are known to fall outside quotes; if one does not, the older single-thread cut is used.
    */
   async function parseParallel(input, opts) { var t = await parseParallelCore(input, opts); return opts && opts.types ? applyTypes(t, opts.types) : t; }
@@ -364,7 +364,7 @@
     opts = opts || {};
     var delim = (opts.delimiter || ',').charCodeAt(0), header = opts.header !== false, u = stripBom(toBytes(input)), len = u.length, serial = function () { var t = parse(u, opts); t.workers = 0; return t; };
     var n = helperCount(opts), T = opts._timing, t0 = T ? performance.now() : 0;
-    if (opts.plain || n < 2 || len < (opts.minBytes === undefined ? PAR_MIN : opts.minBytes) || (!opts.spawn && (typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || !URL.createObjectURL))) return serial();
+    if (opts.plain || n < 2 || len < (opts.minBytes === undefined ? (POOL.length >= n ? WARM_MIN : PAR_MIN) : opts.minBytes) || (!opts.spawn && (typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || !URL.createObjectURL))) return serial();
     if (opts.delimiter && opts.delimiter.length !== 1 || delim > 127 || delim === 10 || delim === 13 || delim === 34) return serial();
     var sel, lazy = !!opts.lazy, dch = String.fromCharCode(delim);
     if (opts.columns !== undefined && opts.columns !== null) { sel = selectColumns(u, delim, header, opts.columns); if (!sel) return serial(); }
@@ -455,5 +455,5 @@
     return col;
   }
 
-  return { version: '0.5.0', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { version: '0.5.1', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));

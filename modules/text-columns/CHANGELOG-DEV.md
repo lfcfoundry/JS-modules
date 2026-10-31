@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.1 · API 0 · 2026-10-30
+
+### Quick
+parseParallel default floor: 4,000,000 bytes when the helper pool already has enough helpers (warm() or an earlier call), else 32,000,000 as before. Warm, 4-16 MB: Firefox 0.58-0.99x, WebKitGTK 0.66-1.03x, Chromium 0.62-0.87x (one 1.23x). Cold first calls stay serial because starting helpers costs 30-130 ms (1.0-13x a serial parse at these sizes).
+
+### Details
+The owner chose 'Lower to 4 MB' on a card after the laptop measured 0.83x (Firefox 160) and 0.93x (Chromium 156) at 7.8 MB with helpers running. The container check showed a cold first call at 4-16 MB takes 1.0 to 13x the serial time, so the lower floor applies only once the helpers run; explicit minBytes still wins. Same answers: 387-file agreement test, 14 module checks, wasm/plain agreement in 3 browsers.
+
+### Deep
+text-columns 0.5.1: warm floor 4 MB. Container, 3 kinds (mixed, numeric, text-heavy) at 2/4/8/16 MB, medians of 7, parallel warm / serial: Chromium 0.83,0.81,1.23,0.77 | 1.03,0.86,0.85,0.75 | 1.01,1.10,0.87,0.62; Firefox 0.83,0.84,0.99,0.76 | 0.86,0.67,0.59,0.58 | 0.74,1.00,0.85,0.66; WebKitGTK 0.86,0.70,0.80,0.91 | 0.86,0.87,0.66,0.70 | 0.90,1.00,1.03,0.92. Cold first call / serial 1.0 to 13.6.
+
 ## 0.5.0 · API 0 · 2026-10-30
 
 ### Quick

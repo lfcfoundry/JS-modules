@@ -1,8 +1,8 @@
 # text-columns
 
-**Version 0.5.0 · API 0**
+**Version 0.5.1 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (container, 4 cores)
 
 Reads CSV or TSV text into typed columns. A column of plain decimals (-12, 3.25) comes out as a `Float64Array` parsed straight from the bytes, with no string made for any number; every other column comes out as an array of strings. The field scan runs in WebAssembly with SIMD (16 bytes at a time) and falls back to plain JavaScript with the same answers.
 
@@ -27,7 +27,7 @@ Copy `text-columns.js` next to your page (`<script src="text-columns.js"></scrip
 TextColumns.warm(4);                                                   // optional: start the helpers early
 var t = await TextColumns.parseParallel(bytes, { workers: 4 });        // same table as parse(); t.workers says how many helpers read it (0 = read directly)
 ```
-The file is cut at line ends outside quotes, each Web Worker reads a piece with this same code, and the columns are joined. Files under 32 MB (`minBytes`), a quote in the middle of a plain field, any error, or no Workers: it reads the file directly, so answers and error messages are the same. Number columns gain most; text columns are bound by making strings on the main thread. Measured with helpers already started, 4 helpers against one thread (ms, lower is better; Firefox 158 / Chromium 155 / WebKitGTK 2.52.6): numbers 152 MB 1,089 / 850 / 524 against 3,032 / 1,524 / 2,821; numbers 45 MB 213 / 196 / 172 against 518 / 322 / 332; text-heavy 61 MB 1,258 / 870 / 736 against 1,622 / 830 / 1,126 (Chromium loses). Starting the helpers costs about 30 to 60 ms the first time.
+The file is cut at line ends outside quotes, each Web Worker reads a piece with this same code, and the columns are joined. Files under 4 MB once the helpers are running (from `warm()` or an earlier call), or under 32 MB before that (`minBytes`), a quote in the middle of a plain field, any error, or no Workers: it reads the file directly, so answers and error messages are the same. Number columns gain most; text columns are bound by making strings on the main thread. Measured with helpers already started, 4 helpers against one thread (ms, lower is better; Firefox 158 / Chromium 155 / WebKitGTK 2.52.6): numbers 152 MB 1,089 / 850 / 524 against 3,032 / 1,524 / 2,821; numbers 45 MB 213 / 196 / 172 against 518 / 322 / 332; text-heavy 61 MB 1,258 / 870 / 736 against 1,622 / 830 / 1,126 (Chromium loses). Starting the helpers costs about 30 to 130 ms the first time, which is why the floor is 32 MB until they run. With helpers running, 4 to 16 MB files take 0.58 to 0.92x the time in Firefox 158 and WebKitGTK 2.52.6 and 0.62 to 0.87x in Chromium 153 (one 7.8 MB mixed file 1.23x); container, 4 cores.
 
 ## Only what you need: `columns` and `lazy` (since 0.3.0)
 ```js
