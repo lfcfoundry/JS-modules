@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.2 · API 1 · 2026-10-31
+
+### Quick
+Quick: loading the file costs what it did before 1.5.0, and helpers stop holding memory when idle.
+
+### Deep
+Quick: loading the file costs what it did before 1.5.0, and helpers stop holding memory when idle. Details: inflate.wasm (9.5 KB) split from crc32.wasm (back to 1,476 bytes), compiled the first time a 4 KB-or-smaller entry is opened; 2,000 tiny files still 1.4-1.9x faster than streams. Helpers from expandBlob({workers}) close 5 s after the last call; idleMs changes it. Deep: a pre-sized output buffer was tried and dropped (WebKitGTK single 42 MB entry +26%, Firefox small File +23%).
+
 ## 1.5.1 · API 1 · 2026-10-30
 
 ### Quick
