@@ -16,3 +16,14 @@ Compared: gif-writer against gifenc and gif.js (30 frames of 320 x 240).
 Typical capture: about 5x smaller and 6x to 31x faster. Worst case: gif-writer's file is 2% larger than gifenc with one palette.
 
 **Thorough palette (1.6.0, 8:50 PM run).** Building the palette from pictures spread across the animation takes 822 ms instead of 577 ms and makes the file 1.1% smaller. Using all 30 pictures takes 1,169 ms and makes it 1.8% smaller.
+
+
+**Version against version, real laptop, ungoogled Chromium 156 (Windows), 16 cores, 2026.10.30, 9:47 PM.** Medians; lower is better. One browser on one machine.
+
+| way (30 noisy pictures, 320 x 240) | ms | bytes |
+|---|---:|---:|
+| default palette, 1.5.1 | 444 | 864,532 |
+| default palette, 1.6.0 | 471 | 864,532 |
+| thorough palette (option), 1.6.0 | 597 | 863,825 |
+
+The default output is the same bytes as 1.5.1. On this noisy worst case the thorough palette saves under 0.1% for about 35% more time.
