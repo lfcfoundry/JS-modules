@@ -92,7 +92,7 @@ Papa Parse and d3-dsv are fuller parsers (type guessing for dates and booleans, 
 
 ## Limits
 - One-character delimiter below 128 other than a quote or a line break.
-- No type guessing beyond plain decimals; no dates, booleans or streaming.
+- No type guessing by itself beyond plain decimals: dates and booleans are read only when you ask (`types`, since 0.5.0). No streaming.
 - Input over about 1.4 GB is not supported.
 
 ## Prior art and credits
