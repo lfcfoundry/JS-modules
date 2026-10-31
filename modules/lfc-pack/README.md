@@ -1,10 +1,10 @@
 # lfc-pack
 
-**Version 0.2.0 · API 0**
+**Version 0.2.1 · API 0**
 
 **Version 0.1.7 · API 0**
 
-**Tested in:** not recorded.
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
 
 Packs newline-delimited JSON (NDJSON: one JSON value per line, the shape of logs, events and API dumps) into **LFC-pack** (`.json.lfc`, magic `LFC1`): the rows are cut into blocks of about 13 MB, every field becomes its own typed column, repeated strings are stored once, and each column is compressed with zstd. A footer at the end lists the blocks and the smallest and largest number of each column, so a reader can skip blocks without opening them. Reading gives back the same row objects `JSON.parse` would, and with `exact: true` the very same bytes. **One file, no dependencies, WebAssembly required** (zstd and the tokenizer are compiled to wasm32; a page needs `'wasm-unsafe-eval'` in its policy and nothing else).
 
