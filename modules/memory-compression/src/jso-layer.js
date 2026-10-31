@@ -65,11 +65,11 @@
   }
   function freeBuffers() { POOL = []; POOL_BYTES = 0; MC.dropPackBuffer(); }   // also lets go of the output buffer pack() keeps between calls
   // After the last big pack has been quiet for IDLE_MS, the buffer pool is emptied and both WebAssembly helpers give their memory back (a page that packs again simply makes them again, about 1 to 4 ms).
-  var IDLE_MS = 2000, idleTimer = null;
+  var IDLE_MS = 2000, idleTimer = null, RESERVE = true;      // since 2.8.1: after the idle trim a small fresh pair of helpers is made right away (about 6 MB) so the next pack does not pay for starting them
   function idleSoon() {
     if (idleTimer !== null) clearTimeout(idleTimer);
     if (typeof setTimeout !== 'function') return;
-    idleTimer = setTimeout(function () { idleTimer = null; freeBuffers(); kwTrim(); MC.trimMemory(); }, IDLE_MS);
+    idleTimer = setTimeout(function () { idleTimer = null; freeBuffers(); kwTrim(); MC.trimMemory(); if (RESERVE && !MC._noReserve) { try { MC.ready(); kwGet(); } catch (e) { /* the next call makes them */ } } }, IDLE_MS);
     if (idleTimer && typeof idleTimer.unref === 'function') idleTimer.unref();
   }
   if (typeof MC.onGrow === 'function') MC.onGrow(idleSoon);
@@ -1896,7 +1896,7 @@
     for (j = 0; j < R; j++) { w = c.varint(); if (w === 1 || w > 15) jfail('bad string pattern'); widths.push(w); }
     if (nt > 1) { tid = this.blob(Uint8Array, n); for (i = 0; i < n; i++) if (tid[i] >= nt) jfail('bad string pattern'); }
     for (j = 0; j < R; j++) cols.push(this.column(n));
-    return buildTemplate(n, tpls, R, widths, tid, cols, this.lazyNow() && CAN_EVAL);
+    return buildTemplate(n, tpls, R, widths, tid, cols, this.lazyNow());
   };
   var ZEROS = '000000000000000';
   function pad(v, w) { var s = '' + v; return s.length >= w ? s : ZEROS.substring(0, w - s.length) + s; }
@@ -2006,6 +2006,13 @@
     }
     var args = [out, n, tid, pad];
     for (j = 0; j < R; j++) { args.push(arrs[j]); args.push(tabs[j]); args.push(los[j]); }
+    if (lazy && !CAN_EVAL) {                                          // since 2.8.2, a page that forbids eval: the same row, put together by a loop over the slots
+      return lazyCol(n, 6, { row: function (i) {
+        var tt = tid ? tid[i] : 0, L = tpls[tt], str = L[0], jj, v;
+        for (jj = 0; jj < R; jj++) { v = kinds[jj] === 3 ? tabs[jj] : kinds[jj] === 1 ? tabs[jj][arrs[jj][i] - los[jj]] : kinds[jj] === 2 ? pad(arrs[jj][i], widths[jj]) : arrs[jj][i]; str += v + L[jj + 1]; }
+        return str;
+      }, arrs: arrs, tabs: tabs, tid: tid });
+    }
     if (lazy) {
       var row = f.apply(null, args);
       return lazyCol(n, 6, { row: row, arrs: arrs, tabs: tabs, tid: tid });
@@ -2061,6 +2068,9 @@
     if (q !== n) jfail('bad string lengths');
     return out;
   };
+  function recordRowPlain(keys) {                                   // since 2.8.2: the same without making code at run time (a page that forbids eval): one loop over the keys
+    return function (c) { var nk = keys.length; return function (i) { var r = {}, j; for (j = 0; j < nk; j++) define(r, keys[j], c[j].get(i)); return r; }; };
+  }
   function recordRow(keys) {                                        // a function that gives a function making row i from the columns
     var sig = 'r' + JSON.stringify(keys), f = GEN_CACHE[sig], j, src;
     if (f) return f;
@@ -2071,7 +2081,7 @@
     return f;
   }
   Dec.prototype.records = function (n, register) {
-    var base = 0, c = this.c, ns = c.varint(), shapes = [], i, j, nk, keys, shapeOf = null, cols, sh, out, counts = [], modes, args, rows, pos, cnt, lz = !register && this.ver >= 2 && CAN_EVAL && this.lazyNow(), la = this.lazyAt;
+    var base = 0, c = this.c, ns = c.varint(), shapes = [], i, j, nk, keys, shapeOf = null, cols, sh, out, counts = [], modes, args, rows, pos, cnt, lz = !register && this.ver >= 2 && this.lazyNow(), la = this.lazyAt;
     if (ns < 1 || ns > MAX_SHAPES || (register && ns !== 1)) jfail('bad shape count');
     if (register) { base = this.refs.length; this.spend(n); for (i = 0; i < n; i++) this.refs.push(RESERVED); }
     for (i = 0; i < ns; i++) {
@@ -2096,7 +2106,7 @@
           cols.push(col2); modes.push(col2.mode); args.push(col2.a, col2.d);
         }
         this.lazyAt = la;
-        if (lz && ns === 1) return new Col(n, 7, { keys: keys, cols: cols, row: recordRow(keys)(cols) }, null);       // an object is made per row from the columns
+        if (lz && ns === 1) return new Col(n, 7, { keys: keys, cols: cols, row: (CAN_EVAL ? recordRow : recordRowPlain)(keys)(cols) }, null);       // an object is made per row from the columns
       } else
       for (j = 0; j < keys.length; j++) {
         if (cnt > 0) { var col = this.column(cnt); cols.push(col); modes.push(col.mode); args.push(col.a, col.d); }

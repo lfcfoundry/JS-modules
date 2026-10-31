@@ -37,3 +37,16 @@ On these three lists `quickTries` changes nothing. Its 0 to 20% gain is for list
 
 
 **New in 2.8.0: faster packing of lists by default.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop). The new `autoTries` setting, on by default, packs lists of 20,000 to 300,000 rows 1.02 to 1.24x faster in Chromium, Firefox and WebKitGTK. Packed size is 0 to 1.3% bigger for whole-number lists of 10,000 to 100,000 rows, and unchanged above that. `autoTries: false` gives the same bytes as 2.7.0.
+
+
+**New in 2.8.1: the first pack after a pause is as fast as the rest.** Cloud-browser runs (shared machine, not the laptop). After the 2-second idle trim, the two small WebAssembly helpers are rebuilt right away (about 6 MB held), so the next pack does not pay to start them; memory above 4 MB is still released. First pack after idle, 40,000 events, balanced mode: Chromium 40.0 to 35.9 ms, Firefox 33 to 34 ms (noise), WebKitGTK 44 to 40 ms.
+
+
+**New in 2.8.2: faster `view()` under a strict page policy.** Cloud-browser runs (shared machine, not the laptop). On pages that forbid `eval` (the policy the apps use), `view()` now stays lazy, so opening a view and reading a row is faster, with the same rows. Pack and unpack are unchanged.
+
+| View open + get, ms (lower is better) | Before | After |
+|---|---:|---:|
+| Firefox, Events | 10 | 2 |
+| Firefox, Users | 17 | 6 |
+| Chromium, Features | 19.2 | 12.7 |
+| WebKitGTK, Features | 35 | 16 |
