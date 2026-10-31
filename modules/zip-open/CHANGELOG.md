@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-10-31
+- Faster and lighter: text entries are unpacked into one shared buffer that is reused for the next entry (and let go 5 seconds after the last one), instead of a fresh buffer and a list of pieces each time. Typically 5 to 25% faster on big zips; two opens at the same time never share it.
+
 ## 1.5.2 · API 1 · 2026-10-31
 - Small-entry inflate in its own wasm module compiled on first use (page load back to 1.4 level); expandBlob helpers close 5 s after last use (idleMs).
 

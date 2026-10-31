@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.2 (API 1)
+ * Version 1.6.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -371,9 +371,18 @@
 
   function noop() {}
   /** Raw deflate -> bytes, never more than `limit` bytes. */
-  async function inflateRaw(src, limit) {
+  /* One reusable output buffer for text entries (since 1.6.0): a text entry's bytes are turned into a string at once and dropped, so each one is unpacked into the same buffer instead of a fresh one
+     (a fresh big buffer costs a zero-fill and a first touch of every page, and the pieces then get copied again). It is let go 5 seconds after the last use. */
+  var SCRATCH = null, scratchTimer = 0, scratchBusy = false;
+  function scratchFor(n) {
+    if (!SCRATCH || SCRATCH.length < n) SCRATCH = new Uint8Array(Math.max(n, SCRATCH ? Math.min(SCRATCH.length * 2, n * 2) : n));
+    if (scratchTimer) clearTimeout(scratchTimer);
+    if (typeof setTimeout === 'function') { scratchTimer = setTimeout(function () { SCRATCH = null; scratchTimer = 0; }, 5000); if (scratchTimer && scratchTimer.unref) scratchTimer.unref(); }
+    return SCRATCH.subarray(0, n);
+  }
+  async function inflateRaw(src, limit, expect) {
     if (typeof DecompressionStream === 'function') {
-      var ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter(), rd = ds.readable.getReader(), chunks = [], total = 0;
+      var ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter(), rd = ds.readable.getReader(), chunks = [], total = 0, pre = expect > 0 && expect <= limit && expect <= 268435456 ? scratchFor(expect) : null;
       var feeding = w.write(src).then(function () { return w.close(); }).catch(function () { /* the read side reports it */ });
       try {
         for (;;) {
@@ -381,7 +390,7 @@
           if (r.done) break;
           total += r.value.length;
           if (total > limit) { var tooBig = new Error('TOOBIG'); throw tooBig; }
-          chunks.push(r.value);
+          if (pre && total <= expect) pre.set(r.value, total - r.value.length); else { if (pre) { chunks.push(pre.slice(0, total - r.value.length)); pre = null; } chunks.push(r.value); }
         }
       } catch (e) {
         try { rd.cancel().catch(noop); } catch (e2) { /* already closed */ }
@@ -389,6 +398,7 @@
         throw e;
       }
       await feeding;
+      if (pre) return pre.subarray(0, total);
       var out = new Uint8Array(total), at = 0;
       for (var i = 0; i < chunks.length; i++) { out.set(chunks[i], at); at += chunks[i].length; }
       return out;
@@ -399,7 +409,7 @@
   }
 
   /** Bytes of one entry, or { skip: 'plain-words reason' }. Verifies size and checksum against what the file promised. */
-  async function readEntry(u8, e, limit) {
+  async function readEntry(u8, e, limit, sc) {
     if (e.flags & 1) return { skip: 'is password-protected' };
     if (e.method !== 0 && e.method !== 8) return { skip: 'uses a compression method I can\'t open' };
     if (e.usize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' };
@@ -413,7 +423,7 @@
       var cap = Math.min(limit, e.usize + 1), w = e.csize <= INFLATE_MAX && cap <= 16777216 ? inflateWasm(body, cap) : null;
       if (w) { if (w.err) return { skip: w.err === -2 ? 'unpacks to more than it says it does' : 'looks damaged' }; out = w.bytes; }
       else {
-        try { out = await inflateRaw(body, cap); }
+        try { out = await inflateRaw(body, cap, sc ? e.usize : 0); }
         catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
       }
     }
@@ -452,13 +462,13 @@
   }
 
   /** Raw deflate (or stored) bytes of a Blob -> bytes, never more than `limit`; the checksum is worked out while the bytes arrive. Returns { bytes, crc }. */
-  async function inflateBlob(part, method, limit) {
+  async function inflateBlob(part, method, limit, expect) {
     if (typeof DecompressionStream !== 'function' || typeof part.stream !== 'function') {
       var src = new Uint8Array(await part.arrayBuffer()), o = method === 0 ? src : await inflateRaw(src, limit);
       if (o.length > limit) throw new Error('TOOBIG');
       return { bytes: o, crc: crc32(o) };
     }
-    var rs = part.stream(), crc = -1, total = 0, chunks = [], rd;
+    var rs = part.stream(), crc = -1, total = 0, chunks = [], rd, pre = expect > 0 && expect <= limit && expect <= 268435456 ? scratchFor(expect) : null;
     if (method === 8) rs = rs.pipeThrough(new DecompressionStream('deflate-raw'));
     rd = rs.getReader();
     try {
@@ -468,16 +478,17 @@
         total += r.value.length;
         if (total > limit) throw new Error('TOOBIG');
         crc = crcRun(r.value, crc);
-        chunks.push(r.value);
+        if (pre && total <= expect) pre.set(r.value, total - r.value.length); else { if (pre) { chunks.push(pre.slice(0, total - r.value.length)); pre = null; } chunks.push(r.value); }
       }
     } catch (e) { try { rd.cancel().catch(noop); } catch (e2) { /* already closed */ } throw e; }
     var out;
-    if (chunks.length === 1) out = chunks[0];
+    if (pre) out = pre.subarray(0, total);
+    else if (chunks.length === 1) out = chunks[0];
     else { out = new Uint8Array(total); for (var i = 0, at = 0; i < chunks.length; at += chunks[i].length, i++) out.set(chunks[i], at); }
     return { bytes: out, crc: (crc ^ -1) >>> 0 };
   }
   /** Same answers as read() for the same entry, but the entry is taken from a File or Blob a piece at a time. */
-  async function readBlobEntry(blob, e, limit, cache) {
+  async function readBlobEntry(blob, e, limit, cache, sc) {
     if (e.flags & 1) return { skip: 'is password-protected' };
     if (e.method !== 0 && e.method !== 8) return { skip: 'uses a compression method I can\'t open' };
     if (e.usize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' };
@@ -486,7 +497,7 @@
       var need = 30 + 1024 + e.csize, buf = cache && e.csize <= WINDOW / 16 ? cache.w : null, at = cache && cache.at;   // small entries sit close together: one read of a few MB serves the entries that follow (each read of a Blob costs about a millisecond in Chromium)
       if (!buf || e.start < at || (e.start - at + need > buf.length && at + buf.length < blob.size)) { at = e.start; buf = await bytesOf(blob, at, Math.min(blob.size, at + (cache && e.csize <= WINDOW / 16 ? WINDOW : need))); if (cache && e.csize <= WINDOW / 16) { cache.w = buf; cache.at = at; } }
       var win = buf.subarray(e.start - at, Math.min(buf.length, e.start - at + need)), wd = new DataView(win.buffer, win.byteOffset, win.byteLength);
-      if (!(win.length >= 30 && u32(wd, 0) === 0x04034b50 && 30 + u16(wd, 26) + u16(wd, 28) + e.csize > win.length && e.start + win.length < blob.size)) return readEntry(win, Object.assign({}, e, { start: 0 }), limit);   // else the header has a long extra field: read it the long way
+      if (!(win.length >= 30 && u32(wd, 0) === 0x04034b50 && 30 + u16(wd, 26) + u16(wd, 28) + e.csize > win.length && e.start + win.length < blob.size)) return readEntry(win, Object.assign({}, e, { start: 0 }), limit, sc);   // else the header has a long extra field: read it the long way
     }
     var h = await bytesOf(blob, e.start, e.start + 30), hd = new DataView(h.buffer, h.byteOffset, 30);
     if (u32(hd, 0) !== 0x04034b50) return { skip: 'looks damaged' };
@@ -494,16 +505,16 @@
     if (data + e.csize > blob.size) return { skip: 'looks damaged (cut off)' };
     var got;
     if (e.method === 0 && e.csize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' };
-    try { got = await inflateBlob(blob.slice(data, data + e.csize), e.method, e.method === 0 ? limit : Math.min(limit, e.usize + 1)); }
+    try { got = await inflateBlob(blob.slice(data, data + e.csize), e.method, e.method === 0 ? limit : Math.min(limit, e.usize + 1), sc ? e.usize : 0); }
     catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
     if (got.bytes.length !== e.usize) return { skip: 'looks damaged (its size is not what the zip says)' };
     if (got.crc !== e.crc) return { skip: 'looks damaged (its checksum does not match)' };
     return { bytes: got.bytes };
   }
   /** Where an archive's entries come from: bytes already in memory, or a File/Blob read in pieces. Everything above this line works with either. */
-  function memSource(u8) { return { list: function (lim) { return list(u8, lim); }, read: function (e, limit) { return readEntry(u8, e, limit); } }; }
+  function memSource(u8) { return { list: function (lim) { return list(u8, lim); }, read: function (e, limit, sc) { return readEntry(u8, e, limit, sc); } }; }
   function blobSource(blob, helpers) {
-    var src = { list: function (lim) { return listBlob(blob, lim); }, read: function (e, limit) { return readBlobEntry(blob, e, limit, cache); } }, cache = {};
+    var src = { list: function (lim) { return listBlob(blob, lim); }, read: function (e, limit, sc) { return readBlobEntry(blob, e, limit, cache, sc); } }, cache = {};
     if (helpers && helpers.length) {
       var next = 0;
       src.width = helpers.length;
@@ -626,11 +637,14 @@
           ctx.files.push({ name: baseOf(e.path), path: shown, text: pf.text }); continue;
         }
       }
-      var got = await src.read(e, kind === 'text' ? Math.min(lim.maxEntryBytes, room) : room);
+      var held = kind === 'text' && !scratchBusy, got, text;   // a text entry's bytes live in the shared buffer only until they are turned into a string just below; two opens at once never share it
+      if (held) scratchBusy = true;
+      try {
+        got = await src.read(e, kind === 'text' ? Math.min(lim.maxEntryBytes, room) : room, held);
+        if (!got.skip) { ctx.total += got.bytes.length; if (kind === 'text') text = decodeText(got.bytes); }
+      } finally { if (held) scratchBusy = false; }
       if (got.skip) { ctx.notes.push('"' + shown + '" ' + got.skip + '; skipped.'); continue; }
-      ctx.total += got.bytes.length;
       if (kind === 'text') {
-        var text = decodeText(got.bytes);
         if (text === null) { ctx.notes.push('"' + shown + '" looks like a binary file, not text; skipped.'); continue; }
         ctx.files.push({ name: baseOf(e.path), path: shown, text: text });
       } else await openArchive(memSource(got.bytes), baseOf(e.path), shown + '!/', ctx, depth + 1, kind === 'book');
