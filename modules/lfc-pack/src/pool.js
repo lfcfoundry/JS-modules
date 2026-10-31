@@ -85,7 +85,7 @@
       // per-path strings (see packMany): in a long input, groups sent before group 0 answers each try both layouts on their first big block;
       // once group 0's pick is known, later groups follow it and an early group that picked the other way is packed again, so the file is the one pack() writes
       var pickWait = false, curPick = 1, sentWith = [], redo = [], parked = [], picked = [];
-      if (jopts.paths === 'auto' && jopts._pick == null) { if (b.length < PATHS_TRY * bb) jopts._pick = 1; else if (PATHS_SAMPLE > 0) jopts._pick = samplePick(b, jopts); else pickWait = true; }
+      if (jopts.paths === 'auto' && jopts._pick == null && !PATHS_RULE) { if (b.length < PATHS_TRY * bb) jopts._pick = 1; else if (PATHS_SAMPLE > 0) jopts._pick = samplePick(b, jopts); else pickWait = true; }
       if (tm) { tm.cut = Date.now() - T0; tm.groups = []; }   // optional phase timing: ms from the call start, filled in as the run goes
       return new Promise(function (resolve, reject) {
         var ws = [], results = new Array(groups.length), left = groups.length, failed = false;
@@ -116,7 +116,7 @@
           var i = redo.length ? redo.shift() : nextGroup++, t1 = Date.now(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
           if (tm) tm.groups[i] = { takeMs: 0, copyMs: Date.now() - t1, posted: Date.now() - T0, bytes: slice.length };
           w2.listen(function (m) { onMsg(i, m, nx, w2); }, fail);
-          var jo = jopts; if (pickWait) { jo = Object.assign({}, jopts, { _tryFirst: true }); sentWith[i] = 't'; } else if (jopts._pick == null) { jo = Object.assign({}, jopts, { _pick: curPick }); sentWith[i] = curPick; }
+          var jo = jopts; if (pickWait) { jo = Object.assign({}, jopts, { _tryFirst: true }); sentWith[i] = 't'; } else if (jopts._pick == null && jopts.paths === 'auto' && !PATHS_RULE) { jo = Object.assign({}, jopts, { _pick: curPick }); sentWith[i] = curPick; }
           w2.post({ id: i, kind: 'p', buf: slice, opts: jo }, [slice.buffer]);
         }
         function start() {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing

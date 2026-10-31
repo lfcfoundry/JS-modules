@@ -62,7 +62,7 @@
   }
   // paths: 'auto' pick from a sample: the first PATHS_SAMPLE bytes of the input packed with per-path strings everywhere and with none; the smaller wins.
   // pack() and packParallel() both pick this way before any block is made, so they write the same bytes with no second try
-  var PATHS_SAMPLE = 0;   // off: a 128 KB sample picked wrong on some data (see PATHS-PICK.md); the trial decides
+  var PATHS_RULE = true, PATHS_SAMPLE = 0;   // off: a 128 KB sample picked wrong on some data (see PATHS-PICK.md); the trial decides
   function samplePick(b, opts) {
     var e = b.length > PATHS_SAMPLE ? b.indexOf(10, PATHS_SAMPLE) : -1, sb = e < 0 ? b : b.subarray(0, e + 1), o = {}, k;
     for (k in opts) if (k !== 'share' && k !== '_st' && k !== 'timing' && k !== 'workers') o[k] = opts[k];
@@ -79,6 +79,7 @@
     // (real FHIR records: 13% smaller and about 22% faster without per-path strings); a shorter input keeps per-path strings.
     // With PATHS_SAMPLE = 0 the first big nested block is built both ways instead (the trial, kept for comparison)
     if (ctx.pick == null && opts.paths !== 'auto') ctx.pick = 1;   // the pick is opt-in: paths: 'auto'
+    if (ctx.pick == null && opts.paths === 'auto' && PATHS_RULE) ctx.pick = 2;   // per-block rule (dupShare), no trial
     if (ctx.pick == null && !opts._tryFirst) { for (ti = 0, mid = 0; ti < inputs.length; ti++) mid += inputs[ti].bytes.length; ctx.pick = mid < PATHS_TRY * bb ? 1 : (typeof PATHS_SAMPLE !== 'undefined' && PATHS_SAMPLE > 0 ? samplePick(inputs[0].bytes, opts) : null); mid = undefined; }
     for (ti = 0; ti < inputs.length; ti++) {
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
