@@ -2,7 +2,7 @@
  * stage-curtains.js: velvet stage curtains that slide shut over a page, then fly open.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.0 (API 1)
+ * Version 1.4.1 (API 1)
  *
  * No dependencies. Needs: canvas 2D, Promise, Element.animate (Web Animations). Any modern browser (2020+).
  * create({ worker: true }) paints the velvet in a background worker (the page then needs worker-src blob:); StageCurtains.startWorker() starts it early, release() ends it.
@@ -236,7 +236,7 @@
   // painter) and hands the finished pixels back as a transferable buffer, so the page only copies them into the canvas. One worker serves both halves and ends itself after a few idle seconds
   // (or at once with StageCurtains.release()). If anything about the worker fails (no Worker or Blob, a page policy without worker-src blob:, a thrown or posted error), the half is painted on the page instead,
   // from the start, and the worker is not tried again.
-  var WK = null, wkBroken = false, WK_IDLE_MS = 4000;
+  var WK = null, wkBroken = false, WK_IDLE_MS = 4000, OPT = {};   // OPT: test switches (copy: copy arrived pixels as 1.x did; noWake: wait for the next slice as 1.x did), set through _test
   function workerOK() {
     return !wkBroken && typeof Worker === 'function' && typeof Blob === 'function' && typeof URL === 'function' && typeof URL.createObjectURL === 'function';
   }
@@ -260,6 +260,7 @@
         if (!j) return;
         delete rec.jobs[m.id];
         if (m.error || !m.buf) j.failed = true; else { j.buf = m.buf; j.engine = m.engine; j.ready = true; }
+        if (j.kick) j.kick();   // wake prepare() now instead of at its next rest
         if (!Object.keys(rec.jobs).length) { clearTimeout(rec.timer); rec.timer = setTimeout(release, WK_IDLE_MS); }
       };
       w.onerror = function (e) { if (e && e.preventDefault) e.preventDefault(); wkFail(); };
@@ -297,14 +298,14 @@
         if (!job) {
           var wk = getWorker();
           if (wk) {
-            job = { ready: false, failed: false, buf: null, engine: null };
+            job = { ready: false, failed: false, buf: null, engine: null, kick: function () { if (self.onready) self.onready(); } };
             wk.jobs[++wk.n] = job;
             try { wk.w.postMessage({ id: wk.n, PW: PW, H: H, k: k, B: B, seed: seed, stepped: stepped, wasm: wasm }); } catch (e) { wkFail(); }
           }
         }
         if (job && job.failed) job = null;
         if (job && job.ready) {
-          try { img.data.set(new Uint8ClampedArray(job.buf)); x.putImageData(img, 0, 0); self.engine = 'worker+' + job.engine; self.done = true; return true; } catch (e) { job = null; }
+          try { x.putImageData(OPT.copy || typeof ImageData !== 'function' ? (img.data.set(new Uint8ClampedArray(job.buf)), img) : new ImageData(new Uint8ClampedArray(job.buf), cw, ch), 0, 0);   /* the arrived pixels as they are, no copy */ self.engine = 'worker+' + job.engine; self.done = true; return true; } catch (e) { job = null; }
         }
         if (job) return false;   // still painting in the worker
         onPage();               // no worker, or it failed: paint here, from the start
@@ -478,7 +479,16 @@
         ? function (f, o) { return window.requestIdleCallback(f, o); }
         : function (f) { return setTimeout(function () { f({ timeRemaining: function () { return 3; }, didTimeout: false }); }, 16); };
       var p = new Promise(function (resolve, reject) {
-        (function slice() {
+        var restT = 0, over = false;
+        function rest(ms) { restT = setTimeout(function () { restT = 0; slice(); }, ms); }
+        // a worker's pixels arrived while this rests: put them in now (no wait for the rest and the next idle moment)
+        if (!OPT.noWake) jobs.forEach(function (j) { j.onready = function () {
+          if (!restT || over || state.destroyed) return;
+          clearTimeout(restT); restT = 0;
+          try { var all = true; jobs.forEach(function (jj) { if (!jj.done && !jj.step(sliceMs)) all = false; }); if (all) { over = true; resolve(); } else rest(restMs); } catch (e) { over = true; reject(e); }
+        }; });
+        function slice() {
+          if (over) return;
           if (state.destroyed) return resolve();
           try {
             // close() is waiting for the velvet: paint 4 ms of it every frame (the page keeps moving) until the wait is used up
@@ -486,7 +496,7 @@
             if (w && performance.now() - w.since < w.ms) {
               var all = true;
               jobs.forEach(function (j) { if (!j.done && !j.step(WARM_STEP_MS)) all = false; });
-              if (all) resolve(); else setTimeout(slice, 16);
+              if (all) { over = true; resolve(); } else rest(16);
               return;
             }
             idle(function (dl) {
@@ -495,15 +505,17 @@
                 if (state.waiting && performance.now() - state.waiting.since < state.waiting.ms) { slice(); return; }   // close() asked while this was queued
                 var hurry = po.hurry || state.hurry || !!state.waiting;
                 var forced = !!dl.didTimeout;   // a page that is busy every frame never reports an idle moment: this turn is the one it gets
-                if (realIdle && !hurry && !forced && dl.timeRemaining() < 7) { setTimeout(slice, restMs); return; }   // not a real idle moment
+                if (over) return;
+                if (realIdle && !hurry && !forced && dl.timeRemaining() < 7) { rest(restMs); return; }   // not a real idle moment
                 var done = true;
                 jobs.forEach(function (j) { if (!j.done && !j.step(hurry ? 0 : forced ? sliceMs * 2 : sliceMs)) done = false; });
-                if (!done) { setTimeout(slice, restMs); return; }
-                resolve();
+                if (!done) { rest(restMs); return; }
+                over = true; resolve();
               } catch (e) { reject(e); }
             }, { timeout: 250 });
           } catch (e) { reject(e); }
-        })();
+        }
+        slice();
       }).then(function () {
         return state.destroyed ? null : svgToCanvas(valanceSvg(gm.W, color), gm.W, 80, gm.k, 99, stepped);
       }).then(function (val) {
@@ -639,5 +651,5 @@
     return api;
   }
 
-  return { create: create, wasmAvailable: function () { return !!kernel(); }, release: release, startWorker: function () { return !!getWorker(); }, velvetPainter: velvetPainter, valanceSvg: valanceSvg, shade: shade, mix: mix, mirrorCanvas: mirrorCanvas };
+  return { _test: OPT, create: create, wasmAvailable: function () { return !!kernel(); }, release: release, startWorker: function () { return !!getWorker(); }, velvetPainter: velvetPainter, valanceSvg: valanceSvg, shade: shade, mix: mix, mirrorCanvas: mirrorCanvas };
 });
