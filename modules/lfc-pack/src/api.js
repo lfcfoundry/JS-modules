@@ -29,7 +29,7 @@
   // the packer's memory only (the tokenizer and string dictionary, which holds most of what a pack grows): the zstd memory stays, so the next job does not grow it again.
   // Pack helpers do this when they go idle (pool.js): back-to-back packParallel calls stay as fast, and the waiting helpers hold 200 MB to 1.1 GB less.
   function trimPacker() {
-    if (S.core) { S.core = loadSync(coreName()); S.sh = makeShredder(S.core); }
+    if (S.core) { S.core = loadSync(coreName()); S.sh.rebind(S.core); }
     dropSmallWasm();
   }
   function need(w) { if (w && !S.sh) throw new Error('LfcPack: call init() first'); if (!S.zdec) throw new Error('LfcPack: call init({readOnly:true}) or init() first'); }
