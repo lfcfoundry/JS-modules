@@ -2,7 +2,7 @@
  * gpu-blur.js: blur a picture on the graphics card (WebGL 2), or in WebAssembly, or in plain JavaScript, and give the same picture every way.
  * The module picks the way by what the browser can do, never by the browser's name. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.3 (API 1)
+ * Version 1.3.0 (API 1)
  *
  *   GpuBlur.blur(source, width, height, radius[, opts])   -> Promise of { canvas | pixels | texture, width, height, route }
  *   GpuBlur.blurSync(source, width, height, radius[, opts]) -> the same result at once (the page waits for the whole job)
@@ -20,7 +20,8 @@
  *               the wasm kernel runs on row bands in background workers made from a blob: address (needs worker-src blob:), same bytes. opts.idleMs: how long they wait for the next job (5000).
  *               'threads' (blur() only, opt-in) does the same on one shared memory, with no band copies; it needs a cross-origin isolated page (the two isolation headers),
  *               so it never runs in a page opened from a file; opts.workers (default cores - 1) and opts.idleMs work the same way. info().threads says whether this page can use it.
- * opts.into:   a canvas to draw the result into (out 'canvas'); opts.gl: your own WebGL 2 context (out 'texture'); opts.budget: ms of work per slice (default 3).
+ * opts.into:   a canvas to draw the result into (out 'canvas'), or RGBA bytes of width * height * 4 to write the result into (out 'pixels': result.pixels is that same array,
+ *               so a caller that blurs every frame makes no new megabyte arrays; an array of another length is left alone and a new one is made); opts.gl: your own WebGL 2 context (out 'texture'); opts.budget: ms of work per slice (default 3).
  *
  * The blur is three box passes along each axis (a close Gaussian), in whole numbers, so WebGL 2, wasm and JavaScript give the same bytes.
  * No eval, no new Function; no blob: address and no worker unless the 'helpers' or 'threads' route is asked for. WebAssembly needs 'wasm-unsafe-eval' in script-src and falls back to JavaScript without it.
@@ -31,7 +32,7 @@
 })(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  var VERSION = '1.2.3';
+  var VERSION = '1.3.0';
   var MAX_PIXELS = 33554432;          // 8192 x 4096
   var STRIP = 16;                     // columns per vertical strip (the wasm kernel's limit)
   var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
@@ -60,6 +61,8 @@
     return b < 1 ? 1 : b;
   }
 
+  function intoPx(opts, len) { var a = isBytes(opts.into) ? opts.into : opts._intoPx; return a && a.length === len ? a : null; }   // _intoPx: the 1.2.3 test name
+  function intoCv(opts) { return opts.into && !isBytes(opts.into) ? opts.into : null; }
   function isBytes(x) { return typeof Uint8Array !== 'undefined' && (x instanceof Uint8Array || (typeof Uint8ClampedArray !== 'undefined' && x instanceof Uint8ClampedArray)); }
 
   function describe(src, w, h) {         // -> { kind: 'bytes' | 'dom', bytes, dom, w, h }
@@ -243,11 +246,11 @@
     phases.push(phase(Math.ceil(w / STRIP), STRIP * h, cap, function (s0, s1) { for (var s = s0; s < s1; s++) job.vcols(s * STRIP, Math.min(w, s * STRIP + STRIP)); }));
     // write
     if (out === 'pixels') {
-      var px = job.route === 'js' ? new Uint8ClampedArray(A.buffer, A.byteOffset, w * h * 4) : new Uint8ClampedArray(w * h * 4);
+      var given = intoPx(opts, w * h * 4), px = given || (job.route === 'js' ? new Uint8ClampedArray(A.buffer, A.byteOffset, w * h * 4) : new Uint8ClampedArray(w * h * 4));
       res.pixels = px;
-      if (job.route !== 'js') phases.push(phase(h, w, 200000, function (y0, y1) { px.set(new Uint8ClampedArray(A.buffer, A.byteOffset + y0 * w * 4, (y1 - y0) * w * 4), y0 * w * 4); }));
+      if (given || job.route !== 'js') phases.push(phase(h, w, 200000, function (y0, y1) { px.set(new Uint8ClampedArray(A.buffer, A.byteOffset + y0 * w * 4, (y1 - y0) * w * 4), y0 * w * 4); }));
     } else {
-      var cv = opts.into || makeCanvas(w, h);
+      var cv = intoCv(opts) || makeCanvas(w, h);
       if (!cv) { job.free(); throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"'); }
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
       ctx = cv.getContext('2d');
@@ -336,9 +339,9 @@
       var halo = 3 * b, per = Math.ceil(h / n), jobs = [], res = { width: w, height: h, route: 'helpers' }, px = null, ctx = null, lease = null, sx = null, i;
       var reuse = opts._reuse !== false;   // _reuse, _intoPx: test switches (tests/gpu-blur-pool-reuse-browser.js); _reuse: false = the 1.2.2 way
       if (!H.bufs) H.bufs = [];
-      if (out === 'pixels') res.pixels = px = (opts._intoPx && opts._intoPx.length === w * h * 4) ? opts._intoPx : new Uint8ClampedArray(w * h * 4);
+      if (out === 'pixels') res.pixels = px = intoPx(opts, w * h * 4) || new Uint8ClampedArray(w * h * 4);
       else {
-        var cv = opts.into || makeCanvas(w, h);
+        var cv = intoCv(opts) || makeCanvas(w, h);
         if (!cv) throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"');
         if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
         ctx = cv.getContext('2d'); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
@@ -461,12 +464,12 @@
           if (x0 < x1) vm.push({ op: 'v', A: A, B: B, stA: s + 2 * al(w * 8), stB: s + 2 * al(w * 8) + al(h * 64), col: s + 2 * al(w * 8) + 2 * al(h * 64), w: w, h: h, x0: x0, x1: x1, b: b, km: km });
         }
         return phaseRun(hm).then(function () { return phaseRun(vm); }).then(function () {
-          var len = w * h * 4, px = out === 'pixels' ? (opts._intoPx && opts._intoPx.length === len ? opts._intoPx : new Uint8ClampedArray(len)) : (opts._reuse !== false && T.px && T.px.length === len ? T.px : new Uint8ClampedArray(len));   // canvas out: the copy out of shared memory is kept for the next call of this size
+          var len = w * h * 4, px = out === 'pixels' ? (intoPx(opts, len) || new Uint8ClampedArray(len)) : (opts._reuse !== false && T.px && T.px.length === len ? T.px : new Uint8ClampedArray(len));   // canvas out: the copy out of shared memory is kept for the next call of this size
           if (out !== 'pixels' && opts._reuse !== false) T.px = px;
           px.set(new Uint8Array(T.memory.buffer, A, len));
           if (out === 'pixels') res.pixels = px;
           else {
-            var cv = opts.into || makeCanvas(w, h);
+            var cv = intoCv(opts) || makeCanvas(w, h);
             if (!cv) throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"');
             if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
             ctx = cv.getContext('2d'); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
@@ -574,8 +577,8 @@
       })();
     });
   }
-  function glRead(S, w, h) {              // pixels from tex[0] without stalling the page: a buffer, a fence, then a copy
-    var gl = S.gl, out = new Uint8ClampedArray(w * h * 4);
+  function glRead(S, w, h, into) {        // pixels from tex[0] without stalling the page: a buffer, a fence, then a copy
+    var gl = S.gl, out = into || new Uint8ClampedArray(w * h * 4);
     gl.bindFramebuffer(gl.FRAMEBUFFER, S.fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, S.tex[0], 0);
     var buf = gl.createBuffer();
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buf); gl.bufferData(gl.PIXEL_PACK_BUFFER, w * h * 4, gl.STREAM_READ);
@@ -583,15 +586,15 @@
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
     return glFence(gl, 5000).then(function () {
       gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buf);
-      gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, new Uint8Array(out.buffer));
+      gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, new Uint8Array(out.buffer, out.byteOffset, w * h * 4));
       gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null); gl.deleteBuffer(buf);
       return out;
     });
   }
-  function glReadSync(S, w, h) {
-    var gl = S.gl, out = new Uint8ClampedArray(w * h * 4);
+  function glReadSync(S, w, h, into) {
+    var gl = S.gl, out = into || new Uint8ClampedArray(w * h * 4);
     gl.bindFramebuffer(gl.FRAMEBUFFER, S.fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, S.tex[0], 0);
-    gl.pixelStorei(gl.PACK_ALIGNMENT, 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(out.buffer));
+    gl.pixelStorei(gl.PACK_ALIGNMENT, 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(out.buffer, out.byteOffset, w * h * 4));
     return out;
   }
 
@@ -638,7 +641,7 @@
     if (!o) throw new Error('gpu-blur: WebGL 2 is not available');
     S = o.S; gl = o.gl;
     if (out === 'canvas') {
-      var cv = opts.into || makeCanvas(w, h);
+      var cv = intoCv(opts) || makeCanvas(w, h);
       if (!cv) throw new Error('gpu-blur: no canvas can be made here');
       if (o.canvas.width !== w || o.canvas.height !== h) { o.canvas.width = w; o.canvas.height = h; }
       glPasses(S, inp, w, h, b, 'canvas');
@@ -652,8 +655,8 @@
     }
     glPasses(S, inp, w, h, b, 'fbo');
     if (gl.isContextLost()) throw new Error('gpu-blur: the WebGL 2 context was lost');
-    if (sync) { res.pixels = glReadSync(S, w, h); return res; }
-    return glRead(S, w, h).then(function (px) { res.pixels = px; return res; });
+    if (sync) { res.pixels = glReadSync(S, w, h, intoPx(opts, w * h * 4)); return res; }
+    return glRead(S, w, h, intoPx(opts, w * h * 4)).then(function (px) { res.pixels = px; return res; });
   }
 
   // ------------------------------------------------------------------ choosing the way
