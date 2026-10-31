@@ -16,10 +16,13 @@ Shared reusable output buffer for text entries: laptop Chromium 2-14% faster, la
 ## 1.5.2 · API 1 · 2026-10-31
 
 ### Quick
-Quick: loading the file costs what it did before 1.5.0, and helpers stop holding memory when idle.
+Loading the file costs what it did before 1.5.0, and helpers stop holding memory when idle. No API change.
+
+### Details
+inflate.wasm (9.5 KB) split from crc32.wasm (back to 1,476 bytes), compiled the first time a 4 KB-or-smaller entry is opened; 2,000 tiny files still 1.4-1.9x faster than streams (Firefox 158 195 to 101 ms, Chromium 155 153 to 109, WebKitGTK 167 to 122). Helpers from expandBlob({workers}) close 5 s after the last call; idleMs changes it; restarting them cost nothing measurable in 3 browsers.
 
 ### Deep
-Quick: loading the file costs what it did before 1.5.0, and helpers stop holding memory when idle. Details: inflate.wasm (9.5 KB) split from crc32.wasm (back to 1,476 bytes), compiled the first time a 4 KB-or-smaller entry is opened; 2,000 tiny files still 1.4-1.9x faster than streams. Helpers from expandBlob({workers}) close 5 s after the last call; idleMs changes it. Deep: a pre-sized output buffer was tried and dropped (WebKitGTK single 42 MB entry +26%, Firefox small File +23%).
+A pre-sized output buffer was tried and dropped (WebKitGTK single 42 MB entry +26%, Firefox small File +23%).
 
 ## 1.5.1 · API 1 · 2026-10-30
 
