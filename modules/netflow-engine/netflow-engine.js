@@ -2,7 +2,7 @@
  * netflow-engine.js: the engine of Netflow Map as a module you can adapt: reads links, lays the map out (layered rows, arcs, matrix, shapes, force, distances), and scores it. No page, no DOM; runs on the main thread or in a worker.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.2.2 (API 2)
+ * Version 2.2.3 (API 2)
  *
  *   var L = NetflowEngine.build({ nodes: [{ id: 'a' }, { id: 'b' }], edges: [{ from: 'a', to: 'b' }] }, { view: 'network', colorBy: 'group' });   // L.nodes, L.edges: positions and sizes, ready to draw
  *   NetflowEngine.use('layers', NetflowLayers);      // optional: hand over the add-ons (they are also found on their own)
@@ -70,13 +70,14 @@
     function isEmpty(v) { return v === undefined || v === null || v === ''; }
 
     /* ---------------------------------------------------------------- number formats */
+    var NF0 = null, NF3 = null;   // made once: toLocaleString with a locale builds a new formatter on every call (about 40 times slower)
     function fmt(v) {
       if (v === undefined || v === null || !isFinite(v)) return '';
       var a = Math.abs(v), s;
       if (a >= 1e9) s = (v / 1e9).toFixed(a >= 1e10 ? 0 : 1) + 'B';
       else if (a >= 1e6) s = (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M';
       else if (a >= 1e4) s = (v / 1e3).toFixed(a >= 1e5 ? 0 : 1) + 'k';
-      else if (a >= 1000) s = Math.round(v).toLocaleString('en-US');
+      else if (a >= 1000) s = (NF0 || (NF0 = new Intl.NumberFormat('en-US'))).format(Math.round(v));
       else if (a >= 100) s = String(Math.round(v * 10) / 10);
       else if (a >= 1) s = String(Math.round(v * 100) / 100);
       else if (a === 0) s = '0';
@@ -86,7 +87,7 @@
     }
     function fmtFull(v) {
       if (v === undefined || v === null || !isFinite(v)) return '';
-      return Number(v).toLocaleString('en-US', { maximumFractionDigits: 3 });
+      return (NF3 || (NF3 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 }))).format(Number(v));
     }
 
     /* ---------------------------------------------------------------- profile: what is in each column */
