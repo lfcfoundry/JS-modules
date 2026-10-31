@@ -48,3 +48,14 @@ Same values. Plain parse is level with 0.1.1 and `parseParallel` does not help a
 | WebKitGTK | 359 | 168 (2.1x faster) |
 
 In Firefox the total time is even, but more of the work now runs on the page's own thread: 156 ms, up from 46 ms.
+
+
+**New in 0.6.0: read a picked file directly.** Cloud-browser runs (4 helpers, shared machine, not noise-guarded, not the laptop). `parseParallel(input.files[0])` now takes a File or Blob, and each helper reads its own piece straight from it, so the page never holds the whole file. Same answers as `parse()` in 384 cases per browser.
+
+| Picked file, x faster than 0.5.2 (higher is better) | Chromium | Firefox | WebKitGTK |
+|---|---:|---:|---:|
+| Numbers, 45 MB | 1.11 | 1.25 | 1.68 |
+| Mixed text, 32 MB | 1.17 | 1.27 | 1.75 |
+| Accented text, 32 MB | 1.21 | 1.01 | 1.63 |
+
+The page's own work falls to 17 to 142 ms, from 108 to 240 ms.
