@@ -61,7 +61,8 @@
     for (i = 0; i < s.side.length; i++) { var str = s.side[i][1], k = sideMap.get(str); if (k === undefined) { k = sideStr.length; sideMap.set(str, k); sideStr.push(str); } codes[s.side[i][0]] = dN + k; }
     var ns = sideStr.length, dlen = Math.max(olen - 1, 0), N = codes.length, m;
     if (ctx.st) return sharedNestedBlock(ctx, s, codes, dN, dN ? tlat.decode(new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen)).split('\0') : [], sideStr, level);
-    var pb = opts.paths ? pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level) : null;   // with paths: both ways, the smaller one is kept
+    var pb = opts.paths ? pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level) : null;   // with paths: both ways, the smaller one is kept, for small blocks only (larger ones gain from it in every test)
+    if (pb && (opts.paths === 'only' || codes.length >= PATHS_SURE)) return pb;
     // first-appearance flags: the writer renumbers the dictionary in order of first use (unused entries drop out), so a string's first appearance always carries "the next number" and only repeats need a stored code
     var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), offs = new Uint32Array(dN + 1), pos = 0, nz;
     for (i = 0; i < dN; i++) { offs[i] = pos; nz = old.indexOf(0, pos); pos = nz < 0 ? dlen + 1 : nz + 1; } offs[dN] = dlen + 1;
@@ -77,7 +78,7 @@
     var ztext = zs.compress(text, level), sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideStr })), zside = zs.compress(sideB, level);
     var skB = te.encode(s.skelList.join('\n')), zskel = zs.compress(skB, level);
     var tid = typedColumn(s.ids), zids = zs.compress(tid[2], level);
-    var nc = nestedCols(zs, cols, level), zc = nc.zc, zone = nc.zone, cmB = nc.cmB, zcm = nc.zcm;
+    var nc = colsOf(zs, s, level), zc = nc.zc, zone = nc.zone, cmB = nc.cmB, zcm = nc.zcm;
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, count: E, fa: [flags.length, zflags.length, repT[0], repT[1], zrep.length, N], len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], cm: [cmB.length, zcm.length] }));
     var parts = [u32le(hdr.length), hdr, zcm, ztext, zside, zskel, zids, zflags, zrep]; for (i = 0; i < zc.length; i++) parts.push(zc[i][3]);
@@ -93,23 +94,27 @@
     return out;
   }
   // the string cells regrouped by path: cell codes path after path, and per path its entries (codes in order of first use there), a flag per cell (flag bytes start fresh for each path) and a repeat for every cell that is not a first use
+  var PATHS_SURE = 4096;   // string cells from which a block keeps per-path strings without building the other layout too
+  var STAMP = new Int32Array(0), LOC = new Uint32Array(0), STAMPN = 0;   // which path last met a code (a fresh number per path and block, so nothing is cleared between blocks)
   function byPath(s, codes, M) {
-    var N = codes.length, sk = s.skelList, K = sk.length, i, j, k, c, p, q, a;
-    var sp = new Array(K), pix = new Map(), ph = [];
+    var N = codes.length, sk = s.skelList, K = sk.length, i, j, k, c, p, q, a, n, b, sp = new Array(K), pix = new Map(), ph = [], kn = new Uint32Array(K), ids = s.ids;
     for (k = 0; k < K; k++) { var ps = stringPaths(sk[k]); a = new Int32Array(ps.length); for (j = 0; j < ps.length; j++) { var h = fnvStr(ps[j]); q = pix.get(h); if (q === undefined) { q = ph.length; pix.set(h, q); ph.push(h); } a[j] = q; } sp[k] = a; }
-    var P = ph.length, cnt = new Uint32Array(P), cp = new Uint32Array(N), ci = 0, ids = s.ids;
-    for (i = 0; i < s.n; i++) { a = sp[ids[i]]; for (j = 0; j < a.length; j++) { if (ci >= N) throw new Error('string cell count'); cp[ci++] = a[j]; cnt[a[j]]++; } }
-    if (ci !== N) throw new Error('string cell count');
-    var st = new Uint32Array(P + 1), fill = new Uint32Array(P), pc = new Uint32Array(N), nfb = 0;
-    for (p = 0; p < P; p++) { st[p + 1] = st[p] + cnt[p]; nfb += (cnt[p] + 7) >> 3; }
-    for (i = 0; i < N; i++) { p = cp[i]; pc[st[p] + fill[p]++] = codes[i]; }
-    var stamp = new Int32Array(M).fill(-1), loc = new Uint32Array(M), ent = [], rep = [], flags = new Uint8Array(nfb), fb = 0, table = [], e0, o;
+    for (i = 0; i < s.n; i++) kn[ids[i]]++;
+    var P = ph.length, cnt = new Uint32Array(P), tot = 0;
+    for (k = 0; k < K; k++) { a = sp[k]; for (j = 0; j < a.length; j++) cnt[a[j]] += kn[k]; tot += a.length * kn[k]; }
+    if (tot !== N) throw new Error('string cell count');
+    var st = new Uint32Array(P + 1), fill = new Uint32Array(P), pc = new Uint32Array(N), nfb = 0, ci = 0;
+    for (p = 0; p < P; p++) { st[p + 1] = st[p] + cnt[p]; fill[p] = st[p]; nfb += (cnt[p] + 7) >> 3; }
+    for (i = 0; i < s.n; i++) { a = sp[ids[i]]; for (j = 0, n = a.length; j < n; j++) pc[fill[a[j]]++] = codes[ci++]; }
+    if (STAMP.length < M) { STAMP = new Int32Array(Math.max(M, STAMP.length * 2)); LOC = new Uint32Array(STAMP.length); STAMPN = 0; }
+    if (STAMPN > 2000000000 - P) { STAMP.fill(0); STAMPN = 0; }
+    var stamp = STAMP, loc = LOC, ent = new Uint32Array(N), rep = new Uint32Array(N), en = 0, rn = 0, flags = new Uint8Array(nfb), fb = 0, table = [], e0, o, sv;
     for (p = 0; p < P; p++) {
-      e0 = ent.length;
-      for (i = st[p]; i < st[p + 1]; i++) { c = pc[i]; o = i - st[p]; if (stamp[c] !== p) { stamp[c] = p; loc[c] = ent.length - e0; ent.push(c); flags[fb + (o >> 3)] |= 1 << (o & 7); } else rep.push(loc[c]); }
-      table.push([ph[p], ent.length - e0, cnt[p]]); fb += (cnt[p] + 7) >> 3;
+      e0 = en; sv = ++STAMPN; b = st[p];
+      for (i = b; i < st[p + 1]; i++) { c = pc[i]; if (stamp[c] !== sv) { stamp[c] = sv; loc[c] = en - e0; ent[en++] = c; o = i - b; flags[fb + (o >> 3)] |= 1 << (o & 7); } else rep[rn++] = loc[c]; }
+      table.push([ph[p], en - e0, cnt[p]]); fb += (cnt[p] + 7) >> 3;
     }
-    return { ent: ent, rep: rep, flags: flags, table: table };
+    return { ent: ent.subarray(0, en), rep: rep.subarray(0, rn), flags: flags, table: table };
   }
   function pathFrames(zs, bp, level) {   // -> [header sf, frames]
     var repT = typedColumn(bp.rep), zflags = zs.compress(bp.flags, level), zrep = zs.compress(repT[2], level), tabB = te.encode(JSON.stringify(bp.table)), ztab = zs.compress(tabB, level);
@@ -129,13 +134,14 @@
     var ztext = zs.compress(text, level), sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideS })), zside = zs.compress(sideB, level);
     var skB = te.encode(sk.join('\n')), zskel = zs.compress(skB, level);
     var tid = typedColumn(ids), zids = zs.compress(tid[2], level);
-    var nc = nestedCols(zs, s.cols, level), zc = nc.zc;
+    var nc = colsOf(zs, s, level), zc = nc.zc;
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, sp: 1, count: E, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], sf: pf[0], cm: [nc.cmB.length, nc.zcm.length] }));
     var parts = [u32le(hdr.length), hdr, nc.zcm, ztext, zside, zskel, zids].concat(pf[1]); for (k = 0; k < zc.length; k++) parts.push(zc[k][3]);
     return { bytes: concat(parts), rows: s.n, zone: nc.zone, skelList: sk, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
   }
 
+  function colsOf(zs, s, level) { return s.nc || (s.nc = nestedCols(zs, s.cols, level)); }   // the column frames are the same for both string layouts: made once per block
   function nestedCols(zs, cols, level) {   // the number columns of a nested block: frames, zone-map entries and the column table
     var zc = [], zone = [];
     cols.forEach(function (c, hash) {
@@ -182,13 +188,14 @@
     for (i = 0; i < K; i++) { g = stPlace(st.km, st.k, st.ks, sk[i], st.j); if (g >= 0) { kf[i] = g; kg[i] = 1; } else { kf[i] = kloc.length; kloc.push(sk[i]); } }
     var LK = kloc.length; for (i = 0; i < K; i++) if (kg[i]) kf[i] += LK;
     var ids = new Uint32Array(s.n); for (i = 0; i < s.n; i++) ids[i] = kf[s.ids[i]];
-    var pb = ctx.paths ? sharedPathBlock(ctx, s, out, L, asc, sid, kloc, ids, level) : null;   // with paths: both ways, the smaller one is kept (per-path strings lose on very small blocks)
+    var pb = ctx.paths ? sharedPathBlock(ctx, s, out, L, asc, sid, kloc, ids, level) : null;   // with paths: both ways, the smaller one is kept, for small blocks only (per-path strings lose on very small blocks)
+    if (pb && (ctx.paths === 'only' || N >= PATHS_SURE)) return pb;
     var sideIdx = []; for (i = 0; i < sid.length; i++) sideIdx.push(nu + i);
     var text = te.encode(L ? asc.concat(sid.map(function () { return ''; })).join('\0') : ''), ztext = zs.compress(text, level);
     var sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sid })), zside = zs.compress(sideB, level);
     var skB = te.encode(kloc.join('\n')), zskel = zs.compress(skB, level);
     var tid = typedColumn(ids), zids = zs.compress(tid[2], level), tcd = typedColumn(out), zcd = zs.compress(tcd[2], level);
-    var nc = nestedCols(zs, s.cols, level), zc = nc.zc, k;
+    var nc = colsOf(zs, s, level), zc = nc.zc, k;
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, g: 1, count: L, kc: LK, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], cd: [tcd[0], tcd[1], zcd.length], cm: [nc.cmB.length, nc.zcm.length] }));
     var parts = [u32le(hdr.length), hdr, nc.zcm, ztext, zside, zskel, zids, zcd]; for (k = 0; k < zc.length; k++) parts.push(zc[k][3]);
@@ -205,7 +212,7 @@
     var sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideS })), zside = zs.compress(sideB, level);
     var skB = te.encode(kloc.join('\n')), zskel = zs.compress(skB, level), LK = kloc.length;
     var tid = typedColumn(ids), zids = zs.compress(tid[2], level), tgr = typedColumn(gr), zgr = zs.compress(tgr[2], level);
-    var pf = pathFrames(zs, bp, level), nc = nestedCols(zs, s.cols, level), zc = nc.zc;
+    var pf = pathFrames(zs, bp, level), nc = colsOf(zs, s, level), zc = nc.zc;
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, g: 1, sp: 1, count: LT, kc: LK, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], sf: pf[0], gr: [tgr[0], tgr[1], zgr.length], cm: [nc.cmB.length, nc.zcm.length] }));
     var parts = [u32le(hdr.length), hdr, nc.zcm, ztext, zside, zskel, zids].concat(pf[1], [zgr]); for (k = 0; k < zc.length; k++) parts.push(zc[k][3]);
