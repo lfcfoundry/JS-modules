@@ -2,7 +2,7 @@
  * gpu-blur.js: blur a picture on the graphics card (WebGL 2), or in WebAssembly, or in plain JavaScript, and give the same picture every way.
  * The module picks the way by what the browser can do, never by the browser's name. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.3.1 (API 1)
  *
  *   GpuBlur.blur(source, width, height, radius[, opts])   -> Promise of { canvas | pixels | texture, width, height, route }
  *   GpuBlur.blurSync(source, width, height, radius[, opts]) -> the same result at once (the page waits for the whole job)
@@ -375,7 +375,8 @@
         })(y0, y1, i);
       }
       if (lease) { lease.release(); lease = null; }
-      var idle = function () { if (helpers === H) { if (H.timer) clearTimeout(H.timer); H.timer = setTimeout(closeHelpers, opts.idleMs === undefined ? 5000 : opts.idleMs); } };
+      H.busy = (H.busy || 0) + 1;   // calls that overlap: only the last one to finish starts the closing clock, so it never ends helpers another call is using (counted here, after the last throw, so it always comes back down)
+      var idle = function () { H.busy--; if (helpers === H && !H.busy) { if (H.timer) clearTimeout(H.timer); H.timer = setTimeout(closeHelpers, opts.idleMs === undefined ? 5000 : opts.idleMs); } };
       return Promise.all(jobs).then(function () { idle(); return res; }, function (e) { idle(); throw e; });
     });
   }

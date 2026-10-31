@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.7 · API 0 · 2026-10-31
+
+### Quick
+Fix, no API change: warmPack(n) keeps n helpers even when some were already idle (it kept fewer), its idle list can no longer drop or repeat helpers a packParallel call took meanwhile, and a failed call no longer leaves other idle helpers without their closing clock. Old code needs no change.
+
+### Deep
+Found while checking every helper pool for idle-close timers that overlapping calls could orphan (zip-open 1.10.0 finding, PR 356). packParallel itself was safe: only idle helpers are ever in the closing list. Two bugs in src/pool.js: (1) warmPack(n) made its helpers with takeHelper(), which pops idle helpers first, so with m idle it started n-2m new ones at most (warmPack(4) after one 2-helper call kept 2), and it then set the idle list to a snapshot taken before the wait, which could drop or re-add helpers a call took or gave back meanwhile; now it makes new helpers only and appends them to the list as it is when they are ready, and kills them if one fails to start. (2) a failed packParallel run killed its own helpers but did not restart the closing clock, so helpers other calls had left idle stayed alive; release now always re-arms (armIdle). New checks: test/overlap.cjs (Node) and an overlap section in tests/lfc-pack-parallel-browser.js (3 browsers); 0.4.6 fails both on the warmPack count. Not timed: the packing path is unchanged.
+
 ## 0.4.6 · API 0 · 2026-10-31
 
 ### Quick

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.1 · API 1 · 2026-10-31
+
+### Quick
+Fix, no API change: when two blur() calls use the helpers at once, the first to finish no longer starts the idle closing clock under the other (that call used to fall back to the one-thread wasm route). Old code needs no change.
+
+### Deep
+Found while checking every helper pool for idle-close timers that overlapping calls could orphan (zip-open 1.10.0 finding, PR 356). helpersRoute started the idle closing clock when any call finished, even while another call still had bands on the helpers; with idleMs 0 (or a long blur and the 5 s default) closeHelpers failed the other call's bands and it fell back to the one-thread wasm route. Now the pool counts calls in flight (H.busy, counted after the last synchronous throw) and only the last one to finish starts the clock. The threads route was already safe (jobs run one after another on T.chain). New check tests/gpu-blur-concurrent-browser.js: 1.3.0 fails (the long call ran on wasm in all 4 rounds, Chromium 155), 1.3.1 passes in all 3 browsers; gpu-blur-helpers-browser.js same bytes in 3 browsers; Node 32 passed. Not timed: one add per call.
+
 ## 1.3.0 · API 1 · 2026-10-31
 
 ### Quick
