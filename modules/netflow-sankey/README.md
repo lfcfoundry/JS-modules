@@ -4,12 +4,33 @@
 
 **Tested in:** Chromium 155 container, same output as 2.3.1 on 6,000 random layouts (wasm and JavaScript paths)
 
-Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 49 KB (17.7 KB gzipped, of which about 7 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
+## What it is and how it works
 
-It reads your list of links, puts each item in a column by the direction of the flow, and makes each band as thick as its flow on one scale for the whole picture. A long link passes through the columns in between. It then searches for the order of items in each column that gives the fewest weighted crossings (big flows crossing big flows cost most), restarting several times within a time budget and keeping the best order (the counting and sorting of that search runs as WebAssembly when the browser allows it, and as the same JavaScript otherwise). Backward links are drawn as bands under the picture, and `toSvg` draws the result as an SVG.
+netflow-sankey lays out a flow chart, also called a Sankey diagram: items drawn as bars, joined by bands whose thickness shows how much flows between them. You give it a plain list of links (`from`, `to`, `value`). It returns the position of every bar and band, and can draw the result as an SVG. One file, about 49 KB (17.7 KB gzipped), no dependencies. It was cut out of Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
+
+It works in four steps:
+
+1. **Columns.** Each item goes into a column by the direction of the flow, so links run left to right wherever possible.
+2. **One scale.** Bars and bands are sized on one scale for the whole picture, so a band is exactly as thick as its flow everywhere. A link that skips columns passes through the columns in between instead of jumping over them.
+3. **Order.** It searches for the order of items in each column that gives the fewest crossings, weighting each crossing by the size of the two flows involved. It restarts several times within a time budget and keeps the best order. The counting runs as WebAssembly when the browser allows it, and as the same JavaScript otherwise.
+4. **Loops.** Links that point backward are drawn as bands routed under the picture, instead of stopping the layout.
 
 ## Why it exists
-Flow charts are read by the thick bands. If the thick ones tangle, the chart is useless, so the search spends its effort there. And data from real life has loops, which must not crash the page.
+
+A flow chart is read through its thick bands. When two large flows cross, the eye loses track of both; a crossing between two thin bands barely matters. Layout code that counts every crossing the same can trade a few small crossings for one large one, and the chart gets harder to read while its score gets better.
+
+Real data also has loops: money that comes back, people who return to an earlier page, material that is recycled. The standard library, d3-sankey, stops with an error on a circular link, which in an app means a blank chart.
+
+netflow-sankey handles both. It spends its search effort keeping large flows clear, and it draws loops instead of refusing them. On three test charts it left about half the weighted crossings of d3-sankey (47 to 58%). On the laptop in Firefox 160 it is slower than d3-sankey on a small chart (72 items: 2.0 ms against 1.0) and faster on larger ones (4.0x at 200 items, 5.2x at 500).
+
+**Where it helps**
+
+- Budgets and money flows: where income goes, and how much of it comes back.
+- Energy, material and supply-chain flows, including recycling loops.
+- Website and app journeys, where people move back to earlier steps.
+- Any chart where a few large flows matter much more than many small ones.
+
+**Where something else fits better:** a page that already ships D3, has no loops in its data and cares most about code size (d3-sankey is about 2 KB gzipped plus its D3 parts); and charts that need dragging or editing built in, which this module leaves to you.
 
 ## Try it and test it
 **Test it:** `node modules/netflow-sankey/test/run.js` (31 checks, about 1 s). **Try it:** `demo.html` (type links, the chart redraws).

@@ -2,16 +2,39 @@
 
 **Version 0.3.1 · API 0**
 
-**Version 0.1.7 · API 0**
-
 **Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6, Node 22 (container)
-
-Packs newline-delimited JSON (NDJSON: one JSON value per line, the shape of logs, events and API dumps) into **LFC-pack** (`.json.lfc`, magic `LFC1`): the rows are cut into blocks of about 13 MB, every field becomes its own typed column, repeated strings are stored once, and each column is compressed with zstd. A footer at the end lists the blocks and the smallest and largest number of each column, so a reader can skip blocks without opening them. Reading gives back the same row objects `JSON.parse` would, and with `exact: true` the very same bytes. **One file, no dependencies, WebAssembly required** (zstd and the tokenizer are compiled to wasm32; a page needs `'wasm-unsafe-eval'` in its policy and nothing else).
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
+## What it is and how it works
+
+LFC-pack is a file format, and a one-file library that writes and reads it, for keeping rows of JSON data (logs, events, API exports, records) small and quick to open in a browser. Files end in `.json.lfc`. The input is newline-delimited JSON (NDJSON: one JSON value per line), or an array of objects.
+
+It works in three steps:
+
+- **Cut the rows into blocks.** Rows are grouped into blocks of about 13 MB, so a reader can open one block without touching the others, and several cores can pack or read blocks at the same time.
+- **Turn each block into columns.** Inside a block, every field becomes its own typed column. Numbers are stored as numbers at the narrowest width that holds them (decimals as scaled whole numbers since 0.3.0), repeated text is stored once in a dictionary, and a missing field costs about one bit per row. Rows whose shape varies (nested objects, arrays, mixed types) use a nested layout that stores each distinct shape once.
+- **Compress and index.** Each column is compressed with zstd. A footer at the end of the file lists every block with its row count, its checksum and the smallest and largest value of each number column.
+
+A reader fetches the footer first, then opens only the blocks and columns it needs. Reading gives back the same values `JSON.parse` would give for each line, and with `exact: true` the original bytes. zstd and the tokenizer run as WebAssembly inside the one file, so a page needs only `'wasm-unsafe-eval'` in its content policy. Readers in Python and Go open the same files.
+
 ## Why it exists
-JSON is what data arrives as, and it is a poor thing to keep: every key is spelled out on every row, every number is text, and a 757 MB file takes seconds of `JSON.parse` before a page can show anything. Parquet fixes the size but wants a table with a fixed schema and a heavy reader. LFC-pack keeps JSON's freedom (missing fields, nested objects, arrays, mixed types per field) and still stores each field as a column. Two rules drive it: the file must be smaller than the best Parquet file for the same rows, and reading it into JavaScript objects must be at least as fast as `JSON.parse` of the original.
+
+JSON is how most data arrives, and it is costly to keep and to reopen. Every row spells out every key again, every number is stored as text, and the only way to get one field from one row is to parse the whole file. A 757 MB export takes seconds of `JSON.parse` before a page can show anything.
+
+The usual alternatives each give something up. gzip shrinks the file, but it still has to be unpacked and parsed in full. Parquet stores columns well, but it wants a fixed table schema decided up front, so rows whose shape changes are awkward, and its readers are large to ship inside a web page. A database is far more than a single-file offline app can carry.
+
+LFC-pack sits between them. It accepts JSON as it really is (missing fields, nested objects, mixed types in one field) and still gets the benefits of column storage. Two measured rules decide every change to the format: the file must be smaller than the best Parquet file for the same rows, and reading it back into JavaScript objects must be at least as fast as `JSON.parse` of the original text.
+
+**Where it helps**
+
+- Shipping a large dataset inside an offline single-file app, where both download size and opening time matter.
+- Keeping logs or event streams, then reading only a time range or a few fields from them.
+- Saving app state that holds several tables (a map with its items, links and settings) as one compact file that opens in JavaScript, Python or Go.
+- Archiving API dumps where the shape of each record changes over time.
+- Charts and tables that need one column out of hundreds without decoding the rest.
+
+**Where something else fits better:** data that already lives as a fixed table in a Python or Spark pipeline (Parquet has far wider tool support); small files of a few hundred KB (plain JSON with gzip is simpler); and anything that must stay readable for years, because the format is not frozen until a formal release.
 
 ## Use
 
@@ -70,7 +93,7 @@ Python (needs `pip install zstandard`, or Python 3.14): `python/lfc_pack.py` giv
 
 Python writer: `python/lfc_pack_write.py` has `write(src, dst, level=3, exact=False)`, `pack(ndjson_bytes)`, `pack_rows(list)` and `pack_exact(ndjson_bytes, level, mode)` (mode `"lines"` or `"spelling"`). It writes nested and flat blocks and link-list columns, values exact (numbers are doubles); files open in `lfc-pack.js` and `lfc_pack.py`. No log templates, no helper-worker splitting. A block never ends up larger than plain zstd of its lines.
 
-## How it works
+## How the file is laid out
 - **Nested blocks** (any JSON): each row is split into a *shape* (its keys, nesting and value kinds) and its values. Rows with the same shape share one entry. Strings of the block go into one dictionary (each distinct string once, rows hold small codes); numbers and booleans go into one column per path (`.actor.id`, `.payload.commits[].sha`), stored at the narrowest width that holds every value (8, 16, 32 bits or a 64-bit float). A WebAssembly tokenizer does the splitting and the dictionary.
 - **Flat blocks** (every row an object): one column per key plus one presence bit per row and key, so missing keys cost almost nothing. Columns pick their own coding: delta or zig-zag varints (also for numbers with two decimals), bit-packed offsets, floats, booleans as bits, hex ids and UUIDs as raw bytes, IPv4 as four bytes, a block dictionary, plain strings, or JSON text for anything else. A string column that looks like log lines (long, mostly unique) is also tried as **log templates**: runs of digits and long hex numbers become slots, the rest becomes a template list, and the writer keeps it only when that is at least 5% smaller.
 - **Footer**: the block table (offset, length, CRC32, rows, layout), per-block number ranges, flags and an optional raw-line store, itself zstd-compressed, then a 16-byte trailer (footer length, footer CRC32, version, `LFC1`). A reader fetches the last 16 bytes, then the footer, then only the blocks it needs. Unknown optional footer sections are skipped; an unknown *required* one is refused.

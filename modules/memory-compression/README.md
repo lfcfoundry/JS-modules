@@ -4,15 +4,36 @@
 
 **Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (11 interleaved reps with a control copy); Node 82 checks.
 
-Keeps big data packed in memory and brings it back exactly: bytes, typed arrays (floats, coordinates) and big lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
+## What it is and how it works
 
-`MemoryCompression.pack(anything)` picks the layer from what you pass. Bytes and typed arrays go through a packing core: it shuffles the bytes so similar parts sit together, takes the difference between neighbors in each column, then squeezes the result with an LZ4-class coder (fast mode) or deflate (small mode). Lists of records go through an object layer: records are stored by column, each column picks its cheapest form (repeated values, narrow whole numbers, decimals as scaled whole numbers, a dictionary for repeated text, text patterns, dates), and the number columns go through the packing core. `unpack` reads the first two bytes to see which layer wrote the data. Two small WebAssembly helpers are inside the file and optional: the plain JavaScript does the same work and writes the same bytes, only slower.
+memory-compression keeps large data packed in memory while a page runs, and gives it back exactly when it is needed: bytes, typed arrays (floats, coordinates) and long lists of plain JavaScript objects. **One file, no dependencies, works offline: `memory-compression.js`** (274.3 KB readable, 84.6 KB gzipped).
+
+`MemoryCompression.pack(anything)` looks at what you pass and picks one of two layers:
+
+- **Bytes and typed arrays** go through a packing core. It regroups the bytes so that similar parts of each number sit together, replaces each value with its difference from its neighbor, then compresses the result (an LZ4-class coder in fast mode, deflate in small mode).
+- **Lists of records** go through an object layer. Records are stored column by column, and each column picks its cheapest form: repeated values, narrow whole numbers, decimals as scaled whole numbers, a dictionary for repeated text, text patterns or dates. The number columns then go through the packing core.
+
+On top of that, `view()` reads single rows or columns of a packed list without rebuilding it, and `pager()` keeps a long list packed in pages, opening only the pages being read and letting the rest leave memory (or move to browser storage). `unpack()` returns the same values, bit for bit. Two small WebAssembly helpers inside the file speed up the work; the plain JavaScript writes the same bytes, only slower.
 
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license.
 
 ## Why it exists
 
-Big scenes, undo steps, save data and large tables take a lot of memory when kept as they are, and a general compressor treats floats and records as plain bytes. This module first rearranges the data so numbers pack better, and it gives everything back exactly. It is for data that sits still and is restored when needed, not for what is drawn this frame (restoring a 120 MB scene takes 140 to 250 ms).
+Browser apps that hold big things (a 3D scene, a long undo history, a large table, a detailed map) reach memory limits long before desktop software does, and phones close a page that uses too much. Much of that data is idle at any given moment: an undo step from ten minutes ago, the rows of a table scrolled out of sight.
+
+A general compressor such as gzip or deflate can shrink this data, but it treats floats and records as plain bytes, so it misses the patterns that make them compressible, and it is slow for data you want back within milliseconds. It also returns one blob, so reading one record means unpacking all of them.
+
+memory-compression rearranges the data first so those patterns show, then compresses. On the laptop in Firefox 160, an 8 MB Float32 array packed to 4.77 MB in 5 ms, against fflate's 7.27 MB in 278 ms, and 80,000 objects packed to 149 KB against fflate's 801 KB. Views and paging let a packed list stay packed while it is in use.
+
+**Where it helps**
+
+- Undo and redo history in an editor, where old steps are rarely revisited.
+- Large maps, graphs and scenes that are not on screen right now.
+- Big tables and logs that people scroll through a page at a time.
+- Snapshots and save data held in memory before they are written to storage.
+- Low-memory phones: the pager can close open pages when memory runs short (Chromium-based browsers report this; elsewhere the app gives the signal).
+
+**Where something else fits better:** data that is drawn every frame (restoring a 120 MB scene takes 140 to 250 ms), and noisy floats with random low digits, which shrink only 8 to 20%.
 
 ## Install and use
 
