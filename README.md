@@ -53,7 +53,7 @@ lfc-pack 0.4.0 on 260 MB of real FHIR records, measured 2026.10.31 in cloud Chro
 | Pack time, 4 helpers | 7.44 s | **1.08 to 1.56 s** |
 | File size | 18.74 MB | **8.32 MB** |
 
-The lfc-pack file is 18% larger than the 7.03 MB an early version made on 2026.10.27, likely because later versions pick faster compression settings.
+Since this run, 0.4.4 packs FHIR 10 to 15% faster, and 0.4.6 makes the same file 7.30 MB, 39% of Parquet's size.
 
 text-columns reads CSV 3 to 12 times faster than Papa Parse with typed rows: 3.2x on a laptop in Firefox 160, 7 to 12x in the cloud test browsers.
 

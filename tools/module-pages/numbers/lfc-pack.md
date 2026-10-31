@@ -202,3 +202,12 @@ Files with few shapes, like orders and GeoJSON, are about the same. The WebKitGT
 | WebKitGTK 2.52.6 | 0.93 |
 
 That is 7 to 25% faster when packParallel is called again within 3 s. Idle helpers hold that memory up to 3 s longer. Same files byte for byte.
+
+**New in 0.4.6: each block picks its string layout.** A big nested block keeps strings per path unless the text it would store twice is over 11% of the block's text. This was opt-in as `paths: 'auto'` and is now the default. Files with many paths, like FHIR, get smaller and read faster; orders, GeoJSON and other data are byte for byte the same.
+
+| Real FHIR records | 0.4.5 | 0.4.6 |
+|---|---:|---:|
+| 260 MB file, bytes | 8,323,554 | 7,304,811 (12% smaller) |
+| 48 MB file, bytes | 1,606,003 | 1,505,314 (6% smaller) |
+
+Reading the 260 MB file, time new / old (cloud, lower is better): Chromium 153 0.87, Firefox 158 0.86, WebKitGTK 2.52.6 0.78, so 13 to 22% faster. Packing is within noise of 0.4.5 on the laptop (16 cores): Firefox 160 0.98 to 1.04, Chromium 156 1.01 to 1.03.
