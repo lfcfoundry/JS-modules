@@ -312,8 +312,7 @@
     var sideIdx = []; for (i = 0; i < ns; i++) sideIdx.push(nu + i);
     var cols = s.cols, repT = typedColumn(rep), zflags = zs.compress(flags, level), zrep = zs.compress(repT[2], level);
     var ztext = zs.compress(text, level), sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideStr })), zside = zs.compress(sideB, level);
-    var skB = te.encode(s.skelList.join('\n')), zskel = zs.compress(skB, level);
-    var tid = typedColumn(s.ids), zids = zs.compress(tid[2], level);
+    var si = skelIds(zs, s, level), skB = si.skB, zskel = si.zskel, tid = si.tid, zids = si.zids;
     var nc = colsOf(zs, s, level), zc = nc.zc, zone = nc.zone, cmB = nc.cmB, zcm = nc.zcm;
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, count: E, fa: [flags.length, zflags.length, repT[0], repT[1], zrep.length, N], len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], cm: [cmB.length, zcm.length] }));
@@ -375,8 +374,7 @@
     for (i = 0; i < E; i++) { c = ent[i]; if (c < dN) { text.set(old.subarray(offs[c], offs[c + 1] - 1), tp); tp += offs[c + 1] - 1 - offs[c]; } if (i < E - 1) tp++; }
     var pf = pathFrames(zs, bp, level);
     var ztext = zs.compress(text, level), sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideS })), zside = zs.compress(sideB, level);
-    var skB = te.encode(sk.join('\n')), zskel = zs.compress(skB, level);
-    var tid = typedColumn(ids), zids = zs.compress(tid[2], level);
+    var si = skelIds(zs, s, level), skB = si.skB, zskel = si.zskel, tid = si.tid, zids = si.zids;
     var nc = colsOf(zs, s, level), zc = nc.zc;
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, sp: 1, count: E, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], sf: pf[0], cm: [nc.cmB.length, nc.zcm.length] }));
@@ -384,6 +382,11 @@
     return { bytes: concat(parts), rows: s.n, zone: nc.zone, skelList: sk, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
   }
 
+  function skelIds(zs, s, level) {   // the shape list and row ids frames are also the same for both string layouts: made once per block
+    if (s.si) return s.si;
+    var skB = te.encode(s.skelList.join('\n')), tid = typedColumn(s.ids);
+    return (s.si = { skB: skB, zskel: zs.compress(skB, level), tid: tid, zids: zs.compress(tid[2], level) });
+  }
   function colsOf(zs, s, level) { return s.nc || (s.nc = nestedCols(zs, s.cols, level)); }   // the column frames are the same for both string layouts: made once per block
   function nestedCols(zs, cols, level) {   // the number columns of a nested block: frames, zone-map entries and the column table
     var zc = [], zone = [];
