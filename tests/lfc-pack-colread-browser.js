@@ -15,7 +15,7 @@ async function setup() {
     files[K] = J.pack(rows.join('\\n') + '\\n', { block: 'flat', check: '__CHECK__' });
     var a = J.unpack(files[K], { keys: ['k0'] }), b = window.LfcOld.unpack(files[K], { keys: ['k0'] }); if (a.length !== 20000 || JSON.stringify(a[77]) !== JSON.stringify(b[77])) bad.push(K);
   });
-  var os = {}; [5, 50, 200].forEach(function (K) { os[K] = window.LfcOld.pack(window.LfcPack.unpack(files[K]).map(function (r) { return JSON.stringify(r); }).join('\\n') + '\\n', { block: 'flat' }).length; });
+  var os = {}; [5, 50, 200].forEach(function (K) { os[K] = window.LfcOld.pack(window.LfcPack.unpack(files[K]).map(function (r) { return JSON.stringify(r); }).join('\\n') + '\\n', { block: 'flat', check: '__CHECK__' }).length; });
   return { bad: bad, sizes: { 5: files[5].length, 50: files[50].length, 200: files[200].length }, oldSizes: os };
 }
 async function job(name, old) {
