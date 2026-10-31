@@ -82,6 +82,17 @@ One Firefox case was slower in one run: 400 small files from bytes took 0.94 of 
 | Cloud, WebKitGTK 2.52.6 | not run | 0.77 |
 
 
+**New in 1.8.0 and 1.9.0: Excel files read much faster, same output.** 1.8.0 adds a fast reader for the usual row shape, skips formulas instead of falling back, and reads plain shared text and whole-day dates directly. 1.9.0 reads cell attributes in place and quotes each shared text for CSV once. Workbook to CSV, cloud browsers, time new / old (lower is better):
+
+| Sheet | 1.8.0 / 1.7.0 (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6) | 1.9.0 / 1.8.0 |
+|---|---|---|
+| 60,000 rows | 0.33 / 0.39 / 0.38 | 0.73 / 0.79 / 0.69 |
+| 6,000 rows | 0.35 / 0.41 / 0.39 | 0.76 / 0.82 / 0.76 |
+| 20,000 rows with formulas | 0.33 / 0.55 / 0.42 | 0.71 / 0.81 / 0.87 |
+| 30,000 rows, all text | 0.43 / 0.42 / 0.30 | 0.94 / 0.88 / 0.72 |
+
+In the cloud, 1.8.0 and 1.9.0 together read these sheets in 0.22 to 0.45 of 1.7.0's time; on the laptop below, 0.31 to 0.55. Tried and dropped: building CSV lines directly (WebKitGTK up to 1.41 times slower) and remembering repeated dates (Firefox 1.24 to 1.60 times slower).
+
 **zip-open 1.9.0 against 1.7.0, Excel files, real laptop, 16 cores, 2026.10.31, 6:28 PM.** Whole open including unzip; early-stop A/B, 4 rounds each; time 1.9.0 / 1.7.0, lower is better.
 
 | Excel file | Firefox 160 | Chromium 156 |
