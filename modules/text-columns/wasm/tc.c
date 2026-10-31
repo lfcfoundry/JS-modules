@@ -65,6 +65,28 @@ done:
   return rc;
 }
 
+// gather: column `col` of every row as three plain arrays (start, end, quote flag), from the field arrays that scan filled in
+EXPORT("gather") void gather(const u32*starts, const u32*ends, const u8*qflag, u32 ncols, u32 nrows, u32 col, u32*os, u32*oe, u8*oq) {
+  for (u32 r = 0, k = col; r < nrows; r++, k += ncols) { os[r] = starts[k]; oe[r] = ends[k]; oq[r] = qflag[k]; }
+}
+
+// qscan: the quote marks of a piece of text, for cutting a big file at line ends that are outside quotes (parseParallel). out[0] = parity of the number of quote marks;
+// out[1] = 1 when every quote mark at an even place (0th, 2nd, ...) could open a field (the byte before is a line feed, the delimiter or a quote, or it is the first byte),
+// out[2] = the same for the odd places. A piece that starts outside quotes needs out[1]; one that starts inside quotes needs out[2].
+EXPORT("qscan") void qscan(const u8*in, u32 len, u32 delim, u32*out) {
+  u32 n = 0, ok0 = 1, ok1 = 1, base = 0, p;
+#define QSTEP(p) do { u8 pv = (p) ? in[(p) - 1] : 10; u32 good = pv == 10 || pv == (u8)delim || pv == 34; if (n & 1) ok1 &= good; else ok0 &= good; n++; } while (0)
+#ifdef __wasm_simd128__
+  v128_t vq = wasm_i8x16_splat(34);
+  for (; base + 16 <= len; base += 16) {
+    u32 m = wasm_i8x16_bitmask(wasm_i8x16_eq(wasm_v128_load(in + base), vq));
+    while (m) { p = base + __builtin_ctz(m); m &= m - 1; QSTEP(p); }
+  }
+#endif
+  for (p = base; p < len; p++) if (in[p] == 34) QSTEP(p);
+  out[0] = n & 1; out[1] = ok0; out[2] = ok1;
+}
+
 // numcol: column `col` of every row as a double, when every field is [-]digits[.digits] with at most 15 digits; returns 1 when all parsed, 0 otherwise
 EXPORT("numcol") u32 numcol(const u8*in, const u32*starts, const u32*ends, u32 ncols, u32 nrows, u32 col, f64*out) {
   static const f64 P10[16] = {1,10,100,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,1e15};

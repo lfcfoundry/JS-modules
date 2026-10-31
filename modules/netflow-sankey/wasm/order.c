@@ -2,13 +2,28 @@
    Same arithmetic, in the same order, as the JavaScript in netflow-sankey.js (build with -ffp-contract=off, no fast-math). */
 typedef int i32; typedef double f64;
 static i32 nV, nL;
-static i32 *layerOf, *layerStart, *ord, *pos, *tmp, *best, *uS, *uI, *dS, *dI, *xBot;
+static i32 *layerOf, *layerStart, *ord, *pos, *tmp, *best, *uS, *uI, *dS, *dI, *xBot, *seenOrd, *seenRem;
+static i32 nSeen, seenCap;
 static f64 *lenOf, *bary, *uO, *dO, *xW, *xBit;
 
 void bind(i32 nV_, i32 nL_, i32 *layerOf_, i32 *layerStart_, i32 *ord_, i32 *pos_, f64 *lenOf_, f64 *bary_, i32 *tmp_, i32 *best_,
-          i32 *uS_, i32 *uI_, f64 *uO_, i32 *dS_, i32 *dI_, f64 *dO_, i32 *xBot_, f64 *xW_, f64 *xBit_) {
+          i32 *uS_, i32 *uI_, f64 *uO_, i32 *dS_, i32 *dI_, f64 *dO_, i32 *xBot_, f64 *xW_, f64 *xBit_, i32 *seenOrd_, i32 *seenRem_, i32 seenCap_) {
   nV = nV_; nL = nL_; layerOf = layerOf_; layerStart = layerStart_; ord = ord_; pos = pos_; lenOf = lenOf_; bary = bary_; tmp = tmp_; best = best_;
-  uS = uS_; uI = uI_; uO = uO_; dS = dS_; dI = dI_; dO = dO_; xBot = xBot_; xW = xW_; xBit = xBit_;
+  uS = uS_; uI = uI_; uO = uO_; dS = dS_; dI = dI_; dO = dO_; xBot = xBot_; xW = xW_; xBit = xBit_; seenOrd = seenOrd_; seenRem = seenRem_; seenCap = seenCap_; nSeen = 0;
+}
+
+/* Orderings already followed: the search from an ordering is the same every time (sweeps, swaps and tie breaks only read the ordering), so a run that
+   reaches an ordering an earlier run already followed for at least as many more rounds can stop with the same final answer. Returns 1 to stop.
+   An ordering seen with fewer rounds left than now is kept with the larger count. */
+static i32 seenCheck(i32 rem) {
+  i32 s, i, *o;
+  for (s = 0; s < nSeen; s++) {
+    o = seenOrd + s * nV;
+    for (i = 0; i < nV && o[i] == ord[i]; i++) ;
+    if (i == nV) { if (seenRem[s] >= rem) return 1; seenRem[s] = rem; return 0; }
+  }
+  if (nSeen < seenCap) { o = seenOrd + nSeen * nV; for (i = 0; i < nV; i++) o[i] = ord[i]; seenRem[nSeen++] = rem; }
+  return 0;
 }
 
 static f64 crossTyped(i32 q) {
@@ -98,12 +113,14 @@ f64 run(i32 rounds, i32 doSwap) {
   i32 r, q, i; f64 bestC, cur;
   for (i = 0; i < nV; i++) best[i] = ord[i];
   bestC = totalAll();
+  seenCheck(rounds);
   for (r = 0; r < rounds && bestC > 0; r++) {
     for (q = 1; q < nL; q++) sweep(q, 1);
     for (q = nL - 2; q >= 0; q--) sweep(q, 0);
     if (doSwap) for (q = 0; q < nL; q++) swapPass(q);
     cur = totalAll();
     if (cur < bestC - 1e-12) { bestC = cur; for (i = 0; i < nV; i++) best[i] = ord[i]; }
+    if (seenCheck(rounds - r - 1)) break;
   }
   for (i = 0; i < nV; i++) ord[i] = best[i];
   for (q = 0; q < nL; q++) for (i = layerStart[q]; i < layerStart[q + 1]; i++) pos[ord[i]] = i - layerStart[q];

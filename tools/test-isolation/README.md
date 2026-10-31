@@ -35,6 +35,14 @@ What you get is a `getItem`, `setItem` (values become text, like a real Storage)
 - Choose prefixes that do not start each other (`lab:` and `lab:2:` would share keys).
 - When the browser will not give the page storage at all, `install` returns `ok: false` and changes nothing.
 
+## How it compares
+
+| Alternative | What it does | Why it does not fit this job |
+|---|---|---|
+| node-storage-shim, jest-localstorage-mock | In-memory Storage for unit tests in Node | Not a real page; data is gone on reload |
+| Cypress commands that save and restore localStorage | Clear and refill the real keys between tests | Still touch the real keys |
+| **test-isolation** | Wraps the real storage of a real page so its keys stay apart from the game's, across reloads | Needs to run before the game script |
+
 ## Prior art and credits
 - [node-storage-shim](https://github.com/mnahkies/node-storage-shim) (ISC, 2.0.1, 5.8 KB unpacked) and jest-localstorage-mock give unit tests an in-memory Storage in Node. This is different: it wraps the **real** storage of a **real page**, so the page keeps working across reloads while its keys stay apart from the game's.
 - Cypress commands that save and restore localStorage clear and refill the real keys between tests; they do not keep a second set of keys beside the real ones.
