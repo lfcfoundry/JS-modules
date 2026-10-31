@@ -2,16 +2,27 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
-## 0.4.3 · API 0 · 2026-10-31
+## 0.4.4 · API 0 · 2026-10-31
 
 ### Quick
-New option paths: 'auto': a long input tries both string layouts on its first big nested block and keeps the smaller one. Default files are byte-identical to 0.4.2.
+New option paths: 'auto': a long input tries both string layouts on its first big nested block and keeps the smaller one. Default files are byte-identical to 0.4.3.
 
 ### Details
-Per-path strings (0.4.0) make records with many paths that each hold few strings larger: real FHIR grew 15%. With paths: 'auto', an input of 5 blocks or more builds its first big nested block both ways and the rest follow the smaller layout; shorter inputs keep per-path strings. 260 MB of real FHIR: 7.26 MB instead of 8.32 MB, and one-thread pack 0.82 / 0.88 / 0.88 of 0.4.2 time (Chromium / Firefox / WebKitGTK). packParallel writes the same bytes: blocks sent before block 0 answers try both and are redone if they picked the other way. The shape list and row id frames are now built once per block for both layouts (same bytes, neutral speed).
+Per-path strings (0.4.0) make records with many paths that each hold few strings larger: real FHIR grew 15%. With paths: 'auto', an input of 5 blocks or more builds its first big nested block both ways and the rest follow the smaller layout; shorter inputs keep per-path strings. 260 MB of real FHIR: 7.26 MB instead of 8.32 MB, and one-thread pack 0.82 / 0.88 / 0.88 of the default time (Chromium / Firefox / WebKitGTK). packParallel writes the same bytes: blocks sent before block 0 answers try both and are redone if they picked the other way. The shape list and row id frames are now built once per block for both layouts (same bytes, neutral speed).
 
 ### Deep
 Off by default because with 4 packParallel helpers the trial costs 6-9% on big files where per-path strings win (orders x5: Chromium 1.09, WebKitGTK 1.08, Firefox 1.06, inconclusive). A variant where only block 0 tries both fixed that but made FHIR with helpers 17% slower in Chromium. Details: js-modules-research/lfc-pack/fhir-rerun-2026.10.31/PATHS-PICK.md.
+
+## 0.4.3 · API 0 · 2026-10-31
+
+### Quick
+Idle auto-trim: 30 s after the last pack, packRows, packTables or packStream chunk, the packer's wasm instance is replaced (trimPacker()). The zstd memory stays. Files are unchanged, and there is no API change.
+
+### Details
+packMany() clears any pending idle timer, packs, then arms a 30 s setTimeout (unref'd in Node, so it never keeps a process alive). trim() and trimPacker() cancel a pending timer. _autoTrimMs(ms) is an internal test hook (test/trim.cjs uses 5 ms). First pack after an idle trim (3.7 s idle, 66.6 MB, after / no trim): laptop Chromium 156 0.984 [0.968, 0.999] ok; laptop Firefox 160 1.017 [0.984, 1.021] ok; cloud WebKitGTK 2.52.6 1.056 [0.995, 1.134] inconclusive, from fresh pages, which the 30 s wait limits to packs after long pauses.
+
+### Deep
+Owner picked 30 s on a card (2026.10.31 3:39 PM ET). The Linux page map shows a 66.6 MB pack writes 38.1 MB of the core's 384 MB, which is what an idle trim gives back; big blocks touch more (input, text and the dedupe output are each up to 48 MB). See 0.4.2 for why the shredder is rebound rather than rebuilt. Change by the LFC-pack spec thread (09f3b5b).
 
 ## 0.4.2 · API 0 · 2026-10-31
 
