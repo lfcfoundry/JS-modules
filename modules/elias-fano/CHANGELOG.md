@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.8.0 · API 1 · 2026-10-31
-- Repeat decodes of big lists are 20 to 35% faster: a spare array is prepared while the page is idle, and toArray(out) and slice(a, b, out) can fill your own Uint32Array.
+- Repeat decodes of big lists are 2 to 25% faster by themselves (a spare array is made while idle), and 20 to 35% faster when toArray(out) or slice(a, b, out) fills your own Uint32Array.
 
 ## 1.7.0 · API 1 · 2026-10-31
 - New: trim() gives back memory that big lists left behind (24 MB to 1.8 MB after a 5-million-id build); autoTrim does it by itself after a big job (on by default; autoTrim(false) turns it off).
