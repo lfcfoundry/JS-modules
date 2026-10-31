@@ -109,11 +109,11 @@
   function sharedUndo(st) {   // the block was not kept (the flat layout won, or it is cut and retried): forget what it added
     var j = st.j, i, o; if (!j) return;
     for (i = j.ops.length - 1; i >= 0; i--) { o = j.ops[i]; if (o[2]) { o[2].delete(o[1]); o[0].set(o[1], 1); } else o[0].delete(o[1]); }
-    st.s.length = j.sl; st.k.length = j.kl; st.j = null;
+    st.s.length = j.sl; st.k.length = j.kl; st.used = j.pu; st.j = null;
   }
   function sharedNestedBlock(ctx, s, codes, dN, dstr, sideStr, level) {
     var st = ctx.st, zs = ctx.zs, N = codes.length, M = dN + sideStr.length, i, c, str, g;
-    st.j = { sl: st.s.length, kl: st.k.length, ops: [], gnew: 0 }; st.used = true;
+    st.j = { sl: st.s.length, kl: st.k.length, ops: [], gnew: 0, pu: !!st.used }; st.used = true;
     // strings: one decision per distinct string, in order of first use; the block's own ASCII strings first, then its own side strings (as in a plain block)
     var fin = new Int32Array(M).fill(-1), how = new Uint8Array(M), asc = [], sid = [];
     for (i = 0; i < N; i++) {
