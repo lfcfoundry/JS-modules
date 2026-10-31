@@ -1728,9 +1728,9 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       if (dyn) for (g = 0; g < nb; g++) groups.push([cuts[g], cuts[g + 1]]);   // one job per block; a helper that finishes takes the next block, so the run does not wait on one slow run of blocks
       else for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
       var jopts = {}, k, tm = opts.timing; for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k];
-      // per-path strings (see packMany): a long input lets group 0 try both layouts; the other groups start with per-path strings and are packed again
-      // if group 0 picks the plain layout, so the file is the one pack() writes
-      var pickWait = false, curPick = 1, sentWith = [], redo = [], parked = [];
+      // per-path strings (see packMany): in a long input, groups sent before group 0 answers each try both layouts on their first big block;
+      // once group 0's pick is known, later groups follow it and an early group that picked the other way is packed again, so the file is the one pack() writes
+      var pickWait = false, curPick = 1, sentWith = [], redo = [], parked = [], picked = [];
       if (jopts.paths !== false && jopts.paths !== 'only' && jopts._pick == null) { if (b.length < PATHS_TRY * bb) jopts._pick = 1; else pickWait = true; }
       if (tm) { tm.cut = Date.now() - T0; tm.groups = []; }   // optional phase timing: ms from the call start, filled in as the run goes
       return new Promise(function (resolve, reject) {
@@ -1746,10 +1746,13 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
           if (m.started) { if (tm) tm.groups[i].started = Date.now() - T0; if (next) { var n2 = next; next = null; n2(); } return; }
           if (m.error) { fail(new Error(m.error)); return; }
           if (tm) tm.groups[i].done = Date.now() - T0;
+          if (sentWith[i] === 't') picked[i] = m.picked;
           if (pickWait && i === 0) {
             pickWait = false; curPick = m.picked === 0 ? 0 : 1;
-            if (curPick === 0) { for (var j = 1; j < results.length; j++) if (results[j] && sentWith[j] !== 0) { results[j] = undefined; left++; redo.push(j); } while (redo.length && parked.length) give(parked.pop(), null); if (redo.length) { var w3 = takeHelper(); ws.push(w3); give(w3, null); } }
-          } else if (!pickWait && sentWith[i] !== undefined && sentWith[i] !== curPick && i !== 0) { redo.push(i); if (w2) give(w2, null); return; }
+            for (var j = 1; j < results.length; j++) if (results[j] && sentWith[j] === 't' && picked[j] != null && picked[j] !== curPick) { results[j] = undefined; left++; redo.push(j); }
+            while (redo.length && parked.length) give(parked.pop(), null);
+            if (redo.length) { var w3 = takeHelper(); ws.push(w3); give(w3, null); }
+          } else if (!pickWait && i !== 0 && ((sentWith[i] === 't' && picked[i] != null && picked[i] !== curPick) || (sentWith[i] !== 't' && sentWith[i] !== undefined && sentWith[i] !== curPick))) { redo.push(i); if (w2) give(w2, null); return; }
           results[i] = m; if (w2 && (dyn || redo.length)) give(w2, null); if (--left === 0 && !failed) { release(true); try { var ts = Date.now(); var out = stitch(results, b.length, jopts); if (tm) { tm.stitchMs = Date.now() - ts; tm.total = Date.now() - T0; } resolve(out); } catch (er) { reject(er); } }
         }
         var nextGroup = 0, helpersStarted = 0;
@@ -1759,7 +1762,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
           var i = redo.length ? redo.shift() : nextGroup++, t1 = Date.now(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
           if (tm) tm.groups[i] = { takeMs: 0, copyMs: Date.now() - t1, posted: Date.now() - T0, bytes: slice.length };
           w2.listen(function (m) { onMsg(i, m, nx, w2); }, fail);
-          var jo = jopts; if (pickWait && i === 0) jo = Object.assign({}, jopts, { _tryFirst: true }); else if (jopts._pick == null) { jo = Object.assign({}, jopts, { _pick: curPick }); sentWith[i] = curPick; }
+          var jo = jopts; if (pickWait) { jo = Object.assign({}, jopts, { _tryFirst: true }); sentWith[i] = 't'; } else if (jopts._pick == null) { jo = Object.assign({}, jopts, { _pick: curPick }); sentWith[i] = curPick; }
           w2.post({ id: i, kind: 'p', buf: slice, opts: jo }, [slice.buffer]);
         }
         function start() {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
