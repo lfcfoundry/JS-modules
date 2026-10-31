@@ -60,11 +60,27 @@
     S.idle = setTimeout(function () { S.idle = null; trimPacker(); }, AUTO_TRIM_MS);
     if (S.idle && S.idle.unref) S.idle.unref(); // never keeps Node running
   }
+  // paths: 'auto' pick from a sample: the first PATHS_SAMPLE bytes of the input packed with per-path strings everywhere and with none; the smaller wins.
+  // pack() and packParallel() both pick this way before any block is made, so they write the same bytes with no second try
+  var PATHS_RULE = true, PATHS_SAMPLE = 0;   // off: a 128 KB sample picked wrong on some data (see PATHS-PICK.md); the trial decides
+  function samplePick(b, opts) {
+    var e = b.length > PATHS_SAMPLE ? b.indexOf(10, PATHS_SAMPLE) : -1, sb = e < 0 ? b : b.subarray(0, e + 1), o = {}, k;
+    for (k in opts) if (k !== 'share' && k !== '_st' && k !== 'timing' && k !== 'workers') o[k] = opts[k];
+    o._pick = 1; o.paths = 'only'; var a1 = packManyNow([{ name: null, bytes: sb }], o).length;
+    o.paths = false; var a0 = packManyNow([{ name: null, bytes: sb }], o).length;
+    return a1 <= a0 ? 1 : 0;
+  }
   function packManyNow(inputs, opts) {
     opts = opts || {}; need(true);
     var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], off = 0, rows = 0, tail = true;
-    var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st, paths: opts.paths === 'only' ? 'only' : opts.paths !== false }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
+    var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
     var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
+    // paths: 'auto' (opt-in): an input of PATHS_TRY blocks or more picks the string layout of its big nested blocks from a 128 KB sample (samplePick)
+    // (real FHIR records: 13% smaller and about 22% faster without per-path strings); a shorter input keeps per-path strings.
+    // With PATHS_SAMPLE = 0 the first big nested block is built both ways instead (the trial, kept for comparison)
+    if (ctx.pick == null && opts.paths !== 'auto' && !PATHS_RULE) ctx.pick = 1;   // without the rule the pick is opt-in: paths: 'auto'
+    if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;   // since 0.4.6 by default: each big block judges by itself (dupShare), no trial
+    if (ctx.pick == null && !opts._tryFirst) { for (ti = 0, mid = 0; ti < inputs.length; ti++) mid += inputs[ti].bytes.length; ctx.pick = mid < PATHS_TRY * bb ? 1 : (typeof PATHS_SAMPLE !== 'undefined' && PATHS_SAMPLE > 0 ? samplePick(inputs[0].bytes, opts) : null); mid = undefined; }
     for (ti = 0; ti < inputs.length; ti++) {
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
     while (retry.length || p < b.length) {
@@ -104,6 +120,7 @@
     if (exact && Object.keys(exc).length) secs.push(excSection(exc));
     if (exact && Object.keys(spl).length) secs.push(spellSection(spl));
     parts.push(writeFooter(S.zfull, secs, true));
+    if (opts._tryFirst) opts._picked = ctx.pick;
     return concat(parts);
   }
   function sharedSection(st) { return { id: SEC_SHARED, flags: 1, payload: te.encode(JSON.stringify({ v: 1, s: st.s, k: st.k })) }; }
@@ -372,4 +389,4 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.5', apiVersion: 0 };
+  var api = { trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.6', apiVersion: 0 };

@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.6 · API 0 · 2026-10-31
+
+### Quick
+Each big nested block now picks its string layout by itself: per-path strings unless the text they would store twice is over 11% of the block's text.
+
+### Details
+The per-block layout rule (was opt-in as paths: 'auto') is now the default. Real FHIR, 260 MB: 8,323,554 to 7,304,811 bytes (12% smaller); 48 MB: 1,606,003 to 1,505,314 (6%). Reading the 260 MB file, new/old time (lower is better): Chromium 153 0.871, Firefox 158 0.857, WebKitGTK 2.52.6 0.780. Packing vs 0.4.5 on the laptop: Firefox 160 all six cases ok (0.977 to 1.035), Chromium 156 all ok (1.008 to 1.026; FHIR with 4 helpers ok on recheck, 1.006). Orders, GeoJSON and many-path made-up data: same bytes. pack and packParallel write the same bytes. paths: false and paths: 'only' work as before.
+
+### Deep
+Per-block string layout rule on by default: FHIR 6-12% smaller, reads 13 to 22% faster; packing within 5% everywhere (laptop Chromium 156 and Firefox 160). Owner picked 'Laptop check, then default' and 'Fix helper case first' (the helper fix shipped as 0.4.5).
+
 ## 0.4.5 · API 0 · 2026-10-31
 
 ### Quick

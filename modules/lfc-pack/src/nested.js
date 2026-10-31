@@ -69,8 +69,14 @@
     for (i = 0; i < s.side.length; i++) { var str = s.side[i][1], k = sideMap.get(str); if (k === undefined) { k = sideStr.length; sideMap.set(str, k); sideStr.push(str); } codes[s.side[i][0]] = dN + k; }
     var ns = sideStr.length, dlen = Math.max(olen - 1, 0), N = codes.length, m;
     if (ctx.st) return sharedNestedBlock(ctx, s, codes, dN, dN ? tlat.decode(new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen)).split('\0') : [], sideStr, level);
-    var pb = ctx.paths ? pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level) : null;   // with paths: both ways, the smaller one is kept, for small blocks only (larger ones gain from it in every test)
-    if (pb && (ctx.paths === 'only' || codes.length >= PATHS_SURE)) return pb;
+    var big = codes.length >= PATHS_SURE, bp0 = null;
+    if (big && ctx.pick === 2) {   // paths: 'auto': a big block judges by itself, from how much string text per-path strings would keep twice (no trial, so pack and packParallel agree)
+      var po0 = pathOrder(s, codes);
+      bp0 = dupShare(po0, dN, dN + sideStr.length, dlen, mem, X) > PATHS_DUP * s.textLen ? false : byPath(s, codes, dN + sideStr.length, po0);
+    }
+    var pb = ctx.paths && bp0 !== false && !(big && ctx.pick === 0) ? pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level, bp0) : null;
+    if (pb && big && ctx.pick === 2) return pb;   // with paths: both ways, the smaller one is kept; a big block follows ctx.pick once it is known (see packMany)
+    if (pb && (ctx.paths === 'only' || (big && ctx.pick === 1))) return pb;
     // first-appearance flags: the writer renumbers the dictionary in order of first use (unused entries drop out), so a string's first appearance always carries "the next number" and only repeats need a stored code
     var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), offs = new Uint32Array(dN + 1), pos = 0, nz;
     for (i = 0; i < dN; i++) { offs[i] = pos; nz = old.indexOf(0, pos); pos = nz < 0 ? dlen + 1 : nz + 1; } offs[dN] = dlen + 1;
@@ -84,13 +90,14 @@
     var sideIdx = []; for (i = 0; i < ns; i++) sideIdx.push(nu + i);
     var cols = s.cols, repT = typedColumn(rep), zflags = zs.compress(flags, level), zrep = zs.compress(repT[2], level);
     var ztext = zs.compress(text, level), sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideStr })), zside = zs.compress(sideB, level);
-    var skB = te.encode(s.skelList.join('\n')), zskel = zs.compress(skB, level);
-    var tid = typedColumn(s.ids), zids = zs.compress(tid[2], level);
+    var si = skelIds(zs, s, level), skB = si.skB, zskel = si.zskel, tid = si.tid, zids = si.zids;
     var nc = colsOf(zs, s, level), zc = nc.zc, zone = nc.zone, cmB = nc.cmB, zcm = nc.zcm;
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, count: E, fa: [flags.length, zflags.length, repT[0], repT[1], zrep.length, N], len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], cm: [cmB.length, zcm.length] }));
     var parts = [u32le(hdr.length), hdr, zcm, ztext, zside, zskel, zids, zflags, zrep]; for (i = 0; i < zc.length; i++) parts.push(zc[i][3]);
-    var bytes = concat(parts); if (pb && (ctx.paths === 'only' || pb.bytes.length <= bytes.length)) return pb;
+    var bytes = concat(parts), win = pb && (ctx.paths === 'only' || pb.bytes.length <= bytes.length);
+    if (big && pb && ctx.pick == null) ctx.pick = win ? 1 : 0;
+    if (win) return pb;
     return { bytes: bytes, rows: s.n, zone: zone, skelList: s.skelList, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
   }
 
@@ -102,7 +109,7 @@
     return out;
   }
   // the string cells regrouped by path: cell codes path after path, and per path its entries (codes in order of first use there), a flag per cell (flag bytes start fresh for each path) and a repeat for every cell that is not a first use
-  var PATHS_SURE = 4096;   // string cells from which a block keeps per-path strings without building the other layout too
+  var PATHS_SURE = 4096, PATHS_TRY = 5, PATHS_DUP = 0.11;   // string cells from which a block keeps per-path strings without building the other layout too
   var STAMP = new Int32Array(0), LOC = new Uint32Array(0), STAMPN = 0;   // which path last met a code (a fresh number per path and block, so nothing is cleared between blocks)
   var SPH = new Map();
   function pathOrder(s, codes) {   // the string cells regrouped by path -> { pc: codes path after path, st: where each path starts, ph: path hashes, cnt: cells per path }
@@ -119,8 +126,8 @@
     for (i = 0; i < s.n; i++) { a = sp[ids[i]]; for (j = 0, n = a.length; j < n; j++) pc[fill[a[j]]++] = codes[ci++]; }
     return { pc: pc, st: st, ph: ph, cnt: cnt };
   }
-  function byPath(s, codes, M) {
-    var po = pathOrder(s, codes), pc = po.pc, st = po.st, ph = po.ph, cnt = po.cnt, P = ph.length, N = codes.length, nfb = 0, i, c, p, b;
+  function byPath(s, codes, M, po) {
+    po = po || pathOrder(s, codes); var pc = po.pc, st = po.st, ph = po.ph, cnt = po.cnt, P = ph.length, N = codes.length, nfb = 0, i, c, p, b;
     for (p = 0; p < P; p++) nfb += (cnt[p] + 7) >> 3;
     if (STAMP.length < M) { STAMP = new Int32Array(Math.max(M, STAMP.length * 2)); LOC = new Uint32Array(STAMP.length); STAMPN = 0; }
     if (STAMPN > 2000000000 - P) { STAMP.fill(0); STAMPN = 0; }
@@ -132,13 +139,24 @@
     }
     return { ent: ent.subarray(0, en), rep: rep.subarray(0, rn), flags: flags, table: table };
   }
+  // bytes of string text that per-path strings would store a second time; compared with the block's text bytes (a string used at several paths is kept once per path).
+  // Real FHIR records: 13% (per-path strings 16% larger); many paths with short repeated words: under 9% (per-path 8-43% smaller); orders: 0
+  function dupShare(po, dN, M, dlen, mem, X) {   // from the path order alone (no repeat lists), so a block that ends up plain pays less
+    var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), len = new Uint32Array(dN), pos = 0, nz, i, c, p, all = 0, once = 0, pc = po.pc, st = po.st, P = po.ph.length, seen = new Uint8Array(dN + 1);
+    for (i = 0; i < dN; i++) { nz = old.indexOf(0, pos); if (nz < 0) nz = dlen; len[i] = nz - pos; pos = nz + 1; }
+    if (STAMP.length < M) { STAMP = new Int32Array(Math.max(M, STAMP.length * 2)); LOC = new Uint32Array(STAMP.length); STAMPN = 0; }
+    if (STAMPN > 2000000000 - P) { STAMP.fill(0); STAMPN = 0; }
+    var stamp = STAMP, sv;
+    for (p = 0; p < P; p++) { sv = ++STAMPN; for (i = st[p]; i < st[p + 1]; i++) { c = pc[i]; if (stamp[c] === sv) continue; stamp[c] = sv; var L = c < dN ? len[c] : 8; all += L; if (c < dN && !seen[c]) { seen[c] = 1; once += L; } } }
+    return all - once;   // bytes
+  }
   function pathFrames(zs, bp, level) {   // -> [header sf, frames]
     var repT = typedColumn(bp.rep), zflags = zs.compress(bp.flags, level), zrep = zs.compress(repT[2], level), tabB = te.encode(JSON.stringify(bp.table)), ztab = zs.compress(tabB, level);
     return [[tabB.length, ztab.length, bp.flags.length, zflags.length, repT[0], repT[1], zrep.length], [ztab, zflags, zrep]];
   }
-  function pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level) {
+  function pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level, bp0) {
     var zs = ctx.zs, X = ctx.sh.x, mem = ctx.sh.mem, sk = s.skelList, ids = s.ids, i, k, c;
-    var bp = byPath(s, codes, dN + sideStr.length), ent = bp.ent;
+    var bp = bp0 || byPath(s, codes, dN + sideStr.length), ent = bp.ent;
     // dictionary text: the entries in that order, ASCII strings from the tokenizer's dictionary, an empty placeholder for each side string
     var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), offs = new Uint32Array(dN + 1), pos = 0, nz;
     for (i = 0; i < dN; i++) { offs[i] = pos; nz = old.indexOf(0, pos); pos = nz < 0 ? dlen + 1 : nz + 1; } offs[dN] = dlen + 1;
@@ -148,8 +166,7 @@
     for (i = 0; i < E; i++) { c = ent[i]; if (c < dN) { text.set(old.subarray(offs[c], offs[c + 1] - 1), tp); tp += offs[c + 1] - 1 - offs[c]; } if (i < E - 1) tp++; }
     var pf = pathFrames(zs, bp, level);
     var ztext = zs.compress(text, level), sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideS })), zside = zs.compress(sideB, level);
-    var skB = te.encode(sk.join('\n')), zskel = zs.compress(skB, level);
-    var tid = typedColumn(ids), zids = zs.compress(tid[2], level);
+    var si = skelIds(zs, s, level), skB = si.skB, zskel = si.zskel, tid = si.tid, zids = si.zids;
     var nc = colsOf(zs, s, level), zc = nc.zc;
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, sp: 1, count: E, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], sf: pf[0], cm: [nc.cmB.length, nc.zcm.length] }));
@@ -157,6 +174,11 @@
     return { bytes: concat(parts), rows: s.n, zone: nc.zone, skelList: sk, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
   }
 
+  function skelIds(zs, s, level) {   // the shape list and row ids frames are also the same for both string layouts: made once per block
+    if (s.si) return s.si;
+    var skB = te.encode(s.skelList.join('\n')), tid = typedColumn(s.ids);
+    return (s.si = { skB: skB, zskel: zs.compress(skB, level), tid: tid, zids: zs.compress(tid[2], level) });
+  }
   function colsOf(zs, s, level) { return s.nc || (s.nc = nestedCols(zs, s.cols, level)); }   // the column frames are the same for both string layouts: made once per block
   function nestedCols(zs, cols, level) {   // the number columns of a nested block: frames, zone-map entries and the column table
     var zc = [], zone = [];
