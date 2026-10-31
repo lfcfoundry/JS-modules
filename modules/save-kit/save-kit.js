@@ -570,7 +570,7 @@
 
 //@begin large
   // ---- large saves (IndexedDB) ----
-  // createLarge({ name, schema, defaults, soundKeys, backupEveryMs, stamp, afterValidate, version, lock, indexedDB })
+  // createLarge({ name, schema, defaults, soundKeys, backupEveryMs, stamp, afterValidate, version, lock, skipUnchangedMs, indexedDB })
   // The same checks and backup slot as create(), over IndexedDB, for saves of a few MB and up (localStorage holds about 5 MB for the whole site).
   // Every call returns a Promise and never rejects. A save is stored as its JSON text plus the text length, in one transaction with the
   // backup slot, so a half-written save cannot exist (the browser's own storage adds its own checksums); load() ignores a slot whose
@@ -587,6 +587,7 @@
     var idb = 'indexedDB' in o ? o.indexedDB : typeof indexedDB !== 'undefined' ? indexedDB : null, dbp = null;
     var plain = new WeakSet();   // parsed states whose text names no prototype-pollution key
     var chan = null, listeners = [], mine = Math.random().toString(36).slice(2);
+    var skipMs = o.skipUnchangedMs > 0 ? o.skipUnchangedMs : 0, lastProbe = null, lastWriteAt = 0, lastSeen = 0;   // skipUnchangedMs: the last stored text, when, and its stamp
     var useLock = !!o.lock, held = null, first = null, lostCb = null;
 
     function badFields(x) {
@@ -627,6 +628,7 @@
         if (!rec || typeof rec.t !== 'string' || rec.t.length !== rec.n) return null;
         var t = rec.t, x = JSON.parse(t);
         if (!isObj(x)) return null;
+        if (isNum(rec.at)) x[stamp] = rec.at;   // with skipUnchangedMs the stamp is kept beside the text
         if (t.indexOf('__proto__') < 0 && t.indexOf('"constructor"') < 0 && t.indexOf('"prototype"') < 0) plain.add(x);
         return x;
       } catch (e) { return null; }
@@ -700,12 +702,24 @@
         }).then(null, function () { return null; });
       },
       // -> Promise<boolean>. False (and nothing written) when a number is broken, saving is off, another tab holds the lock, or storage fails.
-      save: function (state) {
+      // With skipUnchangedMs, a save whose fields equal the last stored one (only the stamp differs) resolves true without writing until that many ms
+      // pass; save(state, true) always writes.
+      save: function (state, force) {
         try {
           if (off || !idb || !isObj(state) || badFields(state) > 0) return Promise.resolve(false);
           if (version) state.v = version;
-          state[stamp] = Date.now();
-          var t = JSON.stringify(state), rec = { t: t, n: t.length };
+          var now = Date.now(), t, rec;
+          if (skipMs) {
+            state[stamp] = 0; t = JSON.stringify(state);
+            if (force !== true && t === lastProbe && now - lastWriteAt < skipMs) { state[stamp] = lastSeen; return Promise.resolve(true); }
+            state[stamp] = now; rec = { t: t, n: t.length, at: now };
+            var probe = t; lastProbe = probe; lastWriteAt = lastSeen = now;
+            var wrap = function (p) { return p.then(function (r) { if (!r && lastProbe === probe) lastProbe = null; return r; }); };
+            if (useLock && held === null) return (first || (first = claim(false))).then(function (g) { return g ? wrap(enqueue(rec)) : (lastProbe = null, false); });
+            return useLock && !held ? (lastProbe = null, Promise.resolve(false)) : wrap(enqueue(rec));
+          }
+          state[stamp] = now;
+          t = JSON.stringify(state); rec = { t: t, n: t.length };
           if (useLock && held === null) return (first || (first = claim(false))).then(function (g) { return g ? enqueue(rec) : false; });
           return useLock && !held ? Promise.resolve(false) : enqueue(rec);
         } catch (e) { return Promise.resolve(false); }
