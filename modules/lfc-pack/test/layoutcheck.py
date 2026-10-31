@@ -60,6 +60,15 @@ def nested(b, log):
         assert (h['kc'] == 0 and sk == ['']) or len(sk) == h['kc'], 'shape count'
         assert SHARED is not None, 'block with g = 1 but no section 16'
         COV.add('nested-shared')
+    elif h.get('sp') == 1:   # per-path strings (3.5a): path table, per-path flags and repeats
+        sf = h['sf']; assert 'fa' not in h, 'sp block with fa'
+        tab = json.loads(dz(take(sf[1], 'path-table'), sf[0]))
+        dz(take(sf[3], 'path-flags'), sf[2]); assert sf[4] in (0, 1, 2), 'repeat width'
+        dz(take(sf[6], 'path-repeats'), sf[5] * W[sf[4]])
+        assert len({e[0] for e in tab}) == len(tab), 'path hash twice'
+        assert all(0 <= e[1] <= e[2] and (e[1] > 0 or e[2] == 0) for e in tab), 'path table entry'
+        assert sum(e[1] for e in tab) == h['count'] and sum(e[2] - e[1] for e in tab) == sf[5] and sum((e[2] + 7) // 8 for e in tab) == sf[2], 'path table sums'
+        COV.add('nested-paths')
     else:
         dz(take(h['fa'][1], 'first-flags'), h['fa'][0]); assert h['fa'][0] == (h['fa'][5] + 7) // 8
         dz(take(h['fa'][4], 'repeats'), h['fa'][3] * W[h['fa'][2]])

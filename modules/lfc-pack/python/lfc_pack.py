@@ -191,6 +191,7 @@ def _read_nested(b, shared=None):
         D[ix] = sd['str'][i]
     skel = _dz(c.take(h['p'][2]), h['len'][2]).decode('utf-8').split('\n')
     ids = _typed(_dz(c.take(h['ids'][2]), h['ids'][1] * _ITEM[h['ids'][0]]), h['ids'][0], h['ids'][1])
+    if h.get('sp') == 1: return _read_nested_paths(h, c, D, skel, ids, cmeta)
     fa = h['fa']
     flags = _dz(c.take(fa[1]), fa[0]); rep = _typed(_dz(c.take(fa[4]), fa[3] * _ITEM[fa[2]]), fa[2], fa[3])
     cols = {}
@@ -208,8 +209,47 @@ def _read_nested(b, shared=None):
     return _build_nested(cols, strs, [skel[i] for i in ids[:h['n']]])
 
 
-def _build_nested(cols, strs, shapes):
-    # rows from the column arrays, the strings in walk order and each row's shape (skeleton JSON text)
+def _nested_cols(c, cmeta):
+    cols = {}
+    for ent in cmeta:
+        key, kind, count, plen = ent[:4]
+        if kind == 7:
+            if len(ent) < 5: raise ValueError('decimal column without raw length')
+            cols[key] = _decimals(_dz(c.take(plen), ent[4]), count)
+        else: cols[key] = _typed(_dz(c.take(plen), count * _ITEM[kind]), kind, count)
+    return cols
+
+
+def _read_nested_paths(h, c, D, skel, ids, cmeta):
+    # per-path strings (header sp = 1): a table [hash, entries, cells] per string path; the dictionary holds each path's entries in turn, and each path has its own flags (starting on a fresh byte) and repeats
+    sf = h['sf']
+    tab = json.loads(_dz(c.take(sf[1]), sf[0]).decode('utf-8'))
+    flags = _dz(c.take(sf[3]), sf[2])
+    if sf[4] not in (0, 1, 2): raise ValueError('bad repeat width')
+    rep = _typed(_dz(c.take(sf[6]), sf[5] * _ITEM[sf[4]]), sf[4], sf[5])
+    cols = _nested_cols(c, cmeta)
+    if not isinstance(tab, list): raise ValueError('string path table')
+    for e in tab:
+        if not isinstance(e, list) or len(e) < 3 or not all(isinstance(x, int) and not isinstance(x, bool) for x in e[:3]) or not (0 <= e[1] <= e[2]) or (e[1] == 0 and e[2] != 0): raise ValueError('string path table')
+    if sum(e[1] for e in tab) != h['count'] or sum(e[2] - e[1] for e in tab) != sf[5] or sum((e[2] + 7) >> 3 for e in tab) != sf[2]: raise ValueError('string path table')
+    if h['count'] and len(D) != h['count']: raise ValueError('dictionary count')
+    sp, base, ri, fo = {}, 0, 0, 0
+    for hh, e, n in (x[:3] for x in tab):
+        if hh in sp: raise ValueError('string path table')
+        out, nxt = [], 0
+        for i in range(n):
+            if (flags[fo + (i >> 3)] >> (i & 7)) & 1: out.append(D[base + nxt]); nxt += 1
+            else:
+                k = int(rep[ri]); ri += 1
+                if k >= e: raise ValueError('string code out of range')
+                out.append(D[base + k])
+        if nxt != e: raise ValueError('string flags')
+        sp[hh] = [out, 0]; base += e; fo += (n + 7) >> 3
+    return _build_nested(cols, None, [skel[i] for i in ids[:h['n']]], sp)
+
+
+def _build_nested(cols, strs, shapes, sp=None):
+    # rows from the column arrays, the strings in walk order (or, with sp, per string path: hash -> [strings, next]) and each row's shape (skeleton JSON text)
     state = {'ti': 0}
     cur = {}
 
@@ -217,16 +257,21 @@ def _build_nested(cols, strs, shapes):
         if hh not in cur: cur[hh] = [cols.get(hh, []), 0]
         return cur[hh]
 
+    def scol(hh):
+        if hh not in sp: raise ValueError('string path table')
+        return sp[hh]
+
     def desc(s, path):
-        if s == 1: return ('s',)
+        if s == 1: return ('S', scol(_fnv(path))) if sp is not None else ('s',)
         if s == 2: return ('n', col(_fnv(path)))
         if s == 3: return ('b', col(_fnv(path + '?')))
         if s == 4: return ('z',)
-        if s == 5: return ('j',)
+        if s == 5: return ('J', scol(_fnv(path))) if sp is not None else ('j',)
         if isinstance(s, list): return ('a', [desc(x, path + '[]') for x in s])
         items = []
         for k, v in s.items():
-            if v == 1: items.append((k, 's', None))
+            if v == 1 and sp is not None: items.append((k, 'S', scol(_fnv(path + '.' + k))))
+            elif v == 1: items.append((k, 's', None))
             elif v == 2: items.append((k, 'n', col(_fnv(path + '.' + k))))
             elif v == 3: items.append((k, 'b', col(_fnv(path + '.' + k + '?'))))
             elif v == 4: items.append((k, 'z', None))
@@ -239,6 +284,7 @@ def _build_nested(cols, strs, shapes):
             o = {}
             for k, kind, x in d[1]:
                 if kind == 's': v = strs[state['ti']]; state['ti'] += 1
+                elif kind == 'S': v = x[0][x[1]]; x[1] += 1
                 elif kind == 'n': v = _num(x[0][x[1]]); x[1] += 1
                 elif kind == 'b': v = x[0][x[1]] == 1; x[1] += 1
                 elif kind == 'z': v = None
@@ -250,6 +296,8 @@ def _build_nested(cols, strs, shapes):
         if t == 'b': x = d[1]; v = x[0][x[1]] == 1; x[1] += 1; return v
         if t == 'z': return None
         if t == 'j': v = json.loads(strs[state['ti']]); state['ti'] += 1; return v
+        if t == 'S': x = d[1]; v = x[0][x[1]]; x[1] += 1; return v
+        if t == 'J': x = d[1]; v = json.loads(x[0][x[1]]); x[1] += 1; return v
         return [build(x) for x in d[1]]
 
     plans, out = {}, []
@@ -257,6 +305,9 @@ def _build_nested(cols, strs, shapes):
         d = plans.get(sk)
         if d is None: d = plans[sk] = desc(json.loads(sk), '')
         out.append(build(d))
+    if sp is not None:
+        for x in sp.values():
+            if x[1] != len(x[0]): raise ValueError('string cells left over')
     return out
 
 

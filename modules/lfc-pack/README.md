@@ -35,6 +35,7 @@ Options for `pack(input, options)`:
 | `block: 'nested' \| 'flat'` | force one layout. Default: each block is written as nested columns and, when it could win, as flat columns too, and the smaller one is kept. |
 | `blockBytes` | block size, default 13 MB (faster parallel pack than 21 MB, same size). |
 | `share: true` | shared string and shape tables for nested blocks: a string or row shape seen again in a later block is kept once in the footer. Smaller files with small blocks (100,000 GeoJSON points: -17% at 32 KB blocks, -12% at 256 KB); about the same at the default block size (a few hundred bytes either way). `packParallel` packs on one thread with it. Off by default. |
+| `paths: true` | per-path strings for nested blocks: each string path (`.properties.name`, `.items[].sku`) keeps its own dictionary run and repeat numbers, which are small and compress well. 100,000 GeoJSON points -11% at the default block size, -14% at 256 KB blocks; 100,000 orders -6% and -5%. Off by default for now (not yet combined with `share`). |
 | `access: 'random'` | the read-friendly preset: 256 KB blocks plus `share: true` (options given next to it win). Reading 100 rows with `unpackRows` decodes one small block (20 to 60 times faster in tests), for files 4 to 11% larger than the default block size (five test sets). `'whole'` (default) changes nothing. |
 | `templates: false` | switch the automatic log templates off. |
 
