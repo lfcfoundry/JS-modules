@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-"""Makes a smaller save-kit by cutting out the parts a game does not use. Version 1.3.1 (API 1)
+"""Makes a smaller save-kit by cutting out the parts a game does not use. Version 1.4.0 (API 1)
 
   python3 modules/save-kit/lean.py --list                              the parts that can be cut, and what each one is
   python3 modules/save-kit/lean.py --without autosave,twoTap,persist   write save-kit-lean.js next to save-kit.js without those parts
@@ -25,6 +25,7 @@ PARTS = {
     'nativeBase64': 'use of the browser\'s own Uint8Array.toBase64/fromBase64 when it has them (the plain loops stay; about 220 bytes smaller)',
     'streamLimit': 'the unpacker that stops a hostile code as soon as it passes the size limit; cut, a simpler unpacker checks the size after unpacking it all',
     'raw': 'schema type raw (and the deep copy that goes with it)',
+    'durable': 'option durable: keep a strict IndexedDB copy of every save, kit.recover() and kit.flushed(), and SaveKit.durableCopy() for any text',
     'large': 'SaveKit.createLarge(): big saves in IndexedDB (async, backup slot, cross-tab lock)',
     'codes': 'exportCode(), importCode() and everything only they use (base64, deflate, checksums, limits)',
 }
