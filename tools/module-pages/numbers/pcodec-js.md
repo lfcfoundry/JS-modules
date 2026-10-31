@@ -1,6 +1,6 @@
 **New in 1.6.2: repeated big unpacks reuse a ready array.** The code thread's cloud-browser runs (Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 on a shared machine, not the laptop).
 
-5,000,000 numbers unpacked again and again, every 150 ms. Time with 1.6.2 divided by time before, with its 90% range; lower is better.
+5,000,000 numbers unpacked again and again, every 150 ms. Time with 1.6.2 divided by time before, with its 90% range; lower is better. The Chromium run was flagged noisy (wider range), so read it as direction.
 
 | Browser | New / old | 90% range |
 |---|---:|---:|

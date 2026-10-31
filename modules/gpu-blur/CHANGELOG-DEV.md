@@ -5,14 +5,6 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 1.3.0 · API 1 · 2026-10-31
 
 ### Quick
-opts.into now also takes RGBA bytes (Uint8ClampedArray or Uint8Array, width x height x 4) for out 'pixels'; every route writes into it, result.pixels is that array.
-
-### Deep
-opts.into now also takes RGBA bytes (Uint8ClampedArray or Uint8Array, width x height x 4) for out 'pixels'; every route writes into it, result.pixels is that array. Same bytes in 332 to 420 cases per browser. Against a fresh array: one-thread wasm 0.91-1.49x, helpers 0.98-1.21x, threads 1.06-1.43x; helpers with kept bands + into vs 1.2.2: Chromium 1.19-1.43x, Firefox 1.47-1.74x, WebKitGTK 1.09-1.32x. tests/gpu-blur-into-browser.js.
-
-## 1.3.0 · API 1 · 2026-10-31
-
-### Quick
 New: `opts.into` also takes RGBA bytes for out 'pixels' (the result is written into your array, and `result.pixels` is that array). Old code is unaffected: a canvas in `opts.into` works as before. Bytes in, radius 12, against a fresh array: one-thread WebAssembly 0.91 to 1.49x, helpers 0.98 to 1.21x, threads 1.06 to 1.43x.
 
 ### Details

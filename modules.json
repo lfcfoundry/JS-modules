@@ -393,7 +393,7 @@
       "api": 0,
       "global": "TextColumns",
       "summary": "Reads CSV or TSV text into typed columns: plain decimal columns come out as Float64Array straight from the bytes, the rest as text. The field scan runs in WebAssembly SIMD; plain JavaScript gives the same answers.",
-      "short": "Reads CSV and TSV into number and text columns, 3 to 11 times faster than common parsers.",
+      "short": "Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse.",
       "file": "modules/text-columns/text-columns.js",
       "readme": "modules/text-columns/README.md",
       "demo": "modules/text-columns/demo.html",
