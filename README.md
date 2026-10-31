@@ -164,7 +164,7 @@ The numbers behind idle and clicker games.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [graph-walk](modules/graph-walk/README.md) | 0.7.2 | 58.6 | 19.3 | Breadth-first distances and loop marking for link lists, in typed arrays. | — |
+| [graph-walk](modules/graph-walk/README.md) | 0.8.0 | 91.7 | 29.6 | Breadth-first distances and loop marking for link lists, in typed arrays. | — |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 | 22.8 | 7.7 | Tested maths for idle and clicker games: costs, buy-max, away income, number format. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/idle-core/demo.html) |
 
 #### Games - Testing
