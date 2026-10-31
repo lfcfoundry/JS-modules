@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.0 (API 1)
+ * Version 1.6.0 (API 1)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -241,7 +241,16 @@
   P.stats = function () { var bl = this.bytes ? this.bytes.length : this._blen; return { count: this.length, bytes: bl, bitsPerValue: this.length ? bl * 8 / this.length : 0, lowBits: this._l, compact: !this.bytes }; };
   // the plain JavaScript readers need the bytes in JavaScript: after compact() they are copied back out the first time
   function backFirst(proto, names) { names.forEach(function (n) { var f = proto[n]; proto[n] = function (a, b, c) { if (!this.bytes) this._back(); return f.call(this, a, b, c); }; }); }
-  backFirst(P, ['_getJS', '_nextJS', '_decodeJS', 'slice']);
+  backFirst(P, ['_getJS', '_nextJS', '_decodeJS']);
+  var sliceJS = P.slice;   // after compact(), slice (and so Lists.get) reads in WebAssembly instead of copying the bytes back
+  P.slice = function (a, b) {
+    if (this.bytes || !this._wasm()) { if (!this.bytes) this._back(); return sliceJS.call(this, a, b); }
+    var n = this.length; a = Math.max(0, a | 0); b = Math.min(n, b === undefined ? n : b | 0); if (b <= a) return new Uint32Array(0);
+    var k = b - a, j, r;
+    if (k <= 64) { r = new Uint32Array(k); for (j = 0; j < k; j++) r[j] = W.ef_get(this._ptr, a + j); return r; }   // short runs (a list of a list set): one call each, no scratch space
+    var ip = alloc(k * 4), op = alloc(k * 4), q = ip >>> 2; for (j = 0; j < k; j++) u32[q + j] = a + j;
+    W.ef_get_many(this._ptr, ip, op, k); r = u32.slice(op >>> 2, (op >>> 2) + k); release(ip, k * 4); release(op, k * 4); return r;
+  };
 
   // opts.compact: call compact() right away (after ready(), when WebAssembly is in use)
   function open(bytes, opts) {
@@ -539,7 +548,7 @@
 
   start();   // compile early
   return {
-    version: '1.5.0', api: 1, build: build, open: open, buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, intersect: intersect, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
+    version: '1.6.0', api: 1, build: build, open: open, buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, intersect: intersect, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
     _buildJS: buildJS, _layout: layout

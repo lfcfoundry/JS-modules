@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-10-30
+- New compact() halves the memory a list uses while you read it (1.69 MB instead of 3.38 MB for 1,000,000 ids); getMany now refuses out-of-range positions instead of hanging.
+
 ## 1.5.0 · API 1 · 2026-10-30
 - New Lists.getMany reads many lists in one WebAssembly call.
 

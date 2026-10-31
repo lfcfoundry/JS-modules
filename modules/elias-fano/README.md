@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.5.0 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** Node tests (test/run.js, fuzz.js, intersect.js, partitioned.js, lists-many.js) passed. Speed ratios measured in Firefox 158.0, ungoogled-chromium 155.0.8059.39-1 and WebKitGTK 2.52.6 in a cloud container, one at a time, no noise guard; laptop run still to come
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
 
 Keeps sorted whole numbers (ids, positions, timestamps, links of a graph) in about a third to a half of the memory of a plain 32-bit array, and still answers "what is value number i" and "where is the first value at or above x" without unpacking. It also keeps many sorted lists in one structure (the links of every item of a map) and decodes them all at once, fast. **One file, no dependencies, works offline.** A WebAssembly path (with SIMD where the browser has it) is compiled the moment the file loads; plain JavaScript answers until it is ready and gives the same answers.
 
@@ -42,6 +42,8 @@ var all = set.decodeAll();   // { offsets: Uint32Array(n + 1), values: Uint32Arr
 ```
 
 `build` and `buildLists` give a `Uint8Array` you can store or send; `open` and `openLists` read it back. Lists made in JavaScript and in WebAssembly are byte for byte the same. Call `free()` on a list you are done with when WebAssembly is in use (it copies the bytes into its own memory on first use).
+
+That copy means two copies sit in memory while you read: the bytes you opened and the one inside WebAssembly. `list.compact()` (or `open(bytes, { compact: true })`, also for `openPartitioned` and `openLists`, after `await EliasFano.ready()`) lets go of the JavaScript copy, so memory in use halves: 1.69 MB instead of 3.38 MB for a list of 1,000,000 ids. Drop your own reference to the bytes too, or they stay in memory. Answers stay the same. Reading one list at a time from a compacted list set (`get(i)`) takes about 1.1 to 1.2 times as long; `getMany` and single values do not change. `getMany` refuses positions outside the list with a `RangeError` (before 1.6.0 such a position could hang the plain JavaScript reader).
 
 `EliasFano.setBackend('js' | 'wasm' | 'auto')`, `EliasFano.accelerated()`, `EliasFano.simd()` and `EliasFano.ready()` tell and steer which path answers.
 

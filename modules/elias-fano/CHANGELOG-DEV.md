@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-10-30
+
+### Quick
+compact() on flat lists, partitioned lists and list sets (or the open option { compact: true }) drops the JavaScript copy of the bytes once WebAssembly holds them: JavaScript-side memory 1.69 to 0 MB (flat), 1.78 to 0 (partitioned), 1.58 to 0 (list set). Same answers; list-set get(i) about 1.1 to 1.2x the time when compacted. getMany throws RangeError on positions outside the list (it could hang in JavaScript and read past the list in WebAssembly).
+
+### Details
+compact(): _wasm() copies the bytes into the arena, then bytes and the typed-array views are set to null; _back() copies them out of WebAssembly memory for the plain JavaScript readers (setBackend('js')) and for free(). After compact(), List.slice (used by Lists.get) reads with ef_get for runs of up to 64 values and ef_get_many above that, instead of copying the bytes back. stats() reports compact: true and the same byte count. getMany guard: one compare per position for a Uint32Array, a whole-number and range check otherwise; getMany time within 1.00 to 1.06x in three browsers (400,000 positions). New test/compact.js: 30 flat and partitioned cases plus a 2,000-list set, WebAssembly, JavaScript and after free().
+
+### Deep
+elias-fano 1.6.0: compact() for all list kinds + getMany range guard. Node, JS-side memory after open and one read (wasm memory subtracted): flat 1M ids 1.69 MB -> 0, partitioned 1.78 -> 0, list set 1.58 -> 0. Container speed: flat getMany 1.5.0 vs 1.6.0 vs 1.6.0 compacted, Chromium 9.2/9.5/9.5 ms, Firefox 10/10/10, WebKitGTK 9/9/9; list-set getMany unchanged; list-set get(i) x20k compacted 1.10 to 1.18x (Node, separate processes). Tests: fuzz 400 seeds, intersect, lists-many, partitioned, run, new compact.js.
+
 ## 1.5.0 · API 1 · 2026-10-30
 
 ### Quick
