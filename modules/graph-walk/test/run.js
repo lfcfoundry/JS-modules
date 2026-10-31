@@ -230,5 +230,6 @@ for (let tt = 0; tt < 120; tt++) {
 let bad = false; try { G.csr(2, [0], [5]); } catch (e) { bad = e instanceof RangeError; } ok(bad, 'csr rejects an item outside 0..n-1');
 bad = false; try { G.csr(2, [0], [1, 1]); } catch (e) { bad = e instanceof RangeError; } ok(bad, 'csr rejects lists of different length');
 { const g0 = G.csr(5, [0, 1, 2, 3], [1, 2, 3, 4]); G.closenessAsync(g0).then((a) => { const b = G.closeness(g0); ok(a.every((v, i) => v === b[i]), 'closenessAsync without workers answers like closeness'); }); }
+{ const g1 = G.csr(6, [0, 1, 2, 3, 4], [1, 2, 3, 4, 5]); const a1 = G.components(g1); G.ready().then(() => G.trim()).then(() => { const b1 = G.components(g1), c1 = G.closeness(g1); ok(a1.count === b1.count && a1.id.every((v, i) => v === b1.id[i]) && c1.length === 6, 'answers are the same after trim()'); }); }
 ok(/^0\.\d+\.\d+$/.test(G.version) && G.api === 0, 'runtime version and API');
 console.log('graph-walk: all checks passed (' + graphs + ' graphs)');

@@ -31,7 +31,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [zip-open](modules/zip-open/README.md) | 1.9.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.9.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.7.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
-| [graph-walk](modules/graph-walk/README.md) | 0.9.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
+| [graph-walk](modules/graph-walk/README.md) | 0.10.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.6 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.4 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
@@ -90,6 +90,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **graph-walk** 0.9.0 · API 0: New: closenessAsync splits closeness across kept helper threads (about 3.5x faster on 4 cores in all three test browsers).
 - 2026-10-31 · **graph-walk** 0.8.0 · API 0: New: max-flow and min-cut, closeness, triangle counts, communities (Louvain), critical path and landmark paths, in plain JavaScript and WebAssembly; 1.5x to 230x faster than graphology, ngraph and a Dinic library in all three test browsers.
 - 2026-10-31 · **graph-walk** 0.7.2 · API 0: betweennessAsync starts faster: up to 1.9x on the first call and on a new graph.
+- 2026-10-31 · **graph-walk** 0.10.0 · API 0: New: trim() gives the WebAssembly memory back after a big job (it only ever grows otherwise); nothing runs unless you call it.
 - 2026-10-31 · **gpu-blur** 1.3.0 · API 1: New: opts.into takes your own pixel array for out 'pixels', so blurring every frame makes no new memory; 1.1 to 1.7x faster with the helpers.
 - 2026-10-31 · **gpu-blur** 1.2.3 · API 1: The helpers route is up to 1.34x faster on repeat blurs.
 - 2026-10-31 · **field-report** 1.1.0 · API 1: New frames modes: 'play' records only while the app says it is animating; 'external' takes frame times from the app's own loop (fr.frame(ts)), so there is no second animation-frame callback.

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.0 · API 0 · 2026-10-31
+
+### Quick
+trim(): ends helpers, swaps in a fresh instance from the kept compiled module; graphs hold a generation number instead of the memory object so the old memory can be collected.
+
+### Deep
+trim(): ends helpers, swaps in a fresh instance from the kept compiled module; graphs hold a generation number instead of the memory object so the old memory can be collected. Node 200k items/1M links after communities: arrayBuffers 50 MB -> 21 MB after trim, same answer on the next call. Opt-in only, no default behavior change; speed cost is the re-copy of the graph on its next call (not yet timed in the 3 browsers).
+
 ## 0.9.0 · API 0 · 2026-10-31
 
 ### Quick
