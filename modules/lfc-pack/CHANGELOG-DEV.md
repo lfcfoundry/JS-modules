@@ -21,6 +21,18 @@ Default 13 MB blocks: unchanged (Chromium rerun, 2 rounds of 9: 151 / 151 and 14
 ### Deep
 For a 256 KB block the memset was about 16 MB of writes against about 0.25 MB of input, so it dominated small-block packs, and it also touched 16 MB of memory that a small pack never needed. Output is unchanged because the table is exact (byte compare on every hit) and codes are given in first-seen order, so the table size changes only the probe path. Checked: 28 files (4 data sets x 7 option sets, nested, shared, per-path, flat) byte-identical between the old and new builds, and `node test/run.js` passes.
 
+### Quick (trim)
+New `trim()`: a fresh instance of each compiled wasm module takes over and the grown memory goes with the old one. Nothing else in the API changes.
+
+### Details (trim)
+- Memory: core.wasm declares 384 MB of initial memory (static arrays), and the zstd module grows to about 45 MB. Pages that were never touched cost nothing, but touched pages stay. After pack, unpack and drop of a 66.6 MB file, `trim()` freed about 80 to 90 MB of browser memory in Chromium 155, Firefox 158 and WebKitGTK 2.52.6.
+- Compiled modules are now kept (`MODS` in src/wasm.js), so `trim()` instantiates without compiling again. Before that change, `trim()` took 11 to 48 ms and the next pack ran on the browser's first code tier. Now it takes 2 to 24 ms: Chromium 2 ms, Firefox 14 to 24 ms, WebKitGTK 9 to 10 ms.
+- Pack after `trim()` (3 packs of the 66.6 MB file at `access: 'random'`, each side of two trims) stays within the run's noise in all three browsers. Test: `tests/lfc-pack-memory-browser.js` (STEPS), `test/trim.cjs`.
+- A job that is still running keeps its own instance (it holds it), so calling `trim()` between the awaits of `pool()` or `packParallel` is safe. The memory then goes when that job ends.
+
+### Deep (trim)
+`packParallel` helpers each hold about 402 MB of reserved wasm (1.6 GB for 4) and add 330 to 650 MB of browser memory for about 10 s after each call (keepMs). `trim()` does not touch them; how long they stay is a separate setting.
+
 ## 0.3.1 · API 0 · 2026-10-30
 
 ### Quick

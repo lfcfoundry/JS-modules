@@ -98,8 +98,8 @@
   var TPLW = null, TPLB64 = "/*TPL:BEGIN*//*TPL:END*/";
   function tplw() {
     if (TPLW) return TPLW;
-    var bin = atob(TPLB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q);
-    var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
+    if (!MODS['TPLB64']) { var bin = atob(TPLB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q); MODS['TPLB64'] = new WebAssembly.Module(by); }
+    var x = new WebAssembly.Instance(MODS['TPLB64'], {}).exports;
     return (TPLW = { x: x, heap: x.__heap_base.value });
   }
   function untemplate(n, fr) {
@@ -337,11 +337,12 @@
     var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
   }
   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
+  function dropSmallWasm() { TPLW = null; FSW = null; }   // trim(): the template and flat-scan helpers start again small when next needed
   var FSW = null, FSB64 = "/*FS:BEGIN*//*FS:END*/";
   function fsw() {
     if (FSW) return FSW;
-    var bin = atob(FSB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q);
-    var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
+    if (!MODS['FSB64']) { var bin = atob(FSB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q); MODS['FSB64'] = new WebAssembly.Module(by); }
+    var x = new WebAssembly.Instance(MODS['FSB64'], {}).exports;
     return (FSW = { x: x, heap: x.__heap_base.value });
   }
   var P10 = [1, 10, 100], FSTD = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
