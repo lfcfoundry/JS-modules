@@ -71,8 +71,8 @@
     if (ctx.st) return sharedNestedBlock(ctx, s, codes, dN, dN ? tlat.decode(new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen)).split('\0') : [], sideStr, level);
     var big = codes.length >= PATHS_SURE, bp0 = null;
     if (big && ctx.pick === 2) {   // paths: 'auto': a big block judges by itself, from how much string text per-path strings would keep twice (no trial, so pack and packParallel agree)
-      bp0 = byPath(s, codes, dN + sideStr.length);
-      if (dupShare(bp0, codes, dN, dlen, mem, X) > PATHS_DUP * s.textLen) bp0 = false;
+      var po0 = pathOrder(s, codes);
+      bp0 = dupShare(po0, dN, dN + sideStr.length, dlen, mem, X) > PATHS_DUP * s.textLen ? false : byPath(s, codes, dN + sideStr.length, po0);
     }
     var pb = ctx.paths && bp0 !== false && !(big && ctx.pick === 0) ? pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level, bp0) : null;
     if (pb && big && ctx.pick === 2) return pb;   // with paths: both ways, the smaller one is kept; a big block follows ctx.pick once it is known (see packMany)
@@ -111,10 +111,8 @@
   // the string cells regrouped by path: cell codes path after path, and per path its entries (codes in order of first use there), a flag per cell (flag bytes start fresh for each path) and a repeat for every cell that is not a first use
   var PATHS_SURE = 4096, PATHS_TRY = 5, PATHS_DUP = 0.11;   // string cells from which a block keeps per-path strings without building the other layout too
   var STAMP = new Int32Array(0), LOC = new Uint32Array(0), STAMPN = 0;   // which path last met a code (a fresh number per path and block, so nothing is cleared between blocks)
-  var SPH = new Map(), PCS = new Uint32Array(0), ENTS = new Uint32Array(0), REPS = new Uint32Array(0);
-  function dropScratch() { PCS = new Uint32Array(0); ENTS = new Uint32Array(0); REPS = new Uint32Array(0); STAMP = new Int32Array(0); LOC = new Uint32Array(0); STAMPN = 0; SPH.clear(); }
-  function pathOrder(s, codes, scratch) {   // scratch: the cell list goes in a buffer kept between blocks (byPath only reads it)
-      // the string cells regrouped by path -> { pc: codes path after path, st: where each path starts, ph: path hashes, cnt: cells per path }
+  var SPH = new Map();
+  function pathOrder(s, codes) {   // the string cells regrouped by path -> { pc: codes path after path, st: where each path starts, ph: path hashes, cnt: cells per path }
     var N = codes.length, sk = s.skelList, K = sk.length, i, j, k, p, q, a, n, sp = new Array(K), pix = new Map(), ph = [], kn = new Uint32Array(K), ids = s.ids;
     if (SPH.size > 65536) SPH.clear();
     for (k = 0; k < K; k++) { var hs = SPH.get(sk[k]); if (!hs) { var ps = stringPaths(sk[k]); hs = new Array(ps.length); for (j = 0; j < ps.length; j++) hs[j] = fnvStr(ps[j]); SPH.set(sk[k], hs); }   // since 0.4.4: path hashes per shape, kept across blocks
@@ -123,17 +121,17 @@
     var P = ph.length, cnt = new Uint32Array(P), tot = 0;
     for (k = 0; k < K; k++) { a = sp[k]; for (j = 0; j < a.length; j++) cnt[a[j]] += kn[k]; tot += a.length * kn[k]; }
     if (tot !== N) throw new Error('string cell count');
-    var st = new Uint32Array(P + 1), fill = new Uint32Array(P), pc = scratch ? (PCS.length >= N ? PCS : (PCS = new Uint32Array(Math.max(N, PCS.length * 2)))) : new Uint32Array(N), ci = 0;
+    var st = new Uint32Array(P + 1), fill = new Uint32Array(P), pc = new Uint32Array(N), ci = 0;
     for (p = 0; p < P; p++) { st[p + 1] = st[p] + cnt[p]; fill[p] = st[p]; }
     for (i = 0; i < s.n; i++) { a = sp[ids[i]]; for (j = 0, n = a.length; j < n; j++) pc[fill[a[j]]++] = codes[ci++]; }
     return { pc: pc, st: st, ph: ph, cnt: cnt };
   }
-  function byPath(s, codes, M) {
-    var po = pathOrder(s, codes, true), pc = po.pc, st = po.st, ph = po.ph, cnt = po.cnt, P = ph.length, N = codes.length, nfb = 0, i, c, p, b;
+  function byPath(s, codes, M, po) {
+    po = po || pathOrder(s, codes); var pc = po.pc, st = po.st, ph = po.ph, cnt = po.cnt, P = ph.length, N = codes.length, nfb = 0, i, c, p, b;
     for (p = 0; p < P; p++) nfb += (cnt[p] + 7) >> 3;
     if (STAMP.length < M) { STAMP = new Int32Array(Math.max(M, STAMP.length * 2)); LOC = new Uint32Array(STAMP.length); STAMPN = 0; }
     if (STAMPN > 2000000000 - P) { STAMP.fill(0); STAMPN = 0; }
-    var stamp = STAMP, loc = LOC, ent = ENTS.length >= N ? ENTS : (ENTS = new Uint32Array(Math.max(N, ENTS.length * 2))), rep = REPS.length >= N ? REPS : (REPS = new Uint32Array(Math.max(N, REPS.length * 2))), en = 0, rn = 0, flags = new Uint8Array(nfb), fb = 0, table = [], e0, o, sv;
+    var stamp = STAMP, loc = LOC, ent = new Uint32Array(N), rep = new Uint32Array(N), en = 0, rn = 0, flags = new Uint8Array(nfb), fb = 0, table = [], e0, o, sv;
     for (p = 0; p < P; p++) {
       e0 = en; sv = ++STAMPN; b = st[p];
       for (i = b; i < st[p + 1]; i++) { c = pc[i]; if (stamp[c] !== sv) { stamp[c] = sv; loc[c] = en - e0; ent[en++] = c; o = i - b; flags[fb + (o >> 3)] |= 1 << (o & 7); } else rep[rn++] = loc[c]; }
@@ -143,10 +141,13 @@
   }
   // bytes of string text that per-path strings would store a second time; compared with the block's text bytes (a string used at several paths is kept once per path).
   // Real FHIR records: 13% (per-path strings 16% larger); many paths with short repeated words: under 9% (per-path 8-43% smaller); orders: 0
-  function dupShare(bp, codes, dN, dlen, mem, X) {
-    var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), len = new Uint32Array(dN), pos = 0, nz, i, c, all = 0, once = 0, ent = bp.ent, seen = new Uint8Array(dN + 1);
+  function dupShare(po, dN, M, dlen, mem, X) {   // from the path order alone (no repeat lists), so a block that ends up plain pays less
+    var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), len = new Uint32Array(dN), pos = 0, nz, i, c, p, all = 0, once = 0, pc = po.pc, st = po.st, P = po.ph.length, seen = new Uint8Array(dN + 1);
     for (i = 0; i < dN; i++) { nz = old.indexOf(0, pos); if (nz < 0) nz = dlen; len[i] = nz - pos; pos = nz + 1; }
-    for (i = 0; i < ent.length; i++) { c = ent[i]; var L = c < dN ? len[c] : 8; all += L; if (c >= dN) continue; if (!seen[c]) { seen[c] = 1; once += L; } }
+    if (STAMP.length < M) { STAMP = new Int32Array(Math.max(M, STAMP.length * 2)); LOC = new Uint32Array(STAMP.length); STAMPN = 0; }
+    if (STAMPN > 2000000000 - P) { STAMP.fill(0); STAMPN = 0; }
+    var stamp = STAMP, sv;
+    for (p = 0; p < P; p++) { sv = ++STAMPN; for (i = st[p]; i < st[p + 1]; i++) { c = pc[i]; if (stamp[c] === sv) continue; stamp[c] = sv; var L = c < dN ? len[c] : 8; all += L; if (c < dN && !seen[c]) { seen[c] = 1; once += L; } } }
     return all - once;   // bytes
   }
   function pathFrames(zs, bp, level) {   // -> [header sf, frames]
