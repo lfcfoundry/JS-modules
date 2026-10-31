@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.5.1 (API 0)
+ * Version 0.5.2 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -270,7 +270,25 @@
 
   /* ---- parallel parse (since 0.2.0): a big file is cut at line ends, each helper reads its piece with this same code, and the typed columns are joined ---- */
   function workerBody() {   // runs inside a helper; `TextColumns` is this file's code loaded there
-    var held = null;
+    var held = null, strict = null;
+    function toUnits(u, os, oe) {   // byte positions -> UTF-16 positions, in place (both rise row by row and oe[z] <= os[z + 1])
+      var p = 0, q = 0, n = os.length, z, t, c;
+      for (z = 0; z < n; z++) {
+        for (t = os[z]; p < t; p++) { c = u[p]; if ((c & 0xC0) !== 0x80) q += c >= 0xF0 ? 2 : 1; } os[z] = q;
+        for (t = oe[z]; p < t; p++) { c = u[p]; if ((c & 0xC0) !== 0x80) q += c >= 0xF0 ? 2 : 1; } oe[z] = q;
+      }
+    }
+    // Since 0.6.0, for a piece with non-ASCII text: the piece's text is decoded once here (strictly, so positions stay exact) and sent as one string, with every text column's positions in that string;
+    // the page then only cuts substrings, instead of decoding the piece itself or (non-ASCII text) every field one by one. A piece that is not valid UTF-8 keeps the byte positions.
+    function withText(out, h, again) {
+      var j, any = false;
+      for (j = 0; j < out.types.length; j++) if (out.types[j] === 3) any = true;   // plain-ASCII pieces keep 0.5.1's way (the page decodes the piece once): sending their text was slower
+      if (!any || h.bad) return;
+      if (h.text === undefined) { try { strict = strict || new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }); h.text = strict.decode(h.bytes); } catch (x) { h.bad = true; return; } }
+      for (j = 0; j < out.types.length; j++) if (out.types[j] === 3) { toUnits(h.bytes, out.cols[j][0], out.cols[j][1]); out.types[j] = 2; }
+      if (!again || !h.sent) out.text = h.text;
+      h.sent = true;
+    }
     onmessage = function (e) {
       var m = e.data, t, cols = [], types = [], tr = [], j, c, only, isText, ft, q;
       try {
@@ -278,14 +296,16 @@
         if (m.op === 'parse') { if (m.bytes) held = { bytes: m.bytes }; held.delim = m.delim; held.header = m.header; held.sel = m.sel; held.lazy = m.lazy; }
         isText = m.op === 'text';
         if (isText) ft = m.cols.map(function (p) { return held.sel ? held.sel[p] : p; });
-        t = TextColumns.parse(held.bytes, { delimiter: held.delim, header: held.header, columns: held.sel, _text: ft, _off: isText ? 1 : held.lazy ? 2 : 1 });
+        t = TextColumns.parse(held.bytes, { delimiter: held.delim, header: held.header, columns: held.sel, _text: ft, _off: m.utf16 !== false || (!isText && held.lazy) ? 2 : 1 });   // 2: positions for every text column (non-ASCII too), turned into UTF-16 positions by withText
         only = isText ? m.cols : null;
         for (j = 0; j < t.columns.length; j++) {
           if (only && only.indexOf(j) < 0) continue;
           c = t.columns[j]; types.push(c.type === 'number' ? 1 : c.off ? (c.offAscii ? 2 : 3) : 0); cols.push(c.off || c.values);
           if (c.type === 'number') tr.push(c.values.buffer); else if (c.off) tr.push(c.off[0].buffer, c.off[1].buffer, c.off[2].buffer);
         }
-        postMessage({ id: m.id, names: t.names, count: t.count, types: types, cols: cols }, tr);
+        var out = { id: m.id, names: t.names, count: t.count, types: types, cols: cols };
+        if (m.utf16 !== false) withText(out, held, isText);
+        postMessage(out, tr);
       } catch (err) { postMessage({ id: m.id, err: String(err && err.message || err) }); }
     };
   }
@@ -385,7 +405,7 @@
       else { cuts = splitPoints(u, delim, n); if (!cuts || cuts.length < 2) return serial(); warm(cuts.length, opts); }
     }
     for (k = 0; k < cuts.length; k++) {
-      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy }, tl = [];
+      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16 }, tl = [];   // _utf16: false = the 0.5.1 way (test switch)
       if (sendBytes) { msg.bytes = u.slice(cuts[k], pieceEnd(cuts, k)); tl.push(msg.bytes.buffer); }
       jobs.push(ask(POOL[k], msg, tl));
     }
@@ -405,13 +425,15 @@
     for (j = 0; j < ncols; j++) { textCol[j] = live.some(function (kk) { return res[kk].types[j] !== 1; }); }
     for (i = 0; i < live.length; i++) {
       k = live[i]; var need = []; for (j = 0; j < ncols; j++) if (textCol[j] && res[k].types[j] === 1) need.push(j);
-      if (need.length) again.push(ask(POOL[k], { op: 'text', cols: need }).then(function (kk, nd) { return function (m) { return { k: kk, need: nd, m: m }; }; }(k, need)));
+      if (need.length) again.push(ask(POOL[k], { op: 'text', cols: need, utf16: opts._utf16 }).then(function (kk, nd) { return function (m) { return { k: kk, need: nd, m: m }; }; }(k, need)));
     }
     var extra = await Promise.all(again);
     for (i = 0; i < extra.length; i++) if (extra[i].m.err) return serial();
     var textOf = {}; extra.forEach(function (x) { x.need.forEach(function (c, ix) { textOf[x.k + ':' + c] = { t: x.m.types[ix], d: x.m.cols[ix] }; }); });
     function desc(k, j) { return textOf[k + ':' + j] || { t: res[k].types[j], d: res[k].cols[j] }; }
     var pieceText = {};
+    for (k = 0; k < res.length; k++) if (res[k].text !== undefined) pieceText[k] = res[k].text;
+    extra.forEach(function (x) { if (x.m.text !== undefined) pieceText[x.k] = x.m.text; });
     function pieceStr(k) { if (pieceText[k] === undefined) pieceText[k] = td.decode(u.subarray(cuts[k], pieceEnd(cuts, k))); return pieceText[k]; }
     function fillText(j) {
       var v = new Array(total), at = 0, d, z, sv, tx, os, oe, oq, base, a;
@@ -455,5 +477,5 @@
     return col;
   }
 
-  return { version: '0.5.1', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { version: '0.5.2', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));

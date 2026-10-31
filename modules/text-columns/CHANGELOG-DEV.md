@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.2 · API 0 · 2026-10-31
+
+### Quick
+parseParallel: helpers send a non-ASCII piece's text as one string plus positions; same answers, no new options. 32 MB accented: Chromium 4.8x, WebKitGTK 2.1x, Firefox even.
+
+### Details
+Round 5 pool study, idea B. Before, a helper built every string of a non-ASCII text column itself (each field decoded on its own) and the page copied millions of strings on arrival; in Chromium that made helpers slower than one thread (1,027 vs 739 ms). Now the helper asks parse for field positions in every text column (_off 2), decodes the piece once with a strict decoder (ignoreBOM, so positions stay exact), turns byte positions into UTF-16 positions in one pass per column (toUnits), and sends the text and positions; the page cuts substrings (the type-2 path that ASCII pieces already used). A piece that is not valid UTF-8 keeps byte positions. Plain-ASCII pieces keep the 0.5.1 way: sending their text from the helper measured 0.82x in Chromium. tests/text-columns-utf16-browser.js: 56 same-answer cases; wall and page ms, 7 to 13 rounds. Numbers 45 MB and plain mixed 32 MB: 0.97 to 1.09x (noise; same code path).
+
+### Deep
+Round 5 brief item 1 (idea B only). Idea A (helpers read their own piece from a File/Blob) needs a new input and is on the owner's card. Firefox accented: wall even (253 to 248 ms) but the page's own work grows 46 to 156 ms (substring cuts from one two-byte string); flagged in the card text.
+
 ## 0.5.1 · API 0 · 2026-10-30
 
 ### Quick
