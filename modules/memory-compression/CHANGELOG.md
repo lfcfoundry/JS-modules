@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.8.1 · API 2 · 2026-10-31
+- After the idle trim, the two small wasm helpers are made again at once (about 6 MB held), so the first pack after a pause is as fast as the rest.
+
 ## 2.8.0 · API 2 · 2026-10-31
 - Packing lists of whole numbers (up to 100,000 rows) is 2 to 24% faster; files can be up to about 1% bigger. autoTries: false keeps the old bytes.
 
