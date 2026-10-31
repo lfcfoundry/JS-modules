@@ -97,7 +97,7 @@ Python writer: `python/lfc_pack_write.py` has `write(src, dst, level=3, exact=Fa
 ## How it compares
 Sizes are exact byte counts, the same everywhere. Parquet numbers are from the project's research runs (pyarrow, zstd level 3 unless stated), see `columns-v2` in the LFC-pack research folder.
 
-| Data | Input | lfc-pack 0.1.1 | Parquet |
+| Data | Input | lfc-pack 0.1.1 (measured then; not re-run) | Parquet |
 |---|---|---|---|
 | FHIR resources (Synthea), first 21 MB, 11,448 rows | 20,972,170 | **620,636** | 1,467,703 (zstd 3) |
 | same, 260 MB, 140,468 rows | 259,998,467 | **7,708,261** | not measured here |
@@ -107,16 +107,20 @@ Sizes are exact byte counts, the same everywhere. Parquet numbers are from the p
 
 `exact: true` costs size: the 21 MB FHIR file is 727,040 bytes (about 800 rows are spelled `0.0`).
 
-Speed: the browser check `tests/lfc-pack-browser.js` prints pack time, unpack time and `JSON.parse` time for the same rows, and with `FILE=...` the 1, 2, 4 and all-helper times for a real file. The numbers published for a release must come from a run that passes the noise guard; this version has not had one yet, so none are quoted. Round trips pass in all three test browsers.
+Speed: measured results, each labeled with its browser and machine (the real laptop run against `JSON.parse` and gzip, and cloud runs for each release since), are on the module page under "Speed and efficiency numbers". The browser check `tests/lfc-pack-browser.js` prints pack time, unpack time and `JSON.parse` time for the same rows, and with `FILE=...` the 1, 2, 4 and all-helper times for a real file. Round trips pass in all three test browsers.
 
 ## Limits
 - WebAssembly is required; there is no plain-JavaScript fallback for zstd.
 - Input is NDJSON, one value per line. Blank lines and `\r` are dropped in value mode (kept in `exact` mode). Lines that are not valid JSON make `pack` throw.
 - Value mode returns the values `JSON.parse` returns: numbers are doubles (9007199254740993 comes back as 9007199254740992), `1.0` comes back as `1`, `-0` stays `-0`, duplicate keys keep the last value, object keys come back in first-seen order per block (integer-like keys first, as in any JavaScript object).
-- Memory: the writer's wasm instance reserves about 400 MB of address space (not all touched) for a 21 MB block; shrinking this is planned. Blocks are capped at 48 MB, 4 million numbers and 262,144 rows; a block that exceeds the caps is split.
+- Memory: the writer's wasm instance reserves about 400 MB of address space (not all touched) for a 21 MB block; since 0.4.0 `trim()` gives grown memory back after a job, and idle `packParallel` helpers give back theirs. Blocks are capped at 48 MB, 4 million numbers and 262,144 rows; a block that exceeds the caps is split.
 - Rows are objects; a file of bare numbers or arrays works (nested layout) but gains little.
 - **The format is not frozen until a formal release**: files written by 0.x versions may not open in later ones.
 - Not built yet: the number-spelling section (smaller `exact` files), a streaming reader, the SQL subset, Parquet and CSV converters, and a command-line tool.
+
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link), through `packTables` and `unpackTables`. Checked in its shipped file on its main branch on 2026.10.31. The module's own page is `demo.html` in this folder, and `viewer.html` opens any `.json.lfc` file.
 
 ## Prior art and credits
 Zstandard (Yann Collet and Meta Platforms, BSD-3-Clause) does the compression; the library is compiled unchanged by `wasm/build.sh` (see [NOTICE-zstd.txt](NOTICE-zstd.txt)). The ideas of columns plus a footer with per-block statistics come from Apache Parquet and ORC; the shape-plus-columns split for nested data follows the "shredding" of Dremel (Melnik et al., Google, 2010) and the Parquet and Arrow nesting rules, with a simpler path-hash column naming. Log templates follow the log-parsing line of work (Drain, He et al. 2017; LogHub samples by the Logpai group were used for tests). The code here is written from scratch for this repository.
