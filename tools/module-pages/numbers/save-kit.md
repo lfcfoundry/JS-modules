@@ -49,3 +49,6 @@ Saved and loaded back the same in every case.
 | 16 MB: load | 71 | 147 | 148 |
 
 Roughly 2x to 3.7x faster than idb-keyval and localForage here; saved and loaded back the same in every case. Small saves (750 bytes, microseconds per save and load): save-kit 13 and 6.7, idb-keyval 203 and 93, localForage (IndexedDB) 210 and 93, localForage (localStorage driver) 17 and 3.3. After one damaged value save-kit falls back to its backup slot and returns a valid state.
+
+
+**New in 1.4.0: saves that survive a crash (opt-in).** Real crash test in the cloud browsers (not the laptop): with normal saves, 29 of 80 (Chromium) and 30 of 80 (Firefox) were lost; with the new `durable` option, none were lost. No measurable cost to saving or startup. `SaveKit.durableCopy()` is also new.
