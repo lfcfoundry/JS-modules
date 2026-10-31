@@ -1,8 +1,8 @@
 # netflow-sankey
 
-**Version 2.3.0 · API 2**
+**Version 2.3.2 · API 2**
 
-**Tested in:** Node 22 checks (31); 48 layouts identical to JavaScript, with and without the CSP word, in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time, 3 passes each
+**Tested in:** Chromium 155 container, same output as 2.3.1 on 6,000 random layouts (wasm and JavaScript paths)
 
 Lays out a flow chart (a Sankey diagram, "where did it come from and where did it go") from a plain list of links, and draws it as an SVG if you want. About 49 KB (17.7 KB gzipped, of which about 7 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map. Version 1.x had a different name, folder, file and browser global; a project on 1.x only has to change those three names to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
 
@@ -101,6 +101,10 @@ Chromium and Firefox rows are the median of 3 passes of 5 rounds; the two WebKit
 - Items are placed in columns by flow direction; you cannot pin an item to a chosen column.
 - No dragging or editing: it returns numbers, and `toSvg` is a simple drawing. For anything fancier draw `nodes`, `bands` and `loops` yourself.
 - The d3-sankey times above were taken with version 1.0.0 (the earlier name of this module); 2.0.0 lays out the same kind of charts about 3.7 to 4.1 times faster (66, 102 and 194 links: 2.0, 3.2 and 4.4 ms in Node 22). Bigger charts, layout and `toSvg` together in Chromium 155: 12,600 links about 0.27 s, 31,500 links about 0.25 s (the order search does less work on very big charts, so the time does not simply grow with the links). Redraw big charts when the page is idle, not on every key press.
+
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## Prior art and credits
 - [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3, 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape): the standard. Smaller; speed against this module in browsers is not measured; it throws on a loop, and its crossing order is not weighted by flow. d3-sankey-circular and similar forks add loops. Use d3-sankey if you already use D3 and your data has no loops. Used here only as the thing to measure against; no d3-sankey code is in this module.

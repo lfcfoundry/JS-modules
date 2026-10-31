@@ -57,6 +57,106 @@ for (let t = 0; t < 300; t++) {
 const net = fixture(30000, 6, 7), idx = new Map(net.nodes.map((x, i) => [x.id, i])), f2 = [], t2 = [];
 for (const e of net.edges) { if (idx.has(e.from) && idx.has(e.to)) { f2.push(idx.get(e.from)); t2.push(idx.get(e.to)); } }
 check('generated 30,000 items', net.nodes.length, f2, t2, [0, 12345]);
+
+// components, scc, topo, shortest, pathTo against slow textbook references (reachability matrix, Bellman-Ford)
+function newChecks(name, n, f, t, w, r2) {
+  const g = G.csr(n, f, t), m = f.length;
+  const R = []; for (let i = 0; i < n; i++) { R.push(new Uint8Array(n)); R[i][i] = 1; } for (let i = 0; i < m; i++) R[f[i]][t[i]] = 1;
+  for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) if (R[i][k]) for (let j = 0; j < n; j++) if (R[k][j]) R[i][j] = 1;
+  const U = R.map((row) => Uint8Array.from(row)); for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (R[i][j]) U[j][i] = 1;
+  for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) if (U[i][k]) for (let j = 0; j < n; j++) if (U[k][j]) U[i][j] = 1;
+  const c = G.components(g); let ok1 = c.id.length === n, seenIds = 0;
+  for (let i = 0; i < n; i++) { if (c.id[i] > seenIds) ok1 = false; else if (c.id[i] === seenIds) seenIds++; for (let j = 0; j < n; j++) if ((c.id[i] === c.id[j]) !== !!U[i][j]) ok1 = false; }
+  ok(ok1 && c.count === seenIds && c.sizes.reduce((a, b) => a + b, 0) === n, name + ': components');
+  const s = G.scc(g); let ok2 = s.id.length === n; const ids = new Set(s.id);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { if ((s.id[i] === s.id[j]) !== !!(R[i][j] && R[j][i])) ok2 = false; }
+  for (let i = 0; i < m; i++) if (s.id[f[i]] < s.id[t[i]]) ok2 = false;
+  ok(ok2 && ids.size === s.count && Math.max(-1, ...ids) === s.count - 1, name + ': scc');
+  const tp = G.topo(g), pos = new Int32Array(n).fill(-1); tp.order.forEach((v, i) => { pos[v] = i; });
+  let acyclic = true; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j && R[i][j] && R[j][i]) acyclic = false; for (let i = 0; i < m; i++) if (f[i] === t[i]) acyclic = false;
+  let ok3 = tp.complete === acyclic;
+  for (let i = 0; i < m; i++) if (pos[f[i]] >= 0 && pos[t[i]] >= 0 && pos[f[i]] >= pos[t[i]]) ok3 = false;
+  if (acyclic) for (let i = 0; i < n; i++) if (pos[i] < 0) ok3 = false;
+  if (!acyclic) for (let v = 0; v < n; v++) if (pos[v] >= 0) { for (let u = 0; u < n; u++) if (u !== v && R[u][v] && R[v][u]) ok3 = false; for (let i = 0; i < m; i++) if (f[i] === v && t[i] === v) ok3 = false; }
+  ok(ok3, name + ': topo');
+  for (const src of r2) {
+    const ref = new Float64Array(n).fill(Infinity); if (src >= 0 && src < n) ref[src] = 0;
+    for (let it = 0; it < n; it++) for (let i = 0; i < m; i++) if (ref[f[i]] + w[i] < ref[t[i]]) ref[t[i]] = ref[f[i]] + w[i];
+    const r = G.shortest(g, src, Float64Array.from(w)); let ok4 = true;
+    for (let v = 0; v < n; v++) if (Math.abs(r.dist[v] - ref[v]) > 1e-9 && r.dist[v] !== ref[v]) ok4 = false;
+    for (let v = 0; v < n; v++) { const p = G.pathTo(g, r, v); if (ref[v] === Infinity) { if (p !== null) ok4 = false; } else { let sum = 0, at = src; for (const e of p) { if (f[e] !== at) ok4 = false; at = t[e]; sum += w[e]; } if (at !== v || Math.abs(sum - ref[v]) > 1e-9) ok4 = false; } }
+    ok(ok4, name + ': shortest weighted from ' + src);
+    const u = G.shortest(g, src), d = G.bfs(g, src); let ok5 = true;
+    for (let v = 0; v < n; v++) if ((d[v] < 0 ? Infinity : d[v]) !== u.dist[v]) ok5 = false;
+    for (let v = 0; v < n; v++) { const p = G.pathTo(g, u, v); if (d[v] < 0 ? p !== null : !p || p.length !== d[v]) ok5 = false; }
+    ok(ok5, name + ': shortest by links from ' + src);
+    for (const tg2 of [(src + 3) % n, src, (src * 7 + 1) % n, n - 1]) {   // path: both-ends search, repeated on one graph (working arrays are reused), weighted and by links
+      const pw = G.path(g, src, tg2, Float64Array.from(w)), pu = G.path(g, src, tg2); let okq = true;
+      if (!(src >= 0 && src < n)) okq = pw === null && pu === null;
+      else {
+        if (ref[tg2] === Infinity) okq = pw === null; else { let sum = 0, at = src; for (const e of pw.links) { if (f[e] !== at) okq = false; at = t[e]; sum += w[e]; } if (at !== tg2 || Math.abs(sum - ref[tg2]) > 1e-9 || Math.abs(pw.cost - ref[tg2]) > 1e-9) okq = false; }
+        if (d[tg2] < 0) okq = okq && pu === null; else { let at = src; for (const e of pu.links) { if (f[e] !== at) okq = false; at = t[e]; } if (at !== tg2 || pu.links.length !== d[tg2] || pu.cost !== d[tg2]) okq = false; }
+      }
+      ok(okq, name + ': path ' + src + ' to ' + tg2);
+    }
+    const tg = (src + 3) % n, e1 = G.shortest(g, src, Float64Array.from(w), tg), e2 = G.shortest(g, src, null, tg);
+    { const pp = G.pathTo(g, e1, tg); let okp = ref[tg] === Infinity ? pp === null : pp !== null; if (okp && pp) { let sum = 0, at = src; for (const e of pp) { if (f[e] !== at) okp = false; at = t[e]; sum += w[e]; } if (at !== tg || Math.abs(sum - ref[tg]) > 1e-9 || Math.abs(e1.dist[tg] - ref[tg]) > 1e-9) okp = false; } ok(okp, name + ': early-stop path from ' + src); }
+    ok((e1.dist[tg] === ref[tg] || Math.abs(e1.dist[tg] - ref[tg]) < 1e-9) && (ref[tg] === Infinity || e2.dist[tg] === (d[tg] < 0 ? Infinity : d[tg])), name + ': shortest stops early at target');
+  }
+}
+newChecks('one item', 1, [], [], [], [0, -1, 1]);
+newChecks('self link', 1, [0], [0], [2], [0]);
+newChecks('chain with a shortcut', 4, [0, 1, 2, 0], [1, 2, 3, 3], [1, 1, 1, 5], [0, 3]);
+newChecks('zero weights and ties', 4, [0, 0, 1, 2], [1, 2, 3, 3], [0, 0, 0, 0], [0]);
+for (let t = 0; t < 400; t++) {
+  const n = 1 + Math.floor(r() * 25), m = Math.floor(r() * n * 3), f = [], to = [], w = [];
+  for (let i = 0; i < m; i++) { f.push(Math.floor(r() * n)); to.push(Math.floor(r() * n)); w.push(r() < 0.2 ? 0 : Math.floor(r() * 9) + r()); }
+  newChecks('random2 ' + t, n, f, to, w, [0, Math.floor(r() * n), -1, n]);
+}
+{ const n = 300000, f = new Int32Array(n - 1), to = new Int32Array(n - 1); for (let i = 0; i < n - 1; i++) { f[i] = i; to[i] = i + 1; }
+  const g = G.csr(n, f, to); ok(G.components(g).count === 1 && G.scc(g).count === n && G.topo(g).complete && G.shortest(g, 0, new Float64Array(n - 1).fill(1)).dist[n - 1] === n - 1, 'long chain'); }
+{ const g3 = G.csr(3, [0, 1], [1, 2]); let bad3 = false; try { G.path(g3, 0, 2, Float64Array.of(1, -1)); } catch (e) { bad3 = e instanceof RangeError; } ok(bad3, 'path refuses a negative weight'); const pp = G.path(g3, 0, 2, Float64Array.of(1, 2)); ok(pp && pp.cost === 3 && pp.links.join() === '0,1', 'path works again after a refused call'); }
+{ let bad2 = false; try { G.shortest(G.csr(2, [0], [1]), 0, Float64Array.of(-1)); } catch (e) { bad2 = e instanceof RangeError; } ok(bad2, 'negative weight refused'); }
+
+// kcore, mst, pagerank, betweenness against slow references
+function moreChecks(name, n, f, t, w) {
+  const g = G.csr(n, f, t), m = f.length;
+  // k-core by repeated peeling
+  { const alive = new Uint8Array(n).fill(1), core = new Int32Array(n); const degOf = (v) => { let d = 0; for (let i = 0; i < m; i++) { if (f[i] === t[i]) continue; if ((f[i] === v && alive[t[i]]) || (t[i] === v && alive[f[i]])) d++; } return d; };
+    for (let k = 0, left = n; left > 0; k++) { let changed = true; while (changed) { changed = false; for (let v = 0; v < n; v++) if (alive[v] && degOf(v) < k) { alive[v] = 0; left--; core[v] = k - 1; changed = true; } } }
+    const kc = G.kcore(g); ok(same(kc.core, core) && kc.max === Math.max(0, ...core), name + ': kcore'); }
+  // minimum spanning forest: same total as Prim over each group, a forest, and spans every group
+  { const r = G.mst(g, Float64Array.from(w)), c = G.components(g); ok(r.links.length === n - c.count, name + ': mst link count');
+    const p = Array.from({ length: n }, (_, i) => i), find = (x) => { while (p[x] !== x) x = p[x]; return x; }; let tot = 0, fine = true;
+    for (const e of r.links) { const a = find(f[e]), b = find(t[e]); if (a === b) fine = false; p[a] = b; tot += w[e]; }
+    // Prim on the undirected view
+    let prim = 0; const seen = new Uint8Array(n);
+    for (let s0 = 0; s0 < n; s0++) { if (seen[s0]) continue; seen[s0] = 1; for (;;) { let be = -1; for (let i = 0; i < m; i++) { if (seen[f[i]] !== seen[t[i]] && (be < 0 || w[i] < w[be])) be = i; } if (be < 0) break; seen[f[be]] = 1; seen[t[be]] = 1; prim += w[be]; } }
+    ok(fine && Math.abs(tot - prim) < 1e-9 && Math.abs(r.total - prim) < 1e-9, name + ': mst total ' + tot + ' vs prim ' + prim);
+    for (let i = 1; i < r.links.length; i++) ok(w[r.links[i - 1]] <= w[r.links[i]], name + ': mst order'); }
+  // pagerank: dense power iteration with the same stopping rule
+  { const alpha = 0.85, out = new Float64Array(n); for (let i = 0; i < m; i++) out[f[i]]++;
+    let x = new Float64Array(n).fill(1 / n), it = 0, conv = false;
+    while (it < 100) { const y = new Float64Array(n); let dang = 0; for (let v = 0; v < n; v++) if (!out[v]) dang += x[v];
+      for (let v = 0; v < n; v++) y[v] = (alpha * dang + 1 - alpha) / n; for (let i = 0; i < m; i++) y[t[i]] += alpha * x[f[i]] / out[f[i]];
+      let err = 0; for (let v = 0; v < n; v++) err += Math.abs(y[v] - x[v]); x = y; it++; if (err < n * 1e-6) { conv = true; break; } }
+    const r = G.pagerank(g); let okp = r.iterations === it && r.converged === conv; for (let v = 0; v < n; v++) if (Math.abs(r.rank[v] - x[v]) > 1e-12) okp = false; ok(okp, name + ': pagerank');
+    if (m) { const ww = Float64Array.from(w, (v) => Math.abs(v) + 0.5), rw = G.pagerank(g, { weights: ww }); let s = 0; for (const v of rw.rank) s += v; ok(Math.abs(s - 1) < 1e-9, name + ': weighted pagerank sums to 1'); } }
+  // betweenness: count shortest paths between every pair with a plain BFS and add up the shares
+  { const adj = Array.from({ length: n }, () => []); for (let i = 0; i < m; i++) adj[f[i]].push(t[i]);
+    const cnt = (s) => { const d = new Array(n).fill(-1), c = new Array(n).fill(0), q = [s]; d[s] = 0; c[s] = 1; for (let h = 0; h < q.length; h++) { const v = q[h]; for (const u of adj[v]) { if (d[u] < 0) { d[u] = d[v] + 1; q.push(u); } if (d[u] === d[v] + 1) c[u] += c[v]; } } return { d, c }; };
+    const R = Array.from({ length: n }, (_, s) => cnt(s)), ref = new Float64Array(n);
+    for (let s = 0; s < n; s++) for (let tt = 0; tt < n; tt++) { if (s === tt || R[s].d[tt] < 0) continue; for (let v = 0; v < n; v++) { if (v === s || v === tt || R[s].d[v] < 0 || R[v].d[tt] < 0 || R[s].d[v] + R[v].d[tt] !== R[s].d[tt]) continue; ref[v] += R[s].c[v] * R[v].c[tt] / R[s].c[tt]; } }
+    const raw = G.betweenness(g, { normalized: false }); let okb = true; for (let v = 0; v < n; v++) if (Math.abs(raw[v] - ref[v]) > 1e-9) okb = false; ok(okb, name + ': betweenness');
+    if (n > 2) { const nb = G.betweenness(g); for (let v = 0; v < n; v++) if (Math.abs(nb[v] - ref[v] / ((n - 1) * (n - 2))) > 1e-12) okb = false; ok(okb, name + ': betweenness normalized'); } }
+}
+moreChecks('one item', 1, [], [], []); moreChecks('self link', 2, [0, 0], [0, 1], [1, 2]); moreChecks('triangle plus tail', 4, [0, 1, 2, 2], [1, 2, 0, 3], [1, 2, 3, 4]);
+moreChecks('repeated links', 3, [0, 0, 1], [1, 1, 2], [3, 1, 2]);
+for (let tt = 0; tt < 150; tt++) {
+  const n = 1 + Math.floor(r() * 14), m = Math.floor(r() * n * 3), f = [], to = [], w = [];
+  for (let i = 0; i < m; i++) { f.push(Math.floor(r() * n)); to.push(Math.floor(r() * n)); w.push(r() < 0.3 ? 2 : Math.floor(r() * 9) - 2 + r()); }
+  moreChecks('random3 ' + tt, n, f, to, w);
+}
 let bad = false; try { G.csr(2, [0], [5]); } catch (e) { bad = e instanceof RangeError; } ok(bad, 'csr rejects an item outside 0..n-1');
 bad = false; try { G.csr(2, [0], [1, 1]); } catch (e) { bad = e instanceof RangeError; } ok(bad, 'csr rejects lists of different length');
 ok(/^0\.\d+\.\d+$/.test(G.version) && G.api === 0, 'runtime version and API');

@@ -88,6 +88,10 @@ Where it loses: `EvenDt` gives no smoothing to a 15 Hz or slower loop (gaps of 6
 - **`JobPump`**: never hold a shared scratch canvas or typed array across a `yield`. Keep steps near a millisecond (the budget is checked after a step). A generator that never ends blocks everything behind it.
 - **Coarse clocks** (Firefox with privacy protection rounds time to 16.67 ms or more): `FrameMeter`'s game-or-device call becomes unreliable (FPS, worst gap and hitch count still work to within one tick), and `JobPump` stops after `stuckSteps` steps while the clock stays frozen; pass `clockStepMs` to avoid one full tick on the first `run()`.
 
+## See it in action
+
+Used right now in [Fancy, the Banana](https://lfcfoundry.github.io/fancy-banana/play/), [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/). Checked in each app's shipped file on its main branch on 2026.10.30.
+
 ## For AI agents
 
 - Run `node modules/frame-kit/test/run.js` from the repository root after any change; it must print `0 failed`. Do not weaken a test.

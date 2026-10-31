@@ -54,6 +54,10 @@ Where it loses:
 - Assistive technology: the door is a labelled modal dialog and works from the keyboard; it has not been tried with a screen reader.
 - Real phones were not available for this check. Touch was driven by the browsers' own test drivers in Chromium and Firefox, not a hand on a screen.
 
+## See it in action
+
+Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/play/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## Prior art and credits
 - Apple's Kids category page (above) names parental gates as a requirement, with the example of tasks "an adult can do"; it leaves the design to you.
 - I found no maintained standalone web library for this: an npm search for "parental gate" returned a React Native package at version 0.1.1 (2023) and unrelated results (one search, not exhaustive).

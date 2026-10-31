@@ -64,6 +64,17 @@ It does not decide anything for you and it is not legal advice. Put the font's l
 ## Tests
 `python3 tools/single-file-tools/test/run.py` (Python 3; a few seconds). It builds a small fixture page with a test font made on the fly, runs each tool and checks that the glyphs the page can print survive, unused glyphs are dropped, the license records and warnings appear, SVG ids and scripts are unchanged, `build-example.sh` finds its tools from another folder, the Zopfli loader reports a damaged file and an old browser correctly (in base64 and bytes mode, including a server that forces utf-8), the skipped-picture cases, the missing-character and `--costs` reports, and the waiting page (centered "Loading…", dark default, `--bg` color, bad colors fall back, small growth, unpacked page unchanged). Cases whose tool is missing are skipped with a message: the font cases need `fonttools` (and run as woff when `brotli` is missing), the SVG and loader cases need Node.js, the SVG cases use a stand-in for svgo unless the real one is installed, and the real Zopfli command line needs `zopfli`. Nothing here opens a browser.
 
+## How it compares
+
+| Alternative | What it does | Why it does not fit a one-file game |
+|---|---|---|
+| html-minifier-terser, terser | Shrink HTML and JavaScript | Do not know which glyphs a one-file game can print or which picture ids its script uses |
+| subfont | Subsets fonts for a served page | Works on served pages, not on a font already embedded in a one-file page |
+| vite-plugin-singlefile and similar inliners | Fold files into one HTML file | Inline only; they do not subset fonts, clean pictures or pick a packer |
+| **single-file-tools** | Small, conservative steps for fonts, pictures and packing, each optional | Calls fontTools, svgo and Zopfli as outside programs; it does not replace them |
+
+This is a feature comparison from each project's public documentation. The measured savings of each step are in the section above.
+
 ## Prior art and credits
 - **[subfont](https://www.npmjs.com/package/subfont)** (MIT) subsets the fonts a web page uses and can load them well; it works on pages served normally, not on a font already embedded as base64 in a one-file page.
 - **fontTools `pyftsubset`** is the engine `optfonts.py` calls (its docs say `--no-hinting` can cut up to about 30%, and woff2 output needs the Brotli Python module).

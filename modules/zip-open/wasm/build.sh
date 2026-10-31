@@ -6,7 +6,7 @@
 # Then run embed.py to put the file into ../zip-open.js.
 set -e
 cd "$(dirname "$0")"
-FLAGS="--target=wasm32 -O3 -ffp-contract=off -nostdlib -DSLICE=16 -Wl,--no-entry -Wl,--export=init -Wl,--export=crc -Wl,--export=__heap_base -Wl,--export-memory -Wl,-z,stack-size=4096 -Wl,--strip-all"
+FLAGS="--target=wasm32 -O3 -ffp-contract=off -nostdlib -DSLICE=16 -Wl,--no-entry -Wl,--export=init -Wl,--export=crc -Wl,--export=inflate -Wl,--export=__heap_base -Wl,--export-memory -Wl,-z,stack-size=4096 -Wl,--strip-all"
 case "$1" in
   --check) T=$(mktemp); clang $FLAGS -o "$T" crc32.c; if cmp -s "$T" crc32.wasm; then echo "crc32.wasm is what crc32.c builds"; rm -f "$T"; else echo "crc32.wasm is NOT what crc32.c builds"; rm -f "$T"; exit 1; fi ;;
   *) clang $FLAGS -o crc32.wasm crc32.c; wc -c crc32.wasm ;;

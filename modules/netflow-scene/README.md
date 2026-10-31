@@ -77,6 +77,20 @@ var S = NetflowScene.make(L, { theme: names.theme, palette: names.palette, ramp:
 - Drawing itself (Canvas, WebGL, WebGPU) is not in this module.
 - Not tried on a real phone.
 
+## See it in action
+
+Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
+## How it compares
+
+| Alternative | What it does | Why it does not fit this job |
+|---|---|---|
+| d3-sankey and d3-force | Lay out nodes and links | Layout only; where, what color and how thick are left to your own drawing code |
+| Cytoscape.js, Sigma.js, vis-network | Lay out and draw a network | The look is tied to their own renderer; one scene cannot feed four different drawing backends |
+| **netflow-scene** | One place for where, what color and how thick, with no page code in it; any drawing code can use the lists | Draws nothing itself |
+
+This is a feature comparison from each project's public documentation. No speed comparison was measured.
+
 ## Prior art and credits
 The scene lists follow the common "scene graph for a chart" idea; links as typed arrays follow struct-of-arrays practice. No code from other projects.
 

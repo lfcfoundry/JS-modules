@@ -54,6 +54,14 @@ How it behaves, so a result can be trusted:
 - `on('console')` and `on('requestfailed')` see what happens after they are set; messages printed and files that failed while the page was loading are not seen. They arrive when the test next calls `evaluate`, `wait_for_timeout` or `wait_for_selector`. Failed loads are pictures, scripts, style sheets, media and frames (not `fetch`).
 - `evaluate` leaves a small `data-pw-r` attribute on the root element for a moment to carry the result back.
 
+## How it compares
+
+| Alternative | What it does | Why it does not fit this job |
+|---|---|---|
+| Playwright | Drives Firefox | Only its own patched Firefox build, which many networks do not let you download; cannot drive stock Firefox |
+| Selenium with geckodriver | Drives stock Firefox | A different API, so a test written for Playwright must be rewritten |
+| **firefox-stand-in** | Playwright for Python's call names on top of Selenium and geckodriver, so an existing test runs unchanged in real stock Firefox | Covers only the calls listed below |
+
 ## Prior art and credits
 - Playwright for Python: only its call names and shapes (`sync_playwright`, `launch`, `new_page`, `goto`, `evaluate` and the others listed above) are copied, so an existing test runs unchanged. No Playwright code is included.
 - Selenium and geckodriver do the driving, and Firefox is the browser; none of them is included here. `pwfirefox.py` imports Selenium (install it with `pip install selenium`) and otherwise only Python's standard library.

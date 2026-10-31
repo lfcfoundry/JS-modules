@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.2 (API 1)
+ * Version 1.3.0 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -43,6 +43,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  var trusted = false;                // set only while createLarge().load() rebuilds a state from bytes that passed their check and contain no prototype-pollution key names
   var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
   var DEFAULT_MAX_KEYS = 1000;        // most names kept in one 'counts' field
 //@begin codes
@@ -97,7 +98,7 @@
         }
         return out;
 //@begin raw
-      case 'raw': try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { try { return scrub(JSON.parse(JSON.stringify(d)), 0); } catch (e2) { return d; } }   // a fresh copy of the default, never the default object itself
+      case 'raw': if (trusted && v !== undefined) return v; try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { try { return scrub(JSON.parse(JSON.stringify(d)), 0); } catch (e2) { return d; } }   // a fresh copy of the default, never the default object itself
 //@end
       default: return d;
     }
@@ -452,6 +453,177 @@
     return api;
   }
 
+//@begin large
+  // ---- large saves (IndexedDB) ----
+  // createLarge({ name, schema, defaults, soundKeys, backupEveryMs, stamp, afterValidate, version, lock, indexedDB })
+  // The same checks and backup slot as create(), over IndexedDB, for saves of a few MB and up (localStorage holds about 5 MB for the whole site).
+  // Every call returns a Promise and never rejects. A save is stored as its JSON text plus the text length, in one transaction with the
+  // backup slot, so a half-written save cannot exist (the browser's own storage adds its own checksums); load() ignores a slot whose
+  // text is cut short or is not a JSON object and falls back to the other slot.
+  // While a write is running, newer saves wait and only the newest is written (each caller's Promise resolves true once that save or a newer one is stored).
+  function createLarge(o) {
+    o = o || {};
+    var dbName = o.name || 'save-kit-large', schema = o.schema || {}, defaults = o.defaults || {}, stamp = o.stamp || 'seen';
+    var fields = fieldsOf(schema), after = typeof o.afterValidate === 'function' ? o.afterValidate : null;
+    var kinds = function (t) { return fields.filter(function (f) { return f[1].type === t; }).map(function (f) { return f[0]; }); };
+    var soundKeys = o.soundKeys || kinds('num').concat(kinds('int')), countKeys = kinds('counts');
+    var version = o.version > 0 ? Math.floor(o.version) : 0;
+    var backupEvery = o.backupEveryMs == null ? 60000 : o.backupEveryMs, backupAt = 0, off = false;
+    var idb = 'indexedDB' in o ? o.indexedDB : typeof indexedDB !== 'undefined' ? indexedDB : null, dbp = null;
+    var plain = new WeakSet();   // parsed states whose text names no prototype-pollution key
+    var chan = null, listeners = [], mine = Math.random().toString(36).slice(2);
+    var useLock = !!o.lock, held = null, first = null, lostCb = null;
+
+    function badFields(x) {
+      var n = 0, i, v;
+      for (i = 0; i < soundKeys.length; i++) { v = x[soundKeys[i]]; if (v !== undefined && !isNum(v)) n++; }
+      for (i = 0; i < countKeys.length; i++) if (!countsSound(x[countKeys[i]])) n++;
+      return n;
+    }
+    function finish(raw) {
+      var c = validateWith(fields, defaults, raw), r;
+      if (!after) return c;
+      try { r = after(c, raw); } catch (e) { return c; }
+      return r === false || r === null ? null : isObj(r) ? r : c;
+    }
+    // finish() for a state that came out of open(): when its text names no __proto__, constructor or prototype key, 'raw' fields skip the deep copy and scrub.
+    function fin(x) { trusted = plain.has(x); try { return finish(x); } finally { trusted = false; } }
+    function db() {
+      if (!dbp) dbp = new Promise(function (ok) {
+        if (!idb) { ok(null); return; }
+        try {
+          var rq = idb.open(dbName, 1);
+          rq.onupgradeneeded = function () { rq.result.createObjectStore('slots'); };
+          rq.onsuccess = function () { var d = rq.result; d.onversionchange = d.onclose = function () { try { d.close(); } catch (e) {} dbp = null; }; ok(d); };
+          rq.onerror = rq.onblocked = function () { dbp = null; ok(null); };
+        } catch (e) { dbp = null; ok(null); }
+      });
+      return dbp;
+    }
+    function tx(d, mode) { return d.transaction('slots', mode); }
+    function get(d, k) {
+      return new Promise(function (ok) {
+        try { var rq = tx(d, 'readonly').objectStore('slots').get(k); rq.onsuccess = function () { ok(rq.result); }; rq.onerror = function () { ok(undefined); }; } catch (e) { ok(undefined); }
+      });
+    }
+    // The state a record holds, or null when the record is missing, has the wrong length, or is not a JSON object.
+    function open(rec) {
+      try {
+        if (!rec || typeof rec.t !== 'string' || rec.t.length !== rec.n) return null;
+        var t = rec.t, x = JSON.parse(t);
+        if (!isObj(x)) return null;
+        if (t.indexOf('__proto__') < 0 && t.indexOf('"constructor"') < 0 && t.indexOf('"prototype"') < 0) plain.add(x);
+        return x;
+      } catch (e) { return null; }
+    }
+    function claim(steal) {
+      if (!(typeof navigator !== 'undefined' && navigator.locks)) return Promise.resolve(true);
+      return new Promise(function (ok) {
+        try {
+          navigator.locks.request('save-kit-large:' + dbName, steal ? { steal: true } : { ifAvailable: true }, function (l) {
+            if (!l) { ok(false); return; }
+            ok(true);
+            return new Promise(function () {});   // held until the page closes (or another tab steals it)
+          }).then(null, function () { held = false; if (lostCb) try { lostCb(); } catch (e) {} });
+        } catch (e) { ok(true); }
+      }).then(function (g) { held = g; return g; });
+    }
+
+    function channel() {
+      if (!chan) { chan = new BroadcastChannel('save-kit-large:' + dbName); chan.onmessage = function (e) { if (e.data && e.data.from !== mine && listeners.length) api.load().then(function (s) { listeners.slice().forEach(function (f) { try { f(s); } catch (x) {} }); }); }; }
+      return chan;
+    }
+    var busy = false, next = null;
+    function put(slot) {
+      var started = slot.at;
+      return db().then(function (d) {
+        if (!d) return false;
+        return new Promise(function (ok) {
+          try {
+            var t = tx(d, 'readwrite'), s = t.objectStore('slots'), now = Date.now(), backup = now - backupAt > backupEvery;
+            s.put(slot.rec, 'main');
+            if (backup) s.put(slot.rec, 'backup');
+            t.oncomplete = function () { if (backup) backupAt = now; try { channel().postMessage({ from: mine, at: started }); } catch (e) {} ok(true); };
+            t.onerror = t.onabort = function () { ok(false); };
+          } catch (e) { ok(false); }
+        });
+      });
+    }
+    function pump() {
+      if (busy || !next) return;
+      var job = next; next = null; busy = true;
+      put(job).then(function (r) { return r; }, function () { return false; }).then(function (r) {
+        busy = false;
+        job.done.forEach(function (f) { f(r); });
+        pump();
+      });
+    }
+    function enqueue(rec) {
+      return new Promise(function (ok) {
+        var done = next ? next.done : [];   // a write waiting behind the running one is replaced; its callers wait for the newer one
+        done.push(ok);
+        next = { rec: rec, at: Date.now(), done: done };
+        pump();
+      });
+    }
+
+    var api = {
+      validate: function (input) { return validateWith(fields, defaults, input); },
+      // -> Promise<clean state or null>: from the main slot, or from the backup when the main slot is missing, damaged or has more broken numbers.
+      load: function () {
+        return db().then(function (d) {
+          if (!d) return null;
+          return get(d, 'main').then(function (mr) {
+            var a = open(mr);
+            if (a && badFields(a) === 0) return fin(a);
+            return get(d, 'backup').then(function (br) {
+              var b = open(br), first = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a), out = first ? fin(first) : null, second;
+              if (!out && first) { second = first === a ? b : a; out = second ? fin(second) : null; }
+              return out;
+            });
+          });
+        }).then(null, function () { return null; });
+      },
+      // -> Promise<boolean>. False (and nothing written) when a number is broken, saving is off, another tab holds the lock, or storage fails.
+      save: function (state) {
+        try {
+          if (off || !idb || !isObj(state) || badFields(state) > 0) return Promise.resolve(false);
+          if (version) state.v = version;
+          state[stamp] = Date.now();
+          var t = JSON.stringify(state), rec = { t: t, n: t.length };
+          if (useLock && held === null) return (first || (first = claim(false))).then(function (g) { return g ? enqueue(rec) : false; });
+          return useLock && !held ? Promise.resolve(false) : enqueue(rec);
+        } catch (e) { return Promise.resolve(false); }
+      },
+      // -> Promise<boolean>: removes both slots.
+      clear: function () {
+        return db().then(function (d) {
+          if (!d) return false;
+          return new Promise(function (ok) {
+            try { var t = tx(d, 'readwrite'), s = t.objectStore('slots'); s.delete('main'); s.delete('backup'); t.oncomplete = function () { ok(true); }; t.onerror = t.onabort = function () { ok(false); }; } catch (e) { ok(false); }
+          });
+        });
+      },
+      forceBackupNext: function () { backupAt = 0; },
+      pause: function (v) { off = v !== false; },
+      // With the lock option: -> Promise<boolean>, true when this tab may write. claim(true) takes the lock from the tab that holds it.
+      claim: function (steal) { return claim(steal === true); },
+      // cb() runs when another tab takes the lock from this one (this tab's saves then return false).
+      onLost: function (cb) { lostCb = typeof cb === 'function' ? cb : null; },
+      // cb(cleanState) runs when ANOTHER tab (same name) has stored a save. Returns a function that stops listening.
+      onOtherTab: function (cb) {
+        if (typeof BroadcastChannel === 'undefined' || typeof cb !== 'function') return function () {};
+        channel();
+        listeners.push(cb);
+        return function () { var i = listeners.indexOf(cb); if (i >= 0) listeners.splice(i, 1); };
+      },
+      // Closes the database and the channel (a later call opens them again).
+      close: function () { return db().then(function (d) { if (d) { try { d.close(); } catch (e) {} } dbp = null; if (chan) { try { chan.close(); } catch (e) {} chan = null; } }); }
+    };
+    return api;
+  }
+//@end
+
 //@begin twoTap
   // twoTap(fn, ms, onArm, onDisarm) -> a click handler: the first call arms (and calls onArm), a second call within ms runs fn.
   function twoTap(fn, ms, onArm, onDisarm) {
@@ -465,7 +637,11 @@
 //@end
 
   return {
-    create: create, validate: validate, isSound: isSound,
+    create: create,
+//@begin large
+    createLarge: createLarge,
+//@end
+    validate: validate, isSound: isSound,
 //@begin codes
     checksum: checksum, toBase64Url: toB64, fromBase64Url: fromB64,
 //@end

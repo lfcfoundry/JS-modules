@@ -63,6 +63,10 @@ Where it loses:
 - Works with any font; very thin fonts need a larger outer ring (`radii`).
 - Needs `sticker-text.css`. The text must be plain text (the copy is `textContent`, so child markup is flattened in the copies).
 
+## See it in action
+
+Used right now in [Pineapple Defense](https://lfcfoundry.github.io/pineapple-defense/play/). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
+
 ## Prior art and credits
 The idea of an outline made from offset shadows is not new; the packaged recipe (three smooth rings, gradient fill, hard edge, one `font-size`) is this module's part.
 - `-webkit-text-stroke` with `paint-order: stroke fill` ([MDN](https://developer.mozilla.org/docs/Web/CSS/paint-order)): one line of CSS and good for thin outlines, supported in current browsers. For HTML text, Chromium 155 ignores `stroke-linejoin` (measured), so sharp letters can show spikes there where this ring stays round; Firefox 158 and WebKitGTK 2.52.6 round the corners. This is what the `st-stroke` class uses. Use it when you want a thin outline on text that changes often.
