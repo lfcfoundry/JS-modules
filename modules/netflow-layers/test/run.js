@@ -166,6 +166,27 @@ t('wasm: the default skips maps under 100 stops, and a refused or missing WebAss
   const b = JSON.stringify(allowed.layout(g, o)); ok(b === ref, 'vm copy with wasm: a different picture'); ok(allowed.wasm.calls >= 2, 'vm copy did not use wasm');
   return 'refused: ' + denied.wasm.error.slice(0, 60);
 });
+t('1.6.0 deep and rows best: off is the old picture; deep never has more crossings; best keeps the fewer of the two row choices; wasm on and off agree to the last digit', () => {
+  const min0 = NL.wasm.min; NL.wasm.min = 0; let n = 0, gain = [];
+  try {
+    const maps = [story(30, 1), story(120, 2), dag(60, 120, 3), story(400, 4), dag(300, 700, 6), dag(600, 1140, 9), story(3, 7), dag(2, 1, 8)];
+    maps.forEach((m, mi) => [{ dir: 'LR' }, { dir: 'TB', tagLen: 8, bundle: true }, { dir: 'LR', better: true, spine: true, lanes: true }].forEach((o0, oi) => {
+      const g = graph(m), plain = NL.layout(g, o0), d = Object.assign({ deep: true }, o0), bst = Object.assign({ deep: true, rows: 'best' }, o0);
+      NL.wasm.on = true; const A = NL.layout(g, d), Ab = NL.layout(g, bst); NL.wasm.on = false; const B = NL.layout(g, d), Bb = NL.layout(g, bst); NL.wasm.on = true;
+      same(A, B, 'deep map' + mi + '/set' + oi); same(Ab, Bb, 'best map' + mi + '/set' + oi);
+      ok(A.crossings <= plain.crossings, 'deep worse on map ' + mi + ': ' + plain.crossings + ' to ' + A.crossings);
+      const st = NL.layout(g, Object.assign({ deep: true, rows: 'story' }, o0));
+      ok(Ab.crossings === Math.min(A.crossings, st.crossings), 'best is not the fewer on map ' + mi);
+      if (oi === 0 && plain.crossings > 100) gain.push(plain.crossings + ' to ' + Ab.crossings); n++;
+    }));
+    ok(JSON.stringify(graph(maps[3])) === JSON.stringify(graph(maps[3])), 'input');
+  } finally { NL.wasm.on = true; NL.wasm.min = min0; }
+  return n + ' maps; crossings ' + gain.join(', ');
+});
+t('1.6.0 deep: maps over 20,000 stops keep the old search (the same picture as without deep)', () => {
+  const g = graph(dag(400, 760, 11)), m0 = NL._deep.maxStops; NL._deep.maxStops = 10;
+  try { same(NL.layout(g, { deep: true }), NL.layout(g, {}), 'over the cap'); } finally { NL._deep.maxStops = m0; }
+});
 t('wasm: the embedded bytes are the ones wasm/order.wasm holds (rebuild with sh wasm/build.sh, then python3 wasm/embed.py)', () => {
   const fs = require('fs'), src = fs.readFileSync(require.resolve('../netflow-layers.js'), 'utf8'), b64 = /WASM:order:BEGIN\*\/'([^']*)'/.exec(src)[1];
   ok(Buffer.from(b64, 'base64').equals(fs.readFileSync(require('path').join(__dirname, '..', 'wasm', 'order.wasm'))), 'embedded bytes differ from wasm/order.wasm'); return Buffer.from(b64, 'base64').length + ' bytes';
