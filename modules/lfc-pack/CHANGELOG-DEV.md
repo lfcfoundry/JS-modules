@@ -19,6 +19,19 @@ Pack ms, before / after, median of 7, two rounds (first and second number per ce
 
 Also tried: reading decimal columns straight from the zstd output view instead of a copy. Firefox reads were 10 to 30% slower (loops over a wasm memory view are slower there), so the copy stays.
 
+### Details (row shapes)
+A Chromium profile of pack put `shapeFor` (wasm/core.c) at 11 to 14% of the time. It hashed every row's shape with byte-wise 64-bit FNV, then compared it byte by byte. Three changes were tried alone and together: try the previous row's shape first (SF_LAST), compare 8 bytes at a time (SF_WORDS), and hash 8 bytes per step (SF_FASTHASH). Their profile shares were 10.2%, 7.9% and 6.3% alone, and 2.1 to 3.3% together, so all three are on. Shape ids are still given in first-seen order, so the files are byte-identical (1,616 packs).
+
+Early-stop A/B (qa-guide/ab-sequential), pack time after / before, with the 90% range, 100,000 rows:
+
+| Browser | orders default | orders 256 KB | geo default | geo 256 KB |
+|---|---|---|---|---|
+| Chromium 155 | 0.770 [0.695, 0.883] faster | 0.726 [0.581, 0.926] faster | 0.829 [0.749, 0.905] faster | 0.832 [0.633, 1.009] ok |
+| Firefox 158 | 0.711 [0.502, 1.008] ok | 0.798 [0.667, 0.927] faster | 0.783 [0.711, 0.928] faster | 0.874 [0.774, 1.042] ok (rerun; first run 0.953, inconclusive) |
+| WebKitGTK 2.52.6 | 0.911 [0.798, 0.946] faster | 0.930 [0.753, 1.028] ok | 1.011 [0.665, 1.043] ok | 0.939 [0.865, 1.064] inconclusive, noisy (twice) |
+
+Also tried, no gain in the profile, so dropped: in the JSON parser, a duplicate-key hash shared with the path hash, a 16-byte key scan, and a bulk key copy into the skeleton.
+
 ### Quick (trim)
 New `trim()`: a fresh instance of each compiled wasm module takes over and the grown memory goes with the old one. Nothing else in the API changes.
 

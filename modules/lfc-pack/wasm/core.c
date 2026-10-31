@@ -23,6 +23,7 @@ static u8 SHAPES[SHAPE_CAP]; static u32 SHOFF[SHAPE_N+1]; static u32 SHTAB[SHAPE
 static u32 SLOWN[(1u<<19)*3]; static u32 slowN;
 static u8 ODD[1u<<18]; static u32 odd; static u32 NODD[(1u<<20)*4]; static u32 nOddN, rowNumK, exactMode;
 static u32 fbBeg;
+static u32 lastShape=0xFFFFFFFFu; /* the shape the last row took (shapeFor) */
 static u32 inLen, pos, textPos, numN, sideN, strN, rowN, skLen, shapeN, shapeBytes, fbStart, fbEnd;
 static u32 KS_OBJ[8192], KS_PTR[8192], KS_LEN[8192]; static u32 ksGen, KS_GEN[8192], objSerial, rowKeys;
 EXPORT("in_ptr") u8* in_ptr(void){return IN;} EXPORT("text_ptr") u8* text_ptr(void){return TEXT;}
@@ -37,7 +38,7 @@ EXPORT("nodd_ptr") u32* nodd_ptr(void){return NODD;}
 EXPORT("odd_ptr") u8* odd_ptr(void){return ODD;}
 EXPORT("state_ptr") u32* state_ptr(void){static u32 s[16]; s[0]=textPos;s[1]=numN;s[2]=sideN;s[3]=strN;s[4]=rowN;s[5]=shapeN;s[6]=fbStart;s[7]=fbEnd;s[8]=pos;s[9]=slowN;s[10]=fbBeg;s[11]=nOddN;return s;}
 EXPORT("set_state") void set_state(u32 a,u32 b,u32 c,u32 d,u32 e){textPos=a;numN=b;sideN=c;strN=d;rowN=e;}
-EXPORT("reset") void reset(u32 len){nOddN=0;inLen=len;pos=0;textPos=0;numN=0;sideN=0;slowN=0;strN=0;rowN=0;for(u32 i=0;i<shapeN;i++)SHTAB[SHSLOT[i]]=0;shapeN=0;shapeBytes=0;SHOFF[0]=0;}
+EXPORT("reset") void reset(u32 len){nOddN=0;inLen=len;pos=0;textPos=0;numN=0;sideN=0;slowN=0;strN=0;rowN=0;for(u32 i=0;i<shapeN;i++)SHTAB[SHSLOT[i]]=0;shapeN=0;lastShape=0xFFFFFFFFu;shapeBytes=0;SHOFF[0]=0;}
 static inline u32 fnv(u32 h,u8 c){return (h^c)*16777619u;}
 static u64 fnv64(const u8*p,u32 n){u64 h=1469598103934665603ull;for(u32 i=0;i<n;i++){h^=p[i];h*=1099511628211ull;}return h;}
 static const f64 P10[]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,1e15,1e16,1e17,1e18,1e19,1e20,1e21,1e22};
@@ -111,11 +112,40 @@ static int pval(u32 d,u32 ph){
     return emitSk('}'); }
   FAIL;
 }
+/* SF_LAST: try the previous row's shape first (rows mostly repeat it); SF_WORDS: compare 8 bytes at a time; SF_FASTHASH: hash 8 bytes per step. Ids are given in first-seen order either way, so the output does not change. */
+#ifndef SF_LAST
+#define SF_LAST 1
+#endif
+#ifndef SF_WORDS
+#define SF_WORDS 1
+#endif
+#ifndef SF_FASTHASH
+#define SF_FASTHASH 1
+#endif
+static inline u64 ld64(const u8*p){u64 v; __builtin_memcpy(&v,p,8); return v;}
+static inline int sameBytes(const u8*a,const u8*b,u32 n){
+#if SF_WORDS
+  u32 i=0; for(;i+8<=n;i+=8) if(ld64(a+i)!=ld64(b+i)) return 0; for(;i<n;i++) if(a[i]!=b[i]) return 0; return 1;
+#else
+  for(u32 i=0;i<n;i++) if(a[i]!=b[i]) return 0; return 1;
+#endif
+}
+static inline u32 shapeHash(const u8*s,u32 n){
+#if SF_FASTHASH
+  u64 h=0x9E3779B97F4A7C15ull^n; u32 i=0; for(;i+8<=n;i+=8){ h=(h^ld64(s+i))*0xff51afd7ed558ccdull; h^=h>>32; }
+  u64 r=0; for(u32 k=0;i<n;i++,k+=8) r|=(u64)s[i]<<k; h=(h^r)*0xc4ceb9fe1a85ec53ull; h^=h>>29; return (u32)(h>>20);
+#else
+  return (u32)(fnv64(s,n)>>20);
+#endif
+}
 static u32 shapeFor(const u8*s,u32 n){
-  u32 h=(u32)(fnv64(s,n)>>20)&(SHAPE_N*2-1);
-  for(;;){ u32 t=SHTAB[h]; if(!t)break; u32 id=t-1; u32 a=SHOFF[id],l=SHOFF[id+1]-a; if(l==n){u32 same=1;for(u32 i=0;i<n;i++)if(SHAPES[a+i]!=s[i]){same=0;break;} if(same)return id;} h=(h+1)&(SHAPE_N*2-1); }
+#if SF_LAST
+  if(lastShape<shapeN){ u32 a=SHOFF[lastShape]; if(SHOFF[lastShape+1]-a==n && sameBytes(SHAPES+a,s,n)) return lastShape; }
+#endif
+  u32 h=shapeHash(s,n)&(SHAPE_N*2-1);
+  for(;;){ u32 t=SHTAB[h]; if(!t)break; u32 id=t-1; u32 a=SHOFF[id],l=SHOFF[id+1]-a; if(l==n && sameBytes(SHAPES+a,s,n)) return lastShape=id; h=(h+1)&(SHAPE_N*2-1); }
   if(shapeN>=SHAPE_N||shapeBytes+n>SHAPE_CAP)return 0xFFFFFFFFu;
-  for(u32 i=0;i<n;i++)SHAPES[shapeBytes+i]=s[i]; SHOFF[shapeN]=shapeBytes; shapeBytes+=n; SHOFF[shapeN+1]=shapeBytes; SHTAB[h]=shapeN+1; SHSLOT[shapeN]=h; return shapeN++;
+  for(u32 i=0;i<n;i++)SHAPES[shapeBytes+i]=s[i]; SHOFF[shapeN]=shapeBytes; shapeBytes+=n; SHOFF[shapeN+1]=shapeBytes; SHTAB[h]=shapeN+1; SHSLOT[shapeN]=h; return lastShape=shapeN++;
 }
 EXPORT("commit_shape") u32 commit_shape(u32 n){return shapeFor(SK,n);}
 // Parse rows from pos. Returns 0 when the block is done, 1 when row fbStart..fbEnd needs the JS path (rows before it are done), 2 on capacity error.

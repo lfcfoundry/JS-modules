@@ -9,6 +9,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - New `trim()`: gives back the WebAssembly memory that earlier jobs grew (it only grows otherwise). After packing and reading a 66.6 MB file, it freed about 80 to 90 MB in Chromium 155, Firefox 158 and WebKitGTK 2.52.6 in 2 to 24 ms, and the next pack was not slower.
 - `packParallel` uses less memory between calls: waiting helpers give back their packer memory, 200 to 350 MB in Chromium 155 and Firefox 158 and about 1.1 GB in WebKitGTK 2.52.6, and back-to-back calls stay as fast.
 - Faster packing for files with numbers, same files byte for byte: numbers are grouped by path inside the wasm module instead of one JavaScript lookup per number. Pack time, 100,000 rows, 256 KB and default blocks: 11 to 25% less in Chromium 155, 3 to 23% in Firefox 158, 10 to 24% in WebKitGTK 2.52.6.
+- Faster packing for nested rows, same files byte for byte: each row's shape is checked against the previous row's first and compared 8 bytes at a time with a faster hash. Pack time after / before, early-stop A/B: Chromium 155 0.73 to 0.83, Firefox 158 0.71 to 0.87, WebKitGTK 2.52.6 0.91 to 1.01.
 - Damaged-file check: the JS, Python and Go readers now refuse a flat `H`, `U` or `I` column whose decoded frame is shorter than its row count needs (found while testing small blocks).
 
 ## 0.3.2 · API 0 · 2026-10-31
