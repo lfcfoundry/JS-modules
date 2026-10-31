@@ -164,3 +164,12 @@ The file is 8,323,554 bytes, 44% of Parquet's size, but 18% larger than the 7,02
 | Real FHIR 260 MB, cloud Chromium 153 / Firefox 158 / WebKitGTK | 0.96 / 0.93 / 0.99 |
 
 The Parquet comparison above was measured on 0.4.0, before this change.
+
+**New in 0.4.2: the first pack after `trim()` keeps its speed.** `trim()` now keeps the packer's warmed-up code instead of rebuilding it. First pack of 66.6 MB after 3.7 s idle, time after a trim divided by time with no trim (lower is better; 1.00 means a trim costs nothing):
+
+| Laptop, 16 cores | 0.4.1 | 0.4.2 |
+|---|---:|---:|
+| Chromium 156 | 1.04 | 0.98 |
+| Firefox 160 | 1.02 | 1.02 |
+
+Files are the same byte for byte.
