@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.1 · API 1 · 2026-10-30
+
+### Quick
+Helpers route default worker count is now hardwareConcurrency (was cores - 1); threads route keeps cores - 1. Every core vs cores - 1, warm helpers, r12: Chromium 0.86-1.06x, Firefox 0.69-0.96x, WebKitGTK 0.84-1.10x, most about 0.9x. Same bytes.
+
+### Details
+From the discarded-ideas retest: 4 workers on 4 cores lost to 3 with the old 32-bit kernel and wins with the 16-bit one. helperCount(opts, w, h, spare): every core unless spare (threads route), opts.workers still overrides. The threads route with every core was 1.02-1.22x in Firefox, so it keeps cores - 1. The 0.3 megapixel cut-off stays: with helpers already started they win from 640x360 (0.71-0.85x).
+
+### Deep
+gpu-blur 1.2.1: helpers default every core. Container, sequential blocks of 9 after a warm-up, radius 12, helpers 4 vs 3 ms: Chromium 2.9/3.2, 5.7/6.2, 8.7/9.4, 20.8/19.7, 82.3/95.2; Firefox 2.4/3.0, 5.8/6.6, 9.0/13.0, 19.7/22.1, 77.2/80.5; WebKitGTK 3.4/3.6, 6.7/7.7, 9.8/11.0, 22.0/20.0, 66.7/79.3 (640x360 to 3840x2160). Threads 4 vs 3 Firefox 2.4/2.2, 7.3/6.4, 9.2/9.0, 20.3/16.6, 82.9/72.6. Same bytes: helpers 90 cases and threads 91 cases in all 3 browsers.
+
 ## 1.2.0 · API 1 · 2026-10-30
 
 ### Quick
