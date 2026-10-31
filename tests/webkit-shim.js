@@ -31,9 +31,15 @@ function wrap(p, size) {
   return p;
 }
 
+// Picks a file from disk for an <input type=file>, so the page gets a disk-backed File (WebDriver element send-keys).
+async function upload(b, sel, file) {
+  const el = await WD.call(b.port, 'POST', '/session/' + b.sessionId + '/element', { using: 'css selector', value: sel });
+  await WD.call(b.port, 'POST', '/session/' + b.sessionId + '/element/' + Object.values(el)[0] + '/value', { text: file });
+}
 async function launch(kind) {
   const b = await WD.launch({ browser: kind === 'epiphany' ? 'epiphany' : 'webkitgtk', width: 1280, height: 800 });
   const p = wrap(b.page);
+  p.uploadFile = (sel, file) => upload(b, sel, file);
   return {
     version: async () => 'WebKitGTK ' + b.version,
     newPage: async () => { await p.goto('about:blank'); p.errs = []; return p; },
@@ -43,6 +49,7 @@ async function launch(kind) {
 // Takes a browser a warm daemon (tools/test-runner/cli.js warm start) already holds: info is { port, sessionId, version }.
 async function attach(info) {
   const b = await WD.attach(info), p = wrap(b.page);
+  p.uploadFile = (sel, file) => upload(b, sel, file);
   return {
     version: async () => 'WebKitGTK ' + info.version,
     newPage: async () => { await p.goto('about:blank'); p.errs = []; return p; },
