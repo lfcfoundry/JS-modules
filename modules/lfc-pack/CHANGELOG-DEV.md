@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.5 · API 0 · 2026-10-31
+
+### Quick
+Helpers no longer give back their packing memory right after each call; they keep it until they close, 3 s after the last call.
+
+### Details
+Before, pool.js trimmed each helper's packer memory as soon as a packParallel call finished, so the next call grew it again and touched every fresh page. Now helpers keep it until they close 3 s after the last call (test hook _helperTrimMs). 48 MB of Synthea FHIR, 2 helpers, new/old time (lower is better): default layout Chromium 153 0.846, Firefox 158 0.751, WebKitGTK 2.52.6 0.931; paths: 'auto' vs old default 0.907 / 0.930 / 0.907. Node back-to-back, 4 helpers: 168 to 115 ms. Same bytes.
+
+### Deep
+packParallel helpers keep their packer memory until they close (3 s after the last call) instead of trimming after every call: 7 to 25% faster on 48 MB FHIR with 2 helpers. Approved by the owner (card, 2026.10.31 6:11 PM ET). Idle helpers hold that memory up to 3 s longer.
+
 ## 0.4.4 · API 0 · 2026-10-31
 
 ### Quick
