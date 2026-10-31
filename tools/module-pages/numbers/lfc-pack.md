@@ -121,3 +121,11 @@ Size as a share of 0.1.9 (Node, cloud, lower is better): map lines (GeoJSON-like
 | Chromium | 1,452 / 415 | 391 / 204 | 2,572 / 1,098 |
 | Firefox | 1,506 / 413 | 408 / 249 | 2,658 / 897 |
 | WebKitGTK | 1,700 / 432 | 397 / 235 | 2,762 / 881 |
+
+**New in 0.4.0: smaller nested files, fast small reads, and memory given back.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop).
+
+- **Per-path strings, on by default:** nested files are 5 to 14% smaller (`paths: false` turns it off; older readers refuse these blocks).
+- **`share: true`** keeps one string and shape table for the whole file: 100,000 GeoJSON points are 17% smaller at 32 KB blocks and 12% smaller at 256 KB, and whole reads are 10 to 33% faster at those sizes.
+- **`access: 'random'`** (256 KB blocks plus share): reading 100 rows is 20 to 60x faster than with default blocks, with files about the size of today's defaults.
+- **Memory:** `trim()` gives back 80 to 90 MB after a 66.6 MB job, and idle `packParallel` helpers give back 200 MB to 1.1 GB.
+- **Packing:** number-heavy files pack 3 to 25% faster with the same bytes (one Firefox round was slower, 359 to 384 ms), on top of 0.3.2's small-block gains.

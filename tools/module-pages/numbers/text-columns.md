@@ -62,3 +62,6 @@ The page's own work falls to 17 to 142 ms, from 108 to 240 ms.
 
 
 **New in 0.6.1: helpers join the number columns.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop). Against 0.6.0 with a picked file: Chromium 1.17 to 1.41x faster (the page pause on a 45 MB number file drops from 42 to 7 ms), Firefox 0.97 to 1.17x (pause 37 to 8 ms), WebKitGTK 0.94 to 0.99x (slightly slower).
+
+
+**New in 0.6.2: much less memory after big files.** Cloud-browser runs (shared machine, not the laptop). 4 MB windows are on by default. After a 45 MB file, memory falls from 161 to 10.5 MB on the page and from 120 to 45 MB in the helpers, with times within noise. The longest page stall drops from 42 to 209 ms down to 14 to 23 ms. `idleTrim()` is opt-in.
