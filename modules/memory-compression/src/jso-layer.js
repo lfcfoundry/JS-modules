@@ -65,11 +65,11 @@
   }
   function freeBuffers() { POOL = []; POOL_BYTES = 0; MC.dropPackBuffer(); }   // also lets go of the output buffer pack() keeps between calls
   // After the last big pack has been quiet for IDLE_MS, the buffer pool is emptied and both WebAssembly helpers give their memory back (a page that packs again simply makes them again, about 1 to 4 ms).
-  var IDLE_MS = 2000, idleTimer = null;
+  var IDLE_MS = 2000, idleTimer = null, RESERVE = true;      // since 2.8.1: after the idle trim a small fresh pair of helpers is made right away (about 6 MB) so the next pack does not pay for starting them
   function idleSoon() {
     if (idleTimer !== null) clearTimeout(idleTimer);
     if (typeof setTimeout !== 'function') return;
-    idleTimer = setTimeout(function () { idleTimer = null; freeBuffers(); kwTrim(); MC.trimMemory(); }, IDLE_MS);
+    idleTimer = setTimeout(function () { idleTimer = null; freeBuffers(); kwTrim(); MC.trimMemory(); if (RESERVE && !MC._noReserve) { try { MC.ready(); kwGet(); } catch (e) { /* the next call makes them */ } } }, IDLE_MS);
     if (idleTimer && typeof idleTimer.unref === 'function') idleTimer.unref();
   }
   if (typeof MC.onGrow === 'function') MC.onGrow(idleSoon);
