@@ -25,7 +25,7 @@ PARTS = {
     'nativeBase64': 'use of the browser\'s own Uint8Array.toBase64/fromBase64 when it has them (the plain loops stay; about 220 bytes smaller)',
     'streamLimit': 'the unpacker that stops a hostile code as soon as it passes the size limit; cut, a simpler unpacker checks the size after unpacking it all',
     'raw': 'schema type raw (and the deep copy that goes with it)',
-    'durable': 'option durable: keep a strict IndexedDB copy of every save, kit.recover() and kit.flushed()',
+    'durable': 'option durable: keep a strict IndexedDB copy of every save, kit.recover() and kit.flushed(), and SaveKit.durableCopy() for any text',
     'large': 'SaveKit.createLarge(): big saves in IndexedDB (async, backup slot, cross-tab lock)',
     'codes': 'exportCode(), importCode() and everything only they use (base64, deflate, checksums, limits)',
 }

@@ -2,7 +2,7 @@
 
 **Version 1.4.0 · API 1**
 
-**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud); 49 Node checks, 17 lean builds
+**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud); 50 Node checks, 17 lean builds
 
 ## What it is and how it works
 
@@ -87,6 +87,7 @@ kit.recover().then(function (newer) { if (newer) state = newer; });   // null al
 - Only the newest save is written while an IndexedDB write is running, so autosave every second costs one write at a time.
 - `recover()` compares the copy with the save `load()` returned, so call it right after `load()`. A save made before it answers does not hide the newer copy. The newer copy is also written back to `localStorage`.
 - `kit.flushed()` resolves `true` once the newest save is on disk (`false` with no IndexedDB). Without IndexedDB, saving works as before.
+- `SaveKit.durableCopy(name)` is the same copy for an app with its own save format: `write(text, seq)` (seq only goes up, e.g. the save time), `newer(seq)` resolves `{ text, seq }` when the copy that was there when the page opened is newer than what the app loaded (else `null`), and `flushed()`. A 3.9 MB text is on disk 11 to 25 ms after `write()`, and `newer()` answers in 10 to 24 ms.
 - Cost in the three test browsers: no measurable extra time in `save()` or `load()`; the copy is on disk 2 ms (2 KB save) to 8-12 ms (200 KB) later, off the page's critical path.
 
 ### Large saves (new in 1.3.0)

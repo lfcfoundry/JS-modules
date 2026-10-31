@@ -268,6 +268,19 @@
       flushed: function () { return !busy && !pend ? Promise.resolve(true) : new Promise(function (ok) { waiters.push(ok); }); }
     };
   }
+  // durableCopy(name, { indexedDB }) -> { write(text, seq), newer(seq), flushed() }: the same strict IndexedDB copy for any text (an app with its
+  // own save format and checks). write() never throws and keeps only the newest waiting text. newer(seq) -> Promise<{ text, seq } or null>:
+  // the copy that was there when this page opened, when its seq is above the given one (the seq of what the app loaded) and its text is whole.
+  function durableCopy(name, o) {
+    var m = durableMirror(String(name || 'save-kit-durable'), o && 'indexedDB' in o ? o.indexedDB : undefined);
+    return {
+      write: function (text, seq) { if (typeof text === 'string' && isNum(seq)) m.write(text, seq); },
+      newer: function (seq) {
+        return m.boot.then(function (r) { return r && typeof r.t === 'string' && r.t.length === r.n && isNum(r.at) && r.at > (isNum(seq) ? seq : -Infinity) ? { text: r.t, seq: r.at } : null; }, function () { return null; });
+      },
+      flushed: m.flushed
+    };
+  }
 //@end
 
   // ---- the store ----
@@ -740,6 +753,9 @@
 
   return {
     create: create,
+//@begin durable
+    durableCopy: durableCopy,
+//@end
 //@begin large
     createLarge: createLarge,
 //@end

@@ -59,6 +59,15 @@ async function battery(src, rounds) {
     out[lb + 'save() page time, plain'] = med(tp); out[lb + 'save() page time, durable'] = med(td); out[lb + 'durable: save until strict copy on disk'] = med(tf);
     out[lb + 'startup create+load, plain'] = med(sp); out[lb + 'startup create+load, durable'] = med(sd); out[lb + 'durable: until recover() answers'] = med(sr);
   }
+  // durableCopy with a big text (Story Editor saves 1 to 4 MB of JSON)
+  var big = JSON.stringify({ pages: Array.from({ length: 4600 }, function (_, q) { return { id: q, title: 'Page ' + q, text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. '.repeat(15) }; }) });
+  var dn = key(), dc = M.durableCopy(dn), wp = [], wf = [], nw = [], br = Math.min(rounds, 11);
+  dc.write(big, 0); await dc.flushed();
+  for (i = 1; i <= br; i++) { t = performance.now(); dc.write(big, i); var tw = performance.now(); await dc.flushed(); wp.push(tw - t); wf.push(performance.now() - t); }
+  for (i = 0; i < br; i++) { t = performance.now(); var dd = M.durableCopy(dn), got = await dd.newer(0); nw.push(performance.now() - t); }
+  check('durableCopy 4 MB: newer() gives the last text', !!got && got.seq === br && got.text === big);
+  var lb2 = (big.length / 1048576).toFixed(1) + ' MB text ';
+  out[lb2 + 'durableCopy write() page time'] = med(wp); out[lb2 + 'durableCopy until on disk'] = med(wf); out[lb2 + 'durableCopy open + newer()'] = med(nw);
   return out;
 }
 

@@ -5,6 +5,17 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 1.4.0 · API 1 · 2026-10-31
 
 ### Quick
+durable: true mirrors each save to IndexedDB (strict); recover() returns the newer copy after a crash. SaveKit.durableCopy(name) does the same for any text.
+
+### Details
+create({durable:true}) keeps the synchronous localStorage load. Each save is also put in IndexedDB with durability 'strict', newest only while a write runs. The record present at page open is read once before any write, so an early save cannot hide it. recover() compares the copy's stamp with the save load() returned (no parse when nothing was lost) and writes a newer copy back. flushed() resolves when the newest save is on disk. SaveKit.durableCopy(name) exposes the same copy for any text: write(text, seq), newer(seq), flushed(); a 3.9 MB text is on disk 11-25 ms after write() and newer() answers in 10-24 ms. Real crash test (SIGKILL after 8 s of saves every 100 ms): Chromium lost 29 of 80 saves in localStorage, Firefox 30; recover() lost 0 in both. Page cost within noise; copy on disk 2 ms (2 KB) to 8-12 ms (200 KB) later. lean.py part 'durable'.
+
+### Deep
+New opt-in durable option with recover() and flushed(), plus SaveKit.durableCopy() for any text: saves survive a browser crash.
+
+## 1.4.0 · API 1 · 2026-10-31
+
+### Quick
 durable: true mirrors each save to IndexedDB (strict); recover() returns the newer copy after a crash.
 
 ### Details

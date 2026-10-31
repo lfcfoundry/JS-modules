@@ -613,6 +613,20 @@ function countUnpacked(counter) {
     const c = K.create({ key: 'g', schema, storage: st, durable: true, indexedDB: idb });
     assert.strictEqual(await c.recover(), null);
   });
+  await test('durable: durableCopy(name) keeps any text and answers newer(seq)', async K => {
+    const idb = fakeIdb();
+    const a = K.durableCopy('story', { indexedDB: idb });
+    a.write('x'.repeat(1000), 5); a.write('{"pages":2}', 7);
+    assert.strictEqual(await a.flushed(), true);
+    const b = K.durableCopy('story', { indexedDB: idb });
+    assert.deepStrictEqual(await b.newer(6), { text: '{"pages":2}', seq: 7 });
+    assert.strictEqual(await b.newer(7), null);
+    b.write('later', 9); await b.flushed();
+    assert.deepStrictEqual(await b.newer(6), { text: '{"pages":2}', seq: 7 });   // the copy from when the page opened
+    idb.dbs.story.main.n = 3;
+    assert.strictEqual(await K.durableCopy('story', { indexedDB: idb }).newer(0), null);   // cut-short text is ignored
+    assert.strictEqual(await K.durableCopy('story', { indexedDB: null }).newer(0), null);
+  });
 
   const extra = OLD ? '; the old file was caught by ' + caught + ' of ' + oldTried + ' regression checks' : '; old file not available for comparison';
   console.log('save-kit' + (WITHOUT.length ? ' (lean build without ' + WITHOUT.join(', ') + ')' : '') + ': ' + pass + ' passed, ' + fail + ' failed' + (skipped ? ', ' + skipped + ' skipped (they need a cut part)' : '') + extra);
