@@ -428,9 +428,9 @@
   }
   function ask(h, msg, transfer) { return new Promise(function (ok) { var id = nextId++; msg.id = id; h.wait[id] = ok; try { h.w.postMessage(msg, transfer || []); } catch (e) { delete h.wait[id]; ok({ err: 'helper failed' }); } }); }
   /** Starts n helpers ahead of time (each one compiles the scanner), so the first big parse does not pay for it. */
-  function warm(n, opts) { n = n || helperCount(opts); while (POOL.length < n) POOL.push(makeHelper(opts)); return POOL.length; }
+  function warm(n, opts) { n = n || helperCount(opts); while (POOL.length < n) POOL.push(makeHelper(opts)); idleClose(); return POOL.length; }
   function helperMem() { return Promise.all(POOL.map(function (h) { return ask(h, { op: 'mem' }); })); }   // test hook: each helper's WebAssembly memory
-  function closeHelpers() { POOL.forEach(function (h) { try { h.w.terminate(); } catch (e) { /* gone */ } }); POOL = []; }
+  function closeHelpers() { if (HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } POOL.forEach(function (h) { try { h.w.terminate(); } catch (e) { /* gone */ } }); POOL = []; }
   /** Offsets where each piece starts: after a line end that is not inside quotes. null when the quotes cannot be trusted (a quote in the middle of a plain field). */
   function splitPoints(u, delim, n) {
     var len = u.length, cuts = [0], hasQ = u.indexOf(34) >= 0, qpos = 0, par = 0, k, t, p, nl, q, prev, go;
@@ -484,7 +484,20 @@
    * the quotes are odd or any helper fails (so errors are the same plain-words errors). opts as parse() (columns and lazy work the same), plus: workers (default: the cores, at most 8), minBytes (default 4,000,000 when the helpers are already running, from warm() or an earlier call, else 32,000,000; call warm() early to start the helpers ahead of time).
    * A file with quote marks is cut at plain line ends and each helper counts the quote marks of its piece (WebAssembly) so the cuts are known to fall outside quotes; if one does not, the older single-thread cut is used.
    */
-  async function parseParallel(input, opts) { var t = await parseParallelCore(input, opts); return opts && opts.types ? applyTypes(t, opts.types) : t; }
+  async function parseParallel(input, opts) {
+    var t; HIDLE.busy++; if (HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; }
+    try { t = await parseParallelCore(input, opts); } finally { HIDLE.busy--; idleClose(); }
+    return opts && opts.types ? applyTypes(t, opts.types) : t;
+  }
+  /* Since 0.6.2: helpers hold their memory (and a thread) while they live, so _helperIdle(ms) closes them after ms with no call (-1 = never, the default and the 0.6.1 way).
+     The next call starts them again (and, like a fresh page, a file under 32 MB is then read on the page). */
+  var HIDLE = { ms: -1, timer: 0, busy: 0 };
+  function idleClose() {
+    if (HIDLE.busy || !POOL.length || HIDLE.ms < 0 || typeof setTimeout !== 'function') return;
+    if (HIDLE.timer) clearTimeout(HIDLE.timer);
+    HIDLE.timer = setTimeout(function () { HIDLE.timer = 0; if (!HIDLE.busy) closeHelpers(); }, HIDLE.ms);
+    if (HIDLE.timer && HIDLE.timer.unref) HIDLE.timer.unref();
+  }
   var yq = null;
   function yieldNow() {   // back to the page's event loop and straight on (a message, not a timer, so no 4 ms clamp)
     if (typeof MessageChannel !== 'function') return new Promise(function (ok) { setTimeout(ok, 0); });
@@ -635,5 +648,5 @@
     return col;
   }
 
-  return { _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.6.2', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.6.2', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));
