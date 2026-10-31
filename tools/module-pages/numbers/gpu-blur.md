@@ -22,3 +22,6 @@ A 16-bit WebAssembly kernel takes 0.60 to 0.80 of the time at 640 x 360 and 1920
 **New in 1.2.0: a shared-memory threads route (opt-in), same bytes.** Cloud-browser runs (4 cores, shared machine, not noise-guarded, not the laptop). `route: 'threads'` blurs on several cores sharing one memory, but only on pages served with the two cross-origin isolation headers, so the offline apps never use it. WebKitGTK cannot use it and runs the helpers route instead.
 
 Threads time divided by helpers time: Chromium 0.78 to 1.12, Firefox 0.74 to 1.14 (most sizes 0.8 to 0.9). Fastest multicore route divided by 1.0.0's one-thread WebAssembly: Chromium 0.32 to 0.52, Firefox 0.32 to 0.49, WebKitGTK (helpers) 0.27 to 0.43. A laptop run will replace these.
+
+
+**New in 1.2.1 to 1.2.3: helpers use every core, a fix, and faster repeat blurs.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop). 1.2.1 lets the helpers route use every core. 1.2.2 fixes a bug where a canvas over about 0.5 megapixel blurred on one thread came back with its top rows blank. 1.2.3 keeps the helpers' working memory between calls, so repeat blurs on the helpers route take less time than in 1.2.2: 1.22 to 1.31x faster in Chromium, 1.10 to 1.34x in Firefox, and 0.99 to 1.09x in WebKitGTK (about even).
