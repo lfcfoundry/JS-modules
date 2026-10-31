@@ -334,7 +334,7 @@
     },
     {
       "id": "memory-compression",
-      "version": "2.7.0",
+      "version": "2.8.0",
       "api": 2,
       "global": "MemoryCompression",
       "summary": "Keeps big data packed in memory and brings it back exactly, in one file with one pack/unpack: bytes and typed arrays (a 120 MB scene shrinks to 52%, 41% in small mode, and restores in about 239 ms in Firefox 158.0, against 312 ms with lz4-wasm and 1.5 s with fflate; lower is better) and big lists of plain JavaScript objects (300,000 link objects shrink to 14% of their JSON text, 35% for msgpackr with records). Picks the right layer by itself; MemoryCompressionJSO stays as an alias.",
