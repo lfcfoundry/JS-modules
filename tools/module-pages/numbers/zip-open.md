@@ -69,3 +69,14 @@ Helpers from `expandBlob({ workers })` close 5 s after the last call (`idleMs` c
 | Cloud, Chromium 153 | 0.82 to 0.92 |
 
 One Firefox case was slower in one run: 400 small files from bytes took 0.94 of the time in one run and 1.15 in the other. Those timings are a few milliseconds each, so the range is wide (0.84 to 1.22). WebKitGTK was not measured for this change.
+
+
+**New in 1.7.0: faster Excel sheet reading, same output.** The sheet scanner does less work per tag and decodes text only when it is needed; a test compares the new and old scanners on 40,000 random pieces. Time with 1.7.0 divided by 1.6.0, lower is better.
+
+| Where | 6,000 rows | 60,000 rows |
+|---|---:|---:|
+| Laptop, Chromium 156, 16 cores | 0.77 | 0.76 (noisy) |
+| Laptop, Firefox 160, 16 cores | 0.80 | 0.89 |
+| Cloud, Chromium 155 | not run | 0.71 |
+| Cloud, Firefox 158 | not run | 0.78 |
+| Cloud, WebKitGTK 2.52.6 | not run | 0.77 |

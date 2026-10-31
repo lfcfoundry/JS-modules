@@ -58,7 +58,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
-- 2026-10-31 · **zip-open** 1.7.0 · API 1: Excel sheets are read faster: on a 16-core laptop 11 to 24% faster in Firefox and 23 to 24% faster in Chromium, with the same results.
+- 2026-10-31 · **zip-open** 1.7.0 · API 1: Excel sheets are read faster: on a 16-core laptop 11 to 20% faster in Firefox and 23 to 24% faster in Chromium, with the same results.
 - 2026-10-31 · **zip-open** 1.6.0 · API 1: Text entries are unpacked into one shared buffer that is reused for the next entry (let go 5 s after the last one). Laptop Chromium: 2 to 14% faster on most zips; laptop Firefox: about even.
 - 2026-10-31 · **zip-open** 1.5.2 · API 1: Loading the module costs what it did before 1.5.0: the small-file unpacker is now a separate piece, prepared only when a small file is first opened. 2,000 tiny files still open 1.4 to 1.9x faster than with the browser's own unpacker. Helpers from expandBlob close 5 s after their last use and give their memory back (idleMs changes the delay).
 - 2026-10-31 · **text-columns** 0.6.3 · API 0: Repeated text values are kept once, so a parsed file keeps 42 to 63% less memory (16 MB file in Chromium: 29.4 to 10.9 MB). Parse speed is unchanged.
