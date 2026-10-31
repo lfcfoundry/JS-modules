@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.6 · API 2 · 2026-10-30
+- Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes
+
 ## 2.6.5 · API 2 · 2026-10-26
 - Fixed: nested rows whose key names contain a control character could get another row shape's field names.
 
