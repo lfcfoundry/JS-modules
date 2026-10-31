@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.4 · API 0 · 2026-10-31
+
+### Quick
+After a parse with number columns of 262,144 rows or more, same-length number arrays are made and touched in idle time and reused by the next parse of the same shape; unused ones are let go after 4 s. opts.spare: false skips it. Same results.
+
+### Details
+The first write to a fresh big array costs about 0.7 ms per MB in every browser, and Firefox adds long pauses. Repeat parse of 45 MB, new/old (lower is better): Chromium 0.887 faster, Firefox 0.835 faster, WebKitGTK 0.905 faster; with helpers (parseParallel): Chromium 0.938 inconclusive, Firefox 0.914 ok, WebKitGTK 0.822 ok. 5 MB files (under 262,144 rows) take the same path as before: Chromium 0.982, WebKitGTK 1.000, Firefox 0.93-1.14 across runs, the same spread as an A/A run of the old build (0.94-1.00, one inconclusive).
+
+### Deep
+Spares are used in parseWindows, parseCore number columns, the parallel fill buffers and the join. Helpers pass spare: false. Uses requestIdleCallback (timeout 1 s), else a timer; touches one number per 4 KB. Holds up to one extra copy of the number columns for 4 s after a parse. Research: js-modules-research fresh-memory-first-touch notes, 2026.10.31.
+
 ## 0.6.3 · API 0 · 2026-10-31
 
 ### Quick
