@@ -419,6 +419,18 @@ t('xlsx dates: every whole-day serial in both date systems gives the same text a
     assert.equal(U._xlsxSheets(parts, { _slow: true })[0].csv, want);
   });
 });
+t('xlsx CSV quoting: every short text from a tricky alphabet is quoted exactly as the reference rule says', function () {
+  var ref = function (v) { return /[",\r\n]/.test(v) || /^\s|\s$/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  var al = ['a', ' ', '"', ',', '\n', '\r', '\t', 'é', ' ', '1', ' ', '　', '﻿'], all = [];
+  (function rec(s, d) { if (s) all.push(s); if (d < 4) al.forEach(function (c) { rec(s + c, d + 1); }); })('', 0);
+  var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\r/g, '&#13;'); };
+  var rows = all.map(function (v, i) { return '<row r="' + (i + 1) + '"><c r="A' + (i + 1) + '" t="inlineStr"><is><t xml:space="preserve">' + esc(v) + '</t></is></c><c r="B' + (i + 1) + '" t="s"><v>' + i + '</v></c><c r="C' + (i + 1) + '" t="str"><v>' + esc(v) + '</v></c></row>'; }).join('');
+  var parts = { 'xl/workbook.xml': '<workbook xmlns:r="y"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>', 'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/sharedStrings.xml': '<sst>' + all.map(function (v) { return '<si><t xml:space="preserve">' + esc(v) + '</t></si>'; }).join('') + '</sst>', 'xl/worksheets/sheet1.xml': '<worksheet><sheetData>' + rows + '</sheetData></worksheet>' };
+  var got = U._xlsxSheets(parts, {})[0].csv.split('\n'), slow = U._xlsxSheets(parts, { _slow: true })[0].csv;
+  assert.equal(got.join('\n'), slow);
+  var want = all.map(function (v) { var q = ref(v); return q + ',' + q + ',' + q; }).join('\n');
+  assert.equal(got.join('\n'), want);
+});
 t('streaming: helpers (workers) really ran, and many text files come out in order with limits applied the same way', async function () {
   var files = []; for (var i = 0; i < 40; i++) files.push({ name: 'd/f' + String(i).padStart(2, '0') + '.csv', data: 'a,b\n' + (i + ',x\n').repeat(2000 + i * 37) });
   var z = Z.makeZip(files), r = await both(z, 'many.zip'), r2 = await both(z, 'many.zip', { maxTotalBytes: 300000 }), r3 = await both(z, 'many.zip', { maxFiles: 7 }), r4 = await both(z, 'many.zip', { maxEntryBytes: 20000 });

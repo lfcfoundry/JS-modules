@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.8.0 (API 1)
+ * Version 1.9.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -122,6 +122,18 @@
     for (; k < 3; k++) { c = ref.charCodeAt(k); if (c >= 97 && c <= 122) c -= 32; if (c < 65 || c > 90) break; n = n * 26 + c - 64; }
     return k === 0 ? -1 : n - 1;
   }
+  function colAt(x, k, e) {   // colIndex of the text x[k..e) without cutting it out
+    var n = 0, j = 0, c;
+    for (; j < 3 && k + j < e; j++) { c = x.charCodeAt(k + j); if (c >= 97 && c <= 122) c -= 32; if (c < 65 || c > 90) break; n = n * 26 + c - 64; }
+    return j === 0 ? -1 : n - 1;
+  }
+  function xfAt(x, k, e) {   // Number(x[k..e)) || 0 for a style number, without cutting it out when it is plain digits
+    if (e === k) return 0;
+    var n = 0, j, c;
+    if (e - k > 9) return Number(x.slice(k, e)) || 0;
+    for (j = k; j < e; j++) { c = x.charCodeAt(j); if (c < 48 || c > 57) return Number(x.slice(k, e)) || 0; n = n * 10 + c - 48; }
+    return n;
+  }
   var XL_BUILTIN_DATES = { 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1, 21: 1, 22: 1, 45: 1, 46: 1, 47: 1 };
   function isDateFormat(code) { var c = String(code).replace(/"[^"]*"|\\.|\[[^\]]*\]|_.|\*./g, ''); return /[ymdhs]/i.test(c) && !/^(general|0|#)/i.test(c) || /[dy]{2}|m{1,2}[\/\-.]|[hH]:|:[sS]/.test(c) && /[ymdhs]/i.test(c); }
   function xlDate(serial, d1904) {
@@ -136,8 +148,12 @@
     var iso = d.toISOString();
     return serial % 1 === 0 ? iso.slice(0, 10) : iso.slice(0, 19).replace('T', ' ');
   }
-  function csvCell(v) {
-    for (var i = 0, n = v.length, c; i < n; i++) { c = v.charCodeAt(i); if (c < 33 || c > 126 || c === 34 || c === 44) return csvCellSlow(v); }   // plain printable ASCII: nothing to quote
+  function csvCell(v) {   // quotes only when a quote, comma or line break is inside, or a space at either end; checked by char codes, regular expressions only for those
+    var n = v.length, c, i;
+    if (n === 0) return v;
+    c = v.charCodeAt(0); if (c < 33 || c > 126) return csvCellSlow(v);
+    c = v.charCodeAt(n - 1); if (c < 33 || c > 126) return csvCellSlow(v);
+    for (i = 0; i < n; i++) { c = v.charCodeAt(i); if (c === 34 || c === 44 || c === 10 || c === 13) return csvCellSlow(v); }
     return v;
   }
   function csvCellSlow(v) { return /[",\r\n]/.test(v) || /^\s|\s$/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
@@ -170,7 +186,7 @@
   }
   function xlsxSheets(parts, opts) {
     opts = opts || {};
-    var maxRows = opts.maxRows || 2000000, sst = [], dateXf = {}, d1904 = false, sheets = [], rels = {};
+    var maxRows = opts.maxRows || 2000000, sstCsv = [], sst = [], dateXf = {}, d1904 = false, sheets = [], rels = {};
     if (parts['xl/sharedStrings.xml'] && (opts._slow || !fastStrings(parts['xl/sharedStrings.xml'], sst))) {
       var cur = null, inT = false; sst.length = 0;
       xmlScan(parts['xl/sharedStrings.xml'], {
@@ -202,10 +218,7 @@
       var flushRow = function () {
         if (!row) return;
         if (rowHas) {
-          var end = row.length; while (end > 0 && (row[end - 1] === undefined || row[end - 1] === '')) end--;
-          var s = new Array(end);
-          for (var q = 0; q < end; q++) s[q] = row[q] === undefined ? '' : csvCell(row[q]);
-          lines.push(s.join(','));
+          lines.push(row.join(','));   // cells are stored CSV-ready and never empty, so gaps join as empty fields and the last one is filled
           if (++rowCount >= maxRows) truncated = true;
         }
         row = null; rowHas = false;
@@ -219,16 +232,17 @@
       };
       var endCell = function () {
         var v = cV;
-        if (cType === 's') { var sv = sst[Number(v)]; v = sv !== undefined ? sv : ''; }
+        if (cType === 's') { var ix = Number(v), sv = sstCsv[ix]; if (sv === undefined) { sv = sst[ix]; if (sv !== undefined) sstCsv[ix] = sv = csvCell(sv); else sv = ''; } v = sv; }   // each shared text is made CSV-ready once
         else if (cType === 'b') v = v === '1' ? 'TRUE' : 'FALSE';
-        else if (cType === 'n' || cType === '') { if (v !== '' && dateXf[cXf]) { var dt = xlDate(Number(v), d1904); if (dt) v = dt; } else if (v !== '' && !plainInt(v) && isFinite(Number(v))) v = String(Number(v)); }
+        else if (cType === 'n' || cType === '') { if (v !== '' && dateXf[cXf]) { var dt = xlDate(Number(v), d1904); v = dt || csvCell(v); } else if (v !== '' && !plainInt(v)) v = isFinite(Number(v)) ? String(Number(v)) : csvCell(v); }   // numbers and dates never need quotes
+        else v = csvCell(v);
         if (v !== '' && row) { row[cCol] = v; rowHas = true; }
         cell = false;
       };
       /* The usual sheet shape (<row ..><c r=".." t=".." s=".."><v>text</v></c>..</row>) is read straight from the text, without making a tag object per element. Anything else
          (inline text, formulas, odd attributes, comments, stray tags, a cut-off file) returns false at once and the general reader below does the whole sheet from the start. */
       var fastRows = function () {
-        var sd = xml.indexOf('<sheetData'), pos, lt, gt, k, ch, q, nm, val, rs, ts, ss, self, ve;
+        var sd = xml.indexOf('<sheetData'), pos, lt, gt, k, ch, q, nm, val, rs, re, ts, ss, self, ve;
         if (sd < 0 || xml.indexOf('<row') < sd || xml.indexOf('<c ') < sd) return false;
         pos = xml.indexOf('>', sd); if (pos < 0 || xml.charCodeAt(pos - 1) === 47) return false;
         pos++;
@@ -244,7 +258,7 @@
             if (truncated) return false;
             pos = gt + 1;
           } else if (ch === 99 && xml.charCodeAt(lt + 2) === 32) {                                                              // <c
-            rs = ts = ss = undefined; k = lt + 3;
+            rs = -1; ts = undefined; ss = undefined; k = lt + 3;
             for (;;) {
               while (xml.charCodeAt(k) === 32) k++;
               ch = xml.charCodeAt(k);
@@ -252,17 +266,20 @@
               if (ch === 47) { if (xml.charCodeAt(k + 1) !== 62) return false; self = true; gt = k + 1; break; }
               q = k; while ((ch = xml.charCodeAt(k)) >= 97 && ch <= 122 || ch >= 65 && ch <= 90) k++;
               if (k === q || xml.charCodeAt(k) !== 61 || xml.charCodeAt(k + 1) !== 34) return false;
-              nm = xml.slice(q, k); ve = xml.indexOf('"', k + 2); if (ve < 0) return false;
-              val = xml.slice(k + 2, ve); k = ve + 1;
-              if (nm === 'r') { if (rs !== undefined) return false; rs = val; }
-              else if (nm === 't') { if (ts !== undefined) return false; ts = val; }
-              else if (nm === 's') { if (ss !== undefined) return false; ss = val; }
-              else if (nm === 'xmlns') return false;
-              if (val.indexOf('&') >= 0 || val.indexOf('<') >= 0 || val.indexOf('>') >= 0) return false;
+              ve = xml.indexOf('"', k + 2); if (ve < 0) return false;
+              for (nm = k + 2; nm < ve; nm++) { ch = xml.charCodeAt(nm); if (ch === 38 || ch === 60 || ch === 62) return false; }
+              ch = k - q === 1 ? xml.charCodeAt(q) : 0;   // r, t and s are read in place (no string per attribute)
+              if (ch === 114) { if (rs >= 0) return false; rs = k + 2; re = ve; }
+              else if (ch === 116) { if (ts !== undefined) return false; ts = ve - k === 3 ? ((ch = xml.charCodeAt(k + 2)) === 115 ? 's' : ch === 98 ? 'b' : ch === 110 ? 'n' : xml.slice(k + 2, ve)) : xml.slice(k + 2, ve); }
+              else if (ch === 115) { if (ss !== undefined) return false; ss = xfAt(xml, k + 2, ve); }
+              else if (k - q === 5 && xml.startsWith('xmlns', q)) return false;
+              k = ve + 1;
               if (k < xml.length && xml.charCodeAt(k) !== 32 && xml.charCodeAt(k) !== 62 && xml.charCodeAt(k) !== 47) return false;
             }
             if (truncated) return false;
-            startCell(rs, ts, ss, self);
+            cType = ts || 'n'; cXf = ss || 0; cV = ''; cell = true;
+            ch = rs < 0 ? -1 : colAt(xml, rs, re); if (ch < 0) ch = lastCol + 1;
+            if (ch >= XL_COLS) cell = false; else { cCol = ch; lastCol = ch; if (self) cell = false; }
             pos = gt + 1;
             if (self) continue;
             if (xml.charCodeAt(pos) === 60 && xml.charCodeAt(pos + 1) === 102 && ((ch = xml.charCodeAt(pos + 2)) === 62 || ch === 32 || ch === 47)) {   // <f>: a formula, never read; skipped
