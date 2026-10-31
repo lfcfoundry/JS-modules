@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.4 · API 0 · 2026-10-31
+
+### Quick
+The string path hashes of each row shape are kept across blocks (up to 65,536 shapes), so per-path strings stop re-walking every shape in every block. Files are byte-identical; no API change.
+
+### Details
+260 MB of real FHIR, one thread, new/old (lower is better): Chromium 0.86, Firefox 0.85, WebKitGTK 0.90 (with the per-path rule build; this build with 4 helpers 0.92 / 0.91 / 0.92). orders x5 one thread: 0.94 / 1.01 / 1.01. GeoJSON 256 KB blocks: Chromium 0.93, Firefox 0.99, WebKitGTK 1.03 inconclusive, rechecked 1.13 slower then 0.96 ok (80 ms packs on a noisy box). Bytes checked identical on orders, GeoJSON and FHIR.
+
+### Deep
+Found while profiling the FHIR layout rule: pathOrder() called stringPaths() and FNV-hashed every path of every shape in every block; FHIR has hundreds of shapes per block, so this was about 20 ms of a 100 ms block. Cache: Map from shape string to its path hashes, cleared above 65,536 entries. Research: js-modules-research/lfc-pack/fhir-rerun-2026.10.31/PATHS-PICK.md.
+
 ## 0.4.3 · API 0 · 2026-10-31
 
 ### Quick
