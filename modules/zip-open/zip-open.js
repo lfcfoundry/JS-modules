@@ -757,6 +757,11 @@
         if (h.blob !== blob) { h.blob = blob; try { h.w.postMessage({ op: 'open', blob: blob }); } catch (err) { /* the job below reports it */ } }
         return ask(h, { op: 'job', entry: e, limit: limit });
       };
+      src.book = function (entries, label, lim, total) {
+        var h = helpers[0];   // always the same helper, so its reader stays warmed up
+        if (h.blob !== blob) { h.blob = blob; try { h.w.postMessage({ op: 'open', blob: blob }); } catch (err) { return Promise.resolve({ lost: true }); } }
+        return ask(h, { op: 'book', entries: entries, label: label, lim: lim, total: total }, { lost: true });
+      };
     }
     return src;
   }
@@ -770,6 +775,7 @@
     onmessage = function (ev) {
       var m = ev.data;
       if (m.op === 'open') { cur = m.blob; cache = {}; return; }
+      if (m.op === 'book') { var c = {}; ZipOpen._bookJob({ read: function (e, limit) { return ZipOpen.readBlob(cur, e, limit, c); } }, m.entries, m.label, m.lim, m.total).then(function (r) { postMessage({ id: m.id, r: r }); }, function () { postMessage({ id: m.id, r: { lost: true } }); }); return; }
       ZipOpen._textJob(cur, m.entry, m.limit, cache).then(function (r) { postMessage({ id: m.id, r: r }); }, function (err) { postMessage({ id: m.id, r: { skip: 'looks damaged' } }); });
     };
   }
@@ -783,7 +789,7 @@
     w.onerror = function (ev) { Object.keys(h.wait).forEach(function (id) { var r = h.wait[id]; delete h.wait[id]; r({ skip: 'looks damaged' }); }); if (ev && ev.preventDefault) ev.preventDefault(); };
     return h;
   }
-  function ask(h, msg) { return new Promise(function (ok) { var id = nextId++; msg.id = id; h.wait[id] = ok; try { h.w.postMessage(msg); } catch (e) { delete h.wait[id]; ok({ skip: 'looks damaged' }); } }); }
+  function ask(h, msg, fail) { return new Promise(function (ok) { var id = nextId++; msg.id = id; h.wait[id] = fail ? function (r) { ok(r && r.skip && !r.notes ? fail : r); } : ok; try { h.w.postMessage(msg); } catch (e) { delete h.wait[id]; ok(fail || { skip: 'looks damaged' }); } }); }
   /** Starts n helpers ahead of time (Web Workers; each compiles the checksum program), so the first big zip does not pay for it. Returns how many are ready. */
   function warm(n, spawn) { while (POOL.length < n) POOL.push(makeHelper(spawn)); return POOL.length; }
   function closeHelpers() { POOL.forEach(function (h) { try { h.w.terminate(); } catch (e) { /* gone */ } }); POOL = []; }
@@ -890,22 +896,33 @@
     }
   }
 
-  async function openBook(src, entries, label, prefix, ctx) {
-    var lim = ctx.lim, wanted = /^xl\/(workbook\.xml|_rels\/workbook\.xml\.rels|sharedStrings\.xml|styles\.xml|worksheets\/[^\/]+\.xml)$/i, parts = {};
+  /** The workbook part of an open, worked out in one go (also run inside a helper): { notes, total, stopped, sheets | null }. */
+  async function bookJob(src, entries, label, lim, total) {
+    var wanted = /^xl\/(workbook\.xml|_rels\/workbook\.xml\.rels|sharedStrings\.xml|styles\.xml|worksheets\/[^\/]+\.xml)$/i, parts = {}, notes = [], stopped = false;
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i];
       if (!wanted.test(e.path)) continue;
-      var room = Math.min(lim.maxPartBytes, lim.maxTotalBytes - ctx.total);
-      if (room <= 0) { ctx.stopped = true; ctx.notes.push('Stopped opening the workbook after ' + Math.round(lim.maxTotalBytes / 1e6) + ' MB of unpacked data (a safety limit).'); break; }
+      var room = Math.min(lim.maxPartBytes, lim.maxTotalBytes - total);
+      if (room <= 0) { stopped = true; notes.push('Stopped opening the workbook after ' + Math.round(lim.maxTotalBytes / 1e6) + ' MB of unpacked data (a safety limit).'); break; }
       var got = await src.read(e, room);
-      if (got.skip) { ctx.notes.push('Part "' + e.path + '" of "' + label + '" ' + got.skip + '; skipped.'); continue; }
-      ctx.total += got.bytes.length;
+      if (got.skip) { notes.push('Part "' + e.path + '" of "' + label + '" ' + got.skip + '; skipped.'); continue; }
+      total += got.bytes.length;
       parts[e.path.replace(/^xl\/worksheets\//i, 'xl/worksheets/')] = /^xl\/(sharedStrings\.xml|worksheets\/)/i.test(e.path) && xlsxModule() ? got.bytes : decodeText(got.bytes) || '';   // the wasm reader takes these as bytes (decoded only if it hands them back)
     }
-    if (!parts['xl/workbook.xml']) { ctx.notes.push('"' + label + '" does not look like an Excel workbook; skipped.'); return; }
-    var sheets;
-    try { sheets = xlsxSheets(parts, {}); } catch (err) { ctx.notes.push('"' + label + '" could not be read as a workbook (' + String(err && err.message || err).replace(/\.$/, '') + '); skipped.'); return; }
-    if (!sheets.length) { ctx.notes.push('"' + label + '" has no cells with data.'); return; }
+    var out = { notes: notes, total: total, stopped: stopped, sheets: null };
+    if (!parts['xl/workbook.xml']) { notes.push('"' + label + '" does not look like an Excel workbook; skipped.'); return out; }
+    try { out.sheets = xlsxSheets(parts, {}); } catch (err) { notes.push('"' + label + '" could not be read as a workbook (' + String(err && err.message || err).replace(/\.$/, '') + '); skipped.'); return out; }
+    if (!out.sheets.length) { notes.push('"' + label + '" has no cells with data.'); out.sheets = null; }
+    return out;
+  }
+  async function openBook(src, entries, label, prefix, ctx) {
+    var lim = ctx.lim, r;
+    if (src.book) r = await src.book(entries, label, { maxPartBytes: lim.maxPartBytes, maxTotalBytes: lim.maxTotalBytes }, ctx.total);   // with helpers: the whole workbook is read inside one, so the page never stalls on a big sheet
+    if (!r || r.lost) r = await bookJob(src, entries, label, lim, ctx.total);
+    r.notes.forEach(function (n) { ctx.notes.push(n); });
+    ctx.total = r.total; if (r.stopped) ctx.stopped = true;
+    var sheets = r.sheets;
+    if (!sheets) return;
     var stem = label.replace(/\.(xlsx|xlsm)$/i, '');
     sheets.forEach(function (sh) {
       if (ctx.files.length >= lim.maxFiles) return;
@@ -923,5 +940,5 @@
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
   compileEarly();
-  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
+  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
 }));
