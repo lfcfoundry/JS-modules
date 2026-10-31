@@ -27,7 +27,24 @@
   var MOD = null, GEN = 0, LIVE = new Set(), AUTO = true, trimQueued = false;   // trim() and autoTrim (on by default since 1.7.0): the compiled module, which memory a list's copy is in, and the compacted lists (their only copy is in that memory)
   var W = null, backend = 'auto', readyPromise = null, simdOn = false, mem = null, u8 = null, u32 = null, heapEnd = 0, blocks = [];   // blocks: free list [{o, n}] of the arena
   function b64bytes(t) { var bin, i; if (typeof atob === 'function') { var r = atob(t); bin = new Uint8Array(r.length); for (i = 0; i < r.length; i++) bin[i] = r.charCodeAt(i); } else bin = new Uint8Array(Buffer.from(t, 'base64')); return bin; }
-  function outOf(out, n) { if (out == null) return new Uint32Array(n); if (!(out instanceof Uint32Array) || out.length !== n) throw new TypeError('elias-fano: out must be a Uint32Array of ' + n + ' values'); return out; }
+  // Spare: the first write to a freshly made big array costs about 0.7 ms per MB in every browser. After a big toArray or slice (1 MB or more) the page, when idle,
+  // makes and touches one array of that length; the next result of that length fills it instead of a new one. Dropped after 4 s unused. setSpare(false) turns it off.
+  var spare = null, spareTimer = null, spareOn = true, SPARE_MIN = 262144, SPARE_MS = 4000;
+  function spareLater(n) {
+    if (!spareOn || n < SPARE_MIN || typeof setTimeout !== 'function' || spare || spareTimer) return;
+    var go = function () {
+      spareTimer = null; var a = new Uint32Array(n), i; for (i = 0; i < n; i += 1024) a[i] = 0;   // one write per 4 KB page touches it
+      spare = a; spareTimer = setTimeout(function () { spareTimer = null; spare = null; }, SPARE_MS); if (spareTimer && spareTimer.unref) spareTimer.unref();
+    };
+    if (typeof requestIdleCallback === 'function') { spareTimer = -1; requestIdleCallback(function () { spareTimer = null; go(); }, { timeout: 1000 }); }
+    else { spareTimer = setTimeout(go, 0); if (spareTimer && spareTimer.unref) spareTimer.unref(); }
+  }
+  function fresh(n) {
+    var a = spare;
+    if (a && a.length === n) { spare = null; if (spareTimer && spareTimer !== -1) { clearTimeout(spareTimer); spareTimer = null; } } else a = new Uint32Array(n);
+    spareLater(n); return a;
+  }
+  function outOf(out, n) { if (out == null) return fresh(n); if (!(out instanceof Uint32Array) || out.length !== n) throw new TypeError('elias-fano: out must be a Uint32Array of ' + n + ' values'); return out; }
   function views() { u8 = new Uint8Array(mem.buffer); u32 = new Uint32Array(mem.buffer); }
   function alloc(n) {   // first fit in the arena, 8 byte aligned; grows the memory when nothing fits
     n = (n + 7) & ~7; if (n === 0) n = 8;
@@ -254,7 +271,7 @@
     if (out) return sliceOutWasm(this, a, k, outOf(out, k));   // its own function: one shared body that sometimes got the caller's array ran 2-2.7x slower in WebKitGTK when both kinds of call were mixed
     if (k <= 64) { r = new Uint32Array(k); for (j = 0; j < k; j++) r[j] = W.ef_get(this._ptr, a + j); return r; }   // short runs (a list of a list set): one call each, no scratch space
     var ip = alloc(k * 4), op = alloc(k * 4), q = ip >>> 2; for (j = 0; j < k; j++) u32[q + j] = a + j;
-    W.ef_get_many(this._ptr, ip, op, k); r = u32.slice(op >>> 2, (op >>> 2) + k); release(ip, k * 4); release(op, k * 4); return r;
+    W.ef_get_many(this._ptr, ip, op, k); if (k >= SPARE_MIN) { r = fresh(k); r.set(u32.subarray(op >>> 2, (op >>> 2) + k)); } else r = u32.slice(op >>> 2, (op >>> 2) + k); release(ip, k * 4); release(op, k * 4); return r;
   };
 
   function sliceOutWasm(e, a, k, r) {
@@ -573,7 +590,7 @@
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
     version: '1.8.0', api: 1, build: build, open: open, buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, intersect: intersect, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
-    setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
+    setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
     _buildJS: buildJS, _layout: layout
   };
 }));
