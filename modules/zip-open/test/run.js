@@ -286,6 +286,80 @@ t('shared output buffer (1.6.0): two opens at the same time, and repeated opens,
     [[r[0], 'A'], [r[1], 'B'], [r[2], 'B'], [r[3], 'A']].forEach(function (p) { assert.equal(p[0].files.length, 6); p[0].files.forEach(function (f, i) { assert.ok(f.text.startsWith('a,b\n' + p[1] + i + ',x\n') && f.text.length === 4 + (p[1] + i + ',x\n').length * (3000 + i * 500), 'file ' + f.name); }); });
   }
 });
+// ---- 1.7.0: the faster XML scanner must give the very same events (and errors) as the one it replaced ----
+var refScan = (function () {
+  var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 }, XML_MAX_DEPTH = 2000;
+  var ATTR = /([^\s=\/"'<>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g, TAGEND = /[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/y;
+  function xmlDecode(s) {
+    if (s.indexOf('&') < 0) return s;
+    return s.replace(/&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|lt|gt|amp|quot|apos);/gi, function (m, e) {
+      var c = e.toLowerCase();
+      if (c === 'lt') return '<'; if (c === 'gt') return '>'; if (c === 'amp') return '&'; if (c === 'quot') return '"'; if (c === 'apos') return "'";
+      var cp = c.charAt(1) === 'x' ? parseInt(c.slice(2), 16) : parseInt(c.slice(1), 10);
+      return cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : '\ufffd';
+    });
+  }
+
+  function xmlScan(text, h) {
+    var i = 0, n = text.length, depth = 0, lt, e;
+    while (i < n) {
+      lt = text.indexOf('<', i);
+      if (lt < 0) { if (h.text && i < n) h.text(xmlDecode(text.slice(i))); break; }
+      if (lt > i && h.text) h.text(xmlDecode(text.slice(i, lt)));
+      if (text.charCodeAt(lt + 1) === 33) {                       // <!
+        if ((text.charCodeAt(lt + 2) === 45 && text.charCodeAt(lt + 3) === 45)) { e = text.indexOf('-->', lt + 4); if (e < 0) throw new Error('The XML is cut off.'); i = e + 3; continue; }
+        if (text.startsWith('<![CDATA[', lt)) { e = text.indexOf(']]>', lt + 9); if (e < 0) throw new Error('The XML is cut off.'); if (h.text) h.text(text.slice(lt + 9, e)); i = e + 3; continue; }
+        e = text.indexOf('>', lt); var br = text.indexOf('[', lt);   // DOCTYPE, possibly with an inner subset that we skip unread
+        if (br >= 0 && (e < 0 || br < e)) { var close = text.indexOf(']', br); e = close < 0 ? -1 : text.indexOf('>', close); }
+        if (e < 0) throw new Error('The XML is cut off.');
+        i = e + 1; continue;
+      }
+      if (text.charCodeAt(lt + 1) === 63) { e = text.indexOf('?>', lt + 2); if (e < 0) throw new Error('The XML is cut off.'); i = e + 2; continue; }
+      TAGEND.lastIndex = lt + 1;
+      var m = TAGEND.exec(text);
+      if (!m) throw new Error('The XML is cut off.');
+      i = lt + 1 + m[0].length;
+      var body = m[0].slice(0, -1);
+      if (body.charCodeAt(0) === 47) {                            // </name>
+        depth--;
+        var cn = body.slice(1).trim(), cc = cn.indexOf(':');
+        if (h.close) h.close(cc >= 0 ? cn.slice(cc + 1) : cn);
+        continue;
+      }
+      var self = body.charCodeAt(body.length - 1) === 47;
+      if (self) body = body.slice(0, -1);
+      var sp = body.search(/[\s]/), nm = sp < 0 ? body : body.slice(0, sp), col = nm.indexOf(':');
+      var attrs = {};
+      if (sp >= 0) {
+        ATTR.lastIndex = 0;
+        var am;
+        while ((am = ATTR.exec(body.slice(sp)))) {
+          var v = xmlDecode(am[2] !== undefined ? am[2] : am[3]), an = am[1], ac = an.indexOf(':');
+          if (BAD_KEYS[an]) continue;
+          attrs[an] = v;
+          if (ac >= 0 && !(an.slice(ac + 1) in attrs) && !BAD_KEYS[an.slice(ac + 1)]) attrs[an.slice(ac + 1)] = v;
+        }
+      }
+      var local = col >= 0 ? nm.slice(col + 1) : nm;
+      if (h.open) h.open(local, attrs, self);
+      if (self) { if (h.close) h.close(local); } else if (++depth > XML_MAX_DEPTH) throw new Error('The XML is nested too deeply to be real data.');
+    }
+  }
+
+  return xmlScan;
+})();
+t('xml scanner: same events and errors as the previous scanner on 20,000 random pieces of XML', function () {
+  var s = 99, rnd = function () { return (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; }, pick = function (a) { return a[Math.floor(rnd() * a.length)]; };
+  var frags = ['<a>', '</a>', '<b x="1" y=\'2\'>', '<c r="A1" t="s"/>', '<v>', '</v>', '<x:y z:k="v">', '</x:y>', '<a b="c>d">', "<a b='c>d'>", '<!-- note -->', '<![CDATA[ <raw> ]]>', '<?xml version="1.0"?>', '<!DOCTYPE a [ <!ENTITY e "x"> ]>', 'text', ' &amp; ', '&#65;&lt;&#x41;', '\u00a0', '<a\u00a0k="v">', '<a\tk="v"\n/>', '<a k=v>', '"', "'", '<', '>', '<a b="unclosed', '<__proto__ __proto__="p">', '<a  b = "1"  c="2" />', '</', '<!', '<!-', '<a/b>'];
+  for (var k = 0; k < 20000; k++) {
+    var xml = '', n = 1 + Math.floor(rnd() * 12); for (var i = 0; i < n; i++) xml += pick(frags);
+    var ev1 = [], ev2 = [], e1 = null, e2 = null;
+    var mk = function (log) { return { open: function (t, a, sf) { log.push(['o', t, JSON.stringify(Object.keys(a).sort().map(function (q) { return [q, a[q]]; })), !!sf]); }, close: function (t) { log.push(['c', t]); }, text: function (x) { log.push(['t', x]); } }; };
+    try { refScan(xml, mk(ev1)); } catch (e) { e1 = e.message; }
+    try { U._xmlScan(xml, mk(ev2)); } catch (e) { e2 = e.message; }
+    assert.deepStrictEqual([ev2, e2], [ev1, e1], JSON.stringify(xml));
+  }
+});
 t('streaming: helpers (workers) really ran, and many text files come out in order with limits applied the same way', async function () {
   var files = []; for (var i = 0; i < 40; i++) files.push({ name: 'd/f' + String(i).padStart(2, '0') + '.csv', data: 'a,b\n' + (i + ',x\n').repeat(2000 + i * 37) });
   var z = Z.makeZip(files), r = await both(z, 'many.zip'), r2 = await both(z, 'many.zip', { maxTotalBytes: 300000 }), r3 = await both(z, 'many.zip', { maxFiles: 7 }), r4 = await both(z, 'many.zip', { maxEntryBytes: 20000 });
