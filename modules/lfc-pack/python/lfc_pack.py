@@ -167,14 +167,14 @@ def _block_header(b):
 
 # ---------------------------------------------------------------- nested blocks
 def _decimals(raw, n):
-    # width-7 number column: byte 0 is the decimals d (bit 7: differences between neighbors), then n varints of the zigzag whole numbers; value = whole / 10^d
-    if len(raw) < 1 or (raw[0] & 127) > 9: raise ValueError('bad decimal column')
-    d, delta = raw[0] & 127, raw[0] & 128
-    u = _varints(raw[1:], n); sc = 10 ** d; out = []; s = 0
-    for x in u:
+    # width-7 number column: byte 0 is the decimals d (bits 0-3; bit 7: differences against the value k places back, k - 1 in bits 4-6), then n varints of the zigzag whole numbers; value = whole / 10^d
+    if len(raw) < 1 or (raw[0] & 15) > 9: raise ValueError('bad decimal column')
+    d, delta, k = raw[0] & 15, raw[0] & 128, ((raw[0] >> 4) & 7) + 1
+    u = _varints(raw[1:], n); sc = 10 ** d; out = []; w = []
+    for i, x in enumerate(u):
         v = _unzz(x)
-        if delta: s += v; v = s
-        out.append(v / sc)
+        if delta: v += w[i - k] if i >= k else 0
+        w.append(v); out.append(v / sc)
     return out
 
 
