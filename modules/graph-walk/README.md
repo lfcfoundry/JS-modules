@@ -54,6 +54,8 @@ GraphWalk.betweenness(g, { normalized: true, sources });   // Float64Array: shar
 GraphWalk.maxflow(g, source, sink, capacity);   // most that can flow from source to sink (one non-negative capacity per link; omit for 1 each): { value, flow (per link), cut (links that are full and cross the cut), side (1 for items on the source side) }
 GraphWalk.closeness(g, { wassermanFaust, sources });   // Float64Array: how close each item is to all it can be reached from (same definition as graphology-metrics)
 GraphWalk.closenessAsync(g, { workers, pool, sources });   // Promise of the same array, split across kept helper threads (about 3.5x on 4 cores); small jobs and pages without workers run on the calling thread
+// Repeating a call on a big graph: hand the previous result back and its arrays are reused instead of written fresh (WebAssembly only; same answers; the old result is overwritten, so keep a copy if you still need it):
+//   r = GraphWalk.components(g, r);  r = GraphWalk.kcore(g, r);  r = GraphWalk.shortest(g, src, weights, undefined, r);  r = GraphWalk.pagerank(g, { into: r });
 GraphWalk.trim();                               // Promise: gives the WebAssembly memory back (it only ever grows) and ends the kept helpers; graphs are copied in again on their next call
 GraphWalk.triangles(g);                         // { total, perItem, clustering, transitivity }: directions and repeated links ignored
 GraphWalk.communities(g, { resolution, weights, minGain });   // Louvain groups: { id (biggest group first), count, modularity }
