@@ -62,6 +62,35 @@ check('verdict: too few frames says so instead of guessing', v.grade === 'not en
 v = FR.speedVerdict(FR.frameStats(Array.from({ length: 120 }, () => 33.3)), [], 0, 30);
 check('verdict: the target FPS is respected (30 FPS is smooth for a 30 FPS page)', v.grade === 'smooth', v);
 
+// ---- frame modes (1.1.0) ----
+withEnv(env => {
+  const fr = FR.start({ name: 'play', frames: 'play' });
+  env.tick(16.67, 20);
+  check("frames 'play': no animation-frame callback and no frames before frames(true)", env.frames.length === 0 && fr.speed().stats.frames === 0);
+  fr.frames(true); env.tick(16.67, 40); fr.frames(false);
+  const got = fr.speed().stats.frames; env.tick(16.67, 20);
+  check("frames 'play': records between frames(true) and frames(false), then stops asking for frames", got === 39 && env.frames.length === 0 && fr.speed().stats.frames === 39, { got, pending: env.frames.length });
+  fr.stop();
+});
+withEnv(env => {
+  const fr = FR.start({ name: 'ext', frames: 'external' });
+  check("frames 'external': never asks for an animation frame of its own", env.frames.length === 0);
+  let ts = 1000; for (let i = 0; i < 50; i++) { ts += 16.67; fr.frame(ts); }
+  check("frames 'external': frame(ts) from the app's loop records 49 frame times at 60 FPS", fr.speed().stats.frames === 49 && Math.abs(fr.speed().stats.fps - 60) < 0.2, fr.speed().stats);
+  fr.frames(false); for (let i = 0; i < 10; i++) { ts += 16.67; fr.frame(ts); }
+  fr.frames(true); ts += 500; fr.frame(ts); ts += 16.67; fr.frame(ts);
+  check("frames 'external': frames(false) pauses, and the gap before resuming is not counted", fr.speed().stats.frames === 50 && fr.speed().stats.over100 === 0 && env.frames.length === 0, fr.speed().stats);
+  fr.stop(); fr.frame(ts + 16.67);
+  check("frames 'external': nothing is recorded after stop()", fr.speed().stats.frames === 50);
+});
+withEnv(env => {
+  const fr = FR.start({ name: 'own' });
+  check('frames default: its own callback runs from the start (as 1.0.2), and frame(ts) is ignored', env.frames.length === 1 && (fr.frame(5), fr.speed().stats.frames === 0));
+  env.tick(16.67, 10); fr.frames(false); env.tick(16.67, 5);
+  check('frames default: frames(false) stops the callback', env.frames.length === 0 && fr.speed().stats.frames === 9, fr.speed().stats);
+  fr.stop();
+});
+
 // ---- frames and reports ----
 withEnv(env => {
   const fr = FR.start({ name: 'test-game', version: '2026.10.22.1700' });
