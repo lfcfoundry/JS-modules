@@ -292,7 +292,7 @@
     },
     {
       "id": "gif-writer",
-      "version": "1.5.1",
+      "version": "1.6.0",
       "api": 1,
       "global": "GifWriter",
       "summary": "Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation).",
