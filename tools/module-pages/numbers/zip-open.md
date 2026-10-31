@@ -44,3 +44,16 @@ Many small files are about 5.9x faster. Reading a File in pieces is slightly slo
 **New in 1.5.1: a File of up to 16 MB opens in one read.** The code thread's cloud-browser runs (Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 on a shared machine, not noise-guarded, not the laptop). A laptop run will replace these.
 
 `expandBlob` on a 9 MB zip takes 0.80 to 0.93 of the earlier time, which brings it level with the in-memory open.
+
+
+**New in 1.5.2: page load back to its old cost, helpers let go when idle.** The code thread's cloud-browser runs (Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 on a shared machine, not noise-guarded, not the laptop).
+
+The small-entry inflate is now its own 9.5 KB module, compiled only when a small entry is first opened, so the checksum module is back to 1,476 bytes. 2,000 tiny files, lower is better:
+
+| Browser | 1.5.1 ms | 1.5.2 ms |
+|---|---:|---:|
+| Firefox 158 | 195 | 101 |
+| Chromium 155 | 153 | 109 |
+| WebKitGTK 2.52.6 | 167 | 122 |
+
+Helpers from `expandBlob({ workers })` close 5 s after the last call (`idleMs` changes it); starting them again cost nothing measurable in all three browsers.
