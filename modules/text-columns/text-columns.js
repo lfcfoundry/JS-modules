@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.6.1 (API 0)
+ * Version 0.6.2 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -29,14 +29,22 @@
   var WASM_B64 = /*WASM:tc:BEGIN*/'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'/*WASM:tc:END*/;
   var WASM_SIMD_B64 = /*WASM:tcsimd:BEGIN*/'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'/*WASM:tcsimd:END*/;
   var SIMD_PROBE = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]);
-  var W = null, loading = false;
+  var W = null, loading = false, TRIM = { ms: -1, min: 16777216, timer: 0, count: 0 };
+  // WebAssembly memory only grows: after a big file the scanner's memory stays that big for the life of the page (or helper). With idleTrim(ms), when it is over 16 MB
+  // and no call came for ms milliseconds, a fresh instance of the same compiled module (small memory) takes over and the old memory is let go.
+  function trimLater() {
+    if (!W || !W.m || TRIM.ms < 0) return;
+    if (TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; }
+    if (W.x.memory.buffer.byteLength < TRIM.min) return;
+    TRIM.timer = setTimeout(function () { TRIM.timer = 0; try { var x = new WebAssembly.Instance(W.m, {}).exports; W.x = x; W.heap = x.__heap_base.value; TRIM.count++; } catch (e) { /* keep the old one */ } }, TRIM.ms);
+  }
   function fromB64(s) { if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(s, 'base64')); var bin = atob(s), u = new Uint8Array(bin.length), i; for (i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
   function start() {
     if (W || loading || typeof WebAssembly !== 'object') return;
     loading = true;
     try {
       var simd = WebAssembly.validate(SIMD_PROBE), m = new WebAssembly.Module(fromB64(simd ? WASM_SIMD_B64 : WASM_B64)), x = new WebAssembly.Instance(m, {}).exports;
-      W = { x: x, heap: x.__heap_base.value, simd: simd };
+      W = { x: x, m: m, heap: x.__heap_base.value, simd: simd };
     } catch (e) { W = null; }
   }
   start();
@@ -126,7 +134,7 @@
     }
     return t;
   }
-  function parse(input, opts) { var t = parseCore(input, opts); return opts && opts.types ? applyTypes(t, opts.types) : t; }
+  function parse(input, opts) { var t; if (TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } try { t = parseCore(input, opts); } finally { trimLater(); } return opts && opts.types ? applyTypes(t, opts.types) : t; }
   function parseCore(input, opts) {
     opts = opts || {};
     var delim = (opts.delimiter || ',').charCodeAt(0), header = opts.header !== false, u = stripBom(toBytes(input)), len = u.length, i, j, rc;
@@ -141,12 +149,13 @@
       new Uint8Array(mem.buffer).set(u, pin);
       nf = x.count(pin, len, delim);
       var ps = o; o = (o + 4 * nf + 15) & ~15; var pe = o; o = (o + 4 * nf + 15) & ~15; var pq = o; o = (o + nf + 15) & ~15; var pst = o; o = (o + 32) & ~15;
-      var pnum = (o + 7) & ~7; o = (pnum + 8 * nf + 16) & ~15;   // room for one number column of up to nf rows, so memory never grows after the views below exist
       if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
       rc = x.scan(pin, len, delim, ps, pe, pq, pst);
       var s32 = new Uint32Array(mem.buffer, pst, 4);
       var fields = s32[0], nrowsAll = s32[1], ncols = s32[2];
       if (rc) throw new Error(RC[rc]);
+      var pnum = (o + 7) & ~7; o = (pnum + 8 * (opts._numRoom === 'fields' ? nf : nrowsAll) + 16) & ~15;   // room for one number column (one value a row; before 0.6.2 one a field), made before the views below exist
+      if (!(opts.lazy || opts._off) && o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
       var pgs = (o + 15) & ~15, pge = (pgs + 4 * nrowsAll + 15) & ~15, pgq = (pge + 4 * nrowsAll + 15) & ~15;   // room to gather one column's positions (text columns that stay as positions)
       if (opts.lazy || opts._off) { o = pgq + nrowsAll + 16; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536)); }
       starts = new Uint32Array(mem.buffer, ps, fields); ends = new Uint32Array(mem.buffer, pe, fields); qflag = new Uint8Array(mem.buffer, pq, fields);
@@ -320,6 +329,8 @@
     function run(m) {
       var t, cols = [], types = [], tr = [], j, c, only, isText, ft, q;
       try {
+        if (m.op === 'mem') { postMessage({ id: m.id, bytes: TextColumns._memBytes(), trims: TextColumns._trim.count }); return; }
+        if (m.trim !== undefined) TextColumns.idleTrim(m.trim);   // the page's idleTrim setting, for this helper's own memory
         if (m.op === 'fill') { for (j = 0; j < m.cols.length; j++) new Float64Array(m.bufs[j]).set(kept[m.cols[j]], m.at); if (!m.keep) kept = null; postMessage({ id: m.id, bufs: m.bufs }, m.bufs); return; }
         if (m.op !== 'text') kept = null;
         if (m.op === 'hold') { held = { bytes: m.bytes }; q = TextColumns._qscan(m.bytes, m.delim.charCodeAt(0)); postMessage({ id: m.id, q: [q[0], q[1], q[2]] }); return; }
@@ -361,6 +372,7 @@
   function ask(h, msg, transfer) { return new Promise(function (ok) { var id = nextId++; msg.id = id; h.wait[id] = ok; try { h.w.postMessage(msg, transfer || []); } catch (e) { delete h.wait[id]; ok({ err: 'helper failed' }); } }); }
   /** Starts n helpers ahead of time (each one compiles the scanner), so the first big parse does not pay for it. */
   function warm(n, opts) { n = n || helperCount(opts); while (POOL.length < n) POOL.push(makeHelper(opts)); return POOL.length; }
+  function helperMem() { return Promise.all(POOL.map(function (h) { return ask(h, { op: 'mem' }); })); }   // test hook: each helper's WebAssembly memory
   function closeHelpers() { POOL.forEach(function (h) { try { h.w.terminate(); } catch (e) { /* gone */ } }); POOL = []; }
   /** Offsets where each piece starts: after a line end that is not inside quotes. null when the quotes cannot be trusted (a quote in the middle of a plain field). */
   function splitPoints(u, delim, n) {
@@ -416,6 +428,12 @@
    * A file with quote marks is cut at plain line ends and each helper counts the quote marks of its piece (WebAssembly) so the cuts are known to fall outside quotes; if one does not, the older single-thread cut is used.
    */
   async function parseParallel(input, opts) { var t = await parseParallelCore(input, opts); return opts && opts.types ? applyTypes(t, opts.types) : t; }
+  var yq = null;
+  function yieldNow() {   // back to the page's event loop and straight on (a message, not a timer, so no 4 ms clamp)
+    if (typeof MessageChannel !== 'function') return new Promise(function (ok) { setTimeout(ok, 0); });
+    if (!yq) { yq = { ch: new MessageChannel(), waiting: [] }; yq.ch.port1.onmessage = function () { var w = yq.waiting.shift(); if (w) w(); }; if (yq.ch.port1.unref) { yq.ch.port1.unref(); yq.ch.port2.unref(); } }   // Node: the channel must not keep the process alive
+    return new Promise(function (ok) { yq.waiting.push(ok); yq.ch.port2.postMessage(0); });
+  }
   function isBlob(x) { return typeof Blob === 'function' && x instanceof Blob; }
   async function parseParallelCore(input, opts) {
     opts = opts || {};
@@ -434,9 +452,10 @@
     }
     var cuts, hasQ, sendBytes = true, pb = null, join = opts._join !== false;   // _join: false = the page joins the number columns (0.6.0 way; test switch)
     function pieceEnd(c, k) { return k + 1 < c.length ? c[k + 1] : len; }
+    var slice = opts._slice || 0;   // private: read in slices of this many bytes (tested 2026.10.31: it never lowered the longest page stop, the string build did)
     if (blob) {   // every helper reads its own piece and parses it; the quote check comes after, and a file whose cuts fall inside quotes is read again the 0.5.2 way
       warm(n, opts);
-      for (k = 0; k < n; k++) jobs.push(ask(POOL[k], { op: 'read', blob: blob, a: Math.floor(len / n * k), b: Math.floor(len / n * (k + 1)), last: k === n - 1, delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, slice: opts._slice }));
+      for (k = 0; k < n; k++) jobs.push(ask(POOL[k], { op: 'read', blob: blob, a: Math.floor(len / n * k), b: Math.floor(len / n * (k + 1)), last: k === n - 1, delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, slice: slice, trim: TRIM.ms }));
       if (T) T.post = performance.now() - t0;
       res = await Promise.all(jobs); jobs = [];
       var qpar = 0, qgood = true, qany = false, qerr = false;
@@ -462,7 +481,7 @@
       else { cuts = splitPoints(u, delim, n); if (!cuts || cuts.length < 2) return serial(); warm(cuts.length, opts); }
     }
     for (k = 0; k < cuts.length; k++) {
-      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join }, tl = [];   // _utf16: false = the 0.5.1 way (test switch)
+      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, trim: TRIM.ms }, tl = [];   // _utf16: false = the 0.5.1 way (test switch)
       if (sendBytes) { msg.bytes = u.slice(cuts[k], pieceEnd(cuts, k)); tl.push(msg.bytes.buffer); }
       jobs.push(ask(POOL[k], msg, tl));
     }
@@ -495,17 +514,26 @@
     extra.forEach(function (x) { if (x.m.text !== undefined) pieceText[x.k] = x.m.text; });
     function pieceBytes(k) { return pb ? pb[k] : u.subarray(cuts[k], pieceEnd(cuts, k)); }
     function pieceStr(k) { if (pieceText[k] === undefined) pieceText[k] = td.decode(pieceBytes(k)); return pieceText[k]; }
-    function fillText(j) {
-      var v = new Array(total), at = 0, d, z, sv, tx, os, oe, oq, base, a;
-      for (i = 0; i < live.length; i++) {
-        k = live[i]; d = desc(k, j);
-        if (d.t === 2) {   // field positions inside this piece: cut the strings here, from one decoded copy of the piece
-          tx = pieceStr(k); os = d.d[0]; oe = d.d[1]; oq = d.d[2];
-          for (z = 0; z < os.length; z++) { sv = tx.substring(os[z], oe[z]); v[at++] = oq[z] ? sv.split('""').join('"') : sv; }
-        } else if (d.t === 3) {   // the same for a piece with non-ASCII text: the positions are bytes
-          os = d.d[0]; oe = d.d[1]; oq = d.d[2]; base = pieceBytes(k);
-          for (z = 0; z < os.length; z++) { sv = td.decode(base.subarray(os[z], oe[z])); v[at++] = oq[z] ? sv.split('""').join('"') : sv; }
-        } else { a = d.d; for (z = 0; z < a.length; z++) v[at++] = a[z]; }
+    // A text column's strings, piece by piece. fillPart does rows [z0, z1) of one piece; fillText does a whole column at once (a lazy column's first read),
+    // fillSliced (since 0.6.2) does it in slices of about 4 ms with a yield between them, so building millions of strings never holds the page for long.
+    function fillPart(v, at, k, j, z0, z1) {
+      var d = desc(k, j), z, sv, tx, os, oe, oq, base, a;
+      if (d.t === 2) {   // field positions inside this piece: cut the strings here, from one decoded copy of the piece
+        tx = pieceStr(k); os = d.d[0]; oe = d.d[1]; oq = d.d[2];
+        for (z = z0; z < z1; z++) { sv = tx.substring(os[z], oe[z]); v[at++] = oq[z] ? sv.split('""').join('"') : sv; }
+      } else if (d.t === 3) {   // the same for a piece with non-ASCII text: the positions are bytes
+        os = d.d[0]; oe = d.d[1]; oq = d.d[2]; base = pieceBytes(k);
+        for (z = z0; z < z1; z++) { sv = td.decode(base.subarray(os[z], oe[z])); v[at++] = oq[z] ? sv.split('""').join('"') : sv; }
+      } else { a = d.d; for (z = z0; z < z1; z++) v[at++] = a[z]; }
+      return at;
+    }
+    function fillText(j) { var v = new Array(total), at = 0, ii; for (ii = 0; ii < live.length; ii++) at = fillPart(v, at, live[ii], j, 0, cnt[ii]); return v; }
+    async function fillSliced(j, clock) {
+      var v = new Array(total), at = 0, ii, z, step = 2048, e, t;
+      for (ii = 0; ii < live.length; ii++) for (z = 0; z < cnt[ii]; z = e) {
+        e = Math.min(cnt[ii], z + step); t = performance.now(); at = fillPart(v, at, live[ii], j, z, e); t = performance.now() - t;
+        step = t > 0.5 ? Math.max(256, Math.min(1 << 20, Math.round(step * 1.5 / t))) : Math.min(1 << 20, step * 2);   // about 1.5 ms a step
+        if (performance.now() - clock.t > clock.budget) { await yieldNow(); clock.t = performance.now(); }
       }
       return v;
     }
@@ -518,7 +546,7 @@
         return d.d[2][row] ? sv.split('""').join('"') : sv;
       }
     }
-    var columns = [], v, a, numVals = {};
+    var columns = [], v, a, numVals = {}, slicedBuild = opts._sliceBuild !== false && typeof performance === 'object', clock = { t: performance.now(), budget: opts._budget || 4 };   // _sliceBuild: false = 0.6.1 (one long build)
     if (join) {   // since 0.6.1: the helpers kept their number columns; the page makes each full-length column once and the columns travel through the helpers in groups,
       // every helper copying its rows into a different group at each turn, so the page never copies them (a 45 MB number file no longer blocks the page for tens of ms)
       var js = [], L = live.length, offs = [], gc = [], gb = [], o2 = 0, step, got;
@@ -536,7 +564,7 @@
       if (numVals[j]) col.values = numVals[j];
       else if (!textCol[j]) { v = new Float64Array(total); var at = 0; for (i = 0; i < live.length; i++) { a = res[live[i]].cols[j]; v.set(a, at); at += a.length; } col.values = v; }
       else if (lazy) col = lazyJoined(names[j], function (jj) { return function () { return fillText(jj); }; }(j), function (jj) { return function (row) { return cellText(jj, row); }; }(j));
-      else col.values = fillText(j);
+      else col.values = slicedBuild ? await fillSliced(j, clock) : fillText(j);
       columns.push(col);
     }
     if (T) T.merge = performance.now() - t0;
@@ -550,5 +578,5 @@
     return col;
   }
 
-  return { version: '0.6.1', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { idleTrim: function (ms) { TRIM.ms = ms === undefined ? 3000 : +ms; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.6.2', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.2 · API 0 · 2026-10-31
+- The page builds text columns in short steps (longest stall 3-10x lower); number scratch sized by rows (161 to 112 MB after a 45 MB file); opt-in idleTrim(ms) gives memory back.
+
 ## 0.6.1 · API 0 · 2026-10-31
 - Big files with number columns: the page no longer copies them, so it stays responsive (Chromium 42 to 7 ms pause, up to 1.4x faster).
 
