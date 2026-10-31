@@ -14,13 +14,13 @@ window.makeText = function (mb) { var s = 9, rnd = function () { s = (Math.imul(
 T.main(async (b, which, outFile) => {
   const srv = await T.serve({ '/tc.js': fs.readFileSync(root + 'text-columns/text-columns.js', 'utf8'), '/make.js': MAKE, '/page.html': '<!doctype html><meta charset=utf-8><title>t</title><script src="/tc.js"></script><script src="/make.js"></script>' });
   const p = await b.newPage();
-  const R16 = 16777216, MODES = { '0.6.1 (scratch by fields)': { o: { _numRoom: 'fields', _sliceBuild: false }, trim: -1 }, 'scratch by rows': { o: {}, trim: -1 }, 'idle trim to 0 alone': { o: { _numRoom: 'fields', _sliceBuild: false }, trim: 300 }, 'idle trim to 16 MB alone': { o: { _numRoom: 'fields', _sliceBuild: false }, trim: 300, keep: R16 }, 'rows + trim to 0': { o: {}, trim: 300 }, 'rows + trim to 16 MB': { o: {}, trim: 300, keep: R16 } };
+  const R16 = 16777216, MODES = { '0.6.1 (scratch by fields)': { o: { _numRoom: 'fields', _sliceBuild: false }, trim: -1 }, 'scratch by rows': { o: {}, trim: -1 }, 'idle trim to 0 alone': { o: { _numRoom: 'fields', _sliceBuild: false }, trim: 300 }, 'idle trim to 16 MB alone': { o: { _numRoom: 'fields', _sliceBuild: false }, trim: 300, keep: R16 }, 'rows + trim to 0': { o: {}, trim: 300 }, 'rows + trim to 16 MB': { o: {}, trim: 300, keep: R16 }, '4 MB windows alone': { o: {}, trim: -1, win: 4194304 }, '4 MB windows + trim to 16 MB': { o: {}, trim: 300, keep: R16, win: 4194304 } };
   const rows = [], MB = (x) => (x / 1048576).toFixed(1);
   for (const [name, M] of Object.entries(MODES).filter(([k]) => !process.env.ONLY || JSON.parse(process.env.ONLY).includes(k))) {
     await p.goto(srv.base + '/page.html?' + Math.random());   // a fresh page: a fresh module memory
     const r = await p.evaluate(async (M, reps) => {
       const U = make(45), V = make(12), med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1], wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
-      TextColumns.idleTrim(M.trim, M.keep);
+      TextColumns.idleTrim(M.trim, M.keep); TextColumns._win(M.win || 0);
       const m0 = TextColumns._memBytes();
       let t = TextColumns.parse(U, M.o); const cnt = t.count; t = null;
       const m1 = TextColumns._memBytes(); await wait(600); const m2 = TextColumns._memBytes();

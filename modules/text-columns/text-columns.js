@@ -135,7 +135,63 @@
     }
     return t;
   }
-  function parse(input, opts) { var t; if (TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } try { t = parseCore(input, opts); } finally { trimLater(); } return opts && opts.types ? applyTypes(t, opts.types) : t; }
+  function parse(input, opts) { var t; if (TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } try { t = parseWindows(input, opts) || parseCore(input, opts); } finally { trimLater(); } return opts && opts.types ? applyTypes(t, opts.types) : t; }
+  /* Windows (since 0.6.2, opts._win bytes; 0 = off): a big input is read in pieces of about that size, each cut just after a line end that is outside quote marks, so the
+     scanner's WebAssembly memory grows to about 3.7 x the window instead of 3.7 x the whole input. Same answers: a column that is numbers in one piece and text in another
+     is read again as text in the number pieces. Not used for lazy tables or columns chosen by name. */
+  var WIN = 4194304;   // _win(bytes) changes it; 0 = read the whole input at once (0.6.1)
+  function parseWindows(input, opts) {
+    var win = opts && opts._win !== undefined ? opts._win : WIN;
+    if (!(win > 0) || !W || (opts && (opts.lazy || opts.plain || (opts.columns && !(Array.isArray(opts.columns) && opts.columns.every(function (c) { return typeof c === 'number'; })))))) return null;
+    var u = stripBom(toBytes(input)), len = u.length;
+    if (len < 2 * win) return null;
+    var cuts = [0], par = 0, p, nl, q = u.indexOf(34);   // q: the next quote mark not yet counted (-1: none left), so the file is searched for quote marks only once
+    for (;;) {
+      p = cuts[cuts.length - 1] + win; if (p >= len) break;
+      for (;;) {
+        nl = u.indexOf(10, p); if (nl < 0 || nl + 1 >= len) break;
+        for (; q >= 0 && q < nl; q = u.indexOf(34, q + 1)) par ^= 1;   // quote marks before this line end: an even count means it is outside quotes
+        if (!par) break;
+        p = nl + 1;
+      }
+      if (nl < 0 || nl + 1 >= len) break;
+      cuts.push(nl + 1);
+    }
+    if (cuts.length < 2) return null;
+    var header = !(opts && opts.header === false), parts = [], k, j, i, total = 0, t, ft = opts && opts._text;
+    function one(k, text) { var o2 = Object.assign({}, opts || {}); o2.header = header && k === 0; delete o2.types; if (text) o2._text = text; return parseCore(u.subarray(cuts[k], k + 1 < cuts.length ? cuts[k + 1] : len), o2); }
+    for (k = 0; k < cuts.length; k++) {
+      t = one(k, null);
+      if (k > 0 && t.names.length !== parts[0].names.length && t.count > 0) throw new Error(RC[1]);
+      parts.push(t); total += t.count;
+    }
+    var names = parts[0].names, nc = names.length, columns = [], again = [], v, at, a, kind;
+    function kindOf(c) { return c.type === 'number' ? 'n' : c.off ? 'o' : 'v'; }
+    for (j = 0; j < nc; j++) { var nNum = 0, nLive = 0; for (k = 0; k < parts.length; k++) if (parts[k].count > 0) { nLive++; if (parts[k].columns[j].type === 'number') nNum++; } if (nNum && nNum < nLive) again.push(j); }
+    if (again.length) {   // numbers here, text elsewhere: read those pieces again with those columns as text (column numbers in the file, as _text takes them)
+      var sel = opts && opts.columns ? opts.columns : null, fileCols = again.map(function (jj) { return sel ? sel[jj] : jj; }), txt = ft === true ? true : (ft || []).concat(fileCols);
+      for (k = 0; k < parts.length; k++) {
+        if (!parts[k].count || !again.some(function (jj) { return parts[k].columns[jj].type === 'number'; })) continue;
+        t = one(k, txt); again.forEach(function (jj) { parts[k].columns[jj] = t.columns[jj]; });
+      }
+    }
+    for (j = 0; j < nc; j++) {
+      kind = null;
+      for (k = 0; k < parts.length; k++) if (parts[k].count) { var kk2 = kindOf(parts[k].columns[j]); if (kind === null) kind = kk2; else if (kind !== kk2) return null; }   // positions in one piece and strings in another: read it whole
+      var col = { name: names[j], type: kind === 'n' ? 'number' : 'text', values: null, get: getAt };
+      if (kind === 'o') {
+        var os = new Uint32Array(total), oe = new Uint32Array(total), oq = new Uint8Array(total), asc = true, sh;
+        for (at = 0, k = 0; k < parts.length; k++) { if (!parts[k].count) continue; a = parts[k].columns[j]; sh = cuts[k]; if (!a.offAscii) asc = false; for (i = 0; i < a.off[0].length; i++) { os[at + i] = a.off[0][i] + sh; oe[at + i] = a.off[1][i] + sh; } oq.set(a.off[2], at); at += a.off[0].length; }
+        col.off = [os, oe, oq]; col.offAscii = asc;
+      } else {
+        v = kind === 'n' ? new Float64Array(total) : new Array(total); at = 0;
+        for (k = 0; k < parts.length; k++) { if (!parts[k].count) continue; a = parts[k].columns[j].values; if (kind === 'n') v.set(a, at); else for (i = 0; i < a.length; i++) v[at + i] = a[i]; at += a.length; parts[k].columns[j].values = null; }
+        col.values = v;
+      }
+      columns.push(col);
+    }
+    return makeTable(names, total, columns);
+  }
   function parseCore(input, opts) {
     opts = opts || {};
     var delim = (opts.delimiter || ',').charCodeAt(0), header = opts.header !== false, u = stripBom(toBytes(input)), len = u.length, i, j, rc;
@@ -331,7 +387,7 @@
       var t, cols = [], types = [], tr = [], j, c, only, isText, ft, q;
       try {
         if (m.op === 'mem') { postMessage({ id: m.id, bytes: TextColumns._memBytes(), trims: TextColumns._trim.count }); return; }
-        if (m.trim !== undefined) TextColumns.idleTrim(m.trim, m.keep);   // the page's idleTrim setting, for this helper's own memory
+        if (m.trim !== undefined) TextColumns.idleTrim(m.trim, m.keep); if (m.win !== undefined) TextColumns._win(m.win);   // the page's idleTrim setting, for this helper's own memory
         if (m.op === 'fill') { for (j = 0; j < m.cols.length; j++) new Float64Array(m.bufs[j]).set(kept[m.cols[j]], m.at); if (!m.keep) kept = null; postMessage({ id: m.id, bufs: m.bufs }, m.bufs); return; }
         if (m.op !== 'text') kept = null;
         if (m.op === 'hold') { held = { bytes: m.bytes }; q = TextColumns._qscan(m.bytes, m.delim.charCodeAt(0)); postMessage({ id: m.id, q: [q[0], q[1], q[2]] }); return; }
@@ -456,7 +512,7 @@
     var slice = opts._slice || 0;   // private: read in slices of this many bytes (tested 2026.10.31: it never lowered the longest page stop, the string build did)
     if (blob) {   // every helper reads its own piece and parses it; the quote check comes after, and a file whose cuts fall inside quotes is read again the 0.5.2 way
       warm(n, opts);
-      for (k = 0; k < n; k++) jobs.push(ask(POOL[k], { op: 'read', blob: blob, a: Math.floor(len / n * k), b: Math.floor(len / n * (k + 1)), last: k === n - 1, delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, slice: slice, trim: TRIM.ms, keep: TRIM.keep }));
+      for (k = 0; k < n; k++) jobs.push(ask(POOL[k], { op: 'read', blob: blob, a: Math.floor(len / n * k), b: Math.floor(len / n * (k + 1)), last: k === n - 1, delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, slice: slice, trim: TRIM.ms, keep: TRIM.keep, win: WIN }));
       if (T) T.post = performance.now() - t0;
       res = await Promise.all(jobs); jobs = [];
       var qpar = 0, qgood = true, qany = false, qerr = false;
@@ -482,7 +538,7 @@
       else { cuts = splitPoints(u, delim, n); if (!cuts || cuts.length < 2) return serial(); warm(cuts.length, opts); }
     }
     for (k = 0; k < cuts.length; k++) {
-      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, trim: TRIM.ms, keep: TRIM.keep }, tl = [];   // _utf16: false = the 0.5.1 way (test switch)
+      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, trim: TRIM.ms, keep: TRIM.keep, win: WIN }, tl = [];   // _utf16: false = the 0.5.1 way (test switch)
       if (sendBytes) { msg.bytes = u.slice(cuts[k], pieceEnd(cuts, k)); tl.push(msg.bytes.buffer); }
       jobs.push(ask(POOL[k], msg, tl));
     }
@@ -579,5 +635,5 @@
     return col;
   }
 
-  return { idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.6.2', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.6.2', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));
