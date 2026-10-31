@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-10-30
+
+### Quick
+expandBlob without helpers reads a zip of up to 16 MB in one go instead of in pieces: 0.80 to 0.93x the time on a 9 MB zip of 5 CSV files, level with 1.3.1 expand. Bigger zips are still read in pieces, so they never sit whole in memory.
+
+### Details
+On the laptop, expandBlob without helpers took 1.13x (Firefox 160) and 1.28x (Chromium 156) the time of 1.3.1 expand on a 9 MB zip; the piece path (Blob slices, stream piped through DecompressionStream) costs more than one arrayBuffer read for a small file. Container, 9 MB zip, medians: Chromium 162 to 130 ms, Firefox 138 to 128, WebKitGTK 162 to 142. Threshold WHOLE_MAX 16 MB; opts._wholeMax (tests only) forces the piece path, and test/run.js now checks pieces and one-go give the same files and notes for every case.
+
+### Deep
+zip-open 1.5.1: expandBlob reads zips up to 16 MB in one go when no helpers are asked for. Container 9 MB zip: Chromium 155 162 to 130 ms (0.80), Firefox 158 138 to 128 (0.93), WebKitGTK 162 to 142 (0.88). 1.5.0 expand vs 1.3.1 expand: 0.98, 1.05, 0.99 (noise). Tests 27 pass, with a new pieces-vs-one-go check.
+
 ## 1.5.0 · API 1 · 2026-10-30
 
 ### Quick
