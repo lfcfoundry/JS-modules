@@ -166,5 +166,12 @@ function goldenHashes(G) {
   globalThis.WebAssembly = undefined; let b, w; try { b = fresh(); w = await b.wasmReady(); } finally { globalThis.WebAssembly = saved; }
   ok(w === false && b.wasmModule() === null && b.wasmAvailable() === false, 'compile early: with no WebAssembly wasmReady() settles to false and wasmModule() is null');
   const p0 = [new Uint8ClampedArray([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 9, 9, 9, 255])]; ok(JSON.stringify(a.makePalette(p0, 255)) === JSON.stringify(b.makePalette(p0, 255)), 'compile early: the same palette with and without the early module');
+  { // thorough palette: more than 100,000 pixels in all, so the default samples; thorough counts every pixel
+    const w = 200, h = 150, pics = []; for (let f = 0; f < 6; f++) { const d = new Uint8ClampedArray(w * h * 4); for (let i = 0; i < w * h; i++) { d[i * 4] = (i % w + f * 7) & 255; d[i * 4 + 1] = ((i / w | 0) * 2) & 255; d[i * 4 + 2] = (i * 31 + f) & 255; d[i * 4 + 3] = 255; } pics.push(d); }
+    const a = G.makePalette(pics, 255), b = G.makePalette(pics, 255, { thorough: true }), c = G.makePalette(pics, 255, { thorough: true, wasm: false });
+    ok(a.length <= 255 && b.length <= 255, 'thorough palette: at most 255 colors');
+    ok(JSON.stringify(b) === JSON.stringify(c), 'thorough palette: wasm and JavaScript give the same colors');
+    const e = G.createEncoder(w, h, b, { loop: true }); pics.forEach(x => e.add(x, 50)); const out = e.finish(); ok(decode(out).shots.length === 6, 'thorough palette: the GIF decodes with all pictures');
+  }
   if (fails) { console.log(fails + ' FAILED'); process.exit(1); } else console.log('gif-writer: all passed');
 })();
