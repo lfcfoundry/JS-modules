@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.3.1 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (two runs each, 11 rounds); Node 45 checks, 16 lean builds, 10 raw equivalence cases.
+**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud); 49 Node checks, 17 lean builds
 
 ## What it is and how it works
 
@@ -67,11 +67,27 @@ Also exported: `SaveKit.validate(schema, defaults, untrusted)`, `SaveKit.has(obj
 | `afterValidate` | `function (clean, raw)` at the end of `load()`, `importCode()`, `onOtherTab()`: change `clean`, return a replacement, or `false`/`null` to refuse. A throwing hook is ignored | off |
 | `stamp` | Name of the timestamp field written on every save, code and staged import | `'seen'` |
 | `maxCodeBytes` | Biggest save a code may unpack to and `exportCode` will write | 262144 (256 KiB) |
+| `durable` | `true` (or a database name): every save is also kept in IndexedDB, written through to disk. See "Crash-safe saves" below | off |
 | `maxCodeChars` | Longest pasted text `importCode` will look at | `maxCodeBytes` x 4/3 + 1024 (350549) |
 
 Moving a game that already has saves: these options keep existing saves and codes working, but check an old save and an old code through the new code before shipping (field names and order come from your schema and state).
 
 `importCode` reads the unpacked data in pieces and stops once it passes `maxCodeBytes`, so a code that expands 1000 to 1 is cut off early. It rejects with a short string, never an exception. Importing keeps the old game in `<key>-before-load` and pauses saving until the reload.
+
+### Crash-safe saves (new in 1.4.0)
+
+When a browser crashes or is killed, it can lose the last stretch of `localStorage` writes: in our tests about 3 s (Firefox 158) to 1 minute (Chromium) of saves. `durable: true` also puts each save in IndexedDB with strict durability (on disk before the browser says done). Start-up stays the same fast synchronous `load()`; `recover()` then answers within a few ms with the IndexedDB copy only if it is newer.
+
+```js
+var kit = SaveKit.create({ key: 'mygame', schema: schema, durable: true });
+var state = kit.load() || fresh();
+kit.recover().then(function (newer) { if (newer) state = newer; });   // null almost always
+```
+
+- Only the newest save is written while an IndexedDB write is running, so autosave every second costs one write at a time.
+- `recover()` compares the copy with the save `load()` returned, so call it right after `load()`. A save made before it answers does not hide the newer copy. The newer copy is also written back to `localStorage`.
+- `kit.flushed()` resolves `true` once the newest save is on disk (`false` with no IndexedDB). Without IndexedDB, saving works as before.
+- Cost in the three test browsers: no measurable extra time in `save()` or `load()`; the copy is on disk 2 ms (2 KB save) to 8-12 ms (200 KB) later, off the page's critical path.
 
 ### Large saves (new in 1.3.0)
 

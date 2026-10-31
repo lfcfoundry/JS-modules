@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-10-31
+- New durable option: a crash can no longer lose your last saves.
+
 ## 1.3.1 · API 1 · 2026-10-30
 - Loads with a raw field are 2 to 3 times faster (same clean state): parsed objects are used as they are when the text names no __proto__, constructor or prototype key.
 

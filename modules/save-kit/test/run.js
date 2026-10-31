@@ -14,7 +14,7 @@ const S = require(process.env.SAVEKIT_FILE ? path.resolve(process.env.SAVEKIT_FI
 const WITHOUT = (process.env.SAVEKIT_WITHOUT || '').split(',').filter(Boolean);
 const NEEDS = [   // [test name pattern, the lean.py parts the check needs]
   [/code|squeez|bomb|checksum|base64|prefix|pasted|limits/i, ['codes']], [/bomb|cut off early|cut early/i, ['streamLimit']], [/native base64/i, ['nativeBase64']], [/autosave|getState/i, ['autosave']], [/onOtherTab/, ['onOtherTab']],
-  [/persist\(\)/, ['persist']], [/stageImport/, ['stageImport']], [/migrate/, ['migrate']], [/skipUnchangedMs/, ['skipUnchanged']], [/compactCodes/, ['compact']], [/raw/i, ['raw']], [/twoTap/, ['twoTap']],
+  [/persist\(\)/, ['persist']], [/stageImport/, ['stageImport']], [/migrate/, ['migrate']], [/skipUnchangedMs/, ['skipUnchanged']], [/compactCodes/, ['compact']], [/raw/i, ['raw']], [/twoTap/, ['twoTap']], [/durable/, ['durable']],
 ];
 const skippedByLean = (name) => NEEDS.some(([re, parts]) => re.test(name) && parts.some(x => WITHOUT.includes(x)));
 let skipped = 0;
@@ -544,6 +544,74 @@ function countUnpacked(counter) {
       assert.strictEqual(st._d.g, saved);
       assert.strictEqual(writes, 1);
     } finally { Date.now = realNow; }
+  });
+
+  // A tiny in-memory IndexedDB: open / createObjectStore / transaction(get, put) with async callbacks, and a log of the durability asked for.
+  function fakeIdb() {
+    const dbs = {}, log = [];
+    const later = f => setTimeout(f, 1);
+    return { log, dbs, open(name) {
+      const rq = {}; const fresh = !dbs[name]; if (fresh) dbs[name] = {};
+      const data = dbs[name];
+      const d = { createObjectStore() {}, close() {}, transaction(store, mode, opt) {
+        log.push(mode + ':' + (opt && opt.durability || '-'));
+        const t = { objectStore() { return {
+          get(k) { const r = {}; later(() => { r.result = data[k]; r.onsuccess && r.onsuccess(); }); return r; },
+          put(v, k) { later(() => { data[k] = JSON.parse(JSON.stringify(v)); later(() => t.oncomplete && t.oncomplete()); }); },
+        }; } };
+        return t;
+      } };
+      later(() => { rq.result = d; if (fresh && rq.onupgradeneeded) rq.onupgradeneeded(); rq.onsuccess && rq.onsuccess(); });
+      return rq;
+    } };
+  }
+  await test('durable: every save is mirrored to IndexedDB with strict durability, newest only', async K => {
+    const st = mem(), idb = fakeIdb();
+    const k = K.create({ key: 'g', schema, storage: st, durable: true, indexedDB: idb });
+    for (let i = 1; i <= 5; i++) k.save({ score: i });
+    assert.strictEqual(await k.flushed(), true);
+    const rec = idb.dbs['save-kit-durable:g'].main;
+    assert.strictEqual(JSON.parse(rec.t).score, 5);
+    assert.strictEqual(rec.n, rec.t.length);
+    const writes = idb.log.filter(x => x.startsWith('readwrite'));
+    assert.ok(writes.length <= 2, 'coalesced: ' + writes.length);
+    assert.ok(writes.every(x => x === 'readwrite:strict'));
+  });
+  await test('durable: recover() brings back a newer copy that localStorage lost in a crash', async K => {
+    const st = mem(), idb = fakeIdb();
+    const a = K.create({ key: 'g', schema, storage: st, durable: true, indexedDB: idb });
+    a.save({ score: 1 }); await a.flushed();
+    const lost = st._d.g;   // what localStorage still held when the browser crashed
+    a.save({ score: 9 }); await a.flushed();
+    st._d.g = lost;
+    const b = K.create({ key: 'g', schema, storage: st, durable: true, indexedDB: idb });
+    assert.strictEqual(b.load().score, 1);   // the fast synchronous read
+    b.save({ score: 2 });                     // a save before recover() must not cover the newer copy
+    const r = await b.recover();
+    assert.strictEqual(r && r.score, 9);
+    assert.strictEqual(JSON.parse(st._d.g).score, 9);
+  });
+  await test('durable: recover() gives null when localStorage is as new or newer, and without the option', async K => {
+    const st = mem(), idb = fakeIdb();
+    const a = K.create({ key: 'g', schema, storage: st, durable: true, indexedDB: idb });
+    a.save({ score: 4 }); await a.flushed();
+    const b = K.create({ key: 'g', schema, storage: st, durable: true, indexedDB: idb });
+    assert.strictEqual(b.load().score, 4);
+    assert.strictEqual(await b.recover(), null);
+    assert.strictEqual(await K.create({ key: 'g', schema, storage: st }).recover(), null);
+    const c = K.create({ key: 'g', schema, storage: st, durable: true, indexedDB: null });   // no IndexedDB: saving still works
+    assert.strictEqual(c.save({ score: 5 }), true);
+    assert.strictEqual(await c.flushed(), false);
+    assert.strictEqual(await c.recover(), null);
+  });
+  await test('durable: a damaged or broken IndexedDB copy is ignored', async K => {
+    const st = mem(), idb = fakeIdb();
+    idb.dbs['save-kit-durable:g'] = { main: { t: '{"score":7,"seen":99999999999999}', n: 3 } };
+    const b = K.create({ key: 'g', schema, storage: st, durable: true, indexedDB: idb });
+    assert.strictEqual(await b.recover(), null);
+    idb.dbs['save-kit-durable:g'] = { main: { t: '{"score":"x","seen":99999999999999}', n: 33 } };
+    const c = K.create({ key: 'g', schema, storage: st, durable: true, indexedDB: idb });
+    assert.strictEqual(await c.recover(), null);
   });
 
   const extra = OLD ? '; the old file was caught by ' + caught + ' of ' + oldTried + ' regression checks' : '; old file not available for comparison';
