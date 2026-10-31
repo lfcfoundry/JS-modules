@@ -12,7 +12,7 @@
       if (m.kind === 'p') {   // pack one run of whole blocks: the slice is dropped as soon as it is packed
         var out = packMany([{ name: null, bytes: m.buf }], m.opts); m.buf = null;
         var f = openFile(out);
-        return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail }, transfer: [out.buffer] };
+        return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail, picked: m.opts && m.opts._picked }, transfer: [out.buffer] };
       }
       if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };   // helper start-up only: the wasm is loaded by the time this answers
       var b = m.buf; if (crcJS(b, 0) !== m.crc) throw new Error('block ' + m.id + ' checksum mismatch');
@@ -82,6 +82,10 @@
       if (dyn) for (g = 0; g < nb; g++) groups.push([cuts[g], cuts[g + 1]]);   // one job per block; a helper that finishes takes the next block, so the run does not wait on one slow run of blocks
       else for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
       var jopts = {}, k, tm = opts.timing; for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k];
+      // per-path strings (see packMany): a long input lets group 0 try both layouts; the other groups start with per-path strings and are packed again
+      // if group 0 picks the plain layout, so the file is the one pack() writes
+      var pickWait = false, curPick = 1, sentWith = [], redo = [], parked = [];
+      if (jopts.paths !== false && jopts.paths !== 'only' && jopts._pick == null) { if (b.length < PATHS_TRY * bb) jopts._pick = 1; else pickWait = true; }
       if (tm) { tm.cut = Date.now() - T0; tm.groups = []; }   // optional phase timing: ms from the call start, filled in as the run goes
       return new Promise(function (resolve, reject) {
         var ws = [], results = new Array(groups.length), left = groups.length, failed = false;
@@ -96,16 +100,21 @@
           if (m.started) { if (tm) tm.groups[i].started = Date.now() - T0; if (next) { var n2 = next; next = null; n2(); } return; }
           if (m.error) { fail(new Error(m.error)); return; }
           if (tm) tm.groups[i].done = Date.now() - T0;
-          results[i] = m; if (w2 && dyn) give(w2, null); if (--left === 0 && !failed) { release(true); try { var ts = Date.now(); var out = stitch(results, b.length, jopts); if (tm) { tm.stitchMs = Date.now() - ts; tm.total = Date.now() - T0; } resolve(out); } catch (er) { reject(er); } }
+          if (pickWait && i === 0) {
+            pickWait = false; curPick = m.picked === 0 ? 0 : 1;
+            if (curPick === 0) { for (var j = 1; j < results.length; j++) if (results[j] && sentWith[j] !== 0) { results[j] = undefined; left++; redo.push(j); } while (redo.length && parked.length) give(parked.pop(), null); if (redo.length) { var w3 = takeHelper(); ws.push(w3); give(w3, null); } }
+          } else if (!pickWait && sentWith[i] !== undefined && sentWith[i] !== curPick && i !== 0) { redo.push(i); if (w2) give(w2, null); return; }
+          results[i] = m; if (w2 && (dyn || redo.length)) give(w2, null); if (--left === 0 && !failed) { release(true); try { var ts = Date.now(); var out = stitch(results, b.length, jopts); if (tm) { tm.stitchMs = Date.now() - ts; tm.total = Date.now() - T0; } resolve(out); } catch (er) { reject(er); } }
         }
         var nextGroup = 0, helpersStarted = 0;
         function give(w2, nx) {   // hand this helper the next job, or keep it for later calls when none is left
           if (failed) return;
-          if (nextGroup >= groups.length) { if (nx) nx(); return; }
-          var i = nextGroup++, t1 = Date.now(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
+          if (nextGroup >= groups.length && !redo.length) { if (w2) parked.push(w2); if (nx) nx(); return; }
+          var i = redo.length ? redo.shift() : nextGroup++, t1 = Date.now(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
           if (tm) tm.groups[i] = { takeMs: 0, copyMs: Date.now() - t1, posted: Date.now() - T0, bytes: slice.length };
           w2.listen(function (m) { onMsg(i, m, nx, w2); }, fail);
-          w2.post({ id: i, kind: 'p', buf: slice, opts: jopts }, [slice.buffer]);
+          var jo = jopts; if (pickWait && i === 0) jo = Object.assign({}, jopts, { _tryFirst: true }); else if (jopts._pick == null) { jo = Object.assign({}, jopts, { _pick: curPick }); sentWith[i] = curPick; }
+          w2.post({ id: i, kind: 'p', buf: slice, opts: jo }, [slice.buffer]);
         }
         function start() {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
           if (helpersStarted >= w || nextGroup >= groups.length || failed) return;
