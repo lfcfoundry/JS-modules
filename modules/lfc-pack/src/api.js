@@ -261,7 +261,7 @@
     rn = makeNestedReader(S.zdec); rf = makeFlatReader(S.zdec);
     for (i = 0; i < file.blocks.length && out.length < count; i++) {
       b = file.blocks[i]; if ((b[5] || 0) !== tb) continue;
-      if (start + b[3] > from) { kd = b[4]; r = (kd === 'f' ? rf : rn).readBlock(blockBytes(file, i)); lo = Math.max(0, from - start); hi = Math.min(r.length, lo + (count - out.length)); for (; lo < hi; lo++) out.push(r[lo]); }
+      if (start + b[3] > from) { kd = b[4]; lo = Math.max(0, from - start); hi = Math.min(b[3], lo + (count - out.length)); if (kd === 'f') { r = rf.readRange(blockBytes(file, i), lo, hi); for (lo = 0; lo < r.length; lo++) out.push(r[lo]); } else { r = rn.readBlock(blockBytes(file, i)); hi = Math.min(r.length, hi); for (; lo < hi; lo++) out.push(r[lo]); } }
       start += b[3];
     }
     return out;
