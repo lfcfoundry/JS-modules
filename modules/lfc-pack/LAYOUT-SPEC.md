@@ -155,6 +155,32 @@ When `E = 0` the dictionary text is empty. When `nu = 0` and `ns > 0` it is `ns 
 ### 3.5 Assembling rows
 For row `i`: look up shape `ids[i]` and build the value by the shape: objects get their members in shape order, arrays their elements in order; leaf values come from 3.3 and 3.4. Keep one read pointer per column and one string-cell pointer for the whole block.
 
+### 3.6 Shared tables (header `g: 1`, footer section 16)
+Written only with the pack option `share: true` (also part of `access: 'random'`). Small nested blocks repeat the same strings and shapes in every block; with shared tables a string or shape seen again in a later block is kept once for the whole file, in footer section 16, and blocks point to it.
+
+Section 16 (required when present, flags 1) is JSON `{"v":1,"s":[string, ...],"k":[shape text, ...]}`: the shared strings `S` (full Unicode) and the shared shapes `K` (shape texts as in 3.2). A reader MUST refuse the file if `s` or `k` is not a list of strings, and MUST refuse a `g: 1` block when the section is missing.
+
+Layout of a block with `g: 1`:
+```
+u32 hl | header | Z(colmeta) | Z(dict) | Z(side) | Z(skeletons) | Z(row shape ids) | Z(string codes) | column frames ...
+```
+Header:
+```
+{ "k":"n", "n":ROWS, "g":1, "count":L, "kc":LK,
+  "len":[dictRaw, sideRaw, skeletonsRaw],
+  "p":[dictFrame, sideFrame, skeletonsFrame],
+  "ids":[idsKind, idsCount, idsFrame],
+  "cd":[codesKind, codesCount, codesFrame],
+  "cm":[colmetaRaw, colmetaFrame] }
+```
+There is no `fa`: the first flags and repeats are replaced by `Z(string codes)`, typed bytes of kind `cd[0]` (u8, u16 or u32; a reader MUST refuse another kind), `cd[1]` entries, one per string cell in walk order. Decoded sizes are as in 3.1, plus `string codes` `cd[1] * width(cd[0])`.
+- **Block strings**: `dict` and `side` are as in 3.4 with `E = L`: `nu` ASCII entries then `L - nu` placeholders filled from the side list. When `L = 0` the dictionary text is empty. A reader MUST refuse a block whose dictionary does not have exactly `L` entries (when `L > 0`).
+- **String codes**: code `c < L` is block entry `c`; code `c >= L` is shared string `S[c - L]`. A reader MUST refuse a code past `L + len(S) - 1`.
+- **Shapes**: `Z(skeletons)` holds the block's own `LK` shapes (empty text when `LK = 0`; a reader MUST refuse a block whose shape count is not `LK`). Shape id `j < LK` is block shape `j`; `j >= LK` is shared shape `K[j - LK]`. A reader MUST refuse an id past `LK + len(K) - 1`.
+- Columns, cells, paths and row assembly are exactly 3.3 and 3.5.
+
+Writer (reference, not a rule for readers): a string or shape first seen in a block stays in that block; when a later block meets it again it moves to the shared tables and every later block points to it ("promote on second sight"). A block that ends up as flat columns, or is cut and written again, takes back its changes to the tables. Shared tables are never written with `exact: true`, and `packParallel` packs on one thread when `share` is on (the tables need the blocks in order). Measured on 50,000 GeoJSON points: 32 KB blocks 596,682 to 492,811 bytes (-17%), 256 KB blocks 402,133 to 355,765 (-12%); at the default block size the files are about the same, because each string already sits in few blocks. Checked by `vectors/layout/nested-shared`.
+
 ## 4. Zone maps (footer section 5)
 `SPEC.md` 2.3 lists the same entry: `[hash, min, max, count]`, four numbers (an earlier draft said three). One list per block, in block order; an entry is a number column of that block.
 - Flat block: one entry per key whose column type is `V`, `B` or `F`; `hash` is the FNV-1a hash of `"." + key`; `min` and `max` are the real values (after dividing by the scale); `count` is the column's `n`.

@@ -142,7 +142,7 @@ def read_footer(data):
     if zlib.crc32(f) != fcrc: raise ValueError('footer checksum mismatch')
     body = _decompress(f[1:]) if f[0] == 1 else f[1:]
     sec, p = {}, 0
-    known = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15}   # 15 = number spellings (byte-exact files written with spelling mode)
+    known = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16}   # 15 = number spellings (byte-exact files written with spelling mode), 16 = shared tables of nested blocks
     while p < len(body):
         sid, fl, ln = struct.unpack('<HHI', body[p:p + 8])
         if sid in known: sec[sid] = body[p + 8:p + 8 + ln]
@@ -180,8 +180,9 @@ def _decimals(raw, n):
     return out
 
 
-def _read_nested(b):
+def _read_nested(b, shared=None):
     h, p = _block_header(b); c = _Cur(b, p)
+    if h.get('g') == 1: return _read_nested_shared(b, h, c, shared)
     cmeta = json.loads(_dz(c.take(h['cm'][1]), h['cm'][0]).decode('utf-8'))
     D = _dz(c.take(h['p'][0]), h['len'][0]).decode('ascii').split('\0')
     sd = json.loads(_dz(c.take(h['p'][1]), h['len'][1]).decode('utf-8'))
@@ -204,6 +205,11 @@ def _read_nested(b):
         if (flags[i >> 3] >> (i & 7)) & 1: codes.append(nxt); nxt += 1
         else: codes.append(int(rep[ri])); ri += 1
     strs = [D[k] for k in codes]
+    return _build_nested(cols, strs, [skel[i] for i in ids[:h['n']]])
+
+
+def _build_nested(cols, strs, shapes):
+    # rows from the column arrays, the strings in walk order and each row's shape (skeleton JSON text)
     state = {'ti': 0}
     cur = {}
 
@@ -246,8 +252,52 @@ def _read_nested(b):
         if t == 'j': v = json.loads(strs[state['ti']]); state['ti'] += 1; return v
         return [build(x) for x in d[1]]
 
-    plans = [desc(json.loads(s), '') for s in skel]
-    return [build(plans[i]) for i in ids[:h['n']]]
+    plans, out = {}, []
+    for sk in shapes:
+        d = plans.get(sk)
+        if d is None: d = plans[sk] = desc(json.loads(sk), '')
+        out.append(build(d))
+    return out
+
+
+def _read_nested_shared(b, h, c, shared):
+    # a nested block that uses the file's shared tables (header g = 1): no first-appearance flags; codes below count pick the block's own strings, the rest the shared strings (code - count); shape ids below kc the block's own shapes, the rest the shared shapes
+    if shared is None: raise ValueError('shared tables missing')
+    cmeta = json.loads(_dz(c.take(h['cm'][1]), h['cm'][0]).decode('utf-8'))
+    D = _dz(c.take(h['p'][0]), h['len'][0]).decode('ascii').split('\0')
+    L, LK = h['count'], h['kc']
+    if L and len(D) != L: raise ValueError('dictionary count')
+    sd = json.loads(_dz(c.take(h['p'][1]), h['len'][1]).decode('utf-8'))
+    for i, ix in enumerate(sd['idx']):
+        if not 0 <= ix < len(D): raise ValueError('side list index out of range')
+        D[ix] = sd['str'][i]
+    skel = _dz(c.take(h['p'][2]), h['len'][2]).decode('utf-8').split('\n')
+    if not LK: skel = []
+    if len(skel) != LK: raise ValueError('shape count')
+    ids = _typed(_dz(c.take(h['ids'][2]), h['ids'][1] * _ITEM[h['ids'][0]]), h['ids'][0], h['ids'][1])
+    if h['cd'][0] not in (0, 1, 2): raise ValueError('bad string code width')
+    codes = _typed(_dz(c.take(h['cd'][2]), h['cd'][1] * _ITEM[h['cd'][0]]), h['cd'][0], h['cd'][1])
+    cols = {}
+    for ent in cmeta:
+        key, kind, count, plen = ent[:4]
+        if kind == 7:
+            if len(ent) < 5: raise ValueError('decimal column without raw length')
+            cols[key] = _decimals(_dz(c.take(plen), ent[4]), count)
+        else: cols[key] = _typed(_dz(c.take(plen), count * _ITEM[kind]), kind, count)
+    GS, GK = shared['s'], shared['k']
+    strs = []
+    for k in codes:
+        k = int(k)
+        if k < L: strs.append(D[k])
+        elif k - L < len(GS): strs.append(GS[k - L])
+        else: raise ValueError('string code out of range')
+    shapes = []
+    for i in ids[:h['n']]:
+        i = int(i)
+        if i < LK: shapes.append(skel[i])
+        elif i - LK < len(GK): shapes.append(GK[i - LK])
+        else: raise ValueError('shape id out of range')
+    return _build_nested(cols, strs, shapes)
 
 
 # ---------------------------------------------------------------- flat blocks
@@ -330,6 +380,7 @@ def _decode_col(c, fr):
     if t == 'F':
         return [_num(x) for x in _typed(fr[0], 6, n)]
     if t == 'T': return [x == 1 for x in _bitunpack(fr[0], n, 1)]
+    if t in ('H', 'U', 'I') and len(fr[0]) < n * {'H': p.get('L', 0) // 2, 'U': 16, 'I': 4}[t]: raise ValueError('%s column cut off' % t)
     if t == 'H':
         bl = p['L'] // 2; r = fr[0]
         return [r[i * bl:(i + 1) * bl].hex() for i in range(n)]
@@ -406,9 +457,19 @@ def _open(data):
     return f, blocks
 
 
-def _decode(kind, b, i):
+def _shared(f):
+    # the shared tables of nested blocks (section 16, written with share: true): {'s': strings, 'k': row shapes}, parsed once per file; None when the file has none
+    if '_shared' not in f:
+        t = _json(f['sec'].get(16))
+        if t is not None and not (isinstance(t.get('s'), list) and isinstance(t.get('k'), list) and all(isinstance(x, str) for x in t['s']) and all(isinstance(x, str) for x in t['k'])):
+            raise ValueError('damaged file: shared tables')
+        f['_shared'] = t
+    return f['_shared']
+
+
+def _decode(kind, b, i, f):
     # damaged tables that passed the checksums must give one plain error, not a stray IndexError or UnicodeDecodeError
-    try: return _read_flat(b) if kind == 'f' else _read_nested(b)
+    try: return _read_flat(b) if kind == 'f' else _read_nested(b, _shared(f))
     except ValueError as e:
         if not isinstance(e, UnicodeError): raise
         raise ValueError('damaged block %d: invalid text' % i)
@@ -444,7 +505,7 @@ def read(path_or_bytes):
     for i in range(len(blocks)):
         kind, b = _block(data, f, blocks, i)
         if kind == 'r': out.extend(json.loads(l) for l in _read_raw(b).decode('utf-8').split('\n') if l.strip())
-        else: out.extend(_decode(kind, b, i))
+        else: out.extend(_decode(kind, b, i, f))
     return out
 
 
@@ -455,7 +516,7 @@ def read_tables(path_or_bytes):
     out = {name: [] for name, _ in tables}
     for i in range(len(blocks)):
         kind, b = _block(data, f, blocks, i); ti = blocks[i][5] if len(blocks[i]) > 5 else 0
-        rows = [json.loads(l) for l in _read_raw(b).decode('utf-8').split('\n') if l.strip()] if kind == 'r' else _decode(kind, b, i)
+        rows = [json.loads(l) for l in _read_raw(b).decode('utf-8').split('\n') if l.strip()] if kind == 'r' else _decode(kind, b, i, f)
         out[tables[ti][0]].extend(rows)
     return {name: (out[name][0]['v'] if out[name] else None) if k == 'value' else out[name] for name, k in tables}
 
@@ -474,7 +535,7 @@ def read_text(path_or_bytes):
     for i in range(len(blocks)):
         kind, b = _block(data, f, blocks, i)
         if kind == 'r': parts.append(_read_raw(b)); continue
-        rows = _decode(kind, b, i); ex = exc.get(i, {}); sp = dict((r, s) for r, s in spell.get(str(i), []))
+        rows = _decode(kind, b, i, f); ex = exc.get(i, {}); sp = dict((r, s) for r, s in spell.get(str(i), []))
         for j, r in enumerate(rows):
             parts.append(ex[j] if j in ex else (_respell(_jsdumps(r), sp[j]) if j in sp else _jsdumps(r)).encode('utf-8')); parts.append(b'\n')
     out = b''.join(parts)

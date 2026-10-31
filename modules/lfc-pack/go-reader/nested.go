@@ -8,6 +8,46 @@ type col struct {
 	i int
 }
 
+// sharedTables: footer section 16 (files packed with share: true), the strings and row shapes that nested blocks with g = 1 point into.
+type sharedTables struct {
+	s []string
+	k []string
+}
+
+func (f *File) sharedTables() *sharedTables {
+	if f.shared != nil {
+		return f.shared
+	}
+	b, ok := f.sec[16]
+	if !ok {
+		return nil
+	}
+	o, _ := jsonOf(b).(*Obj)
+	if o == nil {
+		fail("damaged file: shared tables")
+	}
+	t := &sharedTables{}
+	for _, name := range []string{"s", "k"} {
+		a, ok := field(o, name).([]any)
+		if !ok {
+			fail("damaged file: shared tables")
+		}
+		for _, x := range a {
+			str, ok := x.(string)
+			if !ok {
+				fail("damaged file: shared tables")
+			}
+			if name == "s" {
+				t.s = append(t.s, str)
+			} else {
+				t.k = append(t.k, str)
+			}
+		}
+	}
+	f.shared = t
+	return t
+}
+
 type plan struct {
 	t     byte // s n b z j a o
 	c     *col
@@ -15,7 +55,7 @@ type plan struct {
 	names []string
 }
 
-func readNested(b []byte) []any {
+func readNested(b []byte, sh *sharedTables) []any {
 	h, p := blockHeader(b)
 	c := &cursor{d: b, p: p}
 	cm := field(h, "cm").([]any)
@@ -40,9 +80,40 @@ func readNested(b []byte) []any {
 	skel := splitNL(unzstdB(c.take(pp[2])))
 	idsM := ints(field(h, "ids")) // kind, count, packed length
 	ids := typed(unzstdB(c.take(idsM[2])), idsM[0], idsM[1])
-	fa := ints(field(h, "fa")) // [_, flagsLen, repKind, repCount, repLen, total]
-	flags := unzstdB(c.take(fa[1]))
-	rep := typed(unzstdB(c.take(fa[4])), fa[2], fa[3])
+	// g = 1: the block uses the file's shared tables; string codes are stored as they are (no first-appearance flags)
+	g := false
+	if gv, ok := h.Get("g"); ok {
+		if x, ok := gv.(float64); ok && x == 1 {
+			g = true
+		}
+	}
+	var fa []int
+	var flags []byte
+	var rep, gcodes []float64
+	L, LK := 0, 0
+	if g {
+		if sh == nil {
+			fail("shared tables missing")
+		}
+		L, LK = num(field(h, "count")), num(field(h, "kc"))
+		if L > 0 && len(D) != L {
+			fail("dictionary count")
+		}
+		if LK == 0 {
+			skel = nil
+		} else if len(skel) != LK {
+			fail("shape count")
+		}
+		cd := ints(field(h, "cd")) // kind, count, packed length
+		if cd[0] < 0 || cd[0] > 2 {
+			fail("bad string code width")
+		}
+		gcodes = typed(unzstdB(c.take(cd[2])), cd[0], cd[1])
+	} else {
+		fa = ints(field(h, "fa")) // [_, flagsLen, repKind, repCount, repLen, total]
+		flags = unzstdB(c.take(fa[1]))
+		rep = typed(unzstdB(c.take(fa[4])), fa[2], fa[3])
+	}
 	cols := map[uint32][]float64{}
 	for _, e := range cmeta {
 		a := e.([]any)
@@ -60,9 +131,22 @@ func readNested(b []byte) []any {
 			cols[key] = typed(unzstdB(c.take(num(a[3]))), num(a[1]), num(a[2]))
 		}
 	}
-	strs := make([]string, 0, fa[5])
+	var strs []string
+	if g {
+		strs = make([]string, 0, len(gcodes))
+		for _, x := range gcodes {
+			code := int(x)
+			if code < L {
+				strs = append(strs, D[code])
+			} else if code-L < len(sh.s) {
+				strs = append(strs, sh.s[code-L])
+			} else {
+				fail("string code %d out of range", code)
+			}
+		}
+	}
 	next, ri := 0, 0
-	for i := 0; i < fa[5]; i++ {
+	for i := 0; !g && i < fa[5]; i++ {
 		var code int
 		if i>>3 < len(flags) && (flags[i>>3]>>(uint(i)&7))&1 == 1 {
 			code = next
@@ -187,11 +271,25 @@ func readNested(b []byte) []any {
 		fail("shape id list cut off")
 	}
 	rows := make([]any, 0, n)
+	gplans := map[int]*plan{}
 	for _, id := range ids[:n] {
-		if int(id) >= len(plans) {
+		k := int(id)
+		if g && k >= LK {
+			if k-LK >= len(sh.k) {
+				fail("shape id out of range")
+			}
+			pl, ok := gplans[k-LK]
+			if !ok {
+				pl = desc(jsonOf([]byte(sh.k[k-LK])), "")
+				gplans[k-LK] = pl
+			}
+			rows = append(rows, build(pl))
+			continue
+		}
+		if k >= len(plans) {
 			fail("shape id out of range")
 		}
-		rows = append(rows, build(plans[int(id)]))
+		rows = append(rows, build(plans[k]))
 	}
 	return rows
 }
