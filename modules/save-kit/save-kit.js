@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.3.1 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -65,6 +65,18 @@
   }
 
 //@begin raw
+  // True when v nests no deeper than 32 levels (looks only, builds nothing).
+  function shallow(v, depth) {
+    if (v === null || typeof v !== 'object') return true;
+    if (depth > 32) return false;
+    var i, ks;
+    if (Array.isArray(v)) { for (i = 0; i < v.length; i++) if (typeof v[i] === 'object' && v[i] !== null && !shallow(v[i], depth + 1)) return false; return true; }
+    ks = Object.keys(v);
+    for (i = 0; i < ks.length; i++) if (typeof v[ks[i]] === 'object' && v[ks[i]] !== null && !shallow(v[ks[i]], depth + 1)) return false;
+    return true;
+  }
+//@end
+//@begin raw
   // Copies JSON-plain data into fresh plain objects, leaving out __proto__/constructor/prototype keys. Throws if nested too deep.
   function scrub(v, depth) {
     if (depth > 32) throw new Error('too deep');
@@ -98,7 +110,7 @@
         }
         return out;
 //@begin raw
-      case 'raw': if (trusted && v !== undefined) return v; try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { try { return scrub(JSON.parse(JSON.stringify(d)), 0); } catch (e2) { return d; } }   // a fresh copy of the default, never the default object itself
+      case 'raw': if (trusted && v !== undefined && shallow(v, 0)) return v; try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { try { return scrub(JSON.parse(JSON.stringify(d)), 0); } catch (e2) { return d; } }   // a fresh copy of the default, never the default object itself
 //@end
       default: return d;
     }
@@ -266,10 +278,11 @@
     }
     function soundState(x) { return isObj(x) && badFields(x) === 0; }
     function textOf(slot) { try { return storage.getItem(slot); } catch (e) { return undefined; } }   // null = empty slot, undefined = storage refused
+    var plainText = new WeakSet(), hasRaw = kinds('raw').length > 0;   // parsed slots whose text names no __proto__, constructor or prototype key: JSON.parse already made fresh plain objects of them (only looked for when the schema has a raw field)
     function parseSlot(t) {
       try {
         var x = JSON.parse(t || 'null');
-        if (isObj(x)) return x;
+        if (isObj(x)) { if (hasRaw && t.indexOf('__proto__') < 0 && t.indexOf('constructor') < 0 && t.indexOf('prototype') < 0) plainText.add(x); return x; }
       } catch (e) {}
       return null;
     }
@@ -277,7 +290,9 @@
     // Schema check, then the game's own afterValidate(clean, raw) if there is one: it may change `clean` in place, return a replacement object, or return
     // false/null to refuse the save. A hook that throws is ignored (the schema-checked state is used). Returns null when refused.
     function finish(raw) {
-      var c = validateWith(fields, defaults, upgrade(raw)), r;
+      var c, r, was = trusted;
+      trusted = plainText.has(raw) && !(typeof migrate !== 'undefined' && migrate && version && isNum(raw.v) && raw.v < version);
+      try { c = validateWith(fields, defaults, upgrade(raw)); } finally { trusted = was; }
       if (!after) return c;
       try { r = after(c, raw); } catch (e) { return c; }
       return r === false || r === null ? null : isObj(r) ? r : c;

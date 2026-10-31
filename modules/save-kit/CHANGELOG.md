@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.1 · API 1 · 2026-10-30
+- Loads with a raw field are 2 to 3 times faster (same clean state): parsed objects are used as they are when the text names no __proto__, constructor or prototype key.
+
 ## 1.3.0 · API 1 · 2026-10-30
 - New SaveKit.createLarge(): big saves in IndexedDB with a backup slot and an optional cross-tab lock. Up to 4x faster than idb-keyval and localForage on 16 MB; slower in a few cases (README). create() is unchanged.
 
