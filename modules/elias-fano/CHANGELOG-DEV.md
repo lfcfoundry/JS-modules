@@ -2,6 +2,36 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-10-31
+
+### Quick
+trim() (fresh module instance, compacted lists moved, kept-bytes lists copy in again) and autoTrim(on), off by default.
+
+### Deep
+trim() (fresh module instance, compacted lists moved, kept-bytes lists copy in again) and autoTrim(on), off by default. 14.1->1.8 MB (12 compacted lists, 10 freed), 24.4->1.8 MB (5M build); trim 1.8-4 ms; reads unchanged. Fixed a prototype bug that lost recompacted lists. test/trim.js, tests/elias-fano-trim-browser.js.
+
+## 1.7.0 · API 1 · 2026-10-31
+
+### Quick
+New: `trim()` gives WebAssembly memory back (it only grows otherwise), and autoTrim does it by itself after a call that leaves most of it unused (on by default, as the owner picked; `autoTrim(false)` turns it off). Old code is unaffected. Twelve compacted 1M-id lists with ten freed: 14.1 MB to 1.8 MB; one 5M-id build: 24.4 MB to 1.8 MB.
+
+### Details
+Research round 7. trim() makes a new instance of the compiled module (kept from the first compile) with a small memory, moves every compacted list (tracked with a WeakRef from compact()) and lets the old memory go; a generation number per list makes lists that still hold their bytes copy themselves in again on their next query; lists dropped without free() are simply not moved. autoTrim(true): release() queues a trim for the next tick when the memory is 8 MB or more and under a quarter of it is in use; it never trims inside a call. The research prototype could lose a list: a compacted list that got its bytes back (the plain JavaScript reader) and was compacted again was no longer tracked, so a trim left it pointing into freed memory; fixed (test/trim.js section 2 fails on the prototype). New test/trim.js (flat, partitioned and list sets; moved, kept-bytes, freed and recompacted lists; a 5M build; autoTrim), run in Node and in three browsers (tests/elias-fano-trim-browser.js).
+
+### Deep
+Memory sizes were identical in Chromium, Firefox and WebKitGTK. Trim time 1.8 (Chromium), 2.0 (Firefox), 4.0 ms (WebKitGTK) for 5 moved lists. 200,000 get calls on a moved compacted 1M list: 20.2 to 15.9 ms Chromium, 20.0 to 19.0 Firefox, 12 to 12 WebKitGTK. Stacked with compact() (1.6.0) this is the step change: two kept lists go from 20.4 MB of WebAssembly memory plus their JavaScript copies to 2.8 MB in all (research numbers); trim alone frees the WebAssembly side but keeps the JavaScript copies, compact alone keeps the stuck memory.
+
+## 1.6.0 · API 1 · 2026-10-30
+
+### Quick
+compact() on flat lists, partitioned lists and list sets (or the open option { compact: true }) drops the JavaScript copy of the bytes once WebAssembly holds them: JavaScript-side memory 1.69 to 0 MB (flat), 1.78 to 0 (partitioned), 1.58 to 0 (list set). Same answers; list-set get(i) about 1.1 to 1.2x the time when compacted. getMany throws RangeError on positions outside the list (it could hang in JavaScript and read past the list in WebAssembly).
+
+### Details
+compact(): _wasm() copies the bytes into the arena, then bytes and the typed-array views are set to null; _back() copies them out of WebAssembly memory for the plain JavaScript readers (setBackend('js')) and for free(). After compact(), List.slice (used by Lists.get) reads with ef_get for runs of up to 64 values and ef_get_many above that, instead of copying the bytes back. stats() reports compact: true and the same byte count. getMany guard: one compare per position for a Uint32Array, a whole-number and range check otherwise; getMany time within 1.00 to 1.06x in three browsers (400,000 positions). New test/compact.js: 30 flat and partitioned cases plus a 2,000-list set, WebAssembly, JavaScript and after free().
+
+### Deep
+elias-fano 1.6.0: compact() for all list kinds + getMany range guard. Node, JS-side memory after open and one read (wasm memory subtracted): flat 1M ids 1.69 MB -> 0, partitioned 1.78 -> 0, list set 1.58 -> 0. Container speed: flat getMany 1.5.0 vs 1.6.0 vs 1.6.0 compacted, Chromium 9.2/9.5/9.5 ms, Firefox 10/10/10, WebKitGTK 9/9/9; list-set getMany unchanged; list-set get(i) x20k compacted 1.10 to 1.18x (Node, separate processes). Tests: fuzz 400 seeds, intersect, lists-many, partitioned, run, new compact.js.
+
 ## 1.5.0 · API 1 · 2026-10-30
 
 ### Quick
