@@ -122,7 +122,7 @@ Keep a player's progress safe and let them move it between devices.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [save-kit](modules/save-kit/README.md) | 1.4.0 | 43.1 | 13.0 | Safe saves in localStorage: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
+| [save-kit](modules/save-kit/README.md) | 1.5.0 | 44.4 | 13.2 | Safe saves in localStorage: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 | 9.6 | 3.4 | Keeps one tab in charge so two tabs never overwrite each other's saves. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/tab-guard/demo.html) |
 
 #### Games - Looks and effects
@@ -190,7 +190,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 1.7.0 | 71.6 | 23.7 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.4.4 | 760.3 | 242.6 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.4.5 | 760.7 | 242.7 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [memory-compression](modules/memory-compression/README.md) | 2.9.0 | 400.7 | 116.5 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.6.4 | 62.8 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
@@ -211,7 +211,7 @@ Draw maps, flow charts and animated pictures from data.
 |---|---|---:|---:|---|---|
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 | 30.9 | 9.7 | Turns pictures into an MP4 or WebM video file. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/clip-writer/demo.html) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.1 | 44.1 | 17.2 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 | 205.2 | 64.2 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.2.3 | 205.4 | 64.3 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.5.1 | 50.9 | 18.0 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.2 | 54.7 | 19.7 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.1 | 114.7 | 36.9 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |

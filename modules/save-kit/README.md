@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.4.0 · API 1**
+**Version 1.5.0 · API 1**
 
-**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud); 50 Node checks, 17 lean builds
+**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time: tests/save-kit-large-browser.js 25 of 25 in each; 50 Node checks and 17 of 17 lean builds. Not run: a phone, Safari itself, a laptop
 
 ## What it is and how it works
 
@@ -105,6 +105,8 @@ big.onOtherTab(function (state) { /* another tab of this game stored a save */ }
 - Same checks as `create()`: a broken or negative number refuses the save (`false`, nothing written); fields are rebuilt with the schema; `afterValidate`, `stamp`, `version` (stamps `v`; there is no `migrate` here yet), `soundKeys`, `backupEveryMs`, `pause()` and `forceBackupNext()` work the same. `raw` fields skip the deep copy when the stored text names no `__proto__`, `constructor` or `prototype` key (otherwise they are scrubbed as before).
 - Quick saves in a row: while one write runs, newer saves wait and only the newest is written; every caller's Promise resolves `true` once its save or a newer one is stored.
 - `lock: true`: the first tab to save takes a lock (`navigator.locks`); another tab with the same `name` gets `false` from `save()` until it calls `claim(true)` to take over, and the old holder's `onLost(cb)` runs. Without Web Locks every tab may write.
+- `skipUnchangedMs: 60000` (off by default): a `save()` whose fields equal the last stored save (only the stamp differs) resolves `true` without writing until that many ms pass; `save(state, true)` always writes. The text is still built to compare, so an unchanged save costs about 34 to 43% of a normal one, not zero: 16 MB in Chromium 155 95.6 ms against 222.8, Firefox 158 61 against 168, WebKitGTK 2.52.6 35 against 102 (milliseconds, smaller is better). The stamp is kept beside the text and put back on load.
+- IndexedDB is used from the page only. In WebKitGTK, a blob Worker started from a `file://` page sees a separate, empty database, so a save written there would not be found by the page.
 - `onOtherTab(cb)` uses a `BroadcastChannel` and calls `cb(cleanState)` when another tab stored a save; it does not call in the tab that wrote. `clear()` removes both slots; `close()` closes the database.
 - Not included (use `create()` for small saves): codes, `migrate`, `persist()`, `autosave()`. Pass `indexedDB: null` to see the no-IndexedDB path (saves `false`, loads `null`).
 

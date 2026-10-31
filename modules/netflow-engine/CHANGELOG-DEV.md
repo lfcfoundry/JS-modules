@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.3 · API 2 · 2026-10-31
+
+### Quick
+fmt and fmtFull keep one number formatter instead of building a new one on every call. Same text.
+
+### Details
+fmt() for 1,000 to 9,999 and fmtFull() now reuse one Intl.NumberFormat each (made on first use) instead of calling toLocaleString('en-US', ...), which builds the locale rules on every call. 20,000 fmt + fmtFull calls, new/old time (lower is better): Chromium 153 0.039 (928 to 44 ms), Firefox 158 0.047 (368 to 14 ms), WebKitGTK 2.52.6 0.023 (1193 to 23 ms); output identical on all 20,000 values.
+
+### Deep
+Cached number formatters in fmt and fmtFull: 95 to 98% faster, same text. Found by the Story Editor thread (cached Intl.Collator).
+
 ## 2.2.2 · API 2 · 2026-10-22
 
 ### Quick
