@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.3 · API 0 · 2026-10-31
+
+### Quick
+After a parse, repeats in low-variety text columns are merged in ~4 ms idle slices; parse speed unchanged; _shareLater:false skips it.
+
+### Details
+Owner's pick (share later, in idle time). Per text column: first 2,048 rows decide (at most 1 different value per 8 rows), at most 4,096 values kept, Map by value, requestIdleCallback (timeout 500 ms) else setTimeout, 4 ms slices checked every 256 rows. Helpers skip it. 16 MB CSV, Chromium kept heap 29.4 to 10.9 MB (repeating) and 25.6 to 15.0 MB (mixed); parse within noise in all 3 browsers; merge done after 35-163 ms (Firefox, WebKitGTK) and 0.6-1.1 s of idle time (Chromium); longest gap 5-9 ms (one WebKitGTK run 15 ms). Inline sharing during the parse was 30-56% slower and was dropped.
+
+### Deep
+Repeated text values merged in idle time after a parse: 42-63% less memory kept.
+
 ## 0.6.2 · API 0 · 2026-10-31
 
 ### Quick
