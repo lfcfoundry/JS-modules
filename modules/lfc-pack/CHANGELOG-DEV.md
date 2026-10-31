@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.0 · API 0 · 2026-10-31
+
+### Quick
+Per-path strings on by default (paths:false off); share:true shared string/shape tables; access:'random' preset; trim(); idle pack helpers free memory; numbers grouped by path in wasm.
+
+### Details
+Nested blocks keep strings per string path by default (sp:1, LAYOUT-SPEC 3.5a): GeoJSON 100k points -11% at default blocks, -14% at 256 KB; orders -6%/-5%; older readers refuse such blocks; each block keeps the smaller layout. share:true (footer section 16, g:1, sp:2) -12 to -22% at small blocks. access:'random' = 256 KB blocks + share; 100-row reads 20-60x faster than 13 MB blocks, files 4-10% larger. trim() frees 80-90 MB after a 66.6 MB job in 2-24 ms (no idle auto-trim, by the owner's pick). Idle packParallel helpers free 200-350 MB (Chromium, Firefox) and about 1.1 GB (WebKitGTK). Number grouping in wasm: pack 3-25% faster, same bytes. String/shape tables cleared only as far as used (small-block packs 1.3-3.7x faster). Readers refuse short H/U/I frames.
+
+### Deep
+Per-path strings by default, share and access:'random' options, trim(), lower helper memory, faster packing.
+
 ## Next (not released yet)
 
 ### Details (number grouping)
