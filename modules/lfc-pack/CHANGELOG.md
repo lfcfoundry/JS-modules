@@ -2,6 +2,12 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.0 · API 0 · 2026-10-31
+- Smaller nested files by default: strings are kept per path (`paths: false` turns it off), 5 to 14% smaller. Older readers refuse such blocks.
+- New pack options: `share: true` (one string and shape table for the whole file) and `access: 'random'` (256 KB blocks plus share, for fast small reads).
+- New `trim()` gives back grown WebAssembly memory (80 to 90 MB after a 66.6 MB job); idle `packParallel` helpers give back theirs.
+- Faster packing, same files byte for byte (3 to 25% for number-heavy files, up to 3.7x with small blocks); readers refuse more damaged files.
+
 ## 0.3.2 · API 0 · 2026-10-31
 - Packing with small blocks is 1.3-3.7x faster: the string and shape tables are cleared only as far as each block used them. Same bytes.
 

@@ -98,8 +98,8 @@
   var TPLW = null, TPLB64 = "/*TPL:BEGIN*//*TPL:END*/";
   function tplw() {
     if (TPLW) return TPLW;
-    var bin = atob(TPLB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q);
-    var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
+    if (!MODS['TPLB64']) { var bin = atob(TPLB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q); MODS['TPLB64'] = new WebAssembly.Module(by); }
+    var x = new WebAssembly.Instance(MODS['TPLB64'], {}).exports;
     return (TPLW = { x: x, heap: x.__heap_base.value });
   }
   function untemplate(n, fr) {
@@ -290,6 +290,7 @@
     if (t === 'F') { return new Float64Array(frames[0].buffer.slice(frames[0].byteOffset, frames[0].byteOffset + n * 8)); }
     if (t === 'T') { var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
     // hex, UUID and address columns: the ASCII text of the whole column is written into one buffer and decoded once, then every value is cut out of it (decode once per column, slice)
+    if ((t === 'H' && frames[0].length < n * (p.L / 2)) || (t === 'U' && frames[0].length < n * 16) || (t === 'I' && frames[0].length < n * 4)) throw new Error('damaged block: ' + t + ' column cut off');   // fixed-width columns: the frame must hold n values
     if (t === 'H') { var bl = p.L / 2, L2 = p.L, r = frames[0], hb = new Uint8Array(n * L2), hp = 0, hk, hv, big; for (i = 0; i < n * bl; i++) { hv = r[i]; hb[hp++] = HEXA[hv >> 4]; hb[hp++] = HEXA[hv & 15]; } big = tlat.decode(hb); o = new Array(n); for (i = 0; i < n; i++) o[i] = big.substring(i * L2, i * L2 + L2); return o; }
     if (t === 'U') { var ur = frames[0], ub = new Uint8Array(n * 36), up = 0, uq, uv; for (i = 0; i < n; i++) { for (uq = 0; uq < 16; uq++) { uv = ur[i * 16 + uq]; ub[up++] = HEXA[uv >> 4]; ub[up++] = HEXA[uv & 15]; if (uq === 3 || uq === 5 || uq === 7 || uq === 9) ub[up++] = 45; } } var ubig = tlat.decode(ub); o = new Array(n); for (i = 0; i < n; i++) o[i] = ubig.substring(i * 36, i * 36 + 36); return o; }
     if (t === 'I') { var ir = frames[0], ib = new Uint8Array(n * 15), ip = 0, io = new Uint32Array(n + 1), iq, iv; for (i = 0; i < n; i++) { io[i] = ip; for (iq = 0; iq < 4; iq++) { iv = ir[4 * i + iq]; if (iv >= 100) { ib[ip++] = 48 + ((iv / 100) | 0); ib[ip++] = 48 + (((iv / 10) | 0) % 10); ib[ip++] = 48 + iv % 10; } else if (iv >= 10) { ib[ip++] = 48 + ((iv / 10) | 0); ib[ip++] = 48 + iv % 10; } else ib[ip++] = 48 + iv; if (iq < 3) ib[ip++] = 46; } } io[n] = ip; var ibig = tlat.decode(ib.subarray(0, ip)); o = new Array(n); for (i = 0; i < n; i++) o[i] = ibig.substring(io[i], io[i + 1]); return o; }
@@ -336,11 +337,12 @@
     var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
   }
   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
+  function dropSmallWasm() { TPLW = null; FSW = null; }   // trim(): the template and flat-scan helpers start again small when next needed
   var FSW = null, FSB64 = "/*FS:BEGIN*//*FS:END*/";
   function fsw() {
     if (FSW) return FSW;
-    var bin = atob(FSB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q);
-    var x = new WebAssembly.Instance(new WebAssembly.Module(by), {}).exports;
+    if (!MODS['FSB64']) { var bin = atob(FSB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q); MODS['FSB64'] = new WebAssembly.Module(by); }
+    var x = new WebAssembly.Instance(MODS['FSB64'], {}).exports;
     return (FSW = { x: x, heap: x.__heap_base.value });
   }
   var P10 = [1, 10, 100], FSTD = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
