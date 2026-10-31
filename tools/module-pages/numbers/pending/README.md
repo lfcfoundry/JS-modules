@@ -1,0 +1,1 @@
+Numbers files here are ready but not published: the code they describe is not on main yet. When the code merges, move the file up one folder (`git mv numbers/pending/<id>.md numbers/<id>.md`) and run `build.py <id>`.
