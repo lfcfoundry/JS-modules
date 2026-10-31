@@ -672,7 +672,8 @@ def find_root(start):
 
 
 def faster_range(text):
-    """'0.988, 0.835, 1.040' (new time / old time, from the A/B table) -> '1 to 17% faster', from the ratios under 1 (rounded half up)."""
+    """'0.988, 0.835, 1.040' (new time / old time, from the A/B table) -> '1 to 17% faster', from the ratios under 1 (rounded half up).
+    When a ratio is under 0.5: '0.039,0.047,0.023' -> '21 to 43 times as fast (95 to 98% less time)'."""
     vals = [float(x) for x in re.split(r"[,\s]+", text.strip()) if x]
     if not vals or any(v <= 0 for v in vals):
         raise ValueError("give the new/old time ratios, for example 0.988,0.835")
@@ -680,6 +681,14 @@ def faster_range(text):
     pct = [p for p in pct if p > 0]
     if not pct:
         raise ValueError("no ratio is under 1, so nothing is faster: write the line by hand")
+    if min(vals) < 0.5:   # a big gain reads better as "times as fast": 0.039 -> 26 times as fast (96% less time)
+        def times(x):
+            f = 1 / x
+            return ("%d" % int(f + 0.5)) if f >= 10 else ("%.1f" % (int(f * 10 + 0.5) / 10)).replace(".0", "")
+        fast = sorted(v for v in vals if v < 1)
+        tm = times(fast[-1]) if fast[0] == fast[-1] else "%s to %s" % (times(fast[-1]), times(fast[0]))
+        less = "%d%%" % pct[0] if pct[0] == pct[-1] else "%d to %d%%" % (pct[0], pct[-1])
+        return "%s times as fast (%s less time)" % (tm, less)
     return "%d%% faster" % pct[0] if pct[0] == pct[-1] else "%d to %d%% faster" % (pct[0], pct[-1])
 
 

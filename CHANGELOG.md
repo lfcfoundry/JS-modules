@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.1 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 1.4.0 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 1.5.0 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -32,11 +32,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.9.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.7.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.7.2 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.4.4 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.4.5 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.4 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.2 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.2.3 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
@@ -69,12 +69,15 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **text-columns** 0.5.2 · API 0: parseParallel reads files with accented or other non-ASCII text up to 4.8x faster.
 - 2026-10-31 · **test-runner** 1.4.0 · API 1: New ab.js: the early-stop A/B timing rule for the 5% check.
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
+- 2026-10-31 · **save-kit** 1.5.0 · API 1: createLarge() gets an opt-in skipUnchangedMs: an unchanged big save is not written again; 57 to 66% less time.
 - 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option keeps a second copy of each save that survives a browser crash. In a real crash test, saves kept only in browser storage lost 29 to 30 of 80; with durable on, none were lost.
 - 2026-10-31 · **pcodec-js** 1.6.2 · API 1: Repeated big unpacks take 0.63 to 0.87 of the time (5 million numbers, three browsers): a ready array is prepared while the page is idle and dropped after 4 s unused.
+- 2026-10-31 · **netflow-engine** 2.2.3 · API 2: Number labels are made in 95 to 98% less time (21 to 43 times as fast), with the same text.
 - 2026-10-31 · **memory-compression** 2.9.0 · API 2: New opt-in stream rows for unpackAsync: long lists arrive a page at a time and never hold every row. 300,000 rows: 0.60 of the time in laptop Chromium, 0.82 in Firefox, pauses 2 to 4x shorter.
 - 2026-10-31 · **memory-compression** 2.8.2 · API 2: view() stays lazy on pages that forbid eval (our policy): opening a view and reading a row takes 34 to 80% less time, same rows. Lists that are mostly numbers are unchanged.
 - 2026-10-31 · **memory-compression** 2.8.1 · API 2: After the idle trim, the two small wasm helpers are made again at once (about 6 MB held), so the first pack after a pause is as fast as the rest.
 - 2026-10-31 · **memory-compression** 2.8.0 · API 2: Packing lists of whole numbers (up to 100,000 rows) is 2 to 24% faster; files can be up to about 1% bigger. autoTries: false keeps the old bytes.
+- 2026-10-31 · **lfc-pack** 0.4.5 · API 0: packParallel is 7 to 25% faster when called again within 3 seconds: helpers keep their memory until they close.
 - 2026-10-31 · **lfc-pack** 0.4.4 · API 0: Packing records with many shapes, like FHIR, is 10 to 15% faster: each shape's string paths are worked out once instead of once per block. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.3 · API 0: After 30 seconds without packing, the packer gives its memory back on its own (about 38 MB after a 66.6 MB pack, up to about 250 MB with big blocks). Reading memory is kept. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.2 · API 0: The first pack after trim() is no longer slower (laptop Chromium 4% slower before, now 2% faster): the packer keeps its warmed-up code. Same files byte for byte.

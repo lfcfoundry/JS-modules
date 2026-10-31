@@ -52,3 +52,14 @@ Roughly 2x to 3.7x faster than idb-keyval and localForage here; saved and loaded
 
 
 **New in 1.4.0: saves that survive a crash (opt-in).** Real crash test in the cloud browsers (not the laptop): with normal saves, 29 of 80 (Chromium) and 30 of 80 (Firefox) were lost; with the new `durable` option, none were lost. No measurable cost to saving or startup. `SaveKit.durableCopy()` is also new.
+
+
+**New in 1.5.0: skip writing an unchanged big save (opt-in).** With `createLarge({ skipUnchangedMs })`, a save whose fields match the last stored one is not written again until that many ms pass; `save(state, true)` always writes. The save text is still built to compare, so the cost drops but is not zero. Unchanged 16 MB save, cloud browsers (not the laptop), ms, lower is better:
+
+| Browser | Normal | With skipUnchangedMs | New / old |
+|---|---:|---:|---:|
+| Chromium 155 | 222.8 | 95.6 | 0.43 |
+| Firefox 158 | 168 | 61 | 0.36 |
+| WebKitGTK 2.52.6 | 102 | 35 | 0.34 |
+
+That is 57 to 66% less time. Off by default; idle games that read the `seen` stamp should pick a small value.

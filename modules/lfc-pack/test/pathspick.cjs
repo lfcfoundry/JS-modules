@@ -1,5 +1,4 @@
-// Per-path strings pick (paths: 'auto', opt-in): an input of 5 or more blocks builds its first big nested block both ways and follows the smaller one;
-// a shorter input keeps per-path strings, and without 'auto' nothing changes (the 0.4.2 way). Copyright (c) 2026 LFC Foundry. MIT License.
+// Per-path strings pick: since 0.4.6 each big nested block judges by itself by default (the same as paths: 'auto'); pack and packParallel agree. Copyright (c) 2026 LFC Foundry. MIT License.
 'use strict';
 const path = require('path'), L = require(path.join(__dirname, '..', 'lfc-pack.js'));
 const W = ['alpha', 'beta', 'gamma', 'delta', 'eps'], rows = [];
@@ -22,8 +21,8 @@ const eq = (x, y) => Buffer.compare(Buffer.from(x), Buffer.from(y)) === 0;
     if (!eq(d, p0) || !(d.length < p1.length)) { bad++; console.log('plain layout should be picked', d.length, p0.length, p1.length); }
     if (JSON.stringify(L.unpack(d)) !== JSON.stringify(r2.map((r) => JSON.parse(r)))) { bad++; console.log('round trip fails (plain pick)'); }
     for (const dyn of [true, false]) for (const src of [t2, text]) { const pp = await L.packParallel(src, Object.assign({ workers: 3, dynamic: dyn }, o)); if (!eq(pp, L.pack(src, o))) { bad++; console.log('packParallel differs from pack', dyn, src === t2 ? 'plain' : 'per-path'); } }
-    const n0 = { blockBytes: 262144 }; if (!eq(L.pack(t2, n0), p1)) { bad++; console.log('without paths: auto, pack should keep per-path strings'); }
-    for (const dyn of [true, false]) { const pp = await L.packParallel(t2, Object.assign({ workers: 3, dynamic: dyn }, n0)); if (!eq(pp, p1)) { bad++; console.log('packParallel without auto differs', dyn); } }
+    const n0 = { blockBytes: 262144 }; if (!eq(L.pack(t2, n0), d)) { bad++; console.log('since 0.4.6 the default is the per-block rule, the same as paths: auto'); }
+    for (const dyn of [true, false]) { const pp = await L.packParallel(t2, Object.assign({ workers: 3, dynamic: dyn }, n0)); if (!eq(pp, d)) { bad++; console.log('packParallel without auto differs', dyn); } }
     console.log('plain-pick case: default ' + d.length + ' B, per-path would be ' + p1.length + ' B; packParallel matches pack');
   }
   const short = text.subarray(0, text.indexOf(10, 3 * 262144) + 1), o = { blockBytes: 262144, paths: 'auto' };

@@ -27,7 +27,7 @@
     trimPacker();
   }
   // the packer's memory only (the tokenizer and string dictionary, which holds most of what a pack grows): the zstd memory stays, so the next job does not grow it again.
-  // Pack helpers do this when they go idle (pool.js): back-to-back packParallel calls stay as fast, and the waiting helpers hold 200 MB to 1.1 GB less.
+  // Pack helpers can do this when they go idle (pool.js, _helperTrimMs); by default they keep it until they close 3 s after the last call, since growing it again cost every call 7 to 25%.
   function trimPacker() {
     if (S.idle) { clearTimeout(S.idle); S.idle = null; }
     if (S.core) { S.core = loadSync(coreName()); S.sh.rebind(S.core); }
@@ -78,8 +78,8 @@
     // paths: 'auto' (opt-in): an input of PATHS_TRY blocks or more picks the string layout of its big nested blocks from a 128 KB sample (samplePick)
     // (real FHIR records: 13% smaller and about 22% faster without per-path strings); a shorter input keeps per-path strings.
     // With PATHS_SAMPLE = 0 the first big nested block is built both ways instead (the trial, kept for comparison)
-    if (ctx.pick == null && opts.paths !== 'auto') ctx.pick = 1;   // the pick is opt-in: paths: 'auto'
-    if (ctx.pick == null && opts.paths === 'auto' && PATHS_RULE) ctx.pick = 2;   // per-block rule (dupShare), no trial
+    if (ctx.pick == null && opts.paths !== 'auto' && !PATHS_RULE) ctx.pick = 1;   // without the rule the pick is opt-in: paths: 'auto'
+    if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;   // since 0.4.6 by default: each big block judges by itself (dupShare), no trial
     if (ctx.pick == null && !opts._tryFirst) { for (ti = 0, mid = 0; ti < inputs.length; ti++) mid += inputs[ti].bytes.length; ctx.pick = mid < PATHS_TRY * bb ? 1 : (typeof PATHS_SAMPLE !== 'undefined' && PATHS_SAMPLE > 0 ? samplePick(inputs[0].bytes, opts) : null); mid = undefined; }
     for (ti = 0; ti < inputs.length; ti++) {
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
@@ -389,4 +389,4 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { trim: trim, _trimPacker: trimPacker, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.5', apiVersion: 0 };
+  var api = { trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.6', apiVersion: 0 };
