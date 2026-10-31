@@ -59,3 +59,6 @@ In Firefox the total time is even, but more of the work now runs on the page's o
 | Accented text, 32 MB | 1.21 | 1.01 | 1.63 |
 
 The page's own work falls to 17 to 142 ms, from 108 to 240 ms.
+
+
+**New in 0.6.1: helpers join the number columns.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop). Against 0.6.0 with a picked file: Chromium 1.17 to 1.41x faster (the page pause on a 45 MB number file drops from 42 to 7 ms), Firefox 0.97 to 1.17x (pause 37 to 8 ms), WebKitGTK 0.94 to 0.99x (slightly slower).
