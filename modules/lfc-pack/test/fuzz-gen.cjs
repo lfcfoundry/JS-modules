@@ -40,7 +40,7 @@ function makeRows() {
   return rows;
 }
 const canon = (v) => v === null || typeof v !== 'object' ? (Object.is(v, -0) ? '-0' : JSON.stringify(v)) : Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' : '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
-const MODES = [{}, { block: 'flat' }, { block: 'nested' }, { exact: true }, { exact: true, block: 'flat' }, { check: 'xxh64' }, { check: 'xxh64', block: 'flat' }, { check: 'xxh64', block: 'nested' }, { share: true, blockBytes: 3000 }, { share: true, block: 'nested', blockBytes: 2500 }, { access: 'random' }, { paths: true }, { paths: true, block: 'nested', blockBytes: 2500 }];
+const MODES = [{}, { block: 'flat' }, { block: 'nested' }, { exact: true }, { exact: true, block: 'flat' }, { check: 'xxh64' }, { check: 'xxh64', block: 'flat' }, { check: 'xxh64', block: 'nested' }, { share: true, blockBytes: 3000 }, { share: true, block: 'nested', blockBytes: 2500 }, { access: 'random' }, { paths: 'only' }, { paths: true, block: 'nested', blockBytes: 2500 }, { share: true, paths: 'only', blockBytes: 3000 }, { access: 'random', paths: true }];
 (async () => {
   await JF.init(); let bad = 0, files = 0, bytes = 0; const t0 = Date.now();
   for (let c = 0; c < N; c++) {

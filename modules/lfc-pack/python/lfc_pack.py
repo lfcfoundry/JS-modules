@@ -220,32 +220,46 @@ def _nested_cols(c, cmeta):
     return cols
 
 
-def _read_nested_paths(h, c, D, skel, ids, cmeta):
-    # per-path strings (header sp = 1): a table [hash, entries, cells] per string path; the dictionary holds each path's entries in turn, and each path has its own flags (starting on a fresh byte) and repeats
+def _path_codes(h, c):
+    # per-path strings (header sp = 1): a table [hash, entries, cells] per string path; each path has its own flags (starting on a fresh byte) and repeats -> (table, entry number of every cell, path after path: path base + local number)
     sf = h['sf']
     tab = json.loads(_dz(c.take(sf[1]), sf[0]).decode('utf-8'))
     flags = _dz(c.take(sf[3]), sf[2])
     if sf[4] not in (0, 1, 2): raise ValueError('bad repeat width')
     rep = _typed(_dz(c.take(sf[6]), sf[5] * _ITEM[sf[4]]), sf[4], sf[5])
-    cols = _nested_cols(c, cmeta)
     if not isinstance(tab, list): raise ValueError('string path table')
     for e in tab:
         if not isinstance(e, list) or len(e) < 3 or not all(isinstance(x, int) and not isinstance(x, bool) for x in e[:3]) or not (0 <= e[1] <= e[2]) or (e[1] == 0 and e[2] != 0): raise ValueError('string path table')
-    if sum(e[1] for e in tab) != h['count'] or sum(e[2] - e[1] for e in tab) != sf[5] or sum((e[2] + 7) >> 3 for e in tab) != sf[2]: raise ValueError('string path table')
-    if h['count'] and len(D) != h['count']: raise ValueError('dictionary count')
-    sp, base, ri, fo = {}, 0, 0, 0
+    if sum(e[2] - e[1] for e in tab) != sf[5] or sum((e[2] + 7) >> 3 for e in tab) != sf[2]: raise ValueError('string path table')
+    if len({e[0] for e in tab}) != len(tab): raise ValueError('string path table')
+    out, base, ri, fo = [], 0, 0, 0
     for hh, e, n in (x[:3] for x in tab):
-        if hh in sp: raise ValueError('string path table')
-        out, nxt = [], 0
+        nxt = 0
         for i in range(n):
-            if (flags[fo + (i >> 3)] >> (i & 7)) & 1: out.append(D[base + nxt]); nxt += 1
+            if (flags[fo + (i >> 3)] >> (i & 7)) & 1: out.append(base + nxt); nxt += 1
             else:
                 k = int(rep[ri]); ri += 1
                 if k >= e: raise ValueError('string code out of range')
-                out.append(D[base + k])
+                out.append(base + k)
         if nxt != e: raise ValueError('string flags')
-        sp[hh] = [out, 0]; base += e; fo += (n + 7) >> 3
-    return _build_nested(cols, None, [skel[i] for i in ids[:h['n']]], sp)
+        base += e; fo += (n + 7) >> 3
+    return tab, out, base
+
+
+def _path_strings(tab, strs):
+    # the strings of the cells (path after path) cut into one list per path: hash -> [strings, next]
+    sp, p = {}, 0
+    for e in tab:
+        sp[e[0]] = [strs[p:p + e[2]], 0]; p += e[2]
+    return sp
+
+
+def _read_nested_paths(h, c, D, skel, ids, cmeta):
+    tab, codes, ET = _path_codes(h, c)
+    cols = _nested_cols(c, cmeta)
+    if ET != h['count']: raise ValueError('string path table')
+    if h['count'] and len(D) != h['count']: raise ValueError('dictionary count')
+    return _build_nested(cols, None, [skel[i] for i in ids[:h['n']]], _path_strings(tab, [D[k] for k in codes]))
 
 
 def _build_nested(cols, strs, shapes, sp=None):
@@ -326,8 +340,22 @@ def _read_nested_shared(b, h, c, shared):
     if not LK: skel = []
     if len(skel) != LK: raise ValueError('shape count')
     ids = _typed(_dz(c.take(h['ids'][2]), h['ids'][1] * _ITEM[h['ids'][0]]), h['ids'][0], h['ids'][1])
-    if h['cd'][0] not in (0, 1, 2): raise ValueError('bad string code width')
-    codes = _typed(_dz(c.take(h['cd'][2]), h['cd'][1] * _ITEM[h['cd'][0]]), h['cd'][0], h['cd'][1])
+    tab = None
+    if h.get('sp') == 1:   # with per-path strings: path entries, each the block's next own string (0) or shared string v - 1
+        tab, ecodes, ET = _path_codes(h, c)
+        gr = h['gr']
+        if gr[0] not in (0, 1, 2) or gr[1] != ET: raise ValueError('bad string entry list')
+        gra = _typed(_dz(c.take(gr[2]), gr[1] * _ITEM[gr[0]]), gr[0], gr[1])
+        GE, lt = [], 0
+        for v in gra:
+            v = int(v)
+            if v == 0: GE.append(lt); lt += 1
+            else: GE.append(L + v - 1)
+        if lt != L: raise ValueError('string entry list')
+        codes = [GE[k] for k in ecodes]
+    else:
+        if h['cd'][0] not in (0, 1, 2): raise ValueError('bad string code width')
+        codes = _typed(_dz(c.take(h['cd'][2]), h['cd'][1] * _ITEM[h['cd'][0]]), h['cd'][0], h['cd'][1])
     cols = {}
     for ent in cmeta:
         key, kind, count, plen = ent[:4]
@@ -348,6 +376,7 @@ def _read_nested_shared(b, h, c, shared):
         if i < LK: shapes.append(skel[i])
         elif i - LK < len(GK): shapes.append(GK[i - LK])
         else: raise ValueError('shape id out of range')
+    if tab is not None: return _build_nested(cols, None, shapes, _path_strings(tab, strs))
     return _build_nested(cols, strs, shapes)
 
 

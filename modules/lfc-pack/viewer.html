@@ -310,7 +310,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     for (i = 0; i < s.side.length; i++) { var str = s.side[i][1], k = sideMap.get(str); if (k === undefined) { k = sideStr.length; sideMap.set(str, k); sideStr.push(str); } codes[s.side[i][0]] = dN + k; }
     var ns = sideStr.length, dlen = Math.max(olen - 1, 0), N = codes.length, m;
     if (ctx.st) return sharedNestedBlock(ctx, s, codes, dN, dN ? tlat.decode(new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen)).split('\0') : [], sideStr, level);
-    if (opts.paths) return pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level);
+    var pb = opts.paths ? pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level) : null;   // with paths: both ways, the smaller one is kept
     // first-appearance flags: the writer renumbers the dictionary in order of first use (unused entries drop out), so a string's first appearance always carries "the next number" and only repeats need a stored code
     var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), offs = new Uint32Array(dN + 1), pos = 0, nz;
     for (i = 0; i < dN; i++) { offs[i] = pos; nz = old.indexOf(0, pos); pos = nz < 0 ? dlen + 1 : nz + 1; } offs[dN] = dlen + 1;
@@ -330,7 +330,8 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, count: E, fa: [flags.length, zflags.length, repT[0], repT[1], zrep.length, N], len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], cm: [cmB.length, zcm.length] }));
     var parts = [u32le(hdr.length), hdr, zcm, ztext, zside, zskel, zids, zflags, zrep]; for (i = 0; i < zc.length; i++) parts.push(zc[i][3]);
-    return { bytes: concat(parts), rows: s.n, zone: zone, skelList: s.skelList, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
+    var bytes = concat(parts); if (pb && (opts.paths === 'only' || pb.bytes.length <= bytes.length)) return pb;
+    return { bytes: bytes, rows: s.n, zone: zone, skelList: s.skelList, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
   }
 
   // ---- per-path strings ({ paths: true }, header sp: 1): every string path of the block (".properties.name", ".items[].sku") has its own run of dictionary entries, first-appearance flags and repeats.
@@ -340,23 +341,32 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     (function walk(s, p) { var i, k; if (s === 1 || s === 5) out.push(p); else if (Array.isArray(s)) { for (i = 0; i < s.length; i++) walk(s[i], p + '[]'); } else if (s && typeof s === 'object') { for (k in s) walk(s[k], p + '.' + k); } })(JSON.parse(t), '');
     return out;
   }
-  function pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level) {
-    var zs = ctx.zs, X = ctx.sh.x, mem = ctx.sh.mem, N = codes.length, M = dN + sideStr.length, sk = s.skelList, K = sk.length, i, j, k, c, p, q;
+  // the string cells regrouped by path: cell codes path after path, and per path its entries (codes in order of first use there), a flag per cell (flag bytes start fresh for each path) and a repeat for every cell that is not a first use
+  function byPath(s, codes, M) {
+    var N = codes.length, sk = s.skelList, K = sk.length, i, j, k, c, p, q, a;
     var sp = new Array(K), pix = new Map(), ph = [];
-    for (k = 0; k < K; k++) { var ps = stringPaths(sk[k]), a = new Int32Array(ps.length); for (j = 0; j < ps.length; j++) { var h = fnvStr(ps[j]); q = pix.get(h); if (q === undefined) { q = ph.length; pix.set(h, q); ph.push(h); } a[j] = q; } sp[k] = a; }
+    for (k = 0; k < K; k++) { var ps = stringPaths(sk[k]); a = new Int32Array(ps.length); for (j = 0; j < ps.length; j++) { var h = fnvStr(ps[j]); q = pix.get(h); if (q === undefined) { q = ph.length; pix.set(h, q); ph.push(h); } a[j] = q; } sp[k] = a; }
     var P = ph.length, cnt = new Uint32Array(P), cp = new Uint32Array(N), ci = 0, ids = s.ids;
     for (i = 0; i < s.n; i++) { a = sp[ids[i]]; for (j = 0; j < a.length; j++) { if (ci >= N) throw new Error('string cell count'); cp[ci++] = a[j]; cnt[a[j]]++; } }
     if (ci !== N) throw new Error('string cell count');
     var st = new Uint32Array(P + 1), fill = new Uint32Array(P), pc = new Uint32Array(N), nfb = 0;
     for (p = 0; p < P; p++) { st[p + 1] = st[p] + cnt[p]; nfb += (cnt[p] + 7) >> 3; }
     for (i = 0; i < N; i++) { p = cp[i]; pc[st[p] + fill[p]++] = codes[i]; }
-    // per path: entries in order of first use there, a flag per cell (flag bytes start fresh for each path), a repeat for every cell that is not a first use
     var stamp = new Int32Array(M).fill(-1), loc = new Uint32Array(M), ent = [], rep = [], flags = new Uint8Array(nfb), fb = 0, table = [], e0, o;
     for (p = 0; p < P; p++) {
       e0 = ent.length;
       for (i = st[p]; i < st[p + 1]; i++) { c = pc[i]; o = i - st[p]; if (stamp[c] !== p) { stamp[c] = p; loc[c] = ent.length - e0; ent.push(c); flags[fb + (o >> 3)] |= 1 << (o & 7); } else rep.push(loc[c]); }
       table.push([ph[p], ent.length - e0, cnt[p]]); fb += (cnt[p] + 7) >> 3;
     }
+    return { ent: ent, rep: rep, flags: flags, table: table };
+  }
+  function pathFrames(zs, bp, level) {   // -> [header sf, frames]
+    var repT = typedColumn(bp.rep), zflags = zs.compress(bp.flags, level), zrep = zs.compress(repT[2], level), tabB = te.encode(JSON.stringify(bp.table)), ztab = zs.compress(tabB, level);
+    return [[tabB.length, ztab.length, bp.flags.length, zflags.length, repT[0], repT[1], zrep.length], [ztab, zflags, zrep]];
+  }
+  function pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level) {
+    var zs = ctx.zs, X = ctx.sh.x, mem = ctx.sh.mem, sk = s.skelList, ids = s.ids, i, k, c;
+    var bp = byPath(s, codes, dN + sideStr.length), ent = bp.ent;
     // dictionary text: the entries in that order, ASCII strings from the tokenizer's dictionary, an empty placeholder for each side string
     var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), offs = new Uint32Array(dN + 1), pos = 0, nz;
     for (i = 0; i < dN; i++) { offs[i] = pos; nz = old.indexOf(0, pos); pos = nz < 0 ? dlen + 1 : nz + 1; } offs[dN] = dlen + 1;
@@ -364,15 +374,14 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     for (i = 0; i < E; i++) { c = ent[i]; if (c < dN) tl += offs[c + 1] - offs[c] - 1; else { sideIdx.push(i); sideS.push(sideStr[c - dN]); } }
     var text = new Uint8Array(E > 0 ? tl + E - 1 : 0), tp = 0;
     for (i = 0; i < E; i++) { c = ent[i]; if (c < dN) { text.set(old.subarray(offs[c], offs[c + 1] - 1), tp); tp += offs[c + 1] - 1 - offs[c]; } if (i < E - 1) tp++; }
-    var repT = typedColumn(rep), zflags = zs.compress(flags, level), zrep = zs.compress(repT[2], level);
-    var tabB = te.encode(JSON.stringify(table)), ztab = zs.compress(tabB, level);
+    var pf = pathFrames(zs, bp, level);
     var ztext = zs.compress(text, level), sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideS })), zside = zs.compress(sideB, level);
     var skB = te.encode(sk.join('\n')), zskel = zs.compress(skB, level);
     var tid = typedColumn(ids), zids = zs.compress(tid[2], level);
     var nc = nestedCols(zs, s.cols, level), zc = nc.zc;
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, sp: 1, count: E, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
-      ids: [tid[0], tid[1], zids.length], sf: [tabB.length, ztab.length, flags.length, zflags.length, repT[0], repT[1], zrep.length], cm: [nc.cmB.length, nc.zcm.length] }));
-    var parts = [u32le(hdr.length), hdr, nc.zcm, ztext, zside, zskel, zids, ztab, zflags, zrep]; for (k = 0; k < zc.length; k++) parts.push(zc[k][3]);
+      ids: [tid[0], tid[1], zids.length], sf: pf[0], cm: [nc.cmB.length, nc.zcm.length] }));
+    var parts = [u32le(hdr.length), hdr, nc.zcm, ztext, zside, zskel, zids].concat(pf[1]); for (k = 0; k < zc.length; k++) parts.push(zc[k][3]);
     return { bytes: concat(parts), rows: s.n, zone: nc.zone, skelList: sk, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
   }
 
@@ -422,6 +431,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     for (i = 0; i < K; i++) { g = stPlace(st.km, st.k, st.ks, sk[i], st.j); if (g >= 0) { kf[i] = g; kg[i] = 1; } else { kf[i] = kloc.length; kloc.push(sk[i]); } }
     var LK = kloc.length; for (i = 0; i < K; i++) if (kg[i]) kf[i] += LK;
     var ids = new Uint32Array(s.n); for (i = 0; i < s.n; i++) ids[i] = kf[s.ids[i]];
+    var pb = ctx.paths ? sharedPathBlock(ctx, s, out, L, asc, sid, kloc, ids, level) : null;   // with paths: both ways, the smaller one is kept (per-path strings lose on very small blocks)
     var sideIdx = []; for (i = 0; i < sid.length; i++) sideIdx.push(nu + i);
     var text = te.encode(L ? asc.concat(sid.map(function () { return ''; })).join('\0') : ''), ztext = zs.compress(text, level);
     var sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sid })), zside = zs.compress(sideB, level);
@@ -431,9 +441,51 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, g: 1, count: L, kc: LK, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
       ids: [tid[0], tid[1], zids.length], cd: [tcd[0], tcd[1], zcd.length], cm: [nc.cmB.length, nc.zcm.length] }));
     var parts = [u32le(hdr.length), hdr, nc.zcm, ztext, zside, zskel, zids, zcd]; for (k = 0; k < zc.length; k++) parts.push(zc[k][3]);
-    return { bytes: concat(parts), rows: s.n, zone: nc.zone, skelList: s.skelList, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback, gnew: st.j.gnew };
+    var bytes = concat(parts); if (pb && (ctx.paths === 'only' || pb.bytes.length <= bytes.length)) return pb;
+    return { bytes: bytes, rows: s.n, zone: nc.zone, skelList: s.skelList, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback, gnew: st.j.gnew };
   }
 
+  // shared tables and per-path strings together (header g: 1 and sp: 1): the codes of 3.6 regrouped by path; each path entry is the block's next own string (0) or shared string v - 1 (entry list, typed bytes)
+  function sharedPathBlock(ctx, s, out, L, asc, sid, kloc, ids, level) {
+    var zs = ctx.zs, st = ctx.st, nu = asc.length, bp = byPath(s, out, L + st.s.length), ent = bp.ent, E = ent.length, i, k, c;
+    var gr = new Uint32Array(E), own = [], sideIdx = [], sideS = [];
+    for (i = 0; i < E; i++) { c = ent[i]; if (c < L) { if (c >= nu) { sideIdx.push(own.length); sideS.push(sid[c - nu]); own.push(''); } else own.push(asc[c]); } else gr[i] = c - L + 1; }
+    var LT = own.length, text = te.encode(LT ? own.join('\0') : ''), ztext = zs.compress(text, level);
+    var sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideS })), zside = zs.compress(sideB, level);
+    var skB = te.encode(kloc.join('\n')), zskel = zs.compress(skB, level), LK = kloc.length;
+    var tid = typedColumn(ids), zids = zs.compress(tid[2], level), tgr = typedColumn(gr), zgr = zs.compress(tgr[2], level);
+    var pf = pathFrames(zs, bp, level), nc = nestedCols(zs, s.cols, level), zc = nc.zc;
+    var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, g: 1, sp: 1, count: LT, kc: LK, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
+      ids: [tid[0], tid[1], zids.length], sf: pf[0], gr: [tgr[0], tgr[1], zgr.length], cm: [nc.cmB.length, nc.zcm.length] }));
+    var parts = [u32le(hdr.length), hdr, nc.zcm, ztext, zside, zskel, zids].concat(pf[1], [zgr]); for (k = 0; k < zc.length; k++) parts.push(zc[k][3]);
+    return { bytes: concat(parts), rows: s.n, zone: nc.zone, skelList: s.skelList, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback, gnew: st.j.gnew };
+  }
+  // per-path strings (sp = 1): the path table, then each path's codes from its own flags and repeats, path after path -> { tab, codes: entry numbers (path base + local number), NT, ET }
+  function pathCodes(zs, h, take) {
+    var sf = h.sf, tab = JSON.parse(tdr.decode(zs.decompressView(take(sf[1]), sf[0]))), pfl = zs.decompress(take(sf[3]), sf[2]), i;
+    if (!(sf[4] >= 0 && sf[4] <= 2)) throw new Error('damaged block: bad repeat width');
+    var prz = zs.decompress(take(sf[6]), sf[5] * KIND[sf[4]].BYTES_PER_ELEMENT), prp = new KIND[sf[4]](prz.buffer, prz.byteOffset, sf[5]);
+    if (!Array.isArray(tab)) throw new Error('damaged block: string path table');
+    var NT = 0, ET = 0, RT = 0, FT = 0, te_, x;
+    for (i = 0; i < tab.length; i++) { te_ = tab[i]; if (!Array.isArray(te_) || te_.length < 3 || !(te_[1] >= 0 && te_[2] >= te_[1] && (te_[1] > 0 || te_[2] === 0)) || te_[1] % 1 || te_[2] % 1) throw new Error('damaged block: string path table'); NT += te_[2]; ET += te_[1]; RT += te_[2] - te_[1]; FT += (te_[2] + 7) >> 3; }
+    if (RT !== sf[5] || FT !== sf[2]) throw new Error('damaged block: string path table');
+    var pco = new Uint32Array(NT), base = 0, cell = 0, rr = 0, fo = 0, e, nx, m8, b8, u;
+    for (i = 0; i < tab.length; i++) {
+      e = tab[i][1]; m8 = tab[i][2]; nx = 0;
+      for (u = rr; u < rr + m8 - e; u++) if (prp[u] >= e) throw new Error('damaged block: string code out of range');
+      for (u = 0; u + 8 <= m8; u += 8) {
+        b8 = pfl[fo + (u >> 3)];
+        if (b8 === 0) { for (x = 0; x < 8; x++) pco[cell++] = base + prp[rr++]; }
+        else if (b8 === 255) { for (x = 0; x < 8; x++) pco[cell++] = base + nx++; }
+        else for (x = 0; x < 8; x++) pco[cell++] = (b8 >> x) & 1 ? base + nx++ : base + prp[rr++];
+      }
+      for (; u < m8; u++) pco[cell++] = (pfl[fo + (u >> 3)] >> (u & 7)) & 1 ? base + nx++ : base + prp[rr++];
+      if (nx !== e) throw new Error('damaged block: string flags');
+      base += e; fo += (m8 + 7) >> 3;
+    }
+    return { tab: tab, codes: pco, NT: NT, ET: ET };
+  }
+  function codeColumn(a, top) { var k = top < 256 ? 0 : top < 65536 ? 1 : 2, o = new KIND[k](a.length), i; for (i = 0; i < a.length; i++) o[i] = a[i]; return [CODES_KEY, k, a.length, new Uint8Array(o.buffer)]; }
   // ---- reader: one shared descriptor walker builds the rows of every shape; plans are cached per shape for the whole file
   function parseBlockHeader(bytes) {
     var hl = rd32(bytes, 0); return { h: JSON.parse(tdr.decode(bytes.subarray(4, 4 + hl))), p: 4 + hl };
@@ -448,37 +500,27 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     var skel = tdr.decode(zs.decompressView(take(h.p[2]), h.len[2]));
     var ids = [h.ids[0], h.ids[1], zs.decompress(take(h.ids[2]), h.ids[1] * KIND[h.ids[0]].BYTES_PER_ELEMENT)], cols = [];
     if (h.g === 1) {   // shared tables: the string codes are stored as they are
-      if (!(h.cd[0] >= 0 && h.cd[0] <= 2)) throw new Error('damaged block: bad string code width');
-      var gcd = zs.decompress(take(h.cd[2]), h.cd[1] * KIND[h.cd[0]].BYTES_PER_ELEMENT);
+      var gtab = null, gcc = null;
+      if (h.sp === 1) {   // with per-path strings: path entries, each the block's next own string (0) or shared string v - 1, then codes = entry -> block code (own: 0.., shared: count + v - 1)
+        var gq = pathCodes(zs, h, take);
+        if (!(h.gr[0] >= 0 && h.gr[0] <= 2) || h.gr[1] !== gq.ET) throw new Error('damaged block: bad string entry list');
+        var grz = zs.decompress(take(h.gr[2]), h.gr[1] * KIND[h.gr[0]].BYTES_PER_ELEMENT), gra = new KIND[h.gr[0]](grz.buffer, grz.byteOffset, h.gr[1]), GE = new Float64Array(gq.ET), lt = 0, top = 0;
+        for (i = 0; i < gq.ET; i++) { GE[i] = gra[i] === 0 ? lt++ : h.count + gra[i] - 1; if (GE[i] > top) top = GE[i]; }
+        if (lt !== h.count) throw new Error('damaged block: string entry list');
+        var gco = gq.codes; for (i = 0; i < gco.length; i++) gco[i] = GE[gco[i]];
+        gtab = gq.tab; gcc = codeColumn(gco, top);
+      } else if (!(h.cd[0] >= 0 && h.cd[0] <= 2)) throw new Error('damaged block: bad string code width');
+      var gcd = gcc ? null : zs.decompress(take(h.cd[2]), h.cd[1] * KIND[h.cd[0]].BYTES_PER_ELEMENT);
       for (i = 0; i < cmeta.length; i++) { var cg = cmeta[i]; if (cg[1] === 7) cols.push([cg[0], 6, cg[2], decodeDecimalColumn(zs.decompress(take(cg[3]), cg[4]), cg[2])]); else cols.push([cg[0], cg[1], cg[2], zs.decompress(take(cg[3]), cg[2] * KIND[cg[1]].BYTES_PER_ELEMENT)]); }
-      cols.push([CODES_KEY, h.cd[0], h.cd[1], gcd]);
-      return { t: 'n', n: h.n, g: 1, count: h.count, kc: h.kc, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
+      cols.push(gcc || [CODES_KEY, h.cd[0], h.cd[1], gcd]);
+      return { t: 'n', n: h.n, g: 1, sp: gtab, count: h.count, kc: h.kc, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
     }
-    if (h.sp === 1) {   // per-path strings: each path's codes come back from its own flags and repeats, path after path
-      var sf = h.sf, tab = JSON.parse(tdr.decode(zs.decompressView(take(sf[1]), sf[0]))), pfl = zs.decompress(take(sf[3]), sf[2]);
-      if (!(sf[4] >= 0 && sf[4] <= 2)) throw new Error('damaged block: bad repeat width');
-      var prz = zs.decompress(take(sf[6]), sf[5] * KIND[sf[4]].BYTES_PER_ELEMENT), prp = new KIND[sf[4]](prz.buffer, prz.byteOffset, sf[5]);
+    if (h.sp === 1 && h.g !== 1) {   // per-path strings
+      var pq = pathCodes(zs, h, take);
       for (i = 0; i < cmeta.length; i++) { var cs = cmeta[i]; if (cs[1] === 7) cols.push([cs[0], 6, cs[2], decodeDecimalColumn(zs.decompress(take(cs[3]), cs[4]), cs[2])]); else cols.push([cs[0], cs[1], cs[2], zs.decompress(take(cs[3]), cs[2] * KIND[cs[1]].BYTES_PER_ELEMENT)]); }
-      if (!Array.isArray(tab)) throw new Error('damaged block: string path table');
-      var NT = 0, ET = 0, RT = 0, FT = 0, te_, x;
-      for (i = 0; i < tab.length; i++) { te_ = tab[i]; if (!Array.isArray(te_) || te_.length < 3 || !(te_[1] >= 0 && te_[2] >= te_[1] && (te_[1] > 0 || te_[2] === 0)) || te_[1] % 1 || te_[2] % 1) throw new Error('damaged block: string path table'); NT += te_[2]; ET += te_[1]; RT += te_[2] - te_[1]; FT += (te_[2] + 7) >> 3; }
-      if (ET !== h.count || RT !== sf[5] || FT !== sf[2]) throw new Error('damaged block: string path table');
-      var pk = ET < 256 ? 0 : ET < 65536 ? 1 : 2, pco = new KIND[pk](NT), base = 0, cell = 0, rr = 0, fo = 0, e, nx, m8, b8, u;
-      for (i = 0; i < tab.length; i++) {
-        e = tab[i][1]; m8 = tab[i][2]; nx = 0;
-        for (u = rr; u < rr + m8 - e; u++) if (prp[u] >= e) throw new Error('damaged block: string code out of range');
-        for (u = 0; u + 8 <= m8; u += 8) {
-          b8 = pfl[fo + (u >> 3)];
-          if (b8 === 0) { for (x = 0; x < 8; x++) pco[cell++] = base + prp[rr++]; }
-          else if (b8 === 255) { for (x = 0; x < 8; x++) pco[cell++] = base + nx++; }
-          else for (x = 0; x < 8; x++) pco[cell++] = (b8 >> x) & 1 ? base + nx++ : base + prp[rr++];
-        }
-        for (; u < m8; u++) pco[cell++] = (pfl[fo + (u >> 3)] >> (u & 7)) & 1 ? base + nx++ : base + prp[rr++];
-        if (nx !== e) throw new Error('damaged block: string flags');
-        base += e; fo += (m8 + 7) >> 3;
-      }
-      cols.push([CODES_KEY, pk, NT, new Uint8Array(pco.buffer)]);
-      return { t: 'n', n: h.n, sp: tab, count: h.count, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
+      if (pq.ET !== h.count) throw new Error('damaged block: string path table');
+      cols.push(codeColumn(pq.codes, pq.ET));
+      return { t: 'n', n: h.n, sp: pq.tab, count: h.count, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
     }
     var zfl = zs.decompress(take(h.fa[1]), h.fa[0]), zrp = zs.decompress(take(h.fa[4]), h.fa[3] * KIND[h.fa[2]].BYTES_PER_ELEMENT);
     for (i = 0; i < cmeta.length; i++) { var cd = cmeta[i]; if (cd[1] === 7) cols.push([cd[0], 6, cd[2], decodeDecimalColumn(zs.decompress(take(cd[3]), cd[4]), cd[2])]); else cols.push([cd[0], cd[1], cd[2], zs.decompress(take(cd[3]), cd[2] * KIND[cd[1]].BYTES_PER_ELEMENT)]); }
@@ -500,7 +542,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
   var NONASCII = /[\x80-\xff]/;   // dictionary text is ASCII (LAYOUT-SPEC 3.4)
   // tables: the file's shared tables ({ s: strings, k: row shapes }, footer section 16), or null
   function makeNestedReader(zs, tables) {
-    var STRS = null, TI = 0, COLS = new Map(), SCOLS = new Map(), PLAN = new Map(), SPLAN = new Map(), GPL = [], SPM = false;
+    var STRS = null, TI = 0, COLS = new Map(), SCOLS = new Map(), PLAN = new Map(), SPLAN = new Map(), GPLN = [], GPLS = [], SPM = false;
     // plans are cached per shape text; blocks with per-path strings (sp) get their own plans, whose string cells read from the column of their path
     function planOf(t) { var P = SPM ? SPLAN : PLAN, f = P.get(t); if (!f) { f = desc(JSON.parse(t), ''); P.set(t, f); } return f; }
     function col(h) { var c = COLS.get(h); if (!c) { c = { h: h, a: null, i: 0 }; COLS.set(h, c); } return c; }
@@ -543,7 +585,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       var dt = tlat.decode(F.dict), D, sd = F.side, i, cols = new Map(), g = F.g === 1;
       if (NONASCII.test(dt)) throw new Error('damaged block: dictionary text is not ASCII');
       D = dt.split('\0');
-      if (F.sp && !(F.count === 0 || D.length === F.count)) throw new Error('damaged block: dictionary count');
+      if (F.sp && !g && !(F.count === 0 || D.length === F.count)) throw new Error('damaged block: dictionary count');
       if (g) { if (!tables) throw new Error('damaged file: shared tables missing'); if (!(F.count >= 0 && (F.count === 0 || D.length === F.count))) throw new Error('damaged block: dictionary count'); }
       for (i = 0; i < sd.idx.length; i++) { if (!(sd.idx[i] >= 0 && sd.idx[i] < D.length)) throw new Error('damaged block: side list index out of range'); D[sd.idx[i]] = sd.str[i]; }
       for (i = 0; i < F.cols.length; i++) { var cd = F.cols[i]; cols.set(cd[0], new KIND[cd[1]](cd[3].buffer, cd[3].byteOffset, cd[2])); }
@@ -558,14 +600,13 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       STRS = E; TI = 0; SPM = !!b.sp;
       var sl = b.skel, fnById = new Array(sl.length);
       for (i = 0; i < sl.length; i++) fnById[i] = planOf(sl[i]);
-      var tab = b.sp, sc;
+      var ids = b.ids, out = new Array(b.n), LK = sl.length, id, tab = b.sp, sc, GPL = SPM ? GPLS : GPLN;
+      if (b.g) { var GK = tables.k;   // plans of the shared shapes this block uses, before the columns are bound (a plan registers its columns)
+        for (i = 0; i < b.n; i++) { id = ids[i]; if (id >= LK && GPL[id - LK] === undefined) { if (id - LK >= GK.length) throw new Error('damaged block: shape id out of range'); GPL[id - LK] = planOf(GK[id - LK]); } } }
       if (tab) {   // every path of the table reads its own stretch of the codes; a path no shape has, two entries for one path, or a stretch not read to its end is damage
         SCOLS.forEach(function (x) { x.a = null; x.i = 0; x.e = -1; });
         for (i = 0, c = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (!sc || sc.e !== -1) throw new Error('damaged block: string path table'); sc.a = E; sc.i = c; c += tab[i][2]; sc.e = c; }
       }
-      var ids = b.ids, out = new Array(b.n), LK = sl.length, id;
-      if (b.g) { var GK = tables.k;   // plans of the shared shapes this block uses, before the columns are bound (a plan registers its columns)
-        for (i = 0; i < b.n; i++) { id = ids[i]; if (id >= LK && GPL[id - LK] === undefined) { if (id - LK >= GK.length) throw new Error('damaged block: shape id out of range'); GPL[id - LK] = planOf(GK[id - LK]); } } }
       COLS.forEach(function (c) { c.a = b.cols.get(c.h); c.i = 0; });
       if (b.g) for (i = 0; i < b.n; i++) { id = ids[i]; out[i] = build(id < LK ? fnById[id] : GPL[id - LK]); }
       else for (i = 0; i < b.n; i++) out[i] = build(fnById[ids[i]]);
@@ -1234,7 +1275,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
   function packMany(inputs, opts) {
     opts = opts || {}; need(true);
     var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], off = 0, rows = 0, tail = true;
-    var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
+    var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st, paths: opts.paths === 'only' ? 'only' : !!opts.paths }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
     var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
     for (ti = 0; ti < inputs.length; ti++) {
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
