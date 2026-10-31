@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.2 · API 0 · 2026-10-31
+
+### Quick
+Quick: no more long freezes while a big text file turns into strings.
+
+### Deep
+Quick: no more long freezes while a big text file turns into strings. Details: fillSliced builds strings in steps aiming at 1.5 ms, yielding through a MessageChannel when 4 ms have passed (_sliceBuild:false = old way, _budget = ms); 8 and 16 ms budgets gave longer stalls and no faster totals. Number scratch = 8 bytes x rows (_numRoom:'fields' = old). idleTrim(ms): when over 16 MB, a fresh WebAssembly instance replaces the grown one after ms quiet, in the page and the helpers. Deep: the read probe (look once whether reading stalls the page, then read in 1 MB slices) was built and struck: the stall it targeted is the string build, and it cost up to 16% on number files. Windows (later the same day): parse() reads inputs of 8 MB or more in about 4 MB pieces cut after a line end outside quote marks, so the scanner's memory stays near 10 MB; a column that is numbers in one piece and text in another is read again as text there (same answers). Helpers window their own range. The first build searched for quote marks from each cut to the end of the file (slow on files without quotes); it now searches once. 45 MB: back to back and after idle within noise of 0.6.1 in 3 browsers. A 16 MB reserve after idle trim was tested too: no faster than trimming to zero on files over 16 MB, and windows make the trim unneeded.
+
 ## 0.6.1 · API 0 · 2026-10-31
 
 ### Quick

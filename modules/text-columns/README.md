@@ -1,8 +1,8 @@
 # text-columns
 
-**Version 0.6.1 · API 0**
+**Version 0.6.2 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (picked files, 4 helpers, 576 same-answer cases each)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -50,6 +50,8 @@ Since 0.5.2, a piece with non-ASCII text (accents, emoji) is decoded once inside
 Since 0.6.0, `parseParallel` also takes a File or Blob, such as one picked with `<input type=file>`. Each helper reads its own piece straight from the file (`blob.slice`), so the page never reads or holds the whole file (about half the memory) and nothing is copied to the helpers; a file whose cuts land inside quoted fields is read again the 0.5.2 way, and a small file is read on the page as before. A picked file, 4 helpers, against 0.5.2 (reading the file on the page first): numbers 45 MB Chromium 155 1.11x, Firefox 158 1.25x, WebKitGTK 2.52.6 1.68x faster; mixed text 32 MB 1.17x, 1.27x, 1.75x; accented text 32 MB 1.21x, 1.01x, 1.63x. The page's own work falls to 17 to 142 ms (was 108 to 240 ms). `tests/text-columns-file-browser.js` checks the same answers as `parse()` in 384 cases (quotes, line breaks inside quotes, an unclosed quote, a byte order mark, CRLF, no final line end, a ragged row, a 300 KB line, `columns`, `lazy`, `types`, numbers in one piece and text in another, a piece that is not valid UTF-8, 3 to 7 helpers).
 
 Since 0.6.1, the helpers also join the number columns: the page makes each full-length column once and the columns travel through the helpers in groups (each helper copies its own rows into a different group at each turn), so the page no longer copies tens of megabytes in one block. A picked file, 4 helpers, against 0.6.0: numbers 45 MB Chromium 155 1.17x faster (longest page stall 42 to 7 ms), Firefox 158 1.13 to 1.17x (37 to 8 ms), WebKitGTK 2.52.6 0.96 to 0.99x (22 to 16 ms); mixed text 32 MB Chromium 1.41x (132 to 69 ms), Firefox 1.00x, WebKitGTK 0.94 to 0.96x; accented 32 MB Chromium 1.18x (96 to 48 ms), Firefox 0.97 to 0.98x, WebKitGTK 0.94 to 0.96x. Same answers as `parse()` in 576 cases per browser.
+
+Since 0.6.2, the page builds the text columns in short steps of about 4 ms with a break between them, so a big text file no longer holds the page in one long block. Inputs of 8 MB or more are read in pieces of about 4 MB (cut after a line end outside quote marks), so the scanner's WebAssembly memory stays near 10 MB instead of about 3.7 times the file: after a 45 MB number file the page holds 10.5 MB instead of 161 MB, and 4 helpers 45 MB instead of 120 MB, with times within noise. Same answers: a column that is numbers in one piece and text in another is read again as text. A picked file, 4 helpers, longest page stall against 0.6.1: mixed text 32 MB Chromium 72-78 to 21-23 ms, Firefox 102-189 to 15-19 ms, WebKitGTK 65-73 to 16-17 ms; accented 32 MB Chromium 42 to 14-17 ms, Firefox 150-209 to 14-18 ms, WebKitGTK 50-55 to 16-19 ms. `TextColumns.idleTrim(ms, keep)` (off by default) gives grown memory back after a quiet spell, keeping `keep` bytes ready.
 
 
 ## Only what you need: `columns` and `lazy` (since 0.3.0)
