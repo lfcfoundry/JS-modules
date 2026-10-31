@@ -1,6 +1,6 @@
 # text-columns
 
-**Version 0.6.0 · API 0**
+**Version 0.6.1 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -48,6 +48,8 @@ The file is cut at line ends outside quotes, each Web Worker reads a piece with 
 Since 0.5.2, a piece with non-ASCII text (accents, emoji) is decoded once inside its helper, which sends the piece's text as one string plus where each field sits in it; the page only cuts substrings instead of decoding every field. 32 MB with accented text, 4 helpers, against 0.5.1: Chromium 155 1,027 to 216 ms (4.8x), WebKitGTK 2.52.6 359 to 168 ms (2.1x), Firefox 158 even (253 to 248 ms; more of the work now happens on the page there). Plain-ASCII files are unchanged. `tests/text-columns-utf16-browser.js` checks the same answers as `parse()` in 56 cases (accents, emoji, quotes, CRLF, `columns`, `lazy`, a column that is numbers in one piece and text in another, a piece that is not valid UTF-8).
 
 Since 0.6.0, `parseParallel` also takes a File or Blob, such as one picked with `<input type=file>`. Each helper reads its own piece straight from the file (`blob.slice`), so the page never reads or holds the whole file (about half the memory) and nothing is copied to the helpers; a file whose cuts land inside quoted fields is read again the 0.5.2 way, and a small file is read on the page as before. A picked file, 4 helpers, against 0.5.2 (reading the file on the page first): numbers 45 MB Chromium 155 1.11x, Firefox 158 1.25x, WebKitGTK 2.52.6 1.68x faster; mixed text 32 MB 1.17x, 1.27x, 1.75x; accented text 32 MB 1.21x, 1.01x, 1.63x. The page's own work falls to 17 to 142 ms (was 108 to 240 ms). `tests/text-columns-file-browser.js` checks the same answers as `parse()` in 384 cases (quotes, line breaks inside quotes, an unclosed quote, a byte order mark, CRLF, no final line end, a ragged row, a 300 KB line, `columns`, `lazy`, `types`, numbers in one piece and text in another, a piece that is not valid UTF-8, 3 to 7 helpers).
+
+Since 0.6.1, the helpers also join the number columns: the page makes each full-length column once and the columns travel through the helpers in groups (each helper copies its own rows into a different group at each turn), so the page no longer copies tens of megabytes in one block. A picked file, 4 helpers, against 0.6.0: numbers 45 MB Chromium 155 1.17x faster (longest page stall 42 to 7 ms), Firefox 158 1.13 to 1.17x (37 to 8 ms), WebKitGTK 2.52.6 0.96 to 0.99x (22 to 16 ms); mixed text 32 MB Chromium 1.41x (132 to 69 ms), Firefox 1.00x, WebKitGTK 0.94 to 0.96x; accented 32 MB Chromium 1.18x (96 to 48 ms), Firefox 0.97 to 0.98x, WebKitGTK 0.94 to 0.96x. Same answers as `parse()` in 576 cases per browser.
 
 
 ## Only what you need: `columns` and `lazy` (since 0.3.0)
