@@ -1,8 +1,8 @@
 # zip-open
 
-**Version 1.5.0 · API 1**
+**Version 1.5.1 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
 
 Opens `.zip` and Excel `.xlsx` files safely, in the browser or in Node. Text files come out as strings, every Excel sheet comes out as CSV text, and every problem is a note in plain words. About 31 KB (10.7 KB gzipped, of which about 2 KB is the embedded WebAssembly checksum), no dependencies. Cut from Netflow Map's file opener.
 

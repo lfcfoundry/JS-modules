@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.1 · API 1 · 2026-10-30
+- Picture effects (blur, sharpen, glow, color grade) run faster: 0.67 to 0.92x the time, with exactly the same pictures.
+
 ## 1.6.0 · API 1 · 2026-10-30
 - Optional thorough palette: counts every pixel for slightly smaller files.
 

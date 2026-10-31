@@ -1,7 +1,7 @@
 /*!
  * gif-writer-worker.js, an optional companion of gif-writer.js: a GIF worker: filters pictures and writes the GIF off the main thread. The same handler runs in a real worker and, where workers are missing, on the page.
  * Needs GifWriter (gif-writer.js) and GifWriterFx (gif-writer-fx.js) in the same scope; GifWriterCard (gif-writer-card.js) is optional. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.6.0 (API 1)
+ * Version 1.6.1 (API 1)
  * Messages in:  wasm {id} | card {id} | init {w,h} | filter {id,buf,w,h,f} | palette {bufs,colors,tol} | frame {id,buf,ms} | finish
  * Messages out: wasm {id,ok} | card {id,ok} | filtered {id,buf} | ready | ack {id} | done {bytes}
  */

@@ -1,8 +1,8 @@
 # gif-writer
 
-**Version 1.6.0 · API 1**
+**Version 1.6.1 · API 1**
 
-**Tested in:** not recorded.
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
 
 Writes an animated GIF from pictures you draw on a canvas, in the browser or in Node. About 38 KB (15 KB gzipped, of which about 12 KB is the embedded WebAssembly), no dependencies. Cut from Netflow Map's GIF maker.
 
