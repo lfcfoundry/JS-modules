@@ -26,7 +26,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
-| [gif-writer](modules/gif-writer/README.md) | 1.6.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
+| [gif-writer](modules/gif-writer/README.md) | 1.6.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.5.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.7.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
@@ -83,6 +83,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-30 · **graph-walk** 0.3.0 · API 0: New: WebAssembly speeds up components, strongly connected groups, topological order and weighted paths to every item (1.2x to 2.2x in Firefox and Chromium, none in WebKitGTK); plain JavaScript stays as the fallback.
 - 2026-10-30 · **graph-walk** 0.2.0 · API 0: New: connected components, strongly connected components, topological order, weighted shortest paths and a fast two-ended path between two items; building the link index is faster.
 - 2026-10-30 · **gpu-blur** 1.0.1 · API 1: Blurring in WebAssembly is about a third faster (0.60 to 0.80x the time) with exactly the same picture.
+- 2026-10-30 · **gif-writer** 1.6.1 · API 1: Picture effects (blur, sharpen, glow, color grade) run faster: 0.67 to 0.92x the time, with exactly the same pictures.
 - 2026-10-30 · **gif-writer** 1.6.0 · API 1: Optional thorough palette: counts every pixel for slightly smaller files.
 - 2026-10-30 · **elias-fano** 1.5.0 · API 1: New Lists.getMany reads many lists in one WebAssembly call.
 - 2026-10-30 · **clip-writer** 1.3.0 · API 1: New saving options: fastStart (MP4 index first), sidx (seek index for fragmented MP4) and output 'blob'. All off by default; existing files are unchanged.

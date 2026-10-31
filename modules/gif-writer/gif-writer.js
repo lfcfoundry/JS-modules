@@ -4,7 +4,7 @@
  * are left transparent, and every picture is compressed the moment it is added.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.0 (API 1)
+ * Version 1.6.1 (API 1)
  *
  *   var pal = GifWriter.makePalette([rgba1, rgba2], 255);          // rgba: Uint8ClampedArray from ctx.getImageData(...).data
  *   var enc = GifWriter.createEncoder(width, height, pal, { loop: true });
