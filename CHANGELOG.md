@@ -28,11 +28,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.5.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.5.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.7.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.5.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.7.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.2.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.2.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.5.0 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.2 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -58,6 +58,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-10-30 · **zip-open** 1.5.1 · API 1: Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.
 - 2026-10-30 · **zip-open** 1.5.0 · API 1: Faster: entries of 4 KB or less (compressed) are unpacked by a small WebAssembly inflate, about 1.5 to 2.2 times as fast for thousands of tiny files. Module grows by 9.4 KB of WebAssembly. Same files, same notes.
 - 2026-10-30 · **zip-open** 1.4.0 · API 1: New: `expandBlob`, `listBlob` and `readBlob` open a File or Blob in pieces, so a big zip never has to sit whole in memory. Same files, same notes. New: `{ workers: n }` unpacks big entries (2 MB and up) side by side in Web Workers: about 1.2 to 1.8 times as fast on a zip of several big files. Off by default. Checks: 700 damaged zips give the same answer from a File as from memory.
 - 2026-10-30 · **text-columns** 0.5.0 · API 0: New, opt-in: types option turns YYYY-MM-DD columns into dates (milliseconds) and true/false columns into booleans. Without it nothing changes.
@@ -71,6 +72,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
 - 2026-10-30 · **memory-compression** 2.7.0 · API 2: New opt-in setting quickTries: true tries every number coding on the first block only: packing 0 to 20% faster on lists with number columns, files 0 to 1.1% bigger. Off by default; default output byte-identical.
 - 2026-10-30 · **memory-compression** 2.6.6 · API 2: Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes
+- 2026-10-30 · **lfc-pack** 0.2.1 · API 0: Text-heavy files come out smaller (web logs 3.4% smaller, FHIR records 1.0%) with the same pack and read speed; older readers open them as before.
 - 2026-10-30 · **lfc-pack** 0.2.0 · API 0: Default block size 13 MB (was 21 MB): parallel pack 34-36% faster on a 16-core laptop, same size; `packParallel` hands out one block at a time (7 to 27% faster); `warmPack(n)`. New `meta` option with `LfcPack.metadata(bytes)`, `LfcPack.unpackRows(bytes, {from, count})` (decodes only the blocks it needs, builds only those rows) and `LfcPack.stats(bytes)` (column facts from the footer). Faster one-column reads and wide row objects (WebKit 200-key whole read 1,324 to 580 ms). New `LfcPack.hash(bytes, kind)`, a file viewer (viewer.html), readers that refuse damaged blocks with a plain message, and an optional `check: 'xxh64'` block check with per-column checks (one-column reads about 40 to 50% faster).
 - 2026-10-30 · **lfc-pack** 0.1.11 · API 0: New packStream: feed text in pieces and write each block as it is ready, so packing a big file holds one block of text at a time
 - 2026-10-30 · **lfc-pack** 0.1.10 · API 0: New experimental unpackColumns reads flat-row files as typed columns without building row objects.

@@ -20,3 +20,14 @@ On small graphs d3-sankey is faster with the default settings. The default searc
 | 500 items, 6000 links | 7.6 | 7.8 |
 
 Same order and crossings from both versions. Only the smallest graph is faster.
+
+
+**Same tests in Firefox 160 (Windows), real laptop, 16 cores, 2026.10.30, 9:41 PM.** Medians; lower is better.
+
+| work | 2.3.1 ms | 2.3.2 ms |
+|---|---:|---:|
+| 72 items, 200 links | 3.0 | 2.0 |
+| 200 items, 1500 links | 4.0 | 4.0 |
+| 500 items, 6000 links | 10 | 10 |
+
+Against d3-sankey in Firefox 160 (ms): 72 nodes 2.0 (restarts 0: 0.5) against 1.0, so d3 is faster with the default settings there; 200 nodes 3.0 against 11 (3.7x); 500 nodes 11 against 61 (5.5x).
