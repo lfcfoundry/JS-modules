@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.4.2 (API 0)
+ * Version 0.4.3 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1261,6 +1261,7 @@
   // the packer's memory only (the tokenizer and string dictionary, which holds most of what a pack grows): the zstd memory stays, so the next job does not grow it again.
   // Pack helpers do this when they go idle (pool.js): back-to-back packParallel calls stay as fast, and the waiting helpers hold 200 MB to 1.1 GB less.
   function trimPacker() {
+    if (S.idle) { clearTimeout(S.idle); S.idle = null; }
     if (S.core) { S.core = loadSync(coreName()); S.sh.rebind(S.core); }
     dropSmallWasm();
   }
@@ -1278,7 +1279,20 @@
     }
     return packMany(inputs, packOpts(opts));
   }
+  // idle auto-trim: 30 s after the last pack, the packer's memory goes back (trimPacker: about 38 MB after a 66.6 MB pack, up to about 250 MB with big blocks).
+  // The zstd memory stays, so reads stay fast, and trimPacker keeps the warmed-up shredder (rebind), so the next pack is not slower in Chromium or Firefox.
+  var AUTO_TRIM_MS = 30000;
   function packMany(inputs, opts) {
+    if (S.idle) { clearTimeout(S.idle); S.idle = null; }
+    try { return packManyNow(inputs, opts); }
+    finally { armTrim(); }
+  }
+  function armTrim() {
+    if (!(AUTO_TRIM_MS > 0) || typeof setTimeout !== 'function') return;
+    S.idle = setTimeout(function () { S.idle = null; trimPacker(); }, AUTO_TRIM_MS);
+    if (S.idle && S.idle.unref) S.idle.unref(); // never keeps Node running
+  }
+  function packManyNow(inputs, opts) {
     opts = opts || {}; need(true);
     var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], off = 0, rows = 0, tail = true;
     var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st, paths: opts.paths === 'only' ? 'only' : opts.paths !== false }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
@@ -1590,7 +1604,7 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { trim: trim, _trimPacker: trimPacker, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.2', apiVersion: 0 };
+  var api = { trim: trim, _trimPacker: trimPacker, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.3', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

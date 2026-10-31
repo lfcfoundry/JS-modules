@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 0.4.2 (API 0)
+# Version 0.4.3 (API 0)
 # Concatenates src/*.js into lfc-pack.js and embeds the wasm modules (base64). Run from anywhere.
 import base64, os, sys
 here = os.path.dirname(os.path.abspath(__file__))
