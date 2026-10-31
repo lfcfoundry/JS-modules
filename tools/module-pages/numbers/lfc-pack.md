@@ -92,3 +92,22 @@ Note: one logs unpack run read slow (86 ms); two reruns gave level results, so i
 | events | 0.4% |
 
 Nothing came out larger, and pack time is within noise. Older readers open the files as before.
+
+
+**New in 0.3.0: decimals take 40 to 85% less space.** Cloud runs in Node and three browsers (not the laptop). Files that use the new columns need a 0.3.0 reader.
+
+| File size of decimal data, flat rows (100,000 rows, bytes) | Before | Now | Change |
+|---|---:|---:|---:|
+| Sensor readings, 3 decimals | 257,878 | 106,089 | -59% |
+| GPS latitude, 5 decimals | 185,942 | 68,141 | -63% |
+| Price, 4 decimals | 310,402 | 161,698 | -48% |
+| Random values, 3 decimals | 358,103 | 212,902 | -41% |
+
+| File size of decimal data in nested rows (bytes) | Before | Now | Change |
+|---|---:|---:|---:|
+| Sensor rows with ids and lists (100,000 rows) | 504,211 | 106,246 | -79% |
+| GeoJSON points (50,000) | 421,852 | 146,499 | -65% |
+| Orders with 2-decimal prices (50,000) | 449,125 | 226,975 | -50% |
+| Epoch milliseconds + random big ints (50,000) | 466,513 | 399,701 | -14% |
+
+Size as a share of 0.1.9 (Node, cloud, lower is better): map lines (GeoJSON-like) 0.30, prices and rates 0.78, web logs 1.00, dense records 1.03. Pack and unpack times are within noise. Row ranges, column stats, metadata and hash are also new in this release. Measured and not built: trained dictionaries (files grew) and a shared string table (under 0.1% possible).
