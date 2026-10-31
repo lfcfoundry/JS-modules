@@ -47,7 +47,7 @@
   function decodeDecimalColumn(raw, n) {
     var d = raw[0] & 15, delta = raw[0] & 128, k = ((raw[0] >> 4) & 7) + 1, u = unvarints(raw.subarray(1), n), sc = Math.pow(10, d), o = new Float64Array(n), w = new Float64Array(n), i, s;
     if (d > 9) throw new Error('damaged block: bad decimal column');
-    for (i = 0; i < n; i++) { if (delta) { s = (i >= k ? w[i - k] : 0) + unzz(u[i]); w[i] = s; o[i] = s / sc; } else o[i] = unzz(u[i]) / sc; }
+    for (i = 0; i < n; i++) { if (delta) { s = (i >= k ? w[i - k] : 0) + unzz(u[i]); if (s > 9007199254740992 || s < -9007199254740992) throw new Error('damaged block: number column out of range'); w[i] = s; o[i] = s / sc; } else o[i] = unzz(u[i]) / sc; }
     return new Uint8Array(o.buffer);
   }
   function writeNestedBlock(ctx, input, opts) {
@@ -120,6 +120,7 @@
   }
   nestedFrames = guard(nestedFrames);
   function nestedTransfer(F) { var t = [F.dict.buffer, F.ids[2].buffer], i; for (i = 0; i < F.cols.length; i++) t.push(F.cols[i][3].buffer); return t; }
+  var NONASCII = /[\x80-\xff]/;   // dictionary text is ASCII (LAYOUT-SPEC 3.4)
   function makeNestedReader(zs) {
     var STRS = null, TI = 0, COLS = new Map(), PLAN = new Map();
     function col(h) { var c = COLS.get(h); if (!c) { c = { h: h, a: null, i: 0 }; COLS.set(h, c); } return c; }
@@ -156,14 +157,16 @@
     }
     // assemble one block from its decompressed frames (nestedFrames): the dictionary strings and column arrays the row builder reads
     function openBlock(F) {
-      var D = tlat.decode(F.dict).split('\0'), sd = F.side, i, cols = new Map();
-      for (i = 0; i < sd.idx.length; i++) D[sd.idx[i]] = sd.str[i];
+      var dt = tlat.decode(F.dict), D, sd = F.side, i, cols = new Map();
+      if (NONASCII.test(dt)) throw new Error('damaged block: dictionary text is not ASCII');
+      D = dt.split('\0');
+      for (i = 0; i < sd.idx.length; i++) { if (!(sd.idx[i] >= 0 && sd.idx[i] < D.length)) throw new Error('damaged block: side list index out of range'); D[sd.idx[i]] = sd.str[i]; }
       for (i = 0; i < F.cols.length; i++) { var cd = F.cols[i]; cols.set(cd[0], new KIND[cd[1]](cd[3].buffer, cd[3].byteOffset, cd[2])); }
       return { n: F.n, ids: new KIND[F.ids[0]](F.ids[2].buffer, F.ids[2].byteOffset, F.ids[1]), skel: F.skel.split('\n'), cols: cols, dict: D, codes: cols.get(CODES_KEY) };
     }
     function rowsOf(b) {
       var D = b.dict, cd = b.codes, n = cd ? cd.length : 0, E = new Array(n), i;
-      for (i = 0; i < n; i++) E[i] = D[cd[i]];
+      for (i = 0; i < n; i++) { if ((E[i] = D[cd[i]]) === undefined) throw new Error('damaged block: string code out of range'); }
       STRS = E; TI = 0;
       var sl = b.skel, fnById = new Array(sl.length);
       for (i = 0; i < sl.length; i++) { var f = PLAN.get(sl[i]); if (!f) { f = desc(JSON.parse(sl[i]), ''); PLAN.set(sl[i], f); } fnById[i] = f; }

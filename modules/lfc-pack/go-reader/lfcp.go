@@ -477,6 +477,9 @@ func decimals(raw []byte, n int) []float64 {
 		if raw[0]&128 != 0 && i >= k {
 			v += w[i-k]
 		}
+		if v > 1<<53 || v < -(1<<53) {
+			fail("number column out of range")
+		}
 		w[i] = v
 		out[i] = float64(v) / sc
 	}

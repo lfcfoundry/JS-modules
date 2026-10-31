@@ -132,6 +132,7 @@ def damage(d, gobin, every, seed):
         if key in ('crash/hang', 'rows differ', 'one refuses, another reads'): bad.append((n, kinds[n], c, r))
     print('damage: %d files from %d sources, %s, %.0f s' % (len(paths), len(src), dict(cnt), time.time() - t0))
     for k, v in sorted(by.items()): print('  %-10s %s' % (k, dict(v)))
+    bad.sort(key=lambda b: (b[2].split(':')[0] != 'rows differ', b[0]))   # real disagreements first, so the 25 shown and kept are the worst ones
     for b in bad[:25]: print('  ', b[0], b[1], b[2], {k: v[:2] for k, v in b[3].items()})
     keep = os.path.join(tempfile.gettempdir(), 'fuzz-damage-kept'); shutil.rmtree(keep, ignore_errors=True); os.makedirs(keep)
     for b in bad[:25]: shutil.copy(os.path.join(out, b[0] + '.lfc'), keep)
