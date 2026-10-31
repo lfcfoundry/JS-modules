@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Decimal number columns (3 to 5 decimals, slowly changing or not): file size, pack time and read time of the build under test against OLD=path/to/older/lfc-pack.js, taking turns. Copyright (c) 2026 LFC Foundry. MIT License.
-// Run: node tests/lfc-pack-numbers-browser.js <chromium|firefox|webkit> [out.json]     Env: N=rows (default 100000), OLD=/path/old/lfc-pack.js (default /tmp/lfc-pack-old.js), REPS=11
+// Run: node tests/lfc-pack-numbers-browser.js <chromium|firefox|webkit> [out.json]     Env: NESTED=1 (rows with a nested object and a list, so the nested layout is used), N=rows (default 100000), OLD=/path/old/lfc-pack.js (default /tmp/lfc-pack-old.js), REPS=11
 'use strict';
 const fs = require('fs'), path = require('path'), T = require('../tools/test-runner/runner.js');
 const NEW = fs.readFileSync(path.resolve(__dirname, '../modules/lfc-pack/lfc-pack.js'), 'utf8'), OLD = fs.readFileSync(process.env.OLD || '/tmp/lfc-pack-old.js', 'utf8'), REPS = +process.env.REPS || 11;
@@ -14,7 +14,7 @@ async function setup() {
   SETS.forEach(function (s) { c[s] = []; });
   for (i = 0; i < n; i++) { x += g() * 0.05; c['sensor 3 dec'].push(+x.toFixed(3)); la += g() * 0.0001; c['GPS 5 dec'].push(+la.toFixed(5)); c['random 3 dec'].push(+(r() * 100).toFixed(3)); p *= 1 + g() * 0.0005; c['price 4 dec'].push(+p.toFixed(4)); c['noisy 2 dec'].push(Math.round(1000 + g() * 30) / 100); }
   SETS.forEach(function (s) {
-    TEXT[s] = c[s].map(function (v, k) { return JSON.stringify({ t: k, v: v }); }).join('\\n') + '\\n';
+    TEXT[s] = c[s].map(function (v, k) { return JSON.stringify(__ROW__); }).join('\\n') + '\\n';
     FILES[s] = { old: window.LfcOld.pack(TEXT[s]), neu: J.pack(TEXT[s]) };
     var a = J.unpack(FILES[s].neu), b = J.unpack(FILES[s].old); if (a.length !== n || a[n - 1].v !== c[s][n - 1] || a[777].v !== c[s][777] || b[777].v !== c[s][777]) bad.push(s);
   });
@@ -24,7 +24,7 @@ async function job(name) {
   var q = name.split('|'), L = q[0] === 'old' ? window.LfcOld : window.LfcPack, t = performance.now(), x;
   if (q[1] === 'pack') x = L.pack(TEXT[q[2]]); else x = L.unpack(FILES[q[2]][q[0] === 'old' ? 'old' : 'neu']);
   return performance.now() - t;
-}`).replace('__N__', process.env.N || '100000');
+}`).replace('__N__', process.env.N || '100000').replace('__ROW__', process.env.NESTED ? "{ t: k, meta: { src: 'a' + (k % 5) }, v: v, tags: [1, 2] }" : '{ t: k, v: v }');
 T.main(async (b, which, outFile) => {
   const srv = await T.serve({ '/p.html': '<!doctype html><meta charset=utf-8><script>' + OLD + '</script><script>window.LfcOld = window.LfcPack;</script><script>' + NEW + '</script><script>' + PAGE + '</script>' });
   const p = await b.newPage(); await p.goto(srv.base + '/p.html'); const s = await p.evaluate('setup()'); if (s.bad.length) throw new Error('round trip failed: ' + s.bad);
