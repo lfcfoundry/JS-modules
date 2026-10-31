@@ -6,31 +6,23 @@
 
 ## What it is and how it works
 
-save-kit stores a game's or app's progress in the browser safely. It checks each value before writing, keeps a rolling backup, and turns a save into a short text code that people can copy out and paste back. About 12.7 KB minified (5.4 KB gzipped), no dependencies. For saves larger than `localStorage` holds, `SaveKit.createLarge` gives the same protections over IndexedDB.
+save-kit stores game or app progress in the browser safely. One file, 5.4 KB gzipped, no dependencies. `createLarge` does the same over IndexedDB for big saves.
 
-- **You describe the save** as a schema: each field's name and type (a number, a whole number up to a limit, a flag, short text, a set of counts).
-- **On save,** it refuses to write when a number is broken (`NaN`, `Infinity`, or negative where it must not be), and at most once a minute it copies the last good save to a backup slot.
-- **On load,** it reads both the main slot and the backup and rebuilds the state field by field from the better one, so one damaged value costs only that value.
-- **Save codes** are the save packed into text (deflate where the browser supports it) with a short checksum, so a code that was cut off or mistyped is caught before it replaces anything.
-- **Autosave** writes on a timer and when the page is hidden or closed, because phones close background pages without warning.
+- You describe the save as a schema, and every field is checked on save and load.
+- A backup slot is kept, and a damaged value falls back alone instead of ruining the save.
+- Saves can be copied out as text codes with a checksum, and pasted back.
 
 ## Why it exists
 
-Losing progress is one of the quickest ways to lose a player, and in a browser game it happens quietly. A bug writes `NaN` into the score and the next save stores it. An update renames a field. A phone closes the page in the background before it saves. Two tabs overwrite each other. Storage is full and the write fails.
-
-The usual code is a few lines of `JSON.stringify` into `localStorage`. It is small and fine until one of those things happens, and then the whole save is gone or ruined. Storage libraries such as localForage and idb-keyval solve a different problem (where to keep data, and how much of it); they store whatever they are given, broken values included.
-
-save-kit was cut out of Apple Press and Fancy, the Banana, and treats stored data as untrusted every time it is read. It is larger than a hand-written save. In return, one bad value cannot take the rest of the save with it, and save codes give players a copy the browser cannot delete, which matters in Safari, which may clear the storage of a site not visited for a while.
+Browser saves fail quietly: a `NaN` gets written, a phone closes the page before it saves, two tabs overwrite each other. Plain `JSON.stringify` into `localStorage` loses everything when that happens, and storage libraries like localForage store whatever they are given. save-kit was cut out of Apple Press and Fancy, the Banana.
 
 **Where it helps**
 
-- Progress in browser games: scores, levels, unlocked items and settings.
-- Moving a save between devices or browsers by copy and paste, with no account or server.
-- Apps that keep settings or drafts in `localStorage` and must survive a bad value.
-- Saves larger than about 5 MB (big maps, long logs), through `createLarge` on IndexedDB.
-- Changing the save format later without breaking old saves (`version` and `migrate`).
+- Progress and settings in browser games.
+- Moving a save between devices by copy and paste, with no account.
+- Changing the save format later without breaking old saves.
 
-**Where something else fits better:** keeping secrets or stopping cheating (anyone can read and edit a code); and plain key-value storage with no fixed shape, where idb-keyval is smaller.
+**Not for:** secrets or anti-cheat (codes can be edited), or shapeless key-value storage.
 
 ## Use
 

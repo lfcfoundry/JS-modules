@@ -8,33 +8,25 @@ Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Found
 
 ## What it is and how it works
 
-LFC-pack is a file format, and a one-file library that writes and reads it, for keeping rows of JSON data (logs, events, API exports, records) small and quick to open in a browser. Files end in `.json.lfc`. The input is newline-delimited JSON (NDJSON: one JSON value per line), or an array of objects.
+LFC-pack is a compact file format for rows of JSON (logs, events, API exports), with a one-file library that writes and reads it. Files end in `.json.lfc`.
 
-It works in three steps:
+- Rows are cut into blocks of about 13 MB, and each field becomes its own typed column.
+- Repeated text is stored once, numbers are stored as numbers, and each column is compressed with zstd.
+- A footer lists every block and its value ranges, so a reader opens only the blocks and columns it needs.
 
-- **Cut the rows into blocks.** Rows are grouped into blocks of about 13 MB, so a reader can open one block without touching the others, and several cores can pack or read blocks at the same time.
-- **Turn each block into columns.** Inside a block, every field becomes its own typed column. Numbers are stored as numbers at the narrowest width that holds them (decimals as scaled whole numbers since 0.3.0), repeated text is stored once in a dictionary, and a missing field costs about one bit per row. Rows whose shape varies (nested objects, arrays, mixed types) use a nested layout that stores each distinct shape once.
-- **Compress and index.** Each column is compressed with zstd. A footer at the end of the file lists every block with its row count, its checksum and the smallest and largest value of each number column.
-
-A reader fetches the footer first, then opens only the blocks and columns it needs. Reading gives back the same values `JSON.parse` would give for each line, and with `exact: true` the original bytes. zstd and the tokenizer run as WebAssembly inside the one file, so a page needs only `'wasm-unsafe-eval'` in its content policy. Readers in Python and Go open the same files.
+Reading gives back what `JSON.parse` would, or the exact original bytes with `exact: true`. Readers in Python and Go open the same files.
 
 ## Why it exists
 
-JSON is how most data arrives, and it is costly to keep and to reopen. Every row spells out every key again, every number is stored as text, and the only way to get one field from one row is to parse the whole file. A 757 MB export takes seconds of `JSON.parse` before a page can show anything.
-
-The usual alternatives each give something up. gzip shrinks the file, but it still has to be unpacked and parsed in full. Parquet stores columns well, but it wants a fixed table schema decided up front, so rows whose shape changes are awkward, and its readers are large to ship inside a web page. A database is far more than a single-file offline app can carry.
-
-LFC-pack sits between them. It accepts JSON as it really is (missing fields, nested objects, mixed types in one field) and still gets the benefits of column storage. Two measured rules decide every change to the format: the file must be smaller than the best Parquet file for the same rows, and reading it back into JavaScript objects must be at least as fast as `JSON.parse` of the original text.
+JSON repeats every key on every row and stores numbers as text, and getting one field means parsing the whole file. gzip shrinks it but still needs a full parse; Parquet wants a fixed schema and a large reader. LFC-pack keeps JSON's flexibility and aims to be smaller than Parquet and at least as fast to read as `JSON.parse`.
 
 **Where it helps**
 
-- Shipping a large dataset inside an offline single-file app, where both download size and opening time matter.
-- Keeping logs or event streams, then reading only a time range or a few fields from them.
-- Saving app state that holds several tables (a map with its items, links and settings) as one compact file that opens in JavaScript, Python or Go.
-- Archiving API dumps where the shape of each record changes over time.
-- Charts and tables that need one column out of hundreds without decoding the rest.
+- Large datasets inside offline single-file apps.
+- Logs and events where you read only a time range or a few fields.
+- App state with several tables, saved as one file.
 
-**Where something else fits better:** data that already lives as a fixed table in a Python or Spark pipeline (Parquet has far wider tool support); small files of a few hundred KB (plain JSON with gzip is simpler); and anything that must stay readable for years, because the format is not frozen until a formal release.
+**Not for:** data already in a Parquet pipeline, or small files where JSON with gzip is simpler. The format is not frozen until a formal release.
 
 ## Use
 
