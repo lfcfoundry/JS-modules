@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.1 · API 0 · 2026-10-31
+- Big files with number columns: the page no longer copies them, so it stays responsive (Chromium 42 to 7 ms pause, up to 1.4x faster).
+
 ## 0.6.0 · API 0 · 2026-10-31
 - New: parseParallel takes a picked file directly; each helper reads its own piece, so the page never holds the whole file (1.0 to 1.75x faster).
 

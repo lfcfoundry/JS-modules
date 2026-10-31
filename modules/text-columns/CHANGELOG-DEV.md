@@ -5,6 +5,14 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 0.6.1 · API 0 · 2026-10-31
 
 ### Quick
+Helpers join number columns (C2).
+
+### Deep
+Helpers join number columns (C2). vs 0.6.0 picked file: Chromium 1.17-1.41x, stall 42->7 ms; Firefox 0.97-1.17x; WebKitGTK 0.94-0.99x. 576 same-answer cases per browser.
+
+## 0.6.1 · API 0 · 2026-10-31
+
+### Quick
 parseParallel: the helpers join the number columns, so the page no longer copies them (no new options). Against 0.6.0 with a picked file: Chromium 1.17 to 1.41x and its longest page stall 42 to 7 ms on a 45 MB number file; Firefox 0.97 to 1.17x; WebKitGTK 0.94 to 0.99x.
 
 ### Details
