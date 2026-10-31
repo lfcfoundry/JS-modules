@@ -2,6 +2,10 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-10-31
+- The small-entry inflate moved into its own WebAssembly module that is compiled the first time it is needed, so the file's load cost stays what it was in 1.4 (the checksum module is back to 1,476 bytes).
+- Helpers started by `expandBlob({ workers })` now shut down 5 seconds after the last use (`idleMs` changes it), so they stop holding memory while idle.
+
 ## 1.5.0 · API 1 · 2026-10-30
 - Faster: entries of 4 KB or less (compressed) are unpacked by a small WebAssembly inflate, about 1.5 to 2.2 times as fast for thousands of tiny files. Module grows by 9.4 KB of WebAssembly. Same files, same notes.
 
