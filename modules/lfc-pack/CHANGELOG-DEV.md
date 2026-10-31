@@ -2,7 +2,29 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
-## 0.4.1 · API 0 · 2026-10-31
+## Next (not released yet)
+
+### Quick
+`trimPacker()` (used by `trim()` and by idle `packParallel` helpers) now rebinds the existing shredder to the new core instance instead of building a new one. The first pack after a trim is no longer slower. Files are unchanged, and there is no API change.
+
+### Details
+`makeShredder()` returns `rebind(instance)`, which rebuilds the typed-array views over the new instance's memory and updates `x` and `mem`. The shredder functions themselves stay the same, so the engine keeps their optimized code. Before this, every trim created new closures, and the next pack ran on re-warming code. Measured on the first pack after 3.7 s idle (66.6 MB, early-stop A/B, after / no trim):
+
+| Browser | trim, rebuild shredder (0.4.1) | trim + rebind |
+|---|---|---|
+| Laptop Chromium 156 | 1.042 [1.019, 1.057] inconclusive | 0.984 [0.968, 0.999] ok |
+| Laptop Firefox 160 | 1.015 [0.992, 1.064] inconclusive | 1.017 [0.984, 1.021] ok |
+| Cloud Chromium 155 | 1.060 [0.933, 1.133] noisy | 0.941 [0.868, 1.035] ok |
+| Cloud WebKitGTK 2.52.6 | n/a | 1.056 [0.995, 1.134] inconclusive (vs rebuild: 1.019 [0.960, 1.035] ok) |
+
+### Deep
+The Linux page map of the Firefox content process shows that a 66.6 MB pack writes only 38.1 MB of the core's 384 MB, in 13 runs: the input copy, text, numbers, the number-grouping scratch and the dedupe table. Huge pages are not used. So a trim frees about 38 MB here, and the next pack faults those pages back in: about 27 ms at 0.7 ms per MB, or about 1% of the pack. Faulting cost 10 ms per MB on a busy cloud box, which explains an earlier +16% result there.
+
+What was tried:
+- Refilling exactly those pages in idle came out 1.080, noisy. It also gives the memory back, so it was dropped.
+- Touching all of the new memory in idle (cloud Chromium 0.871 ok) also gives the memory back.
+- `WebAssembly.Memory.prototype.discard` is in none of the three test browsers.
+
 
 ### Quick
 Row shapes are found faster in wasm (last row first, 8-byte compare, faster hash); packs 6-29% faster, files unchanged, no API change.

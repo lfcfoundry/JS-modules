@@ -12,8 +12,9 @@
   }
   var SIDE_CAP = 1 << 19, ROW_CAP = 1 << 18, NUM_CAP = 4 << 20, IN_CAP = 48 << 20;
   function makeShredder(inst) {
-    var X = inst.exports, mem = X.memory;
-    var v = {
+    // bind(): views over one core instance; rebind() points the same functions at a fresh instance (trim), so the engine keeps its warmed-up code
+    var X, mem, v;
+    function bind(i) { X = i.exports; mem = X.memory; v = {
       IN: new Uint8Array(mem.buffer, X.in_ptr(), IN_CAP), TEXT: new Uint8Array(mem.buffer, X.text_ptr(), 48 << 20),
       NODD: new Uint32Array(mem.buffer, X.nodd_ptr(), (1 << 20) * 4), ODD: new Uint8Array(mem.buffer, X.odd_ptr(), 1 << 18),
       RS: new Uint32Array(mem.buffer, X.rowstart_ptr(), ROW_CAP), RE: new Uint32Array(mem.buffer, X.rowend_ptr(), ROW_CAP),
@@ -22,7 +23,8 @@
       IDS: new Uint32Array(mem.buffer, X.ids_ptr(), ROW_CAP), SK: new Uint8Array(mem.buffer, X.sk_ptr(), 1 << 20),
       SHAPES: new Uint8Array(mem.buffer, X.shapes_ptr(), 16 << 20), SHOFF: new Uint32Array(mem.buffer, X.shoff_ptr(), (1 << 16) + 1),
       ST: new Uint32Array(mem.buffer, X.state_ptr(), 16)
-    };
+    }; }
+    bind(inst);
     // opts.exact: also collect the lists that restore the original bytes (rows with odd spacing or escapes, number spellings)
     function shred(bytes, opts) {
       var exact = !!(opts && opts.exact); X.set_exact(exact ? 1 : 0);
@@ -84,5 +86,6 @@
       var skelList = []; for (i = 0; i < shapeN; i++) skelList.push(td.decode(v.SHAPES.subarray(v.SHOFF[i], v.SHOFF[i + 1])));
       return { textLen: Math.max(textLen - 1, 0), count: strN2, side: sideAll, cols: cols, skelList: skelList, ids: v.IDS.slice(0, rowN2), n: rowN2, fallback: fb, oddRows: oddRows, spell: spell };
     }
-    return { shred: shred, x: X, mem: mem, text: function () { return v.TEXT; } };
+    var o = { shred: shred, x: X, mem: mem, text: function () { return v.TEXT; }, rebind: function (i) { bind(i); o.x = X; o.mem = mem; } };
+    return o;
   }
