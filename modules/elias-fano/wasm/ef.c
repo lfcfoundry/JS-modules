@@ -266,6 +266,17 @@ static void efRange(const u8 *b, u32 a, u32 cnt, u32 *out) {
     out[i - a] = (u32)(((u64)hh << l) | lowAt(low, l, i)); i++; x &= x - 1;
   }
 }
+// many lists of one list set, for the lists that sit in one chunk: list ids[j] has cnt = offs[j+1] - offs[j] values starting at value aIdx[j] of the chunk (aIdx counts from the
+// chunk's first value, cs below is taken off by the caller); they are written to out + offs[j] less the list's base (its place in the chunk times K)
+void ef_gather(const u8 *b, u32 chunk, u32 C, u32 K, const u32 *ids, const u32 *aIdx, const u32 *offs, u32 k, u32 *out) {
+  for (u32 j = 0; j < k; j++) {
+    u32 d = offs[j], c = offs[j + 1] - d, id = ids[j];
+    if (!c || id / C != chunk) continue;
+    efRange(b, aIdx[j], c, out + d);
+    u32 bs = (id - chunk * C) * K;
+    for (u32 t = 0; t < c; t++) out[d + t] -= bs;
+  }
+}
 static void rangeOf(const u8 *b, u32 kind, u32 a, u32 cnt, u32 *out) { if (kind == 0) efRange(b, a, cnt, out); else pef_decode_range(b, a, a + cnt, out); }
 static u32 nextOf(const u8 *b, u32 kind, u32 x) { return kind == 0 ? nextOne(b, x) : pef_next(b, x); }
 // two lists, a the shorter; writes the distinct common values to out, returns how many
