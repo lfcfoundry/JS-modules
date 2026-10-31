@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-10-30
+- New SaveKit.createLarge(): big saves in IndexedDB with a backup slot and an optional cross-tab lock. Up to 4x faster than idb-keyval and localForage on 16 MB; slower in a few cases (README). create() is unchanged.
+
 ## 1.2.2 · API 1 · 2026-10-27
 - A zero limit in a schema now means zero: max 0 or maxKeys 0 rejects nonempty text and count entries.
 
