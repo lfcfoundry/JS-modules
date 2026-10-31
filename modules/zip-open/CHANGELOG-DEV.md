@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-10-31
+
+### Quick
+Faster xlsx sheet XML scanner: quote-position cache, indexOf tag ends, hand-written attribute parser with regex fallback, text decoded only when needed. Same output; no API change.
+
+### Details
+Early-stop A/B, 1.7.0 / 1.6.0 (lower is better): laptop Firefox 160 60k rows 0.887 (0.856-0.963), 6k 0.797 (0.732-0.913); laptop Chromium 156 60k 0.762 (0.664-0.902, noisy), 6k 0.767 (0.685-0.778); cloud Chromium 155 0.711, Firefox 158 0.782, WebKitGTK 0.766 at 60k. Differential test of new vs old scanner on 40,000 random XML pieces.
+
+### Deep
+Faster Excel sheet scanner: laptop Chromium 23-24% faster, laptop Firefox 11-20% faster, cloud 22-29% faster; same output (40,000-piece differential test).
+
 ## 1.6.0 · API 1 · 2026-10-31
 
 ### Quick
