@@ -17,3 +17,8 @@ A 16-bit WebAssembly kernel takes 0.60 to 0.80 of the time at 640 x 360 and 1920
 
 
 **New in 1.1.0: blur on several cores (opt-in), same bytes.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop). The helpers route (`route: 'helpers'` or `workers: n`) takes 0.51 to 0.85 of the one-thread WebAssembly time in Chromium and 0.50 to 0.85 in Firefox; WebKitGTK is about even. Together with 1.0.1's 16-bit kernel, a 4K blur takes roughly 0.35 of the 1.0.0 time in Chromium and Firefox. It needs `worker-src blob:` and falls back to WebAssembly without it. A laptop run will replace these.
+
+
+**New in 1.2.0: a shared-memory threads route (opt-in), same bytes.** Cloud-browser runs (4 cores, shared machine, not noise-guarded, not the laptop). `route: 'threads'` blurs on several cores sharing one memory, but only on pages served with the two cross-origin isolation headers, so the offline apps never use it. WebKitGTK cannot use it and runs the helpers route instead.
+
+Threads time divided by helpers time: Chromium 0.78 to 1.12, Firefox 0.74 to 1.14 (most sizes 0.8 to 0.9). Fastest multicore route divided by 1.0.0's one-thread WebAssembly: Chromium 0.32 to 0.52, Firefox 0.32 to 0.49, WebKitGTK (helpers) 0.27 to 0.43. A laptop run will replace these.
