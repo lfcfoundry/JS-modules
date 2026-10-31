@@ -3,6 +3,7 @@
 # Builds a themed web page for a module (or a group of small modules) from its README.md and its modules.json entry.
 #   python3 tools/module-pages/build.py pcodec-js save-kit    write modules/<id>/index.html for each id
 #   python3 tools/module-pages/build.py --all                 every module in modules.json
+#   python3 tools/module-pages/build.py --all --check         list pages older than their README or numbers file (exit 1 if any)
 import html, json, os, re, sys
 root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 GH = 'https://github.com/lfcfoundry/JS-modules/blob/main/'
@@ -83,7 +84,7 @@ def sections(readme):
     return head, secs, order
 GROUPS = [('Why it exists', ['Why it exists']),
           ('Highlights', ['Looks, timing and a worker', 'What it does that plain JSON saves do not', 'What is different', 'What it does differently', 'What it protects you from', 'Pick a file']),
-          ('How it compares', ['How it compares', 'Numbers', 'Measured', 'Compared']),
+          ('How it compares', ['How it compares', 'How it differs', 'Numbers', 'Measured', 'Compared']),
           ('How to use it', ['Use', 'Quick start', 'API', 'Options', 'Try it and test it', 'Lean builds', 'Lean build']),
           ('Who uses it', ['See it in action']),
           ('Good to know', ['Limits', 'What it is not', 'Good to know', 'Rules'])]
@@ -107,7 +108,9 @@ def module_html(m, base_mods):
             used.add(t)
             if t != title and len(ts) > 1 or t not in (title, 'Why it exists', 'Use', 'Quick start', 'How it compares', 'See it in action'): body.append('<h3>%s</h3>' % esc(t))
             body.append(md(secs[t], folder))
-    body.append('<h2 id="numbers">Speed and efficiency numbers</h2><div class="ph"><p><strong>Placeholder.</strong> Measured speed, size and memory numbers for this module will appear here as they are collected. Each will name the browser and device it was measured on. Until then, only the numbers already in the comparison above are published.</p></div>')
+    nf = os.path.join(root, 'tools/module-pages/numbers', mid + '.md')
+    if os.path.exists(nf): body.append('<h2 id="numbers">Speed and efficiency numbers</h2>' + md(open(nf, encoding='utf-8').read(), folder))
+    else: body.append('<h2 id="numbers">Speed and efficiency numbers</h2><div class="ph"><p><strong>Placeholder.</strong> Measured speed, size and memory numbers for this module will appear here as they are collected. Each will name the browser and device it was measured on. Until then, only the numbers already in the comparison above are published.</p></div>')
     rest = [t for t in order if t not in used and t not in ('For AI agents', 'Prior art and credits', 'Full research notes')]
     if rest:
         body.append('<h2 id="more">More</h2>')
@@ -127,7 +130,14 @@ def main(argv):
     data = json.load(open(os.path.join(root, 'modules.json'), encoding='utf-8'))
     mods = {m['id']: m for m in data['modules'] + data['tools']}
     ids = list(mods) if '--all' in argv else [a for a in argv if not a.startswith('--')]
+    stale = []
     for i in ids:
         m = mods[i]; folder = m.get('folder') or os.path.dirname(m['readme'])
+        if '--check' in argv:
+            f = os.path.join(root, folder, 'index.html')
+            if not os.path.exists(f) or open(f, encoding='utf-8').read() != module_html(m, mods): stale.append(i)
+            continue
         open(os.path.join(root, folder, 'index.html'), 'w', encoding='utf-8', newline='').write(module_html(m, mods)); print('wrote', folder + '/index.html')
+    if '--check' in argv:
+        print('stale pages: ' + (', '.join(stale) or 'none')); sys.exit(1 if stale else 0)
 if __name__ == '__main__': main(sys.argv[1:])
