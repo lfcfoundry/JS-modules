@@ -144,13 +144,13 @@
   }
   function readSpell(b) {   // -> { blockIndex: { row: spells } }
     if (!b) return {};
-    var raw = JSON.parse(td.decode(b)), out = {}, k, i;
+    var raw = JSON.parse(tdr.decode(b)), out = {}, k, i;
     for (k in raw) { out[k] = {}; for (i = 0; i < raw[k].length; i++) out[k][raw[k][i][0]] = raw[k][i][1]; }
     return out;
   }
   function readExc(b) {
     if (!b) return {};
-    var hl = rd32(b, 0), idx = JSON.parse(td.decode(b.subarray(4, 4 + hl))), p = 4 + hl, out = {}, k, i;
+    var hl = rd32(b, 0), idx = JSON.parse(tdr.decode(b.subarray(4, 4 + hl))), p = 4 + hl, out = {}, k, i;
     for (k in idx) { out[k] = {}; for (i = 0; i < idx[k].length; i++) { out[k][idx[k][i][0]] = b.subarray(p, p + idx[k][i][1]); p += idx[k][i][1]; } }
     return out;
   }
@@ -201,7 +201,7 @@
     if (typeof b[6] === 'string' && RX_X64.test(b[6]) && S.zdec && S.zdec.xxh64 ? hash(x, 'xxh64') !== b[6] : crcOf(x) !== b[2]) throw new Error('block ' + i + ' checksum mismatch');
     return x;
   }
-  function rawRows(t) { return td.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
+  function rawRows(t) { return tdr.decode(t).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); }); }
   // zone maps: a block is skipped when the number column for opts.range.key has no value inside [min, max]
   function blockMayMatch(file, i, range) {
     if (!range || !file.zone || !file.zone[i]) return true;
