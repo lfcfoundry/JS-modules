@@ -1347,16 +1347,26 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     S.idle = setTimeout(function () { S.idle = null; trimPacker(); }, AUTO_TRIM_MS);
     if (S.idle && S.idle.unref) S.idle.unref(); // never keeps Node running
   }
+  // paths: 'auto' pick from a sample: the first PATHS_SAMPLE bytes of the input packed with per-path strings everywhere and with none; the smaller wins.
+  // pack() and packParallel() both pick this way before any block is made, so they write the same bytes with no second try
+  var PATHS_SAMPLE = 131072;
+  function samplePick(b, opts) {
+    var e = b.length > PATHS_SAMPLE ? b.indexOf(10, PATHS_SAMPLE) : -1, sb = e < 0 ? b : b.subarray(0, e + 1), o = {}, k;
+    for (k in opts) if (k !== 'share' && k !== '_st' && k !== 'timing' && k !== 'workers') o[k] = opts[k];
+    o._pick = 1; o.paths = 'only'; var a1 = packManyNow([{ name: null, bytes: sb }], o).length;
+    o.paths = false; var a0 = packManyNow([{ name: null, bytes: sb }], o).length;
+    return a1 <= a0 ? 1 : 0;
+  }
   function packManyNow(inputs, opts) {
     opts = opts || {}; need(true);
     var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], off = 0, rows = 0, tail = true;
     var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
     var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
-    // paths: 'auto' (opt-in): in an input of PATHS_TRY blocks or more, the first big nested block is built both ways and the rest follow the smaller one
-    // (real FHIR records: 13% smaller and 12-18% faster without per-path strings); a shorter input keeps them, as trying both costs up to 20% there.
-    // Not the default: with packParallel helpers, files where per-path strings win pay 6-9% for the trial
+    // paths: 'auto' (opt-in): an input of PATHS_TRY blocks or more picks the string layout of its big nested blocks from a 128 KB sample (samplePick)
+    // (real FHIR records: 13% smaller and about 22% faster without per-path strings); a shorter input keeps per-path strings.
+    // With PATHS_SAMPLE = 0 the first big nested block is built both ways instead (the trial, kept for comparison)
     if (ctx.pick == null && opts.paths !== 'auto') ctx.pick = 1;   // the pick is opt-in: paths: 'auto'
-    if (ctx.pick == null && !opts._tryFirst) { for (ti = 0, mid = 0; ti < inputs.length; ti++) mid += inputs[ti].bytes.length; if (mid < PATHS_TRY * bb) ctx.pick = 1; mid = undefined; }
+    if (ctx.pick == null && !opts._tryFirst) { for (ti = 0, mid = 0; ti < inputs.length; ti++) mid += inputs[ti].bytes.length; ctx.pick = mid < PATHS_TRY * bb ? 1 : (typeof PATHS_SAMPLE !== 'undefined' && PATHS_SAMPLE > 0 ? samplePick(inputs[0].bytes, opts) : null); mid = undefined; }
     for (ti = 0; ti < inputs.length; ti++) {
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
     while (retry.length || p < b.length) {
@@ -1753,7 +1763,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       // per-path strings (see packMany): in a long input, groups sent before group 0 answers each try both layouts on their first big block;
       // once group 0's pick is known, later groups follow it and an early group that picked the other way is packed again, so the file is the one pack() writes
       var pickWait = false, curPick = 1, sentWith = [], redo = [], parked = [], picked = [];
-      if (jopts.paths === 'auto' && jopts._pick == null) { if (b.length < PATHS_TRY * bb) jopts._pick = 1; else pickWait = true; }
+      if (jopts.paths === 'auto' && jopts._pick == null) { if (b.length < PATHS_TRY * bb) jopts._pick = 1; else if (PATHS_SAMPLE > 0) jopts._pick = samplePick(b, jopts); else pickWait = true; }
       if (tm) { tm.cut = Date.now() - T0; tm.groups = []; }   // optional phase timing: ms from the call start, filled in as the run goes
       return new Promise(function (resolve, reject) {
         var ws = [], results = new Array(groups.length), left = groups.length, failed = false;

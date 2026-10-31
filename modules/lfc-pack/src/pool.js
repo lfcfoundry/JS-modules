@@ -85,7 +85,7 @@
       // per-path strings (see packMany): in a long input, groups sent before group 0 answers each try both layouts on their first big block;
       // once group 0's pick is known, later groups follow it and an early group that picked the other way is packed again, so the file is the one pack() writes
       var pickWait = false, curPick = 1, sentWith = [], redo = [], parked = [], picked = [];
-      if (jopts.paths === 'auto' && jopts._pick == null) { if (b.length < PATHS_TRY * bb) jopts._pick = 1; else pickWait = true; }
+      if (jopts.paths === 'auto' && jopts._pick == null) { if (b.length < PATHS_TRY * bb) jopts._pick = 1; else if (PATHS_SAMPLE > 0) jopts._pick = samplePick(b, jopts); else pickWait = true; }
       if (tm) { tm.cut = Date.now() - T0; tm.groups = []; }   // optional phase timing: ms from the call start, filled in as the run goes
       return new Promise(function (resolve, reject) {
         var ws = [], results = new Array(groups.length), left = groups.length, failed = false;
