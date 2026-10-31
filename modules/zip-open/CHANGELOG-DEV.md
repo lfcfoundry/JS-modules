@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.9.0 · API 1 · 2026-10-31
+
+### Quick
+Row reader reads cell attributes in place (no string per attribute), CSV quoting check by char codes for spaces and non-ASCII text, each shared text made CSV-ready once and numbers/dates never re-checked. Same output; no API change.
+
+### Details
+Early-stop A/B, 1.9.0 / 1.8.0 on workbook-to-CSV (lower is better), cloud: Chromium 155 60k rows 0.731, 6k 0.758, 20k with formulas 0.710, 30k all-text 0.937; Firefox 158 0.788, 0.824, 0.809, 0.878; WebKitGTK 2.52.6 0.685, 0.758, 0.873, 0.723. Alone: attributes in place 0.74-0.96, quoting check 0.87-1.03, quote-once 0.82-1.04; stacked beats each. New test: every text up to 4 characters from a 13-character tricky alphabet quoted exactly as the reference rule (inline, shared and formula-string cells).
+
+### Deep
+Excel reading 6 to 31% faster than 1.8.0 (cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6), same output: attributes read in place, wider CSV quoting fast path, shared text quoted once. Results: js-modules-research/zip-open/RESULTS-xlsx-fast-rows-2026.10.31.md (round 6).
+
 ## 1.8.0 · API 1 · 2026-10-31
 
 ### Quick
