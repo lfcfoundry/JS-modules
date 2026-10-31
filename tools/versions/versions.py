@@ -66,7 +66,7 @@ SHORT_LINE_MAX, SHORT_LINES_MAX = 240, 4
 DEV_INTRO = ("What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), "
              "Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. "
              "The API number goes up only when someone using an older copy could be affected.")
-NOT_PUBLIC = re.compile(r"Strata|\briver\b|Codex|Pixel|Ryzen|Radeon|\bUTC\b", re.I)
+NOT_PUBLIC = re.compile(r"Jawad|Strata|\briver\b|Codex|Pixel \d|Ryzen|Radeon|\bUTC\b", re.I)
 
 
 def dev_rel(root, e):
