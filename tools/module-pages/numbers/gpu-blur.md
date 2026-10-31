@@ -33,4 +33,4 @@ Threads time divided by helpers time: Chromium 0.78 to 1.12, Firefox 0.74 to 1.1
 |---|---:|---:|---:|
 | Helpers with kept bands + `into`, against 1.2.2 | 1.19 to 1.43 | 1.47 to 1.74 | 1.09 to 1.32 |
 
-One-thread WebAssembly with `into` takes 0.91 to 1.49x the speed of writing a fresh array, so it can be slightly slower on some sizes.
+On one thread (WebAssembly), `into` runs 0.91 to 1.49x as fast as a fresh array: slightly slower at some sizes, up to about 1.5x faster at others.
