@@ -92,8 +92,7 @@
         function release(ok) {   // finished helpers wait 3 s for the next call (they already hold the loaded wasm); a failed run ends them
           if (!ok) { ws.forEach(function (x) { x.kill(); }); ws = []; }
           else if (HELPER_TRIM_MS >= 0) { clearTimeout(trimTimer); trimTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.post({ kind: 't' }, []); }); }, HELPER_TRIM_MS); if (trimTimer.unref) trimTimer.unref(); }   // HELPER_TRIM_MS -1 (default): helpers keep their packer memory until they close 3 s after the last call; giving it back at once made every call grow it again (7-25% slower helper packs)
-          clearTimeout(idleTimer); idleHelpers = idleHelpers.concat(ws); ws = [];
-          idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, 3000); if (idleTimer.unref) idleTimer.unref();
+          idleHelpers = idleHelpers.concat(ws); ws = []; armIdle(3000);   // also after a failed run: helpers other calls left idle still get their closing time
         }
         function fail(err) { if (failed) return; failed = true; release(false); reject(err instanceof Error ? err : new Error(String(err && err.message || err))); }
         function onMsg(i, m, next, w2) {
@@ -132,16 +131,23 @@
   function warmPack(n, o) {
     return init().then(function () {
       var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, k = Math.min(n || hc, 8), keep = (o && o.keepMs) || 10000, made = [], i;
-      clearTimeout(idleTimer); for (i = idleHelpers.length; i < k; i++) made.push(takeHelper());
-      var all = idleHelpers.concat(made), pending = made.map(function (w2, j) { return new Promise(function (res, rej) { w2.listen(function (m) { if (m.error) rej(new Error(m.error)); else res(); }, rej); w2.post({ id: -1 - j, kind: 'w' }, []); }); });
+      clearTimeout(idleTimer); for (i = idleHelpers.length; i < k; i++) made.push(newHelper());   // new ones only: taking idle ones here started too few
+      var pending = made.map(function (w2, j) { return new Promise(function (res, rej) { w2.listen(function (m) { if (m.error) rej(new Error(m.error)); else res(); }, rej); w2.post({ id: -1 - j, kind: 'w' }, []); }); });
       return Promise.all(pending).then(function () {
-        idleHelpers = all; clearTimeout(idleTimer); idleTimer = setTimeout(function () { idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, keep); if (idleTimer.unref) idleTimer.unref();
-        return all.length;
-      });
+        idleHelpers = idleHelpers.concat(made); armIdle(keep);   // the list as it is now: a call that ran meanwhile may have taken or given back helpers
+        return idleHelpers.length;
+      }, function (e) { made.forEach(function (x) { x.kill(); }); armIdle(keep); throw e; });
     });
   }
+  function armIdle(ms) {   // one closing clock for the idle helpers only; busy helpers are never in idleHelpers, so it cannot end a running job
+    clearTimeout(idleTimer); idleTimer = null; if (!idleHelpers.length) return;
+    idleTimer = setTimeout(function () { idleTimer = null; idleHelpers.forEach(function (x) { x.kill(); }); idleHelpers = []; }, ms); if (idleTimer.unref) idleTimer.unref();
+  }
   function takeHelper() {   // a helper kept from the last packParallel call, or a new one
-    clearTimeout(idleTimer); clearTimeout(trimTimer); if (idleHelpers.length) return idleHelpers.pop();
+    clearTimeout(idleTimer); idleTimer = null; clearTimeout(trimTimer); if (idleHelpers.length) return idleHelpers.pop();   // the call's release starts the closing clock again
+    return newHelper();
+  }
+  function newHelper() {
     var src = workerSource(true), w;
     if (typeof Worker === 'function') {
       packUrl = packUrl || URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); w = new Worker(packUrl);
