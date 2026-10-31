@@ -113,3 +113,11 @@ Nothing came out larger, and pack time is within noise. Older readers open the f
 Size as a share of 0.1.9 (Node, cloud, lower is better): map lines (GeoJSON-like) 0.30, prices and rates 0.78, web logs 1.00, dense records 1.03. Pack and unpack times are within noise. Row ranges, column stats, metadata and hash are also new in this release. Measured and not built: trained dictionaries (files grew) and a shared string table (under 0.1% possible).
 
 **New in 0.3.1: decimal columns decode in one pass.** Cloud-browser run (shared machine, not the laptop): unpacking the map-lines file takes 70 ms in Chromium, 69 ms in Firefox and 31 ms in WebKitGTK, faster than 0.2.1 in all three.
+
+**New in 0.3.2: packing in small blocks is several times faster.** Cloud-browser runs (shared machine, not the laptop). The string and shape tables are now cleared only as far as each block used them. Files are byte-identical, and default 13 MB blocks are unchanged.
+
+| Pack time, ms, before / after (lower is better) | geo, 32 KB blocks | geo, 256 KB blocks | orders, 32 KB blocks |
+|---|---:|---:|---:|
+| Chromium | 1,452 / 415 | 391 / 204 | 2,572 / 1,098 |
+| Firefox | 1,506 / 413 | 408 / 249 | 2,658 / 897 |
+| WebKitGTK | 1,700 / 432 | 397 / 235 | 2,762 / 881 |

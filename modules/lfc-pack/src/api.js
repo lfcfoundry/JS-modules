@@ -21,8 +21,19 @@
     });
     return S.ready;
   }
+  // trim(): gives back the WebAssembly memory that earlier jobs grew (memory only grows; a new instance of each compiled module starts small and the old memory goes with the old instance). Call it between jobs, never during one.
+  function trim() {
+    if (S.zfull) { S.zfull = makeZstd(loadSync('zstd-full')); S.zdec = S.zfull; } else if (S.zdec) S.zdec = makeZstd(loadSync('zstd-dec'));
+    trimPacker();
+  }
+  // the packer's memory only (the tokenizer and string dictionary, which holds most of what a pack grows): the zstd memory stays, so the next job does not grow it again.
+  // Pack helpers do this when they go idle (pool.js): back-to-back packParallel calls stay as fast, and the waiting helpers hold 200 MB to 1.1 GB less.
+  function trimPacker() {
+    if (S.core) { S.core = loadSync(coreName()); S.sh = makeShredder(S.core); }
+    dropSmallWasm();
+  }
   function need(w) { if (w && !S.sh) throw new Error('LfcPack: call init() first'); if (!S.zdec) throw new Error('LfcPack: call init({readOnly:true}) or init() first'); }
-  function pack(input, opts) { return packMany([{ name: null, bytes: bytesOf(input) }], opts); }
+  function pack(input, opts) { return packMany([{ name: null, bytes: bytesOf(input) }], packOpts(opts)); }
   // ---- row objects in, bytes out (no NDJSON text needed); packTables keeps several named tables and plain values in one file
   function rowsText(rows) { var o = new Array(rows.length), i; for (i = 0; i < rows.length; i++) o[i] = JSON.stringify(rows[i]); return o.length ? o.join('\n') + '\n' : ''; }
   function packRows(rows, opts) { return pack(te.encode(rowsText(rows)), opts); }
@@ -33,19 +44,19 @@
       if (Array.isArray(v)) inputs.push({ name: names[i], kind: 'rows', bytes: te.encode(rowsText(v)) });
       else inputs.push({ name: names[i], kind: 'value', bytes: te.encode(JSON.stringify({ v: v === undefined ? null : v }) + '\n') });
     }
-    return packMany(inputs, opts);
+    return packMany(inputs, packOpts(opts));
   }
   function packMany(inputs, opts) {
     opts = opts || {}; need(true);
     var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], off = 0, rows = 0, tail = true;
-    var ctx = { zs: S.zfull, sh: S.sh }, exact = !!opts.exact, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
+    var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st, paths: opts.paths === 'only' ? 'only' : opts.paths !== false }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
     var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
     for (ti = 0; ti < inputs.length; ti++) {
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
     while (retry.length || p < b.length) {
       if (retry.length) { r0 = retry.pop(); s0 = r0[0]; e = r0[1]; }
       else { s0 = p; e = Math.min(b.length, p + bb); if (e < b.length) { var nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } p = e; }
-      chunk = b.subarray(s0, e); kind = opts.block; blk = null;
+      chunk = b.subarray(s0, e); kind = opts.block; blk = null; if (st) st.j = null;
       if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, 'r', ti)); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
       try {
         // auto: big blocks whose first rows are all flat objects go straight to the flat layout (it won on every flat-object set measured, and skipping the nested pass saves about 30% of pack time)
@@ -55,9 +66,10 @@
         if (kind !== 'flat' || !blk) {
           blk = writeNestedBlock(ctx, chunk, opts);
           // auto: the flat layout is also tried when every row is a flat object, or when shapes are nearly all different (it then keeps nested values as JSON text, which packs far smaller)
-          if (!kind && (flatSkeletons(blk.skelList) || blk.skelList.length * 4 > blk.rows)) { fb = writeFlatBlock(ctx, chunk, opts); if (fb && fb.bytes.length < blk.bytes.length) blk = fb; }
+          if (!kind && (flatSkeletons(blk.skelList) || blk.skelList.length * 4 > blk.rows)) { fb = writeFlatBlock(ctx, chunk, opts); if (fb && fb.bytes.length < blk.bytes.length + (blk.gnew || 0) / 2) { if (st) sharedUndo(st); blk = fb; } }   // with shared tables, the nested block also pays for about half the raw size of the strings it moved to the shared tables
         }
       } catch (err) {   // a block over the wasm limits (rows, numbers, strings, bytes) is cut in two at a line end and both halves are tried again
+        if (st) sharedUndo(st);
         mid = /capacity|too large/.test(String(err && err.message)) ? b.indexOf(10, s0 + ((e - s0) >> 1)) : -1;
         if (mid < 0 || mid + 1 >= e) throw err;
         retry.push([mid + 1, e], [s0, mid + 1]); continue;
@@ -74,11 +86,13 @@
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
     ];
     secs = secs.concat(metaSecs(opts));
+    if (st && !opts._st && st.used) secs.push(sharedSection(st));
     if (exact && Object.keys(exc).length) secs.push(excSection(exc));
     if (exact && Object.keys(spl).length) secs.push(spellSection(spl));
     parts.push(writeFooter(S.zfull, secs, true));
     return concat(parts);
   }
+  function sharedSection(st) { return { id: SEC_SHARED, flags: 1, payload: te.encode(JSON.stringify({ v: 1, s: st.s, k: st.k })) }; }
   // ---- byte-exact switch: rows whose canonical text differs from the input line keep their original bytes (section 9, the raw-line store)
   function exactSafe(chunk, fatal) {   // blank lines, carriage returns and invalid UTF-8 cannot be told apart from rows: those blocks are kept whole
     if (chunk.indexOf(13) >= 0) return false;
@@ -91,7 +105,7 @@
     var out = [], p = 0, e; while (p < chunk.length) { e = chunk.indexOf(10, p); if (e < 0) e = chunk.length; out.push([p, e]); p = e + 1; } return out;
   }
   function exceptionsOf(blk, chunk, kind) {   // read the block back and compare each row's canonical text with its input line
-    var rows = (kind === 'f' ? makeFlatReader(S.zdec) : makeNestedReader(S.zdec)).readBlock(blk.bytes), sp = lineSpans(chunk), list = [], i, line;
+    var rows = (kind === 'f' ? makeFlatReader(S.zdec) : makeNestedReader(S.zdec, null)).readBlock(blk.bytes), sp = lineSpans(chunk), list = [], i, line;
     if (rows.length !== sp.length) throw new Error('row count mismatch while checking exactness');
     var spells = [];
     for (i = 0; i < rows.length; i++) {
@@ -163,7 +177,7 @@
   }
   function readRawBlock(zs, bytes) { return zs.decompress(bytes.subarray(4), rd32(bytes, 0)); }
   function unpackText(bytes) {   // -> Uint8Array: the NDJSON text. Byte-for-byte the input when the file was packed with { exact: true }; canonical JSON text per row otherwise
-    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), flags = jsonSec(file.footer.sec[SEC_FLAGS]) || {}, exc = readExc(file.footer.sec[SEC_RAW]), spell = readSpell(file.footer.sec[SEC_SPELL]), sp, parts = [], i, j, rows, ex, last, nl = new Uint8Array([10]);
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec, sharedOf(file)), rf = makeFlatReader(S.zdec), flags = jsonSec(file.footer.sec[SEC_FLAGS]) || {}, exc = readExc(file.footer.sec[SEC_RAW]), spell = readSpell(file.footer.sec[SEC_SPELL]), sp, parts = [], i, j, rows, ex, last, nl = new Uint8Array([10]);
     for (i = 0; i < file.blocks.length; i++) {
       var kind = file.blocks[i][4], bb = blockBytes(file, i);
       if (kind === 'r') { parts.push(readRawBlock(S.zdec, bb)); continue; }
@@ -178,6 +192,27 @@
     var f = readFooter(S.zdec, bytes), blocks = jsonSec(f.sec[SEC_BLOCKS]);
     if (!blocks) throw new Error('damaged file: block table missing');
     return { bytes: bytes, footer: f, blocks: blocks, header: jsonSec(f.sec[SEC_HEADER]), zone: jsonSec(f.sec[SEC_ZONE]), meta: jsonSec(f.sec[SEC_META]) };
+  }
+  // the shared tables of nested blocks (section 16, written with { share: true }), parsed once per opened file; null when the file has none
+  function sharedOf(file) {
+    if (file.shared !== undefined) return file.shared;
+    var t = jsonSec(file.footer.sec[SEC_SHARED]) || null, i;
+    if (t) {
+      if (!Array.isArray(t.s) || !Array.isArray(t.k)) throw new Error('damaged file: shared tables');
+      for (i = 0; i < t.s.length; i++) if (typeof t.s[i] !== 'string') throw new Error('damaged file: shared tables');
+      for (i = 0; i < t.k.length; i++) if (typeof t.k[i] !== 'string') throw new Error('damaged file: shared tables');
+    }
+    return (file.shared = t);
+  }
+  // pack options: { access: 'random' } is the read-friendly preset (256 KB blocks of input and shared tables, so that reading a few rows decodes little; per-path strings are on by default anyway); options given next to it win
+  function packOpts(opts) {
+    opts = opts || {};
+    if (opts.access === undefined || opts.access === 'whole') return opts;
+    if (opts.access !== 'random') throw new Error('LfcPack: access must be \'random\' or \'whole\'');
+    var o = {}, k; for (k in opts) o[k] = opts[k];
+    if (o.blockBytes === undefined) o.blockBytes = 262144;
+    if (o.share === undefined) o.share = true;
+    return o;
   }
   // block checksum: the CRC-32 loop inside the zstd WebAssembly module when it is loaded (slicing by 8; both the full and the read-only build have it); the plain JavaScript loop otherwise or for small blocks
   function crcOf(x) { return S.zdec && S.zdec.crc32 && x.length >= 4096 ? S.zdec.crc32(x) : crcJS(x, 0); }
@@ -221,12 +256,12 @@
   // unpack(bytes, { keys: ['ts', 'ms'], range: { key: 'ts', min: 10, max: 20 } }): only those keys, only rows whose number is in range; blocks outside the range are never decoded
   function unpack(bytes, opts) {   // -> array of row objects
     if (opts) return unpackSome(bytes, opts);
-    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, r, j, kd;
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec, sharedOf(file)), rf = makeFlatReader(S.zdec), out = [], i, r, j, kd;
     for (i = 0; i < file.blocks.length; i++) { kd = file.blocks[i][4]; r = kd === 'r' ? rawRows(readRawBlock(S.zdec, blockBytes(file, i))) : (kd === 'f' ? rf : rn).readBlock(blockBytes(file, i)); for (j = 0; j < r.length; j++) out.push(r[j]); }
     return out;
   }
   function unpackSome(bytes, opts) {
-    var file = openFile(bytes), rn = makeNestedReader(S.zdec), rf = makeFlatReader(S.zdec), out = [], i, j, r, kd, want = null, range = opts.range || null;
+    var file = openFile(bytes), rn = makeNestedReader(S.zdec, sharedOf(file)), rf = makeFlatReader(S.zdec), out = [], i, j, r, kd, want = null, range = opts.range || null;
     rf.generated(opts.rows === 'generated');
     if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; if (range) want[range.key] = 1; }
     for (i = 0; i < file.blocks.length; i++) {
@@ -259,7 +294,7 @@
   function unpackRows(bytes, opts) {
     opts = opts || {}; var from = opts.from || 0, count = opts.count == null ? Infinity : opts.count, file = openFile(bytes), tb = opts.table || 0, i, kd, start = 0, out = [], r, b, lo, hi, rn, rf;
     for (i = 0; i < file.blocks.length; i++) if (file.blocks[i][4] === 'r') return unpackSome(bytes, { table: tb }).slice(from, count === Infinity ? undefined : from + count);
-    rn = makeNestedReader(S.zdec); rf = makeFlatReader(S.zdec);
+    rn = makeNestedReader(S.zdec, sharedOf(file)); rf = makeFlatReader(S.zdec);
     for (i = 0; i < file.blocks.length && out.length < count; i++) {
       b = file.blocks[i]; if ((b[5] || 0) !== tb) continue;
       if (start + b[3] > from) { kd = b[4]; lo = Math.max(0, from - start); hi = Math.min(b[3], lo + (count - out.length)); if (kd === 'f') { r = rf.readRange(blockBytes(file, i), lo, hi); for (lo = 0; lo < r.length; lo++) out.push(r[lo]); } else { r = rn.readBlock(blockBytes(file, i)); hi = Math.min(r.length, hi); for (; lo < hi; lo++) out.push(r[lo]); } }
@@ -276,11 +311,12 @@
   function info(bytes) { var f = openFile(bytes); return { rows: f.header.rows, blocks: f.blocks.length, size: f.bytes.length, major: f.footer.major, minor: f.footer.minor }; }
   // ---- streaming pack: packStream({ blockBytes }) -> { push(bytes) -> [Uint8Array blocks ready to write], finish() -> [last blocks + footer] }. The output parts joined are the same bytes pack() gives for the same text and blockBytes; only one block of text is held at a time. Value-exact mode only.
   function packStream(opts) {
-    opts = opts || {}; need(true);
+    opts = packOpts(opts); need(true);
     if (opts.exact) throw new Error('LfcPack: packStream does not support exact mode yet');
+    var st = opts.share ? sharedState() : null, mopts = st ? Object.assign({}, opts, { _st: st }) : opts;
     var bb = opts.blockBytes || BLOCK_BYTES, buf = new Uint8Array(0), blocks = [], zone = [], off = 0, rows = 0, tail = true, done = false;
     function cut(chunk) {   // one chunk of whole lines -> its block bytes, with the table entries moved to this file's offsets
-      var mini = pack(chunk, opts), f = openFile(mini), out = [], i, b, e;
+      var mini = packMany([{ name: null, bytes: chunk }], mopts), f = openFile(mini), out = [], i, b, e;
       for (i = 0; i < f.blocks.length; i++) {
         b = f.blocks[i]; e = mini.subarray(b[0], b[0] + b[1]);
         blocks.push([off].concat(b.slice(1, 5), 0, b.slice(6))); zone.push(f.zone[i] || []); off += b[1]; rows += b[3]; out.push(e);
@@ -309,7 +345,7 @@
           { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
           { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
           { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
-          { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }].concat(metaSecs(opts)), true));
+          { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }].concat(metaSecs(opts), st && st.used ? [sharedSection(st)] : []), true));
         return out;
       }
     };
@@ -322,4 +358,4 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.3.1', apiVersion: 0 };
+  var api = { trim: trim, _trimPacker: trimPacker, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.3.2', apiVersion: 0 };

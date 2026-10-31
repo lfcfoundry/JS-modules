@@ -155,6 +155,53 @@ When `E = 0` the dictionary text is empty. When `nu = 0` and `ns > 0` it is `ns 
 ### 3.5 Assembling rows
 For row `i`: look up shape `ids[i]` and build the value by the shape: objects get their members in shape order, arrays their elements in order; leaf values come from 3.3 and 3.4. Keep one read pointer per column and one string-cell pointer for the whole block.
 
+### 3.5a Per-path strings (header `sp: 1`)
+A nested block may keep its strings per *string path* instead of in one walk-order stream. A string path is the path (3.3) of a string cell (shape `1` or `5`); its hash is the FNV-1a hash of the path, as for columns (a string path and a number column with the same path are different things and never meet). Strings at one path are few and alike, so their repeat numbers are small.
+
+Layout:
+```
+u32 hl | header | Z(colmeta) | Z(dict) | Z(side) | Z(skeletons) | Z(row shape ids) | Z(path table) | Z(path flags) | Z(path repeats) | column frames ...
+```
+Header: as in 3.1 without `fa`, plus `"sp":1` and `"sf":[tableRaw, tableFrame, flagsRaw, flagsFrame, repKind, repCount, repFrame]`.
+- **Path table**: JSON array of `[hash, entries, cells]`, one per string path, in the order their data follows. `cells` is the number of string cells of the block at that path; `entries` the number of distinct strings used there (`0 <= entries <= cells`, and `entries > 0` when `cells > 0`). A reader MUST refuse a table entry that is not three whole numbers in range, the same hash twice, a path a row needs that the table lacks, and a block in which a path's cells are not all read. The sums MUST match: entries add up to `count`, `cells - entries` to `repCount`, and `ceil(cells / 8)` to `flagsRaw`.
+- **Dictionary**: `count` entries joined with U+0000 as in 3.4, holding the entries of the first path, then the second, and so on (a string used at two paths is there twice). Side strings: `idx` may name any entry below `count` (not only the last ones).
+- **Codes of path k**: its flags start at a fresh byte (byte `sum of ceil(cells / 8)` over the earlier paths); bit `j` 1 means the `j`th cell of the path is the next new entry of the path (0, 1, 2, ...), bit 0 means its local number is the next unread value of `path repeats` (typed bytes of kind `repKind`, u8, u16 or u32; the values of all paths follow each other in table order). A local number MUST be below the path's `entries`, and the new-entry counter MUST end at `entries`. The string is dictionary entry `base + local`, where `base` is the sum of `entries` of the earlier paths.
+- **Rows**: as 3.5, except that each string cell takes the next string of its own path instead of a block-wide pointer.
+
+The reference writer uses it by default (pack option `paths: false` turns it off), per block only when it comes out smaller than the walk-order layout (`paths: 'only'` always uses it; the test vectors are made that way). With `share: true` it uses the `sp: 2` layout of 3.6 instead, when that is smaller than the plain codes. Measured (100,000 rows, plain zstd level 3): GeoJSON points at the default block size 319,749 to 284,711 bytes (-11%), at 256 KB blocks 402,133 to 345,058 (-14%); orders -6% and -5%; at 32 KB blocks about the same.
+
+### 3.6 Shared tables (header `g: 1`, footer section 16)
+Written only with the pack option `share: true` (also part of `access: 'random'`). Small nested blocks repeat the same strings and shapes in every block; with shared tables a string or shape seen again in a later block is kept once for the whole file, in footer section 16, and blocks point to it.
+
+Section 16 (required when present, flags 1) is JSON `{"v":1,"s":[string, ...],"k":[shape text, ...]}`: the shared strings `S` (full Unicode) and the shared shapes `K` (shape texts as in 3.2). A reader MUST refuse the file if `s` or `k` is not a list of strings, and MUST refuse a `g: 1` block when the section is missing.
+
+Layout of a block with `g: 1`:
+```
+u32 hl | header | Z(colmeta) | Z(dict) | Z(side) | Z(skeletons) | Z(row shape ids) | Z(string codes) | column frames ...
+```
+Header:
+```
+{ "k":"n", "n":ROWS, "g":1, "count":L, "kc":LK,
+  "len":[dictRaw, sideRaw, skeletonsRaw],
+  "p":[dictFrame, sideFrame, skeletonsFrame],
+  "ids":[idsKind, idsCount, idsFrame],
+  "cd":[codesKind, codesCount, codesFrame],
+  "cm":[colmetaRaw, colmetaFrame] }
+```
+There is no `fa`: the first flags and repeats are replaced by `Z(string codes)`, typed bytes of kind `cd[0]` (u8, u16 or u32; a reader MUST refuse another kind), `cd[1]` entries, one per string cell in walk order. Decoded sizes are as in 3.1, plus `string codes` `cd[1] * width(cd[0])`.
+- **Block strings**: `dict` and `side` are as in 3.4 with `E = L`: `nu` ASCII entries then `L - nu` placeholders filled from the side list. When `L = 0` the dictionary text is empty. A reader MUST refuse a block whose dictionary does not have exactly `L` entries (when `L > 0`).
+- **String codes**: code `c < L` is block entry `c`; code `c >= L` is shared string `S[c - L]`. A reader MUST refuse a code past `L + len(S) - 1`.
+- **Shapes**: `Z(skeletons)` holds the block's own `LK` shapes (empty text when `LK = 0`; a reader MUST refuse a block whose shape count is not `LK`). Shape id `j < LK` is block shape `j`; `j >= LK` is shared shape `K[j - LK]`. A reader MUST refuse an id past `LK + len(K) - 1`.
+- Columns, cells, paths and row assembly are exactly 3.3 and 3.5.
+
+**Shared tables with per-path strings** (header `g: 1` and `sp: 2`). The string codes of a `g: 1` block may be stored path after path. Layout:
+```
+u32 hl | header | Z(colmeta) | Z(dict) | Z(side) | Z(skeletons) | Z(row shape ids) | Z(path table) | Z(string codes) | column frames ...
+```
+The header adds `"sp":2` and `"pt":[tableRaw, tableFrame]`. `path table` is JSON `[[hash, cells], ...]`, one entry per string path (hash as in 3.5a). `string codes` is the same typed frame as above (`cd`), but holding the codes of the first path's cells, then the second path's, and so on. The `cells` MUST add up to `cd[1]`, and a hash MUST NOT appear twice. Each string cell takes the next code of its own path (3.5a, Rows), and the codes mean what they mean above. There are no flags: the codes are read as they are, which is why the reference writer uses this rather than the flags of 3.5a in shared-table blocks. A reader MUST refuse `sp: 1` together with `g: 1`, and `sp: 2` without it.
+
+Writer (reference, not a rule for readers): a string or shape first seen in a block stays in that block; when a later block meets it again it moves to the shared tables and every later block points to it ("promote on second sight"). A block that ends up as flat columns, or is cut and written again, takes back its changes to the tables. Shared tables are never written with `exact: true`, and `packParallel` packs on one thread when `share` is on (the tables need the blocks in order). Measured on 100,000 GeoJSON points: 32 KB blocks 596,682 to 492,811 bytes (-17%), 256 KB blocks 402,133 to 355,765 (-12%); at the default block size the files are about the same, because each string already sits in few blocks. Checked by `vectors/layout/nested-shared`.
+
 ## 4. Zone maps (footer section 5)
 `SPEC.md` 2.3 lists the same entry: `[hash, min, max, count]`, four numbers (an earlier draft said three). One list per block, in block order; an entry is a number column of that block.
 - Flat block: one entry per key whose column type is `V`, `B` or `F`; `hash` is the FNV-1a hash of `"." + key`; `min` and `max` are the real values (after dividing by the scale); `count` is the column's `n`.

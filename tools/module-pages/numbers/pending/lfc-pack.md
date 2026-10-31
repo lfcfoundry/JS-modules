@@ -13,6 +13,3 @@ Opt-in, defaults unchanged. Source: /mnt/project-files/js-modules-research/lfc-p
 - Both together: 256 KB blocks come out about the size of today's default files, while 100-row range reads stay 20 to 60x faster.
 - `access: 'random'`: read preset, 256 KB blocks plus share.
 
-
-## Staged 2026.10.31 8:14 AM ET: faster small-block packing (LFCP branch, not merged)
-Same file bytes. Pack ms old / new. 32 KB blocks, geo: Chromium 155 1452 / 415, Firefox 158 1506 / 413, WebKitGTK 2.52.6 1700 / 432. 256 KB blocks (`access: 'random'`): 391 / 204, 408 / 249, 397 / 235. Default blocks unchanged. A new `trim()` waits on the owner's OK. Source: /mnt/project-files/js-modules-research/lfc-pack/stack-retest-2026.10.31/RESULTS-share-paths-2026.10.31.md (cloud runs).

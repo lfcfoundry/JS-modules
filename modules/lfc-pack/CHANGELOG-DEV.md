@@ -2,6 +2,56 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.0 · API 0 · 2026-10-31
+
+### Quick
+Per-path strings on by default (paths:false off); share:true shared string/shape tables; access:'random' preset; trim(); idle pack helpers free memory; numbers grouped by path in wasm.
+
+### Details
+Nested blocks keep strings per string path by default (sp:1, LAYOUT-SPEC 3.5a): GeoJSON 100k points -11% at default blocks, -14% at 256 KB; orders -6%/-5%; older readers refuse such blocks; each block keeps the smaller layout. share:true (footer section 16, g:1, sp:2) -12 to -22% at small blocks. access:'random' = 256 KB blocks + share; 100-row reads 20-60x faster than 13 MB blocks, files 4-10% larger. trim() frees 80-90 MB after a 66.6 MB job in 2-24 ms (no idle auto-trim, by the owner's pick). Idle packParallel helpers free 200-350 MB (Chromium, Firefox) and about 1.1 GB (WebKitGTK). Number grouping in wasm: pack 3-25% faster, same bytes. String/shape tables cleared only as far as used (small-block packs 1.3-3.7x faster). Readers refuse short H/U/I frames.
+
+### Deep
+Per-path strings by default, share and access:'random' options, trim(), lower helper memory, faster packing.
+
+## Next (not released yet)
+
+### Details (number grouping)
+`shred()` grouped the numbers of a nested block by path with two JavaScript Map lookups per number. The path hashes are 32-bit, which are slow as Map keys. On its own that loop took about 60 ns per number in all three browsers (2,000,000 numbers in 96 to 143 ms). A direct-mapped cache in front of the Map was slower still (132 to 194 ms), so it was dropped.
+
+The new export `num_group` (wasm/core.c) does the grouping inside the module. It gives each path a dense id in first-seen order (an open-addressing table that is cleared only where it was used), then does a stable counting sort. JavaScript then takes each column as one `slice`, so column order and value order are unchanged and the files are byte-identical (5,913 packs: fuzz sources plus 4 data sets x 6 option sets). The scratch space is DDOUT, which is free until `dd_run`, so the module's memory does not grow. With more than 32,768 number paths in a block, it falls back to the JavaScript loop (test/manypaths.cjs).
+
+Pack ms, before / after, median of 7, two rounds (first and second number per cell):
+
+| Browser | orders 256 KB | orders default | geo 256 KB | geo default |
+|---|---|---|---|---|
+| Chromium 155 | 633, 528 / 475, 426 | 369, 348 / 310, 271 | 298, 246 / 270, 215 | 170, 205 / 141, 142 |
+| Firefox 158 | 636, 531 / 505, 526 | 391, 359 / 340, 384 | 321, 251 / 285, 261 | 262, 204 / 182, 177 |
+| WebKitGTK 2.52.6 | 553, 510 / 498, 455 | 405, 416 / 357, 330 | 288, 346 / 278, 228 | 235, 201 / 167, 165 |
+
+Also tried: reading decimal columns straight from the zstd output view instead of a copy. Firefox reads were 10 to 30% slower (loops over a wasm memory view are slower there), so the copy stays.
+
+### Quick (trim)
+New `trim()`: a fresh instance of each compiled wasm module takes over and the grown memory goes with the old one. Nothing else in the API changes.
+
+### Details (trim)
+- Memory: core.wasm declares 384 MB of initial memory (static arrays), and the zstd module grows to about 45 MB. Pages that were never touched cost nothing, but touched pages stay. After pack, unpack and drop of a 66.6 MB file, `trim()` freed about 80 to 90 MB of browser memory in Chromium 155, Firefox 158 and WebKitGTK 2.52.6.
+- Compiled modules are now kept (`MODS` in src/wasm.js), so `trim()` instantiates without compiling again. Before that change, `trim()` took 11 to 48 ms and the next pack ran on the browser's first code tier. Now it takes 2 to 24 ms: Chromium 2 ms, Firefox 14 to 24 ms, WebKitGTK 9 to 10 ms.
+- Pack after `trim()` (3 packs of the 66.6 MB file at `access: 'random'`, each side of two trims) stays within the run's noise in all three browsers. Test: `tests/lfc-pack-memory-browser.js` (STEPS), `test/trim.cjs`.
+- A job that is still running keeps its own instance (it holds it), so calling `trim()` between the awaits of `pool()` or `packParallel` is safe. The memory then goes when that job ends.
+
+### Details (pack helpers)
+`packParallel` helpers that wait for the next call (3 s; `warmPack` keepMs) now give back their packer memory as soon as they go idle. They keep the compiled wasm and their zstd memory, so the next call is as fast. Browser memory held between calls (median after 0.7 s idle, 4 helpers, 66.6 MB input, before / after): Chromium 1697 / 1501 and 1809 / 1476 MB, Firefox 1914 / 1592 and 1940 / 1591 MB, WebKitGTK 2234 / 1077 MB. The median of 7 back-to-back calls, before / after: Chromium 1216 / 1242 and 1214 / 1186 ms, Firefox 1312 / 1381 and 1336 / 1282 ms, WebKitGTK 1551 / 1475 ms. Giving back the zstd memory too was tried, and made Chromium back-to-back calls 6 to 10% slower, so the zstd memory stays.
+
+### Deep (trim)
+`packParallel` helpers each reserve about 402 MB of wasm (1.6 GB for 4). Pages that are never touched cost nothing, and the packer pages they touched now go when they idle (above). Main-thread `trim()` does not reach the helpers.
+## 0.3.2 · API 0 · 2026-10-31
+
+### Quick
+Quick: small-block packs no longer clear 16 MB per block.
+
+### Deep
+Quick: small-block packs no longer clear 16 MB per block. Details: dd_run sized its hash table to the block's strings (at least twice their count, up to 2^22 slots) and reset() clears only the shape slots used (SHSLOT). Pack ms old/new: Chromium geo 32 KB 1452/415, 256 KB 391/204, orders 32 KB 2572/1098, 256 KB 689/488; Firefox 1506/413, 408/249, 2658/897, 795/542; WebKitGTK 1700/432, 397/235, 2762/881, 704/531. Default 13 MB blocks unchanged (Chromium 151/151, 322/321). 28 files byte-identical. Deep: cherry-picked from the LFCP branch (463ff97) onto main; core.wasm rebuilt from main's core.c plus the fix (same size as the branch build).
+
 ## 0.3.1 · API 0 · 2026-10-30
 
 ### Quick
