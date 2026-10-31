@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.7.1 · API 0 · 2026-10-30
+
+### Quick
+betweennessAsync: a pool: false call now uses its own helpers instead of borrowing and closing the kept pool, so the kept helpers stay warm. Kept helpers now take 0.61 to 0.79x the time of pool: false (container, 100,000 items, 64 sources).
+
+### Details
+Before: getPool() returned the shared pool for pool: false calls and finish() closed it, so the next kept call paid worker start-up and the graph copy again. On the owner's laptop that made the default slower than pool: false (348 vs 284 ms in Firefox 160, 350 vs 284 in Chromium 156). Now getPool(count, own) builds a private pool for pool: false and endPool() ends only that one. Container (4 cores): Chromium kept 435 vs pool:false 550 ms; Firefox 158 kept 439 vs 719 ms. Same answers: 306-graph test passes.
+
+### Deep
+graph-walk 0.7.1: pool: false no longer closes the kept helper pool. Chromium 155 kept 435 ms vs pool:false 550 ms, Firefox 158 kept 439 vs 719 ms (100,000 items, 400,000 links, 64 sources, container 4 cores). Tests: 306 graphs pass.
+
 ## 0.7.0 · API 0 · 2026-10-30
 
 ### Quick
