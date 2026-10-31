@@ -51,8 +51,10 @@
     var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], off = 0, rows = 0, tail = true;
     var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
     var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
-    // Since 0.4.2, per-path strings: in an input of PATHS_TRY blocks or more, the first big nested block is built both ways and the rest follow the smaller one
-    // (real FHIR records: 13% smaller and 10-17% faster without them); a shorter input keeps them, as trying both costs up to 20% there
+    // paths: 'auto' (opt-in): in an input of PATHS_TRY blocks or more, the first big nested block is built both ways and the rest follow the smaller one
+    // (real FHIR records: 13% smaller and 12-18% faster without per-path strings); a shorter input keeps them, as trying both costs up to 20% there.
+    // Not the default: with packParallel helpers, files where per-path strings win pay 6-9% for the trial
+    if (ctx.pick == null && opts.paths !== 'auto') ctx.pick = 1;   // the pick is opt-in: paths: 'auto'
     if (ctx.pick == null && !opts._tryFirst) { for (ti = 0, mid = 0; ti < inputs.length; ti++) mid += inputs[ti].bytes.length; if (mid < PATHS_TRY * bb) ctx.pick = 1; mid = undefined; }
     for (ti = 0; ti < inputs.length; ti++) {
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
