@@ -21,6 +21,21 @@ Default 13 MB blocks: unchanged (Chromium rerun, 2 rounds of 9: 151 / 151 and 14
 ### Deep
 For a 256 KB block the memset was about 16 MB of writes against about 0.25 MB of input, so it dominated small-block packs, and it also touched 16 MB of memory that a small pack never needed. Output is unchanged because the table is exact (byte compare on every hit) and codes are given in first-seen order, so the table size changes only the probe path. Checked: 28 files (4 data sets x 7 option sets, nested, shared, per-path, flat) byte-identical between the old and new builds, and `node test/run.js` passes.
 
+### Details (number grouping)
+`shred()` grouped the numbers of a nested block by path with two JavaScript Map lookups per number. The path hashes are 32-bit, which are slow as Map keys. On its own that loop took about 60 ns per number in all three browsers (2,000,000 numbers in 96 to 143 ms). A direct-mapped cache in front of the Map was slower still (132 to 194 ms), so it was dropped.
+
+The new export `num_group` (wasm/core.c) does the grouping inside the module. It gives each path a dense id in first-seen order (an open-addressing table that is cleared only where it was used), then does a stable counting sort. JavaScript then takes each column as one `slice`, so column order and value order are unchanged and the files are byte-identical (5,913 packs: fuzz sources plus 4 data sets x 6 option sets). The scratch space is DDOUT, which is free until `dd_run`, so the module's memory does not grow. With more than 32,768 number paths in a block, it falls back to the JavaScript loop (test/manypaths.cjs).
+
+Pack ms, before / after, median of 7, two rounds (first and second number per cell):
+
+| Browser | orders 256 KB | orders default | geo 256 KB | geo default |
+|---|---|---|---|---|
+| Chromium 155 | 633, 528 / 475, 426 | 369, 348 / 310, 271 | 298, 246 / 270, 215 | 170, 205 / 141, 142 |
+| Firefox 158 | 636, 531 / 505, 526 | 391, 359 / 340, 384 | 321, 251 / 285, 261 | 262, 204 / 182, 177 |
+| WebKitGTK 2.52.6 | 553, 510 / 498, 455 | 405, 416 / 357, 330 | 288, 346 / 278, 228 | 235, 201 / 167, 165 |
+
+Also tried: reading decimal columns straight from the zstd output view instead of a copy. Firefox reads were 10 to 30% slower (loops over a wasm memory view are slower there), so the copy stays.
+
 ### Quick (trim)
 New `trim()`: a fresh instance of each compiled wasm module takes over and the grown memory goes with the old one. Nothing else in the API changes.
 

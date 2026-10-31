@@ -258,12 +258,18 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       }
       for (i = 0; i < v.ST[9]; i++) v.NUMV[v.SLOWN[i * 3]] = Number(td.decode(v.IN.subarray(v.SLOWN[i * 3 + 1], v.SLOWN[i * 3 + 2])));
       var S2 = v.ST, textLen = S2[0], numN2 = S2[1], strN2 = S2[3], rowN2 = S2[4], shapeN = S2[5];
-      // numbers by path hash: count first, then fill typed arrays
-      var counts = new Map(), h, cc;
+      // numbers by path hash, in first-seen order: grouped inside the wasm module when it has num_group (one slice per column), otherwise counted then filled here
+      var ng = X.num_group ? X.num_group(numN2) >>> 0 : 0xFFFFFFFF, cols, h, cc;
+      if (ng !== 0xFFFFFFFF) {
+        var GH = new Uint32Array(mem.buffer, X.ng_hash_ptr(), ng), GO = new Uint32Array(mem.buffer, X.ng_off_ptr(), ng + 1), NS = new Float64Array(mem.buffer, X.nums_ptr(), numN2);
+        cols = new Map(); for (i = 0; i < ng; i++) cols.set(GH[i], NS.slice(GO[i], GO[i + 1]));
+      } else {
+      var counts = new Map();
       for (i = 0; i < numN2; i++) { h = v.NUMP[i]; cc = counts.get(h); if (cc === undefined) counts.set(h, 1); else counts.set(h, cc + 1); }
-      var cols = new Map(), slot = new Map();
+      cols = new Map(); var slot = new Map();
       counts.forEach(function (n, hh) { var a = new Float64Array(n); cols.set(hh, a); slot.set(hh, { a: a, i: 0 }); });
       for (i = 0; i < numN2; i++) { cc = slot.get(v.NUMP[i]); cc.a[cc.i++] = v.NUMV[i]; }
+      }
       sideAll.sort(function (a, b) { return a[0] - b[0]; });
       var skelList = []; for (i = 0; i < shapeN; i++) skelList.push(td.decode(v.SHAPES.subarray(v.SHOFF[i], v.SHOFF[i + 1])));
       return { textLen: Math.max(textLen - 1, 0), count: strN2, side: sideAll, cols: cols, skelList: skelList, ids: v.IDS.slice(0, rowN2), n: rowN2, fallback: fb, oddRows: oddRows, spell: spell };

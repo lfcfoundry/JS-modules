@@ -135,8 +135,38 @@ EXPORT("run") u32 run(void){
 #define DD_OUT_CAP (48u<<20)
 #define DD_MAXS (8u<<20)
 #define DD_TBITS 22
-static u8 DDOUT[DD_OUT_CAP+16]; static u32 DDCODES[DD_MAXS]; static u32 DDTAB[1u<<DD_TBITS]; static u32 DDOFF[DD_MAXS]; static u32 DDLEN[DD_MAXS];
+static u8 DDOUT[DD_OUT_CAP+16] __attribute__((aligned(16))); static u32 DDCODES[DD_MAXS]; static u32 DDTAB[1u<<DD_TBITS]; static u32 DDOFF[DD_MAXS]; static u32 DDLEN[DD_MAXS];
 static u32 ddN, ddOutLen;
+/* ---- numbers grouped by path: a dense id per path hash (in first-seen order), then a stable counting sort, so JavaScript takes each column as one slice.
+   Doing this in JavaScript cost a Map lookup per number (about 60 ns each in all three browsers). Returns the number of paths, or 0xFFFFFFFF when there are more than NG_MAX (the caller then groups in JavaScript). */
+#define NG_TBITS 16
+#define NG_MAX (1u<<15)
+static u32 NGTAB[1u<<NG_TBITS]; static u32 NGHASH[NG_MAX], NGSLOT[NG_MAX], NGOFF[NG_MAX+1], NGPOS[NG_MAX];
+/* scratch in DDOUT, which is free until dd_run (JavaScript copies the columns out first): the sorted numbers (8 bytes each), then the path ids (4 bytes each); NUMP stays as it was for the JavaScript fallback */
+#define NUMS ((f64*)DDOUT)
+#define NUMI ((u32*)(DDOUT+NUM_CAP*8u))
+_Static_assert(NUM_CAP*12u <= DD_OUT_CAP, "num_group scratch must fit in DDOUT");
+EXPORT("ng_hash_ptr") u32* ng_hash_ptr(void){return NGHASH;} EXPORT("ng_off_ptr") u32* ng_off_ptr(void){return NGOFF;} EXPORT("nums_ptr") f64* nums_ptr(void){return NUMS;}
+EXPORT("num_group") u32 num_group(u32 n){
+  if(n>NUM_CAP) return 0xFFFFFFFFu;
+  u32 ng=0, ok=1; const u32 mask=(1u<<NG_TBITS)-1;
+  for(u32 i=0;i<n;i++){
+    u32 h=NUMP[i], slot=(h*2654435761u)>>(32-NG_TBITS), id;
+    for(;;){ u32 e=NGTAB[slot];
+      if(e==0){ if(ng>=NG_MAX){ ok=0; break; } id=ng++; NGTAB[slot]=id+1; NGHASH[id]=h; NGSLOT[id]=slot; NGPOS[id]=0; break; }
+      if(NGHASH[e-1]==h){ id=e-1; break; }
+      slot=(slot+1)&mask; }
+    if(!ok) break;
+    NUMI[i]=id; NGPOS[id]++;
+  }
+  for(u32 g=0;g<ng;g++) NGTAB[NGSLOT[g]]=0;
+  if(!ok) return 0xFFFFFFFFu;
+  u32 s=0; for(u32 g=0;g<ng;g++){ NGOFF[g]=s; u32 c=NGPOS[g]; NGPOS[g]=s; s+=c; } NGOFF[ng]=s;
+  for(u32 i=0;i<n;i++) NUMS[NGPOS[NUMI[i]]++]=NUMV[i];
+  return ng;
+}
+
+
 EXPORT("dd_out_ptr") u8* dd_out_ptr(void){return DDOUT;} EXPORT("dd_codes_ptr") u32* dd_codes_ptr(void){return DDCODES;}
 EXPORT("dd_out_len") u32 dd_out_len(void){return ddOutLen;} EXPORT("dd_n") u32 dd_n(void){return ddN;}
 static int ddEq(const u8*a,const u8*b,u32 n){ for(u32 i=0;i<n;i++) if(a[i]!=b[i]) return 0; return 1; }
