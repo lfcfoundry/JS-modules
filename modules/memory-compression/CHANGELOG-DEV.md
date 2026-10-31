@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.8.2 · API 2 · 2026-10-31
+
+### Quick
+Quick: on pages without 'unsafe-eval', view() no longer builds every object and string up front.
+
+### Deep
+Quick: on pages without 'unsafe-eval', view() no longer builds every object and string up front. Details: recordRowPlain (one loop over keys) replaces the generated row maker when CAN_EVAL is false, and lazy template strings use a closure row; two CAN_EVAL gates on laziness removed. view open + get, under the policy: Firefox Events 10 -> 2 ms, Users 17 -> 6; Chromium Features 19.2 -> 12.7; WebKitGTK Features 35 -> 16; Links unchanged (numbers dominate). Pages that allow eval run the same code as before. Deep: clone-template rows (object spread) were tried and dropped (Firefox 10-20% slower, ES2018). Pack scanners still have a no-eval gap (Chromium Links 153 vs 105 ms), not fixed here.
+
 ## 2.8.1 · API 2 · 2026-10-31
 
 ### Quick
