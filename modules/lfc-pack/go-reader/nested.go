@@ -8,6 +8,12 @@ type col struct {
 	i int
 }
 
+// scol: the strings of one string path (blocks with per-path strings, sp = 1)
+type scol struct {
+	v []string
+	i int
+}
+
 // sharedTables: footer section 16 (files packed with share: true), the strings and row shapes that nested blocks with g = 1 point into.
 type sharedTables struct {
 	s []string
@@ -49,8 +55,9 @@ func (f *File) sharedTables() *sharedTables {
 }
 
 type plan struct {
-	t     byte // s n b z j a o
+	t     byte // s n b z j a o, S J (string from the path's own list)
 	c     *col
+	sc    *scol
 	kids  []*plan
 	names []string
 }
@@ -109,6 +116,27 @@ func readNested(b []byte, sh *sharedTables) []any {
 			fail("bad string code width")
 		}
 		gcodes = typed(unzstdB(c.take(cd[2])), cd[0], cd[1])
+	}
+	// sp = 1: per-path strings; a table [hash, entries, cells] per string path, each path's dictionary entries in turn, its own flags (from a fresh byte) and repeats
+	spm := false
+	if sv, ok := h.Get("sp"); ok {
+		if x, ok := sv.(float64); ok && x == 1 {
+			spm = true
+		}
+	}
+	var stab []any
+	var sfl []byte
+	var srep []float64
+	var sf []int
+	if g {
+	} else if spm {
+		sf = ints(field(h, "sf")) // tableRaw, tableLen, flagsRaw, flagsLen, repKind, repCount, repLen
+		stab, _ = jsonOf(unzstdB(c.take(sf[1]))).([]any)
+		sfl = unzstdB(c.take(sf[3]))
+		if sf[4] < 0 || sf[4] > 2 {
+			fail("bad repeat width")
+		}
+		srep = typed(unzstdB(c.take(sf[6])), sf[4], sf[5])
 	} else {
 		fa = ints(field(h, "fa")) // [_, flagsLen, repKind, repCount, repLen, total]
 		flags = unzstdB(c.take(fa[1]))
@@ -145,8 +173,83 @@ func readNested(b []byte, sh *sharedTables) []any {
 			}
 		}
 	}
+	spc := map[uint32]*scol{}
+	if spm {
+		count := num(field(h, "count"))
+		if count > 0 && len(D) != count {
+			fail("dictionary count")
+		}
+		ET, RT, FT := 0, 0, 0
+		type pent struct {
+			h    uint32
+			e, n int
+		}
+		pl := make([]pent, 0, len(stab))
+		for _, x := range stab {
+			a, ok := x.([]any)
+			if !ok || len(a) < 3 {
+				fail("string path table")
+			}
+			var v [3]float64
+			for j := 0; j < 3; j++ {
+				f, ok := a[j].(float64)
+				if !ok || f < 0 || f != float64(int64(f)) || f > 4294967295 {
+					fail("string path table")
+				}
+				v[j] = f
+			}
+			e, n := int(v[1]), int(v[2])
+			if e > n || (e == 0 && n != 0) {
+				fail("string path table")
+			}
+			ET += e
+			RT += n - e
+			FT += (n + 7) >> 3
+			pl = append(pl, pent{uint32(v[0]), e, n})
+		}
+		if ET != count || RT != len(srep) || RT != sf[5] || FT != len(sfl) || FT != sf[2] {
+			fail("string path table")
+		}
+		base, ri, fo := 0, 0, 0
+		for _, q := range pl {
+			if _, dup := spc[q.h]; dup {
+				fail("string path table")
+			}
+			out := make([]string, q.n)
+			nx := 0
+			for i := 0; i < q.n; i++ {
+				if (sfl[fo+i>>3]>>(uint(i)&7))&1 == 1 {
+					if nx >= q.e {
+						fail("string flags")
+					}
+					out[i] = D[base+nx]
+					nx++
+				} else {
+					k := int(srep[ri])
+					ri++
+					if k >= q.e {
+						fail("string code %d out of range", k)
+					}
+					out[i] = D[base+k]
+				}
+			}
+			if nx != q.e {
+				fail("string flags")
+			}
+			spc[q.h] = &scol{v: out}
+			base += q.e
+			fo += (q.n + 7) >> 3
+		}
+	}
+	getS := func(hh uint32) *scol {
+		x, ok := spc[hh]
+		if !ok {
+			fail("string path table")
+		}
+		return x
+	}
 	next, ri := 0, 0
-	for i := 0; !g && i < fa[5]; i++ {
+	for i := 0; !g && !spm && i < fa[5]; i++ {
 		var code int
 		if i>>3 < len(flags) && (flags[i>>3]>>(uint(i)&7))&1 == 1 {
 			code = next
@@ -178,6 +281,9 @@ func readNested(b []byte, sh *sharedTables) []any {
 		case float64:
 			switch int(x) {
 			case 1:
+				if spm {
+					return &plan{t: 'S', sc: getS(fnv(path))}
+				}
 				return &plan{t: 's'}
 			case 2:
 				return &plan{t: 'n', c: getCol(fnv(path))}
@@ -186,6 +292,9 @@ func readNested(b []byte, sh *sharedTables) []any {
 			case 4:
 				return &plan{t: 'z'}
 			case 5:
+				if spm {
+					return &plan{t: 'J', sc: getS(fnv(path))}
+				}
 				return &plan{t: 'j'}
 			}
 			fail("bad shape code %v", x)
@@ -202,7 +311,11 @@ func readNested(b []byte, sh *sharedTables) []any {
 				if f, ok := v.(float64); ok && f >= 1 && f <= 4 {
 					switch int(f) {
 					case 1:
-						pl.kids = append(pl.kids, &plan{t: 's'})
+						if spm {
+							pl.kids = append(pl.kids, &plan{t: 'S', sc: getS(fnv(path + "." + k))})
+						} else {
+							pl.kids = append(pl.kids, &plan{t: 's'})
+						}
 					case 2:
 						pl.kids = append(pl.kids, &plan{t: 'n', c: getCol(fnv(path + "." + k))})
 					case 3:
@@ -236,6 +349,14 @@ func readNested(b []byte, sh *sharedTables) []any {
 		x.i++
 		return v
 	}
+	nextS := func(x *scol) string {
+		if x.i >= len(x.v) {
+			fail("string path cut off")
+		}
+		s := x.v[x.i]
+		x.i++
+		return s
+	}
 	var build func(d *plan) any
 	build = func(d *plan) any {
 		switch d.t {
@@ -249,6 +370,10 @@ func readNested(b []byte, sh *sharedTables) []any {
 			return nil
 		case 'j':
 			return jsonOf([]byte(nextStr()))
+		case 'S':
+			return nextS(d.sc)
+		case 'J':
+			return jsonOf([]byte(nextS(d.sc)))
 		case 'a':
 			out := make([]any, len(d.kids))
 			for i, k := range d.kids {
@@ -290,6 +415,11 @@ func readNested(b []byte, sh *sharedTables) []any {
 			fail("shape id out of range")
 		}
 		rows = append(rows, build(plans[k]))
+	}
+	for _, x := range spc {
+		if x.i != len(x.v) {
+			fail("string cells left over")
+		}
 	}
 	return rows
 }

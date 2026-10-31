@@ -155,6 +155,21 @@ When `E = 0` the dictionary text is empty. When `nu = 0` and `ns > 0` it is `ns 
 ### 3.5 Assembling rows
 For row `i`: look up shape `ids[i]` and build the value by the shape: objects get their members in shape order, arrays their elements in order; leaf values come from 3.3 and 3.4. Keep one read pointer per column and one string-cell pointer for the whole block.
 
+### 3.5a Per-path strings (header `sp: 1`)
+A nested block may keep its strings per *string path* instead of in one walk-order stream. A string path is the path (3.3) of a string cell (shape `1` or `5`); its hash is the FNV-1a hash of the path, as for columns (a string path and a number column with the same path are different things and never meet). Strings at one path are few and alike, so their repeat numbers are small.
+
+Layout:
+```
+u32 hl | header | Z(colmeta) | Z(dict) | Z(side) | Z(skeletons) | Z(row shape ids) | Z(path table) | Z(path flags) | Z(path repeats) | column frames ...
+```
+Header: as in 3.1 without `fa`, plus `"sp":1` and `"sf":[tableRaw, tableFrame, flagsRaw, flagsFrame, repKind, repCount, repFrame]`.
+- **Path table**: JSON array of `[hash, entries, cells]`, one per string path, in the order their data follows. `cells` is the number of string cells of the block at that path; `entries` the number of distinct strings used there (`0 <= entries <= cells`, and `entries > 0` when `cells > 0`). A reader MUST refuse a table entry that is not three whole numbers in range, the same hash twice, a path a row needs that the table lacks, and a block in which a path's cells are not all read. The sums MUST match: entries add up to `count`, `cells - entries` to `repCount`, and `ceil(cells / 8)` to `flagsRaw`.
+- **Dictionary**: `count` entries joined with U+0000 as in 3.4, holding the entries of the first path, then the second, and so on (a string used at two paths is there twice). Side strings: `idx` may name any entry below `count` (not only the last ones).
+- **Codes of path k**: its flags start at a fresh byte (byte `sum of ceil(cells / 8)` over the earlier paths); bit `j` 1 means the `j`th cell of the path is the next new entry of the path (0, 1, 2, ...), bit 0 means its local number is the next unread value of `path repeats` (typed bytes of kind `repKind`, u8, u16 or u32; the values of all paths follow each other in table order). A local number MUST be below the path's `entries`, and the new-entry counter MUST end at `entries`. The string is dictionary entry `base + local`, where `base` is the sum of `entries` of the earlier paths.
+- **Rows**: as 3.5, except that each string cell takes the next string of its own path instead of a block-wide pointer.
+
+The reference writer uses it with the pack option `paths: true`. Measured (100,000 rows, plain zstd level 3): GeoJSON points at the default block size 319,749 to 284,711 bytes (-11%), at 256 KB blocks 402,133 to 345,058 (-14%); orders -6% and -5%; at 32 KB blocks about the same.
+
 ### 3.6 Shared tables (header `g: 1`, footer section 16)
 Written only with the pack option `share: true` (also part of `access: 'random'`). Small nested blocks repeat the same strings and shapes in every block; with shared tables a string or shape seen again in a later block is kept once for the whole file, in footer section 16, and blocks point to it.
 

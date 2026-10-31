@@ -310,6 +310,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     for (i = 0; i < s.side.length; i++) { var str = s.side[i][1], k = sideMap.get(str); if (k === undefined) { k = sideStr.length; sideMap.set(str, k); sideStr.push(str); } codes[s.side[i][0]] = dN + k; }
     var ns = sideStr.length, dlen = Math.max(olen - 1, 0), N = codes.length, m;
     if (ctx.st) return sharedNestedBlock(ctx, s, codes, dN, dN ? tlat.decode(new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen)).split('\0') : [], sideStr, level);
+    if (opts.paths) return pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level);
     // first-appearance flags: the writer renumbers the dictionary in order of first use (unused entries drop out), so a string's first appearance always carries "the next number" and only repeats need a stored code
     var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), offs = new Uint32Array(dN + 1), pos = 0, nz;
     for (i = 0; i < dN; i++) { offs[i] = pos; nz = old.indexOf(0, pos); pos = nz < 0 ? dlen + 1 : nz + 1; } offs[dN] = dlen + 1;
@@ -330,6 +331,49 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       ids: [tid[0], tid[1], zids.length], cm: [cmB.length, zcm.length] }));
     var parts = [u32le(hdr.length), hdr, zcm, ztext, zside, zskel, zids, zflags, zrep]; for (i = 0; i < zc.length; i++) parts.push(zc[i][3]);
     return { bytes: concat(parts), rows: s.n, zone: zone, skelList: s.skelList, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
+  }
+
+  // ---- per-path strings ({ paths: true }, header sp: 1): every string path of the block (".properties.name", ".items[].sku") has its own run of dictionary entries, first-appearance flags and repeats.
+  // A path's strings are few and alike, so its repeats are small numbers that compress well; a string used at two paths is kept once for each.
+  function stringPaths(t) {   // the paths of the string cells of one shape, in walk order (shape 1 and 5)
+    var out = [];
+    (function walk(s, p) { var i, k; if (s === 1 || s === 5) out.push(p); else if (Array.isArray(s)) { for (i = 0; i < s.length; i++) walk(s[i], p + '[]'); } else if (s && typeof s === 'object') { for (k in s) walk(s[k], p + '.' + k); } })(JSON.parse(t), '');
+    return out;
+  }
+  function pathNestedBlock(ctx, s, codes, dN, dlen, sideStr, level) {
+    var zs = ctx.zs, X = ctx.sh.x, mem = ctx.sh.mem, N = codes.length, M = dN + sideStr.length, sk = s.skelList, K = sk.length, i, j, k, c, p, q;
+    var sp = new Array(K), pix = new Map(), ph = [];
+    for (k = 0; k < K; k++) { var ps = stringPaths(sk[k]), a = new Int32Array(ps.length); for (j = 0; j < ps.length; j++) { var h = fnvStr(ps[j]); q = pix.get(h); if (q === undefined) { q = ph.length; pix.set(h, q); ph.push(h); } a[j] = q; } sp[k] = a; }
+    var P = ph.length, cnt = new Uint32Array(P), cp = new Uint32Array(N), ci = 0, ids = s.ids;
+    for (i = 0; i < s.n; i++) { a = sp[ids[i]]; for (j = 0; j < a.length; j++) { if (ci >= N) throw new Error('string cell count'); cp[ci++] = a[j]; cnt[a[j]]++; } }
+    if (ci !== N) throw new Error('string cell count');
+    var st = new Uint32Array(P + 1), fill = new Uint32Array(P), pc = new Uint32Array(N), nfb = 0;
+    for (p = 0; p < P; p++) { st[p + 1] = st[p] + cnt[p]; nfb += (cnt[p] + 7) >> 3; }
+    for (i = 0; i < N; i++) { p = cp[i]; pc[st[p] + fill[p]++] = codes[i]; }
+    // per path: entries in order of first use there, a flag per cell (flag bytes start fresh for each path), a repeat for every cell that is not a first use
+    var stamp = new Int32Array(M).fill(-1), loc = new Uint32Array(M), ent = [], rep = [], flags = new Uint8Array(nfb), fb = 0, table = [], e0, o;
+    for (p = 0; p < P; p++) {
+      e0 = ent.length;
+      for (i = st[p]; i < st[p + 1]; i++) { c = pc[i]; o = i - st[p]; if (stamp[c] !== p) { stamp[c] = p; loc[c] = ent.length - e0; ent.push(c); flags[fb + (o >> 3)] |= 1 << (o & 7); } else rep.push(loc[c]); }
+      table.push([ph[p], ent.length - e0, cnt[p]]); fb += (cnt[p] + 7) >> 3;
+    }
+    // dictionary text: the entries in that order, ASCII strings from the tokenizer's dictionary, an empty placeholder for each side string
+    var old = new Uint8Array(mem.buffer, X.dd_out_ptr(), dlen), offs = new Uint32Array(dN + 1), pos = 0, nz;
+    for (i = 0; i < dN; i++) { offs[i] = pos; nz = old.indexOf(0, pos); pos = nz < 0 ? dlen + 1 : nz + 1; } offs[dN] = dlen + 1;
+    var E = ent.length, tl = 0, sideIdx = [], sideS = [];
+    for (i = 0; i < E; i++) { c = ent[i]; if (c < dN) tl += offs[c + 1] - offs[c] - 1; else { sideIdx.push(i); sideS.push(sideStr[c - dN]); } }
+    var text = new Uint8Array(E > 0 ? tl + E - 1 : 0), tp = 0;
+    for (i = 0; i < E; i++) { c = ent[i]; if (c < dN) { text.set(old.subarray(offs[c], offs[c + 1] - 1), tp); tp += offs[c + 1] - 1 - offs[c]; } if (i < E - 1) tp++; }
+    var repT = typedColumn(rep), zflags = zs.compress(flags, level), zrep = zs.compress(repT[2], level);
+    var tabB = te.encode(JSON.stringify(table)), ztab = zs.compress(tabB, level);
+    var ztext = zs.compress(text, level), sideB = te.encode(JSON.stringify({ idx: sideIdx, str: sideS })), zside = zs.compress(sideB, level);
+    var skB = te.encode(sk.join('\n')), zskel = zs.compress(skB, level);
+    var tid = typedColumn(ids), zids = zs.compress(tid[2], level);
+    var nc = nestedCols(zs, s.cols, level), zc = nc.zc;
+    var hdr = te.encode(JSON.stringify({ k: 'n', n: s.n, sp: 1, count: E, len: [text.length, sideB.length, skB.length], p: [ztext.length, zside.length, zskel.length],
+      ids: [tid[0], tid[1], zids.length], sf: [tabB.length, ztab.length, flags.length, zflags.length, repT[0], repT[1], zrep.length], cm: [nc.cmB.length, nc.zcm.length] }));
+    var parts = [u32le(hdr.length), hdr, nc.zcm, ztext, zside, zskel, zids, ztab, zflags, zrep]; for (k = 0; k < zc.length; k++) parts.push(zc[k][3]);
+    return { bytes: concat(parts), rows: s.n, zone: nc.zone, skelList: sk, oddRows: s.oddRows, spell: s.spell, fallback: s.fallback };
   }
 
   function nestedCols(zs, cols, level) {   // the number columns of a nested block: frames, zone-map entries and the column table
@@ -410,6 +454,32 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       cols.push([CODES_KEY, h.cd[0], h.cd[1], gcd]);
       return { t: 'n', n: h.n, g: 1, count: h.count, kc: h.kc, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
     }
+    if (h.sp === 1) {   // per-path strings: each path's codes come back from its own flags and repeats, path after path
+      var sf = h.sf, tab = JSON.parse(tdr.decode(zs.decompressView(take(sf[1]), sf[0]))), pfl = zs.decompress(take(sf[3]), sf[2]);
+      if (!(sf[4] >= 0 && sf[4] <= 2)) throw new Error('damaged block: bad repeat width');
+      var prz = zs.decompress(take(sf[6]), sf[5] * KIND[sf[4]].BYTES_PER_ELEMENT), prp = new KIND[sf[4]](prz.buffer, prz.byteOffset, sf[5]);
+      for (i = 0; i < cmeta.length; i++) { var cs = cmeta[i]; if (cs[1] === 7) cols.push([cs[0], 6, cs[2], decodeDecimalColumn(zs.decompress(take(cs[3]), cs[4]), cs[2])]); else cols.push([cs[0], cs[1], cs[2], zs.decompress(take(cs[3]), cs[2] * KIND[cs[1]].BYTES_PER_ELEMENT)]); }
+      if (!Array.isArray(tab)) throw new Error('damaged block: string path table');
+      var NT = 0, ET = 0, RT = 0, FT = 0, te_, x;
+      for (i = 0; i < tab.length; i++) { te_ = tab[i]; if (!Array.isArray(te_) || te_.length < 3 || !(te_[1] >= 0 && te_[2] >= te_[1] && (te_[1] > 0 || te_[2] === 0)) || te_[1] % 1 || te_[2] % 1) throw new Error('damaged block: string path table'); NT += te_[2]; ET += te_[1]; RT += te_[2] - te_[1]; FT += (te_[2] + 7) >> 3; }
+      if (ET !== h.count || RT !== sf[5] || FT !== sf[2]) throw new Error('damaged block: string path table');
+      var pk = ET < 256 ? 0 : ET < 65536 ? 1 : 2, pco = new KIND[pk](NT), base = 0, cell = 0, rr = 0, fo = 0, e, nx, m8, b8, u;
+      for (i = 0; i < tab.length; i++) {
+        e = tab[i][1]; m8 = tab[i][2]; nx = 0;
+        for (u = rr; u < rr + m8 - e; u++) if (prp[u] >= e) throw new Error('damaged block: string code out of range');
+        for (u = 0; u + 8 <= m8; u += 8) {
+          b8 = pfl[fo + (u >> 3)];
+          if (b8 === 0) { for (x = 0; x < 8; x++) pco[cell++] = base + prp[rr++]; }
+          else if (b8 === 255) { for (x = 0; x < 8; x++) pco[cell++] = base + nx++; }
+          else for (x = 0; x < 8; x++) pco[cell++] = (b8 >> x) & 1 ? base + nx++ : base + prp[rr++];
+        }
+        for (; u < m8; u++) pco[cell++] = (pfl[fo + (u >> 3)] >> (u & 7)) & 1 ? base + nx++ : base + prp[rr++];
+        if (nx !== e) throw new Error('damaged block: string flags');
+        base += e; fo += (m8 + 7) >> 3;
+      }
+      cols.push([CODES_KEY, pk, NT, new Uint8Array(pco.buffer)]);
+      return { t: 'n', n: h.n, sp: tab, count: h.count, dict: dict, side: side, skel: skel, ids: ids, cols: cols };
+    }
     var zfl = zs.decompress(take(h.fa[1]), h.fa[0]), zrp = zs.decompress(take(h.fa[4]), h.fa[3] * KIND[h.fa[2]].BYTES_PER_ELEMENT);
     for (i = 0; i < cmeta.length; i++) { var cd = cmeta[i]; if (cd[1] === 7) cols.push([cd[0], 6, cd[2], decodeDecimalColumn(zs.decompress(take(cd[3]), cd[4]), cd[2])]); else cols.push([cd[0], cd[1], cd[2], zs.decompress(take(cd[3]), cd[2] * KIND[cd[1]].BYTES_PER_ELEMENT)]); }
     // codes back from the flags: a flagged cell takes the next new number, any other cell takes the next stored repeat
@@ -430,20 +500,22 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
   var NONASCII = /[\x80-\xff]/;   // dictionary text is ASCII (LAYOUT-SPEC 3.4)
   // tables: the file's shared tables ({ s: strings, k: row shapes }, footer section 16), or null
   function makeNestedReader(zs, tables) {
-    var STRS = null, TI = 0, COLS = new Map(), PLAN = new Map(), GPL = [];
-    function planOf(t) { var f = PLAN.get(t); if (!f) { f = desc(JSON.parse(t), ''); PLAN.set(t, f); } return f; }
+    var STRS = null, TI = 0, COLS = new Map(), SCOLS = new Map(), PLAN = new Map(), SPLAN = new Map(), GPL = [], SPM = false;
+    // plans are cached per shape text; blocks with per-path strings (sp) get their own plans, whose string cells read from the column of their path
+    function planOf(t) { var P = SPM ? SPLAN : PLAN, f = P.get(t); if (!f) { f = desc(JSON.parse(t), ''); P.set(t, f); } return f; }
     function col(h) { var c = COLS.get(h); if (!c) { c = { h: h, a: null, i: 0 }; COLS.set(h, c); } return c; }
+    function scol(h) { var c = SCOLS.get(h); if (!c) { c = { h: h, a: null, i: 0, e: 0 }; SCOLS.set(h, c); } return c; }
     function desc(s, p) {
-      if (s === 1) return { t: 1 };
+      if (s === 1) return SPM ? { t: 8, c: scol(fnvStr(p)) } : { t: 1 };
       if (s === 2) return { t: 2, c: col(fnvStr(p)) };
       if (s === 3) return { t: 3, c: col(fnvStr(p + '?')) };
       if (s === 4) return { t: 4 };
-      if (s === 5) return { t: 5 };
+      if (s === 5) return SPM ? { t: 9, c: scol(fnvStr(p)) } : { t: 5 };
       var i;
       if (Array.isArray(s)) { var subs = []; for (i = 0; i < s.length; i++) subs.push(desc(s[i], p + '[]')); return { t: 6, subs: subs }; }
       var keys = Object.keys(s), n = keys.length, kind = new Uint8Array(n), cc = new Array(n), sb = new Array(n), proto = false;
       for (i = 0; i < n; i++) { var c = s[keys[i]]; if (keys[i] === '__proto__') proto = true;
-        if (c === 1) kind[i] = 1; else if (c === 2) { kind[i] = 2; cc[i] = col(fnvStr(p + '.' + keys[i])); } else if (c === 3) { kind[i] = 3; cc[i] = col(fnvStr(p + '.' + keys[i] + '?')); }
+        if (c === 1) { if (SPM) { kind[i] = 8; cc[i] = scol(fnvStr(p + '.' + keys[i])); } else kind[i] = 1; } else if (c === 2) { kind[i] = 2; cc[i] = col(fnvStr(p + '.' + keys[i])); } else if (c === 3) { kind[i] = 3; cc[i] = col(fnvStr(p + '.' + keys[i] + '?')); }
         else if (c === 4) kind[i] = 4; else { kind[i] = 0; sb[i] = desc(c, p + '.' + keys[i]); } }
       return { t: 7, keys: keys, kind: kind, cc: cc, subs: sb, proto: proto, n: n };
     }
@@ -452,7 +524,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       if (t === 7) {
         var keys = p.keys, kind = p.kind, cc = p.cc, subs = p.subs, n = p.n, o = {}, v;
         for (i = 0; i < n; i++) {
-          switch (kind[i]) { case 1: v = STRS[TI++]; break; case 2: c = cc[i]; v = c.a[c.i++]; break; case 3: c = cc[i]; v = c.a[c.i++] === 1; break; case 4: v = null; break; default: v = build(subs[i]); }
+          switch (kind[i]) { case 1: v = STRS[TI++]; break; case 8: c = cc[i]; v = c.a[c.i++]; break; case 2: c = cc[i]; v = c.a[c.i++]; break; case 3: c = cc[i]; v = c.a[c.i++] === 1; break; case 4: v = null; break; default: v = build(subs[i]); }
           if (p.proto && keys[i] === '__proto__') Object.defineProperty(o, keys[i], { value: v, enumerable: true, writable: true, configurable: true }); else o[keys[i]] = v;
         }
         return o;
@@ -462,6 +534,8 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       if (t === 3) { c = p.c; return c.a[c.i++] === 1; }
       if (t === 4) return null;
       if (t === 5) return JSON.parse(STRS[TI++]);
+      if (t === 8) { c = p.c; return c.a[c.i++]; }
+      if (t === 9) { c = p.c; return JSON.parse(c.a[c.i++]); }
       var sb = p.subs, m = sb.length, arr = new Array(m); for (i = 0; i < m; i++) arr[i] = build(sb[i]); return arr;
     }
     // assemble one block from its decompressed frames (nestedFrames): the dictionary strings and column arrays the row builder reads
@@ -469,26 +543,33 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
       var dt = tlat.decode(F.dict), D, sd = F.side, i, cols = new Map(), g = F.g === 1;
       if (NONASCII.test(dt)) throw new Error('damaged block: dictionary text is not ASCII');
       D = dt.split('\0');
+      if (F.sp && !(F.count === 0 || D.length === F.count)) throw new Error('damaged block: dictionary count');
       if (g) { if (!tables) throw new Error('damaged file: shared tables missing'); if (!(F.count >= 0 && (F.count === 0 || D.length === F.count))) throw new Error('damaged block: dictionary count'); }
       for (i = 0; i < sd.idx.length; i++) { if (!(sd.idx[i] >= 0 && sd.idx[i] < D.length)) throw new Error('damaged block: side list index out of range'); D[sd.idx[i]] = sd.str[i]; }
       for (i = 0; i < F.cols.length; i++) { var cd = F.cols[i]; cols.set(cd[0], new KIND[cd[1]](cd[3].buffer, cd[3].byteOffset, cd[2])); }
       var skl = g && !F.kc ? [] : F.skel.split('\n');
       if (g && skl.length !== F.kc) throw new Error('damaged block: shape count');
-      return { n: F.n, g: g, L: g ? F.count : 0, ids: new KIND[F.ids[0]](F.ids[2].buffer, F.ids[2].byteOffset, F.ids[1]), skel: skl, cols: cols, dict: D, codes: cols.get(CODES_KEY) };
+      return { n: F.n, g: g, sp: F.sp || null, L: g ? F.count : 0, ids: new KIND[F.ids[0]](F.ids[2].buffer, F.ids[2].byteOffset, F.ids[1]), skel: skl, cols: cols, dict: D, codes: cols.get(CODES_KEY) };
     }
     function rowsOf(b) {
       var D = b.dict, cd = b.codes, n = cd ? cd.length : 0, E = new Array(n), i, c;
       if (b.g) { var L = b.L, GS = tables.s; for (i = 0; i < n; i++) { c = cd[i]; if ((E[i] = c < L ? D[c] : GS[c - L]) === undefined) throw new Error('damaged block: string code out of range'); } }
       else for (i = 0; i < n; i++) { if ((E[i] = D[cd[i]]) === undefined) throw new Error('damaged block: string code out of range'); }
-      STRS = E; TI = 0;
+      STRS = E; TI = 0; SPM = !!b.sp;
       var sl = b.skel, fnById = new Array(sl.length);
       for (i = 0; i < sl.length; i++) fnById[i] = planOf(sl[i]);
+      var tab = b.sp, sc;
+      if (tab) {   // every path of the table reads its own stretch of the codes; a path no shape has, two entries for one path, or a stretch not read to its end is damage
+        SCOLS.forEach(function (x) { x.a = null; x.i = 0; x.e = -1; });
+        for (i = 0, c = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (!sc || sc.e !== -1) throw new Error('damaged block: string path table'); sc.a = E; sc.i = c; c += tab[i][2]; sc.e = c; }
+      }
       var ids = b.ids, out = new Array(b.n), LK = sl.length, id;
       if (b.g) { var GK = tables.k;   // plans of the shared shapes this block uses, before the columns are bound (a plan registers its columns)
         for (i = 0; i < b.n; i++) { id = ids[i]; if (id >= LK && GPL[id - LK] === undefined) { if (id - LK >= GK.length) throw new Error('damaged block: shape id out of range'); GPL[id - LK] = planOf(GK[id - LK]); } } }
       COLS.forEach(function (c) { c.a = b.cols.get(c.h); c.i = 0; });
       if (b.g) for (i = 0; i < b.n; i++) { id = ids[i]; out[i] = build(id < LK ? fnById[id] : GPL[id - LK]); }
       else for (i = 0; i < b.n; i++) out[i] = build(fnById[ids[i]]);
+      if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== sc.e) throw new Error('damaged block: string cells left over'); }
       return out;
     }
     openBlock = guard(openBlock); rowsOf = guard(rowsOf);
