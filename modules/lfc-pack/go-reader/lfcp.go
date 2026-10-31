@@ -45,9 +45,10 @@ type File struct {
 	sec     map[int][]byte
 	blocks  []blockEntry
 	header  *Obj
+	shared  *sharedTables
 }
 
-var knownSections = map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 9: true, 10: true, 11: true, 12: true, 14: true, 15: true}
+var knownSections = map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 9: true, 10: true, 11: true, 12: true, 14: true, 15: true, 16: true}
 
 func num(v any) int {
 	f, ok := v.(float64)
@@ -175,7 +176,7 @@ func (f *File) blockRows(i int) (rows []any) {
 	case "f":
 		rows = readFlat(b)
 	case "n":
-		rows = readNested(b)
+		rows = readNested(b, f.sharedTables())
 	case "r":
 		for _, l := range bytes.Split(rawText(b), []byte{'\n'}) {
 			if len(bytes.TrimSpace(l)) == 0 {
@@ -307,7 +308,7 @@ func (f *File) ReadText() (text []byte, err error) {
 		if kind == "f" {
 			rows = readFlat(b)
 		} else if kind == "n" {
-			rows = readNested(b)
+			rows = readNested(b, f.sharedTables())
 		} else {
 			fail("block %d has unknown kind %q", i, kind)
 		}

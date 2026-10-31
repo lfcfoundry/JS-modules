@@ -5,7 +5,7 @@ the frames come in the specified order with the declared lengths, and no byte of
 usage: python3 test/layoutcheck.py [file.json.lfc ...]   (no arguments: vectors/*.json.lfc and vectors/layout/*.json.lfc; needs the zstandard package)"""
 import sys, json, struct, zlib, zstandard
 Z = zstandard.ZstdDecompressor()
-COV=set()
+COV=set(); SHARED=None
 def dz(b, n=None):
     fp = zstandard.get_frame_parameters(b)
     assert fp.content_size >= 0, 'zstd frame without content size'
@@ -54,8 +54,34 @@ def nested(b, log):
     cm = json.loads(dz(take(h['cm'][1], 'colmeta'), h['cm'][0]))
     dz(take(h['p'][0], 'dict'), h['len'][0]); dz(take(h['p'][1], 'side'), h['len'][1]); sk = dz(take(h['p'][2], 'skel'), h['len'][2]).decode().split('\n')
     dz(take(h['ids'][2], 'row-shape-ids'), h['ids'][1] * W[h['ids'][0]])
-    dz(take(h['fa'][1], 'first-flags'), h['fa'][0]); assert h['fa'][0] == (h['fa'][5] + 7) // 8
-    dz(take(h['fa'][4], 'repeats'), h['fa'][3] * W[h['fa'][2]])
+    def paths():
+        sf = h['sf']; assert 'fa' not in h, 'sp block with fa'
+        tab = json.loads(dz(take(sf[1], 'path-table'), sf[0]))
+        dz(take(sf[3], 'path-flags'), sf[2]); assert sf[4] in (0, 1, 2), 'repeat width'
+        dz(take(sf[6], 'path-repeats'), sf[5] * W[sf[4]])
+        assert len({e[0] for e in tab}) == len(tab), 'path hash twice'
+        assert all(0 <= e[1] <= e[2] and (e[1] > 0 or e[2] == 0) for e in tab), 'path table entry'
+        assert sum(e[2] - e[1] for e in tab) == sf[5] and sum((e[2] + 7) // 8 for e in tab) == sf[2], 'path table sums'
+        return sum(e[1] for e in tab)
+    if h.get('g') == 1 and h.get('sp') == 2:   # shared tables with per-path strings (3.6): path table [hash, cells], then the typed codes in path order
+        pt = json.loads(dz(take(h['pt'][1], 'path-table'), h['pt'][0]))
+        assert len({e[0] for e in pt}) == len(pt) and all(e[1] >= 0 for e in pt) and sum(e[1] for e in pt) == h['cd'][1], 'path table'
+        assert h['cd'][0] in (0, 1, 2), 'string code width'
+        dz(take(h['cd'][2], 'string-codes'), h['cd'][1] * W[h['cd'][0]])
+        assert SHARED is not None, 'block with g = 1 but no section 16'
+        COV.add('nested-shared-paths')
+    elif h.get('g') == 1:   # shared tables (3.6): string codes as typed bytes instead of flags and repeats
+        assert h['cd'][0] in (0, 1, 2), 'string code width'
+        dz(take(h['cd'][2], 'string-codes'), h['cd'][1] * W[h['cd'][0]])
+        assert (h['kc'] == 0 and sk == ['']) or len(sk) == h['kc'], 'shape count'
+        assert SHARED is not None, 'block with g = 1 but no section 16'
+        COV.add('nested-shared')
+    elif h.get('sp') == 1:   # per-path strings (3.5a): path table, per-path flags and repeats
+        assert paths() == h['count'], 'path table sums'
+        COV.add('nested-paths')
+    else:
+        dz(take(h['fa'][1], 'first-flags'), h['fa'][0]); assert h['fa'][0] == (h['fa'][5] + 7) // 8
+        dz(take(h['fa'][4], 'repeats'), h['fa'][3] * W[h['fa'][2]])
     for ent in cm:
         key, kd, cnt, ln = ent[:4]
         if kd == 7:
@@ -73,7 +99,10 @@ def main():
     for fn in files:
         d = open(fn, 'rb').read()
         try:
+            global SHARED
             sec, end = footer(d); blocks = json.loads(sec[2]); pos = 0
+            SHARED = json.loads(sec[16]) if 16 in sec else None
+            if SHARED is not None: assert isinstance(SHARED.get('s'), list) and isinstance(SHARED.get('k'), list), 'section 16 needs s and k lists'
             for i, (off, ln, crc, rows, kind, *t) in enumerate(blocks):
                 assert off == pos, 'gap before block %d' % i; pos = off+ln
                 b = d[off:off+ln]; assert zlib.crc32(b) == crc

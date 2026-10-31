@@ -26,6 +26,9 @@ const CASES={
  'flat-surrogates': [L([{s:'\ud800 lone',t:'ok'},{s:'x',t:'\udc00'},{s:'a\u0000b',t:'y'}]),{block:'flat'}],
  'nested-surrogates': [L([{s:'\ud800 lone',t:{u:'ok'}},{s:'x',t:{u:'\udc00'}},{s:'a\u0000b',t:{u:'y'}}]),{block:'nested'}],
  'nested-astral-key': [L([{'\ud83d\ude00':1,'é':2,'k':'v'},{'\ud83d\ude00':3,'é':4,'k':'w'}]),{block:'nested'}],
+ 'nested-paths': [L(Array.from({length:90},(_,i)=>i%9===0?'s'+(i%2):i===45?{a:1,d:JSON.parse('['.repeat(120)+']'.repeat(120))}:({'1':'x'+(i%2),t:'k'+(i%4),a:{b:['u','v','\u00e9'][i%3],c:['k'+(i%4),'k'+((i+1)%4)]},n:i,q:i%3?'same':'k1'}))),{block:'nested',paths:'only',blockBytes:1500}],
+ 'nested-shared-paths': [L(Array.from({length:160},(_,i)=>({type:'Feature',p:{name:'pt'+(i*7%23),kind:['a','b','\u00e9'][i%3],tag:i%2?'x':'pt'+(i%5)},g:i%4?{c:[i,i*2]}:{c:[i],x:null}}))),{block:'nested',share:true,paths:'only',blockBytes:1500}],
+ 'nested-shared': [L(Array.from({length:120},(_,i)=>({type:'Feature',p:{name:'pt'+(i*7%23),kind:['a','b','é'][i%3]},g:i%4?{c:[i,i*2]}:{c:[i],x:null}}))),{block:'nested',share:true,paths:false,blockBytes:1200}],
  'multi-block': [L(Array.from({length:30},(_,i)=>({i,s:'r'+i}))),{block:'flat',blockBytes:200}],
 };
 for(const k in CASES){const [src,o]=CASES[k]; fs.writeFileSync(out+'/'+k+'.ndjson',src);}
