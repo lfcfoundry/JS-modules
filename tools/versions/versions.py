@@ -63,6 +63,39 @@ FULL_INTRO = ("What changed in each version, newest first, with the numbers and 
               "CHANGELOG.md in the repository. The API number goes up only when someone using an older copy could be affected.")
 FULL_DEFAULT = "/mnt/project-files/changelogs-full/JS-modules"
 SHORT_LINE_MAX, SHORT_LINES_MAX = 240, 4
+DEV_INTRO = ("What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), "
+             "Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. "
+             "The API number goes up only when someone using an older copy could be affected.")
+NOT_PUBLIC = re.compile(r"Strata|\briver\b|Codex|Pixel|Ryzen|Radeon|\bUTC\b", re.I)
+
+
+def dev_rel(root, e):
+    return entry_dir(e, root) + "/CHANGELOG-DEV.md"
+
+
+def add_dev_entry(root, e, v, note, quick=None, details=None, date=None):
+    """Three-depth developer entry (Quick, Details, Deep) into the repo's CHANGELOG-DEV.md. Deep is the full note."""
+    date = date or today()
+    quick = quick or " ".join(derive_short(note))
+    parts = ["### Quick\n" + quick.strip() + "\n"]
+    if details:
+        parts.append("### Details\n" + details.replace("\\n", "\n").strip() + "\n")
+    parts.append("### Deep\n" + note.strip() + "\n")
+    for txt in (quick, details or "", note):
+        m = NOT_PUBLIC.search(txt)
+        if m:
+            sys.exit("versions: %r must not appear in the public developer changelog (rewrite that tier)" % m.group(0))
+    entry = "## %s \u00b7 API %s \u00b7 %s\n\n%s" % (v, v.split(".")[0], date, "\n".join(parts))
+    path = os.path.join(root, dev_rel(root, e))
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            t = f.read()
+        i = t.find("\n## ")
+        t = (t[:i + 1] + entry + "\n" + t[i + 1:]) if i >= 0 else (t.rstrip("\n") + "\n\n" + entry)
+    else:
+        t = "# %s developer changelog\n\n%s\n\n%s" % (e["id"], DEV_INTRO, entry)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(t)
 
 
 def today():
@@ -658,7 +691,14 @@ def main(argv):
         print("%s %s: tested line written" % (argv[1], argv[2]))
         return 0
     if cmd == "set":
-        note, tested, short = None, None, None
+        note, tested, short, quick, details = None, None, None, None, None
+        for flag in ("--quick", "--details"):
+            if flag in argv:
+                k = argv.index(flag)
+                val = argv[k + 1] if k + 1 < len(argv) else None
+                del argv[k:k + 2]
+                if flag == "--quick": quick = val
+                else: details = val
         if "--tested" in argv:
             k = argv.index("--tested")
             tested = argv[k + 1] if k + 1 < len(argv) else None
@@ -672,11 +712,12 @@ def main(argv):
             note = " ".join(argv[k + 1:]).strip()
             argv = argv[:k]
         if len(argv) != 3 or not SEMVER.match(argv[2]) or not note:
-            sys.exit('usage: versions.py set ID X.Y.Z [--tested "..."] [--short "one plain line"] --note "full entry"')
+            sys.exit('usage: versions.py set ID X.Y.Z [--tested "..."] [--short "one plain line"] [--quick "..."] [--details "..."] --note "full entry"')
         e = next((x for _, x in entries(reg) if x["id"] == argv[1]), None)
         if not e:
             sys.exit("versions: no module or tool called " + argv[1])
         e["version"] = argv[2]
+        add_dev_entry(root, e, argv[2], note, quick=quick, details=details)
         add_changelog_entry(root, e, argv[2], note, short=short)
         set_tested(root, e, argv[2], tested or "not recorded.")
         apply(root, reg)
