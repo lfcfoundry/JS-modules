@@ -1,8 +1,8 @@
 # zip-open
 
-**Version 1.5.1 · API 1**
+**Version 1.5.2 · API 1**
 
-**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (zip-open thread); node checks 27/27
 
 ## What it is and how it works
 
@@ -58,10 +58,10 @@ var r = await ZipOpen.expandBlob(file, file.name);                      // file:
 var r = await ZipOpen.expandBlob(file, file.name, { workers: 4 });      // entries of 2 MB or more unpack in 4 Web Workers at once; ZipOpen.warm(4) starts them early; ZipOpen.closeHelpers() stops them
 var toc = await ZipOpen.listBlob(file); var got = await ZipOpen.readBlob(file, toc.entries[0], 5e6);
 ```
-Same limits, same notes, same checksum checks as `expand`; the checksum is worked out while the bytes arrive. Helpers are off unless you ask (`workers`), and they help only when a zip holds several big entries: measured on 5 entries of 16 MB, 4 helpers took 400 / 429 / 478 ms against 784 / 530 / 835 ms in memory (Firefox 158 / Chromium 155 / WebKitGTK 2.52.6; lower is better). Tiny entries and a single entry gain nothing (about 20% slower with helpers), so small ones are never sent. Details: `tests/zip-open-stream-browser.html`.
+Same limits, same notes, same checksum checks as `expand`; the checksum is worked out while the bytes arrive. Helpers are off unless you ask (`workers`), and they help only when a zip holds several big entries: measured on 5 entries of 16 MB, 4 helpers took 400 / 429 / 478 ms against 784 / 530 / 835 ms in memory (Firefox 158 / Chromium 155 / WebKitGTK 2.52.6; lower is better). Tiny entries and a single entry gain nothing (about 20% slower with helpers), so small ones are never sent. Helpers close 5 s after the last call so they stop holding memory (since 1.5.2; `idleMs` changes the delay), and starting them again cost nothing measurable in Firefox, Chromium or WebKitGTK. Details: `tests/zip-open-stream-browser.html`.
 
 ## Small entries: inflate in WebAssembly (since 1.5.0)
-Entries that are 4 KB or less compressed are unpacked by a 9 KB WebAssembly inflate (in the same module as the checksum) instead of a browser stream each, because a stream costs more to start than a small entry costs to unpack. 2,000 files of 100 rows (4.7 MB), from bytes, ms, lower is better: Firefox 158 124 against 269, Chromium 155 119 against 189, WebKitGTK 2.52.6 128 against 200 (fflate unzipSync: 124 / 108 / 257). Larger entries still use the browser's stream: at 8 KB and up the WebAssembly inflate was up to 1.5x slower in Chromium and Firefox, so the cutoff is 4 KB. Same files and notes: the WebAssembly inflate matches zlib on 9,000 random valid, damaged and cut streams, and 400 zips compare equal to the stream path. Without WebAssembly the stream is used.
+Entries that are 4 KB or less compressed are unpacked by a 9.5 KB WebAssembly inflate (its own module, compiled the first time a small entry is opened, so page load is unchanged) instead of a browser stream each, because a stream costs more to start than a small entry costs to unpack. 2,000 files of 100 rows (4.7 MB), from bytes, ms, lower is better: Firefox 158 124 against 269, Chromium 155 119 against 189, WebKitGTK 2.52.6 128 against 200 (fflate unzipSync: 124 / 108 / 257). Larger entries still use the browser's stream: at 8 KB and up the WebAssembly inflate was up to 1.5x slower in Chromium and Firefox, so the cutoff is 4 KB. Same files and notes: the WebAssembly inflate matches zlib on 9,000 random valid, damaged and cut streams, and 400 zips compare equal to the stream path. Without WebAssembly the stream is used.
 
 ## WebAssembly checksum (since 1.2.0)
 

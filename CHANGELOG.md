@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.1 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 1.3.1 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 1.4.0 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -16,7 +16,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
-| [field-report](modules/field-report/README.md) | 1.0.2 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
+| [field-report](modules/field-report/README.md) | 1.1.0 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.2 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
@@ -28,13 +28,13 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.5.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.5.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.8.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.7.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.7.2 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
-| [text-columns](modules/text-columns/README.md) | 0.6.2 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
+| [text-columns](modules/text-columns/README.md) | 0.6.3 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.2 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
@@ -53,16 +53,22 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [webkit-driver](tools/webkit-driver/README.md) | 1.4.1 · API 1 | [changelog](tools/webkit-driver/CHANGELOG.md) |
 | [test-isolation](tools/test-isolation/README.md) | 1.1.0 · API 1 | [changelog](tools/test-isolation/CHANGELOG.md) |
 | [speed-lab](tools/speed-lab/README.md) | 1.1.1 · API 1 | [changelog](tools/speed-lab/CHANGELOG.md) |
-| [test-runner](tools/test-runner/README.md) | 1.3.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
+| [test-runner](tools/test-runner/README.md) | 1.4.0 · API 1 | [changelog](tools/test-runner/CHANGELOG.md) |
 | [speed-guard](tools/speed-guard/README.md) | 1.0.0 · API 1 | [changelog](tools/speed-guard/CHANGELOG.md) |
 
 ## Changes since labels began
 
+- 2026-10-31 · **zip-open** 1.5.2 · API 1: Small-entry inflate in its own wasm module compiled on first use (page load back to 1.4 level); expandBlob helpers close 5 s after last use (idleMs).
+- 2026-10-31 · **text-columns** 0.6.3 · API 0: Repeated text values are kept once, so big files use much less memory.
 - 2026-10-31 · **text-columns** 0.6.2 · API 0: The page builds text columns in short steps (longest stall 3-10x lower); big inputs are read in 4 MB windows (45 MB file: page 161 to 10.5 MB, helpers 120 to 45 MB); opt-in idleTrim(ms, keep).
 - 2026-10-31 · **text-columns** 0.6.1 · API 0: Big files with number columns: the page no longer copies them, so it stays responsive (Chromium 42 to 7 ms pause, up to 1.4x faster).
 - 2026-10-31 · **text-columns** 0.6.0 · API 0: New: parseParallel takes a picked file directly; each helper reads its own piece, so the page never holds the whole file (1.0 to 1.75x faster).
 - 2026-10-31 · **text-columns** 0.5.2 · API 0: parseParallel reads files with accented or other non-ASCII text up to 4.8x faster.
+- 2026-10-31 · **test-runner** 1.4.0 · API 1: New ab.js: the early-stop A/B timing rule for the 5% check.
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
+- 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option: a crash can no longer lose your last saves.
+- 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option: a crash can no longer lose your last saves.
+- 2026-10-31 · **pcodec-js** 1.6.2 · API 1: Repeated big unpacks are faster: a ready array is prepared while the page is idle.
 - 2026-10-31 · **memory-compression** 2.8.2 · API 2: view() stays lazy on pages that forbid eval (our policy): 25-60% faster opens, same rows.
 - 2026-10-31 · **memory-compression** 2.8.1 · API 2: After the idle trim, the two small wasm helpers are made again at once (about 6 MB held), so the first pack after a pause is as fast as the rest.
 - 2026-10-31 · **memory-compression** 2.8.0 · API 2: Packing lists of whole numbers (up to 100,000 rows) is 2 to 24% faster; files can be up to about 1% bigger. autoTries: false keeps the old bytes.
@@ -71,6 +77,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **graph-walk** 0.7.2 · API 0: betweennessAsync starts faster: up to 1.9x on the first call and on a new graph.
 - 2026-10-31 · **gpu-blur** 1.3.0 · API 1: New: opts.into takes your own pixel array for out 'pixels', so blurring every frame makes no new memory; 1.1 to 1.7x faster with the helpers.
 - 2026-10-31 · **gpu-blur** 1.2.3 · API 1: The helpers route is up to 1.34x faster on repeat blurs.
+- 2026-10-31 · **field-report** 1.1.0 · API 1: New frames modes: 'play' records only while the app says it is animating; 'external' takes frame times from the app's own loop (fr.frame(ts)), so there is no second animation-frame callback.
 - 2026-10-31 · **elias-fano** 1.7.0 · API 1: New: trim() gives back memory that big lists left behind (24 MB to 1.8 MB after a 5-million-id build); autoTrim(true) does it by itself.
 - 2026-10-30 · **zip-open** 1.5.1 · API 1: Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.
 - 2026-10-30 · **zip-open** 1.5.0 · API 1: Faster: entries of 4 KB or less (compressed) are unpacked by a small WebAssembly inflate, about 1.5 to 2.2 times as fast for thousands of tiny files. Module grows by 9.4 KB of WebAssembly. Same files, same notes.

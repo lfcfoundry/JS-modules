@@ -105,7 +105,7 @@ Make a game behave on slow phones, privacy-focused browsers and power-saving scr
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [env-probes](modules/env-probes/README.md) | 1.1.0 | 16.2 | 5.4 | Detects privacy modes that blur timers, scramble canvas reads or block storage. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/env-probes/demo.html) |
-| [field-report](modules/field-report/README.md) | 1.0.2 | 21.3 | 7.6 | Hidden buttons that save a speed report and an error log from a real device. No network. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/field-report/demo.html) |
+| [field-report](modules/field-report/README.md) | 1.1.0 | 22.7 | 8.0 | Hidden buttons that save a speed report and an error log from a real device. No network. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/field-report/demo.html) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 | 38.9 | 12.1 | Frame pacing for canvas games: smooth frame time, effect governor, job pump, frame meter. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/frame-kit/demo.html) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 | 6.2 | 2.5 | Steps visual effects down when the device cannot keep up; never back up mid-play. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fx-governor/demo.html) |
 | [image-decode](modules/image-decode/README.md) | 1.2.2 | 22.0 | 7.7 | Loads pictures with no freeze at first draw, the right way per browser, plus WebP/AVIF checks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/image-decode/demo.html) |
@@ -117,7 +117,7 @@ Keep a player's progress safe and let them move it between devices.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [save-kit](modules/save-kit/README.md) | 1.3.1 | 37.4 | 11.7 | Safe saves in localStorage: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
+| [save-kit](modules/save-kit/README.md) | 1.4.0 | 43.1 | 13.0 | Safe saves in localStorage: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 | 9.6 | 3.4 | Keeps one tab in charge so two tabs never overwrite each other's saves. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/tab-guard/demo.html) |
 
 #### Games - Looks and effects
@@ -175,7 +175,7 @@ Test a game by playing it at random, shrinking any failure to a short replay, co
 | [speed-lab](tools/speed-lab/README.md) *(tool)* | 1.1.1 | 20.5 | 7.4 | A one-button speed test on the device: switches parts off and says what costs time. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/speed-lab/demo.html) |
 | [storage-probe](tools/storage-probe/README.md) *(tool)* | 1.1.0 | 19.4 | 7.2 | A one-button page that says whether copies of a page share their saved data. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/storage-probe/storage-probe.html) |
 | [test-isolation](tools/test-isolation/README.md) *(tool)* | 1.1.0 | 6.5 | 2.4 | Prefixes every localStorage key on a test page so tests never touch the real save. | — |
-| [test-runner](tools/test-runner/README.md) *(tool)* | 1.3.0 | 49.0 | 16.5 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
+| [test-runner](tools/test-runner/README.md) *(tool)* | 1.4.0 | 49.0 | 16.5 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
 | [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.4.1 | 23.6 | 8.6 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
 
 #### App - Efficiency
@@ -188,7 +188,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.0 | 757.4 | 241.2 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [memory-compression](modules/memory-compression/README.md) | 2.8.2 | 398.8 | 115.9 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
-| [text-columns](modules/text-columns/README.md) | 0.6.2 | 58.8 | 20.1 | Reads CSV and TSV into number and text columns, 3 to 11 times faster than common parsers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
+| [text-columns](modules/text-columns/README.md) | 0.6.3 | 61.1 | 20.9 | Reads CSV and TSV into number and text columns, 3 to 11 times faster than common parsers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
 #### Model simulation
 
@@ -219,10 +219,10 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 |---|---|---:|---:|---|---|
 | [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 | 22.2 | 8.7 | LZMA decoder: WebAssembly first, small readable JavaScript fallback; tested against Python's lzma. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/lzma-pack/example/packed-base64.html) |
 | [lzma-pack](tools/lzma-pack/README.md) *(tool)* | 2.0.0 | 27.7 | 10.6 | Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3). | — |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.6.1 | 104.0 | 60.0 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 | 105.7 | 60.5 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 | 45.3 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.0 | 47.8 | 14.6 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
-| [zip-open](modules/zip-open/README.md) | 1.5.1 | 59.0 | 20.1 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
+| [zip-open](modules/zip-open/README.md) | 1.5.2 | 60.3 | 20.5 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 
 ### Story editor packages (10)
 
