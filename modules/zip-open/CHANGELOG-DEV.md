@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.11.0 · API 1 · 2026-10-31
+
+### Quick
+Excel read inside a helper when the caller passes workers (expandBlob).
+
+### Deep
+Excel read inside a helper when the caller passes workers (expandBlob). The whole workbook (parts, WebAssembly sheet reader, CSV) runs in one helper, always the same one so it stays warmed up; a helper that dies falls back to reading on the page. Same files, notes and limits (new test: book job really sent to a helper, a dying helper falls back, limits the same inside a helper). Laptop, 16 cores, helper / 1.10.0 (both with workers: 2), whole open: Firefox 160 200k rows 0.985, 60k 1.000, 6k 1.143 (7 ms sheet, 1 ms timer steps), formulas 1.047, text 1.050; Chromium 156 200k 1.014, 60k 1.177, 6k 0.960, formulas 0.983, text 1.111. Longest page freeze during an open, 1.10.0 -> 1.11.0: Firefox 119 -> 6, 57 -> 5, 7 -> 5, 21 -> 5, 27 -> 5 ms; Chromium 185 -> 6, 52 -> 6, 8 -> 6, 24 -> 6, 29 -> 6 ms. Cloud (4 cores) freeze on an 18 MB sheet: Chromium 408 -> 6, Firefox 342 -> 16, WebKitGTK 218 -> 9 ms. Owner approved shipping despite >5% on some sheets (card, 2026.10.31 7:28 PM ET). Tried and dropped: CSV back as moved bytes, unpacking parts side by side, both stacked.
+
 ## 1.10.0 · API 1 · 2026-10-31
 
 ### Quick
