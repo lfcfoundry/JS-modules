@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.5.0 · API 1 · 2026-10-31
-- createLarge() gets an opt-in skipUnchangedMs: an unchanged big save is not written again; 55 to 65% less time.
+- createLarge() gets an opt-in skipUnchangedMs: an unchanged big save is not written again; 57 to 66% less time.
 
 ## 1.4.0 · API 1 · 2026-10-31
 - New durable option keeps a second copy of each save that survives a browser crash. In a real crash test, saves kept only in browser storage lost 29 to 30 of 80; with durable on, none were lost.
