@@ -1383,6 +1383,21 @@
     function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7],k8=k[8],c8=c[8],k9=k[9],c9=c[9],k10=k[10],c10=c[10],k11=k[11],c11=c[11],k12=k[12],c12=c[12],k13=k[13],c13=c[13],k14=k[14],c14=c[14];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];r[k8]=c8[i];r[k9]=c9[i];r[k10]=c10[i];r[k11]=c11[i];r[k12]=c12[i];r[k13]=c13[i];r[k14]=c14[i];out[i]=r;}},
     function(out,from,to,k,c){var i,r,k0=k[0],c0=c[0],k1=k[1],c1=c[1],k2=k[2],c2=c[2],k3=k[3],c3=c[3],k4=k[4],c4=c[4],k5=k[5],c5=c[5],k6=k[6],c6=c[6],k7=k[7],c7=c[7],k8=k[8],c8=c[8],k9=k[9],c9=c[9],k10=k[10],c10=c[10],k11=k[11],c11=c[11],k12=k[12],c12=c[12],k13=k[13],c13=c[13],k14=k[14],c14=c[14],k15=k[15],c15=c[15];for(i=from;i<to;i++){r={};r[k0]=c0[i];r[k1]=c1[i];r[k2]=c2[i];r[k3]=c3[i];r[k4]=c4[i];r[k5]=c5[i];r[k6]=c6[i];r[k7]=c7[i];r[k8]=c8[i];r[k9]=c9[i];r[k10]=c10[i];r[k11]=c11[i];r[k12]=c12[i];r[k13]=c13[i];r[k14]=c14[i];r[k15]=c15[i];out[i]=r;}}
   ];
+  var STREAM_LAZY_ROWS = 131072;      // stream: lists up to this many rows take the plain path (no gain from pages, and it is faster)
+  function pageCols(cols, a, z) {                                    // rows a..z-1 of every column as plain arrays that start at 0, so a page of rows is made by the same row builders as a whole list
+    var res = new Array(cols.length), j, i, c, m, o, x, d;
+    for (j = 0; j < cols.length; j++) {
+      c = cols[j]; m = c.mode; x = c.a; d = c.d;
+      if (m === 0) { res[j] = Array.isArray(x) ? x.slice(a, z) : x.subarray(a, z); continue; }
+      o = new Array(z - a);
+      if (m === 1) for (i = a; i < z; i++) o[i - a] = x[i] === 1;
+      else if (m === 2) for (i = a; i < z; i++) o[i - a] = d[x[i]];
+      else if (m === 3) for (i = a; i < z; i++) o[i - a] = d;
+      else for (i = a; i < z; i++) o[i - a] = c.get(i);
+      res[j] = o;
+    }
+    return res;
+  }
   function plainCol(col) { return col.mode === 0 ? col.a : col.full(); }
   function fixedRows(out, from, to, keys, cols) {
     var f = FIXED_ROWS[keys.length], i, j, r, nk = keys.length;
@@ -2533,6 +2548,7 @@
       if (n < SLICE_MIN) { c.p = p0; return Promise.resolve(finishUnpack(d)); }
       d.depth = 1; d.spend(n);
       d.onRows = opts && typeof opts.onRows === 'function' ? opts.onRows : null;                 // opts.onRows(rows, from, to): called after each slice with the list being filled, rows from..to-1 ready (a list of records, not nested ones)
+      d.stream = !!(d.onRows && opts.stream); if (d.stream) { d.lazyText = true; d.lazyAt = 3; d.streamPage = opts.page > 0 ? opts.page | 0 : 4096; }   // since 2.9.0, opt-in stream: rows are made a page at a time, handed to onRows and let go; text columns stay uncut until a row needs them
     } catch (err) { return Promise.reject(err); }
     return d.columnAsync(n).then(function (col) {
       var out = col.full();
@@ -2556,6 +2572,7 @@
     var d = this, c = d.c, ns = c.varint(), nk, j = 0, keys = [], dirC = [], dirB = [], cols = [], modes = [], out, tell = d.onRows && d.depth === 2 ? d.onRows : null;
     nk = c.varint(); if (nk > 100000) jfail('too many keys');
     for (j = 0; j < nk; j++) keys.push(c.u8() === 0 ? c.str() : d.str16());
+    if (d.stream && n <= STREAM_LAZY_ROWS) { d.stream = false; d.lazyText = false; }       // a short list gains nothing from pages (its pauses are short) and the plain path is faster: stream only acts on longer lists
     d.spend(n * nk);
     for (j = 0; j < nk; j++) { dirC.push(c.varint()); dirB.push(c.varint()); }
     j = 0;
@@ -2573,6 +2590,18 @@
     return columns().then(function () {
       var k, f, args, plain;
       out = new Array(n);
+      if (d.stream && tell) {
+        return slicedLoop(n, function (from, to) {
+          var a, z, i, pc, tmp;
+          for (a = from; a < to; a = z) {
+            z = Math.min(to, a + d.streamPage);
+            pc = pageCols(cols, a, z); tmp = new Array(z - a); fixedRows(tmp, 0, z - a, keys, pc);
+            for (i = a; i < z; i++) out[i] = tmp[i - a];
+            tell(out, a, z); for (i = a; i < z; i++) out[i] = undefined;
+          }
+          return true;
+        }, UNPACK_SLICE_MS).then(function () { return new Col(n, 0, out, null); });
+      }
       if (!CAN_EVAL) {
         plain = cols.map(plainCol);
         return slicedLoop(n, function (from, to) { fixedRows(out, from, to, keys, plain); if (tell) tell(out, from, to); return true; }, UNPACK_SLICE_MS);
