@@ -322,9 +322,10 @@
     for (i = 0; i < sizes.length; i++) { out.push(at); at = (at + sizes[i] + 7) & ~7; }
     grow(at); return out;
   }
-  function componentsW(g) {
-    var n = g.n, m = g.m, p = upload(g), q = scratch([4 * n, 4 * n, 4 * n]), count = W.gw_components(n, m, p.from, p.to, q[0], q[1], q[2]), b = mem.buffer;
-    return { id: new Int32Array(b, q[1], n).slice(), count: count, sizes: new Int32Array(b, q[2], count).slice() };
+  function componentsW(g, into) {
+    var n = g.n, m = g.m, p = upload(g), q = scratch([4 * n, 4 * n, 4 * n]), count = W.gw_components(n, m, p.from, p.to, q[0], q[1], q[2]), b = mem.buffer, id;
+    if (into && into.id && into.id.length === n) { id = into.id; id.set(new Int32Array(b, q[1], n)); } else id = new Int32Array(b, q[1], n).slice();   // prototype: hand the previous result back to skip the first write into a fresh array
+    return { id: id, count: count, sizes: new Int32Array(b, q[2], count).slice() };
   }
   function sccW(g) {
     var n = g.n, p = upload(g), q = scratch([4 * n, 4 * n, 4 * n, 4 * n, 4 * n, 4 * n]), count = W.gw_scc(n, p.os, p.oe, p.to, q[0], q[1], q[2], q[3], q[4], q[5]);
@@ -342,7 +343,7 @@
     if (bad) throw new RangeError('link ' + (bad - 1) + ' has a negative or missing weight');
     return { dist: dist.slice(), via: via.slice() };
   }
-  function components(g) { return useWasm() ? componentsW(g) : componentsJS(g); }
+  function components(g, into) { return useWasm() ? componentsW(g, into) : componentsJS(g); }
   function scc(g) { return useWasm() ? sccW(g) : sccJS(g); }
   function topo(g) { return useWasm() ? topoW(g) : topoJS(g); }
   /** As the JavaScript version; with `weights` and no `target` (cheapest paths to every item) the work runs in WebAssembly when it is ready. */
