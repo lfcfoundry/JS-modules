@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.0 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.5.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.6.6 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.7.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.5.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.7.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.2.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -68,6 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-30 · **netflow-sankey** 2.3.2 · API 2: Small graphs lay out about 15% faster with the same pictures.
 - 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips orderings it already followed: same pictures, up to 1.3x faster.
 - 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
+- 2026-10-30 · **memory-compression** 2.7.0 · API 2: New opt-in setting quickTries: true tries every number coding on the first block only: packing 0 to 20% faster on lists with number columns, files 0 to 1.1% bigger. Off by default; default output byte-identical.
 - 2026-10-30 · **memory-compression** 2.6.6 · API 2: Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes
 - 2026-10-30 · **lfc-pack** 0.2.0 · API 0: Default block size 13 MB (was 21 MB): parallel pack 34-36% faster on a 16-core laptop, same size; `packParallel` hands out one block at a time (7 to 27% faster); `warmPack(n)`. New `meta` option with `LfcPack.metadata(bytes)`, `LfcPack.unpackRows(bytes, {from, count})` (decodes only the blocks it needs, builds only those rows) and `LfcPack.stats(bytes)` (column facts from the footer). Faster one-column reads and wide row objects (WebKit 200-key whole read 1,324 to 580 ms). New `LfcPack.hash(bytes, kind)`, a file viewer (viewer.html), readers that refuse damaged blocks with a plain message, and an optional `check: 'xxh64'` block check with per-column checks (one-column reads about 40 to 50% faster).
 - 2026-10-30 · **lfc-pack** 0.1.11 · API 0: New packStream: feed text in pieces and write each block as it is ready, so packing a big file holds one block of text at a time
