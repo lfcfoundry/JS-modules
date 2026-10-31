@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.1 · API 1 · 2026-10-30
+
+### Quick
+Raw-field load prefilter (research thread brief A, 2026.10.31): when a slot's text has no __proto__/constructor/prototype and nesting is at most 32 deep, raw fields reuse JSON.parse objects instead of deep copy + scrub.
+
+### Deep
+Raw-field load prefilter (research thread brief A, 2026.10.31): when a slot's text has no __proto__/constructor/prototype and nesting is at most 32 deep, raw fields reuse JSON.parse objects instead of deep copy + scrub. Load time per call, 2 runs, old->new us: Chromium small raw 13.9->6.1, medium 196->82, large 2020->810; Firefox 18.7->6.0, 225->67, 2450->750; WebKitGTK 17.6->7.9, 264->107, 2450->1100. Saves without raw fields: prefilter skipped (0.92-1.00x). Same clean state on all cases; test/raw-equivalence.js compares against 1.3.0 (poisoned keys, 40-deep, migrate, afterValidate). Note: afterValidate's raw and clean may share raw-field objects.
+
 ## 1.3.0 · API 1 · 2026-10-30
 
 ### Quick
