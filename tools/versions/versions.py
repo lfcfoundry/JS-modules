@@ -73,6 +73,19 @@ def dev_rel(root, e):
     return entry_dir(e, root) + "/CHANGELOG-DEV.md"
 
 
+def put_entry(t, v, entry):
+    """Put a version's entry in a changelog text: replaces an entry already there for the same version (so running set again never
+    writes the version twice), else goes in above the newest entry."""
+    m = re.search(r"(^|\n)## " + re.escape(v) + r" \u00b7 [^\n]*\n", t)
+    if m:
+        start = m.start() + (1 if m.group(1) else 0)
+        nxt = t.find("\n## ", m.end() - 1)
+        end = nxt + 1 if nxt >= 0 else len(t)
+        return t[:start] + entry.rstrip("\n") + "\n" + ("\n" if nxt >= 0 else "") + t[end:]
+    i = t.find("\n## ")
+    return (t[:i + 1] + entry + "\n" + t[i + 1:]) if i >= 0 else (t.rstrip("\n") + "\n\n" + entry)
+
+
 def add_dev_entry(root, e, v, note, quick=None, details=None, date=None):
     """Three-depth developer entry (Quick, Details, Deep) into the repo's CHANGELOG-DEV.md. Deep is the full note."""
     date = date or today()
@@ -90,8 +103,7 @@ def add_dev_entry(root, e, v, note, quick=None, details=None, date=None):
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             t = f.read()
-        i = t.find("\n## ")
-        t = (t[:i + 1] + entry + "\n" + t[i + 1:]) if i >= 0 else (t.rstrip("\n") + "\n\n" + entry)
+        t = put_entry(t, v, entry)
     else:
         t = "# %s developer changelog\n\n%s\n\n%s" % (e["id"], DEV_INTRO, entry)
     with open(path, "w", encoding="utf-8", newline="") as f:
@@ -164,8 +176,7 @@ def add_changelog_entry(root, e, v, note, date=None, short=None):
         if os.path.exists(path):
             with open(path, encoding="utf-8") as f:
                 t = f.read()
-            i = t.find("\n## ")
-            t = (t[:i + 1] + entry + "\n" + t[i + 1:]) if i >= 0 else (t.rstrip("\n") + "\n\n" + entry)
+            t = put_entry(t, v, entry)
         else:
             t = "# %s changelog\n\n%s\n\n%s" % (e["id"], intro, entry)
         with open(path, "w", encoding="utf-8", newline="") as f:
@@ -574,6 +585,9 @@ def check(root, reg):
             for ln in head_part.split("\n"):
                 if ln.startswith("- ") and len(ln) - 2 > SHORT_LINE_MAX:
                     bad.append("%s: a line in %s is %d characters, at most %d (move the detail to the private changelog): %s..." % (i, cl, len(ln) - 2, SHORT_LINE_MAX, ln[2:50]))
+            seen = [x[0] for x in ce]
+            for ver in sorted(set(x for x in seen if seen.count(x) > 1)):
+                bad.append("%s: version %s appears %d times in %s (keep one; versions.py set now replaces it)" % (i, ver, seen.count(ver), cl))
             for ver, _a, _d, _b in ce:
                 n = len(re.findall(r"^- ", re.search(r"^## %s .*?(?=^## |\Z)" % re.escape(ver), head_part, re.M | re.S).group(0), re.M)) if re.search(r"^## %s " % re.escape(ver), head_part, re.M) else 0
                 if n > SHORT_LINES_MAX:

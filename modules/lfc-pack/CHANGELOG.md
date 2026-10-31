@@ -29,9 +29,6 @@ What changed in each version, newest first, in plain words. The full details (nu
 ## 0.1.11 · API 0 · 2026-10-30
 - New packStream: feed text in pieces and write each block as it is ready, so packing a big file holds one block of text at a time
 
-## 0.1.10 · API 0 · 2026-10-30
-- New experimental unpackColumns reads flat-row files as typed columns without building row objects.
-
 ## 0.1.10 · API 0 · 2026-10-29
 - New experimental unpackColumns reads flat-row files as typed columns without building row objects.
 
