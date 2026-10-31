@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.2 · API 1 · 2026-10-30
+- Fixed: blurring a canvas bigger than about 0.5 megapixel no longer leaves the top of the result blank.
+
 ## 1.2.1 · API 1 · 2026-10-30
 - The opt-in helpers route now uses every core by default, about 10% faster on most picture sizes, same picture.
 
