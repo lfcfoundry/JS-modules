@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.0 · API 2 · 2026-11-01
+- New: the Chord, Bundles, Treemap, Sunburst, Icicle, Circle pack and Tree views, from the new netflow-circular and netflow-hierarchy add-ons; other views are unchanged.
+
 ## 2.2.3 · API 2 · 2026-10-31
 - Number labels are made in 95 to 98% less time (21 to 43 times as fast), with the same text.
 

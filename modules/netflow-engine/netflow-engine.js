@@ -2,11 +2,13 @@
  * netflow-engine.js: the engine of Netflow Map as a module you can adapt: reads links, lays the map out (layered rows, arcs, matrix, shapes, force, distances), and scores it. No page, no DOM; runs on the main thread or in a worker.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.2.3 (API 2)
+ * Version 2.3.0 (API 2)
  *
  *   var L = NetflowEngine.build({ nodes: [{ id: 'a' }, { id: 'b' }], edges: [{ from: 'a', to: 'b' }] }, { view: 'network', colorBy: 'group' });   // L.nodes, L.edges: positions and sizes, ready to draw
  *   NetflowEngine.use('layers', NetflowLayers);      // optional: hand over the add-ons (they are also found on their own)
  *   NetflowEngine.use('sankey', NetflowSankey);
+ *   NetflowEngine.use('circular', NetflowCircular);   // optional extra views: Chord, Bundles; then Treemap, Sunburst, Icicle, Circle pack, Tree
+ *   NetflowEngine.use('hierarchy', NetflowHierarchy);
  */
 
 (function (root, factory) {
@@ -14,7 +16,7 @@
   else root.NetflowEngine = factory(null);
 }(typeof self !== 'undefined' ? self : this, function (REQ) {
   'use strict';
-  var VERSION = '2.2.2';
+  var VERSION = '2.3.0';
   var NFMColumns = (function () {
     'use strict';
 
@@ -2416,6 +2418,16 @@
       ['matrix', 'Matrix', 'A grid of who links to whom; patterns show clusters and loops.'],
       ['network', 'Network', 'Closeness on the page follows closeness in the data; for data that is not a story.']
     ];
+    /* the extra views from add-ons: netflow-circular (Chord, Bundles) and netflow-hierarchy (Treemap, Sunburst, Icicle, Circle pack, Tree).
+       Found as page globals, as the Node files next to this folder, or handed over with use('circular', impl) / use('hierarchy', impl); their views join VIEWS. */
+    var XV = {}, xvTried = false;
+    function addViews(impl) { if (impl && impl.VIEWS) impl.VIEWS.forEach(function (v) { if (!XV[v[0]]) { XV[v[0]] = impl; VIEWS.push(v); } }); }
+    function findViews() {
+      if (xvTried) return; xvTried = true;
+      if (typeof NetflowCircular !== 'undefined') addViews(NetflowCircular); else if (REQ) { try { addViews(REQ('../netflow-circular/netflow-circular.js')); } catch (e) { /* not there: those views are not offered */ } }
+      if (typeof NetflowHierarchy !== 'undefined') addViews(NetflowHierarchy); else if (REQ) { try { addViews(REQ('../netflow-hierarchy/netflow-hierarchy.js')); } catch (e2) { /* not there */ } }
+    }
+    if (typeof NetflowCircular !== 'undefined' || typeof NetflowHierarchy !== 'undefined') findViews();
     /* ---------------------------------------------------------------- channels: numbers and categories from the data */
     function aggOf(vals, how) {
       var s = 0, c = 0, mx = -Infinity;
@@ -2514,7 +2526,8 @@
           flow = { exact: ab.converged, converged: ab.converged, residual: ab.residual, note: ab.converged ? '' : NOT_SETTLED, runs: 1, visits: ab.visits, moves: ab.moves, pGood: zg, pBad: zb, pNeutral: zn, outcome: oc0, mode: 'random', c: ab.c, K: ab.K, story: classes.story, start: ab.start, classes: classes.list.map(function (cl, k) { return { id: cl.id, label: cl.label, kind: cl.kind, p: ab.start[k] }; }) };
         }
       }
-      var foldOn = o.fold !== false && !flowing && view !== 'matrix' && view !== 'network' && view !== 'shape';
+      findViews();
+      var foldOn = o.fold !== false && !flowing && view !== 'matrix' && view !== 'network' && view !== 'shape' && !XV[view];
       var chOn = foldOn && o.chapters > 0 && P.n > o.chapters && (view === 'flow' || view === 'down' || view === 'spine' || view === 'lanes');
       var G = mapGraph(P, imp, { fold: foldOn, open: o.open, mergeIfFolded: chOn, chapters: chOn ? { min: o.chapterMin, cap: o.chapterCap, open: o.openCh, partsAbove: o.partsAbove === undefined ? 600 : o.partsAbove, part: o.partPages } : null, merge: !!o.merge || flowing || view === 'matrix' || view === 'arc' || view === 'network' });
       var found = o.colorBy === 'found' || o.laneBy === 'found' ? communities(P) : null;
@@ -2624,6 +2637,7 @@
         Lr = matrixLayout(G, layered(G, { dir: 'LR', root: root, prev: o.prevFlow }));
         Lr.nodes.forEach(function (n) { n.cx = n.cy = Lr.head + n.mi * Lr.cell + Lr.cell / 2; n.w = n.h = Lr.cell; });
       } else if (view === 'shape') Lr = shapeLayout(P, G);
+      else if (XV[view]) Lr = XV[view].layout(view, G, { chordBy: o.chordBy, chordOrder: o.chordOrder, nest: o.nest, treeShape: o.treeShape, sized: !!o.sizeBy });   // draw it with that add-on's scene(L, options, NetflowScene)
       else if (view === 'network') { STRESS.previewStop = !!o.previewOnly; try { Lr = networkLayout(P, G, o); } finally { STRESS.previewStop = false; } }
       else Lr = topDown(o.dir === 'TB' ? 'TB' : 'LR');
       if ((view === 'lanes' || downLanes) && laneNames.length > 1) Lr.laneNames = laneNames;
@@ -2679,9 +2693,10 @@
       return rows;
     }
 
-    /** Hand an add-on to the engine: 'layers' (netflow-layers) or 'sankey' (netflow-sankey). Optional: both are also found on their own when loaded as page scripts (or, for layers, as the Node file next to this one). */
+    /** Hand an add-on to the engine: 'layers' (netflow-layers), 'sankey' (netflow-sankey), 'circular' (netflow-circular) or 'hierarchy' (netflow-hierarchy). Optional: both are also found on their own when loaded as page scripts (or, for layers, as the Node file next to this one). */
     function use(name, impl) {
-      if (name === 'layers') NL = impl; else if (name === 'sankey') SK = impl; else throw new Error('netflow-engine: use() knows "layers" and "sankey", not "' + name + '"');
+      if (name === 'layers') NL = impl; else if (name === 'sankey') SK = impl; else if (name === 'circular' || name === 'hierarchy') addViews(impl);
+      else throw new Error('netflow-engine: use() knows "layers", "sankey", "circular" and "hierarchy", not "' + name + '"');
       return API;
     }
     var API = {

@@ -98,6 +98,19 @@ t('two-lane Distances sweeps give the same positions as one lane (1,500 items)',
   const g = network(1500, 6), o = { view: 'network', arrange: 'stress' }, W = E.stressWasm; if (!W.simd) { console.log('     (no SIMD in this engine: skipped)'); return; }
   const a = E.build(copy(g), o); W.simd = false; let b; try { b = E.build(copy(g), o); } finally { W.simd = true; } ok(same(a, b), 'positions differ between SIMD on and off');
 });
+t('the extra views: netflow-circular and netflow-hierarchy join VIEWS and lay out through build(), the same as calling them directly', () => {
+  const C = require('../../netflow-circular/netflow-circular.js'), H = require('../../netflow-hierarchy/netflow-hierarchy.js');
+  E.use('circular', C); E.use('hierarchy', H);
+  const names = E.VIEWS.map((v) => v[0]);
+  ['chord', 'bundles', 'treemap', 'sunburst', 'icicle', 'pack', 'tree'].forEach((v) => ok(names.indexOf(v) >= 0, v + ' listed'));
+  ok(names.filter((v) => v === 'chord').length === 1, 'listed once');
+  const g = network(400, 9);
+  ['chord', 'bundles', 'treemap', 'sunburst', 'icicle', 'pack', 'tree'].forEach((v) => {
+    const L = E.build(copy(g), { view: v });
+    ok(L.chart && L.chart.type === v && L.nodes.every((n) => isFinite(n.cx) && isFinite(n.cy)), v + ' laid out');
+    ok(JSON.stringify(E.build(copy(g), { view: v }).nodes.map((n) => [n.cx, n.cy])) === JSON.stringify(L.nodes.map((n) => [n.cx, n.cy])), v + ' repeatable');
+  });
+});
 t('the column reader is exposed and reads numbers the way people write them', () => { ok(E.columns.num('1,234.5') === 1234.5 && E.columns.num('12%') === 12 && isNaN(E.columns.num('0x10')), 'num'); });
 t('the file has no dependencies and builds no code from text (no eval, no new Function)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'netflow-engine.js'), 'utf8').replace(/'[A-Za-z0-9+/=]{200,}'/g, "''");
