@@ -32,19 +32,19 @@ That is 17 to 37% fewer crossings than the default, and 4 to 12% fewer than dagr
 dagre took about 0.8 s at 400 items and 7.2 s at 1,000. With the options off, pictures and speed are unchanged.
 
 
-**New in 1.7.0: fewer crossings by default.** A lighter deep search (at most 12 rounds) and both row choices now run unless you set `deep: false` and `rows: "route"`, which keep the old picture. Same random maps as above, row crossings, lower is better:
+**Since 1.8.0: the default is as tidy as `deep: true`.** A lighter deep search (at most 12 rounds, and it stops after 4 rounds with no gain; 1.7.0 stopped after 2) and both row choices run unless you set `deep: false` and `rows: "route"`, which keep the old picture. Same random maps as above, row crossings, lower is better:
 
-| Items | Old default | New default | `deep: true` | dagre 0.8.5 | ELK 0.12.1 |
-|---|---:|---:|---:|---:|---:|
-| 400 | 7,950 | 5,158 | 5,103 | 5,374 | 5,313 |
-| 1,000 | 33,763 | 21,440 | 21,166 | 23,965 | 22,602 |
+| Items | Old default | 1.7.0 default | 1.8.0 default | `deep: true` | dagre 0.8.5 | ELK 0.12.1 |
+|---|---:|---:|---:|---:|---:|---:|
+| 400 | 7,950 | 5,158 | 5,103 | 5,103 | 5,374 | 5,313 |
+| 1,000 | 33,763 | 21,440 | 21,166 | 21,166 | 23,965 | 22,602 |
 
-The new default draws 3 to 11% fewer crossings than dagre and ELK. It costs time on big maps. Cloud browsers, best of 5, ms, old default to new (lower is better):
+The default draws 4 to 12% fewer crossings than dagre and ELK. On 55 maps from Netflow Map (40 imported tables, 15 random), the 1.7.0 default drew over 1% more crossings than `deep: true` on 7 of them; the 1.8.0 default on none. It costs time on big maps. Cloud browsers, best of 5, ms (lower is better):
 
-| Browser | 400 items | 1,000 items |
+| Browser | 400 items: 1.7.0, 1.8.0, `deep: true` | 1,000 items: 1.7.0, 1.8.0, `deep: true` |
 |---|---:|---:|
-| Chromium 155 | 4.3 to 31 | 17 to 80 |
-| Firefox 158 | 7 to 40 | 39 to 83 |
-| WebKitGTK 2.52.6 | 5 to 31 | 11 to 77 |
+| Chromium 155 | 33, 34, 44 | 73, 112, 122 |
+| Firefox 158 | 32, 38, 51 | 90, 118, 119 |
+| WebKitGTK 2.52.6 | 31, 36, 44 | 83, 117, 114 |
 
-Laptop (16 cores), best of 5, ms, old default to new: Firefox 160 8.0 to 41.0 at 400 items and 19.0 to 104.0 at 1,000; Chromium 156 7.4 to 36.9 and 15.2 to 96.4. That is 5 to 6 times as long as the old picture, still far under dagre, which took about 0.8 s at 400 items and 7.2 s at 1,000 in the cloud.
+Laptop (16 cores), best of 5, ms, old default to the 1.7.0 default: Firefox 160 8.0 to 41.0 at 400 items and 19.0 to 104.0 at 1,000; Chromium 156 7.4 to 36.9 and 15.2 to 96.4. The 1.8.0 default is not yet measured on the laptop. All of these are far under dagre, which took about 0.8 s at 400 items and 7.2 s at 1,000 in the cloud.
