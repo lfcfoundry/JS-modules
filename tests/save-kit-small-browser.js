@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // save-kit create() against a plain JSON save, idb-keyval and localForage for small saves. Copyright (c) 2026 LFC Foundry. MIT License.
-// Early-stop A/B rule (tests/ab-sequential.js): is ours (B) more than 5% slower than each alternative (A)? ratio = ours / theirs, below 1 means ours is faster. CHROMIUM=... | FIREFOX=... | WEBKIT=1, LIBS=<folder with node_modules>.
+// Both sides change the text on every save (a browser may skip a write whose text did not change). Early-stop A/B rule (tests/ab-sequential.js): is ours (B) more than 5% slower than each alternative (A)? ratio = ours / theirs, below 1 means ours is faster. CHROMIUM=... | FIREFOX=... | WEBKIT=1, LIBS=<folder with node_modules>.
 'use strict';
 const path = require('path'), fs = require('fs'), http = require('http');
 const pp = (() => { try { return require('puppeteer-core'); } catch (e) { return null; } })();
@@ -27,9 +27,9 @@ async function bench(src, libs, abSrc) {
   for (var z = 0; z < sizes.length; z++) {
     var s = state(sizes[z][1]), n = sizes[z][2], m = n > 1000 ? 60 : 30;
     kit.save(s); localStorage.setItem('pj', JSON.stringify(s)); await idbk.set('k', s, store); await lf.setItem('k', s);
-    var ours = { save: sync(function () { kit.save(s); }, n), load: sync(function () { kit.load(); }, n) };
+    var ours = { save: sync(function () { s.count++; kit.save(s); }, n), load: sync(function () { kit.load(); }, n) };
     var pairs = [
-      ['save', 'plain JSON', sync(function () { localStorage.setItem('pj', JSON.stringify(s)); }, n)], ['load', 'plain JSON', sync(function () { JSON.parse(localStorage.getItem('pj')); }, n)],
+      ['save', 'plain JSON', sync(function () { s.count++; localStorage.setItem('pj', JSON.stringify(s)); }, n)], ['load', 'plain JSON', sync(function () { JSON.parse(localStorage.getItem('pj')); }, n)],
       ['save', 'idb-keyval', asy(function () { return idbk.set('k', s, store); }, m)], ['load', 'idb-keyval', asy(function () { return idbk.get('k', store); }, m)],
       ['save', 'localForage', asy(function () { return lf.setItem('k', s); }, m)], ['load', 'localForage', asy(function () { return lf.getItem('k'); }, m)]
     ];
