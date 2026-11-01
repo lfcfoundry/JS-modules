@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.2.0 (API 2)
+ * Version 2.3.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -157,7 +157,11 @@ var NetflowPlot = (function () {
         if (yName) F.text(14, (F.Tp + F.B) / 2, yName, 12, T.fg, { rot: -Math.PI / 2, bold: true });
       }
       if (ax) {
-        var labs = ax.list, maxN = Math.max(2, Math.floor((F.R - F.L) / 64)), every = ax.kind === 'band' ? Math.max(1, Math.ceil(labs.length / maxN)) : 1, rot = ax.kind === 'band' && labs.length > maxN / 2;
+        var labs = ax.list, maxN = Math.max(2, Math.floor((F.R - F.L) / 64)), every = ax.kind === 'band' ? Math.max(1, Math.ceil(labs.length / maxN)) : 1, rot = false;
+        if (ax.kind === 'band') {   /* flat unless two shown labels would really touch (about 6.05 px a character at 11 px, 6 px gap) */
+          var prevX = null, prevW = 0;
+          for (var li = 0; li < labs.length && !rot; li += every) { var lx = ax.map(labs[li]) + ax.bw / 2, lw = Math.min(14, String(ax.fmt ? ax.fmt(labs[li]) : fmtNum(labs[li])).length) * 6.05; if (prevX !== null && lx - prevX < (lw + prevW) / 2 + 6) rot = true; prevX = lx; prevW = lw; }
+        }
         labs.forEach(function (v, i) { if (i % every) return; var x = ax.map(v) + (ax.kind === 'band' ? ax.bw / 2 : 0); if (x < F.L - 1 || x > F.R + 1) return; if (grid !== false && ax.kind !== 'band') F.line([x, F.Tp, x, F.B], 1, gc); F.text(x, F.B + 16, clip(ax.fmt ? ax.fmt(v) : fmtNum(v), rot ? 18 : 14), 11, c, rot ? { rot: -Math.PI / 5, align: 'r' } : null); });
         if (xName) F.text((F.L + F.R) / 2, F.H - 10, xName, 12, T.fg, { bold: true });
       }

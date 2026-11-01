@@ -215,7 +215,7 @@ Draw maps, flow charts and animated pictures from data.
 | [netflow-engine](modules/netflow-engine/README.md) | 2.3.0 | 207.0 | 64.9 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.2.0 | 45.0 | 15.4 | Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine. | — |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.9.0 | 59.6 | 21.1 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.2.0 | 62.5 | 19.2 | 22 plain chart types from a table, drawn with netflow-scene. | — |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.3.0 | 62.9 | 19.4 | 22 plain chart types from a table, drawn with netflow-scene. | — |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.1 | 63.2 | 22.6 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.4.0 | 118.9 | 38.4 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |
 
