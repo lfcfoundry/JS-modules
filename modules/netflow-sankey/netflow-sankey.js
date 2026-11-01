@@ -228,7 +228,7 @@
 
   /**
    * layout(L, opts). L: the Sankey drawing from the engine (L.nodes with .id .layer .label, L.edges with .from .to .flow .kind and, for long links, .pts).
-   * opts: unweighted (order as the old picture does: every link counts the same, no restarts), justifySinks, height (picture height to aim for), nodeW (bar width), gapLayer, pad (space between bars), restarts, budgetMs, seed.
+   * opts: unweighted (order as the old picture does: every link counts the same, no restarts), stopCap and stopCapFrom (see the stand-in cap below), justifySinks, height (picture height to aim for), nodeW (bar width), gapLayer, pad (space between bars), restarts, budgetMs, seed.
    * Returns { nodes: [{id, label, x, y, w, h, layer, flow}], bands: [{edge, from, to, x0, y0a, y0b, x1, y1a, y1b, xm}], loops: [{edge, from, to, d, w, pts}],
    *           width, height, ky (pixels per unit of flow), crossingWeight, order, cols, ms }.
    * options(sk) cleans up a person's settings ({ nodeW, gap, pad, height, fixY, justify, order }) into the opts above; apply(L, r) writes a layout() result into the engine's drawing L (bar positions, picture size, L.sk).
@@ -261,8 +261,12 @@
     /* A long link gets one stand-in per layer it crosses so the layers can be ordered around it. Past DUMMY_CAP stand-ins in all, the lightest long links are drawn as one band from end to end instead (note in the result). */
     var noDummy = new Set(), dummyWant = 0, longLinks = [], simplified = 0;
     usable.forEach(function (ei, q) { var e = L.edges[ei], a = byId[e.from], b = byId[e.to]; if (!lay.feedback.has(q) && b.layer > a.layer + 1) { dummyWant += b.layer - a.layer - 1; longLinks.push(q); } });
-    if (dummyWant > DUMMY_CAP) {
-      var left = DUMMY_CAP;
+    /* stopCap (off by default): a lower cap on stand-ins, so big maps draw more long links straight through (faster; a different picture).
+       It only applies to maps with at least stopCapFrom items (default 1,000), so small maps keep every stand-in. */
+    var capOn = typeof opts.stopCap === 'number' && opts.stopCap >= 0 && L.nodes.length >= (typeof opts.stopCapFrom === 'number' ? opts.stopCapFrom : 1000);
+    var cap = capOn ? Math.min(DUMMY_CAP, Math.floor(opts.stopCap)) : DUMMY_CAP;
+    if (dummyWant > cap) {
+      var left = cap;
       longLinks.sort(function (p, q) { return L.edges[usable[q]].flow - L.edges[usable[p]].flow || p - q; }).forEach(function (q) {
         var e = L.edges[usable[q]], need = byId[e.to].layer - byId[e.from].layer - 1;
         if (need <= left) left -= need; else { noDummy.add(q); simplified++; }
