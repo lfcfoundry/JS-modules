@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.15.1 · API 1 · 2026-11-01
+
+### Quick
+The WebAssembly inflate now works out the CRC-32 itself, on each 32 KB of output while it is still in the cache (slicing by 16, the same tables as crc32.c; crc() export), instead of a separate pass over the whole entry afterwards.
+
+### Deep
+The WebAssembly inflate now works out the CRC-32 itself, on each 32 KB of output while it is still in the cache (slicing by 16, the same tables as crc32.c; crc() export), instead of a separate pass over the whole entry afterwards. Fuzz: 1,500 cases (random, repetitive, pattern; up to 2 MB; levels 0-9, all strategies): same bytes and the same CRC as Node's zlib. Early-stop A/B, bytes path, two rounds fwd+rev, new / 1.15.0, big/small/formulas/text: Chromium 155 0.999/0.966/0.970/0.982, Firefox 158 0.973/0.944/0.979/0.954, WebKitGTK 2.52.6 0.997/1.002/1.026/0.971. Also tried: the WebAssembly inflate for File entries over 4 MB compressed (read whole, then decode): big sheet 0.80-0.98 but Chromium text 1.05-1.15 slower; not shipped, waiting on the maintainer's call. Tests: 42 checks.
+
 ## 1.15.0 · API 1 · 2026-11-01
 
 ### Quick
