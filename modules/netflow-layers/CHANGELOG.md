@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.8.0 · API 1 · 2026-10-31
+- Tidier by default: the lighter crossing search now keeps going until 4 rounds bring no gain (it stopped after 2), so it matches deep: true on every map tested. 1,000 random items take about 112 to 118 ms instead of 72 to 90.
+
 ## 1.7.2 · API 1 · 2026-10-31
 - Same behavior, lighter in memory: the characters above U+00FF in the code (arrows, an ellipsis, curly quotes) are now written as escapes, so a page that bundles the file can keep its text at 1 byte per character.
 

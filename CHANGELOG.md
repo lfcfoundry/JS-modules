@@ -37,7 +37,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.3 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.7.2 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.8.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.2 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.1 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -99,6 +99,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **netflow-sankey** 2.4.1 · API 2: Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 - 2026-10-31 · **netflow-sankey** 2.4.0 · API 2: Big flow charts lay out 8 to 20% faster (20% at 1,500 items) with the same pictures. New stopCap / stopCapFrom options (off by default) draw more long links straight on big maps for a much faster layout.
 - 2026-10-31 · **netflow-sankey** 2.3.3 · API 2: Bars settle into place in WebAssembly too: the same pictures in 3 to 26% less time for big flow charts (3 to 14% in cloud browsers, 7 to 26% on a laptop).
+- 2026-10-31 · **netflow-layers** 1.8.0 · API 1: Tidier by default: the lighter crossing search now keeps going until 4 rounds bring no gain (it stopped after 2), so it matches deep: true on every map tested. 1,000 random items take about 112 to 118 ms instead of 72 to 90.
 - 2026-10-31 · **netflow-layers** 1.7.2 · API 1: Same behavior, lighter in memory: the characters above U+00FF in the code (arrows, an ellipsis, curly quotes) are now written as escapes, so a page that bundles the file can keep its text at 1 byte per character.
 - 2026-10-31 · **netflow-layers** 1.7.1 · API 1: Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 - 2026-10-31 · **netflow-layers** 1.7.0 · API 1: Fewer crossings by default (deep: false and rows: 'route' keep the old picture): 3 to 11% fewer than dagre and ELK on random maps; 1,000 items take 77 to 83 ms instead of 11 to 39.

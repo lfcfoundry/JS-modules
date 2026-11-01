@@ -1,6 +1,6 @@
 # netflow-layers
 
-**Version 1.7.2 · API 1**
+**Version 1.8.0 · API 1**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -52,7 +52,7 @@ Your input is never changed: the result holds copies of your nodes and links wit
 | `tagLen` | A number such as 8: links longer than this many rows become `kind: "tag"` (a stub and a name at each end), with no stand-in stops. `0` = off (default). |
 | `spine` | `true` puts the nodes marked `choke: true` in one line. |
 | `better` | `true` adds six more rounds of reordering; never worse, a little slower. |
-| `deep` | Left out (default since 1.7.0): a lighter deeper search after the usual rounds (neighbor swaps after each row, at most 12 rounds, stops after 2 with no gain). `true`: the full search (at most 80 rounds, stops after 4 with no gain). `false`: none (the default before 1.7.0). Never more crossings than without it. 1,000 random items: 33,763 crossings with `deep: false, rows: "route"`, 21,440 by default, 21,166 with `deep: true` (dagre 23,965, ELK 22,602), in about 14, 74 and 120 ms. Maps over 20,000 stops skip it; `orderRounds: 0` skips both the search and the second row choice. |
+| `deep` | Left out (default since 1.7.0): a lighter deeper search after the usual rounds (neighbor swaps after each row, at most 12 rounds, stops after 4 with no gain; 2 before 1.8.0). `true`: the full search (at most 80 rounds, stops after 4 with no gain). `false`: none (the default before 1.7.0). Never more crossings than without it. 1,000 random items: 33,763 crossings with `deep: false, rows: "route"`, 21,166 by default (21,440 before 1.8.0) and with `deep: true` (dagre 23,965, ELK 22,602), in about 17, 112 to 118 and 114 to 122 ms in 3 cloud browsers. At 400 items the default is quicker than `deep: true` (34 to 38 against 44 to 51 ms) with the same 5,103 crossings. Maps over 20,000 stops skip it; `orderRounds: 0` skips both the search and the second row choice. |
 | `orderRounds` | A number: rounds of the usual order search (default 6, or 2 on maps over 600 stops). `0` keeps the first order, for a caller such as netflow-sankey that reorders anyway. |
 | `bundle` | `true` lets links that start at the same page share one run of stand-in stops, and links that end at the same page and are alone at their start share one run from the end upward. Fewer stops and crossings on maps without tags; about the same where tags already removed the long links. |
 | `wrap` | `true` (with `dir: "TB"`) cuts a map more than 2.2 times taller than wide into columns side by side; links between columns become tags. |
@@ -79,8 +79,8 @@ A small layered-graph drawer. It does less than ELK, and adds switches aimed at 
 
 | Alternative | Size (smaller is better) | Where it wins / loses |
 |---|---|---|
-| ELK layered ([elkjs](https://github.com/kieler/elkjs) 0.12.1, EPL-2.0 or GPL-3.0-or-later) | 1,502,625 bytes minified, 439,741 gzipped (`elk.bundled.js`, the layout code in one file; the API file alone is 4,365 bytes with the layout code in a separate worker file) | ELK wins on routing (polyline, orthogonal, spline), edge bundling, wrapping, network-simplex rows, Brandes-Koepf placement and over 140 options. Crossings with default options since 1.7.0: 3 to 5% fewer than ELK (5,158 against 5,313 at 400 items, 21,440 against 22,602 at 1,000); `deep: true`: 4 to 6% fewer (5,103 and 21,166). The old default (`deep: false, rows: "route"`) draws about 50% more (7,950 and 33,763). |
-| [dagre](https://github.com/dagrejs/dagre) 0.8.5 (MIT) | 101,693 bytes minified, 27,772 gzipped (whole `dagre.js`, terser 5.51.2 `-c passes=2 -m`) | The long-standing layered layout for boxes and arrows. dagre draws 5,374 crossings at 400 items and 23,965 at 1,000. The old default here (`deep: false, rows: "route"`) draws 41 to 48% more; default options since 1.7.0 draw 4 to 11% fewer (5,158 and 21,440), in about 31 to 40 and 77 to 83 ms in 3 cloud browsers against dagre's 0.8 s and 7.2 s; `deep: true`: 5 to 12% fewer in about 50 and 120 ms. This module is about a third of its size |
+| ELK layered ([elkjs](https://github.com/kieler/elkjs) 0.12.1, EPL-2.0 or GPL-3.0-or-later) | 1,502,625 bytes minified, 439,741 gzipped (`elk.bundled.js`, the layout code in one file; the API file alone is 4,365 bytes with the layout code in a separate worker file) | ELK wins on routing (polyline, orthogonal, spline), edge bundling, wrapping, network-simplex rows, Brandes-Koepf placement and over 140 options. Crossings with default options since 1.8.0, the same as `deep: true`: 4 to 6% fewer than ELK (5,103 against 5,313 at 400 items, 21,166 against 22,602 at 1,000). The old default (`deep: false, rows: "route"`) draws about 50% more (7,950 and 33,763). |
+| [dagre](https://github.com/dagrejs/dagre) 0.8.5 (MIT) | 101,693 bytes minified, 27,772 gzipped (whole `dagre.js`, terser 5.51.2 `-c passes=2 -m`) | The long-standing layered layout for boxes and arrows. dagre draws 5,374 crossings at 400 items and 23,965 at 1,000. The old default here (`deep: false, rows: "route"`) draws 41 to 48% more; default options since 1.8.0 draw 5 to 12% fewer (5,103 and 21,166), in about 34 to 38 and 112 to 118 ms in 3 cloud browsers against dagre's 0.8 s and 7.2 s; `deep: true` draws the same in about 44 to 51 and 114 to 122 ms. This module is about a third of its size |
 | [d3-dag](https://github.com/erikbrinkman/d3-dag) 1.2.2 (MIT) | 137,471 bytes minified, 42,115 gzipped (the published `d3-dag.iife.min.js`, minified again) | Not compared here on speed or crossings; its "fast" quality level is the class this module is in |
 | d3-sankey (BSD-3-Clause, 0.12.3), a different tool for weighted flows | 5.7 KB minified, 2.0 KB gzipped (this module: 56,277 bytes readable, 19.3 KB gzipped; 14.5 KB minified and gzipped) | No loops in d3-sankey; this engine handles them. Fewer crossings (see below). In the race below it is faster in WebKitGTK and GNOME Web at 1,500 items and slower elsewhere. |
 
@@ -90,7 +90,7 @@ A small layered-graph drawer. It does less than ELK, and adds switches aimed at 
 
 **Where it loses**
 - Plain boxes only: link labels, ports and curved routing around boxes are not here (ELK has them).
-- Since 1.7.0 the default beats dagre and ELK on crossings but takes about 3 to 7 times as long as the old default (`deep: false, rows: "route"`, which still draws 41 to 50% more crossings than both); still far under dagre.
+- Since 1.7.0 the default beats dagre and ELK on crossings but takes about 4 to 7 times as long as the old default (`deep: false, rows: "route"`, which still draws 41 to 50% more crossings than both); still far under dagre.
 - Not measured: ELK's speed, and d3-dag's speed and crossings.
 - Story order is a choice, not the default: on a loop-free random map crossings rise from 90,351 to 131,569 (worse). Tags and bundling are the same kind of choice.
 - Brandes-Koepf straight-line placement was built, measured and left out: fewer slanted pieces but wider maps (4,223 to 49,496 px at 5,002 pages).
