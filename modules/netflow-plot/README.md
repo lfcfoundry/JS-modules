@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.2.0 · API 2**
+**Version 2.3.0 · API 2**
 
-**Tested in:** node modules/netflow-plot/test/run.js (326 checks); default pictures byte-identical to 2.1.0; three browsers
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

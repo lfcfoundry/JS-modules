@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.2.0 (API 2)
+ * Version 2.3.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -157,9 +157,20 @@ var NetflowPlot = (function () {
         if (yName) F.text(14, (F.Tp + F.B) / 2, yName, 12, T.fg, { rot: -Math.PI / 2, bold: true });
       }
       if (ax) {
-        var labs = ax.list, maxN = Math.max(2, Math.floor((F.R - F.L) / 64)), every = ax.kind === 'band' ? Math.max(1, Math.ceil(labs.length / maxN)) : 1, rot = ax.kind === 'band' && labs.length > maxN / 2;
-        labs.forEach(function (v, i) { if (i % every) return; var x = ax.map(v) + (ax.kind === 'band' ? ax.bw / 2 : 0); if (x < F.L - 1 || x > F.R + 1) return; if (grid !== false && ax.kind !== 'band') F.line([x, F.Tp, x, F.B], 1, gc); F.text(x, F.B + 16, clip(ax.fmt ? ax.fmt(v) : fmtNum(v), rot ? 18 : 14), 11, c, rot ? { rot: -Math.PI / 5, align: 'r' } : null); });
-        if (xName) F.text((F.L + F.R) / 2, F.H - 10, xName, 12, T.fg, { bold: true });
+        var labs = ax.list, maxN = Math.max(2, Math.floor((F.R - F.L) / 64)), every = ax.kind === 'band' ? Math.max(1, Math.ceil(labs.length / maxN)) : 1, rot = false;
+        var labT = function (v) { return String(ax.fmt ? ax.fmt(v) : fmtNum(v)); };
+        if (ax.kind === 'band') {   /* flat unless two shown labels would really touch (about 6.05 px a character at 11 px, 9 px gap); every label when they all fit flat; a long flat name wraps onto two lines */
+          var fits = function (step) { var prevX = null, prevW = 0; for (var li = 0; li < labs.length; li += step) { var lx = ax.map(labs[li]) + ax.bw / 2, lw = wrap2(labT(labs[li])).reduce(function (m, t) { return Math.max(m, Math.min(14, t.length)); }, 0) * 6.05; if (prevX !== null && lx - prevX < (lw + prevW) / 2 + 9) return false; prevX = lx; prevW = lw; } return true; };
+          if (every > 1 && fits(1)) every = 1; else rot = !fits(every);
+        }
+        labs.forEach(function (v, i) {
+          if (i % every) return; var x = ax.map(v) + (ax.kind === 'band' ? ax.bw / 2 : 0); if (x < F.L - 1 || x > F.R + 1) return; if (grid !== false && ax.kind !== 'band') F.line([x, F.Tp, x, F.B], 1, gc);
+          if (rot) { F.text(x, F.B + 16, clip(labT(v), 18), 11, c, { rot: -Math.PI / 5, align: 'r' }); return; }
+          var ls = ax.kind === 'band' ? wrap2(labT(v)) : [labT(v)]; ls.forEach(function (t, k) { F.text(x, F.B + 16 + k * 13, clip(t, 14), 11, c, null); });
+        });
+        /* tilted names reach further down than the axis name sits; the names say what the axis is, so the axis name is left out rather than drawn over them */
+        var drop = 0; if (rot) labs.forEach(function (v, i) { if (!(i % every)) drop = Math.max(drop, Math.min(18, labT(v).length) * 6.05 * Math.sin(Math.PI / 5) + 4); });
+        if (xName && 16 + drop < F.H - 10 - F.B - 12) F.text((F.L + F.R) / 2, F.H - 10, xName, 12, T.fg, { bold: true });
       }
       F.line([F.L, F.B, F.R, F.B], 1, alpha(T.muted, 0.7));
     };
@@ -173,6 +184,8 @@ var NetflowPlot = (function () {
     };
     return F;
   }
+  /** A name longer than 14 characters splits at the space nearest its middle (two lines under a flat axis); others stay one line. */
+  function wrap2(s) { if (s.length <= 14) return [s]; var best = -1; for (var i = 0; i < s.length; i++) if (s[i] === ' ' && (best < 0 || Math.abs(i - s.length / 2) < Math.abs(best - s.length / 2))) best = i; return best > 0 ? [s.slice(0, best), s.slice(best + 1)] : [s]; }
   function clip(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; }
   function linear(lo, hi, a, b) { var k = hi > lo ? (b - a) / (hi - lo) : 0; return function (v) { return a + (v - lo) * k; }; }
   /** A number or date axis from the values (with room at the ends when zero is not wanted). */

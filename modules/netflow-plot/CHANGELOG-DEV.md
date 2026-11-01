@@ -1,5 +1,13 @@
 # netflow-plot developer changelog
 
+## 2.3.0 · API 2 · 2026-11-01
+
+### Quick
+Band-axis labels (bar, box, dotplot and the like) used to tilt whenever more than about half the axis room was in use (labels > maxN/2).
+
+### Deep
+Band-axis labels (bar, box, dotplot and the like) used to tilt whenever more than about half the axis room was in use (labels > maxN/2). They now tilt only when two shown labels would really touch, measured at about 6.05 px a character at 11 px with a 6 px gap. Of 440 sample pictures (11 types x 5 category sets x light/dark x widths 400, 640, 900, 1,400), 66 changed, all from tilted to flat; the other 374 are byte-identical. Measured gap between flat labels in the 33 changed light pictures: at least 11.8 px in Chromium 155 and Firefox 158, 11.2 px in WebKitGTK 2.52.6; none touch. Tilted labels also no longer run into the axis name. Requested by the owner.
+
 ## 2.2.0 · API 2 · 2026-11-01
 
 ### Quick

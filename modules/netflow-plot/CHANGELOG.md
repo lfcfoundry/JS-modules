@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.0 · API 2 · 2026-11-01
+- Bar and box labels now stay flat and easy to read, and only tilt when two labels would really touch; long names wrap onto two lines, every bar gets its name when they all fit, and tilted names never sit under the axis name.
+
 ## 2.2.0 · API 2 · 2026-11-01
 - Charts take an optional highlight: one series (or one bar) keeps its color and is drawn on top, the rest turn gray.
 
