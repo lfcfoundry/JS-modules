@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-save-kit stores game or app progress in the browser safely. One file, 5.4 KB gzipped, no dependencies. `createLarge` does the same over IndexedDB for big saves.
+save-kit stores game or app progress in the browser safely. One file, 13.2 KB gzipped (7.4 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves.
 
 - You describe the save as a schema, and every field is checked on save and load.
 - A backup slot is kept, and a damaged value falls back alone instead of ruining the save.
@@ -126,7 +126,7 @@ Each field is checked on its own and falls back alone. `__proto__`, `constructor
 
 ## How it compares
 
-Larger than a hand-written `JSON.stringify` save, but the one built for game saves: it checks every field, keeps a backup and makes copy-paste codes with a checksum. Sizes of the others were measured below (whole library builds, same minifier); speed against them in browsers: not measured.
+Larger than a hand-written `JSON.stringify` save, but the one built for game saves: it checks every field, keeps a backup and makes copy-paste codes with a checksum. Sizes of the others were measured below (whole library builds, same minifier); speed against idb-keyval and localForage is measured on a laptop (Chromium 156 and Firefox 160, 16 cores): a 750-byte save takes 10 to 13 microseconds against 180 to 210 on IndexedDB, and `createLarge` saves and loads 1 to 16 MB 1.4 to 3.8 times as fast (see below). localForage's localStorage driver loads small saves faster (3.3 against 6.7 microseconds), with no backup or checks.
 
 | Alternative | Size (smaller is better) | Features | Where it wins / loses |
 |---|---|---|---|
@@ -135,7 +135,7 @@ Larger than a hand-written `JSON.stringify` save, but the one built for game sav
 | [idb-keyval](https://github.com/jakearchibald/idb-keyval) 6.3.0 (Apache-2.0) | 4,758 bytes minified, 1,507 gzipped | a small asynchronous key-value store on IndexedDB; no schema, checks, backup slot or codes | Wins when a save is large or must not block the page. Loses: does not protect a game save, and every read and write is asynchronous |
 | [lz-string](https://github.com/pieroxy/lz-string) 1.5.0 (MIT) | 4,814 bytes minified, 1,401 gzipped | URL-safe compressed text; no checksum, schema or size limit | Wins without `CompressionStream`. Loses: a cut-off or hostile code is not caught |
 | [fflate](https://github.com/101arrowz/fflate) 0.8.3 (MIT) | 32,794 bytes minified, 12,512 gzipped (whole library; a tree-shaken build is smaller) | real deflate code, could be an old-browser fallback | Wins on old browsers (this module has none). Loses: only the compression piece |
-| **save-kit 1.2.2** | 12,772 bytes minified, 5,427 gzipped (terser 5.51.2, `-c passes=2 -m`, same as the rows above); core only without codes 2,967 minified (terser 5.36.0, 1.2.0 file, so not comparable with the first figure) | per-field checks, backup slot, checksummed codes, size limits, other-tab notice, lean builds | Speed (smaller is better): a small save (448 bytes) loads in 3.24 microseconds in ungoogled-chromium 155.0.8059.39-1, 2.6 in Firefox 158.0, 1.95 in WebKitGTK 2.52.6, 2.05 in GNOME Web 46.5; against the alternatives: not measured |
+| **save-kit 1.5.0** | 20,150 bytes minified, 7,595 gzipped (terser 5.51.2, `-c passes=2 -m`, same as the rows above; with `createLarge`; 1.2.2 was 12,772 and 5,427); core only without codes 2,967 minified (terser 5.36.0, 1.2.0 file, so not comparable with the first figure) | per-field checks, backup slot, checksummed codes, size limits, other-tab notice, lean builds | Speed (smaller is better): a small save (448 bytes) loads in 3.24 microseconds in ungoogled-chromium 155.0.8059.39-1, 2.6 in Firefox 158.0, 1.95 in WebKitGTK 2.52.6, 2.05 in GNOME Web 46.5; against the alternatives: see "Large saves" below and the Numbers |
 
 ### Large saves against idb-keyval and localForage
 

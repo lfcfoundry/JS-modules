@@ -221,3 +221,13 @@ Reading the 260 MB file, time new / old (cloud, lower is better): Chromium 153 0
 | Events | 0.99 and 0.97 (noisy) | 1.00 | 1.00 |
 
 That is up to 14% less time; events are about the same. Laptop has 16 cores.
+
+**New in 0.4.9: a simpler decimal reader, and less scratch memory when packing.** Rows and files are the same byte for byte. Each pack uses 2.5 MB less scratch memory to group numbers. Laptop (16 cores), time new / old, lower is better:
+
+| Data | Open, Firefox 160 | Open, Chromium 156 | Pack, Firefox 160 | Pack, Chromium 156 |
+|---|---:|---:|---:|---:|
+| Geo (map coordinates) | 0.92 | 1.00 | 0.98 | 1.00 |
+| Sensor readings | 0.95 | 1.01 | 1.05 (inconclusive) | 1.01 |
+| Orders | 1.05 (inconclusive) | 1.09 (inconclusive, noisy) | 1.03 (inconclusive) | 0.99 |
+
+Firefox opens decimal lists 5 to 8% faster; the other cells are within noise.

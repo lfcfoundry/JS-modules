@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.0 · API 2 · 2026-10-31
+
+### Quick
+Same pictures: faster layering scan (heap scans, same removal order), link ends without per-bar lists, bars and stand-in stops in flat typed arrays (only items keep an object).
+
+### Deep
+Same pictures: faster layering scan (heap scans, same removal order), link ends without per-bar lists, bars and stand-in stops in flat typed arrays (only items keep an object). Output identical to 2.3.3 on 669 maps (pins, fixedOrder, wasm off, justifySinks off, autoGap). Laptop (sankey-speed-check-2, ratio vs 2.3.3): Chromium 156 1,500 items 0.798, 1,000 0.919, 400 1.012; Firefox 160 0.797, 0.846, 0.869. Cloud 1,500 items vs the branch before the typed arrays: Chromium 17.3 to 14.5 ms, Firefox 22.5 to 14.9, WebKitGTK 17.2 to 14.5. stopCap/stopCapFrom: new options, off by default (owner picked 'Cap at 500 stops' for Netflow Map maps of 1,000+ items, 2026.10.31 ~9:08 PM ET). Node, 1,500 items: default 24.4 ms / 71,093 center-line crossings, stopCap 500 3.9 ms / 60,423, d3-sankey 18.9 ms / 99,058; 5,000 items: 93.6 / 1,133,257, stopCap 500 15.7 / 462,760, d3-sankey 89.6 / 935,756.
+
 ## 2.3.3 · API 2 · 2026-10-31
 
 ### Quick
