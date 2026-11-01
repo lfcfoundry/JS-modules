@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.14.2 (API 1)
+ * Version 1.14.3 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -628,7 +628,7 @@
     if (typeof setTimeout === 'function') { scratchTimer = setTimeout(function () { SCRATCH = null; scratchTimer = 0; }, 5000); if (scratchTimer && scratchTimer.unref) scratchTimer.unref(); }
     return SCRATCH.subarray(0, n);
   }
-  async function inflateRaw(src, limit, expect, sink) {
+  async function inflateRaw(src, limit, expect, sink, box) {   // box: { crc } gets the running checksum, worked out on each piece while it is still in the cache
     if (typeof DecompressionStream === 'function') {
       var ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter(), rd = ds.readable.getReader(), chunks = [], total = 0, pre = expect > 0 && expect <= limit && expect <= 268435456 ? (sink ? sink(expect) : scratchFor(expect)) : null;
       var feeding = w.write(src).then(function () { return w.close(); }).catch(function () { /* the read side reports it */ });
@@ -638,6 +638,7 @@
           if (r.done) break;
           total += r.value.length;
           if (total > limit) { var tooBig = new Error('TOOBIG'); throw tooBig; }
+          if (box) box.crc = crcRun(r.value, box.crc);
           if (pre && total <= expect) pre.set(r.value, total - r.value.length); else { if (pre) { chunks.push(pre.slice(0, total - r.value.length)); pre = null; } chunks.push(r.value); }
         }
       } catch (e) {
@@ -665,18 +666,18 @@
     if (e.start + 30 > u8.length || u32(d, e.start) !== 0x04034b50) return { skip: 'looks damaged' };
     var data = e.start + 30 + u16(d, e.start + 26) + u16(d, e.start + 28);
     if (data + e.csize > u8.length) return { skip: 'looks damaged (cut off)' };
-    var body = u8.subarray(data, data + e.csize), out;
+    var body = u8.subarray(data, data + e.csize), out, box = null;
     if (e.method === 0) { if (e.csize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' }; out = body; }
     else {
       var cap = Math.min(limit, e.usize + 1), w = e.csize <= INFLATE_MAX && cap <= 16777216 ? inflateWasm(body, cap) : null;
       if (w) { if (w.err) return { skip: w.err === -2 ? 'unpacks to more than it says it does' : 'looks damaged' }; out = w.bytes; }
       else {
-        try { out = await inflateRaw(body, cap, sc ? e.usize : 0, typeof sc === 'function' ? sc : null); }
+        try { out = await inflateRaw(body, cap, sc ? e.usize : 0, typeof sc === 'function' ? sc : null, box = typeof DecompressionStream === 'function' ? { crc: -1 } : null); }
         catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
       }
     }
     if (out.length !== e.usize) return { skip: 'looks damaged (its size is not what the zip says)' };
-    if (crc32(out) !== e.crc) return { skip: 'looks damaged (its checksum does not match)' };
+    if ((box ? (box.crc ^ -1) >>> 0 : crc32(out)) !== e.crc) return { skip: 'looks damaged (its checksum does not match)' };
     return { bytes: out };
   }
 
@@ -853,7 +854,7 @@
     await openArchive(src, label, '', ctx, 0, /\.(xlsx|xlsm)$/i.test(label));
     var otherN = 0, otherExt = [];
     Object.keys(ctx.other).forEach(function (k) { otherN += ctx.other[k]; otherExt.push(k ? '.' + k : 'no extension'); });
-    if (otherN) ctx.notes.push(otherN + ' file' + (otherN === 1 ? '' : 's') + ' of other kinds (' + otherExt.slice(0, 6).join(', ') + (otherExt.length > 6 ? ', …' : '') + ') ' + (otherN === 1 ? 'was' : 'were') + ' left alone.');
+    if (otherN) ctx.notes.push(otherN + ' file' + (otherN === 1 ? '' : 's') + ' of other kinds (' + otherExt.slice(0, 6).join(', ') + (otherExt.length > 6 ? ', \u2026' : '') + ') ' + (otherN === 1 ? 'was' : 'were') + ' left alone.');
     if (!ctx.files.length) throw new Error('There were no files I can read inside ' + label + '. I read zips of text files (such as CSV, TSV, JSON, Markdown and XML) and Excel (.xlsx).' + (ctx.notes.length ? ' ' + ctx.notes.slice(0, 3).join(' ') : ''));
     return { files: ctx.files, notes: ctx.notes };
   }
