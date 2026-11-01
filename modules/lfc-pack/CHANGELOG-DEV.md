@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.15 · API 0 · 2026-10-31
+
+### Quick
+LFCP-thread changes ab16b9b (strdict: few-value string columns built in flatscan.wasm straight from ASCII input bytes), 3af552f (gather: per-key counts and number columns in wasm) and dc1b131 (slotScan: one hand-written pass for log templa…
+
+### Deep
+LFCP-thread changes ab16b9b (strdict: few-value string columns built in flatscan.wasm straight from ASCII input bytes), 3af552f (gather: per-key counts and number columns in wasm) and dc1b131 (slotScan: one hand-written pass for log template slots, matches RX_SLOT on 300,000 random strings). Byte-identical on 15 of 15 files plus edge cases. Laptop pack time vs 0.4.14, early-stop A/B: Firefox 160 events 0.798 (default) / 0.857 (256 KB), logs 0.842, sensor 0.929; Chromium 156 events 0.746 / 0.820, logs 0.900, sensor 0.849. Cloud WebKitGTK events 0.977 / 1.010, logs 0.877.
+
 ## 0.4.14 · API 0 · 2026-10-31
 
 ### Quick

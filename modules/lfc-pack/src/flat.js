@@ -74,14 +74,33 @@
   // auto mode only: templates can only be smaller when many values share a template, so look at up to 512 evenly spaced values first (near-unique columns skip the full pass, which cost half of the flat pack time on a 40-key set)
   function templatesPlausible(v) {
     var n = v.length, step = Math.max(1, Math.floor(n / 512)), seen = new Set(), c = 0, i;
-    for (i = 0; i < n && c < 512; i += step, c++) seen.add(v[i].replace(RX_SLOT, '\x01'));
+    var ps = [];
+    for (i = 0; i < n && c < 512; i += step, c++) seen.add(slotScan(v[i], ps));
     return seen.size * 2 <= c;
   }
+  // RX_SLOT by hand, one pass: returns t with every slot replaced by \x01 and puts the slot texts in ps (what t.replace(RX_SLOT, '\x01') and t.match(RX_SLOT) give, without two regex runs)
+  function slotScan(t, ps) {
+    var n = t.length, i = 0, last = 0, out = '', c, j, h;
+    ps.length = 0;
+    while (i < n) {
+      c = t.charCodeAt(i);
+      if ((c >= 48 && c <= 57) || (c >= 97 && c <= 102)) {   // a run of 8 or more hex digits from here with a letter in it
+        j = i; h = false;
+        while (j < n) { c = t.charCodeAt(j); if (c >= 97 && c <= 102) h = true; else if (c < 48 || c > 57) break; j++; }
+        if (h && j - i >= 8) { out += t.slice(last, i) + '\x01'; ps.push(t.slice(i, j)); i = last = j; continue; }
+        c = t.charCodeAt(i);
+      }
+      j = c === 45 ? i + 1 : i;   // -?\d+
+      if (j < n && (c = t.charCodeAt(j)) >= 48 && c <= 57) { j++; while (j < n && (c = t.charCodeAt(j)) >= 48 && c <= 57) j++; out += t.slice(last, i) + '\x01'; ps.push(t.slice(i, j)); i = last = j; continue; }
+      i++;
+    }
+    return last ? out + t.slice(last) : t;
+  }
   function templateFrames(v) {   // -> { frames, nT } or null
-    var n = v.length, tmap = new Map(), tl = [], ids = new Array(n), slots = new Map(), i, k, t, id, ps, key, arr;
+    var n = v.length, tmap = new Map(), tl = [], ids = new Array(n), slots = new Map(), i, k, t, id, ps = [], key, arr;
     for (i = 0; i < n; i++) {
       t = v[i]; if (t.indexOf('\x01') >= 0) return null;
-      ps = t.match(RX_SLOT); t = t.replace(RX_SLOT, '\x01');
+      t = slotScan(t, ps);
       id = tmap.get(t); if (id === undefined) { id = tl.length; if (id > 65535) return null; tmap.set(t, id); tl.push(t); }
       ids[i] = id;
       if (ps) for (k = 0; k < ps.length; k++) { key = id * 4096 + k; if (k >= 4096) return null; arr = slots.get(key); if (!arr) { arr = []; slots.set(key, arr); } arr.push(ps[k]); }
@@ -375,7 +394,7 @@
     var cn = new Uint32Array(mem.buffer, P.cnt, 4), nl = cn[0], colons = cn[1], commas = cn[2], allowStr = 1, asciiIn = cn[3] === 0;
     nrows = nl + (input[len - 1] === 10 ? 0 : 1);
     var pb = (nrows + 7) >> 3, NK = 128, cells = colons + 1, lvals = commas + colons + 16;
-    lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals); lay('clen', 4 * cells); if (asciiIn) { lay('hexL', 4 * NK); lay('hoff', 4 * NK); lay('hex', (len >> 1) + 16); }
+    lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals); lay('clen', 4 * cells); lay('gcnt', 4 * NK); lay('gtot', 4 * NK); lay('goff', 4 * NK); lay('gout', 8 * cells); if (asciiIn) { lay('hexL', 4 * NK); lay('hoff', 4 * NK); lay('hex', (len >> 1) + 16); var T2 = 16; while (T2 < cells + 2) T2 *= 2; lay('sht', 4 * T2); lay('scodes', 4 * cells); lay('slab', 4 * cells); lay('sout', len + cells + 16); lay('sres', 16); }
     if (o > 1610612736) return null;
     if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
     m8 = new Uint8Array(mem.buffer); m8.fill(0, P.planes, P.planes + NK * pb);
@@ -387,17 +406,28 @@
     var ckey = new Uint8Array(mem.buffer, P.ckey, nc), cval = new Float64Array(mem.buffer, P.cval, nc), cfd = new Uint8Array(mem.buffer, P.cfd, nc), llen = new Uint32Array(mem.buffer, P.llen, nlist), lval = new Uint32Array(mem.buffer, P.lval, st[3]), clen = new Uint32Array(mem.buffer, P.clen, nc), text = null;
     var koff = new Uint32Array(mem.buffer, P.keyoff, nk), klen = new Uint32Array(mem.buffer, P.keylen, nk);
     for (j = 0; j < nk; j++) keys.push(td.decode(input.subarray(koff[j], koff[j] + klen[j])));
-    var count = new Uint32Array(nk), tot = new Float64Array(nk), pos = new Uint32Array(nk), colv = new Array(nk), coll = new Array(nk), vpos = new Uint32Array(nk);
-    for (i = 0; i < nc; i++) { j = ckey[i]; count[j]++; if (ktype[j] === 2) tot[j] += llen[cval[i]]; }
+    if (W.x.gather(nc, P.ckey, P.cval, P.cfd, P.ktype, P.kfd, nk, P.llen, P.gcnt, P.gtot, P.goff, P.gout)) return null;   // counts, list totals and the number columns, in wasm
+    var count = new Uint32Array(mem.buffer, P.gcnt, nk).slice(), tot = new Uint32Array(mem.buffer, P.gtot, nk).slice(), goff = new Uint32Array(mem.buffer, P.goff, nk).slice(), pos = new Uint32Array(nk), colv = new Array(nk), coll = new Array(nk), vpos = new Uint32Array(nk);
     // hex id columns (every value the same even length of 16 or more, lowercase hex: encodeColumn's 'H'): with ASCII input the offsets are byte offsets, so their bytes are read straight from the input, no strings
     var hexL = new Int32Array(nk), hoff = null;
     if (asciiIn && W.x.hexcols(P['in'], nc, P.ckey, P.cval, P.clen, P.ktype, nk, P.hexL, P.hoff, P.hex)) { hexL.set(new Int32Array(mem.buffer, P.hexL, nk)); hoff = new Uint32Array(mem.buffer, P.hoff, nk); }
-    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(count[j]); else if (ktype[j] === 2) { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } else if (hexL[j] > 0) colv[j] = new Uint8Array(mem.buffer, P.hex + hoff[j], count[j] * hexL[j] / 2).slice(); else { colv[j] = new Array(count[j]); if (ktype[j] === 3 && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
+    // other string columns of few distinct values: the dictionary (or the joined values) straight from the bytes, so no text is decoded and no strings are made
+    var byB = new Uint8Array(nk), sdD = new Uint32Array(nk), sdOut = new Array(nk), sdCodes = new Array(nk), D2;
+    for (j = 0; j < nk; j++) {
+      if (hexL[j] > 0) { byB[j] = 1; continue; }
+      if (!asciiIn || ktype[j] !== 3) continue;
+      D2 = W.x.strdict(P['in'], nc, P.ckey, P.cval, P.clen, j, count[j], P.sht, P.scodes, P.slab, P.sout, P.sres);
+      if (!D2) continue;
+      byB[j] = 1; sdD[j] = D2; sdOut[j] = new Uint8Array(mem.buffer, P.sout, new Uint32Array(mem.buffer, P.sres, 1)[0]).slice();
+      sdCodes[j] = D2 * 4 > count[j] || D2 >= 65536 ? null : new Uint32Array(mem.buffer, P.scodes, count[j]).slice();
+    }
+    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(mem.buffer, P.gout + 8 * goff[j], count[j]).slice(); else if (ktype[j] === 2) { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } else if (hexL[j] > 0) colv[j] = new Uint8Array(mem.buffer, P.hex + hoff[j], count[j] * hexL[j] / 2).slice(); else if (byB[j]) colv[j] = null; else { colv[j] = new Array(count[j]); if (ktype[j] === 3 && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
     var lp = 0, sc, m, v;
-    for (i = 0; i < nc; i++) {
+    var rest = 0; for (j = 0; j < nk; j++) if (ktype[j] !== 1 && !byB[j]) rest = 1;   // cells the wasm passes did not already gather
+    if (rest) for (i = 0; i < nc; i++) {
       j = ckey[i];
-      if (ktype[j] === 1) { v = cval[i] * P10[FD[kfd[j]] - cfd[i]]; if (!(v < 1125899906842624 && v > -1125899906842624)) return null; colv[j][pos[j]++] = v; }
-      else if (ktype[j] === 3) { if (hexL[j] === 0) colv[j][pos[j]++] = text.slice(cval[i], cval[i] + clen[i]); }
+      if (ktype[j] === 1) continue;
+      else if (ktype[j] === 3) { if (byB[j] === 0) colv[j][pos[j]++] = text.slice(cval[i], cval[i] + clen[i]); }
       else if (ktype[j] === 4) colv[j][pos[j]++] = cfd[i] === 2 ? null : cval[i] === 1;
       else if (ktype[j] === 5) colv[j][pos[j]++] = null;
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
@@ -408,6 +438,11 @@
     for (j = 0; j < nk; j++) {
       best = null; c = count[j];
       if (hexL[j] > 0) cand('H', { L: hexL[j] }, [colv[j]], c);   // as encodeColumn writes a hex column
+      else if (sdD[j]) {   // as encodeColumn writes a string column of at most n / 2 distinct values
+        var D3 = sdD[j], cds = sdCodes[j];
+        if (!cds) cand('s', {}, [sdOut[j]], c);
+        else { var wd3 = Math.max(1, 32 - Math.clz32(D3 - 1)); cand('D', { w: 0, wide: D3 > 256 }, [sdOut[j], D3 > 256 ? new Uint8Array(new Uint16Array(cds).buffer) : Uint8Array.from(cds)], c); cand('D', { w: wd3, wide: false }, [sdOut[j], bitpack(cds, wd3)], c); if (best.t === 'D') best.st = { distinct: D3 }; }
+      }
       else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1); }
       else if (ktype[j] === 1) {
         var base = colv[j], mono = c > 0 && base[0] >= 0, mn = Infinity, mx = -Infinity, scale = P10[FD[kfd[j]]];
