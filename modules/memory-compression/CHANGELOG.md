@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.2 · API 2 · 2026-11-01
+- view() opens a long list much faster: the first row is ready 1.3 to 16 times as fast (21 to 94% less time), because number and dictionary columns are decoded only where a row is read.
+
 ## 2.10.1 · API 2 · 2026-10-31
 - Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 

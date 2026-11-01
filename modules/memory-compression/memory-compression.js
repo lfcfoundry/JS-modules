@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.10.1 (API 2)
+ * Version 2.10.2 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1834,7 +1834,38 @@
       } finally { KWC = null; }
       return st.i >= st.n;
     }
-    return { pack: pack, unpack: unpack, available: available, unpackStart: unpackStart, unpackStep: unpackStep };
+    // windowOpen: the column opened without being decoded. block(b) decodes block b (8,192 numbers) into w.out when asked for; all() decodes the rest. Blocks stand alone, so this reads exactly what unpack() reads.
+    function windowOpen(bytes, count, wasm) {
+      var r = new Rd(bytes), n = r.vi(), c = r.vi(), starts = [], lens = [], i, len, out, done;
+      if (n !== count || c < 1 || c > 1048576) pfail('the data does not match the column');
+      for (i = 0; i < n; i += c) { len = r.vi(); starts.push(r.p); lens.push(len); r.bytes(len); }
+      out = new Float64Array(n); done = new Uint8Array(starts.length);
+      return {
+        n: n, c: c, out: out,
+        block: function (b) {
+          var at, c2;
+          if (done[b]) return;
+          at = b * c; c2 = Math.min(c, n - at);
+          KWC = wasm === false ? null : kwGet();
+          try { into1(out, at, c2, decChunk(new Rd(bytes.subarray(starts[b], starts[b] + lens[b])), c2, out.subarray(at, at + c2))); } finally { KWC = null; }
+          done[b] = 1;
+        },
+        all: function () {
+          var b, at, c2;
+          KWC = wasm === false ? null : kwGet();
+          try {
+            for (b = 0; b < starts.length; b++) {
+              if (done[b]) continue;
+              at = b * c; c2 = Math.min(c, n - at);
+              into1(out, at, c2, decChunk(new Rd(bytes.subarray(starts[b], starts[b] + lens[b])), c2, out.subarray(at, at + c2)));
+              done[b] = 1;
+            }
+          } finally { KWC = null; }
+          return out;
+        }
+      };
+    }
+    return { pack: pack, unpack: unpack, available: available, unpackStart: unpackStart, unpackStep: unpackStep, windowOpen: windowOpen };
   })();
 
   // ================================================================ the object layer
@@ -3352,6 +3383,35 @@
   // Modes 7 to 10 are for a nested column of a view (lazyNow): 7 records (an object made per row from its columns), 8 arrays (row ends plus one flat column), 9 tuples (an array made per row), 10 date-times (text made per row from the numbers);
   // a.row(i) makes the value. They are never turned into plain arrays (that would hold every object), so each read makes its own value.
   // full() gives a plain array of the values.
+  var WIN_MIN = 16384;                               // a column of fewer rows is just decoded whole
+  function winRow(w, p, d) {                           // the reader of a number column (p: divisor, 0 for none) or dictionary column (d: the table) that decodes 8,192 numbers at a time
+    var out = w.out, c = w.c, m = d ? d.length : 0, scaled = false, hits = 0, lim = w.n >> 9, r;
+    r = {
+      col: null,
+      row: function (i) {
+        var b = (i / c) | 0, v, x;
+        if (++hits > lim && r.col) { x = r.col; if (d) { x.a = r.codes(); x.d = d; x.mode = 2; } else { x.a = r.all(); x.d = null; x.mode = 0; } x.t = 0; return d ? d[x.a[i]] : x.a[i]; }       // read often enough: the rest is decoded in one go and the column becomes a plain one (the reads after that cost what any column costs)
+        w.block(b); v = out[i];
+        if (d) { if (!(v >= 0 && v < m)) jfail('dictionary index out of range'); return d[v]; }
+        return p && !scaled ? v / p : v;
+      },
+      all: function () {
+        var i, n = w.n, r;
+        w.all();
+        if (d) { r = new Array(n); for (i = 0; i < n; i++) { if (!(out[i] >= 0 && out[i] < m)) jfail('dictionary index out of range'); r[i] = d[out[i]]; } return r; }
+        if (p && !scaled) { for (i = 0; i < n; i++) out[i] = out[i] / p; scaled = true; }
+        return out;
+      },
+      codes: function () {                              // a dictionary column as the table plus its small codes, the form a column read whole has
+        var q, k, n = w.n, cd = new (m <= 256 ? Uint8Array : m <= 65536 ? Uint16Array : Uint32Array)(n);
+        w.all();
+        for (q = 0; q < n; q++) { k = out[q]; if (!(k >= 0 && k < m)) jfail('dictionary index out of range'); cd[q] = k; }
+        return cd;
+      },
+      bytes: function () { return 64 + out.byteLength; }
+    };
+    return r;
+  }
   function Col(n, mode, a, d) { this.n = n; this.mode = mode; this.a = a; this.d = d; this.t = 0; this.hits = 0; }
   Col.prototype.get = function (i) { var m = this.mode; return m === 0 ? this.a[i] : m === 1 ? this.a[i] === 1 : m === 2 ? this.d[this.a[i]] : m === 3 ? this.d : this.cut(i); };   // kept small on purpose: it is read once per value in every row builder and must stay inlinable
   function lazyCol(n, kind, a) { var c = new Col(n, kind, a, null); c.t = kind; return c; }
@@ -3363,6 +3423,7 @@
   };
   Col.prototype.make = function () {                                  // a new array of all the strings of a column that is not made yet
     var n = this.n, a = this.a, out, i, big, off;
+    if (this.mode === 11) return this.a.all();
     if (this.mode === 4) return fsAll(a, n);
     out = new Array(n);
     if (this.mode === 5) { big = a.big; off = a.off; for (i = 0; i < n; i++) out[i] = big.substring(off[i], off[i + 1]); }
@@ -3377,6 +3438,7 @@
   };
   Col.prototype.full = function () {
     var n = this.n, a = this.a, d = this.d, out, i, m = this.mode;
+    if (m === 11) return a.all();
     if (m >= 4) return this.make();
     if (m === 0 && Array.isArray(a)) return this.t ? a.slice() : a;
     out = new Array(n);
@@ -3419,6 +3481,10 @@
         if (e > 10 || k > 1) jfail('bad adaptive column');
         a = this.bl.take(m);
         if (!PK.available()) jfail('this file stores a number column with the number picker, which needs a little-endian machine');
+        if (this.win && this.depth === 1 && !k && n >= WIN_MIN) {
+          try { t = PK.windowOpen(a, n, this.wasm); } catch (err) { jfail('an adaptive number column is damaged'); }
+          col = new Col(n, 11, winRow(t, e > 0 ? P10[e] : 0, null), null); col.a.col = col; return col;
+        }
         try {
           if (k) a = MC.unpack(a, { maxSize: m * 64 + n * 16 + 4096, wasm: this.wasm });
           t = PK.unpack(a, n, this.wasm);
@@ -3478,6 +3544,10 @@
         m = c.varint(); this.spend(m); this.spend(n); if (m > n || m < 2) jfail('bad dictionary column');
         d = this.rawStrings(m); k = c.u8(); e = c.varint(); if (k > 1) jfail('bad dictionary column');
         t = this.bl.take(e);
+        if (this.win && this.depth === 1 && !k && n >= WIN_MIN) {
+          try { a = PK.windowOpen(t, n, this.wasm); } catch (err) { jfail('a dictionary column is damaged'); }
+          col = new Col(n, 11, winRow(a, 0, d), null); col.a.col = col; return col;
+        }
         try { if (k) t = MC.unpack(t, { maxSize: e * 64 + n * 16 + 4096, wasm: this.wasm }); t = PK.unpack(t, n, this.wasm); } catch (err) { jfail('a dictionary column is damaged'); }
         a = new (m <= 256 ? Uint8Array : m <= 65536 ? Uint16Array : Uint32Array)(n);
         for (i = 0; i < n; i++) { if (!(t[i] >= 0 && t[i] < m)) jfail('dictionary index out of range'); a[i] = t[i]; }
@@ -4571,7 +4641,7 @@
       var x = cols[q], sub;
       if (x) return x;
       sub = new Dec(new In(ctlBuf, offC[q], offC[q] + dirC[q]), new In(blobBuf, offB[q], offB[q] + dirB[q]), vopts);
-      sub.ver = d.ver; sub.lazyText = true; sub.spend(n);
+      sub.ver = d.ver; sub.lazyText = true; sub.win = true; sub.spend(n);
       x = sub.column(n);
       if (sub.c.p !== sub.c.end || sub.bl.p !== sub.bl.end) jfail('a column does not match its directory entry');
       cols[q] = x; getter = null;
@@ -4590,6 +4660,7 @@
     function colBytes(x) {                                          // about what the restored column takes: a number column exactly, text 8 bytes a slot plus a string header (32 for a long one, as it is cut from a bigger text) and the text itself
       var a = x.a, m = x.mode;
       if (m === 3) return 0;
+      if (m === 11) return a.bytes();
       if (x.t && m === 0) {                                           // a text column read often enough to have been made in one pass: the strings (a cut one is a 32 byte header on the big text, which stays)
         var k, t2 = 24, len;
         if (!x.d) return t2 + estimateBytes(a);
