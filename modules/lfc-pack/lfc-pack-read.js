@@ -765,14 +765,33 @@
   // auto mode only: templates can only be smaller when many values share a template, so look at up to 512 evenly spaced values first (near-unique columns skip the full pass, which cost half of the flat pack time on a 40-key set)
   function templatesPlausible(v) {
     var n = v.length, step = Math.max(1, Math.floor(n / 512)), seen = new Set(), c = 0, i;
-    for (i = 0; i < n && c < 512; i += step, c++) seen.add(v[i].replace(RX_SLOT, '\x01'));
+    var ps = [];
+    for (i = 0; i < n && c < 512; i += step, c++) seen.add(slotScan(v[i], ps));
     return seen.size * 2 <= c;
   }
+  // RX_SLOT by hand, one pass: returns t with every slot replaced by \x01 and puts the slot texts in ps (what t.replace(RX_SLOT, '\x01') and t.match(RX_SLOT) give, without two regex runs)
+  function slotScan(t, ps) {
+    var n = t.length, i = 0, last = 0, out = '', c, j, h;
+    ps.length = 0;
+    while (i < n) {
+      c = t.charCodeAt(i);
+      if ((c >= 48 && c <= 57) || (c >= 97 && c <= 102)) {   // a run of 8 or more hex digits from here with a letter in it
+        j = i; h = false;
+        while (j < n) { c = t.charCodeAt(j); if (c >= 97 && c <= 102) h = true; else if (c < 48 || c > 57) break; j++; }
+        if (h && j - i >= 8) { out += t.slice(last, i) + '\x01'; ps.push(t.slice(i, j)); i = last = j; continue; }
+        c = t.charCodeAt(i);
+      }
+      j = c === 45 ? i + 1 : i;   // -?\d+
+      if (j < n && (c = t.charCodeAt(j)) >= 48 && c <= 57) { j++; while (j < n && (c = t.charCodeAt(j)) >= 48 && c <= 57) j++; out += t.slice(last, i) + '\x01'; ps.push(t.slice(i, j)); i = last = j; continue; }
+      i++;
+    }
+    return last ? out + t.slice(last) : t;
+  }
   function templateFrames(v) {   // -> { frames, nT } or null
-    var n = v.length, tmap = new Map(), tl = [], ids = new Array(n), slots = new Map(), i, k, t, id, ps, key, arr;
+    var n = v.length, tmap = new Map(), tl = [], ids = new Array(n), slots = new Map(), i, k, t, id, ps = [], key, arr;
     for (i = 0; i < n; i++) {
       t = v[i]; if (t.indexOf('\x01') >= 0) return null;
-      ps = t.match(RX_SLOT); t = t.replace(RX_SLOT, '\x01');
+      t = slotScan(t, ps);
       id = tmap.get(t); if (id === undefined) { id = tl.length; if (id > 65535) return null; tmap.set(t, id); tl.push(t); }
       ids[i] = id;
       if (ps) for (k = 0; k < ps.length; k++) { key = id * 4096 + k; if (k >= 4096) return null; arr = slots.get(key); if (!arr) { arr = []; slots.set(key, arr); } arr.push(ps[k]); }
