@@ -15,7 +15,7 @@ Grouped by what each piece does: Modules & Tools (43, tools included), Story edi
 - [slow-note](https://github.com/lfcfoundry/JS-modules/blob/main/modules/slow-note/README.md): Keeps a short note, only on the device, of the errors, slow taps and long frames a page had; copyable as plain text, nothing is sent anywhere. Version 1.0.0, API 1.
 
 ## Modules & Tools: Saving and data safety
-- [save-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/save-kit/README.md): Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. (global SaveKit) Version 1.5.0, API 1.
+- [save-kit](https://github.com/lfcfoundry/JS-modules/blob/main/modules/save-kit/README.md): Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to. (global SaveKit) Version 1.5.1, API 1.
 - [tab-guard](https://github.com/lfcfoundry/JS-modules/blob/main/modules/tab-guard/README.md): Keeps one open copy of a page in charge (Web Locks), so two tabs do not overwrite each other's saved data, and tells the game when the other copy closes. (global TabGuard) Version 1.1.1, API 1.
 
 ## Modules & Tools: Games - Looks and effects

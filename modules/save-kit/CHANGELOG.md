@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-10-31
+- Loading a save with big counts lists is 16 to 28% faster; nothing a game sees changes.
+
 ## 1.5.0 · API 1 · 2026-10-31
 - createLarge() gets an opt-in skipUnchangedMs: an unchanged big save is not written again; 57 to 66% less time.
 
