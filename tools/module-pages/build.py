@@ -21,12 +21,12 @@ body{margin:0}.lfc-band{margin:0}.wrap{max-width:820px;margin:0 auto;padding:0 1
 .btns a.alt{background:transparent;border:1px solid var(--lfc-hero-muted);color:var(--lfc-hero-fg)}
 nav.jump{display:flex;flex-wrap:wrap;gap:6px 14px;margin:18px 0;font-size:15px}
 h2{margin:34px 0 8px;font-size:26px}h3{margin:20px 0 6px}
-pre{overflow-x:auto;font-size:14px;max-width:100%}p code,li code,td code{overflow-wrap:anywhere}.wrap{overflow-wrap:break-word}table{border-collapse:collapse;display:block;overflow-x:auto;max-width:100%}th,td{border:1px solid var(--lfc-line);padding:6px 10px;text-align:left;vertical-align:top;font-size:15px}th{background:var(--lfc-soft)}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;max-width:100%}p code,li code,td code{overflow-wrap:anywhere}.wrap{overflow-wrap:break-word}table{border-collapse:collapse;display:block;overflow-x:auto;max-width:100%}th,td{border:1px solid var(--lfc-line);padding:6px 10px;text-align:left;vertical-align:top;font-size:15px}th{background:var(--lfc-soft)}
 .wrap{line-height:1.6}p,li{margin:.7em 0}td{line-height:1.5}
 @media(max-width:700px){table,tbody{display:block}thead{display:none}tr{display:block;border:1px solid var(--lfc-line);border-radius:10px;margin:0 0 16px;padding:6px 14px;background:var(--lfc-soft)}
 td{display:block;border:0;border-bottom:1px solid var(--lfc-line);padding:10px 0;font-size:16px}td:last-child{border-bottom:0}
 td::before{content:attr(data-l);display:block;font:700 12px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-muted,#6b7a8c);margin-bottom:3px}td:first-child{font-weight:700}td:first-child::before{display:none}}
-.ph{border:2px dashed var(--lfc-line);border-radius:10px;padding:10px 14px;background:var(--lfc-soft)}.mod{border-top:2px solid var(--lfc-line);margin-top:40px}
+.wrap td:first-child{min-width:9.5em}.ph{border:2px dashed var(--lfc-line);border-radius:10px;padding:10px 14px;background:var(--lfc-soft)}.mod{border-top:2px solid var(--lfc-line);margin-top:40px}
 """
 def esc(s): return html.escape(s, quote=False)
 def inline(s, base):
@@ -54,7 +54,7 @@ def md(text, base):
             rows = []
             j = i
             while j < len(lines) and lines[j].startswith('|'): rows.append(lines[j]); j += 1
-            cells = lambda r: [c.strip() for c in r.strip().strip('|').split('|')]
+            cells = lambda r: [c.strip().replace('\\|', '|') for c in re.split(r'(?<!\\)\|', r.strip().strip('|'))]
             hs = cells(rows[0])
             t = '<table><thead><tr>%s</tr></thead><tbody>' % ''.join('<th>%s</th>' % inline(c, base) for c in hs)
             for r in rows[2:]: t += '<tr>%s</tr>' % ''.join('<td data-l="%s">%s</td>' % (html.escape(hs[k] if k < len(hs) else '', quote=True), inline(c, base)) for k, c in enumerate(cells(r)))
