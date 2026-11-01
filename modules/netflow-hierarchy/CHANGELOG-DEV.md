@@ -1,5 +1,13 @@
 # netflow-hierarchy developer changelog
 
+## 1.1.0 · API 1 · 2026-11-01
+
+### Quick
+Owner's card (11:54 AM ET): labels choose dark or white per tile for 4.5:1.
+
+### Deep
+Owner's card (11:54 AM ET): labels choose dark or white per tile for 4.5:1. ink(fill, preferred): the fill laid over the background, WCAG contrast; the preferred color (theme text on treemap group boxes and pack circles) when it reaches 4.5:1, else near-black or white, whichever reads better, else pure black (reaches 4.58:1 on every color). Test pictures: 4 views x 4 palettes x 2 themes x 3 group counts, 300 items: 19,056 names on shapes, under 4.5:1 before 2,432, after 10 (pack circle names overlapping a child circle). Everything but label colors is unchanged in every picture; 925 checks; page scripts match Node in 3 browsers.
+
 ## 1.0.1 · API 1 · 2026-11-01
 
 ### Quick
