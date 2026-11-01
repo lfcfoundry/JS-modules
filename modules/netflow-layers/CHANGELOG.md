@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.7.0 · API 1 · 2026-10-31
-- Fewer crossings by default (beats dagre and ELK at 400 and 1,000 items): a lighter deep search and both row choices; deep: false, rows: 'route' keep the old picture. Big maps take longer (77-83 ms at 1,000 items).
+- Fewer crossings by default (deep: false and rows: 'route' keep the old picture): 3 to 11% fewer than dagre and ELK on random maps; 1,000 items take 77 to 83 ms instead of 11 to 39.
 
 ## 1.6.0 · API 1 · 2026-10-31
 - New options, all off by default: deep: true untangles links further, rows: 'best' tries both row choices, orderRounds: 0 skips the order search. Deep with 'best' cuts crossings 17 to 37%, below dagre and ELK.
