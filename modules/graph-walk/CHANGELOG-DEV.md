@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.11.2 · API 0 · 2026-10-31
+
+### Quick
+Characters above U+00FF in the source are written as \uXXXX escapes (the same strings at run time), so the file is Latin-1 only.
+
+### Deep
+Characters above U+00FF in the source are written as \uXXXX escapes (the same strings at run time), so the file is Latin-1 only. Browsers store a script's text at 1 byte per character only when every character is at most U+00FF; research round 33 measured 9% less renderer memory for Netflow Map in Chromium once its whole file was Latin-1. Tests pass.
+
 ## 0.11.1 · API 0 · 2026-10-31
 
 ### Quick

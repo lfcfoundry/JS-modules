@@ -1,6 +1,6 @@
 # graph-walk
 
-**Version 0.11.1 · API 0**
+**Version 0.11.2 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 

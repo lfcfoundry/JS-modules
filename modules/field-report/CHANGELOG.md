@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The numbers are explained in [tools/versions/README.md](../../tools/versions/README.md): the API number goes up only when someone using an older copy could be affected.
 
+## 1.1.1 · API 1 · 2026-10-31
+- Same behavior, lighter in memory: the characters above U+00FF in the code (arrows, an ellipsis, curly quotes) are now written as escapes, so a page that bundles the file can keep its text at 1 byte per character.
+
 ## 1.1.0 · API 1 · 2026-10-31
 - New frames modes: 'play' records only while the app says it is animating; 'external' takes frame times from the app's own loop (fr.frame(ts)), so there is no second animation-frame callback.
 
