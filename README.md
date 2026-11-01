@@ -180,7 +180,7 @@ Test a game by playing it at random, shrinking any failure to a short replay, co
 | [storage-probe](tools/storage-probe/README.md) *(tool)* | 1.1.0 | 19.4 | 7.2 | A one-button page that says whether copies of a page share their saved data. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/storage-probe/storage-probe.html) |
 | [test-isolation](tools/test-isolation/README.md) *(tool)* | 1.1.0 | 6.5 | 2.4 | Prefixes every localStorage key on a test page so tests never touch the real save. | — |
 | [test-runner](tools/test-runner/README.md) *(tool)* | 1.4.0 | 49.0 | 16.5 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
-| [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.4.1 | 23.6 | 8.6 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
+| [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.4.1 | 23.6 | 8.6 | Drives WebKitGTK from Node with Playwright-style calls, no dependencies. | — |
 
 #### App - Efficiency
 
@@ -333,13 +333,13 @@ Checks: maths and save logic in Node, the browser pieces (curtains, hold-press, 
 
 Browser checks run only in the browsers kept on the `browsers` branch of the private knowledge-base repository: **Firefox 158** (the stress test), **ungoogled Chromium 155** and **WebKitGTK 2.52.6**, on Linux. The branch can change (a version updated, a browser added or removed), so read its README before each run and use what it says then. Every result in this repository's docs names the exact browser and version, for example "Firefox 158" or "Chromium 155 (ungoogled)".
 
-**Every module and tool says which browsers its release was tested in.** The newest release's list is the **Tested in** line near the top of its README; each release's list is the **Tested in** line in its full changelog entry, which the maintainers keep privately (the repo's `CHANGELOG.md` files are the short end-user versions). A line names each browser with its version, says "not recorded" where the old records do not show it, and says what was not run. Older builds (Chromium 141 and 153, Firefox 155 and 157) and GNOME Web 46.5 were stand-ins before this rule; entries that were tested on them still say so, and are not re-measured unless a change needs it. `versions.py set ... --tested "..."` writes the line; see [tools/versions/README.md](tools/versions/README.md).
+**Every module and tool says which browsers its release was tested in.** The newest release's list is the **Tested in** line near the top of its README; each release's list is the **Tested in** line in its full changelog entry, which the maintainers keep privately (the repo's `CHANGELOG.md` files are the short end-user versions). A line names each browser with its version, says "not recorded" where the old records do not show it, and says what was not run. Older builds (Chromium 141 and 153, Firefox 155 and 157) were stand-ins before this rule; entries that were tested on them still say so, and are not re-measured unless a change needs it. `versions.py set ... --tested "..."` writes the line; see [tools/versions/README.md](tools/versions/README.md).
 
 Rules for anyone running the tests:
 
 - Run one browser at a time. Two at once make timing checks flaky.
 - Point the test at the browser you installed: `CHROMIUM=/path/to/chrome` for the Chromium checks, `FIREFOX_PATH` (and `GECKODRIVER_PATH` for [firefox-stand-in](tools/firefox-stand-in/README.md)) for Firefox. A bare run that falls back to some other build gives unfair timing numbers, so say which one ran.
-- WebKitGTK can only be driven through WebDriver (Playwright and Puppeteer cannot); the recipe is in the branch README. GNOME Web is no longer a test browser; older results that name it are kept as they were measured.
+- WebKitGTK can only be driven through WebDriver (Playwright and Puppeteer cannot); the recipe is in the branch README.
 - Not covered yet: Safari itself, and real phones (an Android phone and an iPhone). A passing desktop run is not a phone result.
 
 ## More from LFC Foundry

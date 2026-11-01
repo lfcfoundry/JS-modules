@@ -48,7 +48,7 @@ td::before{content:attr(data-l);display:block;font:700 12px var(--lfc-mono);lett
 <p>Where it loses: <code>EvenDt</code> gives no smoothing to a 15 Hz or slower loop (gaps of 60 ms or more). <code>QualityGovernor</code> reacts slowly (at least 100 slow frames and 3 s to step down, 10 s to step up) and cannot tell why frames are slow. <code>FrameMeter</code> does not use the Event Timing API (Firefox 89 and later, Safari 26.2 and later; by default it reports only slow events, over 104 ms) or the Long Animation Frames API (Chromium only, Chrome 123 and later), and "the device" only means "not your code"; support facts are from MDN compatibility data (2026-10 audit), not re-tested. Not measured: the speed of every helper in browsers, and the sizes and speeds of the alternatives. No exhaustive search for vanilla-JS packages was done; others may exist.</p>
 <h2 id="how-to-use-it">How to use it</h2>
 <h3>Use</h3>
-<p>Copy the files you want; <code>demo.html</code> shows all four working.</p>
+<p>Copy the files you want; <code>demo.html</code> shows all three working.</p>
 <pre><code>&lt;script src="even-dt.js"&gt;&lt;/script&gt;
 &lt;script src="quality-governor.js"&gt;&lt;/script&gt;
 &lt;script src="job-pump.js"&gt;&lt;/script&gt;

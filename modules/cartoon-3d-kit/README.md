@@ -63,7 +63,7 @@ cartoon-3d-kit is a written guide with numbers, not code, so it is the missing r
 | [Zdog](https://zzz.dog/) (MIT, version: not read) | Not measured. This kit: guide 50,520 bytes of text, demo page 20,652 bytes, crowd page 13,339 bytes | Not measured | Wins if you want a 3D scene (flat pseudo-3D engine, canvas or SVG). This kit wins for a look on ordinary 2D shapes |
 | Animate.css and Motion (MIT, versions: not read) | Not measured | Not measured | Win on ready-made movement. The squash and pop timings here work with either |
 
-The kit's own measurements (ungoogled Chromium 155.0.8059.39-1, headless, median of three 5-second runs, browser work per second; lower is better): 12 heroes cost 191 ms as live page copies, 182 ms baked at 60 per second and 117 ms baked at 30 per second; 48 heroes cost 346, 357 and 227 ms. Firefox, WebKitGTK and GNOME Web timings: not measured.
+The kit's own measurements (ungoogled Chromium 155.0.8059.39-1, headless, median of three 5-second runs, browser work per second; lower is better): 12 heroes cost 191 ms as live page copies, 182 ms baked at 60 per second and 117 ms baked at 30 per second; 48 heroes cost 346, 357 and 227 ms. Firefox, WebKitGTK timings: not measured.
 
 **Where it loses:** it is a guide, not a library (you draw your own character and copy the CSS; nothing is installable); fewer ready-made pieces (no scene graph, no animation engine, no components); timings exist for one browser (Chromium 155) only; phones: not measured. No open project turned up that packages a glossy toy character in plain CSS and SVG with numbers; the value is the written, used-in-a-game numbers, not a new technique.
 
