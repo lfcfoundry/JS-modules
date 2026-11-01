@@ -157,9 +157,18 @@ __attribute__((noinline)) static int codes(St *st, u8 *out, u32 outcap) {
   #undef DROP
 }
 
-int inflate(const u8 *in, u32 inlen, u8 *out, u32 outcap) {
-  const u8 *ip = in, *iend = in + inlen; u64 bb = 0; u32 bc = 0, padded = 0, o = 0, cp = 0, cs = 0xffffffffu; int last;
+/* Unpacking a piece at a time: inflateBegin() then inflateStep(target) until inflateDone(), so another thread can
+   hand the pieces to the reader while it unpacks the next ones. inflate() does it in one go. */
+static struct { const u8 *ip, *iend; u64 bb; u32 bc, padded, o, cp, cs, done; u8 *out; u32 outcap; } IS;
+void inflateBegin(const u8 *in, u32 inlen, u8 *out, u32 outcap) {
   if (!ctReady) crcInit();
+  IS.ip = in; IS.iend = in + inlen; IS.bb = 0; IS.bc = 0; IS.padded = 0; IS.o = 0; IS.cp = 0; IS.cs = 0xffffffffu; IS.done = 0; IS.out = out; IS.outcap = outcap;
+}
+u32 inflateDone(void) { return IS.done; }
+/* unpacks whole blocks until at least target bytes are out (or the end): the bytes out so far, or -1 damaged, -2 more than outcap */
+int inflateStep(u32 target) {
+  const u8 *ip = IS.ip, *iend = IS.iend; u64 bb = IS.bb; u32 bc = IS.bc, padded = IS.padded, o = IS.o, cp = IS.cp, cs = IS.cs; u8 *out = IS.out; u32 outcap = IS.outcap; int last = 0;
+  if (IS.done) return (int)o;
   #define CRC_STEP() do { if (o - cp >= 32768) { cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
   #define REFILL_SLOW() do { while (bc <= 56) { if (ip < iend) bb |= (u64)*ip++ << bc; else padded += 8; bc += 8; } } while (0)
   #define NEED(n) do { if (bc < (u32)(n)) REFILL_SLOW(); } while (0)
@@ -208,7 +217,9 @@ int inflate(const u8 *in, u32 inlen, u8 *out, u32 outcap) {
       ip = st.ip; bb = st.bb; bc = st.bc; padded = st.padded; o = st.o; cp = st.cp; cs = st.cs; }
     if (padded > bc) return -1;
     CRC_STEP();
-  } while (!last);
-  CRC = ~crcRun(out + cp, o - cp, cs);
+  } while (!last && o < target);
+  IS.ip = ip; IS.bb = bb; IS.bc = bc; IS.padded = padded; IS.o = o; IS.cp = cp; IS.cs = cs;
+  if (last) { IS.done = 1; CRC = ~crcRun(out + cp, o - cp, cs); }
   return (int)o;
 }
+int inflate(const u8 *in, u32 inlen, u8 *out, u32 outcap) { inflateBegin(in, inlen, out, outcap); return inflateStep(0xffffffffu); }
