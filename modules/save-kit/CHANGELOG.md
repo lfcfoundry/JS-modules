@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.6.0 · API 1 · 2026-10-31
-- New save-kit-lite.js: a 966-byte gzipped file with checked fields and a backup slot, for small games.
+- New save-kit-lite.js: checked fields and a backup slot in 966 bytes minified and gzipped, for small games.
 - Same answers and speed as create() for those field types.
 
 ## 1.5.2 · API 1 · 2026-10-31
