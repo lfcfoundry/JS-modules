@@ -401,7 +401,7 @@
     lay('in', len + 8); lay('cnt', 16);
     var mem = W.x.memory; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
     var m8 = new Uint8Array(mem.buffer); m8.set(input, P['in']); W.x.count(P['in'], len, P.cnt);
-    var cn = new Uint32Array(mem.buffer, P.cnt, 4), nl = cn[0], colons = cn[1], commas = cn[2], allowStr = 1, asciiIn = cn[3] === 0;
+    var cn = new Uint32Array(mem.buffer, P.cnt, 4), nl = cn[0], colons = cn[1], commas = cn[2], allowStr = 2, asciiIn = cn[3] === 0;
     nrows = nl + (input[len - 1] === 10 ? 0 : 1);
     var pb = (nrows + 7) >> 3, NK = 128, cells = colons + 1, lvals = commas + colons + 16;
     lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals); lay('clen', 4 * cells); lay('gcnt', 4 * NK); lay('gtot', 4 * NK); lay('goff', 4 * NK); lay('gout', 8 * cells); if (asciiIn) { lay('hexL', 4 * NK); lay('hoff', 4 * NK); lay('hex', (len >> 1) + 16); var T2 = 16; while (T2 < cells + 2) T2 *= 2; lay('sht', 4 * T2); lay('scodes', 4 * cells); lay('slab', 4 * cells); lay('sout', len + cells + 16); lay('sres', 16); }
@@ -425,7 +425,7 @@
     var byB = new Uint8Array(nk), ipK = new Uint8Array(nk), sOnly = new Uint8Array(nk), sdD = new Uint32Array(nk), sdOut = new Array(nk), sdCodes = new Array(nk), sdMany = new Array(nk), D2, sr, ipOk, tm = opts.templates === false ? 0 : opts.templates === true ? 2 : 1;
     for (j = 0; j < nk; j++) {
       if (hexL[j] > 0) { byB[j] = 1; continue; }
-      if (!asciiIn || ktype[j] !== 3) continue;
+      if (!asciiIn || ktype[j] !== 3 || kfd[j]) continue;   // kfd 1 on a string key: some value has escapes, so its bytes are not its text
       D2 = W.x.strdict(P['in'], nc, P.ckey, P.cval, P.clen, j, count[j], P.sht, P.scodes, P.slab, P.sout, P.sres);
       if (!D2) {
         sr = new Uint32Array(mem.buffer, P.sres, 4);
@@ -445,7 +445,7 @@
     if (rest) for (i = 0; i < nc; i++) {
       j = ckey[i];
       if (ktype[j] === 1) continue;
-      else if (ktype[j] === 3) { if (byB[j] === 0) colv[j][pos[j]++] = text.slice(cval[i], cval[i] + clen[i]); }
+      else if (ktype[j] === 3) { if (byB[j] === 0) colv[j][pos[j]++] = cfd[i] ? JSON.parse(text.slice(cval[i] - 1, cval[i] + clen[i] + 1)) : text.slice(cval[i], cval[i] + clen[i]); }
       else if (ktype[j] === 4) colv[j][pos[j]++] = cfd[i] === 2 ? null : cval[i] === 1;
       else if (ktype[j] === 5) colv[j][pos[j]++] = null;
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }

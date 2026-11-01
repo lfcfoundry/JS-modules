@@ -101,10 +101,16 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
       } else if(c=='"'){
         if(!allowstr) BAIL(16);
         if(ktype[id]==0) ktype[id]=3; else if(ktype[id]!=3) BAIL(8);
-        u32 ss=++p, ex0=extra;
-        while(p<len&&in[p]!='"'){ u8 ch=in[p]; if(ch<0x20||ch=='\\') BAIL(16); if(ch>=0xC0) extra+=(ch>=0xE0)?2:1; p++; }
+        u32 ss=++p, ex0=extra, esc=0;
+        while(p<len&&in[p]!='"'){ u8 ch=in[p]; if(ch<0x20) BAIL(16);
+          if(ch=='\\'){   /* allowstr 2: escapes are let through (checked here, decoded by the caller); the cell gets cfd 1 and its key kmaxfd 1 */
+            if(allowstr<2||p+1>=len) BAIL(16); u8 e=in[p+1];
+            if(e=='u'){ if(p+5>=len) BAIL(16); for(u32 q=p+2;q<p+6;q++){ u8 x=in[q]; if(!((x>='0'&&x<='9')||(x>='a'&&x<='f')||(x>='A'&&x<='F'))) BAIL(16); } p+=6; }
+            else if(e=='"'||e=='\\'||e=='/'||e=='b'||e=='f'||e=='n'||e=='r'||e=='t') p+=2; else BAIL(16);
+            esc=1; continue; }
+          if(ch>=0xC0) extra+=(ch>=0xE0)?2:1; p++; }
         if(p>=len) BAIL(16);
-        ckey[nc]=(u8)id; cval[nc]=(double)(ss-ex0); clen[nc]=(p-ss)-(extra-ex0); cfd[nc]=0; nc++; p++;
+        ckey[nc]=(u8)id; cval[nc]=(double)(ss-ex0); clen[nc]=(p-ss)-(extra-ex0); cfd[nc]=(u8)esc; if(esc) kmaxfd[id]=1; nc++; p++;
       } else if(c=='t'||c=='f'){
         if(ktype[id]==0||ktype[id]==5) ktype[id]=4; else if(ktype[id]!=4) BAIL(8);
         u32 isT=(c=='t');
