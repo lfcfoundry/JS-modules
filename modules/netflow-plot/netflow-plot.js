@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.1.0 (API 2)
+ * Version 2.2.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -147,7 +147,8 @@ var NetflowPlot = (function () {
       }
       if (mark) { mark.x0 = cx - r1; mark.y0 = cy - r1; mark.x1 = cx + r1; mark.y1 = cy + r1; mark.wedge = [cx, cy, r0, r1, a0, a1]; S.marks.push(mark); }
     };
-    F.color = function (i) { return T.groups[((i % T.groups.length) + T.groups.length) % T.groups.length]; };
+    F.color = function (i) { return F.hiCi >= 0 && i !== F.hiCi ? F.gray : T.groups[((i % T.groups.length) + T.groups.length) % T.groups.length]; };
+    F.gray = NS.mix ? NS.mix(T.muted, T.bg, 0.45) : T.muted;   /* the other series when one is highlighted */
     /** Axes: x and y are { kind: 'num' | 'time' | 'band', lo, hi, list, fmt, map(v) -> px, cats }. */
     F.axes = function (ax, ay, xName, yName, grid) {
       var c = alpha(T.muted, 0.9), gc = alpha(T.boxLine, 0.35);
@@ -206,6 +207,13 @@ var NetflowPlot = (function () {
   }
   function countFilled(a) { var c = 0; for (var i = 0; i < a.length; i++) if (a[i] !== undefined && a[i] !== null && a[i] !== '') c++; return c; }
   /** Categories in a stable order: by total (biggest first), by name, or as they come. */
+  var HI = null;   /* while make() runs with options.highlight: { name, F, ck: color column, xk: x column } */
+  /** Moves the shapes in the highlight color to the end of their lists, so they are drawn over the gray ones. */
+  function lift(S, c) {
+    var same = function (f) { return f && f[0] === c[0] && f[1] === c[1] && f[2] === c[2]; };
+    var up = function (list, key) { var a = [], b = []; for (var i = 0; i < list.length; i++) (same(list[i][key]) ? b : a).push(list[i]); return a.concat(b); };
+    S.curves = up(S.curves, 'color'); S.dots = up(S.dots, 'fill'); S.polys = up(S.polys, 'fill');
+  }
   function catsOf(keys, vals, sort, cap) {
     var tot = new Map(), first = [];
     for (var i = 0; i < keys.length; i++) { var k = keys[i]; if (!tot.has(k)) { tot.set(k, 0); first.push(k); } var v = vals ? vals[i] : 1; if (v === v) tot.set(k, tot.get(k) + v); }
@@ -213,7 +221,9 @@ var NetflowPlot = (function () {
     if (sort === 'name') list.sort(function (a, b) { var x = num(a), y = num(b); return x === x && y === y ? x - y : a < b ? -1 : a > b ? 1 : 0; });
     else if (sort !== 'none') list.sort(function (a, b) { return tot.get(b) - tot.get(a); });
     var other = null;
-    if (cap && list.length > cap) { other = list.slice(cap - 1); list = list.slice(0, cap - 1).concat(['Other']); }
+    var hi = HI && (keys === HI.ck || keys === HI.xk) ? HI.name : undefined;   /* the highlighted series (or bar) keeps its own place, never folded into Other */
+    if (cap && list.length > cap) { var keep = hi !== undefined && list.indexOf(hi) >= cap - 1; other = list.slice(keep ? cap - 2 : cap - 1); if (keep) other.splice(other.indexOf(hi), 1); list = list.slice(0, keep ? cap - 2 : cap - 1).concat(keep ? [hi, 'Other'] : ['Other']); }
+    if (hi !== undefined) { if (keys === HI.ck) HI.F.hiCi = list.indexOf(hi); if (keys === HI.xk) HI.F.hiX = list.indexOf(hi) >= 0 ? hi : undefined; }
     return { list: list, other: other ? new Set(other) : null, tot: tot };
   }
   /** Values grouped by (x category, color category), aggregated. */
@@ -239,6 +249,8 @@ var NetflowPlot = (function () {
     if (horiz) { F.L = Math.min(220, 20 + 7 * Math.min(28, Math.max.apply(null, xc.list.map(function (s) { return String(s).length; }).concat([4])))); }
     var band = horiz ? bandAxis(xc.list, F.Tp, F.B, 0.18) : bandAxis(xc.list, F.L, F.R, 0.18), val = horiz ? axisFor([lo, hi], false, F.L, F.R, true) : axisFor([lo, hi], false, F.B, F.Tp, true);
     if (mode === 'normalize') val.fmt = function (p) { return Math.round(p * 100) + '%'; };
+    if (!ck) F.hiCi = -1;   /* no color column (or color is x): a highlight picks one bar */
+    else F.hiX = undefined;
     var zero = val.map(0), colOf = function (ci) { return ck ? F.color(ci) : F.color(0); };
     xc.list.forEach(function (x) {
       var b0 = band.map(x), up = 0, dn = 0, tot = totals.get(x) || 1, nC = cc.list.length;
@@ -250,6 +262,7 @@ var NetflowPlot = (function () {
         else if (mode === 'stack') { if (e.v >= 0) { v0 = up; up += e.v; v1 = up; } else { v0 = dn; dn += e.v; v1 = dn; } }
         else { v0 = 0; v1 = e.v; }
         var a = val.map(v0), b = val.map(v1), col = mode === 'none' && !ck && e.v < 0 ? F.T.bad : colOf(ci);
+        if (F.hiX !== undefined && x !== F.hiX) col = F.gray;   /* highlight one bar, gray the rest (no color column) */
         var mark = { rows: e.rows, t: (x === '' ? '(blank)' : x) + (ck ? ' \u00b7 ' + (c || '(blank)') : '') + ': ' + fmtNum(e.v) };
         if (horiz) F.rect(a, s0, b - a, sw, col, mark); else F.rect(s0, b, sw, a - b, col, mark);
       });
@@ -628,8 +641,13 @@ var NetflowPlot = (function () {
   function make(rows, spec, o, NS) {
     o = o || {}; spec = spec || {};
     var F = frame(spec, o, NS), R = reader(rows, o), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
-    if (!rows.length) F.text(F.W / 2, F.H / 2, 'No rows to draw.', 14, F.T.muted);
-    else { if (spec.color && !NOKEYROW[type]) { F.keyRow = true; F.Tp = 44; } CH[type](F, R, spec); }
+    var hl = o.highlight !== undefined && o.highlight !== null && o.highlight !== '' ? String(o.highlight) : undefined;
+    HI = hl !== undefined && rows.length ? { name: hl, F: F, ck: spec.color ? R.cat(spec.color) : null, xk: spec.x ? R.cat(spec.x) : null } : null;
+    try {
+      if (!rows.length) F.text(F.W / 2, F.H / 2, 'No rows to draw.', 14, F.T.muted);
+      else { if (spec.color && !NOKEYROW[type]) { F.keyRow = true; F.Tp = 44; } CH[type](F, R, spec); }
+    } finally { HI = null; }
+    if (F.hiCi >= 0) lift(F.S, F.color(F.hiCi));   /* the highlighted series is drawn last, over the gray ones */
     var S = F.S;
     S.x0 = -10; S.y0 = -10; S.w = F.W + 20; S.h = F.H + 20; S.gridStale = true; S.eidx = null;
     S.ms = Date.now() - t0;

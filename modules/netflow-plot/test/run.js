@@ -62,5 +62,24 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(JSON.stringify(a.rects) === JSON.stringify(b.rects), 'the picture itself does not move');
   ok(NS.toSvg(b, 't').indexOf('>Sales</text>') > 0, 'the export draws the title');
 }
+/* opt-in highlight: one series (or one bar) keeps its color, the rest turn gray; an unknown name changes nothing */
+{
+  const rows = table(200, 11), NS = global.NetflowScene, sp = { type: 'line', x: 'day', y: 'sales', color: 'region' };
+  const key = (c) => c.slice(0, 3).map((v) => v.toFixed(3)).join();
+  const a = P.make(rows, sp, { width: 900, height: 560 }, NS), b = P.make(rows, sp, { width: 900, height: 560, highlight: 'West' }, NS), c = P.make(rows, sp, { width: 900, height: 560, highlight: 'Nowhere' }, NS);
+  const g = b.legend.filter((l) => l.t !== 'West'), w = b.legend.find((l) => l.t === 'West');
+  ok(g.length === 4 && new Set(g.map((l) => key(l.c))).size === 1 && key(w.c) !== key(g[0].c), 'highlight: the other series share one gray');
+  ok(key(b.curves[b.curves.length - 1].color) === key(w.c), 'highlight: the chosen series is drawn last');
+  ok(NS.toSvg(c, 't') === NS.toSvg(a, 't'), 'highlight: an unknown name changes nothing');
+  const sm = table(60, 12), bp = P.make(sm, { type: 'scatter', x: 'cost', y: 'sales', color: 'kind' }, { width: 600, height: 400, highlight: 'B' }, NS);
+  ok(bp.legend.filter((l) => l.t !== 'B').every((l) => key(l.c) === key(bp.legend.find((m) => m.t !== 'B').c)), 'highlight works on scatter');
+  const br = P.make(sm, { type: 'bar', x: 'region', y: 'sales' }, { width: 600, height: 400, highlight: 'East' }, NS);
+  ok(new Set(br.rects.map((r) => key(r.fill))).size === 2, 'highlight one bar with no color column');
+  const many = []; for (let i = 0; i < 300; i++) many.push({ id: 'm' + i, attrs: { c: 'k' + (i % 30), g: 'k' + (i % 30), v: 30 - (i % 30) } });
+  const ms = P.make(many, { type: 'bar', x: 'c', y: 'v', color: 'c' }, { width: 600, height: 400, highlight: 'k29' }, NS);
+  ok(new Set(ms.rects.map((r) => key(r.fill))).size === 2, 'color same as x: one bar keeps its color');
+  const mo = P.make(many, { type: 'bar', x: 'c', y: 'v', color: 'g' }, { width: 600, height: 400, highlight: 'k29' }, NS);
+  ok(mo.legend.some((l) => l.t === 'k29'), 'a highlighted name past the color limit is kept, not folded into Other');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);
