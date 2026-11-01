@@ -47,7 +47,7 @@ static inline void ws(void){while(pos<inLen){u8 c=IN[pos];if(c==' '||c=='\t'||c=
 static int emitSk(u8 c){if(skLen>=SK_CAP)return 0;SK[skLen++]=c;return 1;}
 /* CK_SWAR: number digits 8 at a time while the count stays within 15 (the byte loop below takes the rest, so the result is the same); CK_KEYCOPY: object keys hashed and copied to the skeleton in one pass */
 #ifndef CK_SWAR
-#define CK_SWAR 0
+#define CK_SWAR 1
 #endif
 #ifndef CK_KEYCOPY
 #define CK_KEYCOPY 1
