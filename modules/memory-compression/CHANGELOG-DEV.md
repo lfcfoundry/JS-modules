@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.2 · API 2 · 2026-11-01
+
+### Quick
+view(): number columns (picker, 8,192-number blocks) and dictionary-text columns of 16,384+ rows open undecoded; each block is decoded when a row in it is read, and after about n/512 reads the column is decoded whole in one wasm scope and…
+
+### Deep
+view(): number columns (picker, 8,192-number blocks) and dictionary-text columns of 16,384+ rows open undecoded; each block is decoded when a row in it is read, and after about n/512 reads the column is decoded whole in one wasm scope and becomes an ordinary column. No format or size change. Laptop (windowed/whole, early-stop A/B): Firefox 160 run 1 first row events 0.199, links 0.084, users 0.786, full scan 1.008 / 1.023 / 0.992; Chromium 156 first row 0.228 / 0.063 / 0.705, full scan 1.009 / 0.995 / 0.900; Firefox 160 run 2 first row 0.179 / 0.101 / 0.775, full scan 1.018 / 0.970 / 1.032 (1.009 to 1.050). Owner's card: ship after one Chromium run. Checks: 85 pass; new check compares view with unpack on events and links (40,000 rows); research wintest.js (4 lists x 3 modes) equal.
+
 ## 2.10.1 · API 2 · 2026-10-31
 
 ### Quick

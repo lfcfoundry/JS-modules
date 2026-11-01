@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.2 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.15.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.10.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.10.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.8.1 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.11.2 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.18 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -70,6 +70,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-01 · **netflow-hierarchy** 1.0.0 · API 1: First version: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree) as an add-on for netflow-engine, plus the tree helpers netflow-circular builds on.
 - 2026-11-01 · **netflow-engine** 2.3.0 · API 2: New: the Chord, Bundles, Treemap, Sunburst, Icicle, Circle pack and Tree views, from the new netflow-circular and netflow-hierarchy add-ons; other views are unchanged.
 - 2026-11-01 · **netflow-circular** 1.0.0 · API 1: First version: the circular views of Netflow Map (Chord, Bundles) as an add-on for netflow-engine.
+- 2026-11-01 · **memory-compression** 2.10.2 · API 2: view() opens a long list much faster: the first row is ready 1.3 to 16 times as fast (21 to 94% less time), because number and dictionary columns are decoded only where a row is read.
 - 2026-11-01 · **lfc-pack** 0.4.18 · API 0: Packing is 8 to 26% faster on files with text columns and IPv4 fields; files come out the same.
 - 2026-11-01 · **lfc-pack** 0.4.17 · API 0: Packs logs in about a third of the time (laptop Firefox 0.33 to 0.34), and logs with escaped quotes up to 40 times faster at 256 KB blocks. Same files, except escaped-text logs, which come out 0.04 to 0.2% smaller.
 - 2026-11-01 · **lfc-pack** 0.4.16 · API 0: Reading is a little faster in Firefox: unpacking bit-packed number codes no longer reads past the end of the buffer (events 0.725 of the time in a cloud A/B). Same rows.
