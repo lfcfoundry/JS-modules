@@ -5,6 +5,7 @@ typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u
 #define EXPORT(n) __attribute__((export_name(n)))
 #define MAXK 128
 static u32 HT[512]; static u32 LASTROW[MAXK];
+static u32 PRED[MAXK], KEXTRA[MAXK];   /* PRED[j]: the key that came j-th in the last row (rows mostly repeat their key order); KEXTRA: a key's UTF-8 bytes minus UTF-16 units */
 static const double P10[19]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,1e15,1e16,1e17,1e18};
 // st: [0]=keys [1]=cells [2]=lists [3]=list values [4]=rows [5]=error position
 // key outputs: keyoff/keylen (into the input), ktype (1 number, 2 list), kmaxfd (largest fraction digit count of the column)
@@ -14,25 +15,35 @@ static const double P10[19]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e1
 EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyoff,u32*keylen,u8*ktype,u8*kmaxfd,u32*st,u8*ckey,double*cval,u8*cfd,u32*llen,u32*lval,u32*clen,u32 allowstr){
   u32 p=0,row=0,nk=0,nc=0,nl=0,nlv=0,extra=0;   // extra = bytes minus UTF-16 units so far, for the strings' offsets in the decoded text
   for(u32 i=0;i<512;i++) HT[i]=0;
-  for(u32 i=0;i<MAXK;i++) LASTROW[i]=0xFFFFFFFFu;
+  for(u32 i=0;i<MAXK;i++){ LASTROW[i]=0xFFFFFFFFu; PRED[i]=0xFFFFFFFFu; }
 #define BAIL(c) do{ st[0]=nk; st[1]=nc; st[2]=nl; st[3]=nlv; st[4]=row; st[5]=p; return (c); }while(0)
 #define WS while(p<len&&(in[p]==' '||in[p]=='\t')) p++
   while(p<len){
     if(row>=nrows) BAIL(1);
     if(in[p]!='{') BAIL(2);
     p++; WS;
+    u32 kpos=0;
     if(p<len&&in[p]=='}'){ p++; }
     else for(;;){
       if(p>=len||in[p]!='"') BAIL(3);
-      u32 ks=++p; u32 h=2166136261u; u32 alld=1;
+      u32 ks=++p, id=0xFFFFFFFFu;
+      if(kpos<MAXK && PRED[kpos]!=0xFFFFFFFFu){   /* same key as in this place of the last row: compare its bytes, no hashing */
+        u32 k=PRED[kpos], kl=keylen[k], a=keyoff[k];
+        if(ks+kl<len && in[ks+kl]=='"'){ u32 z=0; while(z+8<=kl){ u64 x,y; __builtin_memcpy(&x,in+a+z,8); __builtin_memcpy(&y,in+ks+z,8); if(x!=y) break; z+=8; } while(z<kl&&in[a+z]==in[ks+z]) z++; if(z==kl){ id=k; p=ks+kl+1; extra+=KEXTRA[k]; } }
+      }
+      if(id==0xFFFFFFFFu){
+      u32 h=2166136261u; u32 alld=1, ex0=extra;
       while(p<len&&in[p]!='"'){ u8 c=in[p]; if(c=='\\'||c<0x20) BAIL(4); if(c<'0'||c>'9') alld=0; if(c>=0xC0) extra+=(c>=0xE0)?2:1; h=(h^c)*16777619u; p++; }
       if(p>=len) BAIL(4);
       u32 kl=p-ks; p++;
       if(kl==0||alld) BAIL(5);   // integer-like keys are enumerated first by JavaScript: leave them to the other path
       if(kl==9){ const u8*q=in+ks; if(q[0]=='_'&&q[1]=='_'&&q[2]=='p'&&q[3]=='r'&&q[4]=='o'&&q[5]=='t'&&q[6]=='o'&&q[7]=='_'&&q[8]=='_') BAIL(5); }
-      u32 slot=h&511, id=0xFFFFFFFFu;
+      u32 slot=h&511;
       for(;;){ u32 e=HT[slot]; if(!e) break; u32 k=e-1; if(keylen[k]==kl){ u32 a=keyoff[k]; u32 z=0; while(z<kl&&in[a+z]==in[ks+z]) z++; if(z==kl){ id=k; break; } } slot=(slot+1)&511; }
-      if(id==0xFFFFFFFFu){ if(nk>=MAXK) BAIL(6); id=nk++; HT[slot]=id+1; keyoff[id]=ks; keylen[id]=kl; ktype[id]=0; kmaxfd[id]=0; }
+      if(id==0xFFFFFFFFu){ if(nk>=MAXK) BAIL(6); id=nk++; HT[slot]=id+1; keyoff[id]=ks; keylen[id]=kl; ktype[id]=0; kmaxfd[id]=0; KEXTRA[id]=extra-ex0; }
+      }
+      if(kpos<MAXK) PRED[kpos]=id;
+      kpos++;
       if(LASTROW[id]==row) BAIL(7);   // duplicate key in one row
       LASTROW[id]=row;
       WS; if(p>=len||in[p]!=':') BAIL(3); p++; WS;
