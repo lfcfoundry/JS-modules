@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.3 · API 2 · 2026-10-31
+- Bars settle into place in WebAssembly too: the same pictures, 3 to 14% faster for big flow charts.
+
 ## 2.3.2 · API 2 · 2026-10-30
 - Small graphs lay out about 15% faster with the same pictures.
 
