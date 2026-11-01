@@ -106,6 +106,15 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
   return 0;
 }
 EXPORT("count") u32 count(const u8*in,u32 len,u32*out){   // newlines, colons, commas: bounds for the output arrays; out[3] is 1 when some byte is 128 or more
-  u32 nl=0,co=0,cm=0,hi=0; for(u32 i=0;i<len;i++){ u8 c=in[i]; nl+=(c==10); co+=(c==':'); cm+=(c==','); hi|=(c>>7); }
+  /* 8 bytes at a time: a byte equal to t becomes 0 in w^T, and Z() sets the top bit of exactly the zero bytes (no carries between bytes), so a popcount counts them */
+  u32 nl=0,co=0,cm=0,hi=0,i=0; u64 H=0;
+  #define LO7 0x7F7F7F7F7F7F7F7FULL
+  #define Z(x) (~((((x)&LO7)+LO7)|(x)|LO7))
+  for(;i+8<=len;i+=8){ u64 w; __builtin_memcpy(&w,in+i,8); H|=w;
+    nl+=(u32)__builtin_popcountll(Z(w^0x0A0A0A0A0A0A0A0AULL)); co+=(u32)__builtin_popcountll(Z(w^0x3A3A3A3A3A3A3A3AULL)); cm+=(u32)__builtin_popcountll(Z(w^0x2C2C2C2C2C2C2C2CULL)); }
+  #undef Z
+  #undef LO7
+  hi=(H&0x8080808080808080ULL)!=0;
+  for(;i<len;i++){ u8 c=in[i]; nl+=(c==10); co+=(c==':'); cm+=(c==','); hi|=(c>>7); }
   out[0]=nl; out[1]=co; out[2]=cm; out[3]=hi; return 0;
 }

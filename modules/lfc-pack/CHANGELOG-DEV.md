@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.11 · API 0 · 2026-10-31
+
+### Quick
+flatscan count() reads 8 bytes at a time (LFCP thread, f5687b3), 2.6-4.8x faster sizing pass, byte-identical files.
+
+### Deep
+flatscan count() reads 8 bytes at a time (LFCP thread, f5687b3), 2.6-4.8x faster sizing pass, byte-identical files. Laptop (lfc-decimals-recheck, ratio vs 0.4.9, C = 0.4.10 + this): Chromium 156 sensor 256 KB 0.915, events 0.932; Firefox 160 0.718 and 0.895. Cloud WebKitGTK vs flat9: 0.97-1.02.
+
 ## 0.4.10 · API 0 · 2026-10-31
 
 ### Quick
