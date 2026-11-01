@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.14.0 (API 1)
+ * Version 1.14.1 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -18,6 +18,12 @@
   else root.ZipOpen = api;
 }(typeof self !== 'undefined' ? self : this, function (SELF_SRC) {
   'use strict';
+  /** Built-in base64 -> bytes: the browser's own decoder where there is one (Uint8Array.fromBase64, about 5-12x faster than the atob loop), else atob, else Node's Buffer. */
+  function unb64(b64) {
+    if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(b64);
+    if (typeof atob === 'function') { var raw = atob(b64), bin = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); return bin; }
+    return new Uint8Array(Buffer.from(b64, 'base64'));
+  }
   var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
   var XML_MAX_DEPTH = 2000;
   function xmlDecode(s) {
@@ -190,9 +196,8 @@
   function xlsxModule() {
     if (XMOD === undefined) {
       XMOD = null;
-      var bytesOf64 = function (b64) { var raw = typeof atob === 'function' ? atob(b64) : null, bin; if (raw) { bin = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); } else bin = new Uint8Array(Buffer.from(b64, 'base64')); return bin; };
-      XSIMD = false; if (!XPLAIN) try { XMOD = new WebAssembly.Module(bytesOf64(XLSXS_B64)); XSIMD = true; } catch (e) { XMOD = null; }   // no SIMD in this browser: the plain build below
-      if (!XMOD) try { XMOD = new WebAssembly.Module(bytesOf64(XLSX_B64)); } catch (e) { XMOD = null; }
+      XSIMD = false; if (!XPLAIN) try { XMOD = new WebAssembly.Module(unb64(XLSXS_B64)); XSIMD = true; } catch (e) { XMOD = null; }   // no SIMD in this browser: the plain build below
+      if (!XMOD) try { XMOD = new WebAssembly.Module(unb64(XLSX_B64)); } catch (e) { XMOD = null; }
     }
     return XMOD;
   }
@@ -470,10 +475,7 @@
   var ZM, zbin = null, earlyP = null;
   function zipBytes() {
     if (zbin) return zbin;
-    var bin, i;
-    if (typeof atob === 'function') { var raw = atob(WASM_B64); bin = new Uint8Array(raw.length); for (i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); }
-    else bin = new Uint8Array(Buffer.from(WASM_B64, 'base64'));
-    return (zbin = bin);
+    return (zbin = unb64(WASM_B64));
   }
   function zipModule() {     // undefined until decided; null when the browser has none or refuses it
     if (ZM !== undefined) return ZM;
@@ -513,9 +515,7 @@
     IK = null;
     try {
       if (typeof WebAssembly !== 'object' || typeof WebAssembly.Module !== 'function') return IK;
-      var bin, i;
-      if (typeof atob === 'function') { var raw = atob(INF_B64); bin = new Uint8Array(raw.length); for (i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); }
-      else bin = new Uint8Array(Buffer.from(INF_B64, 'base64'));
+      var bin = unb64(INF_B64);
       var ex = new WebAssembly.Instance(new WebAssembly.Module(bin), {}).exports;
       IK = { ex: ex, base: (ex.__heap_base.value + 15) & ~15 };
     } catch (e) { IK = null; }
