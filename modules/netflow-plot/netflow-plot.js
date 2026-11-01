@@ -159,8 +159,8 @@ var NetflowPlot = (function () {
       if (ax) {
         var labs = ax.list, maxN = Math.max(2, Math.floor((F.R - F.L) / 64)), every = ax.kind === 'band' ? Math.max(1, Math.ceil(labs.length / maxN)) : 1, rot = false;
         var labT = function (v) { return String(ax.fmt ? ax.fmt(v) : fmtNum(v)); };
-        if (ax.kind === 'band') {   /* flat unless two shown labels would really touch (about 6.05 px a character at 11 px, 6 px gap); every label when they all fit flat; a long flat name wraps onto two lines */
-          var fits = function (step) { var prevX = null, prevW = 0; for (var li = 0; li < labs.length; li += step) { var lx = ax.map(labs[li]) + ax.bw / 2, lw = wrap2(labT(labs[li])).reduce(function (m, t) { return Math.max(m, Math.min(14, t.length)); }, 0) * 6.05; if (prevX !== null && lx - prevX < (lw + prevW) / 2 + 6) return false; prevX = lx; prevW = lw; } return true; };
+        if (ax.kind === 'band') {   /* flat unless two shown labels would really touch (about 6.05 px a character at 11 px, 9 px gap); every label when they all fit flat; a long flat name wraps onto two lines */
+          var fits = function (step) { var prevX = null, prevW = 0; for (var li = 0; li < labs.length; li += step) { var lx = ax.map(labs[li]) + ax.bw / 2, lw = wrap2(labT(labs[li])).reduce(function (m, t) { return Math.max(m, Math.min(14, t.length)); }, 0) * 6.05; if (prevX !== null && lx - prevX < (lw + prevW) / 2 + 9) return false; prevX = lx; prevW = lw; } return true; };
           if (every > 1 && fits(1)) every = 1; else rot = !fits(every);
         }
         labs.forEach(function (v, i) {
