@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.10 · API 0 · 2026-10-31
+- Packing numbers with up to 9 decimals takes the fast path: sensor-style data packs up to 21% faster in Firefox and 36% in WebKitGTK; same files, byte for byte.
+
 ## 0.4.9 · API 0 · 2026-10-31
 - Reading decimal number lists (such as map coordinates) is 5 to 8% faster in Firefox; same rows.
 - Each pack uses 2.5 MB less scratch memory for grouping numbers; same files, same speed.

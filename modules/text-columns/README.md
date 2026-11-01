@@ -88,7 +88,7 @@ A text column that repeats a few values (a city, a status) used to hold one stri
 | d3-dsv 3.0.1 `csvParse` with `autoType` (row objects) | 213 | 192 | 234 |
 | Papa Parse 5.4.1 with `header` and `dynamicTyping` (row objects) | 339 | 440 | 382 |
 
-Papa Parse and d3-dsv are fuller parsers (type guessing for dates and booleans, streaming, error recovery, other delimiters); text-columns does less on purpose. Numbers on a laptop: not measured yet.
+Papa Parse and d3-dsv are fuller parsers (type guessing for dates and booleans, streaming, error recovery, other delimiters); text-columns does less on purpose. On a laptop (Firefox 160, 16 cores, 200,000 rows x 6 columns): text-columns 46 to 52 ms, d3-dsv arrays 80 to 82, Papa Parse typed rows 158 to 166 (lower is better; two runs, see Numbers).
 
 ## Limits
 - One-character delimiter below 128 other than a quote or a line break.

@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-Tiny checks for browsers that quietly change what a page can do. About 4.4 KB gzipped, no dependencies, never throws.
+Tiny checks for browsers that quietly change what a page can do. About 5.4 KB gzipped (4.3 KB minified and gzipped), no dependencies, never throws.
 
 - It tests real behavior instead of reading the browser name: clock steps, canvas read-back, storage, media queries.
 - Results are plain values, and `explain()` turns them into short sentences.

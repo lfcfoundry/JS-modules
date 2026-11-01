@@ -60,11 +60,11 @@ The nearest open-source substitutes are [mp4-muxer](https://github.com/Vanilagy/
 
 | Alternative | Size (smaller is better) | Features | Where it wins or loses |
 |---|---|---|---|
-| clip-writer 1.0.1 (MIT, this module) | 7,059 bytes minified, 3,237 gzipped, for MP4 and WebM together | MP4 (H.264) and WebM (VP9) from RGBA pictures; the encoder is driven for you (`support()`, `add()`, `finish()`); no sound, one track | Wins on size and on being one call per picture. Loses: no audio, no streaming output, and the MP4 index is written after the pictures (not fast-start), so a player needs the whole file first |
+| clip-writer 1.3.0 (MIT, this module) | 17,146 bytes minified, 6,776 gzipped, for MP4 and WebM together (terser 5.51.2; 1.0.1 was 7,059 and 3,237) | MP4 (H.264) and WebM (VP9) from RGBA pictures; the encoder is driven for you (`support()`, `add()`, `finish()`); no sound, one track | Wins on size and on being one call per picture. Loses: no audio, no streaming output, and the MP4 index is written after the pictures (not fast-start), so a player needs the whole file first |
 | [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) 5.2.2 (MIT) | 31,783 bytes minified, 9,174 gzipped, MP4 only | MP4 only; takes encoded chunks you get from your own `VideoEncoder`; sound tracks, several fast-start modes, streaming and in-memory targets | Wins when you need sound, fragmented or streamed output. Loses: you write the encoder loop yourself and a WebM needs a second library |
 | [webm-muxer](https://github.com/Vanilagy/webm-muxer) 5.1.4 (MIT) | 29,904 bytes minified, 8,346 gzipped, WebM only | WebM only; same style (your own encoder, sound, streaming and in-memory targets) | Same trade as mp4-muxer; both together are 61,687 bytes minified, 17,520 gzipped |
 
-Speed against them in the three test browsers: not measured yet.
+Speed (laptop Firefox 160, 16 cores, 2026.10.30, 250 pictures, writing the file only, not encoding): WebM about 2 times as fast as webm-muxer with a 4.5% smaller file, MP4 about 6 times as fast as mp4-muxer at the same size. In the three cloud test browsers: not measured yet.
 
 ## Prior art and credits
 The file layouts follow ISO/IEC 14496-12 (MP4) and the Matroska/WebM specification; the encoders are the browser's.

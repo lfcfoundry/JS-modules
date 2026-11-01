@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-Simulates random walkers on a network (where they end up, how long it takes, what it costs) and works out the exact odds where possible, so you can check one against the other. 12.3 KB gzipped.
+Simulates random walkers on a network (where they end up, how long it takes, what it costs) and works out the exact odds where possible, so you can check one against the other. 24.0 KB gzipped with WebAssembly; `walker-sim.min.js` without it is 12.0 KB gzipped.
 
 - Each walker picks a way on at every item, by weight, evenly or another rule, until it stops.
 - The run counts end points, steps and cost, with a 95% range on each share.
