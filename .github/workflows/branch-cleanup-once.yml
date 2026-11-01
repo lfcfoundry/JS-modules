@@ -1,0 +1,23 @@
+name: branch-cleanup-once
+on:
+  push:
+    branches: [claude/project-thread-i5g4o0]
+    paths: ['.github/branch-cleanup-list.txt']
+permissions:
+  contents: write
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete approved stale branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ok=0; bad=0
+          while IFS= read -r b; do
+            [ -z "$b" ] && continue
+            case "$b" in main|master|browsers) echo "SKIP $b"; continue;; esac
+            if gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$b" >/dev/null 2>&1; then ok=$((ok+1)); else bad=$((bad+1)); echo "FAIL $b"; fi
+          done < .github/branch-cleanup-list.txt
+          echo "deleted=$ok failed=$bad"
