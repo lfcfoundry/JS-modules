@@ -28,7 +28,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.11.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.12.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.9.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.8.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.11.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
@@ -63,6 +63,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **zip-open** 1.7.0 · API 1: Excel sheets are read faster: on a 16-core laptop 11 to 20% faster in Firefox and 23 to 24% faster in Chromium, with the same results.
 - 2026-10-31 · **zip-open** 1.6.0 · API 1: Text entries are unpacked into one shared buffer that is reused for the next entry (let go 5 s after the last one). Laptop Chromium: 2 to 14% faster on most zips; laptop Firefox: about even.
 - 2026-10-31 · **zip-open** 1.5.2 · API 1: Loading the module costs what it did before 1.5.0: the small-file unpacker is now a separate piece, prepared only when a small file is first opened. 2,000 tiny files still open 1.4 to 1.9x faster than with the browser's own unpacker. Helpers from expandBlob close 5 s after their last use and give their memory back (idleMs changes the delay).
+- 2026-10-31 · **zip-open** 1.12.0 · API 1: Excel files with lots of text open 4 to 13% faster (cloud Firefox, Chromium, WebKitGTK); other sheets about the same. Browsers with WebAssembly SIMD get a faster reader; others keep the old one.
 - 2026-10-31 · **zip-open** 1.11.0 · API 1: With helpers on (the workers option), Excel files are read inside a helper, so a big sheet no longer freezes the page (185 ms down to 6 ms on a laptop). Total time is about the same, up to 18% longer on some sheets.
 - 2026-10-31 · **zip-open** 1.10.0 · API 1: Excel files open much faster again: 1.9 to 3.6 times as fast (48 to 72% less time) than 1.9.0 (cloud Firefox, Chromium and WebKitGTK), same results. Fixed: two big zips opened at once with helpers could leave one never finishing.
 - 2026-10-31 · **text-columns** 0.6.4 · API 0: Parsing big files with number columns again is 1 to 17% faster (45 MB, three browsers): the page prepares the number arrays for the next parse in idle time.
