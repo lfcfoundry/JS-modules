@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.0.0 (API 1)
+ * Version 1.0.1 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -418,7 +418,10 @@ var NetflowHierarchy = (function () {
   function scene(L, o, NS, ext) {
     var ch = L.chart, type = ch.type;
     var showDots = type === 'pack' || type === 'tree' || type === 'bundles';
-    var nodes = L.nodes.map(function (nd) { var c = Object.create(nd); if (!showDots || (type === 'pack' && ch.kids[nd.hv].length)) { c.w = 0; c.h = 0; } return c; });
+    /* the scene module gets its own copy of each item (plain objects of one shape, so reading them stays fast); the copies are kept on the layout and filled in again for the next picture, so a look change makes no new ones */
+    var SN = L.__stub; if (!SN || SN.src !== L.nodes || SN.nodes.length !== L.nodes.length) SN = L.__stub = { src: L.nodes, nodes: L.nodes.map(function () { return {}; }) };
+    var nodes = SN.nodes;
+    L.nodes.forEach(function (nd, q) { var c = Object.assign(nodes[q], nd); if (!showDots || (type === 'pack' && ch.kids[nd.hv].length)) { c.w = 0; c.h = 0; } });
     if (type === 'pack') nodes.forEach(function (nd) { if (!ch.kids[nd.hv].length) { nd.w = nd.h = 2 * ch.Rr[nd.hv]; } });
     if (type === 'tree' || type === 'bundles') nodes.forEach(function (nd) { nd.w = nd.h = 9; });
     var stub = { kind: 'network', view: 'network', dir: 'none', nodes: nodes, edges: [], width: L.width, height: L.height, ch: L.ch, flow: L.flow, cls: L.cls, imp: L.imp, groups: L.groups, startId: L.startId, n: L.n, m: L.m };
@@ -430,8 +433,8 @@ var NetflowHierarchy = (function () {
     (L.groups || []).forEach(function (g) { gcol(g); });
     var itemShow = !(lab0.items && lab0.items.show === false), iscale = lab0.items && lab0.items.scale || 1;
     var colOfNode = function (q) { var rec = S.nodes[q], d = rec && S.dots.filter ? null : null; return gcol(L.nodes[q].group || ''); };
-    var dotOf = new Map(); S.dots.forEach(function (d) { if (d.node >= 0) dotOf.set(d.node, d); });
-    var fillOf = function (q) { var d = dotOf.get(q); return d ? d.fill : gcol(L.nodes[q].group || ''); };
+    var dotOf = new Array(S.nodes.length), dl = S.dots, di; for (di = 0; di < dl.length; di++) { if (dl[di].node >= 0) dotOf[dl[di].node] = dl[di]; }   /* item record number to its dot (the last one wins) */
+    var fillOf = function (q) { var d = q >= 0 && q < dotOf.length ? dotOf[q] : undefined; return d ? d.fill : gcol(L.nodes[q].group || ''); };
     var lab = function (x, y, t, size, c, op) { var l = { x: x, y: y, t: t, size: size, color: c, align: 'c', bold: false, rot: 0, minK: 0, node: -1 }; if (op) for (var k in op) l[k] = op[k]; if (l.rot) l.rot *= 180 / Math.PI; S.labels.push(l); return l; };   /* angles in radians here, the renderer takes degrees */
     var clip = function (s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; };
     var recOf = function (q) { return S.nodes[q]; };
@@ -440,13 +443,15 @@ var NetflowHierarchy = (function () {
     var topIdx = null;
     if (mono && ch.par) { topIdx = new Int32Array(ch.N); var kr = ch.kids[ch.root]; for (var t0 = 0; t0 < ch.order.length; t0++) { var w0 = ch.order[t0], pw = ch.par[w0]; topIdx[w0] = pw < 0 ? 0 : pw === ch.root ? kr.indexOf(w0) : topIdx[pw]; } }
     var hcol = function (v) { if (topIdx) return groupsHex[topIdx[v] % groupsHex.length]; var it = ch.item[v]; return it >= 0 ? fillOf(it) : gcol(ch.group[v]); };
-    var idxOfId = new Map(); L.nodes.forEach(function (nd, q) { idxOfId.set(nd.id, q); });
     var addCurve = function (P, w, color, edge, from, to, arrow) { S.curves.push({ P: P, w: w, color: color, arrow: !!arrow, line: false, edge: edge, from: from, to: to }); };
 
-    var C = { S: S, L: L, ch: ch, o: o, NS: NS, T: T, alpha: alpha, mix: mix, groupsHex: groupsHex, gcol: gcol, fillOf: fillOf, lab: lab, clip: clip, mono: mono, idxOfId: idxOfId, addCurve: addCurve, itemShow: itemShow, iscale: iscale };
+    var C = { S: S, L: L, ch: ch, o: o, NS: NS, T: T, alpha: alpha, mix: mix, groupsHex: groupsHex, gcol: gcol, fillOf: fillOf, lab: lab, clip: clip, mono: mono, idxOfId: null, addCurve: addCurve, itemShow: itemShow, iscale: iscale };
+    var idxOfId = null; Object.defineProperty(C, 'idxOfId', { get: function () { if (!idxOfId) { idxOfId = new Map(); L.nodes.forEach(function (nd, q) { idxOfId.set(nd.id, q); }); } return idxOfId; } });   /* item name to number: made only for a view that asks */
     if (ext && ext.draw(type, C)) { /* drawn by the extension */ }
     else if (type === 'treemap' || type === 'icicle') {
-      var Rm = ch.R, cw = ch.colW, Hh = ch.H;
+      var Rm = ch.R, cw = ch.colW, Hh = ch.H, rectLine = alpha(T.bg, 0.9), lookM = new Map();
+      /* a box's fill from its base color: made once per base color and kind and shared (nothing changes these arrays in place) */
+      var look = function (base, k) { var e = lookM.get(base); if (!e) lookM.set(base, e = [null, null]); return e[k] || (e[k] = k ? alpha(mix(base, T.bg, 0.55), 0.9) : alpha(base, type === 'icicle' ? 0.85 : 0.92)); };
       for (var oi = 0; oi < ch.order.length; oi++) {
         var v = ch.order[oi]; if (type === 'icicle' && ch.depth[v] < ch.skipRoot) continue; if (type === 'treemap' && v === ch.root && ch.item[v] < 0) continue;
         var x0, y0, x1, y1;
@@ -454,8 +459,8 @@ var NetflowHierarchy = (function () {
         else { x0 = Rm[v * 4] * cw; x1 = Rm[v * 4 + 2] * cw - 1; y0 = Rm[v * 4 + 1] * Hh; y1 = Rm[v * 4 + 3] * Hh - 1; }
         var w2 = x1 - x0, h2 = y1 - y0; if (w2 <= 0.3 || h2 <= 0.3) continue;
         var it = ch.item[v], base = hcol(v), box = ch.kids[v].length > 0;
-        var fill = type === 'treemap' && box ? alpha(mix(base, T.bg, 0.55), 0.9) : alpha(base, type === 'icicle' ? 0.85 : 0.92);
-        S.rects.push({ x: x0, y: y0, w: w2, h: h2, r: 0, fill: fill, stroke: alpha(T.bg, 0.9), sw: 1, layer: 1, node: it >= 0 ? recOf(it).i : -1, a: 1 });
+        var fill = look(base, type === 'treemap' && box ? 1 : 0);
+        S.rects.push({ x: x0, y: y0, w: w2, h: h2, r: 0, fill: fill, stroke: rectLine, sw: 1, layer: 1, node: it >= 0 ? recOf(it).i : -1, a: 1 });
         var size = (type === 'treemap' && box ? 12 : 11) * iscale, txt = ch.label[v];
         if (itemShow && w2 > size * 2.2 && h2 > size * 1.3) {
           var maxC = Math.floor((w2 - 8) / (size * 0.58)), tcol = type === 'treemap' && box ? T.fg : (lumi(base) > 0.55 ? [0.1, 0.1, 0.12, 1] : [1, 1, 1, 1]);
@@ -490,7 +495,7 @@ var NetflowHierarchy = (function () {
       if (itemShow) L.nodes.forEach(function (nd, q) { if (ch.kids[nd.hv].length) return; var r = ch.Rr[nd.hv]; if (r > 14) lab(nd.cx, nd.cy + 4, clip(nd.label, Math.floor(r / 3.6)), Math.min(13, r / 2.6) * iscale, lumi(fillOf(q)) > 0.55 ? [0.1, 0.1, 0.12, 1] : [1, 1, 1, 1], { node: q, minK: 0.3 }); });
       /* polys are drawn under the dots: move the outer circles first */
     } else if (type === 'tree') {
-      var radial = ch.shape === 'radial' || ch.shape === 'radialCluster', ind = ch.shape === 'indented', X = ch.X, Y = ch.Y;
+      var radial = ch.shape === 'radial' || ch.shape === 'radialCluster', ind = ch.shape === 'indented', X = ch.X, Y = ch.Y, treeLine = alpha(T.line, 0.75);
       for (var ti = 0; ti < ch.order.length; ti++) {
         var c = ch.order[ti], p2 = ch.par[c]; if (p2 < 0 || (ch.skipRoot && p2 === ch.root)) continue;
         var ic = ch.item[c], ipp = ch.item[p2], P;
@@ -502,7 +507,7 @@ var NetflowHierarchy = (function () {
           P = [X[p2], Y[p2], ch.cx + Math.cos(an1) * rm, ch.cy + Math.sin(an1) * rm, ch.cx + Math.cos(an2) * rm, ch.cy + Math.sin(an2) * rm, X[c], Y[c]];
         } else { var xm = (X[p2] + X[c]) / 2; P = [X[p2], Y[p2], xm, Y[p2], xm, Y[c], X[c], Y[c]]; }
         var e = edgeBetween(L, ch, p2, c);
-        addCurve(P, 1.3, alpha(T.line, 0.75), e, ipp >= 0 ? L.nodes[ipp].id : undefined, ic >= 0 ? L.nodes[ic].id : undefined, false);
+        addCurve(P, 1.3, treeLine, e, ipp >= 0 ? L.nodes[ipp].id : undefined, ic >= 0 ? L.nodes[ic].id : undefined, false);
       }
       if (itemShow) for (var li = 0; li < ch.N; li++) {
         var itl = ch.item[li]; if (itl < 0) continue;
@@ -535,9 +540,12 @@ var NetflowHierarchy = (function () {
   /** The tree link from p to c as a link of the map, when it is one (made-up group boxes are not). */
   function edgeBetween(L, ch, p, c) {
     var ip = ch.item[p], ic = ch.item[c]; if (ip < 0 || ic < 0) return -1;
+    /* each child's answer is kept on the layout (its links and items do not change between pictures) */
+    if (!ch.__eb || ch.__ebE !== L.edges || ch.__eb.length !== ch.N) { ch.__eb = new Int32Array(ch.N).fill(-2); ch.__ebE = L.edges; }
+    var kept = ch.__eb[c]; if (kept !== -2 && ch.par[c] === p) return kept;
     var a = L.nodes[ip].id, b = L.nodes[ic].id;
     if (!ch.__ei) { ch.__ei = new Map(); L.edges.forEach(function (e, ei) { var k = e.from + '\u0000' + e.to; if (!ch.__ei.has(k)) ch.__ei.set(k, ei); }); }
-    var r = ch.__ei.get(a + '\u0000' + b); return r === undefined ? -1 : r;
+    var r = ch.__ei.get(a + '\u0000' + b); r = r === undefined ? -1 : r; if (ch.par[c] === p) ch.__eb[c] = r; return r;
   }
   /** One line under the picture that says what the shape is made from. */
   function chartNote(L, ext) {

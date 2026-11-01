@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.3 (API 1)
+ * Version 1.3.4 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -318,6 +318,7 @@ var NFMScene = (function () {
       if (nonStoryOdds) return n.dom >= 0 ? mix(T.box, classCol(n.dom), 0.3 + 0.65 * Math.min(1, n.domP)) : null;
       var s = n.pGood + n.pBad; return s > 0.001 ? mix(T.bad, T.good, n.pGood / s) : null;
     };
+    var gFill = new Map();
     var fillOf = function (n) {
       var f, st = n._st;
       if (st && st.fill) f = hex(st.fill);
@@ -327,7 +328,7 @@ var NFMScene = (function () {
       else if (colorBy === 'odds') { var c = endCol(n); if (c) { var s = nonStoryOdds ? 1 : n.pGood + n.pBad; f = nonStoryOdds ? c : mix(T.box, c, 0.25 + 0.7 * Math.min(1, s)); } else f = T.box; }
       else if (numMode) { var t = colT(n.colorV); f = t === t ? rampAt(nodeRamp, t) : alpha(T.neutral, 0.35); }
       else if (colorBy === 'none') f = T.box;
-      else f = mix(T.box, gcol(n.group), n.group && n.group !== '(none)' ? 0.55 : 0);
+      else { f = gFill.get(n.group); if (f === undefined) gFill.set(n.group, f = mix(T.box, gcol(n.group), n.group && n.group !== '(none)' ? 0.55 : 0)); }   /* one color array per group, shared by its items (nothing changes these arrays in place) */
       if (n.ghost) f = alpha(f, 0.35);
       if (n.unreached) f = alpha(f, Math.min(f[3], 0.5));
       if (st && st.opacity !== undefined) f = alpha(f, Math.min(f[3], st.opacity));
@@ -998,6 +999,21 @@ var NFMScene = (function () {
       return true;
     };
   }
+  /* each item's place when items are put in order of most links first (ties keep list order): a counting pass for whole-number link counts, the same order as the stable sort it stands for */
+  function degRank(nodes) {
+    var n = nodes.length, rk = new Array(n), dg = new Float64Array(n), mx = 0, i, d, ok = true;
+    for (i = 0; i < n; i++) { d = nodes[i].deg; dg[i] = d; if (!(d >= 0 && d <= 1048576 && d === Math.floor(d))) ok = false; else if (d > mx) mx = d; }
+    if (ok) {
+      var start = new Int32Array(mx + 2);
+      for (i = 0; i < n; i++) start[mx - dg[i] + 1]++;
+      for (i = 1; i <= mx + 1; i++) start[i] += start[i - 1];
+      for (i = 0; i < n; i++) rk[i] = start[mx - dg[i]]++;
+      return rk;
+    }
+    var rank = nodes.map(function (x, q) { return q; }).sort(function (p, q) { return nodes[q].deg - nodes[p].deg; });
+    rank.forEach(function (q, r) { rk[q] = r; });
+    return rk;
+  }
   function networkScene(X) {
     var S = X.S, L = X.L, T = X.T, o = X.o, lab = X.lab, addNode = X.addNode, fillOf = X.fillOf, valCol = X.valCol, gcol = X.gcol;
     var m = L.edges.length, arrows = m <= 500, a = X.autoA, n3 = !!L.is3d, cam = o.cam || { yaw: 0.6, pitch: 0.35, persp: 2.4 }, lens = !n3 && o.lens && o.lens.r > 0 ? o.lens : null;
@@ -1088,26 +1104,28 @@ var NFMScene = (function () {
     var rk, idxOf;
     if (ST && ST.rk) { rk = ST.rk; idxOf = ST.idxOf; }
     else {
-      var rank = L.nodes.map(function (n, q) { return q; }).sort(function (p, q) { return L.nodes[q].deg - L.nodes[p].deg; }); rk = new Array(L.nodes.length);
-      rank.forEach(function (q, r) { rk[q] = r; });
-      if (ST && ST.idxOf) idxOf = ST.idxOf; else { idxOf = new Map(); L.nodes.forEach(function (n, q) { idxOf.set(n.id, q); }); }
+      rk = degRank(L.nodes);
+      if (ST && ST.idxOf) idxOf = ST.idxOf; else if (ST) { idxOf = new Map(); L.nodes.forEach(function (n, q) { idxOf.set(n.id, q); }); } else idxOf = null;   /* without a kept plan, PN (name to record, the last one winning the same way) answers the same question */
       if (ST) { ST.rk = rk; ST.idxOf = idxOf; }
     }
     /* What moving one item by hand needs (see S.moveNodes below): where each item's dot, choke dot, icon and name sit in the lists. Only for a big flat map of plain straight links with no arrows, hulls, group names or fisheye, where building the whole picture again for every mouse move is the slow part. */
     var FM = !n3 && !lens && !o.hulls && m >= FAST_MOVE_MIN && !X.LC.groups.show && !ST ? { dot: new Int32Array(L.nodes.length).fill(-1), chk: new Int32Array(L.nodes.length).fill(-1), ico: new Int32Array(L.nodes.length).fill(-1), lab: new Array(L.nodes.length), box: new Array(L.nodes.length) } : null;
     var topN = X.LC.items.topN, recOf = n3 && ST ? new Int32Array(L.nodes.length).fill(-1) : null, dotOf = recOf ? new Int32Array(L.nodes.length).fill(-1) : null;
     /* one item's name under it: the same call for a normal picture and for a turn frame */
+    var boxLine = alpha(T.box, 0.9), solidM = new Map(), solidOf = function (c) { var v = solidM.get(c); if (v === undefined) solidM.set(c, v = [c[0], c[1], c[2], Math.max(c[3], 0.92)]); return v; };   /* the fill with at least 0.92 opacity, made once per fill array */
     var emitLabel = function (n, q, np, rec, px, py, r, f, fd) {
+      if (!X.LC.items.show && !(n._st && n._st.labelShow)) return null;   /* the name cannot show (lab() would say no): skip working out its look */
       var rnk = rk[q], showTop = topN && rnk < topN, fill = n3 ? alpha(np.fill, np.fill[3] * fd) : np.fill;
       return lab(px, py + r + 11 * (n3 ? f : 1), np.text, 11 * (n3 ? Math.max(0.7, f) : 1), np.col || X.labColor(n, fill), { node: rec.i, minK: showTop ? 0.05 : 0.22 * (1 + rnk / 35), bold: rnk < 8 });
     };
     list.forEach(function (p) {
       var n = p.n, st = n._st, r = p.r; if (p.hide) return;
-      var rec = addNode(n, p.px - r, p.py - r, 2 * r, 2 * r), q = idxOf.get(n.id), fd = p.fd, np = ST ? ST.nodes[q] : undefined;
+      var rec = addNode(n, p.px - r, p.py - r, 2 * r, 2 * r), q = idxOf ? idxOf.get(n.id) : PN.get(n.id).qi, fd = p.fd, np = ST ? ST.nodes[q] : undefined;
       if (recOf) { recOf[q] = rec.i; dotOf[q] = S.dots.length; }
       if (np === undefined) {
-        var vc0 = n.end ? valCol(n.valence) : null, fill0 = n.start ? mix(fillOf(n), T.accent, 0.7) : fillOf(n).map(function (v, k) { return k < 3 ? v : Math.max(v, 0.92); }), kind0 = SHAPE_KIND[st && st.shape]; if (kind0 === undefined) kind0 = 1;
-        np = { fill: fill0, kind: kind0, replace: !!(st && (st.icon || st.image) && st.iconMode !== 'inside'), stroke: st && st.stroke ? hex(st.stroke) : n.start ? T.accent : vc0 || alpha(T.box, 0.9), sw: st && st.sw !== undefined ? st.sw : n.start ? 3 : vc0 ? 2.5 : 1.2, text: clip(X.tx(n), 24), col: X.LC.items.color === 'fill' ? null : X.labColor(n, fill0) };
+        var vc0 = n.end ? valCol(n.valence) : null, fill0 = n.start ? mix(fillOf(n), T.accent, 0.7) : solidOf(fillOf(n)), kind0 = SHAPE_KIND[st && st.shape]; if (kind0 === undefined) kind0 = 1;
+        np = { fill: fill0, kind: kind0, replace: !!(st && (st.icon || st.image) && st.iconMode !== 'inside'), stroke: st && st.stroke ? hex(st.stroke) : n.start ? T.accent : vc0 || boxLine, sw: st && st.sw !== undefined ? st.sw : n.start ? 3 : vc0 ? 2.5 : 1.2, text: '', col: null };
+        if (ST || X.LC.items.show || (st && st.labelShow)) { np.text = clip(X.tx(n), 24); np.col = X.LC.items.color === 'fill' ? null : X.labColor(n, fill0); }   /* a name that cannot show needs no text or color (a kept 3D plan always gets them) */
         if (ST) ST.nodes[q] = np;
       }
       var fill = n3 ? alpha(np.fill, np.fill[3] * fd) : np.fill, kind = np.kind, replace = np.replace;
@@ -1119,6 +1137,7 @@ var NFMScene = (function () {
       if (FM && FM.ico[q] === S.icons.length) FM.ico[q] = -1;
       var lbl = emitLabel(n, q, np, rec, p.px, p.py, r, p.f, fd); if (FM) FM.lab[q] = lbl;
     });
+    if (FM && !idxOf) { idxOf = new Map(); L.nodes.forEach(function (n, q) { idxOf.set(n.id, q); }); }
     if (FM) attachMove(S, L, FM, recs, idxOf, PICTURE_PAD);
     if (recOf && o.rig && S.icons.length === 0 && m >= (o.rigMin === undefined ? RIG_MIN_LINKS : o.rigMin)) {
       if (ST.rig === undefined) ST.rig = makeRig(L, ST, T, idxOf, rk);
