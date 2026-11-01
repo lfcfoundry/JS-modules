@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.15.0 · API 1 · 2026-11-01
+
+### Quick
+New WebAssembly raw-deflate decoder (wasm/inflate.c rewritten): 64-bit bit buffer refilled 8 bytes at a time, one-lookup tables (11-bit literal/length, 8-bit distance, second-level tables for long codes), two literals per refill when they…
+
+### Deep
+New WebAssembly raw-deflate decoder (wasm/inflate.c rewritten): 64-bit bit buffer refilled 8 bytes at a time, one-lookup tables (11-bit literal/length, 8-bit distance, second-level tables for long codes), two literals per refill when they fit, matches copied 8 bytes at a time (a byte pattern for distance 1), and a fast loop without end checks while 8 input bytes and 274 output bytes remain; the careful loop handles the ends. Used for every in-memory entry (INFLATE_MAX was 4 KB compressed; now 1 GB), unpacking straight into bookJob's wasm reader when placing. Its memory is given back after 5 s idle once over 4 MB (instance dropped, compiled module kept), like SCRATCH. Raw decode in Node: 2.0-2.2x the old decoder and 1.2-1.9x Node's zlib (18 MB sheet 27 ms vs 59 old, 33 zlib). Early-stop A/B fwd+rev geomeans, new / 1.14.3, big/small/formulas/text: bytes (3 rounds) Chromium 155 0.88/0.71/0.95/0.97, Firefox 158 0.77/0.68/0.72/0.91, WebKitGTK 2.52.6 0.76/0.79/0.80/0.86; 2 helpers (2-3 rounds) Chromium 0.975/0.955/0.904/0.979, Firefox 0.888/0.896/0.988/0.932, WebKitGTK 0.771/0.855/0.862/0.892; File without helpers (1-3 rounds) Chromium 0.914/0.957/0.994/0.945, Firefox 0.894/0.886/0.906/0.958, WebKitGTK 0.798/0.895/0.809/0.785. Fuzz: 4,000 cases (random, repetitive, XML-like; levels 0-9, all strategies; bit flips, cuts, junk, short caps): same bytes and same -1/-2 answers as the 1.5.0 decoder. Tests: 42 checks; new: a 20 MB entry matches the browser stream and a too-small limit is skipped. The npm libdeflate wasm builds could not be run for comparison (sandbox rule on outside code), so the decoder is written from scratch.
+
 ## 1.14.3 · API 1 · 2026-10-31
 
 ### Quick
