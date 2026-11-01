@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-10-31
+
+### Quick
+Three new options, all off by default (deep, rows: 'best', orderRounds). With them off the picture and speed are unchanged. Old code needs no change.
+
+### Details
+deep: true: after the usual rounds, rounds with neighbor swaps right after each row's sweep plus a full swap pass (up to 50 passes a row), stopping after 4 rounds with no gain (at most 80); maps over 20,000 stops skip it; never more crossings. rows: 'best' lays out with both row choices and keeps the fewer crossings (a tie keeps the shortest route). orderRounds: N sets the usual rounds (0 keeps the first order). JS and wasm give the same picture to the last digit. Random acyclic maps (Netflow Map's bench data), row crossings, deep + best vs default: 400 items 7,950 to 5,103 (dagre 5,374, ELK 5,313), 1,000 items 33,763 to 21,166 (dagre 23,965, ELK 22,602), 1,500 items 33,117 to 27,353. Time 400 / 1,000 / 1,500 items: Chromium 155 8 / 14 / 23 ms to 51 / 119 / 160 ms; Firefox 158 9 / 21 / 70 to 52 / 121 / 183; WebKitGTK 2.52.6 8 / 16 / 34 to 46 / 122 / 189 (dagre about 0.8 s and 7.2 s). Sankey seeding with orderRounds: 0: same netflow-sankey picture, whole layout of 1,500 items 0.675 (Chromium), 0.82 (Firefox), 0.767 (WebKitGTK) of the time.
+
+### Deep
+Brief from the Netflow Map thread (2026.10.31): Flow view had about 1.5x the crossings of dagre and ELK. Prototype ideas moved into the module: neighbor swaps after each row's sweep was the big one; a full swap pass with 50 passes a row; stall stop 4, max 80; restarts from the best without a shake gave nothing. Median schedule variants (average first, median first, median always, none) tried on 5 more graphs: within 2% of each other, so the prototype's alternation stays. Starting deep from the initial order instead of the best of the usual rounds: no better on average. Default path A/B (options off, flow 1,000 items): Chromium 0.999 inconclusive (noisy), Firefox 0.906, WebKitGTK 1.000 inconclusive (noisy, two runs); same results everywhere. orderRounds: 0 + netflow-sankey: identical pictures at 12 to 1,500 items; Chromium 0.675 / 0.775 / 0.897 at 1,500 / 400 / 100 items, Firefox 0.82 / 0.866 / 0.667 (noisy), WebKitGTK 0.767 / 1.000 / 1.000. Deep search cost grows with stops; at 35,000 stops (3,000 items, shortest-route rows) it gave no gain, hence the 20,000 cap. Tests: deep never worse and JS = wasm on 24 maps x options, best = min of the two, cap keeps the old picture.
+
 ## 1.5.1 · API 1 · 2026-10-27
 
 ### Quick

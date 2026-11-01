@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.5.1 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (cloud); early-stop A/B
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -48,10 +48,12 @@ Your input is never changed: the result holds copies of your nodes and links wit
 | Option | Meaning |
 |---|---|
 | `dir` | `"LR"` (default, rows go left to right) or `"TB"` (rows go down). |
-| `rows` | `"route"` (default: a page sits at its fewest steps from the start) or `"story"` (a page sits below every page that leads to it; only real loops go back). |
+| `rows` | `"route"` (default: a page sits at its fewest steps from the start) or `"story"` (a page sits below every page that leads to it; only real loops go back) or `"best"` (lays out both ways and keeps the one with fewer crossings; about twice the time). |
 | `tagLen` | A number such as 8: links longer than this many rows become `kind: "tag"` (a stub and a name at each end), with no stand-in stops. `0` = off (default). |
 | `spine` | `true` puts the nodes marked `choke: true` in one line. |
 | `better` | `true` adds six more rounds of reordering; never worse, a little slower. |
+| `deep` | `true` runs a deeper crossing search after the usual rounds (neighbor swaps after each row, stops when 4 rounds bring no gain); never worse. With `rows: "best"`, 1,000 random items go from 33,763 to 21,166 crossings (dagre 23,965, ELK 22,602) in about 120 ms instead of 14 ms. Maps over 20,000 stops skip it. |
+| `orderRounds` | A number: rounds of the usual order search (default 6, or 2 on maps over 600 stops). `0` keeps the first order, for a caller such as netflow-sankey that reorders anyway. |
 | `bundle` | `true` lets links that start at the same page share one run of stand-in stops, and links that end at the same page and are alone at their start share one run from the end upward. Fewer stops and crossings on maps without tags; about the same where tags already removed the long links. |
 | `wrap` | `true` (with `dir: "TB"`) cuts a map more than 2.2 times taller than wide into columns side by side; links between columns become tags. |
 | `lanes` | `true` puts nodes with the same `lane` number in their own band. |
@@ -69,7 +71,7 @@ Returns `{ nodes, edges, pos, order, lanes, width, height, crossings, rows, rule
 `toSvg(result, colors)` draws boxes, curves and tag chips as a plain SVG string (text is escaped); `taper: true` draws forward links as shapes that narrow from 5 px to 1 px, so direction shows without arrowheads.
 
 ## WebAssembly (1.5.0)
-The row-order search (crossing counts, sweeps, neighbor swaps) and the row placement run in WebAssembly, built from `wasm/order.c` (`sh wasm/build.sh`, then `python3 wasm/embed.py` puts the 8,040 bytes into `netflow-layers.js` as base64). A page needs only `'wasm-unsafe-eval'` in `script-src`; nothing is fetched. The pictures are the same to the last digit as the plain JavaScript, which stays in the file as the fallback (no WebAssembly, blocked by the page rule, a map under 100 stops, or a failed call). `NetflowLayers.wasm` is `{ on, min, calls, error }`: set `on = false` to force JavaScript, `min` to change the 100-stop limit, read `calls` and `error` to see what happened. Measured in ungoogled Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 5,000 pages (lower is better): 37.7 to 26.9, 55 to 41 and 53 to 43 ms with wasm off and on; 1,000 pages 6.65 to 4.8, 10 to 8 and 8.5 to 7 ms. The first map of 100 stops or more compiles the module once (about 4 ms in WebKitGTK, under 1 ms in Chromium).
+The row-order search (crossing counts, sweeps, neighbor swaps) and the row placement run in WebAssembly, built from `wasm/order.c` (`sh wasm/build.sh`, then `python3 wasm/embed.py` puts the 8,968 bytes into `netflow-layers.js` as base64). A page needs only `'wasm-unsafe-eval'` in `script-src`; nothing is fetched. The pictures are the same to the last digit as the plain JavaScript, which stays in the file as the fallback (no WebAssembly, blocked by the page rule, a map under 100 stops, or a failed call). `NetflowLayers.wasm` is `{ on, min, calls, error }`: set `on = false` to force JavaScript, `min` to change the 100-stop limit, read `calls` and `error` to see what happened. Measured in ungoogled Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 5,000 pages (lower is better): 37.7 to 26.9, 55 to 41 and 53 to 43 ms with wasm off and on; 1,000 pages 6.65 to 4.8, 10 to 8 and 8.5 to 7 ms. The first map of 100 stops or more compiles the module once (about 4 ms in WebKitGTK, under 1 ms in Chromium).
 
 ## How it compares
 
