@@ -1,8 +1,8 @@
 # netflow-engine
 
-**Version 2.2.3 · API 2**
+**Version 2.3.0 · API 2**
 
-**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud), early-stop A/B; 15 checks
+**Tested in:** Module tests (16 checks, the new one: all seven extra views through build(), listed once, repeatable) in Node; the two add-ons give the same pictures as page scripts in Firefox 158, Chromium 155 and WebKitGTK 2.52.6.
 
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license.
 
@@ -64,6 +64,7 @@ In Node: `const E = require('./netflow-engine.js'); E.use('layers', require('../
 ## Add-ons
 
 - **Layered drawing (netflow-layers 1.2.0 or newer; 1.3.0 for `spread: "wide"`)**: required for every story view. Found as a global `NetflowLayers`, or as `../netflow-layers/netflow-layers.js` in Node, or handed over with `NetflowEngine.use('layers', impl)`. If it is missing, the view that needs it throws a message that says so; the Network view still works.
+- **Extra views (netflow-circular and netflow-hierarchy 1.0.0, since engine 2.3.0)**: optional. Chord and Bundles come from [netflow-circular](../netflow-circular/README.md); Treemap, Sunburst, Icicle, Circle pack and Tree from [netflow-hierarchy](../netflow-hierarchy/README.md). Found as globals `NetflowCircular` and `NetflowHierarchy`, or as the Node files next to this folder, or handed over with `NetflowEngine.use('circular', impl)` and `use('hierarchy', impl)`; their views then join `VIEWS`. `build(graph, { view: 'chord' })` lays the map out (options `chordBy`, `chordOrder`, `nest`, `treeShape`; `sizeBy` sizes the boxes), and the add-on's `scene(L, options, NetflowScene)` draws it.
 - **Sankey add-on**: optional (netflow-sankey 2.1.0 or newer). `NetflowEngine.use('sankey', impl)` and pass `sk` options to the Sankey view; without it the Sankey view keeps the plain layered picture. The Sankey view calls three things on the add-on: `options(sk)`, `layout(layered, options)` and `apply(layered, result)`. netflow-sankey 2.0.0 has `layout` but not `options` or `apply` (Netflow Map's own copy has all three), so with 2.0.0 handed over, a Sankey view that is given `sk` options throws "SK.options is not a function"; a Sankey view without `sk` options works. netflow-sankey 2.1.0 added the two calls, so use 2.1.0 or newer.
 - **Your own**: the engine's other parts (`separate`, `forceSim`, `networkLayout`, `communities`, `metrics`, `taskScore`) are exported so an add-on can call them. An add-on never reaches into the engine's private storage. This is the same shape the Netflow Map add-ons use.
 - `NetflowEngine.columns` is the column reader (numbers as people write them, dates, categories, small formulas); `status()` returns `{ placeholder: false, version, api }`.
