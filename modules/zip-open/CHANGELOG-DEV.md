@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.13.0 · API 1 · 2026-10-31
+
+### Quick
+The biggest worksheet of 1 MB or more is unpacked straight into the WebAssembly reader's memory when the zip is in memory (expand, and expandBlob without helpers for files up to 16 MB), so it skips a fresh buffer and a second full copy.
+
+### Deep
+The biggest worksheet of 1 MB or more is unpacked straight into the WebAssembly reader's memory when the zip is in memory (expand, and expandBlob without helpers for files up to 16 MB), so it skips a fresh buffer and a second full copy. The open holds the reader instance across its awaits; other opens meanwhile make their own. Not used for a File read in pieces or inside a helper: measured 10-25% slower there (round 13). Also measured: a fresh instance per workbook is 5-20% slower, so the instance is reused as before. Early-stop A/B forward and reversed (geometric mean), new / 1.12.0, big/small/formulas/text: bytes Chromium 155 0.90/0.83/0.87/0.91, Firefox 158 0.89/0.91/0.87/0.89, WebKitGTK 2.52.6 0.79/0.83/0.91/0.95; File without helpers Chromium 0.92/0.88/0.85/0.89, Firefox 0.95/0.89/0.88/0.90, WebKitGTK 0.91/1.02/0.91/0.90. Tests: 39 checks; new: placed sheet gives the same tables with shared text, a second sheet, inline text the wasm hands back (JS reads it from the wasm memory), four opens at once, and inside a helper (not placed).
+
 ## 1.12.0 · API 1 · 2026-10-31
 
 ### Quick

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.13.0 · API 1 · 2026-10-31
+- Excel files already in memory (expand, or a File of up to 16 MB) open 5 to 21% faster (cloud Firefox, Chromium, WebKitGTK), same results.
+
 ## 1.12.0 · API 1 · 2026-10-31
 - Excel files with lots of text open 4 to 13% faster (cloud Firefox, Chromium, WebKitGTK); other sheets about the same. Browsers with WebAssembly SIMD get a faster reader; others keep the old one.
 
