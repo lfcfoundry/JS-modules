@@ -585,4 +585,19 @@ t('Excel: the wasm reader works a piece at a time (shared text and rows each wel
   try { js = await U.expand(x, 'b.xlsx'); } finally { WebAssembly.Module = M; U._xlsxPlain(false); }
   assert.deepStrictEqual(w, js); assert.equal(w.files[0].text.split('\n').length, 30001);
 });
+t('Excel: a big sheet in a File read in pieces goes through our unzipper into the reader, and gives what the JavaScript reader gives (also when the zip is damaged)', async function () {
+  var rows = [['id', 'name', 'n']]; for (var i = 0; i < 20000; i++) rows.push([i, 'name ' + (i % 997), i * 1.5]);
+  var x = u8(Z.makeXlsx([{ name: 'Big', rows: rows }])), p0 = U._placed(), got, js;
+  U._smallEntry(1024);
+  try { got = await U.expandBlob(new Blob([x]), 'b.xlsx', { _wholeMax: 0 }); } finally { U._smallEntry(); }
+  assert.ok(U._placed() > p0, 'placed');
+  var M = WebAssembly.Module; WebAssembly.Module = function () { throw new Error('no wasm reader'); }; U._xlsxPlain(false);
+  try { js = await U.expand(x, 'b.xlsx'); } finally { WebAssembly.Module = M; U._xlsxPlain(false); }
+  assert.deepStrictEqual(got, js);
+  var ents = (await U.listBlob(new Blob([x]))).entries, e = ents.filter(function (q) { return /sheet1/.test(q.path); })[0], bad = x.slice(), seen = 0;
+  bad[e.start + 30 + e.path.length + 200] ^= 0xff;   // a byte in the compressed sheet
+  U._smallEntry(1024);
+  try { var r = await U.readBlob(new Blob([bad]), e, 1e9, function (n) { seen = n; return new Uint8Array(n); }); } finally { U._smallEntry(); }
+  assert.ok(r.skip, 'damaged sheet is skipped: ' + JSON.stringify(r).slice(0, 80));
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });

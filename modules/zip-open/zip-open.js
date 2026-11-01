@@ -689,7 +689,7 @@
   }
 
   /* ---- streaming from a File or Blob (since 1.4.0): only the end of the file, the table of contents and the entry asked for are read; nothing else is loaded ---- */
-  var SMALL_ENTRY = 4194304, WINDOW = 4194304, PAR_ENTRY = 2097152, BAD_ZIP = 'This is not a zip file I can read (it may be cut off or damaged).';
+  var SMALL_DEF = 4194304, SMALL_ENTRY = SMALL_DEF, WINDOW = 4194304, PAR_ENTRY = 2097152, BAD_ZIP = 'This is not a zip file I can read (it may be cut off or damaged).';
   async function bytesOf(blob, a, b) { return new Uint8Array(await blob.slice(a, b).arrayBuffer()); }
   /** The table of contents of a File or Blob. Same answers as list() on the same bytes; reads the last 64 KB and the directory, not the entries. */
   async function listBlob(blob, lim) {
@@ -761,6 +761,12 @@
     if (data + e.csize > blob.size) return { skip: 'looks damaged (cut off)' };
     var got;
     if (e.method === 0 && e.csize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' };
+    if (e.method === 8 && typeof sc === 'function' && e.csize <= INFLATE_MAX && inflateKernel()) {   // the big sheet that goes straight into the Excel reader: our unzipper on the whole compressed bytes (measured faster; other big entries keep the browser's, which was faster for big shared text in Firefox and WebKitGTK)
+      var cap = Math.min(limit, e.usize + 1), w = cap <= 1073741824 ? inflateWasm(await bytesOf(blob, data, data + e.csize), cap, sc, e.usize) : null;
+      if (w) { if (w.err) return { skip: w.err === -2 ? 'unpacks to more than it says it does' : 'looks damaged' };
+        if (w.bytes.length !== e.usize) return { skip: 'looks damaged (its size is not what the zip says)' };
+        if (w.crc !== e.crc) return { skip: 'looks damaged (its checksum does not match)' };
+        return { bytes: w.bytes }; } }
     try { got = await inflateBlob(blob.slice(data, data + e.csize), e.method, e.method === 0 ? limit : Math.min(limit, e.usize + 1), sc ? e.usize : 0, typeof sc === 'function' ? sc : null); }
     catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
     if (got.bytes.length !== e.usize) return { skip: 'looks damaged (its size is not what the zip says)' };
@@ -972,5 +978,5 @@
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
   compileEarly();
-  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, _xlsxPlain: xlsxPlain, _placed: function () { return PLACED; }, _xlsxSimd: function () { xlsxModule(); return XSIMD; }, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n === undefined ? INFLATE_DEF : n; }, LIMITS: LIMITS };
+  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, _xlsxPlain: xlsxPlain, _placed: function () { return PLACED; }, _xlsxSimd: function () { xlsxModule(); return XSIMD; }, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n === undefined ? INFLATE_DEF : n; }, _smallEntry: function (n) { SMALL_ENTRY = n === undefined ? SMALL_DEF : n; }, LIMITS: LIMITS };
 }));
