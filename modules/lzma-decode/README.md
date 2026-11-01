@@ -81,6 +81,8 @@ First decode of the 569,513-byte Pineapple Defense page (141,872 bytes of LZMA),
 | WebKitGTK 2.52.6 | 37.0 | 25.0 | 1.48x |
 | GNOME Web 46.5 | 38.0 | 25.0 | 1.52x |
 
+On a laptop (16 cores) the default file is 2.17 times as fast in Firefox 160 (63.0 to 29.0 ms) and 2.97 times in Chromium 156 (58.5 to 19.7 ms), on a newer 569,513-byte Pineapple page with 193,108 bytes of LZMA, so the times are not directly comparable with the table.
+
 The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all four browsers. A warm 1.5 MB decode in Node 22 (a Node figure, not a browser one): 98.6 ms (JavaScript) to 47.3 ms (WebAssembly), 2.1x. The result is a copy with its own buffer of exactly `outSize` bytes, so the 2x working memory of the run is freed at once. Source: `wasm/lzma-decode.c` (a line-for-line port of `lzma-decode.js`), `wasm/build.sh` rebuilds `wasm/lzma-decode.wasm` (clang with the wasm32 target; 4,087 bytes, kept under 4,096 so Chromium compiles it on the main thread), `wasm/embed.py` puts it into `lzma-decode-wasm.js`, and `wasm/join.js` builds the default file.
 
 ## Compile early (since 1.3.0)

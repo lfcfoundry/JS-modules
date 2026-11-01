@@ -145,7 +145,7 @@ def main(argv):
         m = mods[i]; folder = m.get('folder') or os.path.dirname(m['readme'])
         if '--check' in argv:
             f = os.path.join(root, folder, 'index.html')
-            if not os.path.exists(f) or open(f, encoding='utf-8').read() != module_html(m, mods): stale.append(i)
+            if not os.path.exists(f) or open(f, encoding='utf-8').read() != latin1.escape_html(module_html(m, mods))[0]: stale.append(i)
             continue
         open(os.path.join(root, folder, 'index.html'), 'w', encoding='utf-8', newline='').write(latin1.escape_html(module_html(m, mods))[0])   # Latin-1 only (see AGENTS.md); print('wrote', folder + '/index.html')
     if '--check' in argv:

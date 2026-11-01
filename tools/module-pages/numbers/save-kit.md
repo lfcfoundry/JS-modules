@@ -109,3 +109,20 @@ The bare-JSON row is from before 1.5.1 and 1.5.2. 20 KB loads are about 0.8 of t
 | WebKitGTK 2.52.6 | 0.89 (noisy) | 0.97 |
 
 It is smaller, not faster. Not in lite: counts and raw fields, codes, autosave, versions, the other-tab notice, IndexedDB.
+
+**The same comparison on a real laptop.** Laptop (Windows, 16 cores, screen scale 1.25), single runs with apps open, 2026.10.31 11:10 PM ET. Ratio, save-kit / alternative; below 1 means save-kit is faster. Early-stop A/B.
+
+| Case | Firefox 160 | Chromium 156 |
+|---|---:|---:|
+| 448 B save vs JSON + zod | 0.45 | 0.65 |
+| 448 B load vs JSON + zod | 0.30 | 0.47 |
+| 448 B save vs idb-keyval / localForage | 0.004 / 0.004 | 0.011 / 0.010 |
+| 448 B load vs idb-keyval / localForage | 0.010 / 0.009 | 0.008 / 0.009 |
+| 20 KB save vs JSON + zod | 0.18 | 0.48 |
+| 20 KB load vs JSON + zod | 0.35 | 0.72 |
+| 20 KB save vs idb-keyval / localForage | 0.11 / 0.09 | 0.13 / 0.13 |
+| 20 KB load vs idb-keyval / localForage | 0.26 / 0.26 | 0.34 / 0.34 (noisy) |
+| Six-field save, lite / create() | 0.97 (even) | 0.95 (even) |
+| Six-field load, lite / create() | 0.76 | 0.89 |
+
+On the laptop, the lite file also loads 11 to 24% faster; its saves are even. Not run on the laptop: 1.5.1 old against new, and the WebKit-only 1.5.2 check.
