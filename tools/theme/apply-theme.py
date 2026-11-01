@@ -30,7 +30,7 @@ def head_end(t):
         if m.start() != pos - i: break
         pos = i + m.end()
     return pos, False
-EXTRA = ['tools/speed-lab/demo.html', 'modules/memory-compression/demo-arrays.html']   # more pages that get the same look
+EXTRA = ['tools/speed-lab/demo.html', 'modules/memory-compression/demo-arrays.html', 'modules/lfc-pack/viewer.src.html']   # more pages that get the same look
 def build(name, t, up='../../'):
     t = strip(t)
     if name in NONE: return t

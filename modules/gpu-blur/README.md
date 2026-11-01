@@ -73,8 +73,8 @@ GpuBlur.ready().then(function (info) { /* info.canvasRoute: the way a drawn pict
 The definition is: three horizontal box passes (width `2b + 1`, with `b` from the radius), then three vertical ones; every pass rounds half up to a whole number; the edge pixel repeats. WebAssembly and JavaScript compute it with a running whole-number sum. The card way runs six passes with whole-number sums in the shader, because a first version that added floating-point colors was off by one level in 8 to 19% of the values in WebKit's graphics path. The checks compare every way to a slow brute-force version of the definition and to each other:
 
 - Node: wasm and JavaScript equal the brute-force version byte for byte in 100 size and radius cases (sizes 1 x 1 to 64 x 48, radius 0 to 100), and sliced equals unsliced on 640 x 360 at three radii.
-- Browser (all four test browsers): at 1920 x 1080, radius 12, WebGL 2, wasm and JavaScript are 100.0000% equal values to the reference (largest difference 0 of 255).
-- For a picture with partly see-through pixels read back from a canvas result, the canvas holds premultiplied colors, so two ways can differ by a level or two there: Chromium and Firefox gave equal bytes through a canvas, WebKitGTK and GNOME Web agreed on 96.0% of the values, 96.4% within 1 level, largest difference 2 of 255, in the browser test. `out: 'pixels'` is byte-identical in every way.
+- Browser (all three test browsers): at 1920 x 1080, radius 12, WebGL 2, wasm and JavaScript are 100.0000% equal values to the reference (largest difference 0 of 255).
+- For a picture with partly see-through pixels read back from a canvas result, the canvas holds premultiplied colors, so two ways can differ by a level or two there: Chromium and Firefox gave equal bytes through a canvas, WebKitGTK agreed on 96.0% of the values, 96.4% within 1 level, largest difference 2 of 255, in the browser test. `out: 'pixels'` is byte-identical in every way.
 - Against a true 25-tap Gaussian of the same width the box blur differs by 1.74 of 255 on average (largest 18) on the test picture (a gradient with sharp 32-pixel squares and noisy alpha).
 
 ## Page tasks
@@ -85,49 +85,49 @@ A page task over about 8 ms is felt as a stutter. The WebAssembly and JavaScript
 
 Nothing here needs more than `'wasm-unsafe-eval'` in `script-src`: no `eval`, no `new Function`, no `blob:` address (no `img-src blob:`), no worker, no storage, no network. The one exception is the opt-in helpers and threads routes, which make their workers from a `blob:` address and so need `worker-src blob:`; without it the module quietly uses one-thread WebAssembly. Without `'wasm-unsafe-eval'` the module uses plain JavaScript. `tests/gpu-blur-browser.js` runs on a page with `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src data:`.
 
-## Measured (the four test browsers, one at a time)
+## Measured (the three test browsers, one at a time)
 
-All numbers are milliseconds, **lower is better**, taken in Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web 46.5, one browser at a time, two runs each (the median of the reps in each run, then the two runs together; 1920 x 1080, radius 12, bytes in, a drawn canvas out, "finished" means the canvas was drawn from and read once so the picture is really there). Node is used only to pass or fail the checks; no speed is taken in Node. The WebGL 2 route here ran on the graphics path these browsers had on the test machine, which was slow; **no hardware graphics card was timed in these four browsers**, so the first table says what the module does on that path and is not a card speed; see "Measured on real graphics hardware" below for a phone and a laptop that draw on the card.
+All numbers are milliseconds, **lower is better**, taken in Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, one browser at a time, two runs each (the median of the reps in each run, then the two runs together; 1920 x 1080, radius 12, bytes in, a drawn canvas out, "finished" means the canvas was drawn from and read once so the picture is really there). Node is used only to pass or fail the checks; no speed is taken in Node. See "Measured on real graphics hardware" below for a phone and a laptop.
 
-| 1920 x 1080, radius 12, bytes in, drawn canvas out | Chromium 155 | Firefox 158 | WebKitGTK 2.52 | GNOME Web 46.5 |
-| --- | ---: | ---: | ---: | ---: |
-| `auto` (it chose wasm in all four) | 48.7 | 45.8 | 74.5 | 79.0 |
-| route `wasm` | 50.9 | 49.2 | 89.5 | 89.5 |
-| route `js` | 261 | 302 | 350 | 311 |
-| route `webgl2` (forced) | 673 | 469 | 502 | 502 |
-| longest page task, `auto` | 7.6 | 3.5 | 5.5 | 7.0 |
-| longest page task, `wasm` | 7.2 | 3.8 | 9.0 | 8.5 |
-| longest page task, `js` | 6.7 | 5.2 | 9.5 | 7.5 |
+| 1920 x 1080, radius 12, bytes in, drawn canvas out | Chromium 155 | Firefox 158 | WebKitGTK 2.52 |
+| --- | ---: | ---: | ---: |
+| `auto` (it chose wasm in all three) | 48.7 | 45.8 | 74.5 |
+| route `wasm` | 50.9 | 49.2 | 89.5 |
+| route `js` | 261 | 302 | 350 |
+| route `webgl2` (forced) | 673 | 469 | 502 |
+| longest page task, `auto` | 7.6 | 3.5 | 5.5 |
+| longest page task, `wasm` | 7.2 | 3.8 | 9.0 |
+| longest page task, `js` | 6.7 | 5.2 | 9.5 |
 
-- **Which way wins.** On the test machine WebAssembly beat the WebGL 2 route at every size in all four browsers (tables below), by about 5.6 to 13 times at 1920 x 1080. Plain JavaScript was also faster than the WebGL 2 route at every size in all four browsers (for example 261 against 673 ms in Chromium), and slower than WebAssembly by about 3.5 to 6 times at 1920 x 1080. So the card way loses on this machine, and `auto` correctly stayed on WebAssembly.
+- **Which way wins.** In these three browsers WebAssembly beat the WebGL 2 route at every size in all three browsers (tables below), by about 5.6 to 13 times at 1920 x 1080. Plain JavaScript was also faster than the WebGL 2 route at every size in all three browsers (for example 261 against 673 ms in Chromium), and slower than WebAssembly by about 3.5 to 6 times at 1920 x 1080. So the WebGL 2 way loses in these runs, and `auto` correctly stayed on WebAssembly.
 - **Where the card way may still win.** The earlier lab test on a midrange phone (Android, Chrome) and a laptop with integrated graphics measured WebGL 2 about 3 to 5.5 times faster than the WebAssembly box blur at 1920 x 1080 (12.8 against 37.5 ms; 6 against 33 ms), with a different shader (25 taps, two passes). The shader shipped here reads about 1.56 times as many texels, and its speed on a real card has not been measured. `auto` takes the card way only when its own 480 x 270 probe on that device is no slower than 2 x the WebAssembly time + 2 ms.
 - **Sizes where the card way is slower than WebAssembly (this machine).** All of them: 128 x 72 (4.8 to 7.0 against 0.6 to 1.0 ms), 480 x 270 (34 to 47 against 3.3 to 7.0), 1280 x 720 (210 to 310 against 19 to 41), 1920 x 1080, and 3840 x 2160 (1,820 to 2,730 against 225 to 490).
-- **The probe's own numbers** (480 x 270, radius 12): WebGL 2 71, 48, 34 and 30 ms against 2 to 4 ms in WebAssembly (Chromium, Firefox, WebKitGTK, GNOME Web).
+- **The probe's own numbers** (480 x 270, radius 12): WebGL 2 71, 48, 34 and 30 ms against 2 to 4 ms in WebAssembly (Chromium, Firefox, WebKitGTK).
 - **Bytes out** (`out: 'pixels'`) at 1920 x 1080: `auto` 53.2, 48.0, 65.0 and 73.0 ms (WebAssembly); one block (`blurSync`) 58.6, 43.1, 51.5 and 50.5 ms in WebAssembly and 251, 288, 259 and 254 ms in JavaScript.
 - **Bigger pictures:** 3840 x 2160 by `auto` 222, 229, 490 and 504 ms; the longest page task stays under the cap because the work is cut into slices.
 - **Radius:** WebAssembly time hardly moves with the radius (1920 x 1080: radius 4, 12 and 40 take 47 to 81, 49 to 90 and 49 to 79 ms); the WebGL 2 route grows with it (225 to 408, 469 to 673 and 1,267 to 1,815 ms).
 - **First use on a fresh page** (median of 7 pages): `ready()` takes 374, 339, 250 and 253 ms with a longest task of 15, 28, 44 and 46 ms (compiling the WebAssembly and trying the card); the first blur then takes 56, 71, 108 and 122 ms.
 - **Page tasks.** The longest task during a 1920 x 1080 blur by WebAssembly or JavaScript was 3.5 to 9.5 ms (median of reps; worst single rep 43.5 ms, in WebKitGTK JavaScript with a canvas source). The cap aimed at is about 8 ms; a few WebKit medians sit at 9 to 9.5 ms, slightly over it. The WebGL 2 route held one task of 480 to 710 ms on this machine, where the software path did its drawing inside a call; this is the number to expect only where the graphics path is slow.
-- **Picture match.** At 1920 x 1080, radius 12, the WebGL 2 route and the WebAssembly route are **100.0000%** equal to the plain JavaScript reference in all four browsers (largest difference 0 of 255). For a see-through picture drawn into a canvas the browser's own premultiplied storage decides; see Limits.
-- **Checks.** 31 offline checks, 7 of 7 deliberately broken copies caught, a fuzz round (24 seeds, 2,880 operations, no failures), and the browser test passes in all four browsers.
+- **Picture match.** At 1920 x 1080, radius 12, the WebGL 2 route and the WebAssembly route are **100.0000%** equal to the plain JavaScript reference in all three browsers (largest difference 0 of 255). For a see-through picture drawn into a canvas the browser's own premultiplied storage decides; see Limits.
+- **Checks.** 31 offline checks, 7 of 7 deliberately broken copies caught, a fuzz round (24 seeds, 2,880 operations, no failures), and the browser test passes in all three browsers.
 
 
 ## How it compares
 
 Same 1920 x 1080 picture, a blur that looks like a Gaussian of sigma 6, time until the picture is finished in milliseconds (**lower is better**), with the longest page task in brackets. "One block" means the page waits for the whole call.
 
-| | Chromium 155 | Firefox 158 | WebKitGTK 2.52 | GNOME Web 46.5 |
-| --- | ---: | ---: | ---: | ---: |
-| gpu-blur `auto`, bytes in, drawn out | 48.7 (7.6) | 45.8 (3.5) | 74.5 (5.5) | 79.0 (7.0) |
-| gpu-blur `auto`, canvas in, drawn out | 66.2 (8.1) | 116 (5.7) | 89.5 (6.5) | 107 (7.5) |
-| stackblur-canvas 3.0.1, bytes in and out (one block) | 97.9 (98.5) | 115 (115) | 93.5 (93.5) | 93.5 (94.0) |
-| stackblur-canvas 3.0.1, canvas in place (one block) | 115 (116) | 114 (115) | 110 (112) | 114 (114) |
-| glfx 0.0.4 triangleBlur (WebGL 1, canvas in, drawn) | 1,196 (1,197) | 529 (529) | 516 (517) | 547 (549) |
-| `ctx.filter = "blur(6px)"` with `drawImage` | 36.4 (36.7) | 62.1 (62.4) | not available | not available |
-| CSS `filter: blur(6px)` on a canvas element (frame time) | 17.4 (2.1) | 144 (2.5) | 23.0 (2.0) | 23.5 (5.5) |
+| | Chromium 155 | Firefox 158 | WebKitGTK 2.52 |
+| --- | ---: | ---: | ---: |
+| gpu-blur `auto`, bytes in, drawn out | 48.7 (7.6) | 45.8 (3.5) | 74.5 (5.5) |
+| gpu-blur `auto`, canvas in, drawn out | 66.2 (8.1) | 116 (5.7) | 89.5 (6.5) |
+| stackblur-canvas 3.0.1, bytes in and out (one block) | 97.9 (98.5) | 115 (115) | 93.5 (93.5) |
+| stackblur-canvas 3.0.1, canvas in place (one block) | 115 (116) | 114 (115) | 110 (112) |
+| glfx 0.0.4 triangleBlur (WebGL 1, canvas in, drawn) | 1,196 (1,197) | 529 (529) | 516 (517) |
+| `ctx.filter = "blur(6px)"` with `drawImage` | 36.4 (36.7) | 62.1 (62.4) | not available |
+| CSS `filter: blur(6px)` on a canvas element (frame time) | 17.4 (2.1) | 144 (2.5) | 23.0 (2.0) |
 
-- `ctx.filter` was faster than gpu-blur in Chromium (36.4 against 48.7 ms from bytes, 66.2 ms from a canvas) and in Firefox from a canvas (62.1 against 116 ms); gpu-blur was faster in Firefox from bytes (45.8 against 62.1 ms). gpu-blur works where `ctx.filter` does not exist (WebKitGTK, GNOME Web) and keeps every page task near or under 8 ms, where stackblur-canvas holds the page for 94 to 116 ms.
-- gpu-blur was faster than stackblur-canvas in all four browsers (about 1.2 to 2.5 times from bytes, 1.0 to 1.7 times from a canvas; Firefox from a canvas, 116 against 114 ms, is a tie), and faster than glfx by 6 to 25 times; glfx and the WebGL 2 route both ran on the slow graphics path, so neither of those two says anything about a real card.
+- `ctx.filter` was faster than gpu-blur in Chromium (36.4 against 48.7 ms from bytes, 66.2 ms from a canvas) and in Firefox from a canvas (62.1 against 116 ms); gpu-blur was faster in Firefox from bytes (45.8 against 62.1 ms). gpu-blur works where `ctx.filter` does not exist (WebKitGTK) and keeps every page task near or under 8 ms, where stackblur-canvas holds the page for 94 to 116 ms.
+- gpu-blur was faster than stackblur-canvas in all three browsers (about 1.2 to 2.5 times from bytes, 1.0 to 1.7 times from a canvas; Firefox from a canvas, 116 against 114 ms, is a tie), and faster than glfx by 6 to 25 times; glfx and the WebGL 2 route both ran on the slow graphics path, so neither of those two says anything about a real card.
 - CSS `filter` lets the browser blur on its own thread; it is the cheapest way to blur something that is only shown, and it is not available when you need the blurred pixels or a texture.
 
 

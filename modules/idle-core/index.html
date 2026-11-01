@@ -8,12 +8,24 @@
 .lfc-band .lfc-brand{font:700 18px var(--lfc-font);color:var(--lfc-hero-fg)}
 .lfc-band .lfc-here{font:600 13px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-hero-muted)}
 .lfc-band nav{margin-left:auto;display:flex;flex-wrap:wrap;gap:4px 18px}
+/* lfc-page: the page's own typography and controls (pages that style their own body keep their look and get the band only) */
+html body{background:var(--lfc-bg);color:var(--lfc-fg);font-family:var(--lfc-font);line-height:1.55}
+html h1,html h2,html h3{font-family:var(--lfc-font);line-height:1.15}
+html h1{font-size:clamp(26px,4vw,38px);font-weight:800;letter-spacing:-.01em}
+html a{color:var(--lfc-accent)}
+html button:not([class]),html input[type=button],html input[type=submit]{font:inherit;font-weight:600;padding:.45rem .9rem;border-radius:6px;border:1px solid var(--lfc-line);background:var(--lfc-soft);color:var(--lfc-fg);cursor:pointer}
+html button:not([class]):hover{border-color:var(--lfc-accent)}
+html textarea,html input[type=text],html input[type=number],html select{font:inherit;color:var(--lfc-fg);background:var(--lfc-bg);border:1px solid var(--lfc-line);border-radius:6px;padding:.4rem .6rem;box-sizing:border-box}
+html pre,html code,html kbd,html samp{font-family:var(--lfc-mono)}
+html pre{background:var(--lfc-soft);border-radius:6px;padding:.75rem;overflow-x:auto}
+html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
+.lfc-band a.lfc-brand{color:var(--lfc-hero-fg)}
 
-body{margin:0}.wrap{max-width:820px;margin:0 auto;padding:0 16px 48px;box-sizing:border-box}
+body{margin:0}.lfc-band{margin:0}.wrap{max-width:820px;margin:0 auto;padding:0 16px 48px;box-sizing:border-box}
 .hero{background:var(--lfc-hero);color:var(--lfc-hero-fg);padding:28px 0 26px;margin-bottom:8px}.hero .wrap{padding-bottom:0}
 .hero h1{margin:0 0 6px;font-size:clamp(30px,7vw,44px);color:var(--lfc-hero-fg)}.hero p{margin:6px 0;color:var(--lfc-hero-muted);font-size:18px}
 .hero .v{display:inline-block;font:600 13px var(--lfc-mono);letter-spacing:.04em;color:var(--lfc-hero-muted);border:1px solid var(--lfc-hero-muted);border-radius:99px;padding:2px 10px}
-.btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.btns a{background:var(--lfc-accent);color:var(--lfc-accent-fg);padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.btns a{font-family:var(--lfc-font);background:var(--lfc-accent);color:var(--lfc-accent-fg);padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700}
 .btns a.alt{background:transparent;border:1px solid var(--lfc-hero-muted);color:var(--lfc-hero-fg)}
 nav.jump{display:flex;flex-wrap:wrap;gap:6px 14px;margin:18px 0;font-size:15px}
 h2{margin:34px 0 8px;font-size:26px}h3{margin:20px 0 6px}
@@ -53,7 +65,7 @@ document.addEventListener('visibilitychange', () =&gt; {
   else { const away = clock.show(); game.add(IdleCore.awayEarnings(game.rate, away)); }
 });
 const awayOnLoad = clock.since(save.stamp);   // phones may close a hidden page with no event at all</code></pre>
-<p>Try <code>demo.html</code>. Checks: <code>node modules/idle-core/test/run.js</code> (Node only, 37 checks; pass a file path to check another copy, for example <code>modules/idle-core/idle-core.min.js</code>). <code>node tests/idle-core-browser.js</code> runs one fixed set of calls in Node and a real browser and compares the answers for the readable and minified file (<code>CHROMIUM=...</code>, <code>FIREFOX=...</code> or <code>WEBKIT=1</code>, one browser at a time). Counts, text and formatting were identical in every browser. Prices of about 1e9 and up differ in the last coin between engines because <code>Math.pow</code> is not the same everywhere: Node 22, Chromium 155 and Firefox 158 are within 3e-16 of exact, WebKitGTK 2.52.6 and GNOME Web within 3e-14 (measured on 4,200 powers).</p>
+<p>Try <code>demo.html</code>. Checks: <code>node modules/idle-core/test/run.js</code> (Node only, 37 checks; pass a file path to check another copy, for example <code>modules/idle-core/idle-core.min.js</code>). <code>node tests/idle-core-browser.js</code> runs one fixed set of calls in Node and a real browser and compares the answers for the readable and minified file (<code>CHROMIUM=...</code>, <code>FIREFOX=...</code> or <code>WEBKIT=1</code>, one browser at a time). Counts, text and formatting were identical in every browser. Prices of about 1e9 and up differ in the last coin between engines because <code>Math.pow</code> is not the same everywhere: Node 22, Chromium 155 and Firefox 158 are within 3e-16 of exact, WebKitGTK 2.52.6 within 3e-14 (measured on 4,200 powers).</p>
 <h2 id="good-to-know">Good to know</h2>
 <h3>What it is not</h3>
 <ul><li>Pure maths: no storage, no rendering, no timers. You call <code>tick</code> and save the state yourself.</li><li>Numbers beyond 1e21 are shown in exponent form; anything past 1e300 is held at 1e300.</li><li>Floating-point prices: from about 1e12 a price can be a coin or two under the exact one (10 of 435 sampled cases at 1e12 and up), because noise below 1e-13 of the price is forgiven; from about 1e9 two browsers can disagree by a coin. <code>buyPlan</code> totals can differ from buying one at a time by up to about 2e-12 of the total above 1e12 (in 600,000 cases the number of copies and <code>can</code> always matched).</li><li><code>awayClock</code> trusts <code>Date.now()</code>, which the player can change. The cap limits the gain (one cap's worth each time the clock is moved forward); it does not stop it.</li><li><code>formatBig</code> floors the number and shows <code>0</code> for NaN; <code>formatTime</code> shows <code>0 sec</code> for NaN or negative input; <code>formatRate</code> rounds to two decimals below 1, so <code>0.004</code> shows <code>0</code>.</li><li><code>BoostQueue.tick</code> returns <code>ended</code> (the first boost that ran out), <code>endedAll</code> (all of them) and <code>started</code> (the boost that began in this step and still runs). Its state carries an <code>order</code> list; older states, or <code>{}</code>, are repaired on load.</li><li><code>RateBook</code> hands back a cleaned copy, so it does not keep the identity or prototype of what <code>compute()</code> returned.</li></ul>

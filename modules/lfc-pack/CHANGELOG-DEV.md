@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.16 · API 0 · 2026-11-01
+
+### Quick
+From the LFCP thread's patch (bitunpack-tail.diff).
+
+### Deep
+From the LFCP thread's patch (bitunpack-tail.diff). bitunpack's hot loop read up to 3 bytes past the end of b for the last values; Firefox handles out-of-range typed-array reads slowly. Now the values whose 4-byte window fits run first, then a guarded tail loop (b[i] | 0). Phase timers (LFCP thread, Firefox): bitunpack 10 to 5 ms on events, 7 to 3 ms on escaped logs. Whole unpack, early-stop A/B in cloud browsers: Firefox 158 events 0.725 (noisy, ok), escaped logs 0.980 (ok); Chromium 155 0.907 and 0.953 (ok; a first run gave 1.031 inconclusive on escaped logs); WebKitGTK 2.52.6 1.030 and 0.949 (ok). Same rows in all 3. Fuzz: old and new bitunpack equal on 8,520 cases (widths 1 to 24, 0 to 70 values, exact and padded buffers). Tests pass.
+
 ## 0.4.15 · API 0 · 2026-10-31
 
 ### Quick

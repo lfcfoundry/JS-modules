@@ -2,7 +2,7 @@
 
 **Version 1.1.0 · API 1**
 
-**Tested in:** Node: 33 checks pass (16 new). Real key presses (Enter and Space, hold 1.1 s, quick tap, hold then tap): ungoogled Chromium 155.0.8059.39-1 and Firefox 158.0. Idle cost compared old and new in those two plus WebKitGTK 2.52.6 and GNOME Web 46.5; keyboard hold by script key events in the last two. Not run: touch on a real phone, the browser-side Space click swallow in WebKitGTK and GNOME Web (script keys send no click)
+**Tested in:** Node: 33 checks pass (16 new). Real key presses (Enter and Space, hold 1.1 s, quick tap, hold then tap): ungoogled Chromium 155.0.8059.39-1 and Firefox 158.0. Idle cost compared old and new in those two plus WebKitGTK 2.52.6; keyboard hold by script key events in the last two. Not run: touch on a real phone, the browser-side Space click swallow in WebKitGTK (script keys send no click)
 
 ## What it is and how it works
 
@@ -73,7 +73,7 @@ Bigger than a one-purpose long-press script, smaller than a gesture suite, and i
 
 | Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
 | --- | --- | --- | --- | --- |
-| **hold-press 1.1.0** (this module, MIT) | 4,707 B minified (1,754 B gzipped, esbuild) | Cost of one idle `pointermove` with 12 buttons attached, lower is faster: ungoogled Chromium 155.0.8059.39-1 0.075 µs, Firefox 158.0 0.65 µs, WebKitGTK 2.52.6 0.75 µs, GNOME Web 46.5 0.35 µs | Repeat while held, touch events as a fallback, one finger followed, swallowed release click, opt-in keyboard hold and `lockTouch` | Does the whole "hold to repeat" job. Loses: larger than the one-event scripts |
+| **hold-press 1.1.0** (this module, MIT) | 4,707 B minified (1,754 B gzipped, esbuild) | Cost of one idle `pointermove` with 12 buttons attached, lower is faster: ungoogled Chromium 155.0.8059.39-1 0.075 µs, Firefox 158.0 0.65 µs, WebKitGTK 2.52.6 0.75 µs 0.35 µs | Repeat while held, touch events as a fallback, one finger followed, swallowed release click, opt-in keyboard hold and `lockTouch` | Does the whole "hold to repeat" job. Loses: larger than the one-event scripts |
 | long-press-event (MIT, version not recorded) | About 1 KB | Not measured | Fires one "long press" event after a delay; no repeat, no swallowed click | Wins: smaller. Loses: no repeat |
 | Hammer.js `press` (the maintained fork is `@egjs/hammerjs`, MIT, version not recorded) | Not measured | Not measured | Part of a full gesture suite; `press` is one event and does not repeat | Wins if you already use the suite. Whether it handles Android's `pointercancel`: unverified |
 | Pointer capture plus `touch-action: none` (the browser's own, a few lines you write) | A few lines | Not measured | Often enough when the page owns the whole gesture | Wins: no library. Loses: the page cannot scroll from that button (`lockTouch: true` here does the same) |

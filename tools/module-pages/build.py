@@ -11,13 +11,13 @@ import html, json, os, re, sys
 root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 GH = 'https://github.com/lfcfoundry/JS-modules/blob/main/'
 css = open(os.path.join(root, 'tools/theme/theme.css'), encoding='utf-8').read()
-band_css = css[:css.index('/* lfc-page:')]
+band_css = css   # the whole shared look: band and page typography (module pages used to get the band only and looked unstyled below it)
 EXTRA = """
-body{margin:0}.wrap{max-width:820px;margin:0 auto;padding:0 16px 48px;box-sizing:border-box}
+body{margin:0}.lfc-band{margin:0}.wrap{max-width:820px;margin:0 auto;padding:0 16px 48px;box-sizing:border-box}
 .hero{background:var(--lfc-hero);color:var(--lfc-hero-fg);padding:28px 0 26px;margin-bottom:8px}.hero .wrap{padding-bottom:0}
 .hero h1{margin:0 0 6px;font-size:clamp(30px,7vw,44px);color:var(--lfc-hero-fg)}.hero p{margin:6px 0;color:var(--lfc-hero-muted);font-size:18px}
 .hero .v{display:inline-block;font:600 13px var(--lfc-mono);letter-spacing:.04em;color:var(--lfc-hero-muted);border:1px solid var(--lfc-hero-muted);border-radius:99px;padding:2px 10px}
-.btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.btns a{background:var(--lfc-accent);color:var(--lfc-accent-fg);padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.btns a{font-family:var(--lfc-font);background:var(--lfc-accent);color:var(--lfc-accent-fg);padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700}
 .btns a.alt{background:transparent;border:1px solid var(--lfc-hero-muted);color:var(--lfc-hero-fg)}
 nav.jump{display:flex;flex-wrap:wrap;gap:6px 14px;margin:18px 0;font-size:15px}
 h2{margin:34px 0 8px;font-size:26px}h3{margin:20px 0 6px}

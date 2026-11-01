@@ -2,7 +2,7 @@
 
 **Version 1.0.0 · API 1**
 
-**Tested in:** Node checks; tests/pieces-browser.js slow-note one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1 (errors, rejections, slow tap and slow frame seen), Firefox 158.0 and WebKitGTK 2.52.6 (errors, rejections and slow tap seen; kept across a reload). GNOME Web (Epiphany) 46.5: errors and rejections noted; the slow-tap part is not checked there (its WebDriver refuses clicks and the driver sends script events, which the browser does not time as taps). Not run: a phone, Safari itself.
+**Tested in:** Node checks; tests/pieces-browser.js slow-note one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1 (errors, rejections, slow tap and slow frame seen), Firefox 158.0 and WebKitGTK 2.52.6 (errors, rejections and slow tap seen; kept across a reload). Not run: a phone, Safari itself.
 
 ## What it is and how it works
 

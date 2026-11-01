@@ -25,13 +25,13 @@ Playwright and Puppeteer cannot drive WebKitGTK, and Playwright's own WebKit bui
 **Not for:** real graphics speed or iPhone-only problems; WebKitGTK is not Safari.
 
 ## Try it and test it
-**Test it:** `node tools/webkit-driver/test/run.js` (pretend driver, no browser, 7 checks) and `node tools/webkit-driver/test/webkit.js` (a real WebKitGTK 2.52.6, 17 checks, about 5 seconds; `node tools/webkit-driver/test/webkit.js epiphany` does the same in GNOME Web 46.5, about 8 seconds).
+**Test it:** `node tools/webkit-driver/test/run.js` (pretend driver, no browser, 7 checks) and `node tools/webkit-driver/test/webkit.js` (a real WebKitGTK 2.52.6, 17 checks, about 5 seconds).
 
 ## Quick start
 
 ```js
 var WD = require('./webkit-driver.js');
-var b = await WD.launch({ width: 1280, height: 800 });      // { browser: 'epiphany' } for GNOME Web
+var b = await WD.launch({ width: 1280, height: 800 });
 console.log(b.version);                                       // "MiniBrowser 2.52.6"
 var p = b.page;
 p.on('pageerror', function (e) { console.log('page error', e.message); });
@@ -47,7 +47,7 @@ It needs `WebKitWebDriver` on the machine, plus `xvfb-run` and `dbus-run-session
 
 ## API
 
-- `launch(opts)` resolves to `{ page, version, close() }`. Options: `browser` (`'webkitgtk'` default, or `'epiphany'`), `width`, `height` (default 1280 x 800), `timeout` (how long one page script may run, default 600000 ms), `driver` and `binary` (paths), `xvfb` (default: only when there is no `DISPLAY`), `port`, and four that are off by default:
+- `launch(opts)` resolves to `{ page, version, close() }`. Options: `browser` (`'webkitgtk'`), `width`, `height` (default 1280 x 800), `timeout` (how long one page script may run, default 600000 ms), `driver` and `binary` (paths), `xvfb` (default: only when there is no `DISPLAY`), `port`, and four that are off by default:
   - `deviceScaleFactor` (whole numbers only): the page sees `devicePixelRatio` 2 with the same page area.
   - `colorScheme: 'dark'`: `prefers-color-scheme: dark` becomes true.
   - `reducedMotion: true`: `prefers-reduced-motion: reduce` becomes true.
@@ -66,22 +66,19 @@ It needs `WebKitWebDriver` on the machine, plus `xvfb-run` and `dbus-run-session
 
 ## Limits
 
-**GNOME Web is no longer a test browser (2026-10-24).** The `epiphany` option still launches it for anyone who wants it, but `tools/test-runner` and the repository's checks use WebKitGTK only; older results that name GNOME Web are kept as measured.
-
-- **Linux only**, and WebKitGTK is not Safari: it catches many but not all iPhone-only problems. It runs software drawing in a container, so it says nothing about real graphics speed. WebGPU is not available in it.
+- **Linux only**, and WebKitGTK is not Safari: it catches many but not all iPhone-only problems. WebGPU is not available in it.
 - Errors thrown **while the page is loading** are not seen on a plain `file://` page (the hook goes in right after the load event); with the `serve` option they are. Errors after the load are always seen.
 - WebKitGTK 2.52.6 has **no BiDi** and **no touch events** (a touch test is done with the mouse).
 - Only **console errors** are reported, not other console output.
-- **GNOME Web (Epiphany 46)** refuses the WebDriver input calls (`unsupported operation`), so there the mouse, wheel and keys are sent as DOM events by script. Those events are untrusted, so a page that insists on real ones will not react. WebKitGTK itself (`MiniBrowser`) uses real input.
 - A WebGL canvas that has been shown on screen is **empty if read back in a later task** (WebKit clears it); draw and read in the same task, as the Netflow Map browser test does.
 - Never run it at the same time as another browser: timings go flaky.
-- Tested in WebKitGTK 2.52.6 and GNOME Web 46.5 (Ubuntu 24.04 packages from the `browsers` branch) with Node 22. Not run on a phone, Safari or macOS.
+- Tested in WebKitGTK 2.52.6 (Ubuntu 24.04 packages from the `browsers` branch) with Node 22. Not run on a phone, Safari or macOS.
 
 ## Prior art and credits
 - Playwright and Puppeteer: the call names (`goto`, `evaluate`, `waitForFunction`, `mouse`, `keyboard`, `screenshot`, `on('pageerror')`) are copied so an existing test needs only a new launch line. Names only, no code from them.
 - selenium-webdriver and WebdriverIO: named for comparison only (see "How it differs from what exists"). No code from them.
 - The W3C WebDriver protocol: the published standard this file speaks to `WebKitWebDriver` over plain HTTP.
-- `WebKitWebDriver`, WebKitGTK and GNOME Web are programs it starts; none of them is included here.
+- `WebKitWebDriver`, WebKitGTK are programs it starts; none of them is included here.
 - The code is written for this repository (LFC Foundry, MIT). It uses only Node's own modules (`http`, `net`, `child_process`, `fs`, `path`, `os`) and its header names no outside code.
 
 ## For AI agents

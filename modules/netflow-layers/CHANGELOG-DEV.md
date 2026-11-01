@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.8.0 · API 1 · 2026-10-31
+
+### Quick
+The lighter search (deep left out) stops after 4 rounds with no gain instead of 2 (DEEP.liteStall). Same API; default pictures get the same or fewer crossings, and big maps take longer.
+
+### Deep
+Owner picked 'Wait 4 rounds (tidier)' (2026.10.31 11:48 PM ET). DEEP.liteStall 2 to 4 (liteMax stays 12); the wasm order search takes the stall from JS, so no rebuild. Lighter search rounds alternate average and middle value, so stall 2 gave up after one try of each; on 7 of Netflow Map's 55 layered() inputs (40 moderate tables + 15 dag maps, /mnt/project-files/netflow-map/lighter-search-tables/) the gain came on round 3 or 4. Node 22, those 55: crossings 823,086 to 819,587 (deep: true 819,571), 7 maps over 1% worse than deep to 0, total 4,824 to 5,204 ms (deep 5,329). vs-libs random maps, rows best: 400 items 5,158 to 5,103 crossings (= deep), 1,000 items 21,440 to 21,166 (= deep). Cloud best of 5, ms, stall 2 to stall 4 (deep: true + rows best): Chromium 155 400 33.2 to 34.4 (44.0), 1,000 72.5 to 112.2 (122.2); Firefox 158 32 to 38 (51), 90 to 118 (119); WebKitGTK 2.52.6 31 to 36 (44), 83 to 117 (114). JS and wasm give identical places in all 3 browsers. Tests pass. Research: js-modules-research/netflow-layers-lite-2026.11.01/RESULTS.md.
+
 ## 1.7.2 · API 1 · 2026-10-31
 
 ### Quick
