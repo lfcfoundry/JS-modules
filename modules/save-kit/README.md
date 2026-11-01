@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.5.1 · API 1**
+**Version 1.5.2 · API 1**
 
-**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time, early-stop A/B rule (limit 5%): loads equal old vs new in each; 51 Node checks and 17 of 17 lean builds. Not run: a phone, Safari itself, a laptop
+**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time, early-stop A/B rule (limit 5%); 52 Node checks (new: same answers on a WebKit user agent) and 17 of 17 lean builds. Not run: a phone, Safari itself, a laptop
 
 ## What it is and how it works
 

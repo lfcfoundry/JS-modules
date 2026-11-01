@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.1 (API 1)
+ * Version 1.5.2 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -44,6 +44,7 @@
   'use strict';
 
   var fresh = false;                  // set only while load() rebuilds a state from text it parsed itself, so a clean counts object can be reused instead of copied
+  var JSC = typeof navigator !== 'undefined' && /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Firefox/.test(navigator.userAgent);   // experiment: Object.values is much faster than Object.keys here
   var trusted = false;                // set only while createLarge().load() rebuilds a state from bytes that passed their check and contain no prototype-pollution key names
   var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
   var DEFAULT_MAX_KEYS = 1000;        // most names kept in one 'counts' field
@@ -148,6 +149,7 @@
   // countsSound(v): true when v is not a map, or every value in the map is a finite number >= 0 (a NaN written to storage comes back as null).
   function countsSound(v) {
     if (!isObj(v)) return true;
+    if (JSC) { var vs = Object.values(v); for (var j = 0; j < vs.length; j++) if (!isNum(vs[j])) return false; return true; }
     var ks = Object.keys(v);
     for (var i = 0; i < ks.length; i++) if (!isNum(v[ks[i]])) return false;
     return true;
