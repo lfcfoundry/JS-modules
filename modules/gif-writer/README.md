@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-gif-writer makes animated GIFs from canvas pictures, in the browser or Node. One file, 15 KB gzipped, no dependencies. Optional add-ons apply filters and use Web Workers. It was cut out of Netflow Map's GIF maker.
+gif-writer makes animated GIFs from canvas pictures, in the browser or Node. One file, 17.2 KB gzipped (12.4 KB minified and gzipped), no dependencies. Optional add-ons apply filters and use Web Workers. It was cut out of Netflow Map's GIF maker.
 
 - One shared palette for the whole animation, so colors do not flicker.
 - Only pixels that changed since the last frame are stored, cropped to the changed area.

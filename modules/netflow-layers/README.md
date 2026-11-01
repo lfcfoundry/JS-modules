@@ -8,7 +8,7 @@ Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Found
 
 ## What it is and how it works
 
-Lays out a graph in rows (a layered drawing), top to bottom or left to right. It is the layered engine behind Netflow Map's Flow, Top-down, Spine, Lanes, Arc and Matrix views. 9.3 KB gzipped.
+Lays out a graph in rows (a layered drawing), top to bottom or left to right. It is the layered engine behind Netflow Map's Flow, Top-down, Spine, Lanes, Arc and Matrix views. 19.3 KB gzipped (14.5 KB minified and gzipped).
 
 - Each page goes in a row, by fewest steps from the start or in story order.
 - Pages in each row are reordered to cut crossings, then placed.
@@ -82,7 +82,7 @@ A small layered-graph drawer. It does less than ELK, and adds switches aimed at 
 | ELK layered ([elkjs](https://github.com/kieler/elkjs) 0.12.1, EPL-2.0 or GPL-3.0-or-later) | 1,502,625 bytes minified, 439,741 gzipped (`elk.bundled.js`, the layout code in one file; the API file alone is 4,365 bytes with the layout code in a separate worker file) | ELK wins on routing (polyline, orthogonal, spline), edge bundling, wrapping, network-simplex rows, Brandes-Koepf placement and over 140 options. Crossings with default options: about 50% more than ELK (7,950 against 5,313 at 400 items, 33,763 against 22,602 at 1,000). With `deep: true` and `rows: "best"`: 4 to 6% fewer than ELK (5,103 and 21,166). |
 | [dagre](https://github.com/dagrejs/dagre) 0.8.5 (MIT) | 101,693 bytes minified, 27,772 gzipped (whole `dagre.js`, terser 5.51.2 `-c passes=2 -m`) | The long-standing layered layout for boxes and arrows. Crossings with default options: 41 to 48% more than dagre (5,374 at 400 items, 23,965 at 1,000). With `deep: true` and `rows: "best"`: 5 to 12% fewer, in about 50 and 120 ms against dagre's 0.8 s and 7.2 s (cloud browsers). This module is about a third of its size |
 | [d3-dag](https://github.com/erikbrinkman/d3-dag) 1.2.2 (MIT) | 137,471 bytes minified, 42,115 gzipped (the published `d3-dag.iife.min.js`, minified again) | Not compared here on speed or crossings; its "fast" quality level is the class this module is in |
-| d3-sankey (BSD-3-Clause, 0.12.3), a different tool for weighted flows | 5.7 KB minified, 2.0 KB gzipped (this module: 28,868 bytes readable, 9.3 KB gzipped) | No loops in d3-sankey; this engine handles them. Fewer crossings (see below). In the race below it is faster in WebKitGTK and GNOME Web at 1,500 items and slower elsewhere. |
+| d3-sankey (BSD-3-Clause, 0.12.3), a different tool for weighted flows | 5.7 KB minified, 2.0 KB gzipped (this module: 56,277 bytes readable, 19.3 KB gzipped; 14.5 KB minified and gzipped) | No loops in d3-sankey; this engine handles them. Fewer crossings (see below). In the race below it is faster in WebKitGTK and GNOME Web at 1,500 items and slower elsewhere. |
 
 **The one race on file** (1,500 items and 2,283 links, lower is better, ms; Netflow Map's Flow view built on this engine, then on d3-sankey; the whole app build with extra work such as must-pass pages, scores and loops, so it was not run on this module alone): ungoogled Chromium 155 30 against 21, Firefox 158 80 against 74, WebKitGTK 2.52.6 25 against 146, GNOME Web 46.5 22 against 78. In Chromium 155 it was slower at all three sizes (28, 20 and 30 ms against 5.4, 7.8 and 21 ms at 100, 400 and 1,500 items), and slower than d3-sankey at 100 items in all four browsers.
 

@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-When a big element scrolls away, a copy of its small stand-in flies to the sticky mini version, and back when you scroll up. About 3.1 KB gzipped.
+When a big element scrolls away, a copy of its small stand-in flies to the sticky mini version, and back when you scroll up. About 6.3 KB gzipped (4.3 KB minified and gzipped).
 
 - `IntersectionObserver` notices when the big element leaves the screen.
 - A clone flies along an arc with a tilt and squash, frame by frame.
