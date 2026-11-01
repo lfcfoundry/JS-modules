@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.2.0 (API 1)
+ * Version 1.2.1 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -419,9 +419,11 @@ var NetflowHierarchy = (function () {
     var ch = L.chart, type = ch.type;
     var showDots = type === 'pack' || type === 'tree' || type === 'bundles';
     /* the scene module gets its own copy of each item (plain objects of one shape, so reading them stays fast); the copies are kept on the layout and filled in again for the next picture, so a look change makes no new ones */
-    var SN = L.__stub; if (!SN || SN.src !== L.nodes || SN.nodes.length !== L.nodes.length) SN = L.__stub = { src: L.nodes, nodes: L.nodes.map(function () { return {}; }) };
+    /* Each item is read in full only once per layout: items that came from a worker are slow dictionary objects, and copying all their fields
+       on every look change cost about 1 s per 100,000 items in Chromium. Later pictures refresh only the size, which is all a look change alters here. */
+    var SN = L.__stub; if (!SN || SN.src !== L.nodes || SN.nodes.length !== L.nodes.length) SN = L.__stub = { src: L.nodes, nodes: L.nodes.map(function (nd) { var c = {}; for (var k in nd) c[k] = nd[k]; return c; }) };
     var nodes = SN.nodes;
-    L.nodes.forEach(function (nd, q) { var c = Object.assign(nodes[q], nd); if (!showDots || (type === 'pack' && ch.kids[nd.hv].length)) { c.w = 0; c.h = 0; } });
+    L.nodes.forEach(function (nd, q) { var c = nodes[q]; if (nd.w !== undefined) c.w = nd.w; if (nd.h !== undefined) c.h = nd.h; if (!showDots || (type === 'pack' && ch.kids[nd.hv].length)) { c.w = 0; c.h = 0; } });
     if (type === 'pack') nodes.forEach(function (nd) { if (!ch.kids[nd.hv].length) { nd.w = nd.h = 2 * ch.Rr[nd.hv]; } });
     if (type === 'tree' || type === 'bundles') nodes.forEach(function (nd) { nd.w = nd.h = 9; });
     var stub = { kind: 'network', view: 'network', dir: 'none', nodes: nodes, edges: [], width: L.width, height: L.height, ch: L.ch, flow: L.flow, cls: L.cls, imp: L.imp, groups: L.groups, startId: L.startId, n: L.n, m: L.m };

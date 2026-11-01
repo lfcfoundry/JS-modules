@@ -1,5 +1,13 @@
 # netflow-hierarchy developer changelog
 
+## 1.2.1 · API 1 · 2026-11-01
+
+### Quick
+scene(): each item is copied in full only once per layout (for-in into a plain object); later look changes refresh only w and h instead of Object.assign over every field.
+
+### Deep
+scene(): each item is copied in full only once per layout (for-in into a plain object); later look changes refresh only w and h instead of Object.assign over every field. Items that come from a worker are dictionary-mode objects and Object.assign over them cost about 1 s per 100k in Chromium. Cloud, 60,000-item treemap with dictionary-mode items, median of 6 look changes, two alternating runs, one lib per page (lower is better): Chromium 155 1,538-1,602 ms to 327-523 ms (0.27x); Firefox 158 721-739 to 583-586 ms (0.79x); WebKitGTK 2.52.6 1,160-1,255 to 903-1,080 ms (0.82x). Pictures identical: 105 of 105 SVG hashes (7 views, 3 graphs, 5 look changes in a row on one layout). Behavior note: fields other than the size changed by hand on L.nodes after the first picture are not picked up until a new layout (owner's card choice 12:48 PM ET 11.01: ship it). Requested by the owner.
+
 ## 1.2.0 · API 1 · 2026-11-01
 
 ### Quick
