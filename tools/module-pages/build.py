@@ -29,7 +29,7 @@ td::before{content:attr(data-l);display:block;font:700 12px var(--lfc-mono);lett
 .wrap td:first-child{min-width:9.5em}.opts{display:grid;gap:10px;margin:1em 0}.opt{display:grid;grid-template-columns:minmax(9em,14em) 1fr;gap:4px 18px;border:1px solid var(--lfc-line);border-radius:10px;padding:10px 16px;background:var(--lfc-soft)}.opt .k{font-family:var(--lfc-mono);font-weight:700;overflow-wrap:anywhere}.opt .v p{margin:.2em 0}
 details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;margin:12px 0;background:var(--lfc-soft)}details.fold>summary{padding:12px 16px}details.fold>*:not(summary){margin-left:16px;margin-right:16px}details.fold>table,details.fold>pre{max-width:calc(100% - 32px)}details.fold[open]{padding-bottom:6px}details.fold table{margin:14px 16px}details.more{border:0;background:none;margin:2px 0}details.more>summary{padding:2px 0;font-size:.92em}summary{cursor:pointer;font-weight:700;list-style-position:inside}
 @media(max-width:700px){.opt{grid-template-columns:1fr}}
-.chart{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px 28px;margin:14px 0}.cg{min-width:0}.ct{font:700 12px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-muted,#6b7a8c);margin-bottom:6px}.cr{display:grid;grid-template-columns:minmax(110px,48%) 1fr auto;gap:10px;align-items:center;margin:5px 0;font-size:15px}.cl{overflow-wrap:anywhere}.ctk{display:block;height:20px;border-radius:4px;background:var(--lfc-line);overflow:hidden}.ctk i{display:block;height:100%;background:var(--lfc-accent);border-radius:4px}.cr b{font:600 13px var(--lfc-mono);white-space:nowrap}
+.chart{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px 28px;margin:14px 0}.cg{min-width:0}.ct{font:700 12px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-muted,#6b7a8c);margin-bottom:6px}.cr{display:grid;grid-template-columns:minmax(110px,48%) 1fr auto;gap:10px;align-items:center;margin:5px 0;font-size:15px}.cl{overflow-wrap:anywhere}.ctk{display:block;height:20px;border-radius:4px;background:var(--lfc-line);overflow:hidden}.ctk i{display:block;height:100%;background:var(--lfc-accent);border-radius:4px}.ctk i.good{background:#1e7d32}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .ctk i.good{background:#43a15a}}:root[data-theme="dark"] .ctk i.good{background:#43a15a}.cr b{font:600 13px var(--lfc-mono);white-space:nowrap}
 @media(max-width:700px){.chart{grid-template-columns:1fr}.cr{grid-template-columns:1fr auto;gap:3px 10px}.ctk{grid-column:1/3;order:3;height:22px}}
 .ph{border:2px dashed var(--lfc-line);border-radius:10px;padding:10px 14px;background:var(--lfc-soft)}.mod{border-top:2px solid var(--lfc-line);margin-top:40px}
 """
@@ -74,13 +74,16 @@ def chart(hs, rows, base):
     for first, ns in groups:
         mx = max(vals[r][n] for r in range(len(rows)) for n in ns) or 1
         title = re.sub(r'[`*]', '', hs[cols[ns[0]]]) if len(ns) == 1 else re.sub(r'[`*]', '', hs[cols[ns[0]]]).split()[0]
-        out += '<div class="cg"><div class="ct">%s</div>' % esc(title)
+        low = bool(re.search(r'\b(ms|bytes?|size|time|pack|unpack|read|write|open|ratio|against|kb|mb|memory|heap)\b', ' '.join(re.sub(r'[`*]', '', hs[cols[n]]).lower() for n in ns)))
+        best = min(vals[r][n] for r in range(len(rows)) for n in ns) if low else None
+        out += '<div class="cg"><div class="ct">%s%s</div>' % (esc(title), ' (lower is better)' if low else '')
         for r, v in zip(rows, vals):
             for n in ns:
                 k = cols[n]
                 tag = ' · ' + re.sub(r'[`*]', '', hs[k]).split(None, 1)[1] if len(ns) > 1 and len(hs[k].split()) > 1 else ''
                 w = max(v[n] / mx * 100, 0.8)
-                out += '<div class="cr"><span class="cl">%s%s</span><span class="ctk"><i style="width:%.1f%%"></i></span><b>%s</b></div>' % (inline(r[0], base), esc(tag), w, esc(r[k].replace('`', '')))
+                good = ' class="good"' if low and v[n] == best and len(rows) * len(ns) > 1 else ''
+                out += '<div class="cr"><span class="cl">%s%s</span><span class="ctk"><i%s style="width:%.1f%%"></i></span><b>%s</b></div>' % (inline(r[0], base), esc(tag), good, w, esc(r[k].replace('`', '')))
         out += '</div>'
     return out + '</div>'
 def md(text, base):
