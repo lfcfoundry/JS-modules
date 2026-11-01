@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.1 · API 1 · 2026-11-01
+- The light theme's red, brown and purple are a shade darker so names written on them are easier to read.
+
 ## 1.4.0 · API 1 · 2026-11-01
 - Optional title block: a bold title, a lighter subtitle and a small source line around any picture, outside it so nothing moves (addTitles). Off unless asked.
 

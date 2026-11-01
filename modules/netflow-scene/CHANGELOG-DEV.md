@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.1 · API 1 · 2026-11-01
+
+### Quick
+Light theme groups: red #e15759 to #c84d4f, brown #9c755f to #936e59, purple #8c6bb1 to #8868ac, so all 12 default fills pass 4.5:1 for text (owner's card A on the research thread, FINDINGS-6-label-contrast-all-palettes).
+
+### Deep
+Light theme groups: red #e15759 to #c84d4f, brown #9c755f to #936e59, purple #8c6bb1 to #8868ac, so all 12 default fills pass 4.5:1 for text (owner's card A on the research thread, FINDINGS-6-label-contrast-all-palettes). netflow-sankey keeps its own 8-color list for now (changing it would move its 1.0.0 picture pins; ask first). Requested by the owner.
+
 ## 1.4.0 · API 1 · 2026-11-01
 
 ### Quick

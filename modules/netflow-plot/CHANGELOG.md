@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.0 · API 2 · 2026-11-01
+- Bar and box charts now show their numbers on the bars and boxes instead of a number axis and gridlines, in calmer colors; crowded two-word names wrap instead of tilting.
+
 ## 2.3.0 · API 2 · 2026-11-01
 - Bar and box labels now stay flat and easy to read, and only tilt when two labels would really touch; long names wrap onto two lines, every bar gets its name when they all fit, and tilted names never sit under the axis name.
 

@@ -40,8 +40,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-circular](modules/netflow-circular/README.md) | 1.1.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.2.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.9.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.4.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.4.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.4.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.1 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -65,10 +65,12 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-01 · **zip-open** 1.15.2 · API 1: The first file you open in a page opens 8 to 36% faster (big sheets the most); opening it again is about the same. Same results.
 - 2026-11-01 · **zip-open** 1.15.1 · API 1: Zip and Excel files in memory open up to 6% faster in Firefox and up to 3% in Chromium; WebKitGTK about the same. Same results.
 - 2026-11-01 · **zip-open** 1.15.0 · API 1: Zip and Excel files open 3 to 32% faster with a new built-in unzipper that beats the browser's own (cloud Firefox, Chromium, WebKitGTK); with helpers 1 to 23% faster. Same results.
+- 2026-11-01 · **netflow-scene** 1.4.1 · API 1: The light theme's red, brown and purple are a shade darker so names written on them are easier to read.
 - 2026-11-01 · **netflow-scene** 1.4.0 · API 1: Optional title block: a bold title, a lighter subtitle and a small source line around any picture, outside it so nothing moves (addTitles). Off unless asked.
 - 2026-11-01 · **netflow-scene** 1.3.4 · API 1: Building a picture with many items takes less time; pictures are the same.
 - 2026-11-01 · **netflow-scene** 1.3.3 · API 1: SVG export of dots is shorter and quicker to write (about 20% less text on dot-heavy pictures); the picture is the same.
 - 2026-11-01 · **netflow-sankey** 2.5.0 · API 2: toSvg draws the title above the picture, with optional subtitle and source lines, like the other charts.
+- 2026-11-01 · **netflow-plot** 2.4.0 · API 2: Bar and box charts now show their numbers on the bars and boxes instead of a number axis and gridlines, in calmer colors; crowded two-word names wrap instead of tilting.
 - 2026-11-01 · **netflow-plot** 2.3.0 · API 2: Bar and box labels now stay flat and easy to read, and only tilt when two labels would really touch; long names wrap onto two lines, every bar gets its name when they all fit, and tilted names never sit under the axis name.
 - 2026-11-01 · **netflow-plot** 2.2.0 · API 2: Charts take an optional highlight: one series (or one bar) keeps its color and is drawn on top, the rest turn gray.
 - 2026-11-01 · **netflow-plot** 2.1.0 · API 2: Charts take an optional title, subtitle and source in their options, drawn above and below the chart and in the SVG.
