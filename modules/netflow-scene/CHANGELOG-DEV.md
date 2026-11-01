@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.4 · API 1 · 2026-11-01
+
+### Quick
+Item ranking by link count uses a counting pass for whole-number counts (same order as the stable sort).
+
+### Deep
+Item ranking by link count uses a counting pass for whole-number counts (same order as the stable sort). Without a kept 3D plan, the name-to-record map already built answers the item lookup (one 100k Map less). Group fills are made once per group and shared; the at-least-0.92-opacity fill once per fill; the default dot outline once per picture. A dot's name color and text are skipped when the name cannot show. Same scene lists and SVG bytes on 112 map pictures (every map view, lens, hulls, names, item styles, 3D with a kept plan) and 3,080 view pictures. Node: network map 300 / 2,500 / 20,000 items 0.785 / 0.785 / 0.818; flow 60-200 items 0.98-0.99.
+
 ## 1.3.3 · API 1 · 2026-11-01
 
 ### Quick

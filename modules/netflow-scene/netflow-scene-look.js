@@ -1,7 +1,7 @@
 /*!
  * netflow-scene-look.js, an optional companion of netflow-scene.js: look settings. One small object says how a map is colored and set in type, and this file turns it into the names the scene module understands.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules. Cut from Netflow Map. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.3.3 (API 1)
+ * Version 1.3.4 (API 1)
  *
  * No DOM, no storage; runs in the page, in a worker and in Node. A "look" is
  *   { base: 'auto'|'light'|'dark', slots: { bg: '#hex', ... }, groups: ['#hex' or '', ... 12], ramp: ['#hex', ...2..6], font: 'system'|..., nodeScale: 0.4..3 }
