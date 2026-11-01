@@ -896,7 +896,7 @@
   // a column's candidate encodings; every frame is { raw: Uint8Array } and gets compressed by the caller
   // numbers with up to 9 decimals: the smallest power of ten that turns every value into a whole number and back exactly (value = whole / scale), or 0 when there is none; the decimals are counted on up to 512 evenly spaced values and then checked on all of them (a miss counts all values once)
   function decimalsOf(x) { var t = String(x), e = t.indexOf('.'); return e < 0 ? 0 : t.indexOf('e') >= 0 ? -1 : t.length - e - 1; }
-  function scaledInts(v, scale) { var n = v.length, b = new Array(n), i, x; for (i = 0; i < n; i++) { x = Math.round(v[i] * scale); if (!(Math.abs(x) < 9007199254740992 / 8 && x / scale === v[i])) return null; b[i] = x; } return b; }
+  function scaledInts(v, scale) { var n = v.length, b = new Float64Array(n), i, x; for (i = 0; i < n; i++) { x = Math.round(v[i] * scale); if (!(Math.abs(x) < 9007199254740992 / 8 && x / scale === v[i])) return null; b[i] = x; } return b; }
   var DS_INTS = null;   // the whole numbers of the column decimalScale just accepted (so the caller does not compute them again)
   function decimalScale(v) {
     var n = v.length, st = Math.max(1, Math.floor(n / 512)), d = 0, i, q, pass, sc;
