@@ -75,12 +75,12 @@ The row-order search (crossing counts, sweeps, neighbor swaps) and the row place
 
 ## How it compares
 
-A small layered-graph drawer. It does less than ELK, and adds switches aimed at long story maps; ELK also wraps tall maps and bundles edges. Speed in browsers against any alternative: not measured.
+A small layered-graph drawer. It does less than ELK, and adds switches aimed at long story maps; ELK also wraps tall maps and bundles edges. With `deep: true` and `rows: "best"` it draws fewer crossings than dagre and ELK on random maps of 400 and 1,000 items, in a small part of dagre's time (table below). ELK's speed and d3-dag: not measured.
 
 | Alternative | Size (smaller is better) | Where it wins / loses |
 |---|---|---|
-| ELK layered ([elkjs](https://github.com/kieler/elkjs) 0.12.1, EPL-2.0 or GPL-3.0-or-later) | 1,502,625 bytes minified, 439,741 gzipped (`elk.bundled.js`, the layout code in one file; the API file alone is 4,365 bytes with the layout code in a separate worker file) | ELK wins on routing (polyline, orthogonal, spline), edge bundling, wrapping, network-simplex rows, Brandes-Koepf placement and over 140 options. An older Netflow Map report found 76% to 103% more crossings than dagre or ELK at 400 items (lower is better; not rechecked, and measured on the app's older flow layout, not this module). |
-| [dagre](https://github.com/dagrejs/dagre) 0.8.5 (MIT) | 101,693 bytes minified, 27,772 gzipped (whole `dagre.js`, terser 5.51.2 `-c passes=2 -m`) | The long-standing layered layout for boxes and arrows. Not compared on speed or crossings here. This module is about a third of its size |
+| ELK layered ([elkjs](https://github.com/kieler/elkjs) 0.12.1, EPL-2.0 or GPL-3.0-or-later) | 1,502,625 bytes minified, 439,741 gzipped (`elk.bundled.js`, the layout code in one file; the API file alone is 4,365 bytes with the layout code in a separate worker file) | ELK wins on routing (polyline, orthogonal, spline), edge bundling, wrapping, network-simplex rows, Brandes-Koepf placement and over 140 options. Crossings with default options: about 50% more than ELK (7,950 against 5,313 at 400 items, 33,763 against 22,602 at 1,000). With `deep: true` and `rows: "best"`: 4 to 6% fewer than ELK (5,103 and 21,166). |
+| [dagre](https://github.com/dagrejs/dagre) 0.8.5 (MIT) | 101,693 bytes minified, 27,772 gzipped (whole `dagre.js`, terser 5.51.2 `-c passes=2 -m`) | The long-standing layered layout for boxes and arrows. Crossings with default options: 41 to 48% more than dagre (5,374 at 400 items, 23,965 at 1,000). With `deep: true` and `rows: "best"`: 5 to 12% fewer, in about 50 and 120 ms against dagre's 0.8 s and 7.2 s (cloud browsers). This module is about a third of its size |
 | [d3-dag](https://github.com/erikbrinkman/d3-dag) 1.2.2 (MIT) | 137,471 bytes minified, 42,115 gzipped (the published `d3-dag.iife.min.js`, minified again) | Not compared here on speed or crossings; its "fast" quality level is the class this module is in |
 | d3-sankey (BSD-3-Clause, 0.12.3), a different tool for weighted flows | 5.7 KB minified, 2.0 KB gzipped (this module: 28,868 bytes readable, 9.3 KB gzipped) | No loops in d3-sankey; this engine handles them. Fewer crossings (see below). In the race below it is faster in WebKitGTK and GNOME Web at 1,500 items and slower elsewhere. |
 
@@ -90,7 +90,8 @@ A small layered-graph drawer. It does less than ELK, and adds switches aimed at 
 
 **Where it loses**
 - Plain boxes only: link labels, ports and curved routing around boxes are not here (ELK has them).
-- Not measured: browser speed and crossings against ELK, dagre and d3-dag.
+- With default options it draws 41 to 50% more crossings than dagre and ELK. `deep: true` with `rows: "best"` beats both, but takes about 3 to 9 times as long as the default (still far under dagre).
+- Not measured: ELK's speed, and d3-dag's speed and crossings.
 - Story order is a choice, not the default: on a loop-free random map crossings rise from 90,351 to 131,569 (worse). Tags and bundling are the same kind of choice.
 - Brandes-Koepf straight-line placement was built, measured and left out: fewer slanted pieces but wider maps (4,223 to 49,496 px at 5,002 pages).
 
