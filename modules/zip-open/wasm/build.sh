@@ -8,7 +8,7 @@ set -e
 cd "$(dirname "$0")"
 BASE="--target=wasm32 -O3 -ffp-contract=off -nostdlib -Wl,--no-entry -Wl,--export=__heap_base -Wl,--export-memory -Wl,-z,stack-size=4096 -Wl,--strip-all"
 CRC="$BASE -DSLICE=16 -Wl,--export=init -Wl,--export=crc"
-INF="$BASE -Wl,--export=inflate"
+INF="$BASE -Wl,--export=inflate -Wl,--export=crc"
 XL="--target=wasm32 -O3 -ffp-contract=off -nostdlib -Wl,--no-entry -Wl,--export=__heap_base -Wl,--export-memory -Wl,-z,stack-size=65536 -Wl,--strip-all -Wl,--export=sst -Wl,--export=nosst -Wl,--export=utf8ok -Wl,--export=sheet -Wl,--export=fixups -Wl,--export=lines"
 case "$1" in
   --check) ok=0
