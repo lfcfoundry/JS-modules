@@ -143,3 +143,20 @@ EXPORT("count") u32 count(const u8*in,u32 len,u32*out){   // newlines, colons, c
   for(;i<len;i++){ u8 c=in[i]; nl+=(c==10); co+=(c==':'); cm+=(c==','); hi|=(c>>7); }
   out[0]=nl; out[1]=co; out[2]=cm; out[3]=hi; return 0;
 }
+// hex id columns: a string column whose values all have the same even length of 16 or more and only 0-9a-f bytes becomes its packed bytes (two hex digits per byte) at out+hoff[k];
+// hexL[k] gets that length, or 0 when the column is not hex. ASCII input only (the caller checks), so cell offsets are byte offsets. Returns the bytes used in out.
+static u8 HX[256]; static u32 HXI, HCNT[MAXK], HWP[MAXK];
+EXPORT("hexcols") u32 hexcols(const u8*in,u32 nc,const u8*ckey,const double*cval,const u32*clen,const u8*ktype,u32 nk,int*hexL,u32*hoff,u8*out){
+  u32 i,j,q,L,o=0,any=0;
+  if(!HXI){ for(i=0;i<256;i++) HX[i]=16; for(i=0;i<10;i++) HX[48+i]=(u8)i; for(i=0;i<6;i++) HX[97+i]=(u8)(10+i); HXI=1; }
+  for(j=0;j<nk;j++){ hexL[j]=ktype[j]==3?-1:0; HCNT[j]=0; }
+  for(i=0;i<nc;i++){ j=ckey[i]; int h=hexL[j]; if(!h) continue; L=clen[i];
+    if(h==-1){ if(L<16||(L&1)){ hexL[j]=0; continue; } hexL[j]=(int)L; } else if((u32)h!=L){ hexL[j]=0; continue; }
+    HCNT[j]++; }
+  for(j=0;j<nk;j++){ hoff[j]=HWP[j]=o; if(hexL[j]>0){ o+=HCNT[j]*((u32)hexL[j]>>1); any=1; } }
+  if(!any) return 0;
+  for(i=0;i<nc;i++){ j=ckey[i]; if(hexL[j]<=0) continue; const u8*s=in+(u32)cval[i]; u8*d=out+HWP[j]; u32 bad=0; L=clen[i];
+    for(q=0;q<L;q+=2){ u32 a=HX[s[q]],b=HX[s[q+1]]; bad|=a|b; *d++=(u8)((a<<4)|b); }
+    HWP[j]+=L>>1; if(bad&16) hexL[j]=0; }
+  return o;
+}
