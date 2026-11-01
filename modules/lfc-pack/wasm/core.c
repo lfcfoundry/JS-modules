@@ -45,11 +45,37 @@ static const f64 P10[]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e1
 static inline void ws(void){while(pos<inLen){u8 c=IN[pos];if(c==' '||c=='\t'||c=='\r'){pos++;odd=1;}else break;}}
 #define FAIL return 0
 static int emitSk(u8 c){if(skLen>=SK_CAP)return 0;SK[skLen++]=c;return 1;}
+/* CK_SWAR: number digits 8 at a time while the count stays within 15 (the byte loop below takes the rest, so the result is the same); CK_KEYCOPY: object keys hashed and copied to the skeleton in one pass */
+#ifndef CK_SWAR
+#define CK_SWAR 0
+#endif
+#ifndef CK_KEYCOPY
+#define CK_KEYCOPY 1
+#endif
+static const u64 P10U[9]={1,10,100,1000,10000,100000,1000000,10000000,100000000};
+static inline u32 dig8(u32 p,u64*m,u32*sig){
+  while(p+8<=inLen){ u64 w; __builtin_memcpy(&w,IN+p,8);
+    u64 bad=((w&0xF0F0F0F0F0F0F0F0ULL)^0x3030303030303030ULL)|(((w+0x0606060606060606ULL)&0xF0F0F0F0F0F0F0F0ULL)^0x3030303030303030ULL);
+    u32 L=bad?((u32)__builtin_ctzll(bad)>>3):8;
+    if(L==0||*sig+L>15) return p;
+    u64 v=(w-0x3030303030303030ULL)<<(8*(8-L));
+    v=(v*10+(v>>8))&0x00FF00FF00FF00FFULL; v=(v*100+(v>>16))&0x0000FFFF0000FFFFULL; v=(v*10000+(v>>32))&0xFFFFFFFFULL;
+    *m=*m*P10U[L]+v; *sig+=L; p+=L; if(L<8) return p; }
+  return p;
+}
 static int pnum(u32 ph){
   u32 p=pos; int no=0; int neg=0; if(p<inLen&&IN[p]=='-'){neg=1;p++;}
   if(p>=inLen)FAIL; u64 m=0; u32 sig=0, frac=0; int slow=0;
-  if(IN[p]=='0'){p++;} else if(IN[p]>='1'&&IN[p]<='9'){while(p<inLen&&IN[p]>='0'&&IN[p]<='9'){if(sig<15)m=m*10+(IN[p]-'0');sig++;p++;} if(sig>15)slow=1;} else FAIL;
-  int hasFrac=0; if(p<inLen&&IN[p]=='.'){hasFrac=1;p++;u32 f0=p;while(p<inLen&&IN[p]>='0'&&IN[p]<='9'){if(!slow){m=m*10+(IN[p]-'0');if(m)sig++;if(sig>15)slow=1;}frac++;p++;} if(p==f0)FAIL; if(IN[p-1]=='0')no=1;}
+  if(IN[p]=='0'){p++;} else if(IN[p]>='1'&&IN[p]<='9'){
+#if CK_SWAR
+  p=dig8(p,&m,&sig);
+#endif
+  while(p<inLen&&IN[p]>='0'&&IN[p]<='9'){if(sig<15)m=m*10+(IN[p]-'0');sig++;p++;} if(sig>15)slow=1;} else FAIL;
+  int hasFrac=0; if(p<inLen&&IN[p]=='.'){hasFrac=1;p++;u32 f0=p;
+#if CK_SWAR
+  if(!slow&&m){ u32 q=dig8(p,&m,&sig); frac+=q-p; p=q; }
+#endif
+  while(p<inLen&&IN[p]>='0'&&IN[p]<='9'){if(!slow){m=m*10+(IN[p]-'0');if(m)sig++;if(sig>15)slow=1;}frac++;p++;} if(p==f0)FAIL; if(IN[p-1]=='0')no=1;}
   int ex=0; if(p<inLen&&(IN[p]=='e'||IN[p]=='E')){no=1;p++;int en=0;if(p<inLen&&(IN[p]=='+'||IN[p]=='-')){en=IN[p]=='-';p++;}u32 e0=p;while(p<inLen&&IN[p]>='0'&&IN[p]<='9'){if(ex<100000)ex=ex*10+(IN[p]-'0');p++;}if(p==e0)FAIL;if(en)ex=-ex;}
   if(numN>=NUM_CAP)FAIL;
   int e10=ex-(int)frac; f64 v=0;
@@ -100,13 +126,22 @@ static int pval(u32 d,u32 ph){
   if(c=='{'){ pos++; if(!emitSk('{'))FAIL; ws(); if(pos<inLen&&IN[pos]=='}'){pos++;return emitSk('}');}
     u32 obj=++objSerial; int first=1;
     for(;;){ ws(); if(pos>=inLen||IN[pos]!='"')FAIL; u32 p=pos+1,s=p; u32 h=fnv(ph,'.'); u32 kh=2166136261u;
+#if CK_KEYCOPY
+      u32 fast=skLen+206<=SK_CAP, o=skLen;
+      if(fast){ if(!first)SK[o++]=','; SK[o++]='"';
+        while(1){ if(p>=inLen)FAIL; u8 k=IN[p]; if(k=='"')break; if(k=='\\'||k>=0x80||k<0x20||p-s>=200)FAIL; h=fnv(h,k); kh=fnv(kh,k); SK[o++]=k; p++; } }
+      else
+#endif
       while(1){ if(p>=inLen)FAIL; u8 k=IN[p]; if(k=='"')break; if(k=='\\'||k>=0x80||k<0x20)FAIL; h=fnv(h,k); kh=fnv(kh,k); p++; }
       u32 kl=p-s; if(kl>200)FAIL; if(kl>0&&IN[s]>='0'&&IN[s]<='9')FAIL; if(kl==9&&IN[s]=='_'&&IN[s+1]=='_'&&IN[s+2]=='p')FAIL; /* __proto__ */
       if(rowKeys>=4096)FAIL; rowKeys++; u32 slot=(kh^(obj*2654435761u))&8191;
       for(;;){ if(KS_GEN[slot]!=ksGen){ KS_GEN[slot]=ksGen;KS_OBJ[slot]=obj;KS_PTR[slot]=s;KS_LEN[slot]=kl; break; }
         if(KS_OBJ[slot]==obj&&KS_LEN[slot]==kl){u32 same=1;for(u32 i=0;i<kl;i++)if(IN[KS_PTR[slot]+i]!=IN[s+i]){same=0;break;} if(same)FAIL;}
         slot=(slot+1)&8191; }
-      if(!first&&!emitSk(','))FAIL; first=0; if(!emitSk('"'))FAIL; for(u32 i=0;i<kl;i++)if(!emitSk(IN[s+i]))FAIL; if(!emitSk('"')||!emitSk(':'))FAIL;
+#if CK_KEYCOPY
+      if(fast){ SK[o++]='"'; SK[o++]=':'; skLen=o; first=0; } else
+#endif
+      { if(!first&&!emitSk(','))FAIL; first=0; if(!emitSk('"'))FAIL; for(u32 i=0;i<kl;i++)if(!emitSk(IN[s+i]))FAIL; if(!emitSk('"')||!emitSk(':'))FAIL; }
       pos=p+1; ws(); if(pos>=inLen||IN[pos]!=':')FAIL; pos++;
       if(!pval(d+1,h))FAIL; ws(); if(pos>=inLen)FAIL; if(IN[pos]==','){pos++;continue;} if(IN[pos]=='}'){pos++;break;} FAIL; }
     return emitSk('}'); }
