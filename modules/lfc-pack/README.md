@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.4.15 · API 0**
+**Version 0.4.17 · API 0**
 
-**Tested in:** Firefox 160 and ungoogled Chromium 156 (laptop), Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6; laptop Firefox 160
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -33,10 +33,14 @@ JSON repeats every key on every row and stores numbers as text, and getting one 
 ```html
 <script src="lfc-pack.js"></script>
 <script>
-  LfcPack.init().then(function () {                    // loads the wasm once (init({ readOnly: true }) if you only read)
-    var file = LfcPack.pack(ndjsonText);               // string, Uint8Array or Buffer -> Uint8Array (the .json.lfc bytes)
-    var rows = LfcPack.unpack(file);                   // array of row objects, same values as JSON.parse of each line
-    LfcPack.info(file);                                // { rows, blocks, size, major, minor }
+  // Load the wasm once (init({ readOnly: true }) if you only read).
+  LfcPack.init().then(function () {
+    // string, Uint8Array or Buffer in; the .json.lfc bytes (Uint8Array) out
+    var file = LfcPack.pack(ndjsonText);
+    // array of row objects, same values as JSON.parse of each line
+    var rows = LfcPack.unpack(file);
+    // { rows, blocks, size, major, minor }
+    var meta = LfcPack.info(file);
   });
 </script>
 ```
@@ -58,23 +62,38 @@ Options for `pack(input, options)`:
 Reading:
 
 ```js
-LfcPack.unpack(file, { keys: ['ts', 'status'] });                         // only these keys (flat blocks never decode the others)
-LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } });   // rows whose number is in range; blocks outside it are not opened
-LfcPack.unpackText(file);                                                 // Uint8Array of NDJSON text (exact if packed with exact: true)
-LfcPack.packParallel(bytes, { workers: 4 }).then(function (file) { /* opt-in: same file bytes as pack(), blocks packed by helper Web Workers (max min(cores, 8)); exact mode and small inputs stay on one thread */ });
-LfcPack.pool({ workers: 3 }).then(function (pool) {                       // helper Web Workers do the byte work; rows are built on the calling thread; without workers you get 2 (at 105 MB more helpers did not help in Chromium and slowed Firefox)
-  return pool.unpack(file).then(function (rows) { pool.close(); return rows; });   // same options as unpack
+// only these keys (flat blocks never decode the others)
+LfcPack.unpack(file, { keys: ['ts', 'status'] });
+// rows whose number is in range; blocks outside it are not opened
+LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } });
+// Uint8Array of NDJSON text (exact if packed with exact: true)
+LfcPack.unpackText(file);
+// opt-in: same file bytes as pack(), blocks packed by helper Web Workers
+// (max min(cores, 8)); exact mode and small inputs stay on one thread
+LfcPack.packParallel(bytes, { workers: 4 }).then(function (file) { /* ... */ });
+// helper Web Workers do the byte work; rows are built on the calling thread;
+// without workers you get 2 (at 105 MB more helpers did not help in Chromium
+// and slowed Firefox)
+LfcPack.pool({ workers: 3 }).then(function (pool) {
+  // same options as unpack
+  return pool.unpack(file).then(function (rows) { pool.close(); return rows; });
 });
 ```
 
 Row objects in, row objects out (no NDJSON text), and whole documents made of several tables plus plain values (a map with nodes, links, states and view settings):
 
 ```js
-var bytes = LfcPack.packRows([{ id: 1, name: 'a' }, { id: 2 }]);        // array of objects -> file bytes
-var rows = LfcPack.unpack(bytes);                                       // the same rows back
-var file = LfcPack.packTables({ nodes: nodes, links: links, states: states, view: { zoom: 2.5 }, title: 'My map' });   // arrays become tables, other values are kept as they are
-var map = LfcPack.unpackTables(file);                                   // { nodes, links, states, view, title }, value-exact (JSON values only: -0 becomes 0, undefined and NaN are lost, as with JSON.stringify)
-LfcPack.unpackTables(file, { keys: ['id'] });                           // same options as unpack, per table
+// array of objects -> file bytes
+var bytes = LfcPack.packRows([{ id: 1, name: 'a' }, { id: 2 }]);
+// the same rows back
+var rows = LfcPack.unpack(bytes);
+// arrays become tables, other values are kept as they are
+var file = LfcPack.packTables({ nodes: nodes, links: links, states: states, view: { zoom: 2.5 }, title: 'My map' });
+// { nodes, links, states, view, title }, value-exact
+// (JSON values only: -0 becomes 0, undefined and NaN are lost, as with JSON.stringify)
+var map = LfcPack.unpackTables(file);
+// same options as unpack, per table
+LfcPack.unpackTables(file, { keys: ['id'] });
 ```
 
 Works under a page policy of `script-src 'wasm-unsafe-eval'` and `worker-src blob:` only: no `eval`, no `new Function`, no remote scripts (the helper workers start from a blob made of this file).

@@ -62,7 +62,7 @@ A data: address is turned into bytes in place (`atob`), with no network request.
 
 ## How it works
 
-`auto` uses `createImageBitmap` where the browser is in the Chromium family (client hints saying "Chromium", or a user agent with `Chrome/` and none of Firefox, Epiphany or WebKitGTK) and `Image.decode()` everywhere else. A page worker, which has no `Image`, uses `createImageBitmap`. The `Image.decode()` door makes one object address for the Blob, waits for `decode()`, and frees the address; for it the page's Content-Security-Policy needs `img-src blob:`, and if that is missing the load falls back to `createImageBitmap`, which needs nothing. `supports` loads a one-pixel picture of the format (made by an encoder and checked against the format's first bytes in the tests) and remembers the answer.
+`auto` uses `createImageBitmap` where the browser is in the Chromium family (client hints saying "Chromium", or a user agent with `Chrome/` and none of Firefox or WebKitGTK) and `Image.decode()` everywhere else. A page worker, which has no `Image`, uses `createImageBitmap`. The `Image.decode()` door makes one object address for the Blob, waits for `decode()`, and frees the address; for it the page's Content-Security-Policy needs `img-src blob:`, and if that is missing the load falls back to `createImageBitmap`, which needs nothing. `supports` loads a one-pixel picture of the format (made by an encoder and checked against the format's first bytes in the tests) and remembers the answer.
 
 `loadAll` starts the first `concurrency` pictures at once and the next one each time one finishes, so the browser is never handed the whole list, and the pictures come back in list order. It never rejects: a picture that cannot be read gives `null`.
 
@@ -73,10 +73,10 @@ No wasm: the browser's decoder is already native code, so there is nothing for w
 
 **Wait at the stage change, ms, lower is better** (a 2048 px sheet; request until it is drawn, first draw included; a stage playing at about 4 ms of work per frame; median of 5; Firefox, WebKit timers read whole ms). Load when asked / decoded ahead:
 
-| Sheet | Chromium 155.0.8059.39-1 | Firefox 158.0 | WebKitGTK 2.52.6 | GNOME Web 46.5 |
-|---|---|---|---|---|
-| PNG | 259 / 1.6 | 370 / 2 | 361 / 6 | 385 / 7 |
-| WebP | 286 / 1.6 | 366 / 2 | 452 / 64 | 341 / 73 |
+| Sheet | Chromium 155.0.8059.39-1 | Firefox 158.0 | WebKitGTK 2.52.6 |
+|---|---|---|---|
+| PNG | 259 / 1.6 | 370 / 2 | 361 / 6 |
+| WebP | 286 / 1.6 | 366 / 2 | 452 / 64 |
 
 **Longest gap between frames of the playing stage while it decodes, ms, lower is better** (one frame is about 16.7): PNG 16.7 / 16.6, 17.2 / 17.1, 20 / 17, 21 / 17; WebP 16.7 / 16.7, 17.2 / 16.3, 77 / 16, 25 / 17. Decoding ahead did not add a stutter in any browser; WebKit's lossless WebP still pays 64 to 73 ms at the first draw after the wait (the browser decodes it lazily), so ship PNG there or draw it once off screen. Not measured: a phone.
 
@@ -84,7 +84,7 @@ No wasm: the browser's decoder is already native code, so there is nothing for w
 
 Open `format-check.html` on a phone or laptop, tap **Run the check**, and it measures the same sprite sheet as PNG, WebP and AVIF in that browser: file size, longest freeze and time until ready (medians of 7 tries), then says in plain words which format to use there, with a Markdown copy button for the results. With nothing picked it draws a 1024 x 1024 sample sheet and saves it in each format the browser can make (Chromium and Firefox make WebP, WebKit makes neither WebP nor AVIF); pick your own PNG, or the same sheet as PNG, WebP and AVIF, to test your art.
 
-What it showed on two sheets of sample art in the four test browsers: WebP and AVIF files are 75% to 91% smaller than PNG, but in Chromium 155 and Firefox 158 they take longer to open than the PNG (for the 1024 sheets, PNG 16 and 18 ms against WebP 29 and 31 ms and AVIF 21 and 26 ms, Chromium / Firefox), with the same 1 to 2 ms freeze. In WebKit the 2048 WebP sheet opened as fast as the PNG or a little faster (80 against 86 ms in WebKitGTK, 82 against 91 in GNOME Web). So the smaller formats win on download size everywhere, and win on opening time only in WebKit.
+What it showed on two sheets of sample art in the three test browsers: WebP and AVIF files are 75% to 91% smaller than PNG, but in Chromium 155 and Firefox 158 they take longer to open than the PNG (for the 1024 sheets, PNG 16 and 18 ms against WebP 29 and 31 ms and AVIF 21 and 26 ms, Chromium / Firefox), with the same 1 to 2 ms freeze. In WebKit the 2048 WebP sheet opened as fast as the PNG or a little faster (80 against 86 ms in WebKitGTK). So the smaller formats win on download size everywhere, and win on opening time only in WebKit.
 
 ## Under a strict Content-Security-Policy (`img-src data:` only)
 
@@ -92,47 +92,47 @@ Our games ship `img-src data:` and no `img-src blob:`. Firefox and WebKit then c
 
 Longest page freeze for one 2048 x 2048 sheet under that policy, ms, lower is better, plain `new Image()` / `ImageDecode.load` (median of 5 tries; Firefox is the median of 3 runs because it swings from run to run; tests/image-decode-browser.js opens a page with the same policy in each browser; Firefox and WebKit timers read whole milliseconds):
 
-| Sheet and policy | Chromium 155.0.8059.39-1 | Firefox 158.0 | WebKitGTK 2.52.6 | GNOME Web 46.5 |
-|---|---|---|---|---|
-| PNG, `img-src data:` | 111 / 3.4 | 70 / 68 | 82 / 39 | 81 / 39 |
-| PNG, plus `worker-src blob:` | 115 / 3.4 | 58 / 61 | 77 / 11 | 79 / 10 |
-| WebP, `img-src data:` | 104 / 2.6 | 85 / 8 | 74 / 6 | 70 / 7 |
-| WebP, plus `worker-src blob:` | 93 / 2.4 | 85 / 9 | 73 / 7 | 67 / 9 |
+| Sheet and policy | Chromium 155.0.8059.39-1 | Firefox 158.0 | WebKitGTK 2.52.6 |
+|---|---|---|---|
+| PNG, `img-src data:` | 111 / 3.4 | 70 / 68 | 82 / 39 |
+| PNG, plus `worker-src blob:` | 115 / 3.4 | 58 / 61 | 77 / 11 |
+| WebP, `img-src data:` | 104 / 2.6 | 85 / 8 | 74 / 6 |
+| WebP, plus `worker-src blob:` | 93 / 2.4 | 85 / 9 | 73 / 7 |
 
-Plainly: WebKit and GNOME Web are fine in both cases (PNG 10 to 39 ms against about 80, WebP 6 to 9 ms against about 70). Firefox is fine for WebP and AVIF (about 9 ms against 84) but **a large PNG gets no help under this policy** (68 ms against 70): a 3.7 MB data: address costs the page about as much as plain decoding. If your policy has `img-src data:` only, ship WebP or AVIF sprites for Firefox. (The Firefox plain WebP time in the plus-worker row is taken from the first row, because a repeated plain data: address is answered from the browser's picture cache.) Not measured: a phone, and policies that also drop `data:`.
+Plainly: WebKit are fine in both cases (PNG 10 to 39 ms against about 80, WebP 6 to 9 ms against about 70). Firefox is fine for WebP and AVIF (about 9 ms against 84) but **a large PNG gets no help under this policy** (68 ms against 70): a 3.7 MB data: address costs the page about as much as plain decoding. If your policy has `img-src data:` only, ship WebP or AVIF sprites for Firefox. (The Firefox plain WebP time in the plus-worker row is taken from the first row, because a repeated plain data: address is answered from the browser's picture cache.) Not measured: a phone, and policies that also drop `data:`.
 
-## Measured (the four test browsers, one at a time)
+## Measured (the three test browsers, one at a time)
 
-Sprite sheets of 1024 and 2048 pixels square, the same artwork saved as PNG, WebP and AVIF (made by `test/make-sheets.py` with Pillow; 1.4 and 3.7 MB as PNG). Each number is the median of 7 tries in a run; Chromium and Firefox are the median over 4 runs, WebKitGTK and GNOME Web over 1 run. **Longest freeze** is the longest gap in a message loop running on the page while the picture was loaded and drawn once; it is what a player sees as a stutter. **Ready after** is start to drawn. Timers read whole milliseconds in Firefox and WebKit, so small values are rough. "Plain" is `new Image()`, wait for `onload`, `drawImage`.
+Sprite sheets of 1024 and 2048 pixels square, the same artwork saved as PNG, WebP and AVIF (made by `test/make-sheets.py` with Pillow; 1.4 and 3.7 MB as PNG). Each number is the median of 7 tries in a run; Chromium and Firefox are the median over 4 runs, WebKitGTK over 1 run. **Longest freeze** is the longest gap in a message loop running on the page while the picture was loaded and drawn once; it is what a player sees as a stutter. **Ready after** is start to drawn. Timers read whole milliseconds in Firefox and WebKit, so small values are rough. "Plain" is `new Image()`, wait for `onload`, `drawImage`.
 
 **Longest freeze, ms, lower is better: plain / ImageDecode.load**
 
-| Picture | Chromium 155.0.8059.39-1 | Firefox 158.0 | WebKitGTK 2.52.6 | GNOME Web 46.5 |
-|---|---|---|---|---|
-| 1024 PNG | 14.6 / 1.4 | 16.0 / 2.0 | 32 / 4 | 33 / 4 |
-| 2048 PNG | 44.2 / 3.1 | 45.0 / 2.0 | 87 / 9 | 94 / 9 |
-| 2048 WebP | 92.2 / 3.2 | 90.0 / 2.0 | 80 / 4 | 87 / 4 |
-| 2048 AVIF | 59.2 / 2.6 | 77.0 / 2.5 | cannot read AVIF | cannot read AVIF |
+| Picture | Chromium 155.0.8059.39-1 | Firefox 158.0 | WebKitGTK 2.52.6 |
+|---|---|---|---|
+| 1024 PNG | 14.6 / 1.4 | 16.0 / 2.0 | 32 / 4 |
+| 2048 PNG | 44.2 / 3.1 | 45.0 / 2.0 | 87 / 9 |
+| 2048 WebP | 92.2 / 3.2 | 90.0 / 2.0 | 80 / 4 |
+| 2048 AVIF | 59.2 / 2.6 | 77.0 / 2.5 | cannot read AVIF |
 
 **Ready after, ms, lower is better: plain / ImageDecode.load**
 
-| Picture | Chromium | Firefox | WebKitGTK | GNOME Web |
-|---|---|---|---|---|
-| 1024 PNG | 19.2 / 15.4 | 21.0 / 22.5 | 33 / 33 | 33 / 30 |
-| 2048 PNG | 51.6 / 45.5 | 59.5 / 59.0 | 88 / 86 | 95 / 91 |
-| 2048 WebP | 94.8 / 87.7 | 92.0 / 94.5 | 80 / 80 | 87 / 82 |
-| 2048 AVIF | 61.3 / 57.5 | 79.0 / 98.5 | not readable | not readable |
+| Picture | Chromium | Firefox | WebKitGTK |
+|---|---|---|---|
+| 1024 PNG | 19.2 / 15.4 | 21.0 / 22.5 | 33 / 33 |
+| 2048 PNG | 51.6 / 45.5 | 59.5 / 59.0 | 88 / 86 |
+| 2048 WebP | 94.8 / 87.7 | 92.0 / 94.5 | 80 / 80 |
+| 2048 AVIF | 61.3 / 57.5 | 79.0 / 98.5 | not readable |
 
-Where little changed, or where it is worse: the time until a picture is ready is level (within about 5%, mostly noise) except **AVIF in Firefox at 2048, which is ready 25% later** (79 to 98.5 ms; the freeze still drops from 77 to 2.5 ms). WebKit's freeze at 2048 PNG is 9 ms, just over the 8 ms a page task should stay under, because WebKit still spends a few milliseconds on the main thread before `decode()` returns. WebKitGTK 2.52.6 and GNOME Web 46.5 cannot read AVIF at all (`supports('avif')` is false; `load` rejects, it does not hang), so ship a WebP next to an AVIF.
+Where little changed, or where it is worse: the time until a picture is ready is level (within about 5%, mostly noise) except **AVIF in Firefox at 2048, which is ready 25% later** (79 to 98.5 ms; the freeze still drops from 77 to 2.5 ms). WebKit's freeze at 2048 PNG is 9 ms, just over the 8 ms a page task should stay under, because WebKit still spends a few milliseconds on the main thread before `decode()` returns. WebKitGTK 2.52.6 cannot read AVIF at all (`supports('avif')` is false; `load` rejects, it does not hang), so ship a WebP next to an AVIF.
 
 The other doors, for the same sheets (longest freeze, ms, lower is better; 2048 PNG):
 
-| Door | Chromium | Firefox | WebKitGTK | GNOME Web |
-|---|---|---|---|---|
-| plain (`onload`, draw) | 44.2 | 45.0 | 87 | 94 |
-| `Image.decode()` then draw | 43.4 | 2.5 | 8 | 9 |
-| `createImageBitmap` | 2.5 | 48 | 108 | 105 |
-| `createImageBitmap` inside a worker (first measurement only, 1 run) | 2.5 | 53 | 9 | 10 |
+| Door | Chromium | Firefox | WebKitGTK |
+|---|---|---|---|
+| plain (`onload`, draw) | 44.2 | 45.0 | 87 |
+| `Image.decode()` then draw | 43.4 | 2.5 | 8 |
+| `createImageBitmap` | 2.5 | 48 | 108 |
+| `createImageBitmap` inside a worker (first measurement only, 1 run) | 2.5 | 53 | 9 |
 
 A worker is not used: it helps WebKit about as much as `Image.decode()`, does nothing for Firefox, and would need `worker-src blob:` in the page's policy.
 
@@ -143,7 +143,6 @@ A worker is not used: it helps WebKit about as much as `Image.decode()`, does no
 | Chromium 155.0.8059.39-1 | 214.5 / 12.9 / 113.2 | 133.7 / 26.1 / 8.7 |
 | Firefox 158.0 | 518 / 34 / 245.5 | 365.5 / 82.5 / 6.0 |
 | WebKitGTK 2.52.6 | 341 / 17 / 216 | 224 / 56 / 19 |
-| GNOME Web 46.5 | 397 / 22 / 249 | 237 / 61 / 20 |
 
 The whole list is ready 30 to 40% sooner and the longest freeze falls from 113 to 249 ms down to 6 to 20 ms, but the **first** picture is ready later (13 to 34 ms before, 26 to 83 ms now) because two decodes share the processor; use `concurrency: 1` to get the first picture as soon as possible.
 

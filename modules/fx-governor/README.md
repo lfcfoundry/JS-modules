@@ -2,7 +2,7 @@
 
 **Version 1.1.1 · API 1**
 
-**Tested in:** Node: 16 checks pass; no code change (a label word in the demo and README prose); the demo page was not opened in the four test browsers this time
+**Tested in:** Node: 16 checks pass; no code change (a label word in the demo and README prose); the demo page was not opened in the three test browsers this time
 
 ## What it is and how it works
 

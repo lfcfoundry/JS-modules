@@ -71,7 +71,7 @@ The browser race of Netflow Map against D3 measured the app's own flow engine, n
 
 ## Numbers (Node 22, measured 2026-10-17, against d3-sankey 0.12.3)
 
-> **Node numbers.** The speeds in this section were measured in Node, not in the four test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Sizes and counts are exact; only the times depend on the browser. Re-measuring in the four browsers is not done (open item on `TASKS.md`).
+> **Node numbers.** The speeds in this section were measured in Node, not in the three test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Sizes and counts are exact; only the times depend on the browser. Re-measuring in the three browsers is not done (open item on `TASKS.md`).
 
 Three made-up charts (64, 118 and 222 links). One yardstick for both: for every pair of links that cross, add their two flows multiplied together. Lower is better.
 
@@ -89,17 +89,17 @@ So about half the weighted crossings, at about 4 to 5 times the time (still unde
 
 **Why.** Median of 3 passes of 5 rounds in rotating order, JavaScript to WebAssembly in ms (lower is better; times faster, higher is better; WebKit's clock moves in whole milliseconds, so quick layouts there are timed 10 in a row). Only the order search is faster; the rest of a layout is still JavaScript, so big charts gain little.
 
-| Chart | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 | GNOME Web 46.5 |
-|---|---|---|---|---|
-| small, 70 bars | 3.0 to 1.9 (1.58x) | 3.2 to 1.7 (1.88x) | 2.1 to 1.7 (1.24x) | 2.2 to 1.9 (1.16x) |
-| medium, 240 bars | 19.3 to 11.7 (1.65x) | 23.1 to 14.0 (1.65x) | 14.8 to 14.2 (1.04x) | 14.5 to 13.8 (1.05x) |
-| dense, 320 bars | 7.6 to 6.5 (1.17x) | 7.3 to 7.0 (1.04x) | 6.0 to 6.1 (0.98x) | 5.9 to 5.8 (1.02x) |
-| large, 640 bars | 5.9 to 5.1 (1.16x) | 6.4 to 6.1 (1.05x) | 4.8 to 4.9 (0.98x) | 4.9 to 5.0 (0.98x) |
-| big, 1000 bars | 7.2 to 6.5 (1.11x) | 8.9 to 8.3 (1.07x) | 6.3 to 6.3 (1.00x) | 6.3 to 6.4 (0.98x) |
-| first layout, right after the page loads | 40.4 to 30.7 (1.32x) | 34 to 22 (1.55x) | 31 to 29 (1.07x) | 33 to 37 (0.89x) |
-| first layout, 250 ms after the page loads | 43.4 to 29.4 (1.48x) | 36 to 22 (1.64x) | 26 to 26 (1.00x) | 34 to 34 (1.00x) |
+| Chart | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---|---|---|
+| small, 70 bars | 3.0 to 1.9 (1.58x) | 3.2 to 1.7 (1.88x) | 2.1 to 1.7 (1.24x) |
+| medium, 240 bars | 19.3 to 11.7 (1.65x) | 23.1 to 14.0 (1.65x) | 14.8 to 14.2 (1.04x) |
+| dense, 320 bars | 7.6 to 6.5 (1.17x) | 7.3 to 7.0 (1.04x) | 6.0 to 6.1 (0.98x) |
+| large, 640 bars | 5.9 to 5.1 (1.16x) | 6.4 to 6.1 (1.05x) | 4.8 to 4.9 (0.98x) |
+| big, 1000 bars | 7.2 to 6.5 (1.11x) | 8.9 to 8.3 (1.07x) | 6.3 to 6.3 (1.00x) |
+| first layout, right after the page loads | 40.4 to 30.7 (1.32x) | 34 to 22 (1.55x) | 31 to 29 (1.07x) |
+| first layout, 250 ms after the page loads | 43.4 to 29.4 (1.48x) | 36 to 22 (1.64x) | 26 to 26 (1.00x) |
 
-Chromium and Firefox rows are the median of 3 passes of 5 rounds; the two WebKit browsers' chart rows were run again as 3 passes of 9 rounds (a first run had shown two cells 9 to 10% slower, which did not repeat); the first-layout rows are the median of 11 fresh pages.
+Chromium and Firefox rows are the median of 3 passes of 5 rounds; WebKitGTK's chart rows were run again as 3 passes of 9 rounds (a first run had shown two cells 9 to 10% slower, which did not repeat); the first-layout rows are the median of 11 fresh pages.
 
 **Use.**
 - Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it, or if anything goes wrong at the start, the JavaScript code runs and gives the same layout. A chart with a flow that is negative, not a number or above 1e100 also uses the JavaScript code.
@@ -107,7 +107,7 @@ Chromium and Firefox rows are the median of 3 passes of 5 rounds; the two WebKit
 - All layouts on a page share one WebAssembly memory, which grows as needed and is not freed.
 - Source `wasm/order.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
 
-**Honest limits.** Gains are in Chromium and Firefox (up to 1.9x on small charts, about 1.05 to 1.2x on big ones). In the two WebKit browsers the chart rows are a wash (0.98x to 1.24x). The one real cost: a layout started right after the page loads in GNOME Web is about 4 ms slower (33 to 37 ms, 0.89x) because the wasm is still compiling in the background; 250 ms later it is equal. Costs bytes: +11,578 as written (37,790 to 49,368), +9,493 minified (19,377 to 28,870) and +4,301 gzipped (8,097 to 12,398) with terser 5.51.2 (smaller is better). Not run: a phone, Safari.
+**Honest limits.** Gains are in Chromium and Firefox (up to 1.9x on small charts, about 1.05 to 1.2x on big ones). In WebKitGTK the chart rows are a wash (0.98x to 1.24x). Costs bytes: +11,578 as written (37,790 to 49,368), +9,493 minified (19,377 to 28,870) and +4,301 gzipped (8,097 to 12,398) with terser 5.51.2 (smaller is better). Not run: a phone, Safari.
 
 ## Limits
 - The search is a heuristic (it restarts several times within a time budget); it finds a good order, not always the best.

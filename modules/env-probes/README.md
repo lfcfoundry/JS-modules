@@ -2,7 +2,7 @@
 
 **Version 1.1.0 · API 1**
 
-**Tested in:** Node checks; tests/pieces-browser.js env-probes (the demo page loads, report() sees a page, canvas read-back and storage work, explain() gives sentences) one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, all passed. Not run: Firefox privacy-profile test, a phone.
+**Tested in:** Node checks; tests/pieces-browser.js env-probes (the demo page loads, report() sees a page, canvas read-back and storage work, explain() gives sentences) one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0 (reports 158.0b5), WebKitGTK 2.52.6, all passed. Not run: Firefox privacy-profile test, a phone.
 
 ## What it is and how it works
 
@@ -65,7 +65,7 @@ I found no library that does this exact job. The nearest are fingerprinting libr
 
 | Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
 | --- | --- | --- | --- | --- |
-| **env-probes 1.1.0** (this module, MIT) | 10,969 B minified, 4,387 B gzipped (terser 5.36.0) | First call of all 13 probes, lower is faster, median of 9 fresh page loads: ungoogled Chromium 155.0.8059.39-1 5.0 ms, Firefox 158.0 4.0 ms, WebKitGTK 2.52.6 3.0 ms, GNOME Web 46.5 3.0 ms. Calling `report()` again: 0.02 to 0.07 ms (cached). Firefox and WebKit clocks show whole milliseconds, so small numbers are rough | Rounded clock, canvas read-back, storage, motion, touch, contrast, framing, feature list, plain-words `explain()` | Tells you the effect so your game keeps working. Loses: does not name the mode |
+| **env-probes 1.1.0** (this module, MIT) | 10,969 B minified, 4,387 B gzipped (terser 5.36.0) | First call of all 13 probes, lower is faster, median of 9 fresh page loads: ungoogled Chromium 155.0.8059.39-1 5.0 ms, Firefox 158.0 4.0 ms, WebKitGTK 2.52.6 3.0 ms 3.0 ms. Calling `report()` again: 0.02 to 0.07 ms (cached). Firefox and WebKit clocks show whole milliseconds, so small numbers are rough | Rounded clock, canvas read-back, storage, motion, touch, contrast, framing, feature list, plain-words `explain()` | Tells you the effect so your game keeps working. Loses: does not name the mode |
 | [CreepJS](https://github.com/abrahamjuliot/creepjs) (MIT, version not recorded) | Not measured | Not measured | Browser fingerprinting; detects privacy modes to identify users | Wins: can name the mode. Loses: built to identify users, not to keep a game working |
 | [detectIncognito](https://github.com/Joe12387/detectIncognito) (MIT, version not recorded) | Not measured | Not measured | Guesses whether the window is private | Wins: names the mode. Loses: a mode guess does not say what your page can still do |
 | [detect-gpu](https://github.com/pmndrs/detect-gpu) (MIT, version not recorded) | Not measured | Not measured | Rates the graphics chip | A different question: it says how fast the chip is, not what the browser has switched off |
