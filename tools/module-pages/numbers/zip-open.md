@@ -125,3 +125,5 @@ With 1.8.0 and 1.9.0, Excel files now open on the laptop in 0.11 to 0.22 of the 
 Total time stays about the same (0.96 to 1.18 of 1.10.0).
 
 **New in 1.12.0: a SIMD Excel reader.** Browsers with WebAssembly SIMD scan shared text 16 bytes at a time; others keep the plain reader. Whole open, time 1.12.0 / 1.11.0, cloud, lower is better: text-heavy sheets 0.87 to 0.96 in Chromium 155, Firefox 158 and WebKitGTK 2.52.6; other sheets about the same. Size: 39.7 KB gzipped (was 33.5).
+
+**New in 1.13.0: one copy fewer.** When the file is already in memory, the biggest sheet unpacks straight into the WebAssembly reader. Whole open, time 1.13.0 / 1.12.0, cloud, lower is better: Chromium 155 0.83 to 0.92, Firefox 158 0.87 to 0.95, WebKitGTK 2.52.6 0.79 to 1.02.

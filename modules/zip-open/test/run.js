@@ -529,4 +529,21 @@ t('xlsx: a browser without wasm SIMD gets the plain reader, with the same tables
   } finally { WebAssembly.Module = M; U._xlsxPlain(false); }
   assert.equal(U._xlsxSimd(), true);
 });
+t('Excel: a big sheet unpacked straight into the WebAssembly reader gives the same tables (with shared text, a second sheet, inline text the wasm hands back, and two opens at once)', async function () {
+  var rows = [['id', 'name', 'when', 'n', 'note']]; for (var i = 0; i < 40000; i++) rows.push([i, 'name ' + (i % 997), { d: 44000 + (i % 3000) }, i * 1.25, 'n' + (i % 13) + (i % 50 === 0 ? ', "q"' : '')]);
+  var x = Z.makeXlsx([{ name: 'Big', rows: rows }, { name: 'Small', rows: [['a', 'b'], ['1', '2']] }]), p0 = U._placed();
+  var want = await U.expandBlob(new Blob([u8(x)]), 'b.xlsx', { _wholeMax: 0 });   // read in pieces: never placed
+  assert.equal(U._placed(), p0, 'a File read in pieces is not placed');
+  var got = await U.expand(u8(x), 'b.xlsx');
+  assert.ok(U._placed() > p0, 'the big sheet was unpacked into the wasm memory');
+  assert.deepStrictEqual(got, want);
+  var two = await Promise.all([U.expand(u8(x), 'b.xlsx'), U.expand(u8(x), 'b.xlsx'), U.expandBlob(new Blob([u8(x)]), 'b.xlsx', { _wholeMax: 0 }), U.expand(u8(x), 'b.xlsx')]);
+  two.forEach(function (r) { assert.deepStrictEqual(r, want, 'two opens at once'); });
+  var inl = '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'; for (i = 1; i <= 30000; i++) inl += '<row r="' + i + '"><c r="A' + i + '" t="inlineStr"><is><t>row ' + i + ', x</t></is></c><c r="B' + i + '"><v>' + i + '</v></c></row>'; inl += '</sheetData></worksheet>';
+  var xi = Z.makeZip([{ name: '[Content_Types].xml', data: '<Types/>' }, { name: 'xl/workbook.xml', data: '<workbook xmlns:r="r"><sheets><sheet name="I" sheetId="1" r:id="rId1"/></sheets></workbook>' }, { name: 'xl/_rels/workbook.xml.rels', data: '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>' }, { name: 'xl/worksheets/sheet1.xml', data: inl }]);
+  p0 = U._placed();
+  var b = await U.expandBlob(new Blob([u8(xi)]), 'i.xlsx', { _wholeMax: 0 }), a = await U.expand(u8(xi), 'i.xlsx');
+  assert.ok(U._placed() > p0, 'inline sheet placed'); assert.deepStrictEqual(b, a); assert.equal(a.files[0].text.split('\n')[1], '"row 2, x",2');
+  var c = await U.expandBlob(new Blob([u8(x)]), 'b.xlsx', { workers: 2, spawn: spawn, idleMs: 1, _wholeMax: 0 }); assert.deepStrictEqual(c, want, 'inside a helper'); U.closeHelpers();
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });
