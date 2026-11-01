@@ -1,6 +1,6 @@
 # stage-curtains
 
-**Version 1.4.1 · API 1**
+**Version 1.4.2 · API 1**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 

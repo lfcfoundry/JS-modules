@@ -1,8 +1,8 @@
 # ppmd-decode
 
-**Version 1.3.0 · API 1**
+**Version 1.3.1 · API 1**
 
-**Tested in:** Node 22 checks; compile-early timing in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

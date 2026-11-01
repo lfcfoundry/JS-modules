@@ -38,6 +38,7 @@
   }
   function b64(s) {
     var i, n, u;
+    if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(s);
     if (typeof atob === 'function') { s = atob(s); n = s.length; u = new Uint8Array(n); for (i = 0; i < n; i++) u[i] = s.charCodeAt(i); return u; }
     return new Uint8Array(Buffer.from(s, 'base64'));
   }

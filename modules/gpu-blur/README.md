@@ -1,8 +1,8 @@
 # gpu-blur
 
-**Version 1.3.1 · API 1**
+**Version 1.3.2 · API 1**
 
-**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

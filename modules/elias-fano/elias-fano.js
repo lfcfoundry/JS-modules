@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.8.0 (API 1)
+ * Version 1.8.1 (API 1)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -26,7 +26,7 @@
   var SIMD_PROBE = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]);
   var MOD = null, GEN = 0, LIVE = new Set(), AUTO = true, trimQueued = false;   // trim() and autoTrim (on by default since 1.7.0): the compiled module, which memory a list's copy is in, and the compacted lists (their only copy is in that memory)
   var W = null, backend = 'auto', readyPromise = null, simdOn = false, mem = null, u8 = null, u32 = null, heapEnd = 0, blocks = [];   // blocks: free list [{o, n}] of the arena
-  function b64bytes(t) { var bin, i; if (typeof atob === 'function') { var r = atob(t); bin = new Uint8Array(r.length); for (i = 0; i < r.length; i++) bin[i] = r.charCodeAt(i); } else bin = new Uint8Array(Buffer.from(t, 'base64')); return bin; }
+  function b64bytes(t) { if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(t); var bin, i; if (typeof atob === 'function') { var r = atob(t); bin = new Uint8Array(r.length); for (i = 0; i < r.length; i++) bin[i] = r.charCodeAt(i); } else bin = new Uint8Array(Buffer.from(t, 'base64')); return bin; }
   // Spare: the first write to a freshly made big array costs about 0.7 ms per MB in every browser. After a big toArray or slice (1 MB or more) the page, when idle,
   // makes and touches one array of that length; the next result of that length fills it instead of a new one. Dropped after 4 s unused. setSpare(false) turns it off.
   var spare = null, spareTimer = null, spareOn = true, SPARE_MIN = 262144, SPARE_MS = 4000;
@@ -588,7 +588,7 @@
   }
   return {
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
-    version: '1.8.0', api: 1, build: build, open: open, buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, intersect: intersect, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
+    version: '1.8.1', api: 1, build: build, open: open, buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, intersect: intersect, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
     _buildJS: buildJS, _layout: layout
