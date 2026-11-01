@@ -78,4 +78,4 @@ Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/play/),
 No code was taken from anywhere. The ideas of a ring buffer of frame times, "1% low" frame rate and the long-task entry are common practice in game and web performance tools; the long-task entry is the W3C Long Tasks API.
 
 ## For AI agents
-One file, no dependencies, ES5, UMD (`window.FieldReport` or `require`). Start it before other scripts. Tests: `node modules/field-report/test/run.js` (44 checks, fake window) and `node tests/field-report-browser.js chromium|firefox|webkit|epiphany`.
+One file, no dependencies, ES5, UMD (`window.FieldReport` or `require`). Start it before other scripts. Tests: `node modules/field-report/test/run.js` (44 checks, fake window) and `node tests/field-report-browser.js chromium|firefox|webkit`.

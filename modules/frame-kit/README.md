@@ -2,7 +2,7 @@
 
 **Version 1.2.1 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (tests/frame-kit-browser.js: the module's 67 checks inside each page plus about 1.5 s of real animation frames, 67 of 67 in all four, the badge read 60 FPS in Chromium and Firefox and 62 FPS in WebKitGTK and GNOME Web; 3 to 8 s each including start-up; Node 67 checks)
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time (tests/frame-kit-browser.js: the module's 67 checks inside each page plus about 1.5 s of real animation frames, 67 of 67 in all three, the badge read 60 FPS in Chromium and Firefox and 62 FPS in WebKitGTK; 3 to 8 s each including start-up; Node 67 checks)
 
 ## What it is and how it works
 
@@ -29,7 +29,7 @@ Browsers report frame gaps that wobble even when every frame is on time, which s
 
 ## Use
 
-Copy the files you want; `demo.html` shows all four working.
+Copy the files you want; `demo.html` shows all three working.
 
 ```html
 <script src="even-dt.js"></script>

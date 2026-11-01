@@ -2,6 +2,22 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.17 · API 0 · 2026-11-01
+
+### Quick
+From the LFCP thread (branch claude/project-thread-cahtub, head 1bc45c0).
+
+### Deep
+From the LFCP thread (branch claude/project-thread-cahtub, head 1bc45c0). Object keys hashed and copied to the skeleton in one pass (core.wasm, 56caf06); number digits read 8 at a time (f957a46); many-value text columns skip encodeColumn's dictionary pass (3dc5de4); log templates are no longer built once the read check has failed (91d6e7b); the timed template read check runs at most once per column key per session on both writers (386a746, 84b0ead) - before, writeFlatBlock re-ran it (>=48 ms) on every block; IPv4 and many-value text columns built straight from the bytes (3e9a8a9); the fast flat writer takes strings with escapes (6ca4acf, owner tapped 'Yes, ship it' 2026.11.01 12:17 AM ET: escaped-log files 2,144,898 to 2,143,966 bytes at default blocks and 2,248,565 to 2,244,046 at 256 KB, round trips exact); TypedArray constructors, a cheap int32 test in colKind and a Float64Array from scaledInts (d1e697f, 5a931ff, 6d8ef36). Laptop Firefox 160 (16 cores), pack time vs 0.4.15: logs 0.329 / 0.339 (default / 256 KB), escaped logs 0.237 / 0.021, events 1.000 (ok); orders 0.983, orders 256 KB 0.971, map points 0.946 (with 91d6e7b). Cloud Chromium 155 smoke: logs 0.478 / 0.387, escaped 0.358 / 0.031, events 1.015 (inconclusive). Byte-identical to 0.4.16 on 1,900 of 1,900 fuzz files and all test generators except gen.logsEscaped. Tests pass.
+
+## 0.4.16 · API 0 · 2026-11-01
+
+### Quick
+From the LFCP thread's patch (bitunpack-tail.diff).
+
+### Deep
+From the LFCP thread's patch (bitunpack-tail.diff). bitunpack's hot loop read up to 3 bytes past the end of b for the last values; Firefox handles out-of-range typed-array reads slowly. Now the values whose 4-byte window fits run first, then a guarded tail loop (b[i] | 0). Phase timers (LFCP thread, Firefox): bitunpack 10 to 5 ms on events, 7 to 3 ms on escaped logs. Whole unpack, early-stop A/B in cloud browsers: Firefox 158 events 0.725 (noisy, ok), escaped logs 0.980 (ok); Chromium 155 0.907 and 0.953 (ok; a first run gave 1.031 inconclusive on escaped logs); WebKitGTK 2.52.6 1.030 and 0.949 (ok). Same rows in all 3. Fuzz: old and new bitunpack equal on 8,520 cases (widths 1 to 24, 0 to 70 values, exact and padded buffers). Tests pass.
+
 ## 0.4.15 · API 0 · 2026-10-31
 
 ### Quick

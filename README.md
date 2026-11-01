@@ -27,7 +27,7 @@ The modules are for developers; the apps built from them need no install and no 
 
 ## Why it exists
 
-Single-file offline apps cannot load code from a server, must run on cheap phones, and every kilobyte is downloaded by everyone. Most libraries assume a build step, a network and a fast device. A module is kept only if it does something the nearest open-source option does not, or does it measurably better, and its README says where the other one wins.
+Single-file offline apps cannot load code from a server, so any library has to be copied into the file, and its size is part of every download. These modules are plain files with no build step and no dependencies. A module is kept only if it does something the nearest open-source option does not, or does it measurably better, and its README says where the other one wins.
 
 **Where it helps**
 
@@ -180,7 +180,7 @@ Test a game by playing it at random, shrinking any failure to a short replay, co
 | [storage-probe](tools/storage-probe/README.md) *(tool)* | 1.1.0 | 19.4 | 7.2 | A one-button page that says whether copies of a page share their saved data. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/storage-probe/storage-probe.html) |
 | [test-isolation](tools/test-isolation/README.md) *(tool)* | 1.1.0 | 6.5 | 2.4 | Prefixes every localStorage key on a test page so tests never touch the real save. | — |
 | [test-runner](tools/test-runner/README.md) *(tool)* | 1.4.0 | 49.0 | 16.5 | Warm browsers, fair timing, skipped rebuilds, wasm-vs-JS twin test, picture gate and bisect. | — |
-| [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.4.1 | 23.6 | 8.6 | Drives WebKitGTK or GNOME Web from Node with Playwright-style calls, no dependencies. | — |
+| [webkit-driver](tools/webkit-driver/README.md) *(tool)* | 1.4.1 | 23.6 | 8.6 | Drives WebKitGTK from Node with Playwright-style calls, no dependencies. | — |
 
 #### App - Efficiency
 
@@ -189,7 +189,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 1.8.1 | 74.2 | 24.5 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.4.15 | 353.8 | 187.8 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.4.17 | 360.5 | 190.6 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [memory-compression](modules/memory-compression/README.md) | 2.10.1 | 401.6 | 116.8 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 | 62.9 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
@@ -212,7 +212,7 @@ Draw maps, flow charts and animated pictures from data.
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 | 30.9 | 9.7 | Turns pictures into an MP4 or WebM video file. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/clip-writer/demo.html) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.2 | 44.2 | 17.2 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.3 | 205.4 | 64.3 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.7.2 | 55.9 | 19.6 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.8.0 | 55.9 | 19.6 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.1 | 63.2 | 22.6 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.2 | 114.7 | 36.8 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |
 
@@ -333,13 +333,13 @@ Checks: maths and save logic in Node, the browser pieces (curtains, hold-press, 
 
 Browser checks run only in the browsers kept on the `browsers` branch of the private knowledge-base repository: **Firefox 158** (the stress test), **ungoogled Chromium 155** and **WebKitGTK 2.52.6**, on Linux. The branch can change (a version updated, a browser added or removed), so read its README before each run and use what it says then. Every result in this repository's docs names the exact browser and version, for example "Firefox 158" or "Chromium 155 (ungoogled)".
 
-**Every module and tool says which browsers its release was tested in.** The newest release's list is the **Tested in** line near the top of its README; each release's list is the **Tested in** line in its full changelog entry, which the maintainers keep privately (the repo's `CHANGELOG.md` files are the short end-user versions). A line names each browser with its version, says "not recorded" where the old records do not show it, and says what was not run. Older builds (Chromium 141 and 153, Firefox 155 and 157) and GNOME Web 46.5 were stand-ins before this rule; entries that were tested on them still say so, and are not re-measured unless a change needs it. `versions.py set ... --tested "..."` writes the line; see [tools/versions/README.md](tools/versions/README.md).
+**Every module and tool says which browsers its release was tested in.** The newest release's list is the **Tested in** line near the top of its README; each release's list is the **Tested in** line in its full changelog entry, which the maintainers keep privately (the repo's `CHANGELOG.md` files are the short end-user versions). A line names each browser with its version, says "not recorded" where the old records do not show it, and says what was not run. Older builds (Chromium 141 and 153, Firefox 155 and 157) were stand-ins before this rule; entries that were tested on them still say so, and are not re-measured unless a change needs it. `versions.py set ... --tested "..."` writes the line; see [tools/versions/README.md](tools/versions/README.md).
 
 Rules for anyone running the tests:
 
 - Run one browser at a time. Two at once make timing checks flaky.
 - Point the test at the browser you installed: `CHROMIUM=/path/to/chrome` for the Chromium checks, `FIREFOX_PATH` (and `GECKODRIVER_PATH` for [firefox-stand-in](tools/firefox-stand-in/README.md)) for Firefox. A bare run that falls back to some other build gives unfair timing numbers, so say which one ran.
-- WebKitGTK can only be driven through WebDriver (Playwright and Puppeteer cannot); the recipe is in the branch README. GNOME Web is no longer a test browser; older results that name it are kept as they were measured.
+- WebKitGTK can only be driven through WebDriver (Playwright and Puppeteer cannot); the recipe is in the branch README.
 - Not covered yet: Safari itself, and real phones (an Android phone and an iPhone). A passing desktop run is not a phone result.
 
 ## More from LFC Foundry

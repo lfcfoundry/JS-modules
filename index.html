@@ -125,12 +125,12 @@ footer a{margin-right:16px}
 
 <section><div class="wrap">
   <h2>Why it exists</h2>
-  <p class="lead">Single-file offline apps cannot load code from a server, must run on cheap phones, and every kilobyte is downloaded by everyone. Most libraries assume a build step, a network and a fast device. A module is kept only if it does something the nearest open-source option does not, or does it measurably better, and its README says where the other one wins.</p>
+  <p class="lead">Single-file offline apps cannot load code from a server, so any library has to be copied into the file, and its size is part of every download. These modules are plain files with no build step and no dependencies. A module is kept only if it does something the nearest open-source option does not, or does it measurably better, and its README says where the other one wins.</p>
   <h3>Where it helps</h3>
   <ul class="lead uses">
     <li>Offline or single-file web apps and games.</li>
     <li>One specific fix without adopting a framework.</li>
-    <li>Low-end phones, where memory and download size are tight.</li>
+    <li>Pages where download size and memory matter.</li>
     <li>Data-heavy pages (maps, charts, logs) that need compact storage.</li>
     <li>Higher-end hardware and larger projects: because the code is efficient, it scales up with the project as far as modern browsers allow.</li>
   </ul>
@@ -144,6 +144,9 @@ footer a{margin-right:16px}
     <div class="tile"><h3>Gives memory back</h3><p>The heavy modules hand memory back after big jobs, by a trim() call or an idle timer.</p></div>
     <div class="tile"><h3>Tested in three browsers</h3><p>Firefox, Chromium and WebKitGTK. Every release names the versions it ran in.</p></div>
     <div class="tile"><h3>Works with AI helpers</h3><p>AGENTS.md, llms.txt and modules.json describe every piece for people and assistants.</p></div>
+    <div class="tile"><h3>Files other languages can open</h3><p>lfc-pack files are read by Python and Go as well as the browser, so data packed in a page is not locked in.</p></div>
+    <div class="tile"><h3>Safe saves in 966 bytes</h3><p>save-kit-lite keeps checked fields and a backup slot in 966 bytes minified and gzipped, for small games.</p></div>
+    <div class="tile"><h3>Big Excel files, faster</h3><p>zip-open opens Excel files over 16 MB on the page 3 to 24% faster (cloud Firefox, Chromium, WebKitGTK), with the same results.</p></div>
     <div class="tile"><h3>Numbers you can check</h3><p>Every number names the browser and machine it ran on, and slower cases are stated.</p></div>
   </div>
 </div></section>
@@ -175,7 +178,7 @@ footer a{margin-right:16px}
       <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:36.5%"><span>20.9 MB</span></div></div></div>
       <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:34.9%"><span>20.0 MB</span></div></div></div>
       <div class="row"><span>memory-compression</span><div class="track"><div class="bar us out" style="width:13.7%"><span>7.85 MB</span></div></div></div>
-      <p class="note">Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6 and GNOME Web 46.5. It loses on download size: about 116 KB gzipped in 2.8.2 against 11 KB for msgpackr.</p>
+      <p class="note">Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6. It loses on download size: about 116 KB gzipped in 2.8.2 against 11 KB for msgpackr.</p>
     </div>
     <div>
       <h3>text-columns: read 200,000 CSV rows (ms, lower is better)</h3>

@@ -2,7 +2,7 @@
 
 **Version 1.1.0 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time (tests/small-lean-browser.js: 0 failures in each of the four; Chromium and Firefox used the real CloseWatcher with the real Escape key and the browser's own wake lock; WebKitGTK and GNOME Web have no CloseWatcher, so 3 back-close situations say 'not available', and they refuse the wake lock request (NotAllowedError), so their 6 wake-keeper situations ran with a stand-in lock). Not run: a phone, Safari itself; node modules/wake-keeper/test/lean.js 12 of 12, 42 older Node checks
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time (tests/small-lean-browser.js: 0 failures in each of the three; Chromium and Firefox used the real CloseWatcher with the real Escape key and the browser's own wake lock; WebKitGTK have no CloseWatcher, so 3 back-close situations say 'not available', and they refuse the wake lock request (NotAllowedError), so their 6 wake-keeper situations ran with a stand-in lock). Not run: a phone, Safari itself; node modules/wake-keeper/test/lean.js 12 of 12, 42 older Node checks
 
 ## What it is and how it works
 
@@ -71,7 +71,7 @@ Test it: `node modules/wake-keeper/test/run.js` (fake browser, 42 checks).
 | `callbacks` | the `onChange` and `onRefused` options |
 | `inject` | the `nav`, `doc` and `now` options (fakes for tests) |
 
-`refusalBackoffMs` is never cut. Fancy Banana's set (all four cut) keeps `create({ refusalBackoffMs: 8000 })`, `want()`, `destroy()` and `supported`: 1,417 bytes minified, 660 gzipped, against 2,648 and 1,105 for the whole file (46% and 40% smaller; lower is smaller). Fancy's own inline code is about 566 bytes, so the lean build is about 2.5 times that.
+`refusalBackoffMs` is never cut. Fancy Banana's set (all three cut) keeps `create({ refusalBackoffMs: 8000 })`, `want()`, `destroy()` and `supported`: 1,417 bytes minified, 660 gzipped, against 2,648 and 1,105 for the whole file (46% and 40% smaller; lower is smaller). Fancy's own inline code is about 566 bytes, so the lean build is about 2.5 times that.
 
 `node modules/wake-keeper/test/lean.js` (about 1.6 s) builds the full file, Fancy's set (with and without comments) and each part cut alone, and runs the situation table from `tests/small-lean-battery.js` on each with a fake navigator, document and clock: run starts (lock requested), tab hidden (released), tab back (requested again), run ends (released), request refused (no new request for 8 s, then one more that works), lock released by the browser (requested again the next time the game asks), no wake lock (nothing happens, no error). `node tests/small-lean-browser.js` runs the same table in a real browser; where the browser has no wake lock it says "not available", and where it refuses the request it uses a stand-in lock and says so on the line. `lean.py` edits nothing; keep the `//@begin` / `//@else` / `//@end` marker lines balanced if you change `wake-keeper.js`.
 
@@ -89,7 +89,7 @@ Much smaller than NoSleep.js and larger than the plain request-and-listen code; 
 Where it loses:
 - Larger than the plain MDN code (the smallest set, 1,417 bytes minified, is about 2.5 times Fancy's inline code of about 566 bytes), in exchange for being shared and tested.
 - No fallback for browsers without the Wake Lock API (NoSleep.js has one). Without `navigator.wakeLock`, `supported` is `false` and nothing happens.
-- Not tried on a phone: the real lock was used only in Chromium and Firefox; WebKitGTK and GNOME Web refuse the request, so a stand-in lock was used there.
+- Not tried on a phone: the real lock was used only in Chromium and Firefox; WebKitGTK refuse the request, so a stand-in lock was used there.
 - Not measured: speed in any browser.
 
 ## What it is not

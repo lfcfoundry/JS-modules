@@ -71,7 +71,7 @@ curtains.prepare()                    // paints the velvet in small slices of id
 
 **What.** The pixel loop that paints the velvet (the hot part of `prepare()`) also exists as a 2,567-byte WebAssembly function (SIMD, four pixels per step, since 1.4.0), embedded in `stage-curtains.js`. It paints the same picture to within the module's picture gate (see below), 16 rows at a time, and `StageCurtains.wasmAvailable()` says whether the browser lets it run. The painter reports `engine` as `'wasm'` or `'js'`.
 
-**Why.** On a freshly loaded page one phone-size curtain half (295,475 pixels) paints about 1.4 to 1.6 times as fast: 23.9 to 17.0 ms in Chromium 155, 23.0 to 14.0 ms in Firefox 158.0, 24.0 to 17.0 ms in WebKitGTK 2.52.6 and 30.0 to 21.0 ms in GNOME Web 46.5 (median of three passes of seven fresh pages; lower is better). The picture is identical: 112 curtains, 0 pixels differ in all four browsers, and the same on a page that forbids WebAssembly.
+**Why.** On a freshly loaded page one phone-size curtain half (295,475 pixels) paints about 1.4 to 1.6 times as fast: 23.9 to 17.0 ms in Chromium 155, 23.0 to 14.0 ms in Firefox 158.0 and 24.0 to 17.0 ms in WebKitGTK 2.52.6 (median of three passes of seven fresh pages; lower is better). The picture is identical: 112 curtains, 0 pixels differ in all three browsers, and the same on a page that forbids WebAssembly.
 
 **Faster exact kernel (1.3.1).** The kernel now looks up the per-column values (the position along the curtain, the leading-edge ratio) and the per-fold-column values (hem, shade, sheen, gold base, crease flag) in tables that the page builds once with the same expressions, rounds with integers and clamps without branches. The bytes it paints are unchanged (the same hash as 1.3.0 for a 1280 x 720 curtain, smooth and stepped, in all three test browsers). Main-thread paint of one 1280 x 720 curtain (both halves and the mirror; median of 15 fresh pages; lower is better): Chromium 155 45.6 to 30.0 ms, Firefox 158 40 to 28 ms, WebKitGTK 2.52.6 37 to 27 ms.
 
@@ -89,7 +89,7 @@ curtains.prepare()                    // paints the velvet in small slices of id
 
 ## Background worker (since 1.3.0)
 
-**What.** `create({ worker: true })` paints the velvet in a background worker. The page only hands over the size and color, then puts the finished pixels on the canvas. The worker runs the same code as the page (the WebAssembly loop, or the plain loop when WebAssembly cannot start), so the picture is byte for byte the same: 12 of 12 test curtains match with the worker allowed and 12 of 12 with the worker refused, in all four browsers. The painter reports `engine` as `'worker+wasm'` or `'worker+js'`, and as `'wasm'` or `'js'` when it fell back to the page.
+**What.** `create({ worker: true })` paints the velvet in a background worker. The page only hands over the size and color, then puts the finished pixels on the canvas. The worker runs the same code as the page (the WebAssembly loop, or the plain loop when WebAssembly cannot start), so the picture is byte for byte the same: 12 of 12 test curtains match with the worker allowed and 12 of 12 with the worker refused, in all three browsers. The painter reports `engine` as `'worker+wasm'` or `'worker+js'`, and as `'wasm'` or `'js'` when it fell back to the page.
 
 **Why.** One phone-size curtain half no longer holds up the page. Page busy time (milliseconds of the page's own work to get both halves painted; lower is better) and the longest single stall (lower is better), median of seven fresh pages, main thread now → worker:
 
@@ -101,7 +101,6 @@ Since 1.4.1 the page puts a half on its canvas the moment the worker's pixels ar
 | Chromium 155 | 24.8 → 5.9 | 8.3 → 2.6 | 25.3 → 49.1 |
 | Firefox 158.0 | 21 → 5 | 9 → 2 | 23 → 41 |
 | WebKitGTK 2.52.6 | 23 → 3 | 9 → 1 | 26 → 42 |
-| GNOME Web 46.5 | 36 → 7 | 10 → 4 | 37 → 53 |
 
 Starting the worker costs time, so a curtain painted the moment the page loads is ready 16 to 24 ms later than before. Call `StageCurtains.startWorker()` early (for example when the page starts, before you need a curtain) and the cost mostly goes away; the same test with the worker started 150 ms earlier:
 
@@ -110,7 +109,6 @@ Starting the worker costs time, so a curtain painted the moment the page loads i
 | Chromium 155 | 25 → 3.9 | 8.3 → 1.9 | 25.4 → 33.4 |
 | Firefox 158.0 | 22 → 4 | 9 → 3 | 24 → 29 |
 | WebKitGTK 2.52.6 | 24 → 4 | 9 → 3 | 28 → 37 |
-| GNOME Web 46.5 | 35 → 3 | 10 → 2 | 36 → 39 |
 
 **Rules.**
 - Needs `worker-src blob:` beside `'wasm-unsafe-eval'` if your page has a Content Security Policy. If the worker is refused or fails for any reason (no Worker, a blocked blob, an error), the page paints that half itself from the start; nothing is shown to the user and the worker is not tried again.
@@ -118,7 +116,7 @@ Starting the worker costs time, so a curtain painted the moment the page loads i
 - Off by default: with no `worker` option the module never touches `Worker`, and the 1.2.0 behavior and numbers stay as they were.
 - Costs bytes: +2,422 minified and +951 gzipped (smaller is better; 19,284 to 21,706 and 8,322 to 9,273). The worker's source is built from the painter's own text, so the painter exists once.
 
-**Honest limits.** The picture is ready later, not sooner: the win is a free page, not a faster curtain. GNOME Web is the slowest to start a worker (53 ms to ready when started cold). Phones were not measured.
+**Honest limits.** The picture is ready later, not sooner: the win is a free page, not a faster curtain. Phones were not measured.
 
 ## The bug it fixes
 
