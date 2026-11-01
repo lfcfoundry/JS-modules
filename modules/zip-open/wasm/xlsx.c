@@ -93,11 +93,12 @@ static u8 *field(u8 *o, u8 *oe, const u8 *p, u32 n, int amp) {
 }
 
 /* <si><t>text</t></si> list -> T. Returns the count, or -1 for any other shape. */
-int sst(const u8 *x, u32 n, u32 *tab, u32 cap) {
-  u32 pos = 0, k = 0, cnt = 0; T = tab; S = x;
-  while (pos + 3 <= n && !(x[pos] == '<' && x[pos + 1] == 's' && x[pos + 2] == 'i')) { if (x[pos] == '<' && x[pos + 1] == '!') return -1; pos++; }
-  if (pos + 3 > n) return -1;
+/* sst() reads the strings a piece at a time for the same reason as rowsPart() below. */
+#define MORE (-9)
+__attribute__((noinline)) static int sstPart(const u8 *x, u32 n, u32 *tab, u32 cap, u32 *ppos, u32 *pcnt, u32 stop) {
+  u32 pos = *ppos, cnt = *pcnt, k;
   for (;;) {
+    if (pos >= stop) { *ppos = pos; *pcnt = cnt; return MORE; }
     while (pos < n && x[pos] != '<') pos++;
     if (pos >= n) return -1;
     if (n - pos >= 7 && x[pos+1]=='s' && x[pos+2]=='i' && x[pos+3]=='>' && x[pos+4]=='<' && x[pos+5]=='t' && x[pos+6]=='>') pos += 7;
@@ -120,6 +121,13 @@ int sst(const u8 *x, u32 n, u32 *tab, u32 cap) {
     tab[cnt * 2] = st; tab[cnt * 2 + 1] = (pos - st) | (amp ? 0x80000000u : 0); cnt++;
     pos += 9;
   }
+}
+int sst(const u8 *x, u32 n, u32 *tab, u32 cap) {
+  u32 pos = 0, cnt = 0; int r; T = tab; S = x;
+  while (pos + 3 <= n && !(x[pos] == '<' && x[pos + 1] == 's' && x[pos + 2] == 'i')) { if (x[pos] == '<' && x[pos + 1] == '!') return -1; pos++; }
+  if (pos + 3 > n) return -1;
+  while ((r = sstPart(x, n, tab, cap, &pos, &cnt, pos + 262144)) == MORE) { }
+  return r;
 }
 
 void nosst(void) { tn = 0; }
@@ -168,22 +176,23 @@ static int canonical(const u8 *v, u32 n) {
 }
 
 /* Sheet bytes -> CSV bytes. xf: one byte per style number, 1 = a date style. Returns the CSV length, -1 = use JavaScript, -2 = out of room. */
-int sheet(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap, u32 *fx, u32 fcap, u32 maxRows) {
-  int sd = findFrom(x, n, 0, "<sheetData"), r0 = findFrom(x, n, 0, "<row"), c0 = findFrom(x, n, 0, "<c ");
-  u32 pos, lt, gt, k, q, rows = 0; u8 *o = out, *oe = out + cap, *lineStart = 0, *rowStart = 0; int lastCol = -1, lastW = -1, inRow = 0, rowHas = 0;
-  fix = fx; fixcap = fcap; nfix = 0;
-  if (sd < 0 || r0 < sd || c0 < sd) return -1;   /* like the JavaScript reader: no <row or no <c at all, or one before <sheetData: general reader */
-  for (pos = (u32)sd; pos < n && x[pos] != '>'; pos++) ;
-  if (pos >= n || x[pos - 1] == '/') return -1;
-  pos++;
+/* The rows, a piece at a time: rowsPart() returns MORE at the first row that starts past stop, and sheet() calls it
+   again. Browsers first run quick-to-compile code and swap in optimized code only when a function is called again,
+   so one long call would stay on the slow code for the whole sheet (measured: the first open of a big file took
+   about twice as long as the second). */
+typedef struct { const u8 *x, *xf; u32 n, xn, d1904, maxRows, pos, rows; u8 *out, *o, *oe, *rowStart; int lastCol, lastW, inRow, rowHas; } Sh;
+__attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
+  const u8 *x = sh->x, *xf = sh->xf; u32 n = sh->n, xn = sh->xn, d1904 = sh->d1904, maxRows = sh->maxRows, pos = sh->pos, rows = sh->rows, lt, gt, k, q;
+  u8 *out = sh->out, *o = sh->o, *oe = sh->oe, *rowStart = sh->rowStart; int lastCol = sh->lastCol, lastW = sh->lastW, inRow = sh->inRow, rowHas = sh->rowHas;
   #define FLUSH() do { if (inRow) { if (!rowHas) o = rowStart; else { rows++; if (rows >= maxRows) return -1; } } inRow = 0; } while (0)
-  #define BEGINROW() do { rowStart = o; if (rows) { if (o >= oe) return -2; *o++ = '\n'; } lineStart = o; inRow = 1; rowHas = 0; lastCol = -1; lastW = -1; } while (0)
+  #define BEGINROW() do { rowStart = o; if (rows) { if (o >= oe) return -2; *o++ = '\n'; } inRow = 1; rowHas = 0; lastCol = -1; lastW = -1; } while (0)
   for (;;) {
     while (pos < n && x[pos] != '<') pos++;
     if (pos >= n) return -1;
     lt = pos;
     u8 ch = lt + 1 < n ? x[lt + 1] : 0;
     if (ch == 'r' && startsWith(x, n, lt + 1, "row") && lt + 4 < n && (x[lt + 4] == ' ' || x[lt + 4] == '>' || x[lt + 4] == '/')) {
+      if (lt >= stop) { sh->pos = lt; sh->rows = rows; sh->o = o; sh->rowStart = rowStart; sh->lastCol = lastCol; sh->lastW = lastW; sh->inRow = inRow; sh->rowHas = rowHas; return MORE; }
       for (gt = lt + 4, q = 0; gt < n && x[gt] != '>'; gt++) { if (x[gt] == '"') q++; else if (x[gt] == '\'' || x[gt] == '<') return -1; }
       if (gt >= n || (q & 1)) return -1;
       FLUSH(); BEGINROW();
@@ -290,4 +299,19 @@ int sheet(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap,
       } else return -1;
     } else return -1;
   }
+  #undef FLUSH
+  #undef BEGINROW
+}
+
+int sheet(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap, u32 *fx, u32 fcap, u32 maxRows) {
+  int sd = findFrom(x, n, 0, "<sheetData"), r0 = findFrom(x, n, 0, "<row"), c0 = findFrom(x, n, 0, "<c ");
+  u32 pos;
+  fix = fx; fixcap = fcap; nfix = 0;
+  if (sd < 0 || r0 < sd || c0 < sd) return -1;   /* like the JavaScript reader: no <row or no <c at all, or one before <sheetData: general reader */
+  for (pos = (u32)sd; pos < n && x[pos] != '>'; pos++) ;
+  if (pos >= n || x[pos - 1] == '/') return -1;
+  pos++;
+  Sh sh = { x, xf, n, xn, d1904, maxRows, pos, 0, out, out, out + cap, 0, -1, -1, 0, 0 }; int r;
+  while ((r = rowsPart(&sh, sh.pos + 262144)) == MORE) { }
+  return r;
 }
