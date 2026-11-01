@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-10-31
+
+### Quick
+load() keeps a parsed counts map that is already clean (every entry a whole number from 1 to its cap, no prototype-pollution key, key under 201 characters, at most maxKeys entries, 32 or more entries) and drops its prototype instead of cop…
+
+### Deep
+load() keeps a parsed counts map that is already clean (every entry a whole number from 1 to its cap, no prototype-pollution key, key under 201 characters, at most maxKeys entries, 32 or more entries) and drops its prototype instead of copying it entry by entry. Anything less clean takes the old copy path, so results are identical (new test with 8 clean and dirty cases). 20 KB save (800 counts entries), load time new/old, early-stop A/B rule: Chromium 155 0.79 (0.79 to 0.81, 4 rounds), Firefox 158 0.82 (0.77 to 0.89), WebKitGTK 2.52.6 0.84 (0.78 to 0.88). 448 B save load new/old 1.00 (0.98 to 1.04, Chromium), 0.90 (Firefox), 1.10 inconclusive (1.00 to 1.21, WebKitGTK; the fast path only starts at 32 entries so this is noise). Save time unchanged (new/old 0.93 to 1.01 except one noisy WebKitGTK 1.20). Memory kept per 20 KB load in Chromium 155: 24,814 bytes old, 24,900 new (same; other browsers cannot measure). Cloud container.
+
 ## 1.5.0 · API 1 · 2026-10-31
 
 ### Quick
