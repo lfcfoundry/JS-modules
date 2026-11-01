@@ -2,7 +2,7 @@
  * gif-writer-fx.js, an optional companion of gif-writer.js: animation helpers: when each picture of an animation is shown (easing, turns, pauses, reversals, exact GIF delays),
  * when names show, and picture filters (color grading, blur, sharpen, glow, vignette). No DOM; runs in the page, in a worker and in Node.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules. Cut from Netflow Map. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.6.1 (API 1)
+ * Version 1.6.2 (API 1)
  */
 var GifWriterFx = (function () {
   'use strict';
@@ -149,7 +149,7 @@ var GifWriterFx = (function () {
   function initWasm() {
     if (wx) return Promise.resolve(true);
     if (!WASM_B64 || typeof WebAssembly === 'undefined' || typeof atob !== 'function') return Promise.resolve(false);
-    var bin = atob(WASM_B64), bytes = new Uint8Array(bin.length), i; for (i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var bin, bytes, i; if (typeof Uint8Array.fromBase64 === 'function') bytes = Uint8Array.fromBase64(WASM_B64); else { bin = atob(WASM_B64); bytes = new Uint8Array(bin.length); for (i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); }
     return WebAssembly.instantiate(bytes, {}).then(function (r) { wx = r.instance.exports; return true; }, function () { return false; });
   }
   function wasmReady() { return !!wx; }

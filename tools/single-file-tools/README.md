@@ -1,8 +1,8 @@
 # single-file-tools
 
-**Version 1.2.0 · API 1**
+**Version 1.2.1 · API 1**
 
-**Tested in:** Python 3 test file: 21 checks pass, 1 skipped (svgo not installed). No browser run for this change; the packed loader is unchanged.
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

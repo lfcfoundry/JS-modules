@@ -2,7 +2,7 @@
  * netflow-layers.js: lay out a graph in rows (a Sugiyama-style layered drawing): top to bottom or left to right, with long links as tags, story order, a column for the pages every route passes, and tall maps cut into columns. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.7.0 (API 1)
+ * Version 1.7.1 (API 1)
  *
  *   var R = NetflowLayers.layout({ nodes: [{ id: "start", w: 140, h: 44 }, { id: "a", w: 140, h: 44 }], edges: [{ from: "start", to: "a" }], root: "start" }, { dir: "TB" });
  *   svgElement.innerHTML = NetflowLayers.toSvg(R);          // or draw R.nodes and R.edges yourself (see README)
@@ -20,6 +20,7 @@
   /* deep: true: the deeper crossing search (max rounds, rounds with no gain before it stops, swap passes a row, most stops it runs on) */
   var DEEP = { max: 80, stall: 4, tg: 50, maxStops: 20000, liteMax: 12, liteStall: 2 };   // lite*: the lighter search that runs when deep is left out
   function wasmBytes() {
+    if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(WASM.b64);
     var t = typeof atob === 'function' ? atob(WASM.b64) : Buffer.from(WASM.b64, 'base64').toString('latin1'), b = new Uint8Array(t.length), i;
     for (i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
     return b;
@@ -629,5 +630,5 @@
     return out.join('\n');
   }
 
-  return { version: '1.7.0', wasm: WASM, _deep: DEEP, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
+  return { version: '1.7.1', wasm: WASM, _deep: DEEP, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
 }));

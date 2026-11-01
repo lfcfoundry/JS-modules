@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.5 · API 0 · 2026-10-31
+- Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
+
 ## 0.6.4 · API 0 · 2026-10-31
 - Parsing big files with number columns again is 1 to 17% faster (45 MB, three browsers): the page prepares the number arrays for the next parse in idle time.
 

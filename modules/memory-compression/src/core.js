@@ -118,6 +118,7 @@
   var idleHook = null;                                    // set by the object layer: called when WebAssembly memory has grown, so it can be given back when things are quiet
   var W = null, wasmState = 'idle', wasmReadyPromise = null, wasmOff = false, WMOD = null;
   function b64decode(str) {
+    if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(str);
     var tab = new Uint8Array(128), i, n = 0, bits = 0, acc = 0, out;
     for (i = 0; i < 64; i++) tab['ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.charCodeAt(i)] = i;
     out = new Uint8Array(((str.length * 3) >> 2) + 3);

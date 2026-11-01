@@ -133,9 +133,9 @@ Curtains, flying elements, lettering and 3D-looking sprites.
 |---|---|---:|---:|---|---|
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 | 50.3 | 20.6 | A written style guide and demo for the soft, glossy cartoon 3D look in CSS and SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/cartoon-3d-kit/demo.html) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 | 18.1 | 6.3 | A big element scrolls away and a copy flies to its sticky mini version. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fly-to-mini/demo.html) |
-| [gpu-blur](modules/gpu-blur/README.md) | 1.3.1 | 60.2 | 18.7 | Blurs a picture on the card (WebGL 2), in WebAssembly or plain JavaScript; same picture every way. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gpu-blur/demo.html) |
-| [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 | 54.6 | 18.0 | Tiny software 3D rasterizer that bakes shaded sprites to canvases. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sprite-baker/demo.html) |
-| [stage-curtains](modules/stage-curtains/README.md) | 1.4.1 | 47.4 | 16.9 | Velvet stage curtains that slide shut over a page and fly open. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/stage-curtains/demo.html) |
+| [gpu-blur](modules/gpu-blur/README.md) | 1.3.2 | 60.3 | 18.7 | Blurs a picture on the card (WebGL 2), in WebAssembly or plain JavaScript; same picture every way. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gpu-blur/demo.html) |
+| [sprite-baker](modules/sprite-baker/README.md) | 1.7.2 | 54.6 | 18.0 | Tiny software 3D rasterizer that bakes shaded sprites to canvases. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sprite-baker/demo.html) |
+| [stage-curtains](modules/stage-curtains/README.md) | 1.4.2 | 47.5 | 17.0 | Velvet stage curtains that slide shut over a page and fly open. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/stage-curtains/demo.html) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 | 5.0 | 2.1 | Die-cut sticker lettering in plain CSS, no images. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sticker-text/demo.html) |
 
 #### Games - Controls
@@ -188,11 +188,11 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [elias-fano](modules/elias-fano/README.md) | 1.8.0 | 74.1 | 24.4 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
+| [elias-fano](modules/elias-fano/README.md) | 1.8.1 | 74.2 | 24.5 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.12 | 772.2 | 246.9 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
-| [memory-compression](modules/memory-compression/README.md) | 2.10.0 | 401.4 | 116.7 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
-| [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
-| [text-columns](modules/text-columns/README.md) | 0.6.4 | 62.8 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
+| [memory-compression](modules/memory-compression/README.md) | 2.10.1 | 401.6 | 116.8 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.1 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
+| [text-columns](modules/text-columns/README.md) | 0.6.5 | 62.9 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
 #### Graphs and simulation
 
@@ -200,8 +200,8 @@ Walk graphs (shortest paths, centrality, communities) and simulate random walker
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [graph-walk](modules/graph-walk/README.md) | 0.11.0 | 98.0 | 30.9 | Graph walks in typed arrays: distances, loops, shortest paths, centrality, communities. | — |
-| [walker-sim](modules/walker-sim/README.md) | 2.4.0 | 73.4 | 24.0 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
+| [graph-walk](modules/graph-walk/README.md) | 0.11.1 | 98.1 | 30.9 | Graph walks in typed arrays: distances, loops, shortest paths, centrality, communities. | — |
+| [walker-sim](modules/walker-sim/README.md) | 2.4.1 | 73.6 | 24.1 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
 
 #### Visualization
 
@@ -210,10 +210,10 @@ Draw maps, flow charts and animated pictures from data.
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 | 30.9 | 9.7 | Turns pictures into an MP4 or WebM video file. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/clip-writer/demo.html) |
-| [gif-writer](modules/gif-writer/README.md) | 1.6.1 | 44.1 | 17.2 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
+| [gif-writer](modules/gif-writer/README.md) | 1.6.2 | 44.2 | 17.2 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.3 | 205.4 | 64.3 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.7.0 | 55.8 | 19.6 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.0 | 63.1 | 22.6 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.7.1 | 55.9 | 19.6 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.1 | 63.2 | 22.6 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.1 | 114.7 | 36.9 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |
 
 #### Size and packaging
@@ -222,11 +222,11 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 | 22.2 | 8.7 | LZMA decoder: WebAssembly first, small readable JavaScript fallback; tested against Python's lzma. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/lzma-pack/example/packed-base64.html) |
-| [lzma-pack](tools/lzma-pack/README.md) *(tool)* | 2.0.0 | 27.7 | 10.6 | Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3). | — |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 | 105.7 | 60.5 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 | 45.3 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
-| [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.0 | 47.8 | 14.6 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.3.1 | 22.3 | 8.7 | LZMA decoder: WebAssembly first, small readable JavaScript fallback; tested against Python's lzma. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/lzma-pack/example/packed-base64.html) |
+| [lzma-pack](tools/lzma-pack/README.md) *(tool)* | 2.0.1 | 27.8 | 10.6 | Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3). | — |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 | 105.8 | 60.5 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.1 | 45.5 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
+| [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.1 | 47.8 | 14.6 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
 | [zip-open](modules/zip-open/README.md) | 1.14.0 | 114.2 | 40.0 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 
 ### Story editor packages (10)
