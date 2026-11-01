@@ -1111,7 +1111,7 @@
     if (opts.noLists && nlist) return null;
     // scratch for text columns (hex ids, dictionaries, joined values), laid out only when the block has a text column: number-only blocks keep their wasm memory smaller
     var hasStr = 0, kt0 = new Uint8Array(mem.buffer, P.ktype, nk); for (j = 0; j < nk; j++) if (kt0[j] === 3) hasStr = 1;
-    if (asciiIn && hasStr) { lay('hexL', 4 * NK); lay('hoff', 4 * NK); lay('hex', (len >> 1) + 16); var T2 = 16; while (T2 < cells + 2) T2 *= 2; lay('sht', 8 * T2); lay('kix', 4 * cells); lay('kixo', 4 * NK); lay('scodes', 4 * cells); lay('slab', 4 * cells); lay('sout', len + cells + 16); lay('rj', len + cells + 16); lay('sres', 16); }
+    if (asciiIn && hasStr) { lay('hexL', 4 * NK); lay('hoff', 4 * NK); lay('hex', (len >> 1) + 16); var T2 = 16; while (T2 < nrows + 2) T2 *= 2; lay('sht', 8 * T2); lay('kix', 4 * cells); lay('kixo', 4 * NK); lay('scodes', 4 * nrows + 16); lay('slab', 4 * nrows + 16);   /* a key has at most one value a row (scan rejects repeated keys), so the dictionary scratch is sized by rows */ lay('sout', len + cells + 16); lay('sres', 16); }
     if (asciiIn && hasStr) { if (o > 1610612736) return null; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536)); m8 = new Uint8Array(mem.buffer); }
     var keys = [], ktype = new Uint8Array(mem.buffer, P.ktype, NK), kfd = new Uint8Array(mem.buffer, P.kfd, NK);
     var ckey = new Uint8Array(mem.buffer, P.ckey, nc), cval = new Float64Array(mem.buffer, P.cval, nc), cfd = new Uint8Array(mem.buffer, P.cfd, nc), llen = new Uint32Array(mem.buffer, P.llen, nlist), lval = new Uint32Array(mem.buffer, P.lval, nlv), clen = new Uint32Array(mem.buffer, P.clen, nc), text = null;
@@ -1141,9 +1141,9 @@
       byB[j] = 1; sdD[j] = D2; sdOut[j] = new Uint8Array(mem.buffer, P.sout, new Uint32Array(mem.buffer, P.sres, 1)[0]).slice();
       sdCodes[j] = D2 * 4 > count[j] || D2 >= 65536 ? null : new Uint32Array(mem.buffer, P.scodes, count[j]).slice();
     }
-    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(mem.buffer, P.gout + 8 * goff[j], count[j]).slice(); else if (ktype[j] === 2) { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } else if (hexL[j] > 0) colv[j] = new Uint8Array(mem.buffer, P.hex + hoff[j], count[j] * hexL[j] / 2).slice(); else if (byB[j]) colv[j] = null; else if (ktype[j] === 3 && asciiIn) {   // the column's literals as one JSON array, parsed at once: no whole-input text and no per-value slices (escapes decoded by JSON.parse as before)
+    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(mem.buffer, P.gout + 8 * goff[j], count[j]).slice(); else if (ktype[j] === 2) { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } else if (hexL[j] > 0) colv[j] = new Uint8Array(mem.buffer, P.hex + hoff[j], count[j] * hexL[j] / 2).slice(); else if (byB[j]) colv[j] = null; else if (ktype[j] === 3 && asciiIn) {   // the column's literals as one JSON array (written over the dictionary scratch, already copied out), parsed at once: no whole-input text and no per-value slices (escapes decoded by JSON.parse as before)
         if (!kixo) { W.x.keyix(nc, P.ckey, nk, P.gcnt, P.kix, P.kixo); kixo = new Uint32Array(mem.buffer, P.kixo, nk); }
-        colv[j] = JSON.parse(FSTD.decode(new Uint8Array(mem.buffer, P.rj, W.x.rawjoin(P['in'], P.cval, P.clen, P.kix + 4 * kixo[j], count[j], P.rj)))); byB[j] = 2; }
+        colv[j] = JSON.parse(FSTD.decode(new Uint8Array(mem.buffer, P.sout, W.x.rawjoin(P['in'], P.cval, P.clen, P.kix + 4 * kixo[j], count[j], P.sout)))); byB[j] = 2; }
       else { colv[j] = new Array(count[j]); if (ktype[j] === 3 && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
     var lp = 0, sc, m, v;
     var rest = 0; for (j = 0; j < nk; j++) if (ktype[j] !== 1 && !byB[j]) rest = 1;   // cells the wasm passes did not already gather
