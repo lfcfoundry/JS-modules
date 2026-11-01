@@ -5,10 +5,7 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 1.6.0 · API 1 · 2026-10-31
 
 ### Quick
-New file save-kit-lite.js (SaveKitLite): num, int, flag and str fields, main plus backup slot, refuses broken numbers, load, save, validate, clear.
-
-### Deep
-New file save-kit-lite.js (SaveKitLite): num, int, flag and str fields, main plus backup slot, refuses broken numbers, load, save, validate, clear. 1,680 bytes minified, 890 gzipped, against 3,978 and 1,847 for save-kit with every part cut. 7 Node checks, including 3,000 random damaged slots that give identical answers to create(). Speed against create() on a six-field save: 0.98 to 1.06 in Chromium 155 and Firefox 158 (inconclusive or ok), save 1.06 and load 1.14 in WebKitGTK 2.52.6. save-kit.js itself is unchanged.
+New file save-kit-lite.js (SaveKitLite): num, int, flag and str fields, main plus backup slot, refuses broken numbers, load, save, validate, clear. 1,811 bytes minified, 966 gzipped, against 3,978 and 1,847 for save-kit with every part cut. 7 Node checks, including 3,000 random damaged slots that give identical answers to create(). Speed against create() on a six-field save (lite/full): Chromium 155 save 0.98, load 0.91; Firefox 158 save 1.01, load 0.95; WebKitGTK 2.52.6 save 0.89, load 0.97; none slower than 5%. save-kit.js itself is unchanged except its version header.
 
 ## 1.5.2 · API 1 · 2026-10-31
 

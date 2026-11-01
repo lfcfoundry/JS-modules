@@ -13,21 +13,23 @@ var SaveKitLite = function (o) {
   if (!ls) { try { ls = typeof localStorage != 'undefined' ? localStorage : null; } catch (e) { ls = null; } }
   function ok(v) { return typeof v == 'number' && isFinite(v) && v >= 0; }
   function isObj(x) { return !!x && typeof x == 'object' && !Array.isArray(x); }
-  var rules = names.map(function (k) { var m = /^(\w+)(?::(\d+))?$/.exec(String(sc[k])) || []; return [m[1], m[2] ? +m[2] : undefined]; }), n = names.length, i;   // read once
+  var rules = names.map(function (k) { var m = /^(\w+)(?::(\d+))?$/.exec(String(sc[k])) || []; return { t: m[1], m: m[2] ? +m[2] : undefined }; }), n = names.length;   // read once
   function field(r, v, d) {
-    var t = r[0], m = r[1];
-    return t == 'num' ? (ok(v) ? v : d)
-      : t == 'int' ? (ok(v) ? Math.min(Math.floor(v), m == null ? Number.MAX_SAFE_INTEGER : m) : d)
-      : t == 'flag' ? (v === 1 ? 1 : v === 0 ? 0 : d === 1 ? 1 : 0)
-      : t == 'str' ? (typeof v == 'string' && v.length <= (m === 0 ? 0 : m || 200) ? v : d == null ? '' : d)
-      : d;
+    switch (r.t) {
+      case 'num': return ok(v) ? v : d;
+      case 'int': return ok(v) ? Math.min(Math.floor(v), r.m == null ? Number.MAX_SAFE_INTEGER : r.m) : d;
+      case 'flag': return v === 1 ? 1 : v === 0 ? 0 : d === 1 ? 1 : 0;
+      case 'str': return typeof v == 'string' && v.length <= (r.m === 0 ? 0 : r.m || 200) ? v : d == null ? '' : d;
+      default: return d;
+    }
   }
   function validate(x) {
-    var r = {}, k; x = isObj(x) ? x : {};
-    for (i = 0; i < n; i++) { k = names[i]; r[k] = field(rules[i], own.call(x, k) ? x[k] : undefined, df[k]); }
+    var r = {}, k, j; x = isObj(x) ? x : {};
+    for (j = 0; j < n; j++) { k = names[j]; r[k] = field(rules[j], own.call(x, k) ? x[k] : undefined, df[k]); }
     return r;
   }
-  function bad(x) { var c = 0, t, j; for (j = 0; j < n; j++) { t = rules[j][0]; if ((t == 'num' || t == 'int') && x[names[j]] !== undefined && !ok(x[names[j]])) c++; } return c; }
+  var sound = names.filter(function (k, j) { return rules[j].t == 'num' || rules[j].t == 'int'; }), ns = sound.length;
+  function bad(x) { var c = 0, j, v; for (j = 0; j < ns; j++) { v = x[sound[j]]; if (v !== undefined && !ok(v)) c++; } return c; }
   function read(slot) { try { var x = JSON.parse(ls.getItem(slot)); return isObj(x) ? x : null; } catch (e) { return null; } }
   return {
     validate: validate,
