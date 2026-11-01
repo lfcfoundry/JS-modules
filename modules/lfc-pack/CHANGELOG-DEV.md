@@ -8,7 +8,7 @@ What changed in each version, newest first, for developers, in three depths: Qui
 Two LFCP-thread changes.
 
 ### Deep
-Two LFCP-thread changes. 68f4067: log template slots keep hex ids whole (RX_SLOT in src/flat.js). Laptop pack time vs 0.4.12: Firefox 160 logs 0.860 / 0.879 (256 KB), events 0.989; Chromium 156 logs 0.875 / 0.902, events 0.994; cloud WebKitGTK 0.95. 770a129 (on c69665c): with ASCII input, lowercase hex id string columns of one even length of 16 or more are checked and packed inside flatscan.wasm (new export hexcols()) straight from the input bytes, so no JS strings are made. Laptop Firefox 160, B/A: events default 0.655, events 256 KB 0.838, logs 0.993, sensor 1.017. Byte-identical output on 15 of 15 files plus non-ASCII and mixed edge cases.
+Two LFCP-thread changes. 68f4067: log template slots keep hex ids whole (RX_SLOT in src/flat.js). Laptop pack time vs 0.4.12: Firefox 160 logs 0.860 / 0.879 (256 KB), events 0.989; Chromium 156 logs 0.875 / 0.902, events 0.994; cloud WebKitGTK 0.95. 770a129 (on c69665c): with ASCII input, lowercase hex id string columns of one even length of 16 or more are checked and packed inside flatscan.wasm (new export hexcols()) straight from the input bytes, so no JS strings are made. Laptop Firefox 160, B/A: events default 0.655, events 256 KB 0.838, logs 0.993, sensor 1.017; Chromium 156 events 0.821 / 0.866, logs 1.018, sensor 0.927; cloud WebKitGTK flat. Byte-identical output on 15 of 15 files plus non-ASCII and mixed edge cases.
 
 ## 0.4.13 · API 0 · 2026-10-31
 
