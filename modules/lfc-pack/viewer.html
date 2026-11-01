@@ -809,7 +809,9 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
   }
   function jsonText(x) { return hasNegZero(x) ? jsonx(x) : JSON.stringify(x); }
   // ---- log templates: digit and long-hex runs become slots; the template text, template ids, pooled numeric slots and pooled text slots are separate streams
-  var RX_SLOT = /-?\d+|[0-9a-f]{8,}/g, RX_CANON = /^(-?[1-9]\d{0,14}|0)$/;
+  // template slots: a run of 8 or more lowercase hex characters with at least one letter is one slot (tried first), any other number is a number slot.
+  // (Trying digits first split ids like 1789c0bf1b into 1789, c, 0, bf, 1, b: 7,159 templates instead of 1 on the logs sample.)
+  var RX_SLOT = /(?=[0-9a-f]{8,})[0-9a-f]*[a-f][0-9a-f]*|-?\d+/g, RX_CANON = /^(-?[1-9]\d{0,14}|0)$/;
   // auto mode only: templates can only be smaller when many values share a template, so look at up to 512 evenly spaced values first (near-unique columns skip the full pass, which cost half of the flat pack time on a 40-key set)
   function templatesPlausible(v) {
     var n = v.length, step = Math.max(1, Math.floor(n / 512)), seen = new Set(), c = 0, i;
