@@ -340,7 +340,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
   var KIND = [Uint8Array, Uint16Array, Uint32Array, Int8Array, Int16Array, Int32Array, Float64Array];
   function colKind(c) {
     var mn = Infinity, mx = -Infinity, i, x;
-    for (i = 0; i < c.length; i++) { x = c[i]; if (x !== Math.floor(x) || x === Infinity || x === -Infinity || (x === 0 && 1 / x < 0)) return 6; if (x < mn) mn = x; if (x > mx) mx = x; }
+    for (i = 0; i < c.length; i++) { x = c[i]; if ((x | 0) !== x) { if (x !== Math.floor(x) || x === Infinity || x === -Infinity) return 6; } else if (x === 0 && 1 / x < 0) return 6; if (x < mn) mn = x; if (x > mx) mx = x; }   // int32 values take the cheap test
     if (mn >= 0) return mx < 256 ? 0 : mx < 65536 ? 1 : mx < 4294967296 ? 2 : 6;
     return mn >= -128 && mx < 128 ? 3 : mn >= -32768 && mx < 32768 ? 4 : mn >= -2147483648 && mx < 2147483648 ? 5 : 6;
   }
