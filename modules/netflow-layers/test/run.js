@@ -1,7 +1,11 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. netflow-layers checks: the old drawing is untouched with every option off (pinned fingerprints made by Netflow Map's own layered engine),
  * story order, tags, the must-pass column, harder untangling, columns, step numbers, lanes, the SVG, and that the input is never changed. Run: node modules/netflow-layers/test/run.js */
 'use strict';
-const NL = require('../netflow-layers.js'), crypto = require('crypto');
+const NL0 = require('../netflow-layers.js'), crypto = require('crypto');
+/* Since 1.7.0 a left-out deep / rows means the lighter search and both row choices. The checks below pin the pictures from before that,
+   so they fill in deep: false and rows: 'route' (the old default) unless a check sets them; NL0 is the module as callers get it. */
+const OLD = (o) => { const c = Object.assign({}, o || {}); if (c.deep === undefined) c.deep = false; if (c.rows === undefined) c.rows = 'route'; return c; };
+const NL = Object.assign(Object.create(NL0), { layout: (g, o) => NL0.layout(g, OLD(o)), layered: (G, o) => NL0.layered(G, OLD(o)) });
 let bad = 0;
 const ok = (c, m) => { if (!c) throw new Error(m); };
 const t = (name, fn) => { const t0 = Date.now(); try { const r = fn(); console.log('ok   ' + name + ' (' + (Date.now() - t0) + ' ms)' + (r ? ' ' + r : '')); } catch (e) { bad++; console.log('FAIL ' + name + ': ' + e.message); } };
@@ -190,5 +194,17 @@ t('1.6.0 deep: maps over 20,000 stops keep the old search (the same picture as w
 t('wasm: the embedded bytes are the ones wasm/order.wasm holds (rebuild with sh wasm/build.sh, then python3 wasm/embed.py)', () => {
   const fs = require('fs'), src = fs.readFileSync(require.resolve('../netflow-layers.js'), 'utf8'), b64 = /WASM:order:BEGIN\*\/'([^']*)'/.exec(src)[1];
   ok(Buffer.from(b64, 'base64').equals(fs.readFileSync(require('path').join(__dirname, '..', 'wasm', 'order.wasm'))), 'embedded bytes differ from wasm/order.wasm'); return Buffer.from(b64, 'base64').length + ' bytes';
+});
+t('1.7.0 default (lighter search, both row choices): never more crossings than the old default; wasm on and off agree; deep: false + rows: route and orderRounds: 0 keep the old picture', () => {
+  let n = 0, fewer = 0;
+  const maps = []; for (let i = 0; i < 10; i++) maps.push(graph(story(20 + i * 25, 30 + i))); for (let i = 0; i < 8; i++) maps.push(graph(dag(15 + i * 30, 2 * (15 + i * 30), 60 + i)));
+  maps.forEach((g, i) => ['LR', 'TB'].forEach((d) => {
+    const old = NL0.layout(g, { dir: d, deep: false, rows: 'route' }), now = NL0.layout(g, { dir: d });
+    ok(now.crossings <= old.crossings, 'map ' + i + ' ' + d + ': ' + old.crossings + ' to ' + now.crossings); if (now.crossings < old.crossings) fewer++;
+    NL0.wasm.on = false; const js = NL0.layout(g, { dir: d }); NL0.wasm.on = true; ok(fp(js) === fp(now), 'map ' + i + ' ' + d + ': wasm and JS differ');
+    ok(fp(NL0.layout(g, { dir: d, orderRounds: 0 })) === fp(NL.layout(g, { dir: d, orderRounds: 0 })), 'map ' + i + ' ' + d + ': orderRounds 0 changed');
+    n++;
+  }));
+  return n + ' maps, ' + fewer + ' with fewer crossings';
 });
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);

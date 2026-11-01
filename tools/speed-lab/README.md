@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-A one-button speed test for a page, run on the device that has the problem. 7.7 KB gzipped.
+A one-button speed test for a page, run on the device that has the problem. 7.4 KB gzipped.
 
 - You describe steps as data: nothing moving, everything moving, everything with one part off.
 - It runs them in turn, keeps the measured part in view, and redoes a disturbed step.
