@@ -180,3 +180,14 @@ EXPORT("strdict") u32 strdict(const u8*in,u32 nc,const u8*ckey,const double*cval
   else for(i=0;i<D;i++){ if(i) out[o++]=0; u32 c2=lab[i]; s=(u32)cval[c2]; L=clen[c2]; for(q=0;q<L;q++) out[o++]=in[s+q]; }
   res[0]=o; return D;
 }
+// per-key cell counts and list item totals, and every number column gathered into its own run of doubles at out+offs[k] (scaled to the column's fraction digits as the writer
+// stores them). Returns 1 when a scaled value is 2^50 or more in size, which the fast path does not write.
+static const u32 FDT[10]={0,2,2,3,4,5,6,7,8,9}; static u32 GWP[MAXK];
+EXPORT("gather") u32 gather(u32 nc,const u8*ckey,const double*cval,const u8*cfd,const u8*ktype,const u8*kfd,u32 nk,const u32*llen,u32*count,u32*tot,u32*offs,double*out){
+  u32 i,j,o=0;
+  for(j=0;j<nk;j++){ count[j]=0; tot[j]=0; }
+  for(i=0;i<nc;i++){ j=ckey[i]; count[j]++; if(ktype[j]==2) tot[j]+=llen[(u32)cval[i]]; }
+  for(j=0;j<nk;j++){ offs[j]=GWP[j]=o; if(ktype[j]==1) o+=count[j]; }
+  for(i=0;i<nc;i++){ j=ckey[i]; if(ktype[j]!=1) continue; double v=cval[i]*P10[FDT[kfd[j]]-cfd[i]]; if(!(v<1125899906842624.0&&v>-1125899906842624.0)) return 1; out[GWP[j]++]=v; }
+  return 0;
+}
