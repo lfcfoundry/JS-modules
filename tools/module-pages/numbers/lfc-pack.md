@@ -274,3 +274,12 @@ Cloud WebKitGTK 2.52.6: 0.4.11 within noise; 0.4.12's key-order step 0.88 to 1.0
 | Events with long hex ids, 256 KB blocks | 0.84 | 0.87 |
 
 Cloud WebKitGTK 2.52.6: logs 0.95, hex columns about the same.
+
+**New in 0.4.15: more of packing runs in WebAssembly.** Text columns with few distinct values, counts and number columns are now built in WebAssembly, and log template slots are found in one pass. Files are byte-identical. Laptop (Windows, 16 cores, screen scale 1.25), single runs with apps open, 2026.10.31 11:10 PM ET. Pack time, new / 0.4.14, lower is better:
+
+| Data | Firefox 160 | Chromium 156 |
+|---|---:|---:|
+| Events, default blocks | 0.80 | 0.75 |
+| Events, 256 KB blocks | 0.86 | 0.82 |
+| Logs, default blocks | 0.84 | 0.90 |
+| Sensor, default blocks | 0.93 | 0.85 |

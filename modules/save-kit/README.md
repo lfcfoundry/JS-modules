@@ -128,11 +128,11 @@ It reads and writes the same stored text as `create()` and gives the same answer
 
 - **Survives a damaged save.** Of five options tested (save-kit, JSON with zod, plain JSON, idb-keyval, localForage), it is the only one that refuses a bad write (a `NaN` from a bug) and still opens a save whose text was cut off, has one count of the wrong type, or carries a `__proto__` key. The results are the same in all three test browsers.
 - **Faster than checking with zod.** It is 1.4 to 5.5 times as fast on every save and load measured, against `localStorage` with JSON and zod. Where zod throws and loads nothing, save-kit loads the backup.
-- **No database wait for small saves.** It is over 100 times as fast as idb-keyval and localForage for a 448-byte save, and 2 to 25 times as fast for 20 KB, because `localStorage` answers at once.
+- **No database wait for small saves.** It is about 90 to 250 times as fast as idb-keyval and localForage for a 448-byte save, and 2 to 25 times as fast for 20 KB, because `localStorage` answers at once.
 - **Small.** The core with checks and backup is 1.8 KB minified and gzipped, against 9.1 KB for localForage and 14.1 KB for zod bundled whole. The full file, with codes, big saves and the crash copy, is 6.1 KB in the lean build. Since 1.6.0, `save-kit-lite.js` keeps checked fields and a backup slot in 966 bytes, about 2.6 times idb-keyval's 370.
 - **The price.** Next to a bare `JSON.stringify` into `localStorage` it is 1.1 to 2.9 times slower, which is the cost of the checks. idb-keyval is smaller still (0.4 KB gzipped, against 1.0 KB for the lite file), but it has no checks and no backup.
 
-Measured 2026.11.01 on save-kit 1.5.2 in cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6 (early-stop A/B rule). The tables are in "Speed and efficiency numbers".
+Measured 2026.11.01 on save-kit 1.5.2 in cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6 (early-stop A/B rule), and confirmed on a laptop in Firefox 160 and Chromium 156 (16 cores). The tables are in "Speed and efficiency numbers".
 
 Each field is checked on its own and falls back alone. `__proto__`, `constructor` and `prototype` keys are dropped and counts are capped. A save with a broken number is refused. If the backup write fails because storage is full, the main save still counts and the backup is retried next time. Codes are deflate-squeezed where the browser supports it, only when that is really shorter, and use the browser's own `Uint8Array.toBase64`/`fromBase64` when it exists; words pasted after a code are ignored.
 

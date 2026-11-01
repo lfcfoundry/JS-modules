@@ -47,4 +47,4 @@ The new default draws 3 to 11% fewer crossings than dagre and ELK. It costs time
 | Firefox 158 | 7 to 40 | 39 to 83 |
 | WebKitGTK 2.52.6 | 5 to 31 | 11 to 77 |
 
-dagre took about 0.8 s at 400 items and 7.2 s at 1,000. Laptop runs of 1.7.0: not yet.
+Laptop (16 cores), best of 5, ms, old default to new: Firefox 160 8.0 to 41.0 at 400 items and 19.0 to 104.0 at 1,000; Chromium 156 7.4 to 36.9 and 15.2 to 96.4. That is 5 to 6 times as long as the old picture, still far under dagre, which took about 0.8 s at 400 items and 7.2 s at 1,000 in the cloud.
