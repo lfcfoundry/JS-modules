@@ -70,7 +70,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
         }
         if(p<len&&(in[p]=='e'||in[p]=='E')) BAIL(10);
         if(neg&&m==0) BAIL(11);   // -0
-        if(fd>2) BAIL(12);
+        if(fd>9) BAIL(12);   /* up to 9 fraction digits, as the JSON.parse path's decimal scale */
         if(fd>kmaxfd[id]) kmaxfd[id]=(u8)fd;
         ckey[nc]=(u8)id; cval[nc]=neg?-(double)m:(double)m; cfd[nc]=(u8)fd; clen[nc]=0; nc++;
       } else if(c=='"'){
