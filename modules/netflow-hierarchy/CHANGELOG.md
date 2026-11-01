@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-11-01
+- Treemaps, sunbursts, icicles, packs and trees take an optional title, subtitle and source in the scene options.
+
 ## 1.1.0 · API 1 · 2026-11-01
 - Names on treemap, icicle, sunburst and circle pack shapes pick dark or white text per shape to read at 4.5:1 contrast or better (in test pictures, 2,432 of 19,056 names fell short before, 10 now).
 

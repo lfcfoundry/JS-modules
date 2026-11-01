@@ -37,11 +37,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [netflow-circular](modules/netflow-circular/README.md) | 1.0.1 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.1.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-circular](modules/netflow-circular/README.md) | 1.1.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.9.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.3.4 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.0.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.4.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.1.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.1 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -64,15 +64,19 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-01 · **zip-open** 1.15.2 · API 1: The first file you open in a page opens 8 to 36% faster (big sheets the most); opening it again is about the same. Same results.
 - 2026-11-01 · **zip-open** 1.15.1 · API 1: Zip and Excel files in memory open up to 6% faster in Firefox and up to 3% in Chromium; WebKitGTK about the same. Same results.
 - 2026-11-01 · **zip-open** 1.15.0 · API 1: Zip and Excel files open 3 to 32% faster with a new built-in unzipper that beats the browser's own (cloud Firefox, Chromium, WebKitGTK); with helpers 1 to 23% faster. Same results.
+- 2026-11-01 · **netflow-scene** 1.4.0 · API 1: Optional title block: a bold title, a lighter subtitle and a small source line around any picture, outside it so nothing moves (addTitles). Off unless asked.
 - 2026-11-01 · **netflow-scene** 1.3.4 · API 1: Building a picture with many items takes less time; pictures are the same.
 - 2026-11-01 · **netflow-scene** 1.3.3 · API 1: SVG export of dots is shorter and quicker to write (about 20% less text on dot-heavy pictures); the picture is the same.
+- 2026-11-01 · **netflow-plot** 2.1.0 · API 2: Charts take an optional title, subtitle and source in their options, drawn above and below the chart and in the SVG.
 - 2026-11-01 · **netflow-plot** 2.0.0 · API 2: Removed: the pie chart type (a pie request now draws bars); donut stays.
 - 2026-11-01 · **netflow-plot** 1.0.0 · API 1: First version: 23 plain chart types from a table's columns (bars to word clouds), drawn as netflow-scene drawing lists; the charts of Netflow Map's Charts tab.
 - 2026-11-01 · **netflow-layers** 1.9.0 · API 1: Layouts are 7 to 34% faster with the same picture, and better: true never ends with more line crossings than the usual search.
+- 2026-11-01 · **netflow-hierarchy** 1.2.0 · API 1: Treemaps, sunbursts, icicles, packs and trees take an optional title, subtitle and source in the scene options.
 - 2026-11-01 · **netflow-hierarchy** 1.1.0 · API 1: Names on treemap, icicle, sunburst and circle pack shapes pick dark or white text per shape to read at 4.5:1 contrast or better (in test pictures, 2,432 of 19,056 names fell short before, 10 now).
 - 2026-11-01 · **netflow-hierarchy** 1.0.1 · API 1: Changing a look (theme, colors, names) on a big treemap, icicle, sunburst, pack or tree is 2.2 to 6.9 times faster; pictures are the same.
 - 2026-11-01 · **netflow-hierarchy** 1.0.0 · API 1: First version: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree) as an add-on for netflow-engine, plus the tree helpers netflow-circular builds on.
 - 2026-11-01 · **netflow-engine** 2.3.0 · API 2: New: the Chord, Bundles, Treemap, Sunburst, Icicle, Circle pack and Tree views, from the new netflow-circular and netflow-hierarchy add-ons; other views are unchanged.
+- 2026-11-01 · **netflow-circular** 1.1.0 · API 1: Chord and arc pictures take an optional title, subtitle and source in the scene options.
 - 2026-11-01 · **netflow-circular** 1.0.1 · API 1: Changing a look on a big chord picture is 2.9 to 7.8 times faster (with netflow-hierarchy 1.0.1), and a copy kept next to netflow-hierarchy.js in one folder now finds it.
 - 2026-11-01 · **netflow-circular** 1.0.0 · API 1: First version: the circular views of Netflow Map (Chord, Bundles) as an add-on for netflow-engine.
 - 2026-11-01 · **memory-compression** 2.10.3 · API 2: view() also opens number and text columns inside nested records and lists block by block: the first row is ready 1.6 to 14 times as fast (38 to 93% less time) on such lists; same results.

@@ -1,5 +1,13 @@
 # netflow-plot developer changelog
 
+## 2.1.0 · API 2 · 2026-11-01
+
+### Quick
+make(rows, spec, o, NS) calls NS.addTitles(S, o) last when netflow-scene 1.4.0 is loaded.
+
+### Deep
+make(rows, spec, o, NS) calls NS.addTitles(S, o) last when netflow-scene 1.4.0 is loaded. Option words follow the shared list (type, theme, width, height, title, subtitle, source, highlight).
+
 ## 2.0.0 · API 2 · 2026-11-01
 
 ### Quick

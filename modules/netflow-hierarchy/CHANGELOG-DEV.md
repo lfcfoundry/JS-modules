@@ -1,5 +1,13 @@
 # netflow-hierarchy developer changelog
 
+## 1.2.0 · API 1 · 2026-11-01
+
+### Quick
+scene(L, o, NS) calls NS.addTitles(S, o) after the chart note.
+
+### Deep
+scene(L, o, NS) calls NS.addTitles(S, o) after the chart note. netflow-circular gets it through the same scene.
+
 ## 1.1.0 · API 1 · 2026-11-01
 
 ### Quick

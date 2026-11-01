@@ -52,5 +52,15 @@ ok(Math.abs(sum - tot) < 1e-6 * tot || !sb.marks.some((m) => m.v !== undefined),
 const tk = P.ticks(0, 97, 6); ok(tk.lo <= 0 && tk.hi >= 97 && tk.list.length >= 3, 'ticks cover the range');
 const d = P.kde([1, 2, 3, 4, 5], 0, 6, 61, 0.8); let area = 0; for (let i = 0; i < 61; i++) area += d[i] * 0.1; ok(Math.abs(area - 1) < 0.05, 'density sums to one: ' + area.toFixed(3));
 ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
+/* opt-in title, subtitle and source: nothing changes without them; with them the block sits above (source below) and the picture does not move */
+{
+  const rows = table(40, 9), spec = { type: 'bar', x: 'region', y: 'sales' }, NS = global.NetflowScene;
+  const a = P.make(rows, spec, { width: 900, height: 560 }, NS), b = P.make(rows, spec, { width: 900, height: 560, title: 'Sales', subtitle: 'All rows', source: 'Source: test' }, NS);
+  ok(!a.titles && a.labels.every((l) => !l.title), 'no title block unless asked');
+  ok(b.labels.slice(0, 3).map((l) => l.t).join('|') === 'Sales|All rows|Source: test', 'title, subtitle and source come first in the name list');
+  ok(b.y0 < a.y0 && b.h > a.h && b.labels[2].y > a.y0 + a.h, 'the frame grows above for the title and below for the source');
+  ok(JSON.stringify(a.rects) === JSON.stringify(b.rects), 'the picture itself does not move');
+  ok(NS.toSvg(b, 't').indexOf('>Sales</text>') > 0, 'the export draws the title');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.3.4 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** node modules/netflow-plot/test/run.js, node modules/netflow-hierarchy/test/run.js, node modules/netflow-scene/test/run.js; default pictures byte-identical to 1.3.4 across 44 plot and 6 hierarchy pictures
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 
@@ -36,6 +36,8 @@ svgElement.innerHTML = NetflowScene.toSvg(S, 'My map');
 ```
 
 `make(L, options)`: the options are listed at the top of `netflow-scene.js` (theme, colorBy, palette, nodeStyle, linkStyle, labelFn, lab, widthScale, hulls, cam, lens, curve and more). `style`, `restyle`, `pick`, `pickEdge`, `pickLabel`, `inRect`, `inLasso` and `hit` work on the scene it returns. Colors are `[r, g, b, a]` with 0 to 1 numbers.
+
+`addTitles(S, { title, subtitle, source })` adds an optional title block to any picture: a bold title and a lighter subtitle above it and a small source line under it, outside the picture so nothing moves. netflow-plot, netflow-hierarchy and netflow-circular call it for you when their options carry these words. Text read at 4.5:1 or better on both themes.
 
 ## Reusing link looks (`lookPlan`)
 Pass the same empty object as `lookPlan` on every rebuild that only moved items or changed label sizes. You own it: **drop it (pass nothing) on every other kind of change**. The scene starts it over by itself for another map, theme, palette, color mode or link count. 3D maps and fisheye lenses never use it.

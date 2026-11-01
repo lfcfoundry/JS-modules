@@ -99,5 +99,12 @@ for (const [n, extra, groups] of [[12, 0, 3], [12, 9, 3], [300, 0, 0], [300, 200
     ok(fp(a) === fp(b), v + ' at ' + n + ' items: same layout with item numbers');
   }
 }
+/* opt-in title, subtitle and source on every view */
+for (const v of ['treemap', 'sunburst', 'chord']) {
+  const g = { nodes: [], edges: [] }; for (let i = 0; i < 30; i++) { g.nodes.push({ id: 'n' + i, label: 'N' + i }); if (i) g.edges.push({ from: 'n' + Math.floor(i / 4), to: 'n' + i, value: 1 + i % 5 }); }
+  const NS = require('../../netflow-scene/netflow-scene.js'), M = v === 'chord' ? require('../../netflow-circular/netflow-circular.js') : require('../netflow-hierarchy.js');
+  const a = M.scene(M.layout(v, JSON.parse(JSON.stringify(g)), {}), {}, NS), b = M.scene(M.layout(v, JSON.parse(JSON.stringify(g)), {}), { title: 'T', source: 'S' }, NS);
+  ok(!a.titles && b.titles && b.labels[0].t === 'T' && b.labels[1].t === 'S' && b.h > a.h, v + ': title and source only when asked');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks FAILED' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

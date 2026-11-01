@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.0.0 (API 2)
+ * Version 2.1.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -633,6 +633,7 @@ var NetflowPlot = (function () {
     var S = F.S;
     S.x0 = -10; S.y0 = -10; S.w = F.W + 20; S.h = F.H + 20; S.gridStale = true; S.eidx = null;
     S.ms = Date.now() - t0;
+    if (NS.addTitles) NS.addTitles(S, o);   /* opt-in o.title, o.subtitle, o.source */
     return S;
   }
   /** The mark under a point (in drawing units), or null. */

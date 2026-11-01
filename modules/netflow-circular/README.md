@@ -1,8 +1,8 @@
 # netflow-circular
 
-**Version 1.0.1 · API 1**
+**Version 1.1.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** node modules/netflow-plot/test/run.js, node modules/netflow-hierarchy/test/run.js, node modules/netflow-scene/test/run.js; default pictures byte-identical to 1.3.4 across 44 plot and 6 hierarchy pictures
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -35,6 +35,7 @@ var S = NetflowCircular.scene(L, { theme: 'dark' }, NetflowScene);
 
 - Views: `chord`, `bundles` (`NetflowCircular.VIEWS`).
 - Options: `chordBy` (`auto`, `items` or `groups`; auto gives one arc per group above 60 items), `chordOrder` (`fast` keeps the group order, about d3-chord's work; left out or anything else searches the order for fewer crossing bands, up to 3,000 bands), `nest` (Bundles: the tree it bends along), `beta` (Bundles: how tightly links follow the tree, default 0.85).
+- Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `scene()` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
 - `bsplineToBezier(points)` is exported for drawing smooth curves.
 
 Use with netflow-engine: load the files as page scripts (or keep the folders side by side in Node) and the views join `NetflowEngine.VIEWS`; or hand them over with `NetflowEngine.use('circular', NetflowCircular)`. Then `NetflowEngine.build(graph, { view: 'chord' })` lays the map out and `NetflowCircular.scene(L, options, NetflowScene)` draws it.
