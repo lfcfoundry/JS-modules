@@ -231,3 +231,13 @@ That is up to 14% less time; events are about the same. Laptop has 16 cores.
 | Orders | 1.05 (inconclusive) | 1.09 (inconclusive, noisy) | 1.03 (inconclusive) | 0.99 |
 
 Firefox opens decimal lists 5 to 8% faster; the other cells are within noise.
+
+**New in 0.4.10: the fast writer takes numbers with up to 9 decimals.** Files are the same byte for byte. Pack time, new / 0.4.9, lower is better:
+
+| Where | Sensor data, 256 KB blocks | Events |
+|---|---:|---:|
+| Laptop Firefox 160, 16 cores | 0.79 (earlier run, default blocks: 0.71) | 1.00 (noisy) |
+| Laptop Chromium 156, 16 cores | 1.02 (earlier run, default blocks: 0.73) | 0.97 |
+| Cloud WebKitGTK 2.52.6 | 0.64 | 0.86 |
+
+Sensor-style data packs in 21 to 36% less time in Firefox and WebKitGTK. Chromium gained in one run and was even in the recheck.

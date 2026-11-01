@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.0 · API 1 · 2026-10-31
+
+### Quick
+Inside a helper, the biggest worksheet of 1 MB or more is now unpacked straight into the WebAssembly reader's memory too, as 1.13.0 does for zips already in memory.
+
+### Deep
+Inside a helper, the biggest worksheet of 1 MB or more is now unpacked straight into the WebAssembly reader's memory too, as 1.13.0 does for zips already in memory. The round-13 slowdown inside helpers came from that patch throwing the reader instance away after each workbook (measured alone as 5-20% slower), not from placing; 1.13.0 keeps the instance, and with it placing is faster in a helper as well. A File read on the page without helpers stays unplaced: measured 0.96-1.19 there (no gain). Early-stop A/B, two rounds each forward and reversed (geometric mean), new / 1.13.0 with 2 helpers, big/small/formulas/text: Chromium 155 0.80/0.94/0.95/0.93, Firefox 158 0.72/0.89/0.74/0.86, WebKitGTK 2.52.6 0.86/0.94/0.95/0.98. Tests: 39 checks; the placement test now also reads a File in pieces through the helper's source and checks it is placed and gives the same tables.
+
 ## 1.13.0 · API 1 · 2026-10-31
 
 ### Quick

@@ -628,6 +628,21 @@ function countUnpacked(counter) {
     assert.strictEqual(await K.durableCopy('story', { indexedDB: null }).newer(0), null);
   });
 
+  await test('load reuses a clean big counts map and still cleans a dirty one (same result as validate)', async (K) => {
+    const schema = { n: 'num', c: { type: 'counts', max: 50, maxKeys: 100 } };
+    const mk = (f) => { const c = {}; for (let i = 0; i < 60; i++) c['k' + i] = f(i); return c; };
+    const cases = [mk(i => i + 1 > 50 ? 50 : i + 1), mk(i => i === 7 ? 0 : 3), mk(i => i === 9 ? 2.5 : 3), mk(i => i === 4 ? 99 : 3), mk(() => 3), Object.assign(mk(() => 3), { ['x'.repeat(201)]: 2 })];
+    cases.push(JSON.parse('{"__proto__":{"a":1},' + Object.keys(mk(() => 1)).map(k => '"' + k + '":1').join(',') + '}'));
+    cases.push(Object.assign({}, ...Array.from({ length: 150 }, (_, i) => ({ ['q' + i]: 1 }))));
+    for (const c of cases) {
+      const st = mem(); st.setItem('g', JSON.stringify({ n: 1, c }));
+      const k = K.create({ key: 'g', schema, storage: st }), got = k.load(), want = k.validate({ n: 1, c: JSON.parse(JSON.stringify({ c }).replace('"__proto__"', '"__x"')).c });
+      const keys = (o) => Object.keys(o).filter(x => x !== '__x').sort().join(',') + '|' + Object.keys(o).filter(x => x !== '__x').sort().map(x => o[x]).join(',');
+      assert.strictEqual(Object.getPrototypeOf(got.c), null, 'counts must have no prototype');
+      assert.strictEqual(keys(got.c), keys(want.c));
+      assert.ok(!Object.prototype.hasOwnProperty.call(got.c, '__proto__'));
+    }
+  });
   const extra = OLD ? '; the old file was caught by ' + caught + ' of ' + oldTried + ' regression checks' : '; old file not available for comparison';
   console.log('save-kit' + (WITHOUT.length ? ' (lean build without ' + WITHOUT.join(', ') + ')' : '') + ': ' + pass + ' passed, ' + fail + ' failed' + (skipped ? ', ' + skipped + ' skipped (they need a cut part)' : '') + extra);
   process.exit(fail ? 1 : 0);
