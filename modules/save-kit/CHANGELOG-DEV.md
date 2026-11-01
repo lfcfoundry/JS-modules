@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.2 · API 1 · 2026-10-31
+
+### Quick
+The check that every number in a counts list is sound (run on every save and load) now uses Object.values when the browser is WebKit (user agent has AppleWebKit and none of Chrome, Chromium, Edg, Firefox).
+
+### Deep
+The check that every number in a counts list is sound (run on every save and load) now uses Object.values when the browser is WebKit (user agent has AppleWebKit and none of Chrome, Chromium, Edg, Firefox). Object.values over 400 names: 4.5 us in WebKitGTK 2.52.6 against 19.7 us for Object.keys plus a loop; in Chromium 155 it is 34 against 12.8 and in Firefox 158 22 against 18, so the other browsers keep the old loop. Same answers (new Node case with a WebKit user agent: bad, negative, NaN and string values refused). Early-stop A/B rule, new/old time, WebKitGTK 2.52.6: 20 KB save 0.41 (0.35 to 0.50, noisy), 20 KB load 0.81 (0.79 to 0.91), unchanged 20 KB save 0.43; 448 B save 1.04 (inconclusive), 448 B load 1.29 (1.11 to 1.51, noisy), 448 B unchanged save 1.12 (1.08 to 1.20): a few microseconds slower on tiny saves. Chromium 155 and Firefox 158: all within noise (one Chromium 20 KB unchanged-save reading of 1.22 on code that is identical there). Cloud container, no noise guard.
+
 ## 1.5.1 · API 1 · 2026-10-31
 
 ### Quick

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.12 · API 0 · 2026-10-31
+
+### Quick
+flatscan: keys tried in the last row's order first (faca024) and number digits 8 at a time (d2cc168), LFCP thread; byte-identical files.
+
+### Deep
+flatscan: keys tried in the last row's order first (faca024) and number digits 8 at a time (d2cc168), LFCP thread; byte-identical files. Laptop (lfc-scanner-stack, E vs 0.4.10, includes 0.4.11's C): Chromium 156 sensor default 0.840, sensor 256 KB 0.844, events 0.876; Firefox 160 0.857, 0.853, 0.918. Cloud WebKitGTK step ratios D vs C 0.881/0.898/1.000, E vs D within noise.
+
 ## 0.4.11 · API 0 · 2026-10-31
 
 ### Quick
