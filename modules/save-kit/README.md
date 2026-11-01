@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-save-kit stores game or app progress in the browser safely. One file, 5.4 KB gzipped, no dependencies. `createLarge` does the same over IndexedDB for big saves.
+save-kit stores game or app progress in the browser safely. One file, 13.2 KB gzipped (7.4 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves.
 
 - You describe the save as a schema, and every field is checked on save and load.
 - A backup slot is kept, and a damaged value falls back alone instead of ruining the save.

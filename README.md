@@ -122,7 +122,7 @@ Keep a player's progress safe and let them move it between devices.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [save-kit](modules/save-kit/README.md) | 1.5.0 | 44.4 | 13.2 | Safe saves in localStorage: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
+| [save-kit](modules/save-kit/README.md) | 1.5.0 | 44.4 | 13.2 | Safe saves in localStorage and IndexedDB: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 | 9.6 | 3.4 | Keeps one tab in charge so two tabs never overwrite each other's saves. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/tab-guard/demo.html) |
 
 #### Games - Looks and effects
@@ -164,7 +164,7 @@ The numbers behind idle and clicker games.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [graph-walk](modules/graph-walk/README.md) | 0.11.0 | 98.0 | 30.9 | Breadth-first distances and loop marking for link lists, in typed arrays. | — |
+| [graph-walk](modules/graph-walk/README.md) | 0.11.0 | 98.0 | 30.9 | Graph walks in typed arrays: distances, loops, shortest paths, centrality, communities. | — |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 | 22.8 | 7.7 | Tested maths for idle and clicker games: costs, buy-max, away income, number format. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/idle-core/demo.html) |
 
 #### Games - Testing
