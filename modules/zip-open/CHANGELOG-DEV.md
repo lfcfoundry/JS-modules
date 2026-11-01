@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.3 · API 1 · 2026-10-31
+
+### Quick
+In-memory unzip (expand, and Files up to 16 MB) works out the CRC-32 on each piece DecompressionStream hands back, while it is still in the CPU cache, instead of one pass over the whole entry afterwards (12-15 ms on an 18 MB sheet).
+
+### Deep
+In-memory unzip (expand, and Files up to 16 MB) works out the CRC-32 on each piece DecompressionStream hands back, while it is still in the CPU cache, instead of one pass over the whole entry afterwards (12-15 ms on an 18 MB sheet). Also: the one character above U+00FF in the source (an ellipsis in a note) is now written as an escape, so a page that inlines zip-open stays 1 byte per character (round 33). Measured first: unzipping is 52-65% of a whole open, but DecompressionStream runs on the calling thread in all 3 browsers (35 ms inflate + 60 ms busy work = 95-111 ms), so overlapping unzip with parsing on one thread cannot help; dropped. Early-stop A/B, bytes path, fwd+rev geomeans (2 rounds; WebKitGTK formulas 4 rounds), new / 1.14.2, big/small/formulas/text: Chromium 155 0.986/0.961/0.995/0.941, Firefox 158 0.976/0.975/0.850/0.923, WebKitGTK 2.52.6 1.007/0.927/1.035/1.024. Tests: 41 checks; new: a DecompressionStream-sized entry passes with the right checksum and is skipped with a wrong one.
+
 ## 1.14.2 · API 1 · 2026-10-31
 
 ### Quick
