@@ -239,4 +239,15 @@ t('the embedded WebAssembly is what wasm/order.c builds (embed.py --check and bu
   if (hasClang) cp.execFileSync('sh', [require('path').join(dir, 'build.sh'), '--check'], { stdio: 'pipe' });
 });
 
+t('stopCap: off by default; maps under stopCapFrom items keep every stand-in; above it, fewer stand-ins and every number finite', () => {
+  const big = (n, seed) => { let s = seed; const r = () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; }; const nodes = [], links = []; const per = Math.ceil(n / 12);
+    for (let i = 0; i < n; i++) nodes.push('n' + i); for (let i = per; i < n; i++) { const a = Math.floor(r() * Math.max(1, i - per)); links.push({ from: 'n' + a, to: 'n' + i, value: 1 + Math.floor(r() * 5) }); } return { nodes, links }; };
+  const strip = (o) => { delete o.ms; return JSON.stringify(o); };
+  const small = big(300, 3), A = strip(RL.layoutFlows(small, {})), B = strip(RL.layoutFlows(small, { stopCap: 0 }));
+  ok(A === B, 'a 300-item map changed with stopCap');
+  const g = big(1200, 5), d = RL.layoutFlows(g, {}), c = RL.layoutFlows(g, { stopCap: 50 });
+  ok(c.simplified > d.simplified, 'stopCap did not draw more links straight: ' + d.simplified + ' vs ' + c.simplified);
+  ok(c.nodes.every((n) => isFinite(n.x) && isFinite(n.y) && isFinite(n.h)), 'not finite');
+  ok(strip(RL.layoutFlows(g, { stopCap: 50, stopCapFrom: 5000 })) === strip(RL.layoutFlows(g, {})), 'stopCapFrom did not hold it off');
+});
 console.log(bad ? 'netflow-sankey: ' + bad + ' FAILED' : 'netflow-sankey: all passed'); process.exit(bad ? 1 : 0);
