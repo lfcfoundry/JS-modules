@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-10-31
+
+### Quick
+Owner picked 'Lighter search by default' (2026.10.31 9:52 PM ET).
+
+### Deep
+Owner picked 'Lighter search by default' (2026.10.31 9:52 PM ET). Left-out deep now runs a lighter deep search (DEEP.liteMax 12 rounds, liteStall 2) and left-out rows means rows: 'best'; deep: false + rows: 'route' give the old picture; orderRounds: 0 skips both. Row crossings (vs-libs random maps, root n0): 30 items 50 to 44, 100 367 to 273, 400 7,950 to 5,158 (dagre 5,374, ELK 5,313), 1,000 33,763 to 21,440 (dagre 23,965, ELK 22,602). Cloud browsers, best of 5, ms old to new: Chromium 155 0.8/1.0/4.3/17.0 to 1.8/3.1/31.1/80.0; Firefox 158 2/2/7/39 to 1/3/40/83; WebKitGTK 2.52.6 1/1/5/11 to 1/3/31/77. JS and wasm give identical places in all 3 browsers. Never more crossings than the old default on 36 test maps (30 fewer). Old tests pin the old default explicitly.
+
 ## 1.6.0 · API 1 · 2026-10-31
 
 ### Quick
