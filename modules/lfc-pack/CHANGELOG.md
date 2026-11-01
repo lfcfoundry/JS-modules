@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.17 · API 0 · 2026-11-01
+- Packs logs in about a third of the time (laptop Firefox 0.33 to 0.34), and logs with escaped quotes up to 40 times faster at 256 KB blocks. Same files, except escaped-text logs, which come out 0.04 to 0.2% smaller.
+
 ## 0.4.16 · API 0 · 2026-11-01
 - Reading is a little faster in Firefox: unpacking bit-packed number codes no longer reads past the end of the buffer (events 0.725 of the time in a cloud A/B). Same rows.
 
