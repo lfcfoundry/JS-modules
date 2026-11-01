@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.10 · API 0 · 2026-10-31
+
+### Quick
+Fast flat writer handles numbers with up to 9 decimals (flat9, LFCP thread, branch claude/project-thread-cahtub 737a95c).
+
+### Deep
+Fast flat writer handles numbers with up to 9 decimals (flat9, LFCP thread, branch claude/project-thread-cahtub 737a95c). Files byte-identical with 0.4.9. Laptop recheck, ratio new/0.4.9: Chromium 156 sensor 256 KB blocks 1.023 (0.995-1.048) ok, events default 0.968 ok; Firefox 160 sensor 256 KB 0.792 faster, events 0.995 ok (noisy). Earlier laptop: Firefox sensor default 0.712, Chromium 0.732. Cloud WebKitGTK 2.52.6: sensor 256 KB 0.640, events 0.859.
+
 ## 0.4.9 · API 0 · 2026-10-31
 
 ### Quick
