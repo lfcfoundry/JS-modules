@@ -145,3 +145,31 @@ f64 run(i32 rounds, i32 doSwap) {
   for (q = 0; q < nL; q++) for (i = layerStart[q]; i < layerStart[q + 1]; i++) pos[ord[i]] = i - layerStart[q];
   return bestC;
 }
+
+/* The vertical relaxation of netflow-sankey (pull toward the weighted middle of the neighbors, then settle: keep the order, enforce gaps, pull back
+   inside the top), on flat lists made by relaxWasm in netflow-sankey.js. Same arithmetic, in the same order, as the JavaScript (pull and settle there). */
+static void settleRow(f64 *Y, const f64 *Hh, const unsigned char *Dm, const i32 *list, i32 n, f64 pad, f64 padD) {
+  i32 j;
+  for (j = 1; j < n; j++) { i32 p = list[j - 1], c = list[j]; f64 lim = Y[p] + Hh[p] / 2 + (Dm[p] || Dm[c] ? padD : pad) + Hh[c] / 2; if (Y[c] < lim) Y[c] = lim; }
+  if (n) { f64 up = Y[list[0]] - Hh[list[0]] / 2; if (up < 0) for (j = 0; j < n; j++) Y[list[j]] -= up; }
+}
+static void pullRow(f64 *Y, const f64 *Hh, const unsigned char *Dm, const i32 *list, i32 n, i32 mode, f64 a, const i32 *upS, const i32 *upI, const f64 *upW,
+                    const i32 *dnS, const i32 *dnI, const f64 *dnW, f64 pad, f64 padD) {
+  i32 j, q, e;
+  for (j = 0; j < n; j++) {
+    i32 i = list[j]; f64 s = 0, w = 0;
+    if (mode != 1) for (q = upS[i], e = upS[i + 1]; q < e; q++) { s += Y[upI[q]] * upW[q]; w += upW[q]; }
+    if (mode != 0) for (q = dnS[i], e = dnS[i + 1]; q < e; q++) { s += Y[dnI[q]] * dnW[q]; w += dnW[q]; }
+    if (w > 0) Y[i] += (s / w - Y[i]) * a;
+  }
+  settleRow(Y, Hh, Dm, list, n, pad, padD);
+}
+void relax(i32 nL_, const i32 *start, const i32 *ix, f64 *Y, const f64 *Hh, const unsigned char *Dm, const i32 *upS, const i32 *upI, const f64 *upW,
+           const i32 *dnS, const i32 *dnI, const f64 *dnW, f64 pad, f64 padD, const f64 *alpha, i32 iters) {
+  i32 it, k;
+  for (it = 0; it < iters; it++) {
+    f64 a = alpha[it]; i32 both = it % 3 == 2;
+    for (k = 1; k < nL_; k++) pullRow(Y, Hh, Dm, ix + start[k], start[k + 1] - start[k], both ? 2 : 0, a, upS, upI, upW, dnS, dnI, dnW, pad, padD);
+    for (k = nL_ - 2; k >= 0; k--) pullRow(Y, Hh, Dm, ix + start[k], start[k + 1] - start[k], both ? 2 : 1, a, upS, upI, upW, dnS, dnI, dnW, pad, padD);
+  }
+}

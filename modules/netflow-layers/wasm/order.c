@@ -7,7 +7,7 @@ typedef int I;
 typedef double D;
 typedef unsigned char U8;
 enum { NV, NL, MAXLEN, BASE, ROUNDS, BIG, ROWOFF, ORD, BEST, POS, LANE, BARY, UPOFF, UPIDX, DNOFF, DNIDX, SCR, FEN, TMP,
-       UPW, DNW, BOTHOFF, BOTHIDX, BOTHW, CA, GAP, CHOKE, DUMMY, WIDE, ITERS, WANT, WT, GAPS, OFF, BS, BW, BN, OUT };
+       UPW, DNW, BOTHOFF, BOTHIDX, BOTHW, CA, GAP, CHOKE, DUMMY, WIDE, ITERS, WANT, WT, GAPS, OFF, BS, BW, BN, OUT, DEEPMAX, DEEPSTALL, DEEPTG };
 #define PI(x) ((I *)(P[x]))
 #define PD(x) ((D *)(P[x]))
 
@@ -74,11 +74,11 @@ static void tally(I *P, I ax, I bx, const I *noff, const I *nidx, I *before_, I 
     if (x > y) (*before_)++; else if (x < y) (*after_)++;
   }
 }
-static void transpose(I *P, I k) {
+static void transpose(I *P, I k, I tg) {
   I *ro = PI(ROWOFF), *ord = PI(ORD), *pos = PI(POS), nL = P[NL];
   D *lane = PD(LANE);
   I a0 = ro[k], n = ro[k + 1] - a0, improved = 1, guard = 0, i;
-  while (improved && guard++ < 8) {
+  while (improved && guard++ < tg) {
     improved = 0;
     for (i = 0; i + 1 < n; i++) {
       I a = ord[a0 + i], b = ord[a0 + i + 1], bf = 0, af = 0;
@@ -99,11 +99,24 @@ D order(I *P) {
     I median = it >= base && (it - base) % 2 == 1;
     for (k = 1; k < nL; k++) sweep(P, k, PI(UPOFF), PI(UPIDX), median);
     for (k = nL - 2; k >= 0; k--) sweep(P, k, PI(DNOFF), PI(DNIDX), median);
-    if (!big || it >= base) for (k = 0; k < nL; k++) transpose(P, k);
+    if (!big || it >= base) for (k = 0; k < nL; k++) transpose(P, k, 8);
     D c = total_cross(P);
     if (c < bestC) { bestC = c; for (i = 0; i < nV; i++) best[i] = ord[i]; }
   }
-  (void)pos;
+  /* deep: from the best order so far, rounds with neighbor swaps right after each row's sweep and a full swap pass; stops after DEEPSTALL rounds with no gain */
+  if (P[DEEPMAX] > 0 && bestC > 0) {
+    I *ro = PI(ROWOFF), tg = P[DEEPTG], stall = 0, d;
+    for (i = 0; i < nV; i++) ord[i] = best[i];
+    for (k = 0; k < nL; k++) for (i = ro[k]; i < ro[k + 1]; i++) pos[ord[i]] = i - ro[k];
+    for (d = 0; d < P[DEEPMAX] && bestC > 0 && stall < P[DEEPSTALL]; d++) {
+      I median = d % 2 == 1;
+      for (k = 1; k < nL; k++) { sweep(P, k, PI(UPOFF), PI(UPIDX), median); transpose(P, k, tg); }
+      for (k = nL - 2; k >= 0; k--) { sweep(P, k, PI(DNOFF), PI(DNIDX), median); transpose(P, k, tg); }
+      for (k = 0; k < nL; k++) transpose(P, k, tg);
+      D c = total_cross(P);
+      if (c < bestC) { bestC = c; for (i = 0; i < nV; i++) best[i] = ord[i]; stall = 0; } else stall++;
+    }
+  }
   return bestC;
 }
 
