@@ -13,13 +13,13 @@ dagre was not run at 1000 items because it grows far faster than linearly.
 
 **New in 1.6.0: a deeper crossing search, off by default.** `deep: true` with `rows: "best"`, on random maps with no loops (Netflow Map's test data). Row crossings, lower is better:
 
-| Items | Default | deep + best | dagre 0.8.5 | ELK 0.12.1 |
+| Items | Default in 1.6.0 | deep + best | dagre 0.8.5 | ELK 0.12.1 |
 |---|---:|---:|---:|---:|
 | 400 | 7,950 | 5,103 | 5,374 | 5,313 |
 | 1,000 | 33,763 | 21,166 | 23,965 | 22,602 |
 | 1,500 | 33,117 | 27,353 | not run | not run |
 
-That is 17 to 37% fewer crossings than the default, and 4 to 12% fewer than dagre and ELK. Time in ms, default to deep + best (lower is better):
+That is 17 to 37% fewer crossings than the default, and 4 to 12% fewer than dagre and ELK. Time in ms, 1.6.0 default to deep + best (lower is better):
 
 | Browser | 400 items | 1,000 items | 1,500 items |
 |---|---:|---:|---:|
@@ -30,3 +30,21 @@ That is 17 to 37% fewer crossings than the default, and 4 to 12% fewer than dagr
 | Laptop Firefox 160, 16 cores | | 186 (deep + best) | |
 
 dagre took about 0.8 s at 400 items and 7.2 s at 1,000. With the options off, pictures and speed are unchanged.
+
+
+**New in 1.7.0: fewer crossings by default.** A lighter deep search (at most 12 rounds) and both row choices now run unless you set `deep: false` and `rows: "route"`, which keep the old picture. Same random maps as above, row crossings, lower is better:
+
+| Items | Old default | New default | `deep: true` | dagre 0.8.5 | ELK 0.12.1 |
+|---|---:|---:|---:|---:|---:|
+| 400 | 7,950 | 5,158 | 5,103 | 5,374 | 5,313 |
+| 1,000 | 33,763 | 21,440 | 21,166 | 23,965 | 22,602 |
+
+The new default draws 3 to 11% fewer crossings than dagre and ELK. It costs time on big maps. Cloud browsers, best of 5, ms, old default to new (lower is better):
+
+| Browser | 400 items | 1,000 items |
+|---|---:|---:|
+| Chromium 155 | 4.3 to 31 | 17 to 80 |
+| Firefox 158 | 7 to 40 | 39 to 83 |
+| WebKitGTK 2.52.6 | 5 to 31 | 11 to 77 |
+
+dagre took about 0.8 s at 400 items and 7.2 s at 1,000. Laptop runs of 1.7.0: not yet.

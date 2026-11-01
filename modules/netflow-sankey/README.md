@@ -47,11 +47,11 @@ svgElement.innerHTML = NetflowSankey.toSvg(R, { title: "Where the wages go" });
 `opts`: `height` (aim for this picture height), `nodeW`, `gapLayer` (space between columns), `pad` (space between bars), `restarts` and `budgetMs` (how hard to search for a good order), `seed`, `unweighted`, `justifySinks`. `toSvg` takes `colors`, `labels`, `fontSize`, `textColor`, `bandOpacity` and `title`; all text is escaped. `fromLinks`, `layout`, `layering`, `crossWeight`, `roundPath` and `toBezier` are exported for people who want the pieces.
 
 ## How it compares
-netflow-sankey is bigger than d3-sankey, but on three made-up charts it leaves about half the weighted crossings (47% to 58% of d3-sankey's; lower is better), and it draws a chart with loops where d3-sankey stops with an error. Speed against d3-sankey in browsers: not measured.
+netflow-sankey is bigger than d3-sankey, but on three made-up charts it leaves about half the weighted crossings (47% to 58% of d3-sankey's; lower is better), and it draws a chart with loops where d3-sankey stops with an error. Speed against d3-sankey (laptop Firefox 160, 16 cores, 2026.10.30): 3.7 to 5.5 times as fast at 200 and 500 nodes; at 72 nodes d3-sankey is about twice as fast with the default settings.
 
 | Alternative | Size (smaller is better) | Speed | Features | Where it wins / loses |
 |---|---|---|---|---|
-| [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3) | 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape (their size: not measured). This module: 61,115 bytes readable, 21.3 KB gzipped; 37,858 bytes minified, 15.5 KB minified and gzipped (terser 5.51.2) | In browsers: not measured (Node numbers are in "Numbers" below) | No loops (throws "circular link"); crossing order not weighted by flow | Wins on size. Loses on weighted crossings (about half as many here) and on loops |
+| [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3) | 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape (their size: not measured). This module: 61,115 bytes readable, 21.3 KB gzipped; 37,858 bytes minified, 15.5 KB minified and gzipped (terser 5.51.2) | Laptop Firefox 160: 3.7 to 5.5 times as fast at 200 and 500 nodes; d3-sankey about twice as fast at 72 nodes | No loops (throws "circular link"); crossing order not weighted by flow | Wins on size. Loses on weighted crossings (about half as many here) and on loops |
 | d3-sankey-circular and similar forks (version and license: not read) | Not measured | Not measured | Add loops to d3-sankey | Same job as the loop support here; pictures not compared |
 | Plotly and Google Charts Sankey (versions: not read) | Not measured (each is a whole charting library) | Not measured | Sankey as one chart type among many | Pick one if you already ship it; this module is only the Sankey layout and SVG |
 
@@ -59,7 +59,7 @@ The browser race of Netflow Map against D3 measured the app's own flow engine, n
 
 **Where it loses**
 - Bigger than d3-sankey.
-- Speed against d3-sankey: not measured in browsers (an older Node run is in "Numbers" below). Version 2.0.0 is faster than 1.0.0: a 12,600-link chart lays out in 168 ms against 666 ms in ungoogled Chromium 155.0.8059.39-1 (smaller is better).
+- Speed against d3-sankey is measured in one browser only (laptop Firefox 160), and d3-sankey is faster on small charts with the default settings. Version 2.0.0 is faster than 1.0.0: a 12,600-link chart lays out in 168 ms against 666 ms in ungoogled Chromium 155.0.8059.39-1 (smaller is better).
 - The crossing result is one yardstick on three charts, not a proof for every chart.
 - d3-sankey is the standard: use it if you already use D3 and your data has no loops.
 
@@ -120,7 +120,7 @@ Chromium and Firefox rows are the median of 3 passes of 5 rounds; the two WebKit
 Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## Prior art and credits
-- [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3, 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape): the standard. Smaller; speed against this module in browsers is not measured; it throws on a loop, and its crossing order is not weighted by flow. d3-sankey-circular and similar forks add loops. Use d3-sankey if you already use D3 and your data has no loops. Used here only as the thing to measure against; no d3-sankey code is in this module.
+- [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3, 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape): the standard. Smaller, and faster on small charts (72 nodes); 3.7 to 5.5 times slower at 200 and 500 nodes in laptop Firefox 160; it throws on a loop, and its crossing order is not weighted by flow. d3-sankey-circular and similar forks add loops. Use d3-sankey if you already use D3 and your data has no loops. Used here only as the thing to measure against; no d3-sankey code is in this module.
 - Google Charts and Plotly draw Sankey diagrams too, as part of larger libraries. Not used.
 - Idea only, no code: scoring a layout by the sum, over every pair of crossing links, of the two flows multiplied together (Dwyer and others, "Optimal Sankey Diagrams via Integer Programming"; their method needs a commercial solver, which is not used here).
 - Idea only, no code: ordering each column by flow-weighted averages of the neighbors' places (Zhang and others, "Crossing Reduction of Sankey Diagram with Barycentre Ordering via Markov Chain"), and the rules of many random restarts and keeping the best order by weighted crossings (OmicsSankey).
