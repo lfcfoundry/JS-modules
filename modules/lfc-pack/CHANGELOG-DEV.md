@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.9 · API 0 · 2026-10-31
+
+### Quick
+decodeDecimalColumn keeps a plain running sum when the column's delta step is 1 (k = 1) instead of a one-slot ring array; num_group in core.wasm writes dense path ids in place (2.5 MB less scratch per pack). Rows and files unchanged, no API change.
+
+### Details
+Laptop open, new/old: Firefox 160 geo 0.918 faster, sensor 0.952 ok, orders 1.048 inconclusive; Chromium 156 geo 0.997, sensor 1.008, orders 1.091 inconclusive (noisy). num_group writes each number's dense path id over its path hash in NUMP (no NUMI region at DDOUT+32 MB); on more than 32,768 paths it restores the hashes for the JS fallback (test/manypaths.cjs). Laptop pack, new/old (orders / geo / sensor): Firefox 160 1.031 / 0.984 / 1.045, Chromium 156 0.991 / 0.996 / 1.006, all ok or inconclusive.
+
+### Deep
+From the LFCP thread (branch claude/project-thread-cahtub, commits dde3d86 and 5aa6a87, cherry-picked; 5f26288 flat decimals left out pending its laptop run). Owner's cards in that thread: 'Ship it' on the decimal reader and 'Ship it' on in-place number ids (2026.10.31 8:41 PM ET). core.wasm and core-plain.wasm rebuilt from core.c byte-identical to the branch's. Laptop page: js-modules-research/laptop-round-2026.10.31/lfc-read-pack-check.html.
+
 ## 0.4.8 · API 0 · 2026-10-31
 
 ### Quick

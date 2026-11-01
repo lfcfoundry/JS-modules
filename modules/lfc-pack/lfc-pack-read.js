@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.4.8 (API 0)
+ * Version 0.4.9 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -276,14 +276,15 @@
     return out;
   }
   function decodeDecimalColumn(raw, n) {   // one pass: varint, zigzag, the running sum k places back (a ring of k values) and the scale
-    var d = raw[0] & 15, delta = raw[0] & 128, k = ((raw[0] >> 4) & 7) + 1, sc = Math.pow(10, d), o = new Float64Array(n), w = delta ? new Float64Array(k) : null, p = 1, j = 0, i, c, u, m, s;
+    var d = raw[0] & 15, delta = raw[0] & 128, k = ((raw[0] >> 4) & 7) + 1, sc = Math.pow(10, d), o = new Float64Array(n), w = delta && k > 1 ? new Float64Array(k) : null, p = 1, j = 0, i, c, u, m, s, run = 0;
     if (d > 9) throw new Error('damaged block: bad decimal column');
     for (i = 0; i < n; i++) {
       c = raw[p++];
       if (c < 128) u = (c >>> 1) ^ -(c & 1);   // up to three bytes: whole-number zigzag (the common case)
       else { u = c & 127; c = raw[p++]; if (c < 128) { u |= c << 7; u = (u >>> 1) ^ -(u & 1); } else { u |= (c & 127) << 7; c = raw[p++]; if (c < 128) { u |= c << 14; u = (u >>> 1) ^ -(u & 1); }
         else { u |= (c & 127) << 14; m = 2097152; do { c = raw[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); u = (u % 2 === 0) ? u / 2 : -(u + 1) / 2; } } }
-      if (delta) { s = w[j] + u; if (s > 9007199254740992 || s < -9007199254740992) throw new Error('damaged block: number column out of range'); w[j] = s; if (++j === k) j = 0; o[i] = s / sc; }
+      if (delta && k === 1) { s = run + u; if (s > 9007199254740992 || s < -9007199254740992) throw new Error('damaged block: number column out of range'); run = s; o[i] = s / sc; }   // one step back: a plain running sum
+      else if (delta) { s = w[j] + u; if (s > 9007199254740992 || s < -9007199254740992) throw new Error('damaged block: number column out of range'); w[j] = s; if (++j === k) j = 0; o[i] = s / sc; }
       else o[i] = u / sc;
     }
     if (p > raw.length) throw new Error('damaged block: decimal column cut off');
@@ -1675,7 +1676,7 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.8', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.9', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
