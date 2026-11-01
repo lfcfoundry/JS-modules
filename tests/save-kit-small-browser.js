@@ -10,11 +10,13 @@ const exes = [['chromium', process.env.CHROMIUM], ['firefox', process.env.FIREFO
 if (!exes.length || !process.env.LIBS) { console.log('skipped: needs CHROMIUM, FIREFOX or WEBKIT=1, and LIBS'); process.exit(2); }
 const AB = fs.readFileSync(path.join(__dirname, 'ab-sequential.js'), 'utf8');   // the early-stop A/B rule (qa-guide/ab-sequential): ours (B) against each alternative (A), limit 5%
 const SRC = fs.readFileSync(root + 'modules/save-kit/save-kit.js', 'utf8');
-const LIBS = { idb: fs.readFileSync(process.env.LIBS + '/idb-keyval/dist/umd.js', 'utf8'), lf: fs.readFileSync(process.env.LIBS + '/localforage/dist/localforage.min.js', 'utf8') };
+const LIBS = { zod: fs.readFileSync(process.env.LIBS + '/bundle-zod.js', 'utf8'), idb: fs.readFileSync((process.env.NM || process.env.LIBS) + '/idb-keyval/dist/umd.js', 'utf8'), lf: fs.readFileSync((process.env.NM || process.env.LIBS) + '/localforage/dist/localforage.min.js', 'utf8') };
 async function bench(src, libs, abSrc) {
   var M = (function () { var m = { exports: {} }; new Function('module', src)(m); return m.exports; })();
   var idbk = (function () { var m = { exports: {} }; new Function('module', 'exports', libs.idb)(m, m.exports); return m.exports; })();
   var lf = (function () { var m = { exports: {} }; new Function('module', 'exports', libs.lf)(m, m.exports); return m.exports; })();
+  var zodNs = (function () { new Function('globalThis', libs.zod)(globalThis); return globalThis.__zod; })(), z = zodNs;
+  var zs = z.object({ count: z.number().min(0), total: z.number().min(0), name: z.string().max(19), sound: z.union([z.literal(0), z.literal(1)]), upgrades: z.record(z.string().max(200), z.number().int().min(1).max(1e6)), owned: z.record(z.string().max(200), z.number().int().min(1).max(1e6)) });
   var AB = (function () { var m = { exports: {} }; new Function('module', 'exports', abSrc)(m, m.exports); return m.exports; })();
   lf.config({ name: 'lf-small' }); var store = idbk.createStore('idbk-small', 'kv');
   var schema = { count: 'num', total: 'num', name: 'str:19', sound: 'flag', upgrades: { type: 'counts' }, owned: { type: 'counts' } };
@@ -26,9 +28,10 @@ async function bench(src, libs, abSrc) {
   function asy(fn, n) { return async function () { var t = performance.now(), i; for (i = 0; i < n; i++) await fn(); return (performance.now() - t) * 1000 / n; }; }
   for (var z = 0; z < sizes.length; z++) {
     var s = state(sizes[z][1]), n = sizes[z][2], m = n > 1000 ? 60 : 30;
-    kit.save(s); localStorage.setItem('pj', JSON.stringify(s)); await idbk.set('k', s, store); await lf.setItem('k', s);
+    kit.save(s); localStorage.setItem('pj', JSON.stringify(s)); localStorage.setItem('pz', JSON.stringify(s)); await idbk.set('k', s, store); await lf.setItem('k', s);
     var ours = { save: sync(function () { s.count++; kit.save(s); }, n), load: sync(function () { kit.load(); }, n) };
     var pairs = [
+      ['save', 'JSON + zod', sync(function () { s.count++; localStorage.setItem('pz', JSON.stringify(zs.parse(s))); }, n)], ['load', 'JSON + zod', sync(function () { zs.parse(JSON.parse(localStorage.getItem('pz'))); }, n)],
       ['save', 'plain JSON', sync(function () { s.count++; localStorage.setItem('pj', JSON.stringify(s)); }, n)], ['load', 'plain JSON', sync(function () { JSON.parse(localStorage.getItem('pj')); }, n)],
       ['save', 'idb-keyval', asy(function () { return idbk.set('k', s, store); }, m)], ['load', 'idb-keyval', asy(function () { return idbk.get('k', store); }, m)],
       ['save', 'localForage', asy(function () { return lf.setItem('k', s); }, m)], ['load', 'localForage', asy(function () { return lf.getItem('k'); }, m)]

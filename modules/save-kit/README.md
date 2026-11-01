@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.5.2 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time, early-stop A/B rule (limit 5%); 52 Node checks (new: same answers on a WebKit user agent) and 17 of 17 lean builds. Not run: a phone, Safari itself, a laptop
+**Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 ## What it is and how it works
 
@@ -117,6 +117,12 @@ Speed in the three test browsers is in the table below ("How it compares").
 `python3 modules/save-kit/lean.py --without autosave,twoTap,persist` writes `save-kit-lean.js` without those parts (`--list` names every part); kept parts behave exactly as in the full file, a cut method is missing. Minify the result yourself. `lean.py` edits nothing: keep the `//@begin` / `//@else` / `//@end` marker lines in `save-kit.js` balanced.
 
 Minified size with terser 5.36.0 (`-c passes=2 -m`), bytes, smaller is better: 1.2.0 full 8,894; set for Fancy the Banana (keeps codes and `onOtherTab`) 6,341; set for Apple Press (keeps codes and `stageImport`) 6,281; core only (`load`, `save`, `validate`, counts; no codes) 2,967. Cutting `codes` alone saves 3,551 bytes (higher is better); the other parts save 142 to 505 each.
+
+### Lite build: save-kit-lite.js (new in 1.6.0)
+
+For a small game that only needs checked numbers, whole numbers, flags and short text with a backup slot, copy `save-kit-lite.js` instead (global `SaveKitLite`). **1,811 bytes minified, 966 gzipped** (terser 5.51.2, `-c passes=2 -m`, header kept), against 3,978 / 1,847 for the full file with every part cut by `lean.py`. It has `load()`, `save()`, `validate()` and `clear()` and the options `key`, `schema`, `defaults`, `storage`, `backupEveryMs`, `backupKey`, `stamp`. No `counts` or `raw` fields, codes, autosave, versions, other-tab notice, IndexedDB or damaged-slot copy; those stay in `save-kit.js`.
+
+It reads and writes the same stored text as `create()` and gives the same answers: `test/lite.js` feeds 3,000 random damaged main and backup slots to both and requires identical results, and checks hostile keys, the backup interval and blocked storage. Speed against `create()` on a six-field save (early-stop rule, limit 5%, lite/full, lower is better): Chromium 155 save 0.98 (inconclusive), load 0.91 (faster); Firefox 158 save 1.01, load 0.95 (both ok); WebKitGTK 2.52.6 save 0.89, load 0.97 (both ok). So it matches the full file in speed; it is smaller, not faster.
 
 ## What it does that plain JSON saves do not
 
