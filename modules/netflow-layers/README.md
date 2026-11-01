@@ -2,7 +2,7 @@
 
 **Version 1.6.0 · API 1**
 
-**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (cloud); early-stop A/B
+**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (cloud); laptop Chromium 156 and Firefox 160 (16 cores); early-stop A/B
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
