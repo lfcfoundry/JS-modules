@@ -64,8 +64,30 @@ static int build(u32 *tab, int tb, const u8 *len, int n, int which) {
 
 static u32 FIXL, FIXD;   /* 1 when LT/DT hold the fixed tables */
 
+/* CRC-32 of the output, worked out on each 32 KB while it is still in the cache (since 1.16.0): slicing by 16, the same tables as crc32.c. crc() after inflate() gives the checksum of everything written. */
+static u32 CT[16][256], ctReady, CRC;
+static void crcInit(void) {
+  u32 i, c, k;
+  for (i = 0; i < 256; i++) { c = i; for (k = 0; k < 8; k++) c = (c & 1) ? (c >> 1) ^ 0xedb88320u : c >> 1; CT[0][i] = c; }
+  for (i = 0; i < 256; i++) { c = CT[0][i]; for (k = 1; k < 16; k++) { c = CT[0][c & 255] ^ (c >> 8); CT[k][i] = c; } }
+  ctReady = 1;
+}
+static u32 crcRun(const u8 *p, u32 n, u32 s) {
+  while (n >= 16) {
+    u32 a, b, c, d; __builtin_memcpy(&a, p, 4); __builtin_memcpy(&b, p + 4, 4); __builtin_memcpy(&c, p + 8, 4); __builtin_memcpy(&d, p + 12, 4); a ^= s;
+    s = CT[15][a & 255] ^ CT[14][(a >> 8) & 255] ^ CT[13][(a >> 16) & 255] ^ CT[12][a >> 24] ^ CT[11][b & 255] ^ CT[10][(b >> 8) & 255] ^ CT[9][(b >> 16) & 255] ^ CT[8][b >> 24]
+      ^ CT[7][c & 255] ^ CT[6][(c >> 8) & 255] ^ CT[5][(c >> 16) & 255] ^ CT[4][c >> 24] ^ CT[3][d & 255] ^ CT[2][(d >> 8) & 255] ^ CT[1][(d >> 16) & 255] ^ CT[0][d >> 24];
+    p += 16; n -= 16;
+  }
+  while (n--) s = CT[0][(s ^ *p++) & 255] ^ (s >> 8);
+  return s;
+}
+u32 crc(void) { return CRC; }
+
 int inflate(const u8 *in, u32 inlen, u8 *out, u32 outcap) {
-  const u8 *ip = in, *iend = in + inlen; u64 bb = 0; u32 bc = 0, padded = 0, o = 0; int last;
+  const u8 *ip = in, *iend = in + inlen; u64 bb = 0; u32 bc = 0, padded = 0, o = 0, cp = 0, cs = 0xffffffffu; int last;
+  if (!ctReady) crcInit();
+  #define CRC_STEP() do { if (o - cp >= 32768) { cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
   #define REFILL_SLOW() do { while (bc <= 56) { if (ip < iend) bb |= (u64)*ip++ << bc; else padded += 8; bc += 8; } } while (0)
   #define NEED(n) do { if (bc < (u32)(n)) REFILL_SLOW(); } while (0)
   #define TAKE(n) (bb & ((1ull << (n)) - 1))
@@ -112,6 +134,7 @@ int inflate(const u8 *in, u32 inlen, u8 *out, u32 outcap) {
     /* the codes of this block */
     for (;;) {
       u32 e, len, dist;
+      CRC_STEP();
       if (iend - ip >= 8 && outcap - o >= 258 + 16 && !padded) {
         /* fast: refill 8 bytes at once, no end checks (each symbol needs at most 15 + 5 + 15 + 13 = 48 bits) */
         u64 w; __builtin_memcpy(&w, ip, 8); bb |= w << bc; ip += (63 - bc) >> 3; bc |= 56;
@@ -161,6 +184,8 @@ int inflate(const u8 *in, u32 inlen, u8 *out, u32 outcap) {
       if (padded > bc) return -1;
     }
     if (padded > bc) return -1;
+    CRC_STEP();
   } while (!last);
+  CRC = ~crcRun(out + cp, o - cp, cs);
   return (int)o;
 }
