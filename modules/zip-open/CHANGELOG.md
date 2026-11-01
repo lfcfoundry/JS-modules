@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.2 · API 1 · 2026-10-31
+- Excel files over 16 MB opened on the page without helpers open 3 to 24% faster (cloud Firefox, Chromium, WebKitGTK), same results.
+
 ## 1.14.1 · API 1 · 2026-10-31
 - The built-in WebAssembly parts load faster in browsers with Uint8Array.fromBase64 (decode 0.08x to 0.18x of the old time, measured on other modules); everything else the same.
 
