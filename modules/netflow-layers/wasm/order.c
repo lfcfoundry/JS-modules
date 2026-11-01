@@ -7,7 +7,7 @@ typedef int I;
 typedef double D;
 typedef unsigned char U8;
 enum { NV, NL, MAXLEN, BASE, ROUNDS, BIG, ROWOFF, ORD, BEST, POS, LANE, BARY, UPOFF, UPIDX, DNOFF, DNIDX, SCR, FEN, TMP,
-       UPW, DNW, BOTHOFF, BOTHIDX, BOTHW, CA, GAP, CHOKE, DUMMY, WIDE, ITERS, WANT, WT, GAPS, OFF, BS, BW, BN, OUT, DEEPMAX, DEEPSTALL, DEEPTG };
+       UPW, DNW, BOTHOFF, BOTHIDX, BOTHW, CA, GAP, CHOKE, DUMMY, WIDE, ITERS, WANT, WT, GAPS, OFF, BS, BW, BN, OUT, DEEPMAX, DEEPSTALL, DEEPTG, PRE };
 #define PI(x) ((I *)(P[x]))
 #define PD(x) ((D *)(P[x]))
 
@@ -89,10 +89,29 @@ static void transpose(I *P, I k, I tg) {
     }
   }
 }
-/* the whole order search: returns the crossings of the best order, which is left in BEST (and the work order in ORD) */
+/* deep: from the order in KEEP, rounds with neighbor swaps right after each row's sweep and a full swap pass; stops after DEEPSTALL rounds with no gain.
+   KEEP ends as the best order seen and the return value is its crossings (keepC to start). */
+static D deep_from(I *P, I *keep, D keepC) {
+  I nL = P[NL], nV = P[NV], k, i, *ord = PI(ORD), *pos = PI(POS), *ro = PI(ROWOFF), tg = P[DEEPTG], stall = 0, d;
+  for (i = 0; i < nV; i++) ord[i] = keep[i];
+  for (k = 0; k < nL; k++) for (i = ro[k]; i < ro[k + 1]; i++) pos[ord[i]] = i - ro[k];
+  for (d = 0; d < P[DEEPMAX] && keepC > 0 && stall < P[DEEPSTALL]; d++) {
+    I median = d % 2 == 1;
+    for (k = 1; k < nL; k++) { sweep(P, k, PI(UPOFF), PI(UPIDX), median); transpose(P, k, tg); }
+    for (k = nL - 2; k >= 0; k--) { sweep(P, k, PI(DNOFF), PI(DNIDX), median); transpose(P, k, tg); }
+    for (k = 0; k < nL; k++) transpose(P, k, tg);
+    D c = total_cross(P);
+    if (c < keepC) { keepC = c; for (i = 0; i < nV; i++) keep[i] = ord[i]; stall = 0; } else stall++;
+  }
+  return keepC;
+}
+/* the whole order search: returns the crossings of the best order, which is left in BEST (and the work order in ORD).
+   When rounds run past the usual ones ("better"), the deep search also starts from the best order of the usual rounds (kept in PRE),
+   and the fewer crossings win, so the extra rounds never end in more crossings. */
 D order(I *P) {
   I nL = P[NL], nV = P[NV], k, i, it, rounds = P[ROUNDS], base = P[BASE], big = P[BIG];
-  I *ord = PI(ORD), *best = PI(BEST), *pos = PI(POS);
+  I *ord = PI(ORD), *best = PI(BEST), *pos = PI(POS), *pre = PI(PRE), two = P[DEEPMAX] > 0 && rounds > base && pre;
+  D preC = -1;
   for (i = 0; i < nV; i++) best[i] = ord[i];
   D bestC = total_cross(P);
   for (it = 0; it < rounds && bestC > 0; it++) {
@@ -102,20 +121,11 @@ D order(I *P) {
     if (!big || it >= base) for (k = 0; k < nL; k++) transpose(P, k, 8);
     D c = total_cross(P);
     if (c < bestC) { bestC = c; for (i = 0; i < nV; i++) best[i] = ord[i]; }
+    if (two && it == base - 1) { preC = bestC; for (i = 0; i < nV; i++) pre[i] = best[i]; }
   }
-  /* deep: from the best order so far, rounds with neighbor swaps right after each row's sweep and a full swap pass; stops after DEEPSTALL rounds with no gain */
   if (P[DEEPMAX] > 0 && bestC > 0) {
-    I *ro = PI(ROWOFF), tg = P[DEEPTG], stall = 0, d;
-    for (i = 0; i < nV; i++) ord[i] = best[i];
-    for (k = 0; k < nL; k++) for (i = ro[k]; i < ro[k + 1]; i++) pos[ord[i]] = i - ro[k];
-    for (d = 0; d < P[DEEPMAX] && bestC > 0 && stall < P[DEEPSTALL]; d++) {
-      I median = d % 2 == 1;
-      for (k = 1; k < nL; k++) { sweep(P, k, PI(UPOFF), PI(UPIDX), median); transpose(P, k, tg); }
-      for (k = nL - 2; k >= 0; k--) { sweep(P, k, PI(DNOFF), PI(DNIDX), median); transpose(P, k, tg); }
-      for (k = 0; k < nL; k++) transpose(P, k, tg);
-      D c = total_cross(P);
-      if (c < bestC) { bestC = c; for (i = 0; i < nV; i++) best[i] = ord[i]; stall = 0; } else stall++;
-    }
+    bestC = deep_from(P, best, bestC);
+    if (two && preC > 0) { preC = deep_from(P, pre, preC); if (preC < bestC) { bestC = preC; for (i = 0; i < nV; i++) best[i] = pre[i]; } }
   }
   return bestC;
 }
