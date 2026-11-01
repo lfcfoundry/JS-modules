@@ -218,6 +218,70 @@
     for (var i = 0, n = Math.min(u8.length, 8192); i < n; i++) if (u8[i] === 0) return false;
     return true;
   }
+  /* A second thread for big sheets (since 1.17.0): it unpacks the compressed sheet a piece at a time with the same
+     wasm module and hands each piece over, while this thread reads the rows of the pieces already here. Started the
+     first time a big sheet comes, closed 5 s after the last one. */
+  var MORE_ROWS = -9, PIPE_MIN = 4194304, PIPE_CHUNK = 524288, PIPE = null, pipeTimer = 0, pipeSpawn = null, pipeNext = 1;
+  function pipeBody() {
+    var X = null, mod = null;
+    onmessage = function (ev) {
+      var m = ev.data, H, ip, op, need, have, prev = 0, o, c, done;
+      if (m.mod) { mod = m.mod; return; }
+      try {
+        if (!X) X = new WebAssembly.Instance(mod, {}).exports;
+        H = (X.__heap_base.value + 15) & ~15; ip = H; op = (H + m.src.byteLength + 15) & ~15; need = op + m.cap; have = X.memory.buffer.byteLength;
+        if (need > have) X.memory.grow(Math.ceil((need - have) / 65536));
+        new Uint8Array(X.memory.buffer, ip, m.src.byteLength).set(new Uint8Array(m.src));
+        X.inflateBegin(ip, m.src.byteLength, op, m.cap);
+        for (;;) {
+          o = X.inflateStep(prev + m.chunk);
+          if (o < 0) { postMessage({ id: m.id, err: o }); break; }
+          done = X.inflateDone(); c = new Uint8Array(X.memory.buffer, op + prev, o - prev).slice();
+          postMessage({ id: m.id, c: c, o: o, done: done, crc: done ? X.crc() >>> 0 : 0 }, [c.buffer]); prev = o;
+          if (done) break;
+        }
+      } catch (e) { postMessage({ id: m.id, err: -1 }); }
+      if (X && X.memory.buffer.byteLength > 4194304) X = null;   // its memory only grows: a fresh instance next time
+    };
+  }
+  function pipeOn() {   // a second thread can be had here (a page, not a helper; a test can hand one in)
+    if (pipeSpawn) return true;
+    return typeof Worker === 'function' && typeof document === 'object' && typeof URL === 'function' && !!URL.createObjectURL && typeof Blob === 'function' && !!xlsxModule();
+  }
+  function pipeWorker() {
+    if (!PIPE) {
+      var code = '(' + pipeBody.toString() + ')();', w;
+      if (pipeSpawn) w = pipeSpawn(code);
+      else { var url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' })); w = new Worker(url); URL.revokeObjectURL(url); }
+      PIPE = { w: w, jobs: {} };
+      w.onmessage = function (ev) { var m = ev.data, j = PIPE && PIPE.jobs[m.id]; if (j) j(m); };
+      w.onerror = function (ev) { var jobs = PIPE ? PIPE.jobs : {}; PIPE = null; Object.keys(jobs).forEach(function (id) { jobs[id]({ err: -3 }); }); if (ev && ev.preventDefault) ev.preventDefault(); try { w.terminate(); } catch (e) { /* gone */ } };
+      w.postMessage({ mod: xlsxModule() });
+    }
+    if (pipeTimer) clearTimeout(pipeTimer);
+    return PIPE;
+  }
+  function pipeIdle() {
+    if (pipeTimer) clearTimeout(pipeTimer);
+    pipeTimer = setTimeout(function () { pipeTimer = 0; if (PIPE && !Object.keys(PIPE.jobs).length) { try { PIPE.w.terminate(); } catch (e) { /* gone */ } PIPE = null; } }, 5000);
+    if (pipeTimer && pipeTimer.unref) pipeTimer.unref();
+  }
+  /** Unpacks raw deflate bytes on the second thread; each piece goes to piece(bytes, total so far, done) as it comes. -> { n, crc } | { err } (-3: the thread failed; then this thread unpacks it). */
+  function pipeUnpack(src, n, piece) {
+    return new Promise(function (ok) {
+      var P, id = pipeNext++, total = 0;
+      try { P = pipeWorker(); } catch (e) { P = null; }
+      var local = function () { var w = inflateWasm(src, n + 1, null, n); if (!w) return ok({ err: -1 }); if (w.err) return ok({ err: w.err }); piece(w.bytes, w.bytes.length, true); ok({ n: w.bytes.length, crc: w.crc }); };
+      if (!P) return local();
+      P.jobs[id] = function (m) {
+        if (m.err !== undefined) { delete P.jobs[id]; pipeIdle(); if (m.err === -3 && total === 0) return local(); return ok({ err: m.err }); }
+        total = m.o; try { piece(m.c, m.o, !!m.done); } catch (e) { /* the reader's problem: the usual way afterwards */ }
+        if (m.done) { delete P.jobs[id]; pipeIdle(); ok({ n: m.o, crc: m.crc }); }
+      };
+      var copy = src.slice();   // the compressed bytes go over (moved, not copied again)
+      try { P.w.postMessage({ id: id, src: copy.buffer, cap: n + 1, chunk: PIPE_CHUNK }, [copy.buffer]); } catch (e) { delete P.jobs[id]; local(); }
+    });
+  }
   function xlsxSheets(parts, opts) {
     opts = opts || {};
     var maxRows = opts.maxRows || 2000000, sstCsv = [], sst = [], dateXf = {}, d1904 = false, sheets = [], rels = {};
@@ -262,10 +326,30 @@
     if (txt('xl/workbook.xml')) xmlScan(parts['xl/workbook.xml'], { open: function (t, a) { if (t === 'sheet') sheets.push({ name: a.name || 'Sheet' + (sheets.length + 1), rid: a['r:id'] || a.id }); else if (t === 'workbookPr' && /^(1|true)$/i.test(a.date1904 || '')) d1904 = true; } });
     if (txt('xl/_rels/workbook.xml.rels')) xmlScan(parts['xl/_rels/workbook.xml.rels'], { open: function (t, a) { if (t === 'Relationship' && a.Id) rels[a.Id] = a.Target || ''; } });
     var out = [];
-    sheets.forEach(function (sh, si) {
+    var sheetOut = function (sh, len, shPos, outPos, fixPos) {   // the wasm reader's CSV (and the numbers it hands back) as one text
+      var nl = W.lines();
+      if (nl) {
+        var m8 = new Uint8Array(mem.buffer), dec = new TextDecoder('utf-8', { ignoreBOM: true }), nf = W.fixups(), csv;
+        if (!nf) csv = dec.decode(m8.subarray(outPos, outPos + len));
+        else {
+          var f32 = new Uint32Array(mem.buffer, fixPos, nf * 4), parts2 = [], at = outPos, fi, v, dt;
+          for (fi = 0; fi < nf; fi++) {
+            parts2.push(dec.decode(m8.subarray(at, outPos + f32[fi * 4])));
+            v = dec.decode(m8.subarray(shPos + f32[fi * 4 + 1], shPos + f32[fi * 4 + 1] + f32[fi * 4 + 2]));
+            if (f32[fi * 4 + 3]) { dt = xlDate(Number(v), d1904); parts2.push(dt || csvCell(v)); }
+            else parts2.push(isFinite(Number(v)) ? String(Number(v)) : csvCell(v));
+            at = outPos + f32[fi * 4];
+          }
+          parts2.push(dec.decode(m8.subarray(at, outPos + len))); csv = parts2.join('');
+        }
+        out.push({ sheet: sh.name, csv: csv, rows: nl, truncated: false });
+      }
+    };
+    var doSheet = function (sh, si) {
       var target = rels[sh.rid] || 'worksheets/sheet' + (si + 1) + '.xml';
       target = target.replace(/^\/?(xl\/)?/, '').replace(/^\.\//, '');
       var xb = parts['xl/' + target], placed = xb !== undefined && typeof xb !== 'string' && xb.wasmAt !== undefined;
+      if (xb !== undefined && typeof xb !== 'string' && xb.pipe) return pipeSheet(sh, si, 'xl/' + target, xb);   // still compressed: unpacked by a second thread while the rows are read
       if (placed) xb = new Uint8Array(mem.buffer, xb.wasmAt, xb.len);   // a view: read its length now, since growing the memory below cuts it off
       var xbn = xb === undefined || typeof xb === 'string' ? 0 : xb.length;
       if (W && sstState && xb !== undefined && typeof xb !== 'string' && rawUtf8Like(xb)) {
@@ -281,23 +365,7 @@
             break;
           }
           if (len >= 0) {
-            var nl = W.lines();
-            if (nl) {
-              m8 = new Uint8Array(mem.buffer); var dec = new TextDecoder('utf-8', { ignoreBOM: true }), nf = W.fixups(), csv;
-              if (!nf) csv = dec.decode(m8.subarray(outPos, outPos + len));
-              else {
-                var f32 = new Uint32Array(mem.buffer, fixPos, nf * 4), parts2 = [], at = outPos, fi, v, dt;
-                for (fi = 0; fi < nf; fi++) {
-                  parts2.push(dec.decode(m8.subarray(at, outPos + f32[fi * 4])));
-                  v = dec.decode(m8.subarray(shPos + f32[fi * 4 + 1], shPos + f32[fi * 4 + 1] + f32[fi * 4 + 2]));
-                  if (f32[fi * 4 + 3]) { dt = xlDate(Number(v), d1904); parts2.push(dt || csvCell(v)); }
-                  else parts2.push(isFinite(Number(v)) ? String(Number(v)) : csvCell(v));
-                  at = outPos + f32[fi * 4];
-                }
-                parts2.push(dec.decode(m8.subarray(at, outPos + len))); csv = parts2.join('');
-              }
-              out.push({ sheet: sh.name, csv: csv, rows: nl, truncated: false });
-            }
+            sheetOut(sh, len, shPos, outPos, fixPos);
             if (opts._used) opts._used.wasm = (opts._used.wasm || 0) + 1;   // test hook: how many sheets the wasm reader did
             return;
           }
@@ -419,8 +487,29 @@
       }
       flushRow();
       if (lines.length) out.push({ sheet: sh.name, csv: lines.join('\n'), rows: lines.length, truncated: truncated });
-    });
-    return out;
+    };
+    var pipeSheet = function (sh, si, key, pp) {   // pp: { pipe: compressed bytes, wasmAt, len, crc }; the sheet's room in the memory is already kept
+      var xfMax = 0, k; for (k in dateXf) if (+k + 1 > xfMax) xfMax = +k + 1;
+      var shPos = pp.wasmAt, xbn = pp.len, xfPos = sstEnd, outPos = (xfPos + xfMax + 7) & ~7, outCap = xbn + 65536, fixCap = (xbn >> 7) + 1024, fixPos = (outPos + outCap + 7) & ~7, m8 = need(fixPos + fixCap * 16);
+      for (k = 0; k < xfMax; k++) m8[xfPos + k] = dateXf[k] ? 1 : 0;
+      var live = !!(W && sstState), began = false, chk = 0, r = MORE_ROWS;
+      return pipeUnpack(pp.pipe, xbn, function (c, o, done) {
+        var u = new Uint8Array(mem.buffer); u.set(c, shPos + o - c.length);
+        if (!live) return;
+        if (!began) { if (!rawUtf8Like(u.subarray(shPos, shPos + o)) || W.sheetBegin(shPos, o, xfPos, xfMax, d1904 ? 1 : 0, outPos, outCap, fixPos, fixCap, maxRows)) { live = false; return; } began = true; }
+        var safe = done ? o : u.lastIndexOf(60, shPos + o - 1) - shPos;   // '<' is never inside a UTF-8 sequence
+        if (safe > chk) { if (!W.utf8ok(shPos + chk, safe - chk)) { live = false; return; } chk = safe; }
+        r = W.sheetMore(o, done ? 1 : 0);
+        if (r !== MORE_ROWS && (r < 0 || !done)) live = false;   // the outcome before the end, or a sheet the reader hands back: the usual way below
+      }).then(function (got) {
+        if (got.err || got.n !== xbn || got.crc !== pp.crc) { parts[key] = { bad: '' }; parts[key].bad = got.err === -2 ? 'unpacks to more than it says it does' : 'looks damaged' + (got.err ? '' : got.n !== xbn ? ' (its size is not what the zip says)' : ' (its checksum does not match)'); return; }
+        PLACED++;
+        if (live && began && r >= 0) { sheetOut(sh, r, shPos, outPos, fixPos); return; }
+        parts[key] = { wasmAt: shPos, len: xbn }; return doSheet(sh, si);
+      });
+    };
+    var next = function (i) { for (; i < sheets.length; i++) { var p = doSheet(sheets[i], i); if (p && typeof p.then === 'function') return p.then(function () { return next(i + 1); }); } return out; };
+    return next(0);
   }
 
   var LIMITS = {
@@ -779,7 +868,13 @@
     return { bytes: got.bytes };
   }
   /** Where an archive's entries come from: bytes already in memory, or a File/Blob read in pieces. Everything above this line works with either. */
-  function memSource(u8) { return { place: true, list: function (lim) { return list(u8, lim); }, read: function (e, limit, sc) { return readEntry(u8, e, limit, sc); } }; }   // place: bookJob may unpack a big sheet straight into the wasm reader (measured faster for bytes in memory, inside a helper, and for a File read in pieces on the page)
+  function rawEntry(u8, e) {   // an entry's compressed bytes, or null when anything looks off (then the usual read says why)
+    var d = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    if (e.start + 30 > u8.length || u32(d, e.start) !== 0x04034b50) return null;
+    var data = e.start + 30 + u16(d, e.start + 26) + u16(d, e.start + 28);
+    return data + e.csize > u8.length ? null : u8.subarray(data, data + e.csize);
+  }
+  function memSource(u8) { return { place: true, list: function (lim) { return list(u8, lim); }, read: function (e, limit, sc) { return readEntry(u8, e, limit, sc); }, raw: function (e) { return rawEntry(u8, e); } }; }   // place: bookJob may unpack a big sheet straight into the wasm reader (measured faster for bytes in memory, inside a helper, and for a File read in pieces on the page)
   function blobSource(blob, helpers) {
     var src = { place: true, list: function (lim) { return listBlob(blob, lim); }, read: function (e, limit, sc) { return readBlobEntry(blob, e, limit, cache, sc); } }, cache = {};
     if (helpers && helpers.length) {
@@ -944,6 +1039,10 @@
         if (room <= 0) { stopped = true; notes.push('Stopped opening the workbook after ' + Math.round(lim.maxTotalBytes / 1e6) + ' MB of unpacked data (a safety limit).'); break; }
         var at = from, sink = e === big ? function (n) { var have = W.memory.buffer.byteLength; if (at + n > have) W.memory.grow(Math.ceil((at + n - have) / 65536)); return new Uint8Array(W.memory.buffer, at, n); } : undefined;
         if (sink) { sink.wx = W; sink.at = at; }
+        if (sink && src.raw && e.method === 8 && !(e.flags & 1) && e.usize >= PIPE_MIN && e.usize <= room && pipeOn()) {   // a big sheet: unpacked on a second thread while its rows are read (xlsxSheets)
+          var raw = src.raw(e);
+          if (raw) { parts[e.path.replace(/^xl\/worksheets\//i, 'xl/worksheets/')] = { pipe: raw, wasmAt: at, len: e.usize, crc: e.crc }; from = at + e.usize; total += e.usize; continue; }
+        }
         var got = await src.read(e, room, sink);
         if (got.skip) { notes.push('Part "' + e.path + '" of "' + label + '" ' + got.skip + '; skipped.'); continue; }
         total += got.bytes.length;
@@ -954,7 +1053,8 @@
     } catch (err) { if (W) giveBack(W); throw err; }
     var out = { notes: notes, total: total, stopped: stopped, sheets: null };
     if (!parts['xl/workbook.xml']) { notes.push('"' + label + '" does not look like an Excel workbook; skipped.'); return out; }
-    try { out.sheets = xlsxSheets(parts, W && from > W.__heap_base.value ? { _w: W, _from: from } : {}); } catch (err) { if (W) giveBack(W); notes.push('"' + label + '" could not be read as a workbook (' + String(err && err.message || err).replace(/\.$/, '') + '); skipped.'); return out; }
+    try { out.sheets = await xlsxSheets(parts, W && from > W.__heap_base.value ? { _w: W, _from: from } : {}); } catch (err) { if (W) giveBack(W); notes.push('"' + label + '" could not be read as a workbook (' + String(err && err.message || err).replace(/\.$/, '') + '); skipped.'); return out; }
+    Object.keys(parts).forEach(function (k) { var v = parts[k]; if (v && v.bad) notes.push('Part "' + k + '" of "' + label + '" ' + v.bad + '; skipped.'); });
     if (W) giveBack(W);
     if (!out.sheets.length) { notes.push('"' + label + '" has no cells with data.'); out.sheets = null; }
     return out;
@@ -984,5 +1084,5 @@
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
   compileEarly();
-  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, _xlsxPlain: xlsxPlain, _placed: function () { return PLACED; }, _xlsxSimd: function () { xlsxModule(); return XSIMD; }, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n === undefined ? INFLATE_DEF : n; }, LIMITS: LIMITS };
+  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, _xlsxPlain: xlsxPlain, _placed: function () { return PLACED; }, _xlsxSimd: function () { xlsxModule(); return XSIMD; }, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n === undefined ? INFLATE_DEF : n; }, _pipe: function (spawn, min) { pipeSpawn = spawn || null; PIPE_MIN = min === undefined ? 4194304 : min; if (PIPE) { try { PIPE.w.terminate(); } catch (e) { /* gone */ } PIPE = null; } }, LIMITS: LIMITS };
 }));

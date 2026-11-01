@@ -585,4 +585,24 @@ t('Excel: the wasm reader works a piece at a time (shared text and rows each wel
   try { js = await U.expand(x, 'b.xlsx'); } finally { WebAssembly.Module = M; U._xlsxPlain(false); }
   assert.deepStrictEqual(w, js); assert.equal(w.files[0].text.split('\n').length, 30001);
 });
+t('Excel: a big sheet unpacked on a second thread while its rows are read gives the very same tables (and a damaged one is skipped with a note)', async function () {
+  var WT = require('worker_threads'), spawned = 0;
+  var spawn = function (code) {
+    spawned++;
+    var w = new WT.Worker("const {parentPort}=require('worker_threads');globalThis.postMessage=(m,t)=>parentPort.postMessage(m,t);parentPort.on('message',d=>globalThis.onmessage({data:d}));" + code, { eval: true }), o = { postMessage: function (m, t) { w.postMessage(m, t); }, terminate: function () { w.terminate(); } };
+    w.on('message', function (d) { o.onmessage({ data: d }); }); w.on('error', function (e) { if (o.onerror) o.onerror(e); }); return o;
+  };
+  var rows = [['id', 'name', 'when', 'n']]; for (var i = 0; i < 30000; i++) rows.push([i, 'name ' + (i % 997) + (i % 11 ? '' : ' & co'), { d: 44000 + (i % 3000) }, i * 1.25]);
+  var x = u8(Z.makeXlsx([{ name: 'Big', rows: rows }, { name: 'Small', rows: [['a', 'b'], ['1', '2']] }])), want = await U.expand(x, 'b.xlsx'), got, p0 = U._placed();
+  U._pipe(spawn, 1024);
+  try { got = await U.expand(x, 'b.xlsx'); } finally { U._pipe(); }
+  assert.equal(spawned, 1, 'a second thread was used'); assert.ok(U._placed() > p0);
+  assert.deepStrictEqual(got, want);
+  var ents = U.list(x).entries, e = ents.filter(function (q) { return /sheet1\.xml$/.test(q.path); })[0], bad = x.slice();
+  bad[e.start + 30 + e.path.length + 300] ^= 0x55;
+  U._pipe(spawn, 1024);
+  try { got = await U.expand(bad, 'b.xlsx'); } finally { U._pipe(); }
+  assert.ok(got.notes.some(function (n) { return /sheet1\.xml.*(damaged|more than)/.test(n); }), JSON.stringify(got.notes));
+  assert.equal(got.files.length, 1, 'only the small sheet');
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });
