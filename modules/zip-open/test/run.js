@@ -545,5 +545,8 @@ t('Excel: a big sheet unpacked straight into the WebAssembly reader gives the sa
   var b = await U.expandBlob(new Blob([u8(xi)]), 'i.xlsx', { _wholeMax: 0 }), a = await U.expand(u8(xi), 'i.xlsx');
   assert.ok(U._placed() > p0, 'inline sheet placed'); assert.deepStrictEqual(b, a); assert.equal(a.files[0].text.split('\n')[1], '"row 2, x",2');
   var c = await U.expandBlob(new Blob([u8(x)]), 'b.xlsx', { workers: 2, spawn: spawn, idleMs: 1, _wholeMax: 0 }); assert.deepStrictEqual(c, want, 'inside a helper'); U.closeHelpers();
+  var bl = new Blob([u8(x)]), ents = (await U.listBlob(bl)).entries, cache = {}; p0 = U._placed();   // the source a helper uses: a File read in pieces, placed
+  var bj = await U._bookJob({ place: true, read: function (e, l, sc) { return U.readBlob(bl, e, l, cache, sc); } }, ents, 'b.xlsx', U.LIMITS, 0);
+  assert.ok(U._placed() > p0, 'placed from a File read in pieces'); assert.equal(bj.sheets.length, 2); assert.deepStrictEqual(bj.sheets.map(function (s) { return s.csv; }), want.files.map(function (f) { return f.text; }), 'same tables');
 });
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });
