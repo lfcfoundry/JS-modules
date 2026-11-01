@@ -375,7 +375,7 @@
     var cn = new Uint32Array(mem.buffer, P.cnt, 4), nl = cn[0], colons = cn[1], commas = cn[2], allowStr = 1, asciiIn = cn[3] === 0;
     nrows = nl + (input[len - 1] === 10 ? 0 : 1);
     var pb = (nrows + 7) >> 3, NK = 128, cells = colons + 1, lvals = commas + colons + 16;
-    lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals); lay('clen', 4 * cells);
+    lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals); lay('clen', 4 * cells); if (asciiIn) { lay('hexL', 4 * NK); lay('hoff', 4 * NK); lay('hex', (len >> 1) + 16); }
     if (o > 1610612736) return null;
     if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
     m8 = new Uint8Array(mem.buffer); m8.fill(0, P.planes, P.planes + NK * pb);
@@ -390,19 +390,14 @@
     var count = new Uint32Array(nk), tot = new Float64Array(nk), pos = new Uint32Array(nk), colv = new Array(nk), coll = new Array(nk), vpos = new Uint32Array(nk);
     for (i = 0; i < nc; i++) { j = ckey[i]; count[j]++; if (ktype[j] === 2) tot[j] += llen[cval[i]]; }
     // hex id columns (every value the same even length of 16 or more, lowercase hex: encodeColumn's 'H'): with ASCII input the offsets are byte offsets, so their bytes are read straight from the input, no strings
-    var hexL = new Int32Array(nk), q2, b2, e2;
-    if (asciiIn) {
-      for (j = 0; j < nk; j++) hexL[j] = ktype[j] === 3 ? -1 : 0;
-      for (i = 0; i < nc; i++) { j = ckey[i]; if (hexL[j] === 0) continue; e2 = clen[i];
-        if (hexL[j] === -1) { if (e2 < 16 || e2 % 2) { hexL[j] = 0; continue; } hexL[j] = e2; } else if (e2 !== hexL[j]) { hexL[j] = 0; continue; }
-        for (q2 = cval[i], e2 += q2; q2 < e2; q2++) { b2 = input[q2]; if (!((b2 >= 48 && b2 <= 57) || (b2 >= 97 && b2 <= 102))) { hexL[j] = 0; break; } } }
-    }
-    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(count[j]); else if (ktype[j] === 2) { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } else if (hexL[j] > 0) colv[j] = new Uint8Array(count[j] * hexL[j] / 2); else { colv[j] = new Array(count[j]); if (ktype[j] === 3 && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
+    var hexL = new Int32Array(nk), hoff = null;
+    if (asciiIn && W.x.hexcols(P['in'], nc, P.ckey, P.cval, P.clen, P.ktype, nk, P.hexL, P.hoff, P.hex)) { hexL.set(new Int32Array(mem.buffer, P.hexL, nk)); hoff = new Uint32Array(mem.buffer, P.hoff, nk); }
+    for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(count[j]); else if (ktype[j] === 2) { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } else if (hexL[j] > 0) colv[j] = new Uint8Array(mem.buffer, P.hex + hoff[j], count[j] * hexL[j] / 2).slice(); else { colv[j] = new Array(count[j]); if (ktype[j] === 3 && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
     var lp = 0, sc, m, v;
     for (i = 0; i < nc; i++) {
       j = ckey[i];
       if (ktype[j] === 1) { v = cval[i] * P10[FD[kfd[j]] - cfd[i]]; if (!(v < 1125899906842624 && v > -1125899906842624)) return null; colv[j][pos[j]++] = v; }
-      else if (ktype[j] === 3) { if (hexL[j] > 0) { b2 = colv[j]; for (q2 = cval[i], e2 = q2 + clen[i]; q2 < e2; q2 += 2) b2[pos[j]++] = (hexv(input[q2]) << 4) | hexv(input[q2 + 1]); } else colv[j][pos[j]++] = text.slice(cval[i], cval[i] + clen[i]); }
+      else if (ktype[j] === 3) { if (hexL[j] === 0) colv[j][pos[j]++] = text.slice(cval[i], cval[i] + clen[i]); }
       else if (ktype[j] === 4) colv[j][pos[j]++] = cfd[i] === 2 ? null : cval[i] === 1;
       else if (ktype[j] === 5) colv[j][pos[j]++] = null;
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
