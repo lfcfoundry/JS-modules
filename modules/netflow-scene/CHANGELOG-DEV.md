@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.3 · API 1 · 2026-11-01
+
+### Quick
+toSvg groups same-look dots in one <g>; same pixels, about 20% less SVG text.
+
+### Details
+toSvg: consecutive dots with the same fill, stroke and width share one <g> that carries the look; dimming (opacity) stays on each dot; no stroke attributes when the width is 0 or the stroke is clear. 52 pictures (23 plot chart types at 300 and 3,000 rows, maps of 400 and 3,000 items with and without dimmed dots): same pixels in all three browsers, 10,770 KB of SVG instead of 13,362. toSvg time on the plot charts 2,301 to 1,605 ms in Node (look text kept between same-look dots).
+
+### Deep
+netflow-scene 1.3.3: SVG export groups same-look dots (same pixels, about 20% less text).
+
 ## 1.3.2 · API 1 · 2026-10-31
 
 ### Quick
