@@ -5,7 +5,22 @@ typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u
 #define EXPORT(n) __attribute__((export_name(n)))
 #define MAXK 128
 static u32 HT[512]; static u32 LASTROW[MAXK];
+static u32 PRED[MAXK], KEXTRA[MAXK];   /* PRED[j]: the key that came j-th in the last row (rows mostly repeat their key order); KEXTRA: a key's UTF-8 bytes minus UTF-16 units */
 static const double P10[19]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,1e15,1e16,1e17,1e18};
+// digits from in[p] on, 8 at a time: m = m*10^k + their value, *nd += k; returns the new p, or 0xFFFFFFFF when more than 15 digits in all
+static const u64 P10U[9]={1,10,100,1000,10000,100000,1000000,10000000,100000000};
+static u32 digits(const u8*in,u32 p,u32 len,u64*m,u32*nd){
+  while(p+8<=len){ u64 w; __builtin_memcpy(&w,in+p,8);
+    u64 bad=((w&0xF0F0F0F0F0F0F0F0ULL)^0x3030303030303030ULL)|(((w+0x0606060606060606ULL)&0xF0F0F0F0F0F0F0F0ULL)^0x3030303030303030ULL);   /* nonzero in each byte that is not '0'-'9' (a carry only starts at such a byte) */
+    u32 L=bad?((u32)__builtin_ctzll(bad)>>3):8;
+    if(L==0) return p;
+    if(*nd+L>15) return 0xFFFFFFFFu;
+    u64 v=(w-0x3030303030303030ULL)<<(8*(8-L));   /* the L digits in the top bytes, zeros below: the usual 8-digit conversion */
+    v=(v*10+(v>>8))&0x00FF00FF00FF00FFULL; v=(v*100+(v>>16))&0x0000FFFF0000FFFFULL; v=(v*10000+(v>>32))&0xFFFFFFFFULL;
+    *m=*m*P10U[L]+v; *nd+=L; p+=L; if(L<8) return p; }
+  while(p<len&&in[p]>='0'&&in[p]<='9'){ *m=*m*10+(in[p]-'0'); if(++*nd>15) return 0xFFFFFFFFu; p++; }
+  return p;
+}
 // st: [0]=keys [1]=cells [2]=lists [3]=list values [4]=rows [5]=error position
 // key outputs: keyoff/keylen (into the input), ktype (1 number, 2 list), kmaxfd (largest fraction digit count of the column)
 // cell outputs, in row-major order: ckey (key id), cval (number: signed mantissa as double; list: index into llen), cfd (fraction digits, numbers only)
@@ -14,25 +29,35 @@ static const double P10[19]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e1
 EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyoff,u32*keylen,u8*ktype,u8*kmaxfd,u32*st,u8*ckey,double*cval,u8*cfd,u32*llen,u32*lval,u32*clen,u32 allowstr){
   u32 p=0,row=0,nk=0,nc=0,nl=0,nlv=0,extra=0;   // extra = bytes minus UTF-16 units so far, for the strings' offsets in the decoded text
   for(u32 i=0;i<512;i++) HT[i]=0;
-  for(u32 i=0;i<MAXK;i++) LASTROW[i]=0xFFFFFFFFu;
+  for(u32 i=0;i<MAXK;i++){ LASTROW[i]=0xFFFFFFFFu; PRED[i]=0xFFFFFFFFu; }
 #define BAIL(c) do{ st[0]=nk; st[1]=nc; st[2]=nl; st[3]=nlv; st[4]=row; st[5]=p; return (c); }while(0)
 #define WS while(p<len&&(in[p]==' '||in[p]=='\t')) p++
   while(p<len){
     if(row>=nrows) BAIL(1);
     if(in[p]!='{') BAIL(2);
     p++; WS;
+    u32 kpos=0;
     if(p<len&&in[p]=='}'){ p++; }
     else for(;;){
       if(p>=len||in[p]!='"') BAIL(3);
-      u32 ks=++p; u32 h=2166136261u; u32 alld=1;
+      u32 ks=++p, id=0xFFFFFFFFu;
+      if(kpos<MAXK && PRED[kpos]!=0xFFFFFFFFu){   /* same key as in this place of the last row: compare its bytes, no hashing */
+        u32 k=PRED[kpos], kl=keylen[k], a=keyoff[k];
+        if(ks+kl<len && in[ks+kl]=='"'){ u32 z=0; while(z+8<=kl){ u64 x,y; __builtin_memcpy(&x,in+a+z,8); __builtin_memcpy(&y,in+ks+z,8); if(x!=y) break; z+=8; } while(z<kl&&in[a+z]==in[ks+z]) z++; if(z==kl){ id=k; p=ks+kl+1; extra+=KEXTRA[k]; } }
+      }
+      if(id==0xFFFFFFFFu){
+      u32 h=2166136261u; u32 alld=1, ex0=extra;
       while(p<len&&in[p]!='"'){ u8 c=in[p]; if(c=='\\'||c<0x20) BAIL(4); if(c<'0'||c>'9') alld=0; if(c>=0xC0) extra+=(c>=0xE0)?2:1; h=(h^c)*16777619u; p++; }
       if(p>=len) BAIL(4);
       u32 kl=p-ks; p++;
       if(kl==0||alld) BAIL(5);   // integer-like keys are enumerated first by JavaScript: leave them to the other path
       if(kl==9){ const u8*q=in+ks; if(q[0]=='_'&&q[1]=='_'&&q[2]=='p'&&q[3]=='r'&&q[4]=='o'&&q[5]=='t'&&q[6]=='o'&&q[7]=='_'&&q[8]=='_') BAIL(5); }
-      u32 slot=h&511, id=0xFFFFFFFFu;
+      u32 slot=h&511;
       for(;;){ u32 e=HT[slot]; if(!e) break; u32 k=e-1; if(keylen[k]==kl){ u32 a=keyoff[k]; u32 z=0; while(z<kl&&in[a+z]==in[ks+z]) z++; if(z==kl){ id=k; break; } } slot=(slot+1)&511; }
-      if(id==0xFFFFFFFFu){ if(nk>=MAXK) BAIL(6); id=nk++; HT[slot]=id+1; keyoff[id]=ks; keylen[id]=kl; ktype[id]=0; kmaxfd[id]=0; }
+      if(id==0xFFFFFFFFu){ if(nk>=MAXK) BAIL(6); id=nk++; HT[slot]=id+1; keyoff[id]=ks; keylen[id]=kl; ktype[id]=0; kmaxfd[id]=0; KEXTRA[id]=extra-ex0; }
+      }
+      if(kpos<MAXK) PRED[kpos]=id;
+      kpos++;
       if(LASTROW[id]==row) BAIL(7);   // duplicate key in one row
       LASTROW[id]=row;
       WS; if(p>=len||in[p]!=':') BAIL(3); p++; WS;
@@ -62,10 +87,10 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
         if(p>=len||in[p]<'0'||in[p]>'9') BAIL(10);
         u64 m=0; u32 nd=0, fd=0;
         if(in[p]=='0'&&p+1<len&&in[p+1]>='0'&&in[p+1]<='9') BAIL(10);
-        while(p<len&&in[p]>='0'&&in[p]<='9'){ m=m*10+(in[p]-'0'); if(++nd>15) BAIL(10); p++; }
+        { u32 q=digits(in,p,len,&m,&nd); if(q==0xFFFFFFFFu) BAIL(10); p=q; }
         if(p<len&&in[p]=='.'){
           p++; if(p>=len||in[p]<'0'||in[p]>'9') BAIL(10);
-          while(p<len&&in[p]>='0'&&in[p]<='9'){ m=m*10+(in[p]-'0'); if(++nd>15) BAIL(10); fd++; p++; }
+          { u32 n0=nd, q=digits(in,p,len,&m,&nd); if(q==0xFFFFFFFFu) BAIL(10); fd+=nd-n0; p=q; }
           while(fd>0&&m%10==0){ m/=10; fd--; }   // 1.50 is 1.5 and 2.0 is the whole number 2, as JSON.parse sees them
         }
         if(p<len&&(in[p]=='e'||in[p]=='E')) BAIL(10);
