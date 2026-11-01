@@ -81,6 +81,32 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const mo = P.make(many, { type: 'bar', x: 'c', y: 'v', color: 'g' }, { width: 600, height: 400, highlight: 'k29' }, NS);
   ok(mo.legend.some((l) => l.t === 'k29'), 'a highlighted name past the color limit is kept, not folded into Other');
 }
+/* a literal Other stays separate from the synthetic category-cap bucket */
+{
+  const rows = [{ attrs: { cat: 'Other', v: 100 } }];
+  for (let i = 0; i < 12; i++) rows.push({ attrs: { cat: 'c' + i, v: 1 } });
+  const s = P.make(rows, { type: 'donut', x: 'cat', y: 'v' }, { width: 600, height: 600 }, global.NetflowScene);
+  const values = s.marks.map((m) => Number((/:\s*(-?\d+(?:\.\d+)?)/.exec(m.t) || [])[1]));
+  const other = s.marks.filter((m) => m.t.indexOf('Other:') === 0).map((m) => values[s.marks.indexOf(m)]).sort((a, b) => a - b);
+  const covered = s.marks.flatMap((m) => m.rows || []);
+  ok(values.reduce((a, b) => a + b, 0) === 112, 'donut cap preserves all 112 category values');
+  ok(other.join(',') === '2,100', 'real Other and overflow Other have separate totals');
+  const otherKeys = s.legend.filter((l) => l.t === 'Other').map((l) => l.key);
+  ok(otherKeys.length === 2 && new Set(otherKeys).size === 2, 'visible Other categories retain distinct identities');
+  ok(covered.length === 13 && new Set(covered).size === 13, 'each donut row belongs to exactly one wedge');
+}
+/* NUL-containing category pairs remain separate grouped-bar cells */
+{
+  const z = '\0', rows = [
+    { attrs: { x: 'a' + z + 'b', color: 'c', v: 1 } },
+    { attrs: { x: 'a', color: 'b' + z + 'c', v: 10 } }
+  ];
+  const s = P.make(rows, { type: 'bar', x: 'x', color: 'color', y: 'v', stack: 'group' }, { width: 600, height: 400 }, global.NetflowScene);
+  const values = s.marks.map((m) => Number((/: (-?\d+(?:\.\d+)?)$/.exec(m.t) || [])[1])).sort((a, b) => a - b);
+  const covered = s.marks.flatMap((m) => m.rows || []);
+  ok(s.marks.length === 2 && values.join(',') === '1,10', 'NUL-delimited tuples retain values 1 and 10 separately');
+  ok(covered.length === 2 && new Set(covered).size === 2, 'each grouped bar keeps only its own source row');
+}
 /* clean look (default): bar values on the bars and no number axis; clean: false keeps the axis; crowded values bring the axis back */
 {
   const NS = global.NetflowScene, rows = ['North', 'South', 'East'].map((r, i) => ({ attrs: { region: r, sales: [120, 80, 45][i] } }));

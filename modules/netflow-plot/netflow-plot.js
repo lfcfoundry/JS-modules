@@ -182,7 +182,8 @@ var NetflowPlot = (function () {
       F.line([F.L, F.B, F.R, F.B], 1, alpha(T.muted, 0.7));
     };
     F.legend = function (title, names, colorOf) {
-      S.legendTitle = title || ''; names.slice(0, 24).forEach(function (n, i) { S.legend.push({ k: 'group', c: colorOf ? colorOf(n, i) : F.color(i), t: n === '' ? '(blank)' : String(n), key: 'p:' + n }); });
+      var splitOther = names.indexOf(OTHER) >= 0 && names.indexOf('Other') >= 0;
+      S.legendTitle = title || ''; names.slice(0, 24).forEach(function (n, i) { S.legend.push({ k: 'group', c: colorOf ? colorOf(n, i) : F.color(i), t: n === '' ? '(blank)' : String(n), key: 'p:' + (splitOther ? categoryPart(n) : n) }); });
       if (!F.keyRow) return;   /* a row of swatches over the plot (room was made for it), so the picture and its SVG carry their own key */
       var x = F.L, y = 14, cw = 6.6, more = 0;
       if (title) { F.text(x, y + 4, clip(title, 24) + ':', 12, T.fg, { align: 'l', bold: true }); x += Math.min(24, String(title).length + 1) * cw * 1.05 + 10; }
@@ -243,6 +244,14 @@ var NetflowPlot = (function () {
     var up = function (list, key) { var a = [], b = []; for (var i = 0; i < list.length; i++) (same(list[i][key]) ? b : a).push(list[i]); return a.concat(b); };
     S.curves = up(S.curves, 'color'); S.dots = up(S.dots, 'fill'); S.polys = up(S.polys, 'fill');
   }
+  /* A private category keeps the overflow bucket separate from a real "Other" value. */
+  var OTHER = { toString: function () { return 'Other'; } };
+  function categoryPart(k) {
+    if (k === OTHER) return 'o;';
+    if (typeof k !== 'string') throw new TypeError('Chart categories must be strings.');
+    return 's' + k.length + ':' + k;
+  }
+  function pairKey(a, b) { return categoryPart(a) + categoryPart(b); }
   function catsOf(keys, vals, sort, cap) {
     var tot = new Map(), first = [];
     for (var i = 0; i < keys.length; i++) { var k = keys[i]; if (!tot.has(k)) { tot.set(k, 0); first.push(k); } var v = vals ? vals[i] : 1; if (v === v) tot.set(k, tot.get(k) + v); }
@@ -251,7 +260,7 @@ var NetflowPlot = (function () {
     else if (sort !== 'none') list.sort(function (a, b) { return tot.get(b) - tot.get(a); });
     var other = null;
     var hi = HI && (keys === HI.ck || keys === HI.xk) ? HI.name : undefined;   /* the highlighted series (or bar) keeps its own place, never folded into Other */
-    if (cap && list.length > cap) { var keep = hi !== undefined && list.indexOf(hi) >= cap - 1; other = list.slice(keep ? cap - 2 : cap - 1); if (keep) other.splice(other.indexOf(hi), 1); list = list.slice(0, keep ? cap - 2 : cap - 1).concat(keep ? [hi, 'Other'] : ['Other']); }
+    if (cap && list.length > cap) { var keep = hi !== undefined && list.indexOf(hi) >= cap - 1; other = list.slice(keep ? cap - 2 : cap - 1); if (keep) other.splice(other.indexOf(hi), 1); list = list.slice(0, keep ? cap - 2 : cap - 1).concat(keep ? [hi, OTHER] : [OTHER]); }
     if (hi !== undefined) { if (keys === HI.ck) HI.F.hiCi = list.indexOf(hi); if (keys === HI.xk) HI.F.hiX = list.indexOf(hi) >= 0 ? hi : undefined; }
     return { list: list, other: other ? new Set(other) : null, tot: tot };
   }
@@ -259,8 +268,8 @@ var NetflowPlot = (function () {
   function cross(xk, ck, v, how, xcats, ccats) {
     var map = new Map(), i;
     for (i = 0; i < xk.length; i++) {
-      var a = xcats.other && xcats.other.has(xk[i]) ? 'Other' : xk[i], b = ck ? (ccats.other && ccats.other.has(ck[i]) ? 'Other' : ck[i]) : '';
-      var key = a + '\u0000' + b, l = map.get(key); if (!l) { l = []; l.rows = []; map.set(key, l); } l.push(v ? v[i] : 1); l.rows.push(i);
+      var a = xcats.other && xcats.other.has(xk[i]) ? OTHER : xk[i], b = ck ? (ccats.other && ccats.other.has(ck[i]) ? OTHER : ck[i]) : '';
+      var key = pairKey(a, b), l = map.get(key); if (!l) { l = []; l.rows = []; map.set(key, l); } l.push(v ? v[i] : 1); l.rows.push(i);
     }
     var out = new Map(); map.forEach(function (l, k) { out.set(k, { v: aggregate(l, v ? how : 'count'), rows: l.rows }); });
     return out;
@@ -273,7 +282,7 @@ var NetflowPlot = (function () {
     var xc = catsOf(xk, v, sp.sort || 'value', sp.horizontal ? 60 : 50), cc = ck ? catsOf(ck, v, 'value', 12) : { list: [''], other: null };
     var cell = cross(xk, ck, v, how, xc, cc), mode = ck ? (sp.stack || 'stack') : 'none', horiz = !!sp.horizontal;
     var totals = new Map(), lo = 0, hi = 0;
-    xc.list.forEach(function (x) { var pos = 0, neg = 0, t = 0; cc.list.forEach(function (c) { var e = cell.get(x + '\u0000' + c); if (!e || e.v !== e.v) return; if (e.v >= 0) pos += e.v; else neg += e.v; t += Math.abs(e.v); }); totals.set(x, t); if (mode === 'group' || mode === 'none') { cc.list.forEach(function (c) { var e = cell.get(x + '\u0000' + c); if (e && e.v === e.v) { lo = Math.min(lo, e.v); hi = Math.max(hi, e.v); } }); } else { lo = Math.min(lo, neg); hi = Math.max(hi, pos); } });
+    xc.list.forEach(function (x) { var pos = 0, neg = 0, t = 0; cc.list.forEach(function (c) { var e = cell.get(pairKey(x, c)); if (!e || e.v !== e.v) return; if (e.v >= 0) pos += e.v; else neg += e.v; t += Math.abs(e.v); }); totals.set(x, t); if (mode === 'group' || mode === 'none') { cc.list.forEach(function (c) { var e = cell.get(pairKey(x, c)); if (e && e.v === e.v) { lo = Math.min(lo, e.v); hi = Math.max(hi, e.v); } }); } else { lo = Math.min(lo, neg); hi = Math.max(hi, pos); } });
     if (mode === 'normalize') { lo = 0; hi = 1; }
     if (horiz) { F.L = Math.min(220, 20 + 7 * Math.min(28, Math.max.apply(null, xc.list.map(function (s) { return String(s).length; }).concat([4])))); }
     var band = horiz ? bandAxis(xc.list, F.Tp, F.B, 0.18) : bandAxis(xc.list, F.L, F.R, 0.18), val = horiz ? axisFor([lo, hi], false, F.L, F.R, true) : axisFor([lo, hi], false, F.B, F.Tp, true);
@@ -284,7 +293,7 @@ var NetflowPlot = (function () {
     xc.list.forEach(function (x) {
       var b0 = band.map(x), up = 0, dn = 0, tot = totals.get(x) || 1, nC = cc.list.length, sUp = 0, sDn = 0;
       cc.list.forEach(function (c, ci) {
-        var e = cell.get(x + '\u0000' + c); if (!e || e.v !== e.v) return;
+        var e = cell.get(pairKey(x, c)); if (!e || e.v !== e.v) return;
         var v0, v1, s0 = b0, sw = band.bw;
         if (mode === 'group') { sw = band.bw / nC; s0 = b0 + ci * sw; v0 = 0; v1 = e.v; }
         else if (mode === 'normalize') { v0 = up; up += Math.abs(e.v) / tot; v1 = up; }
@@ -327,9 +336,9 @@ var NetflowPlot = (function () {
     xc.list.forEach(function (x) {
       var y = band.map(x) + band.bw / 2, xs = [];
       F.line([F.L, y, F.R, y], 1, F.alpha(F.T.boxLine, 0.25));
-      cc.list.forEach(function (c, ci) { var e = cell.get(x + '\u0000' + c); if (e && e.v === e.v) xs.push(val.map(e.v)); });
+      cc.list.forEach(function (c, ci) { var e = cell.get(pairKey(x, c)); if (e && e.v === e.v) xs.push(val.map(e.v)); });
       if (xs.length > 1) F.line([Math.min.apply(null, xs), y, Math.max.apply(null, xs), y], 2, F.alpha(F.T.muted, 0.8));
-      cc.list.forEach(function (c, ci) { var e = cell.get(x + '\u0000' + c); if (e && e.v === e.v) F.dot(val.map(e.v), y, 5, F.color(ci), { rows: e.rows, t: x + (ck ? ' \u00b7 ' + c : '') + ': ' + fmtNum(e.v) }); });
+      cc.list.forEach(function (c, ci) { var e = cell.get(pairKey(x, c)); if (e && e.v === e.v) F.dot(val.map(e.v), y, 5, F.color(ci), { rows: e.rows, t: x + (ck ? ' \u00b7 ' + c : '') + ': ' + fmtNum(e.v) }); });
       F.text(F.L - 8, y + 4, clip(x === '' ? '(blank)' : x, 28), 11, F.T.fg, { align: 'r' });
     });
     if (ck) F.legend(sp.color, cc.list);
@@ -340,7 +349,7 @@ var NetflowPlot = (function () {
     var cc = ck ? catsOf(ck, y, 'value', 12) : { list: [''], other: null }, by = new Map();
     for (var i = 0; i < x.length; i++) {
       if (x[i] !== x[i]) continue;
-      var c = ck ? (cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i]) : '', m = by.get(c); if (!m) { m = new Map(); by.set(c, m); }
+      var c = ck ? (cc.other && cc.other.has(ck[i]) ? OTHER : ck[i]) : '', m = by.get(c); if (!m) { m = new Map(); by.set(c, m); }
       var l = m.get(x[i]); if (!l) { l = []; l.rows = []; m.set(x[i], l); } l.push(y ? y[i] : 1); l.rows.push(i);
     }
     var out = [];
@@ -401,7 +410,7 @@ var NetflowPlot = (function () {
     var base = n > 20000 ? 1.6 : n > 2000 ? 2.4 : 3.6, op = n > 20000 ? 0.45 : n > 2000 ? 0.65 : 0.85, pts = [];
     for (i = 0; i < n; i++) {
       if (x[i] !== x[i] || y[i] !== y[i]) continue;
-      var r = sz ? 2 + 22 * Math.sqrt(Math.max(0, sz[i]) / (smax || 1)) : base, c = ck ? (cc.other && cc.other.has(ck[i]) ? ci.get('Other') : ci.get(ck[i])) : 0;
+      var r = sz ? 2 + 22 * Math.sqrt(Math.max(0, sz[i]) / (smax || 1)) : base, c = ck ? (cc.other && cc.other.has(ck[i]) ? ci.get(OTHER) : ci.get(ck[i])) : 0;
       var px = ax.map(x[i]), py = ay.map(y[i]); pts.push(px, py);
       F.dot(px, py, r, F.alpha(F.color(c || 0), sz ? 0.6 : op), n <= 5000 ? { rows: i, t: R.label(i) + ': ' + fmtNum(x[i]) + ', ' + fmtNum(y[i]) } : null, sz ? F.alpha(F.color(c || 0), 1) : null);
     }
@@ -455,7 +464,7 @@ var NetflowPlot = (function () {
   };
   CH.box = function (F, R, sp) {
     var xk = sp.x ? R.cat(sp.x) : null, y = R.num(sp.y || sp.x), cats = xk ? catsOf(xk, null, sp.sort || 'name', 40) : { list: [''], other: null }, by = new Map();
-    for (var i = 0; i < y.length; i++) { if (y[i] !== y[i]) continue; var c = xk ? (cats.other && cats.other.has(xk[i]) ? 'Other' : xk[i]) : ''; var l = by.get(c); if (!l) { l = []; by.set(c, l); } l.push(y[i]); }
+    for (var i = 0; i < y.length; i++) { if (y[i] !== y[i]) continue; var c = xk ? (cats.other && cats.other.has(xk[i]) ? OTHER : xk[i]) : ''; var l = by.get(c); if (!l) { l = []; by.set(c, l); } l.push(y[i]); }
     var all = []; by.forEach(function (l) { for (var q = 0; q < l.length; q++) all.push(l[q]); });
     var band = bandAxis(cats.list, F.L, F.R, 0.4), ay = axisFor(all, false, F.B, F.Tp, false), st = [];
     cats.list.forEach(function (c, ci) {
@@ -487,7 +496,7 @@ var NetflowPlot = (function () {
   };
   function densityLines(F, R, sp, ridge) {
     var x = R.num(sp.x), ck = sp.color ? R.cat(sp.color) : null, cc = ck ? catsOf(ck, null, ridge ? 'name' : 'value', ridge ? 30 : 8) : { list: [''], other: null }, by = new Map();
-    for (var i = 0; i < x.length; i++) { if (x[i] !== x[i]) continue; var c = ck ? (cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i]) : ''; var l = by.get(c); if (!l) { l = []; by.set(c, l); } l.push(x[i]); }
+    for (var i = 0; i < x.length; i++) { if (x[i] !== x[i]) continue; var c = ck ? (cc.other && cc.other.has(ck[i]) ? OTHER : ck[i]) : ''; var l = by.get(c); if (!l) { l = []; by.set(c, l); } l.push(x[i]); }
     var ax = axisFor(x, !!x.time, F.L, F.R, false, 8), m = 160, curves = [], top = 0;
     cc.list.forEach(function (c, ci) { var l = by.get(c); if (!l || l.length < 2) return; var bw = silverman(l), d = kde(l, ax.lo, ax.hi, m, bw); for (var j = 0; j < m; j++) top = Math.max(top, d[j]); curves.push({ c: c, ci: ci, d: d, n: l.length }); });
     var xs = []; for (var j = 0; j < m; j++) xs.push(ax.map(ax.lo + (ax.hi - ax.lo) * j / (m - 1)));
@@ -551,12 +560,12 @@ var NetflowPlot = (function () {
     cell.forEach(function (e) { if (e.v === e.v) { mn2 = Math.min(mn2, e.v); mx2 = Math.max(mx2, e.v); } });
     F.L = Math.min(200, 20 + 7 * Math.min(24, Math.max.apply(null, yc.list.map(function (s) { return String(s).length; }).concat([4]))));
     var bx = bandAxis(xc.list, F.L, F.R, 0.06), by = bandAxis(yc.list, F.Tp, F.B, 0.06); F.axes(bx, null, sp.x, '', false);
-    yc.list.forEach(function (yv) { F.text(F.L - 8, by.map(yv) + by.bw / 2 + 4, clip(yv || '(blank)', 24), 11, F.T.fg, { align: 'r' }); xc.list.forEach(function (xv) { var e = cell.get(xv + '\u0000' + yv); if (!e || e.v !== e.v) return; F.rect(bx.map(xv), by.map(yv), bx.bw, by.bw, ramp(mx2 > mn2 ? (e.v - mn2) / (mx2 - mn2) : 1), { rows: e.rows, t: xv + ' \u00b7 ' + yv + ': ' + fmtNum(e.v) }); }); });
+    yc.list.forEach(function (yv) { F.text(F.L - 8, by.map(yv) + by.bw / 2 + 4, clip(yv || '(blank)', 24), 11, F.T.fg, { align: 'r' }); xc.list.forEach(function (xv) { var e = cell.get(pairKey(xv, yv)); if (!e || e.v !== e.v) return; F.rect(bx.map(xv), by.map(yv), bx.bw, by.bw, ramp(mx2 > mn2 ? (e.v - mn2) / (mx2 - mn2) : 1), { rows: e.rows, t: xv + ' \u00b7 ' + yv + ': ' + fmtNum(e.v) }); }); });
     F.S.legend.push({ k: 'ramp', ramp: 'warm', a: ramp(0), b: ramp(1), lo: fmtNum(mn2), hi: fmtNum(mx2), t: sp.y || 'Rows' });
   };
   function donutCore(F, R, sp, hole) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', xc = catsOf(xk, v, 'value', 12), cell = cross(xk, null, v, how, xc, { other: null }), tot = 0, parts = [];
-    xc.list.forEach(function (x) { var e = cell.get(x + '\u0000'); if (e && e.v > 0) { parts.push({ x: x, v: e.v, rows: e.rows }); tot += e.v; } });
+    xc.list.forEach(function (x) { var e = cell.get(pairKey(x, '')); if (e && e.v > 0) { parts.push({ x: x, v: e.v, rows: e.rows }); tot += e.v; } });
     var cx = (F.W) / 2, cy = (F.Tp + F.B) / 2 + 10, r1 = Math.min(F.W, F.B - F.Tp) / 2 - 30, r0 = hole ? r1 * 0.58 : 0, a = -Math.PI / 2, pad = parts.length > 1 ? 0.006 : 0;
     parts.forEach(function (p, i) {
       var span = p.v / tot * TAU; F.wedge(cx, cy, r0, r1, a + pad / 2, a + span - pad / 2, F.color(i), { rows: p.rows, t: (p.x || '(blank)') + ': ' + fmtNum(p.v) + ' (' + (p.v / tot * 100).toFixed(1) + '%)' });
@@ -571,11 +580,11 @@ var NetflowPlot = (function () {
   CH.radialbar = function (F, R, sp) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', ck = sp.color ? R.cat(sp.color) : null;
     var xc = catsOf(xk, v, sp.sort || 'none', 60), cc = ck ? catsOf(ck, v, 'value', 10) : { list: [''], other: null }, cell = cross(xk, ck, v, how, xc, cc), top = 0;
-    xc.list.forEach(function (x) { var s = 0; cc.list.forEach(function (c) { var e = cell.get(x + '\u0000' + c); if (e && e.v > 0) s += e.v; }); top = Math.max(top, s); });
+    xc.list.forEach(function (x) { var s = 0; cc.list.forEach(function (c) { var e = cell.get(pairKey(x, c)); if (e && e.v > 0) s += e.v; }); top = Math.max(top, s); });
     var cx = F.W / 2, cy = (F.Tp + F.B) / 2 + 8, R1 = Math.min(F.W, F.B - F.Tp) / 2 - 40, R0 = R1 * 0.3, n = xc.list.length, step = TAU / Math.max(1, n), rs = function (t) { return Math.sqrt(R0 * R0 + (R1 * R1 - R0 * R0) * t / (top || 1)); };
     xc.list.forEach(function (x, i) {
       var a0 = -Math.PI / 2 + i * step + step * 0.08, a1 = a0 + step * 0.84, acc = 0;
-      cc.list.forEach(function (c, ci) { var e = cell.get(x + '\u0000' + c); if (!e || !(e.v > 0)) return; F.wedge(cx, cy, rs(acc), rs(acc + e.v), a0, a1, F.color(ci), { rows: e.rows, t: x + (ck ? ' \u00b7 ' + c : '') + ': ' + fmtNum(e.v) }); acc += e.v; });
+      cc.list.forEach(function (c, ci) { var e = cell.get(pairKey(x, c)); if (!e || !(e.v > 0)) return; F.wedge(cx, cy, rs(acc), rs(acc + e.v), a0, a1, F.color(ci), { rows: e.rows, t: x + (ck ? ' \u00b7 ' + c : '') + ': ' + fmtNum(e.v) }); acc += e.v; });
       var m = (a0 + a1) / 2, right = Math.cos(m) >= 0; F.text(cx + Math.cos(m) * (R1 + 8), cy + Math.sin(m) * (R1 + 8), clip(x || '(blank)', 14), 10, F.T.muted, { align: right ? 'l' : 'r', rot: right ? m : m + Math.PI });
     });
     if (ck) F.legend(sp.color, cc.list);
@@ -586,7 +595,7 @@ var NetflowPlot = (function () {
     var ck = sp.color ? R.cat(sp.color) : null, cc = ck ? catsOf(ck, null, 'value', 10) : null, n = R.n, op = n > 5000 ? 0.08 : n > 500 ? 0.25 : 0.6;
     for (var i = 0; i < n && i < 50000; i++) {
       var pts = []; for (var j = 0; j < cols.length; j++) { var v = data[j][i]; if (v !== v) { pts = null; break; } pts.push(F.L + j * step, axes[j].map(v)); }
-      if (pts) F.line(pts, 1, F.alpha(F.color(ck ? Math.max(0, cc.list.indexOf(cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i])) : 0), op));
+      if (pts) F.line(pts, 1, F.alpha(F.color(ck ? Math.max(0, cc.list.indexOf(cc.other && cc.other.has(ck[i]) ? OTHER : ck[i])) : 0), op));
     }
     cols.forEach(function (k, j) { var x = F.L + j * step; F.line([x, F.Tp, x, F.B], 1.2, F.T.fg); axes[j].list.forEach(function (t) { F.text(x - 5, axes[j].map(t) + 4, axes[j].fmt ? axes[j].fmt(t) : fmtNum(t), 10, F.T.muted, { align: 'r' }); }); F.text(x, F.B + 18, clip(k, 18), 12, F.T.fg, { bold: true }); });
     if (ck) F.legend(sp.color, cc.list);
@@ -617,11 +626,11 @@ var NetflowPlot = (function () {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', ck = R.cat(sp.color || sp.x);
     var xc = catsOf(xk, null, 'name', 0); if (xc.list.length < 2) { F.text(F.W / 2, F.H / 2, 'The x column needs two or more values.', 14, F.T.muted); return; }
     var A = xc.list[0], B = xc.list[xc.list.length - 1], cc = catsOf(ck, v, 'value', 20), cell = cross(xk, ck, v, how, { list: xc.list, other: null }, cc), all = [];
-    cc.list.forEach(function (c) { [A, B].forEach(function (x) { var e = cell.get(x + '\u0000' + c); if (e) all.push(e.v); }); });
+    cc.list.forEach(function (c) { [A, B].forEach(function (x) { var e = cell.get(pairKey(x, c)); if (e) all.push(e.v); }); });
     F.L = 200; F.R = F.W - 200; var ay = axisFor(all, false, F.B, F.Tp, false);
     F.line([F.L, F.Tp, F.L, F.B], 1.2, F.T.muted); F.line([F.R, F.Tp, F.R, F.B], 1.2, F.T.muted); F.text(F.L, F.B + 18, A, 12, F.T.fg, { bold: true }); F.text(F.R, F.B + 18, B, 12, F.T.fg, { bold: true });
     cc.list.forEach(function (c, ci) {
-      var a = cell.get(A + '\u0000' + c), b = cell.get(B + '\u0000' + c); if (!a || !b) return;
+      var a = cell.get(pairKey(A, c)), b = cell.get(pairKey(B, c)); if (!a || !b) return;
       var col = b.v >= a.v ? F.color(0) : F.T.bad; F.line([F.L, ay.map(a.v), F.R, ay.map(b.v)], 2, col);
       F.dot(F.L, ay.map(a.v), 3.5, col, { rows: a.rows, t: c + ' ' + A + ': ' + fmtNum(a.v) }); F.dot(F.R, ay.map(b.v), 3.5, col, { rows: b.rows, t: c + ' ' + B + ': ' + fmtNum(b.v) });
       F.text(F.L - 8, ay.map(a.v) + 4, clip(c, 20) + ' ' + fmtNum(a.v), 11, F.T.fg, { align: 'r' }); F.text(F.R + 8, ay.map(b.v) + 4, fmtNum(b.v) + ' ' + clip(c, 20), 11, F.T.fg, { align: 'l' });
@@ -630,11 +639,11 @@ var NetflowPlot = (function () {
   CH.marimekko = function (F, R, sp) {
     var xk = R.cat(sp.x), ck = R.cat(sp.color || sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? 'sum' : 'count';
     var xc = catsOf(xk, v, 'value', 20), cc = catsOf(ck, v, 'value', 10), cell = cross(xk, ck, v, how, xc, cc), tot = 0, colT = new Map();
-    xc.list.forEach(function (x) { var s = 0; cc.list.forEach(function (c) { var e = cell.get(x + '\u0000' + c); if (e && e.v > 0) s += e.v; }); colT.set(x, s); tot += s; });
+    xc.list.forEach(function (x) { var s = 0; cc.list.forEach(function (c) { var e = cell.get(pairKey(x, c)); if (e && e.v > 0) s += e.v; }); colT.set(x, s); tot += s; });
     var at = F.L, W = F.R - F.L, Hh = F.B - F.Tp;
     xc.list.forEach(function (x) {
       var w = colT.get(x) / (tot || 1) * W, y = F.B;
-      cc.list.forEach(function (c, ci) { var e = cell.get(x + '\u0000' + c); if (!e || !(e.v > 0)) return; var h = e.v / colT.get(x) * Hh; F.rect(at + 0.5, y - h + 0.5, w - 1, h - 1, F.color(ci), { rows: e.rows, t: x + ' \u00b7 ' + c + ': ' + fmtNum(e.v) + ' (' + Math.round(e.v / colT.get(x) * 100) + '% of ' + x + ')' }); y -= h; });
+      cc.list.forEach(function (c, ci) { var e = cell.get(pairKey(x, c)); if (!e || !(e.v > 0)) return; var h = e.v / colT.get(x) * Hh; F.rect(at + 0.5, y - h + 0.5, w - 1, h - 1, F.color(ci), { rows: e.rows, t: x + ' \u00b7 ' + c + ': ' + fmtNum(e.v) + ' (' + Math.round(e.v / colT.get(x) * 100) + '% of ' + x + ')' }); y -= h; });
       if (w > 30) F.text(at + w / 2, F.B + 16, clip(x || '(blank)', Math.floor(w / 7)), 11, F.T.fg);
       at += w;
     });
