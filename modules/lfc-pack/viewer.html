@@ -1160,6 +1160,16 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     for (i = 0; i < m; i++) seen.add(a[i]);
     return seen.size * 2 <= m;
   }
+  // the fast writer's per-value passes over number and list columns, as small functions: inside the very large writer function SpiderMonkey ran these loops 4 to 8 times slower than Chromium
+  var NST = new Float64Array(3);
+  function numStats(b, c, r) { var mono = c > 0 && b[0] >= 0, mn = Infinity, mx = -Infinity, i, v; for (i = 0; i < c; i++) { v = b[i]; if (i && v < b[i - 1]) mono = false; if (v < mn) mn = v; if (v > mx) mx = v; } r[0] = mono ? 1 : 0; r[1] = mn; r[2] = mx; }
+  function numFirst(b, c, mono) { var d = new Float64Array(c), i; if (mono) { d[0] = b[0]; for (i = 1; i < c; i++) d[i] = b[i] - b[i - 1]; } else for (i = 0; i < c; i++) d[i] = b[i] >= 0 ? b[i] * 2 : -b[i] * 2 - 1; return d; }
+  function numDeltaZz(b, c) { var dz = new Float64Array(c), i, q; dz[0] = b[0] >= 0 ? b[0] * 2 : -b[0] * 2 - 1; for (i = 1; i < c; i++) { q = b[i] - b[i - 1]; dz[i] = q >= 0 ? q * 2 : -q * 2 - 1; } return dz; }
+  function vlenSum(a, c) { var s = 0, i; for (i = 0; i < c; i++) s += vlen(a[i]); return s; }
+  function numOff(b, c, mn) { var off = new Uint32Array(c), i; for (i = 0; i < c; i++) off[i] = b[i] - mn; return off; }
+  function numDiv(b, c, scale) { var f = new Float64Array(c), i; for (i = 0; i < c; i++) f[i] = b[i] / scale; return f; }
+  function listAsc(ln, dl, c) { var asc = true, ai = 0, i, q, v, pv; for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; if (v < pv) asc = false; pv = v; } ai += ln[i]; } return asc; }
+  function listDeltas(ln, dl, c, asc) { var dd = new Float64Array(dl.length), ai = 0, i, q, v, pv; for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; dd[ai + q] = asc ? v - pv : (v - pv >= 0 ? (v - pv) * 2 : -(v - pv) * 2 - 1); pv = v; } ai += ln[i]; } return dd; }
   function writeFlatBlockFast(ctx, input, opts) {
     if (opts.exact || typeof WebAssembly !== 'object' || input.length < 64) return null;
     if (!opts.pre && input.length > 262144) {   // cheap bail: try the first 64 KB (up to a line end) before copying a whole block into wasm
@@ -1245,31 +1255,26 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       }
       else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j], keys[j]); }
       else if (ktype[j] === 1) {
-        var base = colv[j], mono = c > 0 && base[0] >= 0, mn = Infinity, mx = -Infinity, scale = P10[FD[kfd[j]]];
-        for (i = 0; i < c; i++) { v = base[i]; if (i && v < base[i - 1]) mono = false; if (v < mn) mn = v; if (v > mx) mx = v; }
-        var d = new Float64Array(c);
-        if (mono) { d[0] = base[0]; for (i = 1; i < c; i++) d[i] = base[i] - base[i - 1]; } else for (i = 0; i < c; i++) d[i] = base[i] >= 0 ? base[i] * 2 : -base[i] * 2 - 1;
+        var base = colv[j], scale = P10[FD[kfd[j]]]; numStats(base, c, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2];
+        var d = numFirst(base, c, mono);
         if (scale > 100) {   // 3 to 9 fraction digits (columns the JSON.parse path used to write): the same candidates as encodeColumn there, so the same bytes and no extra compressions
           var dz2 = null, sa = 0, sb = 0;
-          if (!mono && c > 1) { dz2 = new Float64Array(c); dz2[0] = base[0] >= 0 ? base[0] * 2 : -base[0] * 2 - 1; for (i = 1; i < c; i++) { q = base[i] - base[i - 1]; dz2[i] = q >= 0 ? q * 2 : -q * 2 - 1; } for (i = 0; i < c; i++) { sa += vlen(d[i]); sb += vlen(dz2[i]); } }
+          if (!mono && c > 1) { dz2 = numDeltaZz(base, c); sa = vlenSum(d, c); sb = vlenSum(dz2, c); }
           if (!dz2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
           if (dz2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(dz2, c)], c);
-          if (mx - mn < 16777216) { var w3 = Math.max(1, 32 - Math.clz32(mx - mn)), off3 = new Uint32Array(c); for (i = 0; i < c; i++) off3[i] = base[i] - mn; cand('B', { mn: mn, w: w3, scale: scale }, [bitpack(off3, w3)], c); }
-          if (!best || best.size > c * 4) { var fv3 = new Float64Array(c); for (i = 0; i < c; i++) fv3[i] = base[i] / scale; cand('F', {}, [new Uint8Array(fv3.buffer)], c); }
+          if (mx - mn < 16777216) { var w3 = Math.max(1, 32 - Math.clz32(mx - mn)); cand('B', { mn: mn, w: w3, scale: scale }, [bitpack(numOff(base, c, mn), w3)], c); }
+          if (!best || best.size > c * 4) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c);
           if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
         } else {
         cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
-        if (!mono && c > 1) { var dz = new Float64Array(c); dz[0] = base[0] >= 0 ? base[0] * 2 : -base[0] * 2 - 1; for (i = 1; i < c; i++) { q = base[i] - base[i - 1]; dz[i] = q >= 0 ? q * 2 : -q * 2 - 1; } cand('V', { mono: false, scale: scale, delta: true }, [varintsT(dz, c)], c); }
-        if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Uint32Array(c); for (i = 0; i < c; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)], c); }
-        if (c > 1 && !mono && best.size > c * 0.25 && repeats(base, c)) { var fv = new Float64Array(c); for (i = 0; i < c; i++) fv[i] = base[i] / scale; cand('F', {}, [new Uint8Array(fv.buffer)], c); }   /* raw doubles win when the values repeat a long pattern (zstd finds the repeat), as in the general writer; tried only when the other forms leave more than 2 bits a value and values do repeat */
+        if (!mono && c > 1) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(numDeltaZz(base, c), c)], c);
+        if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)); cand('B', { mn: mn, w: w, scale: scale }, [bitpack(numOff(base, c, mn), w)], c); }
+        if (c > 1 && !mono && best.size > c * 0.25 && repeats(base, c)) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c);   /* raw doubles win when the values repeat a long pattern (zstd finds the repeat), as in the general writer; tried only when the other forms leave more than 2 bits a value and values do repeat */
         if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
         }
       } else {
-        var ln = colv[j], dl = coll[j], asc = true, ai = 0, a0, pv, t2 = dl.length;
-        for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; if (v < pv) asc = false; pv = v; } ai += ln[i]; }
-        var dd = new Float64Array(t2); ai = 0;
-        for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; dd[ai + q] = asc ? v - pv : (v - pv >= 0 ? (v - pv) * 2 : -(v - pv) * 2 - 1); pv = v; } ai += ln[i]; }
-        cand('A', { m: t2, asc: asc }, [varintsT(ln, c), varintsT(dd, t2)], c);
+        var ln = colv[j], dl = coll[j], t2 = dl.length, asc = listAsc(ln, dl, c);
+        cand('A', { m: t2, asc: asc }, [varintsT(ln, c), varintsT(listDeltas(ln, dl, c, asc), t2)], c);
       }
       meta.cols.push({ t: best.t, p: best.p, n: best.n, f: best.z.map(function (zz3) { return [zz3[0], zz3[1].length, zz3[2]]; }), st: best.st, _z: best.z });
       for (i = 0; i < best.z.length; i++) frames.push(best.z[i][1]);
