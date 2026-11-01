@@ -158,11 +158,16 @@ var NetflowPlot = (function () {
       }
       if (ax) {
         var labs = ax.list, maxN = Math.max(2, Math.floor((F.R - F.L) / 64)), every = ax.kind === 'band' ? Math.max(1, Math.ceil(labs.length / maxN)) : 1, rot = false;
-        if (ax.kind === 'band') {   /* flat unless two shown labels would really touch (about 6.05 px a character at 11 px, 6 px gap) */
+        var labT = function (v) { return String(ax.fmt ? ax.fmt(v) : fmtNum(v)); };
+        if (ax.kind === 'band') {   /* flat unless two shown labels would really touch (about 6.05 px a character at 11 px, 6 px gap); a long flat name wraps onto two lines */
           var prevX = null, prevW = 0;
-          for (var li = 0; li < labs.length && !rot; li += every) { var lx = ax.map(labs[li]) + ax.bw / 2, lw = Math.min(14, String(ax.fmt ? ax.fmt(labs[li]) : fmtNum(labs[li])).length) * 6.05; if (prevX !== null && lx - prevX < (lw + prevW) / 2 + 6) rot = true; prevX = lx; prevW = lw; }
+          for (var li = 0; li < labs.length && !rot; li += every) { var lx = ax.map(labs[li]) + ax.bw / 2, lw = wrap2(labT(labs[li])).reduce(function (m, t) { return Math.max(m, Math.min(14, t.length)); }, 0) * 6.05; if (prevX !== null && lx - prevX < (lw + prevW) / 2 + 6) rot = true; prevX = lx; prevW = lw; }
         }
-        labs.forEach(function (v, i) { if (i % every) return; var x = ax.map(v) + (ax.kind === 'band' ? ax.bw / 2 : 0); if (x < F.L - 1 || x > F.R + 1) return; if (grid !== false && ax.kind !== 'band') F.line([x, F.Tp, x, F.B], 1, gc); F.text(x, F.B + 16, clip(ax.fmt ? ax.fmt(v) : fmtNum(v), rot ? 18 : 14), 11, c, rot ? { rot: -Math.PI / 5, align: 'r' } : null); });
+        labs.forEach(function (v, i) {
+          if (i % every) return; var x = ax.map(v) + (ax.kind === 'band' ? ax.bw / 2 : 0); if (x < F.L - 1 || x > F.R + 1) return; if (grid !== false && ax.kind !== 'band') F.line([x, F.Tp, x, F.B], 1, gc);
+          if (rot) { F.text(x, F.B + 16, clip(labT(v), 18), 11, c, { rot: -Math.PI / 5, align: 'r' }); return; }
+          var ls = ax.kind === 'band' ? wrap2(labT(v)) : [labT(v)]; ls.forEach(function (t, k) { F.text(x, F.B + 16 + k * 13, clip(t, 14), 11, c, null); });
+        });
         if (xName) F.text((F.L + F.R) / 2, F.H - 10, xName, 12, T.fg, { bold: true });
       }
       F.line([F.L, F.B, F.R, F.B], 1, alpha(T.muted, 0.7));
@@ -177,6 +182,8 @@ var NetflowPlot = (function () {
     };
     return F;
   }
+  /** A name longer than 14 characters splits at the space nearest its middle (two lines under a flat axis); others stay one line. */
+  function wrap2(s) { if (s.length <= 14) return [s]; var best = -1; for (var i = 0; i < s.length; i++) if (s[i] === ' ' && (best < 0 || Math.abs(i - s.length / 2) < Math.abs(best - s.length / 2))) best = i; return best > 0 ? [s.slice(0, best), s.slice(best + 1)] : [s]; }
   function clip(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; }
   function linear(lo, hi, a, b) { var k = hi > lo ? (b - a) / (hi - lo) : 0; return function (v) { return a + (v - lo) * k; }; }
   /** A number or date axis from the values (with room at the ends when zero is not wanted). */
