@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.0.0 (API 1)
- * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, pie, box plots, histograms, density, hexbins, heat maps,
+ * Version 2.0.0 (API 2)
+ * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
  *
@@ -27,8 +27,7 @@ var NetflowPlot = (function () {
     ['ridgeline', 'Ridgeline', 'Density curves stacked one above the other, one per category.'],
     ['hexbin', 'Hexbin', 'Two numbers counted in hexagons: where rows bunch up.'],
     ['heat', 'Heat map', 'A grid of two categories (or days of a date column), colored by value.'],
-    ['pie', 'Pie', 'Shares of a whole, one slice per category.'],
-    ['donut', 'Donut', 'A pie with a hole; the total sits in the middle.'],
+    ['donut', 'Donut', 'Shares of a whole as a ring, one slice per category; the total sits in the middle.'],
     ['radialbar', 'Radial bars', 'Bars around a circle, stacked by a second column.'],
     ['parallel', 'Parallel lines', 'Every row a line across several number columns.'],
     ['splom', 'Scatter matrix', 'Every pair of number columns as a small scatter.'],
@@ -481,7 +480,7 @@ var NetflowPlot = (function () {
     yc.list.forEach(function (yv) { F.text(F.L - 8, by.map(yv) + by.bw / 2 + 4, clip(yv || '(blank)', 24), 11, F.T.fg, { align: 'r' }); xc.list.forEach(function (xv) { var e = cell.get(xv + '\u0000' + yv); if (!e || e.v !== e.v) return; F.rect(bx.map(xv), by.map(yv), bx.bw, by.bw, ramp(mx2 > mn2 ? (e.v - mn2) / (mx2 - mn2) : 1), { rows: e.rows, t: xv + ' \u00b7 ' + yv + ': ' + fmtNum(e.v) }); }); });
     F.S.legend.push({ k: 'ramp', ramp: 'warm', a: ramp(0), b: ramp(1), lo: fmtNum(mn2), hi: fmtNum(mx2), t: sp.y || 'Rows' });
   };
-  function pieCore(F, R, sp, hole) {
+  function donutCore(F, R, sp, hole) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', xc = catsOf(xk, v, 'value', 12), cell = cross(xk, null, v, how, xc, { other: null }), tot = 0, parts = [];
     xc.list.forEach(function (x) { var e = cell.get(x + '\u0000'); if (e && e.v > 0) { parts.push({ x: x, v: e.v, rows: e.rows }); tot += e.v; } });
     var cx = (F.W) / 2, cy = (F.Tp + F.B) / 2 + 10, r1 = Math.min(F.W, F.B - F.Tp) / 2 - 30, r0 = hole ? r1 * 0.58 : 0, a = -Math.PI / 2, pad = parts.length > 1 ? 0.006 : 0;
@@ -494,8 +493,7 @@ var NetflowPlot = (function () {
     if (hole) { F.text(cx, cy + 2, fmtNum(tot), 22, F.T.fg, { bold: true }); F.text(cx, cy + 22, sp.y ? (how === 'sum' ? 'total ' : how + ' ') + sp.y : 'rows', 11, F.T.muted); }
     F.legend(sp.x, parts.map(function (p) { return p.x; }));
   }
-  CH.pie = function (F, R, sp) { pieCore(F, R, sp, false); };
-  CH.donut = function (F, R, sp) { pieCore(F, R, sp, true); };
+  CH.donut = function (F, R, sp) { donutCore(F, R, sp, true); };
   CH.radialbar = function (F, R, sp) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', ck = sp.color ? R.cat(sp.color) : null;
     var xc = catsOf(xk, v, sp.sort || 'none', 60), cc = ck ? catsOf(ck, v, 'value', 10) : { list: [''], other: null }, cell = cross(xk, ck, v, how, xc, cc), top = 0;
@@ -623,10 +621,10 @@ var NetflowPlot = (function () {
     line: { x: 'num', y: 'num?', color: 'cat?', agg: 1, smooth: 1, index: 1 }, area: { x: 'num', y: 'num?', color: 'cat?', agg: 1, stack: 1, smooth: 1 },
     scatter: { x: 'num', y: 'num', color: 'cat?', size: 'num?' }, connected: { x: 'num', y: 'num', color: 'cat?' }, voronoi: { x: 'num', y: 'num', color: 'cat?' },
     beeswarm: { x: 'num', color: 'cat?' }, hist: { x: 'num', color: 'cat?', bins: 1 }, box: { x: 'cat?', y: 'num' }, density: { x: 'num', color: 'cat?' }, ridgeline: { x: 'num', color: 'cat' },
-    hexbin: { x: 'num', y: 'num' }, heat: { x: 'any', color: 'cat?', y: 'num?', agg: 1 }, pie: { x: 'cat', y: 'num?', agg: 1 }, donut: { x: 'cat', y: 'num?', agg: 1 }, radialbar: { x: 'cat', y: 'num?', color: 'cat?', agg: 1 },
+    hexbin: { x: 'num', y: 'num' }, heat: { x: 'any', color: 'cat?', y: 'num?', agg: 1 }, donut: { x: 'cat', y: 'num?', agg: 1 }, radialbar: { x: 'cat', y: 'num?', color: 'cat?', agg: 1 },
     parallel: { cols: 'num+', color: 'cat?' }, splom: { cols: 'num+', color: 'cat?' }, qq: { x: 'num' }, slope: { x: 'cat', color: 'cat', y: 'num?', agg: 1 }, marimekko: { x: 'cat', color: 'cat', y: 'num?' }, words: { x: 'text' }
   };
-  var NOKEYROW = { pie: 1, donut: 1, heat: 1, slope: 1, ridgeline: 1, splom: 1 };   /* these name their parts on the picture */
+  var NOKEYROW = { donut: 1, heat: 1, slope: 1, ridgeline: 1, splom: 1 };   /* these name their parts on the picture */
   function make(rows, spec, o, NS) {
     o = o || {}; spec = spec || {};
     var F = frame(spec, o, NS), R = reader(rows, o), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
