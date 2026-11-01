@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-10-31
+
+### Quick
+New file save-kit-lite.js (SaveKitLite): num, int, flag and str fields, main plus backup slot, refuses broken numbers, load, save, validate, clear.
+
+### Deep
+New file save-kit-lite.js (SaveKitLite): num, int, flag and str fields, main plus backup slot, refuses broken numbers, load, save, validate, clear. 1,680 bytes minified, 890 gzipped, against 3,978 and 1,847 for save-kit with every part cut. 7 Node checks, including 3,000 random damaged slots that give identical answers to create(). Speed against create() on a six-field save: 0.98 to 1.06 in Chromium 155 and Firefox 158 (inconclusive or ok), save 1.06 and load 1.14 in WebKitGTK 2.52.6. save-kit.js itself is unchanged.
+
 ## 1.5.2 · API 1 · 2026-10-31
 
 ### Quick
