@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -540,6 +540,7 @@ var NetflowHierarchy = (function () {
     S.gridStale = true; S.eidx = null; S.spatial = null;
     if (S.legendTitle === '' && !S.legend.length && (L.groups || []).length > 1) (L.groups || []).slice(0, 12).forEach(function (g) { S.legend.push({ k: 'group', c: gcol(g), t: g || '(no group)', key: 'g:' + g }); });
     S.chartNote = chartNote(L, ext);
+    if (NS.addTitles) NS.addTitles(S, o);   /* opt-in o.title, o.subtitle, o.source */
     return S;
   }
   function lumi(c) { return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }

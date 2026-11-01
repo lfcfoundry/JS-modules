@@ -1,8 +1,8 @@
 # netflow-hierarchy
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** node modules/netflow-plot/test/run.js, node modules/netflow-hierarchy/test/run.js, node modules/netflow-scene/test/run.js; default pictures byte-identical to 1.3.4 across 44 plot and 6 hierarchy pictures
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -39,6 +39,7 @@ svgElement.outerHTML = NetflowScene.toSvg(S, 'Treemap');
 - `G`: `{ nodes: [{ id, label, group, sizeV }], edges: [{ from, to, weight, count, widthV }] }`, plus optional `eA` and `eB` (Int32Array item numbers of each link's ends; with them no id lookup is built).
 - Views: `treemap`, `sunburst`, `icicle`, `pack`, `tree` (`NetflowHierarchy.VIEWS`).
 - Options: `nest` (`auto`, `links` or `groups`), `sized` (box sizes from `sizeV`), `treeShape` (`tidy`, the default, `cluster`, `radial`, `radialCluster` or `indented`).
+- Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `scene()` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
 - Helpers: `hierarchy`, `sums`, `packSiblings`, `enclose`, `linkValue`, `itemValue`, `sector`, `pushSector`.
 
 Use with netflow-engine: load the files as page scripts (or keep the folders side by side in Node) and the views join `NetflowEngine.VIEWS`; or hand them over with `NetflowEngine.use('hierarchy', NetflowHierarchy)`. Then `NetflowEngine.build(graph, { view: 'treemap' })` lays the map out and `NetflowHierarchy.scene(L, options, NetflowScene)` draws it.

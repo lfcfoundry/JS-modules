@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-11-01
+
+### Quick
+addTitles(S, o): o.title (20 px bold, fg), o.subtitle (13 px, fg mixed 25% toward bg), o.source (11 px, 32% toward bg, under the picture); sizes scale with pictures wider than 3,000.
+
+### Deep
+addTitles(S, o): o.title (20 px bold, fg), o.subtitle (13 px, fg mixed 25% toward bg), o.source (11 px, 32% toward bg, under the picture); sizes scale with pictures wider than 3,000. Contrast on bg: light 14.4/6.6/5.3, dark 15.0/8.8/7.5. Labels are put first in S.labels so the 2,500-name export limit never drops them; S.y0, S.h (and S.w when the title is wider) grow; S.titles records the text. Nothing changes without the words.
+
 ## 1.3.4 · API 1 · 2026-11-01
 
 ### Quick

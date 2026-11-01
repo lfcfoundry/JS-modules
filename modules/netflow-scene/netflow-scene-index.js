@@ -1,7 +1,7 @@
 /*!
  * netflow-scene-index.js, an optional companion of netflow-scene.js: a screen-position index for big maps. The centers of the items are sorted along a Z-order (Morton) curve and kept as Elias-Fano, so "which items are in this box" and "which item is under this point" read a few short stretches of the sorted list instead of every item.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules. Cut from Netflow Map. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.3.4 (API 1)
+ * Version 1.4.0 (API 1)
  *
  * Needs elias-fano 1.0.0 or newer (global EliasFano, or the file next to it in this repository). Used only for maps of 100,000 items or more (up to 1,048,576); smaller maps keep the scene module's own grid, which is faster there.
  *   var S = NetflowScene.make(L, { spatial: NetflowSceneIndex });   // the scene module builds the index instead of its grid and uses it in pick() and inRect()
@@ -87,5 +87,5 @@
     }
     return best;
   }
-  return { version: '1.3.4', api: 1, minItems: MIN_ITEMS, maxItems: MAX_ITEMS, available: function () { return ef() !== null; }, build: build, rect: rect, pick: pick, _candidates: candidates };
+  return { version: '1.4.0', api: 1, minItems: MIN_ITEMS, maxItems: MAX_ITEMS, available: function () { return ef() !== null; }, build: build, rect: rect, pick: pick, _candidates: candidates };
 }));

@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.0.0 · API 2**
+**Version 2.1.0 · API 2**
 
-**Tested in:** 314 module checks; donut charts give the same SVG as 1.0.0.
+**Tested in:** node modules/netflow-plot/test/run.js, node modules/netflow-hierarchy/test/run.js, node modules/netflow-scene/test/run.js; default pictures byte-identical to 1.3.4 across 44 plot and 6 hierarchy pictures
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -38,7 +38,8 @@ var hit = NetflowPlot.markAt(S, x, y);   // { rows, t } or null
 
 - `rows`: plain objects. A column is read from `row.attrs[key]`, then `row[key]`; pass `options.get(row, key)` to read it another way.
 - `spec`: `type` (one of `NetflowPlot.TYPES`), `x`, `y`, `color`, `size`, `agg` (`sum`, `mean`, `count`, `min`, `max`, `median`), `stack` (`stack`, `group`, `normalize`, `stream`, `none`), `horizontal`, `bins`, `smooth` (moving average window), `index` (lines from 100), `cols` (parallel lines and scatter matrix), `sort` (`value`, `name`, `none`).
-- `options`: `theme`, `palette`, `width`, `height`, `get`.
+- `options`: `theme`, `palette`, `width`, `height`, `get`, and the optional `title`, `subtitle`, `source`.
+- Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `options` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
 - `NetflowPlot.NEEDS` lists which columns each type needs (a number, a category, text, or any).
 - Helpers: `ticks`, `timeTicks`, `kde`, `normInv`, `voronoiCells`, `quant`, `fmtNum`.
 
