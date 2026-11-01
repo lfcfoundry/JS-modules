@@ -44,3 +44,21 @@ Against d3-sankey in Firefox 160 (ms): 72 nodes 2.0 (restarts 0: 0.5) against 1.
 | Laptop Firefox 160, 16 cores | 0.80 to 0.83 |
 
 That is 3 to 26% less time. Charts under 64 bars keep the JavaScript.
+
+
+**New in 2.4.0: faster big charts, same pictures.** Bars and stand-in stops now live in flat typed arrays. Output is identical to 2.3.3 on 669 maps. Laptop, 16 cores, time new / 2.3.3, lower is better:
+
+| Items | Chromium 156 | Firefox 160 |
+|---|---:|---:|
+| 1,500 | 0.80 | 0.80 |
+| 1,000 | 0.92 | 0.85 |
+| 400 | 1.01 | 0.87 |
+
+**New option `stopCap`, off by default.** It draws more long links straight on big maps. Node, layout time in ms and crossings (counted along link center lines), lower is better:
+
+| Items | Default | `stopCap: 500` | d3-sankey |
+|---|---|---|---|
+| 1,500 | 24.4 ms, 71,093 | 3.9 ms, 60,423 | 18.9 ms, 99,058 |
+| 5,000 | 93.6 ms, 1,133,257 | 15.7 ms, 462,760 | 89.6 ms, 935,756 |
+
+In Node, d3-sankey is faster than the default at these sizes, and the default draws more crossings than d3-sankey at 5,000 items. With `stopCap: 500` this module is faster than d3-sankey and draws fewer crossings at both sizes. Browser runs of `stopCap`: not yet.

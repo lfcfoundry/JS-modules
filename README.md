@@ -71,10 +71,10 @@ Every piece in one place, by name. The tables below give the version, the sizes 
 - Games - Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md), [fly-to-mini](modules/fly-to-mini/README.md), [gpu-blur](modules/gpu-blur/README.md), [sprite-baker](modules/sprite-baker/README.md), [stage-curtains](modules/stage-curtains/README.md), [sticker-text](modules/sticker-text/README.md)
 - Games - Controls: [back-close](modules/back-close/README.md), [hold-press](modules/hold-press/README.md), [pad-nav](modules/pad-nav/README.md), [wake-keeper](modules/wake-keeper/README.md)
 - Games - Assist: [grown-ups-door](modules/grown-ups-door/README.md), [spotlight-tour](modules/spotlight-tour/README.md)
-- Games - Math: [graph-walk](modules/graph-walk/README.md), [idle-core](modules/idle-core/README.md)
+- Games - Math: [idle-core](modules/idle-core/README.md)
 - Games - Testing: [canvas-probe](tools/canvas-probe/README.md), [firefox-stand-in](tools/firefox-stand-in/README.md), [fuzz-kit](tools/fuzz-kit/README.md), [speed-guard](tools/speed-guard/README.md), [speed-lab](tools/speed-lab/README.md), [storage-probe](tools/storage-probe/README.md), [test-isolation](tools/test-isolation/README.md), [test-runner](tools/test-runner/README.md), [webkit-driver](tools/webkit-driver/README.md)
 - App - Efficiency: [elias-fano](modules/elias-fano/README.md), [lfc-pack](modules/lfc-pack/README.md), [memory-compression](modules/memory-compression/README.md), [single-file-tools](tools/single-file-tools/README.md), [text-columns](modules/text-columns/README.md)
-- Model simulation: [walker-sim](modules/walker-sim/README.md)
+- Graphs and simulation: [graph-walk](modules/graph-walk/README.md), [walker-sim](modules/walker-sim/README.md)
 - Visualization: [clip-writer](modules/clip-writer/README.md), [gif-writer](modules/gif-writer/README.md), [netflow-engine](modules/netflow-engine/README.md), [netflow-layers](modules/netflow-layers/README.md), [netflow-sankey](modules/netflow-sankey/README.md), [netflow-scene](modules/netflow-scene/README.md)
 - Size and packaging: [lzma-decode](modules/lzma-decode/README.md), [lzma-pack](tools/lzma-pack/README.md), [pcodec-js](modules/pcodec-js/README.md), [ppmd-decode](modules/ppmd-decode/README.md), [ppmd-pack](tools/ppmd-pack/README.md), [zip-open](modules/zip-open/README.md)
 
@@ -122,7 +122,7 @@ Keep a player's progress safe and let them move it between devices.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [save-kit](modules/save-kit/README.md) | 1.5.0 | 44.4 | 13.2 | Safe saves in localStorage and IndexedDB: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
+| [save-kit](modules/save-kit/README.md) | 1.5.1 | 45.1 | 13.4 | Safe saves in localStorage and IndexedDB: backup slot, checksums, copy-paste save codes. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/save-kit/demo.html) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 | 9.6 | 3.4 | Keeps one tab in charge so two tabs never overwrite each other's saves. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/tab-guard/demo.html) |
 
 #### Games - Looks and effects
@@ -164,7 +164,6 @@ The numbers behind idle and clicker games.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [graph-walk](modules/graph-walk/README.md) | 0.11.0 | 98.0 | 30.9 | Graph walks in typed arrays: distances, loops, shortest paths, centrality, communities. | — |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 | 22.8 | 7.7 | Tested maths for idle and clicker games: costs, buy-max, away income, number format. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/idle-core/demo.html) |
 
 #### Games - Testing
@@ -190,17 +189,18 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 1.8.0 | 74.1 | 24.4 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.4.10 | 771.5 | 246.1 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.4.11 | 771.9 | 246.4 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [memory-compression](modules/memory-compression/README.md) | 2.9.0 | 400.7 | 116.5 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.6.4 | 62.8 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
-#### Model simulation
+#### Graphs and simulation
 
-Simulate random walkers over a graph.
+Walk graphs (shortest paths, centrality, communities) and simulate random walkers over them.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
+| [graph-walk](modules/graph-walk/README.md) | 0.11.0 | 98.0 | 30.9 | Graph walks in typed arrays: distances, loops, shortest paths, centrality, communities. | — |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.0 | 73.4 | 24.0 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
 
 #### Visualization
@@ -227,7 +227,7 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 | 105.7 | 60.5 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 | 45.3 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.0 | 47.8 | 14.6 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
-| [zip-open](modules/zip-open/README.md) | 1.13.0 | 114.1 | 40.0 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
+| [zip-open](modules/zip-open/README.md) | 1.14.0 | 114.2 | 40.0 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 
 ### Story editor packages (10)
 

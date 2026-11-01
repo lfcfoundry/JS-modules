@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.1 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 1.5.0 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 1.5.1 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -28,11 +28,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.13.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.14.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.9.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.8.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.11.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.4.10 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.4.11 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.4 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -63,6 +63,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **zip-open** 1.7.0 · API 1: Excel sheets are read faster: on a 16-core laptop 11 to 20% faster in Firefox and 23 to 24% faster in Chromium, with the same results.
 - 2026-10-31 · **zip-open** 1.6.0 · API 1: Text entries are unpacked into one shared buffer that is reused for the next entry (let go 5 s after the last one). Laptop Chromium: 2 to 14% faster on most zips; laptop Firefox: about even.
 - 2026-10-31 · **zip-open** 1.5.2 · API 1: Loading the module costs what it did before 1.5.0: the small-file unpacker is now a separate piece, prepared only when a small file is first opened. 2,000 tiny files still open 1.4 to 1.9x faster than with the browser's own unpacker. Helpers from expandBlob close 5 s after their last use and give their memory back (idleMs changes the delay).
+- 2026-10-31 · **zip-open** 1.14.0 · API 1: Excel files read in a helper (expandBlob with workers) open 2 to 28% faster (cloud Firefox, Chromium, WebKitGTK), same results.
 - 2026-10-31 · **zip-open** 1.13.0 · API 1: Excel files already in memory (expand, or a File of up to 16 MB) open 5 to 21% faster (cloud Firefox, Chromium, WebKitGTK), same results.
 - 2026-10-31 · **zip-open** 1.12.0 · API 1: Excel files with lots of text open 4 to 13% faster (cloud Firefox, Chromium, WebKitGTK); other sheets about the same. Browsers with WebAssembly SIMD get a faster reader; others keep the old one.
 - 2026-10-31 · **zip-open** 1.11.0 · API 1: With helpers on (the workers option), Excel files are read inside a helper, so a big sheet no longer freezes the page (185 ms down to 6 ms on a laptop). Total time is about the same, up to 18% longer on some sheets.
@@ -75,10 +76,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **text-columns** 0.5.2 · API 0: parseParallel reads files with accented or other non-ASCII text up to 4.8x faster.
 - 2026-10-31 · **test-runner** 1.4.0 · API 1: New ab.js: the early-stop A/B timing rule for the 5% check.
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
+- 2026-10-31 · **save-kit** 1.5.1 · API 1: Loading a save with big counts lists takes 16 to 21% less time (cloud Chromium, Firefox and WebKitGTK); nothing a game sees changes.
 - 2026-10-31 · **save-kit** 1.5.0 · API 1: createLarge() gets an opt-in skipUnchangedMs: an unchanged big save is not written again; 57 to 66% less time.
 - 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option keeps a second copy of each save that survives a browser crash. In a real crash test, saves kept only in browser storage lost 29 to 30 of 80; with durable on, none were lost.
 - 2026-10-31 · **pcodec-js** 1.6.2 · API 1: Repeated big unpacks take 0.63 to 0.87 of the time (5 million numbers, three browsers): a ready array is prepared while the page is idle and dropped after 4 s unused.
-- 2026-10-31 · **netflow-sankey** 2.4.0 · API 2: Big maps lay out about 15-20% faster with the same pictures. New stopCap / stopCapFrom options (off by default) draw more long links straight on big maps for a much faster layout.
+- 2026-10-31 · **netflow-sankey** 2.4.0 · API 2: Big flow charts lay out 8 to 20% faster (20% at 1,500 items) with the same pictures. New stopCap / stopCapFrom options (off by default) draw more long links straight on big maps for a much faster layout.
 - 2026-10-31 · **netflow-sankey** 2.3.3 · API 2: Bars settle into place in WebAssembly too: the same pictures in 3 to 26% less time for big flow charts (3 to 14% in cloud browsers, 7 to 26% on a laptop).
 - 2026-10-31 · **netflow-layers** 1.7.0 · API 1: Fewer crossings by default (deep: false and rows: 'route' keep the old picture): 3 to 11% fewer than dagre and ELK on random maps; 1,000 items take 77 to 83 ms instead of 11 to 39.
 - 2026-10-31 · **netflow-layers** 1.6.0 · API 1: New options, all off by default: deep: true untangles links further, rows: 'best' tries both row choices, orderRounds: 0 skips the order search. Deep with 'best' cuts crossings 17 to 37%, below dagre and ELK.
@@ -95,7 +97,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **lfc-pack** 0.4.4 · API 0: Packing records with many shapes, like FHIR, is 10 to 15% faster: each shape's string paths are worked out once instead of once per block. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.3 · API 0: After 30 seconds without packing, the packer gives its memory back on its own (about 38 MB after a 66.6 MB pack, up to about 250 MB with big blocks). Reading memory is kept. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.2 · API 0: The first pack after trim() is no longer slower (laptop Chromium 4% slower before, now 2% faster): the packer keeps its warmed-up code. Same files byte for byte.
-- 2026-10-31 · **lfc-pack** 0.4.10 · API 0: Packing numbers with up to 9 decimals takes the fast path: sensor-style data packs up to 21% faster in Firefox and 36% in WebKitGTK; same files, byte for byte.
+- 2026-10-31 · **lfc-pack** 0.4.11 · API 0: Packing with the fast writer is faster again: its sizing pass reads 8 bytes at a time (sensor-style data up to 28% faster in Firefox); same files.
+- 2026-10-31 · **lfc-pack** 0.4.10 · API 0: Packing numbers with up to 9 decimals takes the fast path: sensor-style data packs in 21 to 36% less time in Firefox and WebKitGTK (Chromium about the same); same files, byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.1 · API 0: Packing nested rows is 6 to 21% faster on a 16-core laptop (Chromium and Firefox), with the same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.0 · API 0: Smaller nested files by default: strings are kept per path (`paths: false` turns it off), 5 to 14% smaller. Older readers refuse such blocks. New pack options: `share: true` (one string and shape table for the whole file) and `access: 'random'` (256 KB blocks plus share, for fast small reads). New `trim()` gives back grown WebAssembly memory (80 to 90 MB after a 66.6 MB job); idle `packParallel` helpers give back theirs. Faster packing, same files byte for byte (3 to 25% for number-heavy files, up to 3.7x with small blocks); readers refuse more damaged files.
 - 2026-10-31 · **lfc-pack** 0.3.2 · API 0: Packing with small blocks is 1.3-3.7x faster: the string and shape tables are cleared only as far as each block used them. Same bytes.
