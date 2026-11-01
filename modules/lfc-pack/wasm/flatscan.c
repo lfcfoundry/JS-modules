@@ -208,6 +208,12 @@ EXPORT("strdict") u32 strdict(const u8*in,const double*cval,const u32*clen,const
   else for(i=0;i<D;i++){ if(i) out[o++]=0; c2=lab[i]; s=(u32)cval[c2]; L=clen[c2]; __builtin_memcpy(out+o,in+s,L); o+=L; }
   res[0]=o; return D;
 }
+// key k's string values as one JSON array text: '[' then each value's literal, quotes and escapes as in the input, joined by ',' then ']' (ASCII input, where offsets are byte offsets). Returns its length.
+EXPORT("rawjoin") u32 rawjoin(const u8*in,const double*cval,const u32*clen,const u32*ix,u32 n,u8*out){
+  u32 i,o=1,q; out[0]='[';
+  for(i=0;i<n;i++){ u32 c2=ix[i],s=(u32)cval[c2]-1,L=clen[c2]+2; if(i) out[o++]=','; for(q=0;q<L;q++) out[o+q]=in[s+q]; o+=L; }
+  out[o++]=']'; return o;
+}
 // per-key cell counts and list item totals, and every number column gathered into its own run of doubles at out+offs[k] (scaled to the column's fraction digits as the writer
 // stores them). Returns 1 when a scaled value is 2^50 or more in size, which the fast path does not write.
 static const u32 FDT[10]={0,2,2,3,4,5,6,7,8,9};
