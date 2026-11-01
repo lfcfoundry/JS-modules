@@ -1,6 +1,6 @@
 # netflow-plot
 
-**Version 2.3.0 · API 2**
+**Version 2.4.0 · API 2**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -39,6 +39,7 @@ var hit = NetflowPlot.markAt(S, x, y);   // { rows, t } or null
 - `rows`: plain objects. A column is read from `row.attrs[key]`, then `row[key]`; pass `options.get(row, key)` to read it another way.
 - `spec`: `type` (one of `NetflowPlot.TYPES`), `x`, `y`, `color`, `size`, `agg` (`sum`, `mean`, `count`, `min`, `max`, `median`), `stack` (`stack`, `group`, `normalize`, `stream`, `none`), `horizontal`, `bins`, `smooth` (moving average window), `index` (lines from 100), `cols` (parallel lines and scatter matrix), `sort` (`value`, `name`, `none`).
 - `options`: `theme`, `palette`, `width`, `height`, `get`, and the optional `title`, `subtitle`, `source`, `highlight`.
+- Clean look (on by default): bar and box charts write their values on the bars (and inside stacked parts that have room) and the median over each box, with no number axis or gridlines, in a calm blue-first color set. When the values would not fit, the number axis comes back on its own. `clean: false` keeps the number axis and gridlines.
 - Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `options` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
 - `highlight` (optional): a series name from the `color` column (or, with no color column, one bar) keeps its color and is drawn on top; the rest turn one gray. Works on every type that colors by a column. A name that is not there changes nothing, and a highlighted name is never folded into Other.
 - `NetflowPlot.NEEDS` lists which columns each type needs (a number, a category, text, or any).

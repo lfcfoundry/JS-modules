@@ -81,5 +81,18 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const mo = P.make(many, { type: 'bar', x: 'c', y: 'v', color: 'g' }, { width: 600, height: 400, highlight: 'k29' }, NS);
   ok(mo.legend.some((l) => l.t === 'k29'), 'a highlighted name past the color limit is kept, not folded into Other');
 }
+/* clean look (default): bar values on the bars and no number axis; clean: false keeps the axis; crowded values bring the axis back */
+{
+  const NS = global.NetflowScene, rows = ['North', 'South', 'East'].map((r, i) => ({ attrs: { region: r, sales: [120, 80, 45][i] } }));
+  const a = P.make(rows, { type: 'bar', x: 'region', y: 'sales' }, { width: 600, height: 400 }, NS), b = P.make(rows, { type: 'bar', x: 'region', y: 'sales' }, { width: 600, height: 400, clean: false }, NS);
+  const ts = (S) => S.labels.map((l) => l.t);
+  ok(['120', '80', '45'].every((t) => ts(a).includes(t)), 'values on the bars: ' + ts(a).join(','));
+  ok(!ts(a).includes('100') && ts(b).includes('100') && !ts(b).includes('45'), 'number axis only with clean: false');
+  const many = []; for (let i = 0; i < 40; i++) many.push({ attrs: { k: 'K' + i, v: 123456 + i * 1000 } });
+  const c = P.make(many, { type: 'bar', x: 'k', y: 'v', sort: 'none' }, { width: 400, height: 300 }, NS);
+  ok(!ts(c).includes('123k'), 'values that do not fit bring the number axis back');
+  const bx = P.make([1, 2, 3, 4, 5, 6, 7].map((v) => ({ attrs: { g: 'A', y: v } })), { type: 'box', x: 'g', y: 'y' }, { width: 400, height: 300 }, NS);
+  ok(ts(bx).includes('4'), 'box median written: ' + ts(bx).join(','));
+}
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

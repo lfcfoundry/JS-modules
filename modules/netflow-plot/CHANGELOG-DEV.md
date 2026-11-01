@@ -1,5 +1,13 @@
 # netflow-plot developer changelog
 
+## 2.4.0 · API 2 · 2026-11-01
+
+### Quick
+Clean look as the default (owner's card 1:06 PM ET 11.01, 'Make it the default').
+
+### Deep
+Clean look as the default (owner's card 1:06 PM ET 11.01, 'Make it the default'). Bar: every bar end gets its value (stack totals above, parts inside when the number fits, % for normalize, values at the right end for horizontal bars); the number axis, its gridlines and the bold axis name go, and the axis name sits small at the top left unless a value would touch it. Falls back to the number axis when any end value would not fit beside its bar. Box: median written over each box (or beside the median line, with the middle half's ends, when the gaps allow); one calm color for every box. Calm colors (bar and box only): #1f4e79, #4f8cc9, #9cc3e6, #2a8c82, #c99a2e, #b4533c, ... (dark set lighter). Labels: crowded two-word names go on two lines before any name tilts; end names never run past the number axis or the picture edge. New option clean: false for the old look. 80 of 440 sample pictures change (every bar and box picture); the other 360 (other chart types) are byte-identical. Overlapping text across 52 changed charts: none in Chromium 155 and WebKitGTK 2.52.6; Firefox 158 flags only the two lines of a wrapped name (line boxes, letters apart). Requested by the owner.
+
 ## 2.3.0 · API 2 · 2026-11-01
 
 ### Quick

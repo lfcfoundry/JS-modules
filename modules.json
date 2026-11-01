@@ -485,7 +485,7 @@
     },
     {
       "id": "netflow-scene",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "api": 1,
       "global": "NetflowScene",
       "summary": "Turns a Netflow Map layout into plain drawing lists (dots, links, labels, ribbons, shapes) that Canvas 2D, WebGL2, WebGPU or SVG can draw the same way; big flat maps keep links in typed lists and reuse link looks between pictures.",
@@ -499,7 +499,7 @@
     },
     {
       "id": "netflow-plot",
-      "version": "2.3.0",
+      "version": "2.4.0",
       "api": 2,
       "global": "NetflowPlot",
       "summary": "Plain charts from a table's columns, 22 types from bars and lines to box plots, hexbins, density, Q-Q, Voronoi cells and word clouds, drawn as netflow-scene drawing lists so the map's renderer, themes and SVG export draw them; the charts of Netflow Map's Charts tab.",
