@@ -26,7 +26,10 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;max-width:100%}p 
 @media(max-width:700px){table,tbody{display:block}thead{display:none}tr{display:block;border:1px solid var(--lfc-line);border-radius:10px;margin:0 0 16px;padding:6px 14px;background:var(--lfc-soft)}
 td{display:block;border:0;border-bottom:1px solid var(--lfc-line);padding:10px 0;font-size:16px}td:last-child{border-bottom:0}
 td::before{content:attr(data-l);display:block;font:700 12px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-muted,#6b7a8c);margin-bottom:3px}td:first-child{font-weight:700}td:first-child::before{display:none}}
-.wrap td:first-child{min-width:9.5em}.ph{border:2px dashed var(--lfc-line);border-radius:10px;padding:10px 14px;background:var(--lfc-soft)}.mod{border-top:2px solid var(--lfc-line);margin-top:40px}
+.wrap td:first-child{min-width:9.5em}.opts{display:grid;gap:10px;margin:1em 0}.opt{display:grid;grid-template-columns:minmax(9em,14em) 1fr;gap:4px 18px;border:1px solid var(--lfc-line);border-radius:10px;padding:10px 16px;background:var(--lfc-soft)}.opt .k{font-family:var(--lfc-mono);font-weight:700;overflow-wrap:anywhere}.opt .v p{margin:.2em 0}
+details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;margin:12px 0;background:var(--lfc-soft)}details.fold>summary{padding:12px 16px}details.fold>*:not(summary){margin-left:16px;margin-right:16px}details.fold>table,details.fold>pre{max-width:calc(100% - 32px)}details.fold[open]{padding-bottom:6px}details.fold table{margin:14px 16px}details.more{border:0;background:none;margin:2px 0}details.more>summary{padding:2px 0;font-size:.92em}summary{cursor:pointer;font-weight:700;list-style-position:inside}
+@media(max-width:700px){.opt{grid-template-columns:1fr}}
+.ph{border:2px dashed var(--lfc-line);border-radius:10px;padding:10px 14px;background:var(--lfc-soft)}.mod{border-top:2px solid var(--lfc-line);margin-top:40px}
 """
 def esc(s): return html.escape(s, quote=False)
 def inline(s, base):
@@ -56,6 +59,15 @@ def md(text, base):
             while j < len(lines) and lines[j].startswith('|'): rows.append(lines[j]); j += 1
             cells = lambda r: [c.strip().replace('\\|', '|') for c in re.split(r'(?<!\\)\|', r.strip().strip('|'))]
             hs = cells(rows[0])
+            body_rows = [cells(r) for r in rows[2:]]
+            if any(len(c) > 200 for r in body_rows for c in r) and len(hs) == 2:
+                o = '<div class="opts">'
+                for r in body_rows:
+                    txt = r[1] if len(r) > 1 else ''
+                    m1 = re.match(r'(.+?(?<![0-9])\.)(\s+[A-Z(`].*)$', txt)
+                    short, more = (m1.group(1), m1.group(2)) if m1 and len(txt) > 200 else (txt, '')
+                    o += '<div class="opt"><div class="k">%s</div><div class="v"><p>%s</p>%s</div></div>' % (inline(r[0], base), inline(short, base), ('<details class="more"><summary>Details</summary><p>%s</p></details>' % inline(more.strip(), base)) if more else '')
+                out.append(o + '</div>'); i = j; continue
             t = '<table><thead><tr>%s</tr></thead><tbody>' % ''.join('<th>%s</th>' % inline(c, base) for c in hs)
             for r in rows[2:]: t += '<tr>%s</tr>' % ''.join('<td data-l="%s">%s</td>' % (html.escape(hs[k] if k < len(hs) else '', quote=True), inline(c, base)) for k, c in enumerate(cells(r)))
             out.append(t + '</tbody></table>'); i = j; continue
@@ -77,6 +89,16 @@ def md(text, base):
             while i < len(lines) and lines[i].strip() and not re.match(r'^(#|```|\||\s*[-*] |\d+\. )', lines[i]): para.append(lines[i]); i += 1
             out.append('<p>%s</p>' % inline(' '.join(para), base)); continue
         i += 1
+    return '\n'.join(out)
+def fold(h, first_open=True):
+    parts = re.split(r'(?=<p><strong>)', h)
+    out = [parts[0]]
+    for n, c in enumerate(p_ for p_ in parts[1:]):
+        m = re.match(r'<p><strong>(.*?)</strong>(.*?)</p>(.*)$', c, re.S)
+        if not m: out.append(c); continue
+        t = re.sub(r'<[^>]+>', '', m.group(1)).rstrip('.:')
+        rest = ('<p>%s</p>' % m.group(2).strip()) if m.group(2).strip() else ''
+        out.append('<details class="fold"%s><summary>%s</summary>%s%s</details>' % (' open' if n == 0 and first_open else '', t, rest, m.group(3)))
     return '\n'.join(out)
 def sections(readme):
     parts = re.split(r'^## ', readme, flags=re.M)
@@ -117,14 +139,14 @@ def module_html(m, base_mods):
     nf = os.path.join(root, 'tools/module-pages/numbers', mid + '.md')
     nts = [t for t in order if t not in used and any(t.startswith(k) for k in NUMKEYS)]
     nb = '<h2 id="numbers">Speed and efficiency numbers</h2>'
-    if os.path.exists(nf): nb += md(open(nf, encoding='utf-8').read(), folder)
+    if os.path.exists(nf): nb += fold(md(open(nf, encoding='utf-8').read(), folder))
     elif not nts: nb += '<div class="ph"><p><strong>Not measured yet.</strong> No speed, size or memory measurements are published for this piece yet. They will appear here when a measured run includes it, each naming the browser and device it ran on. Any numbers already in the comparison above still apply.</p></div>'
     for t in nts: used.add(t); nb += '<h3>%s</h3>' % esc(t) + md(secs[t], folder)
     body.append(nb)
     rest = [t for t in order if t not in used and t not in ('For AI agents', 'Prior art and credits', 'Full research notes')]
     if rest:
         body.append('<h2 id="more">More</h2>')
-        for t in rest: body.append('<h3>%s</h3>' % esc(t) + md(secs[t], folder))
+        for t in rest: body.append('<details class="fold"><summary>%s</summary>%s</details>' % (esc(t), md(secs[t], folder)))
     if 'Prior art and credits' in secs:
         body.append('<h2 id="credits">Credits</h2>' + md(secs['Prior art and credits'], folder))
     ver = re.search(r'\*\*Version ([^*]+)\*\*', readme); ver = ver.group(1) if ver else m.get('version', '')
