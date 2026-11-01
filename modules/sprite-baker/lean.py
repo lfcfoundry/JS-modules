@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-"""Makes a smaller sprite-baker by cutting out the parts a game does not use. Version 1.7.1 (API 1)
+"""Makes a smaller sprite-baker by cutting out the parts a game does not use. Version 1.7.2 (API 1)
 
   python3 modules/sprite-baker/lean.py --list                                  the parts that can be cut, and what each one is
   python3 modules/sprite-baker/lean.py --without ramps,mesh,rotation,shapes,baking,sheets -o out.js     write a copy without those parts

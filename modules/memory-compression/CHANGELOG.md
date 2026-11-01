@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.1 · API 2 · 2026-10-31
+- Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
+
 ## 2.10.0 · API 2 · 2026-10-31
 - New unpack option into: pass the typed array you got last time to read the next one without fresh memory (9 to 30% faster on a laptop for big number arrays).
 

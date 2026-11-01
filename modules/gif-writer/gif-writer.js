@@ -4,7 +4,7 @@
  * are left transparent, and every picture is compressed the moment it is added.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.1 (API 1)
+ * Version 1.6.2 (API 1)
  *
  *   var pal = GifWriter.makePalette([rgba1, rgba2], 255);          // rgba: Uint8ClampedArray from ctx.getImageData(...).data
  *   var enc = GifWriter.createEncoder(width, height, pal, { loop: true });
@@ -38,7 +38,8 @@
   function wasmBytes() {
     if (binCache) return binCache;
     var bin, i;
-    if (typeof atob === 'function') { var raw = atob(WASM_B64); bin = new Uint8Array(raw.length); for (i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); }
+    if (typeof Uint8Array.fromBase64 === 'function') bin = Uint8Array.fromBase64(WASM_B64);
+    else if (typeof atob === 'function') { var raw = atob(WASM_B64); bin = new Uint8Array(raw.length); for (i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i); }
     else bin = new Uint8Array(Buffer.from(WASM_B64, 'base64'));
     return (binCache = bin);
   }

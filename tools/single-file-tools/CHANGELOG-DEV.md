@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.1 · API 1 · 2026-10-31
+
+### Quick
+The base64 loader emits Uint8Array.fromBase64 with the atob path as the fallback.
+
+### Deep
+The base64 loader emits Uint8Array.fromBase64 with the atob path as the fallback. Example pages packed and opened in Chromium 155, Firefox 158 and WebKitGTK 2.52.6: all unpack. Tool tests pass.
+
 ## 1.2.0 · API 1 · 2026-10-24
 
 ### Quick
