@@ -79,13 +79,13 @@ The data is smaller with PPMd on nine of ten files (4 to 16%; the exception is b
 
 **WebAssembly first (the default since 2.0.0):** the page grows by about 9.7 KB (the 9,317-byte program plus about 380 bytes of loader) and unpacks about 1.5 to 2.1 times sooner. Apple Press page (2026.10.17.1445, 703,049 bytes; PPMd order 12, 8 MB), time from page start to unpacked page ready, median of 5 runs, one browser at a time (size in bytes: smaller is better; ms: lower is better):
 
-| Page | Size (bytes) | Chromium 155 (ms) | Firefox 158 (ms) | WebKitGTK 2.52.6 (ms) | GNOME Web 46.5 (ms) |
-|---|---:|---:|---:|---:|---:|
-| LZMA, `--no-wasm` | 191,584 | 106 | 89 | 120 | 119 |
-| LZMA, WebAssembly | 196,119 | 64 | 74 | 86 | 114 |
-| PPMd, `--no-wasm` | 188,602 | 313 | 313 | 392 | 376 |
-| PPMd, WebAssembly (default) | 198,362 | 194 | 204 | 184 | 182 |
-| PPMd WebAssembly: times faster than `--no-wasm` (higher is better) | | 1.6x | 1.5x | 2.1x | 2.1x |
+| Page | Size (bytes) | Chromium 155 (ms) | Firefox 158 (ms) | WebKitGTK 2.52.6 (ms) |
+|---|---:|---:|---:|---:|
+| LZMA, `--no-wasm` | 191,584 | 106 | 89 | 120 |
+| LZMA, WebAssembly | 196,119 | 64 | 74 | 86 |
+| PPMd, `--no-wasm` | 188,602 | 313 | 313 | 392 |
+| PPMd, WebAssembly (default) | 198,362 | 194 | 204 | 184 |
+| PPMd WebAssembly: times faster than `--no-wasm` (higher is better) | | 1.6x | 1.5x | 2.1x |
 
 For this page LZMA is the better choice on both counts: PPMd with WebAssembly still opens 1.6 to 3 times slower than LZMA and is 6.8 KB **bigger** than the LZMA page, instead of 3.0 KB smaller. It pays only where PPMd's smaller data wins by more than the 9.7 KB (roughly 2 MB for a page like this) and the opening time is acceptable. Numbers move by about 10 to 20% from run to run. On a page whose policy forbids WebAssembly the loader uses the JavaScript decoder (all four browsers: the page opened in 317 to 438 ms, the same as a plain PPMd page). Measured again on the final 2.0.0 tools with the Pineapple Defense page (569,513 bytes; packed with the defaults and no minifier; PPMd default 170,155 bytes, `--no-wasm` 160,450 bytes; time until the unpacked page starts, median of 7, the two pages taking turns, one browser at a time; milliseconds are better when lower):
 
@@ -94,7 +94,6 @@ For this page LZMA is the better choice on both counts: PPMd with WebAssembly st
 | ungoogled-chromium 155.0.8059.39-1 | 256.0 | 165.0 | 1.55x |
 | Firefox 158.0 (reports 158.0b5) | 283.0 | 173.0 | 1.64x |
 | WebKitGTK 2.52.6 | 189.0 | 151.0 | 1.25x |
-| GNOME Web 46.5 | 228.0 | 185.0 | 1.23x |
 
 Not run on a phone. Browser run: `tests/pack-default-browser.js`.
 

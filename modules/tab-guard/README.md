@@ -80,7 +80,7 @@ Smaller than the two leader-election libraries whose sizes are known, with the o
 - No voluntary step-down, no queue, no tab ids or messages between tabs.
 - A frozen background tab keeps its lock, and private windows have their own lock space.
 - With `backForwardCache` off (the default), Firefox 158.0 reloads the whole page on Back (3 of 3 tries).
-- What happens after a hard browser crash is not tested. The browser suite was run in ungoogled Chromium 155.0.8059.39-1 only; not run in Firefox 158.0, WebKitGTK, GNOME Web or on a phone.
+- What happens after a hard browser crash is not tested. The browser suite was run in ungoogled Chromium 155.0.8059.39-1 only; not run in Firefox 158.0, WebKitGTK or on a phone.
 - Not measured: speed of any of them; sizes of `leader-tab` and the hand-written ways.
 
 ## Limits
