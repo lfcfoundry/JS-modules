@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-netflow-sankey lays out a flow chart (a Sankey diagram) from a list of links (`from`, `to`, `value`) and can draw it as an SVG. One file, 17.7 KB gzipped, no dependencies. Version 1.x had a different name; a project on 1.x only changes the folder, file and global to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
+netflow-sankey lays out a flow chart (a Sankey diagram) from a list of links (`from`, `to`, `value`) and can draw it as an SVG. One file, 21.3 KB gzipped (15.5 KB minified and gzipped), no dependencies. Version 1.x had a different name; a project on 1.x only changes the folder, file and global to `netflow-sankey`, `netflow-sankey.js` and `NetflowSankey`.
 
 - Items go into columns by flow direction, and every band is as thick as its flow.
 - It searches for the order with the fewest crossings, counting big flows crossing big flows as the worst.
@@ -51,7 +51,7 @@ netflow-sankey is bigger than d3-sankey, but on three made-up charts it leaves a
 
 | Alternative | Size (smaller is better) | Speed | Features | Where it wins / loses |
 |---|---|---|---|---|
-| [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3) | 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape (their size: not measured). This module: 34,081 bytes readable, 11.6 KB gzipped; minified size: not measured | In browsers: not measured (Node numbers are in "Numbers" below) | No loops (throws "circular link"); crossing order not weighted by flow | Wins on size. Loses on weighted crossings (about half as many here) and on loops |
+| [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3) | 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape (their size: not measured). This module: 61,115 bytes readable, 21.3 KB gzipped; 37,858 bytes minified, 15.5 KB minified and gzipped (terser 5.51.2) | In browsers: not measured (Node numbers are in "Numbers" below) | No loops (throws "circular link"); crossing order not weighted by flow | Wins on size. Loses on weighted crossings (about half as many here) and on loops |
 | d3-sankey-circular and similar forks (version and license: not read) | Not measured | Not measured | Add loops to d3-sankey | Same job as the loop support here; pictures not compared |
 | Plotly and Google Charts Sankey (versions: not read) | Not measured (each is a whole charting library) | Not measured | Sankey as one chart type among many | Pick one if you already ship it; this module is only the Sankey layout and SVG |
 

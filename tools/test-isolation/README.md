@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-Keeps a test page away from the player's real saved game. 1.8 KB gzipped, no dependencies.
+Keeps a test page away from the player's real saved game. 2.4 KB gzipped (1.8 KB minified and gzipped), no dependencies.
 
 - It swaps `localStorage` (and `sessionStorage` if asked) for a copy that prefixes every key.
 - A test, speed run or random-play run can never read or overwrite the real keys.
