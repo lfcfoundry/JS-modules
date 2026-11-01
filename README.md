@@ -27,7 +27,7 @@ The modules are for developers; the apps built from them need no install and no 
 
 ## Why it exists
 
-Single-file offline apps cannot load code from a server, must run on cheap phones, and every kilobyte is downloaded by everyone. Most libraries assume a build step, a network and a fast device. A module is kept only if it does something the nearest open-source option does not, or does it measurably better, and its README says where the other one wins.
+Single-file offline apps cannot load code from a server, so any library has to be copied into the file, and its size is part of every download. These modules are plain files with no build step and no dependencies. A module is kept only if it does something the nearest open-source option does not, or does it measurably better, and its README says where the other one wins.
 
 **Where it helps**
 
