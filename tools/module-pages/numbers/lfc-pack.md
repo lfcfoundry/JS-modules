@@ -241,3 +241,15 @@ Firefox opens decimal lists 5 to 8% faster; the other cells are within noise.
 | Cloud WebKitGTK 2.52.6 | 0.64 | 0.86 |
 
 Sensor-style data packs in 21 to 36% less time in Firefox and WebKitGTK. Chromium gained in one run and was even in the recheck.
+
+**New in 0.4.11 and 0.4.12: a faster scanner in the fast writer.** 0.4.11 sizes rows 8 bytes at a time. 0.4.12 tries keys in the last row's order first and reads digits 8 at a time. Files are the same byte for byte. Laptop (16 cores), pack time, lower is better:
+
+| Release, against | Data | Chromium 156 | Firefox 160 |
+|---|---|---:|---:|
+| 0.4.11 with 0.4.10, against 0.4.9 | Sensor, 256 KB blocks | 0.92 | 0.72 |
+| 0.4.11 with 0.4.10, against 0.4.9 | Events | 0.93 | 0.90 |
+| 0.4.12, against 0.4.10 | Sensor, default blocks | 0.84 | 0.86 |
+| 0.4.12, against 0.4.10 | Sensor, 256 KB blocks | 0.84 | 0.85 |
+| 0.4.12, against 0.4.10 | Events | 0.88 | 0.92 |
+
+Cloud WebKitGTK 2.52.6: 0.4.11 within noise; 0.4.12's key-order step 0.88 to 1.00.
