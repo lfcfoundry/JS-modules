@@ -345,7 +345,8 @@
     var x = new WebAssembly.Instance(MODS['FSB64'], {}).exports;
     return (FSW = { x: x, heap: x.__heap_base.value });
   }
-  var P10 = [1, 10, 100], FSTD = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+  // FD: a number column's scale is 10 to its largest fraction digit count, at least 100 for 1 or 2 digits (as before: same files), up to 9 digits like the JSON.parse path
+  var P10 = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9], FD = [0, 2, 2, 3, 4, 5, 6, 7, 8, 9], FSTD = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
   function varintsT(a, m) {   // a: typed array of non-negative whole numbers (first m entries) -> varint bytes
     var n = 0, i, u, o, p = 0;
     for (i = 0; i < m; i++) { u = a[i]; n++; if (u >= 128) { n++; if (u >= 16384) { n++; if (u >= 2097152) { n++; if (u >= 268435456) { var w = Math.floor(u / 268435456); n++; while (w >= 128) { n++; w = Math.floor(w / 128); } } } } } }
@@ -390,7 +391,7 @@
     var lp = 0, sc, m, v;
     for (i = 0; i < nc; i++) {
       j = ckey[i];
-      if (ktype[j] === 1) { sc = kfd[j] === 0 ? 1 : 100; v = cval[i] * (sc === 1 ? 1 : P10[2 - cfd[i]]); if (!(v < 1125899906842624 && v > -1125899906842624)) return null; colv[j][pos[j]++] = v; }
+      if (ktype[j] === 1) { v = cval[i] * P10[FD[kfd[j]] - cfd[i]]; if (!(v < 1125899906842624 && v > -1125899906842624)) return null; colv[j][pos[j]++] = v; }
       else if (ktype[j] === 3) colv[j][pos[j]++] = text.slice(cval[i], cval[i] + clen[i]);
       else if (ktype[j] === 4) colv[j][pos[j]++] = cfd[i] === 2 ? null : cval[i] === 1;
       else if (ktype[j] === 5) colv[j][pos[j]++] = null;
@@ -403,15 +404,25 @@
       best = null; c = count[j];
       if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1); }
       else if (ktype[j] === 1) {
-        var base = colv[j], mono = c > 0 && base[0] >= 0, mn = Infinity, mx = -Infinity, scale = kfd[j] === 0 ? 1 : 100;
+        var base = colv[j], mono = c > 0 && base[0] >= 0, mn = Infinity, mx = -Infinity, scale = P10[FD[kfd[j]]];
         for (i = 0; i < c; i++) { v = base[i]; if (i && v < base[i - 1]) mono = false; if (v < mn) mn = v; if (v > mx) mx = v; }
         var d = new Float64Array(c);
         if (mono) { d[0] = base[0]; for (i = 1; i < c; i++) d[i] = base[i] - base[i - 1]; } else for (i = 0; i < c; i++) d[i] = base[i] >= 0 ? base[i] * 2 : -base[i] * 2 - 1;
+        if (scale > 100) {   // 3 to 9 fraction digits (columns the JSON.parse path used to write): the same candidates as encodeColumn there, so the same bytes and no extra compressions
+          var dz2 = null, sa = 0, sb = 0;
+          if (!mono && c > 1) { dz2 = new Float64Array(c); dz2[0] = base[0] >= 0 ? base[0] * 2 : -base[0] * 2 - 1; for (i = 1; i < c; i++) { q = base[i] - base[i - 1]; dz2[i] = q >= 0 ? q * 2 : -q * 2 - 1; } for (i = 0; i < c; i++) { sa += vlen(d[i]); sb += vlen(dz2[i]); } }
+          if (!dz2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
+          if (dz2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(dz2, c)], c);
+          if (mx - mn < 16777216) { var w3 = Math.max(1, 32 - Math.clz32(mx - mn)), off3 = new Uint32Array(c); for (i = 0; i < c; i++) off3[i] = base[i] - mn; cand('B', { mn: mn, w: w3, scale: scale }, [bitpack(off3, w3)], c); }
+          if (!best || best.size > c * 4) { var fv3 = new Float64Array(c); for (i = 0; i < c; i++) fv3[i] = base[i] / scale; cand('F', {}, [new Uint8Array(fv3.buffer)], c); }
+          if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
+        } else {
         cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
         if (!mono && c > 1) { var dz = new Float64Array(c); dz[0] = base[0] >= 0 ? base[0] * 2 : -base[0] * 2 - 1; for (i = 1; i < c; i++) { q = base[i] - base[i - 1]; dz[i] = q >= 0 ? q * 2 : -q * 2 - 1; } cand('V', { mono: false, scale: scale, delta: true }, [varintsT(dz, c)], c); }
         if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Uint32Array(c); for (i = 0; i < c; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)], c); }
         if (c > 1 && !mono && best.size > c * 0.25 && repeats(base, c)) { var fv = new Float64Array(c); for (i = 0; i < c; i++) fv[i] = base[i] / scale; cand('F', {}, [new Uint8Array(fv.buffer)], c); }   /* raw doubles win when the values repeat a long pattern (zstd finds the repeat), as in the general writer; tried only when the other forms leave more than 2 bits a value and values do repeat */
         if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
+        }
       } else {
         var ln = colv[j], dl = coll[j], asc = true, ai = 0, a0, pv, t2 = dl.length;
         for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; if (v < pv) asc = false; pv = v; } ai += ln[i]; }
