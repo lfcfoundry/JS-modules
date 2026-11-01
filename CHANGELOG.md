@@ -35,7 +35,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.19 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.5.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.1.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
@@ -68,6 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-01 · **netflow-scene** 1.4.0 · API 1: Optional title block: a bold title, a lighter subtitle and a small source line around any picture, outside it so nothing moves (addTitles). Off unless asked.
 - 2026-11-01 · **netflow-scene** 1.3.4 · API 1: Building a picture with many items takes less time; pictures are the same.
 - 2026-11-01 · **netflow-scene** 1.3.3 · API 1: SVG export of dots is shorter and quicker to write (about 20% less text on dot-heavy pictures); the picture is the same.
+- 2026-11-01 · **netflow-sankey** 2.5.0 · API 2: toSvg draws the title above the picture, with optional subtitle and source lines, like the other charts.
 - 2026-11-01 · **netflow-plot** 2.3.0 · API 2: Bar and box labels now stay flat and easy to read, and only tilt when two labels would really touch; long names wrap onto two lines, every bar gets its name when they all fit, and tilted names never sit under the axis name.
 - 2026-11-01 · **netflow-plot** 2.2.0 · API 2: Charts take an optional highlight: one series (or one bar) keeps its color and is drawn on top, the rest turn gray.
 - 2026-11-01 · **netflow-plot** 2.1.0 · API 2: Charts take an optional title, subtitle and source in their options, drawn above and below the chart and in the SVG.
