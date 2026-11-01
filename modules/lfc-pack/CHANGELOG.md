@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.4.15 · API 0 · 2026-10-31
-- Packs event tables 15 to 25% faster and logs about 10% faster: text columns with few distinct values, counts and number columns are built in WebAssembly, and log template slots are found in one pass. Files are byte-identical.
+- Packing event tables takes 14 to 25% less time and logs 10 to 16% less (laptop): more columns are built in WebAssembly, and log template slots are found in one pass. Files are byte-identical.
 
 ## 0.4.14 · API 0 · 2026-10-31
 - Packing logs takes 10 to 14% less time (hex ids such as 1789c0bf1b now fill one template slot), and event tables with long hex id columns up to a third less. Files are byte-identical.

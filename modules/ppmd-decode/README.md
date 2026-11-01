@@ -82,6 +82,8 @@ Errors are always an `Error` whose message starts with `PPMd:` (argument out of 
 | WebKitGTK 2.52.6 | 94.0 | 61.0 | 1.54x |
 | GNOME Web 46.5 | 95.0 | 67.0 | 1.42x |
 
+On a laptop (16 cores, same input) the default file is 1.78 times as fast in Firefox 160 (132.0 to 74.0 ms) and 1.88 times in Chromium 156 (129.3 to 68.6 ms).
+
 The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all four browsers. Earlier 1.1.0 measurements of the separate add-on (Node 22: 159 to 71 ms, 2.2x; a repeat decode in the same page is 1.8 to 2.4 times faster with WebAssembly in every browser) agree with these. Both decoders gave the same bytes or the same `Error` text on 15 fixtures, 160 more streams and 798 damaged copies of them (0 differences). Source: `wasm/ppmd7.c` is a line-by-line port of the JavaScript; `wasm/build.sh` (clang with the wasm32 target) builds `wasm/ppmd7.wasm`, `wasm/embed.py` puts it into `ppmd-decode-wasm.js` and `wasm/join.js` builds the default file. Browser timings: `tests/wasm-default-bench.js`.
 
 ## Compile early (since 1.3.0)
