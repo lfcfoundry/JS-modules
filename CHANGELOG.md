@@ -69,7 +69,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-01 · **netflow-plot** 2.0.0 · API 2: Removed: the pie chart type (a pie request now draws bars); donut stays.
 - 2026-11-01 · **netflow-plot** 1.0.0 · API 1: First version: 23 plain chart types from a table's columns (bars to word clouds), drawn as netflow-scene drawing lists; the charts of Netflow Map's Charts tab.
 - 2026-11-01 · **netflow-layers** 1.9.0 · API 1: Layouts are 7 to 34% faster with the same picture, and better: true never ends with more line crossings than the usual search.
-- 2026-11-01 · **netflow-hierarchy** 1.1.0 · API 1: Names on treemap, icicle, sunburst and circle pack shapes now pick dark or white text per shape so they read at 4.5:1 contrast or better (2,432 of 19,056 names in our test pictures fell short before, 10 now, all where a name overlaps a smaller circle).
+- 2026-11-01 · **netflow-hierarchy** 1.1.0 · API 1: Names on treemap, icicle, sunburst and circle pack shapes pick dark or white text per shape to read at 4.5:1 contrast or better (in test pictures, 2,432 of 19,056 names fell short before, 10 now).
 - 2026-11-01 · **netflow-hierarchy** 1.0.1 · API 1: Changing a look (theme, colors, names) on a big treemap, icicle, sunburst, pack or tree is 2.2 to 6.9 times faster; pictures are the same.
 - 2026-11-01 · **netflow-hierarchy** 1.0.0 · API 1: First version: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree) as an add-on for netflow-engine, plus the tree helpers netflow-circular builds on.
 - 2026-11-01 · **netflow-engine** 2.3.0 · API 2: New: the Chord, Bundles, Treemap, Sunburst, Icicle, Circle pack and Tree views, from the new netflow-circular and netflow-hierarchy add-ons; other views are unchanged.
