@@ -172,6 +172,16 @@ t('view(): one object, one field, one column, without the others', function () {
   throwsJ(function () { J.view(J.pack(many(40, function (i) { return i; }), opt()), opt()); }, 'view of numbers');
   throwsJ(function () { J.view(J.pack(many(40, function (i) { return i % 2 ? { a: 1 } : { b: 1 }; }), opt()), opt()); }, 'view of two shapes');
 });
+t('view(): a long list opens its number and dictionary columns block by block and reads the same as unpack', function () {
+  ['events', 'nfm-links'].forEach(function (name) {
+    var rows = D.sets[name](40000), p = J.pack(rows, opt()), ref = J.unpack(p, opt()), v = J.view(p, opt()), i, k;
+    [0, 1, 8191, 8192, 8193, 30000, 39999, 12345].forEach(function (q) { same(ref[q], v.get(q), name + ' get ' + q); });
+    v.keys.forEach(function (key) { same(ref.map(function (x) { return x[key]; }), Array.from(v.column(key)), name + ' column ' + key); });
+    var v2 = J.view(p, opt()); for (i = 0; i < ref.length; i++) { k = v2.get(i); if (i % 997 === 0 || i > ref.length - 5) same(ref[i], k, name + ' scan ' + i); }
+    same(ref.slice(100, 200), J.view(p, opt()).slice(100, 200), name + ' slice');
+    v.memory(); v.loaded();
+  });
+});
 t('text patterns: strings that are text around numbers', function () {
   var padded = function (n, w) { return ('0000000000000000' + n).slice(-w); };
   var cols = {

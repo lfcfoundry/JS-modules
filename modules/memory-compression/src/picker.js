@@ -733,6 +733,37 @@
       } finally { KWC = null; }
       return st.i >= st.n;
     }
-    return { pack: pack, unpack: unpack, available: available, unpackStart: unpackStart, unpackStep: unpackStep };
+    // windowOpen: the column opened without being decoded. block(b) decodes block b (8,192 numbers) into w.out when asked for; all() decodes the rest. Blocks stand alone, so this reads exactly what unpack() reads.
+    function windowOpen(bytes, count, wasm) {
+      var r = new Rd(bytes), n = r.vi(), c = r.vi(), starts = [], lens = [], i, len, out, done;
+      if (n !== count || c < 1 || c > 1048576) pfail('the data does not match the column');
+      for (i = 0; i < n; i += c) { len = r.vi(); starts.push(r.p); lens.push(len); r.bytes(len); }
+      out = new Float64Array(n); done = new Uint8Array(starts.length);
+      return {
+        n: n, c: c, out: out,
+        block: function (b) {
+          var at, c2;
+          if (done[b]) return;
+          at = b * c; c2 = Math.min(c, n - at);
+          KWC = wasm === false ? null : kwGet();
+          try { into1(out, at, c2, decChunk(new Rd(bytes.subarray(starts[b], starts[b] + lens[b])), c2, out.subarray(at, at + c2))); } finally { KWC = null; }
+          done[b] = 1;
+        },
+        all: function () {
+          var b, at, c2;
+          KWC = wasm === false ? null : kwGet();
+          try {
+            for (b = 0; b < starts.length; b++) {
+              if (done[b]) continue;
+              at = b * c; c2 = Math.min(c, n - at);
+              into1(out, at, c2, decChunk(new Rd(bytes.subarray(starts[b], starts[b] + lens[b])), c2, out.subarray(at, at + c2)));
+              done[b] = 1;
+            }
+          } finally { KWC = null; }
+          return out;
+        }
+      };
+    }
+    return { pack: pack, unpack: unpack, available: available, unpackStart: unpackStart, unpackStep: unpackStep, windowOpen: windowOpen };
   })();
 
