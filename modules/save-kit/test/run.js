@@ -643,6 +643,22 @@ function countUnpacked(counter) {
       assert.ok(!Object.prototype.hasOwnProperty.call(got.c, '__proto__'));
     }
   });
+  await test('the number check gives the same answers on a WebKit user agent (Object.values path)', async () => {
+    const desc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    Object.defineProperty(globalThis, 'navigator', { value: { userAgent: 'Mozilla/5.0 (X11; Linux) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15' }, configurable: true });
+    try {
+      const file = path.resolve(process.env.SAVEKIT_FILE || path.join(__dirname, '..', 'save-kit.js'));
+      delete require.cache[file];
+      const W = require(file);
+      const schema = { n: 'num', c: { type: 'counts' } };
+      const k = W.create({ key: 'g', schema, storage: mem() });
+      assert.strictEqual(k.save({ n: 1, c: { a: 1, b: 2 } }), true);
+      assert.strictEqual(k.save({ n: 1, c: { a: 1, b: -2 } }), false);
+      assert.strictEqual(k.save({ n: 1, c: { a: NaN } }), false);
+      assert.strictEqual(k.save({ n: 1, c: { a: '3' } }), false);
+      assert.deepStrictEqual(Object.assign({}, k.load().c), { a: 1, b: 2 });
+    } finally { if (desc) Object.defineProperty(globalThis, 'navigator', desc); else delete globalThis.navigator; delete require.cache[path.resolve(process.env.SAVEKIT_FILE || path.join(__dirname, '..', 'save-kit.js'))]; }
+  });
   const extra = OLD ? '; the old file was caught by ' + caught + ' of ' + oldTried + ' regression checks' : '; old file not available for comparison';
   console.log('save-kit' + (WITHOUT.length ? ' (lean build without ' + WITHOUT.join(', ') + ')' : '') + ': ' + pass + ' passed, ' + fail + ' failed' + (skipped ? ', ' + skipped + ' skipped (they need a cut part)' : '') + extra);
   process.exit(fail ? 1 : 0);
