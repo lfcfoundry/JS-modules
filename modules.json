@@ -459,7 +459,7 @@
     },
     {
       "id": "netflow-scene",
-      "version": "1.3.2",
+      "version": "1.3.3",
       "api": 1,
       "global": "NetflowScene",
       "summary": "Turns a Netflow Map layout into plain drawing lists (dots, links, labels, ribbons, shapes) that Canvas 2D, WebGL2, WebGPU or SVG can draw the same way; big flat maps keep links in typed lists and reuse link looks between pictures.",
@@ -468,6 +468,19 @@
       "readme": "modules/netflow-scene/README.md",
       "demo": "modules/netflow-scene/demo.html",
       "dependencies": "none (uses netflow-engine output; netflow-engine's number formatter when present; the optional position index file needs elias-fano)",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "visualization"
+    },
+    {
+      "id": "netflow-plot",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "NetflowPlot",
+      "summary": "Plain charts from a table's columns, 23 types from bars and lines to box plots, hexbins, density, Q-Q, Voronoi cells and word clouds, drawn as netflow-scene drawing lists so the map's renderer, themes and SVG export draw them; the charts of Netflow Map's Charts tab.",
+      "short": "23 plain chart types from a table, drawn with netflow-scene.",
+      "file": "modules/netflow-plot/netflow-plot.js",
+      "readme": "modules/netflow-plot/README.md",
+      "dependencies": "netflow-scene (passed in as the fourth argument)",
       "formats": "browser global, CommonJS (module.exports)",
       "category": "visualization"
     },
