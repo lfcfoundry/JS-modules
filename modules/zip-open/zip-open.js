@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.14.1 (API 1)
+ * Version 1.14.2 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -760,9 +760,9 @@
     return { bytes: got.bytes };
   }
   /** Where an archive's entries come from: bytes already in memory, or a File/Blob read in pieces. Everything above this line works with either. */
-  function memSource(u8) { return { place: true, list: function (lim) { return list(u8, lim); }, read: function (e, limit, sc) { return readEntry(u8, e, limit, sc); } }; }   // place: bookJob may unpack a big sheet straight into the wasm reader (measured faster for bytes in memory and inside a helper; slower for a File read on the page, so blobSource leaves it off)
+  function memSource(u8) { return { place: true, list: function (lim) { return list(u8, lim); }, read: function (e, limit, sc) { return readEntry(u8, e, limit, sc); } }; }   // place: bookJob may unpack a big sheet straight into the wasm reader (measured faster for bytes in memory, inside a helper, and for a File read in pieces on the page)
   function blobSource(blob, helpers) {
-    var src = { list: function (lim) { return listBlob(blob, lim); }, read: function (e, limit, sc) { return readBlobEntry(blob, e, limit, cache, sc); } }, cache = {};
+    var src = { place: true, list: function (lim) { return listBlob(blob, lim); }, read: function (e, limit, sc) { return readBlobEntry(blob, e, limit, cache, sc); } }, cache = {};
     if (helpers && helpers.length) {
       var next = 0;
       src.width = helpers.length;
