@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.9.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.8.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.11.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.4.8 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.4.9 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.4 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.3 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -85,6 +85,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **memory-compression** 2.8.2 · API 2: view() stays lazy on pages that forbid eval (our policy): opening a view and reading a row takes 34 to 80% less time, same rows. Lists that are mostly numbers are unchanged.
 - 2026-10-31 · **memory-compression** 2.8.1 · API 2: After the idle trim, the two small wasm helpers are made again at once (about 6 MB held), so the first pack after a pause is as fast as the rest.
 - 2026-10-31 · **memory-compression** 2.8.0 · API 2: Packing lists of whole numbers (up to 100,000 rows) is 2 to 24% faster; files can be up to about 1% bigger. autoTries: false keeps the old bytes.
+- 2026-10-31 · **lfc-pack** 0.4.9 · API 0: Reading decimal number lists (such as map coordinates) is 5 to 8% faster in Firefox; same rows. Each pack uses 2.5 MB less scratch memory for grouping numbers; same files, same speed.
 - 2026-10-31 · **lfc-pack** 0.4.8 · API 0: Opening files takes up to 14% less time (real FHIR records 1 to 10% less on a laptop). One small buffer (3.7 MB for a 48 MB FHIR file) is kept 4 s after the last open; trim() frees it.
 - 2026-10-31 · **lfc-pack** 0.4.7 · API 0: Fixed: warmPack(n) now keeps n helpers ready even when some were already waiting (it kept fewer before), and overlapping packParallel calls never share a helper.
 - 2026-10-31 · **lfc-pack** 0.4.6 · API 0: Files of records with many paths, like FHIR health records, are 6 to 12% smaller and read 13 to 22% faster. Other data is unchanged.

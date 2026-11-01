@@ -1,6 +1,6 @@
 # lfc-pack
 
-**Version 0.4.8 · API 0**
+**Version 0.4.9 · API 0**
 
 **Tested in:** laptop Chromium 156 and Firefox 160 (16 cores); cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; early-stop A/B
 
