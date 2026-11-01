@@ -209,7 +209,7 @@
     }
     return 0;
   }
-  function encodeColumn(v, zs, level, tmode) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only
+  function encodeColumn(v, zs, level, tmode, sj) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only; sj (fast flat writer): an ASCII string column of more than n / 2 distinct values, its values joined by 0 bytes
     var n = v.length, i, x, best = null;
     function stored(frames) { var t = 0, z = []; for (var q = 0; q < frames.length; q++) { var c = zs.compress(frames[q], level); if (c.length < frames[q].length) z.push([frames[q].length, c, 1]); else z.push([frames[q].length, frames[q], 0]); t += z[q][1].length; } return { z: z, size: t }; }
     function cand(t, p, frames, st) { var s = stored(frames); if (!best || s.size < best.size) best = { t: t, p: p, z: s.z, size: s.size, n: n, st: st }; }
@@ -245,10 +245,11 @@
         raw = new Uint8Array(n * 4); for (i = 0; i < n; i++) { x = v[i]; var o1 = x.indexOf('.'), o2 = x.indexOf('.', o1 + 1), o3 = x.indexOf('.', o2 + 1); raw[p++] = +x.slice(0, o1); raw[p++] = +x.slice(o1 + 1, o2); raw[p++] = +x.slice(o2 + 1, o3); raw[p++] = +x.slice(o3 + 1); }
         cand('I', {}, [raw]); return best;
       }
-      if (allOf(v, function (x) { return x.indexOf('\0') < 0 && wellFormed(x); })) {
+      if (sj || allOf(v, function (x) { return x.indexOf('\0') < 0 && wellFormed(x); })) {   // sj: ASCII without 0 bytes, so well formed
         var map = new Map(), labels = [], codes = new Array(n), c;
-        for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * 2 > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
-        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, [te.encode(v.join('\0'))]);   // a dictionary this small is the smaller layout; skip compressing the plain one as well
+        if (sj) labels.length = (n >> 1) + 1;   // where the loop below would stop
+        else for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * 2 > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
+        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, [sj || te.encode(v.join('\0'))]);   // a dictionary this small is the smaller layout; skip compressing the plain one as well
         if (n >= 16 && labels.length * 2 > n && tmode && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || (!tmplSlow && (readNoSlower(v) || (tmplSlow = true, false))))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
           var wd = Math.max(1, 32 - Math.clz32(labels.length - 1)), cb = labels.length > 256 ? new Uint8Array(new Uint16Array(codes).buffer) : Uint8Array.from(codes);
@@ -412,12 +413,12 @@
     var hexL = new Int32Array(nk), hoff = null;
     if (asciiIn && W.x.hexcols(P['in'], nc, P.ckey, P.cval, P.clen, P.ktype, nk, P.hexL, P.hoff, P.hex)) { hexL.set(new Int32Array(mem.buffer, P.hexL, nk)); hoff = new Uint32Array(mem.buffer, P.hoff, nk); }
     // other string columns of few distinct values: the dictionary (or the joined values) straight from the bytes, so no text is decoded and no strings are made
-    var byB = new Uint8Array(nk), sdD = new Uint32Array(nk), sdOut = new Array(nk), sdCodes = new Array(nk), D2;
+    var byB = new Uint8Array(nk), sdD = new Uint32Array(nk), sdOut = new Array(nk), sdCodes = new Array(nk), sdMany = new Array(nk), D2;
     for (j = 0; j < nk; j++) {
       if (hexL[j] > 0) { byB[j] = 1; continue; }
       if (!asciiIn || ktype[j] !== 3) continue;
       D2 = W.x.strdict(P['in'], nc, P.ckey, P.cval, P.clen, j, count[j], P.sht, P.scodes, P.slab, P.sout, P.sres);
-      if (!D2) continue;
+      if (!D2) { if (new Uint32Array(mem.buffer, P.sres, 4)[2]) sdMany[j] = new Uint8Array(mem.buffer, P.sout, new Uint32Array(mem.buffer, P.sres, 1)[0]).slice(); continue; }
       byB[j] = 1; sdD[j] = D2; sdOut[j] = new Uint8Array(mem.buffer, P.sout, new Uint32Array(mem.buffer, P.sres, 1)[0]).slice();
       sdCodes[j] = D2 * 4 > count[j] || D2 >= 65536 ? null : new Uint32Array(mem.buffer, P.scodes, count[j]).slice();
     }
@@ -443,7 +444,7 @@
         if (!cds) cand('s', {}, [sdOut[j]], c);
         else { var wd3 = Math.max(1, 32 - Math.clz32(D3 - 1)); cand('D', { w: 0, wide: D3 > 256 }, [sdOut[j], D3 > 256 ? new Uint8Array(new Uint16Array(cds).buffer) : Uint8Array.from(cds)], c); cand('D', { w: wd3, wide: false }, [sdOut[j], bitpack(cds, wd3)], c); if (best.t === 'D') best.st = { distinct: D3 }; }
       }
-      else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1); }
+      else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j]); }
       else if (ktype[j] === 1) {
         var base = colv[j], mono = c > 0 && base[0] >= 0, mn = Infinity, mx = -Infinity, scale = P10[FD[kfd[j]]];
         for (i = 0; i < c; i++) { v = base[i]; if (i && v < base[i - 1]) mono = false; if (v < mn) mn = v; if (v > mx) mx = v; }

@@ -165,6 +165,7 @@ EXPORT("hexcols") u32 hexcols(const u8*in,u32 nc,const u8*ckey,const double*cval
 // distinct count D and writes res[0] = bytes at out: every value joined by 0 bytes when D*4 > n or D >= 65536 (encodeColumn's 's'), else the labels joined by 0 bytes, codes[] per cell.
 EXPORT("strdict") u32 strdict(const u8*in,u32 nc,const u8*ckey,const double*cval,const u32*clen,u32 k,u32 n,u32*ht,u32*codes,u32*lab,u8*out,u32*res){
   u32 T=16,i,q,D=0,m=0,all36=1,dd=1,L,o,h,s;
+  res[2]=0;
   while(T<n+2) T<<=1;
   for(i=0;i<T;i++) ht[i]=0;
   for(i=0;i<nc;i++){ if(ckey[i]!=k) continue; s=(u32)cval[i]; L=clen[i]; const u8*a=in+s; h=2166136261u;
@@ -172,7 +173,10 @@ EXPORT("strdict") u32 strdict(const u8*in,u32 nc,const u8*ckey,const double*cval
     for(q=0;q<L;q++){ u8 c=a[q]; h=(h^c)*16777619u; if(dd&&!((c>=48&&c<=57)||c==46)) dd=0; }
     h^=h>>15; u32 at=h&(T-1),e,id=0xFFFFFFFFu;
     while((e=ht[at])!=0){ u32 c2=lab[e-1],L2=clen[c2]; if(L2==L){ const u8*b=in+(u32)cval[c2]; for(q=0;q<L&&a[q]==b[q];q++){} if(q==L){ id=e-1; break; } } at=(at+1)&(T-1); }
-    if(id==0xFFFFFFFFu){ if(D*2>n) return 0; id=D++; lab[id]=i; ht[at]=id+1; }
+    if(id==0xFFFFFFFFu){ if(D*2>n){   /* more than n/2 distinct values: encodeColumn's dictionary loop stops here too; hand over every value joined by 0 bytes ('s') */
+        o=0; for(i=0;i<nc;i++){ if(ckey[i]!=k) continue; if(o) out[o++]=0; s=(u32)cval[i]; L=clen[i]; for(q=0;q<L;q++) out[o++]=in[s+q]; }
+        res[0]=o; res[2]=1; return 0; }
+      id=D++; lab[id]=i; ht[at]=id+1; }
     codes[m++]=id; }
   if(D*2>n||all36||dd) return 0;
   o=0;
