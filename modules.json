@@ -320,7 +320,7 @@
     },
     {
       "id": "zip-open",
-      "version": "1.13.0",
+      "version": "1.14.0",
       "api": 1,
       "global": "ZipOpen",
       "summary": "Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note.",
