@@ -1120,14 +1120,14 @@
       if (hexL[j] > 0) { byB[j] = 1; continue; }
       if (!asciiIn || ktype[j] !== 3 || kfd[j]) continue;   // kfd 1 on a string key: some value has escapes, so its bytes are not its text
       if (!kixo) { W.x.keyix(nc, P.ckey, nk, P.gcnt, P.kix, P.kixo); kixo = new Uint32Array(mem.buffer, P.kixo, nk); }
+      // IPv4 first: such a column is only digits and dots, so strdict would give it no dictionary and the result would be this 'I' column anyway; ipcol stops at the first value that is not one
+      if (W.x.ipcol(P['in'], P.cval, P.clen, P.kix + 4 * kixo[j], count[j], P.sout)) { byB[j] = 1; sdOut[j] = new Uint8Array(mem.buffer, P.sout, count[j] * 4).slice(); ipK[j] = 1; continue; }
       D2 = W.x.strdict(P['in'], P.cval, P.clen, P.kix + 4 * kixo[j], count[j], P.sht, P.scodes, P.slab, P.sout, P.sres);
       if (!D2) {
         sr = new Uint32Array(mem.buffer, P.sres, 4);
         if (sr[2]) sdMany[j] = new Uint8Array(mem.buffer, P.sout, sr[0]).slice();   // more than n / 2 distinct values, joined by 0 bytes
-        ipOk = sr[1] && W.x.ipcol(P['in'], P.cval, P.clen, P.kix + 4 * kixo[j], count[j], P.sout);   // only digits and dots: an IPv4 column straight from the bytes too
-        if (ipOk) { byB[j] = 1; sdOut[j] = new Uint8Array(mem.buffer, P.sout, count[j] * 4).slice(); ipK[j] = 1; }
         // many values, not hex, UUID or IPv4, and no template layout possible (templates off, or the read check already failed): encodeColumn would write the joined values, so the strings are never made
-        else if (sr[2] && !sr[3] && (tm === 0 || (tm === 1 && tmplSlow))) { byB[j] = 1; sOnly[j] = 1; }
+        if (sr[2] && !sr[3] && (tm === 0 || (tm === 1 && tmplSlow))) { byB[j] = 1; sOnly[j] = 1; }
         continue;
       }
       byB[j] = 1; sdD[j] = D2; sdOut[j] = new Uint8Array(mem.buffer, P.sout, new Uint32Array(mem.buffer, P.sres, 1)[0]).slice();
