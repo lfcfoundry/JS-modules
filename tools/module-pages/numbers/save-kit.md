@@ -74,3 +74,38 @@ That is 57 to 66% less time. Off by default; idle games that read the `seen` sta
 | WebKitGTK 2.52.6 | 0.84 |
 
 That is 16 to 21% less time. Small saves (448 bytes) and save time are unchanged. Laptop runs: not yet.
+
+
+**Against the common alternatives (save-kit 1.5.2, measured 2026.11.01).** Cloud browsers, one at a time, early-stop A/B rule. Time ratio, save-kit / alternative; below 1 means save-kit is faster. Each cell gives Chromium 155 / Firefox 158 / WebKitGTK 2.52.6.
+
+| Alternative | 448 B save | 448 B load | 20 KB save | 20 KB load |
+|---|---|---|---|---|
+| JSON + zod (no backup) | 0.57 / 0.37 / 0.38 | 0.49 / 0.27 / 0.31 | 0.52 / 0.18 / 0.22 | 0.71 / 0.28 / 0.70 |
+| idb-keyval (IndexedDB) | 0.00 to 0.01 | 0.00 to 0.01 | 0.15 / 0.12 / 0.04 | 0.32 / 0.14 / 0.27 |
+| localForage (IndexedDB) | 0.00 to 0.01 | 0.00 to 0.01 | 0.13 / 0.12 / 0.07 | 0.54 / 0.16 / 0.23 |
+| Bare JSON.stringify, no checks (earlier run) | 0.9 to 1.1 | 1.3 to 1.9 | 0.9 to 2.0 | 1.5 to 2.9 |
+
+The bare-JSON row is from before 1.5.1 and 1.5.2. 20 KB loads are about 0.8 of those figures now.
+
+**Damaged saves (the same in all three browsers):**
+
+| What goes wrong | save-kit | JSON + zod | Plain JSON | idb-keyval / localForage |
+|---|---|---|---|---|
+| A bug writes NaN | Refused, good save kept | Refused, good save kept | Written (becomes null) | Written (NaN stored) |
+| Stored text cut off | Loads the backup | Throws, nothing loaded | Throws, nothing loaded | Not applicable |
+| One count has the wrong type | Recovers | Throws, nothing loaded | Accepts the bad value | Accepts the bad value |
+| A `__proto__` key | Key dropped, data kept | Throws, nothing loaded | Loaded as a data key | Accepted |
+
+**Size, minified and gzipped (smaller is better):** idb-keyval 370 B; save-kit core 1,843 B; with save codes 3,217 B; everything 6,131 B (lean builds); localForage 9,057 B; zod 14,082 B; ajv 38,364 B. ajv's normal mode builds its checker with `new Function`, which a strict page security policy forbids, so it was not timed.
+
+**New in 1.5.2: a faster number check in WebKit browsers.** WebKitGTK 2.52.6, time new / old, lower is better: 20 KB save 0.41 (noisy), 20 KB load 0.81, unchanged 20 KB save 0.43. Tiny 448 B saves are a few microseconds slower (load 1.29, noisy). Chromium and Firefox keep the old check and are unchanged.
+
+**New in 1.6.0: `save-kit-lite.js`.** Checked numbers, whole numbers, flags and short text, with a main and a backup slot. It gives the same answers as `create()` on 3,000 random damaged slots. Size, minified and gzipped: lite 966 B, full save-kit with every part cut 1,847 B, idb-keyval 370 B. Speed against `create()` on a six-field save, lite / full, lower is better (cloud, early-stop A/B rule):
+
+| Browser | Save | Load |
+|---|---:|---:|
+| Chromium 155 | 0.98 (inconclusive) | 0.91 |
+| Firefox 158 | 1.01 | 0.95 |
+| WebKitGTK 2.52.6 | 0.89 (noisy) | 0.97 |
+
+It is smaller, not faster. Not in lite: counts and raw fields, codes, autosave, versions, the other-tab notice, IndexedDB.

@@ -549,4 +549,14 @@ t('Excel: a big sheet unpacked straight into the WebAssembly reader gives the sa
   var bj = await U._bookJob({ place: true, read: function (e, l, sc) { return U.readBlob(bl, e, l, cache, sc); } }, ents, 'b.xlsx', U.LIMITS, 0);
   assert.ok(U._placed() > p0, 'placed from a File read in pieces'); assert.equal(bj.sheets.length, 2); assert.deepStrictEqual(bj.sheets.map(function (s) { return s.csv; }), want.files.map(function (f) { return f.text; }), 'same tables');
 });
+t('Built-in wasm decodes with Uint8Array.fromBase64 where the browser has it (same tables as the atob path)', async function () {
+  var had = Uint8Array.fromBase64, calls = 0, path = require.resolve('../zip-open.js');
+  Uint8Array.fromBase64 = function (s) { calls++; return new Uint8Array(Buffer.from(s, 'base64')); };
+  try {
+    delete require.cache[path]; var F = require('../zip-open.js');
+    var x = Z.makeXlsx([{ name: 'S', rows: [['a', 'b'], [1, 'two'], [3, 'four']] }]);
+    assert.deepStrictEqual(await F.expand(u8(x), 's.xlsx'), await U.expand(u8(x), 's.xlsx'));
+    assert.ok(calls >= 1, 'fromBase64 used');
+  } finally { if (had) Uint8Array.fromBase64 = had; else delete Uint8Array.fromBase64; delete require.cache[path]; }
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });
