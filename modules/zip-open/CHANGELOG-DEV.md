@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.1 · API 1 · 2026-10-31
+
+### Quick
+The three built-in base64 wasm blobs (zip inflate kernel, small inflate, Excel reader with and without SIMD) now go through one unb64() that calls Uint8Array.fromBase64 when present, then the atob loop, then Node's Buffer; the same switch…
+
+### Deep
+The three built-in base64 wasm blobs (zip inflate kernel, small inflate, Excel reader with and without SIMD) now go through one unb64() that calls Uint8Array.fromBase64 when present, then the atob loop, then Node's Buffer; the same switch JS-modules PR 391 made in the other modules (decode 0.18x Chromium 155, 0.11x Firefox 158, 0.08x WebKitGTK 2.52.6 there). Helpers decode again on each start, so the gain repeats per helper. Whole-open A/B with 2 helpers (small, text), forward and reversed: Chromium 0.92-1.0, Firefox 0.78-0.89, WebKitGTK 0.99-1.0 (three pairs; noise, as expected, since the decode runs once per page or helper). Tests: 40 checks; new: a fresh copy with a stand-in Uint8Array.fromBase64 uses it and gives the same tables.
+
 ## 1.14.0 · API 1 · 2026-10-31
 
 ### Quick
