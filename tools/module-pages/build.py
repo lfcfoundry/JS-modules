@@ -26,7 +26,12 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;max-width:100%}p 
 @media(max-width:700px){table,tbody{display:block}thead{display:none}tr{display:block;border:1px solid var(--lfc-line);border-radius:10px;margin:0 0 16px;padding:6px 14px;background:var(--lfc-soft)}
 td{display:block;border:0;border-bottom:1px solid var(--lfc-line);padding:10px 0;font-size:16px}td:last-child{border-bottom:0}
 td::before{content:attr(data-l);display:block;font:700 12px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-muted,#6b7a8c);margin-bottom:3px}td:first-child{font-weight:700}td:first-child::before{display:none}}
-.wrap td:first-child{min-width:9.5em}.ph{border:2px dashed var(--lfc-line);border-radius:10px;padding:10px 14px;background:var(--lfc-soft)}.mod{border-top:2px solid var(--lfc-line);margin-top:40px}
+.wrap td:first-child{min-width:9.5em}.opts{display:grid;gap:10px;margin:1em 0}.opt{display:grid;grid-template-columns:minmax(9em,14em) 1fr;gap:4px 18px;border:1px solid var(--lfc-line);border-radius:10px;padding:10px 16px;background:var(--lfc-soft)}.opt .k{font-family:var(--lfc-mono);font-weight:700;overflow-wrap:anywhere}.opt .v p{margin:.2em 0}
+details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;margin:12px 0;background:var(--lfc-soft)}details.fold>summary{padding:12px 16px}details.fold>*:not(summary){margin-left:16px;margin-right:16px}details.fold>table,details.fold>pre{max-width:calc(100% - 32px)}details.fold[open]{padding-bottom:6px}details.fold table{margin:14px 16px}details.more{border:0;background:none;margin:2px 0}details.more>summary{padding:2px 0;font-size:.92em}summary{cursor:pointer;font-weight:700;list-style-position:inside}
+@media(max-width:700px){.opt{grid-template-columns:1fr}}
+.chart{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px 28px;margin:14px 0}.cg{min-width:0}.ct{font:700 12px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-muted,#6b7a8c);margin-bottom:6px}.cr{display:grid;grid-template-columns:minmax(110px,48%) 1fr auto;gap:10px;align-items:center;margin:5px 0;font-size:15px}.cl{overflow-wrap:anywhere}.ctk{display:block;height:20px;border-radius:4px;background:var(--lfc-line);overflow:hidden}.ctk i{display:block;height:100%;background:var(--lfc-accent);border-radius:4px}.ctk i.good{background:#1e7d32}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .ctk i.good{background:#43a15a}}:root[data-theme="dark"] .ctk i.good{background:#43a15a}.cr b{font:600 13px var(--lfc-mono);white-space:nowrap}
+@media(max-width:700px){.chart{grid-template-columns:1fr}.cr{grid-template-columns:1fr auto;gap:3px 10px}.ctk{grid-column:1/3;order:3;height:22px}}
+.ph{border:2px dashed var(--lfc-line);border-radius:10px;padding:10px 14px;background:var(--lfc-soft)}.mod{border-top:2px solid var(--lfc-line);margin-top:40px}
 """
 def esc(s): return html.escape(s, quote=False)
 def inline(s, base):
@@ -42,6 +47,45 @@ def inline(s, base):
     s = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', s)
     s = re.sub(r'(?<![\w*])\*([^*\n]+)\*(?![\w*])', r'<em>\1</em>', s)
     return re.sub('\0(\\d+)\0', lambda m: '<code>%s</code>' % esc(codes[int(m.group(1))]), s)
+NUM = re.compile(r'^~?(-?[\d,]*\.?\d+)\s*(%|x|ms|s|KB|MB|GB|B|bytes|pt)?$')
+def numval(c):
+    c = c.replace('`', '').replace('**', '').strip()
+    m = NUM.match(c)
+    if not m: return None
+    try: return float(m.group(1).replace(',', ''))
+    except ValueError: return None
+def chart(hs, rows, base):
+    # Turn a small all-number table into labeled bars, one bar group per number column.
+    if not rows or len(rows) > 12 or len(hs) < 2 or len(hs) > 8: return ''
+    cols = list(range(1, len(hs)))
+    vals = []
+    for r in rows:
+        if len(r) != len(hs): return ''
+        vs = [numval(r[k]) for k in cols]
+        if any(v is None or v < 0 for v in vs): return ''
+        vals.append(vs)
+    groups = []
+    for n, k in enumerate(cols):
+        first = re.sub(r'[`*]', '', hs[k]).split()[0].lower() if hs[k].split() else ''
+        if groups and groups[-1][0] == first: groups[-1][1].append(n)
+        else: groups.append((first, [n]))
+    if any(len(rows) * len(g[1]) > 24 for g in groups): return ''
+    out = '<div class="chart">'
+    for first, ns in groups:
+        mx = max(vals[r][n] for r in range(len(rows)) for n in ns) or 1
+        title = re.sub(r'[`*]', '', hs[cols[ns[0]]]) if len(ns) == 1 else re.sub(r'[`*]', '', hs[cols[ns[0]]]).split()[0]
+        low = bool(re.search(r'\b(ms|bytes?|size|time|pack|unpack|read|write|open|ratio|against|kb|mb|memory|heap)\b', ' '.join(re.sub(r'[`*]', '', hs[cols[n]]).lower() for n in ns)))
+        best = min(vals[r][n] for r in range(len(rows)) for n in ns) if low else None
+        out += '<div class="cg"><div class="ct">%s%s</div>' % (esc(title), ' (lower is better)' if low else '')
+        for r, v in zip(rows, vals):
+            for n in ns:
+                k = cols[n]
+                tag = ' · ' + re.sub(r'[`*]', '', hs[k]).split(None, 1)[1] if len(ns) > 1 and len(hs[k].split()) > 1 else ''
+                w = max(v[n] / mx * 100, 0.8)
+                good = ' class="good"' if low and v[n] == best and len(rows) * len(ns) > 1 else ''
+                out += '<div class="cr"><span class="cl">%s%s</span><span class="ctk"><i%s style="width:%.1f%%"></i></span><b>%s</b></div>' % (inline(r[0], base), esc(tag), good, w, esc(r[k].replace('`', '')))
+        out += '</div>'
+    return out + '</div>'
 def md(text, base):
     out, lines, i = [], text.split('\n'), 0
     while i < len(lines):
@@ -56,6 +100,17 @@ def md(text, base):
             while j < len(lines) and lines[j].startswith('|'): rows.append(lines[j]); j += 1
             cells = lambda r: [c.strip().replace('\\|', '|') for c in re.split(r'(?<!\\)\|', r.strip().strip('|'))]
             hs = cells(rows[0])
+            body_rows = [cells(r) for r in rows[2:]]
+            ch = chart(hs, body_rows, base)
+            if ch: out.append(ch); i = j; continue
+            if any(len(c) > 200 for r in body_rows for c in r) and len(hs) == 2:
+                o = '<div class="opts">'
+                for r in body_rows:
+                    txt = r[1] if len(r) > 1 else ''
+                    m1 = re.match(r'(.+?(?<![0-9])\.)(\s+[A-Z(`].*)$', txt)
+                    short, more = (m1.group(1), m1.group(2)) if m1 and len(txt) > 200 else (txt, '')
+                    o += '<div class="opt"><div class="k">%s</div><div class="v"><p>%s</p>%s</div></div>' % (inline(r[0], base), inline(short, base), ('<details class="more"><summary>Details</summary><p>%s</p></details>' % inline(more.strip(), base)) if more else '')
+                out.append(o + '</div>'); i = j; continue
             t = '<table><thead><tr>%s</tr></thead><tbody>' % ''.join('<th>%s</th>' % inline(c, base) for c in hs)
             for r in rows[2:]: t += '<tr>%s</tr>' % ''.join('<td data-l="%s">%s</td>' % (html.escape(hs[k] if k < len(hs) else '', quote=True), inline(c, base)) for k, c in enumerate(cells(r)))
             out.append(t + '</tbody></table>'); i = j; continue
@@ -77,6 +132,16 @@ def md(text, base):
             while i < len(lines) and lines[i].strip() and not re.match(r'^(#|```|\||\s*[-*] |\d+\. )', lines[i]): para.append(lines[i]); i += 1
             out.append('<p>%s</p>' % inline(' '.join(para), base)); continue
         i += 1
+    return '\n'.join(out)
+def fold(h, first_open=True):
+    parts = re.split(r'(?=<p><strong>)', h)
+    out = [parts[0]]
+    for n, c in enumerate(p_ for p_ in parts[1:]):
+        m = re.match(r'<p><strong>(.*?)</strong>(.*?)</p>(.*)$', c, re.S)
+        if not m: out.append(c); continue
+        t = re.sub(r'<[^>]+>', '', m.group(1)).rstrip('.:')
+        rest = ('<p>%s</p>' % m.group(2).strip()) if m.group(2).strip() else ''
+        out.append('<details class="fold"%s><summary>%s</summary>%s%s</details>' % (' open' if n == 0 and first_open else '', t, rest, m.group(3)))
     return '\n'.join(out)
 def sections(readme):
     parts = re.split(r'^## ', readme, flags=re.M)
@@ -117,14 +182,14 @@ def module_html(m, base_mods):
     nf = os.path.join(root, 'tools/module-pages/numbers', mid + '.md')
     nts = [t for t in order if t not in used and any(t.startswith(k) for k in NUMKEYS)]
     nb = '<h2 id="numbers">Speed and efficiency numbers</h2>'
-    if os.path.exists(nf): nb += md(open(nf, encoding='utf-8').read(), folder)
+    if os.path.exists(nf): nb += fold(md(open(nf, encoding='utf-8').read(), folder))
     elif not nts: nb += '<div class="ph"><p><strong>Not measured yet.</strong> No speed, size or memory measurements are published for this piece yet. They will appear here when a measured run includes it, each naming the browser and device it ran on. Any numbers already in the comparison above still apply.</p></div>'
     for t in nts: used.add(t); nb += '<h3>%s</h3>' % esc(t) + md(secs[t], folder)
     body.append(nb)
     rest = [t for t in order if t not in used and t not in ('For AI agents', 'Prior art and credits', 'Full research notes')]
     if rest:
         body.append('<h2 id="more">More</h2>')
-        for t in rest: body.append('<h3>%s</h3>' % esc(t) + md(secs[t], folder))
+        for t in rest: body.append('<details class="fold"><summary>%s</summary>%s</details>' % (esc(t), md(secs[t], folder)))
     if 'Prior art and credits' in secs:
         body.append('<h2 id="credits">Credits</h2>' + md(secs['Prior art and credits'], folder))
     ver = re.search(r'\*\*Version ([^*]+)\*\*', readme); ver = ver.group(1) if ver else m.get('version', '')
