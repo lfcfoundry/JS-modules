@@ -3,10 +3,10 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.4.12 · API 0 · 2026-10-31
-- The fast writer's scanner tries keys in the last row's order first and reads digits 8 at a time: packs 8 to 16% faster than 0.4.10 in Chromium and Firefox; same files.
+- The fast writer's scanner tries keys in the last row's order first and reads digits 8 at a time: packs take 8 to 16% less time than 0.4.10 in Chromium and Firefox; same files.
 
 ## 0.4.11 · API 0 · 2026-10-31
-- Packing with the fast writer is faster again: its sizing pass reads 8 bytes at a time (sensor-style data up to 28% faster in Firefox); same files.
+- Packing with the fast writer is faster again: its sizing pass reads 8 bytes at a time. With 0.4.10, packs take 7 to 28% less time than 0.4.9 in Chromium and Firefox; same files.
 
 ## 0.4.10 · API 0 · 2026-10-31
 - Packing numbers with up to 9 decimals takes the fast path: sensor-style data packs in 21 to 36% less time in Firefox and WebKitGTK (Chromium about the same); same files, byte for byte.

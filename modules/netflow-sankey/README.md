@@ -1,8 +1,8 @@
 # netflow-sankey
 
-**Version 2.4.0 · API 2**
+**Version 2.4.1 · API 2**
 
-**Tested in:** Chromium 156, Firefox 160 (laptop); Chromium 155, Firefox 158, WebKitGTK 2.52.6 (cloud)
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

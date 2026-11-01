@@ -8,7 +8,7 @@
   "modules": [
     {
       "id": "stage-curtains",
-      "version": "1.4.1",
+      "version": "1.4.2",
       "api": 1,
       "global": "StageCurtains",
       "summary": "Velvet stage curtains that slide shut over a page, then fly open; the velvet is painted by a small WebAssembly loop with plain JavaScript as the fallback.",
@@ -22,7 +22,7 @@
     },
     {
       "id": "save-kit",
-      "version": "1.5.2",
+      "version": "1.6.0",
       "api": 1,
       "global": "SaveKit",
       "summary": "Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to; createLarge() does big saves in IndexedDB, with an optional copy that survives a browser crash.",
@@ -78,7 +78,7 @@
     },
     {
       "id": "gpu-blur",
-      "version": "1.3.1",
+      "version": "1.3.2",
       "api": 1,
       "global": "GpuBlur",
       "summary": "Blurs a picture (a canvas, an ImageBitmap or RGBA bytes) on the graphics card with WebGL 2, or in WebAssembly, or in plain JavaScript, whichever the device does best; every way gives the same picture, and a big blur never freezes the page.",
@@ -168,7 +168,7 @@
     },
     {
       "id": "sprite-baker",
-      "version": "1.7.1",
+      "version": "1.7.2",
       "api": 1,
       "global": "SpriteBaker",
       "summary": "Tiny software 3D rasterizer that bakes shaded sprites to canvases once at load, or one frame per tick; also makes silhouette masks and packs sprite sheets. Optional WebAssembly fill add-on (same pixels, about 1.1 to 1.4 times faster baking in Chromium and Firefox).",
@@ -252,7 +252,7 @@
     },
     {
       "id": "lzma-decode",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "api": 1,
       "global": "lzmaDecode",
       "summary": "LZMA1 decoder that uses WebAssembly first (about 1.5 to 2.6 times faster to open a page in Chromium 155, Firefox 158, WebKitGTK 2.52.6 and GNOME Web 46.5) and falls back to a small readable ES5 JavaScript decoder; tested against Python's lzma. Browsers can only unpack gzip and deflate natively.",
@@ -266,7 +266,7 @@
     },
     {
       "id": "ppmd-decode",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "api": 1,
       "global": "ppmd7Decode",
       "summary": "A PPMd (7-Zip PPMd7) decoder that uses WebAssembly first (about 1.4 to 1.8 times faster to open a page in Chromium 155, Firefox 158, WebKitGTK 2.52.6 and GNOME Web 46.5) and falls back to one ES5 JavaScript function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip.",
@@ -292,7 +292,7 @@
     },
     {
       "id": "gif-writer",
-      "version": "1.6.1",
+      "version": "1.6.2",
       "api": 1,
       "global": "GifWriter",
       "summary": "Writes animated GIFs from canvas pictures with one shared palette, storing only the pixels that changed (about 6.8 times smaller than gifenc on a mostly still animation).",
@@ -334,7 +334,7 @@
     },
     {
       "id": "memory-compression",
-      "version": "2.9.0",
+      "version": "2.10.1",
       "api": 2,
       "global": "MemoryCompression",
       "summary": "Keeps big data packed in memory and brings it back exactly, in one file with one pack/unpack: bytes and typed arrays (measured on the 1.0.0 core: a 120 MB scene shrinks to 52%, 41% in small mode, and restores in about 239 ms in Firefox 158.0, against 312 ms with lz4-wasm and 1.5 s with fflate; lower is better) and big lists of plain JavaScript objects (measured on 2.0.1: 300,000 link objects shrink to 14% of their JSON text, 35% for msgpackr with records). Picks the right layer by itself; MemoryCompressionJSO stays as an alias.",
@@ -348,7 +348,7 @@
     },
     {
       "id": "elias-fano",
-      "version": "1.8.0",
+      "version": "1.8.1",
       "api": 1,
       "global": "EliasFano",
       "summary": "Keeps sorted whole numbers (ids, positions, links of every item of a map) in a third to a half of the memory of plain arrays and still answers 'value number i' and 'first value at or above x' without unpacking; also keeps many sorted lists in one structure and decodes them all at once. WebAssembly with SIMD, plain JavaScript fallback with the same answers.",
@@ -362,7 +362,7 @@
     },
     {
       "id": "graph-walk",
-      "version": "0.11.0",
+      "version": "0.11.1",
       "api": 0,
       "global": "GraphWalk",
       "summary": "Graph walks on typed arrays with no recursion, in WebAssembly with a plain JavaScript fallback: distances, loops, components, topological order, shortest and landmark paths, PageRank, betweenness and closeness (with helper threads), k-core, triangles, Louvain communities, max-flow and critical path. Same answers as Netflow Map's inline walks.",
@@ -389,7 +389,7 @@
     },
     {
       "id": "text-columns",
-      "version": "0.6.4",
+      "version": "0.6.5",
       "api": 0,
       "global": "TextColumns",
       "summary": "Reads CSV or TSV text into typed columns: plain decimal columns come out as Float64Array straight from the bytes, the rest as text. The field scan runs in WebAssembly SIMD; plain JavaScript gives the same answers.",
@@ -403,7 +403,7 @@
     },
     {
       "id": "pcodec-js",
-      "version": "1.6.2",
+      "version": "1.6.3",
       "api": 1,
       "global": "PcodecJS",
       "summary": "Pcodec for web pages: unpacks (and optionally packs) big lists of numbers in a browser, one file, same bytes as any other Pcodec. The unpack-only file is 61 KB gzipped (the other JavaScript build of Pcodec is 324 KB), streams a 4,000,000-number file in 6.3 MB of memory, and WebAssembly is required (no plain-JavaScript backup).",
@@ -417,7 +417,7 @@
     },
     {
       "id": "netflow-sankey",
-      "version": "2.4.0",
+      "version": "2.4.1",
       "api": 2,
       "global": "NetflowSankey",
       "summary": "Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer.",
@@ -445,7 +445,7 @@
     },
     {
       "id": "netflow-layers",
-      "version": "1.7.0",
+      "version": "1.7.1",
       "api": 1,
       "global": "NetflowLayers",
       "summary": "Lays out a graph in rows (top to bottom or left to right) with story order, tags instead of very long links, a column for the pages every route passes, and tall maps cut into columns.",
@@ -473,7 +473,7 @@
     },
     {
       "id": "walker-sim",
-      "version": "2.4.0",
+      "version": "2.4.1",
       "api": 2,
       "global": "WalkerSim",
       "summary": "Simulates random walkers on a network with seeded, repeatable runs, 16 random-number distributions, 95% ranges and the exact odds to check against (1,000,000 walkers in about 52 ms with the WebAssembly loop in Chromium 155 and Firefox 158, lower is better). Big runs use a WebAssembly loop first, JavaScript when it cannot.",
@@ -531,7 +531,7 @@
   "tools": [
     {
       "id": "single-file-tools",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "api": 1,
       "summary": "Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games.",
       "short": "Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer.",
@@ -546,7 +546,7 @@
     },
     {
       "id": "lzma-pack",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "api": 2,
       "summary": "Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library).",
       "short": "Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3).",
@@ -559,7 +559,7 @@
     },
     {
       "id": "ppmd-pack",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "api": 2,
       "summary": "Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data.",
       "short": "Packs one HTML file into a self-unpacking file with PPMd (pure Python).",

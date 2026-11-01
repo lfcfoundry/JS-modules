@@ -1,8 +1,8 @@
 # ppmd-pack
 
-**Version 2.0.0 · API 2**
+**Version 2.0.1 · API 2**
 
-**Tested in:** Python 3.13 (30 ppmd-pack checks); tests/pack-default-browser.js one browser at a time on 2026-10-18: Firefox 158.0 (reports 158.0b5), ungoogled-chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (MiniBrowser), GNOME Web (Epiphany) 46.5; a page without the wasm policy word opened in all four
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

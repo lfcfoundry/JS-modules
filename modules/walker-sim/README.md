@@ -1,8 +1,8 @@
 # walker-sim
 
-**Version 2.4.0 · API 2**
+**Version 2.4.1 · API 2**
 
-**Tested in:** Node 22.22.0 (walker-sim checks on all four files, also with --disallow-code-generation-from-strings); Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, one at a time (tests/walker-sim-browser.js and the timing run, 2026-10-24)
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

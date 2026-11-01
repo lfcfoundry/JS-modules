@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.5.2 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time, early-stop A/B rule (limit 5%); 52 Node checks (new: same answers on a WebKit user agent) and 17 of 17 lean builds. Not run: a phone, Safari itself, a laptop
+**Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 ## What it is and how it works
 
@@ -118,7 +118,21 @@ Speed in the three test browsers is in the table below ("How it compares").
 
 Minified size with terser 5.36.0 (`-c passes=2 -m`), bytes, smaller is better: 1.2.0 full 8,894; set for Fancy the Banana (keeps codes and `onOtherTab`) 6,341; set for Apple Press (keeps codes and `stageImport`) 6,281; core only (`load`, `save`, `validate`, counts; no codes) 2,967. Cutting `codes` alone saves 3,551 bytes (higher is better); the other parts save 142 to 505 each.
 
+### Lite build: save-kit-lite.js (new in 1.6.0)
+
+For a small game that only needs checked numbers, whole numbers, flags and short text with a backup slot, copy `save-kit-lite.js` instead (global `SaveKitLite`). **1,811 bytes minified, 966 gzipped** (terser 5.51.2, `-c passes=2 -m`, header kept), against 3,978 / 1,847 for the full file with every part cut by `lean.py`. It has `load()`, `save()`, `validate()` and `clear()` and the options `key`, `schema`, `defaults`, `storage`, `backupEveryMs`, `backupKey`, `stamp`. No `counts` or `raw` fields, codes, autosave, versions, other-tab notice, IndexedDB or damaged-slot copy; those stay in `save-kit.js`.
+
+It reads and writes the same stored text as `create()` and gives the same answers: `test/lite.js` feeds 3,000 random damaged main and backup slots to both and requires identical results, and checks hostile keys, the backup interval and blocked storage. Speed against `create()` on a six-field save (early-stop rule, limit 5%, lite/full, lower is better): Chromium 155 save 0.98 (inconclusive), load 0.91 (faster); Firefox 158 save 1.01, load 0.95 (both ok); WebKitGTK 2.52.6 save 0.89, load 0.97 (both ok). So it matches the full file in speed; it is smaller, not faster.
+
 ## What it does that plain JSON saves do not
+
+- **Survives a damaged save.** Of five options tested (save-kit, JSON with zod, plain JSON, idb-keyval, localForage), it is the only one that refuses a bad write (a `NaN` from a bug) and still opens a save whose text was cut off, has one count of the wrong type, or carries a `__proto__` key. The results are the same in all three test browsers.
+- **Faster than checking with zod.** It is 1.4 to 5.5 times as fast on every save and load measured, against `localStorage` with JSON and zod. Where zod throws and loads nothing, save-kit loads the backup.
+- **No database wait for small saves.** It is over 100 times as fast as idb-keyval and localForage for a 448-byte save, and 2 to 25 times as fast for 20 KB, because `localStorage` answers at once.
+- **Small.** The core with checks and backup is 1.8 KB minified and gzipped, against 9.1 KB for localForage and 14.1 KB for zod bundled whole. The full file, with codes, big saves and the crash copy, is 6.1 KB in the lean build. Since 1.6.0, `save-kit-lite.js` keeps checked fields and a backup slot in 966 bytes, about 2.6 times idb-keyval's 370.
+- **The price.** Next to a bare `JSON.stringify` into `localStorage` it is 1.1 to 2.9 times slower, which is the cost of the checks. idb-keyval is smaller still (0.4 KB gzipped, against 1.0 KB for the lite file), but it has no checks and no backup.
+
+Measured 2026.11.01 on save-kit 1.5.2 in cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6 (early-stop A/B rule). The tables are in "Speed and efficiency numbers".
 
 Each field is checked on its own and falls back alone. `__proto__`, `constructor` and `prototype` keys are dropped and counts are capped. A save with a broken number is refused. If the backup write fails because storage is full, the main save still counts and the backup is retried next time. Codes are deflate-squeezed where the browser supports it, only when that is really shorter, and use the browser's own `Uint8Array.toBase64`/`fromBase64` when it exists; words pasted after a code are ignored.
 
@@ -133,9 +147,10 @@ Larger than a hand-written `JSON.stringify` save, but the one built for game sav
 | Plain `JSON.stringify` / `JSON.parse` into `localStorage` (built in) | a few lines, nothing to ship | none of the checks, backup, codes or limits | Wins on size and simplicity. Loses: one broken value can ruin or overwrite the whole save |
 | [localForage](https://localforage.github.io/localForage/) 1.10.0 (Apache-2.0) | 29,208 bytes minified, 8,781 gzipped | storage back-ends (localForage: IndexedDB, WebSQL, localStorage); no game-save checks, backup or codes | Wins when you need IndexedDB or large data. Loses: does not protect a game save |
 | [idb-keyval](https://github.com/jakearchibald/idb-keyval) 6.3.0 (Apache-2.0) | 4,758 bytes minified, 1,507 gzipped | a small asynchronous key-value store on IndexedDB; no schema, checks, backup slot or codes | Wins when a save is large or must not block the page. Loses: does not protect a game save, and every read and write is asynchronous |
+| [zod](https://zod.dev) 3.25.76 (MIT), with JSON in `localStorage` | 59,551 bytes minified, 14,082 gzipped (whole library bundled by esbuild; using only part of it could be smaller, not measured) | schema checks; no backup slot, codes or size limits | Loses: 1.4 to 5.5 times slower than save-kit in all three cloud browsers, and a damaged save throws with nothing loaded |
 | [lz-string](https://github.com/pieroxy/lz-string) 1.5.0 (MIT) | 4,814 bytes minified, 1,401 gzipped | URL-safe compressed text; no checksum, schema or size limit | Wins without `CompressionStream`. Loses: a cut-off or hostile code is not caught |
 | [fflate](https://github.com/101arrowz/fflate) 0.8.3 (MIT) | 32,794 bytes minified, 12,512 gzipped (whole library; a tree-shaken build is smaller) | real deflate code, could be an old-browser fallback | Wins on old browsers (this module has none). Loses: only the compression piece |
-| **save-kit 1.5.0** | 20,150 bytes minified, 7,595 gzipped (terser 5.51.2, `-c passes=2 -m`, same as the rows above; with `createLarge`; 1.2.2 was 12,772 and 5,427); core only without codes 2,967 minified (terser 5.36.0, 1.2.0 file, so not comparable with the first figure) | per-field checks, backup slot, checksummed codes, size limits, other-tab notice, lean builds | Speed (smaller is better): a small save (448 bytes) loads in 3.24 microseconds in ungoogled-chromium 155.0.8059.39-1, 2.6 in Firefox 158.0, 1.95 in WebKitGTK 2.52.6, 2.05 in GNOME Web 46.5; against the alternatives: see "Large saves" below and the Numbers |
+| **save-kit 1.5.2** | 20,647 bytes minified, 7,805 gzipped (terser 5.51.2, `-c passes=2 -m`, same as the rows above; with `createLarge`; 1.2.2 was 12,772 and 5,427); core only without codes 2,967 minified (terser 5.36.0, 1.2.0 file, so not comparable with the first figure) | per-field checks, backup slot, checksummed codes, size limits, other-tab notice, lean builds | Speed (smaller is better): a small save (448 bytes) loads in 3.24 microseconds in ungoogled-chromium 155.0.8059.39-1, 2.6 in Firefox 158.0, 1.95 in WebKitGTK 2.52.6, 2.05 in GNOME Web 46.5; against the alternatives: see "Large saves" below and the Numbers |
 
 ### Large saves against idb-keyval and localForage
 

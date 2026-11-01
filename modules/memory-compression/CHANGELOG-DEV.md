@@ -2,6 +2,22 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.1 · API 2 · 2026-10-31
+
+### Quick
+Embedded base64 decode uses Uint8Array.fromBase64 when present, falling back to the atob loop (or Buffer in Node).
+
+### Deep
+Embedded base64 decode uses Uint8Array.fromBase64 when present, falling back to the atob loop (or Buffer in Node). Same bytes: 20 of 20 embedded programs compared in Chromium 155, Firefox 158 and WebKitGTK 2.52.6. Decode time of all embedded programs, fromBase64 / atob loop: Chromium 0.18, Firefox 0.11, WebKitGTK 0.08 (cloud). Tests pass on both paths (Node 22 has no fromBase64, so the new path ran under a Buffer shim).
+
+## 2.10.0 · API 2 · 2026-10-31
+
+### Quick
+unpack(bytes, { into: typedArray }) (Compression improvement thread, round 9 fresh-result-memory; owner tapped 'Yes, ship it' 2026.10.31 ~10:20 PM ET).
+
+### Deep
+unpack(bytes, { into: typedArray }) (Compression improvement thread, round 9 fresh-result-memory; owner tapped 'Yes, ship it' 2026.10.31 ~10:20 PM ET). Float64/Float32/Uint32/Uint16/Uint8 arrays fill the caller's array (same type and length); Int8/Int16/Int32/Uint8Clamped and wrong sizes get a fresh array; no format change. Laptop into/fresh, 4M numbers, Float64 balanced / Float64 fast / Float32 fast: Chromium 156 0.81 / 0.75 / 0.82, Firefox 160 0.70 / 0.91 / 0.86. Cloud 0.13-0.75 in 3 browsers (fresh memory first touch about 0.7 ms per MB). README: IndexedDB spill is page-only (WebKitGTK blob Worker from file:// sees a separate empty database). The in-place decimal divide from the same research file is not included (no laptop result).
+
 ## 2.9.0 · API 2 · 2026-10-31
 
 ### Quick

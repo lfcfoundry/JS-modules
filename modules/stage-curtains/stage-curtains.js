@@ -2,7 +2,7 @@
  * stage-curtains.js: velvet stage curtains that slide shut over a page, then fly open.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.1 (API 1)
+ * Version 1.4.2 (API 1)
  *
  * No dependencies. Needs: canvas 2D, Promise, Element.animate (Web Animations). Any modern browser (2020+).
  * create({ worker: true }) paints the velvet in a background worker (the page then needs worker-src blob:); StageCurtains.startWorker() starts it early, release() ends it.
@@ -86,8 +86,9 @@
       kern = null;
       try {
         if (typeof WebAssembly !== 'object' || !WebAssembly || typeof atob !== 'function') return kern;
-        var t = atob(WASM_B64), b = new Uint8Array(t.length), i;
-        for (i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
+        var t, b, i;
+        if (typeof Uint8Array.fromBase64 === 'function') b = Uint8Array.fromBase64(WASM_B64);
+        else { t = atob(WASM_B64); b = new Uint8Array(t.length); for (i = 0; i < t.length; i++) b[i] = t.charCodeAt(i); }
         var mem = new WebAssembly.Memory({ initial: 4 }), ex = new WebAssembly.Instance(new WebAssembly.Module(b), { env: { memory: mem } }).exports;
         kern = { ex: ex, mem: mem, base: ex.__heap_base.value, owner: null };
       } catch (e) { kern = null; }
