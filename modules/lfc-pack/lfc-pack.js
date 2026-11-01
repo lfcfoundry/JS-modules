@@ -1268,10 +1268,10 @@
     for (i = 0; i < F.cols.length; i++) { c = F.cols[i]; if (!c) continue; if (c.pre) t.push(c.pre.buffer); else for (q = 0; q < c.fr.length; q++) t.push(c.fr[q].buffer); }
     return t;
   }
-  // one-time timing of the ways to make dense row objects on the first big dense block (the whole block, alternating rounds after a warm-up; a way must be at least 20% faster than the plain one, because the probe time and the real read time differ by a few percent in some engines; a way that is more than 2.5 times slower in the warm-up round is dropped at once). Answer: 0 plain (objects first, then one key at a time down each column), 1 clone (objects cloned from one with all the keys), 2 row by row (each object filled with all its keys before the next)
+  // one-time timing of the ways to make dense row objects on the first big dense block (its first 8,192 rows: timing the whole block cost a first big open up to 9 extra passes over it; alternating rounds after a warm-up; a way must be at least 20% faster than the plain one, because the probe time and the real read time differ by a few percent in some engines; a way that is more than 2.5 times slower in the warm-up round is dropped at once). Answer: 0 plain (objects first, then one key at a time down each column), 1 clone (objects cloned from one with all the keys), 2 row by row (each object filled with all its keys before the next)
   var cloneBest = {};   // by number of keys
   function probeClone(keys, vals, tpl, K) {
-    var m = vals[0].length, i, j, r, t0, sink = 0, q, best = [Infinity, Infinity, Infinity], live = [true, true, true], ways;
+    var m = Math.min(vals[0].length, 8192), i, j, r, t0, sink = 0, q, best = [Infinity, Infinity, Infinity], live = [true, true, true], ways;
     function plain() { var out = new Array(m); for (i = 0; i < m; i++) out[i] = {}; for (j = 0; j < K; j++) { var v = vals[j], key = keys[j]; for (i = 0; i < m; i++) out[i][key] = v[i]; } return out; }
     function clone() { var out = new Array(m); for (i = 0; i < m; i++) out[i] = { ...tpl }; for (j = 0; j < K; j++) { var v = vals[j], key = keys[j]; for (i = 0; i < m; i++) out[i][key] = v[i]; } return out; }
     function rowMajor() { var out = new Array(m), o; for (i = 0; i < m; i++) { o = {}; for (j = 0; j < K; j++) o[keys[j]] = vals[j][i]; out[i] = o; } return out; }
