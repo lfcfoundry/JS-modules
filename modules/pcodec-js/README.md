@@ -1,8 +1,8 @@
 # pcodec-js
 
-**Version 1.6.2 · API 1**
+**Version 1.6.3 · API 1**
 
-**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud, early-stop A/B rule); 1273 Node checks
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license (wrapper). Pcodec itself stays Apache-2.0; see `NOTICE-pcodec.txt`.
 

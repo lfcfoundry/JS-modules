@@ -1,8 +1,8 @@
 # text-columns
 
-**Version 0.6.4 · API 0**
+**Version 0.6.5 · API 0**
 
-**Tested in:** Chromium 153, Firefox 158, WebKitGTK 2.52.6 (cloud, 4 cores); early-stop A/B
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

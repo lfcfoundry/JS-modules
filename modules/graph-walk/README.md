@@ -1,8 +1,8 @@
 # graph-walk
 
-**Version 0.11.0 · API 0**
+**Version 0.11.1 · API 0**
 
-**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

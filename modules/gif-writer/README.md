@@ -1,8 +1,8 @@
 # gif-writer
 
-**Version 1.6.1 · API 1**
+**Version 1.6.2 · API 1**
 
-**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6 (container)
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

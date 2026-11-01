@@ -1,4 +1,4 @@
-/*! sprite-baker-wasm.js: an optional add-on for sprite-baker.js that fills the triangles in WebAssembly (built from wasm/tri.c). Copyright (c) 2026 LFC Foundry. MIT License. Version 1.7.1 (API 1)
+/*! sprite-baker-wasm.js: an optional add-on for sprite-baker.js that fills the triangles in WebAssembly (built from wasm/tri.c). Copyright (c) 2026 LFC Foundry. MIT License. Version 1.7.2 (API 1)
  * Load sprite-baker.js first, then this file (in Node: require it; it loads sprite-baker.js itself and returns SpriteBaker). It adds three functions:
  *
  *   SpriteBaker.wasm([bytes])   returns { available, engine, Rast, drawMesh, setLight, features, stats }
@@ -29,6 +29,7 @@
   if (!SB.Rast.prototype.release) SB.Rast.prototype.release = function () {};   // so code that calls release() on whatever Rast it got works with the plain one too
 
   function bytesOf(b64) {
+    if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(b64);
     var t = atob(b64), u = new Uint8Array(t.length), i;
     for (i = 0; i < t.length; i++) u[i] = t.charCodeAt(i);
     return u;
