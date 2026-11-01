@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.18 · API 0 · 2026-11-01
+
+### Quick
+Fast writer: each text column parsed as one JSON array; text-column scratch laid out only when a block has text, and smaller; a compression candidate stops once it cannot win; IPv4 tried before the string dictionary pass; the dictionary pa…
+
+### Deep
+Fast writer: each text column parsed as one JSON array; text-column scratch laid out only when a block has text, and smaller; a compression candidate stops once it cannot win; IPv4 tried before the string dictionary pass; the dictionary pass reads per-column cell lists and stores hashes. Same output bytes on every laptop and phone case. Laptop Firefox 160: escaped logs 0.738, sensor 0.924, logs 1.044 (inconclusive). Android Chrome 156: logs 0.899, nothing slower. Laptop Chromium 156: all same or faster. Cloud WebKitGTK judged with one library per page (owner's card): 0.995, 0.936, 1.009; two libraries sharing one heap swing 240-800 ms for both versions alike.
+
 ## 0.4.17 · API 0 · 2026-11-01
 
 ### Quick
