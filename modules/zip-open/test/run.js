@@ -578,4 +578,11 @@ t('Fast WebAssembly inflate (1.15.0) on a 20 MB entry: same bytes as the browser
   assert.ok(Buffer.from(a.bytes).equals(Buffer.from(b.bytes))); assert.equal(Buffer.from(a.bytes).toString(), txt);
   var small = await U.read(z, e, e.usize - 1); assert.ok(small.skip, 'over the limit is skipped');
 });
+t('Excel: the wasm reader works a piece at a time (shared text and rows each well over 256 KB) and gives what the JavaScript reader gives', async function () {
+  var rows = [['id', 'text', 'n']]; for (var i = 0; i < 30000; i++) rows.push([i, 'distinct text number ' + i + (i % 7 ? '' : ' & more'), i / 8]);
+  var x = u8(Z.makeXlsx([{ name: 'S', rows: rows }])), w = await U.expand(x, 'b.xlsx');
+  var M = WebAssembly.Module, js; WebAssembly.Module = function () { throw new Error('no wasm reader'); }; U._xlsxPlain(false);
+  try { js = await U.expand(x, 'b.xlsx'); } finally { WebAssembly.Module = M; U._xlsxPlain(false); }
+  assert.deepStrictEqual(w, js); assert.equal(w.files[0].text.split('\n').length, 30001);
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });

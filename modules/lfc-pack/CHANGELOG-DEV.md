@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.19 · API 0 · 2026-11-01
+
+### Quick
+unpackText encodes 1,024 rows at a time instead of one row at a time (round 42, research thread).
+
+### Deep
+unpackText encodes 1,024 rows at a time instead of one row at a time (round 42, research thread). Fast writer: number and list passes as small functions (Firefox reaches full speed sooner); scan and count in 256 KB wasm calls (LFCP thread). Same bytes on every case. Laptop (new/old, lower is better): Chromium 156 first pack in a fresh page logs 0.978, events 0.984, sensor 0.712; unpackText logs 0.457, events 0.545, escaped logs 0.499. Firefox 160 first pack 0.982 / 0.971 / 0.640; unpackText 0.577 / 0.707 / 0.618. Cloud WebKitGTK first pack 0.962 / 0.928 (inconclusive) / 0.940; unpackText 0.880 / 1.004 / 0.858.
+
 ## 0.4.18 · API 0 · 2026-11-01
 
 ### Quick
