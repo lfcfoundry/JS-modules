@@ -6,12 +6,12 @@
   var KIND = [Uint8Array, Uint16Array, Uint32Array, Int8Array, Int16Array, Int32Array, Float64Array];
   function colKind(c) {
     var mn = Infinity, mx = -Infinity, i, x;
-    for (i = 0; i < c.length; i++) { x = c[i]; if (x !== Math.floor(x) || x === Infinity || x === -Infinity || (x === 0 && 1 / x < 0)) return 6; if (x < mn) mn = x; if (x > mx) mx = x; }
+    for (i = 0; i < c.length; i++) { x = c[i]; if ((x | 0) !== x) { if (x !== Math.floor(x) || x === Infinity || x === -Infinity) return 6; } else if (x === 0 && 1 / x < 0) return 6; if (x < mn) mn = x; if (x > mx) mx = x; }   // int32 values take the cheap test
     if (mn >= 0) return mx < 256 ? 0 : mx < 65536 ? 1 : mx < 4294967296 ? 2 : 6;
     return mn >= -128 && mx < 128 ? 3 : mn >= -32768 && mx < 32768 ? 4 : mn >= -2147483648 && mx < 2147483648 ? 5 : 6;
   }
   function typedColumn(c) {   // -> [kind, count, bytes]
-    var k = colKind(c), t = (c instanceof KIND[k]) ? c : KIND[k].from(c);
+    var k = colKind(c), t = (c instanceof KIND[k]) ? c : new KIND[k](c);   // the constructor, not .from(): the same values, without the iterator protocol (2x slower in Firefox)
     return [k, c.length, new Uint8Array(t.buffer, t.byteOffset, t.byteLength)];
   }
   // width 7: a column of whole numbers or decimals (up to nine decimals, exact) whose varints are clearly shorter than its typed bytes, kept when it also compresses smaller: byte 0 is the decimals d in bits 0 to 3 (bit 7 set: differences against the value k places back instead of the numbers, with k - 1 in bits 4 to 6), then the varints of z(whole) or z(whole - previous whole) with whole = value * 10^d; value = whole / 10^d. null when it does not pay (not exact, or the varints would take half of the doubles' size or more)
