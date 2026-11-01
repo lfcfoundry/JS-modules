@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.2 · API 1 · 2026-10-31
+
+### Quick
+A File read in pieces on the page (expandBlob without helpers, files over 16 MB) now also unpacks its biggest worksheet straight into the WebAssembly reader.
+
+### Deep
+A File read in pieces on the page (expandBlob without helpers, files over 16 MB) now also unpacks its biggest worksheet straight into the WebAssembly reader. The earlier no-gain reading (round 18, 0.96-1.19) was noise: every bench file was under 16 MB, so both builds read it whole into memory and ran the same code. With piece reads forced (_wholeMax 0), two rounds fwd+rev geomeans, new / 1.14.1, big/small/formulas/text: Chromium 155 0.91/0.89/0.90/0.91, Firefox 158 0.84/0.76/0.87/0.92, WebKitGTK 2.52.6 0.86/0.95/0.93/0.97. Tests: 40 checks; the placement test now expects a File read in pieces to be placed and checks it against the JavaScript reader (wasm off).
+
 ## 1.14.1 · API 1 · 2026-10-31
 
 ### Quick
