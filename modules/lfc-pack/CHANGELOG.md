@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.14 · API 0 · 2026-10-31
+- Packs logs about 10 to 14% faster (hex ids such as 1789c0bf1b now fill one template slot) and event tables with long hex id columns up to a third faster. Files are byte-identical.
+
 ## 0.4.13 · API 0 · 2026-10-31
 - Smaller file, same results: lfc-pack.js is now 353 KB instead of 789 KB, because its built-in WebAssembly programs are stored compressed and unpacked by the browser while they compile. Starts about 3 to 10% faster.
 
