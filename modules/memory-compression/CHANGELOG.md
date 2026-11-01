@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.0 · API 2 · 2026-10-31
+- New unpack option into: pass the typed array you got last time to read the next one without fresh memory (9 to 30% faster on a laptop for big number arrays).
+
 ## 2.9.0 · API 2 · 2026-10-31
 - New opt-in stream rows for unpackAsync: long lists arrive a page at a time and never hold every row. 300,000 rows: 0.60 of the time in laptop Chromium, 0.82 in Firefox, pauses 2 to 4x shorter.
 

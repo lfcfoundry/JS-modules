@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.14.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.9.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.10.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.8.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.11.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.12 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -77,7 +77,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **test-runner** 1.4.0 · API 1: New ab.js: the early-stop A/B timing rule for the 5% check.
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
 - 2026-10-31 · **save-kit** 1.6.0 · API 1: New save-kit-lite.js: a 966-byte gzipped file with checked fields and a backup slot, for small games. Same answers and speed as create() for those field types.
-- 2026-10-31 · **save-kit** 1.5.2 · API 1: On Safari and other WebKit browsers the save-time number check is faster: a 20 KB save takes about 0.41 of the time.
+- 2026-10-31 · **save-kit** 1.5.2 · API 1: On Safari and other WebKit browsers the number check is faster: a 20 KB save takes 59% less time and a load 19% less; tiny saves are a few microseconds slower.
 - 2026-10-31 · **save-kit** 1.5.1 · API 1: Loading a save with big counts lists takes 16 to 21% less time (cloud Chromium, Firefox and WebKitGTK); nothing a game sees changes.
 - 2026-10-31 · **save-kit** 1.5.0 · API 1: createLarge() gets an opt-in skipUnchangedMs: an unchanged big save is not written again; 57 to 66% less time.
 - 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option keeps a second copy of each save that survives a browser crash. In a real crash test, saves kept only in browser storage lost 29 to 30 of 80; with durable on, none were lost.
@@ -91,6 +91,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **memory-compression** 2.8.2 · API 2: view() stays lazy on pages that forbid eval (our policy): opening a view and reading a row takes 34 to 80% less time, same rows. Lists that are mostly numbers are unchanged.
 - 2026-10-31 · **memory-compression** 2.8.1 · API 2: After the idle trim, the two small wasm helpers are made again at once (about 6 MB held), so the first pack after a pause is as fast as the rest.
 - 2026-10-31 · **memory-compression** 2.8.0 · API 2: Packing lists of whole numbers (up to 100,000 rows) is 2 to 24% faster; files can be up to about 1% bigger. autoTries: false keeps the old bytes.
+- 2026-10-31 · **memory-compression** 2.10.0 · API 2: New unpack option into: pass the typed array you got last time to read the next one without fresh memory (9 to 30% faster on a laptop for big number arrays).
 - 2026-10-31 · **lfc-pack** 0.4.9 · API 0: Reading decimal number lists (such as map coordinates) is 5 to 8% faster in Firefox; same rows. Each pack uses 2.5 MB less scratch memory for grouping numbers; same files, same speed.
 - 2026-10-31 · **lfc-pack** 0.4.8 · API 0: Opening files takes up to 14% less time (real FHIR records 1 to 10% less on a laptop). One small buffer (3.7 MB for a 48 MB FHIR file) is kept 4 s after the last open; trim() frees it.
 - 2026-10-31 · **lfc-pack** 0.4.7 · API 0: Fixed: warmPack(n) now keeps n helpers ready even when some were already waiting (it kept fewer before), and overlapping packParallel calls never share a helper.
@@ -99,8 +100,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **lfc-pack** 0.4.4 · API 0: Packing records with many shapes, like FHIR, is 10 to 15% faster: each shape's string paths are worked out once instead of once per block. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.3 · API 0: After 30 seconds without packing, the packer gives its memory back on its own (about 38 MB after a 66.6 MB pack, up to about 250 MB with big blocks). Reading memory is kept. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.2 · API 0: The first pack after trim() is no longer slower (laptop Chromium 4% slower before, now 2% faster): the packer keeps its warmed-up code. Same files byte for byte.
-- 2026-10-31 · **lfc-pack** 0.4.12 · API 0: The fast writer's scanner tries keys in the last row's order first and reads digits 8 at a time: packs 8 to 16% faster than 0.4.10 in Chromium and Firefox; same files.
-- 2026-10-31 · **lfc-pack** 0.4.11 · API 0: Packing with the fast writer is faster again: its sizing pass reads 8 bytes at a time (sensor-style data up to 28% faster in Firefox); same files.
+- 2026-10-31 · **lfc-pack** 0.4.12 · API 0: The fast writer's scanner tries keys in the last row's order first and reads digits 8 at a time: packs take 8 to 16% less time than 0.4.10 in Chromium and Firefox; same files.
+- 2026-10-31 · **lfc-pack** 0.4.11 · API 0: Packing with the fast writer is faster again: its sizing pass reads 8 bytes at a time. With 0.4.10, packs take 7 to 28% less time than 0.4.9 in Chromium and Firefox; same files.
 - 2026-10-31 · **lfc-pack** 0.4.10 · API 0: Packing numbers with up to 9 decimals takes the fast path: sensor-style data packs in 21 to 36% less time in Firefox and WebKitGTK (Chromium about the same); same files, byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.1 · API 0: Packing nested rows is 6 to 21% faster on a 16-core laptop (Chromium and Firefox), with the same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.0 · API 0: Smaller nested files by default: strings are kept per path (`paths: false` turns it off), 5 to 14% smaller. Older readers refuse such blocks. New pack options: `share: true` (one string and shape table for the whole file) and `access: 'random'` (256 KB blocks plus share, for fast small reads). New `trim()` gives back grown WebAssembly memory (80 to 90 MB after a 66.6 MB job); idle `packParallel` helpers give back theirs. Faster packing, same files byte for byte (3 to 25% for number-heavy files, up to 3.7x with small blocks); readers refuse more damaged files.

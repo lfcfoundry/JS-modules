@@ -7,7 +7,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Same answers and speed as create() for those field types.
 
 ## 1.5.2 · API 1 · 2026-10-31
-- On Safari and other WebKit browsers the save-time number check is faster: a 20 KB save takes about 0.41 of the time.
+- On Safari and other WebKit browsers the number check is faster: a 20 KB save takes 59% less time and a load 19% less; tiny saves are a few microseconds slower.
 
 ## 1.5.1 · API 1 · 2026-10-31
 - Loading a save with big counts lists takes 16 to 21% less time (cloud Chromium, Firefox and WebKitGTK); nothing a game sees changes.
