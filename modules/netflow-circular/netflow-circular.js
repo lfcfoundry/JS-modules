@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.0.0 (API 1)
+ * Version 1.0.1 (API 1)
  * netflow-circular.js: the circular views of Netflow Map (Chord, Bundles). layout(view, G, o) returns a plain layout; scene(L, o, NS) turns it
  * into drawing lists for netflow-scene. Built on netflow-hierarchy (its tree, values and drawing frame): load netflow-hierarchy.js first,
  * or keep it next to this folder in Node. No page, no DOM.
@@ -8,7 +8,8 @@
 var NetflowCircular = (function () {
   'use strict';
   var TAU = Math.PI * 2;
-  var HY = typeof NetflowHierarchy !== 'undefined' ? NetflowHierarchy : typeof require === 'function' ? require('../netflow-hierarchy/netflow-hierarchy.js') : null;
+  /* netflow-hierarchy: a page global, the file in its own folder next to this one, or (a copy kept with others in one folder) the file next to this one */
+  var HY = typeof NetflowHierarchy !== 'undefined' ? NetflowHierarchy : typeof require === 'function' ? (function () { try { return require('../netflow-hierarchy/netflow-hierarchy.js'); } catch (e) { return require('./netflow-hierarchy.js'); } })() : null;
   if (!HY) throw new Error('netflow-circular: load netflow-hierarchy.js first');
   var hierarchy = HY.hierarchy, linkValue = HY.linkValue, pushSector = HY.pushSector;
   var VIEWS = [

@@ -1,6 +1,6 @@
 # netflow-circular
 
-**Version 1.0.0 · API 1**
+**Version 1.0.1 · API 1**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
