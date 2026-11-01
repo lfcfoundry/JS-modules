@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.10.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.8.1 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.11.2 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.4.16 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.4.17 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -58,6 +58,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-01 · **lfc-pack** 0.4.17 · API 0: Packs logs in about a third of the time (laptop Firefox 0.33 to 0.34), and logs with escaped quotes up to 40 times faster at 256 KB blocks. Same files, except escaped-text logs, which come out 0.04 to 0.2% smaller.
 - 2026-11-01 · **lfc-pack** 0.4.16 · API 0: Reading is a little faster in Firefox: unpacking bit-packed number codes no longer reads past the end of the buffer (events 0.725 of the time in a cloud A/B). Same rows.
 - 2026-10-31 · **zip-open** 1.9.0 · API 1: Excel files are read faster again: 6 to 31% faster than 1.8.0 in cloud tests of Firefox, Chromium and WebKitGTK, with the same results.
 - 2026-10-31 · **zip-open** 1.8.0 · API 1: Excel files are read much faster: 1.8 to 3.3 times as fast (45 to 70% less time) in cloud tests of Firefox, Chromium and WebKitGTK, with the same results. Sheets with formulas and sheets full of text gain the most.
