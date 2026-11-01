@@ -412,15 +412,16 @@
     function lay(name, bytes) { P[name] = o; o = (o + bytes + 15) & ~15; }
     lay('in', len + 8); lay('cnt', 16);
     var mem = W.x.memory; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
-    var m8 = new Uint8Array(mem.buffer); m8.set(input, P['in']); W.x.count(P['in'], len, P.cnt);
-    var cn = new Uint32Array(mem.buffer, P.cnt, 4), nl = cn[0], colons = cn[1], commas = cn[2], allowStr = 2, asciiIn = cn[3] === 0;
+    var m8 = new Uint8Array(mem.buffer); m8.set(input, P['in']);
+    var cn = new Uint32Array(mem.buffer, P.cnt, 4), nl = 0, colons = 0, commas = 0, allowStr = 2, asciiIn = true, ca;
+    for (ca = 0; ca < len; ca += 262144) { W.x.count(P['in'] + ca, Math.min(262144, len - ca), P.cnt); nl += cn[0]; colons += cn[1]; commas += cn[2]; if (cn[3]) asciiIn = false; }   // 256 KB a call, like scan
     nrows = nl + (input[len - 1] === 10 ? 0 : 1);
     var pb = (nrows + 7) >> 3, NK = 128, cells = colons + 1, lvals = commas + colons + 16;
     lay('planes', NK * pb); lay('keyoff', 4 * NK); lay('keylen', 4 * NK); lay('ktype', NK); lay('kfd', NK); lay('st', 32); lay('ckey', cells); lay('cval', 8 * cells); lay('cfd', cells); lay('llen', 4 * cells); lay('lval', 4 * lvals); lay('clen', 4 * cells); lay('gcnt', 4 * NK); lay('gtot', 4 * NK); lay('goff', 4 * NK); lay('gout', 8 * cells);
     if (o > 1610612736) return null;
     if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
     m8 = new Uint8Array(mem.buffer); m8.fill(0, P.planes, P.planes + NK * pb);
-    var rc = W.x.scan(P['in'], len, nrows, P.planes, pb, P.keyoff, P.keylen, P.ktype, P.kfd, P.st, P.ckey, P.cval, P.cfd, P.llen, P.lval, P.clen, allowStr);
+    var rc = 100, sp = 0; while (rc === 100) { sp += 262144; rc = W.x.scan(P['in'], len, nrows, P.planes, pb, P.keyoff, P.keylen, P.ktype, P.kfd, P.st, P.ckey, P.cval, P.cfd, P.llen, P.lval, P.clen, allowStr, sp === 262144 ? 1 : 0, sp); }   // 256 KB a call (see scan in flatscan.c)
     if (rc !== 0) return null;
     var st = new Uint32Array(mem.buffer, P.st, 8), nk = st[0], nc = st[1], nlist = st[2], nlv = st[3];
     if (opts.noLists && nlist) return null;
