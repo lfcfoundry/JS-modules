@@ -271,9 +271,9 @@ t('inflate in WebAssembly (1.5.0): same files and notes as the browser stream on
     if (k % 2) { body = Buffer.from(body); if (body.length) body[Math.floor(rnd() * body.length)] ^= 1 << Math.floor(rnd() * 8); }
     if (k % 7 === 0) body = body.subarray(0, Math.max(0, body.length - 1 - Math.floor(rnd() * 4)));
     var z = Z.makeZip([{ name: 'a.csv', raw: body, data: txt, method: 8 }, { name: 'b.csv', data: csv }]), a, b;
-    U._inflateMax(4096); try { a = await U.expand(u8(z), 'x.zip'); } catch (e) { a = { err: e.message }; }
+    U._inflateMax(1e9); try { a = await U.expand(u8(z), 'x.zip'); } catch (e) { a = { err: e.message }; }
     U._inflateMax(-1); try { b = await U.expand(u8(z), 'x.zip'); } catch (e) { b = { err: e.message }; }
-    U._inflateMax(4096);
+    U._inflateMax();
     [a, b].forEach(function (x) { if (x.notes) x.notes = x.notes.map(function (q) { return q.replace('unpacks to more than it says it does', 'looks damaged'); }); });   // damaged data that also runs past its size: either wording is right
     assert.deepStrictEqual(a, b, 'case ' + k); same++;
   }
@@ -569,5 +569,13 @@ t('In-memory unzip checks the checksum piece by piece (a wrong checksum is still
   assert.ok(e.csize > 4096, 'goes through DecompressionStream');
   var ok = await U.read(x, e); assert.equal(new TextDecoder().decode(ok.bytes), txt);
   var bad = await U.read(x, Object.assign({}, e, { crc: (e.crc ^ 1) >>> 0 })); assert.ok(/checksum/.test(bad.skip), 'wrong checksum caught');
+});
+t('Fast WebAssembly inflate (1.15.0) on a 20 MB entry: same bytes as the browser stream, and the same answer when cut short or too big', async function () {
+  var parts = [], i; for (i = 0; i < 300000; i++) parts.push('<row r="' + i + '"><c r="A' + i + '" t="s"><v>' + (i * 7 % 997) + '</v></c><c r="B' + i + '"><v>' + (i * 1.25) + '</v></c></row>');
+  var txt = parts.join(''), z = u8(Z.makeZip([{ name: 'big.csv', data: txt }])), e = U.list(z).entries[0], a, b;
+  assert.ok(e.usize > 16777216, 'over 16 MB');
+  a = await U.read(z, e); U._inflateMax(-1); b = await U.read(z, e); U._inflateMax();
+  assert.ok(Buffer.from(a.bytes).equals(Buffer.from(b.bytes))); assert.equal(Buffer.from(a.bytes).toString(), txt);
+  var small = await U.read(z, e, e.usize - 1); assert.ok(small.skip, 'over the limit is skipped');
 });
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });
