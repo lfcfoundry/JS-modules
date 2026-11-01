@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.15.2 · API 1 · 2026-11-01
+
+### Quick
+The WebAssembly unzipper and Excel reader now work in short calls, so a browser switches to its optimized code partway through the first file instead of only at the next file. No API change.
+
+### Details
+First open in a fresh page, 10 pages per browser, time vs 1.15.1 (big/formulas/text): Chromium 155 0.64/0.80/0.79, Firefox 158 0.68/0.71/0.88, WebKitGTK 2.52.6 0.90/0.92/0.78. Repeat opens, early-stop A/B two rounds forward and reversed (big/small/formulas/text): Chromium 0.99/1.03/1.01/0.97, Firefox 1.03/0.99/1.03/0.99, WebKitGTK 1.00/1.00/1.02/1.05. Upgrade: replace the file.
+
+### Deep
+Chromium and Firefox run WebAssembly first on quick-to-compile baseline code and swap in optimized code only when a function is called again; there is no switch in the middle of a call (WebKit can switch mid-call). The unzipper and the sheet reader each made one long call per file, so a whole first open ran on the baseline code: in a fresh page the first open took about twice as long as the second (Chromium big file 260 vs 112 ms), and opening a small file first cut the big first open to 130 ms. Fix: inflate.c moves the codes of each deflate block into codes() (noinline), xlsx.c reads rows in rowsPart() and shared text in sstPart(), each returning every 256 KB so sheet() and sst() call them again. First open in a fresh page, 10 pages per browser, median, new / 1.15.1 (big/formulas/text): Chromium 155 0.64/0.80/0.79, Firefox 158 0.68/0.71/0.88, WebKitGTK 2.52.6 0.90/0.92/0.78. Each alone (6 pages): unzipper split mixed (Chromium 0.88-0.94, Firefox 0.74-1.23), sheet split 0.72-0.98; stacked best. Repeat opens, early-stop A/B, bytes path, two rounds forward and reversed (big/small/formulas/text): Chromium 0.99/1.10/1.01/0.97 (small rechecked in 4 runs: 1.00, 1.01, 1.02, 1.08, about 1.03), Firefox 1.03/0.99/1.03/0.99, WebKitGTK 1.05/1.00/1.02/1.05 (big rechecked: 1.00). Also tried: the same split for the UTF-8 check (Chromium first open 0.89-0.99, Firefox 0.91-1.18 noisy; not shipped yet, retesting); the WebAssembly unzipper for File entries over 4 MB compressed stacked on this (first open Chromium 0.82-0.99, WebKitGTK 0.80-0.93, Firefox 0.95-1.25; repeat open text 1.04-1.12 slower; not shipped, waiting on the maintainer's call). Tests: 43 checks, plus all checks with 64-byte pieces.
+
 ## 1.15.1 · API 1 · 2026-11-01
 
 ### Quick

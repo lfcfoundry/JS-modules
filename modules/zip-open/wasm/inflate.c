@@ -84,6 +84,77 @@ static u32 crcRun(const u8 *p, u32 n, u32 s) {
 }
 u32 crc(void) { return CRC; }
 
+/* The codes of one block. A function of its own, called once per block, so that a browser that first runs the
+   quick-to-compile version of this code (Chromium and Firefox do) switches to the optimized one at the next block,
+   not only at the next entry: browsers swap in optimized code only when a function is called again. */
+typedef struct { const u8 *ip, *iend; u64 bb; u32 bc, padded, o, cp, cs; } St;
+__attribute__((noinline)) static int codes(St *st, u8 *out, u32 outcap) {
+  const u8 *ip = st->ip, *iend = st->iend; u64 bb = st->bb; u32 bc = st->bc, padded = st->padded, o = st->o, cp = st->cp, cs = st->cs;
+  #define CRC_STEP() do { if (o - cp >= 32768) { cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
+  #define REFILL_SLOW() do { while (bc <= 56) { if (ip < iend) bb |= (u64)*ip++ << bc; else padded += 8; bc += 8; } } while (0)
+  #define NEED(n) do { if (bc < (u32)(n)) REFILL_SLOW(); } while (0)
+  #define TAKE(n) (bb & ((1ull << (n)) - 1))
+  #define DROP(n) do { bb >>= (n); bc -= (n); } while (0)
+  for (;;) {
+    u32 e, len, dist;
+    CRC_STEP();
+    if (iend - ip >= 8 && outcap - o >= 258 + 16 && !padded) {
+      /* fast: refill 8 bytes at once, no end checks (each symbol needs at most 15 + 5 + 15 + 13 = 48 bits) */
+      u64 w; __builtin_memcpy(&w, ip, 8); bb |= w << bc; ip += (63 - bc) >> 3; bc |= 56;
+      e = LT[bb & ((1u << LB) - 1)];
+      if (KIND(e) == K_SUB) { DROP(LB); e = LT[VAL(e) + (u32)TAKE(XB(e))]; }
+      if (!e) return -1;
+      DROP(CL(e));
+      if (KIND(e) == K_LIT) {
+        out[o++] = (u8)VAL(e);
+        e = LT[bb & ((1u << LB) - 1)];   /* a second literal often follows: take it while the bits are here (at most 15 more) */
+        if (KIND(e) == K_LIT) { DROP(CL(e)); out[o++] = (u8)VAL(e); }
+        continue;
+      }
+      if (KIND(e) == K_END) break;
+      len = VAL(e) + (u32)TAKE(XB(e)); DROP(XB(e));
+      e = DT[bb & ((1u << DB) - 1)];
+      if (KIND(e) == K_SUB) { DROP(DB); e = DT[VAL(e) + (u32)TAKE(XB(e))]; }
+      if (!e) return -1;
+      DROP(CL(e));
+      dist = VAL(e) + (u32)TAKE(XB(e)); DROP(XB(e));
+      if (dist > o) return -1;
+      {
+        u8 *d = out + o, *s = d - dist, *end = d + len; o += len;
+        if (dist >= 8) { do { u64 v; __builtin_memcpy(&v, s, 8); __builtin_memcpy(d, &v, 8); d += 8; s += 8; } while (d < end); }
+        else if (dist == 1) { u64 v = (u64)s[0] * 0x0101010101010101ull; do { __builtin_memcpy(d, &v, 8); d += 8; } while (d < end); }
+        else { do { *d++ = *s++; } while (d < end); }
+      }
+      continue;
+    }
+    /* careful: near the end of the input or the output */
+    NEED(15);
+    e = LT[bb & ((1u << LB) - 1)];
+    if (KIND(e) == K_SUB) { DROP(LB); e = LT[VAL(e) + (u32)TAKE(XB(e))]; }
+    if (!e) return -1;
+    DROP(CL(e));
+    if (KIND(e) == K_LIT) { if (o >= outcap) return -2; out[o++] = (u8)VAL(e); if (padded > bc) return -1; continue; }
+    if (KIND(e) == K_END) { if (padded > bc) return -1; break; }
+    NEED(5); len = VAL(e) + (u32)TAKE(XB(e)); DROP(XB(e));
+    NEED(15); e = DT[bb & ((1u << DB) - 1)];
+    if (KIND(e) == K_SUB) { DROP(DB); e = DT[VAL(e) + (u32)TAKE(XB(e))]; }
+    if (!e) return -1;
+    DROP(CL(e));
+    NEED(13); dist = VAL(e) + (u32)TAKE(XB(e)); DROP(XB(e));
+    if (dist > o) return -1;
+    if (o + len > outcap) return -2;
+    { u32 from = o - dist; while (len--) out[o++] = out[from++]; }
+    if (padded > bc) return -1;
+  }
+  st->ip = ip; st->bb = bb; st->bc = bc; st->padded = padded; st->o = o; st->cp = cp; st->cs = cs;
+  return 0;
+  #undef CRC_STEP
+  #undef REFILL_SLOW
+  #undef NEED
+  #undef TAKE
+  #undef DROP
+}
+
 int inflate(const u8 *in, u32 inlen, u8 *out, u32 outcap) {
   const u8 *ip = in, *iend = in + inlen; u64 bb = 0; u32 bc = 0, padded = 0, o = 0, cp = 0, cs = 0xffffffffu; int last;
   if (!ctReady) crcInit();
@@ -131,58 +202,8 @@ int inflate(const u8 *in, u32 inlen, u8 *out, u32 outcap) {
       if (build(LT, LB, cl, nl, 1)) return -1;
       if (build(DT, DB, cl + nl, nd, 2)) return -1;
     } else return -1;
-    /* the codes of this block */
-    for (;;) {
-      u32 e, len, dist;
-      CRC_STEP();
-      if (iend - ip >= 8 && outcap - o >= 258 + 16 && !padded) {
-        /* fast: refill 8 bytes at once, no end checks (each symbol needs at most 15 + 5 + 15 + 13 = 48 bits) */
-        u64 w; __builtin_memcpy(&w, ip, 8); bb |= w << bc; ip += (63 - bc) >> 3; bc |= 56;
-        e = LT[bb & ((1u << LB) - 1)];
-        if (KIND(e) == K_SUB) { DROP(LB); e = LT[VAL(e) + (u32)TAKE(XB(e))]; }
-        if (!e) return -1;
-        DROP(CL(e));
-        if (KIND(e) == K_LIT) {
-          out[o++] = (u8)VAL(e);
-          e = LT[bb & ((1u << LB) - 1)];   /* a second literal often follows: take it while the bits are here (at most 15 more) */
-          if (KIND(e) == K_LIT) { DROP(CL(e)); out[o++] = (u8)VAL(e); }
-          continue;
-        }
-        if (KIND(e) == K_END) break;
-        len = VAL(e) + (u32)TAKE(XB(e)); DROP(XB(e));
-        e = DT[bb & ((1u << DB) - 1)];
-        if (KIND(e) == K_SUB) { DROP(DB); e = DT[VAL(e) + (u32)TAKE(XB(e))]; }
-        if (!e) return -1;
-        DROP(CL(e));
-        dist = VAL(e) + (u32)TAKE(XB(e)); DROP(XB(e));
-        if (dist > o) return -1;
-        {
-          u8 *d = out + o, *s = d - dist, *end = d + len; o += len;
-          if (dist >= 8) { do { u64 v; __builtin_memcpy(&v, s, 8); __builtin_memcpy(d, &v, 8); d += 8; s += 8; } while (d < end); }
-          else if (dist == 1) { u64 v = (u64)s[0] * 0x0101010101010101ull; do { __builtin_memcpy(d, &v, 8); d += 8; } while (d < end); }
-          else { do { *d++ = *s++; } while (d < end); }
-        }
-        continue;
-      }
-      /* careful: near the end of the input or the output */
-      NEED(15);
-      e = LT[bb & ((1u << LB) - 1)];
-      if (KIND(e) == K_SUB) { DROP(LB); e = LT[VAL(e) + (u32)TAKE(XB(e))]; }
-      if (!e) return -1;
-      DROP(CL(e));
-      if (KIND(e) == K_LIT) { if (o >= outcap) return -2; out[o++] = (u8)VAL(e); if (padded > bc) return -1; continue; }
-      if (KIND(e) == K_END) { if (padded > bc) return -1; break; }
-      NEED(5); len = VAL(e) + (u32)TAKE(XB(e)); DROP(XB(e));
-      NEED(15); e = DT[bb & ((1u << DB) - 1)];
-      if (KIND(e) == K_SUB) { DROP(DB); e = DT[VAL(e) + (u32)TAKE(XB(e))]; }
-      if (!e) return -1;
-      DROP(CL(e));
-      NEED(13); dist = VAL(e) + (u32)TAKE(XB(e)); DROP(XB(e));
-      if (dist > o) return -1;
-      if (o + len > outcap) return -2;
-      { u32 from = o - dist; while (len--) out[o++] = out[from++]; }
-      if (padded > bc) return -1;
-    }
+    { St st = { ip, iend, bb, bc, padded, o, cp, cs }; int r = codes(&st, out, outcap); if (r) return r;
+      ip = st.ip; bb = st.bb; bc = st.bc; padded = st.padded; o = st.o; cp = st.cp; cs = st.cs; }
     if (padded > bc) return -1;
     CRC_STEP();
   } while (!last);
