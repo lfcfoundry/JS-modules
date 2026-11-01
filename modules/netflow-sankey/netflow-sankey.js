@@ -236,7 +236,7 @@
   function layout(L, opts) {
     opts = opts || {};
     var t0 = Date.now(), nodeW = opts.nodeW || 14, gapLayer = opts.gapLayer || 190, pad = opts.pad === undefined ? 12 : opts.pad, padD = 3;
-    var byId = {}, V = [], layers = [], i, k, idx = {}, nk = function (n) { return n.nodeId !== undefined ? String(n.nodeId) : String(n.id); };   // nk: the name an item keeps across rebuilds
+    var byId = {}, layers = [], i, k, idx = {}, nk = function (n) { return n.nodeId !== undefined ? String(n.nodeId) : String(n.id); };   // nk: the name an item keeps across rebuilds
     var usable = []; L.edges.forEach(function (e, ei) { if (e.kind !== 'self' && e.from !== e.to && e.flow > EPS && L.pos[e.from] && L.pos[e.to]) usable.push(ei); });
     L.nodes.forEach(function (n, q) { idx[n.id] = q; });
     var fo = opts.fixedOrder, foLayer = null;
@@ -253,14 +253,14 @@
     } else lay = layering(L.nodes.length, usable.map(function (ei) { var e = L.edges[ei]; return { from: idx[e.from], to: idx[e.to], flow: e.flow }; }), opts.justifySinks !== false);
     var nL = lay.levels;
     var rankKey = {}; lay.order.forEach(function (q, r) { rankKey[L.nodes[q].id] = r; });
-    L.nodes.forEach(function (n, q) {
-      var v = { id: n.id, ukey: nk(n), node: n, edge: -1, pa: null, pb: null, layer: lay.layer[q], size: 0, key: rankKey[n.id], h: 0, y: 0, pos: 0, dummy: false, inAll: 0, outAll: 0, w: 0, x: 0, ix: V.length, pinned: false, loopOutTop: 0, loopInTop: 0 };   // bars and stand-in stops share one shape (same fields, same order), so every loop over V sees one kind of object
-      byId[n.id] = v; V.push(v);
-    });
+    /* Bars and stand-in stops live in flat arrays, one slot each: the items first (in their order), then the stand-ins. Only items keep an
+       object (names and flow totals); a stand-in is just its slot. */
+    var nN = L.nodes.length, Rb = new Array(nN), LayN = lay.layer;
+    L.nodes.forEach(function (n, q) { var v = { id: n.id, ukey: nk(n), node: n, ix: q, inAll: 0, outAll: 0, pinned: false }; byId[n.id] = v; Rb[q] = v; });
     var fwd = [], loops = [];
     /* A long link gets one stand-in per layer it crosses so the layers can be ordered around it. Past DUMMY_CAP stand-ins in all, the lightest long links are drawn as one band from end to end instead (note in the result). */
     var noDummy = new Set(), dummyWant = 0, longLinks = [], simplified = 0;
-    usable.forEach(function (ei, q) { var e = L.edges[ei], a = byId[e.from], b = byId[e.to]; if (!lay.feedback.has(q) && b.layer > a.layer + 1) { dummyWant += b.layer - a.layer - 1; longLinks.push(q); } });
+    usable.forEach(function (ei, q) { var e = L.edges[ei], a = LayN[byId[e.from].ix], b = LayN[byId[e.to].ix]; if (!lay.feedback.has(q) && b > a + 1) { dummyWant += b - a - 1; longLinks.push(q); } });
     /* stopCap (off by default): a lower cap on stand-ins, so big maps draw more long links straight through (faster; a different picture).
        It only applies to maps with at least stopCapFrom items (default 1,000), so small maps keep every stand-in. */
     var capOn = typeof opts.stopCap === 'number' && opts.stopCap >= 0 && L.nodes.length >= (typeof opts.stopCapFrom === 'number' ? opts.stopCapFrom : 1000);
@@ -268,29 +268,35 @@
     if (dummyWant > cap) {
       var left = cap;
       longLinks.sort(function (p, q) { return L.edges[usable[q]].flow - L.edges[usable[p]].flow || p - q; }).forEach(function (q) {
-        var e = L.edges[usable[q]], need = byId[e.to].layer - byId[e.from].layer - 1;
+        var e = L.edges[usable[q]], need = LayN[byId[e.to].ix] - LayN[byId[e.from].ix] - 1;
         if (need <= left) left -= need; else { noDummy.add(q); simplified++; }
       });
     }
-    var segU = [], segV = [], segW = [], segEi = [];   // one segment per band piece between two neighboring layers: from bar, to bar, flow, which link
-    var link = function (u, v, w, ei) { segU.push(u.ix); segV.push(v.ix); segW.push(w); segEi.push(ei); };
+    var nD = 0, nSeg = 0;   // count the stand-ins and band pieces first, so every array is made once at its size
+    usable.forEach(function (ei, q) { var e = L.edges[ei], a = LayN[byId[e.from].ix], b = LayN[byId[e.to].ix]; if (!lay.feedback.has(q) && b > a) { if (!noDummy.has(q)) { nD += b - a - 1; nSeg += b - a; } else nSeg++; } });
+    var nV = nN + nD, vi, qi, nUp = nSeg, nDn = nSeg;
+    var bLay = new Int32Array(nV), bSize = new Float64Array(nV), bKey = new Float64Array(nV), Hh = new Float64Array(nV), Y = new Float64Array(nV), bPos = new Int32Array(nV),
+      bX = new Float64Array(nV), bW = new Float64Array(nV), bLOT = new Float64Array(nV), bLIT = new Float64Array(nV), Dm = new Uint8Array(nV), bPin = new Uint8Array(nV),
+      dA = new Int32Array(nV), dB = new Int32Array(nV);   // dA, dB: the items a stand-in's link leaves and enters
+    for (vi = 0; vi < nN; vi++) { bLay[vi] = LayN[vi]; bKey[vi] = rankKey[L.nodes[vi].id]; }
+    var segU = new Int32Array(nSeg), segV = new Int32Array(nSeg), segW = new Float64Array(nSeg), segEi = new Int32Array(nSeg), ns = 0, nv = nN;   // one segment per band piece between two neighboring layers: from bar, to bar, flow, which link
+    var link = function (u, v, w, ei) { segU[ns] = u; segV[ns] = v; segW[ns] = w; segEi[ns] = ei; ns++; };
     usable.forEach(function (ei, q) {
-      var e = L.edges[ei], a = byId[e.from], b = byId[e.to];
-      if (!lay.feedback.has(q) && b.layer > a.layer) {
+      var e = L.edges[ei], A = byId[e.from], B = byId[e.to], a = A.ix, b = B.ix;
+      if (!lay.feedback.has(q) && bLay[b] > bLay[a]) {
         var prev = a;
-        for (k = a.layer + 1; k < b.layer && !noDummy.has(q); k++) {
-          var d = { id: null, ukey: null, node: null, edge: ei, pa: a, pb: b, layer: k, size: e.flow, key: (a.key + b.key) / 2, h: 0, y: 0, pos: 0, dummy: true, inAll: 0, outAll: 0, w: 0, x: 0, ix: V.length, pinned: false, loopOutTop: 0, loopInTop: 0 };
-          V.push(d); link(prev, d, e.flow, ei); prev = d;
+        for (k = bLay[a] + 1; k < bLay[b] && !noDummy.has(q); k++) {
+          var d = nv++; dA[d] = a; dB[d] = b; bLay[d] = k; bSize[d] = e.flow; bKey[d] = (bKey[a] + bKey[b]) / 2; Dm[d] = 1;
+          link(prev, d, e.flow, ei); prev = d;
         }
-        link(prev, b, e.flow, ei); a.outAll += e.flow; b.inAll += e.flow; fwd.push(ei);
-      } else { loops.push(ei); a.outAll += e.flow; b.inAll += e.flow; }
+        link(prev, b, e.flow, ei); A.outAll += e.flow; B.inAll += e.flow; fwd.push(ei);
+      } else { loops.push(ei); A.outAll += e.flow; B.inAll += e.flow; }
     });
-    V.forEach(function (v) { if (!v.dummy) v.size = Math.max(v.inAll, v.outAll, EPS); });
+    for (vi = 0; vi < nN; vi++) bSize[vi] = Math.max(Rb[vi].inAll, Rb[vi].outAll, EPS);
     /* ---- order inside each layer: weighted barycenter sweeps and weighted neighbor swaps, best of a few restarts ---- */
-    var nV = V.length, vi, qi, nSeg = segU.length, nUp = nSeg, nDn = nSeg;
-    var upS = new Int32Array(nV + 1), dnS = new Int32Array(nV + 1), upSeg = new Int32Array(nSeg), dnSeg = new Int32Array(nSeg), upI = new Int32Array(nSeg), upW = new Float64Array(nSeg), dnI = new Int32Array(nSeg), dnW = new Float64Array(nSeg), layerOf = new Int32Array(nV), cu, cd;
+    var upS = new Int32Array(nV + 1), dnS = new Int32Array(nV + 1), upSeg = new Int32Array(nSeg), dnSeg = new Int32Array(nSeg), upI = new Int32Array(nSeg), upW = new Float64Array(nSeg), dnI = new Int32Array(nSeg), dnW = new Float64Array(nSeg), layerOf = bLay, cu, cd;
     for (qi = 0; qi < nSeg; qi++) { dnS[segU[qi] + 1]++; upS[segV[qi] + 1]++; }
-    for (vi = 0; vi < nV; vi++) { dnS[vi + 1] += dnS[vi]; upS[vi + 1] += upS[vi]; layerOf[vi] = V[vi].layer; }
+    for (vi = 0; vi < nV; vi++) { dnS[vi + 1] += dnS[vi]; upS[vi + 1] += upS[vi]; }
     var curU = dnS.slice(0, nV), curD = upS.slice(0, nV);   // fill each bar's links in the order they were made
     for (qi = 0; qi < nSeg; qi++) {
       cd = curU[segU[qi]]++; dnSeg[cd] = qi; dnI[cd] = segV[qi]; dnW[cd] = segW[qi];
@@ -316,16 +322,16 @@
     var syncPos = function () { for (var q = 0; q < nL; q++) { var list = ord[q]; lenOf[q] = list.length || 1; for (var j = 0; j < list.length; j++) pos[list[j]] = j; } };
     for (k = 0; k < nL; k++) ord.push(wk ? wk.ord.subarray(wk.start[k], wk.start[k + 1]) : new Int32Array(lc[k]));
     lc.fill(0);
-    for (vi = 0; vi < nV; vi++) { k = layerOf[vi]; ord[k][lc[k]++] = vi; key2[vi] = V[vi].key; }
+    for (vi = 0; vi < nV; vi++) { k = layerOf[vi]; ord[k][lc[k]++] = vi; key2[vi] = bKey[vi]; }
     for (k = 0; k < nL; k++) sortSlots(ord[k], ord[k].length, tmp, key2, pos, false);   // first order: by the ranking the layering gave
     syncPos();
-    var idOf = function (v) { return v.dummy ? '~' + nk(v.pa.node) + '>' + nk(v.pb.node) + ':' + v.layer : v.ukey; };
+    var idOf = function (v) { return Dm[v] ? '~' + nk(L.nodes[dA[v]]) + '>' + nk(L.nodes[dB[v]]) + ':' + bLay[v] : Rb[v].ukey; };   // v: a slot
     var keepOrder = false;
     if (foLayer) {
       var where = {}; fo.layers.forEach(function (list, li) { list.forEach(function (id, j) { where[li + '|' + id] = j; }); });
-      keepOrder = V.every(function (v) { return where[v.layer + '|' + idOf(v)] !== undefined; });
+      keepOrder = true; for (vi = 0; vi < nV && keepOrder; vi++) if (where[bLay[vi] + '|' + idOf(vi)] === undefined) keepOrder = false;
       if (keepOrder) {
-        for (vi = 0; vi < nV; vi++) key2[vi] = where[V[vi].layer + '|' + idOf(V[vi])];
+        for (vi = 0; vi < nV; vi++) key2[vi] = where[bLay[vi] + '|' + idOf(vi)];
         for (k = 0; k < nL; k++) sortSlots(ord[k], ord[k].length, tmp, key2, pos, false);
         syncPos();
       }
@@ -397,21 +403,21 @@
       return false;
     };
     var run = function (rounds) {
-      if (wk) return wk.run(rounds, V.length <= 800 ? 1 : 0);
+      if (wk) return wk.run(rounds, nV <= 800 ? 1 : 0);
       var best = snap(), bestC = total(), cur;
       lver.fill(0); sig.fill(-2);   // the caller may have reordered: nothing is known to be settled
       seenCheck(rounds);
       for (var r = 0; r < rounds && bestC > 0; r++) {
         for (var q = 1; q < nL; q++) sweep(q, true);
         for (var q2 = nL - 2; q2 >= 0; q2--) sweep(q2, false);
-        if (V.length <= 800) for (var q3 = 0; q3 < nL; q3++) swapPass(q3);
+        if (nV <= 800) for (var q3 = 0; q3 < nL; q3++) swapPass(q3);
         cur = total(); if (cur < bestC - 1e-12) { bestC = cur; best = snap(); }
         if (seenCheck(rounds - r - 1)) break;
       }
       restore(best); return bestC;
     };
-    var bestC = keepOrder ? total() : run(V.length > 1500 ? 2 : 8), bestSnap = snap();
-    var restarts = keepOrder || opts.unweighted ? 0 : opts.restarts === undefined ? (V.length <= 300 ? 8 : V.length <= 800 ? 3 : 0) : opts.restarts, rnd = rng(opts.seed || 7), budget = opts.budgetMs || 400;
+    var bestC = keepOrder ? total() : run(nV > 1500 ? 2 : 8), bestSnap = snap();
+    var restarts = keepOrder || opts.unweighted ? 0 : opts.restarts === undefined ? (nV <= 300 ? 8 : nV <= 800 ? 3 : 0) : opts.restarts, rnd = rng(opts.seed || 7), budget = opts.budgetMs || 400;
     for (i = 0; i < restarts && bestC > 0 && Date.now() - t0 < budget; i++) {
       restore(bestSnap);
       for (k = 0; k < nL; k++) {
@@ -422,24 +428,20 @@
       syncPos(); var c2 = run(6); if (c2 < bestC - 1e-12) { bestC = c2; bestSnap = snap(); }
     }
     restore(bestSnap); var crossingWeight = bestC;
-    for (k = 0; k < nL; k++) { var fin = ord[k], outList = new Array(fin.length); for (qi = 0; qi < fin.length; qi++) { outList[qi] = V[fin[qi]]; V[fin[qi]].pos = qi; } layers[k] = outList; }
+    for (k = 0; k < nL; k++) { var fin = ord[k], outList = new Array(fin.length); for (qi = 0; qi < fin.length; qi++) { outList[qi] = fin[qi]; bPos[fin[qi]] = qi; } layers[k] = outList; }
     /* ---- one scale for everything, bar heights from flow, then vertical positions by relaxation ---- */
     var Hs = opts.height || Math.max(340, Math.min(760, 24 * layers.reduce(function (m, l) { return Math.max(m, l.length); }, 1))), ky = Infinity;
     layers.forEach(function (list) {
-      var tot = 0, gaps = 0; list.forEach(function (v, j) { tot += v.size; if (j) gaps += v.dummy || list[j - 1].dummy ? padD : pad; });
+      var tot = 0, gaps = 0; list.forEach(function (v, j) { tot += bSize[v]; if (j) gaps += Dm[v] || Dm[list[j - 1]] ? padD : pad; });
       if (tot > 0) ky = Math.min(ky, Math.max(0.0001, Hs - gaps) / tot);
     });
     if (!isFinite(ky)) ky = 1;
     var minBar = 5;
-    V.forEach(function (v) { v.h = v.dummy ? Math.max(v.size * ky, 0.8) : Math.max(v.size * ky, minBar); });
-    var gapBetween = function (a, b) { return a.dummy || b.dummy ? padD : pad; };
-    var pack = function (list) { var y = 0; list.forEach(function (v, j) { if (j) y += gapBetween(list[j - 1], v); v.y = y + v.h / 2; y += v.h; }); return y; };
-    layers.forEach(function (list) { var h = pack(list); var shift = (Hs - h) / 2; list.forEach(function (v) { v.y += shift; }); });
-    /* The relaxation below reads the same few numbers thousands of times, so they are copied into flat arrays for its duration (one slot per
-       bar, the links of the order search are reused) and written back after. The arithmetic and its order are unchanged. */
-    var Y = new Float64Array(nV), Hh = new Float64Array(nV), Dm = new Uint8Array(nV);
-    for (vi = 0; vi < nV; vi++) { Y[vi] = V[vi].y; Hh[vi] = V[vi].h; Dm[vi] = V[vi].dummy ? 1 : 0; }
-    var layerIx = layers.map(function (list) { var r = new Int32Array(list.length); list.forEach(function (v, j) { r[j] = v.ix; }); return r; });
+    for (vi = 0; vi < nV; vi++) Hh[vi] = Dm[vi] ? Math.max(bSize[vi] * ky, 0.8) : Math.max(bSize[vi] * ky, minBar);
+    var gapBetween = function (a, b) { return Dm[a] || Dm[b] ? padD : pad; };
+    var pack = function (list) { var y = 0; list.forEach(function (v, j) { if (j) y += gapBetween(list[j - 1], v); Y[v] = y + Hh[v] / 2; y += Hh[v]; }); return y; };
+    layers.forEach(function (list) { var h = pack(list); var shift = (Hs - h) / 2; list.forEach(function (v) { Y[v] += shift; }); });
+    var layerIx = layers.map(function (list) { return Int32Array.from(list); });
     var settle = function (list) {   // keep the order, enforce gaps, then pull back inside the top
       var j, n = list.length, p, c;
       for (j = 1; j < n; j++) { p = list[j - 1]; c = list[j]; var lim = Y[p] + Hh[p] / 2 + (Dm[p] || Dm[c] ? padD : pad) + Hh[c] / 2; if (Y[c] < lim) Y[c] = lim; }
@@ -463,27 +465,26 @@
         for (k = nL - 2; k >= 0; k--) pull(layerIx[k], it % 3 === 2 ? 2 : 1, a);
       }
     }
-    for (vi = 0; vi < nV; vi++) V[vi].y = Y[vi];
-    var top = Infinity, bottom = -Infinity; V.forEach(function (v) { top = Math.min(top, v.y - v.h / 2); bottom = Math.max(bottom, v.y + v.h / 2); });
-    var off = 30 - top; V.forEach(function (v) { v.y += off; }); bottom += off;
+    var top = Infinity, bottom = -Infinity; for (vi = 0; vi < nV; vi++) { top = Math.min(top, Y[vi] - Hh[vi] / 2); bottom = Math.max(bottom, Y[vi] + Hh[vi] / 2); }
+    var off = 30 - top; for (vi = 0; vi < nV; vi++) Y[vi] += off; bottom += off;
     /* ---- bars the person placed by hand: put them exactly there, keep the order by height, nudge only the others out of the way ---- */
     var fixY = opts.fixY || {}, anyPin = false;
-    V.forEach(function (v) { v.pinned = false; if (!v.dummy && typeof fixY[v.ukey] === 'number' && isFinite(fixY[v.ukey])) { v.y = Math.max(0, fixY[v.ukey]) + v.h / 2; v.pinned = true; anyPin = true; } });
+    for (vi = 0; vi < nN; vi++) { var ub = Rb[vi].ukey; if (typeof fixY[ub] === 'number' && isFinite(fixY[ub])) { Y[vi] = Math.max(0, fixY[ub]) + Hh[vi] / 2; bPin[vi] = 1; Rb[vi].pinned = true; anyPin = true; } }
     if (anyPin) {
       layers.forEach(function (list) {
-        list.sort(function (a, b) { return a.y - b.y || a.pos - b.pos; });
+        list.sort(function (a, b) { return Y[a] - Y[b] || bPos[a] - bPos[b]; });
         for (var pass = 0; pass < 2; pass++) {
-          for (var j = list.length - 2; j >= 0; j--) { var lim = list[j + 1].y - list[j + 1].h / 2 - gapBetween(list[j], list[j + 1]) - list[j].h / 2; if (!list[j].pinned && list[j].y > lim) list[j].y = lim; }
-          for (j = 0; j < list.length; j++) { if (!list[j].pinned && list[j].y < list[j].h / 2) list[j].y = list[j].h / 2; if (j) { var lo = list[j - 1].y + list[j - 1].h / 2 + gapBetween(list[j - 1], list[j]) + list[j].h / 2; if (!list[j].pinned && list[j].y < lo) list[j].y = lo; } }
+          for (var j = list.length - 2; j >= 0; j--) { var p1 = list[j + 1], p0 = list[j], lim = Y[p1] - Hh[p1] / 2 - gapBetween(p0, p1) - Hh[p0] / 2; if (!bPin[p0] && Y[p0] > lim) Y[p0] = lim; }
+          for (j = 0; j < list.length; j++) { var c = list[j]; if (!bPin[c] && Y[c] < Hh[c] / 2) Y[c] = Hh[c] / 2; if (j) { var pv = list[j - 1], lo = Y[pv] + Hh[pv] / 2 + gapBetween(pv, c) + Hh[c] / 2; if (!bPin[c] && Y[c] < lo) Y[c] = lo; } }
         }
-        list.forEach(function (v, j) { v.pos = j; });
+        list.forEach(function (v, j) { bPos[v] = j; });
       });
-      bottom = -Infinity; V.forEach(function (v) { bottom = Math.max(bottom, v.y + v.h / 2); });
+      bottom = -Infinity; for (vi = 0; vi < nV; vi++) bottom = Math.max(bottom, Y[vi] + Hh[vi] / 2);
     }
     /* ---- columns ---- */
     if (opts.autoGap && !opts.gapLayer) gapLayer = Math.max(90, Math.min(220, (1100 - nL * nodeW) / Math.max(1, nL - 1)));
     var colX = []; for (k = 0; k < nL; k++) colX.push(30 + k * (nodeW + gapLayer));
-    V.forEach(function (v) { v.w = v.dummy ? 0 : nodeW; v.x = v.dummy ? colX[v.layer] + nodeW / 2 : colX[v.layer]; });
+    for (vi = 0; vi < nV; vi++) { bW[vi] = Dm[vi] ? 0 : nodeW; bX[vi] = Dm[vi] ? colX[bLay[vi]] + nodeW / 2 : colX[bLay[vi]]; }
     /* ---- link ends: stack in the order of where they go ---- */
     var thick = function (f) { return Math.max(f * ky, 0.8); };
     var loopOutSum = new Map(), loopInSum = new Map();   // per item id: thickness of the loops leaving / entering it, added up in loop order
@@ -494,8 +495,7 @@
     var segYo = new Float64Array(nSeg), segYi = new Float64Array(nSeg);   // where each piece starts on the bar it leaves / the bar it enters
     /* each bar's pieces, ordered by where the other end sits (then by link number): the same order Array sort gave, by insertion into one kept list
        (most bars have a few pieces; a bar with many uses the built-in sort) */
-    var yAt = new Float64Array(nV); for (vi = 0; vi < nV; vi++) yAt[vi] = V[vi].y;
-    var segEiA = Int32Array.from(segEi), segUA = Int32Array.from(segU), segVA = Int32Array.from(segV), segWA = Float64Array.from(segW);
+    var yAt = Y, segEiA = segEi, segUA = segU, segVA = segV, segWA = segW;
     var stk = new Int32Array(64), big = [];
     var stackOrder = function (S, SEG, v, END) {   // fills stk (or big) and returns the count; END: the bar at the other end of a piece
       var a = S[v], z = S[v + 1], n = z - a, e, j, x, yx, ex, y;
@@ -518,36 +518,35 @@
     };
     var sumThick = function (n) { var q, list = n < 0 ? big : stk, m = n < 0 ? -n : n, t = 0; for (q = 0; q < m; q++) t += thick(segWA[list[q]]); return t; };
     for (vi = 0; vi < nV; vi++) {
-      var v = V[vi], lo = v.dummy ? 0 : loopOutSum.get(v.id) || 0, li = v.dummy ? 0 : loopInSum.get(v.id) || 0, cnt;
+      var lo = Dm[vi] ? 0 : loopOutSum.get(Rb[vi].id) || 0, li = Dm[vi] ? 0 : loopInSum.get(Rb[vi].id) || 0, cnt;
       cnt = stackOrder(dnS, dnSeg, vi, segVA); var so = sumThick(cnt);
-      var yo = v.y - v.h / 2 + Math.max(0, (v.h - so - lo) / 2); yo = place(cnt, yo, segYo);
+      var yo = Y[vi] - Hh[vi] / 2 + Math.max(0, (Hh[vi] - so - lo) / 2); yo = place(cnt, yo, segYo);
       cnt = stackOrder(upS, upSeg, vi, segUA); var si = sumThick(cnt);
-      var yi = v.y - v.h / 2 + Math.max(0, (v.h - si - li) / 2); yi = place(cnt, yi, segYi);
-      v.loopOutTop = yo; v.loopInTop = yi;
+      var yi = Y[vi] - Hh[vi] / 2 + Math.max(0, (Hh[vi] - si - li) / 2); yi = place(cnt, yi, segYi);
+      bLOT[vi] = yo; bLIT[vi] = yi;
     }
     var bands = [];
     for (vi = 0; vi < nV; vi++) {
-      var u = V[vi];
       for (qi = dnS[vi]; qi < dnS[vi + 1]; qi++) {
-        var sg = dnSeg[qi], v = V[segV[sg]], t = thick(segW[sg]), e = L.edges[segEi[sg]];
-        var x0 = u.x + u.w, x1 = v.x - (v.dummy ? 0 : 0), y0 = segYo[sg], y1 = segYi[sg];
+        var sg = dnSeg[qi], t = thick(segW[sg]), e = L.edges[segEi[sg]];
+        var x0 = bX[vi] + bW[vi], x1 = bX[segV[sg]], y0 = segYo[sg], y1 = segYi[sg];
         bands.push({ edge: segEi[sg], from: e.from, to: e.to, x0: x0, y0a: y0, y0b: y0 + t, x1: x1, y1a: y1, y1b: y1 + t, xm: (x0 + x1) / 2 });
       }
     }
     /* ---- loops: bands that leave the right side, circle under the picture and come back in on the left ---- */
     var order = loops.slice().sort(function (p, q) {
-      var a = L.edges[p], b = L.edges[q], sa = Math.abs(byId[a.to].layer - byId[a.from].layer), sb = Math.abs(byId[b.to].layer - byId[b.from].layer);
+      var a = L.edges[p], b = L.edges[q], sa = Math.abs(bLay[byId[a.to].ix] - bLay[byId[a.from].ix]), sb = Math.abs(bLay[byId[b.to].ix] - bLay[byId[b.from].ix]);
       return sa - sb || p - q;
     }), yLane = bottom + 22, loopOut = [];
     order.forEach(function (ei, lane) {
-      var e = L.edges[ei], u = byId[e.from], v = byId[e.to], t = thick(e.flow), g = 16 + Math.min(40, lane * 4);
-      var ys = u.loopOutTop + t / 2; u.loopOutTop += t; var ye = v.loopInTop + t / 2; v.loopInTop += t;
-      var xs = u.x + u.w, xe = v.x, yl = yLane + t / 2; yLane += t + 7;
+      var e = L.edges[ei], u = byId[e.from].ix, v = byId[e.to].ix, t = thick(e.flow), g = 16 + Math.min(40, lane * 4);
+      var ys = bLOT[u] + t / 2; bLOT[u] += t; var ye = bLIT[v] + t / 2; bLIT[v] += t;
+      var xs = bX[u] + bW[u], xe = bX[v], yl = yLane + t / 2; yLane += t + 7;
       var P = [[xs, ys], [xs + g, ys], [xs + g, yl], [xe - g, yl], [xe - g, ye], [xe, ye]];
       loopOut.push({ edge: ei, from: e.from, to: e.to, w: t, d: roundPath(P, Math.min(12, 3 + t)), pts: P, P: toBezier(P, Math.min(12, 3 + t)) });
     });
-    var height = V.length ? Math.max(bottom, yLane) + 30 : 0, width = colX[nL - 1] + nodeW + 30;
-    var nodes = V.filter(function (v) { return !v.dummy; }).map(function (v) { return { id: v.id, label: v.node.label || v.id, x: v.x, y: v.y - v.h / 2, w: v.w, h: v.h, layer: v.layer, flow: v.size, inFlow: v.inAll, outFlow: v.outAll, pinned: !!v.pinned }; });
+    var height = nV ? Math.max(bottom, yLane) + 30 : 0, width = colX[nL - 1] + nodeW + 30;
+    var nodes = Rb.map(function (v, q) { return { id: v.id, label: v.node.label || v.id, x: bX[q], y: Y[q] - Hh[q] / 2, w: bW[q], h: Hh[q], layer: bLay[q], flow: bSize[q], inFlow: v.inAll, outFlow: v.outAll, pinned: !!v.pinned }; });
     var orderOut = { layers: layers.map(function (list) { return list.map(idOf); }), loops: loops.map(function (ei) { var e1 = L.edges[ei]; return nk(L.pos[e1.from]) + '>' + nk(L.pos[e1.to]); }) };
     return { nodes: nodes, bands: bands, loops: loopOut, width: width, height: height, simplified: simplified, note: simplified ? simplified + ' very long links are drawn as one straight-through band each, because routing all of them would make the picture too slow. The rest are laid out as usual.' : '', ky: ky, crossingWeight: crossingWeight, order: orderOut, cols: nL, ms: Date.now() - t0 };
   }
