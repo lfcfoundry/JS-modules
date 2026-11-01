@@ -3,6 +3,21 @@
    Numbers that JavaScript would print differently (String(Number(v)) != v) and dates that are not whole days are left to JavaScript as "fixups". */
 typedef unsigned char u8;
 typedef unsigned int u32;
+#ifdef XL_SIMD
+#include <wasm_simd128.h>   /* xlsx-simd.wasm: 16 bytes at a time where text runs are long (shared strings, the UTF-8 check); the sheet loop stays plain (short runs: SIMD cost more than it saved there) */
+static inline u32 toLtAmp(const u8 *x, u32 n, u32 p, u32 *amp) {   /* first '<' at or after p (n if none); *amp = 1 when an '&' comes before it */
+  const v128_t lt = wasm_i8x16_splat('<'), am = wasm_i8x16_splat('&');
+  while (p + 16 <= n) {
+    v128_t v = wasm_v128_load(x + p);
+    u32 ml = wasm_i8x16_bitmask(wasm_i8x16_eq(v, lt)), ma = wasm_i8x16_bitmask(wasm_i8x16_eq(v, am));
+    if (ml) { u32 b = __builtin_ctz(ml); if (ma & ((1u << b) - 1)) *amp = 1; return p + b; }
+    if (ma) *amp = 1;
+    p += 16;
+  }
+  while (p < n && x[p] != '<') { if (x[p] == '&') *amp = 1; p++; }
+  return p;
+}
+#endif
 
 extern u8 __heap_base;
 void *memset(void *d, int c, unsigned long n) __attribute__((optnone));
@@ -95,7 +110,11 @@ int sst(const u8 *x, u32 n, u32 *tab, u32 cap) {
     }
     else return -1;
     u32 st = pos, amp = 0;
+#ifdef XL_SIMD
+    pos = toLtAmp(x, n, pos, &amp);
+#else
     while (pos < n && x[pos] != '<') { if (x[pos] == '&') amp = 1; pos++; }
+#endif
     if (n - pos < 9 || x[pos+1]!='/' || x[pos+2]!='t' || x[pos+3]!='>' || x[pos+4]!='<' || x[pos+5]!='/' || x[pos+6]!='s' || x[pos+7]!='i' || x[pos+8]!='>') return -1;
     if (cnt >= cap || cnt >= 5000000) return -1;
     tab[cnt * 2] = st; tab[cnt * 2 + 1] = (pos - st) | (amp ? 0x80000000u : 0); cnt++;
@@ -109,6 +128,9 @@ void nosst(void) { tn = 0; }
 int utf8ok(const u8 *p, u32 n) {
   u32 i = 0;
   while (i < n) {
+#ifdef XL_SIMD
+    if (i + 16 <= n && !wasm_i8x16_bitmask(wasm_v128_load(p + i))) { i += 16; continue; }
+#endif
     if (i + 8 <= n && !((*(const unsigned long long *)(p + i)) & 0x8080808080808080ULL)) { i += 8; continue; }
     u8 c = p[i];
     if (c < 0x80) { i++; continue; }

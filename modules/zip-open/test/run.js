@@ -443,8 +443,9 @@ t('xlsx CSV quoting: every short text from a tricky alphabet is quoted exactly a
   var used = {}, p2 = Object.assign({}, parts, { 'xl/worksheets/sheet1.xml': '<worksheet><sheetData>' + rows2 + '</sheetData></worksheet>' });
   assert.equal(U._xlsxSheets(viaBytes(p2), { _used: used })[0].csv, all.map(function (v) { var q = ref(v); return q + ',' + q; }).join('\n')); assert.equal(used.wasm, 1);
 });
-t('xlsx WebAssembly reader on raw bytes gives what the JavaScript reader gives on the decoded text, on 8,000 random sheets with broken bytes, cut tags, entities and odd numbers', function () {
-  var L = U, N = 8000, enc = new TextEncoder(), seed = 41, R = function (n) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return Math.floor(seed / 4294967296 * n); }, pick = function (a) { return a[R(a.length)]; };
+[false, true].forEach(function (plain) { t('xlsx WebAssembly reader (' + (plain ? 'plain build, no SIMD' : 'SIMD build') + ') on raw bytes gives what the JavaScript reader gives on the decoded text, on ' + (plain ? '4,000' : '8,000') + ' random sheets with broken bytes, cut tags, entities and odd numbers', function () {
+  U._xlsxPlain(plain); if (!plain) assert.ok(U._xlsxSimd(), 'the SIMD build loads in Node');
+  var L = U, N = plain ? 4000 : 8000, enc = new TextEncoder(), seed = 41, R = function (n) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return Math.floor(seed / 4294967296 * n); }, pick = function (a) { return a[R(a.length)]; };
   var used = {}, wasmUsed = 0;
   var decodeText = u8=>{if(u8.length>=2&&((u8[0]===0xff&&u8[1]===0xfe)||(u8[0]===0xfe&&u8[1]===0xff)))return new TextDecoder(u8[0]===0xff?'utf-16le':'utf-16be').decode(u8.subarray(2));for(let i=0;i<Math.min(u8.length,8192);i++)if(u8[i]===0)return '';try{return new TextDecoder('utf-8',{fatal:true}).decode(u8)}catch(e){return new TextDecoder('windows-1252').decode(u8)}};
 const texts=['a','a,b','q"q',' pad','pad ',' x','x　','été','中文','&amp;','&lt;b&gt;','&#233;','&#x1F600;','&#0;','&#xD800;','&QUOT;','& co','line\nbreak','cr\rx','﻿bom','\t','1,5','',' ','x y','😀'];
@@ -479,8 +480,9 @@ for(var k=0;k<N;k++){
   try{b=L._xlsxSheets(pt,{_js:true,maxRows:mr});}catch(e){eb=e.message}
   assert.deepStrictEqual([a,ea],[b,eb],JSON.stringify(decodeText(sb))+' / '+JSON.stringify(decodeText(tb)));
 }
-assert.ok(used.wasm > 2000, 'wasm reader used on ' + used.wasm + ' sheets');
-});
+assert.ok(used.wasm > (plain ? 1000 : 2000), 'wasm reader used on ' + used.wasm + ' sheets');
+U._xlsxPlain(false);
+}); });
 
 t('streaming: helpers (workers) really ran, and many text files come out in order with limits applied the same way', async function () {
   var files = []; for (var i = 0; i < 40; i++) files.push({ name: 'd/f' + String(i).padStart(2, '0') + '.csv', data: 'a,b\n' + (i + ',x\n').repeat(2000 + i * 37) });
@@ -516,5 +518,15 @@ t('Excel with helpers: the workbook is read inside a helper (page stays free), s
     assert.deepStrictEqual(lim, limW, 'limits apply the same inside a helper (' + m + ')');
   }
   U.closeHelpers();
+});
+t('xlsx: a browser without wasm SIMD gets the plain reader, with the same tables', async function () {
+  var x = Z.makeXlsx([{ name: 'S', rows: [['a', 'b'], ['x, y', 1.5], [{ d: 44000 }, { b: true }]] }]), want = await U.expand(u8(x), 'b.xlsx');
+  var M = WebAssembly.Module, calls = 0;
+  WebAssembly.Module = function (b) { calls++; if (calls === 1) throw new Error('no SIMD'); return new M(b); };
+  try { U._xlsxPlain(false); assert.equal(U._xlsxSimd(), false); var used = {}; var parts = { 'xl/workbook.xml': '<workbook xmlns:r="r"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>', 'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/worksheets/sheet1.xml': new TextEncoder().encode('<worksheet><sheetData><row><c r="A1"><v>1</v></c></row></sheetData></worksheet>') };
+    assert.equal(U._xlsxSheets(parts, { _used: used })[0].csv, '1'); assert.equal(used.wasm, 1, 'plain wasm reader ran');
+    assert.deepStrictEqual(await U.expand(u8(x), 'b.xlsx'), want);
+  } finally { WebAssembly.Module = M; U._xlsxPlain(false); }
+  assert.equal(U._xlsxSimd(), true);
 });
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });

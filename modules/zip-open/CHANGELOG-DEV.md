@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.12.0 · API 1 · 2026-10-31
+
+### Quick
+WebAssembly SIMD build of the Excel reader (wasm/xlsx-simd.wasm, built from xlsx.c with -msimd128 -DXL_SIMD), with the plain build kept as the fallback (chosen once: if the SIMD module does not compile, the plain one is used).
+
+### Deep
+WebAssembly SIMD build of the Excel reader (wasm/xlsx-simd.wasm, built from xlsx.c with -msimd128 -DXL_SIMD), with the plain build kept as the fallback (chosen once: if the SIMD module does not compile, the plain one is used). SIMD only where text runs are long: the shared-strings scan (16 bytes at a time for '<' and '&') and the UTF-8 check (16-byte ASCII step). The sheet loop stays plain: a first version that also scanned the sheet 16 bytes at a time was 15% slower in WebKitGTK on the formulas sheet (short runs). Node: shared strings 6.65 -> 2.83 ms on 6.3 MB, UTF-8 check -25%. Early-stop A/B, forward and reversed (geometric mean), new / 1.11.0, big/small/formulas/text: with helpers Chromium 155 0.99/0.98/0.97/0.90, Firefox 158 1.00/0.84/1.06 (rechecked: 0.96 and 0.78, so ~0.87)/0.91, WebKitGTK 2.52.6 0.95/0.96/0.95/0.95; without helpers Chromium 0.97/0.96/0.96/0.96, Firefox 1.00/1.01/1.00/0.92, WebKitGTK 0.98/0.97/0.93/0.87. Tests: the 8,000-case byte fuzz runs on the SIMD build and 4,000 cases on the plain build; a stubbed no-SIMD engine gets the plain reader with the same tables; all 3 browsers load the SIMD build and give the same tables as 1.11.0. Size: +12.1 KB raw wasm. Also tried this round and dropped: a fresh wasm instance per workbook (5-20% slower), unpacking the biggest sheet straight into wasm memory (faster without helpers, slower with them; patch kept in research).
+
 ## 1.11.0 · API 1 · 2026-10-31
 
 ### Quick
