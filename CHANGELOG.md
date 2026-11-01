@@ -37,7 +37,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.3.3 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.3 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.6.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.7.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -79,6 +79,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option keeps a second copy of each save that survives a browser crash. In a real crash test, saves kept only in browser storage lost 29 to 30 of 80; with durable on, none were lost.
 - 2026-10-31 · **pcodec-js** 1.6.2 · API 1: Repeated big unpacks take 0.63 to 0.87 of the time (5 million numbers, three browsers): a ready array is prepared while the page is idle and dropped after 4 s unused.
 - 2026-10-31 · **netflow-sankey** 2.3.3 · API 2: Bars settle into place in WebAssembly too: the same pictures in 3 to 26% less time for big flow charts (3 to 14% in cloud browsers, 7 to 26% on a laptop).
+- 2026-10-31 · **netflow-layers** 1.7.0 · API 1: Fewer crossings by default: a lighter deep search and both row choices now run unless you set deep: false and rows: 'route' (the old picture). Beats dagre and ELK on random maps of 400 and 1,000 items; big maps take longer (about 31-40 ms and 77-83 ms instead of 4-7 and 11-39).
 - 2026-10-31 · **netflow-layers** 1.6.0 · API 1: New options, all off by default: deep: true untangles links further, rows: 'best' tries both row choices, orderRounds: 0 skips the order search. Deep with 'best' cuts crossings 17 to 37%, below dagre and ELK.
 - 2026-10-31 · **netflow-engine** 2.2.3 · API 2: Number labels are made in 95 to 98% less time (21 to 43 times as fast), with the same text.
 - 2026-10-31 · **memory-compression** 2.9.0 · API 2: New opt-in stream rows for unpackAsync: long lists arrive a page at a time and never hold every row. 300,000 rows: 0.60 of the time in laptop Chromium, 0.82 in Firefox, pauses 2 to 4x shorter.
