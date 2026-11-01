@@ -1,14 +1,14 @@
 # netflow-plot
 
-**Version 1.0.0 · API 1**
+**Version 2.0.0 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** 314 module checks; donut charts give the same SVG as 1.0.0.
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
 ## What it is and how it works
 
-Plain charts from a table's columns: 23 chart types, drawn as the same drawing lists a [netflow-scene](../netflow-scene/README.md) map picture uses (rects, dots, curves, polys, labels).
+Plain charts from a table's columns: 22 chart types, drawn as the same drawing lists a [netflow-scene](../netflow-scene/README.md) map picture uses (rects, dots, curves, polys, labels).
 
 - `make(rows, spec, options, NetflowScene)` reads the columns named in `spec` and returns a scene.
 - The scene is drawn by any netflow-scene renderer, or turned into SVG with `NetflowScene.toSvg`. Themes, palettes and export are the map's own.
@@ -42,7 +42,7 @@ var hit = NetflowPlot.markAt(S, x, y);   // { rows, t } or null
 - `NetflowPlot.NEEDS` lists which columns each type needs (a number, a category, text, or any).
 - Helpers: `ticks`, `timeTicks`, `kde`, `normInv`, `voronoiCells`, `quant`, `fmtNum`.
 
-**Chart types:** bar, line, area, scatter, connected, beeswarm, dotplot, hist, box, density, ridgeline, hexbin, heat, pie, donut, radialbar, parallel, splom, qq, slope, marimekko, voronoi, words. A date column gives a calendar heat map.
+**Chart types:** bar, line, area, scatter, connected, beeswarm, dotplot, hist, box, density, ridgeline, hexbin, heat, donut, radialbar, parallel, splom, qq, slope, marimekko, voronoi, words. A date column gives a calendar heat map.
 
 A chart colored by a column keeps a 44 px key row at the top, so its picture and SVG carry their own key.
 
@@ -64,7 +64,6 @@ Rows to an SVG on the page, each library drawing the same rows (cloud test machi
 | scatter | 16 / 14 / 16 | 11.6 / 12 / 18 | 35.2 / 39 / 65 | 47.7 / 48 / 47 |
 | hist | 1.2 / 1 / 2 | 2 / 3 / 3 | n/a | 6.9 / 12 / 12 |
 | box | 1.3 / 1 / 2 | 6.9 / 6 / 9 | n/a | 13.6 / 21 / 22 |
-| pie | 1 / 1 / 1 | n/a | 2.9 / 4 / 5 | 4.8 / 9 / 8 |
 | hexbin | 6.6 / 8 / 10 | 5.3 / 6 / 8 | n/a | n/a |
 | density | 5.4 / 5 / 9 | n/a | n/a | 21.2 / 29 / 24 |
 
@@ -77,12 +76,11 @@ Rows to an SVG on the page, each library drawing the same rows (cloud test machi
 | scatter | 129.4 / 206 / 179 | 84.7 / 126 / 165 | 40.2 / 108 / 72 | 295.1 / 298 / 402 |
 | hist | 2.2 / 3 / 4 | 7.2 / 7 / 12 | n/a | 13 / 19 / 28 |
 | box | 7.2 / 5 / 9 | 45.7 / 41 / 55 | n/a | 44 / 53 / 77 |
-| pie | 3.7 / 3 / 5 | n/a | 3.7 / 6 / 9 | 7.3 / 14 / 15 |
 | hexbin | 11.8 / 14 / 16 | 19.6 / 19 / 23 | n/a | n/a |
 | density | 12.5 / 10 / 20 | n/a | n/a | 138.2 / 221 / 104 |
 
-netflow-plot is the fastest of the four on bars, histograms, box plots, pies and density charts at both sizes (at 20,000 rows it ties Observable Plot on bars and ECharts on pies in Chromium). Lines take up to 1.2 times the fastest library's time. Hexbins are the fastest at 20,000 rows and take 1.25 to 1.33 times Observable Plot's time at 2,000. Scatters are slower: at 2,000 rows up to 1.4 times Observable Plot (faster in WebKitGTK), and at 20,000 rows 1.9 to 3.2 times ECharts. Most of that time is the page reading 20,000 dots of SVG text; building the chart itself takes about 6 ms.
+netflow-plot is the fastest of the four on bars, histograms, box plots and density charts at both sizes (at 20,000 rows it ties Observable Plot on bars in Chromium). Lines take up to 1.2 times the fastest library's time. Hexbins are the fastest at 20,000 rows and take 1.25 to 1.33 times Observable Plot's time at 2,000. Scatters are slower: at 2,000 rows up to 1.4 times Observable Plot (faster in WebKitGTK), and at 20,000 rows 1.9 to 3.2 times ECharts. Most of that time is the page reading 20,000 dots of SVG text; building the chart itself takes about 6 ms.
 
 ## For AI agents
 
-One file, global `NetflowPlot` (also `module.exports`). Load netflow-scene first and pass it as the fourth argument. Tests: `node modules/netflow-plot/test/run.js` (328 checks: every type at 0, 1, 7 and 2,000 rows and with missing columns draws finite shapes; pointer lookup; ticks, density and the normal quantile).
+One file, global `NetflowPlot` (also `module.exports`). Load netflow-scene first and pass it as the fourth argument. Tests: `node modules/netflow-plot/test/run.js` (314 checks: every type at 0, 1, 7 and 2,000 rows and with missing columns draws finite shapes; pointer lookup; ticks, density and the normal quantile).
