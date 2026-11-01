@@ -2,7 +2,7 @@
 
 **Version 1.1.0 · API 1**
 
-**Tested in:** Firefox 158.0 (reports 158.0b5), ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5 for the page checks in tests/pieces-browser.js, one at a time (2026-10-17); the 7 property probes and key-loop timings were measured by the Apple Press thread in Firefox 158.0, Chromium 155 and WebKitGTK 2.52.6; not run: GNOME Web for the timings, a phone
+**Tested in:** Firefox 158.0 (reports 158.0b5), ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 for the page checks in tests/pieces-browser.js, one at a time (2026-10-17); the 7 property probes and key-loop timings were measured by the Apple Press thread in Firefox 158.0, Chromium 155 and WebKitGTK 2.52.6; not run: a phone
 
 ## What it is and how it works
 

@@ -2,7 +2,7 @@
 
 **Version 1.1.1 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, one at a time (tests/pieces-browser.js: speed-lab's real timed steps and its report text pass in all four; GNOME Web failed once on the old frames-per-step minimum of 5 (one step counted 4 frames) and passed 3 of 3 reruns, one on unchanged main; Node: 12 speed-lab and 16 fx-governor checks)
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time (tests/pieces-browser.js: speed-lab's real timed steps and its report text pass in all three; Node: 12 speed-lab and 16 fx-governor checks)
 
 ## What it is and how it works
 

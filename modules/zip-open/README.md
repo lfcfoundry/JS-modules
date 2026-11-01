@@ -1,6 +1,6 @@
 # zip-open
 
-**Version 1.14.2 · API 1**
+**Version 1.14.3 · API 1**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -67,24 +67,24 @@ Entries that are 4 KB or less compressed are unpacked by a 9.5 KB WebAssembly in
 
 **What.** The checksum that proves every unpacked file is intact (CRC-32) also exists as a 1,476-byte WebAssembly function ("slicing by 16"), embedded in `zip-open.js`. `crc32` uses it for 1,024 bytes and more; shorter pieces use the plain JavaScript loop, which is as fast there. `ZipOpen.wasmAvailable()` says whether the browser allows it.
 
-**Why.** On a 20 MB buffer the checksum takes 16.5 to 12.9 ms in ungoogled-chromium 155.0.8059.39-1 (1.28x), 20 to 12 ms in Firefox 158.0 (1.67x), 15 to 9 ms in WebKitGTK 2.52.6 (1.67x) and 16 to 10 ms in GNOME Web 46.5 (1.60x); median of 3 passes of 7 rounds, lower is better. 4 KB pieces gain 1.35x, 1.54x, 1.55x and 1.42x. The answers are identical: 1,860 of 1,860 checksums in 12 of 12 runs, and the same on a page that forbids WebAssembly.
+**Why.** On a 20 MB buffer the checksum takes 16.5 to 12.9 ms in ungoogled-chromium 155.0.8059.39-1 (1.28x), 20 to 12 ms in Firefox 158.0 (1.67x) and 15 to 9 ms in WebKitGTK 2.52.6 (1.67x); median of 3 passes of 7 rounds, lower is better. 4 KB pieces gain 1.35x, 1.54x, 1.55x and 1.42x. The answers are identical: 1,860 of 1,860 checksums in 12 of 12 runs, and the same on a page that forbids WebAssembly.
 
 **Rules.**
 - Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it, or if anything goes wrong, the plain JavaScript loop gives the same answers.
 - `crc32(bytes, true)` always uses the plain loop.
 - Source `wasm/crc32.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
 
-**Honest limits.** Most zips and Excel files are small, so opening one gains little: the unpacking itself is the browser's own `DecompressionStream`. Pieces of 256 bytes tie (0.93 to 1.06x) and use the plain loop. The first checksum on a fresh page is about the same (2 to 3 ms for 1 MB; in the two WebKit browsers wasm is about 1 ms slower there, inside the timer's rounding). Costs bytes: +3,011 minified and +1,103 gzipped (16,088 to 18,955 and 7,056 to 8,159; smaller is better). Not run: a phone, Safari.
+**Honest limits.** Most zips and Excel files are small, so opening one gains little: the unpacking itself is the browser's own `DecompressionStream`. Pieces of 256 bytes tie (0.93 to 1.06x) and use the plain loop. The first checksum on a fresh page is about the same (2 to 3 ms for 1 MB; in WebKitGTK wasm is about 1 ms slower there, inside the timer's rounding). Costs bytes: +3,011 minified and +1,103 gzipped (16,088 to 18,955 and 7,056 to 8,159; smaller is better). Not run: a phone, Safari.
 
 ## Compile early (since 1.3.0)
 
 The checksum program starts compiling in the background when the file loads, so the first big checksum only starts it. `ZipOpen.wasmReady()` gives a promise of `true` or `false` and `ZipOpen.wasmModule()` the compiled module (or `null`). A checksum asked for before the compile is done compiles on the spot, as before; without WebAssembly the plain loop answers. The answers do not change.
 
-Honest numbers: load plus first use, ms, old / new (median of nine fresh pages, right after load; lower is better): Chromium 155 7.4 / 7.3, Firefox 158.0 18 / 20, WebKitGTK 2.52.6 4 / 4, GNOME Web 46.5 5 / 4. A wash, as expected for a 1,476-byte program.
+Honest numbers: load plus first use, ms, old / new (median of nine fresh pages, right after load; lower is better): Chromium 155 7.4 / 7.3, Firefox 158.0 18 / 20, WebKitGTK 2.52.6 4 / 4 5 / 4. A wash, as expected for a 1,476-byte program.
 
 ## Numbers (Node 22, measured 2026-10-17)
 
-> **Node numbers.** The speeds in this section were measured in Node, not in the four test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, GNOME Web 46.5), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Sizes and counts are exact; only the times depend on the browser. Re-measuring in the four browsers is not done (open item on `TASKS.md`).
+> **Node numbers.** The speeds in this section were measured in Node, not in the three test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Sizes and counts are exact; only the times depend on the browser. Re-measuring in the three browsers is not done (open item on `TASKS.md`).
 
 A zip of 1 GB of zeros (0.97 MB on disk) whose header says the file holds 1,000 bytes:
 
@@ -100,7 +100,7 @@ Smaller than fflate and, of the ones measured, the only one that stops a lying z
 
 | Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins or loses |
 |---|---|---|---|---|
-| zip-open 1.13.0 (MIT, this module) | 81,700 bytes minified, 32,381 gzipped (116,873 as written, with the Excel reader and helpers; terser 5.51.2; 1.2.0 was 18,955 and 8,159) | Checksum on big buffers 1.3 to 1.7 times faster again with WebAssembly (20 MB: 16.5 to 12.9 ms in Chromium 155, 20 to 12 in Firefox 158, 15 to 9 in WebKitGTK 2.52.6, 16 to 10 in GNOME Web 46.5; lower is better). In 1.1.0 the checksum check was 3.9 times faster than in 1.0.0: 0.74 ms per MB in Chromium 155, 0.85 in Firefox 158, 0.7 in WebKitGTK 2.52.6 and GNOME Web 46.5 (smaller is better). Laptop Firefox 160: 34 ms on 400 CSV files against 49 for fflate and 66 for JSZip | Reads zip and Excel .xlsx, limits counted on the bytes that really come out, plain-words notes | Wins on safety by default and Excel to CSV; loses on writing zips and on formats |
+| zip-open 1.13.0 (MIT, this module) | 81,700 bytes minified, 32,381 gzipped (116,873 as written, with the Excel reader and helpers; terser 5.51.2; 1.2.0 was 18,955 and 8,159) | Checksum on big buffers 1.3 to 1.7 times faster again with WebAssembly (20 MB: 16.5 to 12.9 ms in Chromium 155, 20 to 12 in Firefox 158 and 15 to 9 in WebKitGTK 2.52.6; lower is better). In 1.1.0 the checksum check was 3.9 times faster than in 1.0.0: 0.74 ms per MB in Chromium 155, 0.85 in Firefox 158, 0.7 in WebKitGTK 2.52.6 (smaller is better). Laptop Firefox 160: 34 ms on 400 CSV files against 49 for fflate and 66 for JSZip | Reads zip and Excel .xlsx, limits counted on the bytes that really come out, plain-words notes | Wins on safety by default and Excel to CSV; loses on writing zips and on formats |
 | [fflate](https://github.com/101arrowz/fflate) (MIT, 0.8.3) | 33 KB, 12.6 KB gzipped | Laptop Firefox 160: 49 ms against zip-open's 34 on 400 CSV files | Reads and writes zips and other formats; safety limits are left to you | On the 1 GB-of-zeros test it returned a 1,000-byte file with no error. Wins on features and on writing zips |
 | JSZip 3.10.2 (MIT or GPL-3.0-or-later) | 97,591 bytes minified, 28,036 gzipped (whole library, terser 5.51.2 `-c passes=2 -m`) | Laptop Firefox 160: 66 ms against zip-open's 34 on 400 CSV files | Reads and writes zips | Behavior on a lying zip: not measured |
 | zip.js | Not measured | Not measured | Reads and writes zips | Behavior on a lying zip: not measured |

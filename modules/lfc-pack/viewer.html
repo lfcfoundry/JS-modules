@@ -37,6 +37,29 @@ pre{background:var(--card);border-radius:8px;padding:.6rem;overflow:auto;max-hei
 .wrap{overflow:auto;max-height:26rem;border:1px solid var(--line);border-radius:8px}table{border-collapse:collapse;font:13px/1.4 ui-monospace,monospace;min-width:100%}
 th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;white-space:nowrap;max-width:24rem;overflow:hidden;text-overflow:ellipsis}th{position:sticky;top:0;background:var(--card)}
 #err{color:#b00020;font-weight:600}@media (prefers-color-scheme:dark){#err{color:#ff8a80}}</style></head><body>
+<!-- lfc-theme:start --><style>/* Copyright (c) 2026 LFC Foundry. MIT License. The shared look of the JS-modules pages (the landing's design), inlined into every demo page by tools/theme/apply-theme.py. */
+:root{--lfc-bg:#fff;--lfc-fg:#1b2433;--lfc-muted:#566277;--lfc-soft:#f1f4f9;--lfc-line:#dde3ee;--lfc-hero:#0f2a47;--lfc-hero-fg:#f3f7fc;--lfc-hero-muted:#a9bdd6;--lfc-accent:#1f7ae0;--lfc-accent-fg:#fff;--lfc-font:'Segoe UI',system-ui,sans-serif;--lfc-mono:ui-monospace,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--lfc-bg:#0b1522;--lfc-fg:#e4ebf5;--lfc-muted:#9db0c8;--lfc-soft:#13233a;--lfc-line:#25364f;--lfc-hero:#08111d;--lfc-accent:#4c9bf5}}
+.lfc-band{background:var(--lfc-hero);color:var(--lfc-hero-fg);font:15px/1.4 var(--lfc-font);margin:0 0 1rem;padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));box-sizing:border-box;max-width:none;width:100%}
+.lfc-band .lfc-in{max-width:1040px;margin:0 auto;display:flex;flex-wrap:wrap;gap:4px 18px;align-items:center}
+.lfc-band a{color:var(--lfc-hero-muted);text-decoration:none}.lfc-band a:hover{color:var(--lfc-hero-fg)}
+.lfc-band a:focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
+.lfc-band .lfc-brand{font:700 18px var(--lfc-font);color:var(--lfc-hero-fg)}
+.lfc-band .lfc-here{font:600 13px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-hero-muted)}
+.lfc-band nav{margin-left:auto;display:flex;flex-wrap:wrap;gap:4px 18px}
+/* lfc-page: the page's own typography and controls (pages that style their own body keep their look and get the band only) */
+html body{background:var(--lfc-bg);color:var(--lfc-fg);font-family:var(--lfc-font);line-height:1.55}
+html h1,html h2,html h3{font-family:var(--lfc-font);line-height:1.15}
+html h1{font-size:clamp(26px,4vw,38px);font-weight:800;letter-spacing:-.01em}
+html a{color:var(--lfc-accent)}
+html button:not([class]),html input[type=button],html input[type=submit]{font:inherit;font-weight:600;padding:.45rem .9rem;border-radius:6px;border:1px solid var(--lfc-line);background:var(--lfc-soft);color:var(--lfc-fg);cursor:pointer}
+html button:not([class]):hover{border-color:var(--lfc-accent)}
+html textarea,html input[type=text],html input[type=number],html select{font:inherit;color:var(--lfc-fg);background:var(--lfc-bg);border:1px solid var(--lfc-line);border-radius:6px;padding:.4rem .6rem;box-sizing:border-box}
+html pre,html code,html kbd,html samp{font-family:var(--lfc-mono)}
+html pre{background:var(--lfc-soft);border-radius:6px;padding:.75rem;overflow-x:auto}
+html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
+.lfc-band a.lfc-brand{color:var(--lfc-hero-fg)}</style><!-- lfc-theme:end -->
+<!-- lfc-band:start --><header class="lfc-band"><div class="lfc-in"><a class="lfc-brand" href="../../index.html">JS-modules</a><span class="lfc-here">lfc-pack</span><nav aria-label="JS-modules"><a href="../../demos.html">All demos</a><a href="README.md">Docs</a><a href="../../index.html">Overview</a></nav></div></header><!-- lfc-band:end -->
 <h1>LFC-pack viewer</h1>
 <p class="mut">Opens a <code>.json.lfc</code> file on this device and shows what is in it. Nothing is sent anywhere: the page makes no network calls and keeps nothing after you close it.</p>
 <div id="drop"><p>Drop a <code>.json.lfc</code> file here, or</p><p><label class="btn" id="pick">Choose a file<input type="file" id="file" accept=".lfc,.json.lfc,application/octet-stream"></label></p></div>
@@ -52,7 +75,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.4.15 (API 0)
+ * Version 0.4.16 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -785,7 +808,9 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
   }
   function bitunpack(b, n, w) {
     var out = w > 16 ? new Uint32Array(n) : w > 8 ? new Uint16Array(n) : new Uint8Array(n), mask = w >= 32 ? 0xFFFFFFFF : (1 << w) - 1, bp = 0, i, byte;
-    for (i = 0; i < n; i++) { byte = bp >> 3; out[i] = ((b[byte] | (b[byte + 1] << 8) | (b[byte + 2] << 16) | (b[byte + 3] << 24)) >>> (bp & 7)) & mask; bp += w; }
+    var safe = b.length >= 4 ? Math.min(n, Math.floor(((b.length - 4) * 8) / w) + 1) : 0;   // values whose 4-byte window stays inside b: no out-of-range reads in the hot loop (they slow Firefox)
+    for (i = 0; i < safe; i++) { byte = bp >> 3; out[i] = ((b[byte] | (b[byte + 1] << 8) | (b[byte + 2] << 16) | (b[byte + 3] << 24)) >>> (bp & 7)) & mask; bp += w; }
+    for (; i < n; i++) { byte = bp >> 3; out[i] = (((b[byte] | 0) | ((b[byte + 1] | 0) << 8) | ((b[byte + 2] | 0) << 16) | ((b[byte + 3] | 0) << 24)) >>> (bp & 7)) & mask; bp += w; }
     return out;
   }
   var HEXC = '0123456789abcdef', HEXA = new Uint8Array([48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102]), RX_HEX = /^[0-9a-f]+$/, RX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -1851,7 +1876,7 @@ th,td{border-bottom:1px solid var(--line);padding:.2rem .5rem;text-align:left;wh
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.15', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.16', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

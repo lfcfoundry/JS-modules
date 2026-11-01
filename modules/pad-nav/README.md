@@ -2,7 +2,7 @@
 
 **Version 1.1.0 · API 1**
 
-**Tested in:** Node: 112 checks pass (18 new). Module browser suite passes in ungoogled Chromium 155.0.8059.39-1. Candidate search compared old and new (same answers, 847 of 1000) in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5. Not run: that browser suite in Firefox 158.0, WebKitGTK and GNOME Web, a real controller, a phone
+**Tested in:** Node: 112 checks pass (18 new). Module browser suite passes in ungoogled Chromium 155.0.8059.39-1. Candidate search compared old and new (same answers, 847 of 1000) in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6. Not run: that browser suite in Firefox 158.0, WebKitGTK, a real controller, a phone
 
 ## What it is and how it works
 
@@ -110,7 +110,7 @@ The libraries below are more complete at moving focus; this one is the small, pa
 | [CSS Spatial Navigation](https://drafts.csswg.org/css-nav-1/) (W3C draft) | The archived WICG polyfill is about 73.5 KB unminified; a built-in feature would cost no bytes | Focus containers, a cancelable `navbeforefocus` event; arrow keys, no gamepads | No browser had shipped it when checked (October 2026). |
 | [gamecontroller.js](https://github.com/Linie3/gamecontroller.js) (a fork) and [gamepad-navigator](https://github.com/dmahajan980/gamepad-navigator) | gamecontroller.js: about 6 KB. gamepad-navigator: not measured (browser extension) | gamecontroller.js: an event per button, no focus movement. gamepad-navigator: navigates whole pages for users | gamecontroller.js is smaller but moves no focus; the extension is for players, not game authors. |
 
-Speed of pad-nav, lower is faster. Finding reachable buttons among 1000 buttons, old check to `checkVisibility()`: ungoogled Chromium 155.0.8059.39-1 8.1 to 3.2 ms; Firefox 158.0 4 to 1 ms; WebKitGTK 2.52.6 5 to 1 ms; GNOME Web 46.5 6 to 1 ms (timers round to 1 ms outside Chromium). Idle `step()` with no controller (measured on 1.0.0): Chromium 155.0.8059.39 1.9 µs, Firefox 158.0 0.2 µs.
+Speed of pad-nav, lower is faster. Finding reachable buttons among 1000 buttons, old check to `checkVisibility()`: ungoogled Chromium 155.0.8059.39-1 8.1 to 3.2 ms; Firefox 158.0 4 to 1 ms; WebKitGTK 2.52.6 5 to 1 ms (timers round to 1 ms outside Chromium). Idle `step()` with no controller (measured on 1.0.0): Chromium 155.0.8059.39 1.9 µs, Firefox 158.0 0.2 µs.
 
 Where it loses: no nested sections, wrap-around, per-element overrides, shadow DOM or iframes; the default rule can jump past a button directly in line in 5.4% of presses where one exists (synthetic menus; `nextRule: 'edges'` does not); standard mapping and left stick only; not tried on a real controller or phone, and the module browser suite ran in ungoogled Chromium 155.0.8059.39-1 only. Not measured: size and speed of the alternatives; speed on a phone. Other gamepad-to-focus libraries almost certainly exist (the search was brief), so this is not a claim of novelty.
 

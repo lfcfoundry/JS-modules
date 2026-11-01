@@ -125,12 +125,12 @@ footer a{margin-right:16px}
 
 <section><div class="wrap">
   <h2>Why it exists</h2>
-  <p class="lead">Single-file offline apps cannot load code from a server, must run on cheap phones, and every kilobyte is downloaded by everyone. Most libraries assume a build step, a network and a fast device. A module is kept only if it does something the nearest open-source option does not, or does it measurably better, and its README says where the other one wins.</p>
+  <p class="lead">Single-file offline apps cannot load code from a server, so any library has to be copied into the file, and its size is part of every download. These modules are plain files with no build step and no dependencies. A module is kept only if it does something the nearest open-source option does not, or does it measurably better, and its README says where the other one wins.</p>
   <h3>Where it helps</h3>
   <ul class="lead uses">
     <li>Offline or single-file web apps and games.</li>
     <li>One specific fix without adopting a framework.</li>
-    <li>Low-end phones, where memory and download size are tight.</li>
+    <li>Pages where download size and memory matter.</li>
     <li>Data-heavy pages (maps, charts, logs) that need compact storage.</li>
     <li>Higher-end hardware and larger projects: because the code is efficient, it scales up with the project as far as modern browsers allow.</li>
   </ul>
@@ -144,6 +144,9 @@ footer a{margin-right:16px}
     <div class="tile"><h3>Gives memory back</h3><p>The heavy modules hand memory back after big jobs, by a trim() call or an idle timer.</p></div>
     <div class="tile"><h3>Tested in three browsers</h3><p>Firefox, Chromium and WebKitGTK. Every release names the versions it ran in.</p></div>
     <div class="tile"><h3>Works with AI helpers</h3><p>AGENTS.md, llms.txt and modules.json describe every piece for people and assistants.</p></div>
+    <div class="tile"><h3>Files other languages can open</h3><p>lfc-pack files are read by Python and Go as well as the browser, so data packed in a page is not locked in.</p></div>
+    <div class="tile"><h3>Safe saves in 966 bytes</h3><p>save-kit-lite keeps checked fields and a backup slot in 966 bytes minified and gzipped, for small games.</p></div>
+    <div class="tile"><h3>Big Excel files, faster</h3><p>zip-open opens Excel files over 16 MB on the page 3 to 24% faster (cloud Firefox, Chromium, WebKitGTK), with the same results.</p></div>
     <div class="tile"><h3>Numbers you can check</h3><p>Every number names the browser and machine it ran on, and slower cases are stated.</p></div>
   </div>
 </div></section>
@@ -162,7 +165,7 @@ footer a{margin-right:16px}
   <h2>Compared with the usual choice</h2>
   <p class="lead">lfc-pack 0.4.0 against Parquet on 260 MB of real FHIR records (140,468 rows). Measured 2026.10.31 in the cloud test browsers (Chromium 153, Firefox 158, WebKitGTK 2.52.6) on a shared 4-core machine; medians. Parquet was written natively by pyarrow 26 after a DuckDB 2.0 read of the same JSON (zstd level 3, 4 threads).</p>
   <div class="scroll"><table><thead><tr><th>Measure</th><th>Parquet</th><th>lfc-pack</th></tr></thead><tbody><tr><td>Pack time, one thread</td><td>7.44 s</td><td class="win">2.13 to 2.69 s</td></tr><tr><td>Pack time, 4 helpers</td><td>7.44 s</td><td class="win">1.08 to 1.56 s</td></tr><tr><td>File size</td><td>18.74 MB</td><td class="win">8.32 MB</td></tr></tbody></table></div>
-  <p class="note">2.8 to 3.5 times Parquet's speed on one thread and 4.8 to 6.9 times with 4 helpers, at 44% of its size. Since this run, 0.4.4 packs FHIR 10 to 15% faster, and 0.4.6 makes the same file 7.30 MB, 39% of Parquet's size.</p>
+  <p class="note">2.8 to 3.5 times Parquet's speed on one thread and 4.8 to 6.9 times with 4 helpers, at 44% of its size. Since this run, 0.4.4 packs FHIR 10 to 15% faster, and 0.4.6 makes the same file 7.30 MB, 39% of Parquet's size. Since 0.4.13 the library file itself is 353 KB instead of 789 KB, and 0.4.15 packs event tables 14 to 25% faster and logs 10 to 16% faster on a laptop (Firefox 160, Chromium 156), with byte-identical files.</p>
 </div></section>
 
 <section><div class="wrap">
@@ -175,7 +178,7 @@ footer a{margin-right:16px}
       <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:36.5%"><span>20.9 MB</span></div></div></div>
       <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:34.9%"><span>20.0 MB</span></div></div></div>
       <div class="row"><span>memory-compression</span><div class="track"><div class="bar us out" style="width:13.7%"><span>7.85 MB</span></div></div></div>
-      <p class="note">Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6 and GNOME Web 46.5. It loses on download size: about 116 KB gzipped in 2.8.2 against 11 KB for msgpackr.</p>
+      <p class="note">Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6. It loses on download size: about 116 KB gzipped in 2.8.2 against 11 KB for msgpackr.</p>
     </div>
     <div>
       <h3>text-columns: read 200,000 CSV rows (ms, lower is better)</h3>
@@ -184,6 +187,29 @@ footer a{margin-right:16px}
       <div class="row"><span>d3-dsv, arrays</span><div class="track"><div class="bar" style="width:48.2%"><span>80 ms</span></div></div></div>
       <div class="row"><span>text-columns</span><div class="track"><div class="bar us out" style="width:31.3%"><span>52 ms</span></div></div></div>
       <p class="note">Laptop, Firefox 160, 16 cores, text-columns 0.5.0, 2026.10.30; 6 columns, 7.9 MB. Papa Parse with typed rows takes 3.2 times as long here and 7 to 12 times as long in the cloud test browsers (Firefox 158, Chromium 155, WebKitGTK 2.52.6).</p>
+    </div>
+    <div>
+      <h3>lfc-pack: size of the library file (KB, lower is better)</h3>
+      <div class="row"><span>lfc-pack 0.4.12</span><div class="track"><div class="bar" style="width:100%"><span>789 KB</span></div></div></div>
+      <div class="row"><span>lfc-pack 0.4.13</span><div class="track"><div class="bar us out" style="width:44.7%"><span>353 KB</span></div></div></div>
+      <p class="note">The built-in WebAssembly programs are stored compressed and the browser unpacks them while it compiles them. Results are the same, and load to first result takes 3 to 11% less time (cloud test browsers, lfc-pack changelog).</p>
+    </div>
+    <div>
+      <h3>Sankey chart of 1,500 items: whole build (ms, lower is better)</h3>
+      <div class="row"><span>Chromium: d3-sankey</span><div class="track"><div class="bar" style="width:100%"><span>27 ms</span></div></div></div>
+      <div class="row"><span>Chromium: netflow-sankey</span><div class="track"><div class="bar us out" style="width:44.4%"><span>12 ms</span></div></div></div>
+      <div class="row"><span>Firefox: d3-sankey</span><div class="track"><div class="bar" style="width:85.2%"><span>23 ms</span></div></div></div>
+      <div class="row"><span>Firefox: netflow-sankey</span><div class="track"><div class="bar us out" style="width:44.4%"><span>12 ms</span></div></div></div>
+      <div class="row"><span>WebKitGTK: d3-sankey</span><div class="track"><div class="bar" style="width:92.6%"><span>25 ms</span></div></div></div>
+      <div class="row"><span>WebKitGTK: netflow-sankey</span><div class="track"><div class="bar us out" style="width:48.1%"><span>13 ms</span></div></div></div>
+      <p class="note">Netflow Map's Sankey view (netflow-sankey 2.4.0) against d3-sankey 0.12.3, same data, cloud test browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6). Also only 256 band pieces pass over a bar they do not belong to, against 1,916, and loops are drawn instead of refused. d3-sankey is faster on small charts with default settings.</p>
+    </div>
+    <div>
+      <h3>Layered map of 1,000 items: links crossing as drawn (lower is better)</h3>
+      <div class="row"><span>dagre</span><div class="track"><div class="bar" style="width:100%"><span>23,965</span></div></div></div>
+      <div class="row"><span>ELK</span><div class="track"><div class="bar" style="width:94.3%"><span>22,602</span></div></div></div>
+      <div class="row"><span>netflow-layers</span><div class="track"><div class="bar us" style="width:91%"><span>21,812</span></div></div></div>
+      <p class="note">Random map of 1,000 items and 1,900 links, Chromium 155; the same counts in Firefox and WebKitGTK. netflow-layers takes 129 ms, ELK 2.1 s and dagre 8.4 s. At 400 items the three are level.</p>
     </div>
   </div>
 </div></section>

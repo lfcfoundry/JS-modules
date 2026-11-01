@@ -44,7 +44,9 @@
   }
   function bitunpack(b, n, w) {
     var out = w > 16 ? new Uint32Array(n) : w > 8 ? new Uint16Array(n) : new Uint8Array(n), mask = w >= 32 ? 0xFFFFFFFF : (1 << w) - 1, bp = 0, i, byte;
-    for (i = 0; i < n; i++) { byte = bp >> 3; out[i] = ((b[byte] | (b[byte + 1] << 8) | (b[byte + 2] << 16) | (b[byte + 3] << 24)) >>> (bp & 7)) & mask; bp += w; }
+    var safe = b.length >= 4 ? Math.min(n, Math.floor(((b.length - 4) * 8) / w) + 1) : 0;   // values whose 4-byte window stays inside b: no out-of-range reads in the hot loop (they slow Firefox)
+    for (i = 0; i < safe; i++) { byte = bp >> 3; out[i] = ((b[byte] | (b[byte + 1] << 8) | (b[byte + 2] << 16) | (b[byte + 3] << 24)) >>> (bp & 7)) & mask; bp += w; }
+    for (; i < n; i++) { byte = bp >> 3; out[i] = (((b[byte] | 0) | ((b[byte + 1] | 0) << 8) | ((b[byte + 2] | 0) << 16) | ((b[byte + 3] | 0) << 24)) >>> (bp & 7)) & mask; bp += w; }
     return out;
   }
   var HEXC = '0123456789abcdef', HEXA = new Uint8Array([48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102]), RX_HEX = /^[0-9a-f]+$/, RX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

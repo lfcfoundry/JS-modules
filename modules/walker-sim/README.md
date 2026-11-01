@@ -74,7 +74,7 @@ Which file to copy:
 
 - The walking loop runs as a 1 KB WebAssembly program that takes over after a run's first 20,000 walkers (`cfg.wasmAfter`), so small runs never pay for setting it up. `cfg.wasm = false` keeps one run on JavaScript; `sim.engine` says which loop ran (`'js'` or `'wasm'`). The counts are exactly the same either way for the same seed.
 - `sweep` and `exactEndpoints` use a second WebAssembly program, `wasm/sweep.c`, for their rounds (since 2.4.0): the 199-item, 587-link example network, 40 what-ifs, warm, ms per call, median of 15 fresh pages (**lower is better**): `sweep` items Chromium 16.1 to 10.1, Firefox 18 to 7, WebKitGTK 9 to 8; `sweep` links 13.3 to 8.1, 14 to 6, 7 to 7; `exactEndpoints` 1.2 to 0.7, 1.0 to 0.5, 2.0 to 0.6 (the WebKitGTK clock steps 1 ms, so its gain is small, about 11% to 22%). A SIMD build and a scalar twin are both inside the file; if the engine refuses SIMD the scalar one is used, and if it refuses WebAssembly altogether (or a call needs more memory than the engine gives) the rounds run in JavaScript as before. `WalkerSim.useSweepKernel(f)` is the hook that file uses (`f(maxRounds, items, classes, order, starts, targets, chances, c, acc)` returns `[lastChange, changeBefore, rounds]` or `null`); the plain `walker-sim.js` does not change speed.
-- It needs a page that allows WebAssembly (policy word `wasm-unsafe-eval`). Otherwise `WalkerSim.wasm` is `false` and everything runs on the JavaScript loop (checked in all four browsers with a page that forbids it; Firefox also prints a console message).
+- It needs a page that allows WebAssembly (policy word `wasm-unsafe-eval`). Otherwise `WalkerSim.wasm` is `false` and everything runs on the JavaScript loop (checked in all three browsers with a page that forbids it; Firefox also prints a console message).
 - `walker-sim-with-wasm.js` is `walker-sim.js` followed by `walker-sim-wasm.js`, nothing else; `test/make-min.js` builds it and the minified files, and the tests fail when it is stale.
 - Source: `wasm/walker-sim.c`; `wasm/build.sh` builds `wasm/walker-sim.wasm` (966 bytes, needs clang with wasm32); the what-if rounds are `wasm/sweep.c`, built as `wasm/sweep.wasm` (1,047 bytes, SIMD) and `wasm/sweep-scalar.wasm` (947 bytes, built with `-ffp-contract=off` so the numbers stay bit for bit the same); `wasm/embed.py` puts all three into `walker-sim-wasm.js`.
 
@@ -85,18 +85,14 @@ Which file to copy:
 | ungoogled-chromium 155.0.8059.39-1 | 88.6 | 57.6 | 1.54x |
 | Firefox 158.0 (reports 158.0b5) | 88.0 | 56.0 | 1.57x |
 | WebKitGTK 2.52.6 | 46.0 | 59.0 | 0.78x |
-| GNOME Web 46.5 | 50.0 | 58.0 | 0.86x |
 
 WebKit-family browsers are the exception, and the numbers say so plainly. In a freshly opened page the WebAssembly loop is slower there, at every size tried (milliseconds for the whole page, smaller is better; "default, cfg.wasm = false" is the default file with the loop switched off, to show the extra file itself costs about nothing):
 
 | Walkers | Browser | Plain file | Default file | Default, `cfg.wasm = false` |
 |---|---|---:|---:|---:|
 | 100,000 | WebKitGTK 2.52.6 | 14 | 22 | 18 |
-| 100,000 | GNOME Web 46.5 | 15 | 25 | 19 |
 | 1,000,000 | WebKitGTK 2.52.6 | 46 | 53 | 47 |
-| 1,000,000 | GNOME Web 46.5 | 51 | 59 | 51 |
 | 4,000,000 | WebKitGTK 2.52.6 | 142 | 160 | 144 |
-| 4,000,000 | GNOME Web 46.5 | 144 | 173 | 156 |
 
 The 2.1.0 figures for these two browsers (1.0 to 1.3 times faster) came from a page that had already run the loop several times; the first run in a new page, which is what a visitor sees, goes the other way. Chromium and Firefox gain about 1.5 times either way. A page aimed at Safari-like browsers can set `cfg.wasm = false` or copy `walker-sim.js`.
 
@@ -104,7 +100,7 @@ The 2.1.0 figures for these two browsers (1.0 to 1.3 times faster) came from a p
 
 The WebAssembly loop starts compiling in the background the moment the file loads, so the first big run only starts it. `WalkerSim.wasmReady()` gives a promise of `true` or `false`, and `WalkerSim.wasmModule()` gives the compiled module (or `null`) to hand to a worker. A run that starts before the compile is done compiles on the spot, as before; with no WebAssembly nothing changes, and the counts are the same either way.
 
-Honest numbers: the program is 966 bytes, so there is almost nothing to win. Load plus first use, ms, old / new (median of nine fresh pages; lower is better): Chromium 155 8.7 / 9.9, Firefox 158.0 23 / 22, WebKitGTK 2.52.6 3 / 3, GNOME Web 46.5 4 / 4. About 1 ms slower in Chromium, level elsewhere.
+Honest numbers: the program is 966 bytes, so there is almost nothing to win. Load plus first use, ms, old / new (median of nine fresh pages; lower is better): Chromium 155 8.7 / 9.9, Firefox 158.0 23 / 22, WebKitGTK 2.52.6 3 / 3 4 / 4. About 1 ms slower in Chromium, level elsewhere.
 
 ## Numbers
 
@@ -121,11 +117,11 @@ Node rows were measured in Node 22, not in a browser: use them only to compare r
 
 A 95% range misses about 1 end in 20 by design.
 
-**1,000,000 walkers on the same kind of network, version 2.1.0** (ms, lower is better): Node 22 80, ungoogled Chromium 155 102, Firefox 158 115, WebKitGTK 2.52.6 62, GNOME Web 46.5 53. Version 2.1.0 is 2.4 times faster than 2.0.0 in Node (192 ms); same counts for the same seed.
+**1,000,000 walkers on the same kind of network, version 2.1.0** (ms, lower is better): Node 22 80, ungoogled Chromium 155 102, Firefox 158 115, WebKitGTK 2.52.6 62 53. Version 2.1.0 is 2.4 times faster than 2.0.0 in Node (192 ms); same counts for the same seed.
 
 **Worker threads** (2,000,000 walkers, ms, lower is better; 4-core cloud machine; includes starting the workers and adding up; counts identical to one thread): ungoogled Chromium 155 474 on one thread, 246 on 2 workers, 219 on 4; Firefox 158 589, 346, 207; WebKitGTK 2.52.6 244, 151, 178.
 
-**WebAssembly loop against the plain 2.1.0 file, in a page that had already run the loop a few times** (1,000,000 walkers, ms, lower is better; the freshly opened page figures are in the WebAssembly section above and differ in WebKit): Node 80 to 44, ungoogled Chromium 155 110 to 52, Firefox 158 111 to 52, WebKitGTK 2.52.6 82 to 65, GNOME Web 46.5 50 to 52 (no gain). It is for Chrome-type and Firefox pages with big runs. Runs of one walker per trial do not gain (1.0 to 1.1 times); runs with costs, waits or uncertain weights do not use it.
+**WebAssembly loop against the plain 2.1.0 file, in a page that had already run the loop a few times** (1,000,000 walkers, ms, lower is better; the freshly opened page figures are in the WebAssembly section above and differ in WebKit): Node 80 to 44, ungoogled Chromium 155 110 to 52, Firefox 158 111 to 52, WebKitGTK 2.52.6 82 to 65 50 to 52 (no gain). It is for Chrome-type and Firefox pages with big runs. Runs of one walker per trial do not gain (1.0 to 1.1 times); runs with costs, waits or uncertain weights do not use it.
 
 ## How it compares
 
@@ -136,7 +132,7 @@ walker-sim is one package for a job usually done by hand. No ready-made package 
 | [d3-random](https://github.com/d3/d3-random) (ISC, 3.0.1) | not measured (this module: 31,262 bytes minified, 12.3 KB gzipped) | 18 distributions and a seedable generator; no network walking, no exact odds, no ranges | d3-random has 18 distributions (this module has 16). This module wins if you need to walk a network and check the answer. |
 | A hand-written loop with `Math.random()` | smallest possible (no library) | not repeatable from a seed; no 95% ranges; no exact odds; cannot split a run across threads with identical counts | Wins on size and simplicity. Loses on repeatability and on knowing whether the answer is right. |
 
-**Where it loses:** bigger than a hand-written loop or a distribution-only library; two distributions fewer than d3-random (16 against 18); the WebAssembly loop gives no gain in GNOME Web 46.5 and needs `wasm-unsafe-eval` (more limits below).
+**Where it loses:** bigger than a hand-written loop or a distribution-only library; two distributions fewer than d3-random (16 against 18); the WebAssembly loop needs `wasm-unsafe-eval` (more limits below).
 
 ## What it is not
 

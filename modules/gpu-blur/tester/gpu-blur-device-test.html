@@ -852,7 +852,7 @@ function browserLabel() {
   if ((m = /OPR\/([\d.]+)/.exec(u))) return 'Opera ' + m[1];
   if ((m = /(?:Firefox|FxiOS)\/([\d.]+)/.exec(u))) return 'Firefox ' + m[1];
   if ((m = /(?:Chrome|CriOS)\/([\d.]+)/.exec(u))) return 'Chrome ' + m[1];
-  if ((m = /Epiphany\/([\d.]+)/.exec(u))) return 'GNOME Web ' + m[1];
+  if ((m = /Epiphany\/([\d.]+)/.exec(u))) return 'WebKit browser ' + m[1];
   if ((m = /Version\/([\d.]+).*Safari/.exec(u))) return 'Safari ' + m[1];
   return 'unknown browser';
 }
