@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.13 · API 0 · 2026-10-31
+- Smaller file, same results: lfc-pack.js is now 353 KB instead of 789 KB, because its built-in WebAssembly programs are stored compressed and unpacked by the browser while they compile. Starts about 3 to 10% faster.
+
 ## 0.4.12 · API 0 · 2026-10-31
 - The fast writer's scanner tries keys in the last row's order first and reads digits 8 at a time: packs take 8 to 16% less time than 0.4.10 in Chromium and Firefox; same files.
 

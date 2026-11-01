@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.13 · API 0 · 2026-10-31
+
+### Quick
+The four wasm modules are stored as base64 of [u32 size][raw deflate level 9].
+
+### Deep
+The four wasm modules are stored as base64 of [u32 size][raw deflate level 9]. In a browser they are unpacked with DecompressionStream('deflate-raw') streamed into WebAssembly.instantiateStreaming, so unpacking overlaps compiling. Fallbacks: Node zlib, then a small JS inflater, then raw wasm when the magic bytes match. lfc-pack-read.js keeps plain base64. Load to first result, new / old: laptop Chromium 156 0.899 and 0.893, laptop Firefox 160 0.968 (one earlier Firefox run hit an out-of-memory error in a frame; it did not repeat on take 2, which also retries and names the side); cloud Chromium 0.947/0.923, Firefox 0.908, WebKitGTK 0.966. Same files. New test/inflate.cjs covers the zlib and JS inflater paths.
+
 ## 0.4.12 · API 0 · 2026-10-31
 
 ### Quick
