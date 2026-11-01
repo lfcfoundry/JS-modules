@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.0 · API 2 · 2026-11-01
+
+### Quick
+use('circular') and use('hierarchy'); their views join VIEWS and build() lays them out; found on their own as page globals or Node files next to this folder.
+
+### Details
+The add-ons are found as globals NetflowCircular / NetflowHierarchy or as ../netflow-circular/netflow-circular.js and ../netflow-hierarchy/netflow-hierarchy.js in Node (tried once, at the first build), or handed over with use(). Their views skip folding, as in Netflow Map. The code VERSION constant said 2.2.2 while the header said 2.2.3 (the version check in the module tests failed on main); both now say 2.3.0.
+
+### Deep
+netflow-engine 2.3.0: the circular and nested views as add-ons (use('circular'), use('hierarchy')).
+
 ## 2.2.3 · API 2 · 2026-10-31
 
 ### Quick
