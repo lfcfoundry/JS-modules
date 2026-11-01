@@ -113,3 +113,15 @@ In the cloud, 1.8.0 and 1.9.0 together read these sheets in 0.22 to 0.45 of 1.7.
 | Cloud, WebKitGTK 2.52.6 | 0.41 | 0.42 | 0.36 | 0.52 |
 
 With 1.8.0 and 1.9.0, Excel files now open on the laptop in 0.11 to 0.22 of the 1.7.0 time (about 4.5 to 9.5 times as fast). Size: 21.8 KB gzipped before 1.8.0, 32.4 KB now. A big sheet still runs as one main-thread task (115 ms for 60,000 rows in Chromium 155, down from 387 ms); moving it into a helper is the next step.
+
+**New in 1.11.0: no page freeze with helpers.** With helpers on (`workers`), an Excel file is read whole inside one helper. Longest page freeze during an open, laptop, 16 cores, 2026.10.31 (lower is better):
+
+| Excel file | Firefox 160: 1.10.0 / 1.11.0 | Chromium 156: 1.10.0 / 1.11.0 |
+|---|---:|---:|
+| 200,000 rows | 119 / 6 ms | 185 / 6 ms |
+| 60,000 rows | 57 / 5 ms | 52 / 6 ms |
+| 30,000 rows of text | 27 / 5 ms | 29 / 6 ms |
+
+Total time stays about the same (0.96 to 1.18 of 1.10.0).
+
+**New in 1.12.0: a SIMD Excel reader.** Browsers with WebAssembly SIMD scan shared text 16 bytes at a time; others keep the plain reader. Whole open, time 1.12.0 / 1.11.0, cloud, lower is better: text-heavy sheets 0.87 to 0.96 in Chromium 155, Firefox 158 and WebKitGTK 2.52.6; other sheets about the same. Size: 39.7 KB gzipped (was 33.5).
