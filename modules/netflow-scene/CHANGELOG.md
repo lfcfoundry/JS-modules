@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.4 · API 1 · 2026-11-01
+- Building a picture with many items takes less time; pictures are the same.
+
 ## 1.3.3 · API 1 · 2026-11-01
 - SVG export of dots is shorter and quicker to write (about 20% less text on dot-heavy pictures); the picture is the same.
 
