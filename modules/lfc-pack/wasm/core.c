@@ -174,8 +174,7 @@ static u32 ddN, ddOutLen;
 static u32 NGTAB[1u<<NG_TBITS]; static u32 NGHASH[NG_MAX], NGSLOT[NG_MAX], NGOFF[NG_MAX+1], NGPOS[NG_MAX];
 /* scratch in DDOUT, which is free until dd_run (JavaScript copies the columns out first): the sorted numbers (8 bytes each), then the path ids (4 bytes each); NUMP stays as it was for the JavaScript fallback */
 #define NUMS ((f64*)DDOUT)
-#define NUMI ((u32*)(DDOUT+NUM_CAP*8u))
-_Static_assert(NUM_CAP*12u <= DD_OUT_CAP, "num_group scratch must fit in DDOUT");
+_Static_assert(NUM_CAP*8u <= DD_OUT_CAP, "num_group scratch must fit in DDOUT");
 EXPORT("ng_hash_ptr") u32* ng_hash_ptr(void){return NGHASH;} EXPORT("ng_off_ptr") u32* ng_off_ptr(void){return NGOFF;} EXPORT("nums_ptr") f64* nums_ptr(void){return NUMS;}
 EXPORT("num_group") u32 num_group(u32 n){
   if(n>NUM_CAP) return 0xFFFFFFFFu;
@@ -186,13 +185,13 @@ EXPORT("num_group") u32 num_group(u32 n){
       if(e==0){ if(ng>=NG_MAX){ ok=0; break; } id=ng++; NGTAB[slot]=id+1; NGHASH[id]=h; NGSLOT[id]=slot; NGPOS[id]=0; break; }
       if(NGHASH[e-1]==h){ id=e-1; break; }
       slot=(slot+1)&mask; }
-    if(!ok) break;
-    NUMI[i]=id; NGPOS[id]++;
+    if(!ok){ for(u32 j=0;j<i;j++) NUMP[j]=NGHASH[NUMP[j]]; break; }   /* too many paths: put the hashes back for the JS fallback */
+    NUMP[i]=id; NGPOS[id]++;   /* the dense id replaces the hash in place (no separate scratch: 4 bytes per number less memory touched) */
   }
   for(u32 g=0;g<ng;g++) NGTAB[NGSLOT[g]]=0;
   if(!ok) return 0xFFFFFFFFu;
   u32 s=0; for(u32 g=0;g<ng;g++){ NGOFF[g]=s; u32 c=NGPOS[g]; NGPOS[g]=s; s+=c; } NGOFF[ng]=s;
-  for(u32 i=0;i<n;i++) NUMS[NGPOS[NUMI[i]]++]=NUMV[i];
+  for(u32 i=0;i<n;i++) NUMS[NGPOS[NUMP[i]]++]=NUMV[i];
   return ng;
 }
 
