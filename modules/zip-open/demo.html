@@ -1,9 +1,9 @@
 <!doctype html>
 <!--
     ===================================================================================
-    🛠️ APPLICATION : zip-open demo
-    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
-    📜 LICENSE : MIT License
+    APPLICATION : zip-open demo
+    FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    LICENSE : MIT License
     ===================================================================================
     Copyright (c) 2026 LFC Foundry
 
@@ -60,7 +60,7 @@ var $ = function (id) { return document.getElementById(id); };
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function show(r, ms, name) {
   var h = '<b>' + esc(name) + '</b>: ' + r.files.length + ' file' + (r.files.length === 1 ? '' : 's') + ' read in ' + ms.toFixed(0) + ' ms';
-  r.files.slice(0, 20).forEach(function (f) { h += '<p><b>' + esc(f.path) + '</b> (' + f.text.length + ' characters)<br><code>' + esc(f.text.slice(0, 160)).replace(/\n/g, '<br>') + (f.text.length > 160 ? ' …' : '') + '</code></p>'; });
+  r.files.slice(0, 20).forEach(function (f) { h += '<p><b>' + esc(f.path) + '</b> (' + f.text.length + ' characters)<br><code>' + esc(f.text.slice(0, 160)).replace(/\n/g, '<br>') + (f.text.length > 160 ? ' \u2026' : '') + '</code></p>'; });
   if (r.notes.length) h += '<p class="note">Notes:<br>' + r.notes.map(esc).join('<br>') + '</p>';
   $('out').innerHTML = h;
 }
@@ -87,7 +87,7 @@ $('s1').onclick = function () {
 };
 $('s2').onclick = function () {
   if (typeof CompressionStream === 'undefined') return fail(new Error('This browser has no CompressionStream, so it cannot build the bomb.'));
-  $('out').textContent = 'Building 64 MB of zeros, squeezed…';
+  $('out').textContent = 'Building 64 MB of zeros, squeezed\u2026';
   var zeros = new Uint8Array(64 * 1048576), cs = new CompressionStream('deflate-raw'), w = cs.writable.getWriter(); w.write(zeros); w.close();
   new Response(cs.readable).arrayBuffer().then(function (ab) {
     var raw = new Uint8Array(ab);
@@ -95,4 +95,4 @@ $('s2').onclick = function () {
   }, fail);
 };
 </script>
-<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
+<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> &#x2022; MIT Licensed</footer>

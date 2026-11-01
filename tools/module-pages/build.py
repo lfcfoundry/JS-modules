@@ -4,6 +4,9 @@
 #   python3 tools/module-pages/build.py pcodec-js save-kit    write modules/<id>/index.html for each id
 #   python3 tools/module-pages/build.py --all                 every module in modules.json
 #   python3 tools/module-pages/build.py --all --check         list pages older than their README or numbers file (exit 1 if any)
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', 'single-file-tools'))
+import latin1  # noqa: E402
 import html, json, os, re, sys
 root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 GH = 'https://github.com/lfcfoundry/JS-modules/blob/main/'
@@ -144,7 +147,7 @@ def main(argv):
             f = os.path.join(root, folder, 'index.html')
             if not os.path.exists(f) or open(f, encoding='utf-8').read() != module_html(m, mods): stale.append(i)
             continue
-        open(os.path.join(root, folder, 'index.html'), 'w', encoding='utf-8', newline='').write(module_html(m, mods)); print('wrote', folder + '/index.html')
+        open(os.path.join(root, folder, 'index.html'), 'w', encoding='utf-8', newline='').write(latin1.escape_html(module_html(m, mods))[0])   # Latin-1 only (see AGENTS.md); print('wrote', folder + '/index.html')
     if '--check' in argv:
         print('stale pages: ' + (', '.join(stale) or 'none')); sys.exit(1 if stale else 0)
 if __name__ == '__main__': main(sys.argv[1:])

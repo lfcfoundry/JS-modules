@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-10-31
+
+### Quick
+The page is passed through single-file-tools/latin1.py before packing (\uXXXX in scripts and JSON, CSS escapes in styles, &#x..; in markup and comments; text/plain and other data blocks are left alone and reported).
+
+### Deep
+The page is passed through single-file-tools/latin1.py before packing (\uXXXX in scripts and JSON, CSS escapes in styles, &#x..; in markup and comments; text/plain and other data blocks are left alone and reported). terser gets --format ascii_only=true and esbuild --charset=ascii. A page with an arrow and an ellipsis packed in base64 mode unpacks to the same title and text in Chromium 155, Firefox 158 and WebKitGTK 2.52.6. Research round 33: one emoji made Chromium keep a whole page at 2 bytes per character (Netflow Map renderer 34.4 to 31.3 MB once Latin-1; Apple Press started in 0.66 to 0.89 of the time in WebKitGTK). latin1.py is new: escape_html() and check(), a command line with --check, tests for JS/JSON values, markup text and attributes, and a check that every tracked HTML page in the repository is Latin-1 only. build-example.sh minifies scripts with ascii_only and runs latin1.py before and --check after packing.
+
 ## 1.2.1 · API 1 · 2026-10-31
 
 ### Quick

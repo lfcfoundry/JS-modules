@@ -1,8 +1,8 @@
 # grown-ups-door
 
-**Version 1.0.0 · API 1**
+**Version 1.0.1 · API 1**
 
-**Tested in:** tests/pieces-browser.js grown-ups-door one browser at a time on 2026-10-17: ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web (Epiphany) 46.5, all passed (hold, early lift, slide off, keyboard, tap-then-tap, guarded link). GNOME Web is driven with script events, so it needed webkit-driver 1.2.0, which sends pointer events, pointer capture, focus and click counts like a real mouse. Not run: a phone. There is no Node test for this module.
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

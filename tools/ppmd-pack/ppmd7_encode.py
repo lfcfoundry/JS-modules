@@ -1,7 +1,7 @@
 # Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd7_encode: a pure Python PPMd encoder, variant H ("PPMd7" as used by 7-Zip) with the 7z range coder.
 MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
-Version 2.0.1 (API 2)
+Version 2.0.2 (API 2)
 
     from ppmd7_encode import encode
     packed = encode(data, order=12, mem=1 << 20)     # bytes in, bytes out

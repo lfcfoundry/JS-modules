@@ -4,7 +4,7 @@
  * "Save error log" writes every error the page raised, in plain words. Both save one small Markdown file on the device. No network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.1.1 (API 1)
  *
  *   <script src="field-report.js"></script>      // put it FIRST, so errors during start-up are caught too
  *   var fr = FieldReport.start({ name: 'my-game', version: '2026.10.22.1700' });
@@ -44,7 +44,7 @@
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function stamp(d) { return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()); }
   function r1(x) { return Math.round(x * 10) / 10; }
-  function clip(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function clip(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; }
   function one(s) { return String(s).replace(/\s+/g, ' ').replace(/\|/g, '/'); }
 
   // ---- pure helpers (also used by the tests) ----

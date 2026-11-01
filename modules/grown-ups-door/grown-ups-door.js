@@ -4,7 +4,7 @@
  * Once passed, the guarded controls stay open for 2 minutes. It is a speed bump, not security.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.0 (API 1)
+ * Version 1.0.1 (API 1)
  *
  *   var door = GrownUpsDoor.attach({ guard: "#reset, #saveBtn, footer a" });   // clicks on these ask for the task first
  *   door.isOpen();   door.close();   door.destroy();
@@ -20,7 +20,7 @@
   var DEFAULT_TARGET = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M6 26h52l-6 28a4 4 0 0 1-4 3H16a4 4 0 0 1-4-3z" fill="#b9814a"/><path d="M6 26h52" stroke="#8a5a2a" stroke-width="4"/></svg>';
   var DEFAULT_TEXTS = {
     title: 'For grown-ups',
-    whyButton: function (name) { return 'This opens “' + name + '”.'; },
+    whyButton: function (name) { return 'This opens \u201c' + name + '\u201d.'; },
     whyLink: function (name) { return 'This opens another website: ' + name + '.'; },
     hold: 'Press and hold the round button for 3 seconds.',
     holdLabel: 'Hold', keepHolding: 'Keep holding',

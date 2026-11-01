@@ -2,7 +2,7 @@
  * netflow-layers.js: lay out a graph in rows (a Sugiyama-style layered drawing): top to bottom or left to right, with long links as tags, story order, a column for the pages every route passes, and tall maps cut into columns. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.7.1 (API 1)
+ * Version 1.7.2 (API 1)
  *
  *   var R = NetflowLayers.layout({ nodes: [{ id: "start", w: 140, h: 44 }, { id: "a", w: 140, h: 44 }], edges: [{ from: "start", to: "a" }], root: "start" }, { dir: "TB" });
  *   svgElement.innerHTML = NetflowLayers.toSvg(R);          // or draw R.nodes and R.edges yourself (see README)
@@ -609,7 +609,7 @@
       if (e.kind === 'self') return;
       if (e.kind === 'tag') {
         var up = e.tagFwd, s0 = LR ? [a.x + (up ? a.w : 0), cy(a)] : [cx(a), a.y + (up ? a.h : 0)], s1 = LR ? [b.x + (up ? 0 : b.w), cy(b)] : [cx(b), b.y + (up ? 0 : b.h)], d0 = (LR ? [up ? 1 : -1, 0] : [0, up ? 1 : -1]), d1 = [-d0[0], -d0[1]];
-        var e0 = [s0[0] + d0[0] * 24, s0[1] + d0[1] * 24], e1 = [s1[0] + d1[0] * 24, s1[1] + d1[1] * 24], g = LR ? (up ? '→ ' : '← ') : (up ? '↓ ' : '↑ ');
+        var e0 = [s0[0] + d0[0] * 24, s0[1] + d0[1] * 24], e1 = [s1[0] + d1[0] * 24, s1[1] + d1[1] * 24], g = LR ? (up ? '\u2192 ' : '\u2190 ') : (up ? '\u2193 ' : '\u2191 ');
         out.push('<path d="M' + f1(s0[0]) + ',' + f1(s0[1]) + ' L' + f1(e0[0]) + ',' + f1(e0[1]) + '" fill="none" stroke="' + col + '" stroke-width="2"/><path d="M' + f1(e1[0]) + ',' + f1(e1[1]) + ' L' + f1(s1[0]) + ',' + f1(s1[1]) + '" fill="none" stroke="' + col + '" stroke-width="2"/>');
         out.push('<text x="' + f1(e0[0] + (LR ? (up ? 4 : -4) : 0)) + '" y="' + f1(e0[1] + (LR ? 4 : (up ? 12 : -4))) + '" font-size="10.5" fill="' + (back ? gold : muted) + '" text-anchor="' + (LR ? (up ? 'start' : 'end') : 'middle') + '">' + g + name(b) + '</text>');
         out.push('<text x="' + f1(e1[0] + (LR ? (up ? -4 : 4) : 0)) + '" y="' + f1(e1[1] + (LR ? 4 : (up ? -4 : 12))) + '" font-size="10.5" fill="' + (back ? gold : muted) + '" text-anchor="' + (LR ? (up ? 'end' : 'start') : 'middle') + '">from ' + name(a) + '</text>');
@@ -630,5 +630,5 @@
     return out.join('\n');
   }
 
-  return { version: '1.7.1', wasm: WASM, _deep: DEEP, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
+  return { version: '1.7.2', wasm: WASM, _deep: DEEP, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
 }));
