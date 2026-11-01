@@ -14,7 +14,7 @@ const SPECS = {
   bar: { x: 'region', y: 'sales', color: 'kind' }, line: { x: 'day', y: 'sales', color: 'region', smooth: 7 }, area: { x: 'day', y: 'sales', color: 'region', stack: 'stream' },
   scatter: { x: 'cost', y: 'sales', color: 'region', size: 'score' }, connected: { x: 'cost', y: 'sales' }, beeswarm: { x: 'sales', color: 'kind' }, dotplot: { x: 'region', y: 'sales', color: 'kind' },
   hist: { x: 'sales', color: 'kind' }, box: { x: 'region', y: 'sales' }, density: { x: 'sales', color: 'kind' }, ridgeline: { x: 'sales', color: 'region' }, hexbin: { x: 'cost', y: 'sales' },
-  heat: { x: 'day', y: 'sales' }, pie: { x: 'region', y: 'sales' }, donut: { x: 'kind' }, radialbar: { x: 'region', y: 'sales' }, parallel: { cols: ['sales', 'cost', 'score'], color: 'kind' },
+  heat: { x: 'day', y: 'sales' }, donut: { x: 'kind' }, radialbar: { x: 'region', y: 'sales' }, parallel: { cols: ['sales', 'cost', 'score'], color: 'kind' },
   splom: { cols: ['sales', 'cost', 'score'] }, qq: { x: 'score' }, slope: { x: 'kind', color: 'region', y: 'sales' }, marimekko: { x: 'region', color: 'kind', y: 'sales' }, voronoi: { x: 'cost', y: 'sales' }, words: { x: 'note' }
 };
 const finite = (S) => {
@@ -43,7 +43,7 @@ for (const [n, seed] of [[0, 1], [1, 2], [7, 3], [2000, 4]]) {
 const rows = table(50, 9), sb = P.make(rows, { type: 'bar', x: 'region', y: 'sales' }, { width: 900, height: 560 }, global.NetflowScene), m0 = sb.marks[0];
 ok(m0 && P.markAt(sb, (m0.x0 + m0.x1) / 2, (m0.y0 + m0.y1) / 2) === m0, 'bar under the pointer');
 ok(P.markAt(sb, -5, -5) === null, 'nothing outside');
-const sp = P.make(rows, { type: 'pie', x: 'kind' }, { width: 600, height: 600 }, global.NetflowScene), w = sp.marks[0].wedge, am = (w[4] + w[5]) / 2, rm = (w[2] + w[3]) / 2;
+const sp = P.make(rows, { type: 'donut', x: 'kind' }, { width: 600, height: 600 }, global.NetflowScene), w = sp.marks[0].wedge, am = (w[4] + w[5]) / 2, rm = (w[2] + w[3]) / 2;
 ok(P.markAt(sp, w[0] + Math.cos(am) * rm, w[1] + Math.sin(am) * rm) === sp.marks[0], 'wedge under the pointer');
 /* bar totals add up */
 const tot = rows.reduce((s, r) => s + r.attrs.sales, 0), sum = sb.marks.reduce((s, m) => s + (m.v || 0), 0);
