@@ -941,7 +941,8 @@
         if (sj) labels.length = (n >> 1) + 1;   // where the loop below would stop
         else for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * 2 > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
         if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, [sj || te.encode(v.join('\0'))]);   // a dictionary this small is the smaller layout; skip compressing the plain one as well
-        if (n >= 16 && labels.length * 2 > n && tmode && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || (!tmplSlow && (readNoSlower(v) || (tmplSlow = true, false))))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
+        // once the read check has failed (auto mode) the template layout can no longer win, so it is not built
+        if (n >= 16 && labels.length * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || (!tmplSlow && (readNoSlower(v) || (tmplSlow = true, false))))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
           var wd = Math.max(1, 32 - Math.clz32(labels.length - 1)), cb = labels.length > 256 ? new Uint8Array(new Uint16Array(codes).buffer) : Uint8Array.from(codes);
           cand('D', { w: 0, wide: labels.length > 256 }, [te.encode(labels.join('\0')), cb], { distinct: labels.length });
