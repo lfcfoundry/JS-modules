@@ -211,3 +211,13 @@ That is 7 to 25% faster when packParallel is called again within 3 s. Idle helpe
 | 48 MB file, bytes | 1,606,003 | 1,505,314 (6% smaller) |
 
 Reading the 260 MB file, time new / old (cloud, lower is better): Chromium 153 0.87, Firefox 158 0.86, WebKitGTK 2.52.6 0.78, so 13 to 22% faster. Packing is within noise of 0.4.5 on the laptop (16 cores): Firefox 160 0.98 to 1.04, Chromium 156 1.01 to 1.03.
+
+**New in 0.4.8: opening a file reuses one buffer.** Each unpacked piece used to be copied into fresh memory (145 copies, 10.9 MB, for each open of a 48 MB FHIR file). Reads now put them in one kept buffer (3.7 MB for that file), held 4 s after the last read and freed by trim(). Same files byte for byte. Open time, new / old, lower is better:
+
+| Data | Laptop Chromium 156 (two runs) | Laptop Firefox 160 | Cloud WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| Real FHIR records, 48 MB | 0.94 and 1.00 | 0.90 | 0.87 |
+| Logs | 0.94 and 0.98 | 1.00 (inconclusive) | 0.87 |
+| Events | 0.99 and 0.97 (noisy) | 1.00 | 1.00 |
+
+That is up to 14% less time; events are about the same. Laptop has 16 cores.

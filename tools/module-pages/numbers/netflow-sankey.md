@@ -31,3 +31,16 @@ Same order and crossings from both versions. Only the smallest graph is faster.
 | 500 items, 6000 links | 10 | 10 |
 
 Against d3-sankey in Firefox 160 (ms): 72 nodes 2.0 (restarts 0: 0.5) against 1.0, so d3 is faster with the default settings there; 200 nodes 3.0 against 11 (3.7x); 500 nodes 11 against 61 (5.5x).
+
+
+**New in 2.3.3: bars settle into place in WebAssembly.** Same pictures to the last digit. Whole layout of 1,500 items and 2,331 links, time new / old, lower is better:
+
+| Where | New / old |
+|---|---:|
+| Cloud Chromium 155 | 0.86 |
+| Cloud Firefox 158 | 0.96 |
+| Cloud WebKitGTK 2.52.6 | 0.97 |
+| Laptop Chromium 156, 16 cores | 0.74 to 0.93 |
+| Laptop Firefox 160, 16 cores | 0.80 to 0.83 |
+
+That is 3 to 26% less time. Charts under 64 bars keep the JavaScript.
