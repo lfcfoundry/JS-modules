@@ -59,3 +59,12 @@ On these three lists `quickTries` changes nothing. Its 0 to 20% gain is for list
 | Firefox 160 | 0.82 (0.68 to 0.94) | 2 to 4 times shorter |
 
 Lists of 131,072 rows or fewer take the plain path, because streaming them was 6 to 7% slower. WebKitGTK was not measured for this change.
+
+**New in 2.10.0: `unpack(bytes, { into })` reuses your array.** Pass the typed array you got last time, and the next unpack fills it instead of making fresh memory. This works for Float64, Float32, Uint32, Uint16 and Uint8 arrays of the same type and length; other arrays get a fresh one. The format is unchanged. 4 million numbers, time into / fresh, lower is better:
+
+| Where | Float64, balanced | Float64, fast | Float32, fast |
+|---|---:|---:|---:|
+| Laptop Chromium 156, 16 cores | 0.81 | 0.75 | 0.82 |
+| Laptop Firefox 160, 16 cores | 0.70 | 0.91 | 0.86 |
+
+That is 9 to 30% less time on the laptop. Cloud browsers read 0.13 to 0.75, because writing to fresh memory for the first time costs about 0.7 ms per MB there.
