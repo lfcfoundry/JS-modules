@@ -4,6 +4,7 @@
 typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u64; typedef long long i64;
 #define EXPORT(n) __attribute__((export_name(n)))
 #define MAXK 128
+static u32 GWP[MAXK];
 static u32 HT[512]; static u32 LASTROW[MAXK];
 static u32 PRED[MAXK], KEXTRA[MAXK];   /* PRED[j]: the key that came j-th in the last row (rows mostly repeat their key order); KEXTRA: a key's UTF-8 bytes minus UTF-16 units */
 static const double P10[19]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,1e15,1e16,1e17,1e18};
@@ -169,31 +170,53 @@ EXPORT("hexcols") u32 hexcols(const u8*in,u32 nc,const u8*ckey,const double*cval
 // string column straight from the bytes (ASCII input, not hex): first-seen dictionary over cells of key k, as encodeColumn builds it. Returns 0 when encodeColumn must see the strings
 // (more than n/2 distinct values, where log templates may apply; every value 36 long, a possible UUID column; only digits and dots, a possible IPv4 column). Otherwise returns the
 // distinct count D and writes res[0] = bytes at out: every value joined by 0 bytes when D*4 > n or D >= 65536 (encodeColumn's 's'), else the labels joined by 0 bytes, codes[] per cell.
-EXPORT("strdict") u32 strdict(const u8*in,u32 nc,const u8*ckey,const double*cval,const u32*clen,u32 k,u32 n,u32*ht,u32*codes,u32*lab,u8*out,u32*res){
-  u32 T=16,i,q,D=0,m=0,all36=1,dd=1,L,o,h,s;
+// per-key cell lists: ix gets every cell index grouped by key (in row order within a key), ixo[k] where key k's run starts; count[k] from gather
+EXPORT("keyix") void keyix(u32 nc,const u8*ckey,u32 nk,const u32*count,u32*ix,u32*ixo){
+  u32 i,j,o=0; for(j=0;j<nk;j++){ ixo[j]=o; GWP[j]=o; o+=count[j]; }
+  for(i=0;i<nc;i++) ix[GWP[ckey[i]]++]=i;
+}
+static inline u32 rotl(u32 x,u32 r){ return (x<<r)|(x>>(32-r)); }
+static inline u32 hbytes(const u8*a,u32 L){   /* 4 bytes a step (murmur3 mix); only the table's spread depends on it, never the output */
+  u32 h=L*0x9E3779B1u,q=0,w;
+  for(;q+4<=L;q+=4){ __builtin_memcpy(&w,a+q,4); w*=0xcc9e2d51u; w=rotl(w,15); w*=0x1b873593u; h^=w; h=rotl(h,13)*5+0xe6546b64u; }
+  w=0; for(;q<L;q++) w=(w<<8)|a[q]; w*=0xcc9e2d51u; w=rotl(w,15); w*=0x1b873593u; h^=w;
+  h^=h>>16; h*=0x85ebca6bu; h^=h>>13; h*=0xc2b2ae35u; h^=h>>16; return h;
+}
+static inline u32 sameb(const u8*a,const u8*b,u32 L){ u32 q=0; u64 x,y; for(;q+8<=L;q+=8){ __builtin_memcpy(&x,a+q,8); __builtin_memcpy(&y,b+q,8); if(x!=y) return 0; } for(;q<L;q++) if(a[q]!=b[q]) return 0; return 1; }
+static inline u32 digdot(const u8*a,u32 L){ u32 q; for(q=0;q<L;q++){ u8 c=a[q]; if(!((c>=48&&c<=57)||c==46)) return 0; } return 1; }
+// first-seen dictionary of key k's n string values (cells ix[0..n)): codes, labels (cell of each distinct value's first use), and out = the distinct values (or, with D*4 > n, all values) joined by 0 bytes.
+// ht: 2*T u32 (id+1, hash). res: [0] out length, [1] every value only digits and dots, [2] more than n/2 distinct (out = all values joined), [3] every value 36 long
+EXPORT("strdict") u32 strdict(const u8*in,const double*cval,const u32*clen,const u32*ix,u32 n,u32*ht,u32*codes,u32*lab,u8*out,u32*res){
+  u32 T=16,i,D=0,m=0,all36=1,dd=1,L,o,h,s,c2;
   res[1]=0; res[2]=0; res[3]=0;
   while(T<n+2) T<<=1;
-  for(i=0;i<T;i++) ht[i]=0;
-  for(i=0;i<nc;i++){ if(ckey[i]!=k) continue; s=(u32)cval[i]; L=clen[i]; const u8*a=in+s; h=2166136261u;
+  for(i=0;i<2*T;i+=2) ht[i]=0;
+  for(m=0;m<n;m++){ c2=ix[m]; s=(u32)cval[c2]; L=clen[c2]; const u8*a=in+s;
     if(L!=36) all36=0;
-    for(q=0;q<L;q++){ u8 c=a[q]; h=(h^c)*16777619u; if(dd&&!((c>=48&&c<=57)||c==46)) dd=0; }
-    h^=h>>15; u32 at=h&(T-1),e,id=0xFFFFFFFFu;
-    while((e=ht[at])!=0){ u32 c2=lab[e-1],L2=clen[c2]; if(L2==L){ const u8*b=in+(u32)cval[c2]; for(q=0;q<L&&a[q]==b[q];q++){} if(q==L){ id=e-1; break; } } at=(at+1)&(T-1); }
+    if(dd&&!digdot(a,L)) dd=0;
+    h=hbytes(a,L); u32 at=h&(T-1),e,id=0xFFFFFFFFu;
+    while((e=ht[2*at])!=0){ if(ht[2*at+1]==h){ u32 c3=lab[e-1]; if(clen[c3]==L&&sameb(a,in+(u32)cval[c3],L)){ id=e-1; break; } } at=(at+1)&(T-1); }
     if(id==0xFFFFFFFFu){ if(D*2>n){   /* more than n/2 distinct values: encodeColumn's dictionary loop stops here too; hand over every value joined by 0 bytes ('s'), and whether every value is 36 long (res[3]) or only digits and dots (res[1]) */
         o=0; all36=1; dd=1;
-        for(i=0;i<nc;i++){ if(ckey[i]!=k) continue; if(o) out[o++]=0; s=(u32)cval[i]; L=clen[i]; if(L!=36) all36=0; for(q=0;q<L;q++){ u8 c=in[s+q]; out[o++]=c; if(dd&&!((c>=48&&c<=57)||c==46)) dd=0; } }
+        for(i=0;i<n;i++){ c2=ix[i]; if(o) out[o++]=0; s=(u32)cval[c2]; L=clen[c2]; if(L!=36) all36=0; if(dd&&!digdot(in+s,L)) dd=0; __builtin_memcpy(out+o,in+s,L); o+=L; }
         res[0]=o; res[1]=dd; res[2]=1; res[3]=all36; return 0; }
-      id=D++; lab[id]=i; ht[at]=id+1; }
-    codes[m++]=id; }
+      id=D++; lab[id]=c2; ht[2*at]=id+1; ht[2*at+1]=h; }
+    codes[m]=id; }
   res[1]=dd; if(D*2>n||all36||dd) return 0;
   o=0;
-  if(D*4>n||D>=65536){ for(i=0;i<nc;i++){ if(ckey[i]!=k) continue; if(o) out[o++]=0; s=(u32)cval[i]; L=clen[i]; for(q=0;q<L;q++) out[o++]=in[s+q]; } }
-  else for(i=0;i<D;i++){ if(i) out[o++]=0; u32 c2=lab[i]; s=(u32)cval[c2]; L=clen[c2]; for(q=0;q<L;q++) out[o++]=in[s+q]; }
+  if(D*4>n||D>=65536){ for(i=0;i<n;i++){ c2=ix[i]; if(o) out[o++]=0; s=(u32)cval[c2]; L=clen[c2]; __builtin_memcpy(out+o,in+s,L); o+=L; } }
+  else for(i=0;i<D;i++){ if(i) out[o++]=0; c2=lab[i]; s=(u32)cval[c2]; L=clen[c2]; __builtin_memcpy(out+o,in+s,L); o+=L; }
   res[0]=o; return D;
+}
+// key k's string values as one JSON array text: '[' then each value's literal, quotes and escapes as in the input, joined by ',' then ']' (ASCII input, where offsets are byte offsets). Returns its length.
+EXPORT("rawjoin") u32 rawjoin(const u8*in,const double*cval,const u32*clen,const u32*ix,u32 n,u8*out){
+  u32 i,o=1,q; out[0]='[';
+  for(i=0;i<n;i++){ u32 c2=ix[i],s=(u32)cval[c2]-1,L=clen[c2]+2; if(i) out[o++]=','; for(q=0;q<L;q++) out[o+q]=in[s+q]; o+=L; }
+  out[o++]=']'; return o;
 }
 // per-key cell counts and list item totals, and every number column gathered into its own run of doubles at out+offs[k] (scaled to the column's fraction digits as the writer
 // stores them). Returns 1 when a scaled value is 2^50 or more in size, which the fast path does not write.
-static const u32 FDT[10]={0,2,2,3,4,5,6,7,8,9}; static u32 GWP[MAXK];
+static const u32 FDT[10]={0,2,2,3,4,5,6,7,8,9};
 EXPORT("gather") u32 gather(u32 nc,const u8*ckey,const double*cval,const u8*cfd,const u8*ktype,const u8*kfd,u32 nk,const u32*llen,u32*count,u32*tot,u32*offs,double*out){
   u32 i,j,o=0;
   for(j=0;j<nk;j++){ count[j]=0; tot[j]=0; }
@@ -203,9 +226,9 @@ EXPORT("gather") u32 gather(u32 nc,const u8*ckey,const double*cval,const u8*cfd,
   return 0;
 }
 // IPv4 column (encodeColumn's 'I'): every value of key k is four parts 0 or 1-9 then up to two digits, each under 256, joined by dots; writes 4 bytes per value. 0 when some value is not.
-EXPORT("ipcol") u32 ipcol(const u8*in,u32 nc,const u8*ckey,const double*cval,const u32*clen,u32 k,u8*out){
+EXPORT("ipcol") u32 ipcol(const u8*in,const double*cval,const u32*clen,const u32*ix,u32 n,u8*out){
   u32 i,o=0;
-  for(i=0;i<nc;i++){ if(ckey[i]!=k) continue; const u8*a=in+(u32)cval[i]; u32 L=clen[i],p=0,g;
+  for(i=0;i<n;i++){ u32 c2=ix[i]; const u8*a=in+(u32)cval[c2]; u32 L=clen[c2],p=0,g;
     for(g=0;g<4;g++){ if(g){ if(p>=L||a[p]!='.') return 0; p++; }
       if(p>=L||a[p]<'0'||a[p]>'9') return 0;
       u32 v=a[p]-'0',nd=1; p++;
