@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.0 (API 1)
+ * Version 1.5.1 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -43,6 +43,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  var fresh = false;                  // set only while load() rebuilds a state from text it parsed itself, so a clean counts object can be reused instead of copied
   var trusted = false;                // set only while createLarge().load() rebuilds a state from bytes that passed their check and contain no prototype-pollution key names
   var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
   var DEFAULT_MAX_KEYS = 1000;        // most names kept in one 'counts' field
@@ -102,6 +103,10 @@
         if (!isObj(v)) v = d;   // a missing or broken field starts from its default (1.0.0 always gave an empty map here)
         if (!isObj(v)) return out;
         var ks = Object.keys(v), cap = spec.max === 0 ? 0 : spec.max || 1e6, i, k, n;
+        if (fresh && ks.length >= 32 && ks.length <= maxKeys && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // every entry already clean: keep the parsed object, without a prototype
+          for (i = 0; i < ks.length; i++) { k = ks[i]; n = v[k]; if (BAD_KEYS[k] || k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n)) break; }
+          if (i === ks.length) { Object.setPrototypeOf(v, null); return v; }
+        }
         for (i = 0; i < ks.length; i++) {
           k = ks[i];
           if (BAD_KEYS[k] || k.length > 200 || kept >= maxKeys) continue;
@@ -377,7 +382,7 @@
           if (!a || badFields(a) > 0) b = readSlot(bak);   // a sound main slot can never lose to the backup, so only read the backup when it could matter
           if (a || b) {
             first = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a);
-            out = finish(first); used = first;
+            fresh = true; try { out = finish(first); } finally { fresh = false; } used = first;
             if (!out) {   // refused by afterValidate: try the other slot
               second = first === a ? (b || readSlot(bak)) : a;
               out = second ? finish(second) : null; used = second;
