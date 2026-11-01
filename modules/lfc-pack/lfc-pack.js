@@ -874,10 +874,9 @@
     var reps = 1, t0, dt;
     for (;;) { t0 = clock(); for (var r = 0; r < reps; r++) fn(); dt = clock() - t0; if (dt >= 8 || reps >= 256) return dt / reps; reps *= 2; }
   }
-  // the template read check (readNoSlower) times reads for at least about 48 ms, so it runs at most once per column key per pack call: tmplSlow is set when one column failed it (the call's
-  // other columns and later blocks skip templates and stay plain), tmplPass holds the keys that passed. packManyNow resets both at the start of each call.
+  // the template read check (readNoSlower) times reads for at least about 48 ms, so it runs at most once per column key per session: tmplSlow is set when one column failed it
+  // (other columns and later blocks and calls skip templates and stay plain), tmplPass holds the keys that passed
   var tmplSlow = false, tmplPass = new Set();
-  function templatesReset() { tmplSlow = false; tmplPass.clear(); }
   function templatesReadOk(v, key) {
     if (tmplSlow) return false;
     if (key !== undefined && tmplPass.has(key)) return true;
