@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-The small math every idle or clicker game needs, tested. 3.2 KB gzipped as `idle-core.min.js`, pure functions.
+The small math every idle or clicker game needs, tested. 3.1 KB gzipped as `idle-core.min.js`, pure functions.
 
 - Prices grow by a rate per copy owned, rounded up.
 - "Buy 10" and "buy max" are one closed-form calculation, not a loop.
