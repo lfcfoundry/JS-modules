@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.2 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 1.5.2 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 1.6.0 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -81,6 +81,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
 - 2026-10-31 · **sprite-baker** 1.7.2 · API 1: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **single-file-tools** 1.2.1 · API 1: Packed pages made with base64 encoding now unpack with the browser's own base64 decoder (Uint8Array.fromBase64) where there is one, which is faster; older browsers use the old way. About 40 bytes more loader.
+- 2026-10-31 · **save-kit** 1.6.0 · API 1: New save-kit-lite.js: a 966-byte gzipped file with checked fields and a backup slot, for small games. Same answers and speed as create() for those field types.
 - 2026-10-31 · **save-kit** 1.5.2 · API 1: On Safari and other WebKit browsers the number check is faster: a 20 KB save takes 59% less time and a load 19% less; tiny saves are a few microseconds slower.
 - 2026-10-31 · **save-kit** 1.5.1 · API 1: Loading a save with big counts lists takes 16 to 21% less time (cloud Chromium, Firefox and WebKitGTK); nothing a game sees changes.
 - 2026-10-31 · **save-kit** 1.5.0 · API 1: createLarge() gets an opt-in skipUnchangedMs: an unchanged big save is not written again; 57 to 66% less time.

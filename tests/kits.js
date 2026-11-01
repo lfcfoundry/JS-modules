@@ -78,6 +78,7 @@ var steps = [
   ['pad-nav node', 'node', ['modules/pad-nav/test/run.js']],
   ['save-kit', 'node', ['modules/save-kit/test/run.js']],
   ['save-kit lean', 'node', ['modules/save-kit/test/lean.js']],
+  ['save-kit lite', 'node', ['modules/save-kit/test/lite.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
   ['image-decode', 'node', ['modules/image-decode/test/run.js']],
   ['gpu-blur', 'node', ['modules/gpu-blur/test/run.js']],
