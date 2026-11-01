@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.2 · API 2 · 2026-10-31
+
+### Quick
+The page is passed through single-file-tools/latin1.py before packing (\uXXXX in scripts and JSON, CSS escapes in styles, &#x..; in markup and comments; text/plain and other data blocks are left alone and reported).
+
+### Deep
+The page is passed through single-file-tools/latin1.py before packing (\uXXXX in scripts and JSON, CSS escapes in styles, &#x..; in markup and comments; text/plain and other data blocks are left alone and reported). terser gets --format ascii_only=true and esbuild --charset=ascii. A page with an arrow and an ellipsis packed in base64 mode unpacks to the same title and text in Chromium 155, Firefox 158 and WebKitGTK 2.52.6. Research round 33: one emoji made Chromium keep a whole page at 2 bytes per character (Netflow Map renderer 34.4 to 31.3 MB once Latin-1; Apple Press started in 0.66 to 0.89 of the time in WebKitGTK).
+
 ## 2.0.1 · API 2 · 2026-10-31
 
 ### Quick

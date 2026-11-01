@@ -154,7 +154,7 @@
     },
     {
       "id": "field-report",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "api": 1,
       "global": "FieldReport",
       "summary": "Two hidden buttons for a game or app: five taps in a corner open a panel that saves a speed report (start-up, frames a second, slowest frames, heavy tasks, plain verdict) and an error log, as small Markdown files. No network.",
@@ -362,7 +362,7 @@
     },
     {
       "id": "graph-walk",
-      "version": "0.11.1",
+      "version": "0.11.2",
       "api": 0,
       "global": "GraphWalk",
       "summary": "Graph walks on typed arrays with no recursion, in WebAssembly with a plain JavaScript fallback: distances, loops, components, topological order, shortest and landmark paths, PageRank, betweenness and closeness (with helper threads), k-core, triangles, Louvain communities, max-flow and critical path. Same answers as Netflow Map's inline walks.",
@@ -445,7 +445,7 @@
     },
     {
       "id": "netflow-layers",
-      "version": "1.7.1",
+      "version": "1.7.2",
       "api": 1,
       "global": "NetflowLayers",
       "summary": "Lays out a graph in rows (top to bottom or left to right) with story order, tags instead of very long links, a column for the pages every route passes, and tall maps cut into columns.",
@@ -459,7 +459,7 @@
     },
     {
       "id": "netflow-scene",
-      "version": "1.3.1",
+      "version": "1.3.2",
       "api": 1,
       "global": "NetflowScene",
       "summary": "Turns a Netflow Map layout into plain drawing lists (dots, links, labels, ribbons, shapes) that Canvas 2D, WebGL2, WebGPU or SVG can draw the same way; big flat maps keep links in typed lists and reuse link looks between pictures.",
@@ -501,7 +501,7 @@
     },
     {
       "id": "grown-ups-door",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "api": 1,
       "global": "GrownUpsDoor",
       "summary": "A hold-then-drag task a young child will not finish, in front of the buttons and links a grown-up should press (a speed bump, not security).",
@@ -531,7 +531,7 @@
   "tools": [
     {
       "id": "single-file-tools",
-      "version": "1.2.1",
+      "version": "1.3.0",
       "api": 1,
       "summary": "Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer for one-file games.",
       "short": "Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer.",
@@ -546,7 +546,7 @@
     },
     {
       "id": "lzma-pack",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "api": 2,
       "summary": "Packs one HTML file into a smaller self-unpacking file with LZMA and a hash check (Python 3 standard library).",
       "short": "Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3).",
@@ -559,7 +559,7 @@
     },
     {
       "id": "ppmd-pack",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "api": 2,
       "summary": "Packs one HTML file into a self-unpacking file with PPMd, the 7-Zip text compressor (PPMd by Dmitry Shkarin; public-domain code by Igor Pavlov, 7-Zip). Pure Python; pays off above about 60 KB of compressed data.",
       "short": "Packs one HTML file into a self-unpacking file with PPMd (pure Python).",

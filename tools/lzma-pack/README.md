@@ -1,6 +1,6 @@
 # lzma-pack
 
-**Version 2.0.1 · API 2**
+**Version 2.0.2 · API 2**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 

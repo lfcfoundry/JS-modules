@@ -299,7 +299,7 @@ else:
 def t_build_script():
     shim = TMP / "shim"; shim.mkdir()
     log = TMP / "shim.log"
-    (shim / "python3").write_text('#!/bin/sh\necho "python3 $1" >> "$SHIM_LOG"\ncp "$2" "$3"\n')
+    (shim / "python3").write_text('#!/bin/sh\necho "python3 $1" >> "$SHIM_LOG"\n[ "$2" = "--check" ] && exit 0\ncp "$2" "$3"\n')
     (shim / "node").write_text('#!/bin/sh\necho "node $1" >> "$SHIM_LOG"\ncp "$2" "$3"\n')
     (shim / "npx").write_text('#!/bin/sh\necho "npx $1" >> "$SHIM_LOG"\nprev=""; out=""; for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; last="$a"; done\ncp "$last" "$out"\n')
     for f in shim.iterdir():
@@ -310,14 +310,14 @@ def t_build_script():
     r = subprocess.run(["bash", str(HERE / "build-example.sh"), "sub/game.html"], cwd=str(work), env=env, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
     lines = log.read_text().splitlines()
-    assert len(lines) == 4, lines
+    assert len(lines) == 6, lines
     for l in lines:
         tool = l.split(" ", 1)[1]
         if tool.startswith("html-minifier"):
             continue
         assert tool.startswith(str(HERE)) and pathlib.Path(tool).exists(), "a tool was called by a bare or wrong path: " + l
     assert (work / "sub" / "game.slim.html").exists() and (work / "sub" / "game.small.html").exists(), "outputs are not next to the input"
-    assert not (work / "sub" / "game.fonts.html").exists() and not (work / "sub" / "game.svg.html").exists(), "intermediate files were left behind"
+    assert not (work / "sub" / "game.fonts.html").exists() and not (work / "sub" / "game.svg.html").exists() and not (work / "sub" / "game.min.html").exists(), "intermediate files were left behind"
     bad = subprocess.run(["bash", str(HERE / "build-example.sh"), "nope.html"], cwd=str(work), env=env, capture_output=True, text=True)
     assert bad.returncode != 0 and "usage" in bad.stderr and "nope.html" in bad.stderr, bad.stderr
 
@@ -360,7 +360,7 @@ def t_waiting():
     gz = gzip.compress(b"x")
     page = pk.build_page(gz)
     body = page.split("<body", 1)[1].split("<script>", 1)[0]
-    assert "Loading\u2026" in body and "Opening" not in page, "the waiting line is missing: " + body
+    assert "Loading&#x2026;" in body and "Opening" not in page, "the waiting line is missing: " + body
     assert "background:#101018" in body and "color:#ccc" in body, "the default dark background and light text are missing: " + body
     assert "justify-content:center" in body and "align-items:center" in body, "the waiting line is not centered"
     assert "background:#fff" not in body, "the waiting page is still white"
@@ -518,7 +518,7 @@ try:
         assert "background:#101018" in (TMP / "z.small.html").read_text(encoding="utf-8"), "the default waiting page is missing from the packed file"
         r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "z2.small.html"), "T", "--bg", "#223344"]); assert r.returncode == 0, r.stderr
         out = (TMP / "z2.small.html").read_text(encoding="utf-8")
-        assert "background:#223344" in out and "Loading\u2026" in out and "<title>T</title>" in out, "--bg was not used"
+        assert "background:#223344" in out and "Loading&#x2026;" in out and "<title>T</title>" in out, "--bg was not used"
         r = run([sys.executable, str(HERE / "pack.py"), str(d), str(TMP / "z3.small.html"), "--bg", "red;}</style>"]); assert r.returncode == 0, r.stderr
         assert "not a plain color" in r.stderr and "background:#101018" in (TMP / "z3.small.html").read_text(encoding="utf-8"), "a bad --bg must fall back and say so"
     check("pack.py command line, with zopfli (title, --bg, bad --bg)", t_cli)
@@ -552,6 +552,73 @@ except ImportError:
         assert r.returncode != 0 and "pip install zopfli" in r.stderr, r.stderr[-300:]
 
     check("without zopfli, pack.py says what to install", t_nozopfli)
+
+# latin1.py: the delivered page keeps every character at most U+00FF (the browser then stores its text at 1 byte per character)
+import latin1  # noqa: E402
+L1_PAGE = ('<!doctype html><!-- note → here --><title>A … B</title><style>.a::after{content:"→\U0001F600"}</style>'
+           '<p title="x—y">café “quoted” \U0001F600</p><script>window.R=["→","\U0001F600",/…/.test("a…b"),`t—`];</script>'
+           '<script type="application/json" id=j>{"k":"→\U0001F600"}</script><script type="text/plain" id=d>keep → as is</script>')
+
+
+def t_latin1_escape():
+    out, c, left = latin1.escape_html(L1_PAGE)
+    bad = latin1.check(out)
+    assert [ch for _, _, ch in bad] == ['→'], bad   # only the text/plain block keeps its character
+    assert left == ['text/plain'] and c['script'] == 7 and c['style'] == 2 and c['markup'] == 6, (c, left)
+    assert 'café' in out and '&#x2192;' in out and '\\2192 ' in out and '\\ud83d\\ude00' in out, out[:300]
+    assert latin1.escape_html(out)[0] == out   # a second run changes nothing
+
+
+def t_latin1_js_same():
+    out = latin1.escape_html(L1_PAGE)[0]
+    js = re.search(r'<script>(.*?)</script>', out, re.S).group(1)
+    js_json = re.search(r'<script type="application/json" id=j>(.*?)</script>', out, re.S).group(1)
+    r = run([NODE, "-e", "var window={};" + js + "process.stdout.write(JSON.stringify(window.R))"])
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == ["→", "\U0001F600", True, "t—"], r.stdout
+    assert json.loads(js_json) == {"k": "→\U0001F600"}, js_json
+
+
+def t_latin1_html_same():   # markup and attributes read back as the same text
+    out = latin1.escape_html(L1_PAGE)[0]
+    class P(html.parser.HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True); self.texts = []; self.attrs = []
+        def handle_data(self, d): self.texts.append(d)
+        def handle_starttag(self, t, a): self.attrs += [v for k, v in a if v]
+    a, b = P(), P(); a.feed(L1_PAGE); b.feed(out)
+    assert a.attrs == b.attrs, (a.attrs, b.attrs)
+    tx = lambda p: [t for t in p.texts if '{' not in t and 'window' not in t]
+    assert tx(a) == tx(b), (tx(a), tx(b))
+
+
+def t_latin1_cli():
+    f = TMP / "l1.html"; f.write_text(L1_PAGE.replace('<script type="text/plain" id=d>keep → as is</script>', ''), encoding="utf-8")
+    r = run([sys.executable, str(HERE / "latin1.py"), "--check", str(f)]); assert r.returncode == 1 and "above U+00FF" in r.stdout, r.stdout
+    r = run([sys.executable, str(HERE / "latin1.py"), str(f), str(f)]); assert r.returncode == 0, r.stdout + r.stderr
+    r = run([sys.executable, str(HERE / "latin1.py"), "--check", str(f)]); assert r.returncode == 0 and "Latin-1 only" in r.stdout, r.stdout
+
+
+def t_repo_pages_latin1():   # every page this repository delivers (not the windows-1252 bytes examples, not test fixtures)
+    root = HERE.parent.parent
+    r = subprocess.run(["git", "-C", str(root), "ls-files", "*.html"], capture_output=True, text=True)
+    files = [f for f in r.stdout.split() if "packed-bytes" not in f and "/test/" not in f and "/tests/" not in f and not f.startswith("tests/")]
+    bad = []
+    for f in files:
+        b = latin1.check((root / f).read_text(encoding="utf-8", errors="replace"))
+        if b: bad.append("%s line %d U+%04X" % (f, b[0][0], ord(b[0][2])))
+    assert not bad, "; ".join(bad[:8])
+
+
+check("latin1.py: characters above U+00FF become escapes in scripts, JSON, styles, markup and comments; data blocks are left alone and reported", t_latin1_escape)
+if NODE:
+    check("latin1.py: the escaped script and JSON give the very same values", t_latin1_js_same)
+else:
+    skip("latin1.py: the escaped script gives the same values", "Node.js not found")
+check("latin1.py: markup text and attributes read back the same", t_latin1_html_same)
+check("latin1.py --check fails on a character above U+00FF and passes once escaped", t_latin1_cli)
+if (HERE.parent.parent / ".git").exists():
+    check("every HTML page in the repository is Latin-1 only (the browser keeps it at 1 byte per character)", t_repo_pages_latin1)
 
 shutil.rmtree(TMP, ignore_errors=True)
 print("single-file-tools: %d passed, %d failed, %d skipped" % (passed, failed, skipped))

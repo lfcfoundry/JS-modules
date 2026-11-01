@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.2 · API 2 · 2026-10-31
+- Packed pages are now Latin-1 only: characters above U+00FF in the page are written as escapes before packing (the same characters on screen), and the minifiers write ASCII, so the browser keeps the unpacked page at 1 byte per character.
+
 ## 2.0.1 · API 2 · 2026-10-31
 - Packed pages made with base64 encoding now unpack with the browser's own base64 decoder (Uint8Array.fromBase64) where there is one, which is faster; older browsers use the old way. About 40 bytes more loader.
 

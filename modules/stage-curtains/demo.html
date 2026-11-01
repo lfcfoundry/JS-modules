@@ -1,9 +1,9 @@
 <!doctype html>
 <!--
     ===================================================================================
-    🛠️ APPLICATION : stage-curtains demo
-    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
-    📜 LICENSE : MIT License
+    APPLICATION : stage-curtains demo
+    FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    LICENSE : MIT License
     ===================================================================================
     Copyright (c) 2026 LFC Foundry
 
@@ -39,11 +39,11 @@
   document.getElementById('run').onclick = function () {
     if (busy) return; busy = true;
     var cur = StageCurtains.create({ container: document.body, color: document.getElementById('c').value, seed: n * 7 });
-    msg.textContent = 'Painting the velvet in idle slices…';
-    cur.prepare().then(function () { msg.textContent = 'Closing…'; return cur.close(); }).then(function () {
-      n++; document.body.style.background = scenes[n % scenes.length]; scene.textContent = 'Scene ' + n; msg.textContent = 'Opening…';
+    msg.textContent = 'Painting the velvet in idle slices\u2026';
+    cur.prepare().then(function () { msg.textContent = 'Closing\u2026'; return cur.close(); }).then(function () {
+      n++; document.body.style.background = scenes[n % scenes.length]; scene.textContent = 'Scene ' + n; msg.textContent = 'Opening\u2026';
       return cur.open();
     }).then(function () { msg.textContent = 'Done. Run again.'; cur.destroy(); busy = false; });
   };
 </script>
-<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
+<footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> &#x2022; MIT Licensed</footer>
