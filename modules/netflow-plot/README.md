@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.0.0 · API 2**
+**Version 2.2.0 · API 2**
 
-**Tested in:** 314 module checks; donut charts give the same SVG as 1.0.0.
+**Tested in:** node modules/netflow-plot/test/run.js (326 checks); default pictures byte-identical to 2.1.0; three browsers
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -38,7 +38,9 @@ var hit = NetflowPlot.markAt(S, x, y);   // { rows, t } or null
 
 - `rows`: plain objects. A column is read from `row.attrs[key]`, then `row[key]`; pass `options.get(row, key)` to read it another way.
 - `spec`: `type` (one of `NetflowPlot.TYPES`), `x`, `y`, `color`, `size`, `agg` (`sum`, `mean`, `count`, `min`, `max`, `median`), `stack` (`stack`, `group`, `normalize`, `stream`, `none`), `horizontal`, `bins`, `smooth` (moving average window), `index` (lines from 100), `cols` (parallel lines and scatter matrix), `sort` (`value`, `name`, `none`).
-- `options`: `theme`, `palette`, `width`, `height`, `get`.
+- `options`: `theme`, `palette`, `width`, `height`, `get`, and the optional `title`, `subtitle`, `source`, `highlight`.
+- Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `options` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
+- `highlight` (optional): a series name from the `color` column (or, with no color column, one bar) keeps its color and is drawn on top; the rest turn one gray. Works on every type that colors by a column. A name that is not there changes nothing, and a highlighted name is never folded into Other.
 - `NetflowPlot.NEEDS` lists which columns each type needs (a number, a category, text, or any).
 - Helpers: `ticks`, `timeTicks`, `kde`, `normInv`, `voronoiCells`, `quant`, `fmtNum`.
 

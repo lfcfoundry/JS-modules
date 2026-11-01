@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.0.1 (API 1)
+ * Version 1.2.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -438,6 +438,8 @@ var NetflowHierarchy = (function () {
     var lab = function (x, y, t, size, c, op) { var l = { x: x, y: y, t: t, size: size, color: c, align: 'c', bold: false, rot: 0, minK: 0, node: -1 }; if (op) for (var k in op) l[k] = op[k]; if (l.rot) l.rot *= 180 / Math.PI; S.labels.push(l); return l; };   /* angles in radians here, the renderer takes degrees */
     var clip = function (s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; };
     var recOf = function (q) { return S.nodes[q]; };
+    /* text on a shape: the preferred color when it reads at 4.5:1 or better on the shape (as drawn over the background), otherwise near-black or white, whichever reads better (black where neither reaches 4.5:1) */
+    var ink = function (fill, pref) { var c = over(fill, T.bg); if (pref && contrast(pref, c) >= 4.5) return pref; var d = contrast(INK_DARK, c), w = contrast(INK_LIGHT, c); return Math.max(d, w) >= 4.5 ? (d >= w ? INK_DARK : INK_LIGHT) : INK_BLACK; };   /* pure black reaches 4.5:1 on every color where neither does */
     /* one color for everything says nothing: then each top branch (or each arc) gets its own color from the color set */
     var mono = (L.groups || []).length <= 1 && (!o.colorBy || o.colorBy === 'group' || o.colorBy === 'found');
     var topIdx = null;
@@ -463,7 +465,7 @@ var NetflowHierarchy = (function () {
         S.rects.push({ x: x0, y: y0, w: w2, h: h2, r: 0, fill: fill, stroke: rectLine, sw: 1, layer: 1, node: it >= 0 ? recOf(it).i : -1, a: 1 });
         var size = (type === 'treemap' && box ? 12 : 11) * iscale, txt = ch.label[v];
         if (itemShow && w2 > size * 2.2 && h2 > size * 1.3) {
-          var maxC = Math.floor((w2 - 8) / (size * 0.58)), tcol = type === 'treemap' && box ? T.fg : (lumi(base) > 0.55 ? [0.1, 0.1, 0.12, 1] : [1, 1, 1, 1]);
+          var maxC = Math.floor((w2 - 8) / (size * 0.58)), tcol = ink(fill, type === 'treemap' && box ? T.fg : null);
           lab(x0 + 4, y0 + size + 2, clip(txt, maxC), size, tcol, { align: 'l', node: it >= 0 ? it : -1, minK: 0, bold: box, val: ch.val[v] });
         }
       }
@@ -478,21 +480,25 @@ var NetflowHierarchy = (function () {
         var midA = (a0 + a1) / 2, rr = (r0 + r1) / 2, arcLen = (a1 - a0) * rr;
         if (itemShow && arcLen > 12 * iscale) {
           var right2 = Math.cos(midA) >= 0, maxC2 = Math.floor((ch.ring - 8) / (6.5 * iscale));
-          lab(scx + Math.cos(midA) * rr, scy + Math.sin(midA) * rr + 4, clip(ch.label[u], maxC2), 11 * iscale, lumi(base2) > 0.55 ? [0.1, 0.1, 0.12, 1] : [1, 1, 1, 1], { rot: right2 ? midA : midA + Math.PI, node: it2 >= 0 ? it2 : -1, minK: 0.2 });
+          lab(scx + Math.cos(midA) * rr, scy + Math.sin(midA) * rr + 4, clip(ch.label[u], maxC2), 11 * iscale, ink(alpha(base2, 0.9 - Math.min(0.3, d * 0.06)), null), { rot: right2 ? midA : midA + Math.PI, node: it2 >= 0 ? it2 : -1, minK: 0.2 });
         }
       }
       if (ch.skipRoot) lab(scx, scy + 5, clip(ch.label[ch.root], 18), 13, T.fg, { bold: true });
     } else if (type === 'pack') {
+      /* a circle's fill as drawn: its own shade over every circle around it */
+      var shown = new Map(), parentFill = function (v) { var p = ch.par[v]; if (p < 0 || !ch.kids[p].length) return T.bg; var c = shown.get(p); return c || T.bg; };
       for (var pi = 0; pi < ch.order.length; pi++) {
         var pv = ch.order[pi]; if (!ch.kids[pv].length) continue; if (pv === ch.root && ch.item[pv] < 0 && false) continue;
         var pr = ch.Rr[pv], px = ch.X[pv], py = ch.Y[pv], ip = ch.item[pv], pb = hcol(pv);
         var circ = [], nseg = Math.max(24, Math.min(96, Math.round(pr / 3)));
         for (var cq = 0; cq < nseg; cq++) { var ca = cq / nseg * TAU; circ.push(px + Math.cos(ca) * pr, py + Math.sin(ca) * pr); }
         var dep = ch.depth[pv];
-        S.polys.push({ pts: circ, c: [px, py], fill: alpha(mix(pb, T.bg, 0.6), dep === 0 ? 0.35 : 0.5), stroke: alpha(pb, 0.6), group: ip < 0 ? ch.group[pv] : undefined, node: ip });
-        if (itemShow && pr > 30) lab(px, py - pr + 16 * iscale, clip(ch.label[pv], Math.floor(pr / 5)), 12 * iscale, T.fg, { bold: true, node: ip >= 0 ? ip : -1, minK: 0.1 });
+        var pfill = alpha(mix(pb, T.bg, 0.6), dep === 0 ? 0.35 : 0.5);
+        shown.set(pv, over(pfill, parentFill(pv)));
+        S.polys.push({ pts: circ, c: [px, py], fill: pfill, stroke: alpha(pb, 0.6), group: ip < 0 ? ch.group[pv] : undefined, node: ip });
+        if (itemShow && pr > 30) lab(px, py - pr + 16 * iscale, clip(ch.label[pv], Math.floor(pr / 5)), 12 * iscale, ink(over(pfill, parentFill(pv)), T.fg), { bold: true, node: ip >= 0 ? ip : -1, minK: 0.1 });
       }
-      if (itemShow) L.nodes.forEach(function (nd, q) { if (ch.kids[nd.hv].length) return; var r = ch.Rr[nd.hv]; if (r > 14) lab(nd.cx, nd.cy + 4, clip(nd.label, Math.floor(r / 3.6)), Math.min(13, r / 2.6) * iscale, lumi(fillOf(q)) > 0.55 ? [0.1, 0.1, 0.12, 1] : [1, 1, 1, 1], { node: q, minK: 0.3 }); });
+      if (itemShow) L.nodes.forEach(function (nd, q) { if (ch.kids[nd.hv].length) return; var r = ch.Rr[nd.hv]; if (r > 14) lab(nd.cx, nd.cy + 4, clip(nd.label, Math.floor(r / 3.6)), Math.min(13, r / 2.6) * iscale, ink(fillOf(q), null), { node: q, minK: 0.3 }); });
       /* polys are drawn under the dots: move the outer circles first */
     } else if (type === 'tree') {
       var radial = ch.shape === 'radial' || ch.shape === 'radialCluster', ind = ch.shape === 'indented', X = ch.X, Y = ch.Y, treeLine = alpha(T.line, 0.75);
@@ -534,9 +540,16 @@ var NetflowHierarchy = (function () {
     S.gridStale = true; S.eidx = null; S.spatial = null;
     if (S.legendTitle === '' && !S.legend.length && (L.groups || []).length > 1) (L.groups || []).slice(0, 12).forEach(function (g) { S.legend.push({ k: 'group', c: gcol(g), t: g || '(no group)', key: 'g:' + g }); });
     S.chartNote = chartNote(L, ext);
+    if (NS.addTitles) NS.addTitles(S, o);   /* opt-in o.title, o.subtitle, o.source */
     return S;
   }
   function lumi(c) { return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
+  var INK_DARK = [0.1, 0.1, 0.12, 1], INK_LIGHT = [1, 1, 1, 1], INK_BLACK = [0, 0, 0, 1];
+  /** A color with opacity laid over an opaque one, as the picture shows it. */
+  function over(c, bg) { var a = c[3] === undefined ? 1 : c[3]; return [c[0] * a + bg[0] * (1 - a), c[1] * a + bg[1] * (1 - a), c[2] * a + bg[2] * (1 - a), 1]; }
+  /** WCAG relative luminance and contrast ratio (1 to 21) of two opaque colors with channels 0 to 1. */
+  function relLum(c) { var f = function (v) { return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); }
+  function contrast(a, b) { var x = relLum(a), y = relLum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
   /** The tree link from p to c as a link of the map, when it is one (made-up group boxes are not). */
   function edgeBetween(L, ch, p, c) {
     var ip = ch.item[p], ic = ch.item[c]; if (ip < 0 || ic < 0) return -1;

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.3 · API 2 · 2026-11-01
+
+### Quick
+Follow-up v2 from the memory-compression research thread: windows inside lazy record columns (users' address) and the flat column of lazy arrays (roles); row ends of lazy arrays summed straight from a plain lengths array.
+
+### Deep
+Follow-up v2 from the memory-compression research thread: windows inside lazy record columns (users' address) and the flat column of lazy arrays (roles); row ends of lazy arrays summed straight from a plain lengths array. Laptop Firefox 160 and Chromium 156 (windowed/whole): first row 0.07 to 0.62, every full scan 0.96 to 1.03. 85 checks; wintest equals unpack.
+
 ## 2.10.2 · API 2 · 2026-11-01
 
 ### Quick

@@ -1,5 +1,13 @@
 # netflow-circular developer changelog
 
+## 1.1.0 · API 1 · 2026-11-01
+
+### Quick
+Through netflow-hierarchy 1.2.0 scene(); needs netflow-scene 1.4.0.
+
+### Deep
+Through netflow-hierarchy 1.2.0 scene(); needs netflow-scene 1.4.0.
+
 ## 1.0.1 · API 1 · 2026-11-01
 
 ### Quick

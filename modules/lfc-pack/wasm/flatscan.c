@@ -27,13 +27,16 @@ static u32 digits(const u8*in,u32 p,u32 len,u64*m,u32*nd){
 // cell outputs, in row-major order: ckey (key id), cval (number: signed mantissa as double; list: index into llen), cfd (fraction digits, numbers only)
 // list outputs: llen (length of each list), lval (values, pooled in the same order)
 // ktype: 1 number, 2 list of whole numbers, 3 string without escapes (cval = start offset and clen = length, both in UTF-16 units of the decoded text; the caller has checked the bytes are valid UTF-8), 4 boolean (cval 1 or 0; cfd 2 marks a null in a boolean column), 5 null (every value of the column)
-EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyoff,u32*keylen,u8*ktype,u8*kmaxfd,u32*st,u8*ckey,double*cval,u8*cfd,u32*llen,u32*lval,u32*clen,u32 allowstr){
+EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyoff,u32*keylen,u8*ktype,u8*kmaxfd,u32*st,u8*ckey,double*cval,u8*cfd,u32*llen,u32*lval,u32*clen,u32 allowstr,u32 first,u32 stop){
+  /* resumable: first=1 starts at the top; with first=0 it goes on from the state in st. It returns 100 at the first row that starts at or after byte stop, so the caller
+     scans a block in pieces: browsers only switch a wasm function from its quick first code to optimized code between calls, so one long call stays slow on a first pack */
   u32 p=0,row=0,nk=0,nc=0,nl=0,nlv=0,extra=0;   // extra = bytes minus UTF-16 units so far, for the strings' offsets in the decoded text
-  for(u32 i=0;i<512;i++) HT[i]=0;
-  for(u32 i=0;i<MAXK;i++){ LASTROW[i]=0xFFFFFFFFu; PRED[i]=0xFFFFFFFFu; }
-#define BAIL(c) do{ st[0]=nk; st[1]=nc; st[2]=nl; st[3]=nlv; st[4]=row; st[5]=p; return (c); }while(0)
+  if(first){ for(u32 i=0;i<512;i++) HT[i]=0; for(u32 i=0;i<MAXK;i++){ LASTROW[i]=0xFFFFFFFFu; PRED[i]=0xFFFFFFFFu; } }
+  else { nk=st[0]; nc=st[1]; nl=st[2]; nlv=st[3]; row=st[4]; p=st[5]; extra=st[6]; }
+#define BAIL(c) do{ st[0]=nk; st[1]=nc; st[2]=nl; st[3]=nlv; st[4]=row; st[5]=p; st[6]=extra; return (c); }while(0)
 #define WS while(p<len&&(in[p]==' '||in[p]=='\t')) p++
   while(p<len){
+    if(p>=stop) BAIL(100);
     if(row>=nrows) BAIL(1);
     if(in[p]!='{') BAIL(2);
     p++; WS;
@@ -134,7 +137,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
     if(p<len){ if(in[p]!='\n') BAIL(14); p++; }
   }
   if(row!=nrows) BAIL(15);
-  st[0]=nk; st[1]=nc; st[2]=nl; st[3]=nlv; st[4]=row; st[5]=p;
+  st[0]=nk; st[1]=nc; st[2]=nl; st[3]=nlv; st[4]=row; st[5]=p; st[6]=extra;
   return 0;
 }
 EXPORT("count") u32 count(const u8*in,u32 len,u32*out){   // newlines, colons, commas: bounds for the output arrays; out[3] is 1 when some byte is 128 or more
