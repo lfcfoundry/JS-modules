@@ -76,7 +76,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **text-columns** 0.5.2 · API 0: parseParallel reads files with accented or other non-ASCII text up to 4.8x faster.
 - 2026-10-31 · **test-runner** 1.4.0 · API 1: New ab.js: the early-stop A/B timing rule for the 5% check.
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
-- 2026-10-31 · **save-kit** 1.5.1 · API 1: Loading a save with big counts lists is 16 to 28% faster; nothing a game sees changes.
+- 2026-10-31 · **save-kit** 1.5.1 · API 1: Loading a save with big counts lists takes 16 to 21% less time (cloud Chromium, Firefox and WebKitGTK); nothing a game sees changes.
 - 2026-10-31 · **save-kit** 1.5.0 · API 1: createLarge() gets an opt-in skipUnchangedMs: an unchanged big save is not written again; 57 to 66% less time.
 - 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option keeps a second copy of each save that survives a browser crash. In a real crash test, saves kept only in browser storage lost 29 to 30 of 80; with durable on, none were lost.
 - 2026-10-31 · **pcodec-js** 1.6.2 · API 1: Repeated big unpacks take 0.63 to 0.87 of the time (5 million numbers, three browsers): a ready array is prepared while the page is idle and dropped after 4 s unused.
