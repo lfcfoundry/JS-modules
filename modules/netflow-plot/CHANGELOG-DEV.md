@@ -1,5 +1,13 @@
 # netflow-plot developer changelog
 
+## 2.2.0 · API 2 · 2026-11-01
+
+### Quick
+options.highlight: a value of the color column (or of x on bar charts with no color column).
+
+### Deep
+options.highlight: a value of the color column (or of x on bar charts with no color column). The other series share one gray (theme muted mixed 45% toward the background); the chosen series is moved last in the shape lists so it is drawn over them; a highlighted name past the color limit keeps its own place instead of joining Other. An unknown name changes nothing.
+
 ## 2.1.0 · API 2 · 2026-11-01
 
 ### Quick

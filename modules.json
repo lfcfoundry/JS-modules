@@ -499,7 +499,7 @@
     },
     {
       "id": "netflow-plot",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "api": 2,
       "global": "NetflowPlot",
       "summary": "Plain charts from a table's columns, 22 types from bars and lines to box plots, hexbins, density, Q-Q, Voronoi cells and word clouds, drawn as netflow-scene drawing lists so the map's renderer, themes and SVG export draw them; the charts of Netflow Map's Charts tab.",
