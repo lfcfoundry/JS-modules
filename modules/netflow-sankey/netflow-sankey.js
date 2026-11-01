@@ -175,25 +175,44 @@
    * ids: item ids; edges: [{from, to, flow}] with from/to as indexes. Returns { layer: Int32Array, feedback: Set of edge indexes that run backwards }.
    */
   function layering(n, edges, justifySinks) {
-    var outE = [], inE = [], i, e;
-    for (i = 0; i < n; i++) { outE.push([]); inE.push([]); }
-    edges.forEach(function (ed, q) { if (ed.from !== ed.to) { outE[ed.from].push(q); inE[ed.to].push(q); } });
-    /* order the items so that few links run backwards */
-    var rank = new Int32Array(n), left = [], right = [], alive = new Uint8Array(n), nAlive = n, od = new Float64Array(n), idg = new Float64Array(n);
-    for (i = 0; i < n; i++) { outE[i].forEach(function (q) { od[i] += edges[q].flow; }); inE[i].forEach(function (q) { idg[i] += edges[q].flow; }); }
+    var i, q, m = edges.length;
+    /* each item's links out and in as flat lists (in link order, as before) */
+    var oS = new Int32Array(n + 1), iS = new Int32Array(n + 1), oE = new Int32Array(m), iE = new Int32Array(m), eFrom = new Int32Array(m), eTo = new Int32Array(m), eFlow = new Float64Array(m);
+    for (q = 0; q < m; q++) { var ed = edges[q]; eFrom[q] = ed.from; eTo[q] = ed.to; eFlow[q] = ed.flow; if (ed.from !== ed.to) { oS[ed.from + 1]++; iS[ed.to + 1]++; } }
+    for (i = 0; i < n; i++) { oS[i + 1] += oS[i]; iS[i + 1] += iS[i]; }
+    var oAt = oS.slice(0, n), iAt = iS.slice(0, n);
+    for (q = 0; q < m; q++) if (eFrom[q] !== eTo[q]) { oE[oAt[eFrom[q]]++] = q; iE[iAt[eTo[q]]++] = q; }
+    /* order the items so that few links run backwards (weighted Eades-Lin-Smyth). Same removal order as scanning all items for sinks, then for sources,
+       until nothing moves: an item that becomes a sink (source) during a scan is taken in that scan when it comes later in item order, else in the next one. */
+    var rank = new Int32Array(n), left = [], right = [], alive = new Uint8Array(n), nAlive = n, od = new Float64Array(n), idg = new Float64Array(n), j;
+    for (i = 0; i < n; i++) { for (j = oS[i]; j < oS[i + 1]; j++) od[i] += eFlow[oE[j]]; for (j = iS[i]; j < iS[i + 1]; j++) idg[i] += eFlow[iE[j]]; }
     var oc = new Int32Array(n), ic = new Int32Array(n);   // how many links still lead out of / into items that are not placed yet
-    for (i = 0; i < n; i++) { oc[i] = outE[i].length; ic[i] = inE[i].length; }
-    var remove = function (v) { alive[v] = 0; nAlive--; outE[v].forEach(function (q) { var w = edges[q].to; ic[w]--; if (alive[w]) idg[w] -= edges[q].flow; }); inE[v].forEach(function (q) { var w = edges[q].from; oc[w]--; if (alive[w]) od[w] -= edges[q].flow; }); };
-    var aliveOut = function (v) { return oc[v] > 0; }, aliveIn = function (v) { return ic[v] > 0; };
-    for (i = 0; i < n; i++) alive[i] = 1;
+    for (i = 0; i < n; i++) { oc[i] = oS[i + 1] - oS[i]; ic[i] = iS[i + 1] - iS[i]; alive[i] = 1; }
+    var sinkNext = [], srcNext = [], heap = new Int32Array(n), hn = 0, cur = -1, scanSinks = false;
+    for (i = 0; i < n; i++) { if (!oc[i]) sinkNext.push(i); if (!ic[i]) srcNext.push(i); }
+    var hpush = function (x) { var k = hn++, p; while (k > 0) { p = (k - 1) >> 1; if (heap[p] <= x) break; heap[k] = heap[p]; k = p; } heap[k] = x; };
+    var hpop = function () { var top = heap[0], x = heap[--hn], k = 0, c; while ((c = 2 * k + 1) < hn) { if (c + 1 < hn && heap[c + 1] < heap[c]) c++; if (heap[c] >= x) break; heap[k] = heap[c]; k = c; } heap[k] = x; return top; };
+    var remove = function (v) {
+      alive[v] = 0; nAlive--;
+      for (var t = oS[v]; t < oS[v + 1]; t++) { var e = oE[t], w = eTo[e]; if (--ic[w] === 0) { if (!scanSinks && w > cur) hpush(w); else srcNext.push(w); } if (alive[w]) idg[w] -= eFlow[e]; }
+      for (t = iS[v]; t < iS[v + 1]; t++) { e = iE[t]; w = eFrom[e]; if (--oc[w] === 0) { if (scanSinks && w > cur) hpush(w); else sinkNext.push(w); } if (alive[w]) od[w] -= eFlow[e]; }
+    };
+    var scan = function (sinks) {   // one scan in item order; returns whether anything moved
+      var list = sinks ? sinkNext : srcNext, moved = false, k;
+      hn = 0; for (k = 0; k < list.length; k++) if (alive[list[k]]) hpush(list[k]);
+      if (sinks) sinkNext = []; else srcNext = [];
+      scanSinks = sinks; cur = -1;
+      while (hn) {
+        var v = hpop(); if (!alive[v] || v === cur) continue;
+        cur = v; (sinks ? right : left).push(v); remove(v); moved = true;
+      }
+      cur = -1; scanSinks = false; hn = 0;
+      return moved;
+    };
     while (nAlive > 0) {
       var moved = true;
-      while (moved) {
-        moved = false;
-        for (i = 0; i < n; i++) if (alive[i] && !aliveOut(i)) { right.push(i); remove(i); moved = true; }
-        for (i = 0; i < n; i++) if (alive[i] && !aliveIn(i)) { left.push(i); remove(i); moved = true; }
-      }
-      if (nAlive > 0) { var bv = -1, bs = -Infinity; for (i = 0; i < n; i++) if (alive[i] && od[i] - idg[i] > bs) { bs = od[i] - idg[i]; bv = i; } left.push(bv); remove(bv); }
+      while (moved) { var a1 = scan(true), a2 = scan(false); moved = a1 || a2; }
+      if (nAlive > 0) { var bv = -1, bs = -Infinity; for (i = 0; i < n; i++) if (alive[i] && od[i] - idg[i] > bs) { bs = od[i] - idg[i]; bv = i; } left.push(bv); cur = n; remove(bv); cur = -1; }
     }
     var seq = left.concat(right.reverse()); seq.forEach(function (v, q) { rank[v] = q; });
     var feedback = new Set(), indeg = new Int32Array(n), layer = new Int32Array(n), succ = [], pred = [];
@@ -235,7 +254,7 @@
     var nL = lay.levels;
     var rankKey = {}; lay.order.forEach(function (q, r) { rankKey[L.nodes[q].id] = r; });
     L.nodes.forEach(function (n, q) {
-      var v = { id: n.id, ukey: nk(n), node: n, layer: lay.layer[q], size: 0, key: rankKey[n.id], h: 0, y: 0, pos: 0, inAll: 0, outAll: 0, w: 0, x: 0, ix: V.length, pinned: false, loopOutTop: 0, loopInTop: 0 };
+      var v = { id: n.id, ukey: nk(n), node: n, edge: -1, pa: null, pb: null, layer: lay.layer[q], size: 0, key: rankKey[n.id], h: 0, y: 0, pos: 0, dummy: false, inAll: 0, outAll: 0, w: 0, x: 0, ix: V.length, pinned: false, loopOutTop: 0, loopInTop: 0 };   // bars and stand-in stops share one shape (same fields, same order), so every loop over V sees one kind of object
       byId[n.id] = v; V.push(v);
     });
     var fwd = [], loops = [];
@@ -256,7 +275,7 @@
       if (!lay.feedback.has(q) && b.layer > a.layer) {
         var prev = a;
         for (k = a.layer + 1; k < b.layer && !noDummy.has(q); k++) {
-          var d = { id: null, edge: ei, pa: a, pb: b, layer: k, size: e.flow, key: (a.key + b.key) / 2, h: 0, y: 0, pos: 0, dummy: true, w: 0, x: 0, ix: V.length, pinned: false, loopOutTop: 0, loopInTop: 0 };
+          var d = { id: null, ukey: null, node: null, edge: ei, pa: a, pb: b, layer: k, size: e.flow, key: (a.key + b.key) / 2, h: 0, y: 0, pos: 0, dummy: true, inAll: 0, outAll: 0, w: 0, x: 0, ix: V.length, pinned: false, loopOutTop: 0, loopInTop: 0 };
           V.push(d); link(prev, d, e.flow, ei); prev = d;
         }
         link(prev, b, e.flow, ei); a.outAll += e.flow; b.inAll += e.flow; fwd.push(ei);
@@ -469,21 +488,39 @@
       loopOutSum.set(e.from, (loopOutSum.get(e.from) || 0) + t); loopInSum.set(e.to, (loopInSum.get(e.to) || 0) + t);
     });
     var segYo = new Float64Array(nSeg), segYi = new Float64Array(nSeg);   // where each piece starts on the bar it leaves / the bar it enters
-    var byTarget = function (p, q) { return V[segV[p]].y - V[segV[q]].y || segEi[p] - segEi[q]; }, bySource = function (p, q) { return V[segU[p]].y - V[segU[q]].y || segEi[p] - segEi[q]; };
-    var stackOrder = function (S, SEG, v, cmp) {   // this bar's pieces, ordered by where the other end sits (then by link number)
-      var r = [], e;
-      for (e = S[v]; e < S[v + 1]; e++) r.push(SEG[e]);
-      return r.length > 1 ? r.sort(cmp) : r;
+    /* each bar's pieces, ordered by where the other end sits (then by link number): the same order Array sort gave, by insertion into one kept list
+       (most bars have a few pieces; a bar with many uses the built-in sort) */
+    var yAt = new Float64Array(nV); for (vi = 0; vi < nV; vi++) yAt[vi] = V[vi].y;
+    var segEiA = Int32Array.from(segEi), segUA = Int32Array.from(segU), segVA = Int32Array.from(segV), segWA = Float64Array.from(segW);
+    var stk = new Int32Array(64), big = [];
+    var stackOrder = function (S, SEG, v, END) {   // fills stk (or big) and returns the count; END: the bar at the other end of a piece
+      var a = S[v], z = S[v + 1], n = z - a, e, j, x, yx, ex, y;
+      if (n > 64) {
+        big.length = 0; for (e = a; e < z; e++) big.push(SEG[e]);
+        big.sort(function (p, q) { return yAt[END[p]] - yAt[END[q]] || segEiA[p] - segEiA[q]; });
+        return -n;
+      }
+      for (e = 0; e < n; e++) {
+        x = SEG[a + e]; yx = yAt[END[x]]; ex = segEiA[x]; j = e - 1;
+        while (j >= 0) { y = stk[j]; var d = yAt[END[y]] - yx || segEiA[y] - ex; if (d > 0) { stk[j + 1] = y; j--; } else break; }
+        stk[j + 1] = x;
+      }
+      return n;
     };
-    V.forEach(function (v) {
-      var outs = stackOrder(dnS, dnSeg, v.ix, byTarget), ins = stackOrder(upS, upSeg, v.ix, bySource), q;
-      var so = 0, si = 0; for (q = 0; q < outs.length; q++) so += thick(segW[outs[q]]); for (q = 0; q < ins.length; q++) si += thick(segW[ins[q]]);
-      var lo = v.dummy ? 0 : loopOutSum.get(v.id) || 0, li = v.dummy ? 0 : loopInSum.get(v.id) || 0;
-      var yo = v.y - v.h / 2 + Math.max(0, (v.h - so - lo) / 2), yi = v.y - v.h / 2 + Math.max(0, (v.h - si - li) / 2);
-      for (q = 0; q < outs.length; q++) { segYo[outs[q]] = yo; yo += thick(segW[outs[q]]); }
-      for (q = 0; q < ins.length; q++) { segYi[ins[q]] = yi; yi += thick(segW[ins[q]]); }
+    var place = function (n, start, out) {   // writes where each piece starts, from start; returns where the next would
+      var q, list = n < 0 ? big : stk, m = n < 0 ? -n : n;
+      for (q = 0; q < m; q++) { var sg = list[q]; out[sg] = start; start += thick(segWA[sg]); }
+      return start;
+    };
+    var sumThick = function (n) { var q, list = n < 0 ? big : stk, m = n < 0 ? -n : n, t = 0; for (q = 0; q < m; q++) t += thick(segWA[list[q]]); return t; };
+    for (vi = 0; vi < nV; vi++) {
+      var v = V[vi], lo = v.dummy ? 0 : loopOutSum.get(v.id) || 0, li = v.dummy ? 0 : loopInSum.get(v.id) || 0, cnt;
+      cnt = stackOrder(dnS, dnSeg, vi, segVA); var so = sumThick(cnt);
+      var yo = v.y - v.h / 2 + Math.max(0, (v.h - so - lo) / 2); yo = place(cnt, yo, segYo);
+      cnt = stackOrder(upS, upSeg, vi, segUA); var si = sumThick(cnt);
+      var yi = v.y - v.h / 2 + Math.max(0, (v.h - si - li) / 2); yi = place(cnt, yi, segYi);
       v.loopOutTop = yo; v.loopInTop = yi;
-    });
+    }
     var bands = [];
     for (vi = 0; vi < nV; vi++) {
       var u = V[vi];
