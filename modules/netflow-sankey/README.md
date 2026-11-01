@@ -1,8 +1,8 @@
 # netflow-sankey
 
-**Version 2.3.2 · API 2**
+**Version 2.3.3 · API 2**
 
-**Tested in:** Chromium 155 container, same output as 2.3.1 on 6,000 random layouts (wasm and JavaScript paths)
+**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (cloud); laptop Chromium 156 and Firefox 160 (16 cores); early-stop A/B
 
 ## What it is and how it works
 
