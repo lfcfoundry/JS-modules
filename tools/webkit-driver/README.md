@@ -66,7 +66,7 @@ It needs `WebKitWebDriver` on the machine, plus `xvfb-run` and `dbus-run-session
 
 ## Limits
 
-- **Linux only**, and WebKitGTK is not Safari: it catches many but not all iPhone-only problems. It runs software drawing in a container, so it says nothing about real graphics speed. WebGPU is not available in it.
+- **Linux only**, and WebKitGTK is not Safari: it catches many but not all iPhone-only problems. WebGPU is not available in it.
 - Errors thrown **while the page is loading** are not seen on a plain `file://` page (the hook goes in right after the load event); with the `serve` option they are. Errors after the load are always seen.
 - WebKitGTK 2.52.6 has **no BiDi** and **no touch events** (a touch test is done with the mouse).
 - Only **console errors** are reported, not other console output.
