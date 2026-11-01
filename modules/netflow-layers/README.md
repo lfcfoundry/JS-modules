@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.9.0 · API 1**
+**Version 1.10.0 · API 1**
 
-**Tested in:** Same picture on 55 captured Netflow Map layouts and the 400 and 1,000 item test maps in Firefox 158, Chromium 155 and WebKitGTK 2.52.6; JS and wasm agree to the last digit; module tests pass.
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -29,6 +29,14 @@ Ordinary layered drawings make a mess of "going back" links and very long links 
 ## Use
 
 Copy `netflow-layers.js`.
+
+One call, data only (items are made from the links and sized to their names):
+
+```js
+svgElement.outerHTML = NetflowLayers.toSvg([{ from: "start", to: "a" }, { from: "start", to: "b" }, { from: "a", to: "b" }]);
+```
+
+The two steps:
 
 ```js
 var R = NetflowLayers.layout({

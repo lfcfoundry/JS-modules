@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-11-01
+- One call draws a picture: NetflowHierarchy.toSvg(links, { type: 'sunburst' }); each box is as big as what flows into it.
+
 ## 1.2.1 · API 1 · 2026-11-01
 - Look changes on big treemaps, sunbursts and other chart views are faster, most of all in Chromium.
 

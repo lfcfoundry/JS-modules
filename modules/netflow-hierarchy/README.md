@@ -1,6 +1,6 @@
 # netflow-hierarchy
 
-**Version 1.2.1 · API 1**
+**Version 1.3.0 · API 1**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -26,6 +26,18 @@ Netflow Map draws these views from any map: a tree of links, or items grouped by
 - Pages that need these shapes without a chart library.
 
 **Not for:** editing a tree by hand; it draws the tree it is given or finds.
+
+## Use
+
+One call, data only (links as `{ from, to, value }`, or `{ nodes, edges }`; each box is as big as what flows into it):
+
+```js
+// netflow-scene.js, then netflow-hierarchy.js
+svgElement.outerHTML = NetflowHierarchy.toSvg(links);                         // treemap
+svgElement.outerHTML = NetflowHierarchy.toSvg(links, { type: 'sunburst', title: 'Budget' });
+```
+
+The steps below keep the layout and scene:
 
 ## Use
 

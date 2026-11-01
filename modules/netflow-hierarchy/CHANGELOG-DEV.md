@@ -1,5 +1,13 @@
 # netflow-hierarchy developer changelog
 
+## 1.3.0 · API 1 · 2026-11-01
+
+### Quick
+toSvg(data, o) = layout(o.type || 'treemap', asGraph(data), { nest: 'auto', sized: true, ...o }) + scene + NetflowScene.toSvg, finding NetflowScene on the page (or next door in Node) with a plain error naming the missing script.
+
+### Deep
+toSvg(data, o) = layout(o.type || 'treemap', asGraph(data), { nest: 'auto', sized: true, ...o }) + scene + NetflowScene.toSvg, finding NetflowScene on the page (or next door in Node) with a plain error naming the missing script. asGraph(links) makes items from link ends, sizeV = what flows in minus what flows on (so parents hold only what stays). New helpers asGraph and sceneLib. One-call toSvg(data, options) (owner's 11:55 AM ET 11.01 name card; CONSISTENT-SYNTAX-PROPOSAL). Old forms keep working (told apart by shape). Checked in Chromium 155, Firefox 158, WebKitGTK 2.52.6 from page scripts: all six one-call pictures drawn. Requested by the owner.
+
 ## 1.2.1 · API 1 · 2026-11-01
 
 ### Quick

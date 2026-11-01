@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.2.1 (API 1)
+ * Version 1.3.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -571,7 +571,30 @@ var NetflowHierarchy = (function () {
     return src + (ch.extra ? ' ' + n(ch.extra) + ' other links are not part of the nesting.' : '');
   }
 
-  return { VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, hierarchy: hierarchy, sums: sums, packSiblings: packSiblings, enclose: enclose, linkValue: linkValue, itemValue: itemValue,
+  /** The links of any plain input: a list of { from, to, value } (weight or count also name the amount; 1 when none), or { links } or { edges }. */
+  function asLinks(d) { var l = Array.isArray(d) ? d : (d && (d.links || d.edges)) || []; return l.map(function (e) { var v = e.value !== undefined ? e.value : e.weight !== undefined ? e.weight : e.count !== undefined ? e.count : 1; return { from: e.from, to: e.to, value: +v }; }); }
+  /** NetflowScene from the page (or, in Node, from the folder next door), with a plain error when it is missing. */
+  function sceneLib(who) {
+    var g = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : {};
+    if (g.NetflowScene) return g.NetflowScene;
+    if (typeof require === 'function') { try { return require('../netflow-scene/netflow-scene.js'); } catch (e) { /* not there */ } }
+    throw new Error(who + ': NetflowScene was not found. Load netflow-scene.js before ' + who + '.js.');
+  }
+  /** Links (as above) or { nodes, edges } as a graph for layout(): items are made from the links' ends when not given. */
+  function asGraph(d) {
+    if (d && !Array.isArray(d) && d.nodes && d.edges) return d;
+    var ls = asLinks(d), ns = d && !Array.isArray(d) && d.nodes ? d.nodes.slice() : [], seen = {};
+    ns.forEach(function (n) { seen[n.id] = 1; }); ls.forEach(function (e) { [e.from, e.to].forEach(function (id) { if (!seen[id]) { seen[id] = 1; ns.push({ id: id, label: String(id) }); } }); });
+    var inV = {}, outV = {}; ls.forEach(function (e) { if (e.value > 0) { inV[e.to] = (inV[e.to] || 0) + e.value; outV[e.from] = (outV[e.from] || 0) + e.value; } });
+    ns = ns.map(function (n) { if (n.sizeV !== undefined) return n; var c = {}; for (var k in n) c[k] = n[k]; c.sizeV = Math.max(1e-6, (inV[n.id] || 0) - (outV[n.id] || 0)); return c; });   /* each box holds what flows into it and stays there (what flows on is drawn by the boxes inside) */
+    return { nodes: ns, edges: ls.map(function (e) { return { from: e.from, to: e.to, weight: e.value, count: 1, widthV: NaN, flow: 0 }; }) };
+  }
+  /** One call to a picture: toSvg(data, options) returns SVG text. options.type picks the view (default treemap); the rest go to layout() and scene(). */
+  function toSvg(data, o) {
+    o = o || {}; var NS = sceneLib('netflow-hierarchy'), lo = {}; for (var k in o) lo[k] = o[k]; if (lo.nest === undefined) lo.nest = 'auto'; if (lo.sized === undefined) lo.sized = true;
+    return NS.toSvg(scene(layout(o.type || 'treemap', asGraph(data), lo), o, NS), o.title);
+  }
+  return { VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, toSvg: toSvg, asGraph: asGraph, sceneLib: sceneLib, hierarchy: hierarchy, sums: sums, packSiblings: packSiblings, enclose: enclose, linkValue: linkValue, itemValue: itemValue,
     tmpI: tmpI, tmpF: tmpF, sector: sector, pushSector: pushSector, lumi: lumi };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NetflowHierarchy;

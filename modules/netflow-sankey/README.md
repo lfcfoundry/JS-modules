@@ -1,6 +1,6 @@
 # netflow-sankey
 
-**Version 2.5.0 · API 2**
+**Version 2.6.0 · API 2**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -28,6 +28,12 @@ A flow chart is read through its thick bands, so a crossing between two big flow
 **Test it:** `node modules/netflow-sankey/test/run.js` (31 checks, about 1 s). **Try it:** `demo.html` (type links, the chart redraws).
 
 ## Use
+One call, data only:
+```js
+svgElement.outerHTML = NetflowSankey.toSvg([{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }]);
+```
+`value`, `weight` or `count` names the amount. Options (the same words in every chart module) go in a second argument: `NetflowSankey.toSvg(links, { title: "Where the wages go", height: 360 })`. The two steps below give you the layout to draw yourself.
+
 ```js
 var R = NetflowSankey.layoutFlows({ links: [
   { from: "Wages", to: "Rent",  value: 40 },

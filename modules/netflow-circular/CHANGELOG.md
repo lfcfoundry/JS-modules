@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-11-01
+- One call draws a picture: NetflowCircular.toSvg(links) for a chord, or { type: 'bundles' }.
+
 ## 1.1.0 · API 1 · 2026-11-01
 - Chord and arc pictures take an optional title, subtitle and source in the scene options.
 

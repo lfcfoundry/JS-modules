@@ -106,5 +106,14 @@ for (const v of ['treemap', 'sunburst', 'chord']) {
   const a = M.scene(M.layout(v, JSON.parse(JSON.stringify(g)), {}), {}, NS), b = M.scene(M.layout(v, JSON.parse(JSON.stringify(g)), {}), { title: 'T', source: 'S' }, NS);
   ok(!a.titles && b.titles && b.labels[0].t === 'T' && b.labels[1].t === 'S' && b.h > a.h, v + ': title and source only when asked');
 }
+const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', weight: 14 }, { from: 'Side <work>', to: 'Food', count: 4 }];
+/* one call: toSvg(links, options) for every view, through the global NetflowScene; boxes sized by what flows in */
+{
+  const HY = require('../netflow-hierarchy.js'), CI = require('../../netflow-circular/netflow-circular.js');
+  for (const v of ['treemap', 'sunburst', 'icicle', 'pack', 'tree']) { const s = HY.toSvg(LINKS, { type: v, title: 'T' }); ok(s.indexOf('<svg') === 0 && s.indexOf('>Rent<') > 0, 'one call ' + v); }
+  for (const v of ['chord', 'bundles']) { const s = CI.toSvg(LINKS, { type: v }); ok(s.indexOf('<svg') === 0 && s.indexOf('Rent') > 0, 'one call ' + v); }
+  const G = HY.asGraph(LINKS); ok(G.nodes.length === 4 && G.nodes.find((n) => n.id === 'Rent').sizeV === 30 && G.edges[1].weight === 14, 'graph from links');
+  ok(HY.toSvg(LINKS) === HY.toSvg({ links: LINKS }), '{ links } works too');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks FAILED' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

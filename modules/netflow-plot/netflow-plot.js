@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.4.0 (API 2)
+ * Version 2.5.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -719,6 +719,30 @@ var NetflowPlot = (function () {
     if (NS.addTitles) NS.addTitles(S, o);   /* opt-in o.title, o.subtitle, o.source */
     return S;
   }
+  /** NetflowScene from the page (or, in Node, from the folder next door), with a plain error when it is missing. */
+  function sceneLib(who) {
+    var g = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : {};
+    if (g.NetflowScene) return g.NetflowScene;
+    if (typeof require === 'function') { try { return require('../netflow-scene/netflow-scene.js'); } catch (e) { /* not there */ } }
+    throw new Error(who + ': NetflowScene was not found. Load netflow-scene.js before ' + who + '.js.');
+  }
+  var SPEC_KEYS = ['type', 'x', 'y', 'color', 'size', 'agg', 'stack', 'horizontal', 'bins', 'smooth', 'index', 'cols', 'sort'];
+  /**
+   * One call to a picture: toSvg(rows, options) returns SVG text. options holds the chart words (type, x, y, color, ...) and the drawing words
+   * (theme, width, height, title, subtitle, source, highlight) together. With no type, x or y: a bar chart of the first text column by the first number column.
+   */
+  function toSvg(rows, o) {
+    o = o || {}; rows = rows || [];
+    var spec = {}; SPEC_KEYS.forEach(function (k) { if (o[k] !== undefined) spec[k] = o[k]; });
+    if (!spec.x || (!spec.y && !spec.type)) {
+      var first = rows[0] ? (rows[0].attrs || rows[0]) : {}, keys = Object.keys(first), txt = null, numk = null;
+      keys.forEach(function (k) { var v = first[k]; if (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && isFinite(+v))) { if (numk === null && k !== spec.x) numk = k; } else if (txt === null && typeof v === 'string') txt = k; });
+      if (!spec.x) spec.x = txt || numk; if (!spec.y && numk !== spec.x) spec.y = numk;
+    }
+    if (!spec.type) spec.type = 'bar';
+    var NS = sceneLib('netflow-plot');
+    return NS.toSvg(make(rows, spec, o, NS), o.title);
+  }
   /** The mark under a point (in drawing units), or null. */
   function markAt(S, x, y) {
     for (var i = S.marks.length - 1; i >= 0; i--) {
@@ -734,6 +758,6 @@ var NetflowPlot = (function () {
     return null;
   }
 
-  return { TYPES: TYPES, NEEDS: NEEDS, AGG: AGG, make: make, markAt: markAt, ticks: ticks, timeTicks: timeTicks, kde: kde, normInv: normInv, voronoiCells: voronoiCells, quant: quant, fmtNum: fmtNum };
+  return { TYPES: TYPES, NEEDS: NEEDS, AGG: AGG, make: make, toSvg: toSvg, markAt: markAt, ticks: ticks, timeTicks: timeTicks, kde: kde, normInv: normInv, voronoiCells: voronoiCells, quant: quant, fmtNum: fmtNum };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NetflowPlot;

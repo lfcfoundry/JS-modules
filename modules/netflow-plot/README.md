@@ -1,6 +1,6 @@
 # netflow-plot
 
-**Version 2.4.0 · API 2**
+**Version 2.5.0 · API 2**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -26,6 +26,18 @@ Netflow Map's Charts tab draws these charts from a map's table of items or links
 - A chart picture that exports to SVG with its own key.
 
 **Not for:** animated or interactive chart editing; it draws one chart from one spec.
+
+## Use
+
+One call, data only (a bar chart of the first text column by the first number column):
+
+```js
+// netflow-scene.js, then netflow-plot.js
+svgElement.outerHTML = NetflowPlot.toSvg([{ city: 'Detroit', share: 12 }, { city: 'Chicago', share: 16 }]);
+svgElement.outerHTML = NetflowPlot.toSvg(rows, { type: 'line', x: 'day', y: 'sales', color: 'region', title: 'Sales' });
+```
+
+The steps below keep the scene, for pointing at marks.
 
 ## Use
 

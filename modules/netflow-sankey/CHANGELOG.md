@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.0 · API 2 · 2026-11-01
+- One call draws a picture: NetflowSankey.toSvg(links); value, weight or count name the amount.
+
 ## 2.5.0 · API 2 · 2026-11-01
 - toSvg draws the title above the picture, with optional subtitle and source lines, like the other charts.
 

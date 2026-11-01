@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  * netflow-circular.js: the circular views of Netflow Map (Chord, Bundles). layout(view, G, o) returns a plain layout; scene(L, o, NS) turns it
  * into drawing lists for netflow-scene. Built on netflow-hierarchy (its tree, values and drawing frame): load netflow-hierarchy.js first,
  * or keep it next to this folder in Node. No page, no DOM.
@@ -275,7 +275,12 @@ var NetflowCircular = (function () {
     }
   };
   function scene(L, o, NS) { return HY.scene(L, o, NS, EXT); }
+  /** One call to a picture: toSvg(data, options) returns SVG text (data: links as { from, to, value }, or { nodes, edges }); options.type is chord (the default) or bundles. */
+  function toSvg(data, o) {
+    o = o || {}; var NS = HY.sceneLib ? HY.sceneLib('netflow-circular') : NetflowScene, lo = {}; for (var k in o) lo[k] = o[k]; if (lo.chordBy === undefined) lo.chordBy = 'auto';
+    return NS.toSvg(scene(layout(o.type || 'chord', HY.asGraph(data), lo), o, NS), o.title);
+  }
 
-  return { VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, bsplineToBezier: bsplineToBezier };
+  return { VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, toSvg: toSvg, bsplineToBezier: bsplineToBezier };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NetflowCircular;

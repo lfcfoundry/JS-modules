@@ -187,6 +187,12 @@ t('an empty drawing has height 0 (not -Infinity) and applies cleanly; one item a
   RL.apply(L, R); ok(L.height === 0, 'L.height ' + L.height);
   const one = { nodes: [{ id: 'a', label: 'A', layer: 0 }], edges: [], pos: {} }; one.pos.a = one.nodes[0]; const R1 = RL.layout(one); ok(Number.isFinite(R1.height) && Number.isFinite(R1.width), 'one item: ' + R1.height + ' x ' + R1.width);
 });
+const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', weight: 14 }, { from: 'Side <work>', to: 'Food', count: 4 }];
+t('one call: toSvg(links) lays out and draws; value, weight and count all name the amount; a layout result still works the old way', () => {
+  const svg = RL.toSvg(LINKS), R = RL.layoutFlows({ links: [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', value: 14 }, { from: 'Side <work>', to: 'Food', value: 4 }] });
+  ok(svg === RL.toSvg(R), 'same picture both ways'); ok(svg.indexOf('Side &lt;work&gt;') > 0, 'names escaped');
+  ok(RL.toSvg({ links: LINKS }) === svg, '{ links } works too');
+});
 t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier, wasmAvailable, wasmReady, wasmModule', () => {
   ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg,wasmAvailable,wasmModule,wasmReady', Object.keys(RL).sort().join());
 });

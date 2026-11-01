@@ -1,8 +1,8 @@
 # netflow-circular
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** node modules/netflow-plot/test/run.js, node modules/netflow-hierarchy/test/run.js, node modules/netflow-scene/test/run.js; default pictures byte-identical to 1.3.4 across 44 plot and 6 hierarchy pictures
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -24,6 +24,17 @@ Who sends how much to whom, and which parts of a map talk to each other, read be
 - Many links on a tree-shaped map without a tangle (Bundles).
 
 **Not for:** maps where position along a route matters; use the layered views.
+
+## Use
+
+One call, data only:
+
+```js
+// netflow-scene.js, netflow-hierarchy.js, then netflow-circular.js
+svgElement.outerHTML = NetflowCircular.toSvg(links);                          // chord; { type: 'bundles' } for edge bundles
+```
+
+The steps below keep the layout and scene:
 
 ## Use
 
