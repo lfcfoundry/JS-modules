@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.16.0 · API 1 · 2026-11-01
+- Excel files open up to 18% faster, the first one in a page the most, and later ones up to 13%. Same results.
+
 ## 1.15.2 · API 1 · 2026-11-01
 - The first file you open in a page opens 8 to 36% faster (big sheets the most); opening it again is about the same. Same results.
 
