@@ -185,6 +185,12 @@ footer a{margin-right:16px}
       <div class="row"><span>text-columns</span><div class="track"><div class="bar us out" style="width:31.3%"><span>52 ms</span></div></div></div>
       <p class="note">Laptop, Firefox 160, 16 cores, text-columns 0.5.0, 2026.10.30; 6 columns, 7.9 MB. Papa Parse with typed rows takes 3.2 times as long here and 7 to 12 times as long in the cloud test browsers (Firefox 158, Chromium 155, WebKitGTK 2.52.6).</p>
     </div>
+    <div>
+      <h3>lfc-pack: size of the library file (KB, lower is better)</h3>
+      <div class="row"><span>lfc-pack 0.4.12</span><div class="track"><div class="bar" style="width:100%"><span>789 KB</span></div></div></div>
+      <div class="row"><span>lfc-pack 0.4.13</span><div class="track"><div class="bar us out" style="width:44.7%"><span>353 KB</span></div></div></div>
+      <p class="note">The built-in WebAssembly programs are stored compressed and the browser unpacks them while it compiles them. Results are the same, and load to first result takes 3 to 11% less time (cloud test browsers, lfc-pack changelog).</p>
+    </div>
   </div>
 </div></section>
 
