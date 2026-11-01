@@ -98,7 +98,7 @@
   var TPLW = null, TPLB64 = "/*TPL:BEGIN*//*TPL:END*/";
   function tplw() {
     if (TPLW) return TPLW;
-    if (!MODS['TPLB64']) { var bin = atob(TPLB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q); MODS['TPLB64'] = new WebAssembly.Module(by); }
+    if (!MODS['TPLB64']) MODS['TPLB64'] = new WebAssembly.Module(fromB64(TPLB64));
     var x = new WebAssembly.Instance(MODS['TPLB64'], {}).exports;
     return (TPLW = { x: x, heap: x.__heap_base.value });
   }
@@ -341,7 +341,7 @@
   var FSW = null, FSB64 = "/*FS:BEGIN*//*FS:END*/";
   function fsw() {
     if (FSW) return FSW;
-    if (!MODS['FSB64']) { var bin = atob(FSB64), by = new Uint8Array(bin.length), q; for (q = 0; q < bin.length; q++) by[q] = bin.charCodeAt(q); MODS['FSB64'] = new WebAssembly.Module(by); }
+    if (!MODS['FSB64']) MODS['FSB64'] = new WebAssembly.Module(fromB64(FSB64));
     var x = new WebAssembly.Instance(MODS['FSB64'], {}).exports;
     return (FSW = { x: x, heap: x.__heap_base.value });
   }
