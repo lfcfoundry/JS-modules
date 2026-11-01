@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.9.0 (API 2)
+ * Version 2.10.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -3251,12 +3251,12 @@
     this.wasm = opts && opts.wasm === false ? false : undefined;
   }
   Dec.prototype.spend = function (n) { this.budget -= n; if (this.budget < 0) jfail('the data asks for more than maxItems values; pass a bigger maxItems if it is yours'); };
-  Dec.prototype.blob = function (Ctor, n) {
+  Dec.prototype.blob = function (Ctor, n, into) {                       // into: a typed array of n the caller keeps; a packed piece is unpacked straight into it instead of into fresh memory
     var b = this.bl, kind = b.u8(), len, t, u;
     if (kind === 0 || kind === 2) return rawGet(b, Ctor, n);
     if (kind !== 1) jfail('bad blob');
     len = b.varint(); u = b.take(len);
-    t = MC.unpack(u, { maxSize: n * Ctor.BYTES_PER_ELEMENT + 64, wasm: this.wasm });
+    t = MC.unpack(u, into && into.constructor === Ctor && into.length === n ? { maxSize: n * Ctor.BYTES_PER_ELEMENT + 64, wasm: this.wasm, into: into } : { maxSize: n * Ctor.BYTES_PER_ELEMENT + 64, wasm: this.wasm });
     if (!(t instanceof Ctor) || t.length !== n) jfail('a packed column has the wrong size');
     return t;
   };
@@ -3327,11 +3327,12 @@
     return r;
   };
   Dec.prototype.typed = function (kind, n) {
-    var Ctor = TYPED_CTORS[kind], raw, t;
-    if (kind === 0) return this.blob(Uint8Array, n);
+    var Ctor = TYPED_CTORS[kind], raw, t, into = this.into;
+    this.into = null;                                                   // only the first typed array (the whole value) may use the caller's array
+    if (kind === 0) return this.blob(Uint8Array, n, into);
     if (kind === 1 || kind === 2) { raw = this.blob(Uint8Array, n); return new Ctor(raw.buffer, raw.byteOffset, n); }
-    if (kind === 7 || kind === 8) return this.blob(Ctor, n);
-    t = this.blob(kind === 3 || kind === 4 ? Uint16Array : Uint32Array, n);
+    if (kind === 7 || kind === 8) return this.blob(Ctor, n, into);
+    t = this.blob(kind === 3 || kind === 4 ? Uint16Array : Uint32Array, n, kind === 4 || kind === 6 ? into : null);
     return kind === 4 || kind === 6 ? t : new Ctor(t.buffer, t.byteOffset, n);
   };
   Dec.prototype.items = function (n) {
@@ -4340,7 +4341,9 @@
     return d;
   }
   function unpack(bytes, opts) {
-    var d = open(bytes, opts), v = d.value();
+    var d = open(bytes, opts), v;
+    if (opts && opts.into && ArrayBuffer.isView(opts.into) && d.c.b[d.c.p] === T_TYPED) d.into = opts.into;       // opts.into: for a packed typed array, the array to fill (same type and length) instead of a new one
+    v = d.value();
     if (d.c.p !== d.c.end) jfail('extra data after the value');
     return v;
   }

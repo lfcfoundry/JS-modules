@@ -13,6 +13,18 @@ function t(name, fn) {
   var t0 = Date.now();
   try { fn(); passed++; console.log('  ok  ' + name + ' (' + (Date.now() - t0) + ' ms)'); } catch (e) { failed++; console.log('FAIL ' + name + '\n   ' + why(e)); }
 }
+t('unpack opts.into: a packed typed array is filled into the array passed in (Float64, Float32, Uint32, Uint16, Uint8); other types and wrong sizes give a fresh array with the same values', function () {
+  [Float64Array, Float32Array, Uint32Array, Uint16Array, Uint8Array, Int32Array].forEach(function (C) {
+    var n = 3000, a = new C(n), i, into, r, p;
+    for (i = 0; i < n; i++) a[i] = (i * 7 + (i % 13)) & 0xff;
+    [{ mode: 'fast' }, { mode: 'balanced' }].forEach(function (m) {
+      p = J.pack(a, opt(m)); into = new C(n); r = J.unpack(p, opt({ into: into }));
+      same(Array.from(a), Array.from(r), C.name + ' ' + m.mode);
+      if (C !== Int32Array) assert.strictEqual(r, into, C.name + ' ' + m.mode + ' should be the array passed in');
+      r = J.unpack(p, opt({ into: new C(5) })); same(Array.from(a), Array.from(r), 'wrong size gives a fresh array');
+    });
+  });
+});
 var later = [];
 function tAsync(name, fn) {      // a check that waits for promises; run after the plain ones
   later.push(function () {
