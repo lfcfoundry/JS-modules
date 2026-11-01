@@ -129,3 +129,5 @@ Total time stays about the same (0.96 to 1.18 of 1.10.0).
 **New in 1.13.0: one copy fewer.** When the file is already in memory, the biggest sheet unpacks straight into the WebAssembly reader. Whole open, time 1.13.0 / 1.12.0, cloud, lower is better: Chromium 155 0.83 to 0.92, Firefox 158 0.87 to 0.95, WebKitGTK 2.52.6 0.79 to 1.02.
 
 **New in 1.14.0: the same inside a helper.** When workers are on, the helper that reads the workbook also unpacks the biggest sheet straight into the WebAssembly reader. Whole open with 2 helpers, time 1.14.0 / 1.13.0, cloud, lower is better: Chromium 155 0.80 to 0.95, Firefox 158 0.72 to 0.89, WebKitGTK 2.52.6 0.86 to 0.98.
+
+**New in 1.14.2: big files on the page too.** A file over 16 MB opened without helpers is read in pieces; its biggest sheet now also unpacks straight into the WebAssembly reader. Whole open, time 1.14.2 / 1.14.1, cloud, lower is better: Chromium 155 0.89 to 0.91, Firefox 158 0.76 to 0.92, WebKitGTK 2.52.6 0.86 to 0.97.

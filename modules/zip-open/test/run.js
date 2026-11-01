@@ -532,8 +532,11 @@ t('xlsx: a browser without wasm SIMD gets the plain reader, with the same tables
 t('Excel: a big sheet unpacked straight into the WebAssembly reader gives the same tables (with shared text, a second sheet, inline text the wasm hands back, and two opens at once)', async function () {
   var rows = [['id', 'name', 'when', 'n', 'note']]; for (var i = 0; i < 40000; i++) rows.push([i, 'name ' + (i % 997), { d: 44000 + (i % 3000) }, i * 1.25, 'n' + (i % 13) + (i % 50 === 0 ? ', "q"' : '')]);
   var x = Z.makeXlsx([{ name: 'Big', rows: rows }, { name: 'Small', rows: [['a', 'b'], ['1', '2']] }]), p0 = U._placed();
-  var want = await U.expandBlob(new Blob([u8(x)]), 'b.xlsx', { _wholeMax: 0 });   // read in pieces: never placed
-  assert.equal(U._placed(), p0, 'a File read in pieces is not placed');
+  var want = await U.expandBlob(new Blob([u8(x)]), 'b.xlsx', { _wholeMax: 0 });   // read in pieces: placed too (since 1.14.2)
+  assert.ok(U._placed() > p0, 'a File read in pieces is placed'); p0 = U._placed();
+  var M = WebAssembly.Module, js; WebAssembly.Module = function () { throw new Error('no wasm reader'); }; U._xlsxPlain(false);   // the JavaScript reader as the reference (never placed)
+  try { js = await U.expand(u8(x), 'b.xlsx'); assert.equal(U._placed(), p0, 'JavaScript reader: nothing placed'); } finally { WebAssembly.Module = M; U._xlsxPlain(false); }
+  assert.deepStrictEqual(want, js, 'placed File read = JavaScript reader');
   var got = await U.expand(u8(x), 'b.xlsx');
   assert.ok(U._placed() > p0, 'the big sheet was unpacked into the wasm memory');
   assert.deepStrictEqual(got, want);
