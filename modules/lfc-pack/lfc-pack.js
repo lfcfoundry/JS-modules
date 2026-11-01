@@ -162,10 +162,13 @@
     // about 2,048 evenly spaced bytes: at least 85% printable ASCII, newline or zero
     function textLike(b) { var st = Math.max(1, (b.length / 2048) | 0), n = 0, p = 0, q, c; for (q = 0; q < b.length; q += st) { c = b[q]; n++; if ((c >= 32 && c < 127) || c === 10 || c === 0) p++; } return p >= n * 0.85; }
     if (X.compress) {
-      api.compress = function (src, level, windowLog) {
+      // most: when given, the caller only wants the frame if it takes at most that many bytes; null otherwise (zstd stops at the block that overflows, and a frame that fits is the same bytes)
+      api.compress = function (src, level, windowLog, most) {
         ensureIn(src.length); view(inP, src.length).set(src); var cap = X.bound(src.length); ensureOut(cap);
-        if (X.tune && (level == null || level === 3) && !windowLog && src.length >= MIN_SAMPLED && textLike(src)) return tuned(src, cap);
-        var r = X.compress(outP, cap, inP, src.length, level == null ? 3 : level, windowLog || 0);
+        var lim = most != null && most + (most >> 2) + 256 < cap ? Math.max(0, most) : 0, dcap = lim ? lim + (lim >> 2) + 256 : cap;   // zstd stores a block raw when its output space is tight, so it gets a quarter more room than asked and a fit is judged after
+        if (X.tune && (level == null || level === 3) && !windowLog && src.length >= MIN_SAMPLED && textLike(src)) return tuned(src, cap, lim, dcap);
+        var r = X.compress(outP, dcap, inP, src.length, level == null ? 3 : level, windowLog || 0);
+        if (lim && (X.is_error(r) || r > lim)) return null;
         if (X.is_error(r)) throw new Error('zstd: compress failed');
         return view(outP, r).slice();
       };
@@ -173,12 +176,13 @@
       // A frame over 256 KB is judged on its middle 128 KB and compressed once with the winner; a smaller one is compressed all three ways and the smallest kept.
       // Logs 3.6% smaller, FHIR 1.0%, events 0.4%, pack time unchanged; the reader needs nothing new (plain zstd frames).
       var TUNES = [[0, 0, 0, 0], [1, 18, 0, 6], [1, 18, 0, 7]], SAMPLE = 131072, MIN_SAMPLED = 262144;
-      var tuned = function (src, cap) {
+      var tuned = function (src, cap, lim, dcap) {
         var i, r, best = -1, size = Infinity, out = null;
         if (src.length >= MIN_SAMPLED) {
           var sl = Math.min(SAMPLE, src.length >> 3), so = (src.length >> 1) - (sl >> 1);
           for (i = 0; i < TUNES.length; i++) { X.tune(TUNES[i][0], TUNES[i][1], TUNES[i][2], TUNES[i][3]); r = X.compress(outP, cap, inP + so, sl, 3, 0); if (!X.is_error(r) && r < size) { size = r; best = i; } else if (i) break; }   // the next setting is tried only when the one before it won
-          X.tune(TUNES[best][0], TUNES[best][1], TUNES[best][2], TUNES[best][3]); r = X.compress(outP, cap, inP, src.length, 3, 0); X.tune(0, 0, 0, 0);
+          X.tune(TUNES[best][0], TUNES[best][1], TUNES[best][2], TUNES[best][3]); r = X.compress(outP, lim ? dcap : cap, inP, src.length, 3, 0); X.tune(0, 0, 0, 0);
+          if (lim && (X.is_error(r) || r > lim)) return null;
           if (X.is_error(r)) throw new Error('zstd: compress failed');
           return view(outP, r).slice();
         }
@@ -1148,8 +1152,10 @@
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
     }
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
-    function stored(fr) { var tt = 0, zz2 = [], qq, cc; for (qq = 0; qq < fr.length; qq++) { cc = zs.compress(fr[qq], level); if (cc.length < fr[qq].length) zz2.push([fr[qq].length, cc, 1]); else zz2.push([fr[qq].length, fr[qq], 0]); tt += zz2[qq][1].length; } return { z: zz2, size: tt }; }
-    function cand(tn, p, fr, n) { var sv = stored(fr); if (!best || sv.size < best.size) best = { t: tn, p: p, z: sv.z, size: sv.size, n: n }; }
+    // lim: the candidate only counts when it takes fewer than lim bytes, so each frame is compressed with a byte limit and a loser stops early (null). A frame that does not fit
+    // its limit is stored raw: when that is also too big the candidate loses, as it would have; when it is not, raw is what the frame would have been anyway (compressed was no smaller).
+    function stored(fr, lim) { var tt = 0, zz2 = [], qq, cc, room; for (qq = 0; qq < fr.length; qq++) { room = lim - tt; if (room <= 0) return null; cc = zs.compress(fr[qq], level, 0, Math.min(room - 1, fr[qq].length - 1)); if (cc && cc.length < fr[qq].length) zz2.push([fr[qq].length, cc, 1]); else zz2.push([fr[qq].length, fr[qq], 0]); tt += zz2[qq][1].length; } return tt < lim ? { z: zz2, size: tt } : null; }
+    function cand(tn, p, fr, n) { var sv = stored(fr, best ? best.size : Infinity); if (sv) best = { t: tn, p: p, z: sv.z, size: sv.size, n: n }; }
     for (j = 0; j < nk; j++) {
       best = null; c = count[j];
       if (hexL[j] > 0) cand('H', { L: hexL[j] }, [colv[j]], c);   // as encodeColumn writes a hex column

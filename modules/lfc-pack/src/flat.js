@@ -457,8 +457,10 @@
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
     }
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
-    function stored(fr) { var tt = 0, zz2 = [], qq, cc; for (qq = 0; qq < fr.length; qq++) { cc = zs.compress(fr[qq], level); if (cc.length < fr[qq].length) zz2.push([fr[qq].length, cc, 1]); else zz2.push([fr[qq].length, fr[qq], 0]); tt += zz2[qq][1].length; } return { z: zz2, size: tt }; }
-    function cand(tn, p, fr, n) { var sv = stored(fr); if (!best || sv.size < best.size) best = { t: tn, p: p, z: sv.z, size: sv.size, n: n }; }
+    // lim: the candidate only counts when it takes fewer than lim bytes, so each frame is compressed with a byte limit and a loser stops early (null). A frame that does not fit
+    // its limit is stored raw: when that is also too big the candidate loses, as it would have; when it is not, raw is what the frame would have been anyway (compressed was no smaller).
+    function stored(fr, lim) { var tt = 0, zz2 = [], qq, cc, room; for (qq = 0; qq < fr.length; qq++) { room = lim - tt; if (room <= 0) return null; cc = zs.compress(fr[qq], level, 0, Math.min(room - 1, fr[qq].length - 1)); if (cc && cc.length < fr[qq].length) zz2.push([fr[qq].length, cc, 1]); else zz2.push([fr[qq].length, fr[qq], 0]); tt += zz2[qq][1].length; } return tt < lim ? { z: zz2, size: tt } : null; }
+    function cand(tn, p, fr, n) { var sv = stored(fr, best ? best.size : Infinity); if (sv) best = { t: tn, p: p, z: sv.z, size: sv.size, n: n }; }
     for (j = 0; j < nk; j++) {
       best = null; c = count[j];
       if (hexL[j] > 0) cand('H', { L: hexL[j] }, [colv[j]], c);   // as encodeColumn writes a hex column
