@@ -13,6 +13,7 @@
   function rd16(b, p) { return b[p] | (b[p + 1] << 8); }
   function fromB64(s) {
     if (hasBuffer) return new Uint8Array(Buffer.from(s, 'base64'));
+    if (Uint8Array.fromBase64) return Uint8Array.fromBase64(s);   // native decoder (Chromium 140+, Firefox 133+, WebKit 18.2+), much faster than atob + a loop
     var bin = atob(s), o = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) o[i] = bin.charCodeAt(i); return o;
   }
   function fnvStr(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0; return h; }
