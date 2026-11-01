@@ -71,10 +71,10 @@ Every piece in one place, by name. The tables below give the version, the sizes 
 - Games - Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md), [fly-to-mini](modules/fly-to-mini/README.md), [gpu-blur](modules/gpu-blur/README.md), [sprite-baker](modules/sprite-baker/README.md), [stage-curtains](modules/stage-curtains/README.md), [sticker-text](modules/sticker-text/README.md)
 - Games - Controls: [back-close](modules/back-close/README.md), [hold-press](modules/hold-press/README.md), [pad-nav](modules/pad-nav/README.md), [wake-keeper](modules/wake-keeper/README.md)
 - Games - Assist: [grown-ups-door](modules/grown-ups-door/README.md), [spotlight-tour](modules/spotlight-tour/README.md)
-- Games - Math: [graph-walk](modules/graph-walk/README.md), [idle-core](modules/idle-core/README.md)
+- Games - Math: [idle-core](modules/idle-core/README.md)
 - Games - Testing: [canvas-probe](tools/canvas-probe/README.md), [firefox-stand-in](tools/firefox-stand-in/README.md), [fuzz-kit](tools/fuzz-kit/README.md), [speed-guard](tools/speed-guard/README.md), [speed-lab](tools/speed-lab/README.md), [storage-probe](tools/storage-probe/README.md), [test-isolation](tools/test-isolation/README.md), [test-runner](tools/test-runner/README.md), [webkit-driver](tools/webkit-driver/README.md)
 - App - Efficiency: [elias-fano](modules/elias-fano/README.md), [lfc-pack](modules/lfc-pack/README.md), [memory-compression](modules/memory-compression/README.md), [single-file-tools](tools/single-file-tools/README.md), [text-columns](modules/text-columns/README.md)
-- Model simulation: [walker-sim](modules/walker-sim/README.md)
+- Graphs and simulation: [graph-walk](modules/graph-walk/README.md), [walker-sim](modules/walker-sim/README.md)
 - Visualization: [clip-writer](modules/clip-writer/README.md), [gif-writer](modules/gif-writer/README.md), [netflow-engine](modules/netflow-engine/README.md), [netflow-layers](modules/netflow-layers/README.md), [netflow-sankey](modules/netflow-sankey/README.md), [netflow-scene](modules/netflow-scene/README.md)
 - Size and packaging: [lzma-decode](modules/lzma-decode/README.md), [lzma-pack](tools/lzma-pack/README.md), [pcodec-js](modules/pcodec-js/README.md), [ppmd-decode](modules/ppmd-decode/README.md), [ppmd-pack](tools/ppmd-pack/README.md), [zip-open](modules/zip-open/README.md)
 
@@ -164,7 +164,6 @@ The numbers behind idle and clicker games.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [graph-walk](modules/graph-walk/README.md) | 0.11.0 | 98.0 | 30.9 | Graph walks in typed arrays: distances, loops, shortest paths, centrality, communities. | — |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 | 22.8 | 7.7 | Tested maths for idle and clicker games: costs, buy-max, away income, number format. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/idle-core/demo.html) |
 
 #### Games - Testing
@@ -195,12 +194,13 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.2.0 | 28.0 | 10.6 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.6.4 | 62.8 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
-#### Model simulation
+#### Graphs and simulation
 
-Simulate random walkers over a graph.
+Walk graphs (shortest paths, centrality, communities) and simulate random walkers over them.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
+| [graph-walk](modules/graph-walk/README.md) | 0.11.0 | 98.0 | 30.9 | Graph walks in typed arrays: distances, loops, shortest paths, centrality, communities. | — |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.0 | 73.4 | 24.0 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
 
 #### Visualization
