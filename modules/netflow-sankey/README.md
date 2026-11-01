@@ -1,6 +1,6 @@
 # netflow-sankey
 
-**Version 2.4.1 · API 2**
+**Version 2.5.0 · API 2**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -44,7 +44,7 @@ svgElement.innerHTML = NetflowSankey.toSvg(R, { title: "Where the wages go" });
 
 **For Netflow Map's engine (2.1.0):** `NetflowSankey.options(sk)` cleans up a person's settings (`nodeW`, `gap`, `pad`, `height`, `fixY`, `justify`, `order`; anything missing or out of range gets its default or the nearest limit) into the `opts` that `layout()` reads, and `NetflowSankey.apply(L, r)` writes a `layout(L, opts)` result `r` into the engine's drawing `L`: bar positions (`x, y, w, h, cx, cy, layer`, plus `skIn`, `skOut`, `skPinned`), the picture's `width` and `height`, `dir = 'LR'`, and `L.sk = { bands, loops, ky, order, cols, crossingWeight, ms }`. With netflow-engine: `NetflowEngine.use('sankey', NetflowSankey)`.
 
-`opts`: `height` (aim for this picture height), `nodeW`, `gapLayer` (space between columns), `pad` (space between bars), `restarts` and `budgetMs` (how hard to search for a good order), `seed`, `unweighted`, `justifySinks`, and `stopCap` with `stopCapFrom` (off by default: on maps with at least `stopCapFrom` items, default 1,000, at most `stopCap` stand-in stops; the lightest long links beyond that are drawn as one straight band each, which is faster but a different picture: at 1,500 items `stopCap: 500` takes about 4 ms instead of 24 in Node). `toSvg` takes `colors`, `labels`, `fontSize`, `textColor`, `bandOpacity` and `title`; all text is escaped. `fromLinks`, `layout`, `layering`, `crossWeight`, `roundPath` and `toBezier` are exported for people who want the pieces.
+`opts`: `height` (aim for this picture height), `nodeW`, `gapLayer` (space between columns), `pad` (space between bars), `restarts` and `budgetMs` (how hard to search for a good order), `seed`, `unweighted`, `justifySinks`, and `stopCap` with `stopCapFrom` (off by default: on maps with at least `stopCapFrom` items, default 1,000, at most `stopCap` stand-in stops; the lightest long links beyond that are drawn as one straight band each, which is faster but a different picture: at 1,500 items `stopCap: 500` takes about 4 ms instead of 24 in Node). `toSvg` takes `colors`, `labels`, `fontSize`, `textColor`, `bandOpacity`, and the optional `title`, `subtitle` and `source` (a bold title and lighter subtitle drawn above the picture, a small source line below; the title is also the picture's hidden label for screen readers); all text is escaped. `fromLinks`, `layout`, `layering`, `crossWeight`, `roundPath` and `toBezier` are exported for people who want the pieces.
 
 ## How it compares
 netflow-sankey is bigger than d3-sankey, but on three made-up charts it leaves about half the weighted crossings (47% to 58% of d3-sankey's; lower is better), and it draws a chart with loops where d3-sankey stops with an error. Speed against d3-sankey (laptop Firefox 160, 16 cores, 2026.10.30): 3.7 to 5.5 times as fast at 200 and 500 nodes; at 72 nodes d3-sankey is about twice as fast with the default settings.

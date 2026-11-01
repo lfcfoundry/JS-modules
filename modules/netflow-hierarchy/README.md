@@ -1,8 +1,8 @@
 # netflow-hierarchy
 
-**Version 1.2.0 · API 1**
+**Version 1.2.1 · API 1**
 
-**Tested in:** node modules/netflow-plot/test/run.js, node modules/netflow-hierarchy/test/run.js, node modules/netflow-scene/test/run.js; default pictures byte-identical to 1.3.4 across 44 plot and 6 hierarchy pictures
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
