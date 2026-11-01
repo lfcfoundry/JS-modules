@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.7.2 · API 1 · 2026-10-31
-- Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
+- Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 
 ## 1.7.1 · API 1 · 2026-10-24
 - With the WebAssembly add-on loaded, outlines are drawn in WebAssembly: about 1.6 to 1.9 times as fast per call (0.3 to 2 ms down to 0.15 to 1.1 ms), with the very same pixels. Without it nothing changes.
