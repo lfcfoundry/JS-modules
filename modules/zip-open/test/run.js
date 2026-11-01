@@ -562,4 +562,12 @@ t('Built-in wasm decodes with Uint8Array.fromBase64 where the browser has it (sa
     assert.ok(calls >= 1, 'fromBase64 used');
   } finally { if (had) Uint8Array.fromBase64 = had; else delete Uint8Array.fromBase64; delete require.cache[path]; }
 });
+t('In-memory unzip checks the checksum piece by piece (a wrong checksum is still caught, the right one passes)', async function () {
+  if (typeof DecompressionStream !== 'function') return;
+  var txt = ''; for (var i = 0; i < 20000; i++) txt += i * 7919 % 100003 + ',' + (i % 97) + '\n';
+  var x = u8(Z.makeZip([{ name: 'a.csv', data: txt }])), e = U.list(x).entries[0];
+  assert.ok(e.csize > 4096, 'goes through DecompressionStream');
+  var ok = await U.read(x, e); assert.equal(new TextDecoder().decode(ok.bytes), txt);
+  var bad = await U.read(x, Object.assign({}, e, { crc: (e.crc ^ 1) >>> 0 })); assert.ok(/checksum/.test(bad.skip), 'wrong checksum caught');
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });
