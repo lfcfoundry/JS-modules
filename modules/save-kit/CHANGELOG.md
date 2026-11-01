@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.2 · API 1 · 2026-10-31
+- On Safari and other WebKit browsers the save-time number check is faster: a 20 KB save takes about 0.41 of the time.
+
 ## 1.5.1 · API 1 · 2026-10-31
 - Loading a save with big counts lists takes 16 to 21% less time (cloud Chromium, Firefox and WebKitGTK); nothing a game sees changes.
 
