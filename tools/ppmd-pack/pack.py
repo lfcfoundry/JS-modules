@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd-pack: turn one HTML file into a smaller self-unpacking HTML file with PPMd.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
-Version 2.0.0 (API 2)
+Version 2.0.1 (API 2)
 
   python3 tools/ppmd-pack/pack.py INPUT.html OUTPUT.html [--title T] [--head HTML] [--encoding bytes|base64] [--order N] [--mem BYTES] [--tune] [--compare]
                                   [--minifier auto|terser|esbuild|none] [--minify-page] [--bg auto|none|COLOR] [--wasm] [--skip-node-check]
@@ -222,7 +222,7 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
         meta = b'<meta charset="windows-1252">'
     else:
         payload = base64.b64encode(blob)
-        read = "var i=0,z=Uint8Array.from(atob(s),function(c){return c.charCodeAt(0)});"
+        read = "var i=0,z=Uint8Array.fromBase64?Uint8Array.fromBase64(s):Uint8Array.from(atob(s),function(c){return c.charCodeAt(0)});"
         meta = b'<meta charset="utf-8">'
     # The loader copies the payload into a local variable and deletes the global at once; the decoder and every other name live inside the timer function.
     # The compressed bytes are checked BEFORE decoding: the loader leaves out the decoder's checks for outside input, and a damaged PPMd stream can make the

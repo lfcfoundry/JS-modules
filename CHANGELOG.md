@@ -6,46 +6,46 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 | Module or tool | Version | History |
 |---|---|---|
-| [stage-curtains](modules/stage-curtains/README.md) | 1.4.1 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
+| [stage-curtains](modules/stage-curtains/README.md) | 1.4.2 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
 | [save-kit](modules/save-kit/README.md) | 1.5.2 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
-| [gpu-blur](modules/gpu-blur/README.md) | 1.3.1 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
+| [gpu-blur](modules/gpu-blur/README.md) | 1.3.2 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 · API 1 | [changelog](modules/fly-to-mini/CHANGELOG.md) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
 | [field-report](modules/field-report/README.md) | 1.1.0 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
-| [sprite-baker](modules/sprite-baker/README.md) | 1.7.1 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
+| [sprite-baker](modules/sprite-baker/README.md) | 1.7.2 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.0 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.2 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
-| [lzma-decode](modules/lzma-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.3.1 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.1 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
-| [gif-writer](modules/gif-writer/README.md) | 1.6.1 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
+| [gif-writer](modules/gif-writer/README.md) | 1.6.2 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.14.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.10.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 1.8.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
-| [graph-walk](modules/graph-walk/README.md) | 0.11.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.10.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 1.8.1 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [graph-walk](modules/graph-walk/README.md) | 0.11.1 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.4.12 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
-| [text-columns](modules/text-columns/README.md) | 0.6.4 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
-| [pcodec-js](modules/pcodec-js/README.md) | 1.6.2 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
+| [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.3 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.7.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.7.1 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [walker-sim](modules/walker-sim/README.md) | 2.4.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
+| [walker-sim](modules/walker-sim/README.md) | 2.4.1 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.0 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
 | [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.1 · API 1 | [changelog](modules/spotlight-tour/CHANGELOG.md) |
-| [single-file-tools](tools/single-file-tools/README.md) | 1.2.0 · API 1 | [changelog](tools/single-file-tools/CHANGELOG.md) |
-| [lzma-pack](tools/lzma-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
-| [ppmd-pack](tools/ppmd-pack/README.md) | 2.0.0 · API 2 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
+| [single-file-tools](tools/single-file-tools/README.md) | 1.2.1 · API 1 | [changelog](tools/single-file-tools/CHANGELOG.md) |
+| [lzma-pack](tools/lzma-pack/README.md) | 2.0.1 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
+| [ppmd-pack](tools/ppmd-pack/README.md) | 2.0.1 · API 2 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
 | [fuzz-kit](tools/fuzz-kit/README.md) | 1.3.4 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.1 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
 | [storage-probe](tools/storage-probe/README.md) | 1.1.0 · API 1 | [changelog](tools/storage-probe/CHANGELOG.md) |
@@ -68,6 +68,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **zip-open** 1.12.0 · API 1: Excel files with lots of text open 4 to 13% faster (cloud Firefox, Chromium, WebKitGTK); other sheets about the same. Browsers with WebAssembly SIMD get a faster reader; others keep the old one.
 - 2026-10-31 · **zip-open** 1.11.0 · API 1: With helpers on (the workers option), Excel files are read inside a helper, so a big sheet no longer freezes the page (185 ms down to 6 ms on a laptop). Total time is about the same, up to 18% longer on some sheets.
 - 2026-10-31 · **zip-open** 1.10.0 · API 1: Excel files open much faster again: 1.9 to 3.6 times as fast (48 to 72% less time) than 1.9.0 (cloud Firefox, Chromium and WebKitGTK), same results. Fixed: two big zips opened at once with helpers could leave one never finishing.
+- 2026-10-31 · **walker-sim** 2.4.1 · API 2: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
+- 2026-10-31 · **text-columns** 0.6.5 · API 0: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **text-columns** 0.6.4 · API 0: Parsing big files with number columns again is 1 to 17% faster (45 MB, three browsers): the page prepares the number arrays for the next parse in idle time.
 - 2026-10-31 · **text-columns** 0.6.3 · API 0: Repeated text values are kept once, so a parsed file keeps 42 to 63% less memory (16 MB file in Chromium: 29.4 to 10.9 MB). Parse speed is unchanged.
 - 2026-10-31 · **text-columns** 0.6.2 · API 0: The page builds text columns in short steps (longest stall 3-10x lower); big inputs are read in 4 MB windows (45 MB file: page 161 to 10.5 MB, helpers 120 to 45 MB); opt-in idleTrim(ms, keep).
@@ -75,14 +77,22 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **text-columns** 0.6.0 · API 0: New: parseParallel takes a picked file directly; each helper reads its own piece, so the page never holds the whole file (1.0 to 1.75x faster).
 - 2026-10-31 · **text-columns** 0.5.2 · API 0: parseParallel reads files with accented or other non-ASCII text up to 4.8x faster.
 - 2026-10-31 · **test-runner** 1.4.0 · API 1: New ab.js: the early-stop A/B timing rule for the 5% check.
+- 2026-10-31 · **stage-curtains** 1.4.2 · API 1: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **stage-curtains** 1.4.1 · API 1: With worker: true, the curtain is ready up to 4x sooner.
+- 2026-10-31 · **sprite-baker** 1.7.2 · API 1: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
+- 2026-10-31 · **single-file-tools** 1.2.1 · API 1: Packed pages made with base64 encoding now unpack with the browser's own base64 decoder (Uint8Array.fromBase64) where there is one, which is faster; older browsers use the old way. About 40 bytes more loader.
 - 2026-10-31 · **save-kit** 1.5.2 · API 1: On Safari and other WebKit browsers the number check is faster: a 20 KB save takes 59% less time and a load 19% less; tiny saves are a few microseconds slower.
 - 2026-10-31 · **save-kit** 1.5.1 · API 1: Loading a save with big counts lists takes 16 to 21% less time (cloud Chromium, Firefox and WebKitGTK); nothing a game sees changes.
 - 2026-10-31 · **save-kit** 1.5.0 · API 1: createLarge() gets an opt-in skipUnchangedMs: an unchanged big save is not written again; 57 to 66% less time.
 - 2026-10-31 · **save-kit** 1.4.0 · API 1: New durable option keeps a second copy of each save that survives a browser crash. In a real crash test, saves kept only in browser storage lost 29 to 30 of 80; with durable on, none were lost.
+- 2026-10-31 · **ppmd-pack** 2.0.1 · API 2: Packed pages made with base64 encoding now unpack with the browser's own base64 decoder (Uint8Array.fromBase64) where there is one, which is faster; older browsers use the old way. About 40 bytes more loader.
+- 2026-10-31 · **ppmd-decode** 1.3.1 · API 1: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
+- 2026-10-31 · **pcodec-js** 1.6.3 · API 1: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **pcodec-js** 1.6.2 · API 1: Repeated big unpacks take 0.63 to 0.87 of the time (5 million numbers, three browsers): a ready array is prepared while the page is idle and dropped after 4 s unused.
+- 2026-10-31 · **netflow-sankey** 2.4.1 · API 2: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **netflow-sankey** 2.4.0 · API 2: Big flow charts lay out 8 to 20% faster (20% at 1,500 items) with the same pictures. New stopCap / stopCapFrom options (off by default) draw more long links straight on big maps for a much faster layout.
 - 2026-10-31 · **netflow-sankey** 2.3.3 · API 2: Bars settle into place in WebAssembly too: the same pictures in 3 to 26% less time for big flow charts (3 to 14% in cloud browsers, 7 to 26% on a laptop).
+- 2026-10-31 · **netflow-layers** 1.7.1 · API 1: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **netflow-layers** 1.7.0 · API 1: Fewer crossings by default (deep: false and rows: 'route' keep the old picture): 3 to 11% fewer than dagre and ELK on random maps; 1,000 items take 77 to 83 ms instead of 11 to 39.
 - 2026-10-31 · **netflow-layers** 1.6.0 · API 1: New options, all off by default: deep: true untangles links further, rows: 'best' tries both row choices, orderRounds: 0 skips the order search. Deep with 'best' cuts crossings 17 to 37%, below dagre and ELK.
 - 2026-10-31 · **netflow-engine** 2.2.3 · API 2: Number labels are made in 95 to 98% less time (21 to 43 times as fast), with the same text.
@@ -90,7 +100,10 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **memory-compression** 2.8.2 · API 2: view() stays lazy on pages that forbid eval (our policy): opening a view and reading a row takes 34 to 80% less time, same rows. Lists that are mostly numbers are unchanged.
 - 2026-10-31 · **memory-compression** 2.8.1 · API 2: After the idle trim, the two small wasm helpers are made again at once (about 6 MB held), so the first pack after a pause is as fast as the rest.
 - 2026-10-31 · **memory-compression** 2.8.0 · API 2: Packing lists of whole numbers (up to 100,000 rows) is 2 to 24% faster; files can be up to about 1% bigger. autoTries: false keeps the old bytes.
+- 2026-10-31 · **memory-compression** 2.10.1 · API 2: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **memory-compression** 2.10.0 · API 2: New unpack option into: pass the typed array you got last time to read the next one without fresh memory (9 to 30% faster on a laptop for big number arrays).
+- 2026-10-31 · **lzma-pack** 2.0.1 · API 2: Packed pages made with base64 encoding now unpack with the browser's own base64 decoder (Uint8Array.fromBase64) where there is one, which is faster; older browsers use the old way. About 40 bytes more loader.
+- 2026-10-31 · **lzma-decode** 1.3.1 · API 1: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **lfc-pack** 0.4.9 · API 0: Reading decimal number lists (such as map coordinates) is 5 to 8% faster in Firefox; same rows. Each pack uses 2.5 MB less scratch memory for grouping numbers; same files, same speed.
 - 2026-10-31 · **lfc-pack** 0.4.8 · API 0: Opening files takes up to 14% less time (real FHIR records 1 to 10% less on a laptop). One small buffer (3.7 MB for a 48 MB FHIR file) is kept 4 s after the last open; trim() frees it.
 - 2026-10-31 · **lfc-pack** 0.4.7 · API 0: Fixed: warmPack(n) now keeps n helpers ready even when some were already waiting (it kept fewer before), and overlapping packParallel calls never share a helper.
@@ -108,12 +121,16 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **graph-walk** 0.9.0 · API 0: New: closenessAsync splits closeness across kept helper threads (2.3 to 3.8 times as fast on 4 cores in all three test browsers).
 - 2026-10-31 · **graph-walk** 0.8.0 · API 0: New: max-flow and min-cut, closeness, triangle counts, communities (Louvain), critical path and landmark paths, in plain JavaScript and WebAssembly; 1.5x to 230x faster than graphology, ngraph and a Dinic library in all three test browsers.
 - 2026-10-31 · **graph-walk** 0.7.2 · API 0: betweennessAsync starts faster: up to 1.9x on the first call and on a new graph.
+- 2026-10-31 · **graph-walk** 0.11.1 · API 0: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **graph-walk** 0.11.0 · API 0: New: hand the previous result back to components, kcore, shortest and pagerank to reuse its arrays (up to 1.6x on repeated big calls in Firefox). Fix: two helper jobs at once could hang; a second job now gets helpers of its own.
 - 2026-10-31 · **graph-walk** 0.10.0 · API 0: New: trim() gives the WebAssembly memory back after a big job (it only ever grows otherwise); nothing runs unless you call it.
+- 2026-10-31 · **gpu-blur** 1.3.2 · API 1: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **gpu-blur** 1.3.1 · API 1: Fixed: two blurs on the helpers at once no longer close the helpers under the longer one (it used to drop back to the slower one-thread route).
 - 2026-10-31 · **gpu-blur** 1.3.0 · API 1: New: opts.into takes your own pixel array for out 'pixels', so blurring every frame makes no new memory; 1.1 to 1.7x faster with the helpers.
 - 2026-10-31 · **gpu-blur** 1.2.3 · API 1: The helpers route is up to 1.34x faster on repeat blurs.
+- 2026-10-31 · **gif-writer** 1.6.2 · API 1: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **field-report** 1.1.0 · API 1: New frames modes: 'play' records only while the app says it is animating; 'external' takes frame times from the app's own loop (fr.frame(ts)), so there is no second animation-frame callback.
+- 2026-10-31 · **elias-fano** 1.8.1 · API 1: Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 - 2026-10-31 · **elias-fano** 1.8.0 · API 1: Repeat decodes of big lists are 2 to 25% faster by themselves (a spare array is made while idle), and 20 to 35% faster when toArray(out) or slice(a, b, out) fills your own Uint32Array.
 - 2026-10-31 · **elias-fano** 1.7.0 · API 1: New: trim() gives back memory that big lists left behind (24 MB to 1.8 MB after a 5-million-id build); autoTrim does it by itself after a big job (on by default; autoTrim(false) turns it off).
 - 2026-10-30 · **zip-open** 1.5.1 · API 1: Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.

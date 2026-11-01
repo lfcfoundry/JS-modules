@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.6.4 (API 0)
+ * Version 0.6.5 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -39,7 +39,7 @@
     if (W.x.memory.buffer.byteLength < TRIM.min) return;
     TRIM.timer = setTimeout(function () { TRIM.timer = 0; try { var x = new WebAssembly.Instance(W.m, {}).exports; if (TRIM.keep > x.memory.buffer.byteLength) x.memory.grow(Math.ceil((TRIM.keep - x.memory.buffer.byteLength) / 65536)); W.x = x; W.heap = x.__heap_base.value; TRIM.count++; } catch (e) { /* keep the old one */ } }, TRIM.ms);
   }
-  function fromB64(s) { if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(s, 'base64')); var bin = atob(s), u = new Uint8Array(bin.length), i; for (i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+  function fromB64(s) { if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(s); if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(s, 'base64')); var bin = atob(s), u = new Uint8Array(bin.length), i; for (i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
   function start() {
     if (W || loading || typeof WebAssembly !== 'object') return;
     loading = true;
@@ -707,5 +707,5 @@
     return col;
   }
 
-  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _sharePending: function () { return SHARE.q.length; }, _spareCount: function () { return SPARE.a.length; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.6.4', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _sharePending: function () { return SHARE.q.length; }, _spareCount: function () { return SPARE.a.length; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.6.5', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));

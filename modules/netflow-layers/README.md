@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.7.0 · API 1**
+**Version 1.7.1 · API 1**
 
-**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (cloud)
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

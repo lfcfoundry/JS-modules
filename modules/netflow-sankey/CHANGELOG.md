@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.1 · API 2 · 2026-10-31
+- Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
+
 ## 2.4.0 · API 2 · 2026-10-31
 - Big flow charts lay out 8 to 20% faster (20% at 1,500 items) with the same pictures. New stopCap / stopCapFrom options (off by default) draw more long links straight on big maps for a much faster layout.
 
