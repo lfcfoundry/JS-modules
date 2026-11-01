@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.3 · API 1 · 2026-10-31
+- Zip and Excel files already in memory open up to 15% faster in Firefox and up to 6% in Chromium; WebKitGTK about the same. Same results.
+
 ## 1.14.2 · API 1 · 2026-10-31
 - Excel files over 16 MB opened on the page without helpers open 3 to 24% faster (cloud Firefox, Chromium, WebKitGTK), same results.
 
