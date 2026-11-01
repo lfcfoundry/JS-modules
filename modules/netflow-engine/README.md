@@ -81,17 +81,16 @@ Layout time, lower is better, one run each, cold start, the same network (1,000,
 | Chromium 155.0.8059.39 | 192 ms | 924 ms | 746 ms |
 | Firefox 158.0 | 240 ms | 854 ms | 810 ms |
 | WebKitGTK 2.52.6 | 244 ms | 770 ms | 552 ms |
-| GNOME Web 46.5 | 169 ms | 787 ms | 533 ms |
 
 The 10,000-item map is quicker than the 3,000-item one because the first big layout in a fresh page is cold (the wasm code warms up); a layout after that is about 1.4× faster in Chromium. Against the first version of Netflow Map's engine (2026-10-14), the same maps in the app took: 10,000 items 7.25 s to 456 ms (16×, Firefox 159), 30,000 items 42.1 s to 812 ms (52×), 100,000 items from over 60 s to 4.29 s. Netflow Map's numbers come from the app's build of this same engine (identical layouts, see Tests).
 
 ## How it compares
 
-Run on 2026-10-18 against d3-force 7.9.0, Cytoscape cose 3.34.4, dagre 0.8.5 and ELK (elkjs) 0.12.0, each with its default options, in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6 and GNOME Web 46.5, one browser at a time. Every case is a fresh page under `script-src 'self' 'wasm-unsafe-eval'`; 3 runs per case (a case over 20 s ran once); 60 s limit per case. The networks are generated from a fixed seed. Speeds are from the browsers only.
+Run on 2026-10-18 against d3-force 7.9.0, Cytoscape cose 3.34.4, dagre 0.8.5 and ELK (elkjs) 0.12.0, each with its default options, in ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one browser at a time. Every case is a fresh page under `script-src 'self' 'wasm-unsafe-eval'`; 3 runs per case (a case over 20 s ran once); 60 s limit per case. The networks are generated from a fixed seed. Speeds are from the browsers only.
 
-**In short:** the engine was faster in every case that finished, in all four browsers (higher is better for the engine): 3.2x to 4.8x faster than d3-force, 20.8x to 93.6x than Cytoscape, 304x to 614x than ELK's stress layout (300 items; nothing larger finished), 9.8x to 243x than dagre and 17.9x to 138.7x than ELK's layered layout. Where it gives something up:
+**In short:** the engine was faster in every case that finished, in all three browsers (higher is better for the engine): 3.2x to 4.8x faster than d3-force, 20.8x to 93.6x than Cytoscape, 304x to 614x than ELK's stress layout (300 items; nothing larger finished), 9.8x to 243x than dagre and 17.9x to 138.7x than ELK's layered layout. Where it gives something up:
 
-- Cytoscape's force layout has slightly lower stress at 300 and 1,000 items (by 0.001 to 0.011, lower is better), and takes 21x to 94x longer; at 3,000 items it went over 60 s in all four browsers.
+- Cytoscape's force layout has slightly lower stress at 300 and 1,000 items (by 0.001 to 0.011, lower is better), and takes 21x to 94x longer; at 3,000 items it went over 60 s in all three browsers.
 - ELK's layered layout has fewer crossings at 1,000 items (6,471 against 6,499, about 0.4% fewer) and at 3,000 items (35,909 against 37,247, about 3.6% fewer). At 300 items the engine has the fewest (559 against ELK 632 and dagre 784).
 - ELK's stress layout needed 15.9 s to 26.4 s for 300 items (one run each) and went over 60 s at 1,000 and 3,000; its stress at 300 was 0.170 against the engine's 0.161.
 
@@ -99,46 +98,46 @@ Run on 2026-10-18 against d3-force 7.9.0, Cytoscape cose 3.34.4, dagre 0.8.5 and
 
 First layout in a fresh page, lower is better, median of 3. Quality (stress, lower is better) is ungoogled-chromium's value.
 
-| Items | Library | ungoogled-chromium | Firefox | WebKitGTK | GNOME Web | Quality |
-|---|---|---|---|---|---|---|
-| 300 | Netflow engine | 113 ms | 93 ms | 104 ms | 101 ms | 0.178 |
-| 300 | d3-force | 377 ms | 450 ms | 370 ms | 397 ms | 0.194 |
-| 300 | Cytoscape (cose) | 2,361 ms | 3,943 ms | 2,880 ms | 2,965 ms | 0.167 |
-| 1,000 | Netflow engine | 393 ms | 387 ms | 379 ms | 371 ms | 0.171 |
-| 1,000 | d3-force | 1,505 ms | 1,768 ms | 1,429 ms | 1,441 ms | 0.194 |
-| 1,000 | Cytoscape (cose) | 28.6 s (1 run) | over 60 s | over 60 s | 34.7 s (1 run) | 0.167 |
-| 3,000 | Netflow engine | 1,399 ms | 1,462 ms | 1,584 ms | 1,473 ms | 0.190 |
-| 3,000 | d3-force | 4,992 ms | 6,023 ms | 5,101 ms | 5,240 ms | 0.198 |
-| 3,000 | Cytoscape (cose) | over 60 s | over 60 s | over 60 s | over 60 s | - |
+| Items | Library | ungoogled-chromium | Firefox | WebKitGTK | Quality |
+|---|---|---|---|---|---|
+| 300 | Netflow engine | 113 ms | 93 ms | 104 ms | 0.178 |
+| 300 | d3-force | 377 ms | 450 ms | 370 ms | 0.194 |
+| 300 | Cytoscape (cose) | 2,361 ms | 3,943 ms | 2,880 ms | 0.167 |
+| 1,000 | Netflow engine | 393 ms | 387 ms | 379 ms | 0.171 |
+| 1,000 | d3-force | 1,505 ms | 1,768 ms | 1,429 ms | 0.194 |
+| 1,000 | Cytoscape (cose) | 28.6 s (1 run) | over 60 s | over 60 s | 0.167 |
+| 3,000 | Netflow engine | 1,399 ms | 1,462 ms | 1,584 ms | 0.190 |
+| 3,000 | d3-force | 4,992 ms | 6,023 ms | 5,101 ms | 0.198 |
+| 3,000 | Cytoscape (cose) | over 60 s | over 60 s | over 60 s | - |
 
 #### Distances (stress), network
 
 First layout in a fresh page, lower is better, median of 3. Quality (stress, lower is better) is ungoogled-chromium's value.
 
-| Items | Library | ungoogled-chromium | Firefox | WebKitGTK | GNOME Web | Quality |
-|---|---|---|---|---|---|---|
-| 300 | Netflow engine | 55 ms | 43 ms | 34 ms | 54 ms | 0.161 |
-| 300 | ELK | 22.8 s (1 run) | 26.4 s (1 run) | 15.9 s (1 run) | 16.4 s (1 run) | 0.170 |
-| 1,000 | Netflow engine | 233 ms | 209 ms | 228 ms | 210 ms | 0.159 |
-| 1,000 | ELK | over 60 s | over 60 s | over 60 s | over 60 s | - |
-| 3,000 | Netflow engine | 1,367 ms | 1,323 ms | 1,123 ms | 1,180 ms | 0.172 |
-| 3,000 | ELK | over 60 s | over 60 s | over 60 s | over 60 s | - |
+| Items | Library | ungoogled-chromium | Firefox | WebKitGTK | Quality |
+|---|---|---|---|---|---|
+| 300 | Netflow engine | 55 ms | 43 ms | 34 ms | 0.161 |
+| 300 | ELK | 22.8 s (1 run) | 26.4 s (1 run) | 15.9 s (1 run) | 0.170 |
+| 1,000 | Netflow engine | 233 ms | 209 ms | 228 ms | 0.159 |
+| 1,000 | ELK | over 60 s | over 60 s | over 60 s | - |
+| 3,000 | Netflow engine | 1,367 ms | 1,323 ms | 1,123 ms | 0.172 |
+| 3,000 | ELK | over 60 s | over 60 s | over 60 s | - |
 
 #### Layered, top to bottom
 
 First layout in a fresh page, lower is better, median of 3. Quality (crossing link pairs, lower is better) is ungoogled-chromium's value.
 
-| Items | Library | ungoogled-chromium | Firefox | WebKitGTK | GNOME Web | Quality |
-|---|---|---|---|---|---|---|
-| 300 | Netflow engine | 38 ms | 28 ms | 17 ms | 22 ms | 559 |
-| 300 | dagre | 369 ms | 346 ms | 455 ms | 537 ms | 784 |
-| 300 | ELK | 714 ms | 500 ms | 862 ms | 786 ms | 632 |
-| 1,000 | Netflow engine | 68 ms | 44 ms | 32 ms | 35 ms | 6,499 |
-| 1,000 | dagre | 5,927 ms | 4,445 ms | 7,786 ms | 7,405 ms | 6,885 |
-| 1,000 | ELK | 1,827 ms | 2,417 ms | 2,142 ms | 2,167 ms | 6,471 |
-| 3,000 | Netflow engine | 116 ms | 91 ms | 80 ms | 98 ms | 37,247 |
-| 3,000 | dagre | over 60 s | over 60 s | over 60 s | over 60 s | - |
-| 3,000 | ELK | 8,404 ms | 12.6 s (1 run) | 7,688 ms | 7,997 ms | 35,909 |
+| Items | Library | ungoogled-chromium | Firefox | WebKitGTK | Quality |
+|---|---|---|---|---|---|
+| 300 | Netflow engine | 38 ms | 28 ms | 17 ms | 559 |
+| 300 | dagre | 369 ms | 346 ms | 455 ms | 784 |
+| 300 | ELK | 714 ms | 500 ms | 862 ms | 632 |
+| 1,000 | Netflow engine | 68 ms | 44 ms | 32 ms | 6,499 |
+| 1,000 | dagre | 5,927 ms | 4,445 ms | 7,786 ms | 6,885 |
+| 1,000 | ELK | 1,827 ms | 2,417 ms | 2,142 ms | 6,471 |
+| 3,000 | Netflow engine | 116 ms | 91 ms | 80 ms | 37,247 |
+| 3,000 | dagre | over 60 s | over 60 s | over 60 s | - |
+| 3,000 | ELK | 8,404 ms | 12.6 s (1 run) | 7,688 ms | 35,909 |
 
 "Over 60 s" means the case was stopped at the limit; a later browser did not run it again. The engine's quality differs by up to 0.007 between browsers on the same case, so the tables show Chromium's.
 
@@ -169,7 +168,7 @@ The libraries do more than this engine (drawing, routing, bundling, hundreds of 
 
 ## How updates ship
 
-1. The Netflow Map team finishes an engine change and writes a short note (what changed, in numbers, from the four test browsers).
+1. The Netflow Map team finishes an engine change and writes a short note (what changed, in numbers, from the three test browsers).
 2. A new version of this module is published with a plain-words changelog entry. The module's file is cut from the app's engine by `tools/build-engine-module.mjs` in Netflow Map, so the two cannot drift apart.
 3. Netflow Map then uses the published version. Add-ons keep their own version numbers and say which engine versions they were tested with.
 

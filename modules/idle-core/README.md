@@ -2,7 +2,7 @@
 
 **Version 1.2.0 · API 1**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 and GNOME Web 46.5, one at a time, in a same-answers run of one fixed set of calls (tests/idle-core-browser.js, readable and minified file); 37 Node checks (8 new).
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, one at a time, in a same-answers run of one fixed set of calls (tests/idle-core-browser.js, readable and minified file); 37 Node checks (8 new).
 
 ## What it is and how it works
 
@@ -52,7 +52,7 @@ document.addEventListener('visibilitychange', () => {
 const awayOnLoad = clock.since(save.stamp);   // phones may close a hidden page with no event at all
 ```
 
-Try `demo.html`. Checks: `node modules/idle-core/test/run.js` (Node only, 37 checks; pass a file path to check another copy, for example `modules/idle-core/idle-core.min.js`). `node tests/idle-core-browser.js` runs one fixed set of calls in Node and a real browser and compares the answers for the readable and minified file (`CHROMIUM=...`, `FIREFOX=...` or `WEBKIT=1`, one browser at a time). Counts, text and formatting were identical in every browser. Prices of about 1e9 and up differ in the last coin between engines because `Math.pow` is not the same everywhere: Node 22, Chromium 155 and Firefox 158 are within 3e-16 of exact, WebKitGTK 2.52.6 and GNOME Web within 3e-14 (measured on 4,200 powers).
+Try `demo.html`. Checks: `node modules/idle-core/test/run.js` (Node only, 37 checks; pass a file path to check another copy, for example `modules/idle-core/idle-core.min.js`). `node tests/idle-core-browser.js` runs one fixed set of calls in Node and a real browser and compares the answers for the readable and minified file (`CHROMIUM=...`, `FIREFOX=...` or `WEBKIT=1`, one browser at a time). Counts, text and formatting were identical in every browser. Prices of about 1e9 and up differ in the last coin between engines because `Math.pow` is not the same everywhere: Node 22, Chromium 155 and Firefox 158 are within 3e-16 of exact, WebKitGTK 2.52.6 within 3e-14 (measured on 4,200 powers).
 
 ## Functions
 

@@ -69,9 +69,8 @@ Time from opening the file until the unpacked page starts (milliseconds, smaller
 | ungoogled-chromium 155.0.8059.39-1 | 105.5 | 77.4 | 1.36x |
 | Firefox 158.0 (reports 158.0b5) | 94.0 | 75.0 | 1.25x |
 | WebKitGTK 2.52.6 | 84.0 | 73.0 | 1.15x |
-| GNOME Web 46.5 | 104.0 | 90.0 | 1.16x |
 
-The saving is 11 to 28 ms on a desktop; a phone is not measured. A game already close to a size limit should pass `--no-wasm`. WebAssembly needs `'wasm-unsafe-eval'` in the wrapper's `script-src` (the packer adds it to every policy it finds in `--head`). Chromium and Firefox refuse WebAssembly without it and the page then uses the JavaScript decoder (checked in both with a policy cut of the word, 0 WebAssembly instances); WebKitGTK 2.52.6 and GNOME Web 46.5 did not refuse it there, so that fallback was not exercised in them (the page opened normally). The packer's own Node check covers four cases (counting WebAssembly, none, one whose compile step throws, one returning a wrong length), so a damaged `lzma-decode.wasm` is caught at pack time. If the settings ever had lc + lp above 4 the default would leave WebAssembly out by itself, and `--wasm` would refuse. Browser run: `tests/pack-default-browser.js`.
+The saving is 11 to 28 ms on a desktop; a phone is not measured. A game already close to a size limit should pass `--no-wasm`. WebAssembly needs `'wasm-unsafe-eval'` in the wrapper's `script-src` (the packer adds it to every policy it finds in `--head`). Chromium and Firefox refuse WebAssembly without it and the page then uses the JavaScript decoder (checked in both with a policy cut of the word, 0 WebAssembly instances); WebKitGTK 2.52.6 did not refuse it there, so that fallback was not exercised in them (the page opened normally). The packer's own Node check covers four cases (counting WebAssembly, none, one whose compile step throws, one returning a wrong length), so a damaged `lzma-decode.wasm` is caught at pack time. If the settings ever had lc + lp above 4 the default would leave WebAssembly out by itself, and `--wasm` would refuse. Browser run: `tests/pack-default-browser.js`.
 
 ## How it compares
 
