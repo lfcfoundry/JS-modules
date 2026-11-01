@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.1 · API 1 · 2026-10-31
+- Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
+
 ## 1.7.0 · API 1 · 2026-10-31
 - Fewer crossings by default (deep: false and rows: 'route' keep the old picture): 3 to 11% fewer than dagre and ELK on random maps; 1,000 items take 77 to 83 ms instead of 11 to 39.
 

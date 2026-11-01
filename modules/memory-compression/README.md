@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.9.0 · API 2**
+**Version 2.10.1 · API 2**
 
-**Tested in:** laptop Chromium 156 and Firefox 160 (16 cores); cloud Chromium 153, Firefox 158, WebKitGTK 2.52.6; early-stop A/B
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 ## What it is and how it works
 
@@ -60,7 +60,7 @@ P.get(4711);                       // one object, 0.4 to 3 ms the first time (on
 P.range(1000, 1500);               // a run of rows
 P.set(4711, links2);  P.changed(4711);   // after you change a row; its page is packed again when it leaves memory
 P.pressure(1);                     // memory is tight: half the open pages go;  P.pressure(2): all go;  P.pressure(0): normal
-P.spill({ all: true }).then(function () { /* packed bytes are in browser storage, none in memory */ });  // needs { spill: true }
+P.spill({ all: true }).then(function () { /* packed bytes are in browser storage, none in memory */ });  // needs { spill: true }; storage is IndexedDB, used from the page only (in WebKitGTK a blob Worker opened from a file:// page sees a separate, empty database)
 MemoryCompression.pager(links, { background: true }).ready.then(function (P) { /* packed, a few milliseconds at a time */ });
 MemoryCompression.pager(links, { pageRows: 'auto', livePages: 'auto', mode: 'auto' });  // page size, open pages and mode chosen from the rows and the device's memory
 var plan = MemoryCompression.pager.plan(links);  // { pageRows, livePages, mode, pageView, why }: the choice, with the reason in words
@@ -114,6 +114,7 @@ Since 2.5.0 a view keeps each top-level text column whole until a row is read (p
 | `quickTries` | `true` makes the number picker try every way on its first 8,192-number block only, not the first two (packing 0 to 20% faster on lists with several number columns; files 0 to 1.1% bigger, never smaller; opens the same) ; forces it at every size | off |
 | `wasm` | `false` forces plain JavaScript | use WebAssembly if available |
 | `maxSize`, `maxItems` | limits that stop a hostile or damaged input (1 GiB, 100,000,000) | as shown |
+| `into` (unpack, 2.10.0) | a packed typed array (Float64, Float32, Uint32, Uint16, Uint8) is filled into the array you pass (same type and length) instead of fresh memory: pass the array you got last time to read the next one. Don't use it while something still reads the old values. Int8, Int16, Int32, Uint8Clamped and wrong sizes get a fresh array. Laptop, 4 million numbers: 9 to 30% faster (Chromium 156 0.75-0.82, Firefox 160 0.70-0.91) | off |
 
 **Output buffer (2.6.1).** `pack()` of bytes and typed arrays writes its pieces into one buffer that it keeps between calls (grown by doubling, never kept above 8 MB) and returns a copy cut to size, so every result is its own array. A kept buffer of 1 MB or more is let go by itself after about 2 seconds without packing; `freeBuffers()` (or `trimMemory()` on the core) lets it go at once. A page that packs often keeps at most 8 MB while it is busy.
 

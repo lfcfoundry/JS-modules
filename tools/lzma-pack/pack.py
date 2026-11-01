@@ -375,7 +375,7 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
         meta = b'<meta charset="windows-1252">'
     elif encoding == "base64":
         payload = base64.b64encode(blob)
-        read = "var i=0,z=Uint8Array.from(atob(s),function(c){return c.charCodeAt(0)});"
+        read = "var i=0,z=Uint8Array.fromBase64?Uint8Array.fromBase64(s):Uint8Array.from(atob(s),function(c){return c.charCodeAt(0)});"
         meta = b'<meta charset="utf-8">'
     else:
         raise SystemExit("--encoding must be bytes or base64")

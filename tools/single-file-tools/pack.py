@@ -89,7 +89,7 @@ def build_page(gz, title='Loading', bg=DEFAULT_BG):
             '<script>(function(){var m=document.getElementById("m"),n=document.getElementById("n");'
             'function say(t){m.textContent=t;n.style.display="none"}'
             'try{if(!(window.DecompressionStream&&window.Response&&window.Blob&&Blob.prototype.stream)){say("' + OLD_MSG + '");return}'
-            'var a=atob("' + b64 + '"),u=new Uint8Array(a.length),i;for(i=0;i<a.length;i++)u[i]=a.charCodeAt(i);'
+            'var a="' + b64 + '",u,i;if(Uint8Array.fromBase64)u=Uint8Array.fromBase64(a);else{a=atob(a);u=new Uint8Array(a.length);for(i=0;i<a.length;i++)u[i]=a.charCodeAt(i)}'
             'new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream("gzip"))).text().then(function(t){document.open();document.write(t);document.close()},'
             'function(){say("' + DAMAGED_MSG + '")})}'
             'catch(e){say("' + DAMAGED_MSG + '")}})()</script>')
