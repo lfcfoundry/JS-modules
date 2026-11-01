@@ -131,7 +131,7 @@ Load `lfc-pack.js` (global `LfcPack`) or `require` it; call `init()` first and w
 
 ## Decoder-only build
 
-`lfc-pack-read.js` is the same code with only the 57 KB zstd decoder embedded: 143 KB (51 KB gzipped) against 671 KB (214 KB gzipped) for `lfc-pack.js`. Use it on pages that only open files. `init()` loads the decoder, `unpack`, `unpackTables`, `info` and the helper pool work as usual, and writing (`pack`, `packRows`, `packTables`) throws. Written by `python3 build.py` next to `lfc-pack.js`.
+`lfc-pack-read.js` is the same code with only the 57 KB zstd decoder embedded: 264 KB (92 KB gzipped) against 356 KB (190 KB gzipped) for `lfc-pack.js` (0.4.14; the reader keeps its WebAssembly as plain base64). Use it on pages that only open files. `init()` loads the decoder, `unpack`, `unpackTables`, `info` and the helper pool work as usual, and writing (`pack`, `packRows`, `packTables`) throws. Written by `python3 build.py` next to `lfc-pack.js`.
 
 ## Link-list columns
 
