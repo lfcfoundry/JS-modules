@@ -99,3 +99,13 @@ The bare-JSON row is from before 1.5.1 and 1.5.2. 20 KB loads are about 0.8 of t
 **Size, minified and gzipped (smaller is better):** idb-keyval 370 B; save-kit core 1,843 B; with save codes 3,217 B; everything 6,131 B (lean builds); localForage 9,057 B; zod 14,082 B; ajv 38,364 B. ajv's normal mode builds its checker with `new Function`, which a strict page security policy forbids, so it was not timed.
 
 **New in 1.5.2: a faster number check in WebKit browsers.** WebKitGTK 2.52.6, time new / old, lower is better: 20 KB save 0.41 (noisy), 20 KB load 0.81, unchanged 20 KB save 0.43. Tiny 448 B saves are a few microseconds slower (load 1.29, noisy). Chromium and Firefox keep the old check and are unchanged.
+
+**New in 1.6.0: `save-kit-lite.js`.** Checked numbers, whole numbers, flags and short text, with a main and a backup slot. It gives the same answers as `create()` on 3,000 random damaged slots. Size, minified and gzipped: lite 966 B, full save-kit with every part cut 1,847 B, idb-keyval 370 B. Speed against `create()` on a six-field save, lite / full, lower is better (cloud, early-stop A/B rule):
+
+| Browser | Save | Load |
+|---|---:|---:|
+| Chromium 155 | 0.98 (inconclusive) | 0.91 |
+| Firefox 158 | 1.01 | 0.95 |
+| WebKitGTK 2.52.6 | 0.89 (noisy) | 0.97 |
+
+It is smaller, not faster. Not in lite: counts and raw fields, codes, autosave, versions, the other-tab notice, IndexedDB.

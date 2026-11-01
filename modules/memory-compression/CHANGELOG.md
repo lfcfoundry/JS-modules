@@ -6,7 +6,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Starts a little faster: the built-in WebAssembly program is now turned back into bytes by the browser's own base64 decoder (Uint8Array.fromBase64) where there is one; older browsers use the old way. Nothing else changes.
 
 ## 2.10.0 · API 2 · 2026-10-31
-- New unpack option into: pass the typed array you got last time to read the next one without fresh memory (9 to 30% faster on a laptop for big number arrays).
+- New unpack option into: pass the typed array you got last time to read the next one without fresh memory (9 to 30% less time on a laptop for big number arrays).
 
 ## 2.9.0 · API 2 · 2026-10-31
 - New opt-in stream rows for unpackAsync: long lists arrive a page at a time and never hold every row. 300,000 rows: 0.60 of the time in laptop Chromium, 0.82 in Firefox, pauses 2 to 4x shorter.
