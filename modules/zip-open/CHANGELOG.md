@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.15.2 · API 1 · 2026-11-01
+- The first file you open in a page opens 8 to 36% faster (big sheets the most); opening it again is about the same. Same results.
+
 ## 1.15.1 · API 1 · 2026-11-01
 - Zip and Excel files in memory open up to 6% faster in Firefox and up to 3% in Chromium; WebKitGTK about the same. Same results.
 
