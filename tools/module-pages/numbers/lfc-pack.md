@@ -253,3 +253,24 @@ Sensor-style data packs in 21 to 36% less time in Firefox and WebKitGTK. Chromiu
 | 0.4.12, against 0.4.10 | Events | 0.88 | 0.92 |
 
 Cloud WebKitGTK 2.52.6: 0.4.11 within noise; 0.4.12's key-order step 0.88 to 1.00.
+
+**New in 0.4.13: a smaller file.** `lfc-pack.js` is now 353 KB instead of 789 KB, because its built-in WebAssembly programs are stored compressed and the browser unpacks them while it compiles them. Results are the same. Load to first result, time new / old, lower is better:
+
+| Where | New / old |
+|---|---:|
+| Laptop Chromium 156, 16 cores (two runs) | 0.90 and 0.89 |
+| Laptop Firefox 160, 16 cores | 0.97 |
+| Cloud Chromium 155 | 0.92 to 0.95 |
+| Cloud Firefox 158 | 0.91 |
+| Cloud WebKitGTK 2.52.6 | 0.97 |
+
+**New in 0.4.14: faster packing of logs and hex ids.** Hex ids such as 1789c0bf1b now fill one log template slot. Long lowercase hex id columns are packed inside the WebAssembly scanner. Files are byte-identical. Laptop (16 cores), pack time, new / old (each change against the build before it), lower is better:
+
+| Data | Firefox 160 | Chromium 156 |
+|---|---:|---:|
+| Logs, default blocks | 0.86 | 0.88 |
+| Logs, 256 KB blocks | 0.88 | 0.90 |
+| Events with long hex ids, default blocks | 0.66 | 0.82 |
+| Events with long hex ids, 256 KB blocks | 0.84 | 0.87 |
+
+Cloud WebKitGTK 2.52.6: logs 0.95, hex columns about the same.
