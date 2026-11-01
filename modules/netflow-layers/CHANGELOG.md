@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.9.0 · API 1 · 2026-11-01
+- Layouts are 7 to 34% faster with the same picture, and better: true never ends with more line crossings than the usual search.
+
 ## 1.8.0 · API 1 · 2026-10-31
 - Tidier by default: the lighter crossing search now keeps going until 4 rounds bring no gain (it stopped after 2), so it matches deep: true on every map tested. 1,000 random items take about 112 to 118 ms instead of 72 to 90.
 
