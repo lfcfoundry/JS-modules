@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.12.0 (API 1)
+ * Version 1.13.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -205,6 +205,9 @@
     if (typeof setTimeout === 'function') { xinstTimer = setTimeout(function () { XINST = null; xinstTimer = 0; }, 5000); if (xinstTimer && xinstTimer.unref) xinstTimer.unref(); }
     return XINST;
   }
+  function takeInstance() { var w = xlsxInstance(); XINST = null; return w; }   // across awaits: other opens meanwhile make their own instance
+  function giveBack(w) { if (!XINST) { XINST = w; xlsxInstance(); } }
+  var PLACE_MIN = 1048576, PLACED = 0;   // PLACED: test hook
   function rawUtf8Like(u8) {   // what decodeText would read as plain UTF-8 (the wasm then checks it strictly)
     if (u8.length >= 2 && ((u8[0] === 0xff && u8[1] === 0xfe) || (u8[0] === 0xfe && u8[1] === 0xff))) return false;
     for (var i = 0, n = Math.min(u8.length, 8192); i < n; i++) if (u8[i] === 0) return false;
@@ -213,9 +216,10 @@
   function xlsxSheets(parts, opts) {
     opts = opts || {};
     var maxRows = opts.maxRows || 2000000, sstCsv = [], sst = [], dateXf = {}, d1904 = false, sheets = [], rels = {};
-    var txt = function (p) { var v = parts[p]; if (v !== undefined && typeof v !== 'string') v = parts[p] = decodeText(v) || ''; return v; };
+    var txt = function (p) { var v = parts[p]; if (v !== undefined && typeof v !== 'string') v = parts[p] = decodeText(v.wasmAt !== undefined ? new Uint8Array(mem.buffer, v.wasmAt, v.len) : v) || ''; return v; };   // a part already unpacked into the wasm memory is { wasmAt, len }
     var W = null, mem = null, H = 0, sstState = 0, sstDone = false, sstB = parts['xl/sharedStrings.xml'], need = function (bytes) { var have = mem.buffer.byteLength; if (bytes > have) mem.grow(Math.ceil((bytes - have) / 65536)); return new Uint8Array(mem.buffer); };
-    if (!opts._slow && !opts._js && typeof WebAssembly === 'object' && xlsxModule()) {
+    if (opts._w) { W = opts._w; mem = W.memory; H = (opts._from + 7) & ~7; }   // bookJob already unpacked a sheet into this instance's memory, below opts._from
+    else if (!opts._slow && !opts._js && typeof WebAssembly === 'object' && xlsxModule()) {
       try { W = xlsxInstance(); mem = W.memory; H = W.__heap_base.value; } catch (e) { W = null; }
     }
     var sstPos = 0, sstTab = 0, sstEnd = H;
@@ -256,15 +260,17 @@
     sheets.forEach(function (sh, si) {
       var target = rels[sh.rid] || 'worksheets/sheet' + (si + 1) + '.xml';
       target = target.replace(/^\/?(xl\/)?/, '').replace(/^\.\//, '');
-      var xb = parts['xl/' + target];
+      var xb = parts['xl/' + target], placed = xb !== undefined && typeof xb !== 'string' && xb.wasmAt !== undefined;
+      if (placed) xb = new Uint8Array(mem.buffer, xb.wasmAt, xb.len);   // a view: read its length now, since growing the memory below cuts it off
+      var xbn = xb === undefined || typeof xb === 'string' ? 0 : xb.length;
       if (W && sstState && xb !== undefined && typeof xb !== 'string' && rawUtf8Like(xb)) {
         var xfMax = 0, k; for (k in dateXf) if (+k + 1 > xfMax) xfMax = +k + 1;
-        var xfPos = sstEnd, shPos = (xfPos + xfMax + 7) & ~7, outPos = (shPos + xb.length + 7) & ~7, outCap = xb.length + 65536, fixCap = (xb.length >> 7) + 1024, len, m8;
-        m8 = need(outPos); m8.set(xb, shPos); for (k = 0; k < xfMax; k++) m8[xfPos + k] = dateXf[k] ? 1 : 0;
-        if (W.utf8ok(shPos, xb.length)) {
+        var xfPos = sstEnd, shPos = placed ? xb.byteOffset : (xfPos + xfMax + 7) & ~7, outPos = ((placed ? xfPos + xfMax : shPos + xbn) + 7) & ~7, outCap = xbn + 65536, fixCap = (xbn >> 7) + 1024, len, m8;
+        m8 = need(outPos); if (!placed) m8.set(xb, shPos); for (k = 0; k < xfMax; k++) m8[xfPos + k] = dateXf[k] ? 1 : 0;
+        if (W.utf8ok(shPos, xbn)) {
           for (;;) {
             var fixPos = (outPos + outCap + 7) & ~7; need(fixPos + fixCap * 16);
-            len = W.sheet(shPos, xb.length, xfPos, xfMax, d1904 ? 1 : 0, outPos, outCap, fixPos, fixCap, maxRows);
+            len = W.sheet(shPos, xbn, xfPos, xfMax, d1904 ? 1 : 0, outPos, outCap, fixPos, fixCap, maxRows);
             if (len === -2) { outCap *= 2; continue; }
             if (len === -3) { fixCap *= 4; continue; }
             break;
@@ -622,9 +628,9 @@
     if (typeof setTimeout === 'function') { scratchTimer = setTimeout(function () { SCRATCH = null; scratchTimer = 0; }, 5000); if (scratchTimer && scratchTimer.unref) scratchTimer.unref(); }
     return SCRATCH.subarray(0, n);
   }
-  async function inflateRaw(src, limit, expect) {
+  async function inflateRaw(src, limit, expect, sink) {
     if (typeof DecompressionStream === 'function') {
-      var ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter(), rd = ds.readable.getReader(), chunks = [], total = 0, pre = expect > 0 && expect <= limit && expect <= 268435456 ? scratchFor(expect) : null;
+      var ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter(), rd = ds.readable.getReader(), chunks = [], total = 0, pre = expect > 0 && expect <= limit && expect <= 268435456 ? (sink ? sink(expect) : scratchFor(expect)) : null;
       var feeding = w.write(src).then(function () { return w.close(); }).catch(function () { /* the read side reports it */ });
       try {
         for (;;) {
@@ -665,7 +671,7 @@
       var cap = Math.min(limit, e.usize + 1), w = e.csize <= INFLATE_MAX && cap <= 16777216 ? inflateWasm(body, cap) : null;
       if (w) { if (w.err) return { skip: w.err === -2 ? 'unpacks to more than it says it does' : 'looks damaged' }; out = w.bytes; }
       else {
-        try { out = await inflateRaw(body, cap, sc ? e.usize : 0); }
+        try { out = await inflateRaw(body, cap, sc ? e.usize : 0, typeof sc === 'function' ? sc : null); }
         catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
       }
     }
@@ -704,13 +710,13 @@
   }
 
   /** Raw deflate (or stored) bytes of a Blob -> bytes, never more than `limit`; the checksum is worked out while the bytes arrive. Returns { bytes, crc }. */
-  async function inflateBlob(part, method, limit, expect) {
+  async function inflateBlob(part, method, limit, expect, sink) {
     if (typeof DecompressionStream !== 'function' || typeof part.stream !== 'function') {
       var src = new Uint8Array(await part.arrayBuffer()), o = method === 0 ? src : await inflateRaw(src, limit);
       if (o.length > limit) throw new Error('TOOBIG');
       return { bytes: o, crc: crc32(o) };
     }
-    var rs = part.stream(), crc = -1, total = 0, chunks = [], rd, pre = expect > 0 && expect <= limit && expect <= 268435456 ? scratchFor(expect) : null;
+    var rs = part.stream(), crc = -1, total = 0, chunks = [], rd, pre = expect > 0 && expect <= limit && expect <= 268435456 ? (sink ? sink(expect) : scratchFor(expect)) : null;
     if (method === 8) rs = rs.pipeThrough(new DecompressionStream('deflate-raw'));
     rd = rs.getReader();
     try {
@@ -747,14 +753,14 @@
     if (data + e.csize > blob.size) return { skip: 'looks damaged (cut off)' };
     var got;
     if (e.method === 0 && e.csize > limit) return { skip: 'is too large to open (over ' + Math.round(limit / 1e6) + ' MB)' };
-    try { got = await inflateBlob(blob.slice(data, data + e.csize), e.method, e.method === 0 ? limit : Math.min(limit, e.usize + 1), sc ? e.usize : 0); }
+    try { got = await inflateBlob(blob.slice(data, data + e.csize), e.method, e.method === 0 ? limit : Math.min(limit, e.usize + 1), sc ? e.usize : 0, typeof sc === 'function' ? sc : null); }
     catch (err) { return { skip: err && err.message === 'TOOBIG' ? 'unpacks to more than it says it does' : 'looks damaged' }; }
     if (got.bytes.length !== e.usize) return { skip: 'looks damaged (its size is not what the zip says)' };
     if (got.crc !== e.crc) return { skip: 'looks damaged (its checksum does not match)' };
     return { bytes: got.bytes };
   }
   /** Where an archive's entries come from: bytes already in memory, or a File/Blob read in pieces. Everything above this line works with either. */
-  function memSource(u8) { return { list: function (lim) { return list(u8, lim); }, read: function (e, limit, sc) { return readEntry(u8, e, limit, sc); } }; }
+  function memSource(u8) { return { place: true, list: function (lim) { return list(u8, lim); }, read: function (e, limit, sc) { return readEntry(u8, e, limit, sc); } }; }   // place: bookJob may unpack a big sheet straight into the wasm reader (measured faster for bytes in memory; slower for a File read in a helper)
   function blobSource(blob, helpers) {
     var src = { list: function (lim) { return listBlob(blob, lim); }, read: function (e, limit, sc) { return readBlobEntry(blob, e, limit, cache, sc); } }, cache = {};
     if (helpers && helpers.length) {
@@ -907,19 +913,29 @@
   /** The workbook part of an open, worked out in one go (also run inside a helper): { notes, total, stopped, sheets | null }. */
   async function bookJob(src, entries, label, lim, total) {
     var wanted = /^xl\/(workbook\.xml|_rels\/workbook\.xml\.rels|sharedStrings\.xml|styles\.xml|worksheets\/[^\/]+\.xml)$/i, parts = {}, notes = [], stopped = false;
-    for (var i = 0; i < entries.length; i++) {
-      var e = entries[i];
-      if (!wanted.test(e.path)) continue;
-      var room = Math.min(lim.maxPartBytes, lim.maxTotalBytes - total);
-      if (room <= 0) { stopped = true; notes.push('Stopped opening the workbook after ' + Math.round(lim.maxTotalBytes / 1e6) + ' MB of unpacked data (a safety limit).'); break; }
-      var got = await src.read(e, room);
-      if (got.skip) { notes.push('Part "' + e.path + '" of "' + label + '" ' + got.skip + '; skipped.'); continue; }
-      total += got.bytes.length;
-      parts[e.path.replace(/^xl\/worksheets\//i, 'xl/worksheets/')] = /^xl\/(sharedStrings\.xml|worksheets\/)/i.test(e.path) && xlsxModule() ? got.bytes : decodeText(got.bytes) || '';   // the wasm reader takes these as bytes (decoded only if it hands them back)
-    }
+    // the biggest sheet is unpacked straight into the wasm reader's memory (no second copy of it); this open has that instance to itself until the sheets are read
+    var big = null, W = null, from = 0, j;
+    if (src.place && xlsxModule()) for (j = 0; j < entries.length; j++) if (/^xl\/worksheets\/[^\/]+\.xml$/i.test(entries[j].path) && entries[j].usize >= PLACE_MIN && (!big || entries[j].usize > big.usize)) big = entries[j];
+    if (big) { try { W = takeInstance(); from = W.__heap_base.value; } catch (err) { W = big = null; } }
+    try {
+      for (var i = 0; i < entries.length; i++) {
+        var e = entries[i];
+        if (!wanted.test(e.path)) continue;
+        var room = Math.min(lim.maxPartBytes, lim.maxTotalBytes - total);
+        if (room <= 0) { stopped = true; notes.push('Stopped opening the workbook after ' + Math.round(lim.maxTotalBytes / 1e6) + ' MB of unpacked data (a safety limit).'); break; }
+        var at = from, sink = e === big ? function (n) { var have = W.memory.buffer.byteLength; if (at + n > have) W.memory.grow(Math.ceil((at + n - have) / 65536)); return new Uint8Array(W.memory.buffer, at, n); } : undefined;
+        var got = await src.read(e, room, sink);
+        if (got.skip) { notes.push('Part "' + e.path + '" of "' + label + '" ' + got.skip + '; skipped.'); continue; }
+        total += got.bytes.length;
+        var key = e.path.replace(/^xl\/worksheets\//i, 'xl/worksheets/');
+        if (sink && got.bytes.buffer === W.memory.buffer && got.bytes.byteOffset === at) { parts[key] = { wasmAt: at, len: got.bytes.length }; from = at + got.bytes.length; PLACED++; }
+        else parts[key] = /^xl\/(sharedStrings\.xml|worksheets\/)/i.test(e.path) && xlsxModule() ? got.bytes : decodeText(got.bytes) || '';   // the wasm reader takes these as bytes (decoded only if it hands them back)
+      }
+    } catch (err) { if (W) giveBack(W); throw err; }
     var out = { notes: notes, total: total, stopped: stopped, sheets: null };
     if (!parts['xl/workbook.xml']) { notes.push('"' + label + '" does not look like an Excel workbook; skipped.'); return out; }
-    try { out.sheets = xlsxSheets(parts, {}); } catch (err) { notes.push('"' + label + '" could not be read as a workbook (' + String(err && err.message || err).replace(/\.$/, '') + '); skipped.'); return out; }
+    try { out.sheets = xlsxSheets(parts, W && from > W.__heap_base.value ? { _w: W, _from: from } : {}); } catch (err) { if (W) giveBack(W); notes.push('"' + label + '" could not be read as a workbook (' + String(err && err.message || err).replace(/\.$/, '') + '); skipped.'); return out; }
+    if (W) giveBack(W);
     if (!out.sheets.length) { notes.push('"' + label + '" has no cells with data.'); out.sheets = null; }
     return out;
   }
@@ -948,5 +964,5 @@
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
   compileEarly();
-  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, _xlsxPlain: xlsxPlain, _xlsxSimd: function () { xlsxModule(); return XSIMD; }, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
+  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, _xlsxPlain: xlsxPlain, _placed: function () { return PLACED; }, _xlsxSimd: function () { xlsxModule(); return XSIMD; }, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n; }, LIMITS: LIMITS };
 }));
