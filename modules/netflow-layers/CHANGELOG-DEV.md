@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.9.0 · API 1 · 2026-11-01
+
+### Quick
+Same picture, 7 to 34% faster by default; better: true can no longer end up worse.
+
+### Details
+Default layout, same picture: 55 Netflow Map layouts 0.894 (Chromium) / 0.925 (Firefox) / 0.921 (WebKit); 1,000 item map 0.661 / 0.669 / 0.691; 400 items 1.033 / 0.884 / 1.000. The two-row-choice mode no longer runs a third layout (the winner is copied from the copies), link lists hold stop numbers, rows without lanes sort on one key, and the order search skips rows that did not change. better: true now also deepens from the best order of the usual rounds and keeps the fewer crossings; it costs about 1.1 to 1.3 times the 1.8.0 time at 1,000 items and 1.65 to 1.9 times at 400.
+
+### Deep
+netflow-layers 1.9.0: same-picture speedups (no third layout for both row choices, stop-number link lists, single-key row sort without lanes, the wasm order search skips unchanged rows) and better: true never ends with more crossings than the usual rounds (the deep search starts from both the best and the usual-rounds order).
+
 ## 1.8.0 · API 1 · 2026-10-31
 
 ### Quick
