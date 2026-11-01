@@ -431,7 +431,7 @@
     },
     {
       "id": "netflow-engine",
-      "version": "2.2.3",
+      "version": "2.3.0",
       "api": 2,
       "global": "NetflowEngine",
       "summary": "The engine of Netflow Map as a module you can copy and adapt: nine views of a map and eleven network layouts, no two items on top of each other, WebAssembly twins for Force and Distances, and a use() hand-over for the layers and Sankey add-ons; a 30,000-item network lays out in about 0.8 s in the Netflow Map app (Firefox).",
@@ -440,6 +440,32 @@
       "readme": "modules/netflow-engine/README.md",
       "demo": "modules/netflow-engine/demo.html",
       "dependencies": "none to run; netflow-layers 1.2.0 or newer for the story views",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "visualization"
+    },
+    {
+      "id": "netflow-circular",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "NetflowCircular",
+      "summary": "The circular views of Netflow Map as a netflow-engine add-on: Chord (arcs and bands as wide as what each link carries, with an order searched for fewer crossing bands) and Bundles (links bent along the tree so links that go the same way run together).",
+      "short": "Chord and Bundles views for netflow-engine, drawn with netflow-scene.",
+      "file": "modules/netflow-circular/netflow-circular.js",
+      "readme": "modules/netflow-circular/README.md",
+      "dependencies": "netflow-hierarchy; netflow-scene passed in to scene()",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "visualization"
+    },
+    {
+      "id": "netflow-hierarchy",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "NetflowHierarchy",
+      "summary": "The nested views of Netflow Map as a netflow-engine add-on: Treemap, Sunburst, Icicle, Circle pack and Tree, nested by links or by groups and drawn as netflow-scene drawing lists; ahead of d3-hierarchy on 35 of 36 measured cases.",
+      "short": "Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine.",
+      "file": "modules/netflow-hierarchy/netflow-hierarchy.js",
+      "readme": "modules/netflow-hierarchy/README.md",
+      "dependencies": "none (netflow-scene passed in to scene())",
       "formats": "browser global, CommonJS (module.exports)",
       "category": "visualization"
     },

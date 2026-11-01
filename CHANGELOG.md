@@ -36,7 +36,9 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.2.3 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-circular](modules/netflow-circular/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.9.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.3.3 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-plot/CHANGELOG.md) |
@@ -64,6 +66,9 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-01 · **netflow-scene** 1.3.3 · API 1: SVG export of dots is shorter and quicker to write (about 20% less text on dot-heavy pictures); the picture is the same.
 - 2026-11-01 · **netflow-plot** 1.0.0 · API 1: First version: 23 plain chart types from a table's columns (bars to word clouds), drawn as netflow-scene drawing lists; the charts of Netflow Map's Charts tab.
 - 2026-11-01 · **netflow-layers** 1.9.0 · API 1: Layouts are 7 to 34% faster with the same picture, and better: true never ends with more line crossings than the usual search.
+- 2026-11-01 · **netflow-hierarchy** 1.0.0 · API 1: First version: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree) as an add-on for netflow-engine, plus the tree helpers netflow-circular builds on.
+- 2026-11-01 · **netflow-engine** 2.3.0 · API 2: New: the Chord, Bundles, Treemap, Sunburst, Icicle, Circle pack and Tree views, from the new netflow-circular and netflow-hierarchy add-ons; other views are unchanged.
+- 2026-11-01 · **netflow-circular** 1.0.0 · API 1: First version: the circular views of Netflow Map (Chord, Bundles) as an add-on for netflow-engine.
 - 2026-11-01 · **lfc-pack** 0.4.17 · API 0: Packs logs in about a third of the time (laptop Firefox 0.33 to 0.34), and logs with escaped quotes up to 40 times faster at 256 KB blocks. Same files, except escaped-text logs, which come out 0.04 to 0.2% smaller.
 - 2026-11-01 · **lfc-pack** 0.4.16 · API 0: Reading is a little faster in Firefox: unpacking bit-packed number codes no longer reads past the end of the buffer (events 0.725 of the time in a cloud A/B). Same rows.
 - 2026-10-31 · **zip-open** 1.9.0 · API 1: Excel files are read faster again: 6 to 31% faster than 1.8.0 in cloud tests of Firefox, Chromium and WebKitGTK, with the same results.
