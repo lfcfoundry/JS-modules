@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.3 · API 2 · 2026-10-31
+
+### Quick
+The relaxation (14 rounds of pull and settle) runs in WebAssembly when it is there; same pictures to the last digit. Old code needs no change.
+
+### Details
+Whole layout of 1,500 items / 2,331 links (netflow-layers seeding included), new/old: Chromium 155 0.857, Firefox 158 0.958, WebKitGTK 2.52.6 0.970. Graphs under 64 bars keep the JavaScript. wasm: false turns it off with the order search.
+
+### Deep
+Brief from the Netflow Map thread: relaxation was 11 of about 26 ms per layout at 1,500 items. relax() in wasm/order.c, same arithmetic in the same order (-ffp-contract=off), alphas computed in JS and passed in. Lists placed at the start of free wasm memory once the order search is done. Same pictures at 30 to 1,500 items in three browsers; module tests compare wasm on and off. Early-stop A/B as above.
+
 ## 2.3.2 · API 2 · 2026-10-30
 
 ### Quick

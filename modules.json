@@ -417,7 +417,7 @@
     },
     {
       "id": "netflow-sankey",
-      "version": "2.3.2",
+      "version": "2.3.3",
       "api": 2,
       "global": "NetflowSankey",
       "summary": "Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer.",
@@ -445,7 +445,7 @@
     },
     {
       "id": "netflow-layers",
-      "version": "1.5.1",
+      "version": "1.6.0",
       "api": 1,
       "global": "NetflowLayers",
       "summary": "Lays out a graph in rows (top to bottom or left to right) with story order, tags instead of very long links, a column for the pages every route passes, and tall maps cut into columns.",
