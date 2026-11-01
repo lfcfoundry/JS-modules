@@ -26,7 +26,7 @@ is refused. A leading byte order mark is allowed, but the unpacked page comes ba
 How much smaller the result is depends on the file: 10 to 25 percent smaller than ordinary deflate has been seen.
 Needs only Python 3 (standard library). A minifier (terser or esbuild: on PATH, in a node_modules/.bin, or named by the TERSER or ESBUILD environment variable) shrinks the loader by about 5 KB; without one the loader is embedded as is.
 """
-import argparse, base64, json, lzma, pathlib, re, shutil, subprocess, sys
+import argparse, base64, importlib.util, json, lzma, pathlib, re, shutil, subprocess, sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 DECODER = HERE.parent.parent / "modules" / "lzma-decode" / "lzma-decode.js"
@@ -248,7 +248,7 @@ def minify(src, which):
             raise SystemExit("minifier not found: " + which)
         return to_ascii(src)
     name, path = m
-    cmd = [path, "--ecma", "2020", "--compress", "passes=3,toplevel=true", "--mangle", "toplevel=true"] if name == "terser" else [path, "--minify", "--target=es2020"]
+    cmd = [path, "--ecma", "2020", "--compress", "passes=3,toplevel=true", "--mangle", "toplevel=true", "--format", "ascii_only=true"] if name == "terser" else [path, "--minify", "--target=es2020", "--charset=ascii"]
     r = subprocess.run(cmd, input=src, capture_output=True, text=True)
     if r.returncode != 0:
         raise SystemExit(name + " failed: " + r.stderr[:300])
@@ -266,7 +266,7 @@ def minify_page(text, which="auto"):
     if not m:
         raise SystemExit("--minify-page needs terser or esbuild (on the PATH, in node_modules/.bin, or named by TERSER / ESBUILD)")
     name, path = m
-    cmd = [path, "--ecma", "2020", "--compress", "--mangle"] if name == "terser" else [path, "--minify", "--target=es2020"]
+    cmd = [path, "--ecma", "2020", "--compress", "--mangle", "--format", "ascii_only=true"] if name == "terser" else [path, "--minify", "--target=es2020", "--charset=ascii"]
     stats = [0, 0]
 
     def one(mo):
@@ -283,6 +283,19 @@ def minify_page(text, which="auto"):
         stats[0] += 1
         return mo.group(1) + attrs + mo.group(3) + "\n" + out + "\n" + mo.group(5)
     return SCRIPT_RE.sub(one, text), stats[0], stats[1]
+
+
+def latin1_page(text):
+    """The unpacked page made Latin-1 only (every character at most U+00FF), so the browser keeps its text at 1 byte per character: characters above
+    U+00FF become escapes that mean the same character (single-file-tools/latin1.py). Returns (text, note); the note is empty when nothing changed."""
+    spec = importlib.util.spec_from_file_location("latin1", str(pathlib.Path(__file__).resolve().parent.parent / "single-file-tools" / "latin1.py"))
+    l1 = importlib.util.module_from_spec(spec); spec.loader.exec_module(l1)
+    out, c, left = l1.escape_html(text)
+    n = c["script"] + c["style"] + c["markup"]
+    note = ("%d character(s) above U+00FF escaped (%d in scripts, %d in styles, %d in markup)" % (n, c["script"], c["style"], c["markup"])) if n else ""
+    if left:
+        note += ("; " if note else "") + "left alone in script blocks of type " + ", ".join(left) + " (data the page reads as it is: the page stays 2 bytes per character)"
+    return out, note
 
 
 def decoder_source():
@@ -347,6 +360,11 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
         text2, done, skipped = minify_page(text, minifier)
         page_note = "%d script(s) minified, %d left alone, %d bytes saved before packing" % (done, skipped, len(data) - len(text2.encode("utf-8")))
         data = text2.encode("utf-8")
+        text = text2
+    text, l1note = latin1_page(text)
+    if l1note:
+        data = text.encode("utf-8")
+        page_note = (page_note + "; " if page_note else "") + l1note
     best = None
     grid = [(4, 0, 0)] if not tune else [(lc, 0, pb) for lc in range(0, 5) for pb in range(0, 3)]
     for lc, lp, pb in grid:
@@ -423,7 +441,7 @@ def main():
     pathlib.Path(a.output).write_bytes(page)
     print("%s: %d bytes -> %d bytes (%.1f%%)  [lzma lc=%d lp=%d pb=%d, payload %d, %sloader %d, %s, opening bg %s, node check %s]" % (a.output, len(data), len(page), 100.0 * len(page) / max(1, len(data)), info["lc"], info["lp"], info["pb"], info["compressed"], ("wasm decoder %d, " % info["wasm"]) if info["wasm"] else "", info["loader"], info["encoding"], info["bg"], info["node"]))
     if info.get("page"):
-        print("page minifier: " + info["page"])
+        print("page: " + info["page"])
 
 
 if __name__ == "__main__":

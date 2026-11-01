@@ -84,7 +84,7 @@ def build_page(gz, title='Loading', bg=DEFAULT_BG):
     return ('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + html.escape(title) + '</title>'
             '<style>@keyframes s{to{opacity:1}}</style>'
             '<body style="margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;'
-            'font:16px system-ui,sans-serif;background:' + bg + ';color:' + fg + '"><p id=m style="margin:0;padding:24px">Loading…</p>'
+            'font:16px system-ui,sans-serif;background:' + bg + ';color:' + fg + '"><p id=m style="margin:0;padding:24px">Loading&#x2026;</p>'
             '<p id=n style="margin:0;padding:0 24px;opacity:0;animation:s 0s 8s forwards">' + TOO_OLD_NOTE + '</p>'
             '<script>(function(){var m=document.getElementById("m"),n=document.getElementById("n");'
             'function say(t){m.textContent=t;n.style.display="none"}'
@@ -193,6 +193,15 @@ def main(argv):
     src, dst = argv[1], argv[2]
     title = argv[3] if len(argv) > 3 else 'Loading'
     raw = open(src, 'rb').read()
+    try:   # the unpacked page made Latin-1 only, so the browser keeps its text at 1 byte per character (latin1.py; escapes mean the same characters)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import latin1
+        text, c, left = latin1.escape_html(raw.decode('utf-8'))
+        if c['script'] + c['style'] + c['markup']:
+            raw = text.encode('utf-8'); print('note: %d character(s) above U+00FF escaped' % (c['script'] + c['style'] + c['markup']), file=sys.stderr)
+        if left:
+            print('note: script blocks of type %s keep characters above U+00FF (data the page reads as it is)' % ', '.join(left), file=sys.stderr)
+    except UnicodeDecodeError:
+        pass
     if bg_auto:
         found = _lzma_helpers().detect_bg(raw.decode('utf-8', 'replace'))
         bg, ok = safe_bg(found) if found else (DEFAULT_BG, False)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd-pack: turn one HTML file into a smaller self-unpacking HTML file with PPMd.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
-Version 2.0.1 (API 2)
+Version 2.0.2 (API 2)
 
   python3 tools/ppmd-pack/pack.py INPUT.html OUTPUT.html [--title T] [--head HTML] [--encoding bytes|base64] [--order N] [--mem BYTES] [--tune] [--compare]
                                   [--minifier auto|terser|esbuild|none] [--minify-page] [--bg auto|none|COLOR] [--wasm] [--skip-node-check]
@@ -198,6 +198,11 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
         text2, done, skipped = lz.minify_page(text, minifier)
         page_note = "%d script(s) minified, %d left alone, %d bytes saved before packing" % (done, skipped, len(data) - len(text2.encode("utf-8")))
         data = text2.encode("utf-8")
+        text = text2
+    text, l1note = lz.latin1_page(text)
+    if l1note:
+        data = text.encode("utf-8")
+        page_note = (page_note + "; " if page_note else "") + l1note
     if tune:
         z, order, mem = best_of(data, tune_grid(len(data)), jobs)
     else:
@@ -298,7 +303,7 @@ def main():
         a.output, len(data), len(page), 100.0 * len(page) / max(1, len(data)), info["order"], info["mem"], " (tuned)" if info["tuned"] else "",
         info["compressed"], ("wasm %d, " % info["wasm"]) if info["wasm"] else "", info["loader"], info["encoding"], info["bg"], info["node"]))
     if info.get("page"):
-        print("page minifier: " + info["page"])
+        print("page: " + info["page"])
     c = info.get("compare")
     if c:
         d = c["ppmd_page"] - c["lzma_page"]

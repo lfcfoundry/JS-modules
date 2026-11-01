@@ -10,8 +10,10 @@ if [ -z "$1" ] || [ ! -f "$1" ]; then echo "usage: build-example.sh game.html   
 in="$1"; base="${in%.html}"
 python3 "$here/optfonts.py" "$in" "$base.fonts.html" --report   # 1. subset embedded fonts to the characters used
 node "$here/optsvg.js" "$base.fonts.html" "$base.svg.html"      # 2. tighten inline SVG (nothing renamed or merged)
-npx html-minifier-terser --collapse-whitespace --conservative-collapse --remove-comments --minify-css true --minify-js true \
-  -o "$base.slim.html" "$base.svg.html"                         # 3. minify HTML, CSS, JS
-python3 "$here/pack.py" "$base.slim.html" "$base.small.html" "$(basename "$base")"   # 4. self-extracting Zopfli copy
-rm -f "$base.fonts.html" "$base.svg.html"
+npx html-minifier-terser --collapse-whitespace --conservative-collapse --remove-comments --minify-css true --minify-js '{"format":{"ascii_only":true}}' \
+  -o "$base.min.html" "$base.svg.html"                          # 3. minify HTML, CSS, JS
+python3 "$here/latin1.py" "$base.min.html" "$base.slim.html"    # 4. Latin-1 only: escapes for anything above U+00FF (CSS, markup, JSON)
+python3 "$here/pack.py" "$base.slim.html" "$base.small.html" "$(basename "$base")"   # 5. self-extracting Zopfli copy
+python3 "$here/latin1.py" --check "$base.slim.html" "$base.small.html"   # 6. fails the build if a character above U+00FF slipped through
+rm -f "$base.fonts.html" "$base.svg.html" "$base.min.html"
 ls -l "$in" "$base.slim.html" "$base.small.html"

@@ -1,9 +1,9 @@
 <!doctype html>
 <!--
     ===================================================================================
-    🛠️ APPLICATION : Cartoon 3D style kit: baked crowd demo
-    🏭 FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
-    📜 LICENSE : MIT License
+    APPLICATION : Cartoon 3D style kit: baked crowd demo
+    FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    LICENSE : MIT License
     ===================================================================================
     Copyright (c) 2026 LFC Foundry
 
@@ -152,5 +152,5 @@ function run(){clear();if(opt.mode==='live')live();else baked();
   [].forEach.call(document.querySelectorAll('button'),function(b){var k=b.dataset.mode?'mode':b.dataset.n?'n':b.dataset.fps?'fps':'skin',val=b.dataset.mode||b.dataset.n||b.dataset.fps||b.dataset.skin;b.setAttribute('aria-pressed',String(String(opt[k])===val))})}
 [].forEach.call(document.querySelectorAll('button'),function(b){b.onclick=function(){var d=b.dataset;if(d.mode)opt.mode=d.mode;if(d.n)opt.n=+d.n;if(d.fps)opt.fps=+d.fps;if(d.skin)opt.skin=d.skin;run()}});
 run();
-</script><footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> • MIT Licensed</footer>
+</script><footer style="margin:1.5rem 0 .5rem;text-align:center;font:12px/1.3 system-ui,sans-serif;opacity:.7">Forged by <a href="https://github.com/lfcfoundry" target="_blank" rel="noopener noreferrer" style="color:inherit">LFC Foundry</a> &#x2022; MIT Licensed</footer>
 </body></html>

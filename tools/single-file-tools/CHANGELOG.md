@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-10-31
+- New latin1.py keeps a page Latin-1 only (and --check fails a build that is not), so the browser stores it at 1 byte per character; pack.py and build-example.sh use it.
+
 ## 1.2.1 · API 1 · 2026-10-31
 - Packed pages made with base64 encoding now unpack with the browser's own base64 decoder (Uint8Array.fromBase64) where there is one, which is faster; older browsers use the old way. About 40 bytes more loader.
 
