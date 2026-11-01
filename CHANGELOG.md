@@ -38,7 +38,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.2.3 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.9.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.3.2 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.3.3 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.1 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -60,6 +61,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-11-01 · **zip-open** 1.15.1 · API 1: Zip and Excel files in memory open up to 6% faster in Firefox and up to 3% in Chromium; WebKitGTK about the same. Same results.
 - 2026-11-01 · **zip-open** 1.15.0 · API 1: Zip and Excel files open 3 to 32% faster with a new built-in unzipper that beats the browser's own (cloud Firefox, Chromium, WebKitGTK); with helpers 1 to 23% faster. Same results.
+- 2026-11-01 · **netflow-scene** 1.3.3 · API 1: SVG export of dots is shorter and quicker to write (about 20% less text on dot-heavy pictures); the picture is the same.
+- 2026-11-01 · **netflow-plot** 1.0.0 · API 1: First version: 23 plain chart types from a table's columns (bars to word clouds), drawn as netflow-scene drawing lists; the charts of Netflow Map's Charts tab.
 - 2026-11-01 · **netflow-layers** 1.9.0 · API 1: Layouts are 7 to 34% faster with the same picture, and better: true never ends with more line crossings than the usual search.
 - 2026-11-01 · **lfc-pack** 0.4.17 · API 0: Packs logs in about a third of the time (laptop Firefox 0.33 to 0.34), and logs with escaped quotes up to 40 times faster at 256 KB blocks. Same files, except escaped-text logs, which come out 0.04 to 0.2% smaller.
 - 2026-11-01 · **lfc-pack** 0.4.16 · API 0: Reading is a little faster in Firefox: unpacking bit-packed number codes no longer reads past the end of the buffer (events 0.725 of the time in a cloud A/B). Same rows.

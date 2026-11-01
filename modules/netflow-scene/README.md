@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.3.2 · API 1**
+**Version 1.3.3 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Same pixels as 1.3.2 on 52 SVG pictures (plot charts and maps, with dimmed dots) in Firefox 158, Chromium 155 and WebKitGTK 2.52.6; module tests pass.
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 
