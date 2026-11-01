@@ -191,6 +191,23 @@ footer a{margin-right:16px}
       <div class="row"><span>lfc-pack 0.4.13</span><div class="track"><div class="bar us out" style="width:44.7%"><span>353 KB</span></div></div></div>
       <p class="note">The built-in WebAssembly programs are stored compressed and the browser unpacks them while it compiles them. Results are the same, and load to first result takes 3 to 11% less time (cloud test browsers, lfc-pack changelog).</p>
     </div>
+    <div>
+      <h3>Sankey chart of 1,500 items: whole build (ms, lower is better)</h3>
+      <div class="row"><span>Chromium: d3-sankey</span><div class="track"><div class="bar" style="width:100%"><span>27 ms</span></div></div></div>
+      <div class="row"><span>Chromium: netflow-sankey</span><div class="track"><div class="bar us out" style="width:44.4%"><span>12 ms</span></div></div></div>
+      <div class="row"><span>Firefox: d3-sankey</span><div class="track"><div class="bar" style="width:85.2%"><span>23 ms</span></div></div></div>
+      <div class="row"><span>Firefox: netflow-sankey</span><div class="track"><div class="bar us out" style="width:44.4%"><span>12 ms</span></div></div></div>
+      <div class="row"><span>WebKitGTK: d3-sankey</span><div class="track"><div class="bar" style="width:92.6%"><span>25 ms</span></div></div></div>
+      <div class="row"><span>WebKitGTK: netflow-sankey</span><div class="track"><div class="bar us out" style="width:48.1%"><span>13 ms</span></div></div></div>
+      <p class="note">Netflow Map's Sankey view (netflow-sankey 2.4.0) against d3-sankey 0.12.3, same data, cloud test browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6). Also only 256 band pieces pass over a bar they do not belong to, against 1,916, and loops are drawn instead of refused. d3-sankey is faster on small charts with default settings.</p>
+    </div>
+    <div>
+      <h3>Layered map of 1,000 items: links crossing as drawn (lower is better)</h3>
+      <div class="row"><span>dagre</span><div class="track"><div class="bar" style="width:100%"><span>23,965</span></div></div></div>
+      <div class="row"><span>ELK</span><div class="track"><div class="bar" style="width:94.3%"><span>22,602</span></div></div></div>
+      <div class="row"><span>netflow-layers</span><div class="track"><div class="bar us out" style="width:91%"><span>21,812</span></div></div></div>
+      <p class="note">Random map of 1,000 items and 1,900 links, Chromium 155; the same counts in Firefox and WebKitGTK. netflow-layers takes 129 ms, ELK 2.1 s and dagre 8.4 s. At 400 items the three are level.</p>
+    </div>
   </div>
 </div></section>
 
