@@ -63,3 +63,14 @@ Roughly 2x to 3.7x faster than idb-keyval and localForage here; saved and loaded
 | WebKitGTK 2.52.6 | 102 | 35 | 0.34 |
 
 That is 57 to 66% less time. Off by default; idle games that read the `seen` stamp should pick a small value.
+
+
+**New in 1.5.1: a clean counts list is kept as it is on load.** A counts map that already passes every check (whole numbers within the cap, safe keys, 32 or more entries) is kept instead of copied entry by entry. Anything else takes the old path, so results are the same. 20 KB save with 800 counts entries, load time new / old, lower is better (cloud):
+
+| Browser | New / old |
+|---|---:|
+| Chromium 155 | 0.79 |
+| Firefox 158 | 0.82 |
+| WebKitGTK 2.52.6 | 0.84 |
+
+That is 16 to 21% less time. Small saves (448 bytes) and save time are unchanged. Laptop runs: not yet.

@@ -371,7 +371,7 @@
       "readme": "modules/graph-walk/README.md",
       "dependencies": "none",
       "formats": "browser global, CommonJS (module.exports)",
-      "category": "math"
+      "category": "simulation"
     },
     {
       "id": "lfc-pack",
@@ -878,8 +878,7 @@
         },
         {
           "id": "simulation",
-          "title": "Model simulation",
-          "use": "Simulate random walkers over a graph."
+          "title": "Graphs and simulation", "use": "Walk graphs (shortest paths, centrality, communities) and simulate random walkers over them."
         },
         {
           "id": "visualization",
