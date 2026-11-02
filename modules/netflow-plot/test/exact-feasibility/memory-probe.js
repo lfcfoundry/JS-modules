@@ -1,0 +1,14 @@
+'use strict';
+global.NetflowScene=require('../../../netflow-scene/netflow-scene.js');
+const Production=require('./netflow-plot-production-probe.js'),Candidate=require('./netflow-plot-full-exact.js');
+const {PerformanceObserver,performance}=require('perf_hooks');
+const arch=process.argv[2],type=process.argv[3];
+if(!['production','bigint','limb','hybrid'].includes(arch)||!['donut','marimekko'].includes(type))throw new Error('usage: node --expose-gc memory-probe.js ARCH TYPE');
+const rows=new Array(50000);for(let i=0;i<rows.length;i++)rows[i]={attrs:{x:'x'+(i%1000),c:'c'+(i%7),v:0.25+(i%17)*0.25}};
+const spec=type==='donut'?{type,x:'x',y:'v'}:{type,x:'x',color:'c',y:'v'};
+let gcCount=0,gcMs=0;const obs=new PerformanceObserver(list=>{for(const e of list.getEntries()){gcCount++;gcMs+=e.duration;}});obs.observe({entryTypes:['gc']});
+global.gc();const before=process.memoryUsage(),rssPeakBefore=process.resourceUsage().maxRSS;
+let scene;
+for(let i=0;i<10;i++)scene=arch==='production'?Production.make(rows,spec,{width:900,height:560},global.NetflowScene):Candidate.makeStage5(rows,spec,{width:900,height:560},global.NetflowScene,arch);
+global.gc();const after=process.memoryUsage(),rssPeakAfter=process.resourceUsage().maxRSS;
+setImmediate(()=>{obs.disconnect();console.log(JSON.stringify({arch,type,rows:rows.length,repeats:10,retainedHeapDelta:after.heapUsed-before.heapUsed,rssBefore:before.rss,rssAfter:after.rss,rssHighWaterBeforeKb:rssPeakBefore,rssHighWaterAfterKb:rssPeakAfter,rssHighWaterDeltaKb:rssPeakAfter-rssPeakBefore,gcCount,gcMs:+gcMs.toFixed(3),retainedScene:{marks:scene.marks.length,rects:scene.rects.length,polys:scene.polys.length}}));});
