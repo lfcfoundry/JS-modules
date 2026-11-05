@@ -208,6 +208,14 @@ t('1.7.0 default (lighter search, both row choices): never more crossings than t
   return n + ' maps, ' + fewer + ' with fewer crossings';
 });
 const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', weight: 14 }, { from: 'Side <work>', to: 'Food', count: 4 }];
+t('title, subtitle and source (opt-in): drawn above and below, the chart moved down unchanged', () => {
+  const R = NL.layout(graph(story(60, 2)), { dir: 'LR' }), plain = NL.toSvg(R), titled = NL.toSvg(R, { title: 'Where <the> money goes', subtitle: 'Share of spending', source: 'Source: sample' });
+  ok(titled.indexOf('font-size="20" font-weight="700"') > 0 && titled.indexOf('>Where &lt;the&gt; money goes<') > 0 && titled.indexOf('aria-label="Where &lt;the&gt; money goes"') > 0, 'title drawn and named');
+  ok(titled.indexOf('fill-opacity="0.8">Share of spending<') > 0 && titled.indexOf('fill-opacity="0.72">Source: sample<') > 0, 'subtitle and source drawn');
+  const inner = plain.slice(plain.indexOf('>') + 1, plain.lastIndexOf('</svg>')), m = /<g transform="translate\(0 ([\d.]+)\)">/.exec(titled);
+  ok(m && titled.indexOf(inner) > 0 && +m[1] > 40, 'the chart itself is the same, moved down ' + (m && m[1]));
+  ok(NL.toSvg(R, {}) === plain, 'no title options: same picture as before');
+});
 t('one call: toSvg(links) makes the items, sizes them, lays out and draws; a layout result still works', () => {
   const svg = NL.toSvg(LINKS); ok(svg.indexOf('<svg') === 0 && svg.indexOf('Side &lt;work&gt;') > 0 && svg.indexOf('>Rent<') > 0, 'drawn with names');
   const R = NL.layout({ root: 'a', nodes: [{ id: 'a', w: 80, h: 30 }, { id: 'b', w: 80, h: 30 }], edges: [{ from: 'a', to: 'b' }] }); ok(NL.toSvg(R).indexOf('>b<') > 0, 'old form');

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.11.0 · API 1 · 2026-11-05
+
+### Quick
+Economist checklist items 1 and 2 (audit 2026.11.05): toSvg(R or data, { title, subtitle, source }) draws the same title block as netflow-sankey 2.5.0 and the scene charts (20 px bold title, 13 px subtitle at 0.8 opacity, 11 px source at 0…
+
+### Deep
+Economist checklist items 1 and 2 (audit 2026.11.05): toSvg(R or data, { title, subtitle, source }) draws the same title block as netflow-sankey 2.5.0 and the scene charts (20 px bold title, 13 px subtitle at 0.8 opacity, 11 px source at 0.72), adds role=img, aria-label and an SVG title element, and moves the chart down inside a group, unchanged. Without the options the SVG is byte-identical.
+
 ## 1.10.1 · API 1 · 2026-11-05
 
 ### Quick
