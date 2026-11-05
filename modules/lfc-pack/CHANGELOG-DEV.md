@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.24 · API 0 · 2026-11-05
+
+### Quick
+packTables and packRows build their row text from one JSON.stringify of each array instead of one per row; same bytes, no API change.
+
+### Details
+20,000-item Netflow map (bigNetwork(20000,4,7), nodes and links tables) through packTables, medians of 7 to 11 browser launches per run, one library per launch, 2 to 4 runs: Firefox 158 first pack 0.82-0.93x, warmed 0.68-0.89x; ungoogled Chromium 155 first 0.83-0.95x, warmed 0.86-0.97x; WebKitGTK 2.52.6 first 0.97-1.05x, warmed 0.87-1.02x (no change beyond noise). Files byte-identical. Adds rowscan.wasm (263 bytes); lfc-pack.js grows by about 3 KB. No extra memory is held: the text is encoded into the tokenizer's input buffer.
+
+### Deep
+packTables and packRows used to stringify every row on its own and join the strings with line ends (80,000 small strings for a 20,000-item Netflow map). They now call JSON.stringify once per array, encode the text straight into the tokenizer's input buffer (memory the pack touches next anyway, at most as far as one block would grow it; bigger tables fall back to a JS scan), and a 263-byte wasm function (wasm/rowscan.c, imports the tokenizer's memory) turns the array's top-level commas and closing bracket into line ends. The bytes are the same as before; rows JSON.stringify writes differently inside an array (undefined, functions, symbols, a toJSON method) keep the per-row path. Checked byte-identical against 0.4.23 on 26 files (the Netflow map, edge cases with quotes, backslashes, brackets inside strings, non-ASCII, empty tables, a 300,000-row table, after a memory trim, and 12 random files of escape-heavy strings). Tried and dropped: the scan in plain JS (Firefox gained, Chromium and WebKitGTK flat), a JS scan that hops over strings with indexOf (slower everywhere), the wasm scan in 256 KB calls (same as one call). Stage split of the first pack (Netflow map): about half of the gap to a warmed pack is engine warm-up and half grows with job size (first-touch memory and JIT in the tokenizer, string dedupe, zstd and the writer); a small warm-up pack removes only the first half.
+
 ## 0.4.23 · API 0 · 2026-11-05
 
 ### Quick
