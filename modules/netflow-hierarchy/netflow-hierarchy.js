@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.3.1 (API 1)
+ * Version 1.4.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -155,7 +155,7 @@ var NetflowHierarchy = (function () {
     var H = hierarchy(G, o), val = sums(G, H, o), N = H.N, R = new Float64Array(N * 4);
     var total = val[H.root] || 1, side = Math.max(600, Math.min(4000, Math.sqrt(H.N) * 70)), W = side * 1.5, Ht = side;
     R[H.root * 4] = 0; R[H.root * 4 + 1] = 0; R[H.root * 4 + 2] = W; R[H.root * 4 + 3] = Ht;
-    var head = function (v) { return H.kids[v].length && H.item[v] >= 0 && R[v * 4 + 3] - R[v * 4 + 1] > 60 && R[v * 4 + 2] - R[v * 4] > 40 ? 18 : 0; };   /* a real item that holds others keeps a strip for its name */
+    var head = function (v) { return H.kids[v].length && (H.item[v] >= 0 || v !== H.root) && R[v * 4 + 3] - R[v * 4 + 1] > 60 && R[v * 4 + 2] - R[v * 4] > 40 ? 18 : 0; };   /* a box that holds others (a real item or a group box, not the top) keeps a strip for its name, so it never sits on its first tile's name */
     for (var i = 0; i < H.order.length; i++) {
       var v = H.order[i]; if (!H.kids[v].length) continue;
       var p = H.depth[v] ? 3 : 0, x0 = R[v * 4] + p, y0 = R[v * 4 + 1] + p + head(v), x1 = R[v * 4 + 2] - p, y1 = R[v * 4 + 3] - p;
@@ -432,6 +432,11 @@ var NetflowHierarchy = (function () {
     S.view = type; S.kind = type; S.chart = true;
     var T = S.theme, alpha = NS.alpha, mix = NS.mix;
     var groupsHex = T.groups, gIdx = new Map(), gcol = function (g) { if (o.groupColors && o.groupColors[g]) return NS.hex(o.groupColors[g]); if (!gIdx.has(g)) gIdx.set(g, gIdx.size); return groupsHex[gIdx.get(g) % groupsHex.length]; };
+    (function () {   /* group boxes take the same place in the color list as the scene gives their items: groups sorted by name, or in options.groupOrder */
+      var gs = Array.from(new Set((L.nodes || []).map(function (n) { return n.group || ''; }))).sort();
+      if (o.groupOrder && o.groupOrder.length) { var all = o.groupOrder.slice(), seenG = new Set(all); gs.forEach(function (g) { if (!seenG.has(g)) all.push(g); }); gs = all; }
+      gs.forEach(function (g) { gcol(g); });
+    })();
     (L.groups || []).forEach(function (g) { gcol(g); });
     var itemShow = !(lab0.items && lab0.items.show === false), iscale = lab0.items && lab0.items.scale || 1;
     var colOfNode = function (q) { var rec = S.nodes[q], d = rec && S.dots.filter ? null : null; return gcol(L.nodes[q].group || ''); };
@@ -441,7 +446,20 @@ var NetflowHierarchy = (function () {
     var clip = function (s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; };
     var recOf = function (q) { return S.nodes[q]; };
     /* text on a shape: the preferred color when it reads at 4.5:1 or better on the shape (as drawn over the background), otherwise near-black or white, whichever reads better (black where neither reaches 4.5:1) */
-    var ink = function (fill, pref) { var c = over(fill, T.bg); if (pref && contrast(pref, c) >= 4.5) return pref; var d = contrast(INK_DARK, c), w = contrast(INK_LIGHT, c); return Math.max(d, w) >= 4.5 ? (d >= w ? INK_DARK : INK_LIGHT) : INK_BLACK; };   /* pure black reaches 4.5:1 on every color where neither does */
+    var ink = function (fill, pref, under) { var c = over(fill, under || T.bg); if (pref && contrast(pref, c) >= 4.5) return pref; var d = contrast(INK_DARK, c), w = contrast(INK_LIGHT, c); return Math.max(d, w) >= 4.5 ? (d >= w ? INK_DARK : INK_LIGHT) : INK_BLACK; };   /* pure black reaches 4.5:1 on every color where neither does */
+    /* a name that runs over shapes drawn later (a box's name over its first tiles, a circle's name over the circles inside): the ink that reads best on every color under it, the preferred one when it reaches 4.5:1 on all of them */
+    var inkOver = function (cols, pref) {   /* cols: [color, share of the name, ...]; the preferred ink when it reaches 4.5:1 on all of them, else the ink whose worst contrast is highest */
+      var worst = function (k) { var m = 99; for (var i = 0; i < cols.length; i += 2) m = Math.min(m, contrast(k, cols[i])); return m; };
+      if (pref && worst(pref) >= 4.5) return pref;
+      var best = INK_BLACK, bw = -1; [INK_DARK, INK_LIGHT, INK_BLACK].forEach(function (k) { var w = worst(k); if (w > bw + 0.01) { bw = w; best = k; } }); return best;
+    };
+    var textBox = function (l) { var w = l.t.length * l.size * 0.6, x0 = l.align === 'l' ? l.x : l.x - w / 2; return [x0, l.y - l.size * 0.75, x0 + w, l.y + 1]; };
+    /* the colors under a name, sampled on a 12 by 3 grid over its text: topAt(x, y) gives the color drawn on top there; a color under less than a sixth of the name is left out */
+    var underName = function (l, topAt) {
+      var b = textBox(l), cnt = new Map(), n = 0;
+      for (var gy = 0; gy < 3; gy++) for (var gx = 0; gx < 12; gx++) { var c = topAt(b[0] + (gx + 0.5) / 12 * (b[2] - b[0]), b[1] + (gy + 0.5) / 3 * (b[3] - b[1])); cnt.set(c, (cnt.get(c) || 0) + 1); n++; }
+      var out = []; cnt.forEach(function (k, c) { if (k * 6 >= n) out.push(c, k / n); }); return out;
+    };
     /* one color for everything says nothing: then each top branch (or each arc) gets its own color from the color set */
     var mono = (L.groups || []).length <= 1 && (!o.colorBy || o.colorBy === 'group' || o.colorBy === 'found');
     var topIdx = null;
@@ -453,7 +471,7 @@ var NetflowHierarchy = (function () {
     var idxOfId = null; Object.defineProperty(C, 'idxOfId', { get: function () { if (!idxOfId) { idxOfId = new Map(); L.nodes.forEach(function (nd, q) { idxOfId.set(nd.id, q); }); } return idxOfId; } });   /* item name to number: made only for a view that asks */
     if (ext && ext.draw(type, C)) { /* drawn by the extension */ }
     else if (type === 'treemap' || type === 'icicle') {
-      var Rm = ch.R, cw = ch.colW, Hh = ch.H, rectLine = alpha(T.bg, 0.9), lookM = new Map();
+      var Rm = ch.R, cw = ch.colW, Hh = ch.H, rectLine = alpha(T.bg, 0.9), lookM = new Map(), seen = type === 'treemap' ? new Array(ch.N) : null, heads = [];   /* treemap: the color each box shows (laid over its parent box), so text is checked on the pixels a reader sees */
       /* a box's fill from its base color: made once per base color and kind and shared (nothing changes these arrays in place) */
       var look = function (base, k) { var e = lookM.get(base); if (!e) lookM.set(base, e = [null, null]); return e[k] || (e[k] = k ? alpha(mix(base, T.bg, 0.55), 0.9) : alpha(base, type === 'icicle' ? 0.85 : 0.92)); };
       for (var oi = 0; oi < ch.order.length; oi++) {
@@ -463,13 +481,26 @@ var NetflowHierarchy = (function () {
         else { x0 = Rm[v * 4] * cw; x1 = Rm[v * 4 + 2] * cw - 1; y0 = Rm[v * 4 + 1] * Hh; y1 = Rm[v * 4 + 3] * Hh - 1; }
         var w2 = x1 - x0, h2 = y1 - y0; if (w2 <= 0.3 || h2 <= 0.3) continue;
         var it = ch.item[v], base = hcol(v), box = ch.kids[v].length > 0;
-        var fill = look(base, type === 'treemap' && box ? 1 : 0);
+        var fill = look(base, type === 'treemap' && box ? 1 : 0), pv0 = seen ? ch.par[v] : -1, under = pv0 >= 0 && seen[pv0] ? seen[pv0] : T.bg;
+        if (seen) seen[v] = over(fill, under);
         S.rects.push({ x: x0, y: y0, w: w2, h: h2, r: 0, fill: fill, stroke: rectLine, sw: 1, layer: 1, node: it >= 0 ? recOf(it).i : -1, a: 1 });
         var size = (type === 'treemap' && box ? 12 : 11) * iscale, txt = ch.label[v];
         if (itemShow && w2 > size * 2.2 && h2 > size * 1.3) {
-          var maxC = Math.floor((w2 - 8) / (size * 0.58)), tcol = ink(fill, type === 'treemap' && box ? T.fg : null);
-          lab(x0 + 4, y0 + size + 2, clip(txt, maxC), size, tcol, { align: 'l', node: it >= 0 ? it : -1, minK: 0, bold: box, val: ch.val[v] });
+          var maxC = Math.floor((w2 - 8) / (size * 0.58)), tcol = ink(fill, type === 'treemap' && box ? T.fg : null, under);
+          var lb = lab(x0 + 4, y0 + size + 2, clip(txt, maxC), size, tcol, { align: 'l', node: it >= 0 ? it : -1, minK: 0, bold: box, val: ch.val[v] });
+          if (seen && box) heads.push(lb, v, 0);
         }
+      }
+      for (var hq = 0; hq < heads.length; hq += 3) {   /* box names: also read on the tiles drawn over the box under the name */
+        var hl = heads[hq], hv = heads[hq + 1], hb = textBox(hl), clear = true, hk = ch.kids[hv];
+        for (var kq0 = 0; kq0 < hk.length && clear; kq0++) { var k0 = hk[kq0]; if (seen[k0] && Rm[k0 * 4] < hb[2] && Rm[k0 * 4 + 2] > hb[0] && Rm[k0 * 4 + 1] < hb[3] && Rm[k0 * 4 + 3] > hb[1]) clear = false; }
+        if (clear) continue;   /* the usual case: the name sits on its own strip, nothing drawn over it */
+        var hc = underName(hl, function (x, y) {   /* the deepest box inside this one that holds the point */
+          var u = hv, moved = true;
+          while (moved) { moved = false; var ks = ch.kids[u]; for (var kq = 0; kq < ks.length; kq++) { var kk = ks[kq]; if (seen[kk] && x >= Rm[kk * 4] && x <= Rm[kk * 4 + 2] && y >= Rm[kk * 4 + 1] && y <= Rm[kk * 4 + 3]) { u = kk; moved = true; break; } } }
+          return seen[u];
+        });
+        if (hc.length > 2 || hc[0] !== seen[hv]) hl.color = inkOver(hc, T.fg);
       }
     } else if (type === 'sunburst') {
       var Rs = ch.R, scx = ch.cx, scy = ch.cy;
@@ -488,7 +519,7 @@ var NetflowHierarchy = (function () {
       if (ch.skipRoot) lab(scx, scy + 5, clip(ch.label[ch.root], 18), 13, T.fg, { bold: true });
     } else if (type === 'pack') {
       /* a circle's fill as drawn: its own shade over every circle around it */
-      var shown = new Map(), parentFill = function (v) { var p = ch.par[v]; if (p < 0 || !ch.kids[p].length) return T.bg; var c = shown.get(p); return c || T.bg; };
+      var pheads = [], leafC = new Map(), shown = new Map(), parentFill = function (v) { var p = ch.par[v]; if (p < 0 || !ch.kids[p].length) return T.bg; var c = shown.get(p); return c || T.bg; };
       for (var pi = 0; pi < ch.order.length; pi++) {
         var pv = ch.order[pi]; if (!ch.kids[pv].length) continue; if (pv === ch.root && ch.item[pv] < 0 && false) continue;
         var pr = ch.Rr[pv], px = ch.X[pv], py = ch.Y[pv], ip = ch.item[pv], pb = hcol(pv);
@@ -498,7 +529,17 @@ var NetflowHierarchy = (function () {
         var pfill = alpha(mix(pb, T.bg, 0.6), dep === 0 ? 0.35 : 0.5);
         shown.set(pv, over(pfill, parentFill(pv)));
         S.polys.push({ pts: circ, c: [px, py], fill: pfill, stroke: alpha(pb, 0.6), group: ip < 0 ? ch.group[pv] : undefined, node: ip });
-        if (itemShow && pr > 30) lab(px, py - pr + 16 * iscale, clip(ch.label[pv], Math.floor(pr / 5)), 12 * iscale, ink(over(pfill, parentFill(pv)), T.fg), { bold: true, node: ip >= 0 ? ip : -1, minK: 0.1 });
+        if (itemShow && pr > 30) pheads.push(lab(px, py - pr + 16 * iscale, clip(ch.label[pv], Math.floor(pr / 5)), 12 * iscale, ink(over(pfill, parentFill(pv)), T.fg), { bold: true, node: ip >= 0 ? ip : -1, minK: 0.1 }), pv);
+      }
+      for (var hp = 0; hp < pheads.length; hp += 2) {   /* a circle's name: also read on the circles inside it that the name runs over */
+        var pl = pheads[hp], pu = pheads[hp + 1], own = shown.get(pu);
+        var pc = underName(pl, function (x, y) {   /* the deepest circle inside this one that holds the point */
+          var u = pu, moved = true;
+          while (moved) { moved = false; var ks = ch.kids[u]; for (var kq = 0; kq < ks.length; kq++) { var kk = ks[kq], dx = x - ch.X[kk], dy = y - ch.Y[kk]; if (dx * dx + dy * dy <= ch.Rr[kk] * ch.Rr[kk]) { u = kk; moved = true; break; } } }
+          if (u === pu) return own; if (ch.kids[u].length) return shown.get(u) || own;
+          var it3 = ch.item[u]; return it3 >= 0 ? (leafC.get(it3) || (leafC.set(it3, over(fillOf(it3), T.bg)), leafC.get(it3))) : own;
+        });
+        if (pc.length > 2 || pc[0] !== own) pl.color = inkOver(pc, T.fg);
       }
       if (itemShow) L.nodes.forEach(function (nd, q) { if (ch.kids[nd.hv].length) return; var r = ch.Rr[nd.hv]; if (r > 14) lab(nd.cx, nd.cy + 4, clip(nd.label, Math.floor(r / 3.6)), Math.min(13, r / 2.6) * iscale, ink(fillOf(q), null), { node: q, minK: 0.3 }); });
       /* polys are drawn under the dots: move the outer circles first */
