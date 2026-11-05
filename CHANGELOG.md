@@ -65,7 +65,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **netflow-scene** 1.5.0 · API 1: Default group colors come in a new order so neighboring groups stay easy to tell apart for people with red-green color blindness.
 - 2026-11-05 · **netflow-sankey** 2.7.0 · API 2: Default colors are the 12 color-blind-safe group colors of the other chart modules, so no two parts share a color until there are more than 12.
 - 2026-11-05 · **netflow-sankey** 2.6.1 · API 2: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
-- 2026-11-05 · **netflow-plot** 2.6.0 · API 2: Line charts name each line at its end instead of in a key row, crowded bar names show on two rows instead of every other name, and years print as 2015, not 2,015.
+- 2026-11-05 · **netflow-plot** 2.6.0 · API 2: Line charts name each line at its end instead of in a key row, crowded bar names show on two rows instead of every other name, years print as 2015, not 2,015, and a highlight keeps the other series faint in their own colors instead of gray.
 - 2026-11-05 · **netflow-layers** 1.11.0 · API 1: Flow charts can take a title, subtitle and source line (opt-in), drawn the same way as in the other chart modules.
 - 2026-11-05 · **netflow-layers** 1.10.1 · API 1: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
 - 2026-11-05 · **netflow-hierarchy** 1.3.1 · API 1: Chord, bundle and radial tree names on the left side are no longer cut off at the picture edge.

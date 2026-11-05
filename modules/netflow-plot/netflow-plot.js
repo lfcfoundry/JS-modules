@@ -150,7 +150,7 @@ var NetflowPlot = (function () {
       }
       if (mark) { mark.x0 = cx - r1; mark.y0 = cy - r1; mark.x1 = cx + r1; mark.y1 = cy + r1; mark.wedge = [cx, cy, r0, r1, a0, a1]; S.marks.push(mark); }
     };
-    F.color = function (i) { return F.hiCi >= 0 && i !== F.hiCi ? F.gray : T.groups[((i % T.groups.length) + T.groups.length) % T.groups.length]; };
+    F.color = function (i) { var c = T.groups[((i % T.groups.length) + T.groups.length) % T.groups.length]; return F.hiCi >= 0 && i !== F.hiCi ? (NS.mix ? NS.mix(c, T.bg, 0.6) : F.gray) : c; };   /* when one series is highlighted, the others keep their own color at about 40% strength (as if 0.4 opacity on the background, but solid, so values on them stay readable) */
     F.gray = NS.mix ? NS.mix(T.muted, T.bg, 0.45) : T.muted;   /* the other series when one is highlighted */
     /** Axes: x and y are { kind: 'num' | 'time' | 'band', lo, hi, list, fmt, map(v) -> px, cats }. */
     F.axes = function (ax, ay, xName, yName, grid) {
