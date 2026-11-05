@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.10.3 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.8.1 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.11.2 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.4.24 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.5.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.8.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -76,6 +76,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **netflow-layers** 1.10.1 · API 1: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
 - 2026-11-05 · **netflow-hierarchy** 1.4.0 · API 1: Names on treemaps and circle packs read on the colors actually drawn; group boxes get a name strip and their items' color.
 - 2026-11-05 · **netflow-hierarchy** 1.3.1 · API 1: Chord, bundle and radial tree names on the left side are no longer cut off at the picture edge.
+- 2026-11-05 · **lfc-pack** 0.5.0 · API 0: New LfcPack.open(file): read big files a block at a time from a File or Blob.
 - 2026-11-05 · **lfc-pack** 0.4.24 · API 0: Saving tables of row objects (packTables, packRows), such as a 20,000-item Netflow map, takes 7 to 32% less time in Firefox and 3 to 17% less in Chromium (WebKitGTK about the same); files are byte-identical.
 - 2026-11-05 · **lfc-pack** 0.4.23 · API 0: The first pack of logs or event tables after a page opens is 1.6 to 2 times as fast (36 to 51% less time) in Firefox and WebKitGTK (Chromium about the same); files are byte-identical.
 - 2026-11-05 · **lfc-pack** 0.4.22 · API 0: The first big read after a page opens is 3 to 34% faster for flat files with hex ids, addresses or number columns; same rows.
