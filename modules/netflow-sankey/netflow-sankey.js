@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.7.0 (API 2)
+ * Version 2.8.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -643,6 +643,12 @@
     if (!F && !T && r0.from === undefined && r0.to === undefined) { var txt = [], num = null; Object.keys(r0).forEach(function (k) { var v = r0[k]; if (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && isFinite(+v))) { if (num === null) num = k; } else if (typeof v === 'string') txt.push(k); }); F = txt[0] || null; T = txt[1] || null; if (!V) V = num; }
     return l.map(function (e) { var v = V ? e[V] : e.value !== undefined ? e.value : e.weight !== undefined ? e.weight : e.count !== undefined ? e.count : 1; return { from: F ? e[F] : e.from, to: T ? e[T] : e.to, value: v === undefined || v === '' ? 1 : +v }; });
   }
+  /** c (#rrggbb or #rgb) mixed t of the way toward bg: the solid color that c at (1 - t) opacity shows over bg */
+  function fadeHex(c, bg, t) {
+    var p = function (h) { h = String(h).replace('#', ''); if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]; return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; };
+    var a = p(c), b = p(bg); if (a.some(isNaN) || b.some(isNaN)) return c;
+    return '#' + a.map(function (v, k) { var x = Math.round(v + (b[k] - v) * t); return (x < 16 ? '0' : '') + x.toString(16); }).join('');
+  }
   /** toSvg(data, opts) in one call (data: links as above), or toSvg(R, opts) for a layout result (it has nodes and bands). */
   function toSvg(R, opts) {
     opts = opts || {};
@@ -650,6 +656,11 @@
     var cols = opts.colors && opts.colors.length ? opts.colors : PALETTE, fs = opts.fontSize || 12, op = opts.bandOpacity === undefined ? 0.45 : opts.bandOpacity;
     var color = {}, bandTail = {}, lastLayer = 0, s, opS = '" fill-opacity="' + op + '"/>';
     R.nodes.forEach(function (n, i) { color[n.id] = cols[i % cols.length]; if (n.layer > lastLayer) lastLayer = n.layer; });
+    /* opts.highlight (the same word as in netflow-plot): an item's id or name; it and every band that starts or ends at it keep their colors, the rest keep their own color at about 40% strength over the background (opts.background, white by default) */
+    var hl = null, hlFade = {};
+    if (opts.highlight !== undefined && opts.highlight !== null && opts.highlight !== '') { var hs = String(opts.highlight); R.nodes.forEach(function (n) { if (hl === null && (String(n.id) === hs || String(n.label) === hs)) hl = n.id; }); }
+    if (hl !== null) R.nodes.forEach(function (n) { hlFade[n.id] = fadeHex(color[n.id], opts.background || '#ffffff', 0.6); });
+    var hot = function (b) { return hl === null || b.from === hl || b.to === hl; }, bandCol = function (b) { return hot(b) ? color[b.from] : hlFade[b.from]; };
     R.nodes.forEach(function (n) { var c = esc(color[n.id]); bandTail[n.id] = 'Z" fill="' + c + opS; });   // the end of each band, ready for the item it leaves
     /* optional title block (title, subtitle, source), drawn like the plot and treemap ones: bold title and lighter subtitle above, small source below; the picture itself does not move inside its group */
     var tc = esc(opts.textColor || '#222'), pad = 14, head = 0, foot = 0, blk = '', y = pad;
@@ -661,14 +672,16 @@
     s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + f(R.width) + ' ' + H + '" width="' + f(R.width) + '" height="' + H + '" font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif" font-size="' + fs + '" role="img"' + (opts.title ? ' aria-label="' + esc(opts.title) + '"' : '') + '>';
     if (opts.title) s += '<title>' + esc(opts.title) + '</title>';
     s += blk + (head ? '<g transform="translate(0 ' + head + ')">' : '');
-    var bands = R.bands, i, b, x0, x1, xm, y0a, y0b, y1a, y1b;
+    var bands = R.bands, i, b, x0, x1, xm, y0a, y0b, y1a, y1b, near = {};
+    if (hl !== null) bands.forEach(function (q) { if (q.from === hl) near[q.to] = 1; if (q.to === hl) near[q.from] = 1; });
+    var touches = function (id) { return near[id] === 1; };
     for (i = 0; i < bands.length; i++) {
       b = bands[i]; x0 = f(b.x0); x1 = f(b.x1); xm = f(b.xm); y0a = f(b.y0a); y0b = f(b.y0b); y1a = f(b.y1a); y1b = f(b.y1b);
-      s += '<path d="M' + x0 + ' ' + y0a + 'C' + xm + ' ' + y0a + ' ' + xm + ' ' + y1a + ' ' + x1 + ' ' + y1a + 'L' + x1 + ' ' + y1b + 'C' + xm + ' ' + y1b + ' ' + xm + ' ' + y0b + ' ' + x0 + ' ' + y0b + (bandTail[b.from] || 'Z" fill="' + esc(color[b.from]) + opS);
+      s += '<path d="M' + x0 + ' ' + y0a + 'C' + xm + ' ' + y0a + ' ' + xm + ' ' + y1a + ' ' + x1 + ' ' + y1a + 'L' + x1 + ' ' + y1b + 'C' + xm + ' ' + y1b + ' ' + xm + ' ' + y0b + ' ' + x0 + ' ' + y0b + (hl === null ? (bandTail[b.from] || 'Z" fill="' + esc(color[b.from]) + opS) : 'Z" fill="' + esc(bandCol(b)) + opS);
     }
-    R.loops.forEach(function (l) { s += '<path d="' + l.d + '" fill="none" stroke="' + esc(color[l.from]) + '" stroke-opacity="' + op + '" stroke-width="' + f(l.w) + '"/>'; });
+    R.loops.forEach(function (l) { s += '<path d="' + l.d + '" fill="none" stroke="' + esc(hl === null ? color[l.from] : bandCol(l)) + '" stroke-opacity="' + op + '" stroke-width="' + f(l.w) + '"/>'; });
     R.nodes.forEach(function (n) {
-      s += '<rect x="' + f(n.x) + '" y="' + f(n.y) + '" width="' + f(n.w) + '" height="' + f(Math.max(n.h, 1)) + '" fill="' + esc(color[n.id]) + '"/>';
+      s += '<rect x="' + f(n.x) + '" y="' + f(n.y) + '" width="' + f(n.w) + '" height="' + f(Math.max(n.h, 1)) + '" fill="' + esc(hl === null || n.id === hl || touches(n.id) ? color[n.id] : hlFade[n.id]) + '"/>';
       if (opts.labels !== false) {
         var right = n.layer < lastLayer || lastLayer === 0;
         s += '<text x="' + f(right ? n.x + n.w + 5 : n.x - 5) + '" y="' + f(n.y + n.h / 2) + '" dy="0.35em" text-anchor="' + (right ? 'start' : 'end') + '" fill="' + esc(opts.textColor || '#222') + '">' + esc(n.label) + '</text>';
