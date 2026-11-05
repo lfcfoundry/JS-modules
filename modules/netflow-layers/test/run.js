@@ -207,4 +207,9 @@ t('1.7.0 default (lighter search, both row choices): never more crossings than t
   }));
   return n + ' maps, ' + fewer + ' with fewer crossings';
 });
+const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', weight: 14 }, { from: 'Side <work>', to: 'Food', count: 4 }];
+t('one call: toSvg(links) makes the items, sizes them, lays out and draws; a layout result still works', () => {
+  const svg = NL.toSvg(LINKS); ok(svg.indexOf('<svg') === 0 && svg.indexOf('Side &lt;work&gt;') > 0 && svg.indexOf('>Rent<') > 0, 'drawn with names');
+  const R = NL.layout({ root: 'a', nodes: [{ id: 'a', w: 80, h: 30 }, { id: 'b', w: 80, h: 30 }], edges: [{ from: 'a', to: 'b' }] }); ok(NL.toSvg(R).indexOf('>b<') > 0, 'old form');
+});
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);

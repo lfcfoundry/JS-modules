@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.16.0 · API 1 · 2026-11-01
+
+### Quick
+The unzipper now lives in the Excel reader's WebAssembly module, so the biggest sheet unpacks right where it is read: one copy and one block of new memory fewer. No API change; the separate inflate module is gone.
+
+### Details
+Whole open, bytes in memory, time vs 1.15.2. First open in a fresh page, two runs of 8 and 6 pages (big/formulas/text): Chromium 155 0.88-0.90/0.92-0.97/0.91-1.09, Firefox 158 0.86-0.97/0.86-0.91/0.94-0.98, WebKitGTK 2.52.6 0.82-0.87/0.83-0.91/0.97. Repeat opens, early-stop A/B forward and reversed (big/small/formulas/text): Chromium 0.94/0.99/0.94/0.97, Firefox 0.93/0.96/0.87/0.94, WebKitGTK 0.94/0.93/0.96/0.87. Size 42.0 to 46.0 KB gzipped. Upgrade: replace the file.
+
+### Deep
+After 1.15.2 a first open still cost about 36 ms more than an open that follows a small one. Fresh WebAssembly memory costs about 30 ms per 50 MB on first touch in all three browsers (grow and fill 50 MB: 35-51 ms; fill again: 11-13 ms), and a big first open touched the unzipper's memory (compressed bytes plus the 18 MB sheet) and then the reader's (another 18 MB plus the CSV). Now xlsx.wasm and xlsx-simd.wasm link xlsx.c with inflate.c (inflate.c without SIMD; NO_MEMFNS so the memset and memcpy come from xlsx.c), and bookJob's sink carries the reader instance: inflateWasm copies the compressed bytes into the reader's memory after the sheet's place and calls its inflate() straight into that place. Other entries use their own instance of the same module, so inflate.wasm (10.8 KB) is gone: modules 22.6 and 23.4 KB instead of 12.1, 12.8 and 10.8. Prototype with inflate.wasm kept (8 fresh pages): first open Chromium 0.88-0.97, Firefox 0.91-0.97, WebKitGTK 0.87-0.97; repeat opens 0.87-1.00. Production build (6 fresh pages): first open Chromium 0.90-1.09 (text 1.09; 0.91 in the 8-page run), Firefox 0.86-0.98, WebKitGTK 0.82-0.97; repeat opens early-stop A/B forward and reversed, new / 1.15.2 (big/small/formulas/text): Chromium 0.941/0.991/0.940/0.971, Firefox 0.932/0.964/0.871/0.944, WebKitGTK 0.937/0.933/0.958/0.869. Tests: 43 checks; the in-place path runs 11 times in them.
+
 ## 1.15.2 · API 1 · 2026-11-01
 
 ### Quick

@@ -1,6 +1,6 @@
 # netflow-sankey
 
-**Version 2.4.1 · API 2**
+**Version 2.6.0 · API 2**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -28,6 +28,14 @@ A flow chart is read through its thick bands, so a crossing between two big flow
 **Test it:** `node modules/netflow-sankey/test/run.js` (31 checks, about 1 s). **Try it:** `demo.html` (type links, the chart redraws).
 
 ## Use
+Load `netflow-sankey.js` (nothing else needed). One call, data only:
+```js
+svgElement.outerHTML = NetflowSankey.toSvg([{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }]);
+```
+`value`, `weight` or `count` names the amount. Options (the same words in every chart module) go in a second argument: `NetflowSankey.toSvg(links, { title: "Where the wages go", height: 360 })`. The two steps below give you the layout to draw yourself.
+
+Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
+
 ```js
 var R = NetflowSankey.layoutFlows({ links: [
   { from: "Wages", to: "Rent",  value: 40 },
@@ -44,7 +52,7 @@ svgElement.innerHTML = NetflowSankey.toSvg(R, { title: "Where the wages go" });
 
 **For Netflow Map's engine (2.1.0):** `NetflowSankey.options(sk)` cleans up a person's settings (`nodeW`, `gap`, `pad`, `height`, `fixY`, `justify`, `order`; anything missing or out of range gets its default or the nearest limit) into the `opts` that `layout()` reads, and `NetflowSankey.apply(L, r)` writes a `layout(L, opts)` result `r` into the engine's drawing `L`: bar positions (`x, y, w, h, cx, cy, layer`, plus `skIn`, `skOut`, `skPinned`), the picture's `width` and `height`, `dir = 'LR'`, and `L.sk = { bands, loops, ky, order, cols, crossingWeight, ms }`. With netflow-engine: `NetflowEngine.use('sankey', NetflowSankey)`.
 
-`opts`: `height` (aim for this picture height), `nodeW`, `gapLayer` (space between columns), `pad` (space between bars), `restarts` and `budgetMs` (how hard to search for a good order), `seed`, `unweighted`, `justifySinks`, and `stopCap` with `stopCapFrom` (off by default: on maps with at least `stopCapFrom` items, default 1,000, at most `stopCap` stand-in stops; the lightest long links beyond that are drawn as one straight band each, which is faster but a different picture: at 1,500 items `stopCap: 500` takes about 4 ms instead of 24 in Node). `toSvg` takes `colors`, `labels`, `fontSize`, `textColor`, `bandOpacity` and `title`; all text is escaped. `fromLinks`, `layout`, `layering`, `crossWeight`, `roundPath` and `toBezier` are exported for people who want the pieces.
+`opts`: `height` (aim for this picture height), `nodeW`, `gapLayer` (space between columns), `pad` (space between bars), `restarts` and `budgetMs` (how hard to search for a good order), `seed`, `unweighted`, `justifySinks`, and `stopCap` with `stopCapFrom` (off by default: on maps with at least `stopCapFrom` items, default 1,000, at most `stopCap` stand-in stops; the lightest long links beyond that are drawn as one straight band each, which is faster but a different picture: at 1,500 items `stopCap: 500` takes about 4 ms instead of 24 in Node). `toSvg` takes `colors`, `labels`, `fontSize`, `textColor`, `bandOpacity`, and the optional `title`, `subtitle` and `source` (a bold title and lighter subtitle drawn above the picture, a small source line below; the title is also the picture's hidden label for screen readers); all text is escaped. `fromLinks`, `layout`, `layering`, `crossWeight`, `roundPath` and `toBezier` are exported for people who want the pieces.
 
 ## How it compares
 netflow-sankey is bigger than d3-sankey, but on three made-up charts it leaves about half the weighted crossings (47% to 58% of d3-sankey's; lower is better), and it draws a chart with loops where d3-sankey stops with an error. Speed against d3-sankey (laptop Firefox 160, 16 cores, 2026.10.30): 3.7 to 5.5 times as fast at 200 and 500 nodes; at 72 nodes d3-sankey is about twice as fast with the default settings.

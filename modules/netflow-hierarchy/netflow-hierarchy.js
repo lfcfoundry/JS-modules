@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.0.1 (API 1)
+ * Version 1.3.1 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -419,9 +419,11 @@ var NetflowHierarchy = (function () {
     var ch = L.chart, type = ch.type;
     var showDots = type === 'pack' || type === 'tree' || type === 'bundles';
     /* the scene module gets its own copy of each item (plain objects of one shape, so reading them stays fast); the copies are kept on the layout and filled in again for the next picture, so a look change makes no new ones */
-    var SN = L.__stub; if (!SN || SN.src !== L.nodes || SN.nodes.length !== L.nodes.length) SN = L.__stub = { src: L.nodes, nodes: L.nodes.map(function () { return {}; }) };
+    /* Each item is read in full only once per layout: items that came from a worker are slow dictionary objects, and copying all their fields
+       on every look change cost about 1 s per 100,000 items in Chromium. Later pictures refresh only the size, which is all a look change alters here. */
+    var SN = L.__stub; if (!SN || SN.src !== L.nodes || SN.nodes.length !== L.nodes.length) SN = L.__stub = { src: L.nodes, nodes: L.nodes.map(function (nd) { var c = {}; for (var k in nd) c[k] = nd[k]; return c; }) };
     var nodes = SN.nodes;
-    L.nodes.forEach(function (nd, q) { var c = Object.assign(nodes[q], nd); if (!showDots || (type === 'pack' && ch.kids[nd.hv].length)) { c.w = 0; c.h = 0; } });
+    L.nodes.forEach(function (nd, q) { var c = nodes[q]; if (nd.w !== undefined) c.w = nd.w; if (nd.h !== undefined) c.h = nd.h; if (!showDots || (type === 'pack' && ch.kids[nd.hv].length)) { c.w = 0; c.h = 0; } });
     if (type === 'pack') nodes.forEach(function (nd) { if (!ch.kids[nd.hv].length) { nd.w = nd.h = 2 * ch.Rr[nd.hv]; } });
     if (type === 'tree' || type === 'bundles') nodes.forEach(function (nd) { nd.w = nd.h = 9; });
     var stub = { kind: 'network', view: 'network', dir: 'none', nodes: nodes, edges: [], width: L.width, height: L.height, ch: L.ch, flow: L.flow, cls: L.cls, imp: L.imp, groups: L.groups, startId: L.startId, n: L.n, m: L.m };
@@ -438,6 +440,8 @@ var NetflowHierarchy = (function () {
     var lab = function (x, y, t, size, c, op) { var l = { x: x, y: y, t: t, size: size, color: c, align: 'c', bold: false, rot: 0, minK: 0, node: -1 }; if (op) for (var k in op) l[k] = op[k]; if (l.rot) l.rot *= 180 / Math.PI; S.labels.push(l); return l; };   /* angles in radians here, the renderer takes degrees */
     var clip = function (s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; };
     var recOf = function (q) { return S.nodes[q]; };
+    /* text on a shape: the preferred color when it reads at 4.5:1 or better on the shape (as drawn over the background), otherwise near-black or white, whichever reads better (black where neither reaches 4.5:1) */
+    var ink = function (fill, pref) { var c = over(fill, T.bg); if (pref && contrast(pref, c) >= 4.5) return pref; var d = contrast(INK_DARK, c), w = contrast(INK_LIGHT, c); return Math.max(d, w) >= 4.5 ? (d >= w ? INK_DARK : INK_LIGHT) : INK_BLACK; };   /* pure black reaches 4.5:1 on every color where neither does */
     /* one color for everything says nothing: then each top branch (or each arc) gets its own color from the color set */
     var mono = (L.groups || []).length <= 1 && (!o.colorBy || o.colorBy === 'group' || o.colorBy === 'found');
     var topIdx = null;
@@ -463,7 +467,7 @@ var NetflowHierarchy = (function () {
         S.rects.push({ x: x0, y: y0, w: w2, h: h2, r: 0, fill: fill, stroke: rectLine, sw: 1, layer: 1, node: it >= 0 ? recOf(it).i : -1, a: 1 });
         var size = (type === 'treemap' && box ? 12 : 11) * iscale, txt = ch.label[v];
         if (itemShow && w2 > size * 2.2 && h2 > size * 1.3) {
-          var maxC = Math.floor((w2 - 8) / (size * 0.58)), tcol = type === 'treemap' && box ? T.fg : (lumi(base) > 0.55 ? [0.1, 0.1, 0.12, 1] : [1, 1, 1, 1]);
+          var maxC = Math.floor((w2 - 8) / (size * 0.58)), tcol = ink(fill, type === 'treemap' && box ? T.fg : null);
           lab(x0 + 4, y0 + size + 2, clip(txt, maxC), size, tcol, { align: 'l', node: it >= 0 ? it : -1, minK: 0, bold: box, val: ch.val[v] });
         }
       }
@@ -478,21 +482,25 @@ var NetflowHierarchy = (function () {
         var midA = (a0 + a1) / 2, rr = (r0 + r1) / 2, arcLen = (a1 - a0) * rr;
         if (itemShow && arcLen > 12 * iscale) {
           var right2 = Math.cos(midA) >= 0, maxC2 = Math.floor((ch.ring - 8) / (6.5 * iscale));
-          lab(scx + Math.cos(midA) * rr, scy + Math.sin(midA) * rr + 4, clip(ch.label[u], maxC2), 11 * iscale, lumi(base2) > 0.55 ? [0.1, 0.1, 0.12, 1] : [1, 1, 1, 1], { rot: right2 ? midA : midA + Math.PI, node: it2 >= 0 ? it2 : -1, minK: 0.2 });
+          lab(scx + Math.cos(midA) * rr, scy + Math.sin(midA) * rr + 4, clip(ch.label[u], maxC2), 11 * iscale, ink(alpha(base2, 0.9 - Math.min(0.3, d * 0.06)), null), { rot: right2 ? midA : midA + Math.PI, node: it2 >= 0 ? it2 : -1, minK: 0.2 });
         }
       }
       if (ch.skipRoot) lab(scx, scy + 5, clip(ch.label[ch.root], 18), 13, T.fg, { bold: true });
     } else if (type === 'pack') {
+      /* a circle's fill as drawn: its own shade over every circle around it */
+      var shown = new Map(), parentFill = function (v) { var p = ch.par[v]; if (p < 0 || !ch.kids[p].length) return T.bg; var c = shown.get(p); return c || T.bg; };
       for (var pi = 0; pi < ch.order.length; pi++) {
         var pv = ch.order[pi]; if (!ch.kids[pv].length) continue; if (pv === ch.root && ch.item[pv] < 0 && false) continue;
         var pr = ch.Rr[pv], px = ch.X[pv], py = ch.Y[pv], ip = ch.item[pv], pb = hcol(pv);
         var circ = [], nseg = Math.max(24, Math.min(96, Math.round(pr / 3)));
         for (var cq = 0; cq < nseg; cq++) { var ca = cq / nseg * TAU; circ.push(px + Math.cos(ca) * pr, py + Math.sin(ca) * pr); }
         var dep = ch.depth[pv];
-        S.polys.push({ pts: circ, c: [px, py], fill: alpha(mix(pb, T.bg, 0.6), dep === 0 ? 0.35 : 0.5), stroke: alpha(pb, 0.6), group: ip < 0 ? ch.group[pv] : undefined, node: ip });
-        if (itemShow && pr > 30) lab(px, py - pr + 16 * iscale, clip(ch.label[pv], Math.floor(pr / 5)), 12 * iscale, T.fg, { bold: true, node: ip >= 0 ? ip : -1, minK: 0.1 });
+        var pfill = alpha(mix(pb, T.bg, 0.6), dep === 0 ? 0.35 : 0.5);
+        shown.set(pv, over(pfill, parentFill(pv)));
+        S.polys.push({ pts: circ, c: [px, py], fill: pfill, stroke: alpha(pb, 0.6), group: ip < 0 ? ch.group[pv] : undefined, node: ip });
+        if (itemShow && pr > 30) lab(px, py - pr + 16 * iscale, clip(ch.label[pv], Math.floor(pr / 5)), 12 * iscale, ink(over(pfill, parentFill(pv)), T.fg), { bold: true, node: ip >= 0 ? ip : -1, minK: 0.1 });
       }
-      if (itemShow) L.nodes.forEach(function (nd, q) { if (ch.kids[nd.hv].length) return; var r = ch.Rr[nd.hv]; if (r > 14) lab(nd.cx, nd.cy + 4, clip(nd.label, Math.floor(r / 3.6)), Math.min(13, r / 2.6) * iscale, lumi(fillOf(q)) > 0.55 ? [0.1, 0.1, 0.12, 1] : [1, 1, 1, 1], { node: q, minK: 0.3 }); });
+      if (itemShow) L.nodes.forEach(function (nd, q) { if (ch.kids[nd.hv].length) return; var r = ch.Rr[nd.hv]; if (r > 14) lab(nd.cx, nd.cy + 4, clip(nd.label, Math.floor(r / 3.6)), Math.min(13, r / 2.6) * iscale, ink(fillOf(q), null), { node: q, minK: 0.3 }); });
       /* polys are drawn under the dots: move the outer circles first */
     } else if (type === 'tree') {
       var radial = ch.shape === 'radial' || ch.shape === 'radialCluster', ind = ch.shape === 'indented', X = ch.X, Y = ch.Y, treeLine = alpha(T.line, 0.75);
@@ -528,15 +536,22 @@ var NetflowHierarchy = (function () {
     S.dots.forEach(function (d) { grow(d.cx - d.r, d.cy - d.r); grow(d.cx + d.r, d.cy + d.r); });
     S.polys.forEach(function (p) { for (var i = 0; i < p.pts.length; i += 2) grow(p.pts[i], p.pts[i + 1]); });
     S.curves.forEach(function (c) { for (var i = 0; i < c.P.length; i += 2) grow(c.P[i], c.P[i + 1]); });
-    S.labels.forEach(function (l) { if (l.rot) { var r = l.t.length * l.size * 0.6; grow(l.x + Math.cos(l.rot) * r * (l.align === 'r' ? -1 : 1), l.y + Math.sin(l.rot) * r * (l.align === 'r' ? -1 : 1)); } else { var b = NS.labelBox(l); if (b) { grow(b[0], b[1]); grow(b[2], b[3]); } } });
+    S.labels.forEach(function (l) { if (l.rot) { var r = l.t.length * l.size * 0.6, a = l.rot * Math.PI / 180, sg = l.align === 'r' ? -1 : 1; grow(l.x + Math.cos(a) * r * sg, l.y + Math.sin(a) * r * sg); grow(l.x - Math.sin(a) * l.size, l.y + Math.cos(a) * l.size * 0.4); }   /* label angles are kept in degrees (for the renderer): turn them back for the bounds, so a tilted name is never cut off */ else { var b = NS.labelBox(l); if (b) { grow(b[0], b[1]); grow(b[2], b[3]); } } });
     if (!isFinite(x0b)) { x0b = 0; y0b = 0; x1b = 100; y1b = 100; }
     var pad = 30; S.x0 = x0b - pad; S.y0 = y0b - pad; S.w = x1b - x0b + 2 * pad; S.h = y1b - y0b + 2 * pad;
     S.gridStale = true; S.eidx = null; S.spatial = null;
     if (S.legendTitle === '' && !S.legend.length && (L.groups || []).length > 1) (L.groups || []).slice(0, 12).forEach(function (g) { S.legend.push({ k: 'group', c: gcol(g), t: g || '(no group)', key: 'g:' + g }); });
     S.chartNote = chartNote(L, ext);
+    if (NS.addTitles) NS.addTitles(S, o);   /* opt-in o.title, o.subtitle, o.source */
     return S;
   }
   function lumi(c) { return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
+  var INK_DARK = [0.1, 0.1, 0.12, 1], INK_LIGHT = [1, 1, 1, 1], INK_BLACK = [0, 0, 0, 1];
+  /** A color with opacity laid over an opaque one, as the picture shows it. */
+  function over(c, bg) { var a = c[3] === undefined ? 1 : c[3]; return [c[0] * a + bg[0] * (1 - a), c[1] * a + bg[1] * (1 - a), c[2] * a + bg[2] * (1 - a), 1]; }
+  /** WCAG relative luminance and contrast ratio (1 to 21) of two opaque colors with channels 0 to 1. */
+  function relLum(c) { var f = function (v) { return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); }
+  function contrast(a, b) { var x = relLum(a), y = relLum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
   /** The tree link from p to c as a link of the map, when it is one (made-up group boxes are not). */
   function edgeBetween(L, ch, p, c) {
     var ip = ch.item[p], ic = ch.item[c]; if (ip < 0 || ic < 0) return -1;
@@ -556,7 +571,35 @@ var NetflowHierarchy = (function () {
     return src + (ch.extra ? ' ' + n(ch.extra) + ' other links are not part of the nesting.' : '');
   }
 
-  return { VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, hierarchy: hierarchy, sums: sums, packSiblings: packSiblings, enclose: enclose, linkValue: linkValue, itemValue: itemValue,
+  /** The links of any plain input: a list of { from, to, value } (weight or count also name the amount; 1 when none), or { links } or { edges }. */
+  /* Table rows in your own column names work too: name them with o.from, o.to and o.value, or leave them out and the first two text columns and the first number column are used. */
+  function asLinks(d, o) {
+    o = o || {}; var l = Array.isArray(d) ? d : (d && (d.links || d.edges)) || [], r0 = l[0] || {}, F = typeof o.from === 'string' ? o.from : null, T = typeof o.to === 'string' ? o.to : null, V = typeof o.value === 'string' ? o.value : null;
+    if (!F && !T && r0.from === undefined && r0.to === undefined) { var txt = [], num = null; Object.keys(r0).forEach(function (k) { var v = r0[k]; if (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && isFinite(+v))) { if (num === null) num = k; } else if (typeof v === 'string') txt.push(k); }); F = txt[0] || null; T = txt[1] || null; if (!V) V = num; }
+    return l.map(function (e) { var v = V ? e[V] : e.value !== undefined ? e.value : e.weight !== undefined ? e.weight : e.count !== undefined ? e.count : 1; return { from: F ? e[F] : e.from, to: T ? e[T] : e.to, value: v === undefined || v === '' ? 1 : +v }; });
+  }
+  /** NetflowScene from the page (or, in Node, from the folder next door), with a plain error when it is missing. */
+  function sceneLib(who) {
+    var g = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : {};
+    if (g.NetflowScene) return g.NetflowScene;
+    if (typeof require === 'function') { try { return require('../netflow-scene/netflow-scene.js'); } catch (e) { /* not there */ } }
+    throw new Error(who + ': NetflowScene was not found. Load netflow-scene.js before ' + who + '.js.');
+  }
+  /** Links (as above) or { nodes, edges } as a graph for layout(): items are made from the links' ends when not given. */
+  function asGraph(d, o) {
+    if (d && !Array.isArray(d) && d.nodes && d.edges) return d;
+    var ls = asLinks(d, o), ns = d && !Array.isArray(d) && d.nodes ? d.nodes.slice() : [], seen = {};
+    ns.forEach(function (n) { seen[n.id] = 1; }); ls.forEach(function (e) { [e.from, e.to].forEach(function (id) { if (!seen[id]) { seen[id] = 1; ns.push({ id: id, label: String(id) }); } }); });
+    var inV = {}, outV = {}; ls.forEach(function (e) { if (e.value > 0) { inV[e.to] = (inV[e.to] || 0) + e.value; outV[e.from] = (outV[e.from] || 0) + e.value; } });
+    ns = ns.map(function (n) { if (n.sizeV !== undefined) return n; var c = {}; for (var k in n) c[k] = n[k]; c.sizeV = Math.max(1e-6, (inV[n.id] || 0) - (outV[n.id] || 0)); return c; });   /* each box holds what flows into it and stays there (what flows on is drawn by the boxes inside) */
+    return { nodes: ns, edges: ls.map(function (e) { return { from: e.from, to: e.to, weight: e.value, count: 1, widthV: NaN, flow: 0 }; }) };
+  }
+  /** One call to a picture: toSvg(data, options) returns SVG text. options.type picks the view (default treemap); the rest go to layout() and scene(). */
+  function toSvg(data, o) {
+    o = o || {}; var NS = sceneLib('netflow-hierarchy'), lo = {}; for (var k in o) lo[k] = o[k]; if (lo.nest === undefined) lo.nest = 'auto'; if (lo.sized === undefined) lo.sized = true;
+    return NS.toSvg(scene(layout(o.type || 'treemap', asGraph(data, o), lo), o, NS), o.title);
+  }
+  return { VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, toSvg: toSvg, asGraph: asGraph, sceneLib: sceneLib, hierarchy: hierarchy, sums: sums, packSiblings: packSiblings, enclose: enclose, linkValue: linkValue, itemValue: itemValue,
     tmpI: tmpI, tmpF: tmpF, sector: sector, pushSector: pushSector, lumi: lumi };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NetflowHierarchy;

@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.10.2 (API 2)
+ * Version 2.10.3 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -3481,7 +3481,7 @@
         if (e > 10 || k > 1) jfail('bad adaptive column');
         a = this.bl.take(m);
         if (!PK.available()) jfail('this file stores a number column with the number picker, which needs a little-endian machine');
-        if (this.win && this.depth === 1 && !k && n >= WIN_MIN) {
+        if (this.win && (this.depth === 1 || this.depth === this.winAt) && !k && n >= WIN_MIN) {
           try { t = PK.windowOpen(a, n, this.wasm); } catch (err) { jfail('an adaptive number column is damaged'); }
           col = new Col(n, 11, winRow(t, e > 0 ? P10[e] : 0, null), null); col.a.col = col; return col;
         }
@@ -3544,7 +3544,7 @@
         m = c.varint(); this.spend(m); this.spend(n); if (m > n || m < 2) jfail('bad dictionary column');
         d = this.rawStrings(m); k = c.u8(); e = c.varint(); if (k > 1) jfail('bad dictionary column');
         t = this.bl.take(e);
-        if (this.win && this.depth === 1 && !k && n >= WIN_MIN) {
+        if (this.win && (this.depth === 1 || this.depth === this.winAt) && !k && n >= WIN_MIN) {
           try { a = PK.windowOpen(t, n, this.wasm); } catch (err) { jfail('a dictionary column is damaged'); }
           col = new Col(n, 11, winRow(a, 0, d), null); col.a.col = col; return col;
         }
@@ -3581,12 +3581,13 @@
       case CT_ARRAYS:
         m = c.varint(); this.spend(m + n);
         lens = this.lengthCol(n);
-        var lz = this.lazyNow(), la = this.lazyAt; if (lz) this.lazyAt = this.depth + 1;
+        var lz = this.lazyNow(), la = this.lazyAt, wa2 = this.winAt; if (lz) { this.lazyAt = this.depth + 1; this.winAt = this.depth + 1; }
         flat = m > 0 ? this.column(m) : null;
-        this.lazyAt = la;
+        this.lazyAt = la; this.winAt = wa2;
         if (lz) {                                                                          // row ends and the one flat column; an array is made when its row is read
-          var ro = new Uint32Array(n + 1);
-          for (i = 0; i < n; i++) { ro[i + 1] = ro[i] + lens.get(i); if (ro[i + 1] > m) jfail('bad array lengths'); }
+          var ro = new Uint32Array(n + 1), la2 = lens.mode === 0 ? lens.a : null;
+          if (la2 !== null) for (i = 0; i < n; i++) { ro[i + 1] = ro[i] + la2[i]; if (ro[i + 1] > m) jfail('bad array lengths'); }       // the row lengths are a plain array: summed straight from it
+          else for (i = 0; i < n; i++) { ro[i + 1] = ro[i] + lens.get(i); if (ro[i + 1] > m) jfail('bad array lengths'); }
           if (ro[n] !== m) jfail('bad array lengths');
           return new Col(n, 8, { off: ro, flat: flat, row: flat === null ? function () { return []; } : flat.mode === 0 && Array.isArray(flat.a) ? function (i) { return flat.a.slice(ro[i], ro[i + 1]); } : function (i) { var b = ro[i], e = ro[i + 1], r = new Array(e - b), q; for (q = b; q < e; q++) r[q - b] = flat.get(q); return r; } }, null);
         }
@@ -4023,14 +4024,14 @@
       if (ns === 1 && this.ver >= 2) {                                            // a directory of sizes comes first; each column has its own key numbering
         var dirC = [], dirB = [], c0, b0, savedKeys;
         for (j = 0; j < keys.length; j++) { dirC.push(c.varint()); dirB.push(c.varint()); }
-        if (lz) this.lazyAt = this.depth + 1;
+        var wa = this.winAt; if (lz) { this.lazyAt = this.depth + 1; this.winAt = this.depth + 1; }
         for (j = 0; j < keys.length; j++) {
           c0 = c.p; b0 = this.bl.p; savedKeys = this.keys; this.keys = [];
           var col2 = this.column(cnt); this.keys = savedKeys;
           if (c.p - c0 !== dirC[j] || this.bl.p - b0 !== dirB[j]) jfail('a column does not match its directory entry');
           cols.push(col2); modes.push(col2.mode); args.push(col2.a, col2.d);
         }
-        this.lazyAt = la;
+        this.lazyAt = la; this.winAt = wa;
         if (lz && ns === 1) return new Col(n, 7, { keys: keys, cols: cols, row: (CAN_EVAL ? recordRow : recordRowPlain)(keys)(cols) }, null);       // an object is made per row from the columns
       } else
       for (j = 0; j < keys.length; j++) {

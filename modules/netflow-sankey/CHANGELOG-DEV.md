@@ -2,6 +2,22 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.0 · API 2 · 2026-11-01
+
+### Quick
+toSvg(links | { links } | { nodes, links }, opts) lays out and draws; a layout result (nodes + bands) still draws as before; byte-identical to layoutFlows + toSvg.
+
+### Deep
+toSvg(links | { links } | { nodes, links }, opts) lays out and draws; a layout result (nodes + bands) still draws as before; byte-identical to layoutFlows + toSvg. One-call toSvg(data, options) (owner's 11:55 AM ET 11.01 name card; CONSISTENT-SYNTAX-PROPOSAL). Old forms keep working (told apart by shape). Checked in Chromium 155, Firefox 158, WebKitGTK 2.52.6 from page scripts: all six one-call pictures drawn. Requested by the owner.
+
+## 2.5.0 · API 2 · 2026-11-01
+
+### Quick
+toSvg(R, opts): opts.title is now drawn above the picture (20 px bold, 14 px in) as well as kept as the hidden <title> and aria-label; new opts.subtitle (13 px, 80% ink) and opts.source (11 px, 72% ink, under the picture).
+
+### Deep
+toSvg(R, opts): opts.title is now drawn above the picture (20 px bold, 14 px in) as well as kept as the hidden <title> and aria-label; new opts.subtitle (13 px, 80% ink) and opts.source (11 px, 72% ink, under the picture). The picture moves down inside a <g transform> by 48.4 px (title) or 67.4 px (title and subtitle) and the SVG grows to fit; nothing changes without these options. Owner's card choice 12:47 PM ET 11.01: visible title plus hidden label. The 1.0.0 picture pins still hold once the title block is taken off. Checked in Chromium 155, Firefox 158, WebKitGTK 2.52.6: title, subtitle and source boxes do not overlap the picture. Requested by the owner.
+
 ## 2.4.1 · API 2 · 2026-10-31
 
 ### Quick

@@ -1,5 +1,45 @@
 # netflow-hierarchy developer changelog
 
+## 1.3.1 · API 1 · 2026-11-05
+
+### Quick
+Bug: the picture bounds turned tilted names' angles (kept in degrees for the renderer) through Math.cos as if radians, so names on the left of chords and bundles ran past the frame.
+
+### Deep
+Bug: the picture bounds turned tilted names' angles (kept in degrees for the renderer) through Math.cos as if radians, so names on the left of chords and bundles ran past the frame. Bounds now use radians and the name's height. 8 long names, chord: names cut 5 of 8 -> 0 in Chromium 155, Firefox 158 and WebKitGTK 2.52.6; bundles 1 -> 0; radial tree 1 -> 0 (Chromium). Treemap, icicle, pack and tidy tree pictures byte-identical (16 of 16); sunburst frames move by up to about 10 px (bounds now right), shapes unchanged. Requested by the owner (queued chord left-label cutoff fix).
+
+## 1.3.0 · API 1 · 2026-11-01
+
+### Quick
+toSvg(data, o) = layout(o.type || 'treemap', asGraph(data), { nest: 'auto', sized: true, ...o }) + scene + NetflowScene.toSvg, finding NetflowScene on the page (or next door in Node) with a plain error naming the missing script.
+
+### Deep
+toSvg(data, o) = layout(o.type || 'treemap', asGraph(data), { nest: 'auto', sized: true, ...o }) + scene + NetflowScene.toSvg, finding NetflowScene on the page (or next door in Node) with a plain error naming the missing script. asGraph(links) makes items from link ends, sizeV = what flows in minus what flows on (so parents hold only what stays). New helpers asGraph and sceneLib. One-call toSvg(data, options) (owner's 11:55 AM ET 11.01 name card; CONSISTENT-SYNTAX-PROPOSAL). Old forms keep working (told apart by shape). Checked in Chromium 155, Firefox 158, WebKitGTK 2.52.6 from page scripts: all six one-call pictures drawn. Requested by the owner.
+
+## 1.2.1 · API 1 · 2026-11-01
+
+### Quick
+scene(): each item is copied in full only once per layout (for-in into a plain object); later look changes refresh only w and h instead of Object.assign over every field.
+
+### Deep
+scene(): each item is copied in full only once per layout (for-in into a plain object); later look changes refresh only w and h instead of Object.assign over every field. Items that come from a worker are dictionary-mode objects and Object.assign over them cost about 1 s per 100k in Chromium. Cloud, 60,000-item treemap with dictionary-mode items, median of 6 look changes, two alternating runs, one lib per page (lower is better): Chromium 155 1,538-1,602 ms to 327-523 ms (0.27x); Firefox 158 721-739 to 583-586 ms (0.79x); WebKitGTK 2.52.6 1,160-1,255 to 903-1,080 ms (0.82x). Pictures identical: 105 of 105 SVG hashes (7 views, 3 graphs, 5 look changes in a row on one layout). Behavior note: fields other than the size changed by hand on L.nodes after the first picture are not picked up until a new layout (owner's card choice 12:48 PM ET 11.01: ship it). Requested by the owner.
+
+## 1.2.0 · API 1 · 2026-11-01
+
+### Quick
+scene(L, o, NS) calls NS.addTitles(S, o) after the chart note.
+
+### Deep
+scene(L, o, NS) calls NS.addTitles(S, o) after the chart note. netflow-circular gets it through the same scene.
+
+## 1.1.0 · API 1 · 2026-11-01
+
+### Quick
+Owner's card (11:54 AM ET): labels choose dark or white per tile for 4.5:1.
+
+### Deep
+Owner's card (11:54 AM ET): labels choose dark or white per tile for 4.5:1. ink(fill, preferred): the fill laid over the background, WCAG contrast; the preferred color (theme text on treemap group boxes and pack circles) when it reaches 4.5:1, else near-black or white, whichever reads better, else pure black (reaches 4.58:1 on every color). Test pictures: 4 views x 4 palettes x 2 themes x 3 group counts, 300 items: 19,056 names on shapes, under 4.5:1 before 2,432, after 10 (pack circle names overlapping a child circle). Everything but label colors is unchanged in every picture; 925 checks; page scripts match Node in 3 browsers.
+
 ## 1.0.1 · API 1 · 2026-11-01
 
 ### Quick

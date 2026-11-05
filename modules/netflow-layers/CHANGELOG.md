@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.0 · API 1 · 2026-11-01
+- One call draws a picture: NetflowLayers.toSvg(links) makes and sizes the items from the links.
+
 ## 1.9.0 · API 1 · 2026-11-01
 - Layouts are 7 to 34% faster with the same picture, and better: true never ends with more line crossings than the usual search.
 

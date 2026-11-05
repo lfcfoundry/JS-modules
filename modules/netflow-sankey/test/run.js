@@ -79,6 +79,15 @@ t('toSvg: one rect per item, one path per band and loop, text escaped, colors ke
   ok(svg.indexOf('aria-label="T &amp; U"') >= 0 && svg.indexOf('#112233') >= 0 && svg.indexOf('#445566') >= 0, 'title and colors');
   ok(RL.toSvg(R, { labels: false }).indexOf('<text') < 0, 'labels can be turned off');
 });
+t('title block: title, subtitle and source drawn (escaped) and the picture moved down inside a group; no block without them', () => {
+  const R = RL.layoutFlows({ links: [{ from: 'a', to: 'b', value: 2 }, { from: 'a', to: 'c', value: 1 }] }, { budgetMs: 1e9 });
+  const plain = RL.toSvg(R), all = RL.toSvg(R, { title: 'Wages & tax', subtitle: 'Per <year>', source: 'Source: test' });
+  ok(plain.indexOf('<g transform') < 0 && plain.indexOf('font-size="20"') < 0, 'no block unless asked');
+  ok(all.indexOf('<title>Wages &amp; tax</title>') > 0 && all.indexOf('aria-label="Wages &amp; tax"') > 0, 'hidden label kept');
+  ok(/font-weight="700"[^>]*>Wages &amp; tax<\/text>/.test(all) && all.indexOf('>Per &lt;year&gt;</text>') > 0 && all.indexOf('>Source: test</text>') > 0, 'visible title, subtitle and source');
+  const H = +/height="([\d.]+)"/.exec(all)[1]; ok(Math.abs(H - (R.height + 67.4 + 24)) < 0.01, 'room for the block: ' + H);
+  ok(RL.toSvg(R, { source: 'S' }).indexOf('<g transform') < 0, 'a source alone adds room below only');
+});
 t('an empty or one-link input does not throw', () => {
   const R0 = RL.layoutFlows({ links: [] }); ok(R0.nodes.length === 0 && R0.bands.length === 0, 'empty');
   const R1 = RL.layoutFlows({ links: [{ from: 'a', to: 'b', value: 1 }] }); ok(R1.bands.length === 1 && R1.nodes.length === 2, 'one link');
@@ -86,7 +95,9 @@ t('an empty or one-link input does not throw', () => {
 });
 // ---- netflow-sankey 2.0.0 is faster but must draw exactly what version 1.0.0 (the old name) drew: these hashes were made by that version (layout without the timing and without the 2.2.0 fields simplified and note, then the SVG text) ----
 const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
-const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' || k === 'simplified' || k === 'note' ? undefined : v)) + ' ' + fnv(RL.toSvg(R)) + ' ' + fnv(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 })); };
+const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' || k === 'simplified' || k === 'note' ? undefined : v)) + ' ' + fnv(RL.toSvg(R)) + ' ' + fnv(oldTitle(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 }), R)); };
+/* since 2.5.0 the title is also drawn above the picture; taking that block off must give back exactly what 1.0.0 drew */
+const oldTitle = (svg, R) => { const h = String(+R.height.toFixed(2)), m = /<text x="14" y="34" font-size="20" font-weight="700"[^>]*>[^<]*<\/text><g transform="translate\(0 48\.4\)">/; if (!m.test(svg) || !svg.endsWith('</g></svg>')) return 'no title block'; return svg.replace(m, '').replace(/<\/g><\/svg>$/, '</svg>').replace(/viewBox="0 0 ([\d.]+) [\d.]+" width="([\d.]+)" height="[\d.]+"/, (a, w, w2) => 'viewBox="0 0 ' + w + ' ' + h + '" width="' + w2 + '" height="' + h + '"'); };
 const PIN = {
   'a 7x10 network with 3 loops': '89c38031 c261bece 7570244e',
   'the same with plain (unweighted) order': '71efb5d1 66a8d0c2 4d247fa9',
@@ -175,6 +186,17 @@ t('an empty drawing has height 0 (not -Infinity) and applies cleanly; one item a
   const L = { nodes: [], edges: [], pos: {} }, R = RL.layout(L); ok(R.height === 0 && Number.isFinite(R.width), 'height ' + R.height + ' width ' + R.width);
   RL.apply(L, R); ok(L.height === 0, 'L.height ' + L.height);
   const one = { nodes: [{ id: 'a', label: 'A', layer: 0 }], edges: [], pos: {} }; one.pos.a = one.nodes[0]; const R1 = RL.layout(one); ok(Number.isFinite(R1.height) && Number.isFinite(R1.width), 'one item: ' + R1.height + ' x ' + R1.width);
+});
+const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', weight: 14 }, { from: 'Side <work>', to: 'Food', count: 4 }];
+t('one call: toSvg(links) lays out and draws; value, weight and count all name the amount; a layout result still works the old way', () => {
+  const svg = RL.toSvg(LINKS), R = RL.layoutFlows({ links: [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', value: 14 }, { from: 'Side <work>', to: 'Food', value: 4 }] });
+  ok(svg === RL.toSvg(R), 'same picture both ways'); ok(svg.indexOf('Side &lt;work&gt;') > 0, 'names escaped');
+  ok(RL.toSvg({ links: LINKS }) === svg, '{ links } works too');
+});
+t('one call from table rows: own column names, named or found (first two text columns, first number column)', () => {
+  const b = RL.toSvg([{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', value: 14 }]);
+  ok(RL.toSvg([{ Source: 'Wages', Target: 'Rent', Amount: '30' }, { Source: 'Wages', Target: 'Food', Amount: '14' }]) === b, 'found');
+  ok(RL.toSvg([{ a: 'Wages', b: 'Rent', n: 30 }, { a: 'Wages', b: 'Food', n: 14 }], { from: 'a', to: 'b', value: 'n' }) === b, 'named');
 });
 t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier, wasmAvailable, wasmReady, wasmModule', () => {
   ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg,wasmAvailable,wasmModule,wasmReady', Object.keys(RL).sort().join());

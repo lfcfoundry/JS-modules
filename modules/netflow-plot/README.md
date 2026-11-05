@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.0.0 · API 2**
+**Version 2.5.0 · API 2**
 
-**Tested in:** 314 module checks; donut charts give the same SVG as 1.0.0.
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -29,6 +29,20 @@ Netflow Map's Charts tab draws these charts from a map's table of items or links
 
 ## Use
 
+Load `netflow-scene.js` first, then `netflow-plot.js`. One call, data only (a bar chart of the first text column by the first number column):
+
+```js
+// netflow-scene.js, then netflow-plot.js
+svgElement.outerHTML = NetflowPlot.toSvg([{ city: 'Detroit', share: 12 }, { city: 'Chicago', share: 16 }]);
+svgElement.outerHTML = NetflowPlot.toSvg(rows, { type: 'line', x: 'day', y: 'sales', color: 'region', title: 'Sales' });
+```
+
+Name your own columns in the same options: `{ type: 'bar', x: 'Region', y: 'Sales', color: 'Channel' }` (rows straight from a CSV work; numbers written as text are read as numbers). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
+
+The steps below keep the scene, for pointing at marks.
+
+## Use
+
 ```js
 // netflow-scene.js first, then netflow-plot.js
 var S = NetflowPlot.make(rows, { type: 'bar', x: 'region', y: 'sales', color: 'kind' }, { theme: 'dark', width: 900, height: 560 }, NetflowScene);
@@ -38,7 +52,10 @@ var hit = NetflowPlot.markAt(S, x, y);   // { rows, t } or null
 
 - `rows`: plain objects. A column is read from `row.attrs[key]`, then `row[key]`; pass `options.get(row, key)` to read it another way.
 - `spec`: `type` (one of `NetflowPlot.TYPES`), `x`, `y`, `color`, `size`, `agg` (`sum`, `mean`, `count`, `min`, `max`, `median`), `stack` (`stack`, `group`, `normalize`, `stream`, `none`), `horizontal`, `bins`, `smooth` (moving average window), `index` (lines from 100), `cols` (parallel lines and scatter matrix), `sort` (`value`, `name`, `none`).
-- `options`: `theme`, `palette`, `width`, `height`, `get`.
+- `options`: `theme`, `palette`, `width`, `height`, `get`, and the optional `title`, `subtitle`, `source`, `highlight`.
+- Clean look (on by default): bar and box charts write their values on the bars (and inside stacked parts that have room) and the median over each box, with no number axis or gridlines, in a calm blue-first color set. When the values would not fit, the number axis comes back on its own. `clean: false` keeps the number axis and gridlines.
+- Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `options` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
+- `highlight` (optional): a series name from the `color` column (or, with no color column, one bar) keeps its color and is drawn on top; the rest turn one gray. Works on every type that colors by a column. A name that is not there changes nothing, and a highlighted name is never folded into Other.
 - `NetflowPlot.NEEDS` lists which columns each type needs (a number, a category, text, or any).
 - Helpers: `ticks`, `timeTicks`, `kde`, `normInv`, `voronoiCells`, `quant`, `fmtNum`.
 

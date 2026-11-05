@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.3 · API 2 · 2026-11-01
+- view() also opens number and text columns inside nested records and lists block by block: the first row is ready 1.6 to 14 times as fast (38 to 93% less time) on such lists; same results.
+
 ## 2.10.2 · API 2 · 2026-11-01
 - view() opens a long list much faster: the first row is ready 1.3 to 16 times as fast (21 to 94% less time), because number and dictionary columns are decoded only where a row is read.
 

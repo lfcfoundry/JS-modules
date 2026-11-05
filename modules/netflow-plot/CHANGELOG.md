@@ -2,6 +2,21 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.5.0 · API 2 · 2026-11-01
+- One call draws a picture: NetflowPlot.toSvg(rows) makes a bar chart of the first text and number columns; chart and drawing words share one options object.
+
+## 2.4.0 · API 2 · 2026-11-01
+- Bar and box charts now show their numbers on the bars and boxes instead of a number axis and gridlines, in calmer colors; crowded two-word names wrap instead of tilting.
+
+## 2.3.0 · API 2 · 2026-11-01
+- Bar and box labels now stay flat and easy to read, and only tilt when two labels would really touch; long names wrap onto two lines, every bar gets its name when they all fit, and tilted names never sit under the axis name.
+
+## 2.2.0 · API 2 · 2026-11-01
+- Charts take an optional highlight: one series (or one bar) keeps its color and is drawn on top, the rest turn gray.
+
+## 2.1.0 · API 2 · 2026-11-01
+- Charts take an optional title, subtitle and source in their options, drawn above and below the chart and in the SVG.
+
 ## 2.0.0 · API 2 · 2026-11-01
 - Removed: the pie chart type (a pie request now draws bars); donut stays.
 

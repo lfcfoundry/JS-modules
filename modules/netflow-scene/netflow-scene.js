@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.4 (API 1)
+ * Version 1.4.1 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -50,7 +50,7 @@ var NFMScene = (function () {
   function css(c) { return 'rgba(' + Math.round(c[0] * 255) + ',' + Math.round(c[1] * 255) + ',' + Math.round(c[2] * 255) + ',' + (+c[3].toFixed(3)) + ')'; }
   var THEMES = {
     light: { bg: '#f6f5f1', box: '#ffffff', boxLine: '#aeb4c2', fg: '#1d2330', muted: '#7b8294', line: '#6f778a', good: '#2c9a69', bad: '#d1495b', neutral: '#8590a8', accent: '#2563d6', gold: '#d99a00', lane0: '#ecebe5', lane1: '#f6f5f1',
-      groups: ['#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2', '#b07aa1', '#edc948', '#9c755f', '#ff9da7', '#86bc86', '#8c6bb1', '#5fa2ce'] },
+      groups: ['#4e79a7', '#f28e2b', '#59a14f', '#c84d4f', '#76b7b2', '#b07aa1', '#edc948', '#936e59', '#ff9da7', '#86bc86', '#8868ac', '#5fa2ce'] },   /* red, brown and purple a shade darker so names on them read at 4.5:1 (owner's card, 11.01) */
     dark: { bg: '#14171f', box: '#222735', boxLine: '#4a5266', fg: '#e8ebf2', muted: '#8d95a8', line: '#8a93a8', good: '#4cc38a', bad: '#f06a7b', neutral: '#8f9ab3', accent: '#6ea0ff', gold: '#f2b632', lane0: '#1b1f2a', lane1: '#14171f',
       groups: ['#6a9fd1', '#f6a04d', '#74c06b', '#f0787a', '#8bd0cb', '#c797bb', '#f0d36a', '#b8917a', '#ffb3bb', '#a3d6a3', '#a58bcc', '#7bbbe6'] }
   };
@@ -1347,6 +1347,30 @@ var NFMScene = (function () {
     return style(S, { focus: focus, edges: edges });
   }
 
+  /**
+   * Opt-in title block (the owner's card, 2026.11.01): o.title (bold, left), o.subtitle (lighter, under it) and o.source (small, under the picture).
+   * Each is text; none given leaves S as it was. The block is added above (and the source below) the picture, so nothing in it moves.
+   * Sizes grow with very wide pictures so they keep their size in an SVG drawn at most 3,000 wide.
+   */
+  function addTitles(S, o) {
+    if (!o || !(o.title || o.subtitle || o.source)) return S;
+    var T = S.theme, u = Math.max(1, S.w / 3000), pad = 14 * u, top = 0, list = [], wMax = 0, y;
+    var sub = mix(T.fg, T.bg, 0.25), src = mix(T.fg, T.bg, 0.32);   /* both read at 4.5:1 or better on the background in the light and dark themes */
+    var add = function (t, size, color, bold) { t = String(t); var l = { x: 0, y: 0, t: t, size: size, color: color, align: 'l', bold: !!bold, rot: 0, minK: 0, node: -1, title: true }; wMax = Math.max(wMax, t.length * size * 0.55); return l; };
+    y = pad;
+    if (o.title) { var lt = add(o.title, 20 * u, T.fg, true); y += 20 * u; lt.y = y; list.push(lt); y += 6 * u; }
+    if (o.subtitle) { var ls = add(o.subtitle, 13 * u, sub, false); y += 13 * u; ls.y = y; list.push(ls); y += 6 * u; }
+    var head = list.length ? y + pad * 0.6 : 0, x = S.x0 + pad;
+    list.forEach(function (l) { l.x = x; l.y = S.y0 - head + l.y; });
+    if (o.source) { var lc = add(o.source, 11 * u, src, false); lc.x = x; lc.y = S.y0 + S.h + 15 * u; list.push(lc); S.h += 24 * u; }
+    S.y0 -= head; S.h += head;
+    if (wMax + 2 * pad > S.w) S.w = wMax + 2 * pad;
+    for (var i = list.length - 1; i >= 0; i--) S.labels.unshift(list[i]);   /* first in the list, so the export's 2,500-name limit never drops them */
+    S.titles = { title: o.title || '', subtitle: o.subtitle || '', source: o.source || '' };
+    S.gridStale = true; S.eidx = null;
+    return S;
+  }
+
   /* ---------------------------------------------------------------- SVG export (same lists) */
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function toSvg(S, title) {
@@ -1426,7 +1450,7 @@ var NFMScene = (function () {
   }
 
   return {
-    make: make, rigStyle: rigStyle, pick: pick, hit: hit, pickEdge: pickEdge, pickLabel: pickLabel, inRect: inRect, inLasso: inLasso, restyle: restyle, style: style, toSvg: toSvg, palette: palette, THEMES: THEMES,
+    make: make, addTitles: addTitles, rigStyle: rigStyle, pick: pick, hit: hit, pickEdge: pickEdge, pickLabel: pickLabel, inRect: inRect, inLasso: inLasso, restyle: restyle, style: style, toSvg: toSvg, palette: palette, THEMES: THEMES,
     PALETTES: PALETTES, RAMPS: RAMPS, RAMP_NAMES: RAMP_NAMES, rampAt: rampAt, ICONS: ICONS, SHAPE_KIND: SHAPE_KIND, SHAPE_NAMES: SHAPE_NAMES, shapePts: shapePts,
     css: css, hex: hex, toHex: toHex, mix: mix, alpha: alpha, arrowTri: arrowTri, bez: bez, HEAD: HEAD, labelBox: labelBox
   };

@@ -1,6 +1,6 @@
 # netflow-circular
 
-**Version 1.0.1 · API 1**
+**Version 1.2.0 · API 1**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -27,6 +27,19 @@ Who sends how much to whom, and which parts of a map talk to each other, read be
 
 ## Use
 
+Load `netflow-scene.js`, then `netflow-hierarchy.js`, then `netflow-circular.js`. One call, data only:
+
+```js
+// netflow-scene.js, netflow-hierarchy.js, then netflow-circular.js
+svgElement.outerHTML = NetflowCircular.toSvg(links);                          // chord; { type: 'bundles' } for edge bundles
+```
+
+Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
+
+The steps below keep the layout and scene:
+
+## Use
+
 ```js
 // netflow-scene.js, netflow-hierarchy.js, then netflow-circular.js
 var L = NetflowCircular.layout('chord', { nodes: nodes, edges: edges }, { chordBy: 'auto' });   // searches the order; chordOrder: 'fast' keeps it
@@ -35,6 +48,7 @@ var S = NetflowCircular.scene(L, { theme: 'dark' }, NetflowScene);
 
 - Views: `chord`, `bundles` (`NetflowCircular.VIEWS`).
 - Options: `chordBy` (`auto`, `items` or `groups`; auto gives one arc per group above 60 items), `chordOrder` (`fast` keeps the group order, about d3-chord's work; left out or anything else searches the order for fewer crossing bands, up to 3,000 bands), `nest` (Bundles: the tree it bends along), `beta` (Bundles: how tightly links follow the tree, default 0.85).
+- Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `scene()` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
 - `bsplineToBezier(points)` is exported for drawing smooth curves.
 
 Use with netflow-engine: load the files as page scripts (or keep the folders side by side in Node) and the views join `NetflowEngine.VIEWS`; or hand them over with `NetflowEngine.use('circular', NetflowCircular)`. Then `NetflowEngine.build(graph, { view: 'chord' })` lays the map out and `NetflowCircular.scene(L, options, NetflowScene)` draws it.

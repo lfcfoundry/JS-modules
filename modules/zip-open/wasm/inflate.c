@@ -4,10 +4,12 @@
  * inflate(in, inlen, out, outcap) returns the number of bytes written, -1 for damaged data (also cut-off data) or -2 when more than outcap bytes would come out.
  * Build: wasm/build.sh, then wasm/embed.py. */
 typedef unsigned char u8; typedef unsigned short u16; typedef unsigned int u32; typedef unsigned long long u64;
+#ifndef NO_MEMFNS   /* defined when linked into xlsx.wasm, which has its own */
 void *memset(void *d, int c, unsigned long n) __attribute__((optnone));
 void *memset(void *d, int c, unsigned long n) { u8 *p = d; while (n--) *p++ = (u8)c; return d; }
 void *memcpy(void *d, const void *s, unsigned long n) __attribute__((optnone));
 void *memcpy(void *d, const void *s, unsigned long n) { u8 *p = d; const u8 *q = s; while (n--) *p++ = *q++; return d; }
+#endif
 
 /* table entry: [31:16] value, [15:13] kind, [12:8] extra bits (or second-level table bits), [7:0] code bits to drop */
 #define K_LIT 1u
