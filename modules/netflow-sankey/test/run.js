@@ -280,4 +280,14 @@ t('default colors: the 12 color-blind-safe group colors of netflow-scene, so 12 
   const svg = RL.toSvg(links), fills = new Set((svg.match(/fill="#[0-9a-f]{6}"/g) || []).map((x) => x.slice(6, 13)));
   ['#b07aa1', '#edc948', '#8868ac', '#ff9da7', '#59a14f', '#936e59', '#5fa2ce', '#c84d4f', '#86bc86', '#4e79a7', '#76b7b2', '#f28e2b'].forEach((c) => ok(fills.has(c), 'color ' + c + ' used'));
 });
+t('highlight (opt-in): the chosen item and its bands keep their colors, the rest fade; without it nothing changes', () => {
+  const links = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', value: 20 }, { from: 'Gifts', to: 'Fun', value: 5 }, { from: 'Gifts', to: 'Rent', value: 3 }];
+  const plain = RL.toSvg(links), hiS = RL.toSvg(links, { highlight: 'Gifts' }), none = RL.toSvg(links, { highlight: 'Nobody' });
+  ok(none === plain, 'an unknown name changes nothing');
+  ok(hiS !== plain, 'a known name changes the picture');
+  const R = RL.layoutFlows({ links }), wi = R.nodes.findIndex((n) => n.id === 'Wages'), gi = R.nodes.findIndex((n) => n.id === 'Gifts');
+  const P12 = ['#b07aa1', '#edc948', '#8868ac', '#ff9da7', '#59a14f', '#936e59', '#5fa2ce', '#c84d4f', '#86bc86', '#4e79a7', '#76b7b2', '#f28e2b'];
+  ok(hiS.indexOf('fill="' + P12[gi] + '"') > 0, 'the highlighted item keeps its color');
+  ok(hiS.indexOf('fill="' + P12[wi] + '"') < 0, 'an item that does not touch it fades');
+});
 console.log(bad ? 'netflow-sankey: ' + bad + ' FAILED' : 'netflow-sankey: all passed'); process.exit(bad ? 1 : 0);
