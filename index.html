@@ -31,17 +31,17 @@
 :root{
   --bg:#ffffff; --fg:#1b2433; --muted:#566277; --soft:#f1f4f9; --line:#dde3ee;
   --hero:#0f2a47; --hero-fg:#f3f7fc; --hero-muted:#a9bdd6;
-  --accent:#1f7ae0; --accent-fg:#ffffff; --good:#1e9e6a; --bar-other:#9aa7bb; --code-bg:#0f1b2d; --code-fg:#dbe7f7;
+  --accent:#1f7ae0; --hi:#1f6fd0; --accent-fg:#ffffff; --good:#1e9e6a; --bar-other:#9aa7bb; --code-bg:#0f1b2d; --code-fg:#dbe7f7;
   --display:'Segoe UI',system-ui,sans-serif;
   --body:'Segoe UI',system-ui,sans-serif;
   --mono:ui-monospace,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0b1522; --fg:#e4ebf5; --muted:#9db0c8; --soft:#13233a; --line:#25364f;
-  --hero:#08111d; --accent:#4c9bf5; --good:#3fc98f; --bar-other:#5d6c85; --code-bg:#050c16; color-scheme:dark}}
+  --hero:#08111d; --accent:#4c9bf5; --hi:#6bb0ff; --good:#3fc98f; --bar-other:#5d6c85; --code-bg:#050c16; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0b1522; --fg:#e4ebf5; --muted:#9db0c8; --soft:#13233a; --line:#25364f;
-  --hero:#08111d; --accent:#4c9bf5; --good:#3fc98f; --bar-other:#5d6c85; --code-bg:#050c16; color-scheme:dark}
+  --hero:#08111d; --accent:#4c9bf5; --hi:#6bb0ff; --good:#3fc98f; --bar-other:#5d6c85; --code-bg:#050c16; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font:17px/1.6 var(--body)}
 a{color:var(--accent)}
@@ -73,15 +73,14 @@ h2{font-size:clamp(28px,4vw,40px);font-weight:700;margin-bottom:14px}
 .tile{background:var(--soft);padding:22px;border-radius:8px;min-width:0}
 .tile h3{font-size:21px;margin-bottom:6px}
 .tile p{margin:0;color:var(--muted);font-size:16px}
-.bench{display:grid;gap:26px;margin-top:28px}
-.bench h3{font-size:19px;margin-bottom:10px}
-.row{display:grid;grid-template-columns:minmax(110px,170px) 1fr;gap:12px;align-items:center;margin-bottom:8px;font-size:15px}
-.track{background:var(--soft);border-radius:4px;height:30px;position:relative;min-width:0}
-.bar{height:100%;border-radius:4px;background:var(--bar-other);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font:600 13px var(--mono);color:#fff;min-width:max-content}
-.bar.us{background:var(--good)}
-.bar.out{overflow:visible;position:relative;min-width:6px;padding-right:0}.bar.out span{position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);white-space:nowrap;color:var(--fg);font-weight:700}
-.note{font-size:14px;color:var(--muted);margin-top:6px}
-@media (max-width:600px){.bench{gap:34px}.row{grid-template-columns:1fr;gap:5px;margin-bottom:16px}.row>span{font-size:15px;color:var(--muted)}.track{height:34px}.bar{font-size:14px;padding-right:10px}.note{font-size:15px;line-height:1.5}}
+.bench{display:grid;gap:34px;margin-top:28px}
+.eco h3{font:800 20px/1.25 var(--display);margin:0 0 4px}.eco .sub{color:var(--muted);font-size:15px;margin:0 0 14px}
+.row{display:grid;grid-template-columns:minmax(110px,190px) 1fr;gap:12px;align-items:center;margin-bottom:6px;font-size:15px}
+.track{position:relative;min-width:0;height:24px;border-left:2px solid var(--fg)}
+.bar{height:100%;background:var(--bar-other)}.bar.hi{background:var(--hi)}
+.track b{position:absolute;top:50%;transform:translateY(-50%);margin-left:8px;font:700 15px var(--body);color:var(--fg);white-space:nowrap}
+.src{font-size:14px;color:var(--muted);margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+@media (max-width:600px){.bench{gap:34px}.row{grid-template-columns:1fr;gap:5px;margin-bottom:16px}.row>span{font-size:15px;color:var(--muted)}.src{font-size:15px;line-height:1.5}.track{height:30px}}
 .code{background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:20px;overflow-x:auto;font:15px/1.6 var(--mono);margin-top:22px}
 .code .c{color:#7d93b0}.code .k{color:#7cc0ff}.code .s{color:#9fe0b4}
 .mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:26px}
@@ -181,47 +180,51 @@ footer a{margin-right:16px}
   <h2>Smaller and faster than the usual choice</h2>
   <p class="lead">Measured against the common alternative. Each chart says where it ran; both come from the module pages.</p>
   <div class="bench">
-    <div>
-      <h3>memory-compression: size of 300,000 network links (MB, lower is better)</h3>
-      <div class="row"><span>JSON text</span><div class="track"><div class="bar" style="width:100%"><span>57.3 MB</span></div></div></div>
-      <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:36.5%"><span>20.9 MB</span></div></div></div>
-      <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:34.9%"><span>20.0 MB</span></div></div></div>
-      <div class="row"><span>memory-compression</span><div class="track"><div class="bar us out" style="width:13.7%"><span>7.85 MB</span></div></div></div>
-      <p class="note">Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6. It loses on download size: about 116 KB gzipped in 2.8.2 against 11 KB for msgpackr.</p>
-    </div>
-    <div>
-      <h3>text-columns: read 200,000 CSV rows (ms, lower is better)</h3>
-      <div class="row"><span>Papa Parse, typed rows</span><div class="track"><div class="bar" style="width:100%"><span>166 ms</span></div></div></div>
-      <div class="row"><span>Papa Parse, arrays</span><div class="track"><div class="bar" style="width:51.8%"><span>86 ms</span></div></div></div>
-      <div class="row"><span>d3-dsv, arrays</span><div class="track"><div class="bar" style="width:48.2%"><span>80 ms</span></div></div></div>
-      <div class="row"><span>text-columns</span><div class="track"><div class="bar us out" style="width:31.3%"><span>52 ms</span></div></div></div>
-      <p class="note">Laptop, Firefox 160, 16 cores, text-columns 0.5.0, 2026.10.30; 6 columns, 7.9 MB. Papa Parse with typed rows takes 3.2 times as long here and 7 to 12 times as long in the cloud test browsers (Firefox 158, Chromium 155, WebKitGTK 2.52.6).</p>
-    </div>
-    <div>
-      <h3>lfc-pack: size of the library file (KB, lower is better)</h3>
-      <div class="row"><span>lfc-pack 0.4.12</span><div class="track"><div class="bar" style="width:100%"><span>789 KB</span></div></div></div>
-      <div class="row"><span>lfc-pack 0.4.13</span><div class="track"><div class="bar us out" style="width:44.7%"><span>353 KB</span></div></div></div>
-      <p class="note">The built-in WebAssembly programs are stored compressed and the browser unpacks them while it compiles them. Results are the same, and load to first result takes 3 to 11% less time (cloud test browsers, lfc-pack changelog).</p>
-    </div>
-    <div>
-      <h3>Sankey chart of 1,500 items: whole build (ms, lower is better)</h3>
-      <div class="row"><span>Chromium: d3-sankey</span><div class="track"><div class="bar" style="width:100%"><span>27 ms</span></div></div></div>
-      <div class="row"><span>Chromium: netflow-sankey</span><div class="track"><div class="bar us out" style="width:44.4%"><span>12 ms</span></div></div></div>
-      <div class="row"><span>Firefox: d3-sankey</span><div class="track"><div class="bar" style="width:85.2%"><span>23 ms</span></div></div></div>
-      <div class="row"><span>Firefox: netflow-sankey</span><div class="track"><div class="bar us out" style="width:44.4%"><span>12 ms</span></div></div></div>
-      <div class="row"><span>WebKitGTK: d3-sankey</span><div class="track"><div class="bar" style="width:92.6%"><span>25 ms</span></div></div></div>
-      <div class="row"><span>WebKitGTK: netflow-sankey</span><div class="track"><div class="bar us out" style="width:48.1%"><span>13 ms</span></div></div></div>
-      <p class="note">Netflow Map's Sankey view (netflow-sankey 2.4.0) against d3-sankey 0.12.3, same data, cloud test browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6). Also only 256 band pieces pass over a bar they do not belong to, against 1,916, and loops are drawn instead of refused. d3-sankey is faster on small charts with default settings.</p>
-    </div>
-    <div>
-      <h3>Layered map of 1,000 items: links crossing as drawn (lower is better)</h3>
-      <div class="row"><span>dagre</span><div class="track"><div class="bar" style="width:100%"><span>23,965</span></div></div></div>
-      <div class="row"><span>ELK</span><div class="track"><div class="bar" style="width:94.3%"><span>22,602</span></div></div></div>
-      <div class="row"><span>netflow-layers</span><div class="track"><div class="bar us" style="width:91%"><span>21,812</span></div></div></div>
-      <p class="note">Random map of 1,000 items and 1,900 links, Chromium 155; the same counts in Firefox and WebKitGTK. netflow-layers takes 129 ms, ELK 2.1 s and dagre 8.4 s. At 400 items the three are level.</p>
-    </div>
+    <div class="eco">
+    <h3>memory-compression makes 300,000 network links about 2.5 times smaller than msgpackr</h3>
+    <p class="sub">Size of 300,000 network links, megabytes. Lower is better.</p>
+    <div class="row"><span>JSON text</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">57.3 MB</b></div></div>
+    <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:29.2%"></div><b style="left:29.2%">20.9 MB</b></div></div>
+    <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:27.9%"></div><b style="left:27.9%">20.0 MB</b></div></div>
+    <div class="row"><span>memory-compression</span><div class="track"><div class="bar hi" style="width:11.0%"></div><b style="left:11.0%">7.85 MB</b></div></div>
+    <p class="src">Source and notes: Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6. It loses on download size: about 116 KB gzipped in 2.8.2 against 11 KB for msgpackr.</p>
   </div>
-</div></section>
+  <div class="eco">
+    <h3>text-columns reads 200,000 CSV rows 3.2 times faster than Papa Parse with typed rows</h3>
+    <p class="sub">Time to read 200,000 CSV rows, milliseconds. Lower is better.</p>
+    <div class="row"><span>Papa Parse, typed rows</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">166 ms</b></div></div>
+    <div class="row"><span>Papa Parse, arrays</span><div class="track"><div class="bar" style="width:41.4%"></div><b style="left:41.4%">86 ms</b></div></div>
+    <div class="row"><span>d3-dsv, arrays</span><div class="track"><div class="bar" style="width:38.6%"></div><b style="left:38.6%">80 ms</b></div></div>
+    <div class="row"><span>text-columns</span><div class="track"><div class="bar hi" style="width:25.0%"></div><b style="left:25.0%">52 ms</b></div></div>
+    <p class="src">Source and notes: Laptop, Firefox 160, 16 cores, text-columns 0.5.0, 2026.10.30; 6 columns, 7.9 MB. Papa Parse with typed rows takes 3.2 times as long here and 7 to 12 times as long in the cloud test browsers (Firefox 158, Chromium 155, WebKitGTK 2.52.6).</p>
+  </div>
+  <div class="eco">
+    <h3>The lfc-pack library file is now less than half its old size</h3>
+    <p class="sub">Library file size, kilobytes, version 0.4.13 against 0.4.12. Lower is better.</p>
+    <div class="row"><span>lfc-pack 0.4.12</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">789 KB</b></div></div>
+    <div class="row"><span>lfc-pack 0.4.13</span><div class="track"><div class="bar hi" style="width:35.8%"></div><b style="left:35.8%">353 KB</b></div></div>
+    <p class="src">Source and notes: The built-in WebAssembly programs are stored compressed and the browser unpacks them while it compiles them. Results are the same, and load to first result takes 3 to 11% less time (cloud test browsers, lfc-pack changelog).</p>
+  </div>
+  <div class="eco">
+    <h3>netflow-sankey builds a 1,500-item chart in about half the time of d3-sankey in all three browsers</h3>
+    <p class="sub">Time to build the whole chart, milliseconds. Lower is better.</p>
+    <div class="row"><span>Chromium: d3-sankey</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">27 ms</b></div></div>
+    <div class="row"><span>Chromium: netflow-sankey</span><div class="track"><div class="bar hi" style="width:35.5%"></div><b style="left:35.5%">12 ms</b></div></div>
+    <div class="row"><span>Firefox: d3-sankey</span><div class="track"><div class="bar" style="width:68.2%"></div><b style="left:68.2%">23 ms</b></div></div>
+    <div class="row"><span>Firefox: netflow-sankey</span><div class="track"><div class="bar hi" style="width:35.5%"></div><b style="left:35.5%">12 ms</b></div></div>
+    <div class="row"><span>WebKitGTK: d3-sankey</span><div class="track"><div class="bar" style="width:74.1%"></div><b style="left:74.1%">25 ms</b></div></div>
+    <div class="row"><span>WebKitGTK: netflow-sankey</span><div class="track"><div class="bar hi" style="width:38.5%"></div><b style="left:38.5%">13 ms</b></div></div>
+    <p class="src">Source and notes: Netflow Map's Sankey view (netflow-sankey 2.4.0) against d3-sankey 0.12.3, same data, cloud test browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6). Also only 256 band pieces pass over a bar they do not belong to, against 1,916, and loops are drawn instead of refused. d3-sankey is faster on small charts with default settings.</p>
+  </div>
+  <div class="eco">
+    <h3>netflow-layers draws a 1,000-item map with the fewest link crossings, in 129 ms against 2.1 s for ELK</h3>
+    <p class="sub">Link crossings as drawn; fewer is better.</p>
+    <div class="row"><span>dagre</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">23,965</b></div></div>
+    <div class="row"><span>ELK</span><div class="track"><div class="bar" style="width:75.4%"></div><b style="left:75.4%">22,602</b></div></div>
+    <div class="row"><span>netflow-layers</span><div class="track"><div class="bar hi" style="width:72.8%"></div><b style="left:72.8%">21,812</b></div></div>
+    <p class="src">Source and notes: Random map of 1,000 items and 1,900 links, Chromium 155; the same counts in Firefox and WebKitGTK. netflow-layers takes 129 ms, ELK 2.1 s and dagre 8.4 s. At 400 items the three are level.</p>
+  </div>
+  </div></section>
 
 <section id="gallery"><div class="wrap">
 <h2>Netflow Map gallery</h2>

@@ -2,6 +2,7 @@
 
 Compared: LFC-pack against JSON.parse and gzip (300,000 web-log rows, 32.0 MB NDJSON, ms).
 
+<!-- title: LFC-pack writes 3.2 times faster than gzip and makes a file 2.8 times smaller -->
 | form | bytes | against NDJSON |
 |---|---:|---:|
 | NDJSON text | 32,027,185 | 1.000 |
