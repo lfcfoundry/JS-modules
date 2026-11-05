@@ -2,6 +2,12 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.22 · API 0 · 2026-11-05
+- The first big read after a page opens is 3 to 34% faster for flat files with hex ids, addresses or number columns; same rows.
+
+## 0.4.21 · API 0 · 2026-11-05
+- Text columns that start with empty strings now keep them (0.4.15 to 0.4.20 dropped them in flat blocks).
+
 ## 0.4.20 · API 0 · 2026-11-05
 - The first pack after a page opens is faster, and packing holds far less memory (a 20,000-item map uses 66 MB instead of 384 MB).
 

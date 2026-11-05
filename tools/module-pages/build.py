@@ -29,8 +29,11 @@ td::before{content:attr(data-l);display:block;font:700 12px var(--lfc-mono);lett
 .wrap td:first-child{min-width:9.5em}.opts{display:grid;gap:10px;margin:1em 0}.opt{display:grid;grid-template-columns:minmax(9em,14em) 1fr;gap:4px 18px;border:1px solid var(--lfc-line);border-radius:10px;padding:10px 16px;background:var(--lfc-soft)}.opt .k{font-family:var(--lfc-mono);font-weight:700;overflow-wrap:anywhere}.opt .v p{margin:.2em 0}
 details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;margin:12px 0;background:var(--lfc-soft)}details.fold>summary{padding:12px 16px}details.fold>*:not(summary){margin-left:16px;margin-right:16px}details.fold>table,details.fold>pre{max-width:calc(100% - 32px)}details.fold[open]{padding-bottom:6px}details.fold table{margin:14px 16px}details.more{border:0;background:none;margin:2px 0}details.more>summary{padding:2px 0;font-size:.92em}summary{cursor:pointer;font-weight:700;list-style-position:inside}
 @media(max-width:700px){.opt{grid-template-columns:1fr}}
-.chart{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px 28px;margin:14px 0}.cg{min-width:0}.ct{font:700 12px var(--lfc-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--lfc-muted,#6b7a8c);margin-bottom:6px}.cr{display:grid;grid-template-columns:minmax(110px,40%) 1fr;gap:10px;align-items:center;margin:5px 0;font-size:15px}.cl{overflow-wrap:anywhere}:root{--cb:#9aa7bb;--cg:#1e9e6a}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--cb:#5d6c85;--cg:#3fc98f}}:root[data-theme="dark"]{--cb:#5d6c85;--cg:#3fc98f}.ctk{display:block;height:30px;border-radius:4px;background:var(--lfc-soft)}.ctk i{box-sizing:border-box;height:100%;background:var(--cb);border-radius:4px}.ctk i{display:flex;align-items:center;justify-content:flex-end;padding-right:8px;min-width:max-content;position:relative}.ctk i b{font:600 13px var(--lfc-mono);color:#fff}.ctk i.good{background:var(--cg)}.ctk i.out{min-width:6px;padding-right:0}.ctk i.out b{position:absolute;left:calc(100% + 10px);color:var(--lfc-fg);white-space:nowrap}details .ctk{background:var(--lfc-bg)}
-@media(max-width:700px){.chart{grid-template-columns:1fr}.cr{grid-template-columns:1fr;gap:3px}.ctk{height:34px}}
+.et{font:800 20px/1.3 var(--lfc-font);margin:14px 0 0}.chart{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px 34px;margin:16px 0}.cg{min-width:0}.ct{font:800 17px/1.25 var(--lfc-font);margin:0 0 2px}.cs{color:var(--lfc-muted);font-size:14px;margin:0 0 10px}.cr{display:grid;grid-template-columns:minmax(110px,40%) 1fr;gap:10px;align-items:center;margin:4px 0;font-size:15px}.cl{overflow-wrap:anywhere}
+:root{--cb:#9aa7bb}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--cb:#5d6c85}}:root[data-theme="dark"]{--cb:#5d6c85}
+.ctk{display:block;position:relative;height:24px;border-left:2px solid var(--lfc-fg)}.ctk i{display:block;height:100%;background:var(--cb)}.ctk i.hi{background:var(--lfc-accent)}.ctk b{position:absolute;top:50%;transform:translateY(-50%);margin-left:8px;font:700 15px var(--lfc-font);color:var(--lfc-fg);white-space:nowrap}
+.src{font-size:14px;color:var(--lfc-muted);border-top:1px solid var(--lfc-line);padding-top:8px;margin-top:12px}
+@media(max-width:700px){.chart{grid-template-columns:1fr}.cr{grid-template-columns:1fr;gap:3px}.ctk{height:28px}}
 .ph{border:2px dashed var(--lfc-line);border-radius:10px;padding:10px 14px;background:var(--lfc-soft)}.mod{border-top:2px solid var(--lfc-line);margin-top:40px}
 """
 def esc(s): return html.escape(s, quote=False)
@@ -54,7 +57,8 @@ def numval(c):
     if not m: return None
     try: return float(m.group(1).replace(',', ''))
     except ValueError: return None
-def chart(hs, rows, base):
+HI = ''
+def chart(hs, rows, base, headline=''):
     # Turn a small all-number table into labeled bars, one bar group per number column.
     if not rows or len(rows) > 12 or len(hs) < 2 or len(hs) > 8: return ''
     cols = list(range(1, len(hs)))
@@ -73,23 +77,26 @@ def chart(hs, rows, base):
     out = '<div class="chart">'
     for first, ns in groups:
         mx = max(vals[r][n] for r in range(len(rows)) for n in ns) or 1
+        sc = max(0.5, 0.9 - 0.035 * max(len(rows[r][cols[n]]) for r in range(len(rows)) for n in ns))
         title = re.sub(r'[`*]', '', hs[cols[ns[0]]]) if len(ns) == 1 else re.sub(r'[`*]', '', hs[cols[ns[0]]]).split()[0]
         low = bool(re.search(r'\b(ms|bytes?|size|time|pack|unpack|read|write|open|ratio|against|kb|mb|memory|heap)\b', ' '.join(re.sub(r'[`*]', '', hs[cols[n]]).lower() for n in ns)))
-        best = min(vals[r][n] for r in range(len(rows)) for n in ns) if low else None
-        out += '<div class="cg"><div class="ct">%s%s</div>' % (esc(title), ' (lower is better)' if low else '')
+        out += '<div class="cg"><div class="ct">%s</div>%s' % (esc(title[:1].upper() + title[1:]), '<div class="cs">Lower is better.</div>' if low else '')
         for r, v in zip(rows, vals):
             for n in ns:
                 k = cols[n]
-                tag = ' · ' + re.sub(r'[`*]', '', hs[k]).split(None, 1)[1] if len(ns) > 1 and len(hs[k].split()) > 1 else ''
-                w = max(v[n] / mx * 100, 0.8)
-                good = bool(low and v[n] == best and len(rows) * len(ns) > 1)
-                out += '<div class="cr"><span class="cl">%s%s</span><span class="ctk"><i%s style="width:%.1f%%"><b>%s</b></i></span></div>' % (inline(r[0], base), esc(tag), (' class="good%s"' % (' out' if w < 28 else '')) if good else (' class="out"' if w < 28 else ''), w, esc(r[k].replace('`', '')))
+                tag = ' \u00b7 ' + re.sub(r'[`*]', '', hs[k]).split(None, 1)[1] if len(ns) > 1 and len(hs[k].split()) > 1 else ''
+                w = max(v[n] / mx * sc * 100, 0.8)
+                hi = ' hi' if HI and re.sub(r'[\W_]+', '', re.sub(r'[`*]', '', r[0]).lower()).startswith(HI) else ''
+                out += '<div class="cr"><span class="cl">%s%s</span><span class="ctk"><i class="%s" style="width:%.1f%%"></i><b style="left:%.1f%%">%s</b></span></div>' % (inline(r[0], base), esc(tag), hi.strip(), w, w, esc(r[k].replace('`', '')))
         out += '</div>'
-    return out + '</div>'
+    out += '</div>'
+    return ('<div class="et">%s</div>' % esc(headline) + out) if headline else out
 def md(text, base):
-    out, lines, i = [], text.split('\n'), 0
+    out, lines, i, pend = [], text.split('\n'), 0, ''
     while i < len(lines):
         l = lines[i]
+        mt = re.match(r'^<!-- title: (.*) -->$', l)
+        if mt: pend = mt.group(1); i += 1; continue
         if l.startswith('```'):
             j = i + 1; code = []
             while j < len(lines) and not lines[j].startswith('```'): code.append(lines[j]); j += 1
@@ -101,7 +108,7 @@ def md(text, base):
             cells = lambda r: [c.strip().replace('\\|', '|') for c in re.split(r'(?<!\\)\|', r.strip().strip('|'))]
             hs = cells(rows[0])
             body_rows = [cells(r) for r in rows[2:]]
-            ch = chart(hs, body_rows, base)
+            ch = chart(hs, body_rows, base, pend); pend = ''
             if ch: out.append(ch); i = j; continue
             if any(len(c) > 200 for r in body_rows for c in r) and len(hs) == 2:
                 o = '<div class="opts">'
@@ -141,7 +148,9 @@ def fold(h, first_open=True):
         if not m: out.append(c); continue
         t = re.sub(r'<[^>]+>', '', m.group(1)).rstrip('.:')
         rest = ('<p>%s</p>' % m.group(2).strip()) if m.group(2).strip() else ''
-        out.append('<details class="fold"%s><summary>%s</summary>%s%s</details>' % (' open' if n == 0 and first_open else '', t, rest, m.group(3)))
+        inner = rest + m.group(3)
+        if '<div class="chart">' in inner: inner += '<p class="src">Source: %s.</p>' % t
+        out.append('<details class="fold"%s><summary>%s</summary>%s</details>' % (' open' if n == 0 and first_open else '', t, inner))
     return '\n'.join(out)
 def sections(readme):
     parts = re.split(r'^## ', readme, flags=re.M)
@@ -163,7 +172,8 @@ def pick(secs, order, keys):
         if any(t.startswith(k) or k in t for k in keys): got.append(t)
     return got
 def module_html(m, base_mods):
-    mid = m['id']; folder = m.get('folder') or os.path.dirname(m['readme'])
+    global HI
+    mid = m['id']; HI = re.sub(r'[\W_]+', '', mid.lower()); folder = m.get('folder') or os.path.dirname(m['readme'])
     readme = open(os.path.join(root, m['readme']), encoding='utf-8').read()
     head, secs, order = sections(readme)
     intro = [p for p in head.split('\n\n') if p.strip() and not p.startswith('#') and not p.startswith('**Version') and not p.startswith('**Tested') and not p.startswith('Part of')]

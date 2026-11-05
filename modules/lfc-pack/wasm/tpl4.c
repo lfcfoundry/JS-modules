@@ -2,7 +2,7 @@
 // No libc, no static buffers: the caller lays every array out in linear memory and passes the pointers (memory sized from the frame lengths).
 // Layout of the frames is that of lfc-pack 0.1.1 (see untemplate in lfc-pack.js): templates joined by 0 with slot marker 1; ids as little-endian u16 stored as n low bytes then n high bytes;
 // numeric slots as zigzag delta varints, text slots joined by 10 inside a slot and by 0 between slots; kinds[j] = 1 numeric, 0 text, slots numbered in first-use order.
-// Build: sh build.sh (clang --target=wasm32, see build.sh).
+// Build: sh build-flatscan.sh (clang 18.1.3 --target=wasm32; reproduces the committed binaries byte for byte).
 typedef unsigned char u8; typedef unsigned int u32; typedef long long i64; typedef unsigned long long u64;
 #define EXPORT(n) __attribute__((export_name(n)))
 static inline void cpy(u8*d,const u8*s,u32 n){ if(n>=32){ __builtin_memcpy(d,s,n); return; } for(u32 i=0;i<n;i++) d[i]=s[i]; }
