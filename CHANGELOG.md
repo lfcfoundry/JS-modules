@@ -39,7 +39,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-engine](modules/netflow-engine/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.11.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.12.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.7.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.1 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
@@ -71,6 +71,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **netflow-sankey** 2.6.1 · API 2: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
 - 2026-11-05 · **netflow-plot** 2.7.0 · API 2: Line charts follow the clean look: no number axis or gridlines, first and last values on each line.
 - 2026-11-05 · **netflow-plot** 2.6.0 · API 2: Line charts name each line at its end instead of in a key row, crowded bar names show on two rows instead of every other name, years print as 2015, not 2,015, and a highlight keeps the other series faint in their own colors instead of gray.
+- 2026-11-05 · **netflow-layers** 1.12.0 · API 1: Opt-in highlight: one box and its links keep their colors, the rest fade.
 - 2026-11-05 · **netflow-layers** 1.11.0 · API 1: Flow charts can take a title, subtitle and source line (opt-in), drawn the same way as in the other chart modules.
 - 2026-11-05 · **netflow-layers** 1.10.1 · API 1: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
 - 2026-11-05 · **netflow-hierarchy** 1.4.0 · API 1: Names on treemaps and circle packs read on the colors actually drawn; group boxes get a name strip and their items' color.

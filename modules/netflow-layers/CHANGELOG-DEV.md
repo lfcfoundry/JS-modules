@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.12.0 · API 1 · 2026-11-05
+
+### Quick
+toSvg takes highlight (an id or label): that box gets a stronger edge, it and the links touching it keep their colors, and other boxes and links fade 60% toward the background (o.background, default white).
+
+### Deep
+toSvg takes highlight (an id or label): that box gets a stronger edge, it and the links touching it keep their colors, and other boxes and links fade 60% toward the background (o.background, default white). Names stay in full ink. Same option word as netflow-plot and netflow-sankey. Without it the SVG is byte for byte the same.
+
 ## 1.11.0 · API 1 · 2026-11-05
 
 ### Quick
