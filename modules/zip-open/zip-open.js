@@ -221,12 +221,12 @@
   /* A second thread for big sheets (since 1.17.0): it unpacks the compressed sheet a piece at a time with the same
      wasm module and hands each piece over, while this thread reads the rows of the pieces already here. Started the
      first time a big sheet comes, closed 5 s after the last one (which also gives its memory back). */
-  var MORE_ROWS = -9, PIPE_MIN = 4194304, PIPE_CHUNK = 524288, PIPE = null, pipeTimer = 0, pipeSpawn = null, pipeNext = 1;
+  var MORE_ROWS = -9, PIPED = 0, PIPE_MIN = 4194304, PIPE_CHUNK = 524288, PIPE = null, pipeTimer = 0, pipeSpawn = null, pipeNext = 1;
   function pipeBody() {
     var X = null, mod = null;
     onmessage = function (ev) {
       var m = ev.data, H, ip, op, need, have, prev = 0, o, c, done;
-      if (m.mod) { mod = m.mod; return; }
+      if (m.mod) { mod = m.mod; postMessage({ ready: 1 }); return; }
       try {
         if (!X) X = new WebAssembly.Instance(mod, {}).exports;
         H = (X.__heap_base.value + 15) & ~15; ip = H; op = (H + m.src.byteLength + 15) & ~15; need = op + m.cap; have = X.memory.buffer.byteLength;
@@ -253,7 +253,7 @@
       if (pipeSpawn) w = pipeSpawn(code);
       else { var url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' })); w = new Worker(url); URL.revokeObjectURL(url); }
       PIPE = { w: w, jobs: {} };
-      w.onmessage = function (ev) { var m = ev.data, j = PIPE && PIPE.jobs[m.id]; if (j) j(m); };
+      w.onmessage = function (ev) { var m = ev.data, j; if (m.ready) { if (PIPE) PIPE.ready = true; return; } j = PIPE && PIPE.jobs[m.id]; if (j) j(m); };
       w.onerror = function (ev) { var jobs = PIPE ? PIPE.jobs : {}; PIPE = null; Object.keys(jobs).forEach(function (id) { jobs[id]({ err: -3 }); }); if (ev && ev.preventDefault) ev.preventDefault(); try { w.terminate(); } catch (e) { /* gone */ } };
       w.postMessage({ mod: xlsxModule() });
     }
@@ -507,7 +507,7 @@
       }).then(function (got) {
         if (got.err || got.n !== xbn || got.crc !== pp.crc) { parts[key] = { bad: '' }; parts[key].bad = got.err === -2 ? 'unpacks to more than it says it does' : 'looks damaged' + (got.err ? '' : got.n !== xbn ? ' (its size is not what the zip says)' : ' (its checksum does not match)'); return; }
         PLACED++;
-        if (live && began && r >= 0) { sheetOut(sh, r, shPos, outPos, fixPos); return; }
+        if (live && began && r >= 0) { PIPED++; sheetOut(sh, r, shPos, outPos, fixPos); return; }
         parts[key] = { wasmAt: shPos, len: xbn }; return doSheet(sh, si);
       });
     };
@@ -1035,7 +1035,9 @@
     if (src.place && xlsxModule()) for (j = 0; j < entries.length; j++) if (/^xl\/worksheets\/[^\/]+\.xml$/i.test(entries[j].path) && entries[j].usize >= PLACE_MIN && (!big || entries[j].usize > big.usize)) big = entries[j];
     if (big) { try { W = takeInstance(); from = W.__heap_base.value; } catch (err) { W = big = null; } }
     var piped = null;   // a big sheet: unpacked on a second thread, started now so it runs while the other parts are read, and its rows are read as the pieces come (xlsxSheets)
-    if (big && src.raw && big.method === 8 && !(big.flags & 1) && big.usize >= PIPE_MIN && big.usize <= Math.min(lim.maxPartBytes, lim.maxTotalBytes - total) && pipeOn()) {
+    var warmNow = big && big.usize >= PIPE_MIN && pipeOn() && !(PIPE && PIPE.ready);
+    if (warmNow && !PIPE && typeof setTimeout === 'function') setTimeout(function () { try { pipeWorker(); pipeIdle(); } catch (err) { /* none */ } }, 0);   // started after this open, so starting it costs this one nothing   // the thread is still starting (that costs more than it saves now): this sheet the usual way, the next one on two threads
+    if (big && !warmNow && src.raw && big.method === 8 && !(big.flags & 1) && big.usize >= PIPE_MIN && big.usize <= Math.min(lim.maxPartBytes, lim.maxTotalBytes - total) && pipeOn()) {
       var raw = src.raw(big);
       if (raw) { parts[big.path.replace(/^xl\/worksheets\//i, 'xl/worksheets/')] = { pipe: pipeStart(raw, big.usize), wasmAt: from, len: big.usize, crc: big.crc }; from += big.usize; total += big.usize; piped = big; }
     }
@@ -1089,5 +1091,5 @@
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
   compileEarly();
-  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, _xlsxPlain: xlsxPlain, _placed: function () { return PLACED; }, _xlsxSimd: function () { xlsxModule(); return XSIMD; }, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n === undefined ? INFLATE_DEF : n; }, _pipe: function (spawn, min) { pipeSpawn = spawn || null; PIPE_MIN = min === undefined ? 4194304 : min; if (PIPE) { try { PIPE.w.terminate(); } catch (e) { /* gone */ } PIPE = null; } }, LIMITS: LIMITS };
+  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, _xlsxPlain: xlsxPlain, _placed: function () { return PLACED; }, _xlsxSimd: function () { xlsxModule(); return XSIMD; }, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n === undefined ? INFLATE_DEF : n; }, _piped: function () { return PIPED; }, _pipe: function (spawn, min) { pipeSpawn = spawn || null; PIPE_MIN = min === undefined ? 4194304 : min; if (PIPE) { try { PIPE.w.terminate(); } catch (e) { /* gone */ } PIPE = null; } }, LIMITS: LIMITS };
 }));

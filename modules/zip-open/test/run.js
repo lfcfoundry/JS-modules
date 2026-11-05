@@ -594,14 +594,21 @@ t('Excel: a big sheet unpacked on a second thread while its rows are read gives 
   };
   var rows = [['id', 'name', 'when', 'n']]; for (var i = 0; i < 30000; i++) rows.push([i, 'name ' + (i % 997) + (i % 11 ? '' : ' & co'), { d: 44000 + (i % 3000) }, i * 1.25]);
   var x = u8(Z.makeXlsx([{ name: 'Big', rows: rows }, { name: 'Small', rows: [['a', 'b'], ['1', '2']] }])), want = await U.expand(x, 'b.xlsx'), got, p0 = U._placed();
-  U._pipe(spawn, 1024);
-  try { got = await U.expand(x, 'b.xlsx'); } finally { U._pipe(); }
-  assert.equal(spawned, 1, 'a second thread was used'); assert.ok(U._placed() > p0);
+  U._pipe(spawn, 1024); var q0 = U._piped(), first;
+  try {
+    first = await U.expand(x, 'b.xlsx');   // no thread yet: this one the usual way, and the thread starts right after it
+    assert.equal(U._piped(), q0, 'not used while it starts');
+    await new Promise(function (r) { setTimeout(r, 300); });
+    assert.equal(spawned, 1, 'the second thread was started');
+    got = await U.expand(x, 'b.xlsx');
+  } finally { U._pipe(); }
+  assert.equal(U._piped(), q0 + 1, 'the rows were read as the second thread unpacked them'); assert.ok(U._placed() > p0);
+  assert.deepStrictEqual(first, want);
   assert.deepStrictEqual(got, want);
   var ents = U.list(x).entries, e = ents.filter(function (q) { return /sheet1\.xml$/.test(q.path); })[0], bad = x.slice();
   bad[e.start + 30 + e.path.length + 300] ^= 0x55;
   U._pipe(spawn, 1024);
-  try { got = await U.expand(bad, 'b.xlsx'); } finally { U._pipe(); }
+  try { await U.expand(x, 'b.xlsx'); await new Promise(function (r) { setTimeout(r, 300); }); got = await U.expand(bad, 'b.xlsx'); } finally { U._pipe(); }
   assert.ok(got.notes.some(function (n) { return /sheet1\.xml.*(damaged|more than)/.test(n); }), JSON.stringify(got.notes));
   assert.equal(got.files.length, 1, 'only the small sheet');
 });
