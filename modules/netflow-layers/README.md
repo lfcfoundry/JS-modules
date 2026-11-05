@@ -1,14 +1,14 @@
 # netflow-layers
 
-**Version 1.10.0 · API 1**
+**Version 1.11.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Node module checks (new title test); off by default, so pictures without the options are byte-identical
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
 ## What it is and how it works
 
-Lays out a graph in rows (a layered drawing), top to bottom or left to right. It is the layered engine behind Netflow Map's Flow, Top-down, Spine, Lanes, Arc and Matrix views. 21.9 KB gzipped (16.3 KB minified and gzipped).
+Lays out a graph in rows (a layered drawing), top to bottom or left to right. It is the layered engine behind Netflow Map's Flow, Top-down, Spine, Lanes, Arc and Matrix views. 22.3 KB gzipped (16.5 KB minified and gzipped).
 
 - Each page goes in a row, by fewest steps from the start or in story order.
 - Pages in each row are reordered to cut crossings, then placed.
@@ -78,7 +78,7 @@ Returns `{ nodes, edges, pos, order, lanes, width, height, crossings, rows, rule
 - `edges`: yours with `kind` (`fwd`, `back`, `flat` = same row, `self`, `tag`) and `pts` (the stand-in stops of a long link, each `[x, y]`). A `tag` has `tagFwd` (true when it goes on down the page) and no `pts`.
 - `info`: `{ rows, columns, stops, back, flat, tags, goldTags, rowMode }`. `ruler`: for each row `{ at, edge }` (where to write "step 12" and where its column starts).
 
-`toSvg(result, colors)` draws boxes, curves and tag chips as a plain SVG string (text is escaped); `taper: true` draws forward links as shapes that narrow from 5 px to 1 px, so direction shows without arrowheads.
+`toSvg(result, colors)` draws boxes, curves and tag chips as a plain SVG string (text is escaped); `title`, `subtitle` and `source` (the same words as in every chart module) draw a bold title and a lighter subtitle above the chart and a small source line below it, without changing the chart itself; `taper: true` draws forward links as shapes that narrow from 5 px to 1 px, so direction shows without arrowheads.
 
 ## WebAssembly (1.5.0)
 The row-order search (crossing counts, sweeps, neighbor swaps) and the row placement run in WebAssembly, built from `wasm/order.c` (`sh wasm/build.sh`, then `python3 wasm/embed.py` puts the 10,909 bytes into `netflow-layers.js` as base64). A page needs only `'wasm-unsafe-eval'` in `script-src`; nothing is fetched. The pictures are the same to the last digit as the plain JavaScript, which stays in the file as the fallback (no WebAssembly, blocked by the page rule, a map under 100 stops, or a failed call). `NetflowLayers.wasm` is `{ on, min, calls, error }`: set `on = false` to force JavaScript, `min` to change the 100-stop limit, read `calls` and `error` to see what happened. Measured in ungoogled Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 5,000 pages (lower is better): 37.7 to 26.9, 55 to 41 and 53 to 43 ms with wasm off and on; 1,000 pages 6.65 to 4.8, 10 to 8 and 8.5 to 7 ms. The first map of 100 stops or more compiles the module once (about 4 ms in WebKitGTK, under 1 ms in Chromium).
@@ -92,7 +92,7 @@ A small layered-graph drawer. It does less than ELK, and adds switches aimed at 
 | ELK layered ([elkjs](https://github.com/kieler/elkjs) 0.12.1, EPL-2.0 or GPL-3.0-or-later) | 1,502,625 bytes minified, 439,741 gzipped (`elk.bundled.js`, the layout code in one file; the API file alone is 4,365 bytes with the layout code in a separate worker file) | ELK wins on routing (polyline, orthogonal, spline), edge bundling, wrapping, network-simplex rows, Brandes-Koepf placement and over 140 options. Crossings with default options since 1.8.0, the same as `deep: true`: 4 to 6% fewer than ELK (5,103 against 5,313 at 400 items, 21,166 against 22,602 at 1,000). The old default (`deep: false, rows: "route"`) draws about 50% more (7,950 and 33,763). |
 | [dagre](https://github.com/dagrejs/dagre) 0.8.5 (MIT) | 101,693 bytes minified, 27,772 gzipped (whole `dagre.js`, terser 5.51.2 `-c passes=2 -m`) | The long-standing layered layout for boxes and arrows. dagre draws 5,374 crossings at 400 items and 23,965 at 1,000. The old default here (`deep: false, rows: "route"`) draws 41 to 48% more; default options since 1.8.0 draw 5 to 12% fewer (5,103 and 21,166), in about 34 to 38 and 112 to 118 ms in 3 cloud browsers against dagre's 0.8 s and 7.2 s; `deep: true` draws the same in about 44 to 51 and 114 to 122 ms. This module is about a third of its size |
 | [d3-dag](https://github.com/erikbrinkman/d3-dag) 1.2.2 (MIT) | 137,471 bytes minified, 42,115 gzipped (the published `d3-dag.iife.min.js`, minified again) | Not compared here on speed or crossings; its "fast" quality level is the class this module is in |
-| d3-sankey (BSD-3-Clause, 0.12.3), a different tool for weighted flows | 5.7 KB minified, 2.0 KB gzipped (this module: 63,255 bytes readable, 21.9 KB gzipped; 16.3 KB minified and gzipped) | No loops in d3-sankey; this engine handles them. Fewer crossings (see below). In the race below it is faster in WebKitGTK at 1,500 items and slower elsewhere. |
+| d3-sankey (BSD-3-Clause, 0.12.3), a different tool for weighted flows | 5.7 KB minified, 2.0 KB gzipped (this module: 64,464 bytes readable, 22.3 KB gzipped; 16.5 KB minified and gzipped) | No loops in d3-sankey; this engine handles them. Fewer crossings (see below). In the race below it is faster in WebKitGTK at 1,500 items and slower elsewhere. |
 
 **The one race on file** (1,500 items and 2,283 links, lower is better, ms; Netflow Map's Flow view built on this engine, then on d3-sankey; the whole app build with extra work such as must-pass pages, scores and loops, so it was not run on this module alone): ungoogled Chromium 155 30 against 21, Firefox 158 80 against 74, WebKitGTK 2.52.6 25 against 146 22 against 78. In Chromium 155 it was slower at all three sizes (28, 20 and 30 ms against 5.4, 7.8 and 21 ms at 100, 400 and 1,500 items), and slower than d3-sankey at 100 items in all three browsers.
 

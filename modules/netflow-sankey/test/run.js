@@ -95,9 +95,11 @@ t('an empty or one-link input does not throw', () => {
 });
 // ---- netflow-sankey 2.0.0 is faster but must draw exactly what version 1.0.0 (the old name) drew: these hashes were made by that version (layout without the timing and without the 2.2.0 fields simplified and note, then the SVG text) ----
 const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
-const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' || k === 'simplified' || k === 'note' ? undefined : v)) + ' ' + fnv(RL.toSvg(R)) + ' ' + fnv(oldTitle(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 }), R)); };
+const OLD8 = ['#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2', '#edc948', '#b07aa1', '#9c755f'];   /* the colors before 2.7.0, so the 1.0.0 pins still pin the layout */
+const oldFont = (svg) => svg.replace('font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif"', 'font-family="system-ui,sans-serif"');   /* pictures pinned before the one shared font list (2.6.1) */
+const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' || k === 'simplified' || k === 'note' ? undefined : v)) + ' ' + fnv(oldFont(RL.toSvg(R, { colors: OLD8 }))) + ' ' + fnv(oldTitle(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 }), R)); };
 /* since 2.5.0 the title is also drawn above the picture; taking that block off must give back exactly what 1.0.0 drew */
-const oldTitle = (svg, R) => { const h = String(+R.height.toFixed(2)), m = /<text x="14" y="34" font-size="20" font-weight="700"[^>]*>[^<]*<\/text><g transform="translate\(0 48\.4\)">/; if (!m.test(svg) || !svg.endsWith('</g></svg>')) return 'no title block'; return svg.replace(m, '').replace(/<\/g><\/svg>$/, '</svg>').replace(/viewBox="0 0 ([\d.]+) [\d.]+" width="([\d.]+)" height="[\d.]+"/, (a, w, w2) => 'viewBox="0 0 ' + w + ' ' + h + '" width="' + w2 + '" height="' + h + '"'); };
+const oldTitle = (svg, R) => { const h = String(+R.height.toFixed(2)), m = /<text x="14" y="34" font-size="20" font-weight="700"[^>]*>[^<]*<\/text><g transform="translate\(0 48\.4\)">/; if (!m.test(svg) || !svg.endsWith('</g></svg>')) return 'no title block'; return svg.replace('font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif"', 'font-family="system-ui,sans-serif"').replace(m, '').replace(/<\/g><\/svg>$/, '</svg>').replace(/viewBox="0 0 ([\d.]+) [\d.]+" width="([\d.]+)" height="[\d.]+"/, (a, w, w2) => 'viewBox="0 0 ' + w + ' ' + h + '" width="' + w2 + '" height="' + h + '"'); };
 const PIN = {
   'a 7x10 network with 3 loops': '89c38031 c261bece 7570244e',
   'the same with plain (unweighted) order': '71efb5d1 66a8d0c2 4d247fa9',
@@ -120,7 +122,8 @@ t('hand edits keep the order (fixedOrder) and pinned bars (fixY) exactly as befo
   ok(JSON.stringify(R1.order.layers) === JSON.stringify(R0.order.layers), 'order kept');
   const R2 = RL.layoutFlows(net(), { budgetMs: 1e9, fixedOrder: R0.order, fixY: { 'S2 i3': 120, 'S4 i1': 40 } });
   ok(R2.nodes.find((n) => n.id === 'S2 i3').y === 120 && R2.nodes.find((n) => n.id === 'S4 i1').pinned, 'pinned bars sit where they were put');
-  ok(fnv(RL.toSvg(R1)) + ' ' + fnv(RL.toSvg(R2)) === 'a387c988 4ef018d2', 'svg ' + fnv(RL.toSvg(R1)) + ' ' + fnv(RL.toSvg(R2)));
+  const sv = (R) => RL.toSvg(R, { colors: OLD8 }).replace('font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif"', 'font-family="system-ui,sans-serif"');   /* pinned before the one shared font list (2.6.1) */
+  ok(fnv(sv(R1)) + ' ' + fnv(sv(R2)) === 'a387c988 4ef018d2', 'svg ' + fnv(sv(R1)) + ' ' + fnv(sv(R2)));
 });
 t('an item named like a stand-in bar ("d1") with a long link: its bands stack without overlapping', () => {
   // version 1.0.0 mixed up the band ends of such an item with its own stand-in bar and started a band in the wrong place
@@ -271,5 +274,10 @@ t('stopCap: off by default; maps under stopCapFrom items keep every stand-in; ab
   ok(c.simplified > d.simplified, 'stopCap did not draw more links straight: ' + d.simplified + ' vs ' + c.simplified);
   ok(c.nodes.every((n) => isFinite(n.x) && isFinite(n.y) && isFinite(n.h)), 'not finite');
   ok(strip(RL.layoutFlows(g, { stopCap: 50, stopCapFrom: 5000 })) === strip(RL.layoutFlows(g, {})), 'stopCapFrom did not hold it off');
+});
+t('default colors: the 12 color-blind-safe group colors of netflow-scene, so 12 sources never share a color', () => {
+  const links = []; for (let k = 0; k < 12; k++) links.push({ from: 'Source ' + k, to: 'Sink', value: 1 + k });
+  const svg = RL.toSvg(links), fills = new Set((svg.match(/fill="#[0-9a-f]{6}"/g) || []).map((x) => x.slice(6, 13)));
+  ['#b07aa1', '#edc948', '#8868ac', '#ff9da7', '#59a14f', '#936e59', '#5fa2ce', '#c84d4f', '#86bc86', '#4e79a7', '#76b7b2', '#f28e2b'].forEach((c) => ok(fills.has(c), 'color ' + c + ' used'));
 });
 console.log(bad ? 'netflow-sankey: ' + bad + ' FAILED' : 'netflow-sankey: all passed'); process.exit(bad ? 1 : 0);

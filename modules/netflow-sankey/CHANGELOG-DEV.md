@@ -2,6 +2,22 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.7.0 · API 2 · 2026-11-05
+
+### Quick
+Economist checklist item 6 (card 2026.11.05): PALETTE was 8 colors (old red, brown, purple, Tableau order), so the 9th part repeated the 1st.
+
+### Deep
+Economist checklist item 6 (card 2026.11.05): PALETTE was 8 colors (old red, brown, purple, Tableau order), so the 9th part repeated the 1st. Now the 12 light group colors of netflow-scene 1.5.0 in the same order (no neighbors collapse for red-green color-blind eyes). opts.colors still overrides. The 1.0.0 picture pins pass the old 8 colors so they keep pinning the layout.
+
+## 2.6.1 · API 2 · 2026-11-05
+
+### Quick
+One explicit font list, approved by the owner 11.01 (DECISIONS-AND-HANDOFF item).
+
+### Deep
+One explicit font list, approved by the owner 11.01 (DECISIONS-AND-HANDOFF item). SVG font-family is now Inter, 'Segoe UI', Roboto, system-ui, sans-serif in netflow-scene (also the look editor's Standard family), netflow-sankey and netflow-layers; plot, hierarchy and circular draw through netflow-scene. Cloud browsers resolve both old and new lists to Inter: text widths identical in all three. Machines with Inter installed now match across browsers; Windows keeps Segoe UI.
+
 ## 2.6.0 · API 2 · 2026-11-01
 
 ### Quick

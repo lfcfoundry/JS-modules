@@ -1,5 +1,13 @@
 # netflow-plot developer changelog
 
+## 2.6.0 · API 2 · 2026-11-05
+
+### Quick
+Economist checklist item 4a and the owner's no-dropped-labels rule (card 2026.11.05).
+
+### Deep
+Economist checklist item 4a and the owner's no-dropped-labels rule (card 2026.11.05). Clean look only (clean: false keeps the old look): line charts with a color column and up to 10 lines get bold names at the right end of each line, moved 13 px apart and inside the chart, in the line color mixed toward the text color until it reads at 4.5:1; room is kept on the right; more than 10 lines bring the key row back. Band axes that would drop every other name show all names on two staggered rows with a short tick; the axis name is left out when there is no room under them. Number axes over whole numbers 1800-2200 (span up to 300) print years without a thousands separator and only whole-year ticks (also in point tooltips). Sheet: js-modules-research/aesthetics-usability/economist-look-sheet-2026.11.05.html.
+
 ## 2.5.0 · API 2 · 2026-11-01
 
 ### Quick

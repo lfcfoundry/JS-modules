@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.1 (API 1)
+ * Version 1.5.1 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -50,9 +50,9 @@ var NFMScene = (function () {
   function css(c) { return 'rgba(' + Math.round(c[0] * 255) + ',' + Math.round(c[1] * 255) + ',' + Math.round(c[2] * 255) + ',' + (+c[3].toFixed(3)) + ')'; }
   var THEMES = {
     light: { bg: '#f6f5f1', box: '#ffffff', boxLine: '#aeb4c2', fg: '#1d2330', muted: '#7b8294', line: '#6f778a', good: '#2c9a69', bad: '#d1495b', neutral: '#8590a8', accent: '#2563d6', gold: '#d99a00', lane0: '#ecebe5', lane1: '#f6f5f1',
-      groups: ['#4e79a7', '#f28e2b', '#59a14f', '#c84d4f', '#76b7b2', '#b07aa1', '#edc948', '#936e59', '#ff9da7', '#86bc86', '#8868ac', '#5fa2ce'] },   /* red, brown and purple a shade darker so names on them read at 4.5:1 (owner's card, 11.01) */
+      groups: ['#b07aa1', '#edc948', '#8868ac', '#ff9da7', '#59a14f', '#936e59', '#5fa2ce', '#c84d4f', '#86bc86', '#4e79a7', '#76b7b2', '#f28e2b'] },   /* red, brown and purple a shade darker so names on them read at 4.5:1 (owner's card, 11.01); ordered so no two neighbors and none of the first six look alike to red-green color-blind eyes (owner's card, 11.05) */
     dark: { bg: '#14171f', box: '#222735', boxLine: '#4a5266', fg: '#e8ebf2', muted: '#8d95a8', line: '#8a93a8', good: '#4cc38a', bad: '#f06a7b', neutral: '#8f9ab3', accent: '#6ea0ff', gold: '#f2b632', lane0: '#1b1f2a', lane1: '#14171f',
-      groups: ['#6a9fd1', '#f6a04d', '#74c06b', '#f0787a', '#8bd0cb', '#c797bb', '#f0d36a', '#b8917a', '#ffb3bb', '#a3d6a3', '#a58bcc', '#7bbbe6'] }
+      groups: ['#c797bb', '#f0d36a', '#a58bcc', '#ffb3bb', '#74c06b', '#b8917a', '#7bbbe6', '#f0787a', '#a3d6a3', '#6a9fd1', '#8bd0cb', '#f6a04d'] }   /* the same hue order as the light set */
   };
   /** Color sets the person can choose between for groups and categories. */
   var PALETTES = {
@@ -1376,7 +1376,7 @@ var NFMScene = (function () {
   function toSvg(S, title) {
     var T = S.theme, f = function (n) { return +n.toFixed(2); }, out = [];
     var op = function (o) { return o.a !== undefined && o.a < 1 ? ' opacity="' + f(Math.max(0, o.a)) + '"' : ''; };   /* dimmed things (a < 1) are exported dimmed, like the canvas draws them */
-    out.push('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="' + f(S.x0) + ' ' + f(S.y0) + ' ' + f(S.w) + ' ' + f(S.h) + '" width="' + Math.round(Math.min(S.w, 3000)) + '" height="' + Math.round(Math.min(S.w, 3000) * S.h / S.w) + '" font-family="system-ui, sans-serif">');
+    out.push('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="' + f(S.x0) + ' ' + f(S.y0) + ' ' + f(S.w) + ' ' + f(S.h) + '" width="' + Math.round(Math.min(S.w, 3000)) + '" height="' + Math.round(Math.min(S.w, 3000) * S.h / S.w) + '" font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif">');
     if (title) out.push('<title>' + esc(title) + '</title>');
     out.push('<rect x="' + f(S.x0) + '" y="' + f(S.y0) + '" width="' + f(S.w) + '" height="' + f(S.h) + '" fill="' + css(T.bg) + '"/>');
     S.rects.filter(function (r) { return r.layer === 0; }).forEach(function (r) { out.push(rectSvg(r, css, f, op)); });

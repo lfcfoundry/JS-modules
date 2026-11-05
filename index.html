@@ -31,17 +31,17 @@
 :root{
   --bg:#ffffff; --fg:#1b2433; --muted:#566277; --soft:#f1f4f9; --line:#dde3ee;
   --hero:#0f2a47; --hero-fg:#f3f7fc; --hero-muted:#a9bdd6;
-  --accent:#1f7ae0; --accent-fg:#ffffff; --good:#1e9e6a; --bar-other:#9aa7bb; --code-bg:#0f1b2d; --code-fg:#dbe7f7;
+  --accent:#1f7ae0; --hi:#1f6fd0; --accent-fg:#ffffff; --good:#1e9e6a; --bar-other:#9aa7bb; --code-bg:#0f1b2d; --code-fg:#dbe7f7;
   --display:'Segoe UI',system-ui,sans-serif;
   --body:'Segoe UI',system-ui,sans-serif;
   --mono:ui-monospace,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0b1522; --fg:#e4ebf5; --muted:#9db0c8; --soft:#13233a; --line:#25364f;
-  --hero:#08111d; --accent:#4c9bf5; --good:#3fc98f; --bar-other:#5d6c85; --code-bg:#050c16; color-scheme:dark}}
+  --hero:#08111d; --accent:#4c9bf5; --hi:#6bb0ff; --good:#3fc98f; --bar-other:#5d6c85; --code-bg:#050c16; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0b1522; --fg:#e4ebf5; --muted:#9db0c8; --soft:#13233a; --line:#25364f;
-  --hero:#08111d; --accent:#4c9bf5; --good:#3fc98f; --bar-other:#5d6c85; --code-bg:#050c16; color-scheme:dark}
+  --hero:#08111d; --accent:#4c9bf5; --hi:#6bb0ff; --good:#3fc98f; --bar-other:#5d6c85; --code-bg:#050c16; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font:17px/1.6 var(--body)}
 a{color:var(--accent)}
@@ -73,15 +73,14 @@ h2{font-size:clamp(28px,4vw,40px);font-weight:700;margin-bottom:14px}
 .tile{background:var(--soft);padding:22px;border-radius:8px;min-width:0}
 .tile h3{font-size:21px;margin-bottom:6px}
 .tile p{margin:0;color:var(--muted);font-size:16px}
-.bench{display:grid;gap:26px;margin-top:28px}
-.bench h3{font-size:19px;margin-bottom:10px}
-.row{display:grid;grid-template-columns:minmax(110px,170px) 1fr;gap:12px;align-items:center;margin-bottom:8px;font-size:15px}
-.track{background:var(--soft);border-radius:4px;height:30px;position:relative;min-width:0}
-.bar{height:100%;border-radius:4px;background:var(--bar-other);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font:600 13px var(--mono);color:#fff;min-width:max-content}
-.bar.us{background:var(--good)}
-.bar.out{overflow:visible;position:relative;min-width:6px;padding-right:0}.bar.out span{position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);white-space:nowrap;color:var(--fg);font-weight:700}
-.note{font-size:14px;color:var(--muted);margin-top:6px}
-@media (max-width:600px){.bench{gap:34px}.row{grid-template-columns:1fr;gap:5px;margin-bottom:16px}.row>span{font-size:15px;color:var(--muted)}.track{height:34px}.bar{font-size:14px;padding-right:10px}.note{font-size:15px;line-height:1.5}}
+.bench{display:grid;gap:34px;margin-top:28px}
+.eco h3{font:800 20px/1.25 var(--display);margin:0 0 4px}.eco .sub{color:var(--muted);font-size:15px;margin:0 0 14px}
+.row{display:grid;grid-template-columns:minmax(110px,190px) 1fr;gap:12px;align-items:center;margin-bottom:6px;font-size:15px}
+.track{position:relative;min-width:0;height:24px;border-left:2px solid var(--fg)}
+.bar{height:100%;background:var(--bar-other)}.bar.hi{background:var(--hi)}
+.track b{position:absolute;top:50%;transform:translateY(-50%);margin-left:8px;font:700 15px var(--body);color:var(--fg);white-space:nowrap}
+.src{font-size:14px;color:var(--muted);margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+@media (max-width:600px){.bench{gap:34px}.row{grid-template-columns:1fr;gap:5px;margin-bottom:16px}.row>span{font-size:15px;color:var(--muted)}.src{font-size:15px;line-height:1.5}.track{height:30px}}
 .code{background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:20px;overflow-x:auto;font:15px/1.6 var(--mono);margin-top:22px}
 .code .c{color:#7d93b0}.code .k{color:#7cc0ff}.code .s{color:#9fe0b4}
 .mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:26px}
@@ -181,47 +180,57 @@ footer a{margin-right:16px}
   <h2>Smaller and faster than the usual choice</h2>
   <p class="lead">Measured against the common alternative. Each chart says where it ran; both come from the module pages.</p>
   <div class="bench">
-    <div>
-      <h3>memory-compression: size of 300,000 network links (MB, lower is better)</h3>
-      <div class="row"><span>JSON text</span><div class="track"><div class="bar" style="width:100%"><span>57.3 MB</span></div></div></div>
-      <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:36.5%"><span>20.9 MB</span></div></div></div>
-      <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:34.9%"><span>20.0 MB</span></div></div></div>
-      <div class="row"><span>memory-compression</span><div class="track"><div class="bar us out" style="width:13.7%"><span>7.85 MB</span></div></div></div>
-      <p class="note">Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6. It loses on download size: about 116 KB gzipped in 2.8.2 against 11 KB for msgpackr.</p>
-    </div>
-    <div>
-      <h3>text-columns: read 200,000 CSV rows (ms, lower is better)</h3>
-      <div class="row"><span>Papa Parse, typed rows</span><div class="track"><div class="bar" style="width:100%"><span>166 ms</span></div></div></div>
-      <div class="row"><span>Papa Parse, arrays</span><div class="track"><div class="bar" style="width:51.8%"><span>86 ms</span></div></div></div>
-      <div class="row"><span>d3-dsv, arrays</span><div class="track"><div class="bar" style="width:48.2%"><span>80 ms</span></div></div></div>
-      <div class="row"><span>text-columns</span><div class="track"><div class="bar us out" style="width:31.3%"><span>52 ms</span></div></div></div>
-      <p class="note">Laptop, Firefox 160, 16 cores, text-columns 0.5.0, 2026.10.30; 6 columns, 7.9 MB. Papa Parse with typed rows takes 3.2 times as long here and 7 to 12 times as long in the cloud test browsers (Firefox 158, Chromium 155, WebKitGTK 2.52.6).</p>
-    </div>
-    <div>
-      <h3>lfc-pack: size of the library file (KB, lower is better)</h3>
-      <div class="row"><span>lfc-pack 0.4.12</span><div class="track"><div class="bar" style="width:100%"><span>789 KB</span></div></div></div>
-      <div class="row"><span>lfc-pack 0.4.13</span><div class="track"><div class="bar us out" style="width:44.7%"><span>353 KB</span></div></div></div>
-      <p class="note">The built-in WebAssembly programs are stored compressed and the browser unpacks them while it compiles them. Results are the same, and load to first result takes 3 to 11% less time (cloud test browsers, lfc-pack changelog).</p>
-    </div>
-    <div>
-      <h3>Sankey chart of 1,500 items: whole build (ms, lower is better)</h3>
-      <div class="row"><span>Chromium: d3-sankey</span><div class="track"><div class="bar" style="width:100%"><span>27 ms</span></div></div></div>
-      <div class="row"><span>Chromium: netflow-sankey</span><div class="track"><div class="bar us out" style="width:44.4%"><span>12 ms</span></div></div></div>
-      <div class="row"><span>Firefox: d3-sankey</span><div class="track"><div class="bar" style="width:85.2%"><span>23 ms</span></div></div></div>
-      <div class="row"><span>Firefox: netflow-sankey</span><div class="track"><div class="bar us out" style="width:44.4%"><span>12 ms</span></div></div></div>
-      <div class="row"><span>WebKitGTK: d3-sankey</span><div class="track"><div class="bar" style="width:92.6%"><span>25 ms</span></div></div></div>
-      <div class="row"><span>WebKitGTK: netflow-sankey</span><div class="track"><div class="bar us out" style="width:48.1%"><span>13 ms</span></div></div></div>
-      <p class="note">Netflow Map's Sankey view (netflow-sankey 2.4.0) against d3-sankey 0.12.3, same data, cloud test browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6). Also only 256 band pieces pass over a bar they do not belong to, against 1,916, and loops are drawn instead of refused. d3-sankey is faster on small charts with default settings.</p>
-    </div>
-    <div>
-      <h3>Layered map of 1,000 items: links crossing as drawn (lower is better)</h3>
-      <div class="row"><span>dagre</span><div class="track"><div class="bar" style="width:100%"><span>23,965</span></div></div></div>
-      <div class="row"><span>ELK</span><div class="track"><div class="bar" style="width:94.3%"><span>22,602</span></div></div></div>
-      <div class="row"><span>netflow-layers</span><div class="track"><div class="bar us" style="width:91%"><span>21,812</span></div></div></div>
-      <p class="note">Random map of 1,000 items and 1,900 links, Chromium 155; the same counts in Firefox and WebKitGTK. netflow-layers takes 129 ms, ELK 2.1 s and dagre 8.4 s. At 400 items the three are level.</p>
-    </div>
+    <div class="eco">
+    <h3>memory-compression makes 300,000 network links about 2.5 times smaller than msgpackr</h3>
+    <p class="sub">Size of 300,000 network links, megabytes. Lower is better.</p>
+    <div class="row"><span>JSON text</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">57.3 MB</b></div></div>
+    <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:29.2%"></div><b style="left:29.2%">20.9 MB</b></div></div>
+    <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:27.9%"></div><b style="left:27.9%">20.0 MB</b></div></div>
+    <div class="row"><span>memory-compression</span><div class="track"><div class="bar hi" style="width:11.0%"></div><b style="left:11.0%">7.85 MB</b></div></div>
+    <p class="src">Source and notes: Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6. It loses on download size: about 116 KB gzipped in 2.8.2 against 11 KB for msgpackr.</p>
   </div>
-</div></section>
+  <div class="eco">
+    <h3>text-columns reads 200,000 CSV rows 3.2 times faster than Papa Parse with typed rows</h3>
+    <p class="sub">Time to read 200,000 CSV rows, milliseconds. Lower is better.</p>
+    <div class="row"><span>Papa Parse, typed rows</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">166 ms</b></div></div>
+    <div class="row"><span>Papa Parse, arrays</span><div class="track"><div class="bar" style="width:41.4%"></div><b style="left:41.4%">86 ms</b></div></div>
+    <div class="row"><span>d3-dsv, arrays</span><div class="track"><div class="bar" style="width:38.6%"></div><b style="left:38.6%">80 ms</b></div></div>
+    <div class="row"><span>text-columns</span><div class="track"><div class="bar hi" style="width:25.0%"></div><b style="left:25.0%">52 ms</b></div></div>
+    <p class="src">Source and notes: Laptop, Firefox 160, 16 cores, text-columns 0.5.0, 2026.10.30; 6 columns, 7.9 MB. Papa Parse with typed rows takes 3.2 times as long here and 7 to 12 times as long in the cloud test browsers (Firefox 158, Chromium 155, WebKitGTK 2.52.6).</p>
+  </div>
+  <div class="eco">
+    <h3>The lfc-pack library file is now less than half its old size</h3>
+    <p class="sub">Library file size, kilobytes, version 0.4.13 against 0.4.12. Lower is better.</p>
+    <div class="row"><span>lfc-pack 0.4.12</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">789 KB</b></div></div>
+    <div class="row"><span>lfc-pack 0.4.13</span><div class="track"><div class="bar hi" style="width:35.8%"></div><b style="left:35.8%">353 KB</b></div></div>
+    <p class="src">Source and notes: The built-in WebAssembly programs are stored compressed and the browser unpacks them while it compiles them. Results are the same, and load to first result takes 3 to 11% less time (cloud test browsers, lfc-pack changelog).</p>
+  </div>
+  <div class="eco">
+    <h3>netflow-sankey is about as fast as d3-sankey in Chromium and about 1.4 to 1.5 times faster in Firefox and WebKitGTK</h3>
+    <p class="sub">Time to build the whole 1,500-item chart, milliseconds. Lower is better.</p>
+    <div class="row"><span>Chromium: d3-sankey</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">32 ms</b></div></div>
+    <div class="row"><span>Chromium: netflow-sankey</span><div class="track"><div class="bar hi" style="width:75.0%"></div><b style="left:75.0%">30 ms</b></div></div>
+    <div class="row"><span>Firefox: d3-sankey</span><div class="track"><div class="bar" style="width:72.5%"></div><b style="left:72.5%">29 ms</b></div></div>
+    <div class="row"><span>Firefox: netflow-sankey</span><div class="track"><div class="bar hi" style="width:47.5%"></div><b style="left:47.5%">19 ms</b></div></div>
+    <div class="row"><span>WebKitGTK: d3-sankey</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">32 ms</b></div></div>
+    <div class="row"><span>WebKitGTK: netflow-sankey</span><div class="track"><div class="bar hi" style="width:55.0%"></div><b style="left:55.0%">22 ms</b></div></div>
+    <p class="src">Source and notes: netflow-sankey 2.7.0 against d3-sankey 0.12.3, same random data (1,500 items, 2,331 links), cloud test browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6), median of 3 runs, re-measured 2026.11.05. In Chromium the runs overlap, so it is a tie. d3-sankey is faster on small charts with default settings (100 items: 8 ms against 3.6 ms).</p></div>
+  <div class="eco">
+    <h3>netflow-sankey draws the same 1,500-item chart with about a third fewer link crossings than d3-sankey</h3>
+    <p class="sub">Link crossings in the finished picture. Fewer is better.</p>
+    <div class="row"><span>d3-sankey</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">95,509</b></div></div>
+    <div class="row"><span>netflow-sankey</span><div class="track"><div class="bar hi" style="width:50.9%"></div><b style="left:50.9%">60,787</b></div></div>
+    <p class="src">Source and notes: same random 1,500-item, 2,331-link data and versions as above, cloud test browsers. Only 256 band pieces pass over a bar they do not belong to, against 1,916 for d3-sankey, and loops are drawn instead of refused.</p>
+  </div>
+  <div class="eco">
+    <h3>netflow-layers draws a 1,000-item map with the fewest link crossings, in 129 ms against 2.1 s for ELK</h3>
+    <p class="sub">Link crossings as drawn; fewer is better.</p>
+    <div class="row"><span>dagre</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">23,965</b></div></div>
+    <div class="row"><span>ELK</span><div class="track"><div class="bar" style="width:75.4%"></div><b style="left:75.4%">22,602</b></div></div>
+    <div class="row"><span>netflow-layers</span><div class="track"><div class="bar hi" style="width:72.8%"></div><b style="left:72.8%">21,812</b></div></div>
+    <p class="src">Source and notes: Random map of 1,000 items and 1,900 links, Chromium 155; the same counts in Firefox and WebKitGTK. netflow-layers takes 129 ms, ELK 2.1 s and dagre 8.4 s. At 400 items the three are level.</p>
+  </div>
+  </div></section>
 
 <section id="gallery"><div class="wrap">
 <h2>Netflow Map gallery</h2>
@@ -230,7 +239,7 @@ footer a{margin-right:16px}
 <div class="gsec" id="g-links"><h3 class="gh">Links between things</h3><p class="lead m">Data without a story: a company's 288 services and the calls between them, and the story again as an arc and a grid.</p><div class="grid"><figure><a href="netflow-gallery/network.webp"><img src="netflow-gallery/network.webp" alt="Network example" width="960" height="758" loading="lazy"></a><figcaption><b>Network</b><span>Closeness on the page follows closeness in the data.</span></figcaption></figure><figure><a href="netflow-gallery/arc.webp"><img src="netflow-gallery/arc.webp" alt="Arc example" width="960" height="758" loading="lazy"></a><figcaption><b>Arc</b><span>Everything on one line; arcs show the links, long arcs are long jumps.</span></figcaption></figure><figure><a href="netflow-gallery/matrix.webp"><img src="netflow-gallery/matrix.webp" alt="Matrix example" width="960" height="758" loading="lazy"></a><figcaption><b>Matrix</b><span>A grid of who links to whom; patterns show clusters and loops.</span></figcaption></figure><figure><a href="netflow-gallery/bundles.webp"><img src="netflow-gallery/bundles.webp" alt="Bundled links example" width="960" height="758" loading="lazy"></a><figcaption><b>Bundled links</b><span class="new">New</span><span>Items around a circle, links bent along the tree so links that go the same way run together.</span></figcaption></figure><figure><a href="netflow-gallery/chord.webp"><img src="netflow-gallery/chord.webp" alt="Chord example" width="960" height="758" loading="lazy"></a><figcaption><b>Chord</b><span class="new">New</span><span>Who sends how much to whom, around a circle; each band is as wide as the amount it carries.</span></figcaption></figure></div></div>
 <div class="gsec" id="g-nested"><h3 class="gh">Nested data</h3><p class="lead m">Anything with parents and children: here a bulleted trip-planning outline. The nesting comes from the links, the groups or a parent column.</p><div class="grid"><figure><a href="netflow-gallery/treemap.webp"><img src="netflow-gallery/treemap.webp" alt="Treemap example" width="960" height="758" loading="lazy"></a><figcaption><b>Treemap</b><span class="new">New</span><span>Nested boxes: each box is as big as what it holds.</span></figcaption></figure><figure><a href="netflow-gallery/icicle.webp"><img src="netflow-gallery/icicle.webp" alt="Icicle example" width="960" height="758" loading="lazy"></a><figcaption><b>Icicle</b><span class="new">New</span><span>Steps down from left to right; each bar as tall as what it holds.</span></figcaption></figure><figure><a href="netflow-gallery/sunburst.webp"><img src="netflow-gallery/sunburst.webp" alt="Sunburst example" width="960" height="758" loading="lazy"></a><figcaption><b>Sunburst</b><span class="new">New</span><span>Rings out from the middle: each ring is one step down, each slice as wide as what it holds.</span></figcaption></figure><figure><a href="netflow-gallery/pack.webp"><img src="netflow-gallery/pack.webp" alt="Circle packing example" width="960" height="758" loading="lazy"></a><figcaption><b>Circle packing</b><span class="new">New</span><span>Circles inside circles: each circle is as big as what it holds.</span></figcaption></figure><figure><a href="netflow-gallery/tree.webp"><img src="netflow-gallery/tree.webp" alt="Tidy tree example" width="960" height="758" loading="lazy"></a><figcaption><b>Tidy tree</b><span class="new">New</span><span>One parent for each item, drawn as a tidy tree.</span></figcaption></figure></div></div>
 <div class="gsec" id="g-charts"><h3 class="gh">The Charts tab</h3><p class="lead m">22 plain charts from any table's columns, drawn with the same engine as the map. Shown here on a sample of 400 stores with region, team, month, revenue, cost, users, rating and a one-word note. Every chart picks sensible columns on its own, names its colors in a key and saves as SVG.</p><div class="grid g3"><figure><a href="netflow-gallery/c-bar.webp"><img src="netflow-gallery/c-bar.webp" alt="Bars example" width="960" height="740" loading="lazy"></a><figcaption><b>Bars</b><span>Totals for each category; stack, group or share by a second column.</span></figcaption></figure><figure><a href="netflow-gallery/c-line.webp"><img src="netflow-gallery/c-line.webp" alt="Lines example" width="960" height="740" loading="lazy"></a><figcaption><b>Lines</b><span>A number over time or over another number; one line per color.</span></figcaption></figure><figure><a href="netflow-gallery/c-area.webp"><img src="netflow-gallery/c-area.webp" alt="Areas example" width="960" height="740" loading="lazy"></a><figcaption><b>Areas</b><span>Lines filled down, stacked, as shares or as a stream.</span></figcaption></figure><figure><a href="netflow-gallery/c-scatter.webp"><img src="netflow-gallery/c-scatter.webp" alt="Scatter example" width="960" height="740" loading="lazy"></a><figcaption><b>Scatter</b><span>Each row a dot at two numbers; size and color from more columns.</span></figcaption></figure><figure><a href="netflow-gallery/c-connected.webp"><img src="netflow-gallery/c-connected.webp" alt="Connected scatter example" width="960" height="740" loading="lazy"></a><figcaption><b>Connected scatter</b><span>Dots joined in row order, to show a path through two numbers.</span></figcaption></figure><figure><a href="netflow-gallery/c-beeswarm.webp"><img src="netflow-gallery/c-beeswarm.webp" alt="Beeswarm example" width="960" height="740" loading="lazy"></a><figcaption><b>Beeswarm</b><span>Every row a dot along one number, dots pushed apart so none hide.</span></figcaption></figure><figure><a href="netflow-gallery/c-dotplot.webp"><img src="netflow-gallery/c-dotplot.webp" alt="Dot plot example" width="960" height="740" loading="lazy"></a><figcaption><b>Dot plot</b><span>One dot per category at its value, easy to compare and sort.</span></figcaption></figure><figure><a href="netflow-gallery/c-hist.webp"><img src="netflow-gallery/c-hist.webp" alt="Histogram example" width="960" height="740" loading="lazy"></a><figcaption><b>Histogram</b><span>How a number is spread: rows counted in equal bins.</span></figcaption></figure><figure><a href="netflow-gallery/c-box.webp"><img src="netflow-gallery/c-box.webp" alt="Box plot example" width="960" height="740" loading="lazy"></a><figcaption><b>Box plot</b><span>Middle half, median and range of a number for each category.</span></figcaption></figure><figure><a href="netflow-gallery/c-density.webp"><img src="netflow-gallery/c-density.webp" alt="Density example" width="960" height="740" loading="lazy"></a><figcaption><b>Density</b><span>A smooth curve of how a number is spread, one per category.</span></figcaption></figure><figure><a href="netflow-gallery/c-ridgeline.webp"><img src="netflow-gallery/c-ridgeline.webp" alt="Ridgeline example" width="960" height="740" loading="lazy"></a><figcaption><b>Ridgeline</b><span>Density curves stacked one above the other, one per category.</span></figcaption></figure><figure><a href="netflow-gallery/c-hexbin.webp"><img src="netflow-gallery/c-hexbin.webp" alt="Hexbin example" width="960" height="740" loading="lazy"></a><figcaption><b>Hexbin</b><span>Two numbers counted in hexagons: where rows bunch up.</span></figcaption></figure><figure><a href="netflow-gallery/c-heat.webp"><img src="netflow-gallery/c-heat.webp" alt="Heat map example" width="960" height="740" loading="lazy"></a><figcaption><b>Heat map</b><span>A grid of two categories (or days of a date column), colored by value.</span></figcaption></figure><figure><a href="netflow-gallery/c-donut.webp"><img src="netflow-gallery/c-donut.webp" alt="Donut example" width="960" height="740" loading="lazy"></a><figcaption><b>Donut</b><span>A pie with a hole; the total sits in the middle.</span></figcaption></figure><figure><a href="netflow-gallery/c-radialbar.webp"><img src="netflow-gallery/c-radialbar.webp" alt="Radial bars example" width="960" height="740" loading="lazy"></a><figcaption><b>Radial bars</b><span>Bars around a circle, stacked by a second column.</span></figcaption></figure><figure><a href="netflow-gallery/c-parallel.webp"><img src="netflow-gallery/c-parallel.webp" alt="Parallel lines example" width="960" height="740" loading="lazy"></a><figcaption><b>Parallel lines</b><span>Every row a line across several number columns.</span></figcaption></figure><figure><a href="netflow-gallery/c-splom.webp"><img src="netflow-gallery/c-splom.webp" alt="Scatter matrix example" width="960" height="740" loading="lazy"></a><figcaption><b>Scatter matrix</b><span>Every pair of number columns as a small scatter.</span></figcaption></figure><figure><a href="netflow-gallery/c-qq.webp"><img src="netflow-gallery/c-qq.webp" alt="Q-Q plot example" width="960" height="740" loading="lazy"></a><figcaption><b>Q-Q plot</b><span>A number against the normal curve: straight means normal.</span></figcaption></figure><figure><a href="netflow-gallery/c-slope.webp"><img src="netflow-gallery/c-slope.webp" alt="Slope chart example" width="960" height="740" loading="lazy"></a><figcaption><b>Slope chart</b><span>How each category changed between two values of a column.</span></figcaption></figure><figure><a href="netflow-gallery/c-marimekko.webp"><img src="netflow-gallery/c-marimekko.webp" alt="Marimekko example" width="960" height="740" loading="lazy"></a><figcaption><b>Marimekko</b><span>Bars as wide as their total, split by a second column.</span></figcaption></figure><figure><a href="netflow-gallery/c-voronoi.webp"><img src="netflow-gallery/c-voronoi.webp" alt="Voronoi example" width="960" height="740" loading="lazy"></a><figcaption><b>Voronoi</b><span>Each dot with the area nearer to it than to any other.</span></figcaption></figure><figure><a href="netflow-gallery/c-words.webp"><img src="netflow-gallery/c-words.webp" alt="Word cloud example" width="960" height="740" loading="lazy"></a><figcaption><b>Word cloud</b><span>The words of a text column, bigger when more common.</span></figcaption></figure></div></div>
-<p class="gnote">Taken in ungoogled Chromium, dark theme, Netflow Map build 2026.11.01.1003 (Sankey: 1045). The chart pictures use a made-up sample table of 400 stores.</p>
+<p class="gnote">Taken in Chromium, dark theme, Netflow Map build 2026.11.05.0228. The chart pictures use a made-up sample table of 400 stores.</p>
 </div></section>
 <section id="pick"><div class="wrap">
   <h2>Pick a piece</h2>

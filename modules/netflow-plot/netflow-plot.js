@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.5.0 (API 2)
+ * Version 2.6.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -150,7 +150,7 @@ var NetflowPlot = (function () {
       }
       if (mark) { mark.x0 = cx - r1; mark.y0 = cy - r1; mark.x1 = cx + r1; mark.y1 = cy + r1; mark.wedge = [cx, cy, r0, r1, a0, a1]; S.marks.push(mark); }
     };
-    F.color = function (i) { return F.hiCi >= 0 && i !== F.hiCi ? F.gray : T.groups[((i % T.groups.length) + T.groups.length) % T.groups.length]; };
+    F.color = function (i) { var c = T.groups[((i % T.groups.length) + T.groups.length) % T.groups.length]; return F.hiCi >= 0 && i !== F.hiCi ? (NS.mix ? NS.mix(c, T.bg, 0.6) : F.gray) : c; };   /* when one series is highlighted, the others keep their own color at about 40% strength (as if 0.4 opacity on the background, but solid, so values on them stay readable) */
     F.gray = NS.mix ? NS.mix(T.muted, T.bg, 0.45) : T.muted;   /* the other series when one is highlighted */
     /** Axes: x and y are { kind: 'num' | 'time' | 'band', lo, hi, list, fmt, map(v) -> px, cats }. */
     F.axes = function (ax, ay, xName, yName, grid) {
@@ -162,22 +162,24 @@ var NetflowPlot = (function () {
         if (yName) F.text(14, (F.Tp + F.B) / 2, yName, 12, T.fg, { rot: -Math.PI / 2, bold: true });
       }
       if (ax) {
-        var labs = ax.list, maxN = Math.max(2, Math.floor((F.R - F.L) / 64)), every = ax.kind === 'band' ? Math.max(1, Math.ceil(labs.length / maxN)) : 1, rot = false;
+        var labs = ax.list, maxN = Math.max(2, Math.floor((F.R - F.L) / 64)), every = ax.kind === 'band' ? Math.max(1, Math.ceil(labs.length / maxN)) : 1, rot = false, stag = 0;
         var labT = function (v) { return String(ax.fmt ? ax.fmt(v) : fmtNum(v)); };
         if (ax.kind === 'band') {   /* flat unless two shown labels would really touch (about 6.05 px a character at 11 px, 9 px gap); every label when they all fit flat; a long flat name wraps onto two lines */
           var wrapAll = false, fits = function (step) { var prevX = null, prevW = 0; for (var li = 0; li < labs.length; li += step) { var lx = ax.map(labs[li]) + ax.bw / 2, lw = wrap2(labT(labs[li]), wrapAll).reduce(function (m, t) { return Math.max(m, Math.min(14, t.length)); }, 0) * 6.05; if (prevX !== null && lx - prevX < (lw + prevW) / 2 + 9) return false; prevX = lx; prevW = lw; } return true; };
           if (every > 1 && fits(1)) every = 1; else if (!fits(every)) { wrapAll = true; if (every > 1 && fits(1)) every = 1; else rot = !fits(every); if (rot) wrapAll = false; }   /* crowded: every two-word name on two lines before anything tilts */
+          if (every === 2 && !rot && F.clean) { stag = wrapAll ? 28 : 14; every = 1; }   /* clean look: when every other name would be left out, all names show on two staggered rows instead */
         }
         labs.forEach(function (v, i) {
           if (i % every) return; var x = ax.map(v) + (ax.kind === 'band' ? ax.bw / 2 : 0); if (x < F.L - 1 || x > F.R + 1) return; if (grid !== false && ax.kind !== 'band') F.line([x, F.Tp, x, F.B], 1, gc);
           if (rot) { F.text(x, F.B + 16, clip(labT(v), 18), 11, c, { rot: -Math.PI / 5, align: 'r' }); return; }
           var ls = ax.kind === 'band' ? wrap2(labT(v), wrapAll) : [labT(v)]; var lw0 = ls.reduce(function (m, t) { return Math.max(m, Math.min(14, t.length)); }, 0) * CW, al = null, lx0 = x;
           if (ax.kind === 'band' && x - lw0 / 2 < F.L - 4) { al = { align: 'l' }; lx0 = F.L - 4; } else if (ax.kind === 'band' && x + lw0 / 2 > F.W - 4) { al = { align: 'r' }; lx0 = F.W - 4; }   /* an end name never runs past the number axis or the edge */
-          ls.forEach(function (t, k) { F.text(lx0, F.B + 16 + k * 14, clip(t, 14), 11, c, al); });
+          var sy = stag && i % 2 ? stag : 0; if (sy) F.line([x, F.B + 3, x, F.B + 7 + sy - 12], 1, alpha(T.muted, 0.5));   /* a short tick leads down to a name on the second row */
+          ls.forEach(function (t, k) { F.text(lx0, F.B + 16 + sy + k * 14, clip(t, 14), 11, c, al); });
         });
         /* tilted names reach further down than the axis name sits; the names say what the axis is, so the axis name is left out rather than drawn over them */
         var drop = 0; if (rot) labs.forEach(function (v, i) { if (!(i % every)) drop = Math.max(drop, Math.min(18, labT(v).length) * 6.05 * Math.sin(Math.PI / 5) + 4); });
-        if (xName && 16 + drop < F.H - 10 - F.B - 12) F.text((F.L + F.R) / 2, F.H - 10, xName, 12, T.fg, { bold: true });
+        if (stag) drop = stag + 10; if (xName && 16 + drop < F.H - 10 - F.B - 12) F.text((F.L + F.R) / 2, F.H - 10, xName, 12, T.fg, { bold: true });
       }
       F.line([F.L, F.B, F.R, F.B], 1, alpha(T.muted, 0.7));
     };
@@ -200,6 +202,8 @@ var NetflowPlot = (function () {
   function isDark(T) { var b = T.bg; return 0.2126 * b[0] + 0.7152 * b[1] + 0.0722 * b[2] < 0.4; }
   function relLum(c) { var f = function (v) { return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); }
   /** Dark or white ink for a name written on a fill, whichever reads better. */
+  /** A label color close to c that reads at 4.5:1 on the background bg: c itself, or c mixed toward the text color fg step by step. */
+  function readable(c, T) { var bg = T.bg, fg = T.fg, k, m, a, b; for (k = 0; k <= 8; k++) { m = [c[0] + (fg[0] - c[0]) * k / 10, c[1] + (fg[1] - c[1]) * k / 10, c[2] + (fg[2] - c[2]) * k / 10, 1]; a = relLum(m); b = relLum(bg); if ((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) >= 4.5) return m; } return fg; }
   function inkOn(fill) { var L = relLum(fill), d = (L + 0.05) / (relLum([0.11, 0.13, 0.17]) + 0.05), w = 1.05 / (L + 0.05); return d >= w ? [0.11, 0.13, 0.17, 1] : [1, 1, 1, 1]; }
   var CW = 6.05;   /* about the width of one character at 11 px */
   function clip(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; }
@@ -210,7 +214,11 @@ var NetflowPlot = (function () {
     if (!isFinite(lo)) { lo = 0; hi = 1; }
     if (zero) { lo = Math.min(0, lo); hi = Math.max(0, hi); }
     if (isTime) { var tt = timeTicks(lo, hi, n || 8); return { kind: 'time', lo: lo, hi: hi, list: tt.list, fmt: tt.fmt, map: linear(lo, hi === lo ? lo + 1 : hi, a, b) }; }
-    var t = ticks(lo, hi, n || 6); return { kind: 'num', lo: t.lo, hi: t.hi, list: t.list, map: linear(t.lo, t.hi, a, b) };
+    var t = ticks(lo, hi, n || 6), ax = { kind: 'num', lo: t.lo, hi: t.hi, list: t.list, map: linear(t.lo, t.hi, a, b) };
+    if (lo >= 1800 && hi <= 2200 && hi - lo <= 300 && vals.every(function (v) { return v !== v || v === Math.floor(v); })) {   /* whole numbers 1800 to 2200 are years: written 2015, not 2,015, and only whole-year ticks */
+      ax.list = ax.list.filter(function (v) { return v === Math.floor(v); }); ax.fmt = function (v) { return String(v); };
+    }
+    return ax;
   }
   function bandAxis(cats, a, b, pad) { var n = Math.max(1, cats.length), step = (b - a) / n, bw = step * (1 - (pad === undefined ? 0.2 : pad)), pos = new Map(); cats.forEach(function (c, i) { pos.set(c, a + i * step + (step - bw) / 2); }); return { kind: 'band', list: cats, bw: bw, step: step, map: function (c) { return pos.get(c); }, fmt: function (c) { return c === '' ? '(blank)' : String(c); } }; }
 
@@ -356,16 +364,28 @@ var NetflowPlot = (function () {
   CH.line = function (F, R, sp) {
     var s = series(F, R, sp), allX = [], allY = [];
     s.list.forEach(function (l) { allX = allX.concat(l.xs); allY = allY.concat(l.ys); });
+    /* clean look: each line is named at its right end (no key row over the chart), up to 10 lines; room for the names is kept on the right */
+    var ends = F.clean && !!sp.color && !F.keyRow && s.list.length > 1, ew = 0;
+    if (ends && s.list.length > 10) { ends = false; F.keyRow = true; F.Tp = 44; }
+    if (ends) { s.list.forEach(function (l) { ew = Math.max(ew, clip(l.name || '(blank)', 16).length * CW); }); F.R = Math.max(F.L + 120, F.R - ew - 8); }
     var ax = axisFor(allX, s.time, F.L, F.R, false, 8), ay = axisFor(allY, false, F.B, F.Tp, !!sp.zero);
     F.axes(ax, ay, sp.x, sp.index ? sp.y + ' (first value = 100)' : sp.y || 'Rows');
-    var many = s.list.reduce(function (a, l) { return a + l.xs.length; }, 0);
+    var many = s.list.reduce(function (a, l) { return a + l.xs.length; }, 0), tags = [];
     s.list.forEach(function (l) {
       var pts = [], col = F.color(l.ci);
       for (var j = 0; j < l.xs.length; j++) { if (l.ys[j] !== l.ys[j]) continue; pts.push(ax.map(l.xs[j]), ay.map(l.ys[j])); }
       F.line(pts, 2, col);
-      if (many <= 400) for (var k = 0; k < l.xs.length; k++) if (l.ys[k] === l.ys[k]) F.dot(ax.map(l.xs[k]), ay.map(l.ys[k]), 2.5, col, { rows: l.rows[k], t: (l.name ? l.name + ' \u00b7 ' : '') + (s.time ? dayText(l.xs[k]) : fmtNum(l.xs[k])) + ': ' + fmtNum(l.ys[k]) });
-      if (s.list.length > 1 && pts.length && !F.keyRow) F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, clip(l.name || '(blank)', 16), 11, col, { align: 'l' });
+      if (many <= 400) for (var k = 0; k < l.xs.length; k++) if (l.ys[k] === l.ys[k]) F.dot(ax.map(l.xs[k]), ay.map(l.ys[k]), 2.5, col, { rows: l.rows[k], t: (l.name ? l.name + ' \u00b7 ' : '') + (s.time ? dayText(l.xs[k]) : ax.fmt ? ax.fmt(l.xs[k]) : fmtNum(l.xs[k])) + ': ' + fmtNum(l.ys[k]) });
+      if (ends && pts.length) tags.push({ x: pts[pts.length - 2] + 6, y: pts[pts.length - 1] + 4, t: clip(l.name || '(blank)', 16), c: readable(col, F.T) });
+      else if (s.list.length > 1 && pts.length && !F.keyRow) F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, clip(l.name || '(blank)', 16), 11, col, { align: 'l' });
     });
+    if (tags.length) {   /* names at the line ends, moved apart (13 px) so they never overlap, and kept inside the chart */
+      tags.sort(function (a, b) { return a.y - b.y; });
+      var i, lo = F.Tp + 8, hi = F.B + 4;
+      for (i = 0; i < tags.length; i++) tags[i].y = Math.max(tags[i].y, i ? tags[i - 1].y + 13 : lo);
+      for (i = tags.length - 1; i >= 0; i--) tags[i].y = Math.min(tags[i].y, i < tags.length - 1 ? tags[i + 1].y - 13 : hi);
+      tags.forEach(function (g) { F.text(g.x, g.y, g.t, 11, g.c, { align: 'l', bold: true }); });
+    }
     if (s.list.length > 1) { F.R -= 0; F.legend(sp.color, s.cats); }
   };
   CH.area = function (F, R, sp) {
@@ -706,7 +726,7 @@ var NetflowPlot = (function () {
     HI = hl !== undefined && rows.length ? { name: hl, F: F, ck: spec.color ? R.cat(spec.color) : null, xk: spec.x ? R.cat(spec.x) : null } : null;
     try {
       if (!rows.length) F.text(F.W / 2, F.H / 2, 'No rows to draw.', 14, F.T.muted);
-      else { if (spec.color && !NOKEYROW[type]) { F.keyRow = true; F.Tp = 44; } if (type === 'bar' || type === 'box') F.calm(); CH[type](F, R, spec); }   /* the clean look's calm colors go with its value labels (bars and boxes) */
+      else { if (spec.color && !NOKEYROW[type] && !(F.clean && type === 'line')) { F.keyRow = true; F.Tp = 44; } if (type === 'bar' || type === 'box') F.calm(); CH[type](F, R, spec); }   /* the clean look's calm colors go with its value labels (bars and boxes) */
     } finally { HI = null; }
     if (F.yName) {   /* the small axis name is left out when a value written on a mark would touch it */
       var yl = F.yName, x1 = yl.x + yl.t.length * CW + 4;

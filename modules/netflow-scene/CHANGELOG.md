@@ -2,6 +2,12 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-11-05
+- Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
+
+## 1.5.0 · API 1 · 2026-11-05
+- Default group colors come in a new order so neighboring groups stay easy to tell apart for people with red-green color blindness.
+
 ## 1.4.1 · API 1 · 2026-11-01
 - The light theme's red, brown and purple are a shade darker so names written on them are easier to read.
 

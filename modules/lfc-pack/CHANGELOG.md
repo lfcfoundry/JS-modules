@@ -2,6 +2,21 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.24 · API 0 · 2026-11-05
+- Saving tables of row objects (packTables, packRows), such as a 20,000-item Netflow map, takes 7 to 32% less time in Firefox and 3 to 17% less in Chromium (WebKitGTK about the same); files are byte-identical.
+
+## 0.4.23 · API 0 · 2026-11-05
+- The first pack of logs or event tables after a page opens is 1.6 to 2 times as fast (36 to 51% less time) in Firefox and WebKitGTK (Chromium about the same); files are byte-identical.
+
+## 0.4.22 · API 0 · 2026-11-05
+- The first big read after a page opens is 3 to 34% faster for flat files with hex ids, addresses or number columns; same rows.
+
+## 0.4.21 · API 0 · 2026-11-05
+- Text columns that start with empty strings now keep them (0.4.15 to 0.4.20 dropped them in flat blocks).
+
+## 0.4.20 · API 0 · 2026-11-05
+- The first pack after a page opens is faster, and packing holds far less memory (a 20,000-item map uses 66 MB instead of 384 MB).
+
 ## 0.4.19 · API 0 · 2026-11-01
 - unpackText (rows back as text) is 1.4 to 2.2 times as fast (29 to 54% less time), and the first pack of number-heavy files after a page loads is quicker; files and text come out the same.
 

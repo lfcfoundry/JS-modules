@@ -28,20 +28,20 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.2 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.16.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.17.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.10.3 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.8.1 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.11.2 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.4.19 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.4.24 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.6.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.7.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.3.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.10.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.4.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.5.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.11.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.6.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.1 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -61,6 +61,20 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-05 · **zip-open** 1.17.0 · API 1: Opening a big Excel sheet again in the same page is 3 to 35% faster: a second thread unpacks it while the page reads rows. The first open is about the same. Same results.
+- 2026-11-05 · **netflow-scene** 1.5.1 · API 1: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
+- 2026-11-05 · **netflow-scene** 1.5.0 · API 1: Default group colors come in a new order so neighboring groups stay easy to tell apart for people with red-green color blindness.
+- 2026-11-05 · **netflow-sankey** 2.7.0 · API 2: Default colors are the 12 color-blind-safe group colors of the other chart modules, so no two parts share a color until there are more than 12.
+- 2026-11-05 · **netflow-sankey** 2.6.1 · API 2: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
+- 2026-11-05 · **netflow-plot** 2.6.0 · API 2: Line charts name each line at its end instead of in a key row, crowded bar names show on two rows instead of every other name, years print as 2015, not 2,015, and a highlight keeps the other series faint in their own colors instead of gray.
+- 2026-11-05 · **netflow-layers** 1.11.0 · API 1: Flow charts can take a title, subtitle and source line (opt-in), drawn the same way as in the other chart modules.
+- 2026-11-05 · **netflow-layers** 1.10.1 · API 1: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
+- 2026-11-05 · **netflow-hierarchy** 1.3.1 · API 1: Chord, bundle and radial tree names on the left side are no longer cut off at the picture edge.
+- 2026-11-05 · **lfc-pack** 0.4.24 · API 0: Saving tables of row objects (packTables, packRows), such as a 20,000-item Netflow map, takes 7 to 32% less time in Firefox and 3 to 17% less in Chromium (WebKitGTK about the same); files are byte-identical.
+- 2026-11-05 · **lfc-pack** 0.4.23 · API 0: The first pack of logs or event tables after a page opens is 1.6 to 2 times as fast (36 to 51% less time) in Firefox and WebKitGTK (Chromium about the same); files are byte-identical.
+- 2026-11-05 · **lfc-pack** 0.4.22 · API 0: The first big read after a page opens is 3 to 34% faster for flat files with hex ids, addresses or number columns; same rows.
+- 2026-11-05 · **lfc-pack** 0.4.21 · API 0: Text columns that start with empty strings now keep them (0.4.15 to 0.4.20 dropped them in flat blocks).
+- 2026-11-05 · **lfc-pack** 0.4.20 · API 0: The first pack after a page opens is faster, and packing holds far less memory (a 20,000-item map uses 66 MB instead of 384 MB).
 - 2026-11-01 · **zip-open** 1.16.0 · API 1: Excel files open up to 18% faster, the first one in a page the most, and later ones up to 13%. Same results.
 - 2026-11-01 · **zip-open** 1.15.2 · API 1: The first file you open in a page opens 8 to 36% faster (big sheets the most); opening it again is about the same. Same results.
 - 2026-11-01 · **zip-open** 1.15.1 · API 1: Zip and Excel files in memory open up to 6% faster in Firefox and up to 3% in Chromium; WebKitGTK about the same. Same results.

@@ -2,6 +2,49 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.24 · API 0 · 2026-11-05
+
+### Quick
+packTables and packRows build their row text from one JSON.stringify of each array instead of one per row; same bytes, no API change.
+
+### Details
+20,000-item Netflow map (bigNetwork(20000,4,7), nodes and links tables) through packTables, medians of 7 to 11 browser launches per run, one library per launch, 2 to 4 runs: Firefox 158 first pack 0.82-0.93x, warmed 0.68-0.89x; ungoogled Chromium 155 first 0.83-0.95x, warmed 0.86-0.97x; WebKitGTK 2.52.6 first 0.97-1.05x, warmed 0.87-1.02x (no change beyond noise). Files byte-identical. Adds rowscan.wasm (263 bytes); lfc-pack.js grows by about 3 KB. No extra memory is held: the text is encoded into the tokenizer's input buffer.
+
+### Deep
+packTables and packRows used to stringify every row on its own and join the strings with line ends (80,000 small strings for a 20,000-item Netflow map). They now call JSON.stringify once per array, encode the text straight into the tokenizer's input buffer (memory the pack touches next anyway, at most as far as one block would grow it; bigger tables fall back to a JS scan), and a 263-byte wasm function (wasm/rowscan.c, imports the tokenizer's memory) turns the array's top-level commas and closing bracket into line ends. The bytes are the same as before; rows JSON.stringify writes differently inside an array (undefined, functions, symbols, a toJSON method) keep the per-row path. Checked byte-identical against 0.4.23 on 26 files (the Netflow map, edge cases with quotes, backslashes, brackets inside strings, non-ASCII, empty tables, a 300,000-row table, after a memory trim, and 12 random files of escape-heavy strings). Tried and dropped: the scan in plain JS (Firefox gained, Chromium and WebKitGTK flat), a JS scan that hops over strings with indexOf (slower everywhere), the wasm scan in 256 KB calls (same as one call). Stage split of the first pack (Netflow map): about half of the gap to a warmed pack is engine warm-up and half grows with job size (first-touch memory and JIT in the tokenizer, string dedupe, zstd and the writer); a small warm-up pack removes only the first half.
+
+## 0.4.23 · API 0 · 2026-11-05
+
+### Quick
+Auto mode now starts with the template read check marked failed (tmplSlow = true), so the timed check (115-155 ms of every first logs/events pack) no longer runs.
+
+### Deep
+Auto mode now starts with the template read check marked failed (tmplSlow = true), so the timed check (115-155 ms of every first logs/events pack) no longer runs. It failed on every column measured: template reads 1.3-4.3x slower than the plain layout in Chromium, Firefox, WebKitGTK and Node. Templates stay available with { templates: true }. Byte-identical files on 12 set/option pairs and 600 random files. First pack, one library per launch: Firefox logs 0.50, events 0.64; WebKitGTK logs 0.49, escaped logs 0.57, events 0.55; Chromium no clear change. From branch claude/project-thread-cahtub commit f9b4cc5c (owner tapped Yes, ship it, 2:18 AM ET 11.05).
+
+## 0.4.22 · API 0 · 2026-11-05
+
+### Quick
+Round 46 follow-up (cause, not warm-up).
+
+### Deep
+Round 46 follow-up (cause, not warm-up). decodeColumn held every column kind's loops in one big function; on a page's first open each hot loop made Chromium rebuild optimized code for the whole function (hex id column 88 ms on the first open, 7 ms later). Each kind (V, B, T, D, H, U, I) now has its own small function; the hex column writes two letters per step through a 256-entry Uint16 table. Medians of fresh pages, first unpack, ms: logs 100k Chromium 266 -> 176 (0.66), Firefox 235 -> 227 (0.97), WebKitGTK 167 -> 170 (about even); logs 6k Chromium 46 -> 48 (noise); events 50k (nested) Chromium 115 -> 110, Firefox 90 -> 81, WebKitGTK 103 -> 92. Remaining first-open extra in Chromium: probeClone (25-30 ms, one time) and frame decoding (+15 ms).
+
+## 0.4.21 · API 0 · 2026-11-05
+
+### Quick
+flatscan.c strdict(): the two all-values loops wrote the NUL separator when output bytes existed (if(o)) instead of for every value after the first (if(i)), so leading empty strings in a text column were dropped and later values moved up a…
+
+### Deep
+flatscan.c strdict(): the two all-values loops wrote the NUL separator when output bytes existed (if(o)) instead of for every value after the first (if(i)), so leading empty strings in a text column were dropped and later values moved up a row. Fixed both loops; flatscan.wasm rebuilt with clang 18.1.3 (new wasm/build-flatscan.sh reproduces the committed flatscan.wasm and tpl4.wasm byte for byte). New test/emptystr.cjs (bad 29 on 0.4.20, bad 0 now). Nested blocks were never affected. Files from 0.4.15-0.4.20 with leading empty strings stay as written.
+
+## 0.4.20 · API 0 · 2026-11-05
+
+### Quick
+Two commits from the LFCP thread (owner's card 'Yes, ship it', 1:39 AM ET 11.05).
+
+### Deep
+Two commits from the LFCP thread (owner's card 'Yes, ship it', 1:39 AM ET 11.05). Round 43 (a32fcc04): probeClone in src/flat.js times the row-building ways on 8,192 rows, not the whole block; cold first open 0.27-0.68x of the old time, output identical. Round 44 (7f635a60): tokenizer buffers laid out per block from counted quotes, separators and line ends instead of a fixed 384 MB initial memory (wasm/core.c, build-core.sh, src/shred.js, rebuilt wasm); 20,000-item Netflow map 384 MB -> 66 MB, geo 141 MB, orders 146 MB; byte-identical on 2,700 random files and 108 edge cases; warmed pack WebKit 0.92-1.01x, Chromium events 0.46x, Firefox 0.94-1.03x (orders recheck 12 rounds 1.031x, within noise). Details: js-modules-research/lfc-pack/stack-retest-2026.10.31/RESULTS-share-paths-2026.11.01.md, rounds 43 and 44. All lfc-pack checks pass. Requested by the owner.
+
 ## 0.4.19 · API 0 · 2026-11-01
 
 ### Quick

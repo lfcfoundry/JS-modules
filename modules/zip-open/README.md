@@ -1,12 +1,12 @@
 # zip-open
 
-**Version 1.16.0 · API 1**
+**Version 1.17.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud)
+**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-05 (early-stop A/B, forward and reversed; first opens in 10 to 16 fresh pages per browser and path); 44 module checks pass.
 
 ## What it is and how it works
 
-Opens `.zip` and Excel `.xlsx` files safely, in the browser or Node. About 45 KB gzipped (36.6 KB minified and gzipped), no dependencies.
+Opens `.zip` and Excel `.xlsx` files safely, in the browser or Node. About 42 KB gzipped (32.1 KB minified and gzipped), no dependencies.
 
 - Text files come out as strings, and every Excel sheet comes out as CSV text.
 - Each entry is unpacked with the platform's own deflate and its checksum is checked.

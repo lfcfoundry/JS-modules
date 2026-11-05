@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.3.0 (API 1)
+ * Version 1.3.1 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -536,7 +536,7 @@ var NetflowHierarchy = (function () {
     S.dots.forEach(function (d) { grow(d.cx - d.r, d.cy - d.r); grow(d.cx + d.r, d.cy + d.r); });
     S.polys.forEach(function (p) { for (var i = 0; i < p.pts.length; i += 2) grow(p.pts[i], p.pts[i + 1]); });
     S.curves.forEach(function (c) { for (var i = 0; i < c.P.length; i += 2) grow(c.P[i], c.P[i + 1]); });
-    S.labels.forEach(function (l) { if (l.rot) { var r = l.t.length * l.size * 0.6; grow(l.x + Math.cos(l.rot) * r * (l.align === 'r' ? -1 : 1), l.y + Math.sin(l.rot) * r * (l.align === 'r' ? -1 : 1)); } else { var b = NS.labelBox(l); if (b) { grow(b[0], b[1]); grow(b[2], b[3]); } } });
+    S.labels.forEach(function (l) { if (l.rot) { var r = l.t.length * l.size * 0.6, a = l.rot * Math.PI / 180, sg = l.align === 'r' ? -1 : 1; grow(l.x + Math.cos(a) * r * sg, l.y + Math.sin(a) * r * sg); grow(l.x - Math.sin(a) * l.size, l.y + Math.cos(a) * l.size * 0.4); }   /* label angles are kept in degrees (for the renderer): turn them back for the bounds, so a tilted name is never cut off */ else { var b = NS.labelBox(l); if (b) { grow(b[0], b[1]); grow(b[2], b[3]); } } });
     if (!isFinite(x0b)) { x0b = 0; y0b = 0; x1b = 100; y1b = 100; }
     var pad = 30; S.x0 = x0b - pad; S.y0 = y0b - pad; S.w = x1b - x0b + 2 * pad; S.h = y1b - y0b + 2 * pad;
     S.gridStale = true; S.eidx = null; S.spatial = null;

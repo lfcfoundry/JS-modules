@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.17.0 · API 1 · 2026-11-05
+
+### Quick
+Big sheets (4 MB or more unpacked) opened again in the same page are 3 to 35% faster; a second thread now unpacks while the main thread reads rows.
+
+### Details
+After the first big open in a page, zip-open starts one helper thread (built from a blob URL, no network). On later opens it unpacks the biggest sheet in 512 KB pieces and hands each piece over while the reader works on the one before. The helper closes after 5 seconds idle. Used for files in memory, Files read in pieces, and inside expandBlob helpers. Anything unusual falls back to the 1.16.0 path; the CRC and size are still checked at the end. Time 1.17.0 / 1.16.0, cloud, lower is better, later opens: files in memory 0.65 to 0.97, Files read in pieces 0.70 to 0.86, inside helpers 0.70 to 0.90; first opens 0.96 to 1.07 (1.16.0 against itself: 0.93 to 1.11); small files about the same.
+
+### Deep
+Two threads for big sheets. New resumable unzip (inflateBegin, inflateStep, inflateDone) and sheet reading (sheetBegin, sheetMore) in the WebAssembly reader. A dedicated helper thread gets the compiled module once, unpacks in 512 KB pieces with reused buffers, and the page copies each piece into reader memory, checks UTF-8 up to the last '<', and reads rows up to the last row start. The helper starts only after the first big open finishes (starting it during an open cost 10 to 31% on that open, WebKitGTK the most) and is used only once ready. Bad CRC or size skips the sheet with a note, as before.
+
 ## 1.16.0 · API 1 · 2026-11-01
 
 ### Quick

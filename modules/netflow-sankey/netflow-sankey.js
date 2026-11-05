@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.6.0 (API 2)
+ * Version 2.7.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -630,7 +630,7 @@
     return R;
   }
 
-  var PALETTE = ['#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2', '#edc948', '#b07aa1', '#9c755f'];
+  var PALETTE = ['#b07aa1', '#edc948', '#8868ac', '#ff9da7', '#59a14f', '#936e59', '#5fa2ce', '#c84d4f', '#86bc86', '#4e79a7', '#76b7b2', '#f28e2b'];   /* the same 12 colors and order as netflow-scene's light groups (1.5.0): no two neighbors collapse for red-green color-blind eyes */
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   /**
    * A finished picture as an SVG string. opts: { colors: [css colors], labels: true, fontSize: 12, textColor: '#222', bandOpacity: 0.45, title }.
@@ -658,7 +658,7 @@
     if (blk) head = f(y + pad * 0.6);
     if (opts.source) { foot = 24; blk += '<text x="' + pad + '" y="' + f(head + R.height + 15) + '" font-size="11" fill="' + tc + '" fill-opacity="0.72">' + esc(opts.source) + '</text>'; }
     var H = f(R.height + head + foot);
-    s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + f(R.width) + ' ' + H + '" width="' + f(R.width) + '" height="' + H + '" font-family="system-ui,sans-serif" font-size="' + fs + '" role="img"' + (opts.title ? ' aria-label="' + esc(opts.title) + '"' : '') + '>';
+    s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + f(R.width) + ' ' + H + '" width="' + f(R.width) + '" height="' + H + '" font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif" font-size="' + fs + '" role="img"' + (opts.title ? ' aria-label="' + esc(opts.title) + '"' : '') + '>';
     if (opts.title) s += '<title>' + esc(opts.title) + '</title>';
     s += blk + (head ? '<g transform="translate(0 ' + head + ')">' : '');
     var bands = R.bands, i, b, x0, x1, xm, y0a, y0b, y1a, y1b;
