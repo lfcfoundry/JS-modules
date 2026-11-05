@@ -278,7 +278,7 @@ var NetflowCircular = (function () {
   /** One call to a picture: toSvg(data, options) returns SVG text (data: links as { from, to, value }, or { nodes, edges }); options.type is chord (the default) or bundles. */
   function toSvg(data, o) {
     o = o || {}; var NS = HY.sceneLib ? HY.sceneLib('netflow-circular') : NetflowScene, lo = {}; for (var k in o) lo[k] = o[k]; if (lo.chordBy === undefined) lo.chordBy = 'auto';
-    return NS.toSvg(scene(layout(o.type || 'chord', HY.asGraph(data), lo), o, NS), o.title);
+    return NS.toSvg(scene(layout(o.type || 'chord', HY.asGraph(data, o), lo), o, NS), o.title);
   }
 
   return { VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, toSvg: toSvg, bsplineToBezier: bsplineToBezier };

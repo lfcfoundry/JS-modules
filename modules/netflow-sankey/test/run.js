@@ -193,6 +193,11 @@ t('one call: toSvg(links) lays out and draws; value, weight and count all name t
   ok(svg === RL.toSvg(R), 'same picture both ways'); ok(svg.indexOf('Side &lt;work&gt;') > 0, 'names escaped');
   ok(RL.toSvg({ links: LINKS }) === svg, '{ links } works too');
 });
+t('one call from table rows: own column names, named or found (first two text columns, first number column)', () => {
+  const b = RL.toSvg([{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', value: 14 }]);
+  ok(RL.toSvg([{ Source: 'Wages', Target: 'Rent', Amount: '30' }, { Source: 'Wages', Target: 'Food', Amount: '14' }]) === b, 'found');
+  ok(RL.toSvg([{ a: 'Wages', b: 'Rent', n: 30 }, { a: 'Wages', b: 'Food', n: 14 }], { from: 'a', to: 'b', value: 'n' }) === b, 'named');
+});
 t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier, wasmAvailable, wasmReady, wasmModule', () => {
   ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg,wasmAvailable,wasmModule,wasmReady', Object.keys(RL).sort().join());
 });

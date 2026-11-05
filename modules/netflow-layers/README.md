@@ -30,11 +30,13 @@ Ordinary layered drawings make a mess of "going back" links and very long links 
 
 Copy `netflow-layers.js`.
 
-One call, data only (items are made from the links and sized to their names):
+Load `netflow-layers.js` (nothing else needed). One call, data only (items are made from the links and sized to their names):
 
 ```js
 svgElement.outerHTML = NetflowLayers.toSvg([{ from: "start", to: "a" }, { from: "start", to: "b" }, { from: "a", to: "b" }]);
 ```
+
+Links point from an item to the next one. Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file.
 
 The two steps:
 

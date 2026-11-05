@@ -29,13 +29,15 @@ Netflow Map's Charts tab draws these charts from a map's table of items or links
 
 ## Use
 
-One call, data only (a bar chart of the first text column by the first number column):
+Load `netflow-scene.js` first, then `netflow-plot.js`. One call, data only (a bar chart of the first text column by the first number column):
 
 ```js
 // netflow-scene.js, then netflow-plot.js
 svgElement.outerHTML = NetflowPlot.toSvg([{ city: 'Detroit', share: 12 }, { city: 'Chicago', share: 16 }]);
 svgElement.outerHTML = NetflowPlot.toSvg(rows, { type: 'line', x: 'day', y: 'sales', color: 'region', title: 'Sales' });
 ```
+
+Name your own columns in the same options: `{ type: 'bar', x: 'Region', y: 'Sales', color: 'Channel' }` (rows straight from a CSV work; numbers written as text are read as numbers). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
 
 The steps below keep the scene, for pointing at marks.
 

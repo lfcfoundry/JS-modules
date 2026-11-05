@@ -27,12 +27,14 @@ Who sends how much to whom, and which parts of a map talk to each other, read be
 
 ## Use
 
-One call, data only:
+Load `netflow-scene.js`, then `netflow-hierarchy.js`, then `netflow-circular.js`. One call, data only:
 
 ```js
 // netflow-scene.js, netflow-hierarchy.js, then netflow-circular.js
 svgElement.outerHTML = NetflowCircular.toSvg(links);                          // chord; { type: 'bundles' } for edge bundles
 ```
+
+Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
 
 The steps below keep the layout and scene:
 

@@ -29,13 +29,15 @@ Netflow Map draws these views from any map: a tree of links, or items grouped by
 
 ## Use
 
-One call, data only (links as `{ from, to, value }`, or `{ nodes, edges }`; each box is as big as what flows into it):
+Load `netflow-scene.js` first, then `netflow-hierarchy.js`. One call, data only (links as `{ from, to, value }`, or `{ nodes, edges }`; each box is as big as what flows into it):
 
 ```js
 // netflow-scene.js, then netflow-hierarchy.js
 svgElement.outerHTML = NetflowHierarchy.toSvg(links);                         // treemap
 svgElement.outerHTML = NetflowHierarchy.toSvg(links, { type: 'sunburst', title: 'Budget' });
 ```
+
+Links point from parent to child: `from` is the outer box, `to` the box inside it. Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
 
 The steps below keep the layout and scene:
 
@@ -48,7 +50,7 @@ var S = NetflowHierarchy.scene(L, { theme: 'light' }, NetflowScene);
 svgElement.outerHTML = NetflowScene.toSvg(S, 'Treemap');
 ```
 
-- `G`: `{ nodes: [{ id, label, group, sizeV }], edges: [{ from, to, weight, count, widthV }] }`, plus optional `eA` and `eB` (Int32Array item numbers of each link's ends; with them no id lookup is built).
+- `G`: `{ nodes: [{ id, label, group, sizeV }], edges: [{ from, to, weight, count, widthV }] }` (edges from parent to child; `sizeV` is a box's own size, 1 when missing; a link's amount is `widthV` when given, else its flow, else `weight`, else `count`, the number of times it was taken; `nest: 'auto'` follows the links when they already form a tree, else boxes by `group` when there are 2 or more groups, else the links from the start), plus optional `eA` and `eB` (Int32Array item numbers of each link's ends; with them no id lookup is built).
 - Views: `treemap`, `sunburst`, `icicle`, `pack`, `tree` (`NetflowHierarchy.VIEWS`).
 - Options: `nest` (`auto`, `links` or `groups`), `sized` (box sizes from `sizeV`), `treeShape` (`tidy`, the default, `cluster`, `radial`, `radialCluster` or `indented`).
 - Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `scene()` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.

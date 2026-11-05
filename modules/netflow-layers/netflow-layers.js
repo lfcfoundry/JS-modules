@@ -598,12 +598,17 @@
   var f1 = function (x) { return Math.round(x * 10) / 10; };
   /** A plain SVG picture of a layout() result: boxes, curved links through the stops, tags with name chips. Options: gold, line, box, boxLine, text, muted (colors), taper (forward links as shapes that narrow from 5 to 1 px). */
   /** The links of any plain input: a list of { from, to, value } (weight or count also name the amount; 1 when none), or { links } or { edges }. */
-  function asLinks(d) { var l = Array.isArray(d) ? d : (d && (d.links || d.edges)) || []; return l.map(function (e) { var v = e.value !== undefined ? e.value : e.weight !== undefined ? e.weight : e.count !== undefined ? e.count : 1; return { from: e.from, to: e.to, value: +v }; }); }
+  /* Table rows in your own column names work too: name them with o.from, o.to and o.value, or leave them out and the first two text columns and the first number column are used. */
+  function asLinks(d, o) {
+    o = o || {}; var l = Array.isArray(d) ? d : (d && (d.links || d.edges)) || [], r0 = l[0] || {}, F = typeof o.from === 'string' ? o.from : null, T = typeof o.to === 'string' ? o.to : null, V = typeof o.value === 'string' ? o.value : null;
+    if (!F && !T && r0.from === undefined && r0.to === undefined) { var txt = [], num = null; Object.keys(r0).forEach(function (k) { var v = r0[k]; if (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && isFinite(+v))) { if (num === null) num = k; } else if (typeof v === 'string') txt.push(k); }); F = txt[0] || null; T = txt[1] || null; if (!V) V = num; }
+    return l.map(function (e) { var v = V ? e[V] : e.value !== undefined ? e.value : e.weight !== undefined ? e.weight : e.count !== undefined ? e.count : 1; return { from: F ? e[F] : e.from, to: T ? e[T] : e.to, value: v === undefined || v === '' ? 1 : +v }; });
+  }
   /** toSvg(data, o) in one call (links as above, or { nodes, edges } with or without sizes), or toSvg(R, o) for a layout result (its nodes have x and y). */
   function toSvg(R, o) {
     o = o || {};
     if (!R || !R.nodes || !R.nodes.length || R.nodes[0].x === undefined || R.width === undefined) {
-      var ls = asLinks(R), ns = R && !Array.isArray(R) && R.nodes ? R.nodes.slice() : [], seen = {};
+      var ls = asLinks(R, o), ns = R && !Array.isArray(R) && R.nodes ? R.nodes.slice() : [], seen = {};
       ns.forEach(function (n) { seen[n.id] = 1; }); ls.forEach(function (e) { [e.from, e.to].forEach(function (id) { if (!seen[id]) { seen[id] = 1; ns.push({ id: id }); } }); });
       ns = ns.map(function (n) { var c = {}; for (var k in n) c[k] = n[k]; var t = String(c.label !== undefined ? c.label : c.id); if (!(c.w > 0)) c.w = Math.max(60, t.length * 7.2 + 24); if (!(c.h > 0)) c.h = 32; return c; });
       R = layout({ root: R && R.root !== undefined ? R.root : (ns[0] && ns[0].id), nodes: ns, edges: ls.map(function (e) { return { from: e.from, to: e.to, count: e.value }; }) }, o);

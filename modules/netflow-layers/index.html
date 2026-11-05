@@ -62,8 +62,9 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 <h2 id="how-to-use-it">How to use it</h2>
 <h3>Use</h3>
 <p>Copy <code>netflow-layers.js</code>.</p>
-<p>One call, data only (items are made from the links and sized to their names):</p>
+<p>Load <code>netflow-layers.js</code> (nothing else needed). One call, data only (items are made from the links and sized to their names):</p>
 <pre><code>svgElement.outerHTML = NetflowLayers.toSvg([{ from: "start", to: "a" }, { from: "start", to: "b" }, { from: "a", to: "b" }]);</code></pre>
+<p>Links point from an item to the next one. Your table can keep its own column names: <code>toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })</code>, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). <code>toSvg</code> returns SVG text (a string): put it in the page with <code>element.outerHTML = ...</code> or save it as a <code>.svg</code> file.</p>
 <p>The two steps:</p>
 <pre><code>var R = NetflowLayers.layout({
   root: "start",
