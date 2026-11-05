@@ -956,9 +956,10 @@
    * bytes: Uint8Array of a .zip or .xlsx. Returns { files: [{ name, path, text }], notes: [plain words] }.
    * Never throws for a bad inner file (it is skipped with a note); throws for a bad outer file or when nothing readable is inside.
    */
-  async function expand(bytes, fileName, opts) { return expandFrom(memSource(bytes), fileName, opts); }
+  async function expand(bytes, fileName, opts) { OPENS++; return expandFrom(memSource(bytes), fileName, opts); }
   /** Same as expand() for a File or Blob (a dropped file, a fetch result): a big zip is read in pieces, so it never has to sit whole in memory. Same answers, same notes. A zip of up to 16 MB without helpers is read in one go (0.80 to 0.93x the time of reading it in pieces). */
   async function expandBlob(blob, fileName, opts) {
+    OPENS++;
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = 0; }
     blobOpens++;
     var h = helpersFor(opts);
@@ -1099,6 +1100,58 @@
   /** Bytes of one listed entry, checked against the size and checksum the zip promised: { bytes } or { skip: 'plain-words reason' }. */
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
+  /* Warm-up: browsers first run WebAssembly on quick-to-compile code and switch to fast code only after a function has done some work, so the first file in a page ran partly on the slow code. Shortly after this file loads (on a page, not in a worker), the unzipper and the Excel reader run on a small made-up sheet in short steps, then three tiny made-up workbooks go through a whole open; any open of a real file stops it. No file, no network; about 20 to 30 ms of work in all. */
+  var OPENS = 0, WARMED = 0, WARM_STEPS = 24, WARM_DONE = 0;   // WARM_DONE: test hook (steps run, + 100 per tiny open)
+  function warmReader() {
+    if (WARMED) return; WARMED = 1;
+    try {
+      if (typeof CompressionStream !== 'function' || typeof Response !== 'function' || typeof Blob !== 'function' || typeof setTimeout !== 'function') return;
+      var mod = xlsxModule(); if (!mod) return;
+      var opens = OPENS, rows = [], ss = [], i;
+      for (i = 0; i < 400; i++) ss.push('<si><t>Item ' + i + ' ' + (i * 7919 % 1000) + '</t></si>');
+      for (i = 1; i <= 3000; i++) rows.push('<row r="' + i + '"><c r="A' + i + '"><v>' + i + '</v></c><c r="B' + i + '" t="s"><v>' + (i * 31 % 400) + '</v></c><c r="C' + i + '" s="1"><v>' + (40000 + i % 3000) + '</v></c><c r="D' + i + '"><v>' + (i * 13 % 997) + '.' + (i % 89 + 10) + '</v></c><c r="E' + i + '" t="b"><v>' + (i & 1) + '</v></c></row>');
+      var enc = new TextEncoder(), sstX = enc.encode('<sst>' + ss.join('') + '</sst>'), shX = enc.encode('<worksheet><sheetData>' + rows.join('') + '</sheetData></worksheet>');
+      var defl = function (u) { return new Response(new Blob([u]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer().then(function (b) { return new Uint8Array(b); }); };
+      Promise.all([defl(sstX), defl(shX)]).then(function (z) {
+        if (OPENS !== opens) return;
+        var X = new WebAssembly.Instance(mod, {}).exports, H = X.__heap_base.value, xf = (H + 15) & ~15, sp = xf + 16, tab = (sp + sstX.length + 8) & ~7, tcap = (sstX.length >> 4) + 1, sh = (tab + tcap * 8 + 15) & ~15, op = (sh + shX.length + 16) & ~15, ocap = shX.length, fx = (op + ocap + 7) & ~7, fcap = 4096, ip = (fx + fcap * 16 + 15) & ~15, end = ip + z[0].length + z[1].length + 64;
+        if (end > X.memory.buffer.byteLength) X.memory.grow(Math.ceil((end - X.memory.buffer.byteLength) / 65536));
+        var m = new Uint8Array(X.memory.buffer), left = WARM_STEPS; m[xf + 1] = 1; m.set(z[0], ip); m.set(z[1], ip + z[0].length);
+        (function step() {
+          if (OPENS !== opens || left-- <= 0) return;
+          X.inflate(ip, z[0].length, sp, sstX.length + 1); X.utf8ok(sp, sstX.length); X.sst(sp, sstX.length, tab, tcap);
+          X.inflate(ip + z[0].length, z[1].length, sh, shX.length + 1); X.utf8ok(sh, shX.length);
+          X.sheet(sh, shX.length, xf, 2, 0, op, ocap, fx, fcap, 1e9); WARM_DONE++;
+          setTimeout(step, 0);
+          if (left <= 0) setTimeout(warmBook, 0);
+        })();
+      }, function () { });
+    } catch (e) { }
+  }
+  function storedZip(files) {   // [[name, bytes]] -> a zip with stored (not packed) entries, for the warm-up
+    var parts = [], cd = [], off = 0, cdn = 0, enc = new TextEncoder();
+    function le(n, k) { var a = []; for (var i = 0; i < k; i++) a.push((n >>> (8 * i)) & 255); return a; }
+    files.forEach(function (f) {
+      var nm = enc.encode(f[0]), d = f[1], c = crc32(d), h = [].concat(le(0x04034b50, 4), le(20, 2), le(0, 2), le(0, 2), le(0, 2), le(0x21, 2), le(c, 4), le(d.length, 4), le(d.length, 4), le(nm.length, 2), le(0, 2));
+      var ch = [].concat(le(0x02014b50, 4), le(20, 2), le(20, 2), le(0, 2), le(0, 2), le(0, 2), le(0x21, 2), le(c, 4), le(d.length, 4), le(d.length, 4), le(nm.length, 2), le(0, 2), le(0, 2), le(0, 2), le(0, 2), le(0, 4), le(off, 4));
+      parts.push(new Uint8Array(h), nm, d); cd.push(new Uint8Array(ch), nm); off += h.length + nm.length + d.length; cdn += ch.length + nm.length;
+    });
+    parts = parts.concat(cd, [new Uint8Array([].concat(le(0x06054b50, 4), le(0, 4), le(files.length, 2), le(files.length, 2), le(cdn, 4), le(off, 4), le(0, 2)))]);
+    var n = 0, i; for (i = 0; i < parts.length; i++) n += parts[i].length;
+    var z = new Uint8Array(n); n = 0; for (i = 0; i < parts.length; i++) { z.set(parts[i], n); n += parts[i].length; }
+    return z;
+  }
+  function warmBook() {   // the JavaScript side of an Excel open, three times on a tiny made-up workbook
+    try {
+      var enc = new TextEncoder(), ss = [], rows = [], i, opens = OPENS;
+      for (i = 0; i < 60; i++) ss.push('<si><t>Item ' + i + '</t></si>');
+      for (i = 1; i <= 60; i++) rows.push('<row r="' + i + '"><c r="A' + i + '"><v>' + i + '</v></c><c r="B' + i + '" t="s"><v>' + (i % 60) + '</v></c><c r="C' + i + '" s="1"><v>' + (40000 + i) + '</v></c><c r="D' + i + '"><v>' + i + '.5</v></c><c r="E' + i + '" t="b"><v>1</v></c><c r="F' + i + '" t="str"><f>A1</f><v>x</v></c></row>');
+      var z = storedZip([['xl/workbook.xml', enc.encode('<workbook xmlns:r="r"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>')], ['xl/_rels/workbook.xml.rels', enc.encode('<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>')], ['xl/styles.xml', enc.encode('<styleSheet><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>')], ['xl/sharedStrings.xml', enc.encode('<sst>' + ss.join('') + '</sst>')], ['xl/worksheets/sheet1.xml', enc.encode('<worksheet><sheetData>' + rows.join('') + '</sheetData></worksheet>')]]);
+      var left = 3;
+      (function one() { if (OPENS !== opens || left-- <= 0) return; expandFrom(memSource(z), 'warm.xlsx', {}).then(function () { WARM_DONE += 100; setTimeout(one, 0); }, function () { }); })();
+    } catch (e) { }
+  }
+  if (typeof document === 'object' && typeof setTimeout === 'function') setTimeout(warmReader, 0);
   compileEarly();
-  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, _xlsxPlain: xlsxPlain, _placed: function () { return PLACED; }, _xlsxSimd: function () { xlsxModule(); return XSIMD; }, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n === undefined ? INFLATE_DEF : n; }, _piped: function () { return PIPED; }, _rawBlob: rawBlob, _pipe: function (spawn, min) { pipeSpawn = spawn || null; PIPE_MIN = min === undefined ? 4194304 : min; if (PIPE) { try { PIPE.w.terminate(); } catch (e) { /* gone */ } PIPE = null; } }, LIMITS: LIMITS };
+  return { expand: expand, expandBlob: expandBlob, warm: warm, closeHelpers: closeHelpers, _textJob: textJob, _bookJob: bookJob, _xlsxPlain: xlsxPlain, _placed: function () { return PLACED; }, _xlsxSimd: function () { xlsxModule(); return XSIMD; }, list: list, listBlob: listBlob, read: read, readBlob: readBlobEntry, isZip: isZip, looksLikeArchive: looksLikeArchive, decodeText: decodeText, crc32: crc32, wasmAvailable: function () { return !!kernel(); }, wasmReady: function () { return compileEarly(); }, wasmModule: zipModule, _xmlScan: xmlScan, _xlsxSheets: xlsxSheets, _inflateMax: function (n) { INFLATE_MAX = n === undefined ? INFLATE_DEF : n; }, _piped: function () { return PIPED; }, _warm: function (steps) { WARMED = 0; WARM_DONE = 0; if (steps !== undefined) WARM_STEPS = steps; warmReader(); }, _warmed: function () { return WARM_DONE; }, _warmZip: function () { return storedZip([['a.csv', new TextEncoder().encode('a,b\n1,2')]]); }, _rawBlob: rawBlob, _pipe: function (spawn, min) { pipeSpawn = spawn || null; PIPE_MIN = min === undefined ? 4194304 : min; if (PIPE) { try { PIPE.w.terminate(); } catch (e) { /* gone */ } PIPE = null; } }, LIMITS: LIMITS };
 }));
