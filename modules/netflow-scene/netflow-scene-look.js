@@ -1,7 +1,7 @@
 /*!
  * netflow-scene-look.js, an optional companion of netflow-scene.js: look settings. One small object says how a map is colored and set in type, and this file turns it into the names the scene module understands.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules. Cut from Netflow Map. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.5.0 (API 1)
+ * Version 1.5.1 (API 1)
  *
  * No DOM, no storage; runs in the page, in a worker and in Node. A "look" is
  *   { base: 'auto'|'light'|'dark', slots: { bg: '#hex', ... }, groups: ['#hex' or '', ... 12], ramp: ['#hex', ...2..6], font: 'system'|..., nodeScale: 0.4..3 }
@@ -29,7 +29,7 @@ var NetflowSceneLook = (function () {
   var SLOT_KEYS = SLOTS.map(function (s) { return s[0]; });
   /** Type families from the device's own fonts (no downloads). */
   var FONTS = {
-    system: ['Standard', 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'],
+    system: ['Standard', 'Inter, "Segoe UI", Roboto, system-ui, -apple-system, sans-serif'],
     humanist: ['Friendly', '"Trebuchet MS", "Segoe UI", Candara, "Gill Sans", sans-serif'],
     serif: ['Serif (books)', 'Georgia, "Times New Roman", Cambria, serif'],
     slab: ['Slab', 'Rockwell, "Roboto Slab", "Courier New", Georgia, serif'],

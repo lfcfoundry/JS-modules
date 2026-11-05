@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.6.0 (API 2)
+ * Version 2.6.1 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -658,7 +658,7 @@
     if (blk) head = f(y + pad * 0.6);
     if (opts.source) { foot = 24; blk += '<text x="' + pad + '" y="' + f(head + R.height + 15) + '" font-size="11" fill="' + tc + '" fill-opacity="0.72">' + esc(opts.source) + '</text>'; }
     var H = f(R.height + head + foot);
-    s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + f(R.width) + ' ' + H + '" width="' + f(R.width) + '" height="' + H + '" font-family="system-ui,sans-serif" font-size="' + fs + '" role="img"' + (opts.title ? ' aria-label="' + esc(opts.title) + '"' : '') + '>';
+    s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + f(R.width) + ' ' + H + '" width="' + f(R.width) + '" height="' + H + '" font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif" font-size="' + fs + '" role="img"' + (opts.title ? ' aria-label="' + esc(opts.title) + '"' : '') + '>';
     if (opts.title) s += '<title>' + esc(opts.title) + '</title>';
     s += blk + (head ? '<g transform="translate(0 ' + head + ')">' : '');
     var bands = R.bands, i, b, x0, x1, xm, y0a, y0b, y1a, y1b;
