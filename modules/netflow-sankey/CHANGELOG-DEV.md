@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.8.0 · API 2 · 2026-11-05
+
+### Quick
+toSvg takes highlight (an id or label): that item and every band touching it keep their colors and the rest fade toward the background, the same option word as netflow-plot.
+
+### Deep
+toSvg takes highlight (an id or label): that item and every band touching it keep their colors and the rest fade toward the background, the same option word as netflow-plot. Without it the drawing is byte for byte the same.
+
 ## 2.7.0 · API 2 · 2026-11-05
 
 ### Quick
