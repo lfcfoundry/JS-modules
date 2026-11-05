@@ -95,9 +95,10 @@ t('an empty or one-link input does not throw', () => {
 });
 // ---- netflow-sankey 2.0.0 is faster but must draw exactly what version 1.0.0 (the old name) drew: these hashes were made by that version (layout without the timing and without the 2.2.0 fields simplified and note, then the SVG text) ----
 const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
-const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' || k === 'simplified' || k === 'note' ? undefined : v)) + ' ' + fnv(RL.toSvg(R)) + ' ' + fnv(oldTitle(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 }), R)); };
+const oldFont = (svg) => svg.replace('font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif"', 'font-family="system-ui,sans-serif"');   /* pictures pinned before the one shared font list (2.6.1) */
+const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' || k === 'simplified' || k === 'note' ? undefined : v)) + ' ' + fnv(oldFont(RL.toSvg(R))) + ' ' + fnv(oldTitle(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 }), R)); };
 /* since 2.5.0 the title is also drawn above the picture; taking that block off must give back exactly what 1.0.0 drew */
-const oldTitle = (svg, R) => { const h = String(+R.height.toFixed(2)), m = /<text x="14" y="34" font-size="20" font-weight="700"[^>]*>[^<]*<\/text><g transform="translate\(0 48\.4\)">/; if (!m.test(svg) || !svg.endsWith('</g></svg>')) return 'no title block'; return svg.replace(m, '').replace(/<\/g><\/svg>$/, '</svg>').replace(/viewBox="0 0 ([\d.]+) [\d.]+" width="([\d.]+)" height="[\d.]+"/, (a, w, w2) => 'viewBox="0 0 ' + w + ' ' + h + '" width="' + w2 + '" height="' + h + '"'); };
+const oldTitle = (svg, R) => { const h = String(+R.height.toFixed(2)), m = /<text x="14" y="34" font-size="20" font-weight="700"[^>]*>[^<]*<\/text><g transform="translate\(0 48\.4\)">/; if (!m.test(svg) || !svg.endsWith('</g></svg>')) return 'no title block'; return svg.replace('font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif"', 'font-family="system-ui,sans-serif"').replace(m, '').replace(/<\/g><\/svg>$/, '</svg>').replace(/viewBox="0 0 ([\d.]+) [\d.]+" width="([\d.]+)" height="[\d.]+"/, (a, w, w2) => 'viewBox="0 0 ' + w + ' ' + h + '" width="' + w2 + '" height="' + h + '"'); };
 const PIN = {
   'a 7x10 network with 3 loops': '89c38031 c261bece 7570244e',
   'the same with plain (unweighted) order': '71efb5d1 66a8d0c2 4d247fa9',
@@ -120,7 +121,8 @@ t('hand edits keep the order (fixedOrder) and pinned bars (fixY) exactly as befo
   ok(JSON.stringify(R1.order.layers) === JSON.stringify(R0.order.layers), 'order kept');
   const R2 = RL.layoutFlows(net(), { budgetMs: 1e9, fixedOrder: R0.order, fixY: { 'S2 i3': 120, 'S4 i1': 40 } });
   ok(R2.nodes.find((n) => n.id === 'S2 i3').y === 120 && R2.nodes.find((n) => n.id === 'S4 i1').pinned, 'pinned bars sit where they were put');
-  ok(fnv(RL.toSvg(R1)) + ' ' + fnv(RL.toSvg(R2)) === 'a387c988 4ef018d2', 'svg ' + fnv(RL.toSvg(R1)) + ' ' + fnv(RL.toSvg(R2)));
+  const sv = (R) => RL.toSvg(R).replace('font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif"', 'font-family="system-ui,sans-serif"');   /* pinned before the one shared font list (2.6.1) */
+  ok(fnv(sv(R1)) + ' ' + fnv(sv(R2)) === 'a387c988 4ef018d2', 'svg ' + fnv(sv(R1)) + ' ' + fnv(sv(R2)));
 });
 t('an item named like a stand-in bar ("d1") with a long link: its bands stack without overlapping', () => {
   // version 1.0.0 mixed up the band ends of such an item with its own stand-in bar and started a band in the wrong place
