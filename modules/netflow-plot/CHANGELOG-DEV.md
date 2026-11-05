@@ -1,5 +1,13 @@
 # netflow-plot developer changelog
 
+## 2.7.0 · API 2 · 2026-11-05
+
+### Quick
+Clean look (default) now covers line charts per the owner's 11.01 rule (no gridlines, no numbered axis ticks, values on the marks): the y number axis, horizontal and vertical gridlines are gone; each line's first value is written left of i…
+
+### Deep
+Clean look (default) now covers line charts per the owner's 11.01 rule (no gridlines, no numbered axis ticks, values on the marks): the y number axis, horizontal and vertical gridlines are gone; each line's first value is written left of its start and its last value after its name at the right end; a single line also gets its high and low (beside the point when above or below would leave the plot). clean: false keeps the old axis.
+
 ## 2.6.0 · API 2 · 2026-11-05
 
 ### Quick

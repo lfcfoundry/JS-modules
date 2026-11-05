@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.6.0 (API 2)
+ * Version 2.7.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -170,7 +170,7 @@ var NetflowPlot = (function () {
           if (every === 2 && !rot && F.clean) { stag = wrapAll ? 28 : 14; every = 1; }   /* clean look: when every other name would be left out, all names show on two staggered rows instead */
         }
         labs.forEach(function (v, i) {
-          if (i % every) return; var x = ax.map(v) + (ax.kind === 'band' ? ax.bw / 2 : 0); if (x < F.L - 1 || x > F.R + 1) return; if (grid !== false && ax.kind !== 'band') F.line([x, F.Tp, x, F.B], 1, gc);
+          if (i % every) return; var x = ax.map(v) + (ax.kind === 'band' ? ax.bw / 2 : 0); if (x < F.L - 1 || x > F.R + 1) return; if (grid !== false && ax.kind !== 'band' && !F.noY) F.line([x, F.Tp, x, F.B], 1, gc);
           if (rot) { F.text(x, F.B + 16, clip(labT(v), 18), 11, c, { rot: -Math.PI / 5, align: 'r' }); return; }
           var ls = ax.kind === 'band' ? wrap2(labT(v), wrapAll) : [labT(v)]; var lw0 = ls.reduce(function (m, t) { return Math.max(m, Math.min(14, t.length)); }, 0) * CW, al = null, lx0 = x;
           if (ax.kind === 'band' && x - lw0 / 2 < F.L - 4) { al = { align: 'l' }; lx0 = F.L - 4; } else if (ax.kind === 'band' && x + lw0 / 2 > F.W - 4) { al = { align: 'r' }; lx0 = F.W - 4; }   /* an end name never runs past the number axis or the edge */
@@ -367,16 +367,30 @@ var NetflowPlot = (function () {
     /* clean look: each line is named at its right end (no key row over the chart), up to 10 lines; room for the names is kept on the right */
     var ends = F.clean && !!sp.color && !F.keyRow && s.list.length > 1, ew = 0;
     if (ends && s.list.length > 10) { ends = false; F.keyRow = true; F.Tp = 44; }
-    if (ends) { s.list.forEach(function (l) { ew = Math.max(ew, clip(l.name || '(blank)', 16).length * CW); }); F.R = Math.max(F.L + 120, F.R - ew - 8); }
+    /* clean look: no number axis and no gridlines; each line's first and last values are written on it (a single line also gets its high and low) */
+    var vt = function (v) { return fmtNum(v); }, lastY = function (l) { for (var j = l.ys.length - 1; j >= 0; j--) if (l.ys[j] === l.ys[j]) return l.ys[j]; return NaN; };
+    if (ends) { s.list.forEach(function (l) { ew = Math.max(ew, (clip(l.name || '(blank)', 16).length + 1 + vt(lastY(l)).length) * CW); }); F.R = Math.max(F.L + 120, F.R - ew - 8); }
+    else if (F.clean && s.list.length === 1) { var lw = vt(lastY(s.list[0])).length * CW; F.R = Math.max(F.L + 120, F.R - lw - 8); }
     var ax = axisFor(allX, s.time, F.L, F.R, false, 8), ay = axisFor(allY, false, F.B, F.Tp, !!sp.zero);
+    if (F.clean) F.noY = true;
     F.axes(ax, ay, sp.x, sp.index ? sp.y + ' (first value = 100)' : sp.y || 'Rows');
-    var many = s.list.reduce(function (a, l) { return a + l.xs.length; }, 0), tags = [];
+    var many = s.list.reduce(function (a, l) { return a + l.xs.length; }, 0), tags = [], starts = [];
     s.list.forEach(function (l) {
       var pts = [], col = F.color(l.ci);
       for (var j = 0; j < l.xs.length; j++) { if (l.ys[j] !== l.ys[j]) continue; pts.push(ax.map(l.xs[j]), ay.map(l.ys[j])); }
       F.line(pts, 2, col);
       if (many <= 400) for (var k = 0; k < l.xs.length; k++) if (l.ys[k] === l.ys[k]) F.dot(ax.map(l.xs[k]), ay.map(l.ys[k]), 2.5, col, { rows: l.rows[k], t: (l.name ? l.name + ' \u00b7 ' : '') + (s.time ? dayText(l.xs[k]) : ax.fmt ? ax.fmt(l.xs[k]) : fmtNum(l.xs[k])) + ': ' + fmtNum(l.ys[k]) });
-      if (ends && pts.length) tags.push({ x: pts[pts.length - 2] + 6, y: pts[pts.length - 1] + 4, t: clip(l.name || '(blank)', 16), c: readable(col, F.T) });
+      if (F.clean && pts.length) {   /* values on the line: first point to the left of the plot, last point after the name (or alone for one line) */
+        var fi = 0; while (l.ys[fi] !== l.ys[fi]) fi++;
+        starts.push({ x: pts[0] - 6, y: pts[1] + 4, t: vt(l.ys[fi]), c: readable(col, F.T) });
+        if (s.list.length === 1) {
+          var hiK = -1, loK = -1, k2, nk = 0; for (k2 = 0; k2 < l.ys.length; k2++) if (l.ys[k2] === l.ys[k2]) { nk++; if (hiK < 0 || l.ys[k2] > l.ys[hiK]) hiK = k2; if (loK < 0 || l.ys[k2] < l.ys[loK]) loK = k2; }
+          var lk = l.ys.length - 1; while (l.ys[lk] !== l.ys[lk]) lk--;
+          F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, vt(l.ys[lk]), 11, readable(col, F.T), { align: 'l', bold: true });
+          [hiK, loK].forEach(function (k3, w) { if (nk < 3 || k3 === fi || k3 === lk || (w && l.ys[loK] === l.ys[hiK])) return; var hx = ax.map(l.xs[k3]), hy = ay.map(l.ys[k3]), side = w ? hy + 16 > F.B - 2 : hy - 8 < F.Tp + 2; F.text(side ? hx + 6 : hx, side ? hy + 4 : hy + (w ? 16 : -8), vt(l.ys[k3]), 11, readable(col, F.T), side ? { bold: true, align: 'l' } : { bold: true }); });   /* beside the point when above or below would leave the plot */
+        }
+      }
+      if (ends && pts.length) tags.push({ x: pts[pts.length - 2] + 6, y: pts[pts.length - 1] + 4, t: clip(l.name || '(blank)', 16) + (F.clean ? ' ' + vt(lastY(l)) : ''), c: readable(col, F.T) });
       else if (s.list.length > 1 && pts.length && !F.keyRow) F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, clip(l.name || '(blank)', 16), 11, col, { align: 'l' });
     });
     if (tags.length) {   /* names at the line ends, moved apart (13 px) so they never overlap, and kept inside the chart */
@@ -385,6 +399,13 @@ var NetflowPlot = (function () {
       for (i = 0; i < tags.length; i++) tags[i].y = Math.max(tags[i].y, i ? tags[i - 1].y + 13 : lo);
       for (i = tags.length - 1; i >= 0; i--) tags[i].y = Math.min(tags[i].y, i < tags.length - 1 ? tags[i + 1].y - 13 : hi);
       tags.forEach(function (g) { F.text(g.x, g.y, g.t, 11, g.c, { align: 'l', bold: true }); });
+    }
+    if (starts.length) {   /* first values left of the plot, moved apart the same way */
+      starts.sort(function (a, b) { return a.y - b.y; });
+      var i2, lo2 = F.Tp + 8, hi2 = F.B + 4;
+      for (i2 = 0; i2 < starts.length; i2++) starts[i2].y = Math.max(starts[i2].y, i2 ? starts[i2 - 1].y + 13 : lo2);
+      for (i2 = starts.length - 1; i2 >= 0; i2--) starts[i2].y = Math.min(starts[i2].y, i2 < starts.length - 1 ? starts[i2 + 1].y - 13 : hi2);
+      starts.forEach(function (g) { F.text(g.x, g.y, g.t, 11, g.c, { align: 'r', bold: true }); });
     }
     if (s.list.length > 1) { F.R -= 0; F.legend(sp.color, s.cats); }
   };
