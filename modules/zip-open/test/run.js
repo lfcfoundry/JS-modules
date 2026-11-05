@@ -612,4 +612,16 @@ t('Excel: a big sheet unpacked on a second thread while its rows are read gives 
   assert.ok(got.notes.some(function (n) { return /sheet1\.xml.*(damaged|more than)/.test(n); }), JSON.stringify(got.notes));
   assert.equal(got.files.length, 1, 'only the small sheet');
 });
+t('Warm-up (made-up workbook, at load on a page): it runs all its steps and tiny opens, stops when a real open starts, and changes no answer', async function () {
+  var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var rows = [['id', 'name', 'when', 'n']]; for (var i = 0; i < 3000; i++) rows.push([i, 'name ' + (i % 97), { d: 44000 + i }, i * 1.25]);
+  var x = u8(Z.makeXlsx([{ name: 'S', rows: rows }])), want = await U.expand(x, 'b.xlsx');
+  U._warm(4); for (var k = 0; k < 200 && U._warmed() < 304; k++) await wait(10);
+  assert.equal(U._warmed(), 304, 'four steps and three tiny opens, got ' + U._warmed());
+  assert.deepStrictEqual(await U.expand(x, 'b.xlsx'), want);
+  U._warm(1e6); for (k = 0; k < 200 && U._warmed() < 2; k++) await wait(5);
+  var got = await U.expand(x, 'b.xlsx'), at = U._warmed(); await wait(50);
+  assert.ok(U._warmed() <= at + 1, 'stopped after the open: ' + at + ' then ' + U._warmed());
+  assert.deepStrictEqual(got, want);
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });
