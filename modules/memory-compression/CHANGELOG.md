@@ -36,7 +36,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Fixed: nested rows whose key names contain a control character could get another row shape's field names.
 
 ## 2.6.4 · API 2 · 2026-10-24
-- Column pages keep nested objects, arrays, coordinate pairs and date-time columns in pieces and make each value when its row is read: scene-item page memory 312 to 148 KB, page open up to 2x faster; reading every row is 80 to 300 ns slower.
+- Column pages keep nested objects, arrays, coordinate pairs and date-times in pieces, made when the row is read: scene-item page memory 312 to 148 KB, page open up to 2x faster; reading every row is 80 to 300 ns slower.
 
 ## 2.6.3 · API 2 · 2026-10-24
 - unpackAsync() now opens number columns written by the number picker a few blocks at a time, so a long coordinate column no longer holds the page for 15 to 25 ms; same values, same packed bytes, unpack() unchanged.
@@ -69,7 +69,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - 2.4.6: new opt-in unpackAsync() opens a long packed list in short slices so the page stays free, same value as unpack(); page held 2 to 8 ms instead of 8 to 26, but total time 1.0 to 2.4x longer (most in WebKit). No new policy need.
 
 ## 2.4.3 · API 2 · 2026-10-23
-- 2.4.3: new opt-in packAsync() packs a long list without freezing the page, same bytes as pack(); 60,000 rows balanced: 85 to 117 ms as one task, 54 to 83 ms total, longest page task 6 to 9 ms. Slower in a few short-list and fast-mode cells.
+- 2.4.3: new opt-in packAsync() packs a long list without freezing the page, same bytes as pack(); 60,000 rows balanced: 85 to 117 ms as one task, 54 to 83 ms total, longest page task 6 to 9 ms. Slower in a few short-list cells.
 
 ## 2.4.2 · API 2 · 2026-10-23
 - 2.4.2: pager() can repack pages nobody is reading 15 to 18% smaller in a background worker, by itself when idle or before moving them to storage (needs worker-src blob: in the page's security policy).
