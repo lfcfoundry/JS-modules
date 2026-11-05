@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.23 · API 0 · 2026-11-05
+- The first pack of logs or event tables after a page opens is 1.6 to 2 times as fast (36 to 51% less time) in Firefox and WebKitGTK (Chromium about the same); files are byte-identical.
+
 ## 0.4.22 · API 0 · 2026-11-05
 - The first big read after a page opens is 3 to 34% faster for flat files with hex ids, addresses or number columns; same rows.
 
