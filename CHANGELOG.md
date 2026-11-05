@@ -38,7 +38,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.6.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.3.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.10.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.4.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.5.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
@@ -61,6 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-05 · **netflow-hierarchy** 1.3.1 · API 1: Chord, bundle and radial tree names on the left side are no longer cut off at the picture edge.
 - 2026-11-01 · **zip-open** 1.16.0 · API 1: Excel files open up to 18% faster, the first one in a page the most, and later ones up to 13%. Same results.
 - 2026-11-01 · **zip-open** 1.15.2 · API 1: The first file you open in a page opens 8 to 36% faster (big sheets the most); opening it again is about the same. Same results.
 - 2026-11-01 · **zip-open** 1.15.1 · API 1: Zip and Excel files in memory open up to 6% faster in Firefox and up to 3% in Chromium; WebKitGTK about the same. Same results.

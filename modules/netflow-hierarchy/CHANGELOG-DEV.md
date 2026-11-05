@@ -1,5 +1,13 @@
 # netflow-hierarchy developer changelog
 
+## 1.3.1 · API 1 · 2026-11-05
+
+### Quick
+Bug: the picture bounds turned tilted names' angles (kept in degrees for the renderer) through Math.cos as if radians, so names on the left of chords and bundles ran past the frame.
+
+### Deep
+Bug: the picture bounds turned tilted names' angles (kept in degrees for the renderer) through Math.cos as if radians, so names on the left of chords and bundles ran past the frame. Bounds now use radians and the name's height. 8 long names, chord: names cut 5 of 8 -> 0 in Chromium 155, Firefox 158 and WebKitGTK 2.52.6; bundles 1 -> 0; radial tree 1 -> 0 (Chromium). Treemap, icicle, pack and tidy tree pictures byte-identical (16 of 16); sunburst frames move by up to about 10 px (bounds now right), shapes unchanged. Requested by the owner (queued chord left-label cutoff fix).
+
 ## 1.3.0 · API 1 · 2026-11-01
 
 ### Quick
