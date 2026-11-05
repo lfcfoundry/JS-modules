@@ -100,5 +100,25 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(s.indexOf('<svg') === 0 && s.indexOf('>Detroit<') > 0 && s.indexOf('>16<') > 0, 'toSvg(rows) draws bars with values');
   const l = P.toSvg(table(30, 5), { type: 'line', x: 'day', y: 'sales', theme: 'dark', title: 'Sales' }); ok(l.indexOf('>Sales<') > 0, 'chart and drawing words in one options object');
 }
+{ /* clean look: line names at the line ends, crowded bar names on two rows, years without separators */
+  const NS = global.NetflowScene, cc = ['United States', 'Canada', 'Britain', 'Germany', 'France', 'Japan', 'Italy'], rows = [];
+  cc.forEach((c, k) => { for (let y = 2010; y < 2026; y++) rows.push({ attrs: { year: y, country: c, rate: 5 + (k % 3) * 0.1 + (y - 2010) * 0.01 } }); });
+  const S = P.make(rows, { type: 'line', x: 'year', y: 'rate', color: 'country' }, { width: 640, height: 400 }, NS);
+  const tags = S.labels.filter((l) => cc.indexOf(l.t) >= 0);
+  ok(tags.length === 7, 'line ends: every line named (' + tags.length + ')');
+  const ys = tags.map((l) => l.y).sort((a, b) => a - b); ok(ys.every((y, i) => !i || y - ys[i - 1] >= 12.99), 'line ends: names 13 px apart, never overlapping');
+  ok(tags.every((l) => l.x + l.t.length * 6.05 <= 640 && l.y > 20 && l.y < 400), 'line ends: names inside the picture');
+  ok(!S.labels.some((l) => l.t === 'country:'), 'line ends: no key row over the chart');
+  ok(S.labels.some((l) => l.t === '2010') && !S.labels.some((l) => /^2,0/.test(l.t)), 'years print as 2010, not 2,010');
+  const S0 = P.make(rows, { type: 'line', x: 'year', y: 'rate', color: 'country' }, { width: 640, height: 400, clean: false }, NS);
+  ok(S0.labels.some((l) => l.t === 'country:'), 'clean: false keeps the key row');
+  const many = []; for (let k = 0; k < 12; k++) for (let y = 0; y < 5; y++) many.push({ attrs: { x: y, s: 'S' + k, v: k + y } });
+  ok(P.make(many, { type: 'line', x: 'x', y: 'v', color: 's' }, { width: 640, height: 400 }, NS).labels.some((l) => l.t === 's:'), 'more than 10 lines: the key row comes back');
+  const cities = ['Detroit', 'Chicago', 'Cleveland', 'Toronto', 'Columbus', 'Pittsburgh', 'Milwaukee', 'Buffalo'], br = cities.map((c, i) => ({ attrs: { city: c, share: 4 + i } }));
+  const SB = P.make(br, { type: 'bar', x: 'city', y: 'share' }, { width: 560, height: 347 }, NS), names = SB.labels.filter((l) => cities.indexOf(l.t) >= 0);
+  ok(names.length === 8, 'crowded bar names: all 8 shown (' + names.length + ')');
+  const rowsY = new Set(names.map((l) => l.y)); ok(rowsY.size === 2, 'crowded bar names: on two rows');
+  ok(names.every((a) => names.every((b) => a === b || a.y !== b.y || Math.abs(a.x - b.x) >= (a.t.length + b.t.length) * 6.05 / 2)), 'crowded bar names: none touch on a row');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

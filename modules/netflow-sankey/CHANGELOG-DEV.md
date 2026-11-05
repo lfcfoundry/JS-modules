@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.7.0 · API 2 · 2026-11-05
+
+### Quick
+Economist checklist item 6 (card 2026.11.05): PALETTE was 8 colors (old red, brown, purple, Tableau order), so the 9th part repeated the 1st.
+
+### Deep
+Economist checklist item 6 (card 2026.11.05): PALETTE was 8 colors (old red, brown, purple, Tableau order), so the 9th part repeated the 1st. Now the 12 light group colors of netflow-scene 1.5.0 in the same order (no neighbors collapse for red-green color-blind eyes). opts.colors still overrides. The 1.0.0 picture pins pass the old 8 colors so they keep pinning the layout.
+
 ## 2.6.1 · API 2 · 2026-11-05
 
 ### Quick
