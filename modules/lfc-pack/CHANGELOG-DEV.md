@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.20 · API 0 · 2026-11-05
+
+### Quick
+Two commits from the LFCP thread (owner's card 'Yes, ship it', 1:39 AM ET 11.05).
+
+### Deep
+Two commits from the LFCP thread (owner's card 'Yes, ship it', 1:39 AM ET 11.05). Round 43 (a32fcc04): probeClone in src/flat.js times the row-building ways on 8,192 rows, not the whole block; cold first open 0.27-0.68x of the old time, output identical. Round 44 (7f635a60): tokenizer buffers laid out per block from counted quotes, separators and line ends instead of a fixed 384 MB initial memory (wasm/core.c, build-core.sh, src/shred.js, rebuilt wasm); 20,000-item Netflow map 384 MB -> 66 MB, geo 141 MB, orders 146 MB; byte-identical on 2,700 random files and 108 edge cases; warmed pack WebKit 0.92-1.01x, Chromium events 0.46x, Firefox 0.94-1.03x (orders recheck 12 rounds 1.031x, within noise). Details: js-modules-research/lfc-pack/stack-retest-2026.10.31/RESULTS-share-paths-2026.11.01.md, rounds 43 and 44. All lfc-pack checks pass. Requested by the owner.
+
 ## 0.4.19 · API 0 · 2026-11-01
 
 ### Quick

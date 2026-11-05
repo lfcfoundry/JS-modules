@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.20 · API 0 · 2026-11-05
+- The first pack after a page opens is faster, and packing holds far less memory (a 20,000-item map uses 66 MB instead of 384 MB).
+
 ## 0.4.19 · API 0 · 2026-11-01
 - unpackText (rows back as text) is 1.4 to 2.2 times as fast (29 to 54% less time), and the first pack of number-heavy files after a page loads is quicker; files and text come out the same.
 
