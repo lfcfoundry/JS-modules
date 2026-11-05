@@ -215,7 +215,7 @@ Draw maps, flow charts and animated pictures from data.
 | [netflow-engine](modules/netflow-engine/README.md) | 2.3.0 | 207.0 | 64.9 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.3.1 | 48.9 | 16.8 | Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine. | — |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.11.0 | 63.0 | 22.3 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.6.0 | 74.4 | 23.4 | 22 plain chart types from a table, drawn with netflow-scene. | — |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.6.0 | 74.6 | 23.5 | 22 plain chart types from a table, drawn with netflow-scene. | — |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.7.0 | 65.9 | 23.6 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.5.1 | 119.2 | 38.6 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |
 
@@ -230,7 +230,7 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 | 105.8 | 60.5 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.3.1 | 45.5 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.2 | 48.0 | 14.7 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
-| [zip-open](modules/zip-open/README.md) | 1.16.0 | 132.6 | 45.3 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
+| [zip-open](modules/zip-open/README.md) | 1.17.0 | 144.9 | 41.9 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 
 ### Story editor packages (10)
 

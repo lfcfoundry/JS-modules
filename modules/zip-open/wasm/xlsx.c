@@ -303,7 +303,11 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
   #undef BEGINROW
 }
 
-int sheet(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap, u32 *fx, u32 fcap, u32 maxRows) {
+/* The rows as the sheet arrives in pieces: sheetBegin() on the first piece, then sheetMore(seen, last) after each;
+   rows are read only up to the last row start seen, so a row is never read before all of it is there.
+   sheetBegin: 0 ok, -1 not for this reader (or not enough of the start yet). sheetMore: MORE (send more), or what sheet() returns. */
+static Sh SHS;
+int sheetBegin(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap, u32 *fx, u32 fcap, u32 maxRows) {
   int sd = findFrom(x, n, 0, "<sheetData"), r0 = findFrom(x, n, 0, "<row"), c0 = findFrom(x, n, 0, "<c ");
   u32 pos;
   fix = fx; fixcap = fcap; nfix = 0;
@@ -311,7 +315,21 @@ int sheet(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap,
   for (pos = (u32)sd; pos < n && x[pos] != '>'; pos++) ;
   if (pos >= n || x[pos - 1] == '/') return -1;
   pos++;
-  Sh sh = { x, xf, n, xn, d1904, maxRows, pos, 0, out, out, out + cap, 0, -1, -1, 0, 0 }; int r;
-  while ((r = rowsPart(&sh, sh.pos + 262144)) == MORE) { }
+  Sh sh = { x, xf, n, xn, d1904, maxRows, pos, 0, out, out, out + cap, 0, -1, -1, 0, 0 }; SHS = sh;
+  return 0;
+}
+int sheetMore(u32 n, u32 last) {
+  int r; u32 stop = 0xffffffffu;
+  SHS.n = n;
+  if (!last) {   /* the last "<row" start before n */
+    const u8 *x = SHS.x; u32 k = n >= 5 ? n - 5 : 0;
+    for (;;) { if (x[k] == '<' && x[k + 1] == 'r' && x[k + 2] == 'o' && x[k + 3] == 'w' && (x[k + 4] == ' ' || x[k + 4] == '>' || x[k + 4] == '/')) break; if (k <= SHS.pos) return MORE; k--; }
+    stop = k;
+  }
+  while ((r = rowsPart(&SHS, last ? SHS.pos + 262144 : stop)) == MORE) { if (!last) return MORE; }
   return r;
+}
+int sheet(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap, u32 *fx, u32 fcap, u32 maxRows) {
+  int r = sheetBegin(x, n, xf, xn, d1904, out, cap, fx, fcap, maxRows); if (r) return r;
+  return sheetMore(n, 1);
 }
