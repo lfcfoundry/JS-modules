@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.4.23 (API 0)
+ * Version 0.4.24 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1450,18 +1450,51 @@
   function trimPacker() {
     if (S.idle) { clearTimeout(S.idle); S.idle = null; }
     if (S.core) { S.core = loadSync(coreName()); S.sh.rebind(S.core); }
+    RS = null;   // rowscan uses the tokenizer's memory: let the old memory go with it
     dropSmallWasm();
   }
   function need(w) { if (w && !S.sh) throw new Error('LfcPack: call init() first'); if (!S.zdec) throw new Error('LfcPack: call init({readOnly:true}) or init() first'); }
   function pack(input, opts) { return packMany([{ name: null, bytes: bytesOf(input) }], packOpts(opts)); }
   // ---- row objects in, bytes out (no NDJSON text needed); packTables keeps several named tables and plain values in one file
   function rowsText(rows) { var o = new Array(rows.length), i; for (i = 0; i < rows.length; i++) o[i] = JSON.stringify(rows[i]); return o.length ? o.join('\n') + '\n' : ''; }
-  function packRows(rows, opts) { return pack(te.encode(rowsText(rows)), opts); }
+  // rowsBytes: the same bytes as te.encode(rowsText(rows)), from one JSON.stringify of the whole array; rowscan.wasm turns its top-level commas into line ends.
+  // The text is encoded straight into the tokenizer's input buffer (memory the pack touches next anyway), so no extra memory is held.
+  // Rows that JSON.stringify writes differently inside an array (undefined, functions, symbols, a toJSON that reads its key) keep the per-row path.
+  var RSB64 = "AGFzbQEAAAABBgFgAn9/AAIPAQNlbnYGbWVtb3J5AgACAwIBAAQFAXABAQEGCAF/AUGAiAQLBwgBBHNjYW4AAArEAQHBAQEEfwJAIAFBf2oiAkECSQ0AQQAhA0EBIQEDQAJAAkAgACABaiIELQAAIgVBIkcNAANAAkAgACABQQFqIgVqLQAAIgRB3ABGDQAgBSEBIARBIkcNASAFIQEMAwsgAUECaiEBDAALCwJAAkACQCAFQd8BcUGlf2oOAwACAQILIANBAWohAwwCCyADQX9qIQMMAQsgBUEsRw0AIAMNACAEQQo6AABBACEDCyABQQFqIgEgAkkNAAsLIAAgAmpBCjoAAAs=", RS = null;
+  function rowsBytes(rows) {
+    var n = rows.length, i, r, t;
+    if (!n) return new Uint8Array(0);
+    for (i = 0; i < n; i++) { r = rows[i]; t = typeof r; if (t === 'undefined' || t === 'function' || t === 'symbol' || (r !== null && t === 'object' && typeof r.toJSON === 'function')) return te.encode(rowsText(rows)); }
+    // the buffer may grow only as far as one block would grow it (or already is), so a big table does not leave the tokenizer holding more memory
+    var j = JSON.stringify(rows), X = S.sh && S.sh.x, ip = X ? X.in_reserve(16) : 0, mem = ip ? S.sh.mem : null, room = ip ? Math.max(mem.buffer.byteLength - ip - 16, BLOCK_BYTES + (BLOCK_BYTES >> 2)) : 0, w;
+    if (j.length > room || !X.in_reserve(j.length + 16)) return rowsScanJs(te.encode(j));
+    w = te.encodeInto(j, new Uint8Array(mem.buffer, ip, j.length + 16));
+    if (w.read < j.length) {   // not all ASCII: room for the longest UTF-8 form
+      if (j.length * 3 > room || !X.in_reserve(j.length * 3 + 16)) return rowsScanJs(te.encode(j));
+      w = te.encodeInto(j, new Uint8Array(mem.buffer, ip, j.length * 3 + 16));
+    }
+    if (!MODS['RSB64']) MODS['RSB64'] = new WebAssembly.Module(fromB64(RSB64));
+    if (!RS || RS.m !== mem) RS = { m: mem, x: new WebAssembly.Instance(MODS['RSB64'], { env: { memory: mem } }).exports };
+    RS.x.scan(ip, w.written);
+    return new Uint8Array(mem.buffer, ip + 1, w.written - 1).slice();
+  }
+  function rowsScanJs(b) {   // the same scan in JavaScript (an input too big for the tokenizer buffer)
+    var e = b.length - 1, d = 0, c, i;
+    for (i = 1; i < e; i++) {
+      c = b[i];
+      if (c === 34) { for (i++; (c = b[i]) !== 34; i++) if (c === 92) i++; }
+      else if (c === 123 || c === 91) d++;
+      else if (c === 125 || c === 93) d--;
+      else if (c === 44 && d === 0) b[i] = 10;
+    }
+    b[e] = 10; return b.subarray(1);
+  }
+  function packRows(rows, opts) { return pack(rowsBytes(rows), opts); }
   function packTables(obj, opts) {
     var names = Object.keys(obj), inputs = [], i, v;
     for (i = 0; i < names.length; i++) {
       v = obj[names[i]];
-      if (Array.isArray(v)) inputs.push({ name: names[i], kind: 'rows', bytes: te.encode(rowsText(v)) });
+      if (Array.isArray(v)) inputs.push({ name: names[i], kind: 'rows', bytes: rowsBytes(v) });
       else inputs.push({ name: names[i], kind: 'value', bytes: te.encode(JSON.stringify({ v: v === undefined ? null : v }) + '\n') });
     }
     return packMany(inputs, packOpts(opts));
@@ -1837,7 +1870,7 @@
     if (!S.zdec || !S.zdec.xxh64) throw new Error('LfcPack: xxh64 needs init() first');
     var h = S.zdec.xxh64(bytes); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1);
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.23', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: unpackColumns, packRows: packRows, packTables: packTables, unpackTables: unpackTables, pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: pack, packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: unpack, info: info, metadata: metadata, unpackRows: unpackRows, stats: stats, unpackText: unpackText, version: '0.4.24', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

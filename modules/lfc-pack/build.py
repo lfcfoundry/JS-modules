@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 0.4.23 (API 0)
+# Version 0.4.24 (API 0)
 # Concatenates src/*.js into lfc-pack.js and embeds the wasm modules (the four big ones deflated, then base64; lfc-pack-read.js keeps plain base64). Run from anywhere.
 import base64, os, struct, sys, zlib
 here = os.path.dirname(os.path.abspath(__file__))
@@ -16,6 +16,7 @@ i = src.index(a); j = src.index(b)
 tpl = base64.b64encode(open(os.path.join(here, 'wasm/tpl4.wasm'), 'rb').read()).decode()
 src = src.replace('/*TPL:BEGIN*//*TPL:END*/', tpl)
 src = src.replace('/*FS:BEGIN*//*FS:END*/', base64.b64encode(open(os.path.join(here, 'wasm/flatscan.wasm'), 'rb').read()).decode())
+src = src.replace('/*RS:BEGIN*//*RS:END*/', base64.b64encode(open(os.path.join(here, 'wasm/rowscan.wasm'), 'rb').read()).decode())
 i = src.index(a); j = src.index(b)
 out = src[:i + len(a)] + lit + src[j:]
 open(os.path.join(here, 'lfc-pack.js'), 'w', encoding='utf-8').write(out)

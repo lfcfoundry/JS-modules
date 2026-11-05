@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.4.23 · API 0**
+**Version 0.4.24 · API 0**
 
-**Tested in:** Node full suite; first pack per browser launch in Firefox 158, WebKitGTK 2.52.6, ungoogled Chromium 155 (run by the LFCP spec thread)
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39, WebKitGTK 2.52.6 (one browser at a time, one library per browser launch). Python reader checks not run here (the Python zstandard package is not installed in this container).
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
