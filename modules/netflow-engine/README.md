@@ -154,7 +154,7 @@ The libraries do more than this engine (drawing, routing, bundling, hundreds of 
 
 ## Size
 
-205 KB as one file, 64 KB gzipped (about 21 KB of it is the two WebAssembly helpers as text). No dependencies other than the optional add-ons above.
+207 KB as one file, 65 KB gzipped (about 21 KB of it is the two WebAssembly helpers as text). No dependencies other than the optional add-ons above.
 
 ## Tests
 
