@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.23 · API 0 · 2026-11-05
+
+### Quick
+Auto mode now starts with the template read check marked failed (tmplSlow = true), so the timed check (115-155 ms of every first logs/events pack) no longer runs.
+
+### Deep
+Auto mode now starts with the template read check marked failed (tmplSlow = true), so the timed check (115-155 ms of every first logs/events pack) no longer runs. It failed on every column measured: template reads 1.3-4.3x slower than the plain layout in Chromium, Firefox, WebKitGTK and Node. Templates stay available with { templates: true }. Byte-identical files on 12 set/option pairs and 600 random files. First pack, one library per launch: Firefox logs 0.50, events 0.64; WebKitGTK logs 0.49, escaped logs 0.57, events 0.55; Chromium no clear change. From branch claude/project-thread-cahtub commit f9b4cc5c (owner tapped Yes, ship it, 2:18 AM ET 11.05).
+
 ## 0.4.22 · API 0 · 2026-11-05
 
 ### Quick
