@@ -959,7 +959,9 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   }
   // the template read check (readNoSlower) times reads for at least about 48 ms, so it runs at most once per column key per session: tmplSlow is set when one column failed it
   // (other columns and later blocks and calls skip templates and stay plain), tmplPass holds the keys that passed
-  var tmplSlow = false, tmplPass = new Set();
+  // auto mode starts with tmplSlow set: the check failed on every column we measured (template reads 1.3 to 4.3 times slower than the plain layout in Chromium, Firefox, WebKitGTK and Node,
+  // 2026.11.05), so it cost 115 to 155 ms of every first logs or events pack only to choose the plain layout; templates stay available with { templates: true }
+  var tmplSlow = true, tmplPass = new Set();
   function templatesReadOk(v, key) {
     if (tmplSlow) return false;
     if (key !== undefined && tmplPass.has(key)) return true;
