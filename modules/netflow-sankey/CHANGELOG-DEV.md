@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.1 · API 2 · 2026-11-05
+
+### Quick
+One explicit font list, approved by the owner 11.01 (DECISIONS-AND-HANDOFF item).
+
+### Deep
+One explicit font list, approved by the owner 11.01 (DECISIONS-AND-HANDOFF item). SVG font-family is now Inter, 'Segoe UI', Roboto, system-ui, sans-serif in netflow-scene (also the look editor's Standard family), netflow-sankey and netflow-layers; plot, hierarchy and circular draw through netflow-scene. Cloud browsers resolve both old and new lists to Inter: text widths identical in all three. Machines with Inter installed now match across browsers; Windows keeps Segoe UI.
+
 ## 2.6.0 · API 2 · 2026-11-01
 
 ### Quick
