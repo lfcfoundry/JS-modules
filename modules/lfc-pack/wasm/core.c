@@ -17,11 +17,17 @@ typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u
 #define SHAPE_CAP (16u<<20)
 #define SHAPE_N  (1u<<16)
 #define MAXD 100
-static u8 IN[IN_CAP]; static u8 TEXT[TEXT_CAP]; static f64 NUMV[NUM_CAP]; static u32 NUMP[NUM_CAP];
-static u32 SIDE[SIDE_CAP*3]; static u32 IDS[ROW_CAP]; static u32 ROWSTART[ROW_CAP]; static u32 ROWEND[ROW_CAP]; static u8 SK[SK_CAP];
-static u8 SHAPES[SHAPE_CAP]; static u32 SHOFF[SHAPE_N+1]; static u32 SHTAB[SHAPE_N*2]; static u32 SHSLOT[SHAPE_N]; // open addressing: [id+1]; SHSLOT: the slot each shape took, so reset clears only those
-static u32 SLOWN[(1u<<19)*3]; static u32 slowN;
-static u8 ODD[1u<<18]; static u32 odd; static u32 NODD[(1u<<20)*4]; static u32 nOddN, rowNumK, exactMode;
+/* the large buffers are laid out per block by in_reserve() and setup() (sized to the block, up to the caps above), so memory grows only as far as a block needs;
+   each one's size is a proven upper bound for that block, so no cap check fires where the fixed buffers would not have (same files) */
+extern u8 __heap_base;
+#define IN_BASE (8u<<20)
+#define IN ((u8*)IN_BASE)   /* the input buffer sits at a fixed address above the fixed buffers (about 6.6 MB): a constant, so every IN[i] is one load with a constant offset, as with the old fixed array */
+static u8 *TEXT, *SHAPES, *DDOUT; static f64 *NUMV; static u32 *NUMP, *SIDE, *SLOWN, *NODD, *DDCODES, *DDTAB, *DDOFF, *DDLEN;
+static u32 textCap, numCap, sideCap, slowCap, noddCap, shapeCap, ddOutCap, ddMaxs;
+static u32 IDS[ROW_CAP]; static u32 ROWSTART[ROW_CAP]; static u32 ROWEND[ROW_CAP]; static u8 SK[SK_CAP];
+static u32 SHOFF[SHAPE_N+1]; static u32 SHTAB[SHAPE_N*2]; static u32 SHSLOT[SHAPE_N]; // open addressing: [id+1]; SHSLOT: the slot each shape took, so reset clears only those
+static u32 slowN;
+static u8 ODD[1u<<18]; static u32 odd; static u32 nOddN, rowNumK, exactMode;
 static u32 fbBeg;
 static u32 lastShape=0xFFFFFFFFu; /* the shape the last row took (shapeFor) */
 static u32 inLen, pos, textPos, numN, sideN, strN, rowN, skLen, shapeN, shapeBytes, fbStart, fbEnd;
@@ -77,13 +83,13 @@ static int pnum(u32 ph){
 #endif
   while(p<inLen&&IN[p]>='0'&&IN[p]<='9'){if(!slow){m=m*10+(IN[p]-'0');if(m)sig++;if(sig>15)slow=1;}frac++;p++;} if(p==f0)FAIL; if(IN[p-1]=='0')no=1;}
   int ex=0; if(p<inLen&&(IN[p]=='e'||IN[p]=='E')){no=1;p++;int en=0;if(p<inLen&&(IN[p]=='+'||IN[p]=='-')){en=IN[p]=='-';p++;}u32 e0=p;while(p<inLen&&IN[p]>='0'&&IN[p]<='9'){if(ex<100000)ex=ex*10+(IN[p]-'0');p++;}if(p==e0)FAIL;if(en)ex=-ex;}
-  if(numN>=NUM_CAP)FAIL;
+  if(numN>=numCap)FAIL;
   int e10=ex-(int)frac; f64 v=0;
   if(!slow){ v=(f64)m; if(e10<0){ if(-e10>22) slow=1; else v=v/P10[-e10]; } else if(e10>0){ if(e10>22) slow=1; else v=v*P10[e10]; } }
   if(neg&&m==0)no=1;
-  if(slow){ no=1; if(slowN>=(1u<<19))FAIL; SLOWN[slowN*3]=numN;SLOWN[slowN*3+1]=pos;SLOWN[slowN*3+2]=p; slowN++; v=0; }
+  if(slow){ no=1; if(slowN>=slowCap)FAIL; SLOWN[slowN*3]=numN;SLOWN[slowN*3+1]=pos;SLOWN[slowN*3+2]=p; slowN++; v=0; }
   else { if(neg)v=-v; if(hasFrac&&v>-1e-6&&v<1e-6)no=1; }
-  NUMV[numN]=v; NUMP[numN]=ph; numN++; { u32 k=rowNumK++; if(no&&exactMode){ if(nOddN<(1u<<20)){NODD[nOddN*4]=rowN;NODD[nOddN*4+1]=k;NODD[nOddN*4+2]=pos;NODD[nOddN*4+3]=p;nOddN++;} else odd=1; } } pos=p; return 1;
+  NUMV[numN]=v; NUMP[numN]=ph; numN++; { u32 k=rowNumK++; if(no&&exactMode){ if(nOddN<noddCap){NODD[nOddN*4]=rowN;NODD[nOddN*4+1]=k;NODD[nOddN*4+2]=pos;NODD[nOddN*4+3]=p;nOddN++;} else odd=1; } } pos=p; return 1;
 }
 #ifdef __wasm_simd128__
 static inline u32 scanPlain(u32 p){ // first byte at or after p that is a quote, backslash, control or non-ASCII; inLen if none
@@ -101,22 +107,22 @@ static int pstr(void){ // pos at opening quote; writes text or side entry
   u32 s=pos+1, p=scanPlain(s); int plain=1;
   if(p>=inLen)FAIL;
   if(IN[p]!='"'){ plain=0; while(1){ if(p>=inLen)FAIL; u8 c=IN[p]; if(c=='"')break; if(c=='\\'){odd=1;p+=2;continue;} p++; } }
-  u32 n=p-s;
-  if(plain){ if(textPos+n+1>TEXT_CAP)FAIL; u32 i=0;
+  u32 n=p-s; u8*const T=TEXT;   /* a local copy: byte stores could alias the global pointer, which would be reloaded every byte */
+  if(plain){ if(textPos+n+1>textCap)FAIL; u32 i=0, tp=textPos;
 #ifdef __wasm_simd128__
-    for(;i+16<=n;i+=16)wasm_v128_store(TEXT+textPos+i,wasm_v128_load(IN+s+i));
+    for(;i+16<=n;i+=16)wasm_v128_store(T+tp+i,wasm_v128_load(IN+s+i));
 #endif
-    for(;i<n;i++)TEXT[textPos+i]=IN[s+i]; textPos+=n; }
-  else { if(sideN>=SIDE_CAP||textPos+1>TEXT_CAP)FAIL; SIDE[sideN*3]=strN;SIDE[sideN*3+1]=s;SIDE[sideN*3+2]=p; sideN++; }
-  TEXT[textPos++]=0; strN++; pos=p+1; return 1;
+    for(;i<n;i++)T[tp+i]=IN[s+i]; textPos=tp+n; }
+  else { if(sideN>=sideCap||textPos+1>textCap)FAIL; SIDE[sideN*3]=strN;SIDE[sideN*3+1]=s;SIDE[sideN*3+2]=p; sideN++; }
+  T[textPos++]=0; strN++; pos=p+1; return 1;
 }
 static int lit(const char*w,u32 n){if(pos+n>inLen)FAIL;for(u32 i=0;i<n;i++)if(IN[pos+i]!=(u8)w[i])FAIL;pos+=n;return 1;}
 static int pval(u32 d,u32 ph){
   ws(); if(pos>=inLen)FAIL; u8 c=IN[pos];
   if(c=='"'){ if(!pstr())FAIL; return emitSk('1'); }
   if(c=='-'||(c>='0'&&c<='9')){ if(!pnum(ph))FAIL; return emitSk('2'); }
-  if(c=='t'){ if(!lit("true",4))FAIL; if(numN>=NUM_CAP)FAIL; NUMV[numN]=1;NUMP[numN]=fnv(ph,'?');numN++; return emitSk('3'); }
-  if(c=='f'){ if(!lit("false",5))FAIL; if(numN>=NUM_CAP)FAIL; NUMV[numN]=0;NUMP[numN]=fnv(ph,'?');numN++; return emitSk('3'); }
+  if(c=='t'){ if(!lit("true",4))FAIL; if(numN>=numCap)FAIL; NUMV[numN]=1;NUMP[numN]=fnv(ph,'?');numN++; return emitSk('3'); }
+  if(c=='f'){ if(!lit("false",5))FAIL; if(numN>=numCap)FAIL; NUMV[numN]=0;NUMP[numN]=fnv(ph,'?');numN++; return emitSk('3'); }
   if(c=='n'){ if(!lit("null",4))FAIL; return emitSk('4'); }
   if(d>=MAXD)FAIL;
   if(c=='['){ pos++; if(!emitSk('['))FAIL; ws(); if(pos<inLen&&IN[pos]==']'){pos++;return emitSk(']');}
@@ -179,7 +185,7 @@ static u32 shapeFor(const u8*s,u32 n){
 #endif
   u32 h=shapeHash(s,n)&(SHAPE_N*2-1);
   for(;;){ u32 t=SHTAB[h]; if(!t)break; u32 id=t-1; u32 a=SHOFF[id],l=SHOFF[id+1]-a; if(l==n && sameBytes(SHAPES+a,s,n)) return lastShape=id; h=(h+1)&(SHAPE_N*2-1); }
-  if(shapeN>=SHAPE_N||shapeBytes+n>SHAPE_CAP)return 0xFFFFFFFFu;
+  if(shapeN>=SHAPE_N||shapeBytes+n>shapeCap)return 0xFFFFFFFFu;
   for(u32 i=0;i<n;i++)SHAPES[shapeBytes+i]=s[i]; SHOFF[shapeN]=shapeBytes; shapeBytes+=n; SHOFF[shapeN+1]=shapeBytes; SHTAB[h]=shapeN+1; SHSLOT[shapeN]=h; return lastShape=shapeN++;
 }
 EXPORT("commit_shape") u32 commit_shape(u32 n){return shapeFor(SK,n);}
@@ -200,7 +206,6 @@ EXPORT("run") u32 run(void){
 #define DD_OUT_CAP (48u<<20)
 #define DD_MAXS (8u<<20)
 #define DD_TBITS 22
-static u8 DDOUT[DD_OUT_CAP+16] __attribute__((aligned(16))); static u32 DDCODES[DD_MAXS]; static u32 DDTAB[1u<<DD_TBITS]; static u32 DDOFF[DD_MAXS]; static u32 DDLEN[DD_MAXS];
 static u32 ddN, ddOutLen;
 /* ---- numbers grouped by path: a dense id per path hash (in first-seen order), then a stable counting sort, so JavaScript takes each column as one slice.
    Doing this in JavaScript cost a Map lookup per number (about 60 ns each in all three browsers). Returns the number of paths, or 0xFFFFFFFF when there are more than NG_MAX (the caller then groups in JavaScript). */
@@ -209,10 +214,10 @@ static u32 ddN, ddOutLen;
 static u32 NGTAB[1u<<NG_TBITS]; static u32 NGHASH[NG_MAX], NGSLOT[NG_MAX], NGOFF[NG_MAX+1], NGPOS[NG_MAX];
 /* scratch in DDOUT, which is free until dd_run (JavaScript copies the columns out first): the sorted numbers (8 bytes each), then the path ids (4 bytes each); NUMP stays as it was for the JavaScript fallback */
 #define NUMS ((f64*)DDOUT)
-_Static_assert(NUM_CAP*8u <= DD_OUT_CAP, "num_group scratch must fit in DDOUT");
+_Static_assert(NUM_CAP*8u <= DD_OUT_CAP, "num_group scratch must fit in DDOUT");   /* setup() makes DDOUT at least numCap * 8 bytes */
 EXPORT("ng_hash_ptr") u32* ng_hash_ptr(void){return NGHASH;} EXPORT("ng_off_ptr") u32* ng_off_ptr(void){return NGOFF;} EXPORT("nums_ptr") f64* nums_ptr(void){return NUMS;}
 EXPORT("num_group") u32 num_group(u32 n){
-  if(n>NUM_CAP) return 0xFFFFFFFFu;
+  if(n>numCap) return 0xFFFFFFFFu;
   u32 ng=0, ok=1; const u32 mask=(1u<<NG_TBITS)-1;
   for(u32 i=0;i<n;i++){
     u32 h=NUMP[i], slot=(h*2654435761u)>>(32-NG_TBITS), id;
@@ -237,10 +242,11 @@ static int ddEq(const u8*a,const u8*b,u32 n){ for(u32 i=0;i<n;i++) if(a[i]!=b[i]
 /* input: TEXT[0..inlen) holding `count` NUL-terminated strings (the last terminator may be missing). Returns count, or 0xFFFFFFFF on overflow. */
 EXPORT("dd_run") u32 dd_run(u32 inlen, u32 count){
   /* the hash table is sized to the strings of this call (at least twice their count, up to 2^DD_TBITS): clearing all 16 MB of it for every block cost more than the work itself on small blocks */
+  ddN=0; ddOutLen=0;
+  if(count>ddMaxs) return 0xFFFFFFFFu;   /* checked before the table is cleared: DDTAB holds the table size of ddMaxs strings */
   u32 tb=10; while(tb<DD_TBITS && (1u<<tb)<count*2u) tb++;
   for(u32 i=0;i<(1u<<tb);i++) DDTAB[i]=0;
-  ddN=0; ddOutLen=0; u32 pos=0; const u32 mask=(1u<<tb)-1;
-  if(count>DD_MAXS) return 0xFFFFFFFFu;
+  u32 pos=0; const u32 mask=(1u<<tb)-1;
   for(u32 s=0;s<count;s++){
     u32 st=pos; u64 h=1469598103934665603ull;
     while(pos<inlen && TEXT[pos]!=0){ h=(h^TEXT[pos])*1099511628211ull; pos++; }
@@ -249,8 +255,8 @@ EXPORT("dd_run") u32 dd_run(u32 inlen, u32 count){
     for(;;){
       u32 e=DDTAB[slot];
       if(e==0){
-        if(ddN>=DD_MAXS || ddOutLen+len+1>DD_OUT_CAP) return 0xFFFFFFFFu;
-        DDOFF[ddN]=ddOutLen; DDLEN[ddN]=len; for(u32 i=0;i<len;i++) DDOUT[ddOutLen+i]=TEXT[st+i]; ddOutLen+=len; DDOUT[ddOutLen++]=0;
+        if(ddN>=ddMaxs || ddOutLen+len+1>ddOutCap) return 0xFFFFFFFFu;
+        u8*const DO=DDOUT; const u8*const TX=TEXT; u32 ol=ddOutLen; DDOFF[ddN]=ol; DDLEN[ddN]=len; for(u32 i=0;i<len;i++) DO[ol+i]=TX[st+i]; ol+=len; DO[ol++]=0; ddOutLen=ol;
         DDTAB[slot]=ddN+1; DDCODES[s]=ddN; ddN++; break;
       }
       u32 d=e-1; if(DDLEN[d]==len && ddEq(DDOUT+DDOFF[d],TEXT+st,len)){ DDCODES[s]=d; break; }
@@ -259,6 +265,56 @@ EXPORT("dd_run") u32 dd_run(u32 inlen, u32 count){
   }
   return count;
 }
+
+/* ---- per-block layout ---- */
+static u32 al16(u32 x){return (x+15u)&~15u;}
+static int ensure(u32 end){ u32 have=(u32)__builtin_wasm_memory_size(0)*65536u; if(end<=have) return 1; return __builtin_wasm_memory_grow(0,(end-have+65535u)/65536u)!=(__SIZE_TYPE__)-1; }
+static u32 mn(u32 a,u32 b){return a<b?a:b;}
+/* the input buffer first (JavaScript copies the block there), then setup() counts a few byte kinds in it and lays out the rest */
+EXPORT("in_reserve") u8* in_reserve(u32 len){ if((u32)&__heap_base>IN_BASE||len>IN_CAP||!ensure(IN_BASE+len+16u)) return 0; return IN; }
+/* counts: '"' (q), ',' ':' '[' (sep), '\n' (nl). Bounds, n = len:
+   strings <= q/2 + rows (a row too deep for the walker becomes one string); rows <= nl + 1;
+   numbers and booleans <= sep + nl + 1 (every value follows ',', ':', '[' or a line start); side strings <= strings; slow numbers <= numbers;
+   text bytes <= n + 1 (a string's text is shorter than its quoted bytes; a deep row's line plus its 0); shape bytes <= n (a row's shape is no longer than the row).
+   (Also counting escape, control and non-ASCII bytes and 'e' for tighter side and slow-number bounds cost Firefox about 8% of the tokenizer: those two buffers are at most 6 MB each and mostly untouched.) */
+#ifdef __wasm_simd128__
+static u32 hsum(v128_t a){ v128_t w=wasm_u16x8_extadd_pairwise_u8x16(a); w=wasm_u32x4_extadd_pairwise_u16x8(w); return wasm_i32x4_extract_lane(w,0)+wasm_i32x4_extract_lane(w,1)+wasm_i32x4_extract_lane(w,2)+wasm_i32x4_extract_lane(w,3); }
+static void counts(u32 n, u32*c){ u32 q=0,sn=0,nl=0,i=0;   /* quotes, separators and line ends, line ends */
+  const v128_t Q=wasm_i8x16_splat(34),C=wasm_i8x16_splat(44),K=wasm_i8x16_splat(58),B=wasm_i8x16_splat(91),N=wasm_i8x16_splat(10),Z=wasm_i8x16_splat(0);
+  while(i+16<=n){ v128_t aq=Z,as=Z,an=Z; u32 k=0;
+    for(;k<255&&i+16<=n;k++,i+=16){ v128_t v=wasm_v128_load(IN+i), en=wasm_i8x16_eq(v,N);
+      aq=wasm_i8x16_sub(aq,wasm_i8x16_eq(v,Q)); an=wasm_i8x16_sub(an,en);
+      as=wasm_i8x16_sub(as,wasm_v128_or(wasm_v128_or(wasm_i8x16_eq(v,C),wasm_i8x16_eq(v,K)),wasm_v128_or(wasm_i8x16_eq(v,B),en))); }
+    q+=hsum(aq); sn+=hsum(as); nl+=hsum(an); }
+  for(;i<n;i++){ u8 b=IN[i]; q+=b==34; sn+=b==44||b==58||b==91||b==10; nl+=b==10; }
+  c[0]=q;c[1]=sn-nl;c[2]=nl;c[3]=0xFFFFFFFu;c[4]=0xFFFFFFFu; }
+#else
+static void counts(u32 n, u32*c){ u32 q=0,sn=0,nl=0; for(u32 i=0;i<n;i++){ u8 b=IN[i]; q+=b==34; sn+=b==44||b==58||b==91; nl+=b==10; } c[0]=q;c[1]=sn;c[2]=nl;c[3]=0xFFFFFFFu;c[4]=0xFFFFFFFu; }
+#endif
+/* the layout stays while blocks fit it (so later blocks reuse the same memory, as the fixed buffers did); a block that needs more lays it out again with a quarter more room.
+   The cap checks use the room laid out: at least this block's bound and at most the fixed caps above, so they fire exactly where the fixed buffers' checks would have. */
+static u32 aIn, aText, aNum, aSide, aSlow, aNodd, aShape, aDdOut, aDd, aTb;
+static u32 up(u32 have, u32 need, u32 cap){ if(need<=have) return have; u32 v=need+(need>>2); if(v<need||v>cap) v=cap; return v>have?v:have; }
+EXPORT("setup") u32 setup(u32 len, u32 exact){
+  u32 c[5]; counts(len,c); u32 q=c[0],sep=c[1],nl=c[2],sp=c[3],ex=c[4];
+  u32 rows=nl+1, strs=(q>>1)+rows+16u, vals=sep+nl+17u;
+  u32 nText=mn(TEXT_CAP,len+16u), nNum=mn(NUM_CAP,vals), nSide=mn(SIDE_CAP,mn(sp+nl+16u,strs)), nSlow=mn(1u<<19,mn(vals,ex+(len>>4)+16u));
+  u32 nNodd=exact?mn(1u<<20,vals):0, nShape=mn(SHAPE_CAP,len+16u), nDd=mn(DD_MAXS,strs);
+  if(TEXT&&len+16u<=aIn&&nText<=aText&&nNum<=aNum&&nSide<=aSide&&nSlow<=aSlow&&nNodd<=aNodd&&nShape<=aShape&&nDd<=aDd) return 1;   /* fits: same layout, same caps */
+  aIn=up(aIn,len+16u,IN_CAP+16u); aText=up(aText,nText,TEXT_CAP); aNum=up(aNum,nNum,NUM_CAP); aSide=up(aSide,nSide,SIDE_CAP); aSlow=up(aSlow,nSlow,1u<<19);
+  aNodd=up(aNodd,nNodd,1u<<20); aShape=up(aShape,nShape,SHAPE_CAP); aDd=up(aDd,nDd,DD_MAXS);
+  aDdOut=aText; if(aDdOut<aNum*8u) aDdOut=aNum*8u; if(aDdOut>DD_OUT_CAP) aDdOut=DD_OUT_CAP;
+  aTb=10; while(aTb<DD_TBITS && (1u<<aTb)<aDd*2u) aTb++;
+  textCap=aText; numCap=aNum; sideCap=aSide; slowCap=aSlow; noddCap=aNodd; shapeCap=aShape; ddOutCap=aDdOut; ddMaxs=aDd;
+  u32 o=al16((u32)IN+aIn);
+#define TAKE(P,T,BYTES) P=(T*)o; o=al16(o+(BYTES));
+  TAKE(TEXT,u8,textCap) TAKE(NUMV,f64,numCap*8u) TAKE(NUMP,u32,numCap*4u) TAKE(SIDE,u32,sideCap*12u) TAKE(SLOWN,u32,slowCap*12u) TAKE(NODD,u32,noddCap*16u)
+  TAKE(SHAPES,u8,shapeCap) TAKE(DDOUT,u8,ddOutCap+16u) TAKE(DDCODES,u32,ddMaxs*4u) TAKE(DDTAB,u32,(1u<<aTb)*4u) TAKE(DDOFF,u32,ddMaxs*4u) TAKE(DDLEN,u32,ddMaxs*4u)
+#undef TAKE
+  if(!ensure(o)){ TEXT=0; aIn=aText=aNum=aSide=aSlow=aNodd=aShape=aDd=0; return 0; }
+  return 1;
+}
+EXPORT("caps_ptr") u32* caps_ptr(void){ static u32 k[8]; k[0]=textCap;k[1]=numCap;k[2]=sideCap;k[3]=slowCap;k[4]=noddCap;k[5]=shapeCap;k[6]=ddOutCap;k[7]=ddMaxs; return k; }
 
 /* ---- CRC32 (zlib polynomial), slice-by-8 ---- */
 static u32 CRCT[8][256]; static int crcInit;
