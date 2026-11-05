@@ -220,7 +220,7 @@
   }
   /* A second thread for big sheets (since 1.17.0): it unpacks the compressed sheet a piece at a time with the same
      wasm module and hands each piece over, while this thread reads the rows of the pieces already here. Started the
-     first time a big sheet comes, closed 5 s after the last one. */
+     first time a big sheet comes, closed 5 s after the last one (which also gives its memory back). */
   var MORE_ROWS = -9, PIPE_MIN = 4194304, PIPE_CHUNK = 524288, PIPE = null, pipeTimer = 0, pipeSpawn = null, pipeNext = 1;
   function pipeBody() {
     var X = null, mod = null;
@@ -241,7 +241,6 @@
           if (done) break;
         }
       } catch (e) { postMessage({ id: m.id, err: -1 }); }
-      if (X && X.memory.buffer.byteLength > 4194304) X = null;   // its memory only grows: a fresh instance next time
     };
   }
   function pipeOn() {   // a second thread can be had here (a page, not a helper; a test can hand one in)
@@ -266,21 +265,25 @@
     pipeTimer = setTimeout(function () { pipeTimer = 0; if (PIPE && !Object.keys(PIPE.jobs).length) { try { PIPE.w.terminate(); } catch (e) { /* gone */ } PIPE = null; } }, 5000);
     if (pipeTimer && pipeTimer.unref) pipeTimer.unref();
   }
-  /** Unpacks raw deflate bytes on the second thread; each piece goes to piece(bytes, total so far, done) as it comes. -> { n, crc } | { err } (-3: the thread failed; then this thread unpacks it). */
-  function pipeUnpack(src, n, piece) {
-    return new Promise(function (ok) {
-      var P, id = pipeNext++, total = 0;
-      try { P = pipeWorker(); } catch (e) { P = null; }
-      var local = function () { var w = inflateWasm(src, n + 1, null, n); if (!w) return ok({ err: -1 }); if (w.err) return ok({ err: w.err }); piece(w.bytes, w.bytes.length, true); ok({ n: w.bytes.length, crc: w.crc }); };
-      if (!P) return local();
+  /** Starts unpacking raw deflate bytes on the second thread at once (so it runs while the other parts are read);
+      run(piece) later hands each piece to piece(bytes, total so far, done), the ones already here first, and settles to
+      { n, crc } | { err } (-3: the thread failed before any piece; then this thread unpacks it). */
+  function pipeStart(src, n) {
+    var got = [], end = null, want = null, finish = null, id = pipeNext++, P, total = 0;
+    var feed = function (m) { try { want(m.c, m.o, !!m.done); } catch (e) { /* the reader's problem: the usual way afterwards */ } };
+    var local = function () { var w = inflateWasm(src, n + 1, null, n); if (!w) return { err: -1 }; if (w.err) return { err: w.err }; got.push({ c: w.bytes, o: w.bytes.length, done: 1 }); return { n: w.bytes.length, crc: w.crc }; };
+    var settle = function (r) { end = r; if (finish) { var f = finish; finish = null; f(r); } };
+    try { P = pipeWorker(); } catch (e) { P = null; }
+    if (P) {
       P.jobs[id] = function (m) {
-        if (m.err !== undefined) { delete P.jobs[id]; pipeIdle(); if (m.err === -3 && total === 0) return local(); return ok({ err: m.err }); }
-        total = m.o; try { piece(m.c, m.o, !!m.done); } catch (e) { /* the reader's problem: the usual way afterwards */ }
-        if (m.done) { delete P.jobs[id]; pipeIdle(); ok({ n: m.o, crc: m.crc }); }
+        if (m.err !== undefined) { delete P.jobs[id]; pipeIdle(); return settle(m.err === -3 && total === 0 ? local() : { err: m.err }); }
+        total = m.o; if (want) feed(m); else got.push(m);
+        if (m.done) { delete P.jobs[id]; pipeIdle(); settle({ n: m.o, crc: m.crc }); }
       };
       var copy = src.slice();   // the compressed bytes go over (moved, not copied again)
-      try { P.w.postMessage({ id: id, src: copy.buffer, cap: n + 1, chunk: PIPE_CHUNK }, [copy.buffer]); } catch (e) { delete P.jobs[id]; local(); }
-    });
+      try { P.w.postMessage({ id: id, src: copy.buffer, cap: n + 1, chunk: PIPE_CHUNK }, [copy.buffer]); } catch (e) { delete P.jobs[id]; end = local(); }
+    } else end = local();
+    return { run: function (piece) { want = piece; while (got.length) feed(got.shift()); return end ? Promise.resolve(end) : new Promise(function (ok) { finish = ok; }); } };
   }
   function xlsxSheets(parts, opts) {
     opts = opts || {};
@@ -493,7 +496,7 @@
       var shPos = pp.wasmAt, xbn = pp.len, xfPos = sstEnd, outPos = (xfPos + xfMax + 7) & ~7, outCap = xbn + 65536, fixCap = (xbn >> 7) + 1024, fixPos = (outPos + outCap + 7) & ~7, m8 = need(fixPos + fixCap * 16);
       for (k = 0; k < xfMax; k++) m8[xfPos + k] = dateXf[k] ? 1 : 0;
       var live = !!(W && sstState), began = false, chk = 0, r = MORE_ROWS;
-      return pipeUnpack(pp.pipe, xbn, function (c, o, done) {
+      return pp.pipe.run(function (c, o, done) {
         var u = new Uint8Array(mem.buffer); u.set(c, shPos + o - c.length);
         if (!live) return;
         if (!began) { if (!rawUtf8Like(u.subarray(shPos, shPos + o)) || W.sheetBegin(shPos, o, xfPos, xfMax, d1904 ? 1 : 0, outPos, outCap, fixPos, fixCap, maxRows)) { live = false; return; } began = true; }
@@ -1031,6 +1034,11 @@
     var big = null, W = null, from = 0, j;
     if (src.place && xlsxModule()) for (j = 0; j < entries.length; j++) if (/^xl\/worksheets\/[^\/]+\.xml$/i.test(entries[j].path) && entries[j].usize >= PLACE_MIN && (!big || entries[j].usize > big.usize)) big = entries[j];
     if (big) { try { W = takeInstance(); from = W.__heap_base.value; } catch (err) { W = big = null; } }
+    var piped = null;   // a big sheet: unpacked on a second thread, started now so it runs while the other parts are read, and its rows are read as the pieces come (xlsxSheets)
+    if (big && src.raw && big.method === 8 && !(big.flags & 1) && big.usize >= PIPE_MIN && big.usize <= Math.min(lim.maxPartBytes, lim.maxTotalBytes - total) && pipeOn()) {
+      var raw = src.raw(big);
+      if (raw) { parts[big.path.replace(/^xl\/worksheets\//i, 'xl/worksheets/')] = { pipe: pipeStart(raw, big.usize), wasmAt: from, len: big.usize, crc: big.crc }; from += big.usize; total += big.usize; piped = big; }
+    }
     try {
       for (var i = 0; i < entries.length; i++) {
         var e = entries[i];
@@ -1039,10 +1047,7 @@
         if (room <= 0) { stopped = true; notes.push('Stopped opening the workbook after ' + Math.round(lim.maxTotalBytes / 1e6) + ' MB of unpacked data (a safety limit).'); break; }
         var at = from, sink = e === big ? function (n) { var have = W.memory.buffer.byteLength; if (at + n > have) W.memory.grow(Math.ceil((at + n - have) / 65536)); return new Uint8Array(W.memory.buffer, at, n); } : undefined;
         if (sink) { sink.wx = W; sink.at = at; }
-        if (sink && src.raw && e.method === 8 && !(e.flags & 1) && e.usize >= PIPE_MIN && e.usize <= room && pipeOn()) {   // a big sheet: unpacked on a second thread while its rows are read (xlsxSheets)
-          var raw = src.raw(e);
-          if (raw) { parts[e.path.replace(/^xl\/worksheets\//i, 'xl/worksheets/')] = { pipe: raw, wasmAt: at, len: e.usize, crc: e.crc }; from = at + e.usize; total += e.usize; continue; }
-        }
+        if (e === piped) continue;
         var got = await src.read(e, room, sink);
         if (got.skip) { notes.push('Part "' + e.path + '" of "' + label + '" ' + got.skip + '; skipped.'); continue; }
         total += got.bytes.length;
