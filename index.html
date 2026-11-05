@@ -206,15 +206,21 @@ footer a{margin-right:16px}
     <p class="src">Source and notes: The built-in WebAssembly programs are stored compressed and the browser unpacks them while it compiles them. Results are the same, and load to first result takes 3 to 11% less time (cloud test browsers, lfc-pack changelog).</p>
   </div>
   <div class="eco">
-    <h3>netflow-sankey builds a 1,500-item chart in about half the time of d3-sankey in all three browsers</h3>
-    <p class="sub">Time to build the whole chart, milliseconds. Lower is better.</p>
-    <div class="row"><span>Chromium: d3-sankey</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">27 ms</b></div></div>
-    <div class="row"><span>Chromium: netflow-sankey</span><div class="track"><div class="bar hi" style="width:35.5%"></div><b style="left:35.5%">12 ms</b></div></div>
-    <div class="row"><span>Firefox: d3-sankey</span><div class="track"><div class="bar" style="width:68.2%"></div><b style="left:68.2%">23 ms</b></div></div>
-    <div class="row"><span>Firefox: netflow-sankey</span><div class="track"><div class="bar hi" style="width:35.5%"></div><b style="left:35.5%">12 ms</b></div></div>
-    <div class="row"><span>WebKitGTK: d3-sankey</span><div class="track"><div class="bar" style="width:74.1%"></div><b style="left:74.1%">25 ms</b></div></div>
-    <div class="row"><span>WebKitGTK: netflow-sankey</span><div class="track"><div class="bar hi" style="width:38.5%"></div><b style="left:38.5%">13 ms</b></div></div>
-    <p class="src">Source and notes: Netflow Map's Sankey view (netflow-sankey 2.4.0) against d3-sankey 0.12.3, same data, cloud test browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6). Also only 256 band pieces pass over a bar they do not belong to, against 1,916, and loops are drawn instead of refused. d3-sankey is faster on small charts with default settings.</p>
+    <h3>netflow-sankey is about as fast as d3-sankey in Chromium and about 1.4 to 1.5 times faster in Firefox and WebKitGTK</h3>
+    <p class="sub">Time to build the whole 1,500-item chart, milliseconds. Lower is better.</p>
+    <div class="row"><span>Chromium: d3-sankey</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">32 ms</b></div></div>
+    <div class="row"><span>Chromium: netflow-sankey</span><div class="track"><div class="bar hi" style="width:75.0%"></div><b style="left:75.0%">30 ms</b></div></div>
+    <div class="row"><span>Firefox: d3-sankey</span><div class="track"><div class="bar" style="width:72.5%"></div><b style="left:72.5%">29 ms</b></div></div>
+    <div class="row"><span>Firefox: netflow-sankey</span><div class="track"><div class="bar hi" style="width:47.5%"></div><b style="left:47.5%">19 ms</b></div></div>
+    <div class="row"><span>WebKitGTK: d3-sankey</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">32 ms</b></div></div>
+    <div class="row"><span>WebKitGTK: netflow-sankey</span><div class="track"><div class="bar hi" style="width:55.0%"></div><b style="left:55.0%">22 ms</b></div></div>
+    <p class="src">Source and notes: netflow-sankey 2.7.0 against d3-sankey 0.12.3, same random data (1,500 items, 2,331 links), cloud test browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6), median of 3 runs, re-measured 2026.11.05. In Chromium the runs overlap, so it is a tie. d3-sankey is faster on small charts with default settings (100 items: 8 ms against 3.6 ms).</p></div>
+  <div class="eco">
+    <h3>netflow-sankey draws the same 1,500-item chart with about a third fewer link crossings than d3-sankey</h3>
+    <p class="sub">Link crossings in the finished picture. Fewer is better.</p>
+    <div class="row"><span>d3-sankey</span><div class="track"><div class="bar" style="width:80.0%"></div><b style="left:80.0%">95,509</b></div></div>
+    <div class="row"><span>netflow-sankey</span><div class="track"><div class="bar hi" style="width:50.9%"></div><b style="left:50.9%">60,787</b></div></div>
+    <p class="src">Source and notes: same random 1,500-item, 2,331-link data and versions as above, cloud test browsers. Only 256 band pieces pass over a bar they do not belong to, against 1,916 for d3-sankey, and loops are drawn instead of refused.</p>
   </div>
   <div class="eco">
     <h3>netflow-layers draws a 1,000-item map with the fewest link crossings, in 129 ms against 2.1 s for ELK</h3>
