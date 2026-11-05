@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.5.0 · API 2**
+**Version 2.6.0 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Node module checks (342, 10 new); before-and-after sheet in light and dark
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
