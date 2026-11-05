@@ -118,6 +118,7 @@ __attribute__((noinline)) static int sstPart(const u8 *x, u32 n, u32 *tab, u32 c
 #endif
     if (n - pos < 9 || x[pos+1]!='/' || x[pos+2]!='t' || x[pos+3]!='>' || x[pos+4]!='<' || x[pos+5]!='/' || x[pos+6]!='s' || x[pos+7]!='i' || x[pos+8]!='>') return -1;
     if (cnt >= cap || cnt >= 5000000) return -1;
+    if (pos - st >= 0x20000000u) return -1;
     tab[cnt * 2] = st; tab[cnt * 2 + 1] = (pos - st) | (amp ? 0x80000000u : 0); cnt++;
     pos += 9;
   }
@@ -180,6 +181,8 @@ static int canonical(const u8 *v, u32 n) {
    again. Browsers first run quick-to-compile code and swap in optimized code only when a function is called again,
    so one long call would stay on the slow code for the whole sheet (measured: the first open of a big file took
    about twice as long as the second). */
+static const u8 AQ[256] = { ['"'] = 1, ['&'] = 1, ['<'] = 1, ['>'] = 1 };
+static const u8 VL[256] = { ['<'] = 1, ['&'] = 1 };
 typedef struct { const u8 *x, *xf; u32 n, xn, d1904, maxRows, pos, rows; u8 *out, *o, *oe, *rowStart; int lastCol, lastW, inRow, rowHas; } Sh;
 __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
   const u8 *x = sh->x, *xf = sh->xf; u32 n = sh->n, xn = sh->xn, d1904 = sh->d1904, maxRows = sh->maxRows, pos = sh->pos, rows = sh->rows, lt, gt, k, q;
@@ -201,6 +204,26 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
     } else if (ch == 'c' && lt + 2 < n && x[lt + 2] == ' ') {
       int ci = -1, dupR = 0, self = 0; u8 ty = 'n'; u32 tlen = 1, xfv = 0, hasT = 0, hasS = 0;
       k = lt + 3;
+      /* the usual shape, <c r="B7" s="2" t="s"> (s and t optional, in that order): read straight through; anything else, the general loop below */
+      if (k + 3 < n && x[k] == 'r' && x[k + 1] == '=' && x[k + 2] == '"') {
+        u32 j = k + 3, nn = 0, L = 0;
+        while (j < n && L < 3 && x[j] >= 'A' && x[j] <= 'Z') { nn = nn * 26 + x[j] - 64; j++; L++; }
+        if (L && j < n && x[j] >= '0' && x[j] <= '9') {
+          while (j < n && x[j] >= '0' && x[j] <= '9') j++;
+          if (j < n && x[j] == '"') {
+            u32 xs = 0, okf = 1; u8 t2 = 'n';
+            j++;
+            if (j + 3 < n && x[j] == ' ' && x[j + 1] == 's' && x[j + 2] == '=' && x[j + 3] == '"') {
+              u32 d = 0; j += 4; while (j < n && d < 9 && x[j] >= '0' && x[j] <= '9') { xs = xs * 10 + (x[j] - '0'); j++; d++; }
+              if (!d || j >= n || x[j] != '"') okf = 0; else j++;
+            }
+            if (okf && j + 5 < n && x[j] == ' ' && x[j + 1] == 't' && x[j + 2] == '=' && x[j + 3] == '"' && x[j + 4] >= 'a' && x[j + 4] <= 'z' && x[j + 5] == '"') { t2 = x[j + 4]; j += 6; }
+            if (okf && j < n && (x[j] == '>' || (x[j] == '/' && j + 1 < n && x[j + 1] == '>'))) {
+              ci = (int)nn - 1; ty = t2; xfv = xs; self = x[j] == '/'; gt = self ? j + 1 : j; goto cellHead;
+            }
+          }
+        }
+      }
       for (;;) {
         while (k < n && x[k] == ' ') k++;
         if (k >= n) return -1;
@@ -208,8 +231,8 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
         if (x[k] == '/') { if (k + 1 >= n || x[k + 1] != '>') return -1; self = 1; gt = k + 1; break; }
         q = k; while (k < n && ((x[k] >= 'a' && x[k] <= 'z') || (x[k] >= 'A' && x[k] <= 'Z'))) k++;
         if (k == q || k + 1 >= n || x[k] != '=' || x[k + 1] != '"') return -1;
-        u32 vs = k + 2, ve = vs; while (ve < n && x[ve] != '"') { if (x[ve] == '&' || x[ve] == '<' || x[ve] == '>') return -1; ve++; }
-        if (ve >= n) return -1;
+        u32 vs = k + 2, ve = vs; while (ve < n && !AQ[x[ve]]) ve++;
+        if (ve >= n || x[ve] != '"') return -1;
         if (k - q == 1 && x[q] == 'r') {
           if (dupR) return -1; dupR = 1;
           u32 nn = 0, j = 0; for (; j < 3 && vs + j < ve; j++) { u8 c = x[vs + j]; if (c >= 'a' && c <= 'z') c -= 32; if (c < 'A' || c > 'Z') break; nn = nn * 26 + c - 64; }
@@ -225,6 +248,7 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
         k = ve + 1;
         if (k < n && x[k] != ' ' && x[k] != '>' && x[k] != '/') return -1;
       }
+      cellHead:
       if (!inRow) return -1;
       if (ci < 0) ci = lastCol + 1;
       pos = gt + 1;
@@ -239,7 +263,7 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
       }
       u32 vs = pos, vl = 0, amp = 0;
       if (startsWith(x, n, pos, "<v>")) {
-        vs = pos + 3; k = vs; while (k < n && x[k] != '<') { if (x[k] == '&') amp = 1; k++; }
+        vs = pos + 3; k = vs; for (;;) { while (k < n && !VL[x[k]]) k++; if (k < n && x[k] == '&') { amp = 1; k++; continue; } break; }
         if (k + 3 >= n || x[k + 1] != '/' || x[k + 2] != 'v' || x[k + 3] != '>') return -1;
         vl = k - vs; pos = k + 4;
       }
@@ -252,10 +276,20 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
         u32 ix = 0; if (amp) return -1;
         for (k = 0; k < vl; k++) { if (v[k] < '0' || v[k] > '9' || k > 8) return -1; ix = ix * 10 + (v[k] - '0'); }
         if (ix >= tn) continue;                                   /* sst[ix] undefined -> '' -> not stored */
-        u32 len = T[ix * 2 + 1] & 0x7fffffff; if (!len) continue;
+        u32 tv = T[ix * 2 + 1], len = tv & 0x1fffffff; if (!len) continue;
         if (ci <= lastW) return -1;
         at = o + (lastW < 0 ? ci : ci - lastW); if (at >= oe) return -2; while (o < at) *o++ = ',';
-        o = field(o, oe, S + T[ix * 2], len, T[ix * 2 + 1] >> 31); if (!o) return -2;
+        if (!(tv & 0x40000000u)) {   /* first use of this string: is it copied as is? */
+          u8 *e2 = field(o, oe, S + T[ix * 2], len, tv >> 31); if (!e2) return -2;
+          u32 pl = !(tv >> 31) && (u32)(e2 - o) == len;
+          T[ix * 2 + 1] = tv | 0x40000000u | (pl ? 0x20000000u : 0); o = e2;
+        } else if (tv & 0x20000000u) {
+          if ((u32)(oe - o) < len + 8) return -2;
+          const u8 *sp = S + T[ix * 2]; u32 j = 0;
+          for (; j + 8 <= len; j += 8) { unsigned long long w; __builtin_memcpy(&w, sp + j, 8); __builtin_memcpy(o + j, &w, 8); }
+          for (; j < len; j++) o[j] = sp[j];
+          o += len;
+        } else { o = field(o, oe, S + T[ix * 2], len, tv >> 31); if (!o) return -2; }
       } else if (ty == 'b') {
         if (ci <= lastW) return -1;
         at = o + (lastW < 0 ? ci : ci - lastW); if (at + 5 >= oe) return -2; while (o < at) *o++ = ',';

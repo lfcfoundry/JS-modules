@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.7.0 · API 2 · 2026-11-05
+- Line charts follow the clean look: no number axis or gridlines, first and last values on each line.
+
 ## 2.6.0 · API 2 · 2026-11-05
 - Line charts name each line at its end instead of in a key row, crowded bar names show on two rows instead of every other name, years print as 2015, not 2,015, and a highlight keeps the other series faint in their own colors instead of gray.
 

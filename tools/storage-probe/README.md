@@ -36,7 +36,7 @@ The Story Editor and the games are single files people keep in several folders. 
 - Whether `CloseWatcher` exists (phone back swipe), space used and quota, and whether the browser keeps the data permanently.
 - **Measure free saved-data space** (a separate button, because the search takes 0.5 to 1.8 seconds in Chromium): how many entries exist, the three largest, about how many characters are still free, and a reminder that pages sharing one bucket share one limit. It writes one temporary test entry and removes it again.
 - **Save a second copy of this page** (a button): downloads `storage-probe-copy.html` straight from the page's own source, with the license header, so a phone user does not have to save the page twice by hand.
-- A **Copy the report** button for sending the result to someone. The report appears once the asynchronous answers (lock, space, permanence) are in, or after 3 seconds at most, and is updated if a late answer arrives afterwards, so the copied text matches the screen.
+- A **Copy results** button for sending the result to someone. The report appears once the asynchronous answers (lock, space, permanence) are in, or after 3 seconds at most, and is updated if a late answer arrives afterwards, so the copied text matches the screen.
 - The verdict box is a status region (`role="status"`), so a screen reader announces the result.
 
 ## Measured
@@ -48,7 +48,7 @@ The Story Editor and the games are single files people keep in several folders. 
 2. Press **Save a second copy of this page**.
 3. Open `storage-probe-copy.html` from the phone's downloads.
 4. Press **Run the check** in that copy.
-5. Press **Copy the report** and paste it back.
+5. Press **Copy results** and paste it back.
 
 The report prints the address type, so one run also tells whether the downloaded copy opened as `file://` or as `content://`, which is not known for an Android phone yet.
 

@@ -1,8 +1,8 @@
 # zip-open
 
-**Version 1.17.0 · API 1**
+**Version 1.17.1 · API 1**
 
-**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-05 (early-stop A/B, forward and reversed; first opens in 10 to 16 fresh pages per browser and path); 44 module checks pass.
+**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-05 (early-stop A/B, forward and reversed; first opens in 12 fresh pages per browser); 44 module checks pass, including the reader fuzz against the JavaScript reader.
 
 ## What it is and how it works
 
