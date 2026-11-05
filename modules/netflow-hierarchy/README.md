@@ -1,8 +1,8 @@
 # netflow-hierarchy
 
-**Version 1.3.1 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** node test/run.js (939 checks, new drawn-color contrast check fails on 1.3.1 and passes here); scene time on 20,000 items unchanged within noise
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
