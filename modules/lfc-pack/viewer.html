@@ -284,22 +284,26 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   function makeShredder(inst) {
     // bind(): views over one core instance; rebind() points the same functions at a fresh instance (trim), so the engine keeps its warmed-up code
     var X, mem, v;
-    function bind(i) { X = i.exports; mem = X.memory; v = {
-      IN: new Uint8Array(mem.buffer, X.in_ptr(), IN_CAP), TEXT: new Uint8Array(mem.buffer, X.text_ptr(), 48 << 20),
-      NODD: new Uint32Array(mem.buffer, X.nodd_ptr(), (1 << 20) * 4), ODD: new Uint8Array(mem.buffer, X.odd_ptr(), 1 << 18),
-      RS: new Uint32Array(mem.buffer, X.rowstart_ptr(), ROW_CAP), RE: new Uint32Array(mem.buffer, X.rowend_ptr(), ROW_CAP),
-      NUMV: new Float64Array(mem.buffer, X.numv_ptr(), NUM_CAP), NUMP: new Uint32Array(mem.buffer, X.nump_ptr(), NUM_CAP),
-      SIDE: new Uint32Array(mem.buffer, X.side_ptr(), SIDE_CAP * 3), SLOWN: new Uint32Array(mem.buffer, X.slown_ptr(), SIDE_CAP * 3),
-      IDS: new Uint32Array(mem.buffer, X.ids_ptr(), ROW_CAP), SK: new Uint8Array(mem.buffer, X.sk_ptr(), 1 << 20),
-      SHAPES: new Uint8Array(mem.buffer, X.shapes_ptr(), 16 << 20), SHOFF: new Uint32Array(mem.buffer, X.shoff_ptr(), (1 << 16) + 1),
-      ST: new Uint32Array(mem.buffer, X.state_ptr(), 16)
+    // bind(): the instance's functions; views(): typed views over the buffers setup() laid out for the current block (they move and grow with the block size)
+    function bind(i) { X = i.exports; mem = X.memory; v = null; }
+    function views(len) { var b = mem.buffer, k = new Uint32Array(b, X.caps_ptr(), 8), tc = k[0], nc = k[1], sc = k[2], wc = k[3], oc = k[4], hc = k[5]; v = {
+      IN: new Uint8Array(b, X.in_ptr(), len), TEXT: new Uint8Array(b, X.text_ptr(), tc),
+      NODD: new Uint32Array(b, X.nodd_ptr(), oc * 4), ODD: new Uint8Array(b, X.odd_ptr(), 1 << 18),
+      RS: new Uint32Array(b, X.rowstart_ptr(), ROW_CAP), RE: new Uint32Array(b, X.rowend_ptr(), ROW_CAP),
+      NUMV: new Float64Array(b, X.numv_ptr(), nc), NUMP: new Uint32Array(b, X.nump_ptr(), nc),
+      SIDE: new Uint32Array(b, X.side_ptr(), sc * 3), SLOWN: new Uint32Array(b, X.slown_ptr(), wc * 3),
+      IDS: new Uint32Array(b, X.ids_ptr(), ROW_CAP), SK: new Uint8Array(b, X.sk_ptr(), 1 << 20),
+      SHAPES: new Uint8Array(b, X.shapes_ptr(), hc), SHOFF: new Uint32Array(b, X.shoff_ptr(), (1 << 16) + 1),
+      ST: new Uint32Array(b, X.state_ptr(), 16)
     }; }
     bind(inst);
     // opts.exact: also collect the lists that restore the original bytes (rows with odd spacing or escapes, number spellings)
     function shred(bytes, opts) {
       var exact = !!(opts && opts.exact); X.set_exact(exact ? 1 : 0);
       if (bytes.length > IN_CAP) throw new Error('block too large');
-      v.IN.set(bytes); X.reset(bytes.length);
+      var ip = X.in_reserve(bytes.length); if (!ip) throw new Error('capacity');   // memory grows only as far as this block needs (core.c setup)
+      new Uint8Array(mem.buffer, ip, bytes.length).set(bytes); if (!X.setup(bytes.length, exact ? 1 : 0)) throw new Error('capacity');
+      views(bytes.length); X.reset(bytes.length);
       var sideAll = [], drained = 0, fb = 0, fbOdd = [], r, i;
       function drain() { X.state_ptr(); var sn = v.ST[2];
         for (var j = drained; j < sn; j++) { var s = v.SIDE[j * 3 + 1], e = v.SIDE[j * 3 + 2]; sideAll.push([v.SIDE[j * 3], JSON.parse('"' + td.decode(v.IN.subarray(s, e)) + '"')]); }
@@ -356,7 +360,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       var skelList = []; for (i = 0; i < shapeN; i++) skelList.push(td.decode(v.SHAPES.subarray(v.SHOFF[i], v.SHOFF[i + 1])));
       return { textLen: Math.max(textLen - 1, 0), count: strN2, side: sideAll, cols: cols, skelList: skelList, ids: v.IDS.slice(0, rowN2), n: rowN2, fallback: fb, oddRows: oddRows, spell: spell };
     }
-    var o = { shred: shred, x: X, mem: mem, text: function () { return v.TEXT; }, rebind: function (i) { bind(i); o.x = X; o.mem = mem; } };
+    var o = { shred: shred, x: X, mem: mem, text: function () { return v && v.TEXT; }, rebind: function (i) { bind(i); o.x = X; o.mem = mem; } };
     return o;
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
