@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-11-05
+
+### Quick
+Light groups reordered (owner's card 'Reorder default colors', 1:44 AM ET 11.05; FINDINGS-9): #b07aa1, #edc948, #8868ac, #ff9da7, #59a14f, #936e59, #5fa2ce, #c84d4f, #86bc86, #4e79a7, #76b7b2, #f28e2b.
+
+### Deep
+Light groups reordered (owner's card 'Reorder default colors', 1:44 AM ET 11.05; FINDINGS-9): #b07aa1, #edc948, #8868ac, #ff9da7, #59a14f, #936e59, #5fa2ce, #c84d4f, #86bc86, #4e79a7, #76b7b2, #f28e2b. Worst deuteranopia/protanopia gap among the first 6 and all neighbors (CIE76 on Machado 2009 full severity, higher is better) 6.1 -> 16.0; normal vision 20.9. Dark groups in the same hue order (searched here: that order is also the best found, 7.2 -> 14.4; normal vision 19.1). Also checked a blue-and-orange-first order: light 14.3, dark 11.4 and two greens side by side, so not used. The first group color of most charts changes (approved look change); netflow-plot's bar and box charts keep their calm set; netflow-sankey keeps its own list. All netflow module checks pass. Requested by the owner.
+
 ## 1.4.1 · API 1 · 2026-11-01
 
 ### Quick
