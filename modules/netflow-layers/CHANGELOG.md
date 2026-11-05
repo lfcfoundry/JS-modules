@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.11.0 · API 1 · 2026-11-05
+- Flow charts can take a title, subtitle and source line (opt-in), drawn the same way as in the other chart modules.
+
 ## 1.10.1 · API 1 · 2026-11-05
 - Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
 
