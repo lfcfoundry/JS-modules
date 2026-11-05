@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.12.0 · API 1 · 2026-11-05
+- Opt-in highlight: one box and its links keep their colors, the rest fade.
+
 ## 1.11.0 · API 1 · 2026-11-05
 - Flow charts can take a title, subtitle and source line (opt-in), drawn the same way as in the other chart modules.
 
