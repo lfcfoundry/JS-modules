@@ -1,8 +1,8 @@
 # netflow-circular
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** node modules/netflow-plot/test/run.js, node modules/netflow-hierarchy/test/run.js, node modules/netflow-scene/test/run.js; default pictures byte-identical to 1.3.4 across 44 plot and 6 hierarchy pictures
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -24,6 +24,19 @@ Who sends how much to whom, and which parts of a map talk to each other, read be
 - Many links on a tree-shaped map without a tangle (Bundles).
 
 **Not for:** maps where position along a route matters; use the layered views.
+
+## Use
+
+Load `netflow-scene.js`, then `netflow-hierarchy.js`, then `netflow-circular.js`. One call, data only:
+
+```js
+// netflow-scene.js, netflow-hierarchy.js, then netflow-circular.js
+svgElement.outerHTML = NetflowCircular.toSvg(links);                          // chord; { type: 'bundles' } for edge bundles
+```
+
+Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
+
+The steps below keep the layout and scene:
 
 ## Use
 

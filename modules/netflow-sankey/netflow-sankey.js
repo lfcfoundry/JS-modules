@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.5.0 (API 2)
+ * Version 2.6.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -636,8 +636,17 @@
    * A finished picture as an SVG string. opts: { colors: [css colors], labels: true, fontSize: 12, textColor: '#222', bandOpacity: 0.45, title }.
    * Each band takes the color of the item it leaves; loops are drawn as thick lines under the picture.
    */
+  /** The links of any plain input: a list of { from, to, value } (weight or count also name the amount; 1 when none), or { links } or { edges }. */
+  /* Table rows in your own column names work too: name them with o.from, o.to and o.value, or leave them out and the first two text columns and the first number column are used. */
+  function asLinks(d, o) {
+    o = o || {}; var l = Array.isArray(d) ? d : (d && (d.links || d.edges)) || [], r0 = l[0] || {}, F = typeof o.from === 'string' ? o.from : null, T = typeof o.to === 'string' ? o.to : null, V = typeof o.value === 'string' ? o.value : null;
+    if (!F && !T && r0.from === undefined && r0.to === undefined) { var txt = [], num = null; Object.keys(r0).forEach(function (k) { var v = r0[k]; if (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && isFinite(+v))) { if (num === null) num = k; } else if (typeof v === 'string') txt.push(k); }); F = txt[0] || null; T = txt[1] || null; if (!V) V = num; }
+    return l.map(function (e) { var v = V ? e[V] : e.value !== undefined ? e.value : e.weight !== undefined ? e.weight : e.count !== undefined ? e.count : 1; return { from: F ? e[F] : e.from, to: T ? e[T] : e.to, value: v === undefined || v === '' ? 1 : +v }; });
+  }
+  /** toSvg(data, opts) in one call (data: links as above), or toSvg(R, opts) for a layout result (it has nodes and bands). */
   function toSvg(R, opts) {
     opts = opts || {};
+    if (!R || !R.bands || !R.nodes) R = layoutFlows({ nodes: R && !Array.isArray(R) && R.nodes ? R.nodes : undefined, links: asLinks(R, opts) }, opts);
     var cols = opts.colors && opts.colors.length ? opts.colors : PALETTE, fs = opts.fontSize || 12, op = opts.bandOpacity === undefined ? 0.45 : opts.bandOpacity;
     var color = {}, bandTail = {}, lastLayer = 0, s, opS = '" fill-opacity="' + op + '"/>';
     R.nodes.forEach(function (n, i) { color[n.id] = cols[i % cols.length]; if (n.layer > lastLayer) lastLayer = n.layer; });

@@ -1,5 +1,13 @@
 # netflow-circular developer changelog
 
+## 1.2.0 · API 1 · 2026-11-01
+
+### Quick
+toSvg(data, o) through netflow-hierarchy's asGraph and sceneLib; chordBy auto by default.
+
+### Deep
+toSvg(data, o) through netflow-hierarchy's asGraph and sceneLib; chordBy auto by default. One-call toSvg(data, options) (owner's 11:55 AM ET 11.01 name card; CONSISTENT-SYNTAX-PROPOSAL). Old forms keep working (told apart by shape). Checked in Chromium 155, Firefox 158, WebKitGTK 2.52.6 from page scripts: all six one-call pictures drawn. Requested by the owner.
+
 ## 1.1.0 · API 1 · 2026-11-01
 
 ### Quick

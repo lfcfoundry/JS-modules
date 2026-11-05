@@ -1,5 +1,13 @@
 # netflow-plot developer changelog
 
+## 2.5.0 · API 2 · 2026-11-01
+
+### Quick
+toSvg(rows, o): chart words (type, x, y, color, size, agg, stack, horizontal, bins, smooth, index, cols, sort) and drawing words (theme, width, height, title, subtitle, source, highlight, clean) in one object; with no x/y the first text co…
+
+### Deep
+toSvg(rows, o): chart words (type, x, y, color, size, agg, stack, horizontal, bins, smooth, index, cols, sort) and drawing words (theme, width, height, title, subtitle, source, highlight, clean) in one object; with no x/y the first text column and first number column (rows plain or { attrs }); NetflowScene found automatically. One-call toSvg(data, options) (owner's 11:55 AM ET 11.01 name card; CONSISTENT-SYNTAX-PROPOSAL). Old forms keep working (told apart by shape). Checked in Chromium 155, Firefox 158, WebKitGTK 2.52.6 from page scripts: all six one-call pictures drawn. Requested by the owner.
+
 ## 2.4.0 · API 2 · 2026-11-01
 
 ### Quick

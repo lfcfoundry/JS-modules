@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.0 · API 1 · 2026-11-01
+
+### Quick
+toSvg(links | { nodes, edges }, o): items made from link ends, sized to their names (7.2 px a character + 24, at least 60 x 32) when not sized, root = first item unless given; a layout result still draws as before.
+
+### Deep
+toSvg(links | { nodes, edges }, o): items made from link ends, sized to their names (7.2 px a character + 24, at least 60 x 32) when not sized, root = first item unless given; a layout result still draws as before. One-call toSvg(data, options) (owner's 11:55 AM ET 11.01 name card; CONSISTENT-SYNTAX-PROPOSAL). Old forms keep working (told apart by shape). Checked in Chromium 155, Firefox 158, WebKitGTK 2.52.6 from page scripts: all six one-call pictures drawn. Requested by the owner.
+
 ## 1.9.0 · API 1 · 2026-11-01
 
 ### Quick

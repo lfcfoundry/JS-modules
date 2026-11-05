@@ -1,6 +1,6 @@
 # netflow-sankey
 
-**Version 2.5.0 · API 2**
+**Version 2.6.0 · API 2**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -28,6 +28,14 @@ A flow chart is read through its thick bands, so a crossing between two big flow
 **Test it:** `node modules/netflow-sankey/test/run.js` (31 checks, about 1 s). **Try it:** `demo.html` (type links, the chart redraws).
 
 ## Use
+Load `netflow-sankey.js` (nothing else needed). One call, data only:
+```js
+svgElement.outerHTML = NetflowSankey.toSvg([{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }]);
+```
+`value`, `weight` or `count` names the amount. Options (the same words in every chart module) go in a second argument: `NetflowSankey.toSvg(links, { title: "Where the wages go", height: 360 })`. The two steps below give you the layout to draw yourself.
+
+Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
+
 ```js
 var R = NetflowSankey.layoutFlows({ links: [
   { from: "Wages", to: "Rent",  value: 40 },

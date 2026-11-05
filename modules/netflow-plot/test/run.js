@@ -94,5 +94,11 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const bx = P.make([1, 2, 3, 4, 5, 6, 7].map((v) => ({ attrs: { g: 'A', y: v } })), { type: 'box', x: 'g', y: 'y' }, { width: 400, height: 300 }, NS);
   ok(ts(bx).includes('4'), 'box median written: ' + ts(bx).join(','));
 }
+ /* one call: toSvg(rows) picks a bar chart of the first text column by the first number column; options carry chart and drawing words together */
+{
+  const s = P.toSvg([{ city: 'Detroit', share: 12 }, { city: 'Chicago', share: 16 }]);
+  ok(s.indexOf('<svg') === 0 && s.indexOf('>Detroit<') > 0 && s.indexOf('>16<') > 0, 'toSvg(rows) draws bars with values');
+  const l = P.toSvg(table(30, 5), { type: 'line', x: 'day', y: 'sales', theme: 'dark', title: 'Sales' }); ok(l.indexOf('>Sales<') > 0, 'chart and drawing words in one options object');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);
