@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.21 · API 0 · 2026-11-05
+
+### Quick
+flatscan.c strdict(): the two all-values loops wrote the NUL separator when output bytes existed (if(o)) instead of for every value after the first (if(i)), so leading empty strings in a text column were dropped and later values moved up a…
+
+### Deep
+flatscan.c strdict(): the two all-values loops wrote the NUL separator when output bytes existed (if(o)) instead of for every value after the first (if(i)), so leading empty strings in a text column were dropped and later values moved up a row. Fixed both loops; flatscan.wasm rebuilt with clang 18.1.3 (new wasm/build-flatscan.sh reproduces the committed flatscan.wasm and tpl4.wasm byte for byte). New test/emptystr.cjs (bad 29 on 0.4.20, bad 0 now). Nested blocks were never affected. Files from 0.4.15-0.4.20 with leading empty strings stay as written.
+
 ## 0.4.20 · API 0 · 2026-11-05
 
 ### Quick
