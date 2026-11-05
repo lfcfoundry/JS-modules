@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.4.22 · API 0 · 2026-11-05
+
+### Quick
+Round 46 follow-up (cause, not warm-up).
+
+### Deep
+Round 46 follow-up (cause, not warm-up). decodeColumn held every column kind's loops in one big function; on a page's first open each hot loop made Chromium rebuild optimized code for the whole function (hex id column 88 ms on the first open, 7 ms later). Each kind (V, B, T, D, H, U, I) now has its own small function; the hex column writes two letters per step through a 256-entry Uint16 table. Medians of fresh pages, first unpack, ms: logs 100k Chromium 266 -> 176 (0.66), Firefox 235 -> 227 (0.97), WebKitGTK 167 -> 170 (about even); logs 6k Chromium 46 -> 48 (noise); events 50k (nested) Chromium 115 -> 110, Firefox 90 -> 81, WebKitGTK 103 -> 92. Remaining first-open extra in Chromium: probeClone (25-30 ms, one time) and frame decoding (+15 ms).
+
 ## 0.4.21 · API 0 · 2026-11-05
 
 ### Quick
