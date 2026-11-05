@@ -2,7 +2,7 @@
  * netflow-layers.js: lay out a graph in rows (a Sugiyama-style layered drawing): top to bottom or left to right, with long links as tags, story order, a column for the pages every route passes, and tall maps cut into columns. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.11.0 (API 1)
+ * Version 1.12.0 (API 1)
  *
  *   var R = NetflowLayers.layout({ nodes: [{ id: "start", w: 140, h: 44 }, { id: "a", w: 140, h: 44 }], edges: [{ from: "start", to: "a" }], root: "start" }, { dir: "TB" });
  *   svgElement.innerHTML = NetflowLayers.toSvg(R);          // or draw R.nodes and R.edges yourself (see README)
@@ -614,6 +614,12 @@
       R = layout({ root: R && R.root !== undefined ? R.root : (ns[0] && ns[0].id), nodes: ns, edges: ls.map(function (e) { return { from: e.from, to: e.to, count: e.value }; }) }, o);
     }
     var gold = o.gold || '#c98a00', line = o.line || '#6b7a90', box = o.box || '#eaf0f8', boxLine = o.boxLine || '#44546a', ink = o.text || '#222', muted = o.muted || '#667', LR = R.dir !== 'TB', out = [];
+    /* optional highlight (o.highlight, an id or a label): that box and every link touching it keep their colors, the rest fade toward the background (names stay readable) */
+    var hl = null, near = {}, bgc = o.background || '#ffffff';
+    if (o.highlight !== undefined && o.highlight !== null) R.nodes.forEach(function (n) { if (hl === null && (String(n.id) === String(o.highlight) || (n.label !== undefined && String(n.label) === String(o.highlight)))) hl = n.id; });
+    if (hl !== null) { near[hl] = 1; R.edges.forEach(function (e) { if (e.from === hl) near[e.to] = 1; if (e.to === hl) near[e.from] = 1; }); }
+    var fade = function (c) { var m = /^#([0-9a-f]{6})$/i.exec(c), b = /^#([0-9a-f]{6})$/i.exec(bgc); if (!m || !b) return c; var x = parseInt(m[1], 16), y = parseInt(b[1], 16), h = function (sh) { var u = (x >> sh) & 255, v = (y >> sh) & 255; return Math.round(u + (v - u) * 0.6); }; return '#' + ((1 << 24) | (h(16) << 16) | (h(8) << 8) | h(0)).toString(16).slice(1); };
+    var hot = function (e) { return hl === null || e.from === hl || e.to === hl; };
     var name = function (n) { return esc(n.label !== undefined ? n.label : n.id); }, cx = function (n) { return n.x + n.w / 2; }, cy = function (n) { return n.y + n.h / 2; };
     /* optional title block (o.title, o.subtitle, o.source), drawn like the Sankey, plot and treemap ones: bold title and lighter subtitle above, small source below; the chart itself is moved down inside a group and does not change */
     var pad = 14, head = 0, foot = 0, blk = '', ty = pad;
@@ -643,7 +649,9 @@
       return 'M' + Lh.concat(Rh.reverse()).map(function (q) { return f1(q[0]) + ',' + f1(q[1]); }).join(' L');
     };
     R.edges.forEach(function (e) {
-      var a = R.pos[e.from], b = R.pos[e.to], back = e.kind === 'back' || e.kind === 'flat' || (e.kind === 'tag' && !e.tagFwd), col = back ? gold : line, dash = back ? ' stroke-dasharray="6 4"' : '';
+      var a = R.pos[e.from], b = R.pos[e.to], back = e.kind === 'back' || e.kind === 'flat' || (e.kind === 'tag' && !e.tagFwd), col = back ? gold : line;
+      if (!hot(e)) col = fade(col);
+      var dash = back ? ' stroke-dasharray="6 4"' : '';
       if (e.kind === 'self') return;
       if (e.kind === 'tag') {
         var up = e.tagFwd, s0 = LR ? [a.x + (up ? a.w : 0), cy(a)] : [cx(a), a.y + (up ? a.h : 0)], s1 = LR ? [b.x + (up ? 0 : b.w), cy(b)] : [cx(b), b.y + (up ? 0 : b.h)], d0 = (LR ? [up ? 1 : -1, 0] : [0, up ? 1 : -1]), d1 = [-d0[0], -d0[1]];
@@ -661,7 +669,8 @@
       out.push('<path d="' + path(pts) + '" fill="none" stroke="' + col + '" stroke-width="2"' + dash + ' opacity="0.85"/>');
     });
     R.nodes.forEach(function (n) {
-      out.push('<rect x="' + f1(n.x) + '" y="' + f1(n.y) + '" width="' + f1(n.w) + '" height="' + f1(n.h) + '" rx="8" fill="' + (n.choke ? '#fde7b0' : box) + '" stroke="' + boxLine + '" stroke-width="1.5"/>');
+      var keep = hl === null || near[n.id], bf = n.choke ? '#fde7b0' : box;
+      out.push('<rect x="' + f1(n.x) + '" y="' + f1(n.y) + '" width="' + f1(n.w) + '" height="' + f1(n.h) + '" rx="8" fill="' + (keep ? bf : fade(bf)) + '" stroke="' + (keep ? boxLine : fade(boxLine)) + '" stroke-width="' + (n.id === hl ? '2.5' : '1.5') + '"/>');
       out.push('<text x="' + f1(cx(n)) + '" y="' + f1(cy(n) + 5) + '" font-size="14" text-anchor="middle" fill="' + ink + '">' + name(n) + '</text>');
     });
     if (head) out.push('</g>');
@@ -669,5 +678,5 @@
     return out.join('\n');
   }
 
-  return { version: '1.11.0', wasm: WASM, _deep: DEEP, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
+  return { version: '1.12.0', wasm: WASM, _deep: DEEP, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
 }));
