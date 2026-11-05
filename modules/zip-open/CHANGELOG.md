@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.17.0 · API 1 · 2026-11-05
-- Opening a big Excel sheet again in the same page is 3 to 35% faster: a second thread unpacks it while the page reads rows. The first open is about the same. Same results.
+- Opening a big Excel sheet again in the same page takes 3 to 35% less time (cloud Chromium, Firefox, WebKitGTK): a second thread unpacks it while the page reads rows. The first open is about the same. Same results.
 
 ## 1.16.0 · API 1 · 2026-11-01
 - Excel files open up to 18% faster, the first one in a page the most, and later ones up to 13%. Same results.

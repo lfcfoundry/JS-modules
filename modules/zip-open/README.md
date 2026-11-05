@@ -63,6 +63,10 @@ Same limits, same notes, same checksum checks as `expand`; the checksum is worke
 ## Small entries: inflate in WebAssembly (since 1.5.0)
 Entries that are 4 KB or less compressed are unpacked by a 9.5 KB WebAssembly inflate (its own module, compiled the first time a small entry is opened, so page load is unchanged) instead of a browser stream each, because a stream costs more to start than a small entry costs to unpack. 2,000 files of 100 rows (4.7 MB), from bytes, ms, lower is better: Firefox 158 124 against 269, Chromium 155 119 against 189, WebKitGTK 2.52.6 128 against 200 (fflate unzipSync: 124 / 108 / 257). Larger entries still use the browser's stream: at 8 KB and up the WebAssembly inflate was up to 1.5x slower in Chromium and Firefox, so the cutoff is 4 KB. Same files and notes: the WebAssembly inflate matches zlib on 9,000 random valid, damaged and cut streams, and 400 zips compare equal to the stream path. Without WebAssembly the stream is used.
 
+## Big Excel sheets: a second thread (since 1.17.0)
+
+Opening a big `.xlsx` sheet starts a helper thread after the first big open finishes. From then on it unpacks the sheet in 512 KB pieces while the page reads rows. In the cloud browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6) later opens took 3 to 35% less time and the first open was about the same (0.98 to 1.04 times). Results are identical, and a bad checksum still skips the sheet with a note.
+
 ## WebAssembly checksum (since 1.2.0)
 
 **What.** The checksum that proves every unpacked file is intact (CRC-32) also exists as a 1,476-byte WebAssembly function ("slicing by 16"), embedded in `zip-open.js`. `crc32` uses it for 1,024 bytes and more; shorter pieces use the plain JavaScript loop, which is as fast there. `ZipOpen.wasmAvailable()` says whether the browser allows it.
