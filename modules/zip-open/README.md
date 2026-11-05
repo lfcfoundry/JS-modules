@@ -29,7 +29,7 @@ Users drop files on a page, and a zip can claim anything in its header. Common l
 
 ## Use
 ```js
-var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array from file.arrayBuffer()
+var r = await ZipOpen.expand(bytes);                 // bytes: Uint8Array from file.arrayBuffer(); a file name as the second argument is optional
 r.files;   // [{ name, path, text }]  text files, and each Excel sheet as its own .csv
 r.notes;   // ["\"big.csv\" unpacks to more than it says it does; skipped.", ...] plain words, safe to show
 ```

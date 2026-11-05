@@ -69,7 +69,7 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 <h3>Try it and test it</h3>
 <p><strong>Test it:</strong> <code>node modules/zip-open/test/run.js</code> (18 checks, including zip bombs, bad checksums, cut-off files, lying offsets and zips inside zips; about 2.6 s). <strong>Try it:</strong> <code>demo.html</code> (drop a file, or press the bomb button).</p>
 <h3>Use</h3>
-<pre><code>var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array from file.arrayBuffer()
+<pre><code>var r = await ZipOpen.expand(bytes);                 // bytes: Uint8Array from file.arrayBuffer(); a file name as the second argument is optional
 r.files;   // [{ name, path, text }]  text files, and each Excel sheet as its own .csv
 r.notes;   // ["\"big.csv\" unpacks to more than it says it does; skipped.", ...] plain words, safe to show</code></pre>
 <p><code>expand</code> throws a plain-words error when the file is not a zip or when nothing readable is inside. Files that are not text (pictures, programs) are left alone and counted in a note.</p>
