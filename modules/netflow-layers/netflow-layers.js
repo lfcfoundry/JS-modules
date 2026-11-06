@@ -2,7 +2,7 @@
  * netflow-layers.js: lay out a graph in rows (a Sugiyama-style layered drawing): top to bottom or left to right, with long links as tags, story order, a column for the pages every route passes, and tall maps cut into columns. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.12.1 (API 1)
+ * Version 1.12.2 (API 1)
  *
  *   var R = NetflowLayers.layout({ nodes: [{ id: "start", w: 140, h: 44 }, { id: "a", w: 140, h: 44 }], edges: [{ from: "start", to: "a" }], root: "start" }, { dir: "TB" });
  *   svgElement.innerHTML = NetflowLayers.toSvg(R);          // or draw R.nodes and R.edges yourself (see README)
@@ -613,7 +613,7 @@
       ns = ns.map(function (n) { var c = {}; for (var k in n) c[k] = n[k]; var t = String(c.label !== undefined ? c.label : c.id); if (!(c.w > 0)) c.w = Math.max(60, t.length * 7.2 + 24); if (!(c.h > 0)) c.h = 32; return c; });
       R = layout({ root: R && R.root !== undefined ? R.root : (ns[0] && ns[0].id), nodes: ns, edges: ls.map(function (e) { return { from: e.from, to: e.to, count: e.value }; }) }, o);
     }
-    var gold = o.gold || '#c98a00', line = o.line || '#6b7a90', box = o.box || '#eaf0f8', boxLine = o.boxLine || '#44546a', ink = o.text || '#222', muted = o.muted || '#667', LR = R.dir !== 'TB', out = [];
+    var gold = o.gold || '#9a6a00', line = o.line || '#6b7a90', box = o.box || '#eaf0f8', boxLine = o.boxLine || '#44546a', ink = o.text || '#222', muted = o.muted || '#667', LR = R.dir !== 'TB', out = [];
     /* optional highlight (o.highlight, an id or a label): that box and every link touching it keep their colors, the rest fade toward the background (names stay readable) */
     var hl = null, near = {}, bgc = o.background || '#ffffff';
     if (o.highlight !== undefined && o.highlight !== null) R.nodes.forEach(function (n) { if (hl === null && (String(n.id) === String(o.highlight) || (n.label !== undefined && String(n.label) === String(o.highlight)))) hl = n.id; });
@@ -678,5 +678,5 @@
     return out.join('\n');
   }
 
-  return { version: '1.12.1', wasm: WASM, _deep: DEEP, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
+  return { version: '1.12.2', wasm: WASM, _deep: DEEP, layout: layout, toSvg: toSvg, layered: layered, mapPlaceLine: mapPlaceLine, mapCrossPairs: mapCrossPairs };
 }));

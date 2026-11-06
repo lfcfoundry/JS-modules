@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.12.2 · API 1 · 2026-11-06
+- Flow pictures: back links use a darker amber (#9a6a00) that reads at 4.5:1 on white.
+
 ## 1.12.1 · API 1 · 2026-11-06
 - Flow pictures: a back link that spans several rows no longer doubles back over itself.
 

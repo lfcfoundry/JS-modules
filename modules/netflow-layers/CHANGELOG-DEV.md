@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.12.2 · API 1 · 2026-11-06
+
+### Quick
+Owner card 2026.11.06 (Darken to #9a6a00).
+
+### Deep
+Owner card 2026.11.06 (Darken to #9a6a00). Was #c98a00: labels 2.95:1, drawn dashed line (opacity 0.85) 2.47:1 on white. Now 4.73:1 and 3.62:1. o.gold still overrides. New test checks both numbers.
+
 ## 1.12.1 · API 1 · 2026-11-06
 
 ### Quick
