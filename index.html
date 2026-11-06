@@ -187,7 +187,7 @@ footer a{margin-right:16px}
     <div class="row"><span>cbor-x</span><div class="track"><div class="bar" style="width:29.2%"></div><b style="left:29.2%">20.9 MB</b></div></div>
     <div class="row"><span>msgpackr</span><div class="track"><div class="bar" style="width:27.9%"></div><b style="left:27.9%">20.0 MB</b></div></div>
     <div class="row"><span>memory-compression</span><div class="track"><div class="bar hi" style="width:11.0%"></div><b style="left:11.0%">7.85 MB</b></div></div>
-    <p class="src">Source and notes: Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6. It loses on download size: about 116 KB gzipped in 2.8.2 against 11 KB for msgpackr.</p>
+    <p class="src">Source and notes: Fast mode, restored exactly, measured on version 2.0.1 (sizes are exact byte counts). About 2.5 times smaller than msgpackr, and it unpacks as fast or faster in Chromium 155, Firefox 158, WebKitGTK 2.52.6. It loses on download size: since 2.12.0 the minified full file is 83.1 KB gzipped and the read-only file 37.1 KB, against 11 KB for msgpackr.</p>
   </div>
   <div class="eco">
     <h3>text-columns reads 200,000 CSV rows 3.2 times faster than Papa Parse with typed rows</h3>
