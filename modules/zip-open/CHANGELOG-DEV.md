@@ -2,6 +2,23 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.20.0 · API 1 · 2026-11-06
+
+### Quick
+When the biggest sheet is piped (4 MB or more) and sharedStrings.xml is 1 MB or more unpacked, a third thread unpacks the shared strings in pieces while the page reads the rows. Each piece of the list is read as it arrives; rows use the texts already read and note the rest, which go in while the list finishes. Text-heavy sheets 29 to 40% faster on repeat opens, 14 to 35% on the first open; others within noise. No API change.
+
+### Details
+Repeat open, file read in pieces, early-stop A/B both orders, time 1.20.0 / 1.19.1, lower is better, text-heavy sheet: Chromium 155 0.62 to 0.65, Firefox 158 0.60 to 0.62, WebKitGTK 2.52.6 0.66 to 0.71. A sheet that repeats a few hundred texts (1.3 MB list): about even (0.95 to 1.01). Number-heavy, formulas and small sheets: none proven more than 5% slower. First open 6 s after load, text-heavy sheet, 16 pages per browser, medians: Chromium 0.74, Firefox 0.65, WebKitGTK 0.86; formulas sheet 0.91 to 1.02 over 8 pages (its list is under 1 MB, so the new path is not used). The warm-up after load now starts both helper threads. Test hooks: `_pipe(spawn, min, sstMin)` takes a third argument, `_sstPiped()` counts uses.
+
+### Deep
+Before: the page unpacked sharedStrings.xml (19 to 25 ms for the 6.3 MB text-heavy list) while the second thread had already unpacked the whole sheet, so the rows started late. Now:
+- `sstBegin()` runs when the room for the list is kept; `sstMore(have, stop, done)` reads it a piece at a time, stopping before the last `<si` seen so every element read is whole (UTF-8 checked up to the last `<` of each piece).
+- `deferStrings(rec, cap)`: the row reader uses a text whose index is already read (`ix < sp_cnt`) and notes (output offset, index) for the rest.
+- When the rows end before the list, the output is moved to the end of its room (copyWithin) and `fillBegin()` + `fillMore(0)` after each list piece put in the noted texts already read; `fillMore(1)` finishes once the list is done. The writer is bounded by the reader, so no second output area is needed.
+- REDO (-4) for an out-of-order cell, an empty or missing text, or a full record list; -2 when the texts do not fit; both fall back to the usual read of the already-unpacked sheet. The list stays in the reader memory ({ wasmAt, len }) and is copied out only for the JavaScript fallback; a list that fails there fails the open as before, and a damaged list gives the same skip note.
+- The list's thread is started before the sheet's (about even, kept).
+Each step was tested alone, then stacked. Row step with texts used as read: on the repeated-text sheet the fill step drops from 8.5 to 1.7 ms (Chromium); no change on the text-heavy sheet, whose texts mostly arrive after their rows. Filling while the list finishes, alone: text-heavy 0.89 to 0.97. Tests: one new check (two sheets, a waiting small sheet, empty text, texts longer than the room, a damaged list); 48 of 48. A new fuzz opens random workbooks padded to use both threads, with and without the threads: 1,350 cases on the final code, no differences (it also found the 1.19.1 freeze). Dropped: a separate output area (more memory, and a 6.3 MB copy of the list per open).
+
 ## 1.19.1 · API 1 · 2026-11-06
 
 ### Quick

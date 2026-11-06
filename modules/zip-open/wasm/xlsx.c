@@ -32,6 +32,11 @@ u32 fixups(void) { return nfix; }
 
 /* Shared strings table: per string, start and length in the sst bytes, and flags (1: has '&', 2: needs CSV quotes, 4: checked). */
 static u32 *T; static u32 tn; static const u8 *S;
+/* Rows before the shared strings: deferStrings(rec, cap) after sheetBegin() makes the reader note (place, index) for each
+   shared-string cell instead of writing it, so rows can be read while the strings are still being unpacked. */
+#define REDO (-4)   /* read this sheet again the usual way (an empty or missing string, a cell out of order, or too many to note) */
+static u32 *DR, drcap, ndr; static int DEF;
+void deferStrings(u32 *rec, u32 cap) { DR = rec; drcap = cap; ndr = 0; DEF = 1; }
 
 static int isWsCp(u32 c) { return c == 9 || c == 10 || c == 11 || c == 12 || c == 13 || c == 32 || c == 0xa0 || c == 0x1680 || (c >= 0x2000 && c <= 0x200a) || c == 0x2028 || c == 0x2029 || c == 0x202f || c == 0x205f || c == 0x3000 || c == 0xfeff; }
 static u32 cpAt(const u8 *p, u32 n, u32 *len) {   /* decodes one UTF-8 code point; invalid -> 0xfffd (not whitespace either way) */
@@ -137,6 +142,27 @@ int sst(const u8 *x, u32 n, u32 *tab, u32 cap) {
 }
 
 void nosst(void) { tn = 0; }
+int deferred(void) { return (int)ndr; }
+
+/* sst() a piece at a time, as the list arrives: sstBegin(x, tab, cap), then sstMore(have, stop, done) after each piece.
+   have: bytes here so far; stop: where the last "<si" seen begins (every element before it is whole). MORE until done. */
+static u32 sp_pos, sp_cnt, sp_cap, *sp_tab; static int sp_go;
+void sstBegin(const u8 *x, u32 *tab, u32 cap) { T = tab; S = x; sp_tab = tab; sp_cap = cap; sp_pos = 0; sp_cnt = 0; sp_go = 0; }
+int sstMore(u32 have, u32 stop, int done) {
+  const u8 *x = S; u32 pos = sp_pos; int r;
+  if (!sp_go) {
+    while (pos + 3 <= have && !(x[pos] == '<' && x[pos + 1] == 's' && x[pos + 2] == 'i')) { if (x[pos] == '<' && x[pos + 1] == '!') return -1; pos++; }
+    sp_pos = pos;
+    if (pos + 3 > have) return done ? -1 : MORE;
+    sp_go = 1;
+  }
+  for (;;) {
+    u32 s2 = sp_pos + 262144;
+    if (!done) { if (s2 > stop) s2 = stop; if (sp_pos >= s2) return MORE; }
+    r = sstPart(x, have, sp_tab, sp_cap, &sp_pos, &sp_cnt, s2);
+    if (r != MORE) return r;
+  }
+}
 
 /* Strict UTF-8 check (what TextDecoder('utf-8', { fatal: true }) accepts). 1 = valid. */
 int utf8ok(const u8 *p, u32 n) {
@@ -297,7 +323,13 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
       if (ty == 's') {
         u32 ix = 0; if (amp) return -1;
         for (k = 0; k < vl; k++) { if (v[k] < '0' || v[k] > '9' || k > 8) return -1; ix = ix * 10 + (v[k] - '0'); }
-        if (ix >= tn) continue;                                   /* sst[ix] undefined -> '' -> not stored */
+        if (DEF && ix >= sp_cnt) {   /* this shared string not read yet: note where it goes; fillStrings() puts it in */
+          if (ci <= lastW || ndr >= drcap) return REDO;
+          at = o + (lastW < 0 ? ci : ci - lastW); if (at >= oe) return -2; while (o < at) *o++ = ',';
+          DR[ndr * 2] = (u32)(o - out); DR[ndr * 2 + 1] = ix; ndr++;
+          lastW = ci; rowHas = 1; continue;
+        }
+        if (!DEF && ix >= tn) continue;                           /* sst[ix] undefined -> '' -> not stored (with DEF: ix < sp_cnt, read already) */
         u32 tv = T[ix * 2 + 1], len = tv & 0x1fffffff; if (!len) continue;
         if (ci <= lastW) return -1;
         at = o + (lastW < 0 ? ci : ci - lastW); if (at >= oe) return -2; while (o < at) *o++ = ',';
@@ -365,7 +397,7 @@ static Sh SHS;
 int sheetBegin(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap, u32 *fx, u32 fcap, u32 maxRows) {
   int sd = findFrom(x, n, 0, "<sheetData"), r0 = findFrom(x, n, 0, "<row"), c0 = findFrom(x, n, 0, "<c ");
   u32 pos;
-  fix = fx; fixcap = fcap; nfix = 0;
+  fix = fx; fixcap = fcap; nfix = 0; DEF = 0;
   if (sd < 0 || r0 < sd || c0 < sd) return -1;   /* like the JavaScript reader: no <row or no <c at all, or one before <sheetData: general reader */
   for (pos = (u32)sd; pos < n && x[pos] != '>'; pos++) ;
   if (pos >= n || x[pos - 1] == '/') return -1;
@@ -388,3 +420,47 @@ int sheet(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap,
   int r = sheetBegin(x, n, xf, xn, d1904, out, cap, fx, fcap, maxRows); if (r) return r;
   return sheetMore(n, 1);
 }
+/* After sst(): out (len bytes, read with deferStrings) -> dst with every noted string in place; the fixups move with the text.
+   Returns the new length, REDO when a noted string is empty or missing (the usual reader skips those cells), or -2 (out of room). */
+static const u8 *fl_out; static u8 *fl_o, *fl_dst, *fl_oe; static u32 fl_len, fl_at, fl_r, fl_f, fl_shift; static int fl_in;
+void fillBegin(const u8 *out, u32 len, u8 *dst, u32 dcap) {
+  fl_out = out; fl_len = len; fl_dst = fl_o = dst; fl_oe = dst + dcap; fl_at = 0; fl_r = 0; fl_f = 0; fl_shift = 0;
+  fl_in = out >= dst && out < dst + dcap;   /* in place: out sits at the end of dst, and the writing must never pass the reading */
+  DEF = 0;
+}
+/* fillMore(0): puts in the noted strings already read (while the list still arrives), stopping at the first one not read yet: MORE.
+   fillMore(1), after sst is done: the rest, then the new length. REDO for an empty or missing string; -2 out of room. */
+int fillMore(int last) {
+  const u8 *out = fl_out; u8 *o = fl_o, *oe = fl_oe; u32 at = fl_at, r = fl_r, f = fl_f, shift = fl_shift, lim = last ? tn : sp_cnt; int res = MORE;
+  for (; r < ndr; r++) {
+    u32 p = DR[r * 2], ix = DR[r * 2 + 1], seg = p - at;
+    if (ix >= lim) { if (last) { res = REDO; break; } break; }
+    u32 tv = T[ix * 2 + 1], ln = tv & 0x1fffffff; if (!ln) { res = REDO; break; }
+    while (f < nfix && fix[f * 4] < p) { fix[f * 4] += shift; f++; }
+    if ((u32)(oe - o) < seg + 8) { res = -2; break; }
+    { u32 j = 0; for (; j + 8 <= seg; j += 8) { unsigned long long w; __builtin_memcpy(&w, out + at + j, 8); __builtin_memcpy(o + j, &w, 8); } for (; j < seg; j++) o[j] = out[at + j]; }
+    o += seg; at = p;
+    u8 *st = o, *se = fl_in ? (u8 *)out + at : oe;
+    if (tv & 0x20000000u) {
+      if ((u32)(se - o) < ln) { res = -2; break; }
+      const u8 *sp = S + T[ix * 2]; u32 j = 0;
+      for (; j + 8 <= ln; j += 8) { unsigned long long w; __builtin_memcpy(&w, sp + j, 8); __builtin_memcpy(o + j, &w, 8); }
+      for (; j < ln; j++) o[j] = sp[j];
+      o += ln;
+    } else {
+      u8 *e2 = field(o, se, S + T[ix * 2], ln, tv >> 31); if (!e2) { res = -2; break; }
+      if (!(tv & 0x40000000u)) T[ix * 2 + 1] = tv | 0x40000000u | (!(tv >> 31) && (u32)(e2 - o) == ln ? 0x20000000u : 0);
+      o = e2;
+    }
+    shift += (u32)(o - st);
+  }
+  fl_o = o; fl_at = at; fl_r = r; fl_f = f; fl_shift = shift;
+  if (res != MORE || !last) return res;
+  while (f < nfix) { fix[f * 4] += shift; f++; }
+  fl_f = f;
+  if ((u32)(oe - o) < fl_len - at) return -2;
+  for (u32 j = 0; j < fl_len - at; j++) o[j] = out[at + j];
+  o += fl_len - at;
+  return (int)(o - fl_dst);
+}
+int fillStrings(const u8 *out, u32 len, u8 *dst, u32 dcap) { fillBegin(out, len, dst, dcap); return fillMore(1); }
