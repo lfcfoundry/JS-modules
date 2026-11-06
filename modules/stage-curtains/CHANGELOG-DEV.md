@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.3 · API 1 · 2026-11-05
+
+### Quick
+From research round 54 (requested by the owner: beat Apple Press on busy pages).
+
+### Deep
+From research round 54 (requested by the owner: beat Apple Press on busy pages). prepare() now starts both halves' worker jobs at once, and the worker's reply wakes prepare() even while it waits for its first idle turn; before, the job was only handed to the worker at the first idle turn, which a page busy every frame only gets after the browser's forced 250 ms. Page busy 18 ms of every frame, ms until prepare() resolves, median of 5 fresh pages (lower is better), worker: true: Chromium 155 650 to 122, Firefox 158 362 to 114, WebKitGTK 2.52.6 211 to 175 (and steadier: 165-186 against 169-903). Without the worker and on quiet pages: unchanged. Same pixels, no new setting.
+
 ## 1.4.2 · API 1 · 2026-10-31
 
 ### Quick
