@@ -303,6 +303,31 @@ console.log('7. hint role and button names');
   check('names are shared and frozen by default', Object.isFrozen(PadNav.DEFAULT_NAMES));
 })();
 
+// ---------------------------------------------------------------- 7a. checking only the picked button gives the same moves as checking all of them
+console.log('7a. lazy checks match eager checks');
+(function () {
+  var seed = 12345, rnd = function () { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  function grid() {
+    var l = [], i, el;
+    for (i = 0; i < 60; i++) {
+      el = makeEl('c' + i, { left: (i % 10) * 90 + (i % 3) * 7, top: Math.floor(i / 10) * 50 + (i % 4) * 5 });
+      el.disabled = rnd() < 0.15; el.hid = rnd() < 0.15;
+      el.checkVisibility = (function (e) { return function () { return !e.hid; }; })(el);
+      l.push(el);
+    }
+    return l;
+  }
+  var bad = 0, trial, step, a, b, kidsA, kidsB, names = ['left', 'right', 'up', 'down'], d, rule, n = 0;
+  for (trial = 0; trial < 30; trial++) {
+    rule = trial % 2 ? 'edges' : undefined;
+    seed = 777 + trial; kidsA = grid(); seed = 777 + trial; kidsB = grid();
+    a = make({ nextRule: rule }, kidsA); b = make({ nextRule: rule, filter: function () { return true; } }, kidsB);   // a filter hook forces the check-everything path
+    a.tap('right'); b.tap('right');
+    for (step = 0; step < 25; step++) { d = names[(rnd() * 4) | 0]; a.tap(d); b.tap(d); n++; if (a.ring() !== b.ring()) bad++; }
+  }
+  check('25 random moves on 30 grids with disabled and hidden buttons land on the same button either way', bad === 0, { moves: n, differ: bad });
+})();
+
 // ---------------------------------------------------------------- 7b. nextRule, checkVisibility, onInput
 console.log('7b. nextRule edges, checkVisibility, onInput');
 (function () {

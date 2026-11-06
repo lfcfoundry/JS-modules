@@ -1,8 +1,8 @@
 # pad-nav
 
-**Version 1.1.0 · API 1**
+**Version 1.1.1 · API 1**
 
-**Tested in:** Node: 112 checks pass (18 new). Module browser suite passes in ungoogled Chromium 155.0.8059.39-1. Candidate search compared old and new (same answers, 847 of 1000) in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6. Not run: that browser suite in Firefox 158.0, WebKitGTK, a real controller, a phone
+**Tested in:** Node: 113 checks pass (1 new: lazy checks give the same moves as checking every button). Speed compared with js-spatial-navigation in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6. Not run: module browser suite (needs Playwright for Python), a phone, a real controller.
 
 ## What it is and how it works
 
@@ -108,7 +108,7 @@ The file is 13,091 bytes minified with esbuild. Two big parts can be cut if a ga
 
 ## How it compares
 
-The libraries below are more complete at moving focus; this one is the small, panel-scoped version that reads the Gamepad API itself. Speed against the alternatives: not measured.
+The libraries below are more complete at moving focus; this one is the small, panel-scoped version that reads the Gamepad API itself. Speed against js-spatial-navigation: measured (below); against the others: not measured.
 
 | Alternative | Size (smaller is better) | Features | Where it wins / loses |
 | --- | --- | --- | --- |
@@ -120,7 +120,9 @@ The libraries below are more complete at moving focus; this one is the small, pa
 
 Speed of pad-nav, lower is faster. Finding reachable buttons among 1000 buttons, old check to `checkVisibility()`: ungoogled Chromium 155.0.8059.39-1 8.1 to 3.2 ms; Firefox 158.0 4 to 1 ms; WebKitGTK 2.52.6 5 to 1 ms (timers round to 1 ms outside Chromium). Idle `step()` with no controller (measured on 1.0.0): Chromium 155.0.8059.39 1.9 µs, Firefox 158.0 0.2 µs.
 
-Where it loses: no nested sections, wrap-around, per-element overrides, shadow DOM or iframes; the default rule can jump past a button directly in line in 5.4% of presses where one exists (synthetic menus; `nextRule: 'edges'` does not); standard mapping and left stick only; not tried on a real controller or phone, and the module browser suite ran in ungoogled Chromium 155.0.8059.39-1 only. Not measured: size and speed of the alternatives; speed on a phone. Other gamepad-to-focus libraries almost certainly exist (the search was brief), so this is not a claim of novelty.
+One focus move among 1,000 buttons in a 25 by 40 grid, right then left, alternating, median of 5 rounds, one library per page, order swapped each round (lower is faster; `tests/compare/pad-nav-compare-browser.js`; js-spatial-navigation 1.0.1 moves real focus from `move()`, pad-nav reads a pretend pad and moves its ring): pad-nav 1.1.1 1.52 ms against 2.21 ms for js-spatial-navigation in ungoogled Chromium 155.0.8059.39-1, 0.86 against 1.07 ms in Firefox 158.0, 3.45 against 3.62 ms in WebKitGTK 2.52.6. Before 1.1.1 pad-nav took 2.28, 1.21 and 4.44 ms and lost to it in Firefox and WebKitGTK. Both libraries are still dominated by reading the position of every button; run on one desktop, not on a phone.
+
+Where it loses: no nested sections, wrap-around, per-element overrides, shadow DOM or iframes; the default rule can jump past a button directly in line in 5.4% of presses where one exists (synthetic menus; `nextRule: 'edges'` does not); standard mapping and left stick only; not tried on a real controller or phone, and the module browser suite ran in ungoogled Chromium 155.0.8059.39-1 only. Not measured: speed of the alternatives other than js-spatial-navigation; speed on a phone. Other gamepad-to-focus libraries almost certainly exist (the search was brief), so this is not a claim of novelty.
 
 ## What it is not
 

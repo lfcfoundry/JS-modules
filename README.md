@@ -146,7 +146,7 @@ Let players hold a button, or play with a gamepad.
 |---|---|---:|---:|---|---|
 | [back-close](modules/back-close/README.md) | 1.2.0 | 9.1 | 3.1 | Makes the phone's back swipe close the top panel instead of leaving the page. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/back-close/demo.html) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 | 13.0 | 4.1 | Hold-to-repeat buttons that survive Android Chrome's pointercancel. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/hold-press/demo.html) |
-| [pad-nav](modules/pad-nav/README.md) | 1.1.0 | 29.2 | 9.6 | Gamepad to focus: move through buttons, menus and sliders with a controller. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pad-nav/demo.html) |
+| [pad-nav](modules/pad-nav/README.md) | 1.1.1 | 30.9 | 10.0 | Gamepad to focus: move through buttons, menus and sliders with a controller. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pad-nav/demo.html) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 | 8.2 | 2.7 | Keeps the screen awake only while a game wants it. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/wake-keeper/demo.html) |
 
 #### Games - Assist

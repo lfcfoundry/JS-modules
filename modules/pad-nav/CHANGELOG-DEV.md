@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.1.1 · API 1 · 2026-11-06
+
+### Quick
+Moving focus among 1,000 buttons takes 0.66x (Chromium), 0.71x (Firefox) and 0.78x (WebKitGTK) of the 1.1.0 time.
+
+### Deep
+Moving focus among 1,000 buttons takes 0.66x (Chromium), 0.71x (Firefox) and 0.78x (WebKitGTK) of the 1.1.0 time. The button checks (disabled, inert, shown) now run only on the button the search picks, not on all of them first; same answers (a new check compares both ways on 30 random grids with disabled and hidden buttons). A page that sets the filter option keeps the old path. Now faster than js-spatial-navigation 1.0.1 on 1,000 buttons in all three browsers (0.69x, 0.80x, 0.95x).
+
 ## 1.1.0 · API 1 · 2026-10-17
 
 ### Quick

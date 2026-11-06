@@ -182,18 +182,18 @@ Each part cut alone; sizes from `terser -c passes=2 -m` 5.51.2 (smaller is bette
 
 ## How it compares
 
-sprite-baker is a narrow tool. It gives up the range and picture quality of three.js with WebGL (use that if you can), and in return needs no WebGL, no asset files and no scene engine, and loops a rolling shape exactly. Speed against the other tools: not measured.
+sprite-baker is a narrow tool. It gives up the range and picture quality of three.js with WebGL (use that if you can), and in return needs no WebGL, no asset files and no scene engine, and loops a rolling shape exactly. Size against three.js is measured (below); speed against the other tools: not measured.
 
 | Alternative | Size (smaller is better) | Speed | Where it wins / loses |
 |---|---|---|---|
-| [three.js](https://threejs.org/) with WebGL (version: not read) | Not measured | Not measured | Wins on picture quality and range (real cameras, lights, shadows, loaders). This module wins when you cannot or do not want WebGL |
+| [three.js](https://threejs.org/) 0.187.0 with WebGL | A scene with a sphere, a light, an orthographic camera and `WebGLRenderer`, tree-shaken and minified with esbuild: 538,037 bytes (134,113 gzipped), against this module's 18,364 (8,080 gzipped): about 29 times smaller (16.6 times gzipped). The 2015 `three.min.js` 0.71.0 alone is 421,233 bytes (100,547 gzipped) | Not measured (WebGL was not timed; the CPU renderer three-software-renderer 1.2.0 drew nothing under three.js 0.71.0 in the test page, so it was dropped, not timed) | Wins on picture quality and range (real cameras, lights, shadows, loaders). This module wins when you cannot or do not want WebGL |
 | [Easel](https://www.npmjs.com/package/@xsyetopz/easel) (MIT, 0.8.0, as reported on its page; not run) | Not measured | Not measured | CPU drawing into a 2D canvas with a scene graph; sprite sheets: unverified. Look at Easel first for more than a few shapes |
 | [Zdog](https://zzz.dog/) (version and license: not read) | Not measured | Not measured | Wins for flat illustrated 3D, live. This module gives shaded surfaces and pre-rendered bitmaps |
 | Fancy Banana's own triangle filler (the game this came from) | This module, minified: 18,364 bytes (8,080 gzipped); Fancy's set of parts only: 6,992 bytes (3,438 gzipped) | Picture path vs Fancy's filler on the same sphere, 48 pictures (lower is better): 84.7 vs 100.2 ms in ungoogled Chromium 155, 99 vs 108 ms in Firefox 158, 85 vs 106 ms in WebKitGTK 2.52.6 | Same pixels: 266 scenes, 0 bytes different. Equal or faster in all three browsers |
 
 Baking a 24-frame, 192 px roll with an outline takes 240 ms in ungoogled Chromium 155, 293 ms in Firefox 158 and 230 ms in WebKitGTK 2.52.6 (lower is better; version 1.3.0 timing). Readable file 55,804 bytes; minified 18,364 bytes (8,080 gzipped, terser 5.51.2).
 
-**Where it loses:** less capable than WebGL; orthographic only (no perspective, no shadows, no texture mapping beyond the optional picture path, binary alpha); meant for load time, not per-frame drawing; sizes of three.js, Easel and Zdog not measured, so no size win is claimed. Also named, not measured: tinygl.js (a JavaScript port of the TinyGL software renderer; as reported, unverified and not run, it needs a canvas width that is a multiple of 4), [glMatrix](https://github.com/toji/gl-matrix), Blender and older three.js CPU renderers (the [three-software-renderer](https://github.com/AVGP/three-software-renderer) port needs three.js and is slower than WebGL).
+**Where it loses:** less capable than WebGL; orthographic only (no perspective, no shadows, no texture mapping beyond the optional picture path, binary alpha); meant for load time, not per-frame drawing; sizes of Easel and Zdog not measured, so no size win is claimed against them; the three.js size is above. Also named, not measured: tinygl.js (a JavaScript port of the TinyGL software renderer; as reported, unverified and not run, it needs a canvas width that is a multiple of 4), [glMatrix](https://github.com/toji/gl-matrix), Blender and older three.js CPU renderers (the [three-software-renderer](https://github.com/AVGP/three-software-renderer) port needs three.js and is slower than WebGL).
 
 ## What it is not
 
