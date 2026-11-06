@@ -23,17 +23,20 @@ function bench(which, src) {
     ones = [2, 1].map(ss => () => SpriteBaker.bakeSprite(scene, 96, { ss }));
     rolls = [2, 1].map(ss => () => SpriteBaker.bakeRoll(scene, 12, 96, { ss }));
   } else {
-    const cv = document.createElement('canvas'); cv.width = cv.height = 96;
-    const r = new T.WebGLRenderer({ canvas: cv, alpha: true, antialias: false, preserveDrawingBuffer: true }); r.setSize(96, 96, false);
-    const cam = new T.OrthographicCamera(-12.5, 12.5, 12.5, -12.5, 1, 100); cam.position.z = 50;
-    const sc = new T.Scene(), mesh = new T.Mesh(new T.SphereGeometry(11, 18, 12), new T.MeshLambertMaterial({ color: 0xf0c8ff })); sc.add(mesh);
-    const l = new T.DirectionalLight(0xffffff, 3); l.position.set(-1, 1, 1); sc.add(l); sc.add(new T.AmbientLight(0x303030));
-    const gl = r.getContext(), buf = new Uint8Array(96 * 96 * 4);
-    const px = () => { gl.readPixels(0, 0, 96, 96, gl.RGBA, gl.UNSIGNED_BYTE, buf); return { data: buf }; };
-    ones = [() => { r.render(sc, cam); return px(); }];
-    rolls = [() => { for (let i = 0; i < 12; i++) { mesh.rotation.x = i / 12 * Math.PI * 2; r.render(sc, cam); px(); } }];
+    const mk = (aa) => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 96;
+      const r = new T.WebGLRenderer({ canvas: cv, alpha: true, antialias: aa, preserveDrawingBuffer: true }); r.setSize(96, 96, false);
+      const cam = new T.OrthographicCamera(-12.5, 12.5, 12.5, -12.5, 1, 100); cam.position.z = 50;
+      const sc = new T.Scene(), mesh = new T.Mesh(new T.SphereGeometry(11, 18, 12), new T.MeshLambertMaterial({ color: 0xf0c8ff })); sc.add(mesh);
+      const l = new T.DirectionalLight(0xffffff, 3); l.position.set(-1, 1, 1); sc.add(l); sc.add(new T.AmbientLight(0x303030));
+      const gl = r.getContext(), buf = new Uint8Array(96 * 96 * 4);
+      const px = () => { gl.readPixels(0, 0, 96, 96, gl.RGBA, gl.UNSIGNED_BYTE, buf); return { data: buf }; };
+      return { one: () => { r.render(sc, cam); return px(); }, roll: () => { for (let i = 0; i < 12; i++) { mesh.rotation.x = i / 12 * Math.PI * 2; r.render(sc, cam); px(); } } };
+    };
+    const plain = mk(false), smooth = mk(true);
+    ones = [plain.one, smooth.one]; rolls = [plain.roll, smooth.roll];
   }
-  first = (ones[0](), performance.now() - firstT0);
+  first = (ones[0](), performance.now() - firstT0);   // for three.js this includes the first of the two contexts only
   const cov = ones.map(f => cover(f()));
   const t = (f, n) => { for (let i = 0; i < 3; i++) f(); const r = []; for (let k = 0; k < 7; k++) { const t0 = performance.now(); for (let i = 0; i < n; i++) f(); r.push((performance.now() - t0) / n); } return med(r); };
   return { first, one: ones.map(f => t(f, 20)), roll: rolls.map(f => t(f, 3)), cover: cov };
@@ -56,8 +59,8 @@ function bench(which, src) {
     }
     const ok = (n) => got[n] && got[n].length;
     const f = (n, key, i) => ok(n) ? med(got[n].map(x => i === undefined ? x[key] : x[key][i])).toFixed(2) : 'n/a';
-    console.log('  one 96 px sphere, ms: sprite-baker (ss 2) ' + f('sprite-baker', 'one', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'one', 1) + ' | three.js ' + f('three.js', 'one', 0));
-    console.log('  12-frame roll, ms:    sprite-baker (ss 2) ' + f('sprite-baker', 'roll', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'roll', 1) + ' | three.js ' + f('three.js', 'roll', 0));
+    console.log('  one 96 px sphere, ms: sprite-baker (ss 2) ' + f('sprite-baker', 'one', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'one', 1) + ' | three.js ' + f('three.js', 'one', 0) + ' | three.js smooth edges (4x multisample) ' + f('three.js', 'one', 1));
+    console.log('  12-frame roll, ms:    sprite-baker (ss 2) ' + f('sprite-baker', 'roll', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'roll', 1) + ' | three.js ' + f('three.js', 'roll', 0) + ' | three.js smooth ' + f('three.js', 'roll', 1));
     console.log('  first picture incl. start-up, ms: sprite-baker ' + f('sprite-baker', 'first') + ' | three.js ' + f('three.js', 'first') + '   pixels drawn: ' + (ok('sprite-baker') ? got['sprite-baker'][0].cover.join('/') : '?') + ' | ' + (ok('three.js') ? got['three.js'][0].cover.join('/') : 'n/a (no WebGL context)'));
     await b.close();
   }
