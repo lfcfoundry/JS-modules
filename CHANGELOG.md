@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.11.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.0.0 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.5.2 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.5.3 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.10.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -64,6 +64,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
 - 2026-11-06 · **netflow-layers** 1.12.2 · API 1: Flow pictures: back links use a darker amber (#9a6a00) that reads at 4.5:1 on white.
 - 2026-11-06 · **netflow-layers** 1.12.1 · API 1: Flow pictures: a back link that spans several rows no longer doubles back over itself.
+- 2026-11-06 · **lfc-pack** 0.5.3 · API 0: Firefox: row reads about 13% faster on IP address columns.
 - 2026-11-06 · **lfc-pack** 0.5.2 · API 0: Chromium: row reads about 7% faster on dense blocks (columns decoded one at a time, table-built IP text).
 - 2026-11-06 · **elias-fano** 2.0.0 · API 2: Breaking: Lists.get(i) now keeps and returns the same array for a list (set { cache: false } for the old behavior).
 - 2026-11-05 · **zip-open** 1.18.2 · API 1: Text-heavy Excel sheets open 2 to 13% faster; other sheets about the same. Same results.

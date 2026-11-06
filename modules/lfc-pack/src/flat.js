@@ -292,6 +292,10 @@
   }
   // which engine runs the list builders above; the output is the same either way, only the speed differs
   var V8 = (typeof process === 'object' && process !== null && !!process.versions && !!process.versions.v8) || (typeof navigator === 'object' && navigator !== null && /Chrome\//.test(navigator.userAgent));
+  // Firefox (Gecko) only: joining four short pieces makes one flat string there (no rope), and that beats writing the digits and cutting them out of one decoded text (cloud Firefox 158, 300,000 log rows: unpack 0.87 of the time). Chromium keeps ipColV8; WebKitGTK, whose joins make ropes, keeps ipCol
+  var GECKO = !V8 && typeof navigator === 'object' && navigator !== null && /Firefox\//.test(navigator.userAgent);
+  var IPS = [], IPT = []; (function () { for (var v = 0; v < 256; v++) { IPS.push(String(v)); IPT.push(v + '.'); } })();
+  function ipColCat(r, n) { var o = new Array(n), i, q; for (i = 0; i < n; i++) { q = 4 * i; o[i] = IPT[r[q]] + IPT[r[q + 1]] + IPT[r[q + 2]] + IPS[r[q + 3]]; } return o; }
   // ascending id lists for Firefox and WebKitGTK: array literals for 1 to 4 items (packed arrays, no growth), a push loop beyond. Kept out of decodeColumn on purpose: adding it inline slowed the plain fill that V8 uses
   function ascLit(o, al, av, n) {
     var i, an, aa, ac, aj, a3, ap = 0;
@@ -339,7 +343,7 @@
     if ((t === 'H' && frames[0].length < n * (p.L / 2)) || (t === 'U' && frames[0].length < n * 16) || (t === 'I' && frames[0].length < n * 4)) throw new Error('damaged block: ' + t + ' column cut off');   // fixed-width columns: the frame must hold n values
     if (t === 'H') return hexCol(frames[0], n, p.L);
     if (t === 'U') return uuidCol(frames[0], n);
-    if (t === 'I') return V8 ? ipColV8(frames[0], n) : ipCol(frames[0], n);
+    if (t === 'I') return V8 ? ipColV8(frames[0], n) : GECKO ? ipColCat(frames[0], n) : ipCol(frames[0], n);
     if (t === 'A') {
       var al = unvarints32(frames[0], n) || unvarints(frames[0], n), av = unvarints32(frames[1], p.m) || unvarints(frames[1], p.m), ap = 0, aa, aj, ac, an, ar = p.asc;
       o = new Array(n);
