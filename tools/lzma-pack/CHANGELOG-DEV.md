@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.3 · API 2 · 2026-11-05
+
+### Quick
+From Story Editor's copy (requested by the owner: bring its start-up speed changes into lzma-pack).
+
+### Deep
+From Story Editor's copy (requested by the owner: bring its start-up speed changes into lzma-pack). The loader starts after two animation frames, once the Opening line is on screen, or after 100 ms where frames do not run (a tab opened in the background), whichever comes first, and writes the page exactly once. Time from page start until the unpacked page runs, 150 KB page, 4 opens each (lower is better): Chromium 155 54-85 ms before, 29-45 ms now; Firefox 158 128-178 ms before, 117-162 ms now. The Node check gains a background-tab mode. The browser's own base64 decoder was already in use. Latin-1 escaping is unchanged.
+
 ## 2.0.2 · API 2 · 2026-10-31
 
 ### Quick

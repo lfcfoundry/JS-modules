@@ -114,12 +114,12 @@ def opening_style(bg, html):
 NODE_HARNESS = r"""
 const fs = require('fs'), vm = require('vm');
 const j = JSON.parse(fs.readFileSync(0, 'utf8')), results = [];
-// modes: 'plain' = the sandbox as it is (no WebAssembly at all); with a wasm page also 'wasm' (a counting WebAssembly), 'blocked' (WebAssembly there, but
+// modes: 'plain' = the sandbox as it is (no WebAssembly at all); 'hidden' = no animation frames run (a background tab: only the timer starts it); with a wasm page also 'wasm' (a counting WebAssembly), 'blocked' (WebAssembly there, but
 // compiling is refused, as a Content-Security-Policy without wasm-unsafe-eval does) and 'broken' (the wasm decoder returns a wrong length)
 function run(mode) {
   const q = [], stats = { instances: 0, calls: 0, last: null };
   const doc = { written: null, body: { textContent: '' }, open() {}, write(t) { this.written = (this.written === null ? '' : this.written) + t; }, close() {} };
-  const sandbox = { document: doc, setTimeout(f) { q.push(f); return 0; }, atob: globalThis.atob, TextDecoder: TextDecoder };
+  const sandbox = { document: doc, setTimeout(f) { q.push(f); return 0; }, requestAnimationFrame(f) { if (mode !== 'hidden') q.push(f); return 0; }, atob: globalThis.atob, TextDecoder: TextDecoder };
   if (mode !== 'plain') {
     const Real = WebAssembly;
     sandbox.WebAssembly = {
@@ -167,7 +167,9 @@ def node_roundtrip(page, data, wasm=False):
     text = data.decode("utf-8")
     if text.startswith("﻿"):
         text = text[1:]   # the loader's TextDecoder drops a byte order mark
-    modes = ["plain", "wasm", "blocked", "broken"] if wasm else ["plain"]   # a --wasm page must work with the wasm decoder AND fall back to the JavaScript one
+    # a --wasm page must work with the wasm decoder AND fall back to the JavaScript one; 'hidden' runs no animation frames (a background tab), so the
+    # loader must start from its 100 ms timer instead. In every mode the frames and the timer both fire, and the page must be written exactly once.
+    modes = (["plain", "wasm", "blocked", "broken"] if wasm else ["plain"]) + ["hidden"]
     payload = json.dumps({"scripts": scripts, "expected": text, "name": PAYLOAD_NAME, "modes": modes}, ensure_ascii=False).encode("utf-8")
     try:
         r = subprocess.run([node, "-e", NODE_HARNESS], input=payload, capture_output=True, timeout=600)
@@ -405,9 +407,12 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
             "n>m.buffer.byteLength&&m.grow(Math.ceil((n-m.buffer.byteLength)/65536));new Uint8Array(m.buffer).set(%s,a);"
             "r=x.lzma_decode(a,%d,b,%d,%d,%d,%d);if(r==%d)return new Uint8Array(m.buffer,b,r)}" % (len(z), len(z), len(data), zs, len(z), len(data), lc, lp, pb, len(data))) if wasm else ""
     first = ("try{o=W()}catch(e){}o=o||" if wasm else "o=")
-    src = ("setTimeout(function(){" + dec + wfun + "var s=" + PAYLOAD_NAME + ";delete window." + PAYLOAD_NAME + ";" + read + "var o,h=0,t;"
+    # It starts after two animation frames (the "Opening..." line is on screen by then), or after 100 ms where frames do not run (a tab opened in the
+    # background), whichever comes first. The fixed 30 ms wait it replaces started later than two frames in all three browsers; one frame was too soon:
+    # Firefox then painted nothing until the page was ready. (From Story Editor's copy, 2026.11.05.)
+    src = ("(function(){var d=0,g=function(){d||(d=1,setTimeout(F,0))};requestAnimationFrame(function(){requestAnimationFrame(g)});setTimeout(g,100);function F(){" + dec + wfun + "var s=" + PAYLOAD_NAME + ";delete window." + PAYLOAD_NAME + ";" + read + "var o,h=0,t;"
            "try{" + first + "lzmaDecode(" + zs + ",%d,{lc:%d,lp:%d,pb:%d});for(i=0;i<o.length;i++)h=(h*31+o[i])>>>0;if(h!=%d)throw 0;t=new TextDecoder().decode(o);document.open();document.write(t);document.close()}"
-           "catch(e){document.body.textContent=\"This file was changed (maybe opened and saved as text, or cut short). Please download it again and open the file itself in a browser.\"}},30)") % (len(data), lc, lp, pb, chk)
+           "catch(e){document.body.textContent=\"This file was changed (maybe opened and saved as text, or cut short). Please download it again and open the file itself in a browser.\"}}})()") % (len(data), lc, lp, pb, chk)
     loader = minify(src, minifier)
     title_html = ("<title>" + title.replace("&", "&amp;").replace("<", "&lt;") + "</title>").encode("ascii", "xmlcharrefreplace") if title else b""
     op = opening_style(bg, text)   # the "Opening..." line, in the page's own background color, so a dark page never flashes white
