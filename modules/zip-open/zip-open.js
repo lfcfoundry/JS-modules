@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.19.0 (API 1)
+ * Version 1.19.1 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -35,7 +35,7 @@
       return cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : '\ufffd';
     });
   }
-  var ATTR = /([^\s=\/"'<>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+  var ATTR = /([^\s=\/"'<>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')|[^\s=\/"'<>]+/g;   // the last part steps over a whole name with no value, so a long run of letters is not tried again from each of its letters (that took minutes on a crafted file)
   var TAGEND = /[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/y;
   /** Walks XML text. h.open(name, attrs, selfClosing), h.close(name), h.text(string). Names lose their prefix (x:y -> y); attrs keep both forms. */
   function xmlScan(text, h) {
@@ -107,6 +107,7 @@
           ATTR.lastIndex = sp;
           var am;
           while ((am = ATTR.exec(body))) {
+            if (am[1] === undefined) continue;
             v = xmlDecode(am[2] !== undefined ? am[2] : am[3]); an = am[1]; ac = an.indexOf(':');
             if (BAD_KEYS[an]) continue;
             attrs[an] = v;
