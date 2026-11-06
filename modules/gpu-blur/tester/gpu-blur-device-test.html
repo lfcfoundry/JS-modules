@@ -31,7 +31,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
  * gpu-blur.js: blur a picture on the graphics card (WebGL 2), or in WebAssembly, or in plain JavaScript, and give the same picture every way.
  * The module picks the way by what the browser can do, never by the browser's name. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.4 (API 1)
+ * Version 1.3.5 (API 1)
  *
  *   GpuBlur.blur(source, width, height, radius[, opts])   -> Promise of { canvas | pixels | texture, width, height, route }
  *   GpuBlur.blurSync(source, width, height, radius[, opts]) -> the same result at once (the page waits for the whole job)
@@ -61,7 +61,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 })(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  var VERSION = '1.3.4';
+  var VERSION = '1.3.5';
   var MAX_PIXELS = 33554432;          // 8192 x 4096
   var STRIP = 16;                     // columns per vertical strip (the wasm kernel's limit)
   var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
@@ -525,6 +525,49 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
     'for(int i=-B;i<=B;i++){s+=ivec4(texelFetch(t,clamp(p+dir*i,ivec2(0),sz),0)*255.+.5);}\n' +
     'int n=2*B+1;o=vec4(floor(vec4(2*s+n)/float(2*n)))/255.;}';
 
+  // Two-stage box for wide boxes (exact, same bytes): width w = 2B+1 = a*m + r. Stage 1 sums a pixels into a 16-bit middle texture padded by B on the blur axis; stage 2 adds m of those spaced a apart plus r source pixels, then rounds exactly as above. About 2 * sqrt(w) reads a pixel instead of w.
+  var FS2A = '#version 300 es\nprecision highp float;precision highp int;\n' +
+    'uniform sampler2D t;uniform ivec2 dir;uniform int B;uniform int a;out uvec4 o;\n' +
+    'void main(){ivec2 p=ivec2(gl_FragCoord.xy)-dir*B;ivec2 sz=textureSize(t,0)-1;ivec4 s=ivec4(0);\n' +
+    'for(int j=0;j<a;j++){s+=ivec4(texelFetch(t,clamp(p+dir*j,ivec2(0),sz),0)*255.+.5);}o=uvec4(s);}';
+  var FS2B = '#version 300 es\nprecision highp float;precision highp int;precision highp usampler2D;\n' +
+    'uniform usampler2D mid;uniform sampler2D t;uniform ivec2 dir;uniform int B;uniform int a;uniform int m;uniform int r;uniform int flip;uniform int H;out vec4 o;\n' +
+    'void main(){ivec2 p=ivec2(gl_FragCoord.xy);if(flip==1)p.y=H-1-p.y;ivec2 sz=textureSize(t,0)-1;ivec4 s=ivec4(0);\n' +
+    'for(int k=0;k<m;k++){s+=ivec4(texelFetch(mid,p+dir*(a*k),0));}\n' +
+    'for(int u=0;u<r;u++){s+=ivec4(texelFetch(t,clamp(p+dir*(a*m+u-B),ivec2(0),sz),0)*255.+.5);}\n' +
+    'int n=2*B+1;o=vec4(floor(vec4(2*s+n)/float(2*n)))/255.;}';
+  var TWO_MIN_W = 13;                    // boxes at least this wide (radius 12 and up) take the two-stage way
+  function splitBox(B) {                 // best a for w = a*m + r: fewest reads a + m + r
+    var w = 2 * B + 1, best = 1, bt = w + 1, a, t;
+    for (a = 2; a < w; a++) { t = a + Math.floor(w / a) + (w % a); if (t < bt) { bt = t; best = a; } }
+    return { a: best, m: Math.floor(w / best), r: w % best, taps: bt };
+  }
+  function glProg2(gl, S) {
+    if (S.p2) return S.p2;
+    function mk(fs, names) {
+      var p = gl.createProgram(), v = glCompile(gl, gl.VERTEX_SHADER, VS), f = glCompile(gl, gl.FRAGMENT_SHADER, fs), u = {};
+      gl.attachShader(p, v); gl.attachShader(p, f); gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('gpu-blur: link: ' + gl.getProgramInfoLog(p));
+      gl.deleteShader(v); gl.deleteShader(f); names.forEach(function (n) { u[n] = gl.getUniformLocation(p, n); });
+      return { p: p, u: u };
+    }
+    S.p2 = { a: mk(FS2A, ['t', 'dir', 'B', 'a']), b: mk(FS2B, ['mid', 't', 'dir', 'B', 'a', 'm', 'r', 'flip', 'H']) };
+    return S.p2;
+  }
+  function glMid(gl, S, w, h, B) {       // the two 16-bit middle textures (one per axis), made again when the size or box changes
+    if (S.mid && S.midW === w && S.midH === h && S.midB === B) return S.mid;
+    if (S.mid) { gl.deleteTexture(S.mid[0]); gl.deleteTexture(S.mid[1]); }
+    var m = [], dims = [[w + 2 * B, h], [w, h + 2 * B]], i, t;
+    for (i = 0; i < 2; i++) {
+      t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16UI, dims[i][0], dims[i][1], 0, gl.RGBA_INTEGER, gl.UNSIGNED_SHORT, null);
+      m.push(t);
+    }
+    S.mid = m; S.midW = w; S.midH = h; S.midB = B; return m;
+  }
+
   function glCompile(gl, type, src) {
     var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
     if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { var m = gl.getShaderInfoLog(s); gl.deleteShader(s); throw new Error('gpu-blur: shader: ' + m); }
@@ -549,22 +592,22 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
     return t;
   }
   function glSave(gl) {
-    var unit = gl.getParameter(gl.ACTIVE_TEXTURE), tex0;
-    gl.activeTexture(gl.TEXTURE0); tex0 = gl.getParameter(gl.TEXTURE_BINDING_2D); gl.activeTexture(unit);
+    var unit = gl.getParameter(gl.ACTIVE_TEXTURE), tex0, tex1;
+    gl.activeTexture(gl.TEXTURE0); tex0 = gl.getParameter(gl.TEXTURE_BINDING_2D); gl.activeTexture(gl.TEXTURE1); tex1 = gl.getParameter(gl.TEXTURE_BINDING_2D); gl.activeTexture(unit);
     return { al: gl.getParameter(gl.UNPACK_ALIGNMENT), prog: gl.getParameter(gl.CURRENT_PROGRAM), vao: gl.getParameter(gl.VERTEX_ARRAY_BINDING), fb: gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING),
-      vp: gl.getParameter(gl.VIEWPORT), unit: unit, tex: tex0,
+      vp: gl.getParameter(gl.VIEWPORT), unit: unit, tex: tex0, tex1: tex1,
       blend: gl.isEnabled(gl.BLEND), scissor: gl.isEnabled(gl.SCISSOR_TEST), depth: gl.isEnabled(gl.DEPTH_TEST), cull: gl.isEnabled(gl.CULL_FACE), stencil: gl.isEnabled(gl.STENCIL_TEST),
       cm: gl.getParameter(gl.COLOR_WRITEMASK), pre: gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL), flip: gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL), cs: gl.getParameter(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL) };
   }
   function glRestore(gl, s) {
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, s.tex); gl.activeTexture(s.unit);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, s.tex); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, s.tex1); gl.activeTexture(s.unit);
     gl.bindFramebuffer(gl.FRAMEBUFFER, s.fb); gl.bindVertexArray(s.vao); gl.useProgram(s.prog); gl.viewport(s.vp[0], s.vp[1], s.vp[2], s.vp[3]);
     [[gl.BLEND, s.blend], [gl.SCISSOR_TEST, s.scissor], [gl.DEPTH_TEST, s.depth], [gl.CULL_FACE, s.cull], [gl.STENCIL_TEST, s.stencil]].forEach(function (e) { if (e[1]) gl.enable(e[0]); else gl.disable(e[0]); });
     gl.colorMask(s.cm[0], s.cm[1], s.cm[2], s.cm[3]);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, s.pre); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, s.flip); gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, s.cs); gl.pixelStorei(gl.UNPACK_ALIGNMENT, s.al);
   }
   // Draws the six passes. dest: 'canvas' (the context's own frame buffer, picture upright), 'fbo' (inside tex[0], read it with readPixels), or a texture you own.
-  function glPasses(S, inp, w, h, b, dest, destTex) {
+  function glPasses(S, inp, w, h, b, dest, destTex, two) {
     var gl = S.gl;
     if (w > S.max || h > S.max) throw new Error('gpu-blur: the picture is larger than this card\'s texture size');
     if (S.w !== w || S.h !== h) {
@@ -578,20 +621,32 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, by);
     } else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, inp.dom);
-    gl.useProgram(S.prog); gl.bindVertexArray(S.vao);
+    gl.bindVertexArray(S.vao);
     gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST); gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.disable(gl.STENCIL_TEST); gl.colorMask(true, true, true, true);
-    gl.viewport(0, 0, w, h);
-    gl.uniform1i(S.u.t, 0); gl.uniform1i(S.u.B, b); gl.uniform1i(S.u.H, h);
     var plan = [[0, 1, 1, 0], [1, 0, 1, 0], [0, 1, 1, 0], [1, 0, 0, 1], [0, 1, 0, 1], [1, -1, 0, 1]];   // [from, to (-1 = destination), dx, dy]
+    var sp = two ? splitBox(b) : null, P2 = two ? glProg2(gl, S) : null, mid = two ? glMid(gl, S, w, h, b) : null;
     for (var k = 0; k < 6; k++) {
-      var f = plan[k][0], t = plan[k][1];
-      gl.bindTexture(gl.TEXTURE_2D, S.tex[f]);
-      var flip = 0;
+      var f = plan[k][0], t = plan[k][1], flip = 0, dx = plan[k][2], dy = plan[k][3];
+      if (two) {                          // stage 1: sums of a pixels into the padded 16-bit middle texture
+        var mi = dx ? 0 : 1, mw = dx ? w + 2 * b : w, mh = dx ? h : h + 2 * b;
+        gl.useProgram(P2.a.p); gl.bindFramebuffer(gl.FRAMEBUFFER, S.fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, mid[mi], 0);
+        gl.viewport(0, 0, mw, mh); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, S.tex[f]);
+        gl.uniform1i(P2.a.u.t, 0); gl.uniform2i(P2.a.u.dir, dx, dy); gl.uniform1i(P2.a.u.B, b); gl.uniform1i(P2.a.u.a, sp.a);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
       if (t === -1) {
         if (dest === 'canvas') { gl.bindFramebuffer(gl.FRAMEBUFFER, null); flip = 1; }
         else { gl.bindFramebuffer(gl.FRAMEBUFFER, S.fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dest === 'fbo' ? S.tex[0] : destTex, 0); }
       } else { gl.bindFramebuffer(gl.FRAMEBUFFER, S.fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, S.tex[t], 0); }
-      gl.uniform2i(S.u.dir, plan[k][2], plan[k][3]); gl.uniform1i(S.u.flip, flip);
+      gl.viewport(0, 0, w, h);
+      if (two) {                          // stage 2: m sums spaced a apart plus r source pixels, rounded
+        var u = P2.b.u; gl.useProgram(P2.b.p);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, mid[mi]); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, S.tex[f]); gl.activeTexture(gl.TEXTURE0);
+        gl.uniform1i(u.mid, 0); gl.uniform1i(u.t, 1); gl.uniform2i(u.dir, dx, dy); gl.uniform1i(u.B, b); gl.uniform1i(u.a, sp.a); gl.uniform1i(u.m, sp.m); gl.uniform1i(u.r, sp.r); gl.uniform1i(u.flip, flip); gl.uniform1i(u.H, h);
+      } else {
+        gl.useProgram(S.prog); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, S.tex[f]);
+        gl.uniform1i(S.u.t, 0); gl.uniform1i(S.u.B, b); gl.uniform1i(S.u.H, h); gl.uniform2i(S.u.dir, dx, dy); gl.uniform1i(S.u.flip, flip);
+      }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
   }
@@ -656,14 +711,14 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
   }
 
   function glRoute(inp, w, h, b, out, opts, sync) {
-    var res = { width: w, height: h, route: 'webgl2' }, S, saved = null, gl;
+    var res = { width: w, height: h, route: 'webgl2' }, S, saved = null, gl, two = opts._two != null ? !!opts._two : 2 * b + 1 >= TWO_MIN_W;   // _two: private test switch
     if (out === 'texture') {
       if (!opts.gl) throw new Error('gpu-blur: out "texture" needs opts.gl (a WebGL 2 context)');
       gl = opts.gl; if (gl.isContextLost()) throw new Error('gpu-blur: the WebGL 2 context is lost');
       S = userGL(gl); saved = glSave(gl);
       try {
         var tex = glTex(gl, w, h);
-        glPasses(S, inp, w, h, b, 'tex', tex);
+        glPasses(S, inp, w, h, b, 'tex', tex, two);
         res.texture = tex; res.gl = gl;
       } finally { glRestore(gl, saved); }
       return sync ? res : Promise.resolve(res);
@@ -675,7 +730,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
       var cv = intoCv(opts) || makeCanvas(w, h);
       if (!cv) throw new Error('gpu-blur: no canvas can be made here');
       if (o.canvas.width !== w || o.canvas.height !== h) { o.canvas.width = w; o.canvas.height = h; }
-      glPasses(S, inp, w, h, b, 'canvas');
+      glPasses(S, inp, w, h, b, 'canvas', null, two);
       if (gl.isContextLost()) throw new Error('gpu-blur: the WebGL 2 context was lost');
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
       var c2 = cv.getContext('2d');
@@ -684,7 +739,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
       res.canvas = cv;
       return sync ? res : Promise.resolve(res);
     }
-    glPasses(S, inp, w, h, b, 'fbo');
+    glPasses(S, inp, w, h, b, 'fbo', null, two);
     if (gl.isContextLost()) throw new Error('gpu-blur: the WebGL 2 context was lost');
     if (sync) { res.pixels = glReadSync(S, w, h, intoPx(opts, w * h * 4)); return res; }
     return glRead(S, w, h, intoPx(opts, w * h * 4)).then(function (px) { res.pixels = px; return res; });
@@ -832,7 +887,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 <script>
 (function () {
 'use strict';
-var BUILD = '2026.11.06.0943';   /*STAMP*/
+var BUILD = '2026.11.06.1102';   /*STAMP*/
 var G = window.GpuBlur, $ = function (id) { return document.getElementById(id); };
 var hash = location.hash || '', QUICK = /quick/.test(hash);
 var R = 12, ROUTES = ['webgl2', 'wasm', 'js', 'auto'], NAMES = { webgl2: 'WebGL 2 (the card way)', wasm: 'WebAssembly', js: 'plain JavaScript', auto: 'auto (what the module picks)' };
@@ -990,6 +1045,32 @@ function filterLines(o) {
   return L;
 }
 
+// ---- extra step: the card way one stage against two stages (same bytes), by box width, to pick the width where two stages start to pay
+async function twoStep(step, steps) {
+  var W = 1920, H = 1080, radii = QUICK ? [6, 12, 24] : [6, 12, 18, 24, 50], reps = QUICK ? 5 : 9, o = { W: W, H: H, rows: [], notes: [] }, px, ri, r, i, c;
+  try { px = lab(W, H, true); } catch (e) { o.skipped = 'not enough memory'; return o; }
+  for (ri = 0; ri < radii.length; ri++) {
+    var R2 = radii[ri], row = { r: R2, one: [], two: [] }, did = false;
+    for (r = 0; r < reps + 2; r++) for (i = 0; i < 2; i++) {
+      var two = (i + r) % 2 === 1;
+      progress('Step ' + step + ' of ' + steps + ': card way one stage against two stages, radius ' + R2 + ', round ' + (r + 1) + ' of ' + (reps + 2));
+      try { await P.reset(); var t0 = performance.now(), x = await G.blur(px, W, H, R2, { out: 'canvas', route: 'webgl2', _two: two }); force(x.canvas); var ms = performance.now() - t0; if (x.route !== 'webgl2') { o.notes.push('card way not available here'); ri = radii.length; break; } if (r >= 2) (two ? row.two : row.one).push(ms); } catch (e) { o.notes.push('failed: ' + (e && e.message || e)); ri = radii.length; break; }
+      await sleep(30);
+    }
+    if (row.one.length && row.two.length) { row.m1 = q(row.one, .5); row.m2 = q(row.two, .5); o.rows.push(row); }
+  }
+  return o;
+}
+function twoLines(o) {
+  var L = [], pad = function (t, n) { t = String(t); while (t.length < n) t += ' '; return t; };
+  if (o.skipped) return ['Card way, one stage against two stages: skipped, ' + o.skipped];
+  L.push('Card way, one stage against two stages (same bytes), ' + o.W + ' x ' + o.H + ', drawn canvas out, ms until finished (lower is better):');
+  L.push('  ' + pad('radius', 8) + pad('one stage', 12) + pad('two stages', 12) + 'two over one (below 1 is faster)');
+  o.rows.forEach(function (x) { L.push('  ' + pad(x.r, 8) + pad(f1(x.m1), 12) + pad(f1(x.m2), 12) + (x.m2 / x.m1).toFixed(2)); });
+  o.notes.forEach(function (n) { L.push('  note: ' + n); });
+  return L;
+}
+
 async function main() {
   started = true; $('go').disabled = true; $('live').textContent = ''; $('verdict').hidden = true; $('rep').value = '';
   firstReport = false; $('warn').textContent = '';
@@ -1000,14 +1081,15 @@ async function main() {
     progress('Starting: looking at this device');
     var gi = glInfo(), info = await G.ready(); info = G.info();
     $('onscreen').textContent = 'On-screen only (not in the report): graphics name reported by the browser: ' + (gi.raw || 'none');
-    var steps = SIZES.length + 2, results = [], k;
+    var steps = SIZES.length + 3, results = [], k;
     for (k = 0; k < SIZES.length; k++) {
       var sz = SIZES[k];
       if (sz.big && ((navigator.deviceMemory && navigator.deviceMemory < 4) || QUICK && false)) { results.push({ sz: sz, stats: {}, notes: [], skipped: 'this device reports less than 4 GB of memory' }); continue; }
       var o = await runSize(sz, k + 1, steps); results.push(o);
       live(table(o).join('\n'));
     }
-    var fo = await filterStep(steps - 1, steps); live(filterLines(fo).join('\n'));
+    var fo = await filterStep(steps - 2, steps); live(filterLines(fo).join('\n'));
+    var to = await twoStep(steps - 1, steps); live(twoLines(to).join('\n'));
     progress('Step ' + steps + ' of ' + steps + ': checking that the three ways draw the same picture');
     var match = await matchTest();
     // ---- report
@@ -1019,6 +1101,7 @@ async function main() {
     T.push('');
     results.forEach(function (o) { T = T.concat(table(o)); T.push(''); });
     filterLines(fo).forEach(function (l) { T.push(l); }); T.push('');
+    twoLines(to).forEach(function (l) { T.push(l); }); T.push('');
     T.push('Same picture (1920 x 1080, share of equal values against the plain JavaScript reference; higher is better): card way ' + (match.webgl2 == null ? 'not run (' + (match.webgl2Note || 'unavailable') + ')' : match.webgl2.toFixed(4) + '%') + ', WebAssembly ' + (match.wasm == null ? 'not run' : match.wasm.toFixed(4) + '%') + ', JavaScript ' + (match.js == null ? 'not run' : match.js.toFixed(4) + '%') + (match.canvasGL != null ? ', card way through a canvas ' + match.canvasGL.toFixed(4) + '%' : '') + '.');
     results.forEach(function (o) { V = V.concat(verdictFor(o, info)); });
     var pass = [match.webgl2, match.wasm, match.js].filter(function (x) { return x != null; }).every(function (x) { return x >= 99.5; });

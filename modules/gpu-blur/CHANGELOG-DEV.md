@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.5 · API 1 · 2026-11-06
+
+### Quick
+WebGL 2 boxes 13 pixels and wider (radius 12 up) run in two stages: about 2 x sqrt(width) reads a pixel instead of the width. Same bytes. Narrower boxes unchanged.
+
+### Details
+Stage 1 sums a pixels into a 16-bit middle texture padded by B; stage 2 adds m of those spaced a apart plus r source pixels and rounds as before (width = a x m + r, a chosen for the fewest reads). Pixels, drawn canvas and texture out checked against the JavaScript reference: 204 cases in Chromium 155, Firefox 158 and WebKitGTK 2.52.6, radii 1 to 100, odd sizes down to 9 pixels. Lab, six passes at 2048 x 2048 radius 24: Firefox 160 18.0 to 8.0 ms, Chrome 156 17.9 to 6.9 ms.
+
+### Deep
+Cause of the Firefox laptop drawn-canvas gap (browser filter 22 to 11 ms, gpu-blur card way 35 to 41 ms at 2048 x 2048 radius 24): the card way's single-stage shader reads 2B+1 pixels each pass, six passes. A texture-out versus canvas-out comparison showed the final copy into a 2D canvas costs under 8 ms, so the passes are the cost. Lab page (integer textures alone 0.94 of the time, two-stage 0.44 on Firefox 160, 0.39 on Chrome 156), then the general split for every width and the private _two switch. Cloud (software graphics path, direction only) one against two stages at 1920 x 1080 drawn canvas: radius 6 1.26x slower, radius 12 0.88, radius 24 0.57, so the switch-on width is 13 (radius 12 and up); the laptop tester step 'one stage against two stages' confirms or moves it. The probe keeps the one-stage shader, so the route choice is unchanged. New check tests/gpu-blur-twostage-browser.js. 32 offline checks and tests/gpu-blur-browser.js pass in the three cloud browsers.
+
 ## 1.3.4 · API 1 · 2026-11-06
 
 ### Quick

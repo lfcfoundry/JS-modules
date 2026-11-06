@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.5 · API 1 · 2026-11-06
+- Wide blurs on the card way do the six passes in about 0.4 of the time (lab, 2048 x 2048, radius 24: Firefox 18 to 8 ms, Chrome 17.9 to 6.9 ms), same picture byte for byte.
+
 ## 1.3.4 · API 1 · 2026-11-06
 - Big pictures blur on the card way on a laptop: Firefox 1080p 38 to 17 ms, 4K 174 to 65 ms. Small ones stay on WebAssembly.
 
