@@ -69,12 +69,12 @@ The module remembers which finger started the hold (its touch `identifier`). A s
 After a hold ends, the next click on the button is swallowed, for up to 700 ms after the finger lifts. It is dropped sooner when it cannot come: the finger lifted outside the button, the press was cancelled, a new press began, or the click was made by keyboard or script (`event.detail` of 0). If a hold ends early (for example `canPress` turns false) while the finger stays down, the swallow waits for the lift. If you remove the button without calling `detach()`, the window listeners and the repeat are cleaned up on the next window event or repeat.
 
 ## How it compares
-Bigger than a one-purpose long-press script, smaller than a gesture suite, and it repeats while held, survives Android's `pointercancel`, and swallows the release click. Speed against the alternatives: not measured.
+Bigger than a one-purpose long-press script, smaller than a gesture suite, and it repeats while held, survives Android's `pointercancel`, and swallows the release click. Speed against long-press-event is measured (below): it costs more per tap but fires closer to the delay; against the others: not measured.
 
 | Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
 | --- | --- | --- | --- | --- |
 | **hold-press 1.1.0** (this module, MIT) | 4,707 B minified (1,754 B gzipped, esbuild) | Cost of one idle `pointermove` with 12 buttons attached, lower is faster: ungoogled Chromium 155.0.8059.39-1 0.075 µs, Firefox 158.0 0.65 µs, WebKitGTK 2.52.6 0.75 µs 0.35 µs | Repeat while held, touch events as a fallback, one finger followed, swallowed release click, opt-in keyboard hold and `lockTouch` | Does the whole "hold to repeat" job. Loses: larger than the one-event scripts |
-| long-press-event 2.5.2 (MIT) | 2,819 bytes minified, 1,001 gzipped (the "about 1 KB" earlier was the gzipped size) | Not measured (nothing loops; one timer per press) | Fires one "long press" event after a delay; no repeat, no swallowed click | Wins: smaller. Loses: no repeat |
+| long-press-event 2.5.2 (MIT) | 2,819 bytes minified, 1,001 gzipped (the "about 1 KB" earlier was the gzipped size) | One tap (pointer down and up on one of 12 buttons), microseconds with no library on the page 6.7 / 4.6 / 5.8: hold-press 18.2 / 25.0 / 16.7, long-press-event 10.5 / 7.9 / 14.2 (ungoogled Chromium 155.0.8059.39-1 / Firefox 158.0 / WebKitGTK 2.52.6; median of 5 rounds; `tests/compare/hold-press-compare-browser.js`). How late a 400 ms hold fires: hold-press 0.8 / 1.0 / 1.0 ms, long-press-event 10.3 / 2.0 / 10.0 ms (it waits with `requestAnimationFrame`, so it fires on a frame; hold-press uses a timer) | Fires one "long press" event after a delay; no repeat, no swallowed click | Wins: smaller. Loses: no repeat |
 | Hammer.js `press` (the maintained fork is `@egjs/hammerjs` 2.0.17, MIT) | 21,741 bytes minified, 7,274 gzipped (the whole suite; `press` alone cannot be split out) | Not measured | Part of a full gesture suite; `press` is one event and does not repeat | Wins if you already use the suite. Whether it handles Android's `pointercancel`: unverified |
 | Pointer capture plus `touch-action: none` (the browser's own, a few lines you write) | A few lines | Not measured | Often enough when the page owns the whole gesture | Wins: no library. Loses: the page cannot scroll from that button (`lockTouch: true` here does the same) |
 
@@ -84,7 +84,7 @@ Bigger than a one-purpose long-press script, smaller than a gesture suite, and i
 - Repeat timing is `setInterval`, not frame-locked; not for drag gestures.
 - Mouse, touch and pen by default; the keyboard hold is opt-in and there is no switch-device hold.
 - Every hold needs a plain-tap alternative.
-- Not measured: size and speed of the alternatives; speed on a phone.
+- Costs more per tap than long-press-event (about 11 to 20 microseconds against 3 to 8 over the same events with no library; a person taps a few times a second, so it is only visible in a stress test): each press adds and removes its own listeners, which is what keeps the idle cost near zero. Not measured: speed of Hammer.js and the other alternatives; speed on a phone.
 
 ## Limits
 - **Mouse, touch and pen by default.** A keyboard hold is opt-in (above); there is no switch-device hold. Without `keyboard: true`, a person using a keyboard or switch device gets the plain click only (holding Enter on a native button may repeat clicks by itself; that was not checked here, and Space does not repeat).
