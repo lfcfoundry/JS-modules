@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.3 · API 0 · 2026-11-06
+- Firefox: row reads about 13% faster on IP address columns.
+
 ## 0.5.2 · API 0 · 2026-11-06
 - Chromium: row reads about 7% faster on dense blocks (columns decoded one at a time, table-built IP text).
 
