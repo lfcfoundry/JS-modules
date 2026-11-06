@@ -1,5 +1,13 @@
 # netflow-hierarchy developer changelog
 
+## 1.4.2 · API 1 · 2026-11-05
+
+### Quick
+Owner's card A (2026.11.05 10:30 PM ET): the violet treemap tile is drawn about 5% darker with white names (4.57:1) instead of pure black names.
+
+### Deep
+Owner's card A (2026.11.05 10:30 PM ET): the violet treemap tile is drawn about 5% darker with white names (4.57:1) instead of pure black names. The same rule covers every color, view and theme: a tile, ring piece or circle whose drawn color reads below 4.5:1 with both near-black and white names takes the smallest shade change that fixes it (darker for white names, or lighter for near-black; 2-5% in the 12-color list). New shipped check: no name falls back to pure black, and sunburst names are now read on their drawn ring pieces too.
+
 ## 1.4.1 · API 1 · 2026-11-05
 
 ### Quick

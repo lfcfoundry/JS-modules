@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.2 · API 1 · 2026-11-05
+- Tiles that neither dark nor white names read on get a shade darker (white names) or lighter, the smallest change that reaches 4.5:1.
+
 ## 1.4.1 · API 1 · 2026-11-05
 - Group boxes follow the scene's opt-in families colors.
 
