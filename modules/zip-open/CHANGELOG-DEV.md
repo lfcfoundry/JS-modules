@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.19.0 · API 1 · 2026-11-06
+
+### Quick
+The warm-up after load also starts the second thread, so the first big open (sheets of 4 MB or more unpacked) already runs on two threads. First open 5 to 25% faster in Chromium and Firefox; WebKitGTK about even for files in memory.
+
+### Details
+First open 6 s after load, time 1.19.0 / 1.18.2, lower is better. Files read in pieces: Chromium 155 0.75 to 0.95, Firefox 158 0.81 to 0.93, WebKitGTK 2.52.6 0.85 to 0.95. Files in memory: Chromium 0.86 to 1.01, Firefox 0.84 to 0.91, WebKitGTK about even (1.07 one order, 0.92 the other). The thread stays until a first open has used it, then closes after 5 s idle as before.
+
+### Deep
+warmThread() at the end of warmBook(): pipeWorker() without pipeIdle(), so the thread is not closed before its first use; after a job, pipeIdle() closes it 5 s later as in 1.17.0. Ceiling check (thread kept alive from an earlier open): Chromium 0.80 to 0.83. Test: the warm-up spawns the thread once and the first big open is piped.
+
 ## 1.18.2 · API 1 · 2026-11-05
 
 ### Quick

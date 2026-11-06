@@ -1,8 +1,8 @@
 # zip-open
 
-**Version 1.18.2 · API 1**
+**Version 1.19.0 · API 1**
 
-**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-05 night (early-stop A/B, both orders; first and second opens in 8 fresh pages per browser); 45 module checks pass; 60,000 reader fuzz cases match the JavaScript reader.
+**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-05 night (first open 6 s after load: in-memory files 5 fresh pages per browser, Files read in pieces 4; WebKitGTK in-memory rechecked in reverse order with 8); 46 module checks pass.
 
 ## What it is and how it works
 
@@ -80,7 +80,7 @@ Entries that are 4 KB or less compressed are unpacked by a 9.5 KB WebAssembly in
 
 The checksum program starts compiling in the background when the file loads, so the first big checksum only starts it. `ZipOpen.wasmReady()` gives a promise of `true` or `false` and `ZipOpen.wasmModule()` the compiled module (or `null`). A checksum asked for before the compile is done compiles on the spot, as before; without WebAssembly the plain loop answers. The answers do not change.
 
-Since 1.18.0, shortly after the file loads on a page (not in a worker), zip-open also warms up its Excel reader: it runs the unzipper and the reader on a small made-up sheet in short steps, then opens three tiny made-up workbooks, about 20 to 30 ms of work in all, with no file and no network. Browsers start WebAssembly on quick-to-compile code and switch to fast code only after it has done some work, so without this the first real file paid for that switch. Opening a real file stops the warm-up at once. Answers do not change.
+Since 1.18.0, shortly after the file loads on a page (not in a worker), zip-open also warms up its Excel reader: it runs the unzipper and the reader on a small made-up sheet in short steps, then opens three tiny made-up workbooks, about 20 to 30 ms of work in all, with no file and no network. Browsers start WebAssembly on quick-to-compile code and switch to fast code only after it has done some work, so without this the first real file paid for that switch. Opening a real file stops the warm-up at once. Answers do not change. Since 1.19.0 the warm-up then also starts the second thread (the one that unpacks a big sheet while its rows are read), so the first big open already uses two threads; the thread waits idle until that first open and closes 5 s after it, as before.
 
 Honest numbers: load plus first use, ms, old / new (median of nine fresh pages, right after load; lower is better): Chromium 155 7.4 / 7.3, Firefox 158.0 18 / 20, WebKitGTK 2.52.6 4 / 4 5 / 4. A wash, as expected for a 1,476-byte program.
 
