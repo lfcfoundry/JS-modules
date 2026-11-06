@@ -220,4 +220,12 @@ t('one call: toSvg(links) makes the items, sizes them, lays out and draws; a lay
   const svg = NL.toSvg(LINKS); ok(svg.indexOf('<svg') === 0 && svg.indexOf('Side &lt;work&gt;') > 0 && svg.indexOf('>Rent<') > 0, 'drawn with names');
   const R = NL.layout({ root: 'a', nodes: [{ id: 'a', w: 80, h: 30 }, { id: 'b', w: 80, h: 30 }], edges: [{ from: 'a', to: 'b' }] }); ok(NL.toSvg(R).indexOf('>b<') > 0, 'old form');
 });
+t('highlight (opt-in): the chosen box and its links keep their colors, the rest fade; without it nothing changes', () => {
+  const L2 = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', value: 14 }, { from: 'Food', to: 'Fun', value: 4 }];
+  const plain = NL.toSvg(L2), h = NL.toSvg(L2, { highlight: 'Rent' });
+  ok(NL.toSvg(L2, { highlight: null }) === plain && NL.toSvg(L2, { highlight: 'nobody' }) === plain, 'no match or no option: same picture');
+  ok(h !== plain && h.indexOf('stroke-width="2.5"') > 0, 'the chosen box is drawn with a stronger edge');
+  ok((h.match(/stroke="#6b7a90"/g) || []).length === 1 && (plain.match(/stroke="#6b7a90"/g) || []).length === 3, 'only the link touching it keeps its color');
+  ok(h.indexOf('>Fun<') > 0 && /fill="#222">Fun</.test(h), 'faded boxes keep readable names');
+});
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);

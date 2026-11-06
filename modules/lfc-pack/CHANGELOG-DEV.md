@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.0 · API 0 · 2026-11-05
+
+### Quick
+LfcPack.open(src) takes a File, Blob, a read(offset, length) function with .size, or bytes.
+
+### Deep
+LfcPack.open(src) takes a File, Blob, a read(offset, length) function with .size, or bytes. It reads the trailer and footer only; rows({from, count, table}) and block(i) fetch only the blocks they need, checked against their checksums, and give the same rows as unpackRows. Memory is bounded by the footer plus one block. No format change. Files with raw blocks (exact mode on text that is not plain rows) are read whole on first use. Requested for the LFC Workbench data view.
+
 ## 0.4.24 · API 0 · 2026-11-05
 
 ### Quick

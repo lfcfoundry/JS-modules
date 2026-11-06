@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-11-05
+- Names on treemaps and circle packs read on the colors actually drawn; group boxes get a name strip and their items' color.
+
 ## 1.3.1 · API 1 · 2026-11-05
 - Chord, bundle and radial tree names on the left side are no longer cut off at the picture edge.
 

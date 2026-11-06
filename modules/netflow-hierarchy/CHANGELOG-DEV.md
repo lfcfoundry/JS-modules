@@ -1,5 +1,13 @@
 # netflow-hierarchy developer changelog
 
+## 1.4.0 · API 1 · 2026-11-05
+
+### Quick
+Text color is now picked on the color the reader sees (each tile laid over its parent box, not over the page), so names read at 4.5:1 or better; the violet tile case from the re-score is fixed without changing any tile color.
+
+### Deep
+Text color is now picked on the color the reader sees (each tile laid over its parent box, not over the page), so names read at 4.5:1 or better; the violet tile case from the re-score is fixed without changing any tile color. Group boxes in a treemap keep an 18 px strip for their name, so the box name no longer sits on its first tile's name. Group boxes and rings take the same color as their items (both follow the scene's sorted group order). Circle names that cross into an inner circle pick the ink with the best worst-case contrast (3.65:1 or better in the test set). New shipped check computes the drawn blend for every color, both themes, treemap, icicle and pack.
+
 ## 1.3.1 · API 1 · 2026-11-05
 
 ### Quick

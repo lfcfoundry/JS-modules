@@ -31,6 +31,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('negative first value', 'node', ['negfirst.cjs']);
   step('tables and plain values', 'node', ['tables.cjs']);
   step('empty strings kept (flat writer)', 'node', ['emptystr.cjs']);
+  step('open(): block-at-a-time reads from a Blob or read()', 'node', ['open.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);
   step('python writer', 'python3', ['-I', 'pywriter.py', dir]);
   step('python writer files in JS', 'node', ['pywriter.cjs', dir]);

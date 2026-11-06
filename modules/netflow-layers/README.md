@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.11.0 · API 1**
+**Version 1.12.0 · API 1**
 
-**Tested in:** Node module checks (new title test); off by default, so pictures without the options are byte-identical
+**Tested in:** node test/run.js (all passed, new highlight check); opt-in, default drawing unchanged
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -79,7 +79,7 @@ Returns `{ nodes, edges, pos, order, lanes, width, height, crossings, rows, rule
 - `edges`: yours with `kind` (`fwd`, `back`, `flat` = same row, `self`, `tag`) and `pts` (the stand-in stops of a long link, each `[x, y]`). A `tag` has `tagFwd` (true when it goes on down the page) and no `pts`.
 - `info`: `{ rows, columns, stops, back, flat, tags, goldTags, rowMode }`. `ruler`: for each row `{ at, edge }` (where to write "step 12" and where its column starts).
 
-`toSvg(result, colors)` draws boxes, curves and tag chips as a plain SVG string (text is escaped); `title`, `subtitle` and `source` (the same words as in every chart module) draw a bold title and a lighter subtitle above the chart and a small source line below it, without changing the chart itself; `taper: true` draws forward links as shapes that narrow from 5 px to 1 px, so direction shows without arrowheads.
+`toSvg(result, colors)` draws boxes, curves and tag chips as a plain SVG string (text is escaped); `title`, `subtitle` and `source` (the same words as in every chart module) draw a bold title and a lighter subtitle above the chart and a small source line below it, without changing the chart itself; `taper: true` draws forward links as shapes that narrow from 5 px to 1 px, so direction shows without arrowheads. `highlight` (since 1.12.0) names one box by id or label: it and every link touching it keep their colors, and the rest fade toward `background` (default white); names stay readable.
 
 ## WebAssembly (1.5.0)
 The row-order search (crossing counts, sweeps, neighbor swaps) and the row placement run in WebAssembly, built from `wasm/order.c` (`sh wasm/build.sh`, then `python3 wasm/embed.py` puts the 10,909 bytes into `netflow-layers.js` as base64). A page needs only `'wasm-unsafe-eval'` in `script-src`; nothing is fetched. The pictures are the same to the last digit as the plain JavaScript, which stays in the file as the fallback (no WebAssembly, blocked by the page rule, a map under 100 stops, or a failed call). `NetflowLayers.wasm` is `{ on, min, calls, error }`: set `on = false` to force JavaScript, `min` to change the 100-stop limit, read `calls` and `error` to see what happened. Measured in ungoogled Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 5,000 pages (lower is better): 37.7 to 26.9, 55 to 41 and 53 to 43 ms with wasm off and on; 1,000 pages 6.65 to 4.8, 10 to 8 and 8.5 to 7 ms. The first map of 100 stops or more compiles the module once (about 4 ms in WebKitGTK, under 1 ms in Chromium).

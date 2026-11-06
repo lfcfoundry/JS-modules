@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.18.0 · API 1 · 2026-11-05
+
+### Quick
+Warm-up after load: the first real Excel open in a page is 11 to 45% faster, because the reader already runs on fast code.
+
+### Details
+Browsers start WebAssembly on quick-to-compile code and switch to fast code only after it has done work. Shortly after load on a page (not in workers), zip-open runs the unzipper and the Excel reader on a made-up 3,000-row sheet (packed with CompressionStream) in 24 short steps, then opens three tiny made-up workbooks (stored zip) to warm the JavaScript side. Any expand or expandBlob stops it. First open 6 s after load, time 1.18.0 / 1.17.1, lower is better: Chromium 155 text 0.87, big 0.83, formulas 0.65; Firefox 158 0.86, 0.89, 0.78; WebKitGTK 2.52.6 0.75, 0.75, 0.55. An open right after load: 0.89 to 1.02.
+
+### Deep
+warmReader() and warmBook() in zip-open.js, started with setTimeout after load when document exists; OPENS counter stops it; skipped without CompressionStream. A warm-up of only the WebAssembly side gave 0.73 to 0.93; a single tiny open 0.88 to 0.98. The gain holds after the reader's 5 s idle release (checked 6 s after load), so it is code tiering, not memory already touched. Test hooks _warm(steps), _warmed().
+
 ## 1.17.1 · API 1 · 2026-11-05
 
 ### Quick
