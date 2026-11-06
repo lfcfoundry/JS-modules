@@ -414,5 +414,28 @@ require('./fancy-scenes.js')(SB, SB, check);
   check('sprite-baker-wasm.js carries the module version in its header', head.indexOf('Version ' + SB.version + ' (API 1)') >= 0, head.slice(-60));
 })();
 
+/* edge-only supersampling (opts.edge, since 1.8.0) */
+(function () {
+  var mat = SB.material([[0, 60, 20, 90], [1, 245, 210, 255]]), red = SB.material([[0, 200, 40, 40], [1, 255, 120, 120]]);
+  var scenes = [
+    [{ fn: SB.sphere(11), nu: 12, nv: 18, material: mat }],
+    [{ fn: SB.torus(9, 3.5), nu: 24, nv: 16, material: mat }, { fn: SB.sphere(3, [0, 0, 5]), nu: 10, nv: 12, material: red }]
+  ], worst = 0, same = true, i, j, a, b, d, off = SB.bakeSprite(scenes[0], 48, {});
+  scenes.forEach(function (sc) {
+    [0, 1.1].forEach(function (phi) {
+      a = SB.bakeSprite(sc, 64, { phi: phi }); b = SB.bakeSprite(sc, 64, { phi: phi, edge: true });
+      same = same && a.width === b.width && a.height === b.height && a.data.length === b.data.length;
+      for (j = 0; j < a.data.length; j++) { d = Math.abs(a.data[j] - b.data[j]); if (d > worst) worst = d; }
+    });
+  });
+  check('edge mode: same size, and no byte differs from the default supersampled picture by more than 8 levels (sphere, torus with a bead, two angles)', same && worst <= 8, 'worst ' + worst);
+  var r1 = SB.bakeRoll(scenes[1], 4, 48, { edge: true }), r2 = SB.bakeRoll(scenes[1], 4, 48, { edge: true });
+  check('edge mode: a roll and a baker give the same pictures, run to run', r1.length === 4 && r1.every(function (f, k) { return hash(f) === hash(r2[k]); }));
+  check('edge mode with ss 1 is the plain one-sample picture', hash(SB.bakeSprite(scenes[0], 48, { edge: true, ss: 1 })) === hash(SB.bakeSprite(scenes[0], 48, { ss: 1 })));
+  check('edge mode off (the default) is unchanged by the option existing', hash(off) === hash(SB.bakeSprite(scenes[0], 48, { edge: false })));
+  var o = SB.bakeSprite(scenes[0], 48, { edge: true, outline: { radius: 2, color: [14, 24, 40] } });
+  check('edge mode works with an outline', o && o.width === 48 && o.data.length === 48 * 48 * 4);
+})();
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

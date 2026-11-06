@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.8.0 · API 1 · 2026-11-06
+- New option edge: true fills each pixel once and fills again with ss by ss samples only the pixels on an edge.
+
 ## 1.7.2 · API 1 · 2026-10-31
 - Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 

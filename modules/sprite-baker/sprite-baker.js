@@ -1,4 +1,4 @@
-/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.7.2 (API 1) */
+/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.8.0 (API 1) */
 var SpriteBaker = (function () {
   'use strict';
 
@@ -512,6 +512,7 @@ var SpriteBaker = (function () {
     var s = view.scale === undefined ? 1 : view.scale, ox = view.ox || 0, oy = view.oy || 0, rot = view.rot || null, cen = view.center || [0, 0, 0];
     var cols = m.nv + 1, n = cols * (m.nu + 1), verts = new Array(n), k, i, j, x, y, z, nx, ny, nz, a, b, c, d;
     mat = asMaterial(mat);
+    var gate = opts && typeof opts.gate === 'function' ? opts.gate : null;   // used by opts.edge in bakeSprite: skip a triangle that touches no edge pixel
     var pose = opts && typeof opts.pose === 'function' ? opts.pose : null, withUV = !!(mat.texture || mat.ridge), uvs = m.uv;
 
     for (k = 0; k < n; k++) {
@@ -533,8 +534,8 @@ var SpriteBaker = (function () {
     for (i = 0; i < m.nu; i++) {
       for (j = 0; j < m.nv; j++) {
         a = verts[i * cols + j]; b = verts[(i + 1) * cols + j]; c = verts[(i + 1) * cols + j + 1]; d = verts[i * cols + j + 1];
-        tri(rast, a, b, c, mat, opts);
-        tri(rast, a, c, d, mat, opts);
+        if (!gate || gate(a, b, c)) tri(rast, a, b, c, mat, opts);
+        if (!gate || gate(a, c, d)) tri(rast, a, c, d, mat, opts);
       }
     }
   }
@@ -631,6 +632,81 @@ var SpriteBaker = (function () {
           }
         }
         o = (y * w + x) * 4;
+        if (sa) { data[o] = sr / sa; data[o + 1] = sg / sa; data[o + 2] = sb / sa; data[o + 3] = sa / area; }
+      }
+    }
+    return { width: w, height: h, data: data };
+  }
+
+  /* Edge-only supersampling (opt-in, opts.edge): the picture is first filled once per pixel (`first`, a Rast of the output size) and only the
+     pixels that sit on an edge are filled again with ss * ss samples. A pixel counts as an edge when a neighbor (the 8 around it) differs in
+     coverage, is nearer or farther by more than EDGE_Z pixels of depth, or differs in color by more than EDGE_COLOR (sum of the three channels).
+     Every other pixel keeps its one sample. A feature thinner than a pixel that falls between two pixel centers is missed, and a smooth pixel
+     differs from the average of its ss * ss samples by the tiny change of the light across the pixel. */
+  var EDGE_Z = 3, EDGE_COLOR = 60;
+  function edgeMask(first) {
+    var w = first.w, h = first.h, px = first.px, z = first.z, mark = new Uint8Array(w * h), x, y, i, last = w - 1, hl = h - 1;
+    function differ(i, j) {   // true when pixels i and j make an edge between them
+      var a = px[i * 4 + 3], b = px[j * 4 + 3], d, k;
+      if ((a === 0) !== (b === 0)) return true;
+      if (a === 0) return false;
+      d = z[i] - z[j];
+      if (d > EDGE_Z || d < -EDGE_Z) return true;
+      k = px[i * 4] - px[j * 4]; d = k < 0 ? -k : k;
+      k = px[i * 4 + 1] - px[j * 4 + 1]; d += k < 0 ? -k : k;
+      k = px[i * 4 + 2] - px[j * 4 + 2]; d += k < 0 ? -k : k;
+      return d > EDGE_COLOR;
+    }
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {   // each pair of neighbors once (right, below, below right, below left); both ends of a pair that differs are marked
+        i = y * w + x;
+        if (x < last && differ(i, i + 1)) mark[i] = mark[i + 1] = 1;
+        if (y < hl) {
+          if (differ(i, i + w)) mark[i] = mark[i + w] = 1;
+          if (x < last && differ(i, i + w + 1)) mark[i] = mark[i + w + 1] = 1;
+          if (x > 0 && differ(i, i + w - 1)) mark[i] = mark[i + w - 1] = 1;
+        }
+      }
+    }
+    return mark;
+  }
+
+  /* A function gate(a, b, c) that says whether a triangle (vertices in the big surface's pixels) touches any edge pixel; the fill skips the rest. */
+  function edgeGate(mark, w, h, ss) {
+    var S = new Int32Array((w + 1) * (h + 1)), x, y, W = w + 1;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) S[(y + 1) * W + x + 1] = mark[y * w + x] + S[y * W + x + 1] + S[(y + 1) * W + x] - S[y * W + x];
+    return function (a, b, c) {
+      var x0 = Math.floor(Math.min(a[0], b[0], c[0]) / ss), x1 = Math.floor(Math.max(a[0], b[0], c[0]) / ss) + 1, y0 = Math.floor(Math.min(a[1], b[1], c[1]) / ss), y1 = Math.floor(Math.max(a[1], b[1], c[1]) / ss) + 1;
+      if (!(x0 <= x1 && y0 <= y1)) return true;   // NaN somewhere: let tri() decide
+      if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0; if (x1 > w - 1) x1 = w - 1; if (y1 > h - 1) y1 = h - 1;
+      if (x0 > x1 || y0 > y1) return false;     // wholly outside the picture
+      return S[(y1 + 1) * W + x1 + 1] - S[y0 * W + x1 + 1] - S[(y1 + 1) * W + x0] + S[y0 * W + x0] > 0;
+    };
+  }
+
+  /* Gives every sample whose pixel is not an edge a depth nothing can beat, so the fill skips it before shading. */
+  function lockInterior(rast, ss, mark) {
+    var w = rast.w / ss, h = rast.h / ss, z = rast.z, rw = rast.w, x, y, sx, sy, row;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      if (mark[y * w + x]) continue;
+      for (sy = 0; sy < ss; sy++) { row = (y * ss + sy) * rw + x * ss; for (sx = 0; sx < ss; sx++) z[row + sx] = Infinity; }
+    }
+  }
+
+  /* Edge pixels are averaged from their samples exactly as downsample() does; the others are copied from the first fill. */
+  function downsampleEdge(rast, ss, first, mark) {
+    var w = first.w, h = first.h, data = new Uint8ClampedArray(w * h * 4), px = rast.px, rw = rast.w, fp = first.px, x, y, sx, sy, i, o, a, sa, sr, sg, sb, area = ss * ss;
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+        o = (y * w + x) * 4;
+        if (!mark[y * w + x]) { data[o] = fp[o]; data[o + 1] = fp[o + 1]; data[o + 2] = fp[o + 2]; data[o + 3] = fp[o + 3]; continue; }
+        sa = sr = sg = sb = 0;
+        for (sy = 0; sy < ss; sy++) {
+          for (sx = 0; sx < ss; sx++) {
+            i = ((y * ss + sy) * rw + x * ss + sx) * 4; a = px[i + 3];
+            if (a) { sa += a; sr += px[i] * a; sg += px[i + 1] * a; sb += px[i + 2] * a; }
+          }
+        }
         if (sa) { data[o] = sr / sa; data[o + 1] = sg / sa; data[o + 2] = sb / sa; data[o + 3] = sa / area; }
       }
     }
@@ -760,14 +836,26 @@ var SpriteBaker = (function () {
     var margin = (opts.margin === undefined ? 2 : opts.margin) + (ol ? Math.ceil(ol.radius || 0) : 0);
     var scale = opts.scale !== undefined ? opts.scale : fitScale(parts, w, h, center, axis, margin);
     var ox = opts.ox !== undefined ? opts.ox : w / 2 - center[0] * scale, oy = opts.oy !== undefined ? opts.oy : h / 2 - center[1] * scale;
-    var rast = new Rast(w * ss, h * ss);
+    var rast = new Rast(w * ss, h * ss), first = opts.edge && ss > 1 ? new Rast(w, h) : null;   // `first`: one sample a pixel, for opts.edge
     if (opts.light) rast.setLight(opts.light);
+    if (first && opts.light) first.setLight(opts.light);
     var tOpts = opts.cull !== undefined ? { cull: opts.cull } : null;
 
     return {
       width: w, height: h, ss: ss, scale: scale,
       render: function (phi) {
         var view = { scale: scale * ss, ox: ox * ss, oy: oy * ss, rot: rotationMatrix(axis, phi), center: center }, img;
+        if (first) {
+          var v1 = { scale: scale, ox: ox, oy: oy, rot: view.rot, center: center }, mark;
+          first.clear();
+          parts.forEach(function (part) { drawMesh(first, part.mesh, part.material, v1, tOpts); });
+          mark = edgeMask(first);
+          rast.clear(); lockInterior(rast, ss, mark);
+          var gOpts = { gate: edgeGate(mark, first.w, first.h, ss) }; if (tOpts) gOpts.cull = tOpts.cull;
+          parts.forEach(function (part) { drawMesh(rast, part.mesh, part.material, view, gOpts); });
+          img = downsampleEdge(rast, ss, first, mark);
+          return ol ? API.outline(img, ol.radius, ol.color) : img;
+        }
         rast.clear();
         parts.forEach(function (part) { drawMesh(rast, part.mesh, part.material, view, tOpts); });
         img = downsample(rast, ss);
@@ -912,7 +1000,7 @@ var SpriteBaker = (function () {
 //@end
 
   API = {
-    version: '1.7.2',
+    version: '1.8.0',
     Rast: Rast,
 //@begin ramps
     material: material,
