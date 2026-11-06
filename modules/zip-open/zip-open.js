@@ -1141,6 +1141,9 @@
     var z = new Uint8Array(n); n = 0; for (i = 0; i < parts.length; i++) { z.set(parts[i], n); n += parts[i].length; }
     return z;
   }
+  function warmThread() {   // then the second thread, so the first big sheet already unpacks on it; it stays until a first open has used it, then closes after 5 s idle as usual
+    try { if (!PIPE && pipeOn()) pipeWorker(); } catch (e) { }
+  }
   function warmBook() {   // the JavaScript side of an Excel open, three times on a tiny made-up workbook
     try {
       var enc = new TextEncoder(), ss = [], rows = [], i, opens = OPENS;
@@ -1148,7 +1151,7 @@
       for (i = 1; i <= 60; i++) rows.push('<row r="' + i + '"><c r="A' + i + '"><v>' + i + '</v></c><c r="B' + i + '" t="s"><v>' + (i % 60) + '</v></c><c r="C' + i + '" s="1"><v>' + (40000 + i) + '</v></c><c r="D' + i + '"><v>' + i + '.5</v></c><c r="E' + i + '" t="b"><v>1</v></c><c r="F' + i + '" t="str"><f>A1</f><v>x</v></c></row>');
       var z = storedZip([['xl/workbook.xml', enc.encode('<workbook xmlns:r="r"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>')], ['xl/_rels/workbook.xml.rels', enc.encode('<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>')], ['xl/styles.xml', enc.encode('<styleSheet><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>')], ['xl/sharedStrings.xml', enc.encode('<sst>' + ss.join('') + '</sst>')], ['xl/worksheets/sheet1.xml', enc.encode('<worksheet><sheetData>' + rows.join('') + '</sheetData></worksheet>')]]);
       var left = 3;
-      (function one() { if (OPENS !== opens || left-- <= 0) return; expandFrom(memSource(z), 'warm.xlsx', {}).then(function () { WARM_DONE += 100; setTimeout(one, 0); }, function () { }); })();
+      (function one() { if (OPENS !== opens) return; if (left-- <= 0) { warmThread(); return; } expandFrom(memSource(z), 'warm.xlsx', {}).then(function () { WARM_DONE += 100; setTimeout(one, 0); }, function () { }); })();
     } catch (e) { }
   }
   if (typeof document === 'object' && typeof setTimeout === 'function') setTimeout(warmReader, 0);
