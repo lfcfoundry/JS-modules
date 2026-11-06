@@ -2,7 +2,8 @@
 # Reads every <n>.lfc with python/lfc_pack.py and compares values with json.loads; checks byte-exact *x.lfc files and canonical.lfc text ordering.
 import sys, json, glob, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'python')); sys.setrecursionlimit(20000)
-import lfc_pack
+try: import lfc_pack
+except ImportError: print('skipped: no zstandard package and Python older than 3.14'); sys.exit(0)
 
 def norm(o):
     if isinstance(o, bool) or o is None or isinstance(o, str): return o

@@ -3,6 +3,8 @@ clicks the page, then damages a packed copy and checks the loader refuses to run
 Run: python3 tools/lzma-pack/test/browser.py   (Python 3 + Playwright for Python with Chromium; no network)
 Copyright (c) 2026 LFC Foundry. MIT License."""
 import http.server, os, pathlib, sys, tempfile, threading
+try: import playwright.sync_api  # noqa: F401
+except ImportError: print('skipped: needs Playwright for Python (pip install playwright)'); sys.exit(2)
 from playwright.sync_api import sync_playwright
 
 def real_chromium(p, **kw):

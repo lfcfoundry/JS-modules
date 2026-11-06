@@ -8,6 +8,8 @@ Exits 1 if any check fails.
 """
 import os
 import sys
+try: import playwright.sync_api  # noqa: F401
+except ImportError: print('skipped: needs Playwright for Python (pip install playwright)'); sys.exit(2)
 import time
 from playwright.sync_api import sync_playwright
 

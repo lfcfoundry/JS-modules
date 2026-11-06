@@ -5,13 +5,14 @@ const assert = require('assert'), fs = require('fs'), os = require('os'), path =
 const src = Buffer.from('{"a":1,"b":"x"}\n{"a":2,"b":"y"}\n'), meta = { title: 'T', producer: 'test 1', tables: [{ name: 'rows', rows: 2, columns: [{ key: 'a', type: 'number', unit: 's' }] }], ['é😀']: [1, null] };
 (async () => {
   await JF.init();
-  const want = JF.unpack(JF.pack(src));
+  const want = JF.unpack(JF.pack(src)); let pySkipped = false;
   for (const o of [{}, { exact: true }, { block: 'nested' }]) {
     const f = JF.pack(src, Object.assign({ meta }, o)), g = JF.metadata(f);
     assert.deepStrictEqual(g, Object.assign({ v: 1 }, meta)); assert.deepStrictEqual(JF.unpack(f), want);
     assert.strictEqual(JF.metadata(JF.pack(src, o)), null);
     const d = fs.mkdtempSync(path.join(os.tmpdir(), 'meta-')), p = path.join(d, 'm.lfc'); fs.writeFileSync(p, f);
     const r = spawnSync('python3', ['-c', "import sys,json;sys.path.insert(0,'" + path.join(__dirname, '..', 'python') + "');import lfc_pack;print(json.dumps(lfc_pack.metadata(sys.argv[1]),ensure_ascii=False));print(lfc_pack.read(sys.argv[1])==[{'a':1,'b':'x'},{'a':2,'b':'y'}])", p], { encoding: 'utf8' });
+    if (r.status !== 0 && /No module named 'zstandard'/.test(r.stderr)) { if (!pySkipped) console.log('python part skipped: no zstandard package and Python older than 3.14'); pySkipped = true; continue; }   // same rule as pycases.py
     assert.strictEqual(r.status, 0, r.stderr); const [m, ok] = r.stdout.trim().split('\n'); assert.deepStrictEqual(JSON.parse(m), Object.assign({ v: 1 }, meta)); assert.strictEqual(ok, 'True');
   }
   const s = JF.packStream({ meta }), parts = [].concat(s.push(src), s.finish()), f2 = Buffer.concat(parts.map((x) => Buffer.from(x)));

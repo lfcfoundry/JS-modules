@@ -4,6 +4,8 @@ save() leak and an overhanging drawImage source are caught, and that uninstall()
 Python 3 + Playwright for Python with Chromium; no network. Counts only: never judge milliseconds with the probe on.
 Copyright (c) 2026 LFC Foundry. MIT License."""
 import os, pathlib, sys
+try: import playwright.sync_api  # noqa: F401
+except ImportError: print('skipped: needs Playwright for Python (pip install playwright)'); sys.exit(2)
 from playwright.sync_api import sync_playwright
 
 def real_chromium(p, **kw):
