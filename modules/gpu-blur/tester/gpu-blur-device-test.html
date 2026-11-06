@@ -31,7 +31,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
  * gpu-blur.js: blur a picture on the graphics card (WebGL 2), or in WebAssembly, or in plain JavaScript, and give the same picture every way.
  * The module picks the way by what the browser can do, never by the browser's name. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.0 (API 1)
+ * Version 1.3.2 (API 1)
  *
  *   GpuBlur.blur(source, width, height, radius[, opts])   -> Promise of { canvas | pixels | texture, width, height, route }
  *   GpuBlur.blurSync(source, width, height, radius[, opts]) -> the same result at once (the page waits for the whole job)
@@ -61,7 +61,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 })(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  var VERSION = '1.3.0';
+  var VERSION = '1.3.2';
   var MAX_PIXELS = 33554432;          // 8192 x 4096
   var STRIP = 16;                     // columns per vertical strip (the wasm kernel's limit)
   var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
@@ -150,6 +150,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
   // ------------------------------------------------------------------ WebAssembly
   var wasm = { state: 'new', module: null, promise: null, pool: [], why: '' };    // state: new | ready | failed
   function b64bytes(s) {
+    if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(s);
     if (typeof atob === 'function') { var bin = atob(s), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
     return new Uint8Array(Buffer.from(s, 'base64'));
   }
@@ -404,7 +405,8 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
         })(y0, y1, i);
       }
       if (lease) { lease.release(); lease = null; }
-      var idle = function () { if (helpers === H) { if (H.timer) clearTimeout(H.timer); H.timer = setTimeout(closeHelpers, opts.idleMs === undefined ? 5000 : opts.idleMs); } };
+      H.busy = (H.busy || 0) + 1;   // calls that overlap: only the last one to finish starts the closing clock, so it never ends helpers another call is using (counted here, after the last throw, so it always comes back down)
+      var idle = function () { H.busy--; if (helpers === H && !H.busy) { if (H.timer) clearTimeout(H.timer); H.timer = setTimeout(closeHelpers, opts.idleMs === undefined ? 5000 : opts.idleMs); } };
       return Promise.all(jobs).then(function () { idle(); return res; }, function (e) { idle(); throw e; });
     });
   }
@@ -822,7 +824,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 <script>
 (function () {
 'use strict';
-var BUILD = '2026.10.31.0722';   /*STAMP*/
+var BUILD = '2026.11.05.2246';   /*STAMP*/
 var G = window.GpuBlur, $ = function (id) { return document.getElementById(id); };
 var hash = location.hash || '', QUICK = /quick/.test(hash);
 var R = 12, ROUTES = ['webgl2', 'wasm', 'js', 'auto'], NAMES = { webgl2: 'WebGL 2 (the card way)', wasm: 'WebAssembly', js: 'plain JavaScript', auto: 'auto (what the module picks)' };
@@ -939,6 +941,47 @@ function table(o) {
   return L;
 }
 
+// ---- extra step: the browser's own canvas blur against ours, same picture, timed until the picture is really finished
+// (a canvas filter is lazy: without reading a pixel back the call returns in about 0 ms, so every way here ends with a read-back)
+async function filterStep(step, steps) {
+  var W = 2048, H = 2048, RR = 24, reps = QUICK ? 5 : 9, o = { W: W, H: H, RR: RR, ways: {}, notes: [] }, px, src, dst, dg, sg, i, r;
+  try { px = lab(W, H, true); src = document.createElement('canvas'); src.width = W; src.height = H; sg = src.getContext('2d', { willReadFrequently: true }); sg.putImageData(new ImageData(new Uint8ClampedArray(px.buffer, px.byteOffset, px.length), W, H), 0, 0);
+    dst = document.createElement('canvas'); dst.width = W; dst.height = H; dg = dst.getContext('2d'); } catch (e) { o.skipped = 'not enough memory (' + (e && e.message || e) + ')'; return o; }
+  var okF = false; try { dg.filter = 'blur(' + RR + 'px)'; okF = dg.filter === 'blur(' + RR + 'px)'; dg.filter = 'none'; } catch (e) {}
+  var ways = [];
+  if (okF) { ways.push(['cf', 'browser canvas filter, canvas to canvas (read back 1 pixel)', async function () { dg.filter = 'blur(' + RR + 'px)'; dg.clearRect(0, 0, W, H); dg.drawImage(src, 0, 0); dg.filter = 'none'; dg.getImageData(0, 0, 1, 1); }]);
+    ways.push(['cfb', 'browser canvas filter, bytes out (read back all pixels)', async function () { dg.filter = 'blur(' + RR + 'px)'; dg.clearRect(0, 0, W, H); dg.drawImage(src, 0, 0); dg.filter = 'none'; dg.getImageData(0, 0, W, H); }]);
+    ways.push(['cfn', 'browser canvas filter, NO read-back (what a naive timer sees; the work is not finished)', async function () { dg.filter = 'blur(' + RR + 'px)'; dg.clearRect(0, 0, W, H); dg.drawImage(src, 0, 0); dg.filter = 'none'; }]);
+  } else o.notes.push('this browser has no canvas filter (gpu-blur works here)');
+  ['wasm', 'helpers', 'webgl2', 'auto'].forEach(function (rt) {
+    var op = rt === 'auto' ? {} : { route: rt };
+    ways.push(['g' + rt + 'c', 'gpu-blur ' + rt + ', bytes in, drawn canvas out', async function () { var x = await G.blur(px, W, H, RR, Object.assign({ out: 'canvas' }, op)); force(x.canvas); return x.route; }]);
+    ways.push(['g' + rt + 'p', 'gpu-blur ' + rt + ', bytes in, bytes out', async function () { var x = await G.blur(px, W, H, RR, Object.assign({ out: 'pixels' }, op)); return x.route; }]);
+  });
+  ways.forEach(function (w) { o.ways[w[0]] = { name: w[1], t: [] }; });
+  for (r = 0; r < reps + 2; r++) for (i = 0; i < ways.length; i++) {
+    var w = ways[(i + r) % ways.length], W0 = o.ways[w[0]]; if (W0.skip) continue;
+    progress('Step ' + step + ' of ' + steps + ': browser blur against gpu-blur, round ' + (r + 1) + ' of ' + (reps + 2) + ' (' + w[1] + ')');
+    try { var t0 = performance.now(), ran = await w[2](); var ms = performance.now() - t0; if (r >= 2) W0.t.push(ms); if (ran) W0.ran = ran; if (/^g(wasm|helpers|webgl2)/.test(w[0]) && ran && ran !== w[0].replace(/^g|[cp]$/g, '')) W0.skip = 'not available here (used ' + ran + ')'; } catch (e) { W0.skip = 'failed: ' + (e && e.message || e); }
+    await sleep(30);
+  }
+  Object.keys(o.ways).forEach(function (k) { var x = o.ways[k]; if (x.t.length && !x.skip) { x.med = q(x.t, .5); x.q1 = q(x.t, .25); x.q3 = q(x.t, .75); } });
+  return o;
+}
+function filterLines(o) {
+  var L = [], pad = function (t, n) { t = String(t); while (t.length < n) t += ' '; return t; };
+  if (o.skipped) return ['Browser blur against gpu-blur: skipped, ' + o.skipped];
+  L.push('Browser blur against gpu-blur, ' + o.W + ' x ' + o.H + ', radius ' + o.RR + ' (browser filter blur(' + o.RR + 'px)), time until finished in ms (lower is better):');
+  Object.keys(o.ways).forEach(function (k) { var x = o.ways[k]; L.push('  ' + pad(x.name, 92) + (x.med != null ? pad(f1(x.med), 8) + f1(x.q1) + '-' + f1(x.q3) : (x.skip || 'no data'))); });
+  o.notes.forEach(function (n) { L.push('  note: ' + n); });
+  var cf = o.ways.cf, cb = o.ways.cfb, best, bn = '';
+  Object.keys(o.ways).forEach(function (k) { var x = o.ways[k]; if (/^g/.test(k) && x.med != null && /c$/.test(k) && (!best || x.med < best)) { best = x.med; bn = x.name; } });
+  var bestP, bnP = ''; Object.keys(o.ways).forEach(function (k) { var x = o.ways[k]; if (/^g/.test(k) && x.med != null && /p$/.test(k) && (!bestP || x.med < bestP)) { bestP = x.med; bnP = x.name; } });
+  if (cf && cf.med != null && best) L.push('  Canvas out: fastest gpu-blur (' + bn + ') ' + f1(best) + ' ms against the browser filter ' + f1(cf.med) + ' ms: ' + (best < cf.med ? f1(cf.med / best) + ' times faster.' : f1(best / cf.med) + ' times slower.'));
+  if (cb && cb.med != null && bestP) L.push('  Bytes out: fastest gpu-blur (' + bnP + ') ' + f1(bestP) + ' ms against the browser filter ' + f1(cb.med) + ' ms: ' + (bestP < cb.med ? f1(cb.med / bestP) + ' times faster.' : f1(bestP / cb.med) + ' times slower.'));
+  return L;
+}
+
 async function main() {
   started = true; $('go').disabled = true; $('live').textContent = ''; $('verdict').hidden = true; $('rep').value = '';
   firstReport = false; $('warn').textContent = '';
@@ -949,13 +992,14 @@ async function main() {
     progress('Starting: looking at this device');
     var gi = glInfo(), info = await G.ready(); info = G.info();
     $('onscreen').textContent = 'On-screen only (not in the report): graphics name reported by the browser: ' + (gi.raw || 'none');
-    var steps = SIZES.length + 1, results = [], k;
+    var steps = SIZES.length + 2, results = [], k;
     for (k = 0; k < SIZES.length; k++) {
       var sz = SIZES[k];
       if (sz.big && ((navigator.deviceMemory && navigator.deviceMemory < 4) || QUICK && false)) { results.push({ sz: sz, stats: {}, notes: [], skipped: 'this device reports less than 4 GB of memory' }); continue; }
       var o = await runSize(sz, k + 1, steps); results.push(o);
       live(table(o).join('\n'));
     }
+    var fo = await filterStep(steps - 1, steps); live(filterLines(fo).join('\n'));
     progress('Step ' + steps + ' of ' + steps + ': checking that the three ways draw the same picture');
     var match = await matchTest();
     // ---- report
@@ -966,6 +1010,7 @@ async function main() {
     T.push('What auto found on this device (one probe, 480 x 270): WebGL 2 context ' + info.webgl2 + ', probe on the card way ' + (info.glMs == null ? 'n/a' : f1(info.glMs) + ' ms') + ', probe in WebAssembly ' + (info.wasmMs == null ? 'n/a' : f1(info.wasmMs) + ' ms') + ', card way worth it: ' + info.webgl2Worth + '. Drawn pictures by: ' + info.canvasRoute + '. Bytes by: ' + info.pixelsRoute + '. ' + (info.why ? 'Why: ' + info.why : ''));
     T.push('');
     results.forEach(function (o) { T = T.concat(table(o)); T.push(''); });
+    filterLines(fo).forEach(function (l) { T.push(l); }); T.push('');
     T.push('Same picture (1920 x 1080, share of equal values against the plain JavaScript reference; higher is better): card way ' + (match.webgl2 == null ? 'not run (' + (match.webgl2Note || 'unavailable') + ')' : match.webgl2.toFixed(4) + '%') + ', WebAssembly ' + (match.wasm == null ? 'not run' : match.wasm.toFixed(4) + '%') + ', JavaScript ' + (match.js == null ? 'not run' : match.js.toFixed(4) + '%') + (match.canvasGL != null ? ', card way through a canvas ' + match.canvasGL.toFixed(4) + '%' : '') + '.');
     results.forEach(function (o) { V = V.concat(verdictFor(o, info)); });
     var pass = [match.webgl2, match.wasm, match.js].filter(function (x) { return x != null; }).every(function (x) { return x >= 99.5; });
