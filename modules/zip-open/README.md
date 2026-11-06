@@ -1,8 +1,8 @@
 # zip-open
 
-**Version 1.18.1 · API 1**
+**Version 1.18.2 · API 1**
 
-**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-05 evening (early-stop A/B, both orders, Firefox text rerun 3 more times; first and second opens in 10 fresh pages per browser); 45 module checks pass; 60,000 reader fuzz cases match the JavaScript reader.
+**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-05 night (early-stop A/B, both orders; first and second opens in 8 fresh pages per browser); 45 module checks pass; 60,000 reader fuzz cases match the JavaScript reader.
 
 ## What it is and how it works
 
