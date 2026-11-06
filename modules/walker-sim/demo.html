@@ -62,13 +62,24 @@ b > draw : 3</textarea>
 <p id="msg" class="note"></p><div class="out" id="out"></div>
 <script src="walker-sim.js"></script>
 <script>
+function flowLine(line) {     // "from > to : number" -> [line, from, to, number] or null; by hand, because the old one-line pattern took minutes on a line with a long run of spaces
+  var c = line.lastIndexOf(':'), v, h, lw = 0, p, a, b;
+  if (c < 0 || !/^[0-9.]+$/.test(v = line.slice(c + 1).trim())) return null;
+  h = line.slice(0, c);
+  while (lw < h.length && /\s/.test(h.charAt(lw))) lw++;
+  p = h.indexOf('>', lw + 1);
+  if (p < 0) return null;
+  a = h.slice(0, p).trim(); b = h.slice(p + 1).trim();
+  return a && b ? [line, a, b, v] : null;
+}
+
 
 var $ = function (id) { return document.getElementById(id); };
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function pct(x) { return (100 * x).toFixed(2) + '%'; }
 function run() {
   var links = [], first = null;
-  $('t').value.split('\n').forEach(function (line) { var m = /^\s*(.+?)\s*>\s*(.+?)\s*:\s*([0-9.]+)\s*$/.exec(line); if (m) { links.push({ from: m[1], to: m[2], weight: +m[3] }); if (first === null) first = m[1]; } });
+  $('t').value.split('\n').forEach(function (line) { var m = flowLine(line); if (m) { links.push({ from: m[1], to: m[2], weight: +m[3] }); if (first === null) first = m[1]; } });
   if (!links.length) { $('out').textContent = ''; $('msg').textContent = 'Type at least one link.'; return; }
   try {
     var P = WalkerSim.graph({ links: links, start: first }), N = +$('n').value, per = 100, cfg = { seed: +$('seed').value | 0, trials: Math.max(1, N / per), rule: 'weights', weights: P.w, arrivals: { dist: 'dunif', a: per, b: per } };

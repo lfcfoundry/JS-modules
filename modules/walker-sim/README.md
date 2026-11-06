@@ -1,8 +1,8 @@
 # walker-sim
 
-**Version 2.4.1 · API 2**
+**Version 2.4.2 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6 2026-11-06; module tests pass; demo page draws the same; 2 million random lines give the same result as before (lines with a blank name are now skipped)
 
 ## What it is and how it works
 

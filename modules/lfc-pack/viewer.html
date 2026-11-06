@@ -1134,7 +1134,8 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     // fast path: one JSON.parse of the whole block as an array (same row count as lines, or fall back to line by line)
     while ((at = text.indexOf('\n', at + 1)) >= 0) nl++;
     if (text.charCodeAt(text.length - 1) !== 10) nl++;
-    try { r = JSON.parse('[' + text.replace(/\n+$/, '').replace(/\n/g, ',') + ']'); if (r.length === nl) rows = r; } catch (e) { rows = []; }
+    for (j = text.length; j > 0 && text.charCodeAt(j - 1) === 10; j--);     // trailing newlines off by hand: /\n+$/ retried every run of newlines (slow, and quadratic on a long run of blank lines)
+    try { r = JSON.parse('[' + (j < text.length ? text.slice(0, j) : text).replace(/\n/g, ',') + ']'); if (r.length === nl) rows = r; } catch (e) { rows = []; }
     if (rows.length) { for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) { rows = []; break; } } }
     lines = rows.length ? [] : text.split('\n');
     for (i = 0; i < lines.length; i++) { var l = lines[i]; if (l.charCodeAt(l.length - 1) === 13) l = l.slice(0, -1); if (!l.trim()) continue; try { r = JSON.parse(l); } catch (e) { return null; } if (r === null || typeof r !== 'object' || Array.isArray(r)) return null; rows.push(r); }

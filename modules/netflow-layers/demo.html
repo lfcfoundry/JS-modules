@@ -85,10 +85,17 @@ Wake > Saved</textarea>
 <script>
 'use strict';
 var $ = function (i) { return document.getElementById(i); };
+function edgeLine(ln) {     // "from > to" -> [ln, from, to] or null; by hand, because the old one-line pattern took minutes on a line with a long run of spaces
+  var p = ln.indexOf('>', 1), a, b, e;
+  if (p < 0 || p === ln.length - 1) return null;
+  a = ln.slice(0, p); b = ln.slice(p + 1);
+  for (e = a.length; e > 0 && /\s/.test(a.charAt(e - 1)); e--);
+  return [ln, a.slice(0, e) || a.charAt(0), b.trim() || b.slice(-1)];
+}
 function parse(text) {
   var ids = [], seen = {}, edges = [];
   text.split('\n').forEach(function (ln) {
-    var m = /^(.+?)\s*>\s*(.+?)\s*$/.exec(ln); if (!m) return;
+    var m = edgeLine(ln); if (!m) return;
     [m[1], m[2]].forEach(function (x) { if (!seen[x]) { seen[x] = 1; ids.push(x); } }); edges.push({ from: m[1], to: m[2] });
   });
   /* a page every route passes: here, a page that is the only way into everything below it is not worked out; the demo marks pages that have no sibling in their row afterwards */
