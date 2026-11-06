@@ -29,6 +29,14 @@ Compared: gpu-blur against the browser's canvas filter when you only draw the re
 **Where gpu-blur loses.** On the Firefox laptop the browser's own filter is faster when you only draw the result (22 against 38 to 41 ms; earlier runs 30 to 34 against 41), about 1.6x to 2.6x across runs. Chrome laptop second run: filter 52.4, gpu-blur helpers 20.2, auto 29; bytes out 60.1 against 14. Phone: gpu-blur auto 1.2x faster drawn, helpers 2.0x faster for bytes. gpu-blur's strength besides speed for bytes: identical output on every route, which the browser's blur does not promise. These are the owner's laptop and phone runs, not the three cloud test browsers.
 
 
+**New in 1.3.5: wide blurs on the card way run in two stages, same bytes.** Laptop runs (Firefox 160, Chrome 156), 1080p drawn canvas, two stages divided by one stage, lower is faster. WebGL 2 boxes of radius 24 and up are split into two stages.
+
+<!-- title: Two-stage wide blurs take 0.58 to 0.71 of the old time at radius 50 and 0.91 to 0.95 at radius 24 -->
+| Radius | Firefox 160 | Chrome 156 |
+|---|---:|---:|
+| 24 | 0.91 | 0.95 |
+| 50 | 0.71 | 0.58 |
+
 **New in 1.0.1: about a third faster in WebAssembly, same picture.** The code thread's cloud-browser runs (Firefox 158, ungoogled Chromium 155 and WebKitGTK 2.52.6 on a shared machine, not noise-guarded, not the laptop). A laptop run will replace these.
 
 A 16-bit WebAssembly kernel takes 0.60 to 0.80 of the time at 640 x 360 and 1920 x 1080 in all three browsers, and gives exactly the same picture. The browser's own canvas blur is still faster where it exists; identical output on every route remains gpu-blur's strength.
