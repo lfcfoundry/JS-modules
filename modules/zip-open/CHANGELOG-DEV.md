@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.18.1 · API 1 · 2026-11-05
+
+### Quick
+Faster row reading again: fixed tags checked 4 bytes at a time, row tags scanned 16 bytes at a time with SIMD, and the date digit check only on date cells. Sheets with many numbers and dates 4 to 14% faster.
+
+### Details
+Row reading step alone, time 1.18.1 / 1.18.0 (SIMD build), lower is better: Chromium 155 big 0.82, formulas 0.85, text 0.88; Firefox 158 0.83, 0.83, about 1.00; WebKitGTK 2.52.6 0.80, 0.78, 0.80. Whole open, first in a fresh page: 0.91 to 1.04; later opens (early-stop A/B): big 0.87 to 0.95, formulas 0.92 to 1.04, small 0.86 to 0.94, text about even (Firefox text across 5 runs 0.91 to 1.22, so noise in both directions).
+
+### Deep
+xlsx.c rowsPart: ld4()/C4() 4-byte compares replace startsWith for <row, <v>, </c>, </row>; RT class table for the row-tag scan, and in the SIMD build a 16-byte scan for > " ' < with popcount for quotes; the plain-digit check and date serial are computed in one loop and only for date-style cells. Found with a native build under callgrind (startsWith was 15% of instructions, the row-tag scan 12%).
+
 ## 1.18.0 · API 1 · 2026-11-05
 
 ### Quick

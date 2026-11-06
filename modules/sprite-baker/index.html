@@ -60,6 +60,9 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 <h3>Use</h3>
 <p>The version is also in code as <code>SpriteBaker.version</code>. Run the tests (offline, about a second): <code>node modules/sprite-baker/test/run.js</code></p>
 <p>Copy <code>sprite-baker.js</code> (browser global <code>SpriteBaker</code>, or <code>require</code> in Node). <code>demo.html</code> is the full example.</p>
+<p>The shortest version: one part in, pixels out (RGBA bytes, also works in Node).</p>
+<pre><code>var img = SpriteBaker.bakeSprite([{ fn: SpriteBaker.sphere(11), nu: 12, nv: 18, material: SpriteBaker.material([[0, 60, 20, 90], [1, 245, 210, 255]]) }], 32);   // { width, height, data }</code></pre>
+<p>A full example that bakes a turning sprite and plays it on a canvas:</p>
 <pre><code>&lt;canvas id="c" width="96" height="96"&gt;&lt;/canvas&gt;
 &lt;script src="sprite-baker.js"&gt;&lt;/script&gt;
 &lt;script&gt;

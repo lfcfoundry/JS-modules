@@ -32,6 +32,14 @@ The version is also in code as `SpriteBaker.version`. Run the tests (offline, ab
 
 Copy `sprite-baker.js` (browser global `SpriteBaker`, or `require` in Node). `demo.html` is the full example.
 
+The shortest version: one part in, pixels out (RGBA bytes, also works in Node).
+
+```js
+var img = SpriteBaker.bakeSprite([{ fn: SpriteBaker.sphere(11), nu: 12, nv: 18, material: SpriteBaker.material([[0, 60, 20, 90], [1, 245, 210, 255]]) }], 32);   // { width, height, data }
+```
+
+A full example that bakes a turning sprite and plays it on a canvas:
+
 ```html
 <canvas id="c" width="96" height="96"></canvas>
 <script src="sprite-baker.js"></script>
