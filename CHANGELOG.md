@@ -61,7 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
-- 2026-11-06 · **zip-open** 1.20.0 · API 1: Big text-heavy Excel files open 14 to 29% faster (15 to 20% on the first open in a page): a third thread unpacks the list of shared texts while the rows are read. Other files about the same. Same results.
+- 2026-11-06 · **zip-open** 1.20.0 · API 1: Big text-heavy Excel files open 20 to 42% faster (9 to 28% on the first open in a page): a third thread unpacks the list of shared texts while the rows are read. Other files about the same. Same results.
 - 2026-11-06 · **zip-open** 1.19.1 · API 1: Fixed: a damaged or crafted Excel file with a very long broken tag could freeze the page for many minutes. It now fails or opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
 - 2026-11-06 · **netflow-layers** 1.12.2 · API 1: Flow pictures: back links use a darker amber (#9a6a00) that reads at 4.5:1 on white.

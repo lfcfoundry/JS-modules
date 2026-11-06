@@ -143,6 +143,26 @@ int sst(const u8 *x, u32 n, u32 *tab, u32 cap) {
 
 void nosst(void) { tn = 0; }
 
+/* sst() a piece at a time, as the list arrives: sstBegin(x, tab, cap), then sstMore(have, stop, done) after each piece.
+   have: bytes here so far; stop: where the last "<si" seen begins (every element before it is whole). MORE until done. */
+static u32 sp_pos, sp_cnt, sp_cap, *sp_tab; static int sp_go;
+void sstBegin(const u8 *x, u32 *tab, u32 cap) { T = tab; S = x; sp_tab = tab; sp_cap = cap; sp_pos = 0; sp_cnt = 0; sp_go = 0; }
+int sstMore(u32 have, u32 stop, int done) {
+  const u8 *x = S; u32 pos = sp_pos; int r;
+  if (!sp_go) {
+    while (pos + 3 <= have && !(x[pos] == '<' && x[pos + 1] == 's' && x[pos + 2] == 'i')) { if (x[pos] == '<' && x[pos + 1] == '!') return -1; pos++; }
+    sp_pos = pos;
+    if (pos + 3 > have) return done ? -1 : MORE;
+    sp_go = 1;
+  }
+  for (;;) {
+    u32 s2 = sp_pos + 262144;
+    if (!done) { if (s2 > stop) s2 = stop; if (sp_pos >= s2) return MORE; }
+    r = sstPart(x, have, sp_tab, sp_cap, &sp_pos, &sp_cnt, s2);
+    if (r != MORE) return r;
+  }
+}
+
 /* Strict UTF-8 check (what TextDecoder('utf-8', { fatal: true }) accepts). 1 = valid. */
 int utf8ok(const u8 *p, u32 n) {
   u32 i = 0;
