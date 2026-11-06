@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.7.0 · API 2**
+**Version 2.8.0 · API 2**
 
-**Tested in:** node test/run.js (345 checks); rendered in Chromium 155, Firefox 158, WebKitGTK 2.52.6 with no new text overlaps
+**Tested in:** Node 369 checks; Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.8.0 · API 1 · 2026-11-05
-- Charts get the Economist frame by default: a small red tag top-left and a thin rule under the picture, with the source under it; frame: false leaves it out.
+- Opt-in Economist frame: frame: true (or theme 'editorial') adds a small red tag top-left and a thin rule under the picture, with the source under it.
 
 ## 1.7.0 · API 1 · 2026-11-05
 - Sankey middle-column names get a background-color halo so they read over their bands.

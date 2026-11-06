@@ -33,8 +33,8 @@ for (const [n, seed] of [[0, 1], [1, 2], [7, 3], [2000, 4]]) {
     const spec = Object.assign({ type: t }, SPECS[t]);
     let S = null; try { S = P.make(rows, spec, { width: 900, height: 560 }, global.NetflowScene); } catch (e) { ok(false, t + ' at ' + n + ' rows threw ' + e.message); continue; }
     const bad = finite(S); ok(!bad.length, t + ' at ' + n + ' rows: ' + bad.slice(0, 3).join(', '));
-    ok(S.w === 920 && S.frame && S.h > 580 && S.rects.filter((r) => r.frame).length === 2, t + ' frame (with the red tag and the rule by default)');
-    if (n === 7) { const F0 = P.make(rows, spec, { width: 900, height: 560, frame: false }, global.NetflowScene); ok(F0.w === 920 && F0.h === 580 && !F0.frame && !F0.rects.some((r) => r.frame), t + ' frame: false leaves it out'); }
+    ok(S.w === 920 && S.h === 580 && !S.frame, t + ' frame');
+    if (n === 7) { const F1 = P.make(rows, spec, { width: 900, height: 560, frame: true }, global.NetflowScene); ok(F1.w === 920 && F1.h > 580 && F1.frame && F1.rects.filter((r) => r.frame).length === 2, t + ' frame: true adds the red tag and the rule'); }
     if (n >= 7 && t !== 'words') ok(S.rects.length + S.dots.length + S.polys.length + (S.curves || []).length > 0, t + ' at ' + n + ' rows draws shapes');
     /* a missing or wrong column draws a note, not a crash */
     try { const S2 = P.make(rows, Object.assign({}, spec, { x: 'nope', y: 'blank', color: 'nope2' }), { width: 400, height: 300 }, global.NetflowScene); ok(!finite(S2).length, t + ' with missing columns'); } catch (e) { ok(false, t + ' with missing columns threw ' + e.message); }
@@ -53,6 +53,14 @@ ok(Math.abs(sum - tot) < 1e-6 * tot || !sb.marks.some((m) => m.v !== undefined),
 const tk = P.ticks(0, 97, 6); ok(tk.lo <= 0 && tk.hi >= 97 && tk.list.length >= 3, 'ticks cover the range');
 const d = P.kde([1, 2, 3, 4, 5], 0, 6, 61, 0.8); let area = 0; for (let i = 0; i < 61; i++) area += d[i] * 0.1; ok(Math.abs(area - 1) < 0.05, 'density sums to one: ' + area.toFixed(3));
 ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
+/* axis names from column names (owner's card, 2026.11.05): tidied, one-letter names left out */
+{
+  const NS = global.NetflowScene, rows = [{ region_name: 'West', salesTotal: 5 }, { region_name: 'East', salesTotal: 3 }];
+  const S = P.make(rows, { type: 'bar', x: 'region_name', y: 'salesTotal' }, { width: 600, height: 400 }, NS), names = S.labels.map((l) => l.t);
+  ok(names.includes('Region name') && names.includes('Sales total') && !names.includes('region_name'), 'axis names tidied: ' + names.filter((t) => /name|total/i.test(t)).join(', '));
+  const S2 = P.make([{ r: 'West', v: 5 }, { r: 'East', v: 3 }], { type: 'bar', x: 'r', y: 'v' }, { width: 600, height: 400 }, NS);
+  ok(!S2.labels.some((l) => l.t === 'r' || l.t === 'v' || l.t === 'R' || l.t === 'V'), 'one-letter axis names left out');
+}
 /* opt-in title, subtitle and source: nothing changes without them; with them the block sits above (source below) and the picture does not move */
 {
   const rows = table(40, 9), spec = { type: 'bar', x: 'region', y: 'sales' }, NS = global.NetflowScene;

@@ -5,10 +5,10 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 2.9.0 · API 2 · 2026-11-05
 
 ### Quick
-Owner's card (2026.11.05): toSvg draws a small red tag top-left and a thin rule under the bands by default, the same as the other charts; title, subtitle and source text only when given; frame: false gives back the old picture exactly.
+Owner's cards (2026.11.05, kept opt-in): with frame: true or theme 'editorial', toSvg draws a small red tag top-left and a thin rule under the bands, the same as the other charts; title, subtitle and source text only when given. Without it the picture is exactly as before.
 
 ### Deep
-Owner's card (2026.11.05): toSvg draws a small red tag top-left and a thin rule under the bands by default, the same as the other charts; title, subtitle and source text only when given; frame: false gives back the old picture exactly.
+Owner's cards (2026.11.05, kept opt-in): with frame: true or theme 'editorial', toSvg draws a small red tag top-left and a thin rule under the bands, the same as the other charts; title, subtitle and source text only when given. Without it the picture is exactly as before.
 
 ## 2.8.0 · API 2 · 2026-11-05
 

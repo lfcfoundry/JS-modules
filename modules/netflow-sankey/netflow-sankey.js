@@ -662,8 +662,8 @@
     if (hl !== null) R.nodes.forEach(function (n) { hlFade[n.id] = fadeHex(color[n.id], opts.background || '#ffffff', 0.6); });
     var hot = function (b) { return hl === null || b.from === hl || b.to === hl; }, bandCol = function (b) { return hot(b) ? color[b.from] : hlFade[b.from]; };
     R.nodes.forEach(function (n) { var c = esc(color[n.id]); bandTail[n.id] = 'Z" fill="' + c + opS; });   // the end of each band, ready for the item it leaves
-    /* title block: title (bold) and subtitle (lighter) above, source below, each only when given; the frame draws by default (owner's card, 2026.11.05: the Economist habits): a small red tag top-left and a thin dark rule under the picture, with the source under the rule; opts.frame: false leaves it out. The picture itself does not move inside its group */
-    var tc = esc(opts.textColor || '#222'), pad = 14, head = 0, foot = 0, blk = '', y = pad, frame = opts.frame !== false, tagY = 0;
+    /* title block: title (bold) and subtitle (lighter) above, source below, each only when given; opts.frame: true (or theme 'editorial') adds the Economist frame (opt-in, owner's card 2026.11.05): a small red tag top-left and a thin dark rule under the picture, with the source under the rule. The picture itself does not move inside its group */
+    var tc = esc(opts.textColor || '#222'), pad = 14, head = 0, foot = 0, blk = '', y = pad, frame = opts.frame === true || opts.theme === 'editorial', tagY = 0;
     if (frame) { tagY = y; y += 10 + (opts.title || opts.subtitle ? 8 : 0); }
     if (opts.title) { y += 20; blk += '<text x="' + pad + '" y="' + y + '" font-size="20" font-weight="700" fill="' + tc + '">' + esc(opts.title) + '</text>'; y += 6; }
     if (opts.subtitle) { y += 13; blk += '<text x="' + pad + '" y="' + y + '" font-size="13" fill="' + tc + '" fill-opacity="0.8">' + esc(opts.subtitle) + '</text>'; y += 6; }

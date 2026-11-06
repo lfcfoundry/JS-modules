@@ -1380,14 +1380,14 @@ var NFMScene = (function () {
 
   /**
    * Title block (the owner's cards, 2026.11.01 and 2026.11.05): o.title (bold, left), o.subtitle (lighter, under it) and o.source (small, under the picture) are text and appear only when given.
-   * The frame draws by default (the Economist habits, owner's card 2026.11.05): a small red tag top-left and a thin dark rule under the picture (the source sits under the rule).
-   * o.frame: false leaves the frame out; with no text either, S stays as it was. The block is added above (and the rule and source below) the picture, so nothing in it moves.
+   * o.frame: true (or theme 'editorial') adds the Economist frame: a small red tag top-left and a thin dark rule under the picture, with the source under the rule (opt-in, owner's card 2026.11.05).
+   * With no text and no frame, S stays as it was. The block is added above (and the rule and source below) the picture, so nothing in it moves.
    * Sizes grow with very wide pictures so they keep their size in an SVG drawn at most 3,000 wide.
    */
   var TAG_RED = [0.89, 0.071, 0.043, 1];   /* #e3120b */
   function addTitles(S, o) {
     o = o || {};
-    var frame = o.frame !== false;
+    var frame = o.frame === true || o.theme === 'editorial';
     if (!frame && !(o.title || o.subtitle || o.source)) return S;
     var T = S.theme, u = Math.max(1, S.w / 3000), pad = 14 * u, list = [], wMax = 0, y, tagY = -1;
     var sub = mix(T.fg, T.bg, 0.25), src = mix(T.fg, T.bg, 0.32);   /* both read at 4.5:1 or better on the background in the light and dark themes */

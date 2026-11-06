@@ -8,7 +8,7 @@ What changed in each version, newest first, for developers, in three depths: Qui
 Owner's card (2026.11.05 10:30-10:33 PM ET), approved mock: the title block now draws a small red tag (#e3120b) top-left and a thin rule in the text color under the picture by default, for every chart that uses it (netflow-plot, netflow-hi…
 
 ### Deep
-Owner's card (2026.11.05 10:30-10:33 PM ET), approved mock: the title block now draws a small red tag (#e3120b) top-left and a thin rule in the text color under the picture by default, for every chart that uses it (netflow-plot, netflow-hierarchy, netflow-circular, netflow-engine toSvg). Title, subtitle and source text still appear only when given; the source sits under the rule. frame: false gives back the old picture exactly. The shapes carry frame: 'tag' or 'rule'.
+Owner's cards (2026.11.05): the Economist frame from the approved mock, kept opt-in (card "Keep it opt-in", 10:47 PM ET). frame: true or theme 'editorial' makes the title block draw a small red tag (#e3120b) top-left and a thin rule in the text color under the picture, for every chart that uses it (netflow-plot, netflow-hierarchy, netflow-circular, netflow-engine toSvg); the source then sits under the rule. Without it every picture is exactly as before. The shapes carry frame: 'tag' or 'rule'.
 
 ## 1.7.0 · API 1 · 2026-11-05
 

@@ -71,11 +71,10 @@ t('layoutFlows tells each band which of your links it is and how much flows', ()
 });
 t('toSvg: one rect per item, one path per band and loop, text escaped, colors kept', () => {
   const R = RL.layoutFlows({ nodes: [{ id: 'a', label: 'A <b> & "q"' }], links: [{ from: 'a', to: 'b', value: 2 }, { from: 'b', to: 'c', value: 2 }, { from: 'c', to: 'a', value: 1 }] });
-  const svg = RL.toSvg(R, { colors: ['#112233', '#445566'], title: 'T & U' });
+  const svg = RL.toSvg(R, { colors: ['#112233', '#445566'], title: 'T & U' }), svgF = RL.toSvg(R, { colors: ['#112233', '#445566'], title: 'T & U', frame: true });
   ok(/^<svg /.test(svg) && /<\/svg>$/.test(svg), 'wrapped in svg');
-  ok((svg.match(/<rect /g) || []).length === R.nodes.length + 2, 'rects (one per item, plus the red tag and the rule)');
-  ok((RL.toSvg(R, { frame: false }).match(/<rect /g) || []).length === R.nodes.length, 'frame: false leaves the tag and the rule out');
-  ok(svg.indexOf('fill="#e3120b"') > 0, 'red tag');
+  ok((svg.match(/<rect /g) || []).length === R.nodes.length, 'rects');
+  ok((svgF.match(/<rect /g) || []).length === R.nodes.length + 2 && svgF.indexOf('fill="#e3120b"') > 0, 'frame: true adds the red tag and the rule');
   ok((svg.match(/<path /g) || []).length === R.bands.length + R.loops.length, 'paths');
   ok(svg.indexOf('A &lt;b&gt; &amp; &quot;q&quot;') >= 0 && svg.indexOf('<b>') < 0, 'label escaped');
   ok(svg.indexOf('aria-label="T &amp; U"') >= 0 && svg.indexOf('#112233') >= 0 && svg.indexOf('#445566') >= 0, 'title and colors');
@@ -85,8 +84,8 @@ t('title block: title, subtitle and source drawn (escaped) and the picture moved
   const R = RL.layoutFlows({ links: [{ from: 'a', to: 'b', value: 2 }, { from: 'a', to: 'c', value: 1 }] }, { budgetMs: 1e9 });
   const plain = RL.toSvg(R, { frame: false }), all = RL.toSvg(R, { title: 'Wages & tax', subtitle: 'Per <year>', source: 'Source: test', frame: false });
   ok(plain.indexOf('<g transform') < 0 && plain.indexOf('font-size="20"') < 0, 'no block unless asked');
-  const dflt = RL.toSvg(R); ok(dflt.indexOf('font-size="20"') < 0 && dflt.indexOf('<text x="14"') < 0 && dflt.indexOf('#e3120b') > 0, 'by default only the frame, no text is made up');
-  const allF = RL.toSvg(R, { title: 'Wages & tax', subtitle: 'Per <year>', source: 'Source: test' }), HF = +/height="([\d.]+)"/.exec(allF)[1]; ok(Math.abs(HF - (R.height + 85.4 + 28)) < 0.01, 'room for the block with the frame: ' + HF);
+  const dflt = RL.toSvg(R, { frame: true }); ok(dflt.indexOf('font-size="20"') < 0 && dflt.indexOf('<text x="14"') < 0 && dflt.indexOf('#e3120b') > 0 && RL.toSvg(R).indexOf('#e3120b') < 0, 'the frame only when asked, and no text is made up');
+  const allF = RL.toSvg(R, { title: 'Wages & tax', subtitle: 'Per <year>', source: 'Source: test', frame: true }), HF = +/height="([\d.]+)"/.exec(allF)[1]; ok(Math.abs(HF - (R.height + 85.4 + 28)) < 0.01, 'room for the block with the frame: ' + HF);
   ok(all.indexOf('<title>Wages &amp; tax</title>') > 0 && all.indexOf('aria-label="Wages &amp; tax"') > 0, 'hidden label kept');
   ok(/font-weight="700"[^>]*>Wages &amp; tax<\/text>/.test(all) && all.indexOf('>Per &lt;year&gt;</text>') > 0 && all.indexOf('>Source: test</text>') > 0, 'visible title, subtitle and source');
   const H = +/height="([\d.]+)"/.exec(all)[1]; ok(Math.abs(H - (R.height + 67.4 + 24)) < 0.01, 'room for the block: ' + H);
