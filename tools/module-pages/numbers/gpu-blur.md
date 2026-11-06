@@ -2,6 +2,7 @@
 
 Compared: gpu-blur against the canvas filter blur and StackBlur (2048 x 2048, radius 24, ms).
 
+<!-- title: On a 2048 x 2048 picture gpu-blur's WebAssembly route is about level with StackBlur and slower than the browser's own blur -->
 | way | ms |
 |---|---:|
 | gpu-blur (WebAssembly route) | 189 |

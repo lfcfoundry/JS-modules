@@ -2,6 +2,7 @@
 
 Compared: save-kit against idb-keyval and localForage (750 bytes of JSON, microseconds).
 
+<!-- title: save-kit saves a 750-byte state 18 times faster and loads it 13 times faster than idb-keyval, with a backup slot and checks -->
 | library | save | load |
 |---|---:|---:|
 | save-kit (localStorage + backup slot + checks) | 10 | 6.7 |
