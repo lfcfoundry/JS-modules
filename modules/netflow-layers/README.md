@@ -12,7 +12,8 @@ Lays out a graph in rows (a layered drawing), top to bottom or left to right. It
 
 - Each page goes in a row, by fewest steps from the start or in story order.
 - Pages in each row are reordered to cut crossings, then placed.
-- Long links get stand-in stops or short tags; `toSvg` can draw the result.
+- Long links get stand-in stops or short tags.
+- One call draws it: `NetflowLayers.toSvg(links)` returns SVG text (see Use).
 
 ## Why it exists
 

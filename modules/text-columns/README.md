@@ -28,7 +28,7 @@ Usual parsers build a string for every cell and an object for every row, which c
 
 ## Use
 ```js
-var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV; header false names columns c1, c2, ...
+var t = TextColumns.parse(bytesOrString);   // comma-separated with a header row; { delimiter: '\t', header: false } for TSV, or no header (columns are then c1, c2, ...)
 t.names;               // ['id', 'price', 'city']
 t.count;               // number of data rows
 t.columns[0].values;   // Float64Array for a number column, array of strings otherwise

@@ -57,6 +57,10 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 <p>Breadth-first and loop marking are unchanged from 0.1.0 and match Netflow Map's inline copies. <code>betweennessAsync</code> on 4 reported cores, 5,000 items and 20,000 links: 2.1 to 2.9 seconds on one thread down to 0.59 to 0.83 seconds with JavaScript helpers (3.4x to 3.5x) and 0.56 to 0.69 seconds with WebAssembly helpers (3.5x to 4.6x) in Firefox 158, Chromium 155 and WebKitGTK 2.52.6. The helpers are kept by default: three jobs in a row on one graph average 1.2x to 1.75x faster per job than helpers made each time (1,000 to 2,000 items); the very first job is the same speed (a Firefox gap seen at first was a measuring artifact). Needs <code>worker-src blob:</code> in the page policy. Not measured for these new jobs: a laptop or a phone.</p>
 <p>Since 0.7.2 the helpers get the WebAssembly code already compiled and keep one instance across graphs, take start items in small pieces as each one finishes (so a helper that drew the costly items does not hold up the rest), and give their result arrays back to be reused. Same answers (<code>tests/graph-walk-pool-browser.js</code>). On 4 cores, first call and a new graph on a warm pool, 20,000 to 200,000 items, against 0.7.1: Chromium 155 0.98 to 1.14x faster, Firefox 158 1.45 to 1.9x, WebKitGTK 2.52.6 1.2 to 1.4x; repeat calls on one graph are within noise (0.96 to 1.13x).</p>
 <h2 id="how-to-use-it">How to use it</h2>
+<p>The short version: two calls, then read the result.</p>
+<pre><code>var g = GraphWalk.csr(n, fromArray, toArray);   // items 0..n-1; link i joins from[i] to to[i]
+var depth = GraphWalk.bfs(g, root);             // Int32Array of link counts, -1 where not reached</code></pre>
+<p>All the options:</p>
 <pre><code>var g = GraphWalk.csr(n, fromArray, toArray);   // items 0..n-1; link i joins from[i] to to[i]
 var depth = GraphWalk.bfs(g, root);             // Int32Array of link counts, -1 where not reached
 GraphWalk.bfs(g, root, skip);                   // never enters item `skip`

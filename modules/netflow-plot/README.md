@@ -11,7 +11,7 @@ Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Found
 Plain charts from a table's columns: 22 chart types, drawn as the same drawing lists a [netflow-scene](../netflow-scene/README.md) map picture uses (rects, dots, curves, polys, labels).
 
 - `make(rows, spec, options, NetflowScene)` reads the columns named in `spec` and returns a scene.
-- The scene is drawn by any netflow-scene renderer, or turned into SVG with `NetflowScene.toSvg`. Themes, palettes and export are the map's own.
+- One call draws a picture: `NetflowPlot.toSvg(rows)` returns SVG text (see Use). To draw it yourself, the scene works with any netflow-scene renderer or `NetflowScene.toSvg`. Themes, palettes and export are the map's own.
 - `markAt(scene, x, y)` finds the bar, dot, slice or cell under the pointer, with the rows behind it and a tooltip text.
 - No page, no DOM, no dependencies beyond netflow-scene.
 

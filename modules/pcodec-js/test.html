@@ -31,6 +31,7 @@
 <p>Packs and unpacks numbers of all eight types with the three files of the module and checks every number comes back exactly. It runs by itself when the page opens and takes a few seconds. Nothing is sent anywhere.</p>
 <p id="verdict">Running...</p>
 <pre id="log"></pre>
+<p><button id="copy-results" type="button">Copy results</button></p>
 <p><a href="demo.html">Demo page</a> · <a href="README.md">README</a> · Forged by <a href="https://github.com/lfcfoundry">LFC Foundry</a> · MIT License · Copyright (c) 2026 LFC Foundry</p>
 <script src="pcodec-js.js"></script><script>var Reader = PcodecJS;</script>
 <script src="pcodec-js-fast.js"></script><script>var Fast = PcodecJS;</script>
@@ -93,3 +94,15 @@
   window.__result = { pass: pass, fail: fail, lines: lines, ua: navigator.userAgent };
 })();
 </script>
+<script>
+(function () {
+  var b = document.getElementById('copy-results');
+  function text() { return document.getElementById('verdict').textContent + '\n' + document.getElementById('log').textContent; }
+  function fallback(t) { var a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(a); }
+  b.onclick = function () {
+    var t = text(), done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy results'; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { fallback(t); done(); }); else { fallback(t); done(); }
+  };
+})();
+</script>
+
