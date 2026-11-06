@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.3.4 · API 1 · 2026-11-06
-- Faster big blurs on a laptop with a real graphics card: auto now also times a 1280 x 720 picture, and uses the card for big pictures when it wins there. On the owner's laptop (Firefox 160) the card way took 23 against 38 ms at 1080p and 94 against 177 ms at 4K, but the old tiny probe had picked WebAssembly. Slow graphics paths skip the extra probe, so start-up does not get slower there.
+- Faster big blurs on a laptop with a real graphics card: pictures of a million pixels and up now use the card whenever the start-up probe found it plausible (within 10 times WebAssembly). On the owner's laptop (Firefox 160) the card way took 24 against 39 ms at 1080p and 90 against 174 ms at 4K, but auto had picked WebAssembly. A device whose card looks hopeless on the probe is unchanged.
 
 ## 1.3.3 · API 1 · 2026-11-06
 - Fixed: on a phone, small pictures (under 300,000 pixels, such as 480 x 270) went to the graphics card although WebAssembly was faster (10.9 against 12.7 ms). Small pictures now use the card only when the start-up probe found it strictly faster. Big pictures are unchanged.
