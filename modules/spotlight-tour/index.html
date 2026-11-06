@@ -60,6 +60,9 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 <h3>Try it and test it</h3>
 <p><strong>Test it:</strong> <code>node modules/spotlight-tour/test/run.js</code> (5 checks on where the window and card go) and <code>node tests/pieces-browser.js</code> (the whole tour in Firefox 158 and ungoogled Chromium 155: opens once, window over the part, Back, Skip, Escape, Tab, <code>#tour</code>, the gift, scrolling to a far part, blocked storage). <strong>Try it:</strong> <code>demo.html</code>.</p>
 <h3>Use</h3>
+<p>The shortest version: a list of steps, then start it.</p>
+<pre><code>SpotlightTour.create({ steps: [{ title: "Welcome!", text: "A short look around." }, { target: "#bigButton", title: "The big button", text: "Tap it." }] }).start();</code></pre>
+<p>The full set of options:</p>
 <pre><code>var tour = SpotlightTour.create({
   key: "mygame-tour",              // remembers "seen" (localStorage)
   giftKey: "mygame-tourgift",      // remembers "gift given", separately
