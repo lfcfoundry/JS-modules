@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.3 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 1.6.1 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 1.6.2 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -64,6 +64,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **zip-open** 1.19.1 · API 1: Fixed: a damaged or crafted Excel file with a very long broken tag could freeze the page for many minutes. It now fails or opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
 - 2026-11-06 · **sprite-baker** 1.8.0 · API 1: New option edge: true fills each pixel once and fills again with ss by ss samples only the pixels on an edge.
+- 2026-11-06 · **save-kit** 1.6.2 · API 1: A 16 MB load with a raw field is 0.72x of the time in Chromium (120 to 87 ms) and 0.93x in WebKitGTK; Firefox unchanged within noise.
 - 2026-11-06 · **ppmd-pack** 2.0.3 · API 2: Packed pages use the new ppmd-decode 1.4.0 WebAssembly decoder, which is faster.
 - 2026-11-06 · **ppmd-decode** 1.4.0 · API 1: WebAssembly decoding is 8 to 29% faster.
 - 2026-11-06 · **pad-nav** 1.1.1 · API 1: Moving focus among 1,000 buttons takes 0.66x (Chromium), 0.71x (Firefox) and 0.78x (WebKitGTK) of the 1.1.0 time.

@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.1 (API 1)
+ * Version 1.6.2 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -72,10 +72,9 @@
   function shallow(v, depth) {
     if (v === null || typeof v !== 'object') return true;
     if (depth > 32) return false;
-    var i, ks;
-    if (Array.isArray(v)) { for (i = 0; i < v.length; i++) if (typeof v[i] === 'object' && v[i] !== null && !shallow(v[i], depth + 1)) return false; return true; }
-    ks = Object.keys(v);
-    for (i = 0; i < ks.length; i++) if (typeof v[ks[i]] === 'object' && v[ks[i]] !== null && !shallow(v[ks[i]], depth + 1)) return false;
+    var i, k, c;
+    if (Array.isArray(v)) { for (i = 0; i < v.length; i++) { c = v[i]; if (typeof c === 'object' && c !== null && !shallow(c, depth + 1)) return false; } return true; }
+    for (k in v) { c = v[k]; if (typeof c === 'object' && c !== null && !shallow(c, depth + 1)) return false; }   // for...in, not Object.keys: no list of names is made for each of a big save's objects (it only ever sees parsed JSON)
     return true;
   }
 //@end

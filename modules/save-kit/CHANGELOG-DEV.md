@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.2 · API 1 · 2026-11-06
+
+### Quick
+A 16 MB load with a raw field is 0.72x of the time in Chromium (120 to 87 ms) and 0.93x in WebKitGTK; Firefox unchanged within noise.
+
+### Deep
+A 16 MB load with a raw field is 0.72x of the time in Chromium (120 to 87 ms) and 0.93x in WebKitGTK; Firefox unchanged within noise. The depth check on the loaded raw field now uses for...in instead of Object.keys; the answers are the same.
+
 ## 1.6.1 · API 1 · 2026-11-05
 
 ### Quick

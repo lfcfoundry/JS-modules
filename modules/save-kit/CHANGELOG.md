@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.2 · API 1 · 2026-11-06
+- A 16 MB load with a raw field is 0.72x of the time in Chromium (120 to 87 ms) and 0.93x in WebKitGTK; Firefox unchanged within noise.
+
 ## 1.6.1 · API 1 · 2026-11-05
 - Loads are a little faster: small saves 5 to 15%, big saves up to 12%.
 

@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.6.1 · API 1**
+**Version 1.6.2 · API 1**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (cloud container, one browser at a time; no phone, no Safari)
+**Tested in:** Node: 52 plus lean, lite and raw-equivalence checks pass. 16 MB load timed in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one library per page and paired early-stop runs. Not run: a phone.
 
 ## What it is and how it works
 
@@ -166,6 +166,8 @@ A game-like save (a list of small tile objects plus 2,000 named counts), the who
 | 16 MB load | 126.6 / 224.5 / 206.3 | 199 / 389 / 386 | 157 / 130 / 167 |
 
 Since 1.6.1 a `createLarge` load spends one pass over the saved text where it spent three (13 MB of text: 8.5 to 10 ms down to 2.2 to 3 ms) and none when the schema has no `raw` field; 16 MB load, new over old, paired runs: Chromium 0.72 (noisy), Firefox 0.95, WebKitGTK 0.88. The table below was measured on 1.3.0 and not repeated.
+
+Since 1.6.2 the depth check on a big `raw` field uses `for...in` instead of `Object.keys` (it only ever sees parsed JSON, so the answers are the same), which took 19 ms of a 16 MB load in Chromium: 16 MB load, one library per page, median of 3 pages, ms: Chromium 120 to 87 (0.72x; idb-keyval 144), WebKitGTK 125 to 117 (0.93x; idb-keyval 120, so roughly equal), Firefox unchanged within noise (about 150; idb-keyval 300 to 440). A plain `get` plus `JSON.parse` of the same text with no checks takes 73 / 145 / 105 ms, so the checks are now 14 / 5 / 12 ms of it. These are new runs of the same harness shape, not the 1.3.0 table above.
 
 Where it loses: Chromium 0.8 MB save (about 2 ms slower than idb-keyval), Chromium 16 MB save (5% slower than localForage, 4% faster than idb-keyval), WebKitGTK loads at 0.8, 4 and 16 MB (up to 21% slower than idb-keyval, 6% faster than localForage at 16 MB). Everywhere else it is faster, up to 4.0x (WebKitGTK 16 MB save against localForage). A backup write on every save (`backupEveryMs: 0`) is slower on large saves in Firefox (111 vs 41 ms at 4 MB).
 
