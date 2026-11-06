@@ -63,13 +63,24 @@ Holiday > Wages : 3</textarea>
 <p id="msg" class="note"></p><div class="out" id="out"></div>
 <script src="netflow-sankey.js"></script>
 <script>
+function flowLine(line) {     // "from > to : number" -> [line, from, to, number] or null; by hand, because the old one-line pattern took minutes on a line with a long run of spaces
+  var c = line.lastIndexOf(':'), v, h, lw = 0, p, a, b;
+  if (c < 0 || !/^[0-9.]+$/.test(v = line.slice(c + 1).trim())) return null;
+  h = line.slice(0, c);
+  while (lw < h.length && /\s/.test(h.charAt(lw))) lw++;
+  p = h.indexOf('>', lw + 1);
+  if (p < 0) return null;
+  a = h.slice(0, p).trim(); b = h.slice(p + 1).trim();
+  return a && b ? [line, a, b, v] : null;
+}
+
 
 var $ = function (id) { return document.getElementById(id); };
 function parse(text) {
   var links = [], bad = 0;
   text.split('\n').forEach(function (line) {
     if (!line.trim()) return;
-    var m = /^\s*(.+?)\s*>\s*(.+?)\s*:\s*([0-9.]+)\s*$/.exec(line);
+    var m = flowLine(line);
     if (m) links.push({ from: m[1], to: m[2], value: +m[3] }); else bad++;
   });
   return { links: links, bad: bad };

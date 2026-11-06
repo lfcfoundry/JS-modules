@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.5 · API 0 · 2026-11-06
+
+### Quick
+writeFlatBlock stripped trailing newlines with /\n+$/, which the engine retries from every newline of a run: quadratic on a long run of blank lines (80,000 took 5 s; a megabyte would take minutes).
+
+### Deep
+writeFlatBlock stripped trailing newlines with /\n+$/, which the engine retries from every newline of a run: quadratic on a long run of blank lines (80,000 took 5 s; a megabyte would take minutes). Now trimmed by hand from the end. Same output. Found by the regex sweep that followed zip-open 1.19.1.
+
 ## 0.5.4 · API 0 · 2026-11-06
 
 ### Quick

@@ -5,6 +5,6 @@
 # Keep the file under 4,096 bytes: Chromium compiles a module of that size or less on the main thread with the plain synchronous constructor.
 set -e
 cd "$(dirname "$0")"
-clang --target=wasm32 -Os -mbulk-memory -nostdlib -ffreestanding -fno-builtin -Wl,--no-entry -Wl,--export=lzma_decode -Wl,--export=__heap_base -Wl,--strip-all \
+clang --target=wasm32 -Os -mbulk-memory -nostdlib -ffreestanding -fno-builtin -Wl,--no-entry -Wl,--export=lzma_decode -Wl,--export=lzma_begin -Wl,--export=lzma_more -Wl,--export=__heap_base -Wl,--strip-all \
   -o lzma-decode.wasm lzma-decode.c
 wc -c lzma-decode.wasm

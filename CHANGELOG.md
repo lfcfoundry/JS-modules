@@ -23,31 +23,31 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
-| [lzma-decode](modules/lzma-decode/README.md) | 1.3.1 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.4.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.4.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.2 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.19.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.20.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.12.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.0.1 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.5.4 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.5.5 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.10.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.10.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.12.2 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.8.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.8.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
-| [walker-sim](modules/walker-sim/README.md) | 2.4.1 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
+| [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
 | [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.1 · API 1 | [changelog](modules/spotlight-tour/CHANGELOG.md) |
 | [single-file-tools](tools/single-file-tools/README.md) | 1.3.0 · API 1 | [changelog](tools/single-file-tools/CHANGELOG.md) |
-| [lzma-pack](tools/lzma-pack/README.md) | 2.0.3 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
+| [lzma-pack](tools/lzma-pack/README.md) | 2.0.4 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
 | [ppmd-pack](tools/ppmd-pack/README.md) | 2.0.3 · API 2 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
 | [fuzz-kit](tools/fuzz-kit/README.md) | 1.3.4 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.1 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
@@ -61,8 +61,10 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-06 · **zip-open** 1.20.0 · API 1: Big text-heavy Excel files open 29 to 40% faster (14 to 35% on the first open in a page): a third thread unpacks the list of shared texts while the rows are read. Other files about the same. Same results.
 - 2026-11-06 · **zip-open** 1.19.1 · API 1: Fixed: a damaged or crafted Excel file with a very long broken tag could freeze the page for many minutes. It now fails or opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
+- 2026-11-06 · **walker-sim** 2.4.2 · API 2: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 - 2026-11-06 · **sprite-baker** 1.9.0 · API 1: New option fast: true uses cheaper shading in the plain JavaScript fill (a short series for the normal length, the highlight skipped where it adds under a third of a level, a table for the rim-light power).
 - 2026-11-06 · **sprite-baker** 1.8.0 · API 1: New option edge: true fills each pixel once and fills again with ss by ss samples only the pixels on an edge.
 - 2026-11-06 · **sprite-baker** 1.10.0 · API 1: Faster fast: true: one shade a pixel inside a bake (a 12-frame roll 0.47x to 0.58x of the default time); the default fill tests only the columns a triangle can cover (same pixels).
@@ -70,9 +72,14 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **ppmd-pack** 2.0.3 · API 2: Packed pages use the new ppmd-decode 1.4.0 WebAssembly decoder, which is faster.
 - 2026-11-06 · **ppmd-decode** 1.4.0 · API 1: WebAssembly decoding is 8 to 29% faster.
 - 2026-11-06 · **pad-nav** 1.1.1 · API 1: Moving focus among 1,000 buttons takes 0.66x (Chromium), 0.71x (Firefox) and 0.78x (WebKitGTK) of the 1.1.0 time.
+- 2026-11-06 · **netflow-sankey** 2.10.1 · API 2: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
+- 2026-11-06 · **netflow-layers** 1.12.3 · API 1: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 - 2026-11-06 · **netflow-layers** 1.12.2 · API 1: Flow pictures: back links use a darker amber (#9a6a00) that reads at 4.5:1 on white.
 - 2026-11-06 · **netflow-layers** 1.12.1 · API 1: Flow pictures: a back link that spans several rows no longer doubles back over itself.
 - 2026-11-06 · **memory-compression** 2.12.0 · API 2: Two smaller files: memory-compression.min.js (83 KB gzipped, was 122.5) and a read-only memory-compression-read.min.js (37 KB) for pages that only open data.
+- 2026-11-06 · **lzma-pack** 2.0.4 · API 2: Packed pages unpack faster on first open with the lzma-decode 1.4.0 decoder (about 600 bytes bigger).
+- 2026-11-06 · **lzma-decode** 1.4.0 · API 1: The first WebAssembly decode is 9 to 15% faster.
+- 2026-11-06 · **lfc-pack** 0.5.5 · API 0: Fixed: packing text with a long run of blank lines no longer slows to a crawl (80,000 blank lines: 5 s before, 0.04 s now).
 - 2026-11-06 · **lfc-pack** 0.5.4 · API 0: The first big read on a page is 2 to 3 times faster: a fixed rule replaces the one-time timing probe for building rows.
 - 2026-11-06 · **lfc-pack** 0.5.3 · API 0: Firefox: row reads about 13% faster on IP address columns.
 - 2026-11-06 · **lfc-pack** 0.5.2 · API 0: Chromium: row reads about 7% faster on dense blocks (columns decoded one at a time, table-built IP text).

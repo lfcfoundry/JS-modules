@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.1 · API 2 · 2026-11-06
+- Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
+
 ## 2.10.0 · API 2 · 2026-11-05
 - Opt-in quick: true skips the extra order-search restarts: small charts lay out faster than d3-sankey and still with fewer crossings.
 

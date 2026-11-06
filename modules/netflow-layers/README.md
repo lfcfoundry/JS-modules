@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.12.2 · API 1**
+**Version 1.12.3 · API 1**
 
-**Tested in:** Node 22 (toSvg is plain text)
+**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6 2026-11-06; module tests pass; demo page draws the same; 2 million random lines give the same result as before (lines with a blank name are now skipped)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
