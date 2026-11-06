@@ -31,6 +31,15 @@ Browsers report frame gaps that wobble even when every frame is on time, which s
 
 Copy the files you want; `demo.html` shows all three working.
 
+The shortest version is one class on its own, for example smoothing the frame gap:
+
+```js
+const even = new EvenDt();
+const dtMs = even.next(gapMs);   // call once per frame with the real gap
+```
+
+All three together in one frame loop:
+
 ```html
 <script src="even-dt.js"></script>
 <script src="quality-governor.js"></script>

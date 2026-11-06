@@ -28,6 +28,15 @@ Sorted number lists are everywhere, and as plain arrays they cost 4 bytes per nu
 
 ## Use
 
+The short version:
+
+```js
+var list = EliasFano.open(EliasFano.build(new Uint32Array([3, 8, 8, 20, 400])));   // sorted numbers in, a searchable list out
+list.nextGEQ(9);   // 3: the index of the first value >= 9
+```
+
+Every call:
+
 ```html
 <script src="elias-fano.js"></script>
 <script>

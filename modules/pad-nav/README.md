@@ -28,6 +28,14 @@ Controller players could play a game but not get around its HTML menus, and most
 
 Copy `pad-nav.js`, or open `demo.html` (double-click, no server needed).
 
+The shortest version, for a page with buttons in it:
+
+```js
+new PadNav().start();   // every option is optional; the pad moves focus between the page's buttons and links
+```
+
+A full example with a menu panel, a hint line and the Back and Start buttons:
+
 ```html
 <style>.pad-focus { outline: 3px solid #6a3de8; }</style>   <!-- you write the ring; the library injects no CSS -->
 <div id="menu">
