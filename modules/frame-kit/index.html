@@ -57,6 +57,10 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 <h2 id="how-to-use-it">How to use it</h2>
 <h3>Use</h3>
 <p>Copy the files you want; <code>demo.html</code> shows all three working.</p>
+<p>The shortest version is one class on its own, for example smoothing the frame gap:</p>
+<pre><code>const even = new EvenDt();
+const dtMs = even.next(gapMs);   // call once per frame with the real gap</code></pre>
+<p>All three together in one frame loop:</p>
 <pre><code>&lt;script src="even-dt.js"&gt;&lt;/script&gt;
 &lt;script src="quality-governor.js"&gt;&lt;/script&gt;
 &lt;script src="job-pump.js"&gt;&lt;/script&gt;

@@ -58,6 +58,9 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 <h2 id="how-to-use-it">How to use it</h2>
 <h3>Use</h3>
 <p>Copy <code>pad-nav.js</code>, or open <code>demo.html</code> (double-click, no server needed).</p>
+<p>The shortest version, for a page with buttons in it:</p>
+<pre><code>new PadNav().start();   // every option is optional; the pad moves focus between the page's buttons and links</code></pre>
+<p>A full example with a menu panel, a hint line and the Back and Start buttons:</p>
 <pre><code>&lt;style&gt;.pad-focus { outline: 3px solid #6a3de8; }&lt;/style&gt;   &lt;!-- you write the ring; the library injects no CSS --&gt;
 &lt;div id="menu"&gt;
   &lt;button onclick="alert('Play')"&gt;Play&lt;/button&gt;
