@@ -47,7 +47,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
 | [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.1 · API 1 | [changelog](modules/spotlight-tour/CHANGELOG.md) |
 | [single-file-tools](tools/single-file-tools/README.md) | 1.3.0 · API 1 | [changelog](tools/single-file-tools/CHANGELOG.md) |
-| [lzma-pack](tools/lzma-pack/README.md) | 2.0.2 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
+| [lzma-pack](tools/lzma-pack/README.md) | 2.0.3 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
 | [ppmd-pack](tools/ppmd-pack/README.md) | 2.0.2 · API 2 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
 | [fuzz-kit](tools/fuzz-kit/README.md) | 1.3.4 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.1 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
@@ -88,6 +88,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **netflow-engine** 2.4.0 · API 2: toSvg(links, options): links in, a finished picture out, in one call.
 - 2026-11-05 · **memory-compression** 2.11.0 · API 2: view() opens date and template text columns, and coordinate pairs, in windows: first row of a big user list about 2.4 to 3 times as fast.
 - 2026-11-05 · **memory-compression** 2.10.4 · API 2: First pack of a big list is 7 to 12% faster in a fresh page.
+- 2026-11-05 · **lzma-pack** 2.0.3 · API 2: Packed pages open sooner: the loader starts after two animation frames (or 100 ms in a background tab) instead of a fixed 30 ms wait.
 - 2026-11-05 · **lfc-pack** 0.5.1 · API 0: pack, unpack and the other calls now work without calling init() first.
 - 2026-11-05 · **lfc-pack** 0.5.0 · API 0: New LfcPack.open(file): read big files a block at a time from a File or Blob.
 - 2026-11-05 · **lfc-pack** 0.4.24 · API 0: Saving tables of row objects (packTables, packRows), such as a 20,000-item Netflow map, takes 7 to 32% less time in Firefox and 3 to 17% less in Chromium (WebKitGTK about the same); files are byte-identical.

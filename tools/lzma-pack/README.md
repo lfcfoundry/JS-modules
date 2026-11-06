@@ -1,8 +1,8 @@
 # lzma-pack
 
-**Version 2.0.2 · API 2**
+**Version 2.0.3 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** tools/lzma-pack/test/run.py (25 passed, 1 skipped: no minifier here; the new background-tab mode included); Chromium 155, Firefox 158, WebKitGTK 2.52.6 open a packed page
 
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
 
