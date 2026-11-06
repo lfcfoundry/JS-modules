@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// gpu-blur WebGL 2 two-stage box (boxes 13 pixels and wider): same bytes as the one-stage way and the JavaScript reference for pixels out, a drawn canvas out and a texture out,
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// gpu-blur WebGL 2 two-stage box (boxes 25 pixels and wider, radius 24 up; the private _two switch forces it on and off at every radius here): same bytes as the one-stage way and the JavaScript reference for pixels out, a drawn canvas out and a texture out,
 // over many radii (a box width that splits evenly, prime widths, the widest) and odd picture sizes (edges), with the private _two switch forcing each way.
 // Run: node tests/gpu-blur-twostage-browser.js <chromium|firefox|webkit> [out.json]     Without WebGL 2 in the browser the check says so and passes.
 'use strict';
