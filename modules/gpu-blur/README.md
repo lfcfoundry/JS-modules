@@ -2,7 +2,7 @@
 
 **Version 1.3.5 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud, same bytes); lab speed on Firefox 160 and Chrome 156 (owner's laptop)
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud, same bytes); speed on Firefox 160 and Chrome 156 (owner's laptop)
 
 ## What it is and how it works
 

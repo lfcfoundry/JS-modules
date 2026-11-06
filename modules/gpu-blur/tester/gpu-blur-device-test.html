@@ -536,7 +536,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
     'for(int k=0;k<m;k++){s+=ivec4(texelFetch(mid,p+dir*(a*k),0));}\n' +
     'for(int u=0;u<r;u++){s+=ivec4(texelFetch(t,clamp(p+dir*(a*m+u-B),ivec2(0),sz),0)*255.+.5);}\n' +
     'int n=2*B+1;o=vec4(floor(vec4(2*s+n)/float(2*n)))/255.;}';
-  var TWO_MIN_W = 13;                    // boxes at least this wide (radius 12 and up) take the two-stage way
+  var TWO_MIN_W = 25;                    // boxes at least this wide (radius 24 and up) take the two-stage way (owner's Firefox laptop, 1080p drawn canvas, two over one stage: radius 12 1.12, 18 1.00, 24 0.91, 50 0.71)
   function splitBox(B) {                 // best a for w = a*m + r: fewest reads a + m + r
     var w = 2 * B + 1, best = 1, bt = w + 1, a, t;
     for (a = 2; a < w; a++) { t = a + Math.floor(w / a) + (w % a); if (t < bt) { bt = t; best = a; } }
@@ -887,7 +887,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 <script>
 (function () {
 'use strict';
-var BUILD = '2026.11.06.1102';   /*STAMP*/
+var BUILD = '2026.11.06.1110';   /*STAMP*/
 var G = window.GpuBlur, $ = function (id) { return document.getElementById(id); };
 var hash = location.hash || '', QUICK = /quick/.test(hash);
 var R = 12, ROUTES = ['webgl2', 'wasm', 'js', 'auto'], NAMES = { webgl2: 'WebGL 2 (the card way)', wasm: 'WebAssembly', js: 'plain JavaScript', auto: 'auto (what the module picks)' };

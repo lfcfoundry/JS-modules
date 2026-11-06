@@ -68,7 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **lfc-pack** 0.5.4 · API 0: The first big read on a page is 2 to 3 times faster: a fixed rule replaces the one-time timing probe for building rows.
 - 2026-11-06 · **lfc-pack** 0.5.3 · API 0: Firefox: row reads about 13% faster on IP address columns.
 - 2026-11-06 · **lfc-pack** 0.5.2 · API 0: Chromium: row reads about 7% faster on dense blocks (columns decoded one at a time, table-built IP text).
-- 2026-11-06 · **gpu-blur** 1.3.5 · API 1: Wide blurs on the card way do the six passes in about 0.4 of the time (lab, 2048 x 2048, radius 24: Firefox 18 to 8 ms, Chrome 17.9 to 6.9 ms), same picture byte for byte.
+- 2026-11-06 · **gpu-blur** 1.3.5 · API 1: Wide blurs (radius 24 and up) on the card way finish sooner: Firefox laptop 1080p drawn canvas, radius 24 23 to 21 ms, radius 50 31 to 22 ms. Same picture byte for byte.
 - 2026-11-06 · **gpu-blur** 1.3.4 · API 1: Big pictures blur on the card way on a laptop: Firefox 1080p 38 to 17 ms, 4K 174 to 65 ms. Small ones stay on WebAssembly.
 - 2026-11-06 · **gpu-blur** 1.3.3 · API 1: Fixed: on a phone, small pictures (480 x 270) went to the card although WebAssembly was faster (10.9 against 12.7 ms). Small ones now use the card only when the start-up probe found it strictly faster.
 - 2026-11-05 · **zip-open** 1.18.2 · API 1: Text-heavy Excel sheets open 2 to 13% faster; other sheets about the same. Same results.

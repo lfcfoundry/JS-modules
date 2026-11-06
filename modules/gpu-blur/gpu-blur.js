@@ -507,7 +507,7 @@
     'for(int k=0;k<m;k++){s+=ivec4(texelFetch(mid,p+dir*(a*k),0));}\n' +
     'for(int u=0;u<r;u++){s+=ivec4(texelFetch(t,clamp(p+dir*(a*m+u-B),ivec2(0),sz),0)*255.+.5);}\n' +
     'int n=2*B+1;o=vec4(floor(vec4(2*s+n)/float(2*n)))/255.;}';
-  var TWO_MIN_W = 13;                    // boxes at least this wide (radius 12 and up) take the two-stage way
+  var TWO_MIN_W = 25;                    // boxes at least this wide (radius 24 and up) take the two-stage way (owner's Firefox laptop, 1080p drawn canvas, two over one stage: radius 12 1.12, 18 1.00, 24 0.91, 50 0.71)
   function splitBox(B) {                 // best a for w = a*m + r: fewest reads a + m + r
     var w = 2 * B + 1, best = 1, bt = w + 1, a, t;
     for (a = 2; a < w; a++) { t = a + Math.floor(w / a) + (w % a); if (t < bt) { bt = t; best = a; } }
