@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.9.0 · API 1 · 2026-11-05
+- EliasFano.from(values): sorted numbers in, a searchable list out, in one call.
+
 ## 1.8.1 · API 1 · 2026-10-31
 - Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 

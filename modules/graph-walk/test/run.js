@@ -240,5 +240,13 @@ bad = false; try { G.csr(2, [0], [1, 1]); } catch (e) { bad = e instanceof Range
   const p1 = G.pagerank(g2), p2 = G.pagerank(g2, { into: p1 }); ok(same(p1.rank, p2.rank) && (!reuse || p2.rank === p1.rank), 'pagerank with a previous result');
   const g3 = G.csr(9, [0, 1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7]), c3 = G.components(g3, c1); ok(c3.id.length === 9 && c3.count === 2, 'a previous result of another size is ignored');
 }
+{ /* one call from plain links: names in, { name: steps } out, the same steps as csr + bfs */
+  const L = [{ from: 'Home', to: 'Shop' }, { from: 'Shop', to: 'Cart' }, { from: 'Home', to: 'Help' }, { from: 'Help', to: 'Cart' }, { from: 'Lost', to: 'Home' }];
+  const r = G.bfs(L, 'Home'); ok(JSON.stringify(r) === '{"Home":0,"Shop":1,"Cart":2,"Help":1}', 'bfs(links, start): steps by name, unreached left out (' + JSON.stringify(r) + ')');
+  ok(JSON.stringify(G.bfs(L, 'Home', 'Shop')) === '{"Home":0,"Cart":2,"Help":1}', 'bfs(links, start, skip) never enters skip');
+  ok(JSON.stringify(G.bfs(L, 'Nowhere')) === '{}' && JSON.stringify(G.bfs([], 'a')) === '{}', 'a start not in the links gives {}');
+  const g = G.csr(4, [0, 1, 0, 2], [1, 3, 2, 3]); ok(Array.from(G.bfs(g, 0)).join() === '0,1,1,2', 'the csr form is unchanged');
+  let e = null; try { G.bfs([{ from: 'a' }], 'a'); } catch (x) { e = x; } ok(e instanceof RangeError, 'a link without to is refused');
+}
 ok(/^0\.\d+\.\d+$/.test(G.version) && G.api === 0, 'runtime version and API');
 console.log('graph-walk: all checks passed (' + graphs + ' graphs)');

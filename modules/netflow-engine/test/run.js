@@ -111,6 +111,15 @@ t('the extra views: netflow-circular and netflow-hierarchy join VIEWS and lay ou
     ok(JSON.stringify(E.build(copy(g), { view: v }).nodes.map((n) => [n.cx, n.cy])) === JSON.stringify(L.nodes.map((n) => [n.cx, n.cy])), v + ' repeatable');
   });
 });
+t('toSvg(links) draws a picture from data alone', () => {
+  const d = [{ from: 'Salary', to: 'Rent', value: 1800 }, { from: 'Salary', to: 'Food', value: 1200 }, { from: 'Food', to: 'Groceries', value: 750 }, { from: 'Food', to: 'Dining', value: 450 }];
+  ['network', 'sankey', 'flow'].forEach((v) => { const s = E.toSvg(d, { view: v }); ok(/^<svg[\s\S]*<\/svg>\s*$/.test(s) && s.indexOf('Groceries') > 0, v + ' svg'); });
+  ok(/<svg/.test(E.toSvg(d)), 'default view');
+  const sk = E.toSvg(d, { view: 'sankey' }), hs = [...sk.matchAll(/<rect x="[\d.]+" y="[\d.]+" width="[\d.]+" height="([\d.]+)"[^>]*rx/g)].map((m) => +m[1]);
+  ok(hs.length >= 5 && Math.max(...hs) / Math.min(...hs) > 2.5, 'sankey bars follow the amounts ' + hs.join(','));
+  ok(/<title>Spend<\/title>/.test(E.toSvg({ start: 'a', nodes: ['a', 'b'], edges: [{ from: 'a', to: 'b' }] }, { title: 'Spend' })), 'graph form + title');
+  let threw = false; try { E.toSvg([{ from: 'a' }]); } catch (e) { threw = e instanceof RangeError; } ok(threw, 'link without to throws');
+});
 t('the column reader is exposed and reads numbers the way people write them', () => { ok(E.columns.num('1,234.5') === 1234.5 && E.columns.num('12%') === 12 && isNaN(E.columns.num('0x10')), 'num'); });
 t('the file has no dependencies and builds no code from text (no eval, no new Function)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'netflow-engine.js'), 'utf8').replace(/'[A-Za-z0-9+/=]{200,}'/g, "''");

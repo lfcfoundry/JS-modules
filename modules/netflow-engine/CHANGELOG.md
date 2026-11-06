@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.0 · API 2 · 2026-11-05
+- toSvg(links, options): links in, a finished picture out, in one call.
+
 ## 2.3.0 · API 2 · 2026-11-01
 - New: the Chord, Bundles, Treemap, Sunburst, Icicle, Circle pack and Tree views, from the new netflow-circular and netflow-hierarchy add-ons; other views are unchanged.
 

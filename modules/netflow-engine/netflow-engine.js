@@ -2,7 +2,7 @@
  * netflow-engine.js: the engine of Netflow Map as a module you can adapt: reads links, lays the map out (layered rows, arcs, matrix, shapes, force, distances), and scores it. No page, no DOM; runs on the main thread or in a worker.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.0 (API 2)
+ * Version 2.4.0 (API 2)
  *
  *   var L = NetflowEngine.build({ nodes: [{ id: 'a' }, { id: 'b' }], edges: [{ from: 'a', to: 'b' }] }, { view: 'network', colorBy: 'group' });   // L.nodes, L.edges: positions and sizes, ready to draw
  *   NetflowEngine.use('layers', NetflowLayers);      // optional: hand over the add-ons (they are also found on their own)
@@ -16,7 +16,7 @@
   else root.NetflowEngine = factory(null);
 }(typeof self !== 'undefined' ? self : this, function (REQ) {
   'use strict';
-  var VERSION = '2.3.0';
+  var VERSION = '2.4.0';
   var NFMColumns = (function () {
     'use strict';
 
@@ -2709,6 +2709,35 @@
 
   var E = NFMEngine;
   E.version = VERSION; E.api = 2;
+  /**
+   * One call to a picture (since 2.4.0): toSvg(data, options) returns SVG text. data is a list of links [{ from, to, value }] (weight or count also name the amount)
+   * or a graph { start, nodes, edges }; missing item and link fields are filled in. options: view (default 'network'), the build() options, the netflow-scene make() options,
+   * and title, subtitle, source. Needs netflow-scene (found as a global or next to this folder); the Sankey view also uses netflow-sankey when it is there, and the story views need netflow-layers.
+   */
+  E.toSvg = function (data, o) {
+    o = o || {};
+    var g = data && !Array.isArray(data) && data.nodes ? data : null, links = g ? g.edges || [] : Array.isArray(data) ? data : (data && (data.links || data.edges)) || [], seen = {}, nodes = [], edges = [], i, e, v;
+    var item = function (n) { var id = typeof n === 'object' ? n.id : n; if (seen[id]) return; seen[id] = 1; n = typeof n === 'object' ? n : { id: id }; nodes.push({ id: id, label: n.label !== undefined ? n.label : String(id), group: n.group || '', valence: n.valence || '', ghost: !!n.ghost, attrs: n.attrs || {} }); };
+    if (g) g.nodes.forEach(item);
+    for (i = 0; i < links.length; i++) {
+      e = links[i]; if (!e || e.from === undefined || e.to === undefined) throw new RangeError('NetflowEngine.toSvg: link ' + i + ' needs from and to');
+      item(e.from); item(e.to); v = e.value !== undefined ? e.value : e.weight !== undefined ? e.weight : e.count;
+      edges.push({ from: e.from, to: e.to, label: e.label || '', kind: e.kind || '', weight: v === undefined ? undefined : +v, attrs: e.attrs || {} });
+    }
+    var root = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : {};
+    var find = function (gname, file) { var m = root[gname]; if (!m && typeof require === 'function') { try { m = require('../' + file + '/' + file + '.js'); } catch (x) { /* not there */ } } return m; };
+    var NS = find('NetflowScene', 'netflow-scene');
+    if (!NS) throw new Error('NetflowEngine.toSvg: NetflowScene was not found. Load netflow-scene.js before netflow-engine.js.');
+    var bo = {}, k, hasV = edges.some(function (x) { return x.weight !== undefined; }), groups = {}; for (k in o) bo[k] = o[k]; if (!bo.view) bo.view = 'network';
+    nodes.forEach(function (x) { groups[x.group] = 1; });
+    if (bo.view === 'sankey' && !bo.sk) { var SKm = find('NetflowSankey', 'netflow-sankey'); if (SKm) { E.use('sankey', SKm); bo.sk = {}; } }   /* the real Sankey layout when netflow-sankey is there */
+    if (hasV && bo.amounts === undefined && bo.view === 'sankey') bo.amounts = true;   /* a Sankey of amounts: band widths are the links' values */
+    if (hasV && bo.widthBy === undefined) bo.widthBy = 'weight';
+    if (bo.colorBy === undefined && Object.keys(groups).length < 2) bo.colorBy = 'found';   /* no groups given: color the groups the engine finds */
+    var L = E.build({ start: g && g.start !== undefined ? g.start : null, nodes: nodes, edges: edges }, bo), S = NS.make(L, bo);
+    if (NS.addTitles) NS.addTitles(S, o);
+    return NS.toSvg(S, o.title);
+  };
   E.status = function () { return { placeholder: false, version: VERSION, api: 2, message: 'netflow-engine ' + VERSION }; };
   return E;
 }));

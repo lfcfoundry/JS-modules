@@ -30,13 +30,13 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.18.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.10.4 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 1.8.1 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
-| [graph-walk](modules/graph-walk/README.md) | 0.11.2 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.5.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 1.9.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.5.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.8.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.3.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.4.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
@@ -81,13 +81,17 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **netflow-hierarchy** 1.4.1 · API 1: Group boxes follow the scene's opt-in families colors.
 - 2026-11-05 · **netflow-hierarchy** 1.4.0 · API 1: Names on treemaps and circle packs read on the colors actually drawn; group boxes get a name strip and their items' color.
 - 2026-11-05 · **netflow-hierarchy** 1.3.1 · API 1: Chord, bundle and radial tree names on the left side are no longer cut off at the picture edge.
+- 2026-11-05 · **netflow-engine** 2.4.0 · API 2: toSvg(links, options): links in, a finished picture out, in one call.
 - 2026-11-05 · **memory-compression** 2.10.4 · API 2: First pack of a big list is 7 to 12% faster in a fresh page.
+- 2026-11-05 · **lfc-pack** 0.5.1 · API 0: pack, unpack and the other calls now work without calling init() first.
 - 2026-11-05 · **lfc-pack** 0.5.0 · API 0: New LfcPack.open(file): read big files a block at a time from a File or Blob.
 - 2026-11-05 · **lfc-pack** 0.4.24 · API 0: Saving tables of row objects (packTables, packRows), such as a 20,000-item Netflow map, takes 7 to 32% less time in Firefox and 3 to 17% less in Chromium (WebKitGTK about the same); files are byte-identical.
 - 2026-11-05 · **lfc-pack** 0.4.23 · API 0: The first pack of logs or event tables after a page opens is 1.6 to 2 times as fast (36 to 51% less time) in Firefox and WebKitGTK (Chromium about the same); files are byte-identical.
 - 2026-11-05 · **lfc-pack** 0.4.22 · API 0: The first big read after a page opens is 3 to 34% faster for flat files with hex ids, addresses or number columns; same rows.
 - 2026-11-05 · **lfc-pack** 0.4.21 · API 0: Text columns that start with empty strings now keep them (0.4.15 to 0.4.20 dropped them in flat blocks).
 - 2026-11-05 · **lfc-pack** 0.4.20 · API 0: The first pack after a page opens is faster, and packing holds far less memory (a 20,000-item map uses 66 MB instead of 384 MB).
+- 2026-11-05 · **graph-walk** 0.12.0 · API 0: bfs(links, start): steps from a start item by name, straight from a list of links.
+- 2026-11-05 · **elias-fano** 1.9.0 · API 1: EliasFano.from(values): sorted numbers in, a searchable list out, in one call.
 - 2026-11-01 · **zip-open** 1.16.0 · API 1: Excel files open up to 18% faster, the first one in a page the most, and later ones up to 13%. Same results.
 - 2026-11-01 · **zip-open** 1.15.2 · API 1: The first file you open in a page opens 8 to 36% faster (big sheets the most); opening it again is about the same. Same results.
 - 2026-11-01 · **zip-open** 1.15.1 · API 1: Zip and Excel files in memory open up to 6% faster in Firefox and up to 3% in Chromium; WebKitGTK about the same. Same results.

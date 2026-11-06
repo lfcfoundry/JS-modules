@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.12.0 · API 0 · 2026-11-05
+
+### Quick
+GraphWalk.bfs now also takes a plain list of links [{ from, to }] and a start name and returns { name: steps } for the items it reaches (requested by the owner).
+
+### Deep
+GraphWalk.bfs now also takes a plain list of links [{ from, to }] and a start name and returns { name: steps } for the items it reaches (requested by the owner). The fast numbered form is unchanged.
+
 ## 0.11.2 · API 0 · 2026-10-31
 
 ### Quick
