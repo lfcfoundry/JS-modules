@@ -1,8 +1,8 @@
 # lzma-pack
 
-**Version 2.0.3 · API 2**
+**Version 2.0.4 · API 2**
 
-**Tested in:** tools/lzma-pack/test/run.py (25 passed, 1 skipped: no minifier here; the new background-tab mode included); Chromium 155, Firefox 158, WebKitGTK 2.52.6 open a packed page
+**Tested in:** lzma-pack tests 26 passed; a 400 KB packed page opened right in cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry
 
@@ -47,7 +47,7 @@ Open `mypage.packed.html` by double-click. Ready-made examples: `example/packed-
 | `--bg auto\|none\|COLOR` | Color behind "Opening...". `auto` (default) reads it from the input (inline `<body style>`, the last `html`/`body`/`:root` background rule, or a `theme-color` meta tag; white if none). `none` shows nothing. Or a color such as `#101018`. |
 | `--minify-page` | First minify the page's own inline scripts (needs terser or esbuild). Off by default. |
 | `--no-wasm` | Leave the WebAssembly decoder out: the page is about 4.5 KB (3.0%) smaller and always decodes in JavaScript. For pages with a tight size limit. |
-| `--wasm` | The default since 2.0.0; kept so old commands work. Ships the 4,087-byte WebAssembly decoder behind the LZMA data; the loader tries it first and uses the JavaScript decoder if it is missing, refused or wrong. |
+| `--wasm` | The default since 2.0.0; kept so old commands work. Ships the 4,701-byte WebAssembly decoder behind the LZMA data; the loader tries it first and uses the JavaScript decoder if it is missing, refused or wrong. |
 | `--skip-node-check` | Do not run the packed page's own decoder in Node after packing. |
 | `--minifier auto\|terser\|esbuild\|none` | Finds `terser` or `esbuild` on the PATH, in a `node_modules/.bin`, or from the `TERSER` / `ESBUILD` environment variable. Without one the loader is about 8.4 KB. |
 

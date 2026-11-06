@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-11-06
+
+### Quick
+Short WebAssembly calls: lzma_begin, then lzma_more for each 64 KB of output, so the engine moves the decode loop to its optimized code between calls (one long call stays on the slower first code the whole time; pattern from zip-open 1.17-…
+
+### Deep
+Short WebAssembly calls: lzma_begin, then lzma_more for each 64 KB of output, so the engine moves the decode loop to its optimized code between calls (one long call stays on the slower first code the whole time; pattern from zip-open 1.17-1.20 and ppmd-decode 1.4.0). lzma_decode is kept and does both. Same bytes; the program grows from 4,087 to 4,701 bytes. Owner card: Ship it everywhere.
+
 ## 1.3.1 · API 1 · 2026-10-31
 
 ### Quick

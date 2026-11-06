@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.4 · API 2 · 2026-11-06
+
+### Quick
+The loader decodes in 64 KB steps (lzma_begin, then lzma_more), from lzma-decode 1.4.0: first decode 0.85 to 0.91 of before in the three cloud browsers.
+
+### Deep
+The loader decodes in 64 KB steps (lzma_begin, then lzma_more), from lzma-decode 1.4.0: first decode 0.85 to 0.91 of before in the three cloud browsers. Pages carry the 4,701-byte program (was 4,087). The test's size ceiling for the program goes from 4,096 to 5,120 bytes. Owner card: Ship it everywhere.
+
 ## 2.0.3 · API 2 · 2026-11-05
 
 ### Quick

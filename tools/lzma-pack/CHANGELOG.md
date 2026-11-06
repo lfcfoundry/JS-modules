@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.4 · API 2 · 2026-11-06
+- Packed pages unpack faster on first open with the lzma-decode 1.4.0 decoder (about 600 bytes bigger).
+
 ## 2.0.3 · API 2 · 2026-11-05
 - Packed pages open sooner: the loader starts after two animation frames (or 100 ms in a background tab) instead of a fixed 30 ms wait.
 

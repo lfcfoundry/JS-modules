@@ -292,7 +292,7 @@ def t_wasm_sizes():
         a, ia = pack.pack(APP, encoding=enc, minifier="none", check_node=False, wasm=False)
         b, ib = pack.pack(APP, encoding=enc, minifier="none", check_node=False, wasm=True)
         grew = len(b) - len(a)
-        assert ib["wasm"] == len(pack.WASM_DECODER.read_bytes()) and ib["wasm"] < 4096, "the wasm size is not reported or grew past 4,096 bytes"
+        assert ib["wasm"] == len(pack.WASM_DECODER.read_bytes()) and ib["wasm"] < 5120, "the wasm size is not reported or grew past 5,120 bytes"
         assert ib["wasm"] <= grew <= extra, "%s: the page grew by %d bytes (wasm %d), expected the wasm size plus a few hundred bytes of loader" % (enc, grew, ib["wasm"])
         assert page_scripts(b) == 2, "a --wasm page must still have exactly two scripts"
 
