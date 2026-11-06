@@ -1,8 +1,8 @@
 # netflow-sankey
 
-**Version 2.10.0 · API 2**
+**Version 2.10.1 · API 2**
 
-**Tested in:** Node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 timing page against d3-sankey 0.12.3; crossing count on 40 charts each at 40, 72 and 100 items
+**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6 2026-11-06; module tests pass; demo page draws the same; 2 million random lines give the same result as before (lines with a blank name are now skipped)
 
 ## What it is and how it works
 

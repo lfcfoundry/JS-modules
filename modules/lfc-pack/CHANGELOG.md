@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.5 · API 0 · 2026-11-06
+- Fixed: packing text with a long run of blank lines no longer slows to a crawl (80,000 blank lines: 5 s before, 0.04 s now).
+
 ## 0.5.4 · API 0 · 2026-11-06
 - The first big read on a page is 2 to 3 times faster: a fixed rule replaces the one-time timing probe for building rows.
 

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.1 · API 2 · 2026-11-06
+
+### Quick
+The demo text box read each line with a one-line pattern that backtracked badly on a long run of spaces (a line of 4,000 spaces took 47 s).
+
+### Deep
+The demo text box read each line with a one-line pattern that backtracked badly on a long run of spaces (a line of 4,000 spaces took 47 s). Now read by hand: same results on 2 million random lines, except that a line whose name would be only spaces is skipped. The module itself is unchanged.
+
 ## 2.10.0 · API 2 · 2026-11-05
 
 ### Quick
