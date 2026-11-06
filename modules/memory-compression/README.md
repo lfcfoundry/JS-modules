@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.11.0 · API 2**
+**Version 2.12.0 · API 2**
 
-**Tested in:** Node 85 checks; view equals unpack at 60,000-150,000 rows (dates, templates, chunks, pairs, arrays; balanced, fast, small); Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page; owner laptops Chromium 156 and Firefox 160 cleared
+**Tested in:** Node 85 checks on the minified file; 3,130 held-out checks on the read-only file; Chromium 155, Firefox 158, WebKitGTK 2.52.6 under a no-eval policy
 
 ## What it is and how it works
 
@@ -29,6 +29,16 @@ Browser apps hit memory limits early, and phones close pages that use too much. 
 ## Install and use
 
 No install step: copy `memory-compression.js` next to your page (`<script src="memory-compression.js"></script>` sets `MemoryCompression`) or `require` it in Node.
+
+Two smaller files sit next to it, built from the same version (gzipped sizes, lower is better):
+
+| File | What it holds | Gzipped |
+|---|---|---|
+| `memory-compression.js` | everything, readable, with comments | 122.5 KB |
+| `memory-compression.min.js` | everything, minified: same API, same packed bytes | 83.1 KB |
+| `memory-compression-read.min.js` | opening only: `unpack`, `unpackAsync`, `view` and the stream readers | 37.1 KB |
+
+Use the read-only file on pages that only open data packed elsewhere. Its packing parts (`pack`, `packAsync`, `pager`, `keeper`, `pool`, the stream writers) throw "this part is only in the full file". It never makes code at run time. It keeps only the code a broad test corpus needed to decode, so a packed shape that corpus never met would also throw that error (never a wrong value). Maintainers rebuild both files with `node modules/memory-compression/min/build.js` after any change; `test/min.js` fails when they are out of date.
 
 ```js
 var packed = MemoryCompression.pack(bigThing);     // a Uint8Array: typed array, bytes, or a list of objects

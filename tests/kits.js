@@ -63,6 +63,7 @@ var steps = [
   ['memory-compression objects', 'node', ['modules/memory-compression/test/run.js']],
   ['memory-compression objects no wasm', 'node', ['modules/memory-compression/test/run.js', '--js-only']],
   ['memory-compression router', 'node', ['modules/memory-compression/test/router.js']],
+  ['memory-compression smaller files', 'node', ['modules/memory-compression/test/min.js']],   // the .min.js and read-only files match this version and source, same bytes, open the readable file's packs
   ['pcodec-js', 'node', ['--expose-gc', 'modules/pcodec-js/test/run.js']],
   ['pcodec-js SIMD reader', 'node', ['--expose-gc', 'modules/pcodec-js/test/run.js', '--reader', 'pcodec-js-fast.js']],
   ['netflow-sankey', 'node', ['modules/netflow-sankey/test/run.js']],
