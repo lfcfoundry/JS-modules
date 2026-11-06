@@ -641,4 +641,11 @@ t('Warm-up also starts the second thread, so the first big sheet already unpacks
     assert.equal(U._piped(), q0 + 1, 'the first open used it');
   } finally { U._pipe(); }
 });
+t('A long broken tag (a run of letters with no value) is read in linear time, not retried from each letter', async function () {
+  var s = '<sst</sst<!-- ' + 'p'.repeat(400000) + ' -->', t0 = Date.now(), threw = false;
+  try { U._xmlScan(s, { open: function () {}, close: function () {}, text: function () {} }); } catch (e) { threw = true; }
+  assert.ok(Date.now() - t0 < 2000, 'took ' + (Date.now() - t0) + ' ms');
+  var got = {}; U._xmlScan('<a x="1" yy zz=\'2\' w = "3"/>', { open: function (t, a) { got = a; } });
+  assert.deepStrictEqual(got, { x: '1', zz: '2', w: '3' });
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });

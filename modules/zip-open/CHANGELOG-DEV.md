@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.19.1 · API 1 · 2026-11-06
+
+### Quick
+Fix: the XML reader's fallback attribute pattern was quadratic on a long run of name letters with no value (a 1.1 MB broken tag in sharedStrings.xml took tens of minutes). Now linear. No API change; same results.
+
+### Details
+The fallback runs only when the hand-written attribute reader gives up (an attribute with no value, odd spacing). A 1 MB broken tag now takes about 30 ms in Node. Found by a new fuzz that opens random workbooks padded past 1 MB.
+
+### Deep
+ATTR gains a last alternative, a bare name run, so after a failed name="value" match the search steps past the whole run instead of retrying from each of its letters; matches without a name group are skipped. A name that fails from the start of its run fails from every later letter too (same end, same next character), so the matches are the same: 300,000 random tag texts gave identical attribute lists with the old and new pattern, and the byte-level differential fuzz (20,000 cases) still matches the JavaScript reader. New check: a 400,000-letter broken tag reads in under 2 s, and a mixed attribute list reads as before; 47 of 47.
+
 ## 1.19.0 · API 1 · 2026-11-06
 
 ### Quick

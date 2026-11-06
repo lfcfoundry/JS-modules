@@ -1,6 +1,6 @@
 # zip-open
 
-**Version 1.19.0 · API 1**
+**Version 1.19.1 · API 1**
 
 **Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-05 night (first open 6 s after load: in-memory files 5 fresh pages per browser, Files read in pieces 4; WebKitGTK in-memory rechecked in reverse order with 8); 46 module checks pass.
 
