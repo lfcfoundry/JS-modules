@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.0.0 (API 2)
+ * Version 2.0.1 (API 2)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -348,15 +348,18 @@
     if (!(i >= 0 && i < this.length) || i % 1 !== 0) return undefined;
     var h = this._hot, r;
     if (h) { r = h[i]; if (r !== undefined) return r; }   // cache(true): the same Uint32Array every time, like a plain array of arrays
+    if (h && this._all) return h[i] = this._view(i);   // after the bulk decode below: a view into one decoded array
     var c = Math.floor(i / this._C), o = this._offs, of = this._off, js = !o && of.bytes, a = o ? o[i] : js ? of._getJS(i) : of.get(i), b = o ? o[i + 1] : js ? of._getJS(i + 1) : of.get(i + 1), cs = this._cstart[c], base = (i - c * this._C) * this._K, j;
+    if (h && (this._seen += b - a + 4) * 4 >= this._total) { this._all = this._decodeWith(this._offs); return h[i] = this._view(i); }   // a quarter of all the values read one list at a time: decode the rest in one go (about a tenth of the cost per value) and hand out views
     if (b === a) r = new Uint32Array(0);
     else { r = this._chunks[c].slice(a - cs, b - cs); for (j = 0; j < r.length; j++) r[j] -= base; }
     if (h) h[i] = r;
     return r;
   };
+  LP._view = function (i) { var A = this._all, o = A.offsets, a = o[i]; return A.values.subarray(a, o[i + 1]); };
   // cache(true) (on from the start since 2.0.0; openLists(bytes, { cache: false }) opens without it): from now on get(i) keeps the array it made for list i and hands out that same array again (a repeat read costs about what reading a plain array of arrays does; the lists
   // you touched take 4 bytes a value again, and the list positions are decoded once, 4 bytes a list). Do not change a cached array. cache(false) lets them go; with no argument it says whether the cache is on.
-  LP.cache = function (on) { if (on === undefined) return !!this._hot; this._hot = on ? new Array(this.length) : null; this._offs = on ? (this._offs || this._off.toArray()) : null; return !!this._hot; };
+  LP.cache = function (on) { if (on === undefined) return !!this._hot; this._hot = on ? new Array(this.length) : null; this._offs = on ? (this._offs || this._off.toArray()) : null; this._all = null; this._seen = 0; this._total = on ? this._offs[this.length] : 0; return !!this._hot; };
   LP.getMany = function (ids) {   // many lists in one call: { offsets: Uint32Array(k + 1), values: Uint32Array } with list ids[j] at values[offsets[j] .. offsets[j + 1]); an id that is not a list gives an empty list
     var k = ids.length, ok = new Uint32Array(k), nxt = new Uint32Array(k), j, i, total = 0, offsets = new Uint32Array(k + 1), A, B, values, c, cs, base, r, p, q;
     for (j = 0; j < k; j++) { i = ids[j]; ok[j] = i >= 0 && i < this.length && i % 1 === 0 ? i : 0; nxt[j] = ok[j] + 1; }
@@ -385,8 +388,9 @@
     }
     return { offsets: offsets, values: values };
   };
-  LP.decodeAll = function () {   // everything at once: { offsets: Uint32Array(n + 1), values: Uint32Array } (plain offset arrays); uses the fast whole-sequence decoder
-    var n = this.length, offsets = this._off.toArray(), values = new Uint32Array(offsets[n]), c, i, j, K = this._K, C = this._C;
+  LP.decodeAll = function () { return this._decodeWith(this._off.toArray()); };   // everything at once: { offsets: Uint32Array(n + 1), values: Uint32Array } (plain offset arrays); uses the fast whole-sequence decoder
+  LP._decodeWith = function (offsets) {   // the same, with the list positions already decoded (the cache keeps them, so they are not decoded twice)
+    var n = this.length, values = new Uint32Array(offsets[n]), c, i, j, K = this._K, C = this._C;
     for (c = 0; c < this._chunks.length; c++) {
       if (!this._chunks[c]) continue;
       var a = c * C, e = Math.min(n, a + C), cs = offsets[a], cnt = offsets[e] - cs, cp = this._chunks[c];
@@ -401,7 +405,7 @@
     }
     return { offsets: offsets, values: values };
   };
-  LP.free = function () { this._hot = null; this._offs = null; this._off.free(); for (var c = 0; c < this._chunks.length; c++) if (this._chunks[c]) this._chunks[c].free(); };
+  LP.free = function () { this._hot = null; this._offs = null; this._all = null; this._off.free(); for (var c = 0; c < this._chunks.length; c++) if (this._chunks[c]) this._chunks[c].free(); };
   LP.compact = function () {   // as List.compact(), for the offsets and every chunk; the shared bytes are let go only when all of them made it into the module's memory
     var ok = this._off.compact(), c; for (c = 0; c < this._chunks.length; c++) if (this._chunks[c] && !this._chunks[c].compact()) ok = false;
     if (ok) this.bytes = null; return ok;
@@ -601,7 +605,7 @@
   }
   return {
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
-    version: '2.0.0', api: 1, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
+    version: '2.0.1', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
     buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, intersect: intersect, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },

@@ -30,7 +30,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.19.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.11.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 2.0.0 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 2.0.1 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.5.3 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
@@ -68,6 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **netflow-layers** 1.12.1 · API 1: Flow pictures: a back link that spans several rows no longer doubles back over itself.
 - 2026-11-06 · **lfc-pack** 0.5.3 · API 0: Firefox: row reads about 13% faster on IP address columns.
 - 2026-11-06 · **lfc-pack** 0.5.2 · API 0: Chromium: row reads about 7% faster on dense blocks (columns decoded one at a time, table-built IP text).
+- 2026-11-06 · **elias-fano** 2.0.1 · API 2: Reading all lists one at a time with get(i) is about half the time (0.45x to 0.52x of the first-read time in Chromium, Firefox and WebKitGTK; repeat reads 0.8x to 0.9x).
 - 2026-11-06 · **elias-fano** 2.0.0 · API 2: Breaking: Lists.get(i) now keeps and returns the same array for a list (set { cache: false } for the old behavior).
 - 2026-11-05 · **zip-open** 1.18.2 · API 1: Text-heavy Excel sheets open 2 to 13% faster; other sheets about the same. Same results.
 - 2026-11-05 · **zip-open** 1.18.1 · API 1: Excel sheets with many numbers and dates open 4 to 14% faster; text-heavy sheets about the same. Same results.

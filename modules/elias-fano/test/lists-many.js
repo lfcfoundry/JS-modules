@@ -25,6 +25,14 @@ let seed = 3; const r = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>
     assert.strictEqual(set.get(-1), undefined); assert.strictEqual(hot.get(wide.length), undefined); hot.cache(false); assert.strictEqual(hot.cache(), false); assert.notStrictEqual(hot.get(1), hot.get(1));
     hot.cache(true); assert.deepStrictEqual(Array.from(hot.get(2)), wide[2]); set.free(); hot.free();
   }
+  // reading lists one at a time: a few stay separate arrays; once a quarter of the values have been read, the rest come as views into one decoded array (since 2.0.1), same values
+  for (const backend of ['js', 'wasm']) {
+    EF.setBackend(backend); const hot = EF.openLists(many), few = hot.get(0), shared = [];
+    assert.strictEqual(few.buffer.byteLength, few.length * 4, backend + ' a first few reads are separate arrays');
+    for (let i = 0; i < wide.length; i++) { const x = hot.get(i); assert.deepStrictEqual(Array.from(x), wide[i], backend + ' bulk list ' + i); if (x.length) shared.push(x.buffer); }
+    assert.ok(shared.length > 0 && shared.filter((b) => b === shared[shared.length - 1]).length > wide.length / 2, backend + ' most lists end up as views of one buffer');
+    hot.cache(false); hot.cache(true); const again = hot.get(0); assert.strictEqual(again.buffer.byteLength, again.length * 4, backend + ' after cache(false) and cache(true) the count starts again: a first read is a separate array'); assert.deepStrictEqual(Array.from(hot.get(5)), wide[5]); hot.free();
+  }
   console.log('ok   elias-fano lists decodeAll and cache(true) agree with the lists, JavaScript and WebAssembly');
   console.log('ok   elias-fano lists getMany: 5000 ids (some missing) agree with get, JavaScript and WebAssembly');
 })().catch(e => { console.error(e); process.exit(1); });

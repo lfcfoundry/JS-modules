@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 2.0.0 · API 2**
+**Version 2.0.1 · API 2**
 
-**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (cloud container, one browser at a time; no phone, no Safari)
+**Tested in:** Node: all elias-fano checks pass (2 new for the bulk views). First-read speed in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, paired runs. Not run: a phone.
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -84,10 +84,10 @@ Same page, alternating rounds, Firefox 158 / Chromium 155 / WebKitGTK 2.52.6 (de
 | Size of 1,000,000 sorted values | 4.0 MB | 1.34 MB |
 | First value at or above x (20,000 lookups, 1,000,000 values) | binary search 4.0 / 3.3 / 3.6 ms | 1.6 / 1.4 / 1.4 ms in WebAssembly (2.3 to 3.0x faster) |
 | Read all 94,597 links of 30,000 lists, ms (Chromium / Firefox / WebKitGTK) | arrays of arrays 1.38 / 3.2 (noisy, best 2.1) / 1.5 | decode all in WebAssembly 1.46 / 1.3 / 1.2; `cache(true)`, lists already read once, 1.22 / 1.1 / 0.6 |
-| One list at a time, all 30,000, first read (`get(i)`, no cache) | already there, nothing to decode | 7.3 / 12.8 / 9.0 ms (about 5 to 9 times slower: each list is cut out and made into a new array) |
+| One list at a time, all 30,000, first read (`get(i)`, no cache) | already there, nothing to decode | default (cache on, since 2.0.1): 3.9 / 5.6 / 4.1 ms, against 7.9 / 12.6 / 7.9 ms before 2.0.1 (about 0.5 times); `{ cache: false }`: 7.3 / 12.8 / 9.0 ms (each list is cut out and made into a new array). Still about 3 to 5 times a first read of plain arrays (1.1 / 1.25 / 0.75 ms), which are already there |
 | Value number i, 20,000 random reads | 0.05 to 0.1 ms | 1.0 to 3.2 ms (14 to 40x slower) |
 
-It is for lists you search or scan, not for hammering single reads: keep a decoded copy (`toArray`, `decodeAll`) when you need those. A list set read list by list keeps each list's array after its first read (the default since 2.0.0; `{ cache: false }` turns it off), and a repeat read then costs about what an array of arrays does, at 4 bytes a value again for the lists you touched. Since 1.10.0 `decodeAll` of 30,000 lists is 0.68 / 0.78 / 0.90 times the time it took (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, paired runs). Plain arrays still win on a first read of a single list (they are already there) and the memory they take is about 2.2 times the packed size (498 KB against 223 KB for these lists); arrays of arrays also cost one object each (not measured here).
+It is for lists you search or scan, not for hammering single reads: keep a decoded copy (`toArray`, `decodeAll`) when you need those. A list set read list by list keeps each list's array after its first read (the default since 2.0.0; `{ cache: false }` turns it off), and a repeat read then costs about what an array of arrays does, at 4 bytes a value again for the lists you touched. Since 1.10.0 `decodeAll` of 30,000 lists is 0.68 / 0.78 / 0.90 times the time it took (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, paired runs). Since 2.0.1, once a quarter of the values have been read one list at a time, the set decodes the rest in one go and hands out views (`subarray`) of one decoded array instead of a new array per list (repeat reads 0.8 to 0.9 times the time they took, first read of all lists 0.45 to 0.52 times, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6; a few reads stay separate arrays; the views share one buffer, so do not change them, as before). Plain arrays still win on a first read of a single list (they are already there) and the memory they take is about 2.2 times the packed size (498 KB against 223 KB for these lists); arrays of arrays also cost one object each (not measured here).
 
 ## Partitioned lists (since 1.2.0)
 `buildPartitioned` cuts the list into chunks of 128 values (or 32, 64, 256, 512, 1024) and stores each chunk the cheapest way: as a plain run (no bits at all, when the numbers are consecutive), as a bitmap (when more than about a third of the numbers in its range are present) or as Elias-Fano. It wins where a list has dense stretches, such as the document ids of a common word, and costs about the same as the flat form elsewhere. It has the same questions as a single list (`get`, `nextGEQ`, `rank`, `contains`, `count`, `slice`, `toArray`, the batches, `free`) and one more, `stats()`, which says how many chunks took each form.

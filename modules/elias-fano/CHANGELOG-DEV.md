@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.1 · API 2 · 2026-11-06
+
+### Quick
+Reading all lists one at a time with get(i) is about half the time (0.45x to 0.52x of the first-read time in Chromium, Firefox and WebKitGTK; repeat reads 0.8x to 0.9x).
+
+### Deep
+Reading all lists one at a time with get(i) is about half the time (0.45x to 0.52x of the first-read time in Chromium, Firefox and WebKitGTK; repeat reads 0.8x to 0.9x). After a quarter of the values have been read list by list, the set decodes the rest in one go and returns views of one decoded array instead of a new array per list. A few single reads still return separate arrays. Same answers; do not change a returned array, as before.
+
 ## 2.0.0 · API 2 · 2026-11-06
 
 ### Quick
