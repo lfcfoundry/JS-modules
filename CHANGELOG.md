@@ -61,11 +61,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
-<<<<<<< HEAD
-- 2026-11-06 · **elias-fano** 2.0.0 · API 2: Breaking: Lists.get(i) now keeps and returns the same array for a list (set { cache: false } for the old behavior).
-=======
 - 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
->>>>>>> origin/main
+- 2026-11-06 · **elias-fano** 2.0.0 · API 2: Breaking: Lists.get(i) now keeps and returns the same array for a list (set { cache: false } for the old behavior).
 - 2026-11-05 · **zip-open** 1.18.2 · API 1: Text-heavy Excel sheets open 2 to 13% faster; other sheets about the same. Same results.
 - 2026-11-05 · **zip-open** 1.18.1 · API 1: Excel sheets with many numbers and dates open 4 to 14% faster; text-heavy sheets about the same. Same results.
 - 2026-11-05 · **zip-open** 1.18.0 · API 1: The first Excel file you open in a page opens 11 to 45% faster: zip-open warms up its reader on a tiny made-up workbook shortly after it loads (about 20 to 30 ms of work, no file, no network; a real open stops it). Same results.
