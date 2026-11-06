@@ -1,4 +1,4 @@
-/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.8.0 (API 1) */
+/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.9.0 (API 1) */
 var SpriteBaker = (function () {
   'use strict';
 
@@ -193,6 +193,9 @@ var SpriteBaker = (function () {
     mat = asMaterial(mat);
     if ((mat.texture || mat.ridge) && a.length > 7 && b.length > 7 && c.length > 7) return triUV(rast, a, b, c, mat);   // one check per triangle; the plain loop below stays as it was
 
+//@begin fast
+    if (opts && opts.fast) return triFast(rast, a, b, c, mat);   // opts.fast (since 1.9.0): the same fill with cheaper shading, pictures within 2 levels
+//@end
     var w = rast.w, h = rast.h, zbuf = rast.z, out = rast.px, lut = mat.lut;
     var x0 = a[0], y0 = a[1], x1 = b[0], y1 = b[1], x2 = c[0], y2 = c[1];
     var area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
@@ -262,6 +265,68 @@ var SpriteBaker = (function () {
       }
     }
   }
+
+//@begin fast
+  /* triFast: tri() with three parts of the per-pixel shading made cheaper, for opts.fast. The same fill, the same depth test and the same light terms; what changes:
+     the normal is scaled by a three-term series for 1 / length instead of a square root and a division (it falls back to the exact way when the interpolated normal is
+     not near unit length); the highlight (three powers of the half vector) is skipped where its largest term is below a third of a level (sp under about 0.68), where the
+     exact one adds less than that; the rim-light power pow(1 - nz, 2.2) comes from a 1,024 step table. Pixels stay within 2 levels of tri()'s. */
+  var EDGE_POW = (function () { var t = new Float32Array(1026), i; for (i = 0; i < 1026; i++) t[i] = Math.pow(i / 1024, 2.2); return t; })();
+  function triFast(rast, a, b, c, mat) {
+    var w = rast.w, h = rast.h, zbuf = rast.z, out = rast.px, lut = mat.lut;
+    var x0 = a[0], y0 = a[1], x1 = b[0], y1 = b[1], x2 = c[0], y2 = c[1];
+    var area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+    if (area === 0 || !isFinite(area)) return;
+    var minx = Math.max(0, Math.floor(Math.min(x0, x1, x2))), maxx = Math.min(w - 1, Math.ceil(Math.max(x0, x1, x2)));
+    var miny = Math.max(0, Math.floor(Math.min(y0, y1, y2))), maxy = Math.min(h - 1, Math.ceil(Math.max(y0, y1, y2)));
+    var inv = 1 / area, EP = EDGE_POW;
+    var az = a[2], bz = b[2], cz = c[2], anx = a[3], bnx = b[3], cnx = c[3], any = a[4], bny = b[4], cny = c[4], anz = a[5], bnz = b[5], cnz = c[5];
+    var lx = rast.L[0], ly = rast.L[1], lz = rast.L[2], hx = rast.H[0], hy = rast.H[1], hz = rast.H[2];
+    var kSpec = mat.specular, kBounce = mat.bounce * 0.16, kPool = mat.pool * 0.3, kRim = mat.rimLight * 0.4, kEdge = mat.edge;
+    var thr = kSpec > 0 ? Math.pow(0.3 / (kSpec * 140.25), 1 / 16) : 2;   // below this sp the highlight adds under 0.3 of a level
+    var x, y, px, py, w0, w1, w2, z, idx, nx, ny, nz, q, d, l, wrap, t, rim, sp, ed, o, r, g, bl, dy0, dy1, dy2, sq, p2, p4, p8, p16, p32, p64, p128, e, ei;
+    for (y = miny; y <= maxy; y++) {
+      py = y + 0.5; dy0 = y0 - py; dy1 = y1 - py; dy2 = y2 - py;
+      for (x = minx; x <= maxx; x++) {
+        px = x + 0.5;
+        w0 = ((x1 - px) * dy2 - (x2 - px) * dy1) * inv;
+        w1 = ((x2 - px) * dy0 - (x0 - px) * dy2) * inv;
+        w2 = 1 - w0 - w1;
+        if (w0 < -1e-5 || w1 < -1e-5 || w2 < -1e-5) continue;
+        z = w0 * az + w1 * bz + w2 * cz;
+        if (z - z !== 0) continue;
+        idx = y * w + x;
+        if (z <= zbuf[idx]) continue;
+        zbuf[idx] = z;
+        nx = w0 * anx + w1 * bnx + w2 * cnx; ny = w0 * any + w1 * bny + w2 * cny; nz = w0 * anz + w1 * bnz + w2 * cnz;
+        q = nx * nx + ny * ny + nz * nz; d = 1 - q;
+        l = q > 0.9 && q < 1.1 ? 1 + d * (0.5 + d * 0.375) : 1 / Math.sqrt(q + 1e-9);   // 1 / sqrt(q) as a series around q = 1: error under 4e-4 for q within 10%
+        nx *= l; ny *= l; nz *= l;
+        wrap = (nx * lx + ny * ly + nz * lz) * 0.5 + 0.5;
+        t = wrap * wrap * 0.35 + wrap * 0.65;
+        rim = nx * 0.5 + ny * 0.72 + nz * 0.2;
+        t = t * 0.9 + (rim > 0 ? rim * kBounce : 0);
+        sp = nx * 0.55 + ny * 0.8;
+        if (sp > 0.25) t -= (sp - 0.25) * kPool;
+        sp = nx * hx + ny * hy + nz * hz;
+        if (sp > thr) {
+          p2 = sp * sp; p4 = p2 * p2; p8 = p4 * p4; p16 = p8 * p8; p32 = p16 * p16; p64 = p32 * p32; p128 = p64 * p64;
+          sq = (p16 * 0.55 + p64 * p32 * p8 * p4 * p2 * 0.55 + p128 * p128 * p64 * p32 * p16 * p8 * p4 * 0.5) * kSpec;
+        } else sq = 0;
+        if (nz < 0.34) t *= kEdge + (1 - kEdge) * Math.max(0, nz) / 0.34;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        o = ((t * 255) | 0) * 3;
+        r = lut[o]; g = lut[o + 1]; bl = lut[o + 2];
+        if (nx > 0 && nz < 0.8) { e = (1 - (nz > 0 ? nz : 0)) * 1024; ei = e | 0; ed = nx * (EP[ei] + (EP[ei + 1] - EP[ei]) * (e - ei)) * kRim * 255; } else ed = 0;
+        o = idx * 4;
+        out[o] = r + sq * 255 + ed;
+        out[o + 1] = g + sq * 255 + ed;
+        out[o + 2] = bl + sq * 235 + ed;
+        out[o + 3] = 255;
+      }
+    }
+  }
+//@end
 
   /* triUV: tri() for a material with a texture and/or ridge, on 8-number vertices. The same fill and the same light as tri(); per pixel it also
      reads (u, v), changes the light value with the ridge (after the bounce and pool terms, before the edge darkening and the ramp lookup), and
@@ -839,7 +904,7 @@ var SpriteBaker = (function () {
     var rast = new Rast(w * ss, h * ss), first = opts.edge && ss > 1 ? new Rast(w, h) : null;   // `first`: one sample a pixel, for opts.edge
     if (opts.light) rast.setLight(opts.light);
     if (first && opts.light) first.setLight(opts.light);
-    var tOpts = opts.cull !== undefined ? { cull: opts.cull } : null;
+    var tOpts = opts.cull !== undefined || opts.fast ? { cull: opts.cull, fast: !!opts.fast } : null;
 
     return {
       width: w, height: h, ss: ss, scale: scale,
@@ -851,7 +916,7 @@ var SpriteBaker = (function () {
           parts.forEach(function (part) { drawMesh(first, part.mesh, part.material, v1, tOpts); });
           mark = edgeMask(first);
           rast.clear(); lockInterior(rast, ss, mark);
-          var gOpts = { gate: edgeGate(mark, first.w, first.h, ss) }; if (tOpts) gOpts.cull = tOpts.cull;
+          var gOpts = { gate: edgeGate(mark, first.w, first.h, ss) }; if (tOpts) { gOpts.cull = tOpts.cull; gOpts.fast = tOpts.fast; }
           parts.forEach(function (part) { drawMesh(rast, part.mesh, part.material, view, gOpts); });
           img = downsampleEdge(rast, ss, first, mark);
           return ol ? API.outline(img, ol.radius, ol.color) : img;
@@ -1000,7 +1065,7 @@ var SpriteBaker = (function () {
 //@end
 
   API = {
-    version: '1.8.0',
+    version: '1.9.0',
     Rast: Rast,
 //@begin ramps
     material: material,

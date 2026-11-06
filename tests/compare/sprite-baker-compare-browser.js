@@ -20,7 +20,7 @@ function bench(which, src) {
   let ones, rolls, cover = (x) => { const d = x && x.data; let n = 0; if (d) for (let i = 0; i < d.length; i += 4) if (d[i + 3]) n++; return n; }, first, firstT0 = performance.now();
   if (which === 'sprite-baker') {
     const scene = [{ fn: SpriteBaker.sphere(11), nu: 12, nv: 18, material: SpriteBaker.material([[0, 60, 20, 90], [1, 245, 210, 255]]) }];
-    const vs = [{ ss: 2 }, { ss: 1 }, { edge: true }];   // default, one sample a pixel, and edge-only supersampling (1.8.0)
+    const vs = [{ ss: 2 }, { ss: 1 }, { edge: true }, { fast: true }, { fast: true, edge: true }];   // default, one sample a pixel, edge-only supersampling (1.8.0), cheaper shading (1.9.0), and both
     ones = vs.map(o => () => SpriteBaker.bakeSprite(scene, 96, o));
     rolls = vs.map(o => () => SpriteBaker.bakeRoll(scene, 12, 96, o));
   } else {
@@ -60,8 +60,8 @@ function bench(which, src) {
     }
     const ok = (n) => got[n] && got[n].length;
     const f = (n, key, i) => ok(n) ? med(got[n].map(x => i === undefined ? x[key] : x[key][i])).toFixed(2) : 'n/a';
-    console.log('  one 96 px sphere, ms: sprite-baker (ss 2) ' + f('sprite-baker', 'one', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'one', 1) + ' | sprite-baker (edge) ' + f('sprite-baker', 'one', 2) + ' | three.js ' + f('three.js', 'one', 0) + ' | three.js smooth edges (4x multisample) ' + f('three.js', 'one', 1));
-    console.log('  12-frame roll, ms:    sprite-baker (ss 2) ' + f('sprite-baker', 'roll', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'roll', 1) + ' | sprite-baker (edge) ' + f('sprite-baker', 'roll', 2) + ' | three.js ' + f('three.js', 'roll', 0) + ' | three.js smooth ' + f('three.js', 'roll', 1));
+    console.log('  one 96 px sphere, ms: sprite-baker (ss 2) ' + f('sprite-baker', 'one', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'one', 1) + ' | sprite-baker (edge) ' + f('sprite-baker', 'one', 2) + ' | sprite-baker (fast) ' + f('sprite-baker', 'one', 3) + ' | sprite-baker (fast+edge) ' + f('sprite-baker', 'one', 4) + ' | three.js ' + f('three.js', 'one', 0) + ' | three.js smooth edges (4x multisample) ' + f('three.js', 'one', 1));
+    console.log('  12-frame roll, ms:    sprite-baker (ss 2) ' + f('sprite-baker', 'roll', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'roll', 1) + ' | sprite-baker (edge) ' + f('sprite-baker', 'roll', 2) + ' | sprite-baker (fast) ' + f('sprite-baker', 'roll', 3) + ' | sprite-baker (fast+edge) ' + f('sprite-baker', 'roll', 4) + ' | three.js ' + f('three.js', 'roll', 0) + ' | three.js smooth ' + f('three.js', 'roll', 1));
     console.log('  first picture incl. start-up, ms: sprite-baker ' + f('sprite-baker', 'first') + ' | three.js ' + f('three.js', 'first') + '   pixels drawn: ' + (ok('sprite-baker') ? got['sprite-baker'][0].cover.join('/') : '?') + ' | ' + (ok('three.js') ? got['three.js'][0].cover.join('/') : 'n/a (no WebGL context)'));
     await b.close();
   }

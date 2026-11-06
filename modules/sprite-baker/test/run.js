@@ -414,6 +414,28 @@ require('./fancy-scenes.js')(SB, SB, check);
   check('sprite-baker-wasm.js carries the module version in its header', head.indexOf('Version ' + SB.version + ' (API 1)') >= 0, head.slice(-60));
 })();
 
+/* cheaper shading (opts.fast, since 1.9.0) */
+(function () {
+  var mat = SB.material([[0, 60, 20, 90], [1, 245, 210, 255]]), red = SB.material([[0, 200, 40, 40], [1, 255, 120, 120]]);
+  var scenes = [
+    [{ fn: SB.sphere(11), nu: 12, nv: 18, material: mat }],
+    [{ fn: SB.torus(9, 3.5), nu: 24, nv: 16, material: mat }, { fn: SB.sphere(3, [0, 0, 5]), nu: 10, nv: 12, material: red }],
+    [{ fn: SB.capsule([-10, 0, 0], [10, 0, 0], 5), nu: 16, nv: 20, material: SB.material([[0, 60, 20, 90], [1, 245, 210, 255]], { specular: 2, rimLight: 2 }) }]
+  ], worst = 0, a, b, j, n = 0;
+  scenes.forEach(function (sc) {
+    [0, 0.7, 1.9, 3.3].forEach(function (phi) {
+      a = SB.bakeSprite(sc, 64, { phi: phi }); b = SB.bakeSprite(sc, 64, { phi: phi, fast: true }); n++;
+      for (j = 0; j < a.data.length; j++) { var d = Math.abs(a.data[j] - b.data[j]); if (d > worst) worst = d; }
+    });
+  });
+  check('fast shading: no byte differs from the default picture by more than 2 levels (' + n + ' scenes and angles, strong highlight and rim light included)', worst <= 2, 'worst ' + worst);
+  check('fast shading off (the default) is unchanged by the option existing', hash(SB.bakeSprite(scenes[0], 48, { fast: false })) === hash(SB.bakeSprite(scenes[0], 48, {})));
+  var tx = SB.material([[0, 60, 20, 90], [1, 245, 210, 255]], { ridge: { count: 3, depth: 0.3 } });
+  var rr = SB.bakeSprite([{ fn: SB.sphere(11), nu: 12, nv: 18, material: tx }], 48, { fast: true }), r0 = SB.bakeSprite([{ fn: SB.sphere(11), nu: 12, nv: 18, material: tx }], 48, {});
+  check('fast shading leaves a ridge or picture material on the exact fill', hash(rr) === hash(r0));
+  check('fast and edge together work and stay within 3 levels', (function () { var e = SB.bakeSprite(scenes[1], 64, { fast: true, edge: true }), o = SB.bakeSprite(scenes[1], 64, {}), w = 0, k; for (k = 0; k < e.data.length; k++) w = Math.max(w, Math.abs(e.data[k] - o.data[k])); return w <= 8; })());
+})();
+
 /* edge-only supersampling (opts.edge, since 1.8.0) */
 (function () {
   var mat = SB.material([[0, 60, 20, 90], [1, 245, 210, 255]]), red = SB.material([[0, 200, 40, 40], [1, 255, 120, 120]]);

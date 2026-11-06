@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.9.0 · API 1 · 2026-11-06
+- New option fast: true uses cheaper shading in the plain JavaScript fill (a short series for the normal length, the highlight skipped where it adds under a third of a level, a table for the rim-light power).
+
 ## 1.8.0 · API 1 · 2026-11-06
 - New option edge: true fills each pixel once and fills again with ss by ss samples only the pixels on an edge.
 
