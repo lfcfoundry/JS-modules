@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.20.0 (API 1)
+ * Version 1.20.1 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -142,7 +142,18 @@
     return n;
   }
   var XL_BUILTIN_DATES = { 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1, 21: 1, 22: 1, 45: 1, 46: 1, 47: 1 };
-  function isDateFormat(code) { var c = String(code).replace(/"[^"]*"|\\.|\[[^\]]*\]|_.|\*./g, ''); return /[ymdhs]/i.test(c) && !/^(general|0|#)/i.test(c) || /[dy]{2}|m{1,2}[\/\-.]|[hH]:|:[sS]/.test(c) && /[ymdhs]/i.test(c); }
+  function fmtPlain(s) {   // a number-format code without its "quoted text", [brackets], \x, _x and *x parts; by hand, since the regular expression for it was quadratic on a crafted code with many unclosed quotes
+    var o = '', i = 0, n = s.length, q = 0, b = 0, c, j;
+    while (i < n) {
+      c = s.charCodeAt(i);
+      if (c === 34 && q === 0) { j = s.indexOf('"', i + 1); if (j >= 0) { i = j + 1; continue; } q = 1; }   // no closing quote after this one: none after any later one either
+      else if (c === 91 && b === 0) { j = s.indexOf(']', i + 1); if (j >= 0) { i = j + 1; continue; } b = 1; }
+      else if ((c === 92 || c === 95 || c === 42) && i + 1 < n && (j = s.charCodeAt(i + 1)) !== 10 && j !== 13 && j !== 0x2028 && j !== 0x2029) { i += 2; continue; }
+      o += s.charAt(i); i++;
+    }
+    return o;
+  }
+  function isDateFormat(code) { var c = fmtPlain(String(code)); return /[ymdhs]/i.test(c) && !/^(general|0|#)/i.test(c) || /[dy]{2}|m{1,2}[\/\-.]|[hH]:|:[sS]/.test(c) && /[ymdhs]/i.test(c); }
   function xlDate(serial, d1904) {
     if (!isFinite(serial) || serial < 0 || serial > 2958465) return null;
     if (serial % 1 === 0) {   // whole days: the calendar date worked out directly (same answer as Date, without making one)
