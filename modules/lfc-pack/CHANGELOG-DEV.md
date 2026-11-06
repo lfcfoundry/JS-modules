@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.4 · API 0 · 2026-11-06
+
+### Quick
+The probe timed 3 ways of making row objects on 8,192 rows, 3 rounds, on the first big dense block of each key count: 30 to 90 ms per key count, and its pick flipped between runs below 16 keys.
+
+### Deep
+The probe timed 3 ways of making row objects on 8,192 rows, 3 rounds, on the first big dense block of each key count: 30 to 90 ms per key count, and its pick flipped between runs below 16 keys. Now: clone from 16 keys, plain under that. Fresh page reading 30,000-row sets with 3, 7, 15, 24 and 40 keys once each, 3 runs per browser: Chromium 399-440 -> 123-134 ms, Firefox 387-443 -> 136-162 ms, WebKitGTK 270-292 -> 131-141 ms. Later reads the same or slightly faster. Same rows; round trips value-exact in all 3 browsers.
+
 ## 0.5.3 · API 0 · 2026-11-06
 
 ### Quick
