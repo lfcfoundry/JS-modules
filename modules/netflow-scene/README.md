@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.6.0 · API 1**
+**Version 1.7.0 · API 1**
 
-**Tested in:** node test/run.js (all passed, new families check in light and dark); opt-in, default colors unchanged
+**Tested in:** all chart module tests pass; budget Sankey before/after in light and dark; default picture otherwise byte for byte the same
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 
@@ -38,6 +38,8 @@ svgElement.innerHTML = NetflowScene.toSvg(S, 'My map');
 `make(L, options)`: the options are listed at the top of `netflow-scene.js` (theme, colorBy, palette, nodeStyle, linkStyle, labelFn, lab, widthScale, hulls, cam, lens, curve and more). `style`, `restyle`, `pick`, `pickEdge`, `pickLabel`, `inRect`, `inLasso` and `hit` work on the scene it returns. Colors are `[r, g, b, a]` with 0 to 1 numbers.
 
 `families: true` (opt-in, since 1.6.0) gives related groups one hue: groups whose names share the part before `:` or `/` (`'EU: France'`, `'EU: Spain'`) get the same list color in light-to-dark steps that only get stronger on the background; pass text such as `' - '` to name the separator. `NetflowScene.familyColors(groups, theme, families)` returns the same colors as a Map for other modules (netflow-hierarchy uses it for its group boxes).
+
+Sankey names in a middle column sit on their own outgoing bands, so since 1.7.0 they get a halo by default: a thin ring of the background color around the letters (`l.halo` on the label; `toSvg` draws it as a stroke under the text, and a canvas draws it with `strokeText` before `fillText`). `sk: { midLabels: 'plate' }` puts the pale backing behind them instead, `'above'` moves them over the bar, `'side'` draws them plain as before 1.7.0.
 
 `addTitles(S, { title, subtitle, source })` adds an optional title block to any picture: a bold title and a lighter subtitle above it and a small source line under it, outside the picture so nothing moves. netflow-plot, netflow-hierarchy and netflow-circular call it for you when their options carry these words. Text read at 4.5:1 or better on both themes.
 

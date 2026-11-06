@@ -880,8 +880,8 @@ var NFMScene = (function () {
     var left = side === 'left' || (side === 'auto' && n.layer === 0 && lastCol > 0);
     var size = 14, text = X.tx(n), tot = sk.nodeValues ? sankeyTotal(X, n) : NaN, cx = left ? n.x - 7 : n.x + n.w + 7;
     var col = X.labColor(n, bc), cy = n.y + n.h / 2, two = tot === tot, al = left ? 'r' : 'l';
-    /* a name in a middle column sits on its own outgoing bands: sk.midLabels 'halo' (a ring of the background color around the letters), 'plate' (a pale backing), 'above' (over the bar's top edge), or 'side' (as before) */
-    var mid = !left && n.layer > 0 && n.layer < lastCol, how = mid ? (sk.midLabels || 'side') : 'side', ex = how === 'halo' ? { halo: T.bg } : how === 'plate' ? { bg: true } : null;
+    /* a name in a middle column sits on its own outgoing bands: sk.midLabels 'halo' (a ring of the background color around the letters), 'plate' (a pale backing), 'above' (over the bar's top edge), or 'side' (beside the bar, plain); 'halo' is the default (owner's card, 2026.11.05) */
+    var mid = !left && n.layer > 0 && n.layer < lastCol, how = mid ? (sk.midLabels || 'halo') : 'side', ex = how === 'halo' ? { halo: T.bg } : how === 'plate' ? { bg: true } : null;
     if (how === 'above') { cx = n.x + n.w / 2; cy = n.y - (two ? 22 : 11); al = 'c'; }
     var o1 = n.start ? { align: al, node: rec.i, minK: 0.2, bold: true, bound: true } : { align: al, node: rec.i, minK: 0.2, bound: true }, k1;
     if (ex) for (k1 in ex) o1[k1] = ex[k1];
