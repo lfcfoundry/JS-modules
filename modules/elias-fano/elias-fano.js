@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.10.0 (API 1)
+ * Version 2.0.0 (API 2)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -354,7 +354,7 @@
     if (h) h[i] = r;
     return r;
   };
-  // cache(true): from now on get(i) keeps the array it made for list i and hands out that same array again (a repeat read costs about what reading a plain array of arrays does; the lists
+  // cache(true) (on from the start since 2.0.0; openLists(bytes, { cache: false }) opens without it): from now on get(i) keeps the array it made for list i and hands out that same array again (a repeat read costs about what reading a plain array of arrays does; the lists
   // you touched take 4 bytes a value again, and the list positions are decoded once, 4 bytes a list). Do not change a cached array. cache(false) lets them go; with no argument it says whether the cache is on.
   LP.cache = function (on) { if (on === undefined) return !!this._hot; this._hot = on ? new Array(this.length) : null; this._offs = on ? (this._offs || this._off.toArray()) : null; return !!this._hot; };
   LP.getMany = function (ids) {   // many lists in one call: { offsets: Uint32Array(k + 1), values: Uint32Array } with list ids[j] at values[offsets[j] .. offsets[j + 1]); an id that is not a list gives an empty list
@@ -406,7 +406,7 @@
     var ok = this._off.compact(), c; for (c = 0; c < this._chunks.length; c++) if (this._chunks[c] && !this._chunks[c].compact()) ok = false;
     if (ok) this.bytes = null; return ok;
   };
-  function openLists(bytes, opts) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); if (bytes.byteOffset % 8 !== 0) bytes = bytes.slice(); var r = new Lists(bytes); if (opts && opts.compact) r.compact(); if (opts && opts.cache) r.cache(true); return r; }
+  function openLists(bytes, opts) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); if (bytes.byteOffset % 8 !== 0) bytes = bytes.slice(); var r = new Lists(bytes); if (opts && opts.compact) r.compact(); if (!opts || opts.cache !== false) r.cache(true); return r; }   // since 2.0.0 the cache is on unless { cache: false }
 
   /* ---- partitioned lists (since 1.2.0): chunks of 2^logC values (the last one shorter); each chunk is stored as the cheapest of a dense range (no bits at all), a bitmap or Elias-Fano. Same format as wasm/ef.c describes. ---- */
   var PMAGIC = 0x00015046, PHDR = 48;
@@ -601,7 +601,7 @@
   }
   return {
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
-    version: '1.10.0', api: 1, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
+    version: '2.0.0', api: 1, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
     buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, intersect: intersect, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.0 · API 2 · 2026-11-06
+- Breaking: Lists.get(i) now keeps and returns the same array for a list (set { cache: false } for the old behavior).
+
 ## 1.10.0 · API 1 · 2026-11-05
 - Lists: openLists(bytes, { cache: true }) hands out the same array again, so repeat reads match plain arrays; decodeAll is faster.
 

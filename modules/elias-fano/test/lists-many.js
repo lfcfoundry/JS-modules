@@ -16,8 +16,8 @@ let seed = 3; const r = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>
   // decodeAll (one WebAssembly call per chunk since 1.10.0) and the opt-in cache give exactly what get gives, in both backends, with several chunks
   const wide = lists.map((a, i) => i === 3 ? a.concat([2000000000 + i]) : a), many = EF.buildLists(wide);   // a big value makes the step large, so the set splits into many chunks
   for (const backend of ['js', 'wasm']) {
-    EF.setBackend(backend); const set = EF.openLists(many), da = set.decodeAll(), hot = EF.openLists(many, { cache: true });
-    assert.strictEqual(hot.cache(), true); assert.strictEqual(set.cache(), false);
+    EF.setBackend(backend); const set = EF.openLists(many, { cache: false }), da = set.decodeAll(), hot = EF.openLists(many);
+    assert.strictEqual(hot.cache(), true); assert.strictEqual(EF.openLists(many, { cache: false }).cache(), false);
     for (let i = 0; i < wide.length; i++) {
       assert.deepStrictEqual(Array.from(da.values.subarray(da.offsets[i], da.offsets[i + 1])), wide[i], backend + ' decodeAll list ' + i);
       const x = hot.get(i); assert.deepStrictEqual(Array.from(x), wide[i], backend + ' cached list ' + i); assert.strictEqual(hot.get(i), x, 'same array again');

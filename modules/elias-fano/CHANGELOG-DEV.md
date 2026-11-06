@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.0 · API 2 · 2026-11-06
+
+### Quick
+Major, by the owner's choice on the decision card (2026-11-06): the list cache added in 1.10.0 is now on by default.
+
+### Deep
+Major, by the owner's choice on the decision card (2026-11-06): the list cache added in 1.10.0 is now on by default. openLists(bytes) keeps the Uint32Array get(i) made for each list and returns that same array on every later call, so a program that changed a returned array would now change what the next get(i) returns. openLists(bytes, { cache: false }) or set.cache(false) gives the 1.x behavior (a new array every call). Speed and memory numbers are those of 1.10.0: repeat reads match arrays (Chromium 1.22 ms against 1.38 for arrays of arrays, 30,000 lists), touched lists take 4 bytes a value again plus 4 bytes a list for positions. Checks: all elias-fano test files pass; tests that need uncached arrays open with { cache: false }.
+
 ## 1.10.0 · API 1 · 2026-11-05
 
 ### Quick
