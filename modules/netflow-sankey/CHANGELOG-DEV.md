@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.11.0 · API 2 · 2026-11-06
+
+### Quick
+toSvg opts valueLabel, unit, unitAt, percentOf and notes, the same words as netflow-scene 1.9.0.
+
+### Deep
+toSvg opts valueLabel, unit, unitAt, percentOf and notes, the same words as netflow-scene 1.9.0. Notes past the picture's edge widen it. With none of them the picture is byte for byte the same as 2.10.1. Owner's card 'Values in names plus text notes' (via the Netflow Map thread).
+
 ## 2.10.1 · API 2 · 2026-11-06
 
 ### Quick

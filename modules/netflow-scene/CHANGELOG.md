@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.9.0 · API 1 · 2026-11-06
+- Sankey: amounts and shares beside the names (valueLabel, unit, percentOf), and notes with live numbers and a thin line to what they are about.
+
 ## 1.8.0 · API 1 · 2026-11-05
 - Opt-in Economist frame: frame: true (or theme 'editorial') adds a small red tag top-left and a thin rule under the picture, with the source under it.
 
