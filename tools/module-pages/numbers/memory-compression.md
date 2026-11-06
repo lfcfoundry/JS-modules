@@ -43,6 +43,9 @@ On these three lists `quickTries` changes nothing. Its 0 to 20% gain is for list
 **New in 2.8.1: the first pack after a pause is as fast as the rest.** Cloud-browser runs (shared machine, not the laptop). After the 2-second idle trim, the two small WebAssembly helpers are rebuilt right away (about 6 MB held), so the next pack does not pay to start them; memory above 4 MB is still released. First pack after idle, 40,000 events, balanced mode: Chromium 40.0 to 35.9 ms, Firefox 33 to 34 ms (noise), WebKitGTK 44 to 40 ms.
 
 
+**New in 2.11.0: faster first row on a big `view()`.** Laptop runs (Chromium 156, Firefox 160). Date columns, template text and coordinate pairs now open in windows, so reading the first row of a large user list takes 0.42 of the old time in Chromium (0.38 to 0.47) and 0.33 in Firefox. Full scans are even (0.96 to 1.03 of the old time). Same values as before.
+
+
 **New in 2.8.2: faster `view()` under a strict page policy.** Cloud-browser runs (shared machine, not the laptop). On pages that forbid `eval` (the policy the apps use), `view()` now stays lazy, so opening a view and reading a row is faster, with the same rows. Pack and unpack are unchanged.
 
 | View open + get, ms (lower is better) | Before | After |
