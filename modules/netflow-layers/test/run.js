@@ -241,4 +241,12 @@ t('toSvg: a back link that spans several rows runs one way, from its box to the 
     }
   }
 });
+t('toSvg: the default back-link amber reads at 4.5:1 on white as text and 3:1 as the drawn dashed line (opacity 0.85)', () => {
+  const svg = NL.toSvg(NL.layout({ root: 'a', nodes: ['a', 'b', 'c'].map((i) => ({ id: i, label: i, w: 100, h: 36 })), edges: [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }, { from: 'c', to: 'a' }] }, { dir: 'LR' }));
+  const m = svg.match(/stroke="(#[0-9a-f]{6})" stroke-width="2" stroke-dasharray/); ok(m, 'a dashed back link is drawn');
+  const lum = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))).reduce((a, c, i) => a + c * [0.2126, 0.7152, 0.0722][i], 0);
+  const blend = (h, a) => '#' + [1, 3, 5].map((i) => Math.round(a * parseInt(h.slice(i, i + 2), 16) + (1 - a) * 255).toString(16).padStart(2, '0')).join('');
+  const cr = (h) => 1.05 / (lum(h) + 0.05);
+  ok(cr(m[1]) >= 4.5, 'text contrast ' + cr(m[1]).toFixed(2)); ok(cr(blend(m[1], 0.85)) >= 3, 'drawn line contrast ' + cr(blend(m[1], 0.85)).toFixed(2));
+});
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);
