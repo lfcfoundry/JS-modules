@@ -13,6 +13,7 @@ table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #8884;pa
 <p><input id="pick" type="file" multiple accept=".lfc"> <span id="status">Starting...</span></p>
 <table id="t"><thead><tr><th>File</th><th>Rows vs source</th><th>Bytes vs source (.x)</th><th>Go vs JS reader</th></tr></thead><tbody></tbody></table>
 <p id="sum"></p>
+<p><button id="copy-results" type="button">Copy results</button></p>
 <script>var T0=performance.now()</script>
 <script src="../../lfc-pack.js"></script>
 <script>var T1=performance.now()</script>
@@ -54,3 +55,15 @@ table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #8884;pa
   };
 })();
 </script>
+<script>
+(function () {
+  var b = document.getElementById('copy-results');
+  function text() { return [document.title, document.getElementById('status').textContent].concat([].map.call(document.querySelectorAll('#t tr'), function (r) { return [].map.call(r.cells, function (c) { return c.textContent; }).join(' | '); })).concat([document.getElementById('sum').textContent, navigator.userAgent]).join('\n'); }
+  function fallback(t) { var a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(a); }
+  b.onclick = function () {
+    var t = text(), done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy results'; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { fallback(t); done(); }); else { fallback(t); done(); }
+  };
+})();
+</script>
+

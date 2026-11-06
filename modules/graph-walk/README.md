@@ -27,6 +27,12 @@ Netflow Map had four copies of the same breadth-first walk and two loop-dropping
 **Not for:** graphs whose items are not numbered 0 to n-1.
 
 ## Use
+The short version: two calls, then read the result.
+```js
+var g = GraphWalk.csr(n, fromArray, toArray);   // items 0..n-1; link i joins from[i] to to[i]
+var depth = GraphWalk.bfs(g, root);             // Int32Array of link counts, -1 where not reached
+```
+All the options:
 ```js
 var g = GraphWalk.csr(n, fromArray, toArray);   // items 0..n-1; link i joins from[i] to to[i]
 var depth = GraphWalk.bfs(g, root);             // Int32Array of link counts, -1 where not reached

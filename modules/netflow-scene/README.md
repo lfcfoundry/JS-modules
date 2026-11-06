@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.5.1 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** Node module checks; label widths identical before and after in ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** node test/run.js (all passed, new families check in light and dark); opt-in, default colors unchanged
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 
@@ -36,6 +36,8 @@ svgElement.innerHTML = NetflowScene.toSvg(S, 'My map');
 ```
 
 `make(L, options)`: the options are listed at the top of `netflow-scene.js` (theme, colorBy, palette, nodeStyle, linkStyle, labelFn, lab, widthScale, hulls, cam, lens, curve and more). `style`, `restyle`, `pick`, `pickEdge`, `pickLabel`, `inRect`, `inLasso` and `hit` work on the scene it returns. Colors are `[r, g, b, a]` with 0 to 1 numbers.
+
+`families: true` (opt-in, since 1.6.0) gives related groups one hue: groups whose names share the part before `:` or `/` (`'EU: France'`, `'EU: Spain'`) get the same list color in light-to-dark steps that only get stronger on the background; pass text such as `' - '` to name the separator. `NetflowScene.familyColors(groups, theme, families)` returns the same colors as a Map for other modules (netflow-hierarchy uses it for its group boxes).
 
 `addTitles(S, { title, subtitle, source })` adds an optional title block to any picture: a bold title and a lighter subtitle above it and a small source line under it, outside the picture so nothing moves. netflow-plot, netflow-hierarchy and netflow-circular call it for you when their options carry these words. Text read at 4.5:1 or better on both themes.
 

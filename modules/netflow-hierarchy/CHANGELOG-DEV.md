@@ -1,5 +1,13 @@
 # netflow-hierarchy developer changelog
 
+## 1.4.1 · API 1 · 2026-11-05
+
+### Quick
+With families: true, treemap, icicle and pack group boxes take the same family colors as their items (NetflowScene.familyColors).
+
+### Deep
+With families: true, treemap, icicle and pack group boxes take the same family colors as their items (NetflowScene.familyColors). Nothing changes without it.
+
 ## 1.4.0 · API 1 · 2026-11-05
 
 ### Quick

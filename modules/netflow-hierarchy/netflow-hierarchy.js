@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.4.0 (API 1)
+ * Version 1.4.1 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -431,11 +431,12 @@ var NetflowHierarchy = (function () {
     var S = NS.make(stub, Object.assign({}, o, { hulls: false, lab: { items: Object.assign({}, lab0.items || {}, { show: false }), links: lab0.links || { show: true, scale: 1 }, groups: { show: false, scale: 1 } }, lens: null, flat: false }));
     S.view = type; S.kind = type; S.chart = true;
     var T = S.theme, alpha = NS.alpha, mix = NS.mix;
-    var groupsHex = T.groups, gIdx = new Map(), gcol = function (g) { if (o.groupColors && o.groupColors[g]) return NS.hex(o.groupColors[g]); if (!gIdx.has(g)) gIdx.set(g, gIdx.size); return groupsHex[gIdx.get(g) % groupsHex.length]; };
+    var groupsHex = T.groups, gIdx = new Map(), famH = null, gcol = function (g) { if (o.groupColors && o.groupColors[g]) return NS.hex(o.groupColors[g]); if (famH && famH.has(g || '')) return famH.get(g || ''); if (!gIdx.has(g)) gIdx.set(g, gIdx.size); return groupsHex[gIdx.get(g) % groupsHex.length]; };
     (function () {   /* group boxes take the same place in the color list as the scene gives their items: groups sorted by name, or in options.groupOrder */
       var gs = Array.from(new Set((L.nodes || []).map(function (n) { return n.group || ''; }))).sort();
       if (o.groupOrder && o.groupOrder.length) { var all = o.groupOrder.slice(), seenG = new Set(all); gs.forEach(function (g) { if (!seenG.has(g)) all.push(g); }); gs = all; }
       gs.forEach(function (g) { gcol(g); });
+      if (o.families && NS.familyColors) famH = NS.familyColors(gs.filter(function (g) { return g !== '(none)'; }), T, o.families);   /* the same family steps the scene gives the items */
     })();
     (L.groups || []).forEach(function (g) { gcol(g); });
     var itemShow = !(lab0.items && lab0.items.show === false), iscale = lab0.items && lab0.items.scale || 1;
