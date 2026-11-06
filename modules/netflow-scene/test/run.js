@@ -87,3 +87,21 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(SC.familyColors(['a'], SC.palette('light'), false) === null, 'families off: no map');
   console.log('ok   families: shared hues for prefixed groups, opt-in');
 }
+/* Sankey value labels and notes (sk.valueLabel, sk.unit, sk.percentOf, notes) */
+{
+  const SK = require('../../netflow-sankey/netflow-sankey.js'); E.use('sankey', SK);
+  const d = [{ from: 'Salary', to: 'Rent', value: 1800 }, { from: 'Salary', to: 'Food', value: 1200 }, { from: 'Gift', to: 'Food', value: 300 }, { from: 'Food', to: 'Groceries', value: 1000 }, { from: 'Food', to: 'Eating out', value: 500 }];
+  const texts = (o) => E.toSvg(d, Object.assign({ view: 'sankey' }, o)), tx = (svg) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+  ok(texts({ sk: { nodeValues: true } }) === texts({ sk: { valueLabel: 'under' } }), 'nodeValues: true is valueLabel under, as before');
+  ok(texts({ sk: {} }) === texts({ sk: { valueLabel: 'none', unit: '$' } }), 'nothing asked: the same picture');
+  ok(tx(texts({ sk: { valueLabel: 'both', unit: '$' } })).includes('$1,500 (45%)'), 'both with a money sign');
+  ok(tx(texts({ sk: { valueLabel: 'inline', unit: 'GWh' } })).some((x) => /^Rent\s1,800 GWh$/.test(x)), 'inline with a word unit');
+  ok(tx(texts({ sk: { valueLabel: 'percent', percentOf: 'column' } })).includes('100%'), 'percent of the column');
+  const L = E.build({ nodes: ['Salary', 'Rent', 'Food', 'Gift', 'Groceries', 'Eating out'].map((id) => ({ id, label: id })), edges: d.map((e) => ({ from: e.from, to: e.to, weight: e.value })) }, { view: 'sankey', sk: {}, amounts: true, widthBy: 'weight' });
+  const S = SC.make(L, { sk: { valueLabel: 'inline', unit: '$' }, nodeStyle: (n) => n.nodeId === 'Rent' ? { labelText: 'Housing' } : null, notes: [{ text: 'Food is {share:Food} of {total}', x: 0.5, y: 0.02, anchor: 'Food' }, { text: 'Gift {value:Gift}', x: 0.1, y: 0.9 }, { text: 'Rent', x: 0.2, y: 0.95, anchor: 'Salary>Rent' }] });
+  ok(S.labels.some((l) => /^Housing\s\$1,800$/.test(l.t)), 'a labelText override keeps working with the amount');
+  ok(S.labels.some((l) => l.note && l.t === 'Food is 45% of $3,300'), 'a note with live words');
+  ok(S.curves.filter((c) => c.note).length === 2, 'two leader lines');
+  ok(S.labels.some((l) => l.note && l.t === 'Gift $300'), 'a note finds an item by the data\'s own id');
+  console.log('ok   sankey value labels and notes');
+}

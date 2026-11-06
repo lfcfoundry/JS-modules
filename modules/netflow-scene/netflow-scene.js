@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.8.0 (API 1)
+ * Version 1.9.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -451,6 +451,7 @@ var NFMScene = (function () {
     else if (view === 'arc') arcScene(X);
     else if (view === 'network') networkScene(X);
     else layeredScene(X, view);
+    if (view === 'sankey' && L.sk) sankeyNotes(X);
 
     /* legend by color mode */
     S.legendTitle = '';
@@ -484,6 +485,7 @@ var NFMScene = (function () {
     S.polys.forEach(function (p) { for (var i = 0; i < p.pts.length; i += 2) { if (p.pts[i] < x0) x0 = p.pts[i]; if (p.pts[i] > x1) x1 = p.pts[i]; if (p.pts[i + 1] < y0) y0 = p.pts[i + 1]; if (p.pts[i + 1] > y1) y1 = p.pts[i + 1]; } });
     if ((view === 'sankey' && L.sk) || S.ruler) S.labels.forEach(function (l) { if (!l.bound) return; var b = labelBox(l); if (b) { if (b[0] < x0) x0 = b[0]; if (b[2] > x1) x1 = b[2]; } });
     if (view === 'sankey' && L.sk && L.height && L.height > y1) y1 = L.height;
+    if (view === 'sankey' && L.sk && (o.notes || L.notes)) S.labels.forEach(function (l) { if (!l.note) return; var b = labelBox(l); if (b) { if (b[0] < x0) x0 = b[0]; if (b[2] > x1) x1 = b[2]; if (b[1] < y0) y0 = b[1]; if (b[3] > y1) y1 = b[3]; } });   /* notes count for the picture's edges */
     if (S.tagChips) S.labels.forEach(function (l) { if (!l.boundXY) return; var b = labelBox(l); if (b) { if (b[0] < x0) x0 = b[0]; if (b[2] > x1) x1 = b[2]; if (b[1] < y0) y0 = b[1]; if (b[3] > y1) y1 = b[3]; } });   /* tag names beyond the last box still count for the picture's edges */
     if (!isFinite(x0)) { x0 = 0; y0 = 0; x1 = 100; y1 = 100; }
     if (L.is3d && L.c3) { var R3 = (L.radius3 || 300) * 1.18; x0 = L.c3[0] - R3; x1 = L.c3[0] + R3; y0 = L.c3[1] - R3; y1 = L.c3[1] + R3; }
@@ -868,6 +870,91 @@ var NFMScene = (function () {
     var hasIn = X.skTotals.tin.has(n.id), hasOut = X.skTotals.tout.has(n.id);
     return hasIn || hasOut ? Math.max(X.skTotals.tin.get(n.id) || 0, X.skTotals.tout.get(n.id) || 0) : NaN;
   }
+  /* ---- Sankey value labels and notes (sk.valueLabel, sk.unit, sk.percentOf, notes); netflow-sankey's toSvg reads the same words */
+  /** The grand total (what flows out of the items nothing flows into) and each column's total, once per picture. */
+  function sankeySums(X) {
+    if (X.skSums) return X.skSums;
+    var all = 0, col = {}, L = X.L;
+    L.nodes.forEach(function (n) {
+      var t = sankeyTotal(X, n); if (t !== t) return;
+      col[n.layer] = (col[n.layer] || 0) + t;
+      if (!X.skTotals.tin.has(n.id)) all += t;
+    });
+    return (X.skSums = { all: all, col: col });
+  }
+  /** txt (the number v, written) with sk.unit: a money sign (or any unit without letters or digits) goes before ("$1,234"), a word after ("1,234 GWh"); sk.unitAt 'before' or 'after' decides it instead */
+  function withUnit(txt, v, sk) {
+    var u = sk && sk.unit !== undefined && sk.unit !== null ? String(sk.unit) : '';
+    if (!u) return txt;
+    var before = sk.unitAt ? sk.unitAt === 'before' : /^[^\sA-Za-z0-9]+$/.test(u) || /[$\u00a3\u20ac\u00a5]$/.test(u);
+    if (!before) return txt + ' ' + u;
+    return v < 0 && txt.charAt(0) === '-' ? '-' + u + txt.slice(1) : u + txt;
+  }
+  function pctText(part, whole) {
+    if (!(whole > 0) || part !== part) return '';
+    var p = 100 * part / whole;
+    return (p > 0 && p < 0.1 ? '<0.1' : p >= 10 || p === 0 ? String(Math.round(p)) : String(Math.round(p * 10) / 10)) + '%';
+  }
+  /** The text sk.valueLabel puts with an item's name ('' for none): after the name for 'inline', on a second line for the rest */
+  function sankeyValueText(X, n, sk, mode) {
+    var tot = sankeyTotal(X, n); if (tot !== tot) return '';
+    var val = withUnit(fmtNum(tot), tot, sk), sums, pct;
+    if (mode !== 'percent' && mode !== 'both') return val;
+    sums = sankeySums(X); pct = pctText(tot, sk.percentOf === 'column' ? sums.col[n.layer] : sums.all);   /* the sums only when a share is shown */
+    return mode === 'percent' ? pct : pct ? val + ' (' + pct + ')' : val;
+  }
+  /** Note text with its live words filled in: {total}, {value:id}, {share:id}, {flow:from>to}, {top} (the biggest flow, "From \u2192 To"). An unknown word stays as typed. */
+  function noteWords(text, find, total, flowOf, top, sk) {
+    return String(text === undefined || text === null ? '' : text).replace(/\{(total|top|value:[^{}]*|share:[^{}]*|flow:[^{}]*)\}/g, function (all, w) {
+      var c = w.indexOf(':'), k = c < 0 ? w : w.slice(0, c), a = c < 0 ? '' : w.slice(c + 1).trim(), n, v;
+      if (k === 'total') return withUnit(fmtNum(total), total, sk);
+      if (k === 'top') return top || all;
+      if (k === 'flow') { v = flowOf(a); return v === v ? withUnit(fmtNum(v), v, sk) : all; }
+      n = find(a); if (!n || n.v !== n.v) return all;
+      return k === 'value' ? withUnit(fmtNum(n.v), n.v, sk) : pctText(n.v, total) || all;
+    });
+  }
+  /** The nearest point of a box to (x, y): where a leader line meets it */
+  function nearOnBox(x, y, b) { return [Math.max(b.x, Math.min(b.x + b.w, x)), Math.max(b.y, Math.min(b.y + b.h, y))]; }
+  /** Notes on a Sankey picture: o.notes (or L.notes) = [{ text, x, y (0 to 1 across and down the picture), anchor (an item's id or name, or "from>to"), size, color, bold, align }].
+      Drawn the Economist way: plain text, no box, and a thin line to the thing it is about. */
+  function sankeyNotes(X) {
+    var notes = X.o.notes || X.L.notes; if (!notes || !notes.length) return;
+    var L = X.L, S = X.S, T = X.T, sk = X.o.sk || {}, W = L.width || 0, H = L.height || 0, byId = {}, byLabel = {};
+    var byKey = {};   /* the data's own ids (n.nodeId; n.id is the engine's) */
+    L.nodes.forEach(function (n) { byId[n.id] = n; if (n.nodeId !== undefined && !Object.prototype.hasOwnProperty.call(byKey, n.nodeId)) byKey[n.nodeId] = n; if (byLabel[n.label] === undefined) byLabel[n.label] = n; });
+    var item = function (a) { var n = Object.prototype.hasOwnProperty.call(byKey, a) ? byKey[a] : Object.prototype.hasOwnProperty.call(byId, a) ? byId[a] : Object.prototype.hasOwnProperty.call(byLabel, a) ? byLabel[a] : null; return n ? { n: n, v: sankeyTotal(X, n) } : null; };
+    var flowOf = function (a) {   /* "from>to": every '>' is tried, so names may hold one */
+      var K = L.sk, i, j;
+      for (i = a.indexOf('>'); i >= 0; i = a.indexOf('>', i + 1)) {
+        var f = item(a.slice(0, i).trim()), t = item(a.slice(i + 1).trim()), bs = [], v = 0, any = false;
+        if (!f || !t) continue;
+        if (K && K.bands) for (j = 0; j < K.bands.length; j++) if (K.bands[j].from === f.n.id && K.bands[j].to === t.n.id) bs.push(K.bands[j]);
+        L.edges.forEach(function (e) { if (e.from === f.n.id && e.to === t.n.id && e.widthV === e.widthV && e.kind !== 'self') { v += e.widthV; any = true; } });
+        return { v: any ? v : NaN, bands: bs };
+      }
+      return null;
+    };
+    var top = '', best = -Infinity;
+    L.edges.forEach(function (e) { if (e.widthV === e.widthV && e.kind !== 'self' && e.widthV > best && byId[e.from] && byId[e.to]) { best = e.widthV; top = byId[e.from].label + ' \u2192 ' + byId[e.to].label; } });
+    var total = sankeySums(X).all;
+    notes.forEach(function (nt) {
+      if (!nt || nt.text === undefined || nt.text === null || nt.text === '') return;
+      var t = noteWords(nt.text, item, total, function (a) { var b = flowOf(a); return b ? b.v : NaN; }, top, sk);
+      var x = (+nt.x || 0) * W, y = (+nt.y || 0) * H, size = +nt.size || 12, col = nt.color ? hex(nt.color) : T.fg;
+      var al = nt.align === 'right' || nt.align === 'r' ? 'r' : nt.align === 'center' || nt.align === 'c' ? 'c' : 'l';
+      S.labels.push({ x: x, y: y, t: t, size: size, color: col, align: al, bold: !!nt.bold, rot: 0, minK: 0, node: -1, note: true, bound: true, boundXY: true });
+      if (nt.anchor === undefined || nt.anchor === null || nt.anchor === '') return;
+      var a = String(nt.anchor), p = null, it = item(a), b;
+      if (it) p = nearOnBox(x, y, it.n);
+      else if ((b = flowOf(a)) && b.bands.length) { var bd = b.bands[0]; p = [bd.xm, (bd.y0a + bd.y0b + bd.y1a + bd.y1b) / 4]; }
+      if (!p) return;
+      var sy = p[1] > y ? y + 4 : y - size, sx = x, dx = p[0] - sx, dy = p[1] - sy, d = Math.sqrt(dx * dx + dy * dy);
+      if (d < 4) return;
+      var ex = p[0] - dx / d * 2, ey = p[1] - dy / d * 2;   /* stop just short of the thing */
+      S.curves.push({ P: [sx, sy, sx + (ex - sx) / 3, sy + (ey - sy) / 3, sx + 2 * (ex - sx) / 3, sy + 2 * (ey - sy) / 3, ex, ey], w: 0.8, color: alpha(col, 0.75), arrow: false, edge: -1, from: null, to: null, note: true });
+    });
+  }
   function sankeyNode(X, n) {
     var S = X.S, L = X.L, T = X.T, st = n._st, sk = X.o.sk || {};
     if (st && st.hide) return;
@@ -878,15 +965,15 @@ var NFMScene = (function () {
     S.rects.push({ x: n.x, y: n.y, w: n.w, h: n.h, r: Math.min(3, n.w / 2), fill: bc, stroke: st && st.stroke ? hex(st.stroke) : n.start ? T.accent : [0, 0, 0, 0], sw: st && st.stroke ? (st.sw === undefined ? 1.5 : st.sw) : n.start ? 2 : 0, layer: 1, node: rec.i });
     var side = (st && st.labelSide) || sk.labels || 'auto';
     var left = side === 'left' || (side === 'auto' && n.layer === 0 && lastCol > 0);
-    var size = 14, text = X.tx(n), tot = sk.nodeValues ? sankeyTotal(X, n) : NaN, cx = left ? n.x - 7 : n.x + n.w + 7;
-    var col = X.labColor(n, bc), cy = n.y + n.h / 2, two = tot === tot, al = left ? 'r' : 'l';
+    var size = 14, text = X.tx(n), vm = sk.valueLabel || (sk.nodeValues ? 'under' : 'none'), vt = vm === 'none' ? '' : sankeyValueText(X, n, sk, vm), inl = vm === 'inline', cx = left ? n.x - 7 : n.x + n.w + 7;
+    var col = X.labColor(n, bc), cy = n.y + n.h / 2, two = !!vt && !inl, al = left ? 'r' : 'l';
     /* a name in a middle column sits on its own outgoing bands: sk.midLabels 'halo' (a ring of the background color around the letters), 'plate' (a pale backing), 'above' (over the bar's top edge), or 'side' (beside the bar, plain); 'halo' is the default (owner's card, 2026.11.05) */
     var mid = !left && n.layer > 0 && n.layer < lastCol, how = mid ? (sk.midLabels || 'halo') : 'side', ex = how === 'halo' ? { halo: T.bg } : how === 'plate' ? { bg: true } : null;
     if (how === 'above') { cx = n.x + n.w / 2; cy = n.y - (two ? 22 : 11); al = 'c'; }
     var o1 = n.start ? { align: al, node: rec.i, minK: 0.2, bold: true, bound: true } : { align: al, node: rec.i, minK: 0.2, bound: true }, k1;
     if (ex) for (k1 in ex) o1[k1] = ex[k1];
-    var l1 = X.lab(cx, cy + (two ? -1 : 4), clip(text, 30), size, col, o1);
-    if (two && l1) { var o2 = { align: al, node: rec.i, minK: 0.4, sub: true, bound: true }; if (ex) for (k1 in ex) o2[k1] = ex[k1]; X.lab(cx, cy + 12.5, fmtNum(tot), 10.5, T.muted, o2); }
+    var l1 = X.lab(cx, cy + (two ? -1 : 4), (inl && vt ? clip(text, 30) + '\u2002' + vt : clip(text, 30)), size, col, o1);   /* 'inline': "Name 1,234" with a wide space between */
+    if (two && l1) { var o2 = { align: al, node: rec.i, minK: 0.4, sub: true, bound: true }; if (ex) for (k1 in ex) o2[k1] = ex[k1]; X.lab(cx, cy + 12.5, vt, 10.5, T.muted, o2); }
   }
 
   function sankeyRibbons(X) {

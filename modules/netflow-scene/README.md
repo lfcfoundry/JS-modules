@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.8.0 · API 1**
+**Version 1.9.0 · API 1**
 
-**Tested in:** Node tests (scene, plot 367, hierarchy 940, circular, engine, sankey); frame: false gives back the old SVG byte for byte (10 pictures); Chromium 155, Firefox 158, WebKitGTK 2.52.6 draw the tag and rule
+**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6 give the same SVG text as Node 22, 2026-11-06; module tests pass; scene build with the old nodeValues within 2% of 1.8.0 (300 items, Node, interleaved)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 
@@ -40,6 +40,10 @@ svgElement.innerHTML = NetflowScene.toSvg(S, 'My map');
 `families: true` (opt-in, since 1.6.0) gives related groups one hue: groups whose names share the part before `:` or `/` (`'EU: France'`, `'EU: Spain'`) get the same list color in light-to-dark steps that only get stronger on the background; pass text such as `' - '` to name the separator. `NetflowScene.familyColors(groups, theme, families)` returns the same colors as a Map for other modules (netflow-hierarchy uses it for its group boxes).
 
 Sankey names in a middle column sit on their own outgoing bands, so since 1.7.0 they get a halo by default: a thin ring of the background color around the letters (`l.halo` on the label; `toSvg` draws it as a stroke under the text, and a canvas draws it with `strokeText` before `fillText`). `sk: { midLabels: 'plate' }` puts the pale backing behind them instead, `'above'` moves them over the bar, `'side'` draws them plain as before 1.7.0.
+
+**Amounts and shares next to the names (since 1.9.0).** `sk.valueLabel` picks what goes with each name: `'none'` (the default), `'under'` (the amount on a second line, what `sk.nodeValues: true` did before and still does), `'inline'` (on the same line, "Rent 1,800"), `'percent'` (the share on the second line), or `'both'` ("1,800 (55%)"). `sk.unit` adds a unit. A money sign, or any unit without letters or digits, goes before the number ("$1,800"); a word goes after ("1,800 GWh"); `sk.unitAt: 'before'` or `'after'` decides it instead. `sk.percentOf` is `'total'` (the default: what leaves the items nothing flows into) or `'column'` (the item's own column). A `labelText` from `nodeStyle` still replaces the name, and the amount follows it.
+
+**Notes (since 1.9.0).** `notes: [{ text, x, y, anchor, size, color, bold, align }]` in the options (or `L.notes`) puts plain text on the picture. `x` and `y` are 0 to 1 across and down it. `anchor` (optional) is an item's id or name, or a flow written `"from>to"`, and gets a thin leader line from the note, with no box, in the Economist style. The text may hold live words: `{total}`, `{value:id}`, `{share:id}`, `{flow:from>to}` and `{top}` (the biggest flow: its two names with an arrow between). An unknown word stays as typed. Notes are `S.labels` with `note: true` and their lines are `S.curves` with `note: true`, so every drawing backend and `toSvg` draw them with no new code.
 
 `addTitles(S, { title, subtitle, source })` adds an optional title block to any picture: a bold title and a lighter subtitle above it and a small source line under it, outside the picture so nothing moves. netflow-plot, netflow-hierarchy and netflow-circular call it for you when their options carry these words. Text read at 4.5:1 or better on both themes.
 

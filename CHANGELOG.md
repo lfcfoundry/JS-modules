@@ -35,12 +35,12 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lfc-pack](modules/lfc-pack/README.md) | 0.5.5 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.10.1 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.11.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.8.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.9.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.8.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -68,6 +68,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **walker-sim** 2.4.2 · API 2: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 - 2026-11-06 · **ppmd-pack** 2.0.3 · API 2: Packed pages use the new ppmd-decode 1.4.0 WebAssembly decoder, which is faster.
 - 2026-11-06 · **ppmd-decode** 1.4.0 · API 1: WebAssembly decoding is 8 to 29% faster.
+- 2026-11-06 · **netflow-scene** 1.9.0 · API 1: Sankey: amounts and shares beside the names (valueLabel, unit, percentOf), and notes with live numbers and a thin line to what they are about.
+- 2026-11-06 · **netflow-sankey** 2.11.0 · API 2: toSvg: amounts and shares beside the names (valueLabel, unit, percentOf), and notes with live numbers and a thin line to what they are about.
 - 2026-11-06 · **netflow-sankey** 2.10.1 · API 2: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 - 2026-11-06 · **netflow-layers** 1.12.3 · API 1: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 - 2026-11-06 · **netflow-layers** 1.12.2 · API 1: Flow pictures: back links use a darker amber (#9a6a00) that reads at 4.5:1 on white.
