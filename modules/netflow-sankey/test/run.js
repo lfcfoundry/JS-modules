@@ -91,6 +91,14 @@ t('title block: title, subtitle and source drawn (escaped) and the picture moved
   const H = +/height="([\d.]+)"/.exec(all)[1]; ok(Math.abs(H - (R.height + 67.4 + 24)) < 0.01, 'room for the block: ' + H);
   ok(RL.toSvg(R, { source: 'S', frame: false }).indexOf('<g transform') < 0, 'a source alone adds room below only');
 });
+t('quick: true (opt-in) skips the extra restarts; without it nothing changes', () => {
+  const links = []; for (let a = 0; a < 6; a++) for (let b = 0; b < 6; b++) if ((a * 7 + b * 3) % 4) links.push({ from: 'L' + a, to: 'M' + b, value: 1 + ((a + b) % 5) }); for (let b = 0; b < 6; b++) for (let c = 0; c < 5; c++) if ((b + c) % 3) links.push({ from: 'M' + b, to: 'R' + c, value: 1 + ((b * c) % 4) });
+  const d = RL.layoutFlows({ links }, { budgetMs: 1e9 }), q = RL.layoutFlows({ links }, { budgetMs: 1e9, quick: true }), z = RL.layoutFlows({ links }, { budgetMs: 1e9, restarts: 0 });
+  ok(JSON.stringify(q.order) === JSON.stringify(z.order) && q.crossingWeight === z.crossingWeight, 'quick is the search without restarts');
+  ok(q.crossingWeight >= d.crossingWeight, 'the default is at least as tidy');
+  ok(JSON.stringify(RL.layoutFlows({ links }, { budgetMs: 1e9, quick: false }).order) === JSON.stringify(d.order), 'quick: false is the default');
+  ok(RL.toSvg(links, { quick: true }).indexOf('<svg') === 0, 'one call takes it too');
+});
 t('an empty or one-link input does not throw', () => {
   const R0 = RL.layoutFlows({ links: [] }); ok(R0.nodes.length === 0 && R0.bands.length === 0, 'empty');
   const R1 = RL.layoutFlows({ links: [{ from: 'a', to: 'b', value: 1 }] }); ok(R1.bands.length === 1 && R1.nodes.length === 2, 'one link');

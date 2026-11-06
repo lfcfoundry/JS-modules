@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.0 · API 2 · 2026-11-05
+
+### Quick
+Owner's card "Opt-in quick: true" (2026.11.05 11:21 PM ET).
+
+### Deep
+Owner's card "Opt-in quick: true" (2026.11.05 11:21 PM ET). quick: true skips the extra restarts of the order search (the order is still searched once). Warm, ms per chart, median (lower is better), 100 items: Chromium 155 d3-sankey 0.72, quick 0.50, default 2.00; Firefox 158 1.00 / 0.60 / 2.20; WebKitGTK 2.52.6 0.80 / 0.60 / 2.20. Weighted crossings on straight band centerlines, counted the same way for both (lower is tidier): quick 74-78% of d3-sankey's, default 68-73%. The default is unchanged.
+
 ## 2.9.0 · API 2 · 2026-11-05
 
 ### Quick
