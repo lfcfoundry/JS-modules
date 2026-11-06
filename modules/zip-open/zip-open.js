@@ -240,6 +240,16 @@
       var m = ev.data, H, ip, op, need, have, prev = 0, o, c, done, b;
       if (m.back) { pool.push(m.back); return; }   // a piece's buffer, handed back for the next piece (no new memory per piece)
       if (m.mod) { mod = m.mod; postMessage({ ready: 1 }); return; }
+      if (m.warm) {   // the warm-up's made-up sheet, unpacked a few times in small steps so this thread's unzipper is on fast code before the first real file
+        try {
+          if (!X) X = new WebAssembly.Instance(mod, {}).exports;
+          H = (X.__heap_base.value + 15) & ~15; ip = H; op = (H + m.warm.byteLength + 15) & ~15; need = op + m.n + 1; have = X.memory.buffer.byteLength;
+          if (need > have) X.memory.grow(Math.ceil((need - have) / 65536));
+          new Uint8Array(X.memory.buffer, ip, m.warm.byteLength).set(new Uint8Array(m.warm));
+          for (b = 0; b < 6; b++) { X.inflateBegin(ip, m.warm.byteLength, op, m.n + 1); prev = 0; do { o = X.inflateStep(prev + 16384); prev = o; } while (o >= 0 && !X.inflateDone()); X.crc(); }
+        } catch (e) { /* only a warm-up */ }
+        return;
+      }
       try {
         if (!X) X = new WebAssembly.Instance(mod, {}).exports;
         H = (X.__heap_base.value + 15) & ~15; ip = H; op = (H + m.src.byteLength + 15) & ~15; need = op + m.cap; have = X.memory.buffer.byteLength;
@@ -1165,7 +1175,7 @@
   function read(bytes, entry, limit) { return readEntry(bytes, entry, limit === undefined ? LIMITS.maxEntryBytes : limit); }
 
   /* Warm-up: browsers first run WebAssembly on quick-to-compile code and switch to fast code only after a function has done some work, so the first file in a page ran partly on the slow code. Shortly after this file loads (on a page, not in a worker), the unzipper and the Excel reader run on a small made-up sheet in short steps, then three tiny made-up workbooks go through a whole open; any open of a real file stops it. No file, no network; about 20 to 30 ms of work in all. */
-  var OPENS = 0, WARMED = 0, WARM_STEPS = 24, WARM_DONE = 0;   // WARM_DONE: test hook (steps run, + 100 per tiny open)
+  var OPENS = 0, WARMED = 0, WARM_STEPS = 24, WARM_DONE = 0, WARM_Z = null;   // WARM_DONE: test hook (steps run, + 100 per tiny open)
   function warmReader() {
     if (WARMED) return; WARMED = 1;
     try {
@@ -1177,15 +1187,26 @@
       var enc = new TextEncoder(), sstX = enc.encode('<sst>' + ss.join('') + '</sst>'), shX = enc.encode('<worksheet><sheetData>' + rows.join('') + '</sheetData></worksheet>');
       var defl = function (u) { return new Response(new Blob([u]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer().then(function (b) { return new Uint8Array(b); }); };
       Promise.all([defl(sstX), defl(shX)]).then(function (z) {
+        WARM_Z = { z: z[1], n: shX.length };
         if (OPENS !== opens) return;
-        var X = new WebAssembly.Instance(mod, {}).exports, H = X.__heap_base.value, xf = (H + 15) & ~15, sp = xf + 16, tab = (sp + sstX.length + 8) & ~7, tcap = (sstX.length >> 4) + 1, sh = (tab + tcap * 8 + 15) & ~15, op = (sh + shX.length + 16) & ~15, ocap = shX.length, fx = (op + ocap + 7) & ~7, fcap = 4096, ip = (fx + fcap * 16 + 15) & ~15, end = ip + z[0].length + z[1].length + 64;
+        var X = new WebAssembly.Instance(mod, {}).exports, H = X.__heap_base.value, xf = (H + 15) & ~15, sp = xf + 16, tab = (sp + sstX.length + 8) & ~7, tcap = (sstX.length >> 4) + 1, sh = (tab + tcap * 8 + 15) & ~15, op = (sh + shX.length + 16) & ~15, ocap = shX.length, fx = (op + ocap + 7) & ~7, fcap = 4096, ip = (fx + fcap * 16 + 15) & ~15, dr = (ip + z[0].length + z[1].length + 71) & ~7, drcap = 3100, end = dr + drcap * 8;
         if (end > X.memory.buffer.byteLength) X.memory.grow(Math.ceil((end - X.memory.buffer.byteLength) / 65536));
         var m = new Uint8Array(X.memory.buffer), left = WARM_STEPS; m[xf + 1] = 1; m.set(z[0], ip); m.set(z[1], ip + z[0].length);
         (function step() {
           if (OPENS !== opens || left-- <= 0) return;
           X.inflate(ip, z[0].length, sp, sstX.length + 1); X.utf8ok(sp, sstX.length); X.sst(sp, sstX.length, tab, tcap);
           X.inflate(ip + z[0].length, z[1].length, sh, shX.length + 1); X.utf8ok(sh, shX.length);
-          X.sheet(sh, shX.length, xf, 2, 0, op, ocap, fx, fcap, 1e9); WARM_DONE++;
+          X.sheet(sh, shX.length, xf, 2, 0, op, ocap, fx, fcap, 1e9);
+          if (X.sstBegin && !(left & 1)) {
+            X.sstBegin(sp, tab, tcap);
+            if (!X.sheetBegin(sh, shX.length, xf, 2, 0, op, ocap, fx, fcap, 1e9)) {
+              X.deferStrings(dr, drcap); var r = X.sheetMore(shX.length, 1);
+              X.sstMore(sstX.length, sstX.length >> 1, 0);
+              if (r >= 0 && X.deferred()) { new Uint8Array(X.memory.buffer).copyWithin(op + ocap - r, op, op + r); X.fillBegin(op + ocap - r, r, op, ocap); X.fillMore(0); X.sstMore(sstX.length, 0, 1); X.fillMore(1); }
+              else X.sstMore(sstX.length, 0, 1);
+            }
+          }
+          WARM_DONE++;
           setTimeout(step, 0);
           if (left <= 0) setTimeout(warmBook, 0);
         })();
@@ -1206,7 +1227,7 @@
     return z;
   }
   function warmThread() {   // then the second thread, so the first big sheet already unpacks on it; it stays until a first open has used it, then closes after 5 s idle as usual
-    try { if (pipeOn()) { if (!PIPES[0]) pipeWorker(0); if (!PIPES[1]) pipeWorker(1); } } catch (e) { }
+    try { if (pipeOn()) { if (!PIPES[0]) pipeWorker(0); if (!PIPES[1]) pipeWorker(1); if (WARM_Z) PIPES.forEach(function (P) { if (P) { var c = WARM_Z.z.slice(); P.w.postMessage({ warm: c.buffer, n: WARM_Z.n }, [c.buffer]); } }); } } catch (e) { }
   }
   function warmBook() {   // the JavaScript side of an Excel open, three times on a tiny made-up workbook
     try {
