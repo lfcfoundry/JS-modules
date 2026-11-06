@@ -2,8 +2,7 @@
 # Python writer check: writes <n>.pyw.lfc (value-exact) and <n>.pywx.lfc (byte-exact lines) for every <n>.src in a folder and reads each back with python/lfc_pack.py. pywriter.cjs then opens them with lfc-pack.js.
 import sys, json, glob, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'python')); sys.setrecursionlimit(20000)
-import lfc_pack
-try: import lfc_pack_write
+try: import lfc_pack, lfc_pack_write
 except ImportError: print('skipped: no zstandard package and Python older than 3.14'); sys.exit(0)
 def norm(o):
     if isinstance(o, bool) or o is None or isinstance(o, str): return o
