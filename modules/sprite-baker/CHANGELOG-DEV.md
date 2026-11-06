@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.0 · API 1 · 2026-11-06
+
+### Quick
+fast: true now shades each output pixel once inside bakeSprite, bakeRoll and baker (pictures within 5 levels of the default); the default fill skips columns a triangle cannot cover, same bytes.
+
+### Deep
+fast: true inside bakeSprite, bakeRoll and baker now fills a visibility buffer (depth and nearest triangle per sample, normals kept as planes per triangle) and then shades each output pixel once per triangle that covers it, at the pixel center or, at an edge, at the middle of that triangle's samples; a triangle whose normal turns more than 0.1 across one pixel is shaded at each sample. A 12-frame roll of the test sphere at ss 2: 14.3 against 30.5 ms (Chromium 155), 21.3 against 37.0 (Firefox 158), 13.3 against 29.0 (WebKitGTK 2.52.6); 1.9.0's fast took 21 to 28. 525 test pictures: max 5 levels from the default, mean 0.03. fast with edge equals fast alone. The default tri() now computes each row's possible columns from the three weights' slopes and still runs its exact test on each, so the bytes are the same (40,000 random triangle scenes, color and depth compared). Tried and not kept: blending neighbor pixels (slower, 5 levels off), redoing highlight pixels per sample (slower), plain WebAssembly for the shading (no faster here).
+
 ## 1.9.0 · API 1 · 2026-11-06
 
 ### Quick

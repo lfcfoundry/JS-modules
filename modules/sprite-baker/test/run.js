@@ -428,11 +428,24 @@ require('./fancy-scenes.js')(SB, SB, check);
       for (j = 0; j < a.data.length; j++) { var d = Math.abs(a.data[j] - b.data[j]); if (d > worst) worst = d; }
     });
   });
-  check('fast shading: no byte differs from the default picture by more than 2 levels (' + n + ' scenes and angles, strong highlight and rim light included)', worst <= 2, 'worst ' + worst);
+  check('fast shading: no byte differs from the default picture by more than 5 levels (' + n + ' scenes and angles, strong highlight and rim light included)', worst <= 5, 'worst ' + worst);
+  var diff = function (p, q) { var w = 0, k; if (p.data.length !== q.data.length) return 999; for (k = 0; k < p.data.length; k++) w = Math.max(w, Math.abs(p.data[k] - q.data[k])); return w; };
+  /* 1.10.0: inside a bake, fast shades once a pixel from a visibility buffer */
+  var lobed = [{ fn: SB.capsule([-8, 0, 0], [8, 0, 0], 5, { lobes: 3 }), nu: 20, nv: 16, material: SB.material([[0, 80, 30, 10], [0.6, 220, 150, 60], [1, 255, 240, 200]]) }];
+  worst = 0; [1, 2, 3].forEach(function (ss) { [0, 1.1, 2.6, 4.4].forEach(function (phi) { worst = Math.max(worst, diff(SB.bakeSprite(lobed, 96, { ss: ss, phi: phi }), SB.bakeSprite(lobed, 96, { ss: ss, phi: phi, fast: true }))); }); });
+  check('fast shading at ss 1, 2 and 3: a lobed capsule (whose pole turns fast inside one pixel) stays within 5 levels', worst <= 5, 'worst ' + worst);
+  check('fast with edge gives the same bytes as fast alone (fast already shades once a pixel)', hash(SB.bakeSprite(scenes[1], 64, { fast: true, edge: true })) === hash(SB.bakeSprite(scenes[1], 64, { fast: true })));
+  var many = [{ fn: SB.torus(9, 3.5), nu: 64, nv: 40, material: mat }];   // 5,120 triangles: the triangle table grows
+  check('fast shading with more than 1,024 triangles stays within 5 levels', diff(SB.bakeSprite(many, 80, { phi: 0.9 }), SB.bakeSprite(many, 80, { phi: 0.9, fast: true })) <= 5);
+  var bk = SB.baker(scenes[1], 48, { fast: true, frames: 6 }), rl = SB.bakeRoll(scenes[1], 6, 48, { fast: true });
+  check('fast: baker() frames are byte for byte the bakeRoll() frames', [0, 3, 5].every(function (i) { return hash(bk.frame(i)) === hash(rl[i]); }));
+  check('fast: a picture lowered to a smaller ss by maxPixels still bakes within 5 levels', diff(SB.bakeSprite(scenes[0], 64, { ss: 4, maxPixels: 64 * 64 * 4 }), SB.bakeSprite(scenes[0], 64, { ss: 4, maxPixels: 64 * 64 * 4, fast: true })) <= 5);
   check('fast shading off (the default) is unchanged by the option existing', hash(SB.bakeSprite(scenes[0], 48, { fast: false })) === hash(SB.bakeSprite(scenes[0], 48, {})));
   var tx = SB.material([[0, 60, 20, 90], [1, 245, 210, 255]], { ridge: { count: 3, depth: 0.3 } });
   var rr = SB.bakeSprite([{ fn: SB.sphere(11), nu: 12, nv: 18, material: tx }], 48, { fast: true }), r0 = SB.bakeSprite([{ fn: SB.sphere(11), nu: 12, nv: 18, material: tx }], 48, {});
   check('fast shading leaves a ridge or picture material on the exact fill', hash(rr) === hash(r0));
+  var mixed = [{ fn: SB.sphere(11), nu: 12, nv: 18, material: tx }, { fn: SB.sphere(4, [0, 0, 12]), nu: 10, nv: 12, material: red }];
+  check('fast with a ridge part in the scene: the plain parts take the per-sample fast fill, within 5 levels', diff(SB.bakeSprite(mixed, 64, {}), SB.bakeSprite(mixed, 64, { fast: true })) <= 5);
   check('fast and edge together work and stay within 3 levels', (function () { var e = SB.bakeSprite(scenes[1], 64, { fast: true, edge: true }), o = SB.bakeSprite(scenes[1], 64, {}), w = 0, k; for (k = 0; k < e.data.length; k++) w = Math.max(w, Math.abs(e.data[k] - o.data[k])); return w <= 8; })());
 })();
 

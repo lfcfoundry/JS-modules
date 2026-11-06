@@ -17,7 +17,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
 | [field-report](modules/field-report/README.md) | 1.1.1 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
-| [sprite-baker](modules/sprite-baker/README.md) | 1.9.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
+| [sprite-baker](modules/sprite-baker/README.md) | 1.10.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.1 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.2 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
@@ -65,6 +65,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
 - 2026-11-06 · **sprite-baker** 1.9.0 · API 1: New option fast: true uses cheaper shading in the plain JavaScript fill (a short series for the normal length, the highlight skipped where it adds under a third of a level, a table for the rim-light power).
 - 2026-11-06 · **sprite-baker** 1.8.0 · API 1: New option edge: true fills each pixel once and fills again with ss by ss samples only the pixels on an edge.
+- 2026-11-06 · **sprite-baker** 1.10.0 · API 1: Faster fast: true: one shade a pixel inside a bake (a 12-frame roll 0.47x to 0.58x of the default time); the default fill tests only the columns a triangle can cover (same pixels).
 - 2026-11-06 · **save-kit** 1.6.2 · API 1: A 16 MB load with a raw field is 0.72x of the time in Chromium (120 to 87 ms) and 0.93x in WebKitGTK; Firefox unchanged within noise.
 - 2026-11-06 · **ppmd-pack** 2.0.3 · API 2: Packed pages use the new ppmd-decode 1.4.0 WebAssembly decoder, which is faster.
 - 2026-11-06 · **ppmd-decode** 1.4.0 · API 1: WebAssembly decoding is 8 to 29% faster.

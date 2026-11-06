@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // sprite-baker against three.js (WebGL): time to make one 96 px picture of a lit sphere as pixels in memory, and one 12-frame roll. Copyright (c) 2026 LFC Foundry. MIT License.
-// Run one browser at a time: LIBS=<folder with node_modules holding puppeteer-core, esbuild and three> CHROMIUM=... | FIREFOX=... | WEBKIT=1 [R=5 rounds] node tests/compare/sprite-baker-compare-browser.js
+// Run one browser at a time: LIBS=<folder with node_modules holding puppeteer-core, esbuild and three> CHROMIUM=... | FIREFOX=... | WEBKIT=1 [R=5 rounds] [SBFILE=another copy of sprite-baker.js to measure] node tests/compare/sprite-baker-compare-browser.js
 // The library is only measured here, never copied into this repository. One library per page, order swapped every round. Exit 2 when it cannot run.
 // Same sphere (radius 11 in 96 px, orthographic, one light) but not the same shading: sprite-baker uses a toon ramp and supersamples 2 by 2 by default (shown with ss 2 and ss 1); three.js uses MeshLambertMaterial. three.js is timed from render() to pixels in a Uint8Array (readPixels), the same end point as bakeSprite. The first call (context creation, shader compile) is reported separately as "first".
 'use strict';
@@ -12,7 +12,7 @@ const out = path.join(require('os').tmpdir(), 'lfc-compare-dist'); fs.mkdirSync(
 const entry = path.join(out, 'three-entry.js');
 fs.writeFileSync(entry, "import { Scene, OrthographicCamera, Mesh, SphereGeometry, MeshLambertMaterial, DirectionalLight, AmbientLight, WebGLRenderer } from " + JSON.stringify(path.join(NM, 'three')) + "; window.T = { Scene, OrthographicCamera, Mesh, SphereGeometry, MeshLambertMaterial, DirectionalLight, AmbientLight, WebGLRenderer };");
 es.buildSync({ entryPoints: [entry], bundle: true, minify: true, outfile: path.join(out, 'three-min.js'), logLevel: 'error' });
-const SRC = { 'sprite-baker': fs.readFileSync(path.resolve(__dirname, '../../modules/sprite-baker/sprite-baker.js'), 'utf8'), 'three.js': fs.readFileSync(path.join(out, 'three-min.js'), 'utf8') };
+const SRC = { 'sprite-baker': fs.readFileSync(process.env.SBFILE || path.resolve(__dirname, '../../modules/sprite-baker/sprite-baker.js'), 'utf8'), 'three.js': fs.readFileSync(path.join(out, 'three-min.js'), 'utf8') };
 // Runs inside the page. Returns { first, one: [ms per sprite for each variant], roll: [ms per 12-frame roll], cover }.
 function bench(which, src) {
   (0, eval)(src);
@@ -20,7 +20,7 @@ function bench(which, src) {
   let ones, rolls, cover = (x) => { const d = x && x.data; let n = 0; if (d) for (let i = 0; i < d.length; i += 4) if (d[i + 3]) n++; return n; }, first, firstT0 = performance.now();
   if (which === 'sprite-baker') {
     const scene = [{ fn: SpriteBaker.sphere(11), nu: 12, nv: 18, material: SpriteBaker.material([[0, 60, 20, 90], [1, 245, 210, 255]]) }];
-    const vs = [{ ss: 2 }, { ss: 1 }, { edge: true }, { fast: true }, { fast: true, edge: true }];   // default, one sample a pixel, edge-only supersampling (1.8.0), cheaper shading (1.9.0), and both
+    const vs = [{ ss: 2 }, { ss: 1 }, { edge: true }, { fast: true }, { fast: true, ss: 1 }];   // default, one sample a pixel, edge-only supersampling (1.8.0), fast (1.9.0; one shade a pixel since 1.10.0) at ss 2 and ss 1
     ones = vs.map(o => () => SpriteBaker.bakeSprite(scene, 96, o));
     rolls = vs.map(o => () => SpriteBaker.bakeRoll(scene, 12, 96, o));
   } else {
@@ -60,8 +60,8 @@ function bench(which, src) {
     }
     const ok = (n) => got[n] && got[n].length;
     const f = (n, key, i) => ok(n) ? med(got[n].map(x => i === undefined ? x[key] : x[key][i])).toFixed(2) : 'n/a';
-    console.log('  one 96 px sphere, ms: sprite-baker (ss 2) ' + f('sprite-baker', 'one', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'one', 1) + ' | sprite-baker (edge) ' + f('sprite-baker', 'one', 2) + ' | sprite-baker (fast) ' + f('sprite-baker', 'one', 3) + ' | sprite-baker (fast+edge) ' + f('sprite-baker', 'one', 4) + ' | three.js ' + f('three.js', 'one', 0) + ' | three.js smooth edges (4x multisample) ' + f('three.js', 'one', 1));
-    console.log('  12-frame roll, ms:    sprite-baker (ss 2) ' + f('sprite-baker', 'roll', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'roll', 1) + ' | sprite-baker (edge) ' + f('sprite-baker', 'roll', 2) + ' | sprite-baker (fast) ' + f('sprite-baker', 'roll', 3) + ' | sprite-baker (fast+edge) ' + f('sprite-baker', 'roll', 4) + ' | three.js ' + f('three.js', 'roll', 0) + ' | three.js smooth ' + f('three.js', 'roll', 1));
+    console.log('  one 96 px sphere, ms: sprite-baker (ss 2) ' + f('sprite-baker', 'one', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'one', 1) + ' | sprite-baker (edge) ' + f('sprite-baker', 'one', 2) + ' | sprite-baker (fast) ' + f('sprite-baker', 'one', 3) + ' | sprite-baker (fast, ss 1) ' + f('sprite-baker', 'one', 4) + ' | three.js ' + f('three.js', 'one', 0) + ' | three.js smooth edges (4x multisample) ' + f('three.js', 'one', 1));
+    console.log('  12-frame roll, ms:    sprite-baker (ss 2) ' + f('sprite-baker', 'roll', 0) + ' | sprite-baker (ss 1) ' + f('sprite-baker', 'roll', 1) + ' | sprite-baker (edge) ' + f('sprite-baker', 'roll', 2) + ' | sprite-baker (fast) ' + f('sprite-baker', 'roll', 3) + ' | sprite-baker (fast, ss 1) ' + f('sprite-baker', 'roll', 4) + ' | three.js ' + f('three.js', 'roll', 0) + ' | three.js smooth ' + f('three.js', 'roll', 1));
     console.log('  first picture incl. start-up, ms: sprite-baker ' + f('sprite-baker', 'first') + ' | three.js ' + f('three.js', 'first') + '   pixels drawn: ' + (ok('sprite-baker') ? got['sprite-baker'][0].cover.join('/') : '?') + ' | ' + (ok('three.js') ? got['three.js'][0].cover.join('/') : 'n/a (no WebGL context)'));
     await b.close();
   }

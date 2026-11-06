@@ -1,4 +1,4 @@
-/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.9.0 (API 1) */
+/* sprite-baker: a tiny software 3D rasterizer that bakes toon-shaded shapes into 2D sprites. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.10.0 (API 1) */
 var SpriteBaker = (function () {
   'use strict';
 
@@ -33,6 +33,7 @@ var SpriteBaker = (function () {
     this.h = h | 0;
     this.z = new Float32Array(this.w * this.h).fill(NO_DEPTH);
     this.px = new Uint8ClampedArray(this.w * this.h * 4);
+    this.vb = null;   // set by bakeSprite, bakeRoll and baker for opts.fast (a visibility buffer, see triVB)
     this.setLight(DEFAULT_LIGHT);
   }
 
@@ -184,6 +185,23 @@ var SpriteBaker = (function () {
        color    = ramp[t] + specular * (s^16 * 0.55 + s^110 * 0.55 + s^380 * 0.5) + rimLight * rim, where s = max(0, n.H)
        rim      = 0.4 * nx * (1 - max(0, nz))^2.2 when nx > 0 and nz < 0.8        pale rim on the right edge
      The bounce, pool and rim directions are fixed in screen space on purpose; only the main light is settable. */
+  /* rowSpan(x0, y0, x1, y1, x2, y2, inv, py, minx, maxx): the columns of one row that can hold a sample of the triangle, as SPAN[0] .. SPAN[1].
+     Each weight is a straight line along the row, so the columns where it is at least -1e-5 follow from its value at minx and its slope; the
+     range is widened by one column each way, and the fill still runs its own exact test on every column, so the pixels are the same as testing
+     the whole box. A weight that hardly changes along the row (slope under 1e-9) is not used to narrow it. */
+  var SPAN = new Int32Array(2);
+  function rowSpan(x0, y0, x1, y1, x2, y2, inv, py, minx, maxx) {
+    var px = minx + 0.5, dy0 = y0 - py, dy1 = y1 - py, dy2 = y2 - py, lo = minx, hi = maxx, s, c, b, k;
+    var c0 = ((x1 - px) * dy2 - (x2 - px) * dy1) * inv, c1 = ((x2 - px) * dy0 - (x0 - px) * dy2) * inv, s0 = (y1 - y2) * inv, s1 = (y2 - y0) * inv;
+    for (k = 0; k < 3; k++) {
+      if (k === 0) { s = s0; c = c0; } else if (k === 1) { s = s1; c = c1; } else { s = -s0 - s1; c = 1 - c0 - c1; }
+      if (s > 1e-9) { b = minx + Math.ceil((-1e-5 - c) / s) - 1; if (b > lo) lo = b; }
+      else if (s < -1e-9) { b = minx + Math.floor((-1e-5 - c) / s) + 1; if (b < hi) hi = b; }
+      else if (s === s && c < -1e-5 - 1e-6) { lo = 1; hi = 0; }
+    }
+    SPAN[0] = lo; SPAN[1] = hi;
+  }
+
   function tri(rast, a, b, c, mat, opts) {
     var cull = opts && opts.cull !== undefined ? opts.cull : DEFAULT_CULL;
     if (cull !== false && a[5] + b[5] + c[5] < cull) return;
@@ -194,7 +212,7 @@ var SpriteBaker = (function () {
     if ((mat.texture || mat.ridge) && a.length > 7 && b.length > 7 && c.length > 7) return triUV(rast, a, b, c, mat);   // one check per triangle; the plain loop below stays as it was
 
 //@begin fast
-    if (opts && opts.fast) return triFast(rast, a, b, c, mat);   // opts.fast (since 1.9.0): the same fill with cheaper shading, pictures within 2 levels
+    if (opts && opts.fast) return rast.vb ? triVB(rast, a, b, c, mat) : triFast(rast, a, b, c, mat);   // opts.fast (since 1.9.0): cheaper shading; inside a bake, one shade a pixel (1.10.0)
 //@end
     var w = rast.w, h = rast.h, zbuf = rast.z, out = rast.px, lut = mat.lut;
     var x0 = a[0], y0 = a[1], x1 = b[0], y1 = b[1], x2 = c[0], y2 = c[1];
@@ -206,11 +224,12 @@ var SpriteBaker = (function () {
     var lx = rast.L[0], ly = rast.L[1], lz = rast.L[2], hx = rast.H[0], hy = rast.H[1], hz = rast.H[2];
     var kSpec = mat.specular, kBounce = mat.bounce * 0.16, kPool = mat.pool * 0.3, kRim = mat.rimLight * 0.4, kEdge = mat.edge;
     var x, y, px, py, w0, w1, w2, z, idx, nx, ny, nz, l, wrap, t, rim, sp, ed, i3, o, r, g, bl;
-    var dy0, dy1, dy2, hot, sq, p2, p4, p8, p16, p32, p64, p128, v0, v1, v2;
+    var dy0, dy1, dy2, hot, sq, p2, p4, p8, p16, p32, p64, p128, v0, v1, v2, xe;
 
     for (y = miny; y <= maxy; y++) {
       py = y + 0.5; dy0 = y0 - py; dy1 = y1 - py; dy2 = y2 - py;     // the same differences the lines below used, taken once a row
-      for (x = minx; x <= maxx; x++) {
+      rowSpan(x0, y0, x1, y1, x2, y2, inv, py, minx, maxx);           // only the columns that can be inside (since 1.10.0); the same pixels
+      for (x = SPAN[0] > minx ? SPAN[0] : minx, xe = SPAN[1] < maxx ? SPAN[1] : maxx; x <= xe; x++) {
         px = x + 0.5;
         w0 = ((x1 - px) * dy2 - (x2 - px) * dy1) * inv;
         w1 = ((x2 - px) * dy0 - (x0 - px) * dy2) * inv;
@@ -267,6 +286,126 @@ var SpriteBaker = (function () {
   }
 
 //@begin fast
+  /* triVB: the fill for opts.fast inside bakeSprite, bakeRoll and baker (since 1.10.0). It shades nothing: it keeps, for each sample, the depth and which
+     triangle is nearest (a visibility buffer, rast.vb), and the triangle's normal as three planes over the surface. resolveVB then shades each output pixel
+     once per triangle that covers it and averages by sample count, so at ss 2 a pixel is shaded about once instead of four times. The columns of each
+     row come straight from the three weights as planes (each at least -1e-5, as in tri), and depth is a plane too. */
+  var LE = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1, VB_GRAD = 0.1;   // VB_GRAD: how far the normal may turn across one pixel before every sample is shaded
+  function triVB(rast, a, b, c, mat) {
+    var w = rast.w, h = rast.h, zbuf = rast.z, VB = rast.vb;
+    var x0 = a[0], y0 = a[1], x1 = b[0], y1 = b[1], x2 = c[0], y2 = c[1];
+    var area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+    if (area === 0 || !isFinite(area)) return;
+    var minx = Math.max(0, Math.floor(Math.min(x0, x1, x2))), maxx = Math.min(w - 1, Math.ceil(Math.max(x0, x1, x2)));
+    var miny = Math.max(0, Math.floor(Math.min(y0, y1, y2))), maxy = Math.min(h - 1, Math.ceil(Math.max(y0, y1, y2)));
+    if (minx > maxx || miny > maxy) return;
+    var inv = 1 / area, az = a[2], bz = b[2], cz = c[2], anx = a[3], bnx = b[3], cnx = c[3], any = a[4], bny = b[4], cny = c[4], anz = a[5], bnz = b[5], cnz = c[5], z;
+    /* the weights, depth and normal are planes: f(px, py) = fA * px + fB * py + fC */
+    var w0A = (y1 - y2) * inv, w0B = (x2 - x1) * inv, w0C = (x1 * y2 - x2 * y1) * inv;
+    var w1A = (y2 - y0) * inv, w1B = (x0 - x2) * inv, w1C = (x2 * y0 - x0 * y2) * inv;
+    var w2A = -w0A - w1A, w2B = -w0B - w1B, w2C = 1 - w0C - w1C;
+    var zA = w0A * az + w1A * bz + w2A * cz, zB = w0B * az + w1B * bz + w2B * cz, zC = w0C * az + w1C * bz + w2C * cz;
+    var nxA = w0A * anx + w1A * bnx + w2A * cnx, nxB = w0B * anx + w1B * bnx + w2B * cnx, nxC = w0C * anx + w1C * bnx + w2C * cnx;
+    var nyA = w0A * any + w1A * bny + w2A * cny, nyB = w0B * any + w1B * bny + w2B * cny, nyC = w0C * any + w1C * bny + w2C * cny;
+    var nzA = w0A * anz + w1A * bnz + w2A * cnz, nzB = w0B * anz + w1B * bnz + w2B * cnz, nzC = w0C * anz + w1C * bnz + w2C * cnz;
+    if (!isFinite(zA + zB + zC)) return;
+    if (VB.n * 10 + 10 > VB.T.length) { var T2 = new Float64Array(VB.T.length * 2); T2.set(VB.T); VB.T = T2; var M2 = new Int32Array(VB.M.length * 2); M2.set(VB.M); VB.M = M2; }
+    var TT = VB.T, tb = VB.n * 10, id = VB.n, mi = VB.mats.indexOf(mat), ids = VB.ids, yy, xx, rowi, zz, ll, rr, ppy;
+    if (mi < 0) { mi = VB.mats.length; VB.mats.push(mat); }
+    TT[tb] = nxA; TT[tb + 1] = nxB; TT[tb + 2] = nxC; TT[tb + 3] = nyA; TT[tb + 4] = nyB; TT[tb + 5] = nyC; TT[tb + 6] = nzA; TT[tb + 7] = nzB; TT[tb + 8] = nzC;
+    TT[tb + 9] = (Math.sqrt(nxA * nxA + nyA * nyA + nzA * nzA) + Math.sqrt(nxB * nxB + nyB * nyB + nzB * nzB)) * VB.ss > VB_GRAD ? 1 : 0;   // the normal turns fast inside one pixel: shade each sample
+    VB.M[id] = mi; VB.n++;
+    var iA0 = w0A > 1e-12 || w0A < -1e-12 ? 1 / w0A : 0, iA1 = w1A > 1e-12 || w1A < -1e-12 ? 1 / w1A : 0, iA2 = w2A > 1e-12 || w2A < -1e-12 ? 1 / w2A : 0, cc, tt;
+    for (yy = miny; yy <= maxy; yy++) {   // the columns where all three weights (as planes) are at least -1e-5
+      ppy = yy + 0.5; ll = minx; rr = maxx;
+      cc = -1e-5 - (w0B * ppy + w0C);
+      if (iA0 > 0) { tt = Math.ceil(cc * iA0 - 0.5); if (tt > ll) ll = tt; } else if (iA0 < 0) { tt = Math.floor(cc * iA0 - 0.5); if (tt < rr) rr = tt; } else if (cc > 0) continue;
+      cc = -1e-5 - (w1B * ppy + w1C);
+      if (iA1 > 0) { tt = Math.ceil(cc * iA1 - 0.5); if (tt > ll) ll = tt; } else if (iA1 < 0) { tt = Math.floor(cc * iA1 - 0.5); if (tt < rr) rr = tt; } else if (cc > 0) continue;
+      cc = -1e-5 - (w2B * ppy + w2C);
+      if (iA2 > 0) { tt = Math.ceil(cc * iA2 - 0.5); if (tt > ll) ll = tt; } else if (iA2 < 0) { tt = Math.floor(cc * iA2 - 0.5); if (tt < rr) rr = tt; } else if (cc > 0) continue;
+      if (ll > rr) continue;
+      zz = zB * ppy + zC; rowi = yy * w;
+      for (xx = ll; xx <= rr; xx++) { z = zA * (xx + 0.5) + zz; if (z > zbuf[rowi + xx]) { zbuf[rowi + xx] = z; ids[rowi + xx] = id; } }
+    }
+  }
+
+  function alphaSteps(ss) { var a = new Uint8ClampedArray(ss * ss + 1), n; for (n = 0; n <= ss * ss; n++) a[n] = n * 255 / (ss * ss); return a; }
+  var GID = new Int32Array(4096), GN = new Int32Array(4096), GX = new Float64Array(4096), GY = new Float64Array(4096), GF = new Int32Array(4096);
+  /* resolveVB(rast, ss): the picture from the visibility buffer. A pixel wholly inside one triangle is shaded once, at its center; any other pixel shades each
+     triangle in it once, at the middle of the samples that triangle covers (so never outside it), and a triangle whose normal turns by more than VB_GRAD across
+     one pixel is shaded at each of its samples. Colors are averaged by sample count and alpha is the covered fraction, as downsample() does. */
+  function resolveVB(rast, ss) {
+    var w = rast.w / ss, h = rast.h / ss, rw = rast.w, data = new Uint8ClampedArray(w * h * 4), d32 = LE ? new Uint32Array(data.buffer) : null, z = rast.z, VB = rast.vb, AL = VB.al || (VB.al = alphaSteps(ss)), ids = VB.ids, area = ss * ss, half = ss * 0.5;
+    var T = VB.T, MI = VB.M, mats = VB.mats, EP = EDGE_POW, lx = rast.L[0], ly = rast.L[1], lz = rast.L[2], hx = rast.H[0], hy = rast.H[1], hz = rast.H[2];
+    var X, Y, sx, sy, i, o, n, g, k, j, col, sr, sg, sb, first, same, px, py, row, b, cm = -1, mat, lut, kSpec, kBounce, kPool, kRim, kEdge, thr, aScale = 255 / area;
+    var nx, ny, nz, q, d, l, wrap, t, rim, sp, sq, p2, p4, p8, p16, p32, p64, p128, e, ei, ed, v0, v1, v2, cnt;
+    for (Y = 0; Y < h; Y++) {
+      py = Y * ss + half;
+      for (X = 0; X < w; X++) {
+        row = Y * ss * rw + X * ss;
+        if (ss === 1) { if (!(z[row] > NO_DEPTH)) continue; n = 1; first = ids[row]; same = true; }
+        else if (ss === 2) {
+          n = 0; first = -1; same = true;
+          if (z[row] > NO_DEPTH) { n = 1; first = ids[row]; }
+          if (z[row + 1] > NO_DEPTH) { n++; k = ids[row + 1]; if (first < 0) first = k; else if (k !== first) same = false; }
+          if (z[row + rw] > NO_DEPTH) { n++; k = ids[row + rw]; if (first < 0) first = k; else if (k !== first) same = false; }
+          if (z[row + rw + 1] > NO_DEPTH) { n++; k = ids[row + rw + 1]; if (first < 0) first = k; else if (k !== first) same = false; }
+          if (!n) continue;
+        } else {
+          n = 0; first = -1; same = true;
+          for (sy = 0; sy < ss; sy++, row += rw) for (sx = 0; sx < ss; sx++) {
+            if (z[row + sx] > NO_DEPTH) { n++; k = ids[row + sx]; if (first < 0) first = k; else if (k !== first) same = false; }
+          }
+          if (!n) continue;
+        }
+        if (same && n === area && T[first * 10 + 9] === 0) { GID[0] = first; GN[0] = n; g = 1; GX[0] = X * ss + half; GY[0] = py; }
+        else {   // a pixel at an edge: each triangle is shaded at the middle of the samples it covers (never outside it)
+          g = 0; row = Y * ss * rw + X * ss;
+          for (sy = 0; sy < ss; sy++, row += rw) for (sx = 0; sx < ss; sx++) {
+            if (z[row + sx] > NO_DEPTH) { k = ids[row + sx]; if (T[k * 10 + 9] !== 0) j = g; else for (j = 0; j < g && (GID[j] !== k || GF[j]); j++); if (j === g) { GID[g] = k; GF[g] = T[k * 10 + 9]; GN[g] = 1; GX[g] = sx; GY[g++] = sy; } else { GN[j]++; GX[j] += sx; GY[j] += sy; } }
+          }
+          for (j = 0; j < g; j++) { GX[j] = X * ss + 0.5 + GX[j] / GN[j]; GY[j] = Y * ss + 0.5 + GY[j] / GN[j]; }
+        }
+        sr = sg = sb = 0;
+        for (j = 0; j < g; j++) {
+          k = GID[j]; cnt = GN[j]; b = k * 10; px = GX[j];
+          if (MI[k] !== cm) { cm = MI[k]; mat = mats[cm]; lut = mat.lut; kSpec = mat.specular; kBounce = mat.bounce * 0.16; kPool = mat.pool * 0.3; kRim = mat.rimLight * 0.4 * 255; kEdge = mat.edge; thr = kSpec > 0 ? Math.pow(0.3 / (kSpec * 140.25), 1 / 16) : 2; kSpec *= 255; }
+          nx = T[b] * px + T[b + 1] * GY[j] + T[b + 2]; ny = T[b + 3] * px + T[b + 4] * GY[j] + T[b + 5]; nz = T[b + 6] * px + T[b + 7] * GY[j] + T[b + 8];
+          q = nx * nx + ny * ny + nz * nz; d = 1 - q;
+          l = q > 0.9 && q < 1.1 ? 1 + d * (0.5 + d * 0.375) : 1 / Math.sqrt(q + 1e-9);
+          nx *= l; ny *= l; nz *= l;
+          wrap = (nx * lx + ny * ly + nz * lz) * 0.5 + 0.5;
+          t = wrap * wrap * 0.35 + wrap * 0.65;
+          rim = nx * 0.5 + ny * 0.72 + nz * 0.2;
+          t = t * 0.9 + (rim > 0 ? rim * kBounce : 0);
+          sp = nx * 0.55 + ny * 0.8;
+          if (sp > 0.25) t -= (sp - 0.25) * kPool;
+          sp = nx * hx + ny * hy + nz * hz;
+          if (sp > thr) {
+            p2 = sp * sp; p4 = p2 * p2; p8 = p4 * p4; p16 = p8 * p8; p32 = p16 * p16; p64 = p32 * p32; p128 = p64 * p64;
+            sq = (p16 * 0.55 + p64 * p32 * p8 * p4 * p2 * 0.55 + p128 * p128 * p64 * p32 * p16 * p8 * p4 * 0.5) * kSpec;
+          } else sq = 0;
+          if (nz < 0.34) t *= kEdge + (1 - kEdge) * (nz > 0 ? nz : 0) / 0.34;
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          o = ((t * 255) | 0) * 3;
+          if (nx > 0 && nz < 0.8) { e = (1 - (nz > 0 ? nz : 0)) * 1024; ei = e | 0; ed = nx * (EP[ei] + (EP[ei + 1] - EP[ei]) * (e - ei)) * kRim; } else ed = 0;
+          v0 = lut[o] + sq + ed + 0.5; v1 = lut[o + 1] + sq + ed + 0.5; v2 = lut[o + 2] + sq * (235 / 255) + ed + 0.5;
+          v0 = v0 > 255 ? 255 : v0 | 0; v1 = v1 > 255 ? 255 : v1 | 0; v2 = v2 > 255 ? 255 : v2 | 0;
+          if (g === 1) break;
+          sr += v0 * cnt; sg += v1 * cnt; sb += v2 * cnt;
+        }
+        if (g === 1) {
+          if (d32) { d32[Y * w + X] = (v0 | v1 << 8 | v2 << 16 | AL[n] << 24) >>> 0; continue; }
+          sr = v0 * n; sg = v1 * n; sb = v2 * n;
+        }
+        o = (Y * w + X) * 4;
+        data[o] = sr / n; data[o + 1] = sg / n; data[o + 2] = sb / n; data[o + 3] = n * aScale;
+      }
+    }
+    return { width: w, height: h, data: data };
+  }
+
   /* triFast: tri() with three parts of the per-pixel shading made cheaper, for opts.fast. The same fill, the same depth test and the same light terms; what changes:
      the normal is scaled by a three-term series for 1 / length instead of a square root and a division (it falls back to the exact way when the interpolated normal is
      not near unit length); the highlight (three powers of the half vector) is skipped where its largest term is below a third of a level (sp under about 0.68), where the
@@ -284,10 +423,11 @@ var SpriteBaker = (function () {
     var lx = rast.L[0], ly = rast.L[1], lz = rast.L[2], hx = rast.H[0], hy = rast.H[1], hz = rast.H[2];
     var kSpec = mat.specular, kBounce = mat.bounce * 0.16, kPool = mat.pool * 0.3, kRim = mat.rimLight * 0.4, kEdge = mat.edge;
     var thr = kSpec > 0 ? Math.pow(0.3 / (kSpec * 140.25), 1 / 16) : 2;   // below this sp the highlight adds under 0.3 of a level
-    var x, y, px, py, w0, w1, w2, z, idx, nx, ny, nz, q, d, l, wrap, t, rim, sp, ed, o, r, g, bl, dy0, dy1, dy2, sq, p2, p4, p8, p16, p32, p64, p128, e, ei;
+    var x, y, px, py, w0, w1, w2, z, idx, nx, ny, nz, q, d, l, wrap, t, rim, sp, ed, o, r, g, bl, dy0, dy1, dy2, sq, p2, p4, p8, p16, p32, p64, p128, e, ei, xe;
     for (y = miny; y <= maxy; y++) {
       py = y + 0.5; dy0 = y0 - py; dy1 = y1 - py; dy2 = y2 - py;
-      for (x = minx; x <= maxx; x++) {
+      rowSpan(x0, y0, x1, y1, x2, y2, inv, py, minx, maxx);
+      for (x = SPAN[0] > minx ? SPAN[0] : minx, xe = SPAN[1] < maxx ? SPAN[1] : maxx; x <= xe; x++) {
         px = x + 0.5;
         w0 = ((x1 - px) * dy2 - (x2 - px) * dy1) * inv;
         w1 = ((x2 - px) * dy0 - (x0 - px) * dy2) * inv;
@@ -901,10 +1041,13 @@ var SpriteBaker = (function () {
     var margin = (opts.margin === undefined ? 2 : opts.margin) + (ol ? Math.ceil(ol.radius || 0) : 0);
     var scale = opts.scale !== undefined ? opts.scale : fitScale(parts, w, h, center, axis, margin);
     var ox = opts.ox !== undefined ? opts.ox : w / 2 - center[0] * scale, oy = opts.oy !== undefined ? opts.oy : h / 2 - center[1] * scale;
-    var rast = new Rast(w * ss, h * ss), first = opts.edge && ss > 1 ? new Rast(w, h) : null;   // `first`: one sample a pixel, for opts.edge
+    var rast = new Rast(w * ss, h * ss), first = opts.edge && ss > 1 && !opts.fast ? new Rast(w, h) : null;   // `first`: one sample a pixel, for opts.edge (fast already shades once a pixel, so it leaves edge out)
     if (opts.light) rast.setLight(opts.light);
     if (first && opts.light) first.setLight(opts.light);
     var tOpts = opts.cull !== undefined || opts.fast ? { cull: opts.cull, fast: !!opts.fast } : null;
+//@begin fast
+    if (opts.fast && ss <= 64 && parts.every(function (p) { return !p.material.texture && !p.material.ridge; })) rast.vb = { ss: ss, ids: new Int32Array(rast.w * rast.h), T: new Float64Array(10 * 1024), M: new Int32Array(1024), mats: [], n: 0, al: null };
+//@end
 
     return {
       width: w, height: h, ss: ss, scale: scale,
@@ -922,8 +1065,9 @@ var SpriteBaker = (function () {
           return ol ? API.outline(img, ol.radius, ol.color) : img;
         }
         rast.clear();
+        if (rast.vb) rast.vb.n = 0;
         parts.forEach(function (part) { drawMesh(rast, part.mesh, part.material, view, tOpts); });
-        img = downsample(rast, ss);
+        img = rast.vb ? resolveVB(rast, ss) : downsample(rast, ss);
         return ol ? API.outline(img, ol.radius, ol.color) : img;
       }
     };
@@ -1065,7 +1209,7 @@ var SpriteBaker = (function () {
 //@end
 
   API = {
-    version: '1.9.0',
+    version: '1.10.0',
     Rast: Rast,
 //@begin ramps
     material: material,
