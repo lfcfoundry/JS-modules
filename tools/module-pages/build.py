@@ -29,7 +29,7 @@ td::before{content:attr(data-l);display:block;font:700 12px var(--lfc-mono);lett
 .wrap td:first-child{min-width:9.5em}.opts{display:grid;gap:10px;margin:1em 0}.opt{display:grid;grid-template-columns:minmax(9em,14em) 1fr;gap:4px 18px;border:1px solid var(--lfc-line);border-radius:10px;padding:10px 16px;background:var(--lfc-soft)}.opt .k{font-family:var(--lfc-mono);font-weight:700;overflow-wrap:anywhere}.opt .v p{margin:.2em 0}
 details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;margin:12px 0;background:var(--lfc-soft)}details.fold>summary{padding:12px 16px}details.fold>*:not(summary){margin-left:16px;margin-right:16px}details.fold>table,details.fold>pre{max-width:calc(100% - 32px)}details.fold[open]{padding-bottom:6px}details.fold table{margin:14px 16px}details.more{border:0;background:none;margin:2px 0}details.more>summary{padding:2px 0;font-size:.92em}summary{cursor:pointer;font-weight:700;list-style-position:inside}
 @media(max-width:700px){.opt{grid-template-columns:1fr}}
-.et{font:800 20px/1.3 var(--lfc-font);margin:14px 0 0}.chart{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px 34px;margin:16px 0}.cg{min-width:0}.ct{font:800 17px/1.25 var(--lfc-font);margin:0 0 2px}.cs{color:var(--lfc-muted);font-size:14px;margin:0 0 10px}.cr{display:grid;grid-template-columns:minmax(110px,40%) 1fr;gap:10px;align-items:center;margin:4px 0;font-size:15px}.cl{overflow-wrap:anywhere}
+.gt{font:700 16px var(--lfc-font);margin:18px 0 0}.et{font:800 20px/1.3 var(--lfc-font);margin:14px 0 0}.chart{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px 34px;margin:16px 0}.cg{min-width:0}.ct{font:800 17px/1.25 var(--lfc-font);margin:0 0 2px}.cs{color:var(--lfc-muted);font-size:14px;margin:0 0 10px}.cr{display:grid;grid-template-columns:minmax(110px,40%) 1fr;gap:10px;align-items:center;margin:4px 0;font-size:15px}.cl{overflow-wrap:anywhere}
 :root{--cb:#9aa7bb}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--cb:#5d6c85}}:root[data-theme="dark"]{--cb:#5d6c85}
 .ctk{display:block;position:relative;height:24px;border-left:2px solid var(--lfc-fg)}.ctk i{display:block;height:100%;background:var(--cb)}.ctk i.hi{background:var(--lfc-accent)}.ctk b{position:absolute;top:50%;transform:translateY(-50%);margin-left:8px;font:700 15px var(--lfc-font);color:var(--lfc-fg);white-space:nowrap}
 .src{font-size:14px;color:var(--lfc-muted);border-top:1px solid var(--lfc-line);padding-top:8px;margin-top:12px}
@@ -59,15 +59,45 @@ def numval(c):
     except ValueError: return None
 HI = ''
 def chart(hs, rows, base, headline=''):
+    ch = chart1(hs, rows, base, headline)
+    return ch or chart2(hs, rows, base, headline)
+def chart2(hs, rows, base, headline=''):
+    # Tables with a group column and a name column before the numbers (format, writer, ms, bytes): one small chart per group.
+    if not rows or len(rows) > 16 or len(hs) < 3 or len(hs) > 8: return ''
+    if any(len(r) != len(hs) for r in rows): return ''
+    f = None
+    for k in range(2, min(4, len(hs))):
+        if all(numval(r[j]) is not None and numval(r[j]) >= 0 for r in rows for j in range(k, len(hs))): f = k; break
+    if f is None: return ''
+    groups, cur = [], ''
+    for r in rows:
+        if r[0].strip(): cur = r[0].strip()
+        label = ' \u00b7 '.join(c for c in r[1:f] if c.strip())
+        if not groups or groups[-1][0] != cur: groups.append((cur, []))
+        groups[-1][1].append([label] + r[f:])
+    if len(groups) > 6: return ''
+    hs2 = [hs[1]] + hs[f:]
+    parts = []
+    for g, rs in groups:
+        c = chart1(hs2, rs, base, '')
+        if not c: return ''
+        parts.append('<div class="gt">%s</div>%s' % (inline(g, base), c))
+    out = ''.join(parts)
+    return ('<div class="et">%s</div>' % esc(headline) + out) if headline else out
+def chart1(hs, rows, base, headline=''):
     # Turn a small all-number table into labeled bars, one bar group per number column.
     if not rows or len(rows) > 12 or len(hs) < 2 or len(hs) > 8: return ''
     cols = list(range(1, len(hs)))
     vals = []
+    keep = []
     for r in rows:
         if len(r) != len(hs): return ''
         vs = [numval(r[k]) for k in cols]
+        if all(v is None for v in vs): continue
         if any(v is None or v < 0 for v in vs): return ''
-        vals.append(vs)
+        vals.append(vs); keep.append(r)
+    rows = keep
+    if not rows: return ''
     groups = []
     for n, k in enumerate(cols):
         first = re.sub(r'[`*]', '', hs[k]).split()[0].lower() if hs[k].split() else ''
@@ -80,13 +110,14 @@ def chart(hs, rows, base, headline=''):
         sc = max(0.5, 0.9 - 0.035 * max(len(rows[r][cols[n]]) for r in range(len(rows)) for n in ns))
         title = re.sub(r'[`*]', '', hs[cols[ns[0]]]) if len(ns) == 1 else re.sub(r'[`*]', '', hs[cols[ns[0]]]).split()[0]
         low = bool(re.search(r'\b(ms|bytes?|size|time|pack|unpack|read|write|open|ratio|against|kb|mb|memory|heap)\b', ' '.join(re.sub(r'[`*]', '', hs[cols[n]]).lower() for n in ns)))
-        out += '<div class="cg"><div class="ct">%s</div>%s' % (esc(title[:1].upper() + title[1:]), '<div class="cs">Lower is better.</div>' if low else '')
+        title = {'ms': 'Time, milliseconds', 'bytes': 'Size, bytes', 'file bytes': 'File size, bytes', 'build': 'Build, milliseconds', 'bfs': 'Breadth-first search, milliseconds', 'save': 'Save, microseconds', 'load': 'Load, microseconds'}.get(title.lower(), title)
+        out += '<div class="cg"><div class="ct">%s</div>%s' % (esc(title), '<div class="cs">Lower is better.</div>' if low else '')
         for r, v in zip(rows, vals):
             for n in ns:
                 k = cols[n]
                 tag = ' \u00b7 ' + re.sub(r'[`*]', '', hs[k]).split(None, 1)[1] if len(ns) > 1 and len(hs[k].split()) > 1 else ''
                 w = max(v[n] / mx * sc * 100, 0.8)
-                hi = ' hi' if HI and re.sub(r'[\W_]+', '', re.sub(r'[`*]', '', r[0]).lower()).startswith(HI) else ''
+                hi = ' hi' if HI and (HI in re.sub(r'[\W_]+', '', re.sub(r'[`*]', '', r[0]).lower()) or HI in re.sub(r'[\W_]+', '', re.sub(r'[`*]', '', hs[k]).lower())) else ''
                 out += '<div class="cr"><span class="cl">%s%s</span><span class="ctk"><i class="%s" style="width:%.1f%%"></i><b style="left:%.1f%%">%s</b></span></div>' % (inline(r[0], base), esc(tag), hi.strip(), w, w, esc(r[k].replace('`', '')))
         out += '</div>'
     out += '</div>'

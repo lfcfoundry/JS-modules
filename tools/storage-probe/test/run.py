@@ -10,6 +10,8 @@ the second-copy button.
 Copyright (c) 2026 LFC Foundry. MIT License.
 """
 import os, shutil, sys, tempfile
+try: import playwright.sync_api  # noqa: F401
+except ImportError: print('skipped: needs Playwright for Python (pip install playwright)'); sys.exit(2)
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 def real_chromium(p, **kw):

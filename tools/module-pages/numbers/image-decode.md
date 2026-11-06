@@ -2,6 +2,7 @@
 
 Compared: image-decode against createImageBitmap and Image (8 PNG sheets, ms).
 
+<!-- title: image-decode loads 8 PNG sheets in 20 to 38% less time than createImageBitmap or Image -->
 | way | ms |
 |---|---:|
 | image-decode loadAll | 16 |

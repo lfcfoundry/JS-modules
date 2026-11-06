@@ -37,7 +37,7 @@ td::before{content:attr(data-l);display:block;font:700 12px var(--lfc-mono);lett
 .wrap td:first-child{min-width:9.5em}.opts{display:grid;gap:10px;margin:1em 0}.opt{display:grid;grid-template-columns:minmax(9em,14em) 1fr;gap:4px 18px;border:1px solid var(--lfc-line);border-radius:10px;padding:10px 16px;background:var(--lfc-soft)}.opt .k{font-family:var(--lfc-mono);font-weight:700;overflow-wrap:anywhere}.opt .v p{margin:.2em 0}
 details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;margin:12px 0;background:var(--lfc-soft)}details.fold>summary{padding:12px 16px}details.fold>*:not(summary){margin-left:16px;margin-right:16px}details.fold>table,details.fold>pre{max-width:calc(100% - 32px)}details.fold[open]{padding-bottom:6px}details.fold table{margin:14px 16px}details.more{border:0;background:none;margin:2px 0}details.more>summary{padding:2px 0;font-size:.92em}summary{cursor:pointer;font-weight:700;list-style-position:inside}
 @media(max-width:700px){.opt{grid-template-columns:1fr}}
-.et{font:800 20px/1.3 var(--lfc-font);margin:14px 0 0}.chart{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px 34px;margin:16px 0}.cg{min-width:0}.ct{font:800 17px/1.25 var(--lfc-font);margin:0 0 2px}.cs{color:var(--lfc-muted);font-size:14px;margin:0 0 10px}.cr{display:grid;grid-template-columns:minmax(110px,40%) 1fr;gap:10px;align-items:center;margin:4px 0;font-size:15px}.cl{overflow-wrap:anywhere}
+.gt{font:700 16px var(--lfc-font);margin:18px 0 0}.et{font:800 20px/1.3 var(--lfc-font);margin:14px 0 0}.chart{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px 34px;margin:16px 0}.cg{min-width:0}.ct{font:800 17px/1.25 var(--lfc-font);margin:0 0 2px}.cs{color:var(--lfc-muted);font-size:14px;margin:0 0 10px}.cr{display:grid;grid-template-columns:minmax(110px,40%) 1fr;gap:10px;align-items:center;margin:4px 0;font-size:15px}.cl{overflow-wrap:anywhere}
 :root{--cb:#9aa7bb}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--cb:#5d6c85}}:root[data-theme="dark"]{--cb:#5d6c85}
 .ctk{display:block;position:relative;height:24px;border-left:2px solid var(--lfc-fg)}.ctk i{display:block;height:100%;background:var(--cb)}.ctk i.hi{background:var(--lfc-accent)}.ctk b{position:absolute;top:50%;transform:translateY(-50%);margin-left:8px;font:700 15px var(--lfc-font);color:var(--lfc-fg);white-space:nowrap}
 .src{font-size:14px;color:var(--lfc-muted);border-top:1px solid var(--lfc-line);padding-top:8px;margin-top:12px}
@@ -60,6 +60,9 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 <h3>Try it and test it</h3>
 <p><strong>Test it:</strong> <code>node modules/spotlight-tour/test/run.js</code> (5 checks on where the window and card go) and <code>node tests/pieces-browser.js</code> (the whole tour in Firefox 158 and ungoogled Chromium 155: opens once, window over the part, Back, Skip, Escape, Tab, <code>#tour</code>, the gift, scrolling to a far part, blocked storage). <strong>Try it:</strong> <code>demo.html</code>.</p>
 <h3>Use</h3>
+<p>The shortest version: a list of steps, then start it.</p>
+<pre><code>SpotlightTour.create({ steps: [{ title: "Welcome!", text: "A short look around." }, { target: "#bigButton", title: "The big button", text: "Tap it." }] }).start();</code></pre>
+<p>The full set of options:</p>
 <pre><code>var tour = SpotlightTour.create({
   key: "mygame-tour",              // remembers "seen" (localStorage)
   giftKey: "mygame-tourgift",      // remembers "gift given", separately

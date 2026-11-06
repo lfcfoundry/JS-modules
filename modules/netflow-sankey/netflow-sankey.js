@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.8.0 (API 2)
+ * Version 2.10.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -229,7 +229,7 @@
 
   /**
    * layout(L, opts). L: the Sankey drawing from the engine (L.nodes with .id .layer .label, L.edges with .from .to .flow .kind and, for long links, .pts).
-   * opts: unweighted (order as the old picture does: every link counts the same, no restarts), stopCap and stopCapFrom (see the stand-in cap below), justifySinks, height (picture height to aim for), nodeW (bar width), gapLayer, pad (space between bars), restarts, budgetMs, seed.
+   * opts: unweighted (order as the old picture does: every link counts the same, no restarts), stopCap and stopCapFrom (see the stand-in cap below), justifySinks, height (picture height to aim for), nodeW (bar width), gapLayer, pad (space between bars), restarts, budgetMs, seed, quick (true: skip the extra restarts of the order search, for speed on small charts; the order is still searched once, so the picture can have more crossings than the default; owner's card 2026.11.05).
    * Returns { nodes: [{id, label, x, y, w, h, layer, flow}], bands: [{edge, from, to, x0, y0a, y0b, x1, y1a, y1b, xm}], loops: [{edge, from, to, d, w, pts}],
    *           width, height, ky (pixels per unit of flow), crossingWeight, order, cols, ms }.
    * options(sk) cleans up a person's settings ({ nodeW, gap, pad, height, fixY, justify, order }) into the opts above; apply(L, r) writes a layout() result into the engine's drawing L (bar positions, picture size, L.sk).
@@ -418,7 +418,7 @@
       restore(best); return bestC;
     };
     var bestC = keepOrder ? total() : run(nV > 1500 ? 2 : 8), bestSnap = snap();
-    var restarts = keepOrder || opts.unweighted ? 0 : opts.restarts === undefined ? (nV <= 300 ? 8 : nV <= 800 ? 3 : 0) : opts.restarts, rnd = rng(opts.seed || 7), budget = opts.budgetMs || 400;
+    var restarts = keepOrder || opts.unweighted ? 0 : opts.restarts === undefined ? opts.quick === true ? 0 : (nV <= 300 ? 8 : nV <= 800 ? 3 : 0) : opts.restarts, rnd = rng(opts.seed || 7), budget = opts.budgetMs || 400;
     for (i = 0; i < restarts && bestC > 0 && Date.now() - t0 < budget; i++) {
       restore(bestSnap);
       for (k = 0; k < nL; k++) {
@@ -662,12 +662,14 @@
     if (hl !== null) R.nodes.forEach(function (n) { hlFade[n.id] = fadeHex(color[n.id], opts.background || '#ffffff', 0.6); });
     var hot = function (b) { return hl === null || b.from === hl || b.to === hl; }, bandCol = function (b) { return hot(b) ? color[b.from] : hlFade[b.from]; };
     R.nodes.forEach(function (n) { var c = esc(color[n.id]); bandTail[n.id] = 'Z" fill="' + c + opS; });   // the end of each band, ready for the item it leaves
-    /* optional title block (title, subtitle, source), drawn like the plot and treemap ones: bold title and lighter subtitle above, small source below; the picture itself does not move inside its group */
-    var tc = esc(opts.textColor || '#222'), pad = 14, head = 0, foot = 0, blk = '', y = pad;
+    /* title block: title (bold) and subtitle (lighter) above, source below, each only when given; opts.frame: true (or theme 'editorial') adds the Economist frame (opt-in, owner's card 2026.11.05): a small red tag top-left and a thin dark rule under the picture, with the source under the rule. The picture itself does not move inside its group */
+    var tc = esc(opts.textColor || '#222'), pad = 14, head = 0, foot = 0, blk = '', y = pad, frame = opts.frame === true || opts.theme === 'editorial', tagY = 0;
+    if (frame) { tagY = y; y += 10 + (opts.title || opts.subtitle ? 8 : 0); }
     if (opts.title) { y += 20; blk += '<text x="' + pad + '" y="' + y + '" font-size="20" font-weight="700" fill="' + tc + '">' + esc(opts.title) + '</text>'; y += 6; }
     if (opts.subtitle) { y += 13; blk += '<text x="' + pad + '" y="' + y + '" font-size="13" fill="' + tc + '" fill-opacity="0.8">' + esc(opts.subtitle) + '</text>'; y += 6; }
-    if (blk) head = f(y + pad * 0.6);
-    if (opts.source) { foot = 24; blk += '<text x="' + pad + '" y="' + f(head + R.height + 15) + '" font-size="11" fill="' + tc + '" fill-opacity="0.72">' + esc(opts.source) + '</text>'; }
+    if (blk || frame) head = f(y + pad * 0.6);
+    if (frame) { blk += '<rect x="' + pad + '" y="' + tagY + '" width="46" height="10" fill="#e3120b"/><rect x="' + pad + '" y="' + f(head + R.height + 2) + '" width="' + f(Math.max(0, R.width - 2 * pad)) + '" height="1.2" fill="' + tc + '"/>'; foot = 8; }
+    if (opts.source) { blk += '<text x="' + pad + '" y="' + f(head + R.height + (frame ? 21 : 15)) + '" font-size="11" fill="' + tc + '" fill-opacity="0.72">' + esc(opts.source) + '</text>'; foot = frame ? 28 : 24; }
     var H = f(R.height + head + foot);
     s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + f(R.width) + ' ' + H + '" width="' + f(R.width) + '" height="' + H + '" font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif" font-size="' + fs + '" role="img"' + (opts.title ? ' aria-label="' + esc(opts.title) + '"' : '') + '>';
     if (opts.title) s += '<title>' + esc(opts.title) + '</title>';

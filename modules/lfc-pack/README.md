@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.5.0 · API 0**
+**Version 0.5.1 · API 0**
 
-**Tested in:** node test/run.js (all passed, new open.cjs: 254 checks on 9 file kinds, Blob, read() and bytes sources); Chromium 155, Firefox 158, WebKitGTK 2.52.6 File reads
+**Tested in:** Node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page check
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 

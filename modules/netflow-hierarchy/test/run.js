@@ -121,20 +121,29 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   const cr = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05), ov = (c, b) => { const a = c[3] === undefined ? 1 : c[3]; return [0, 1, 2].map((i) => c[i] * a + b[i] * (1 - a)); };
   const tops = ['Sales', 'Ops', 'Product', 'Legal', 'People', 'Data', 'Design', 'Support', 'Finance', 'Research', 'IT', 'Brand'], links = [], items = [];
   tops.forEach((t) => { links.push({ from: 'Company', to: t, value: 1 }); for (let k = 0; k < 3; k++) links.push({ from: t, to: t + ' team ' + k, value: 5 + k }); for (let k = 0; k < 4; k++) items.push({ id: t + k, label: t + ' ' + k, group: t, sizeV: 3 + k * 2, pages: [0] }); });
-  let all = 0, low = [], most = [];
-  for (const mode of ['links', 'groups']) for (const theme of ['light', 'dark']) for (const type of ['treemap', 'icicle', 'pack']) {
+  let all = 0, low = [], most = [], blk = [];
+  for (const mode of ['links', 'groups']) for (const theme of ['light', 'dark']) for (const type of ['treemap', 'icicle', 'pack', 'sunburst']) {
     const G = mode === 'links' ? HY.asGraph(links) : { nodes: items.map((x) => Object.assign({}, x)), edges: [], name: 'g' };
     const L = HY.layout(type, G, { nest: 'auto', sized: true }); L.view = type; L.groups = mode === 'links' ? [''] : tops.slice();
     const S = HY.scene(L, { theme }, NS), bg = NS.palette(theme).bg, polys = S.polys.filter((q) => q.c).map((q) => [q.c[0], q.c[1], Math.hypot(q.pts[0] - q.c[0], q.pts[1] - q.c[1]), q.fill]);
     const at = (x, y) => { let c = bg.slice(0, 3); for (const r of S.rects) if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) c = ov(r.fill, c); for (const q of polys) if ((x - q[0]) ** 2 + (y - q[1]) ** 2 <= q[2] * q[2]) c = ov(q[3], c); for (const d of S.dots) if ((x - d.cx) ** 2 + (y - d.cy) ** 2 <= d.r * d.r) c = ov(d.fill, c); return c; };
     S.labels.forEach((l) => {
-      if (!l.t) return; const w = l.t.length * l.size * 0.6, x0 = l.align === 'l' ? l.x : l.x - w / 2, y0 = l.y - l.size * 0.75, y1 = l.y + 1, cnt = new Map();
+      if (l.t && l.color && l.color[0] === 0 && l.color[1] === 0 && l.color[2] === 0) blk.push(mode + ' ' + theme + ' ' + type + ' "' + l.t + '"');   /* names are near-black or white; a shape neither reads on gets a shade darker or lighter (owner's card, 2026.11.05) */
+      if (!l.t) return;
+      if (type === 'sunburst') {   /* names turn with their ring piece: read the color at the name's middle, inside the drawn pieces */
+        const inPoly = (x, y, P) => { let o = false; for (let i = 0, j = P.length - 2; i < P.length; j = i, i += 2) { const xi = P[i], yi = P[i + 1], xj = P[j], yj = P[j + 1]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) o = !o; } return o; };
+        let c = bg.slice(0, 3); for (const q of S.polys) if (inPoly(l.x, l.y - 4, q.pts)) c = ov(q.fill, c);
+        all++; const r = cr(l.color, c); if (r < 4.5) most.push(mode + ' ' + theme + ' ' + type + ' "' + l.t + '" ' + r.toFixed(2) + ' on ' + c.map((v) => Math.round(v * 255)).join());
+        return;
+      }
+      const w = l.t.length * l.size * 0.6, x0 = l.align === 'l' ? l.x : l.x - w / 2, y0 = l.y - l.size * 0.75, y1 = l.y + 1, cnt = new Map();
       for (let gy = 0; gy < 3; gy++) for (let gx = 0; gx < 12; gx++) { const c = at(x0 + (gx + 0.5) / 12 * w, y0 + (gy + 0.5) / 3 * (y1 - y0)), k = c.map((v) => Math.round(v * 255)).join(); if (!cnt.has(k)) cnt.set(k, [0, c]); cnt.get(k)[0]++; }
       const parts = Array.from(cnt.values()).filter(([m]) => m * 6 >= 36), cross = type === 'pack' && parts.length > 1;   /* a circle's name that runs into an inner circle sits on two shades */
       parts.forEach(([m, c]) => { all++; const r = cr(l.color, c), tag = mode + ' ' + theme + ' ' + type + ' "' + l.t + '" ' + r.toFixed(2) + ' on ' + c.map((v) => Math.round(v * 255)).join(); if (cross ? r < 3.5 : r < 4.5) most.push(tag); else if (r < 4.5) low.push(tag); });
     });
   }
   ok(most.length === 0, 'names read at 4.5:1 on the drawn colors under them, every view, both themes (' + all + ' checked; a circle name that crosses into an inner circle at 3.5:1 or better on both shades)' + (most.length ? ': ' + most.slice(0, 4).join('; ') : ''));
+  ok(blk.length === 0, 'no name falls back to pure black: the shape changes shade instead' + (blk.length ? ': ' + blk.slice(0, 4).join('; ') : ''));
   ok(low.length <= 4, 'circle names that cross two shades: at most 4 of them below 4.5:1 (' + low.length + ')');
 }
 console.log(fails ? fails + ' of ' + checks + ' checks FAILED' : checks + ' checks passed');

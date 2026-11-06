@@ -5,6 +5,8 @@ Needs Playwright for Python. Fully offline (file:// pages, http requests aborted
 binary to run with --browser firefox. Exits 1 if any check fails.
 """
 import os, sys, time
+try: import playwright.sync_api  # noqa: F401
+except ImportError: print('skipped: needs Playwright for Python (pip install playwright)'); sys.exit(2)
 from playwright.sync_api import sync_playwright
 
 def real_chromium(p, **kw):

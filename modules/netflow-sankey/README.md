@@ -1,8 +1,8 @@
 # netflow-sankey
 
-**Version 2.8.0 · API 2**
+**Version 2.10.0 · API 2**
 
-**Tested in:** node test/run.js (all passed); opt-in, default drawing unchanged
+**Tested in:** Node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 timing page against d3-sankey 0.12.3; crossing count on 40 charts each at 40, 72 and 100 items
 
 ## What it is and how it works
 
@@ -52,7 +52,7 @@ svgElement.innerHTML = NetflowSankey.toSvg(R, { title: "Where the wages go" });
 
 **For Netflow Map's engine (2.1.0):** `NetflowSankey.options(sk)` cleans up a person's settings (`nodeW`, `gap`, `pad`, `height`, `fixY`, `justify`, `order`; anything missing or out of range gets its default or the nearest limit) into the `opts` that `layout()` reads, and `NetflowSankey.apply(L, r)` writes a `layout(L, opts)` result `r` into the engine's drawing `L`: bar positions (`x, y, w, h, cx, cy, layer`, plus `skIn`, `skOut`, `skPinned`), the picture's `width` and `height`, `dir = 'LR'`, and `L.sk = { bands, loops, ky, order, cols, crossingWeight, ms }`. With netflow-engine: `NetflowEngine.use('sankey', NetflowSankey)`.
 
-`opts`: `height` (aim for this picture height), `nodeW`, `gapLayer` (space between columns), `pad` (space between bars), `restarts` and `budgetMs` (how hard to search for a good order), `seed`, `unweighted`, `justifySinks`, and `stopCap` with `stopCapFrom` (off by default: on maps with at least `stopCapFrom` items, default 1,000, at most `stopCap` stand-in stops; the lightest long links beyond that are drawn as one straight band each, which is faster but a different picture: at 1,500 items `stopCap: 500` takes about 4 ms instead of 24 in Node). `toSvg` takes `colors`, `labels`, `fontSize`, `textColor`, `bandOpacity`, and the optional `title`, `subtitle` and `source` (a bold title and lighter subtitle drawn above the picture, a small source line below; the title is also the picture's hidden label for screen readers); `highlight` (optional, since 2.8.0) names one item by id or label: that item and every band that touches it keep their colors, and the rest fade toward the background, the same word as in netflow-plot. All text is escaped. `fromLinks`, `layout`, `layering`, `crossWeight`, `roundPath` and `toBezier` are exported for people who want the pieces.
+`opts`: `height` (aim for this picture height), `nodeW`, `gapLayer` (space between columns), `pad` (space between bars), `restarts` and `budgetMs` (how hard to search for a good order), `quick` (true: skip the extra restarts for speed on small charts; see below), `seed`, `unweighted`, `justifySinks`, and `stopCap` with `stopCapFrom` (off by default: on maps with at least `stopCapFrom` items, default 1,000, at most `stopCap` stand-in stops; the lightest long links beyond that are drawn as one straight band each, which is faster but a different picture: at 1,500 items `stopCap: 500` takes about 4 ms instead of 24 in Node). `toSvg` takes `colors`, `labels`, `fontSize`, `textColor`, `bandOpacity`, and the optional `title`, `subtitle` and `source` (a bold title and lighter subtitle drawn above the picture, a small source line below; the title is also the picture's hidden label for screen readers); `highlight` (optional, since 2.8.0) names one item by id or label: that item and every band that touches it keep their colors, and the rest fade toward the background, the same word as in netflow-plot. All text is escaped. `fromLinks`, `layout`, `layering`, `crossWeight`, `roundPath` and `toBezier` are exported for people who want the pieces.
 
 ## How it compares
 netflow-sankey is bigger than d3-sankey, but on three made-up charts it leaves about half the weighted crossings (47% to 58% of d3-sankey's; lower is better), and it draws a chart with loops where d3-sankey stops with an error. Speed against d3-sankey (laptop Firefox 160, 16 cores, 2026.10.30): 3.7 to 5.5 times as fast at 200 and 500 nodes; at 72 nodes d3-sankey is about twice as fast with the default settings.
@@ -67,7 +67,7 @@ The browser race of Netflow Map against D3 measured the app's own flow engine, n
 
 **Where it loses**
 - Bigger than d3-sankey.
-- Speed against d3-sankey is measured in one browser only (laptop Firefox 160), and d3-sankey is faster on small charts with the default settings. Version 2.0.0 is faster than 1.0.0: a 12,600-link chart lays out in 168 ms against 666 ms in ungoogled Chromium 155.0.8059.39-1 (smaller is better).
+- Speed against d3-sankey is measured in one browser only (laptop Firefox 160), and d3-sankey is faster on small charts with the default settings (with `quick: true` this module is faster there and still tidier; see Limits). Version 2.0.0 is faster than 1.0.0: a 12,600-link chart lays out in 168 ms against 666 ms in ungoogled Chromium 155.0.8059.39-1 (smaller is better).
 - The crossing result is one yardstick on three charts, not a proof for every chart.
 - d3-sankey is the standard: use it if you already use D3 and your data has no loops.
 
@@ -118,6 +118,15 @@ Chromium and Firefox rows are the median of 3 passes of 5 rounds; WebKitGTK's ch
 **Honest limits.** Gains are in Chromium and Firefox (up to 1.9x on small charts, about 1.05 to 1.2x on big ones). In WebKitGTK the chart rows are a wash (0.98x to 1.24x). Costs bytes: +11,578 as written (37,790 to 49,368), +9,493 minified (19,377 to 28,870) and +4,301 gzipped (8,097 to 12,398) with terser 5.51.2 (smaller is better). Not run: a phone, Safari.
 
 ## Limits
+- `quick: true` (opt-in, 2.10.0) trades some tidiness for speed. Small charts (6 columns, made-up flows, 40 charts each) were laid out warm, ms per chart, median (lower is better):
+
+  | Browser | 72 items: d3-sankey / quick / default | 100 items: d3-sankey / quick / default |
+  |---|---|---|
+  | Chromium 155 | 0.50 / 0.34 / 0.80 | 0.72 / 0.50 / 2.00 |
+  | Firefox 158 | 0.60 / 0.40 / 1.00 | 1.00 / 0.60 / 2.20 |
+  | WebKitGTK 2.52.6 | 0.60 / 0.40 / 0.80 | 0.80 / 0.60 / 2.20 |
+
+  Weighted crossings were counted on straight band centerlines, the same way for both tools (lower is tidier). Quick mode has 74 to 78% of d3-sankey's crossings and is tidier or equal on 35 to 39 of every 40 charts. The default has 68 to 73%. The first chart on a fresh page was not compared fairly (one sample each).
 - The search is a heuristic (it restarts several times within a time budget); it finds a good order, not always the best.
 - Items are placed in columns by flow direction; you cannot pin an item to a chosen column.
 - No dragging or editing: it returns numbers, and `toSvg` is a simple drawing. For anything fancier draw `nodes`, `bands` and `loops` yourself.

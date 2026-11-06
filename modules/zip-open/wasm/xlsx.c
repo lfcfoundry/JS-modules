@@ -71,9 +71,14 @@ static u32 entity(const u8 *p, u32 n, u8 *d, u32 *dl) {
 }
 
 /* Writes text p[0..n) as one CSV field into o (decoding entities when amp), quoting when needed. Returns the new end, or 0 when out of room. */
+static const u8 QC[256] = { ['"'] = 1, [','] = 1, ['\n'] = 1, ['\r'] = 1 };
 static u8 *field(u8 *o, u8 *oe, const u8 *p, u32 n, int amp) {
   u8 *st = o, tmp[4]; u32 i, k, dl, q = 0;
   if ((u32)(oe - o) < n + 2) return 0;
+  if (!amp && n && p[0] > 0x20 && p[0] < 0x80 && p[n - 1] > 0x20 && p[n - 1] < 0x80) {   /* the usual text: no entities, no edge spaces; copied as is unless it needs quotes */
+    for (i = 0; i < n; i++) { u8 c = p[i]; if (QC[c]) break; o[i] = c; }
+    if (i == n) return o + n;
+  }
   /* decode first into o, then decide on quotes */
   for (i = 0; i < n; ) {
     if (amp && p[i] == '&' && (k = entity(p + i, n - i, tmp, &dl))) { if ((u32)(oe - o) < dl + 2) return 0; for (u32 j = 0; j < dl; j++) *o++ = tmp[j]; i += k; }

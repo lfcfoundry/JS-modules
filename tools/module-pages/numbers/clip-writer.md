@@ -2,6 +2,7 @@
 
 Compared: clip-writer against webm-muxer and mp4-muxer (250 pictures).
 
+<!-- title: clip-writer writes WebM about 2 times and MP4 about 6 times faster than the nearest muxers, with files the same size or smaller -->
 | format | writer | ms | file bytes |
 |---|---|---:|---:|
 | WebM | clip-writer writeWebm | 0.3 | 148,257 |

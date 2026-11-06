@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.8.0 · API 2 · 2026-11-05
+- Axis names read like words: sales_total shows as Sales total, and one-letter column names (r, v) are left out.
+
 ## 2.7.0 · API 2 · 2026-11-05
 - Line charts follow the clean look: no number axis or gridlines, first and last values on each line.
 

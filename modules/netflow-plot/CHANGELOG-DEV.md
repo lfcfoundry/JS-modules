@@ -1,5 +1,13 @@
 # netflow-plot developer changelog
 
+## 2.8.0 · API 2 · 2026-11-05
+
+### Quick
+Owner's card "Tidy the column name" (2026.11.05 10:47 PM ET): an axis name taken from a column name is tidied (underscores, dashes and camelCase become spaces, first letter capital; words with capitals of their own such as GDP keep them),…
+
+### Deep
+Owner's card "Tidy the column name" (2026.11.05 10:47 PM ET): an axis name taken from a column name is tidied (underscores, dashes and camelCase become spaces, first letter capital; words with capitals of their own such as GDP keep them), and a one-letter name such as r or v is left out. Also opt-in Economist frame through netflow-scene 1.8.0 (frame: true or theme 'editorial').
+
 ## 2.7.0 · API 2 · 2026-11-05
 
 ### Quick

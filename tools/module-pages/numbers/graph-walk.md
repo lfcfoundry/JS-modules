@@ -2,6 +2,7 @@
 
 Compared: graph-walk against graphology and a hand-written walk (100,000 items, ms).
 
+<!-- title: graph-walk builds and searches a 100,000-item graph 3 to 4 times faster than hand-written arrays and 70 to 390 times faster than graphology -->
 | way | build | bfs |
 |---|---:|---:|
 | graph-walk | 3.0 | 6.0 |

@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.4.1 (API 1)
+ * Version 1.4.2 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -448,6 +448,23 @@ var NetflowHierarchy = (function () {
     var recOf = function (q) { return S.nodes[q]; };
     /* text on a shape: the preferred color when it reads at 4.5:1 or better on the shape (as drawn over the background), otherwise near-black or white, whichever reads better (black where neither reaches 4.5:1) */
     var ink = function (fill, pref, under) { var c = over(fill, under || T.bg); if (pref && contrast(pref, c) >= 4.5) return pref; var d = contrast(INK_DARK, c), w = contrast(INK_LIGHT, c); return Math.max(d, w) >= 4.5 ? (d >= w ? INK_DARK : INK_LIGHT) : INK_BLACK; };   /* pure black reaches 4.5:1 on every color where neither does */
+    /* a shape that neither near-black nor white names read on at 4.5:1 (as drawn over what is under it): the smallest change that fixes it, a shade darker for white names or a shade lighter for near-black ones, darker on a tie;
+       returns the new color (opaque) or null when the shape already reads (owner's card, 2026.11.05: the violet tile 5% darker with white names, 4.57:1) */
+    var fitM = new Map(), NONE = [];
+    var fitFill = function (fill, under) {   /* the answer is kept per pair of color arrays (shared fills and parent boxes repeat) */
+      under = under || T.bg; var m = fitM.get(fill), got; if (!m) fitM.set(fill, m = new Map()); got = m.get(under);
+      if (got === undefined) { got = fitOnce(fill, under) || NONE; m.set(under, got); }
+      return got === NONE ? null : got;
+    };
+    var fitOnce = function (fill, under) {
+      var c = over(fill, under), r = function (v) { return Math.round(v * 255) / 255; }, s, dk, lt;
+      if (Math.max(contrast(INK_DARK, c), contrast(INK_LIGHT, c)) >= 4.5) return null;
+      for (s = 0.01; s < 1; s += 0.01) {
+        dk = [r(c[0] * (1 - s)), r(c[1] * (1 - s)), r(c[2] * (1 - s)), 1]; if (contrast(INK_LIGHT, dk) >= 4.5) return dk;
+        lt = [r(c[0] + (1 - c[0]) * s), r(c[1] + (1 - c[1]) * s), r(c[2] + (1 - c[2]) * s), 1]; if (contrast(INK_DARK, lt) >= 4.5) return lt;
+      }
+      return null;
+    };
     /* a name that runs over shapes drawn later (a box's name over its first tiles, a circle's name over the circles inside): the ink that reads best on every color under it, the preferred one when it reaches 4.5:1 on all of them */
     var inkOver = function (cols, pref) {   /* cols: [color, share of the name, ...]; the preferred ink when it reaches 4.5:1 on all of them, else the ink whose worst contrast is highest */
       var worst = function (k) { var m = 99; for (var i = 0; i < cols.length; i += 2) m = Math.min(m, contrast(k, cols[i])); return m; };
@@ -482,7 +499,8 @@ var NetflowHierarchy = (function () {
         else { x0 = Rm[v * 4] * cw; x1 = Rm[v * 4 + 2] * cw - 1; y0 = Rm[v * 4 + 1] * Hh; y1 = Rm[v * 4 + 3] * Hh - 1; }
         var w2 = x1 - x0, h2 = y1 - y0; if (w2 <= 0.3 || h2 <= 0.3) continue;
         var it = ch.item[v], base = hcol(v), box = ch.kids[v].length > 0;
-        var fill = look(base, type === 'treemap' && box ? 1 : 0), pv0 = seen ? ch.par[v] : -1, under = pv0 >= 0 && seen[pv0] ? seen[pv0] : T.bg;
+        var fill = look(base, type === 'treemap' && box ? 1 : 0), pv0 = seen ? ch.par[v] : -1, under = pv0 >= 0 && seen[pv0] ? seen[pv0] : T.bg, fit = fitFill(fill, under);
+        if (fit) fill = fit;
         if (seen) seen[v] = over(fill, under);
         S.rects.push({ x: x0, y: y0, w: w2, h: h2, r: 0, fill: fill, stroke: rectLine, sw: 1, layer: 1, node: it >= 0 ? recOf(it).i : -1, a: 1 });
         var size = (type === 'treemap' && box ? 12 : 11) * iscale, txt = ch.label[v];
@@ -504,17 +522,19 @@ var NetflowHierarchy = (function () {
         if (hc.length > 2 || hc[0] !== seen[hv]) hl.color = inkOver(hc, T.fg);
       }
     } else if (type === 'sunburst') {
-      var Rs = ch.R, scx = ch.cx, scy = ch.cy;
+      var Rs = ch.R, scx = ch.cx, scy = ch.cy, sfM = new Map();
       for (var si = 0; si < ch.order.length; si++) {
         var u = ch.order[si], d = Rs[u * 4]; if (d < 0) continue;
         var a0 = Rs[u * 4 + 1] * TAU - Math.PI / 2, a1 = Rs[u * 4 + 3] * TAU - Math.PI / 2; if (a1 - a0 < 0.002) continue;
         var r0 = ch.hole + d * ch.ring, r1 = r0 + ch.ring - 1.5, it2 = ch.item[u], base2 = hcol(u);
         var gap = Math.min(0.004, (a1 - a0) * 0.1);
-        pushSector(S, scx, scy, r0, r1, a0 + gap, a1 - gap, alpha(base2, 0.9 - Math.min(0.3, d * 0.06)), [0, 0, 0, 0], it2 < 0 ? { group: ch.group[u] } : null);
+        var sfA = sfM.get(base2); if (!sfA) sfM.set(base2, sfA = []);
+        var sf = sfA[d]; if (!sf) { sf = alpha(base2, 0.9 - Math.min(0.3, d * 0.06)); sf = sfA[d] = fitFill(sf, T.bg) || sf; }   /* one fill per color and ring */
+        pushSector(S, scx, scy, r0, r1, a0 + gap, a1 - gap, sf, [0, 0, 0, 0], it2 < 0 ? { group: ch.group[u] } : null);
         var midA = (a0 + a1) / 2, rr = (r0 + r1) / 2, arcLen = (a1 - a0) * rr;
         if (itemShow && arcLen > 12 * iscale) {
           var right2 = Math.cos(midA) >= 0, maxC2 = Math.floor((ch.ring - 8) / (6.5 * iscale));
-          lab(scx + Math.cos(midA) * rr, scy + Math.sin(midA) * rr + 4, clip(ch.label[u], maxC2), 11 * iscale, ink(alpha(base2, 0.9 - Math.min(0.3, d * 0.06)), null), { rot: right2 ? midA : midA + Math.PI, node: it2 >= 0 ? it2 : -1, minK: 0.2 });
+          lab(scx + Math.cos(midA) * rr, scy + Math.sin(midA) * rr + 4, clip(ch.label[u], maxC2), 11 * iscale, ink(sf, null), { rot: right2 ? midA : midA + Math.PI, node: it2 >= 0 ? it2 : -1, minK: 0.2 });
         }
       }
       if (ch.skipRoot) lab(scx, scy + 5, clip(ch.label[ch.root], 18), 13, T.fg, { bold: true });
@@ -542,6 +562,7 @@ var NetflowHierarchy = (function () {
         });
         if (pc.length > 2 || pc[0] !== own) pl.color = inkOver(pc, T.fg);
       }
+      L.nodes.forEach(function (nd, q) { if (ch.kids[nd.hv].length || !dotOf[q]) return; var f = fitFill(dotOf[q].fill, T.bg); if (f) { dotOf[q].fill = f; leafC.delete(q); } });   /* leaf circles names cannot read on: the smallest shade change */
       if (itemShow) L.nodes.forEach(function (nd, q) { if (ch.kids[nd.hv].length) return; var r = ch.Rr[nd.hv]; if (r > 14) lab(nd.cx, nd.cy + 4, clip(nd.label, Math.floor(r / 3.6)), Math.min(13, r / 2.6) * iscale, ink(fillOf(q), null), { node: q, minK: 0.3 }); });
       /* polys are drawn under the dots: move the outer circles first */
     } else if (type === 'tree') {

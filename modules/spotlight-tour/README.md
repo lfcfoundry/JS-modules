@@ -28,6 +28,11 @@ A first visit is the one chance to explain a page, and long tours get skipped. K
 **Test it:** `node modules/spotlight-tour/test/run.js` (5 checks on where the window and card go) and `node tests/pieces-browser.js` (the whole tour in Firefox 158 and ungoogled Chromium 155: opens once, window over the part, Back, Skip, Escape, Tab, `#tour`, the gift, scrolling to a far part, blocked storage). **Try it:** `demo.html`.
 
 ## Use
+The shortest version: a list of steps, then start it.
+```js
+SpotlightTour.create({ steps: [{ title: "Welcome!", text: "A short look around." }, { target: "#bigButton", title: "The big button", text: "Tap it." }] }).start();
+```
+The full set of options:
 ```js
 var tour = SpotlightTour.create({
   key: "mygame-tour",              // remembers "seen" (localStorage)

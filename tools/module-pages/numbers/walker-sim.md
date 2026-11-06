@@ -2,6 +2,7 @@
 
 Compared: walker-sim against a hand-written random walk (100,000 walkers, ms).
 
+<!-- title: walker-sim runs 100,000 random walkers about 2.9 times faster than a plain loop, and also keeps counts, 95% ranges and costs -->
 | way | ms |
 |---|---:|
 | walker-sim | 73 |

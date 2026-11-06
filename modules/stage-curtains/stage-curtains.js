@@ -2,7 +2,7 @@
  * stage-curtains.js: velvet stage curtains that slide shut over a page, then fly open.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.2 (API 1)
+ * Version 1.4.3 (API 1)
  *
  * No dependencies. Needs: canvas 2D, Promise, Element.animate (Web Animations). Any modern browser (2020+).
  * create({ worker: true }) paints the velvet in a background worker (the page then needs worker-src blob:); StageCurtains.startWorker() starts it early, release() ends it.
@@ -293,17 +293,20 @@
     function onPage() { core = CORE.velvetCore(PW, H, k, B, seed, stepped, wasm, img.data); self.engine = core.engine; }
     self.canvas = cv; self.done = false;
     if (worker) self.engine = 'worker+' + (wasm === false ? 'js' : 'wasm'); else onPage();
+    function startJob() {
+      if (job) return;
+      var wk = getWorker();
+      if (wk) {
+        job = { ready: false, failed: false, buf: null, engine: null, kick: function () { if (self.onready) self.onready(); } };
+        wk.jobs[++wk.n] = job;
+        try { wk.w.postMessage({ id: wk.n, PW: PW, H: H, k: k, B: B, seed: seed, stepped: stepped, wasm: wasm }); } catch (e) { wkFail(); }
+      }
+    }
+    self.start = worker ? startJob : null;   // prepare() starts the worker's job at once, not at its first step (a busy page waits 250 ms for that step)
     self.step = function (ms) {
       if (self.done) return true;
       if (worker && !core) {
-        if (!job) {
-          var wk = getWorker();
-          if (wk) {
-            job = { ready: false, failed: false, buf: null, engine: null, kick: function () { if (self.onready) self.onready(); } };
-            wk.jobs[++wk.n] = job;
-            try { wk.w.postMessage({ id: wk.n, PW: PW, H: H, k: k, B: B, seed: seed, stepped: stepped, wasm: wasm }); } catch (e) { wkFail(); }
-          }
-        }
+        if (!job) startJob();
         if (job && job.failed) job = null;
         if (job && job.ready) {
           try { x.putImageData(OPT.copy || typeof ImageData !== 'function' ? (img.data.set(new Uint8ClampedArray(job.buf)), img) : new ImageData(new Uint8ClampedArray(job.buf), cw, ch), 0, 0);   /* the arrived pixels as they are, no copy */ self.engine = 'worker+' + job.engine; self.done = true; return true; } catch (e) { job = null; }
@@ -471,21 +474,22 @@
       try {
         gm = geometry(); state.size = gm;
         jobs = state.jobs = [0, 1].map(function (n) { return velvetPainter(gm.PW, gm.H, gm.k, color, seed + n * 23, stepped, opts.wasm, opts.worker); });   // two different paintings
+        jobs.forEach(function (j) { if (j.start) j.start(); });
       } catch (e) { state.jobs = null; return Promise.resolve(api); }   // no canvas 2D (or no memory): skip the curtain
       var sliceMs = po.sliceMs || 2.5, restMs = po.restMs == null ? 45 : po.restMs;
       var realIdle = typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function';
       // Without requestIdleCallback (Safari ships it switched off) a timer stands in for it. It cannot tell how much time is left,
       // so the "is this a real idle moment" check below is skipped and the painting goes ahead in short slices.
       var idle = realIdle
-        ? function (f, o) { return window.requestIdleCallback(f, o); }
-        : function (f) { return setTimeout(function () { f({ timeRemaining: function () { return 3; }, didTimeout: false }); }, 16); };
+        ? function (f, o) { var id = window.requestIdleCallback(f, o); return function () { window.cancelIdleCallback(id); }; }
+        : function (f) { var id = setTimeout(function () { f({ timeRemaining: function () { return 3; }, didTimeout: false }); }, 16); return function () { clearTimeout(id); }; };
       var p = new Promise(function (resolve, reject) {
-        var restT = 0, over = false;
+        var restT = 0, over = false, cancelIdle = null;
         function rest(ms) { restT = setTimeout(function () { restT = 0; slice(); }, ms); }
         // a worker's pixels arrived while this rests: put them in now (no wait for the rest and the next idle moment)
         if (!OPT.noWake) jobs.forEach(function (j) { j.onready = function () {
-          if (!restT || over || state.destroyed) return;
-          clearTimeout(restT); restT = 0;
+          if ((!restT && !cancelIdle) || over || state.destroyed) return;
+          if (restT) { clearTimeout(restT); restT = 0; } else { cancelIdle(); cancelIdle = null; }   // also while the first idle moment is still awaited
           try { var all = true; jobs.forEach(function (jj) { if (!jj.done && !jj.step(sliceMs)) all = false; }); if (all) { over = true; resolve(); } else rest(restMs); } catch (e) { over = true; reject(e); }
         }; });
         function slice() {
@@ -500,7 +504,8 @@
               if (all) { over = true; resolve(); } else rest(16);
               return;
             }
-            idle(function (dl) {
+            cancelIdle = idle(function (dl) {
+              cancelIdle = null;
               if (state.destroyed) return resolve();
               try {
                 if (state.waiting && performance.now() - state.waiting.since < state.waiting.ms) { slice(); return; }   // close() asked while this was queued

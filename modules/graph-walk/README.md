@@ -1,8 +1,8 @@
 # graph-walk
 
-**Version 0.11.2 · API 0**
+**Version 0.12.0 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page check
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -29,7 +29,8 @@ Netflow Map had four copies of the same breadth-first walk and two loop-dropping
 ## Use
 The short version: two calls, then read the result.
 ```js
-var g = GraphWalk.csr(n, fromArray, toArray);   // items 0..n-1; link i joins from[i] to to[i]
+GraphWalk.bfs([{ from: 'Home', to: 'Shop' }, { from: 'Shop', to: 'Cart' }], 'Home');   // one call: { Home: 0, Shop: 1, Cart: 2 } (links away, by name)
+var g = GraphWalk.csr(n, fromArray, toArray);   // the fast form for big graphs: items 0..n-1; link i joins from[i] to to[i]
 var depth = GraphWalk.bfs(g, root);             // Int32Array of link counts, -1 where not reached
 ```
 All the options:

@@ -32,6 +32,9 @@ function tAsync(name, fn) {      // a check that waits for promises; run after t
     return Promise.resolve().then(fn).then(function () { passed++; console.log('  ok  ' + name + ' (' + (Date.now() - t0) + ' ms)'); }, function (e) { failed++; console.log('FAIL ' + name + '\n   ' + why(e)); });
   });
 }
+// Node-only checks (they swap globals, run the worker script in this process, or start a child process); the browser page (tests/memory-compression-browser.js) skips them
+var NODE = typeof global !== 'undefined' && typeof require('child_process').execFileSync === 'function';
+function skip(name) { console.log('  skip ' + name + ' (Node only)'); }
 function same(a, b, label) { var e = D.same(a, b); if (e) throw new Error((label || 'values differ') + ': ' + e); }
 function opt(o) { return Object.assign({}, WASM, o || {}); }
 function rt(v, o, label) { var p = J.pack(v, opt(o)); var u = J.unpack(p, opt(o)); same(v, u, label); return p; }
@@ -768,7 +771,7 @@ tAsync('pager: cool() repacks closed pages smaller, rows stay exact, edits repac
     return S.spill({ all: true }).then(function () { assert(S.memory().cold > 0 && S.memory().spilled > 0, 'spill cooled first'); return S.getAsync(777); }).then(function (v) { same(rows[777], v, 'row back from storage'); S.dispose(); });
   });
 });
-tAsync('pager: cool() with a worker the page policy blocks (the error event comes right after creation) resolves with pages: 0 and is not tried again', function () {
+(NODE ? tAsync : skip)('pager: cool() with a worker the page policy blocks (the error event comes right after creation) resolves with pages: 0 and is not tried again', function () {
   // closest honest fake of a browser whose policy refuses blob: workers: the constructor works and the error event follows in the next microtask (as in Chromium and WebKit); the real browser path is the policy page in results/ab-tiers-4b.js
   var rows = many(5000, function (i) { return { id: i, a: (i * 7919) % 900, b: i % 7 }; }), made = 0, realW = global.Worker, P, Q;
   global.Worker = function () { var self = this; made++; this.postMessage = function () {}; this.terminate = function () {}; Promise.resolve().then(function () { if (self.onerror) self.onerror({}); }); };
@@ -866,7 +869,7 @@ function poolCases() {
     ['nested', many(4000, function (i) { return { id: i, pos: [i / 3, i * 0.5], tags: ['a', 'b'] }; })]
   ];
 }
-tAsync('packAsync with a pool of workers (the worker script run in this process): same bytes as pack, the number columns really went to the workers', function () {
+(NODE ? tAsync : skip)('packAsync with a pool of workers (the worker script run in this process): same bytes as pack, the number columns really went to the workers', function () {
   var fb = fakeBrowser('ok'), pool = fb.M.pool({ size: 2 });
   return poolCases().reduce(function (p, c) { return p.then(function () { return asyncSame(c[1], { mode: 'balanced' }, pool, c[0] + ' balanced'); }).then(function () { return asyncSame(c[1], { mode: 'small' }, pool, c[0] + ' small'); }); }, Promise.resolve()).then(function () {
     assert(fb.made === 2 && fb.jobs >= 6, 'workers made ' + fb.made + ', jobs sent ' + fb.jobs);
@@ -874,7 +877,7 @@ tAsync('packAsync with a pool of workers (the worker script run in this process)
     return asyncSame(poolCases()[0][1], { mode: 'balanced' }, pool, 'closed pool answers on the page');
   }).then(function () { fb.restore(); }, function (e) { fb.restore(); throw e; });
 });
-tAsync('packAsync with workers the page policy blocks (error event after creation), a constructor that throws, or workers that never answer resolves with the same bytes as pack and does not hang', function () {
+(NODE ? tAsync : skip)('packAsync with workers the page policy blocks (error event after creation), a constructor that throws, or workers that never answer resolves with the same bytes as pack and does not hang', function () {
   var kinds = ['blocked', 'throws', 'silent'], cs = poolCases();
   return kinds.reduce(function (p, kind) {
     return p.then(function () {
@@ -982,7 +985,7 @@ tAsync('2.6.0: a callback that throws makes unpackAsync reject with its error (n
   });
 });
 
-tAsync('unpackAsync never waits on workers: with workers the page blocks, a constructor that throws or workers that stay silent it still resolves with the same value, uses no worker, and runs beside a packAsync that falls back', function () {
+(NODE ? tAsync : skip)('unpackAsync never waits on workers: with workers the page blocks, a constructor that throws or workers that stay silent it still resolves with the same value, uses no worker, and runs beside a packAsync that falls back', function () {
   var mk = function (n) { return many(n, function (i) { return { id: i, v: i * 1.5 + (i % 7), name: 'n' + (i % 13), pos: [i / 3, i * 0.5], tags: ['a', 'b' + (i % 5)], t: 1e12 + i * 977 }; }); };
   var data = mk(6000), bytes = J.pack(data, opt({ mode: 'balanced' }));
   return ['blocked', 'throws', 'silent'].reduce(function (p, kind) {
@@ -1002,7 +1005,7 @@ tAsync('unpackAsync never waits on workers: with workers the page blocks, a cons
     });
   }, Promise.resolve());
 });
-tAsync('unpackAsync, packAsync and a second unpackAsync running together all settle when the yield goes through the one shared message channel (no setImmediate)', function () {
+(NODE ? tAsync : skip)('unpackAsync, packAsync and a second unpackAsync running together all settle when the yield goes through the one shared message channel (no setImmediate)', function () {
   var realSI = global.setImmediate, data = many(5000, function (i) { return { id: i, a: [i, i + 1], s: 'k' + (i % 9), t: 1e12 + i * 31 }; }), bytes = J.pack(data, opt());
   global.setImmediate = undefined;
   function done() { global.setImmediate = realSI; }
@@ -1013,7 +1016,7 @@ tAsync('unpackAsync, packAsync and a second unpackAsync running together all set
   }, function (e) { done(); throw e; });
 });
 
-tAsync('packAsync and unpackAsync yield only when the slice has used its time: a clock that does not move gives no yield at all, a clock that jumps gives one at every piece, same bytes and rows either way', function () {
+(NODE ? tAsync : skip)('packAsync and unpackAsync yield only when the slice has used its time: a clock that does not move gives no yield at all, a clock that jumps gives one at every piece, same bytes and rows either way', function () {
   var realNow = performance.now, realSI = global.setImmediate, yields = 0, tick = 0, mode = 'frozen', data = many(6000, function (i) { return { id: i, a: [i, i + 1], s: 'k' + (i % 9), t: 1e12 + i * 31, w: (i % 50) / 8 }; }), ref = J.pack(data, opt({ mode: 'fast' })), bytes = ref;
   performance.now = function () { return mode === 'frozen' ? 5000 : (tick += 7); };
   global.setImmediate = function (f) { yields++; return realSI(f); };
@@ -1049,7 +1052,7 @@ tAsync('pager cold: get() does not read the clock, a pager that is read in every
   });
 });
 
-tAsync('pool.start() packs a small made-up list once through the workers (answer thrown away), only once, and a packAsync after it still gives the same bytes; a blocked pool and a throwing constructor do not break start()', function () {
+(NODE ? tAsync : skip)('pool.start() packs a small made-up list once through the workers (answer thrown away), only once, and a packAsync after it still gives the same bytes; a blocked pool and a throwing constructor do not break start()', function () {
   var fb = fakeBrowser('ok'), pool = fb.M.pool({ size: 2 }), data = many(5000, function (i) { return { id: i, a: (i * 7919) % 900, t: 1e12 + i * 31 }; });
   pool.start();
   assert.strictEqual(fb.made, 2, 'workers made: ' + fb.made);
@@ -1062,7 +1065,7 @@ tAsync('pool.start() packs a small made-up list once through the workers (answer
     return ['blocked', 'throws', 'silent'].reduce(function (p, kind) { return p.then(function () { var f2 = fakeBrowser(kind), p2 = f2.M.pool({ size: 2, timeout: 60 }); p2.start(); return new Promise(function (r) { setTimeout(r, 30); }).then(function () { f2.restore(); p2.close(); }); }); }, Promise.resolve());
   }, function (e) { fb.restore(); pool.close(); throw e; });
 });
-tAsync('pool.start() returns a promise: true the first time, false the second time and on a closed pool; a blocked pool still resolves (true, the warm-up runs on the page); a caller that ignores the return still works', function () {
+(NODE ? tAsync : skip)('pool.start() returns a promise: true the first time, false the second time and on a closed pool; a blocked pool still resolves (true, the warm-up runs on the page); a caller that ignores the return still works', function () {
   var fb = fakeBrowser('ok'), pool = fb.M.pool({ size: 2 }), p1, p2;
   p1 = pool.start(); p2 = pool.start();
   assert(p1 && typeof p1.then === 'function' && p2 && typeof p2.then === 'function', 'start() did not return promises');
@@ -1078,7 +1081,7 @@ tAsync('pool.start() returns a promise: true the first time, false the second ti
     return p3.start().then(function (r5) { assert.strictEqual(r5, true, 'blocked pool: the warm-up pack ran on the page and resolved ' + r5); return p3.start(); }).then(function (r6) { assert.strictEqual(r6, false, 'second start() on a blocked pool resolved ' + r6); f2.restore(); p3.close(); });
   }, function (e) { fb.restore(); throw e; });
 });
-t('rows without generated code: 1 to 18 fields, a field called __proto__, missing and mixed values give the same rows as with generated code (a child process that forbids code generation)', function () {
+(NODE ? t : skip)('rows without generated code: 1 to 18 fields, a field called __proto__, missing and mixed values give the same rows as with generated code (a child process that forbids code generation)', function () {
   var cp = require('child_process'), script = "var M=require(" + JSON.stringify(path.resolve(modPath)) + ");var out=[];for(var nk=1;nk<=18;nk++){var rows=[];for(var i=0;i<3000;i++){var o={};for(var j=0;j<nk;j++)o['k'+j]=j%3===0?i*j:j%3===1?'s'+(i%7):(i%2===0);rows.push(o);}var b=M.pack(rows,{mode:'fast'});out.push(JSON.stringify(M.unpack(b))===JSON.stringify(rows));}var pr=[];for(var i=0;i<3000;i++){var o={a:i};Object.defineProperty(o,'__proto__',{value:i%5,enumerable:true,writable:true,configurable:true});o.z='x'+i;pr.push(o);}var b2=M.pack(pr,{mode:'fast'});var u=M.unpack(b2);out.push(u.length===3000&&Object.keys(u[7]).join()==='a,__proto__,z'&&u[7]['__proto__']===2&&Object.getPrototypeOf(u[7])===Object.prototype);console.log(out.join());";
   var r = cp.execFileSync(process.execPath, ['--disallow-code-generation-from-strings', '-e', script], { encoding: 'utf8' }).trim();
   assert.strictEqual(r, new Array(19).fill('true').join(','), r);

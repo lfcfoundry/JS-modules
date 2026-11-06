@@ -3,6 +3,8 @@ Copyright (c) 2026 LFC Foundry. MIT License.
 Checks: the clean app survives, the planted bug (#bug) is found and described, the same seed gives the same result, and the stripped copy of the app
 has no test handle. Run: python3 fuzz-kit/test/browser.py   (Python 3 + Playwright for Python with Chromium; no network)"""
 import json, pathlib, subprocess, sys, tempfile
+try: import playwright.sync_api  # noqa: F401
+except ImportError: print('skipped: needs Playwright for Python (pip install playwright)'); sys.exit(2)
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 import importlib.util
 spec = importlib.util.spec_from_file_location("pw_runner", ROOT / "runner" / "fuzz_playwright.py"); mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)

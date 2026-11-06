@@ -333,7 +333,8 @@ def set_header(text, v):
 
 def set_runtime_version(text, v):
     """Update the optional runtime version property that check() validates."""
-    return re.sub(r"(\bversion:\s*')[0-9]+\.[0-9]+\.[0-9]+(')", lambda m: m.group(1) + v + m.group(2), text, count=1)
+    text = re.sub(r"(\bversion:\s*')[0-9]+\.[0-9]+\.[0-9]+(')", lambda m: m.group(1) + v + m.group(2), text, count=1)
+    return re.sub(r"(\bVERSION\s*=\s*')[0-9]+\.[0-9]+\.[0-9]+(')", lambda m: m.group(1) + v + m.group(2), text, count=1)   # a VERSION constant (field-report)
 
 
 README_LINE = re.compile(r"^\*\*Version \d+\.\d+\.\d+ · API \d+\*\*$")
@@ -573,6 +574,9 @@ def check(root, reg):
             m = re.search(r"\bversion:\s*'(\d+\.\d+\.\d+)'", rd(root, f))   # a module that also exposes its version in code (sprite-baker)
             if m and m.group(1) != v:
                 bad.append("%s: %s exposes version '%s' in code but modules.json says %s" % (i, f, m.group(1), v))
+            m = re.search(r"\bVERSION\s*=\s*'(\d+\.\d+\.\d+)'", rd(root, f))   # a VERSION constant (field-report writes it into its reports)
+            if m and m.group(1) != v:
+                bad.append("%s: %s has VERSION = '%s' in code but modules.json says %s" % (i, f, m.group(1), v))
         cl = changelog_rel(root, e)
         if not os.path.exists(os.path.join(root, cl)):
             bad.append("%s: %s is missing" % (i, cl))

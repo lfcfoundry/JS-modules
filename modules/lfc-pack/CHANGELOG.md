@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.1 · API 0 · 2026-11-05
+- pack, unpack and the other calls now work without calling init() first.
+
 ## 0.5.0 · API 0 · 2026-11-05
 - New LfcPack.open(file): read big files a block at a time from a File or Blob.
 
