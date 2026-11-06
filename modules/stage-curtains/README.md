@@ -1,8 +1,8 @@
 # stage-curtains
 
-**Version 1.4.2 · API 1**
+**Version 1.4.3 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Node 46 checks; tests/stage-curtains-worker-browser.js same pixels (12 halves, 0 differ, worker allowed and refused) in Chromium 155, Firefox 158, WebKitGTK 2.52.6; busy-page timing in all three
 
 ## What it is and how it works
 
@@ -133,11 +133,11 @@ No open-source, ready, tested "theater curtain scene change" with fallbacks for 
 | [GSAP](https://gsap.com/community/standard-license/) (own free license, not open source); version not read | not measured | not measured | Wins: powerful timelines. Loses: you still draw the velvet. |
 | [curtains.js](https://github.com/martinlaxenaire/curtainsjs) (MIT); version not read | not measured | not measured | Not a real alternative: WebGL image planes, only the same name. |
 | Curtain code inside Apple Press build 2026.10.17.0128 (private game source, not a library) | 4,923 bytes gzipped, 11,980 minified, with its 12 style lines (terser 5.51.2; leaves out a few small game helpers it uses) | ready ahead on a busy test page: 0.85 s in ungoogled-chromium 155.0.8059.39-1, 1.10 s in Firefox 158.0; longest freeze on a cold close: 15 ms, 15 ms, 12 ms in Chromium, Firefox, WebKitGTK 2.52.6 | Wins on size (about 13% fewer gzipped bytes). Loses: no public API, not reusable; its curtains are skipped in its calm and lite modes. |
-| **stage-curtains 1.2.0** | 19,276 bytes minified, 8,313 gzipped (36,953 as written; terser 5.51.2; 1.1.0 was 14,062 and 5,672 plus 30,548 as written, before the WebAssembly painter) | ready ahead on the same busy test page: 1.0 s in Chromium, 0.6 s in Firefox (3.6 and 5.7 times faster than 1.0.0; measured on 1.1.0); first paint of one phone-size half 1.4 to 1.6 times faster with WebAssembly; quiet page 0.23 to 0.30 s; longest freeze on a cold close: 16 ms, 13 ms, 13 ms in Chromium, Firefox, WebKitGTK | Public API, calm mode and inert page, any color string, interrupting a close, stalled-animation safety timers. |
+| **stage-curtains 1.2.0** | 19,276 bytes minified, 8,313 gzipped (36,953 as written; terser 5.51.2; 1.1.0 was 14,062 and 5,672 plus 30,548 as written, before the WebAssembly painter) | ready ahead on a page busy 18 ms of every frame, with worker: true (1.4.3, 2026.11.06, median of 5 fresh pages): 0.12 s in Chromium, 0.11 s in Firefox, 0.18 s in WebKitGTK; about 0.65 s without the worker (Chromium, Firefox); first paint of one phone-size half 1.4 to 1.6 times faster with WebAssembly; quiet page 0.23 to 0.30 s; longest freeze on a cold close: 16 ms, 13 ms, 13 ms in Chromium, Firefox, WebKitGTK | Public API, calm mode and inert page, any color string, interrupting a close, stalled-animation safety timers. |
 
 Where it loses:
 - About 69% larger gzipped than Apple Press's own curtain code (8,313 against 4,923 bytes; smaller is better), because of the WebAssembly painter; 1.1.0 was 15% larger.
-- Not faster everywhere: ready-ahead on a busy page takes 1.0 s against 0.85 s for Apple Press in Chromium (Apple Press ahead), but 0.6 s against 1.10 s in Firefox (this module ahead); the cold-close freezes are about equal.
+- Busy pages: with worker: true the curtain is ready ahead in 0.12 s in Chromium and 0.11 s in Firefox, against 0.85 s and 1.10 s for Apple Press (measured earlier on a different busy page, so a rough comparison). Without the worker it takes about 0.65 s, because the page painting waits for the browser's forced idle turn (250 ms) and then paints in slices. The cold-close freezes are about equal.
 - A cold close starts later when the processor is slow (324 ms instead of 128 ms before the first piece moves with the processor slowed 4 times in Chromium).
 - A page that always leaves only 4 to 5 ms of quiet is a shared weakness: none of the tested versions finished painting ahead in 8 seconds in Chromium or Firefox.
 - The valance is painted at a pixel ratio of at most 1.25, so it is less sharp on high-density phones than Apple Press's (cap 2).

@@ -6,7 +6,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 | Module or tool | Version | History |
 |---|---|---|
-| [stage-curtains](modules/stage-curtains/README.md) | 1.4.2 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
+| [stage-curtains](modules/stage-curtains/README.md) | 1.4.3 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
 | [save-kit](modules/save-kit/README.md) | 1.6.0 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
@@ -66,6 +66,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **zip-open** 1.18.0 · API 1: The first Excel file you open in a page opens 11 to 45% faster: zip-open warms up its reader on a tiny made-up workbook shortly after it loads (about 20 to 30 ms of work, no file, no network; a real open stops it). Same results.
 - 2026-11-05 · **zip-open** 1.17.1 · API 1: Excel files open 1 to 19% faster. Same results.
 - 2026-11-05 · **zip-open** 1.17.0 · API 1: Opening a big Excel sheet again in the same page is 3 to 35% faster: a second thread unpacks it while the page reads rows. The first open is about the same. Same results.
+- 2026-11-05 · **stage-curtains** 1.4.3 · API 1: With worker: true the curtain is ready ahead on a busy page in about 0.12 s instead of 0.65 s; same pixels.
 - 2026-11-05 · **netflow-scene** 1.8.0 · API 1: Opt-in Economist frame: frame: true (or theme 'editorial') adds a small red tag top-left and a thin rule under the picture, with the source under it.
 - 2026-11-05 · **netflow-scene** 1.7.0 · API 1: Sankey middle-column names get a background-color halo so they read over their bands.
 - 2026-11-05 · **netflow-scene** 1.6.0 · API 1: Opt-in families: related groups (same name before ':' or '/') share one hue in steps.
