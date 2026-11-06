@@ -1,8 +1,8 @@
 # ppmd-decode
 
-**Version 1.3.1 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Laptop Firefox 160 and Chromium 156 (first and repeat decode); cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; 583 runs against the JavaScript decoder including damaged streams and outputs past 64 KB: 0 differences
 
 ## What it is and how it works
 
@@ -67,9 +67,9 @@ Errors are always an `Error` whose message starts with `PPMd:` (argument out of 
 
 | File | What it is | Size (smaller is better) |
 |---|---|---|
-| `ppmd-decode-with-wasm.js` | **The default.** WebAssembly first, JavaScript fallback, in one file. | 44,215 bytes (16,014 gzipped) |
-| `ppmd-decode.js` | The plain JavaScript decoder alone: one ES5 function, works under any page policy, and the part `tools/ppmd-pack` pastes into packed pages. Use it when the page must stay as small as possible. | 26,175 bytes (8,031 gzipped) |
-| `ppmd-decode-wasm.js` | The WebAssembly part alone, to load after `ppmd-decode.js` (it adds `ppmd7DecodeWasm`). The default file already holds both. | 17,164 bytes (the 9,317-byte program is stored as 12.4 KB of text) |
+| `ppmd-decode-with-wasm.js` | **The default.** WebAssembly first, JavaScript fallback, in one file. | 47,533 bytes (16,663 gzipped) |
+| `ppmd-decode.js` | The plain JavaScript decoder alone: one ES5 function, works under any page policy, and the part `tools/ppmd-pack` pastes into packed pages. Use it when the page must stay as small as possible. | 26,175 bytes (8,047 gzipped) |
+| `ppmd-decode-wasm.js` | The WebAssembly part alone, to load after `ppmd-decode.js` (it adds `ppmd7DecodeWasm`). The default file already holds both. | 20,482 bytes (the 9,738-byte program is stored as 13.0 KB of text) |
 
 `ppmd-decode-with-wasm.js` is built from the other two by `node modules/ppmd-decode/wasm/join.js`; edit those, never the joined file (the tests fail when it is stale). `tools/ppmd-pack` ships the same program in a packed page by default (`--no-wasm` leaves it out).
 
@@ -95,13 +95,13 @@ The same default file loaded on a page whose policy forbids WebAssembly decoded 
 
 > **Node numbers** were measured in Node, not in a test browser; read them only to compare rows with each other. Rows named for a browser were measured in that browser. Timings move by 10% or more from run to run.
 
-Smaller than every other PPMd decoder for browsers that I found, and about 10% smaller output than LZMA on web pages, but a bigger and slower decoder than `lzma-decode`, and slower than 7-Zip compiled to WebAssembly. Test page: a minified single-file game, 431,473 bytes (order 16, 16 MB of model memory).
+Smaller than every other PPMd decoder for browsers that I found, and about 10% smaller output than LZMA on web pages, but a bigger and slower decoder than `lzma-decode`. 7-Zip compiled to WebAssembly is much larger; it was faster in an older test on another page (see its row). Test page: a minified single-file game, 431,473 bytes (order 16, 16 MB of model memory).
 
 | Alternative | Size (smaller is better) | Speed on the 431 KB test page (faster is better) | Where it wins or loses |
 |---|---|---|---|
-| ppmd-decode 1.2.0 (MIT, this module) | 6,570 bytes minified in a packed page; the default file with WebAssembly is 44,215 bytes | Chromium 155 about 120 ms, Firefox 158 about 150 to 190 ms with the plain file. Default file, 400 KB page, first decode (smaller is better): 66.7 ms in Chromium 155, 67.0 in Firefox 158, 61.0 in WebKitGTK 2.52.6 | Wins on size and having a plain JavaScript fallback; loses on speed |
+| ppmd-decode 1.4.0 (MIT, this module) | 6,570 bytes minified in a packed page; the default file with WebAssembly is 47,533 bytes | Chromium 155 about 120 ms, Firefox 158 about 130 to 145 ms with the plain file. Default file, 400 KB text page, first decode on a fresh page (smaller is better): about 49 ms in Chromium 155, 50 to 60 in Firefox 158, about 50 in WebKitGTK 2.52.6 (1.3.1 on the same runs: 65, 65, 55 to 70) | Wins on size and having a plain JavaScript fallback; loses on speed |
 | [`lzma-decode`](../lzma-decode/README.md) (MIT, same repository) | 1,896 bytes minified | Speed in browsers on this page: not measured | Wins on size and speed; its output on this page is 127,531 bytes against 115,264 here (smaller is better) |
-| [7z-wasm](https://www.npmjs.com/package/7z-wasm) 1.2.0 (LGPL plus the unRAR restriction) | 1.65 MB WebAssembly plus 83 KB glue | Chromium 55 ms, Firefox 67 ms (warm, includes command-line start-up) | Whole 7-Zip, many formats; wins on speed and formats, about 220 times larger |
+| [7z-wasm](https://www.npmjs.com/package/7z-wasm) 1.2.0 (LGPL plus the unRAR restriction) | 1.65 MB WebAssembly plus 83 KB glue | Not measured on this page: an older test on a different page and machine gave Chromium 55 ms and Firefox 67 ms (warm, including command-line start-up), so the two rows cannot be compared directly | Whole 7-Zip, many formats; wins on formats, about 220 times larger |
 | [archive-wasm](https://www.npmjs.com/package/archive-wasm) 2.1.0 (GPL-3.0-or-later), [@exav/unpack-wasm](https://www.npmjs.com/package/@exav/unpack-wasm) 0.0.2 (MIT) | 562 KB; 2.15 MB | Not measured in browsers | libarchive and Rust [ppmd-rust](https://github.com/hasenbanck/ppmd-rust) as WebAssembly; win on formats, much larger |
 | [compressjs](https://www.npmjs.com/package/compressjs) 1.0.3 (GPL) | Small (not measured) | Not measured in browsers (Node: 1.9 s, 0.22 MB/s) | A simple PPM, not variant H; output is bigger (129,422 against 115,264 bytes, smaller is better) |
 
@@ -118,7 +118,7 @@ Speed: Node about 109 ms for the 431 KB page (3.8 MB/s of output; `lzma-decode` 
 
 Rule of thumb: pages whose LZMA data is above roughly 60 KB gain; smaller pages lose. On data that does not compress neither coder helps (one 185 KB sample came out about 1% larger with PPMd), and deflate (`tools/single-file-tools`) needs no decoder at all.
 
-Where it loses: slower to unpack than LZMA and a decoder 5.2 KB bigger; about 2 times slower than 7-Zip as WebAssembly, which also handles whole archives; little-endian machines only, no streaming, no `.7z` parsing. A cold start costs about 20 ms extra on a 30 KB stream and nothing visible on a 702 KB page (Chromium 141, 2026-10-16).
+Where it loses: slower to unpack than LZMA and a decoder 5.2 KB bigger; no like-for-like speed test against 7-Zip as WebAssembly (which also handles whole archives and is far larger); little-endian machines only, no streaming, no `.7z` parsing. A cold start costs about 20 ms extra on a 30 KB stream and nothing visible on a 702 KB page (Chromium 141, 2026-10-16).
 
 **Against published numbers:** on this page PPMd is 9.7% smaller than LZMA and 7.9% smaller than Brotli (best level). Matt Mahoney's [Large Text Compression Benchmark](https://mattmahoney.net/dc/text.html) has 7-Zip PPMd 14.2% smaller than xz on the first 100 MB of Wikipedia and 9.3% smaller on 1 GB, decoding about 27 times slower; a Japanese test of 7-Zip on 597 HTML files ([note.com](https://note.com/komutai/n/ne51b6cb71b0d)) found PPMd 16.4% smaller than LZMA2.
 

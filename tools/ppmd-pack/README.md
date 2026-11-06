@@ -1,8 +1,8 @@
 # ppmd-pack
 
-**Version 2.0.2 · API 2**
+**Version 2.0.3 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** ppmd-pack tests 31 passed (Node round trips on the WebAssembly path); a 400 KB packed page opened right in cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6
 
 ## What it is and how it works
 
