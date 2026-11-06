@@ -38,7 +38,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.8.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.7.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.7.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
@@ -78,6 +78,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **netflow-layers** 1.12.0 · API 1: Opt-in highlight: one box and its links keep their colors, the rest fade.
 - 2026-11-05 · **netflow-layers** 1.11.0 · API 1: Flow charts can take a title, subtitle and source line (opt-in), drawn the same way as in the other chart modules.
 - 2026-11-05 · **netflow-layers** 1.10.1 · API 1: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
+- 2026-11-05 · **netflow-hierarchy** 1.4.2 · API 1: Tiles that neither dark nor white names read on get a shade darker (white names) or lighter, the smallest change that reaches 4.5:1.
 - 2026-11-05 · **netflow-hierarchy** 1.4.1 · API 1: Group boxes follow the scene's opt-in families colors.
 - 2026-11-05 · **netflow-hierarchy** 1.4.0 · API 1: Names on treemaps and circle packs read on the colors actually drawn; group boxes get a name strip and their items' color.
 - 2026-11-05 · **netflow-hierarchy** 1.3.1 · API 1: Chord, bundle and radial tree names on the left side are no longer cut off at the picture edge.

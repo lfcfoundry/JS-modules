@@ -1,8 +1,8 @@
 # netflow-hierarchy
 
-**Version 1.4.1 · API 1**
+**Version 1.4.2 · API 1**
 
-**Tested in:** node test/run.js (939 checks)
+**Tested in:** Node tests (940 checks); Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page check; 20,000-tile treemap speed even
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
