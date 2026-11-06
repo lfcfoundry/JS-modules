@@ -2,7 +2,7 @@
  * graph-walk.js: the small walks over a link list that map and flow tools keep rewriting: breadth-first distances from an item, and a depth-first pass that marks the links that close a loop and lists the items in finishing order, connected components, strongly connected components, topological order and shortest paths. Works on the plain "links of every item" layout (CSR) in typed arrays. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.11.2 (API 0)
+ * Version 0.12.0 (API 0)
  *
  *   var g = GraphWalk.csr(n, fromArray, toArray);         // item numbers 0..n-1; link i joins from[i] to to[i]
  *   var depth = GraphWalk.bfs(g, root);                    // Int32Array, -1 where not reached; bfs(g, root, skip) never enters item `skip`
@@ -39,6 +39,7 @@
   }
   /** Breadth-first distances (number of links) from `root`, never entering `skip`; -1 where not reached. `out` (an Int32Array of length g.n) is reused when given. */
   function bfs(g, root, skip, out) {
+    if (Array.isArray(g)) return bfsLinks(g, root, skip);
     var n = g.n, d = out && out.length === n ? out.fill(-1) : new Int32Array(n).fill(-1);
     if (root < 0 || root >= n || root === skip || n === 0) return d;
     var q = new Int32Array(n), h = 0, tl = 0, os = g.outStart, oe = g.outEdge, to = g.to, v, k, w, end;
@@ -51,6 +52,15 @@
       }
     }
     return d;
+  }
+  /** One call from plain links (since 0.12.0): bfs([{ from, to }], start) with any item names; gives { name: links away } for every item reached (start is 0). skip names an item never to enter. */
+  function bfsLinks(links, start, skip) {
+    var idx = new Map(), names = [], from = new Int32Array(links.length), to = new Int32Array(links.length), i, e, id = function (x) { var k = idx.get(x); if (k === undefined) { k = names.length; idx.set(x, k); names.push(x); } return k; };
+    for (i = 0; i < links.length; i++) { e = links[i]; if (!e || e.from === undefined || e.to === undefined) throw new RangeError('link ' + i + ' needs from and to'); from[i] = id(e.from); to[i] = id(e.to); }
+    var r = idx.get(start), out = {}; if (r === undefined) return out;
+    var sk = skip === undefined ? -1 : idx.has(skip) ? idx.get(skip) : -1, d = bfs(csr(names.length, from, to), r, sk);
+    for (i = 0; i < names.length; i++) if (d[i] >= 0) out[names[i]] = d[i];
+    return out;
   }
   /**
    * Depth-first from `start` (no recursion). closes[i] = 1 for a reached link that leads back to an item still being walked (it closes a loop, a self-link included);
@@ -1033,5 +1043,5 @@
     while ((e = r.via[v]) >= 0) { out.push(e); v = g.from[e]; }
     return out.reverse();
   }
-  return { version: '0.11.2', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, maxflow: maxflow, closeness: closeness, triangles: triangles, communities: communitiesJS, criticalPath: criticalPath, landmarks: landmarks, landmarkPath: landmarkPath, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closenessAsync: closenessAsync, closePool: closePool, trim: trim, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
+  return { version: '0.12.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, maxflow: maxflow, closeness: closeness, triangles: triangles, communities: communitiesJS, criticalPath: criticalPath, landmarks: landmarks, landmarkPath: landmarkPath, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closenessAsync: closenessAsync, closePool: closePool, trim: trim, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
 }));

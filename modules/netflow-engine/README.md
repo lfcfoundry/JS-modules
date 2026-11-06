@@ -1,8 +1,8 @@
 # netflow-engine
 
-**Version 2.3.0 · API 2**
+**Version 2.4.0 · API 2**
 
-**Tested in:** Module tests (16 checks, the new one: all seven extra views through build(), listed once, repeatable) in Node; the two add-ons give the same pictures as page scripts in Firefox 158, Chromium 155 and WebKitGTK 2.52.6.
+**Tested in:** Node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page check
 
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license.
 
@@ -33,6 +33,10 @@ Netflow Map's gains live in its engine: a 30,000-item network went from 42 secon
 <script src="netflow-engine.js"></script>
 ```
 ```js
+// one call, data only: links in, SVG text out (needs netflow-scene.js; the Sankey view also needs netflow-layers.js and uses netflow-sankey.js when it is there)
+var svg = NetflowEngine.toSvg([{ from: 'Salary', to: 'Rent', value: 1800 }, { from: 'Salary', to: 'Food', value: 1200 }], { view: 'sankey' });
+
+// the full form: a graph in, a layout out
 var graph = { start: 'a', nodes: [{ id: 'a', label: 'Start', group: '', valence: '', ghost: false, attrs: {} },
                                    { id: 'b', label: 'Next',  group: '', valence: '', ghost: false, attrs: {} }],
               edges: [{ from: 'a', to: 'b', label: '', kind: '', attrs: {} }] };

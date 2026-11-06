@@ -92,5 +92,6 @@ let sd = 1; for (const kind of ['dense', 'sparse', 'dups', 'clustered', 'full', 
   }
   S.setBackend('js'); const bj = Buffer.from(S.buildLists(cases[2][1])); S.setBackend('auto'); ok(Buffer.compare(bj, Buffer.from(S.buildLists(cases[2][1]))) === 0, 'list set blobs byte-identical in JS and wasm');
   let bad = 0; for (const f of [() => S.buildLists([[2, 1]]), () => S.buildLists([[4294967295]])]) { try { f(); bad++; } catch (e) { if (!(e instanceof RangeError)) bad++; } } ok(bad === 0, 'list sets refuse bad input');
+  { const L1 = S.from([3, 8, 8, 20, 400]), L2 = S.open(S.build(new Uint32Array([3, 8, 8, 20, 400]))); ok(L1.get(3) === 20 && L1.nextGEQ(9) === 3 && L1.nextGEQ(9) === L2.nextGEQ(9) && L1.length === L2.length, 'from(values): one call gives the same list as open(build(values))'); let e = null; try { S.from([5, 2]); } catch (x) { e = x; } ok(e instanceof RangeError, 'from() refuses bad input like build()'); }
   console.log('ok   elias-fano: list sets, ' + checked + ' lists read back exact, chunking and empty lists included');
 })();

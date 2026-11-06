@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.1 · API 0 · 2026-11-05
+
+### Quick
+One-call use (requested by the owner): pack, packRows, packTables, unpack, unpackRows, unpackText, unpackTables, unpackColumns, info, stats and metadata start the WebAssembly parts themselves on the first call (the reader alone for read ca…
+
+### Deep
+One-call use (requested by the owner): pack, packRows, packTables, unpack, unpackRows, unpackText, unpackTables, unpackColumns, info, stats and metadata start the WebAssembly parts themselves on the first call (the reader alone for read calls). Calling init() first still works and is still the way to start early. No change to bytes or speed.
+
 ## 0.5.0 · API 0 · 2026-11-05
 
 ### Quick

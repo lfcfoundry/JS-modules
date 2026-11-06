@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.0 · API 2 · 2026-11-05
+
+### Quick
+New NetflowEngine.toSvg(data, options): a list of links [{ from, to, value }] or a { start, nodes, edges } graph in, SVG text out (requested by the owner).
+
+### Deep
+New NetflowEngine.toSvg(data, options): a list of links [{ from, to, value }] or a { start, nodes, edges } graph in, SVG text out (requested by the owner). Missing fields are filled in; values set link widths and, in the Sankey view, the band widths; with no groups given the engine colors the groups it finds. Uses netflow-scene, plus netflow-sankey for the Sankey view when it is loaded.
+
 ## 2.3.0 · API 2 · 2026-11-01
 
 ### Quick

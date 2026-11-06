@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.8.1 · API 1**
+**Version 1.9.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page check
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -31,7 +31,7 @@ Sorted number lists are everywhere, and as plain arrays they cost 4 bytes per nu
 The short version:
 
 ```js
-var list = EliasFano.open(EliasFano.build(new Uint32Array([3, 8, 8, 20, 400])));   // sorted numbers in, a searchable list out
+var list = EliasFano.from([3, 8, 8, 20, 400]);   // sorted numbers in, a searchable list out (the same as open(build(values)))
 list.nextGEQ(9);   // 3: the index of the first value >= 9
 ```
 
