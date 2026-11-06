@@ -2,6 +2,7 @@
 
 Compared: elias-fano against plain arrays and deflated gaps (100,000 sorted lists, 1,451,624 ids).
 
+<!-- title: elias-fano holds the same 100,000 sorted lists in less than half the bytes of plain arrays and keeps random access -->
 | form | bytes |
 |---|---:|
 | plain Uint32 arrays | 6,206,500 |
