@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.10.3 · API 2**
+**Version 2.10.4 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6, Firefox 160, Chromium 156
+**Tested in:** node test/run.js (85 checks); laptop page fresh-worker A/B, 14 rounds each: Chromium 156 (phone) and Firefox 160 (laptop), same bytes 14 of 14
 
 ## What it is and how it works
 

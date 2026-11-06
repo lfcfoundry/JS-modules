@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-11-05
+
+### Quick
+Owner's card A (Halo).
+
+### Deep
+Owner's card A (Halo). Labels of Sankey bars in a middle column carry halo: the theme background; toSvg draws it as stroke with paint-order stroke (width max(2.5, 0.28 x size), round joins). Canvas renderers should draw strokeText in l.halo before fillText. sk.midLabels: 'halo' (default), 'plate' (existing pale backing, l.bg), 'above' (over the bar's top edge), 'side' (plain, as before).
+
 ## 1.6.0 · API 1 · 2026-11-05
 
 ### Quick

@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.10.3 (API 2)
+ * Version 2.10.4 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -2175,9 +2175,20 @@
   };
   // one tight pass over a column that is probably all numbers; results go to SCAN (module-level so nothing is allocated)
   var SCAN = { min: 0, max: 0, allInt: true, f32: true, neg0: false, same: true };
-  function scanNumbers(vals, n) {
-    var i, x, min = Infinity, max = -Infinity, first = vals[0], same = true, nonInt = false, nonF32 = false, neg0 = false;
-    for (i = 0; i < n; i++) {
+  function scanNumbers(vals, n) {                              // in chunks: each chunk call finishes (and so warms its tail) before the loop gets hot
+    var from, to, st = SCAN_ST;
+    st.min = Infinity; st.max = -Infinity; st.same = true; st.nonInt = false; st.nonF32 = false; st.neg0 = false; st.first = vals[0];
+    for (from = 0; from < n; from += 8192) {
+      to = from + 8192 < n ? from + 8192 : n;
+      if (!scanChunk(vals, from, to)) return false;
+    }
+    SCAN.min = st.min; SCAN.max = st.max; SCAN.allInt = !st.nonInt; SCAN.f32 = !st.nonF32; SCAN.neg0 = st.neg0; SCAN.same = st.same;
+    return true;
+  }
+  var SCAN_ST = { min: 0, max: 0, same: true, nonInt: false, nonF32: false, neg0: false, first: 0 };
+  function scanChunk(vals, from, to) {
+    var i, x, st = SCAN_ST, min = st.min, max = st.max, first = st.first, same = st.same, nonInt = st.nonInt, nonF32 = st.nonF32, neg0 = st.neg0;
+    for (i = from; i < to; i++) {
       x = vals[i];
       if (typeof x !== 'number') return false;
       if (x < min) min = x;
@@ -2188,24 +2199,11 @@
         if (!nonF32 && x === x && Math.fround(x) !== x) nonF32 = true;
       } else if (x === 0 && 1 / x < 0) neg0 = true;
     }
-    SCAN.min = min; SCAN.max = max; SCAN.allInt = !nonInt; SCAN.f32 = !nonF32; SCAN.neg0 = neg0; SCAN.same = same;
+    st.min = min; st.max = max; st.same = same; st.nonInt = nonInt; st.nonF32 = nonF32; st.neg0 = neg0;
     return true;
   }
-  Enc.prototype.columnBody = function (vals, n) {
-    var c = this.ctl, i, x, t, nNum = 0, nStr = 0, nBool = 0, nNull = 0, nUndef = 0, nArr = 0, nObj = 0, nOther = 0;
-    var allInt = true, f32 = true, neg0 = false, min = Infinity, max = -Infinity, same = true, first = vals[0];
-    if (typeof first === 'number' && scanNumbers(vals, n)) {
-      if (SCAN.same && n > 1 && !(first === 0 && SCAN.neg0)) { c.u8(CT_CONST); this.value(first); return; }
-      if (this.defer && n >= ADAPT_MIN) { this.deferNumbers(vals, n, SCAN.allInt && !SCAN.neg0, SCAN.f32, SCAN.min, SCAN.max, SCAN.neg0); return; }
-      this.numbers(vals, n, SCAN.allInt && !SCAN.neg0, SCAN.f32, SCAN.min, SCAN.max, SCAN.neg0); return;
-    }
-    if (this.refs && typeof first === 'object' && first !== null) {           // with shared objects kept: a column of references to objects already written, or of flat records written here
-      if (this.seen.has(first)) { if (this.refColumn(vals, n)) return; }
-      else if (Object.getPrototypeOf(first) === OP && this.refRecords(vals, n)) return;
-    } else if (typeof first === 'object' && first !== null) {          // a column of arrays or plain objects with one layout: checked and split in a single pass
-      if (Array.isArray(first)) { if ((first.length > 0 && first.length <= 8 && this.fusedTuples(vals, n, first.length)) || this.fusedArrays(vals, n)) return; }
-      else if (Object.getPrototypeOf(first) === OP && this.fusedRecords(vals, n)) return;
-    }
+  function kindScan(vals, n, first) {                                 // the mixed-kind pass on its own, so number columns never share its type feedback
+    var i, x, t, nNum = 0, nStr = 0, nBool = 0, nNull = 0, nUndef = 0, nArr = 0, nObj = 0, nOther = 0, allInt = true, f32 = true, neg0 = false, min = Infinity, max = -Infinity, same = true;
     for (i = 0; i < n; i++) {
       x = vals[i]; t = typeof x;
       if (t === 'number') {
@@ -2230,6 +2228,26 @@
         else nOther++;
       } else nOther++;
     }
+    return { nNum: nNum, nStr: nStr, nBool: nBool, nNull: nNull, nUndef: nUndef, nArr: nArr, nObj: nObj, nOther: nOther, allInt: allInt, f32: f32, neg0: neg0, min: min, max: max, same: same };
+  }
+  Enc.prototype.columnBody = function (vals, n) {
+    var c = this.ctl, i, x, t, nNum = 0, nStr = 0, nBool = 0, nNull = 0, nUndef = 0, nArr = 0, nObj = 0, nOther = 0;
+    var allInt = true, f32 = true, neg0 = false, min = Infinity, max = -Infinity, same = true, first = vals[0];
+    if (typeof first === 'number' && scanNumbers(vals, n)) {
+      if (SCAN.same && n > 1 && !(first === 0 && SCAN.neg0)) { c.u8(CT_CONST); this.value(first); return; }
+      if (this.defer && n >= ADAPT_MIN) { this.deferNumbers(vals, n, SCAN.allInt && !SCAN.neg0, SCAN.f32, SCAN.min, SCAN.max, SCAN.neg0); return; }
+      this.numbers(vals, n, SCAN.allInt && !SCAN.neg0, SCAN.f32, SCAN.min, SCAN.max, SCAN.neg0); return;
+    }
+    if (this.refs && typeof first === 'object' && first !== null) {           // with shared objects kept: a column of references to objects already written, or of flat records written here
+      if (this.seen.has(first)) { if (this.refColumn(vals, n)) return; }
+      else if (Object.getPrototypeOf(first) === OP && this.refRecords(vals, n)) return;
+    } else if (typeof first === 'object' && first !== null) {          // a column of arrays or plain objects with one layout: checked and split in a single pass
+      if (Array.isArray(first)) { if ((first.length > 0 && first.length <= 8 && this.fusedTuples(vals, n, first.length)) || this.fusedArrays(vals, n)) return; }
+      else if (Object.getPrototypeOf(first) === OP && this.fusedRecords(vals, n)) return;
+    }
+    var K = kindScan(vals, n, first);
+    nNum = K.nNum; nStr = K.nStr; nBool = K.nBool; nNull = K.nNull; nUndef = K.nUndef; nArr = K.nArr; nObj = K.nObj; nOther = K.nOther;
+    allInt = K.allInt; f32 = K.f32; neg0 = K.neg0; min = K.min; max = K.max; same = K.same;
     var kinds = (nNum > 0) + (nStr > 0) + (nBool > 0) + (nArr > 0) + (nObj > 0), nonValue = nNull + nUndef;
     if (nOther > 0 || kinds > 1 || (this.refs && (nArr || nObj))) { this.any(vals, n); return; }
     if (kinds === 0) { if (same) { c.u8(CT_CONST); this.value(first); } else this.nullable(vals, n); return; }
@@ -2254,11 +2272,14 @@
     this.blob(kind, 'nulls');
     if (m > 0) this.column(compact, m);
   };
+  function fillU8(t, vals, min, n) { for (var i = 0; i < n; i++) t[i] = vals[i] - min; }            // one loop per width: each sees one kind of array
+  function fillU16(t, vals, min, n) { for (var i = 0; i < n; i++) t[i] = vals[i] - min; }
+  function fillU32(t, vals, min, n) { for (var i = 0; i < n; i++) t[i] = vals[i] - min; }
   // CT_INT body: width, base, packed offsets. Caller checked max - min < 2^32. With a tag (CT_INT, or CT_DEC with its scale e) this writes the tag too, and
   // a column of 1024 or more is also tried with the number picker when it is on: the smaller one is kept.
   Enc.prototype.intData = function (vals, n, min, max, tag, e) {
     var range = max - min, w = range < 256 ? 1 : range < 65536 ? 2 : 4, i, t = w === 1 ? new Uint8Array(n) : w === 2 ? new Uint16Array(n) : new Uint32Array(n), pre = null, src, c = this.ctl;
-    for (i = 0; i < n; i++) t[i] = vals[i] - min;
+    if (w === 1) fillU8(t, vals, min, n); else if (w === 2) fillU16(t, vals, min, n); else fillU32(t, vals, min, n);
     if (tag !== undefined) {
       if (this.picker && n >= ADAPT_MIN) {
         pre = MC.pack(t, this.mcOpts);
@@ -3946,6 +3967,9 @@
     f.apply(null, args);
     return new Col(n, 0, out, null);
   }
+  function addU8(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
+  function addU16(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
+  function addU32(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
   Dec.prototype.intCol = function (n) {
     var c = this.c, w = c.u8(), base, t, i, a, Ctor;
     if (w !== 1 && w !== 2 && w !== 4) jfail('bad int width');
@@ -3953,9 +3977,7 @@
     t = this.blob(Ctor, n);
     if (base === 0) return new Col(n, 0, t, null);
     a = (base >= -2147483648 && base + (w === 4 ? 4294967295 : 65535) <= 2147483647 && w !== 4) ? new Int32Array(n) : new Float64Array(n);
-    if (t instanceof Uint8Array) for (i = 0; i < n; i++) a[i] = t[i] + base;                  // one loop per width, so each loop sees one type of array
-    else if (t instanceof Uint16Array) for (i = 0; i < n; i++) a[i] = t[i] + base;
-    else for (i = 0; i < n; i++) a[i] = t[i] + base;
+    if (t instanceof Uint8Array) addU8(a, t, base, n); else if (t instanceof Uint16Array) addU16(a, t, base, n); else addU32(a, t, base, n);
     return new Col(n, 0, a, null);
   };
   Dec.prototype.lengthCol = function (n) {

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-11-05
+- Sankey middle-column names get a background-color halo so they read over their bands.
+
 ## 1.6.0 · API 1 · 2026-11-05
 - Opt-in families: related groups (same name before ':' or '/') share one hue in steps.
 
