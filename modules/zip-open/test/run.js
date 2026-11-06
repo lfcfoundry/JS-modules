@@ -624,4 +624,21 @@ t('Warm-up (made-up workbook, at load on a page): it runs all its steps and tiny
   assert.ok(U._warmed() <= at + 1, 'stopped after the open: ' + at + ' then ' + U._warmed());
   assert.deepStrictEqual(got, want);
 });
+t('Warm-up also starts the second thread, so the first big sheet already unpacks on it (same tables)', async function () {
+  var WT = require('worker_threads'), spawned = 0, wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var spawn = function (code) {
+    spawned++;
+    var w = new WT.Worker("const {parentPort}=require('worker_threads');globalThis.postMessage=(m,t)=>parentPort.postMessage(m,t);parentPort.on('message',d=>globalThis.onmessage({data:d}));" + code, { eval: true }), o = { postMessage: function (m, t) { w.postMessage(m, t); }, terminate: function () { return w.terminate(); } };
+    w.on('message', function (d) { o.onmessage({ data: d }); }); w.on('error', function (e) { if (o.onerror) o.onerror(e); }); return o;
+  };
+  var rows = [['id', 'name']]; for (var i = 0; i < 20000; i++) rows.push([i, 'name ' + (i % 997)]);
+  var x = u8(Z.makeXlsx([{ name: 'Big', rows: rows }])), want = await U.expand(x, 'b.xlsx');
+  U._pipe(spawn, 1024); var q0 = U._piped();
+  try {
+    U._warm(2); for (var k = 0; k < 300 && !(U._warmed() >= 302 && spawned); k++) await wait(10);
+    assert.equal(spawned, 1, 'the thread started with the warm-up'); await wait(200);
+    assert.deepStrictEqual(await U.expand(x, 'b.xlsx'), want);
+    assert.equal(U._piped(), q0 + 1, 'the first open used it');
+  } finally { U._pipe(); }
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });

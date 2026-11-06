@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.19.0 · API 1 · 2026-11-06
+- The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
+
 ## 1.18.2 · API 1 · 2026-11-05
 - Text-heavy Excel sheets open 2 to 13% faster; other sheets about the same. Same results.
 
