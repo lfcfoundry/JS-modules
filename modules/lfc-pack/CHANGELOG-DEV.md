@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.2 · API 0 · 2026-11-06
+
+### Quick
+Chromium (V8) only.
+
+### Deep
+Chromium (V8) only. Dense block with a known clone choice: each column is decoded, assigned down the rows and dropped, so fewer column arrays are live at young-generation collections. IP column digits from a 256-entry table. Cloud Chromium 155, 300,000 log rows, in-page interleaved A/B, 9 runs: unpack 0.93x median (8 of 9 faster); each idea alone about 0.97-1.0x. Firefox showed no gain, so Firefox and WebKitGTK keep the old path. Same rows on all test sets.
+
 ## 0.5.1 · API 0 · 2026-11-05
 
 ### Quick
