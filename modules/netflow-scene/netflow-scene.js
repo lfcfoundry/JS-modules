@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.0 (API 1)
+ * Version 1.7.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -879,9 +879,14 @@ var NFMScene = (function () {
     var side = (st && st.labelSide) || sk.labels || 'auto';
     var left = side === 'left' || (side === 'auto' && n.layer === 0 && lastCol > 0);
     var size = 14, text = X.tx(n), tot = sk.nodeValues ? sankeyTotal(X, n) : NaN, cx = left ? n.x - 7 : n.x + n.w + 7;
-    var col = X.labColor(n, bc), cy = n.y + n.h / 2, two = tot === tot;
-    var l1 = X.lab(cx, cy + (two ? -1 : 4), clip(text, 30), size, col, n.start ? { align: left ? 'r' : 'l', node: rec.i, minK: 0.2, bold: true, bound: true } : { align: left ? 'r' : 'l', node: rec.i, minK: 0.2, bound: true });
-    if (two && l1) X.lab(cx, cy + 12.5, fmtNum(tot), 10.5, T.muted, { align: left ? 'r' : 'l', node: rec.i, minK: 0.4, sub: true, bound: true });
+    var col = X.labColor(n, bc), cy = n.y + n.h / 2, two = tot === tot, al = left ? 'r' : 'l';
+    /* a name in a middle column sits on its own outgoing bands: sk.midLabels 'halo' (a ring of the background color around the letters), 'plate' (a pale backing), 'above' (over the bar's top edge), or 'side' (beside the bar, plain); 'halo' is the default (owner's card, 2026.11.05) */
+    var mid = !left && n.layer > 0 && n.layer < lastCol, how = mid ? (sk.midLabels || 'halo') : 'side', ex = how === 'halo' ? { halo: T.bg } : how === 'plate' ? { bg: true } : null;
+    if (how === 'above') { cx = n.x + n.w / 2; cy = n.y - (two ? 22 : 11); al = 'c'; }
+    var o1 = n.start ? { align: al, node: rec.i, minK: 0.2, bold: true, bound: true } : { align: al, node: rec.i, minK: 0.2, bound: true }, k1;
+    if (ex) for (k1 in ex) o1[k1] = ex[k1];
+    var l1 = X.lab(cx, cy + (two ? -1 : 4), clip(text, 30), size, col, o1);
+    if (two && l1) { var o2 = { align: al, node: rec.i, minK: 0.4, sub: true, bound: true }; if (ex) for (k1 in ex) o2[k1] = ex[k1]; X.lab(cx, cy + 12.5, fmtNum(tot), 10.5, T.muted, o2); }
   }
 
   function sankeyRibbons(X) {
@@ -1446,7 +1451,7 @@ var NFMScene = (function () {
         var tw = l.t.length * l.size * 0.55, bx = l.align === 'l' ? l.x - 2 : l.align === 'r' ? l.x - tw - 2 : l.x - tw / 2 - 2;
         out.push('<rect x="' + f(bx) + '" y="' + f(l.y - l.size) + '" width="' + f(tw + 4) + '" height="' + f(l.size + 3) + '" fill="' + bgFill + '"' + (l.rot ? ' transform="rotate(' + l.rot + ' ' + f(l.x) + ' ' + f(l.y) + ')"' : '') + op(l) + '/>');
       }
-      out.push('<text x="' + f(l.x) + '" y="' + f(l.y) + '" font-size="' + f(l.size) + '" text-anchor="' + anchor + '" fill="' + css(l.color) + '"' + (l.bold ? ' font-weight="700"' : '') + (l.rot ? ' transform="rotate(' + l.rot + ' ' + f(l.x) + ' ' + f(l.y) + ')"' : '') + op(l) + '>' + esc(l.t) + '</text>');
+      out.push('<text x="' + f(l.x) + '" y="' + f(l.y) + '" font-size="' + f(l.size) + '" text-anchor="' + anchor + '" fill="' + css(l.color) + '"' + (l.halo ? ' stroke="' + css(l.halo) + '" stroke-width="' + f(Math.max(2.5, l.size * 0.28)) + '" stroke-linejoin="round" paint-order="stroke"' : '') + (l.bold ? ' font-weight="700"' : '') + (l.rot ? ' transform="rotate(' + l.rot + ' ' + f(l.x) + ' ' + f(l.y) + ')"' : '') + op(l) + '>' + esc(l.t) + '</text>');
     });
     out.push('</svg>');
     return out.join('\n');
