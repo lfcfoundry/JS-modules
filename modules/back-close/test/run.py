@@ -5,6 +5,8 @@ Needs Playwright for Python. The Escape key goes through the same CloseWatcher c
 Set FIREFOX_PATH to a Firefox binary to run with firefox. Exits 1 if any check fails.
 """
 import os, sys
+try: import playwright.sync_api  # noqa: F401
+except ImportError: print('skipped: needs Playwright for Python (pip install playwright)'); sys.exit(2)
 from playwright.sync_api import sync_playwright
 
 def real_chromium(p, **kw):

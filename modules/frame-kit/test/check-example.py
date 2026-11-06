@@ -1,6 +1,8 @@
 """Opens demo.html headless with Playwright for Python and fails on any console error, page error or failed request.
 Run: python3 modules/frame-kit/test/check-example.py   (needs Playwright for Python with Chromium already installed; not part of `node test-all.js`)"""
 import pathlib, sys
+try: import playwright.sync_api  # noqa: F401
+except ImportError: print('skipped: needs Playwright for Python (pip install playwright)'); sys.exit(2)
 import os
 from playwright.sync_api import sync_playwright
 
