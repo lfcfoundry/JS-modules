@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.11.0 · API 2 · 2026-11-05
+
+### Quick
+Follow-ups v3 to v6 from the compression research (requested by the owner's laptop rounds): date columns and template number slots open in windows; template text of 65,536+ rows is built 8,192 rows at a time when first read; coordinate pai…
+
+### Deep
+Follow-ups v3 to v6 from the compression research (requested by the owner's laptop rounds): date columns and template number slots open in windows; template text of 65,536+ rows is built 8,192 rows at a time when first read; coordinate pairs and tuples open in windows. Laptop Chromium 156: users first row 0.42 (0.38-0.47), scans 0.96-1.00; Firefox 160: users first row 0.33, scans 0.97-1.03 (new / old, lower is faster). Same values as unpack. One change: a corrupt date or array total in a damaged file is now reported when that part is read on the windowed path, not at open.
+
 ## 2.10.4 · API 2 · 2026-11-05
 
 ### Quick

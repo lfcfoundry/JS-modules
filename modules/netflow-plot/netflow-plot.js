@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.7.0 (API 2)
+ * Version 2.8.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -154,6 +154,7 @@ var NetflowPlot = (function () {
     F.gray = NS.mix ? NS.mix(T.muted, T.bg, 0.45) : T.muted;   /* the other series when one is highlighted */
     /** Axes: x and y are { kind: 'num' | 'time' | 'band', lo, hi, list, fmt, map(v) -> px, cats }. */
     F.axes = function (ax, ay, xName, yName, grid) {
+      xName = axisName(xName); yName = axisName(yName);
       var c = alpha(T.muted, 0.9), gc = alpha(T.boxLine, 0.35);
       if (ay && F.noY) {   /* values are on the marks: no number axis, no gridlines; the axis name sits small at the top left */
         if (yName && !F.keyRow) F.yName = F.text(F.L, F.Tp - 8, yName, 11, c, { align: 'l' });
@@ -766,6 +767,14 @@ var NetflowPlot = (function () {
     if (g.NetflowScene) return g.NetflowScene;
     if (typeof require === 'function') { try { return require('../netflow-scene/netflow-scene.js'); } catch (e) { /* not there */ } }
     throw new Error(who + ': NetflowScene was not found. Load netflow-scene.js before ' + who + '.js.');
+  }
+  /** An axis name from a column name (owner's card, 2026.11.05): sales_total and salesTotal read "Sales total"; a one-letter name such as r or v is left out; names with capitals of their own (GDP, US sales) keep them. */
+  function axisName(n) {
+    if (n === undefined || n === null) return n;
+    var t = String(n).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_\-\s]+/g, ' ').trim();
+    if (t.length <= 1) return '';
+    var words = t.split(' ').map(function (w) { return /[A-Z]/.test(w.slice(1)) || w === w.toUpperCase() && /[A-Z]/.test(w) ? w : w.toLowerCase(); }).join(' ');
+    return words.charAt(0).toUpperCase() + words.slice(1);
   }
   var SPEC_KEYS = ['type', 'x', 'y', 'color', 'size', 'agg', 'stack', 'horizontal', 'bins', 'smooth', 'index', 'cols', 'sort'];
   /**

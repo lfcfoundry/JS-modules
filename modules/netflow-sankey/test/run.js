@@ -71,9 +71,10 @@ t('layoutFlows tells each band which of your links it is and how much flows', ()
 });
 t('toSvg: one rect per item, one path per band and loop, text escaped, colors kept', () => {
   const R = RL.layoutFlows({ nodes: [{ id: 'a', label: 'A <b> & "q"' }], links: [{ from: 'a', to: 'b', value: 2 }, { from: 'b', to: 'c', value: 2 }, { from: 'c', to: 'a', value: 1 }] });
-  const svg = RL.toSvg(R, { colors: ['#112233', '#445566'], title: 'T & U' });
+  const svg = RL.toSvg(R, { colors: ['#112233', '#445566'], title: 'T & U' }), svgF = RL.toSvg(R, { colors: ['#112233', '#445566'], title: 'T & U', frame: true });
   ok(/^<svg /.test(svg) && /<\/svg>$/.test(svg), 'wrapped in svg');
   ok((svg.match(/<rect /g) || []).length === R.nodes.length, 'rects');
+  ok((svgF.match(/<rect /g) || []).length === R.nodes.length + 2 && svgF.indexOf('fill="#e3120b"') > 0, 'frame: true adds the red tag and the rule');
   ok((svg.match(/<path /g) || []).length === R.bands.length + R.loops.length, 'paths');
   ok(svg.indexOf('A &lt;b&gt; &amp; &quot;q&quot;') >= 0 && svg.indexOf('<b>') < 0, 'label escaped');
   ok(svg.indexOf('aria-label="T &amp; U"') >= 0 && svg.indexOf('#112233') >= 0 && svg.indexOf('#445566') >= 0, 'title and colors');
@@ -81,12 +82,14 @@ t('toSvg: one rect per item, one path per band and loop, text escaped, colors ke
 });
 t('title block: title, subtitle and source drawn (escaped) and the picture moved down inside a group; no block without them', () => {
   const R = RL.layoutFlows({ links: [{ from: 'a', to: 'b', value: 2 }, { from: 'a', to: 'c', value: 1 }] }, { budgetMs: 1e9 });
-  const plain = RL.toSvg(R), all = RL.toSvg(R, { title: 'Wages & tax', subtitle: 'Per <year>', source: 'Source: test' });
+  const plain = RL.toSvg(R, { frame: false }), all = RL.toSvg(R, { title: 'Wages & tax', subtitle: 'Per <year>', source: 'Source: test', frame: false });
   ok(plain.indexOf('<g transform') < 0 && plain.indexOf('font-size="20"') < 0, 'no block unless asked');
+  const dflt = RL.toSvg(R, { frame: true }); ok(dflt.indexOf('font-size="20"') < 0 && dflt.indexOf('<text x="14"') < 0 && dflt.indexOf('#e3120b') > 0 && RL.toSvg(R).indexOf('#e3120b') < 0, 'the frame only when asked, and no text is made up');
+  const allF = RL.toSvg(R, { title: 'Wages & tax', subtitle: 'Per <year>', source: 'Source: test', frame: true }), HF = +/height="([\d.]+)"/.exec(allF)[1]; ok(Math.abs(HF - (R.height + 85.4 + 28)) < 0.01, 'room for the block with the frame: ' + HF);
   ok(all.indexOf('<title>Wages &amp; tax</title>') > 0 && all.indexOf('aria-label="Wages &amp; tax"') > 0, 'hidden label kept');
   ok(/font-weight="700"[^>]*>Wages &amp; tax<\/text>/.test(all) && all.indexOf('>Per &lt;year&gt;</text>') > 0 && all.indexOf('>Source: test</text>') > 0, 'visible title, subtitle and source');
   const H = +/height="([\d.]+)"/.exec(all)[1]; ok(Math.abs(H - (R.height + 67.4 + 24)) < 0.01, 'room for the block: ' + H);
-  ok(RL.toSvg(R, { source: 'S' }).indexOf('<g transform') < 0, 'a source alone adds room below only');
+  ok(RL.toSvg(R, { source: 'S', frame: false }).indexOf('<g transform') < 0, 'a source alone adds room below only');
 });
 t('an empty or one-link input does not throw', () => {
   const R0 = RL.layoutFlows({ links: [] }); ok(R0.nodes.length === 0 && R0.bands.length === 0, 'empty');
@@ -97,7 +100,7 @@ t('an empty or one-link input does not throw', () => {
 const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 const OLD8 = ['#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2', '#edc948', '#b07aa1', '#9c755f'];   /* the colors before 2.7.0, so the 1.0.0 pins still pin the layout */
 const oldFont = (svg) => svg.replace('font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif"', 'font-family="system-ui,sans-serif"');   /* pictures pinned before the one shared font list (2.6.1) */
-const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' || k === 'simplified' || k === 'note' ? undefined : v)) + ' ' + fnv(oldFont(RL.toSvg(R, { colors: OLD8 }))) + ' ' + fnv(oldTitle(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3 }), R)); };
+const fingerprint = (input, opts) => { const R = RL.layoutFlows(input, Object.assign({ budgetMs: 1e9 }, opts)); return fnv(JSON.stringify(R, (k, v) => k === 'ms' || k === 'simplified' || k === 'note' ? undefined : v)) + ' ' + fnv(oldFont(RL.toSvg(R, { colors: OLD8, frame: false }))) + ' ' + fnv(oldTitle(RL.toSvg(R, { colors: ['#123', '#456'], title: 'T <&>', labels: false, bandOpacity: 0.3, frame: false }), R)); };
 /* since 2.5.0 the title is also drawn above the picture; taking that block off must give back exactly what 1.0.0 drew */
 const oldTitle = (svg, R) => { const h = String(+R.height.toFixed(2)), m = /<text x="14" y="34" font-size="20" font-weight="700"[^>]*>[^<]*<\/text><g transform="translate\(0 48\.4\)">/; if (!m.test(svg) || !svg.endsWith('</g></svg>')) return 'no title block'; return svg.replace('font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif"', 'font-family="system-ui,sans-serif"').replace(m, '').replace(/<\/g><\/svg>$/, '</svg>').replace(/viewBox="0 0 ([\d.]+) [\d.]+" width="([\d.]+)" height="[\d.]+"/, (a, w, w2) => 'viewBox="0 0 ' + w + ' ' + h + '" width="' + w2 + '" height="' + h + '"'); };
 const PIN = {
@@ -122,7 +125,7 @@ t('hand edits keep the order (fixedOrder) and pinned bars (fixY) exactly as befo
   ok(JSON.stringify(R1.order.layers) === JSON.stringify(R0.order.layers), 'order kept');
   const R2 = RL.layoutFlows(net(), { budgetMs: 1e9, fixedOrder: R0.order, fixY: { 'S2 i3': 120, 'S4 i1': 40 } });
   ok(R2.nodes.find((n) => n.id === 'S2 i3').y === 120 && R2.nodes.find((n) => n.id === 'S4 i1').pinned, 'pinned bars sit where they were put');
-  const sv = (R) => RL.toSvg(R, { colors: OLD8 }).replace('font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif"', 'font-family="system-ui,sans-serif"');   /* pinned before the one shared font list (2.6.1) */
+  const sv = (R) => RL.toSvg(R, { colors: OLD8, frame: false }).replace('font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif"', 'font-family="system-ui,sans-serif"');   /* pinned before the one shared font list (2.6.1) */
   ok(fnv(sv(R1)) + ' ' + fnv(sv(R2)) === 'a387c988 4ef018d2', 'svg ' + fnv(sv(R1)) + ' ' + fnv(sv(R2)));
 });
 t('an item named like a stand-in bar ("d1") with a long link: its bands stack without overlapping', () => {

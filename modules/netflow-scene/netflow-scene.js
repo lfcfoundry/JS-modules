@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.7.0 (API 1)
+ * Version 1.8.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1379,25 +1379,37 @@ var NFMScene = (function () {
   }
 
   /**
-   * Opt-in title block (the owner's card, 2026.11.01): o.title (bold, left), o.subtitle (lighter, under it) and o.source (small, under the picture).
-   * Each is text; none given leaves S as it was. The block is added above (and the source below) the picture, so nothing in it moves.
+   * Title block (the owner's cards, 2026.11.01 and 2026.11.05): o.title (bold, left), o.subtitle (lighter, under it) and o.source (small, under the picture) are text and appear only when given.
+   * o.frame: true (or theme 'editorial') adds the Economist frame: a small red tag top-left and a thin dark rule under the picture, with the source under the rule (opt-in, owner's card 2026.11.05).
+   * With no text and no frame, S stays as it was. The block is added above (and the rule and source below) the picture, so nothing in it moves.
    * Sizes grow with very wide pictures so they keep their size in an SVG drawn at most 3,000 wide.
    */
+  var TAG_RED = [0.89, 0.071, 0.043, 1];   /* #e3120b */
   function addTitles(S, o) {
-    if (!o || !(o.title || o.subtitle || o.source)) return S;
-    var T = S.theme, u = Math.max(1, S.w / 3000), pad = 14 * u, top = 0, list = [], wMax = 0, y;
+    o = o || {};
+    var frame = o.frame === true || o.theme === 'editorial';
+    if (!frame && !(o.title || o.subtitle || o.source)) return S;
+    var T = S.theme, u = Math.max(1, S.w / 3000), pad = 14 * u, list = [], wMax = 0, y, tagY = -1;
     var sub = mix(T.fg, T.bg, 0.25), src = mix(T.fg, T.bg, 0.32);   /* both read at 4.5:1 or better on the background in the light and dark themes */
     var add = function (t, size, color, bold) { t = String(t); var l = { x: 0, y: 0, t: t, size: size, color: color, align: 'l', bold: !!bold, rot: 0, minK: 0, node: -1, title: true }; wMax = Math.max(wMax, t.length * size * 0.55); return l; };
     y = pad;
+    if (frame) { tagY = y; y += 10 * u + (o.title || o.subtitle ? 8 * u : 0); }
     if (o.title) { var lt = add(o.title, 20 * u, T.fg, true); y += 20 * u; lt.y = y; list.push(lt); y += 6 * u; }
     if (o.subtitle) { var ls = add(o.subtitle, 13 * u, sub, false); y += 13 * u; ls.y = y; list.push(ls); y += 6 * u; }
-    var head = list.length ? y + pad * 0.6 : 0, x = S.x0 + pad;
-    list.forEach(function (l) { l.x = x; l.y = S.y0 - head + l.y; });
-    if (o.source) { var lc = add(o.source, 11 * u, src, false); lc.x = x; lc.y = S.y0 + S.h + 15 * u; list.push(lc); S.h += 24 * u; }
-    S.y0 -= head; S.h += head;
+    var head = list.length || frame ? y + pad * 0.6 : 0, x = S.x0 + pad, top = S.y0 - head, foot = 0;
+    list.forEach(function (l) { l.x = x; l.y = top + l.y; });
+    var bottom = S.y0 + S.h;
+    if (frame) { foot = 8 * u; S.rects.push({ x: x, y: bottom + 2 * u, w: 0, h: 1.2 * u, r: 0, fill: T.fg, stroke: [0, 0, 0, 0], sw: 0, layer: 1, node: -1, a: 1, frame: 'rule' }); }
+    if (o.source) { var lc = add(o.source, 11 * u, src, false); lc.x = x; lc.y = bottom + (frame ? 21 : 15) * u; list.push(lc); foot = (frame ? 28 : 24) * u; }
+    S.y0 -= head; S.h += head + foot;
     if (wMax + 2 * pad > S.w) S.w = wMax + 2 * pad;
+    if (frame) {
+      S.rects.push({ x: x, y: top + tagY, w: 46 * u, h: 10 * u, r: 0, fill: TAG_RED, stroke: [0, 0, 0, 0], sw: 0, layer: 1, node: -1, a: 1, frame: 'tag' });
+      S.rects.forEach(function (r) { if (r.frame === 'rule') r.w = S.x0 + S.w - pad - x; });   /* the rule runs across the whole picture */
+      S.frame = true;
+    }
     for (var i = list.length - 1; i >= 0; i--) S.labels.unshift(list[i]);   /* first in the list, so the export's 2,500-name limit never drops them */
-    S.titles = { title: o.title || '', subtitle: o.subtitle || '', source: o.source || '' };
+    if (o.title || o.subtitle || o.source) S.titles = { title: o.title || '', subtitle: o.subtitle || '', source: o.source || '' };
     S.gridStale = true; S.eidx = null;
     return S;
   }

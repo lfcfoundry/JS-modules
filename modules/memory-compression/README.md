@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.10.4 · API 2**
+**Version 2.11.0 · API 2**
 
-**Tested in:** node test/run.js (85 checks); laptop page fresh-worker A/B, 14 rounds each: Chromium 156 (phone) and Firefox 160 (laptop), same bytes 14 of 14
+**Tested in:** Node 85 checks; view equals unpack at 60,000-150,000 rows (dates, templates, chunks, pairs, arrays; balanced, fast, small); Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page; owner laptops Chromium 156 and Firefox 160 cleared
 
 ## What it is and how it works
 

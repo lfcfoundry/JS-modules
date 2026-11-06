@@ -29,19 +29,19 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.2 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.18.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.10.4 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.11.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.9.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.5.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.8.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.9.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.7.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.7.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.8.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.8.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.1 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -66,13 +66,16 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **zip-open** 1.18.0 · API 1: The first Excel file you open in a page opens 11 to 45% faster: zip-open warms up its reader on a tiny made-up workbook shortly after it loads (about 20 to 30 ms of work, no file, no network; a real open stops it). Same results.
 - 2026-11-05 · **zip-open** 1.17.1 · API 1: Excel files open 1 to 19% faster. Same results.
 - 2026-11-05 · **zip-open** 1.17.0 · API 1: Opening a big Excel sheet again in the same page is 3 to 35% faster: a second thread unpacks it while the page reads rows. The first open is about the same. Same results.
+- 2026-11-05 · **netflow-scene** 1.8.0 · API 1: Opt-in Economist frame: frame: true (or theme 'editorial') adds a small red tag top-left and a thin rule under the picture, with the source under it.
 - 2026-11-05 · **netflow-scene** 1.7.0 · API 1: Sankey middle-column names get a background-color halo so they read over their bands.
 - 2026-11-05 · **netflow-scene** 1.6.0 · API 1: Opt-in families: related groups (same name before ':' or '/') share one hue in steps.
 - 2026-11-05 · **netflow-scene** 1.5.1 · API 1: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
 - 2026-11-05 · **netflow-scene** 1.5.0 · API 1: Default group colors come in a new order so neighboring groups stay easy to tell apart for people with red-green color blindness.
+- 2026-11-05 · **netflow-sankey** 2.9.0 · API 2: Opt-in Economist frame for the Sankey picture: frame: true (or theme 'editorial') adds the red tag and thin rule, with the source under it.
 - 2026-11-05 · **netflow-sankey** 2.8.0 · API 2: Opt-in highlight: one item and its bands keep their colors, the rest fade.
 - 2026-11-05 · **netflow-sankey** 2.7.0 · API 2: Default colors are the 12 color-blind-safe group colors of the other chart modules, so no two parts share a color until there are more than 12.
 - 2026-11-05 · **netflow-sankey** 2.6.1 · API 2: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
+- 2026-11-05 · **netflow-plot** 2.8.0 · API 2: Axis names read like words: sales_total shows as Sales total, and one-letter column names (r, v) are left out.
 - 2026-11-05 · **netflow-plot** 2.7.0 · API 2: Line charts follow the clean look: no number axis or gridlines, first and last values on each line.
 - 2026-11-05 · **netflow-plot** 2.6.0 · API 2: Line charts name each line at its end instead of in a key row, crowded bar names show on two rows instead of every other name, years print as 2015, not 2,015, and a highlight keeps the other series faint in their own colors instead of gray.
 - 2026-11-05 · **netflow-layers** 1.12.0 · API 1: Opt-in highlight: one box and its links keep their colors, the rest fade.
@@ -83,6 +86,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **netflow-hierarchy** 1.4.0 · API 1: Names on treemaps and circle packs read on the colors actually drawn; group boxes get a name strip and their items' color.
 - 2026-11-05 · **netflow-hierarchy** 1.3.1 · API 1: Chord, bundle and radial tree names on the left side are no longer cut off at the picture edge.
 - 2026-11-05 · **netflow-engine** 2.4.0 · API 2: toSvg(links, options): links in, a finished picture out, in one call.
+- 2026-11-05 · **memory-compression** 2.11.0 · API 2: view() opens date and template text columns, and coordinate pairs, in windows: first row of a big user list about 2.4 to 3 times as fast.
 - 2026-11-05 · **memory-compression** 2.10.4 · API 2: First pack of a big list is 7 to 12% faster in a fresh page.
 - 2026-11-05 · **lfc-pack** 0.5.1 · API 0: pack, unpack and the other calls now work without calling init() first.
 - 2026-11-05 · **lfc-pack** 0.5.0 · API 0: New LfcPack.open(file): read big files a block at a time from a File or Blob.

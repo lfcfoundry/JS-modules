@@ -190,7 +190,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 1.9.0 | 74.3 | 24.5 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.5.1 | 379.0 | 198.5 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
-| [memory-compression](modules/memory-compression/README.md) | 2.10.4 | 408.1 | 118.4 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [memory-compression](modules/memory-compression/README.md) | 2.11.0 | 410.7 | 119.1 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 | 62.9 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
@@ -215,9 +215,9 @@ Draw maps, flow charts and animated pictures from data.
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.0 | 210.1 | 65.9 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 | 55.4 | 18.9 | Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine. | — |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.0 | 64.2 | 22.7 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.7.0 | 76.9 | 24.2 | 22 plain chart types from a table, drawn with netflow-scene. | — |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.8.0 | 67.6 | 24.2 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.7.0 | 122.4 | 39.8 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.8.0 | 77.6 | 24.5 | 22 plain chart types from a table, drawn with netflow-scene. | — |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.9.0 | 68.2 | 24.4 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.8.0 | 123.5 | 40.2 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |
 
 #### Size and packaging
 
