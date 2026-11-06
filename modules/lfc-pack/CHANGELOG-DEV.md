@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.3 · API 0 · 2026-11-06
+
+### Quick
+Firefox (Gecko) only: IP text is joined from four short pieces (one flat string there) instead of writing digits and cutting them out of one decoded text.
+
+### Deep
+Firefox (Gecko) only: IP text is joined from four short pieces (one flat string there) instead of writing digits and cutting them out of one decoded text. Phase timing in Firefox, 300,000 log rows: IP column 27 ms of about 190 ms. One-lib-per-page runs, 4 each: unpack 152-163 ms vs 167-196 ms (about 0.87x). Hex ids joined the same way were 1.4x slower and were dropped. Chromium and WebKitGTK unchanged. Round trips value-exact in all 3 browsers.
+
 ## 0.5.2 · API 0 · 2026-11-06
 
 ### Quick
