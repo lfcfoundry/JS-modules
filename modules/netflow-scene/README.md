@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.7.0 · API 1**
+**Version 1.8.0 · API 1**
 
-**Tested in:** all chart module tests pass; budget Sankey before/after in light and dark; default picture otherwise byte for byte the same
+**Tested in:** Node tests (scene, plot 367, hierarchy 940, circular, engine, sankey); frame: false gives back the old SVG byte for byte (10 pictures); Chromium 155, Firefox 158, WebKitGTK 2.52.6 draw the tag and rule
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 

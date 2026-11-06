@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.9.0 · API 2 · 2026-11-05
+- The Sankey picture gets the Economist frame by default (red tag, thin rule, source under it); frame: false leaves it out.
+
 ## 2.8.0 · API 2 · 2026-11-05
 - Opt-in highlight: one item and its bands keep their colors, the rest fade.
 

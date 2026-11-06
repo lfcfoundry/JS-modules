@@ -1,8 +1,8 @@
 # netflow-sankey
 
-**Version 2.8.0 · API 2**
+**Version 2.9.0 · API 2**
 
-**Tested in:** node test/run.js (all passed); opt-in, default drawing unchanged
+**Tested in:** Node tests (scene, plot 367, hierarchy 940, circular, engine, sankey); frame: false gives back the old SVG byte for byte (10 pictures); Chromium 155, Firefox 158, WebKitGTK 2.52.6 draw the tag and rule
 
 ## What it is and how it works
 

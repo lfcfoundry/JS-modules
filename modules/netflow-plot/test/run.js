@@ -33,7 +33,8 @@ for (const [n, seed] of [[0, 1], [1, 2], [7, 3], [2000, 4]]) {
     const spec = Object.assign({ type: t }, SPECS[t]);
     let S = null; try { S = P.make(rows, spec, { width: 900, height: 560 }, global.NetflowScene); } catch (e) { ok(false, t + ' at ' + n + ' rows threw ' + e.message); continue; }
     const bad = finite(S); ok(!bad.length, t + ' at ' + n + ' rows: ' + bad.slice(0, 3).join(', '));
-    ok(S.w === 920 && S.h === 580, t + ' frame');
+    ok(S.w === 920 && S.frame && S.h > 580 && S.rects.filter((r) => r.frame).length === 2, t + ' frame (with the red tag and the rule by default)');
+    if (n === 7) { const F0 = P.make(rows, spec, { width: 900, height: 560, frame: false }, global.NetflowScene); ok(F0.w === 920 && F0.h === 580 && !F0.frame && !F0.rects.some((r) => r.frame), t + ' frame: false leaves it out'); }
     if (n >= 7 && t !== 'words') ok(S.rects.length + S.dots.length + S.polys.length + (S.curves || []).length > 0, t + ' at ' + n + ' rows draws shapes');
     /* a missing or wrong column draws a note, not a crash */
     try { const S2 = P.make(rows, Object.assign({}, spec, { x: 'nope', y: 'blank', color: 'nope2' }), { width: 400, height: 300 }, global.NetflowScene); ok(!finite(S2).length, t + ' with missing columns'); } catch (e) { ok(false, t + ' with missing columns threw ' + e.message); }
@@ -59,7 +60,8 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(!a.titles && a.labels.every((l) => !l.title), 'no title block unless asked');
   ok(b.labels.slice(0, 3).map((l) => l.t).join('|') === 'Sales|All rows|Source: test', 'title, subtitle and source come first in the name list');
   ok(b.y0 < a.y0 && b.h > a.h && b.labels[2].y > a.y0 + a.h, 'the frame grows above for the title and below for the source');
-  ok(JSON.stringify(a.rects) === JSON.stringify(b.rects), 'the picture itself does not move');
+  const own = (S) => JSON.stringify(S.rects.filter((r) => !r.frame));
+  ok(own(a) === own(b), 'the picture itself does not move');
   ok(NS.toSvg(b, 't').indexOf('>Sales</text>') > 0, 'the export draws the title');
 }
 /* opt-in highlight: one series (or one bar) keeps its color, the rest turn gray; an unknown name changes nothing */
@@ -76,10 +78,10 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const bp0 = P.make(sm, { type: 'scatter', x: 'cost', y: 'sales', color: 'kind' }, { width: 600, height: 400 }, NS);
   ok(bp.legend.filter((l) => l.t !== 'B').every((l) => key(l.c) === key(fade(bp0.legend.find((m) => m.t === l.t).c))), 'highlight works on scatter');
   const br = P.make(sm, { type: 'bar', x: 'region', y: 'sales' }, { width: 600, height: 400, highlight: 'East' }, NS);
-  ok(new Set(br.rects.map((r) => key(r.fill))).size === 2, 'highlight one bar with no color column');
+  ok(new Set(br.rects.filter((r) => !r.frame).map((r) => key(r.fill))).size === 2, 'highlight one bar with no color column');
   const many = []; for (let i = 0; i < 300; i++) many.push({ id: 'm' + i, attrs: { c: 'k' + (i % 30), g: 'k' + (i % 30), v: 30 - (i % 30) } });
   const ms = P.make(many, { type: 'bar', x: 'c', y: 'v', color: 'c' }, { width: 600, height: 400, highlight: 'k29' }, NS);
-  ok(new Set(ms.rects.map((r) => key(r.fill))).size === 2, 'color same as x: one bar keeps its color');
+  ok(new Set(ms.rects.filter((r) => !r.frame).map((r) => key(r.fill))).size === 2, 'color same as x: one bar keeps its color');
   const mo = P.make(many, { type: 'bar', x: 'c', y: 'v', color: 'g' }, { width: 600, height: 400, highlight: 'k29' }, NS);
   ok(mo.legend.some((l) => l.t === 'k29'), 'a highlighted name past the color limit is kept, not folded into Other');
 }

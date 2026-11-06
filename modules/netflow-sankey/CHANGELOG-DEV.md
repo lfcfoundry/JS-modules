@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.9.0 · API 2 · 2026-11-05
+
+### Quick
+Owner's card (2026.11.05): toSvg draws a small red tag top-left and a thin rule under the bands by default, the same as the other charts; title, subtitle and source text only when given; frame: false gives back the old picture exactly.
+
+### Deep
+Owner's card (2026.11.05): toSvg draws a small red tag top-left and a thin rule under the bands by default, the same as the other charts; title, subtitle and source text only when given; frame: false gives back the old picture exactly.
+
 ## 2.8.0 · API 2 · 2026-11-05
 
 ### Quick

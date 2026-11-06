@@ -35,12 +35,12 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lfc-pack](modules/lfc-pack/README.md) | 0.5.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.8.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.9.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.7.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.8.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.7.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.1 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -66,10 +66,12 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **zip-open** 1.18.0 · API 1: The first Excel file you open in a page opens 11 to 45% faster: zip-open warms up its reader on a tiny made-up workbook shortly after it loads (about 20 to 30 ms of work, no file, no network; a real open stops it). Same results.
 - 2026-11-05 · **zip-open** 1.17.1 · API 1: Excel files open 1 to 19% faster. Same results.
 - 2026-11-05 · **zip-open** 1.17.0 · API 1: Opening a big Excel sheet again in the same page is 3 to 35% faster: a second thread unpacks it while the page reads rows. The first open is about the same. Same results.
+- 2026-11-05 · **netflow-scene** 1.8.0 · API 1: Charts get the Economist frame by default: a small red tag top-left and a thin rule under the picture, with the source under it; frame: false leaves it out.
 - 2026-11-05 · **netflow-scene** 1.7.0 · API 1: Sankey middle-column names get a background-color halo so they read over their bands.
 - 2026-11-05 · **netflow-scene** 1.6.0 · API 1: Opt-in families: related groups (same name before ':' or '/') share one hue in steps.
 - 2026-11-05 · **netflow-scene** 1.5.1 · API 1: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
 - 2026-11-05 · **netflow-scene** 1.5.0 · API 1: Default group colors come in a new order so neighboring groups stay easy to tell apart for people with red-green color blindness.
+- 2026-11-05 · **netflow-sankey** 2.9.0 · API 2: The Sankey picture gets the Economist frame by default (red tag, thin rule, source under it); frame: false leaves it out.
 - 2026-11-05 · **netflow-sankey** 2.8.0 · API 2: Opt-in highlight: one item and its bands keep their colors, the rest fade.
 - 2026-11-05 · **netflow-sankey** 2.7.0 · API 2: Default colors are the 12 color-blind-safe group colors of the other chart modules, so no two parts share a color until there are more than 12.
 - 2026-11-05 · **netflow-sankey** 2.6.1 · API 2: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
