@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-11-06
+
+### Quick
+Faster WebAssembly decoder (build E): the model and scratch sit at fixed addresses, the decoder state lives in WebAssembly globals, 7-Zip 2023's escape loop, and the work is split into short decode_more calls of 64 KB of output so the brow…
+
+### Deep
+Faster WebAssembly decoder (build E): the model and scratch sit at fixed addresses, the decoder state lives in WebAssembly globals, 7-Zip 2023's escape loop, and the work is split into short decode_more calls of 64 KB of output so the browser moves to its optimized code between them. Same bytes and the same errors as before; the program grows by 421 bytes (9,738). Laptop, new time / old time: Firefox 160 first decode 0.71, repeat 0.84; Chromium 156 0.92 and 0.92. The plain JavaScript decoder is unchanged.
+
 ## 1.3.1 · API 1 · 2026-10-31
 
 ### Quick

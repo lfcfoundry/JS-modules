@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.3 · API 2 · 2026-11-06
+- Packed pages use the new ppmd-decode 1.4.0 WebAssembly decoder, which is faster.
+
 ## 2.0.2 · API 2 · 2026-10-31
 - Packed pages are now Latin-1 only: characters above U+00FF in the page are written as escapes before packing (the same characters on screen), and the minifiers write ASCII, so the browser keeps the unpacked page at 1 byte per character.
 

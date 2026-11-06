@@ -2,8 +2,10 @@
    A line-for-line transliteration of modules/ppmd-decode/ppmd-decode.js (itself a port of the public-domain Ppmd7.c / Ppmd7Dec.c by Igor
    Pavlov, from the 7-Zip / LZMA SDK; the algorithm is Dmitry Shkarin's PPMd var.H). Same model memory layout, same byte offsets ("refs").
 
-   decode(src, srcLen, out, outSize, order, memSize, modelBase, scratch) works on the module's imported memory; every pointer is a byte address in it.
-   modelBase must have memSize + 16 zeroed bytes (4 - memSize % 4 alignment bytes, the model, 12 spare), scratch 20,480 zeroed bytes. The caller (ppmd-decode-wasm.js)
+   decode_begin(src, srcLen, out, outSize, order, memSize, modelBase, scratch) then decode_more(upTo) until upTo reaches outSize (short calls, so the
+   browser moves to its optimized code between them); decode(...) does both in one call. They work on the module's imported memory; every pointer is a
+   byte address in it. The model and scratch addresses are built in: modelBase must be byte 24,576 (SCRATCH + SCRATCH_BYTES in ppmd-decode-wasm.js) with
+   memSize + 16 zeroed bytes (4 - memSize % 4 alignment bytes, the model, 12 spare), scratch byte 4096 with 20,480 zeroed bytes. The caller (ppmd-decode-wasm.js)
    checks the arguments the same way ppmd-decode.js does before it calls. Division by zero is guarded because JavaScript gives 0 there where WebAssembly would trap. */
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -15,7 +17,7 @@ typedef unsigned long long u64;
 #define NUM_INDEXES 38
 #define DUMMY_SEE 400
 
-static u8 *B;                 /* model base: refs are offsets from here */
+#define B ((u8 *)24576)
 #define M8(o)  (*(u8 *)(B + (o)))
 #define M16(o) (*(u16 *)(B + (o)))
 #define M32(o) (*(u32 *)(B + (o)))
@@ -24,7 +26,7 @@ static const u8 expEscape[16] = {25, 14, 9, 7, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 
 static const u16 initBinEsc[8] = {0x3CDD, 0x1F3F, 0x59BF, 0x48F3, 0x64A1, 0x5ABC, 0x6632, 0x6051};
 /* All big work arrays live in a zeroed scratch block the caller provides (so the .wasm file carries no zero data):
    byte offsets inside it */
-static u8 *Z;
+#define Z ((u8 *)4096)
 #define binSumm  ((u16 *)(Z + 0))        /* 128*64 u16 = 16384 bytes */
 #define seeSumm  ((u16 *)(Z + 16384))    /* 401 u16 -> up to 17186 */
 #define freeList ((u32 *)(Z + 17188))    /* 38 u32 -> 17340 */
@@ -39,12 +41,14 @@ static u8 *Z;
 #define hb2Flag    (Z + 20116)           /* 256 */
 #define SCRATCH_BYTES 20480
 
-static u32 minContext, maxContext, foundState, head, alignOffset, memSize;
-static u32 orderFall, order, initEsc, prevSuccess, hiBitsFlag, glueCount, loUnit, hiUnit, text, unitsStart, escFreqOut;
-static i32 runLength, initRL;
+#define G __attribute__((address_space(1)))
+static G u32 minContext, maxContext, foundState, head, alignOffset, memSize;
+static G u32 orderFall, order, initEsc, prevSuccess, hiBitsFlag, glueCount, loUnit, hiUnit, text, unitsStart, escFreqOut;
+static G i32 runLength, initRL;
 
-static u32 getSucc(u32 s) { return (u32)M16(s + 2) | ((u32)M16(s + 4) << 16); }
-static void setSucc(u32 s, u32 v) { M16(s + 2) = (u16)v; M16(s + 4) = (u16)(v >> 16); }
+typedef u32 __attribute__((aligned(1))) u32u;
+static u32 getSucc(u32 s) { return *(u32u *)(B + s + 2); }
+static void setSucc(u32 s, u32 v) { *(u32u *)(B + s + 2) = v; }
 static void copyState(u32 d, u32 s) { M16(d) = M16(s); M16(d + 2) = M16(s + 2); M16(d + 4) = M16(s + 4); }
 static void swapStates(u32 a, u32 b) { copyState(head, a); copyState(a, b); copyState(b, head); }
 
@@ -354,15 +358,16 @@ static u32 divz(u32 a, u32 b) { return b ? a / b : 0; }   /* JS: x / 0 is Infini
 
 /* result: 0 ok, 1 the compressed data ended early, 2 corrupt data, 3 bad stream header */
 
-__attribute__((export_name("decode")))
-int decode(const u8 *src, u32 srcLen, u8 *out, u32 outSize, u32 ord, u32 mem, u8 *modelBase, u8 *scratch) {
+static u32 gRng, gCd, gSp, gN, gSrcLen, gOutSize; static const u8 *gSrc; static u8 *gOut;
+__attribute__((export_name("decode_begin")))
+int decode_begin(const u8 *src, u32 srcLen, u8 *out, u32 outSize, u32 ord, u32 mem, u8 *modelBase, u8 *scratch) {
   u32 rng = 0xFFFFFFFFu, cd = ((u32)src[1] << 24) | ((u32)src[2] << 16) | ((u32)src[3] << 8) | src[4];
   u32 sp = 5, n, mc, ns, s, i, count, hiCnt, sf, f, prob, idx, bound, numMasked, num, k, see, freqSum, pp;
   int sym;
   u8 *mask;
   u32 step, m;
 
-  B = modelBase; Z = scratch; mask = charMask; order = ord; memSize = mem;
+  mask = charMask; order = ord; memSize = mem;
   /* static tables (Ppmd7_Construct) */
   for (i = 0, k = 0; i < NUM_INDEXES; i++) {
     step = i >= 12 ? 4 : (i >> 2) + 1;
@@ -381,11 +386,26 @@ int decode(const u8 *src, u32 srcLen, u8 *out, u32 outSize, u32 ord, u32 mem, u8
   restartModel();
   seeShift[DUMMY_SEE] = 7; seeSumm[DUMMY_SEE] = 0; seeCount[DUMMY_SEE] = 64;
   if (cd == 0xFFFFFFFFu) return 3;
-  for (n = 0; n < outSize; n++) {
+  gRng = rng; gCd = cd; gSp = sp; gN = 0; gSrc = src; gSrcLen = srcLen; gOut = out; gOutSize = outSize;
+  return 0;
+}
+__attribute__((export_name("decode_more"), noinline))
+int decode_more(u32 end) {
+  u32 rng = gRng, cd = gCd, sp = gSp, srcLen = gSrcLen, n, mc, ns, s, i, count, hiCnt, sf, f, prob, idx, bound, numMasked, num, k, see, freqSum, pp;
+  const u8 *src = gSrc; u8 *out = gOut;
+  int sym;
+  u8 *mask = charMask;
+  if (end > gOutSize) end = gOutSize;
+  for (n = gN; n < end; n++) {
     sym = -1;
-    while (rng < 16777216u) {
+    if (rng < 16777216u) {
       if (sp >= srcLen) return 1;
       cd = (cd << 8) | src[sp++]; rng <<= 8;
+      if (rng < 16777216u) {
+        if (sp >= srcLen) return 1;
+        cd = (cd << 8) | src[sp++]; rng <<= 8;
+        while (rng < 16777216u) { if (sp >= srcLen) return 1; cd = (cd << 8) | src[sp++]; rng <<= 8; }
+      }
     }
     mc = minContext;
     ns = M16(mc);
@@ -419,7 +439,7 @@ int decode(const u8 *src, u32 srcLen, u8 *out, u32 outSize, u32 ord, u32 mem, u8
       hiBitsFlag = hb2Flag[M8(foundState)];
       cd = cd - hiCnt * rng;
       rng = rng * (sf - hiCnt);
-      for (i = 0; i < 256; i++) mask[i] = 255;
+      for (i = 0; i < 64; i++) ((u32 *)mask)[i] = 0xFFFFFFFFu;
       mask[M8(s)] = 0;
       i = ns - 1;
       do { s -= 6; mask[M8(s)] = 0; } while (--i);
@@ -439,14 +459,19 @@ int decode(const u8 *src, u32 srcLen, u8 *out, u32 outSize, u32 ord, u32 mem, u8
       prob = prob - ((prob + 32) >> 7);
       binSumm[idx] = (u16)prob;
       initEsc = expEscape[prob >> 10];
-      for (i = 0; i < 256; i++) mask[i] = 255;
+      for (i = 0; i < 64; i++) ((u32 *)mask)[i] = 0xFFFFFFFFu;
       mask[M8(mc + 2)] = 0;
       prevSuccess = 0;
     }
     for (;;) {
-      while (rng < 16777216u) {
+      if (rng < 16777216u) {
         if (sp >= srcLen) return 1;
         cd = (cd << 8) | src[sp++]; rng <<= 8;
+        if (rng < 16777216u) {
+          if (sp >= srcLen) return 1;
+          cd = (cd << 8) | src[sp++]; rng <<= 8;
+          while (rng < 16777216u) { if (sp >= srcLen) return 1; cd = (cd << 8) | src[sp++]; rng <<= 8; }
+        }
       }
       numMasked = M16(minContext);
       do {
@@ -455,25 +480,23 @@ int decode(const u8 *src, u32 srcLen, u8 *out, u32 outSize, u32 ord, u32 mem, u8
         minContext = M32(minContext + 8);
       } while (M16(minContext) == numMasked);
       mc = minContext;
-      hiCnt = 0;
       s = M32(mc + 4);
-      i = 0;
-      num = M16(mc) - numMasked;
+      num = M16(mc);
+      i = num >> 1;
+      hiCnt = (num & 1) ? (M8(s + 1) & mask[M8(s)]) : 0;
+      s += (num & 1) * 6;
       do {
-        i32 kk = (i32)(signed char)mask[M8(s)];
-        hiCnt += M8(s + 1) & kk;
-        ps[i] = s;
-        s += 6;
-        i -= kk;
-      } while (i != num);
+        hiCnt += M8(s + 1) & mask[M8(s)];
+        hiCnt += M8(s + 7) & mask[M8(s + 6)];
+        s += 12;
+      } while (--i);
       see = makeEscFreq(numMasked);
       freqSum = escFreqOut + hiCnt;
       rng = divz(rng, freqSum);
       count = divz(cd, rng);
       if (count < hiCnt) {
-        pp = 0; hiCnt = 0;
-        while ((hiCnt += M8(ps[pp] + 1)) <= count) pp++;
-        s = ps[pp];
+        s = M32(mc + 4); hiCnt = 0;
+        for (;;) { hiCnt += M8(s + 1) & mask[M8(s)]; if (hiCnt > count) break; s += 6; }
         f = M8(s + 1);
         cd = cd - (hiCnt - f) * rng;
         rng = rng * f;
@@ -494,11 +517,19 @@ int decode(const u8 *src, u32 srcLen, u8 *out, u32 outSize, u32 ord, u32 mem, u8
       cd = cd - hiCnt * rng;
       rng = rng * (freqSum - hiCnt);
       seeSumm[see] = (u16)(seeSumm[see] + freqSum);
-      do { mask[M8(ps[--i])] = 0; } while (i != 0);
+      s = M32(mc + 4);
+      i = num;
+      do { mask[M8(s)] = 0; s += 6; } while (--i);
     }
   done:
     if (sym < 0) return 2;
     out[n] = (u8)sym;
   }
+  gRng = rng; gCd = cd; gSp = sp; gN = n;
   return 0;
+}
+__attribute__((export_name("decode")))
+int decode(const u8 *src, u32 srcLen, u8 *out, u32 outSize, u32 ord, u32 mem, u8 *modelBase, u8 *scratch) {
+  int r = decode_begin(src, srcLen, out, outSize, ord, mem, modelBase, scratch);
+  return r ? r : decode_more(outSize);
 }

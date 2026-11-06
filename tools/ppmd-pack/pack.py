@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
 """ppmd-pack: turn one HTML file into a smaller self-unpacking HTML file with PPMd.  MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules
-Version 2.0.2 (API 2)
+Version 2.0.3 (API 2)
 
   python3 tools/ppmd-pack/pack.py INPUT.html OUTPUT.html [--title T] [--head HTML] [--encoding bytes|base64] [--order N] [--mem BYTES] [--tune] [--compare]
                                   [--minifier auto|terser|esbuild|none] [--minify-page] [--bg auto|none|COLOR] [--wasm] [--skip-node-check]
@@ -63,7 +63,8 @@ def _load_lzma_pack():
 lz = _load_lzma_pack()
 DECODER = HERE.parent.parent / "modules" / "ppmd-decode" / "ppmd-decode.js"
 WASM_DECODER = HERE.parent.parent / "modules" / "ppmd-decode" / "wasm" / "ppmd7.wasm"   # for --wasm
-WASM_SCRATCH = 4096 + 20480   # where the compressed bytes start inside the wasm memory (scratch block at 4096, 20,480 bytes; see modules/ppmd-decode/ppmd-decode-wasm.js)
+WASM_SCRATCH = 4096 + 20480   # where the model starts inside the wasm memory (scratch block at 4096, 20,480 bytes; the program has both addresses built in, see modules/ppmd-decode/ppmd-decode-wasm.js)
+WASM_CHUNK = 65536            # bytes of output per decode_more call (short calls let the browser move to its optimized code between them)
 WASM_MAX_BYTES = 1 << 30      # the same 1 GB ceiling the ppmd-decode-wasm.js add-on uses
 PAYLOAD_NAME = "__ppmdPackedPayload_5c2e8d14"   # a global, copied into a local by the loader and deleted at once (see tools/lzma-pack)
 FAIL_MESSAGE = ("This file was changed (maybe opened and saved as text, or cut short) or the device has too little free memory. "
@@ -117,10 +118,10 @@ def best_of(data, grid, jobs=None):
 # the same Node sandbox as lzma-pack's, with the decoder's name swapped in for the leak check
 NODE_HARNESS = lz.NODE_HARNESS.replace("lzmaDecode", "ppmd7Decode")
 assert "ppmd7Decode" in NODE_HARNESS
-# the PPMd program imports its memory and exports decode() (0 = done), where the LZMA one exports its own memory and lzma_decode(): swap the counting wrapper
+# the PPMd program imports its memory and exports decode_begin() and decode_more() (0 = fine), where the LZMA one exports its own memory and lzma_decode(): swap the counting wrapper
 _OLD_WRAP = [l for l in NODE_HARNESS.split("\n") if "lzma_decode()" in l]
 assert len(_OLD_WRAP) == 1 and "Module: mode ===" in NODE_HARNESS, "lzma-pack's Node sandbox changed; update NODE_HARNESS in ppmd-pack"
-NODE_HARNESS = NODE_HARNESS.replace(_OLD_WRAP[0], "        return { exports: { decode() { stats.calls++; stats.last = r.exports.decode.apply(null, arguments); return mode === 'broken' ? stats.last + 1 : stats.last; } } };")
+NODE_HARNESS = NODE_HARNESS.replace(_OLD_WRAP[0], "        return { exports: { decode_begin() { stats.calls++; stats.last = r.exports.decode_begin.apply(null, arguments); return mode === 'broken' ? stats.last + 1 : stats.last; }, decode_more() { stats.last = r.exports.decode_more.apply(null, arguments); return mode === 'broken' ? stats.last + 1 : stats.last; } } };")
 NODE_HARNESS = NODE_HARNESS.replace("Instance: function (m, i) {", "Memory: Real.Memory,\n      Instance: function (m, i) {", 1)
 
 
@@ -213,8 +214,8 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
     dec = decoder_source()
     wasm_bytes = b""
     if wasm is None:   # the default: WebAssembly first whenever the program is there and the memory fits one WebAssembly memory; --no-wasm (wasm=False) leaves it out, --wasm (True) insists
-        o16 = -(-(WASM_SCRATCH + len(z)) // 16) * 16
-        wasm = WASM_DECODER.exists() and -(-(o16 + len(data)) // 16) * 16 + (4 - (mem & 3)) + mem + 12 <= WASM_MAX_BYTES
+        s16 = -(-(WASM_SCRATCH + (4 - (mem & 3)) + mem + 12) // 16) * 16
+        wasm = WASM_DECODER.exists() and -(-(s16 + len(z)) // 16) * 16 + len(data) <= WASM_MAX_BYTES
     if wasm:   # the wasm decoder rides behind the PPMd stream in the same payload; it cannot be PPMd-packed itself, so it adds its full size to the page
         if not WASM_DECODER.exists():
             raise SystemExit("--wasm needs %s (build it with modules/ppmd-decode/wasm/build.sh)" % WASM_DECODER)
@@ -232,20 +233,21 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
     # The loader copies the payload into a local variable and deletes the global at once; the decoder and every other name live inside the timer function.
     # The compressed bytes are checked BEFORE decoding: the loader leaves out the decoder's checks for outside input, and a damaged PPMd stream can make the
     # decoder spin forever instead of failing, so a re-saved or cut file must be refused first. The unpacked page is checked as well.
-    # With --wasm the loader tries the WebAssembly decoder first (the program imports its memory: one memory sized here, the stream copied in, decode() run, 0 means done)
+    # With --wasm the loader tries the WebAssembly decoder first (the program imports its memory: one memory sized here holding the model, the stream and the page; decode_begin() then
+# decode_more() for each 64 KB of output, 0 means fine)
     # and uses the JavaScript decoder when that throws or returns anything else, e.g. on a page whose policy refuses WebAssembly.
     zs = "z.subarray(0,%d)" % len(z) if wasm else "z"
     wfun = ""
     if wasm:
-        src_off = WASM_SCRATCH
+        model_off = WASM_SCRATCH   # fixed: built into the program
+        src_off = -(-(model_off + (4 - (mem & 3)) + mem + 12) // 16) * 16
         out_off = -(-(src_off + len(z)) // 16) * 16
-        model_off = -(-(out_off + len(data)) // 16) * 16
-        total = model_off + (4 - (mem & 3)) + mem + 12
+        total = out_off + len(data)
         if total > WASM_MAX_BYTES:
             raise SystemExit("--wasm: the model memory plus the page needs %d bytes; the WebAssembly decoder stops at 1 GB. Use a smaller --mem or leave --wasm off." % total)
         wfun = ("function W(){var m=new WebAssembly.Memory({initial:%d}),x=new WebAssembly.Instance(new WebAssembly.Module(z.subarray(%d)),{env:{memory:m}}).exports;"
-                "new Uint8Array(m.buffer).set(%s,%d);if(!x.decode(%d,%d,%d,%d,%d,%d,%d,4096))return new Uint8Array(m.buffer,%d,%d)}"
-                % (-(-total // 65536), len(z), zs, src_off, src_off, len(z), out_off, len(data), order, mem, model_off, out_off, len(data)))
+                "new Uint8Array(m.buffer).set(%s,%d);var r=x.decode_begin(%d,%d,%d,%d,%d,%d,%d,4096),d=0;for(;!r&&d<%d;)r=x.decode_more(d=Math.min(d+%d,%d));if(!r)return new Uint8Array(m.buffer,%d,%d)}"
+                % (-(-total // 65536), len(z), zs, src_off, src_off, len(z), out_off, len(data), order, mem, model_off, len(data), WASM_CHUNK, len(data), out_off, len(data)))
     first = "try{o=W()}catch(e){}o=o||" if wasm else "o="
     src = ("setTimeout(function(){" + dec + "\n" + wfun + "var s=" + PAYLOAD_NAME + ";delete window." + PAYLOAD_NAME + ";" + read + "var o,t;"
            "function H(a){for(var h=0,i=0;i<a.length;i++)h=(h*31+a[i])>>>0;return h}"
