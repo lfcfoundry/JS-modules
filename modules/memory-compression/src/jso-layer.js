@@ -1718,9 +1718,9 @@
         return new Col(n, 0, out, null);
       case CT_TUPLE:
         k = c.varint(); if (k < 1 || k > 8) jfail('bad tuple'); this.spend(n * k);
-        var cols = [], lz = this.lazyNow(), la = this.lazyAt; if (lz) this.lazyAt = this.depth + 1;
+        var cols = [], lz = this.lazyNow(), la = this.lazyAt, wa5 = this.winAt; if (lz) { this.lazyAt = this.depth + 1; this.winAt = this.depth + 1; }
         for (j = 0; j < k; j++) cols.push(this.column(n));
-        this.lazyAt = la;
+        this.lazyAt = la; this.winAt = wa5;
         if (lz) return new Col(n, 9, { cols: cols, k: k, row: k === 2 ? function (i) { return [cols[0].get(i), cols[1].get(i)]; } : function (i) { var r = new Array(k), q; for (q = 0; q < k; q++) r[q] = cols[q].get(i); return r; } }, null);
         out = new Array(n);
         if (k === 2) {
@@ -1823,11 +1823,12 @@
   }
   // The text of one date-time from its number, the calendar part kept for the last 256 distinct days; the column keeps just the numbers.
   function timesLazy(n, L, g, ts) {
-    var per = g === 3 ? 1 : g === 5 ? 1440 : g === 6 ? 86400 : 86400000, ra = ts.mode === 3 ? null : ts.a, cv = ts.mode === 3 ? ts.d : 0, i, v;
-    for (i = 0; i < n; i++) { v = ra ? ra[i] : cv; if (v - v !== 0) jfail('bad date pattern'); if (!ra) break; }
+    var wn = ts.mode === 11 ? ts.a : null, per = g === 3 ? 1 : g === 5 ? 1440 : g === 6 ? 86400 : 86400000, ra = ts.mode === 3 || wn ? null : ts.a, cv = ts.mode === 3 ? ts.d : 0, i, v;
+    if (!wn) for (i = 0; i < n; i++) { v = ra ? ra[i] : cv; if (v - v !== 0) jfail('bad date pattern'); if (!ra) break; }        // numbers in windows are checked when their row is read
     var tags = new Float64Array(256).fill(NaN), strs = new Array(256).fill(''), last = NaN, lastDay = '';
     function row(i) {
-      var v = ra ? ra[i] : cv, days = Math.floor(v / per), slot, day, rest, sec, ms, k;
+      var v = wn ? wn.row(i) : ra ? ra[i] : cv, days = Math.floor(v / per), slot, day, rest, sec, ms, k;
+      if (wn && v - v !== 0) jfail('bad date pattern');
       if (days === last) day = lastDay;
       else {
         slot = days & 255;
@@ -1958,9 +1959,11 @@
     this.spend(n * (R + 1));
     for (j = 0; j <= R; j++) L.push(c.str());
     for (j = 0; j < R; j++) { if (j < g) widths.push(TS_WIDTH[j]); else { widths.push(c.varint()); if (widths[j] === 1 || widths[j] > 15) jfail('bad date pattern'); } }
-    ts = this.column(n);
-    if (ts.mode !== 0 && ts.mode !== 3) jfail('bad date pattern');
-    if (R === g && this.lazyNow()) return timesLazy(n, L, g, ts);
+    var lzd = R === g && this.lazyNow(), wa3 = this.winAt;
+    if (lzd) this.winAt = this.depth + 1;                           // the numbers of a date column read lazily may be opened in windows
+    ts = this.column(n); this.winAt = wa3;
+    if (ts.mode !== 0 && ts.mode !== 3 && !(lzd && ts.mode === 11)) jfail('bad date pattern');
+    if (lzd) return timesLazy(n, L, g, ts);
     if (R === g && n >= 2048) return new Col(n, 0, buildTimes(n, L, g, ts), null);
     cols = tsUnpack(g, ts, n).map(function (a) { var k, x = a[0]; for (k = 1; k < n && a[k] === x; k++); return k === n ? new Col(n, 3, null, x) : new Col(n, 0, a, null); });   // a number that never changes becomes part of the text
     for (j = g; j < R; j++) cols.push(this.column(n));
@@ -1973,8 +1976,11 @@
     for (t = 0; t < nt; t++) { L = []; for (j = 0; j <= R; j++) L.push(c.str()); tpls.push(L); }
     for (j = 0; j < R; j++) { w = c.varint(); if (w === 1 || w > 15) jfail('bad string pattern'); widths.push(w); }
     if (nt > 1) { tid = this.blob(Uint8Array, n); for (i = 0; i < n; i++) if (tid[i] >= nt) jfail('bad string pattern'); }
+    var lzt = this.lazyNow(), wa4 = this.winAt;
+    if (lzt) this.winAt = this.depth + 1;                           // the number slots of a template read lazily may be opened in windows
     for (j = 0; j < R; j++) cols.push(this.column(n));
-    return buildTemplate(n, tpls, R, widths, tid, cols, this.lazyNow());
+    this.winAt = wa4;
+    return buildTemplate(n, tpls, R, widths, tid, cols, lzt);
   };
   var ZEROS = '000000000000000';
   function pad(v, w) { var s = '' + v; return s.length >= w ? s : ZEROS.substring(0, w - s.length) + s; }
@@ -2030,11 +2036,29 @@
     return { lits: nl, R: nk.length, widths: nw, kinds: nk, arrs: na, tabs: nt, los: nlo };
   }
   // The strings come back as literal + number + literal ...; a column of numbers that spans few values is turned into text once and looked up.
-  function buildTemplate(n, tpls, R, widths, tid, cols, lazy) {      // a Col; lazy: the strings are put together when a row is read, not now
-    var nt = tpls.length, out = new Array(n), kinds = [], arrs = [], tabs = [], los = [], lits, j, t, i, a, lo, hi, x, k, sig, f, v;
+  var TPL_CHUNK = 8192, TPL_CHUNK_MIN = 65536;
+  // A long lazy template column is made in chunks of 8,192 rows when its first row in a chunk is read: the passes over the numbers (range, merged table, text per combination) then
+  // cost 8,192 rows each time instead of every row at once, so the first read of a long list does not wait for them. Only for plain number slots; a slot in windows keeps the whole way.
+  function chunkedTemplate(n, tpls, R, widths, tid, cols) {
+    var nc = Math.ceil(n / TPL_CHUNK), chunks = new Array(nc), j, b;
+    function make(b) {
+      var s = b * TPL_CHUNK, e = s + TPL_CHUNK < n ? s + TPL_CHUNK : n, sub = [], q;
+      for (q = 0; q < R; q++) sub.push(cols[q].mode === 3 ? cols[q] : new Col(e - s, 0, cols[q].a.subarray(s, e), null));
+      return buildTemplate(e - s, tpls, R, widths, tid ? tid.subarray(s, e) : null, sub, true, true).a;
+    }
+    return lazyCol(n, 6, { row: function (i) { var b = i >> 13, ch = chunks[b] || (chunks[b] = make(b)); return ch.row(i - (b << 13)); }, arrs: [], tabs: [], tid: null, chunks: chunks });
+  }
+  function buildTemplate(n, tpls, R, widths, tid, cols, lazy, inner) {      // a Col; lazy: the strings are put together when a row is read, not now
+    var j;
+    if (lazy && !inner && n >= TPL_CHUNK_MIN) {
+      for (j = 0; j < R; j++) if (cols[j].mode !== 3 && !(cols[j].mode === 0 && cols[j].a.subarray)) break;
+      if (j === R) return chunkedTemplate(n, tpls, R, widths, tid, cols);
+    }
+    var nt = tpls.length, out = new Array(n), kinds = [], arrs = [], tabs = [], los = [], lits, t, i, a, lo, hi, x, k, sig, f, v;
     for (j = 0; j < R; j++) {
       a = cols[j]; kinds.push(0); arrs.push(null); tabs.push(null); los.push(0);
       if (a.mode === 3) { kinds[j] = 3; tabs[j] = widths[j] ? pad(a.d, widths[j]) : '' + a.d; continue; }       // one value for every row: part of the text
+      if (a.mode === 11) { kinds[j] = widths[j] ? 5 : 4; arrs[j] = a; continue; }       // numbers in windows: each is read from its column when the row is made
       a = a.a; arrs[j] = a; lo = Infinity; hi = -Infinity;
       for (i = 0; i < n; i++) { x = a[i]; if (x < lo) lo = x; if (x > hi) hi = x; }
       if (hi - lo <= 4096 && n > 4 * (hi - lo + 1) && lo === Math.floor(lo)) {
@@ -2052,7 +2076,7 @@
           var e = '', pend = tpls[t][0];
           for (j = 0; j < R; j++) {
             if (kinds[j] === 3) { pend += tabs[j] + tpls[t][j + 1]; continue; }       // constant: folded into the text
-            e += (e ? '+' : '') + JSON.stringify(pend) + '+' + (kinds[j] === 0 ? 'A' + j + '[i]' : kinds[j] === 1 ? 'T' + j + '[A' + j + '[i]-' + 'LO' + j + ']' : 'pad(A' + j + '[i],' + widths[j] + ')');
+            e += (e ? '+' : '') + JSON.stringify(pend) + '+' + (kinds[j] === 0 ? 'A' + j + '[i]' : kinds[j] === 1 ? 'T' + j + '[A' + j + '[i]-' + 'LO' + j + ']' : kinds[j] === 4 ? 'A' + j + '.get(i)' : kinds[j] === 5 ? 'pad(A' + j + '.get(i),' + widths[j] + ')' : 'pad(A' + j + '[i],' + widths[j] + ')');
             pend = tpls[t][j + 1];
           }
           e = e ? e + (pend ? '+' + JSON.stringify(pend) : '') : JSON.stringify(pend);
@@ -2073,7 +2097,7 @@
             t = tid ? tid[i] : 0; L = tpls[t]; s = L[0];
             for (jj = 0; jj < R; jj++) {
               q = 4 + jj * 3;
-              v = kinds[jj] === 3 ? tabs[jj] : kinds[jj] === 1 ? arguments[q + 1][arguments[q][i] - arguments[q + 2]] : kinds[jj] === 2 ? padf(arguments[q][i], widths[jj]) : arguments[q][i];
+              v = kinds[jj] === 3 ? tabs[jj] : kinds[jj] === 1 ? arguments[q + 1][arguments[q][i] - arguments[q + 2]] : kinds[jj] === 2 ? padf(arguments[q][i], widths[jj]) : kinds[jj] === 4 ? arguments[q].get(i) : kinds[jj] === 5 ? padf(arguments[q].get(i), widths[jj]) : arguments[q][i];
               s += v + L[jj + 1];
             }
             out[i] = s;
@@ -2087,7 +2111,7 @@
     if (lazy && !CAN_EVAL) {                                          // since 2.8.2, a page that forbids eval: the same row, put together by a loop over the slots
       return lazyCol(n, 6, { row: function (i) {
         var tt = tid ? tid[i] : 0, L = tpls[tt], str = L[0], jj, v;
-        for (jj = 0; jj < R; jj++) { v = kinds[jj] === 3 ? tabs[jj] : kinds[jj] === 1 ? tabs[jj][arrs[jj][i] - los[jj]] : kinds[jj] === 2 ? pad(arrs[jj][i], widths[jj]) : arrs[jj][i]; str += v + L[jj + 1]; }
+        for (jj = 0; jj < R; jj++) { v = kinds[jj] === 3 ? tabs[jj] : kinds[jj] === 1 ? tabs[jj][arrs[jj][i] - los[jj]] : kinds[jj] === 2 ? pad(arrs[jj][i], widths[jj]) : kinds[jj] === 4 ? arrs[jj].get(i) : kinds[jj] === 5 ? pad(arrs[jj].get(i), widths[jj]) : arrs[jj][i]; str += v + L[jj + 1]; }
         return str;
       }, arrs: arrs, tabs: tabs, tid: tid });
     }
@@ -2828,7 +2852,8 @@
       if (m === 10) return 4400 + colBytes(a.ts);
       if (m === 6) {                                                  // the numbers each slot reads and the tables of text it looks up
         var t = 16 + (a.tid ? a.tid.byteLength : 0), seen = [], j;
-        for (j = 0; j < a.arrs.length; j++) if (a.arrs[j] && seen.indexOf(a.arrs[j]) < 0) { seen.push(a.arrs[j]); t += 16 + a.arrs[j].byteLength; }
+        if (a.chunks) { for (j = 0; j < a.chunks.length; j++) if (a.chunks[j]) t += colBytes({ mode: 6, a: a.chunks[j], n: 0 }); return t; }
+        for (j = 0; j < a.arrs.length; j++) if (a.arrs[j] && seen.indexOf(a.arrs[j]) < 0) { seen.push(a.arrs[j]); t += 16 + (a.arrs[j].byteLength !== undefined ? a.arrs[j].byteLength : colBytes(a.arrs[j])); }
         for (j = 0; j < a.tabs.length; j++) if (a.tabs[j]) t += estimateBytes(a.tabs[j], 32);
         return t;
       }
