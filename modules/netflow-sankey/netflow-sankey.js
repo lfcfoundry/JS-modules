@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.10.1 (API 2)
+ * Version 2.11.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -649,6 +649,91 @@
     var a = p(c), b = p(bg); if (a.some(isNaN) || b.some(isNaN)) return c;
     return '#' + a.map(function (v, k) { var x = Math.round(v + (b[k] - v) * t); return (x < 16 ? '0' : '') + x.toString(16); }).join('');
   }
+  /* ---- value labels and notes for toSvg: opts.valueLabel 'none' | 'under' | 'inline' | 'percent' | 'both', opts.unit ('$', 'GWh'), opts.unitAt, opts.percentOf 'total' | 'column', opts.notes (netflow-scene reads the same words) */
+  function fmtNum(v) {   /* the same short numbers as netflow-engine's columns.fmt: 1,234  12.5k  3.4M */
+    if (v === undefined || v === null || !isFinite(v)) return '';
+    var a = Math.abs(v), s;
+    if (a >= 1e9) s = (v / 1e9).toFixed(a >= 1e10 ? 0 : 1) + 'B';
+    else if (a >= 1e6) s = (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M';
+    else if (a >= 1e4) s = (v / 1e3).toFixed(a >= 1e5 ? 0 : 1) + 'k';
+    else if (a >= 1000) { var r = Math.round(a), t = String(r % 1000); s = (v < 0 ? '-' : '') + Math.floor(r / 1000) + ',' + '000'.slice(t.length) + t; }
+    else if (a >= 100) s = String(Math.round(v * 10) / 10);
+    else if (a >= 1) s = String(Math.round(v * 100) / 100);
+    else if (a === 0) s = '0';
+    else if (a >= 0.01) s = String(Math.round(v * 1000) / 1000);
+    else s = v.toExponential(1);
+    return s.replace(/\.0(?=[kMB]|$)/, '');
+  }
+  function withUnit(txt, v, o) {   /* a money sign (or any unit without letters or digits) goes before, a word after; o.unitAt 'before' or 'after' decides it instead */
+    var u = o.unit !== undefined && o.unit !== null ? String(o.unit) : '';
+    if (!u) return txt;
+    var last = u.charCodeAt(u.length - 1), before = o.unitAt ? o.unitAt === 'before' : /^[^\sA-Za-z0-9]+$/.test(u) || last === 36 || last === 163 || last === 165 || last === 8364;
+    if (!before) return txt + ' ' + u;
+    return v < 0 && txt.charAt(0) === '-' ? '-' + u + txt.slice(1) : u + txt;
+  }
+  function pctText(part, whole) {
+    if (!(whole > 0) || part !== part) return '';
+    var p = 100 * part / whole;
+    return (p > 0 && p < 0.1 ? '<0.1' : p >= 10 || p === 0 ? String(Math.round(p)) : String(Math.round(p * 10) / 10)) + '%';
+  }
+  /** totals of a layout result: the grand total (what leaves the items nothing flows into), each column's, each link's, and the biggest link */
+  function sums(R) {
+    var all = 0, col = {}, link = {}, top = null;
+    R.nodes.forEach(function (n) { var t = n.flow || 0; col[n.layer] = (col[n.layer] || 0) + t; if (!n.inFlow) all += t; });
+    R.bands.forEach(function (b) { var k = b.link === undefined ? b.edge : b.link; if (link[k] === undefined) { link[k] = { from: b.from, to: b.to, v: b.value }; if (!top || b.value > top.v) top = link[k]; } });
+    return { all: all, col: col, link: link, top: top };
+  }
+  function valueText(n, Q, o) {
+    var mode = o.valueLabel || 'none';
+    if (mode === 'none' || !(n.flow >= 0)) return null;
+    var val = withUnit(fmtNum(n.flow), n.flow, o), pct = pctText(n.flow, o.percentOf === 'column' ? Q.col[n.layer] : Q.all);
+    if (mode === 'inline') return { inline: val, under: '' };
+    if (mode === 'percent') return { inline: '', under: pct };
+    if (mode === 'both') return { inline: '', under: pct ? val + ' (' + pct + ')' : val };
+    return { inline: '', under: val };
+  }
+  /** opts.notes = [{ text, x, y (0 to 1 across and down the picture), anchor (an item's id or name, or "from>to"), size, color, bold, align }] as SVG: plain text, no box, a thin line to what it is about */
+  function notesSvg(R, Q, o, tc) {   /* -> { svg, right, bottom }: the notes, and how far their text may reach (about 0.56 of the size per letter) */
+    var byId = {}, byLabel = {}, own = Object.prototype.hasOwnProperty, s = '', right = 0, bottom = 0;
+    R.nodes.forEach(function (n) { byId[n.id] = n; if (!own.call(byLabel, n.label)) byLabel[n.label] = n; });
+    var item = function (a) { return own.call(byId, a) ? byId[a] : own.call(byLabel, a) ? byLabel[a] : null; };
+    var flowOf = function (a) {   /* "from>to": every '>' is tried, so names may hold one */
+      for (var i = a.indexOf('>'); i >= 0; i = a.indexOf('>', i + 1)) {
+        var f = item(a.slice(0, i).trim()), t = item(a.slice(i + 1).trim()), k, v = 0, any = false, band = null;
+        if (!f || !t) continue;
+        for (k in Q.link) if (Q.link[k].from === f.id && Q.link[k].to === t.id) { v += Q.link[k].v; any = true; }
+        R.bands.forEach(function (b) { if (!band && b.from === f.id && b.to === t.id) band = b; });
+        return { v: any ? v : NaN, band: band };
+      }
+      return null;
+    };
+    var top = Q.top && byId[Q.top.from] && byId[Q.top.to] ? byId[Q.top.from].label + ' ' + String.fromCharCode(8594) + ' ' + byId[Q.top.to].label : '';
+    (o.notes || []).forEach(function (nt) {
+      if (!nt || nt.text === undefined || nt.text === null || nt.text === '') return;
+      var t = String(nt.text).replace(/\{(total|top|value:[^{}]*|share:[^{}]*|flow:[^{}]*)\}/g, function (all, w) {
+        var c = w.indexOf(':'), k = c < 0 ? w : w.slice(0, c), a = c < 0 ? '' : w.slice(c + 1).trim(), n, b;
+        if (k === 'total') return withUnit(fmtNum(Q.all), Q.all, o);
+        if (k === 'top') return top || all;
+        if (k === 'flow') { b = flowOf(a); return b && b.v === b.v ? withUnit(fmtNum(b.v), b.v, o) : all; }
+        n = item(a); if (!n) return all;
+        return k === 'value' ? withUnit(fmtNum(n.flow), n.flow, o) : pctText(n.flow, Q.all) || all;
+      });
+      var x = (+nt.x || 0) * R.width, y = (+nt.y || 0) * R.height, size = +nt.size || 12, col = esc(nt.color || tc), al = nt.align === 'right' || nt.align === 'r' ? 'end' : nt.align === 'center' || nt.align === 'c' ? 'middle' : 'start';
+      if (nt.anchor !== undefined && nt.anchor !== null && nt.anchor !== '') {
+        var a = String(nt.anchor), n = item(a), p = null, b;
+        if (n) p = [Math.max(n.x, Math.min(n.x + n.w, x)), Math.max(n.y, Math.min(n.y + n.h, y))];
+        else if ((b = flowOf(a)) && b.band) p = [b.band.xm, (b.band.y0a + b.band.y0b + b.band.y1a + b.band.y1b) / 4];
+        if (p) {
+          var sy = p[1] > y ? y + 4 : y - size, dx = p[0] - x, dy = p[1] - sy, d = Math.sqrt(dx * dx + dy * dy);
+          if (d >= 4) s += '<line x1="' + f(x) + '" y1="' + f(sy) + '" x2="' + f(p[0] - dx / d * 2) + '" y2="' + f(p[1] - dy / d * 2) + '" stroke="' + col + '" stroke-width="0.8" stroke-opacity="0.75"/>';
+        }
+      }
+      var wd = t.length * size * (nt.bold ? 0.6 : 0.56), x1 = al === 'end' ? x : al === 'middle' ? x + wd / 2 : x + wd;
+      if (x1 > right) right = x1; if (y + size * 0.3 > bottom) bottom = y + size * 0.3;
+      s += '<text x="' + f(x) + '" y="' + f(y) + '" font-size="' + f(size) + '"' + (nt.bold ? ' font-weight="700"' : '') + (al !== 'start' ? ' text-anchor="' + al + '"' : '') + ' fill="' + col + '">' + esc(t) + '</text>';
+    });
+    return { svg: s, right: right, bottom: bottom };
+  }
   /** toSvg(data, opts) in one call (data: links as above), or toSvg(R, opts) for a layout result (it has nodes and bands). */
   function toSvg(R, opts) {
     opts = opts || {};
@@ -662,16 +747,18 @@
     if (hl !== null) R.nodes.forEach(function (n) { hlFade[n.id] = fadeHex(color[n.id], opts.background || '#ffffff', 0.6); });
     var hot = function (b) { return hl === null || b.from === hl || b.to === hl; }, bandCol = function (b) { return hot(b) ? color[b.from] : hlFade[b.from]; };
     R.nodes.forEach(function (n) { var c = esc(color[n.id]); bandTail[n.id] = 'Z" fill="' + c + opS; });   // the end of each band, ready for the item it leaves
+    var Q = opts.valueLabel && opts.valueLabel !== 'none' || opts.notes && opts.notes.length ? sums(R) : null, NT = Q && opts.notes && opts.notes.length ? notesSvg(R, Q, opts, opts.textColor || '#222') : null;
+    var Wd = NT && NT.right + 8 > R.width ? NT.right + 8 : R.width, Hd = NT && NT.bottom + 4 > R.height ? NT.bottom + 4 : R.height;   /* room for notes past the picture's edge */
     /* title block: title (bold) and subtitle (lighter) above, source below, each only when given; opts.frame: true (or theme 'editorial') adds the Economist frame (opt-in, owner's card 2026.11.05): a small red tag top-left and a thin dark rule under the picture, with the source under the rule. The picture itself does not move inside its group */
     var tc = esc(opts.textColor || '#222'), pad = 14, head = 0, foot = 0, blk = '', y = pad, frame = opts.frame === true || opts.theme === 'editorial', tagY = 0;
     if (frame) { tagY = y; y += 10 + (opts.title || opts.subtitle ? 8 : 0); }
     if (opts.title) { y += 20; blk += '<text x="' + pad + '" y="' + y + '" font-size="20" font-weight="700" fill="' + tc + '">' + esc(opts.title) + '</text>'; y += 6; }
     if (opts.subtitle) { y += 13; blk += '<text x="' + pad + '" y="' + y + '" font-size="13" fill="' + tc + '" fill-opacity="0.8">' + esc(opts.subtitle) + '</text>'; y += 6; }
     if (blk || frame) head = f(y + pad * 0.6);
-    if (frame) { blk += '<rect x="' + pad + '" y="' + tagY + '" width="46" height="10" fill="#e3120b"/><rect x="' + pad + '" y="' + f(head + R.height + 2) + '" width="' + f(Math.max(0, R.width - 2 * pad)) + '" height="1.2" fill="' + tc + '"/>'; foot = 8; }
-    if (opts.source) { blk += '<text x="' + pad + '" y="' + f(head + R.height + (frame ? 21 : 15)) + '" font-size="11" fill="' + tc + '" fill-opacity="0.72">' + esc(opts.source) + '</text>'; foot = frame ? 28 : 24; }
-    var H = f(R.height + head + foot);
-    s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + f(R.width) + ' ' + H + '" width="' + f(R.width) + '" height="' + H + '" font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif" font-size="' + fs + '" role="img"' + (opts.title ? ' aria-label="' + esc(opts.title) + '"' : '') + '>';
+    if (frame) { blk += '<rect x="' + pad + '" y="' + tagY + '" width="46" height="10" fill="#e3120b"/><rect x="' + pad + '" y="' + f(head + Hd + 2) + '" width="' + f(Math.max(0, Wd - 2 * pad)) + '" height="1.2" fill="' + tc + '"/>'; foot = 8; }
+    if (opts.source) { blk += '<text x="' + pad + '" y="' + f(head + Hd + (frame ? 21 : 15)) + '" font-size="11" fill="' + tc + '" fill-opacity="0.72">' + esc(opts.source) + '</text>'; foot = frame ? 28 : 24; }
+    var H = f(Hd + head + foot);
+    s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + f(Wd) + ' ' + H + '" width="' + f(Wd) + '" height="' + H + '" font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif" font-size="' + fs + '" role="img"' + (opts.title ? ' aria-label="' + esc(opts.title) + '"' : '') + '>';
     if (opts.title) s += '<title>' + esc(opts.title) + '</title>';
     s += blk + (head ? '<g transform="translate(0 ' + head + ')">' : '');
     var bands = R.bands, i, b, x0, x1, xm, y0a, y0b, y1a, y1b, near = {};
@@ -686,9 +773,12 @@
       s += '<rect x="' + f(n.x) + '" y="' + f(n.y) + '" width="' + f(n.w) + '" height="' + f(Math.max(n.h, 1)) + '" fill="' + esc(hl === null || n.id === hl || touches(n.id) ? color[n.id] : hlFade[n.id]) + '"/>';
       if (opts.labels !== false) {
         var right = n.layer < lastLayer || lastLayer === 0;
-        s += '<text x="' + f(right ? n.x + n.w + 5 : n.x - 5) + '" y="' + f(n.y + n.h / 2) + '" dy="0.35em" text-anchor="' + (right ? 'start' : 'end') + '" fill="' + esc(opts.textColor || '#222') + '">' + esc(n.label) + '</text>';
+        var vt = Q ? valueText(n, Q, opts) : null, lx = f(right ? n.x + n.w + 5 : n.x - 5), cy = n.y + n.h / 2, ta = '" text-anchor="' + (right ? 'start' : 'end') + '" fill="' + esc(opts.textColor || '#222') + '"';
+        if (vt && vt.under) s += '<text x="' + lx + '" y="' + f(cy - 2) + ta + '>' + esc(n.label) + '</text><text x="' + lx + '" y="' + f(cy + fs * 0.95) + ta + ' font-size="' + f(fs * 0.85) + '" fill-opacity="0.7">' + esc(vt.under) + '</text>';
+        else s += '<text x="' + lx + '" y="' + f(cy) + '" dy="0.35em' + ta + '>' + esc(n.label) + (vt && vt.inline ? String.fromCharCode(8194) + esc(vt.inline) : '') + '</text>';   /* 'inline': name, a wide space, the amount */
       }
     });
+    if (NT) s += NT.svg;
     return s + (head ? '</g>' : '') + '</svg>';
   }
 

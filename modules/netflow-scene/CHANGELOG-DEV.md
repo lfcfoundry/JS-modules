@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.9.0 · API 1 · 2026-11-06
+
+### Quick
+sk.valueLabel 'none' | 'under' (as nodeValues) | 'inline' | 'percent' | 'both'; sk.unit with sk.unitAt; sk.percentOf 'total' | 'column'.
+
+### Deep
+sk.valueLabel 'none' | 'under' (as nodeValues) | 'inline' | 'percent' | 'both'; sk.unit with sk.unitAt; sk.percentOf 'total' | 'column'. notes: [{ text, x, y, anchor, size, color, bold, align }] with live words {total}, {value:id}, {share:id}, {flow:from>to}, {top}; drawn as S.labels and S.curves with note: true (Economist style: no box, a thin leader line). labelText overrides still work. Asked for by the Netflow Map thread after the owner's card 'Values in names plus text notes'.
+
 ## 1.8.0 · API 1 · 2026-11-05
 
 ### Quick

@@ -301,4 +301,23 @@ t('highlight (opt-in): the chosen item and its bands keep their colors, the rest
   ok(hiS.indexOf('fill="' + P12[gi] + '"') > 0, 'the highlighted item keeps its color');
   ok(hiS.indexOf('fill="' + P12[wi] + '"') < 0, 'an item that does not touch it fades');
 });
+t('value labels and notes (opt-in): valueLabel, unit, percentOf, notes with live words and leader lines; off by default', () => {
+  const d = [{ from: 'Salary', to: 'Rent', value: 1800 }, { from: 'Salary', to: 'Food', value: 1200 }, { from: 'Gift', to: 'Food', value: 300 }, { from: 'Food', to: 'Groceries', value: 1000 }, { from: 'Food', to: 'Eating out', value: 500 }];
+  const texts = (svg) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]), plain = RL.toSvg(d);
+  ok(RL.toSvg(d, { valueLabel: 'none' }) === plain && RL.toSvg(d, { unit: '$' }) === plain, 'nothing asked: the same picture');
+  const u = texts(RL.toSvg(d, { valueLabel: 'under', unit: '$' }));
+  ok(u.includes('Salary') && u.includes('$3,000') && u.includes('$300'), 'under: the amount with a money sign before: ' + u.join('|'));
+  ok(texts(RL.toSvg(d, { valueLabel: 'inline', unit: 'GWh' })).some((x) => /^Rent\s1,800 GWh$/.test(x)), 'inline: "Rent 1,800 GWh" (a word unit goes after)');
+  const p = texts(RL.toSvg(d, { valueLabel: 'percent' }));
+  ok(p.includes('91%') && p.includes('9.1%') && p.includes('55%'), 'percent of the total (what leaves the sources): ' + p.join('|'));
+  ok(texts(RL.toSvg(d, { valueLabel: 'percent', percentOf: 'column' })).includes('100%'), 'percent of the column: Food is alone in its column');
+  ok(texts(RL.toSvg(d, { valueLabel: 'both', unit: '$' })).includes('$1,500 (45%)'), 'both: amount and share');
+  ok(texts(RL.toSvg(d, { valueLabel: 'under', unit: 'EUR', unitAt: 'before' })).includes('EUR3,000'), 'unitAt overrides the rule');
+  const n = RL.toSvg(d, { unit: '$', notes: [{ text: 'Total {total}, food {share:Food}, rent {flow:Salary>Rent}, {value:Gift}, {nope}', x: 0.4, y: 0.05, anchor: 'Food', bold: true }, { text: 'Rent', x: 0.3, y: 0.9, anchor: 'Salary>Rent' }, { text: 'Top: {top}', x: 0.1, y: 0.99 }] }), nt = texts(n);
+  ok(nt.includes('Total $3,300, food 45%, rent $1,800, $300, {nope}'), 'live words, an unknown one kept: ' + nt.join('|'));
+  ok(nt.some((x) => /^Top: Salary .* Rent$/.test(x)), 'top: the biggest flow');
+  ok((n.match(/<line /g) || []).length === 2 && n.indexOf('font-weight="700"') > 0, 'two leader lines (item and flow), the bold note is bold');
+  const wide = RL.toSvg(d, { notes: [{ text: 'A very long note that runs well past the right edge of the picture', x: 0.9, y: 0.5 }] });
+  ok(+/width="([\d.]+)"/.exec(wide)[1] > RL.layoutFlows({ links: d }).width, 'a note past the edge widens the picture');
+});
 console.log(bad ? 'netflow-sankey: ' + bad + ' FAILED' : 'netflow-sankey: all passed'); process.exit(bad ? 1 : 0);
