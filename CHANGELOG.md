@@ -23,7 +23,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
-| [lzma-decode](modules/lzma-decode/README.md) | 1.3.1 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.4.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.4.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.2 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
@@ -47,7 +47,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
 | [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.1 · API 1 | [changelog](modules/spotlight-tour/CHANGELOG.md) |
 | [single-file-tools](tools/single-file-tools/README.md) | 1.3.0 · API 1 | [changelog](tools/single-file-tools/CHANGELOG.md) |
-| [lzma-pack](tools/lzma-pack/README.md) | 2.0.3 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
+| [lzma-pack](tools/lzma-pack/README.md) | 2.0.4 · API 2 | [changelog](tools/lzma-pack/CHANGELOG.md) |
 | [ppmd-pack](tools/ppmd-pack/README.md) | 2.0.3 · API 2 | [changelog](tools/ppmd-pack/CHANGELOG.md) |
 | [fuzz-kit](tools/fuzz-kit/README.md) | 1.3.4 · API 1 | [changelog](tools/fuzz-kit/CHANGELOG.md) |
 | [canvas-probe](tools/canvas-probe/README.md) | 1.1.1 · API 1 | [changelog](tools/canvas-probe/CHANGELOG.md) |
@@ -72,6 +72,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **netflow-layers** 1.12.2 · API 1: Flow pictures: back links use a darker amber (#9a6a00) that reads at 4.5:1 on white.
 - 2026-11-06 · **netflow-layers** 1.12.1 · API 1: Flow pictures: a back link that spans several rows no longer doubles back over itself.
 - 2026-11-06 · **memory-compression** 2.12.0 · API 2: Two smaller files: memory-compression.min.js (83 KB gzipped, was 122.5) and a read-only memory-compression-read.min.js (37 KB) for pages that only open data.
+- 2026-11-06 · **lzma-pack** 2.0.4 · API 2: Packed pages unpack faster on first open with the lzma-decode 1.4.0 decoder (about 600 bytes bigger).
+- 2026-11-06 · **lzma-decode** 1.4.0 · API 1: The first WebAssembly decode is 9 to 15% faster.
 - 2026-11-06 · **lfc-pack** 0.5.5 · API 0: Fixed: packing text with a long run of blank lines no longer slows to a crawl (80,000 blank lines: 5 s before, 0.04 s now).
 - 2026-11-06 · **lfc-pack** 0.5.4 · API 0: The first big read on a page is 2 to 3 times faster: a fixed rule replaces the one-time timing probe for building rows.
 - 2026-11-06 · **lfc-pack** 0.5.3 · API 0: Firefox: row reads about 13% faster on IP address columns.

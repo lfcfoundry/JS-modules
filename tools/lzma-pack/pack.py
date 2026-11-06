@@ -126,7 +126,7 @@ function run(mode) {
       Module: mode === 'blocked' ? function () { throw new Real.CompileError('refused by the page policy'); } : Real.Module,
       Instance: function (m, i) {
         const r = new Real.Instance(m, i); stats.instances++;
-        return { exports: { memory: r.exports.memory, __heap_base: r.exports.__heap_base, lzma_decode() { stats.calls++; stats.last = r.exports.lzma_decode.apply(null, arguments); return mode === 'broken' ? stats.last + 1 : stats.last; } } };
+        return { exports: { memory: r.exports.memory, __heap_base: r.exports.__heap_base, lzma_decode() { stats.calls++; stats.last = r.exports.lzma_decode.apply(null, arguments); return mode === 'broken' ? stats.last + 1 : stats.last; }, lzma_begin() { stats.calls++; stats.last = r.exports.lzma_begin.apply(null, arguments); return stats.last; }, lzma_more() { stats.last = r.exports.lzma_more.apply(null, arguments); return mode === 'broken' ? stats.last + 1 : stats.last; } } };
       }
     };
   }
@@ -400,12 +400,12 @@ def pack(data, title="", head="", encoding="bytes", minifier="auto", tune=False,
     else:
         raise SystemExit("--encoding must be bytes or base64")
     # The loader copies the payload into a local variable and deletes the global at once; the decoder and every other name live inside the timer function.
-    # With --wasm the loader tries the WebAssembly decoder first (copy the stream and the module bytes apart, run it, accept only the exact length) and
+    # With --wasm the loader tries the WebAssembly decoder first (copy the stream and the module bytes apart, run it 64 KB of output per call, accept only the exact length) and
     # uses the JavaScript decoder when that throws or returns anything else, e.g. on a page whose policy refuses WebAssembly.
     zs = "z.subarray(0,%d)" % len(z) if wasm else "z"
     wfun = ("function W(){var x=new WebAssembly.Instance(new WebAssembly.Module(z.subarray(%d)),{}).exports,m=x.memory,a=x.__heap_base.value,b=a+(%d+15&-16),n=b+%d+16,r;"
             "n>m.buffer.byteLength&&m.grow(Math.ceil((n-m.buffer.byteLength)/65536));new Uint8Array(m.buffer).set(%s,a);"
-            "r=x.lzma_decode(a,%d,b,%d,%d,%d,%d);if(r==%d)return new Uint8Array(m.buffer,b,r)}" % (len(z), len(z), len(data), zs, len(z), len(data), lc, lp, pb, len(data))) if wasm else ""
+            "r=x.lzma_begin(a,%d,b,%d,%d,%d,%d);for(var d=0;!r&&d<%d;)r=x.lzma_more(d=Math.min(d+65536,%d)),r=r>0&&r<%d?0:r;if(r==%d)return new Uint8Array(m.buffer,b,r)}" % (len(z), len(z), len(data), zs, len(z), len(data), lc, lp, pb, len(data), len(data), len(data), len(data))) if wasm else ""
     first = ("try{o=W()}catch(e){}o=o||" if wasm else "o=")
     # It starts after two animation frames (the "Opening..." line is on screen by then), or after 100 ms where frames do not run (a tab opened in the
     # background), whichever comes first. The fixed 30 ms wait it replaces started later than two frames in all three browsers; one frame was too soon:
