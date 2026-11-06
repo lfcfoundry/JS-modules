@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-11-05
+
+### Quick
+make(L, { families: true }) gives groups that share a name prefix (before ':' or '/', or a separator given as text) one list color in HSL lightness steps (darker in light theme, lighter in dark), saturation raised a little so steps do not…
+
+### Deep
+make(L, { families: true }) gives groups that share a name prefix (before ':' or '/', or a separator given as text) one list color in HSL lightness steps (darker in light theme, lighter in dark), saturation raised a little so steps do not turn gray; steps never lose contrast on the background. New familyColors(groups, theme, families). Default colors unchanged.
+
 ## 1.5.1 · API 1 · 2026-11-05
 
 ### Quick

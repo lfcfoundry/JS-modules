@@ -71,3 +71,19 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(S.curvesPacked(), 'reading through views leaves the links packed');
   console.log('ok   accessors: ' + seen + ' links read without waking the list');
 }
+{ /* families (opt-in): groups sharing the part before ':' share one hue in steps that only get stronger on the background; off by default */
+  const groups = ['EU: France', 'EU: Spain', 'EU: Italy', 'Asia: Japan', 'Asia: India', 'Brazil'], L = { view: 'network', kind: 'network', nodes: groups.map((g, i) => ({ id: 'n' + i, label: g, group: g, x: i * 40, y: 0, w: 20, h: 20, cx: i * 40, cy: 0 })), edges: [] };
+  const lin = (v) => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4), lum = (c) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]), cr = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  for (const theme of ['light', 'dark']) {
+    const T = SC.palette(theme), F = SC.familyColors(groups.slice().sort(), T, true), key = (c) => c.slice(0, 3).map((v) => Math.round(v * 255)).join();
+    const fam = (g) => g.split(':')[0], hueOf = (g) => key(F.get(groups.filter((x) => fam(x) === fam(g)).sort()[0]));
+    ok(new Set(groups.map((g) => key(F.get(g)))).size === groups.length, theme + ' families: every group still has its own color');
+    ok(key(F.get('EU: France')) === key(T.groups[2]) && key(F.get('Asia: India')) === key(T.groups[0]) && key(F.get('Brazil')) === key(T.groups[1]), theme + ' families: each family starts on one list color, in sorted order');
+    ok(groups.every((g) => cr(F.get(g), T.bg) >= cr(SC.palette(theme).groups[['Asia', 'Brazil', 'EU'].indexOf(fam(g))], T.bg) - 0.01), theme + ' families: steps never get weaker on the background');
+    const S0 = SC.make(L, { theme }), S1 = SC.make(L, { theme, families: true });
+    ok(key(S0.nodes[0].fill || S0.dots[0].fill) !== key(S1.nodes[0].fill || S1.dots[0].fill) || key(S0.dots[1].fill) !== key(S1.dots[1].fill), theme + ' families: make() uses them');
+    ok(key(SC.make(L, { theme }).dots[0].fill) === key(S0.dots[0].fill), theme + ' families off: colors as before');
+  }
+  ok(SC.familyColors(['a'], SC.palette('light'), false) === null, 'families off: no map');
+  console.log('ok   families: shared hues for prefixed groups, opt-in');
+}

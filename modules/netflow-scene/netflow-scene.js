@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.1 (API 1)
+ * Version 1.6.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -23,6 +23,7 @@
  *
  * Options (all optional) the page can pass to make(L, o):
  *   theme, colorBy, palette, ramp, groupColors {group: '#hex'}, groupOrder (all the data's groups, sorted, so hiding some does not recolor the rest), story (bool),
+ *   families (opt-in: true, or the text that ends a family name, default ':' or '/'; groups that share the part before it, like 'EU: France' and 'EU: Spain', share one hue in steps),
  *   nodeStyle(n) -> { fill, stroke, sw, shape, scale, opacity, icon, image, iconMode, hide, labelShow, labelColor, labelSize, labelBold, labelText }
  *   linkStyle(e) -> { color, w, wmul, opacity, dash, hide, arrow, label, bend }
  *   labelFn(n) -> text,  linkLabelFn(e) -> text,  chName(channel) -> words
@@ -45,6 +46,29 @@ var NFMScene = (function () {
     return [r / 255, g / 255, b / 255, a === undefined ? 1 : a];
   }
   function toHex(c) { var f = function (v) { var s = Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16); return s.length < 2 ? '0' + s : s; }; return '#' + f(c[0]) + f(c[1]) + f(c[2]); }
+  /** families: groups whose names share the part before ':' or '/' (or before o.families when it is text) share one color of the list, in steps from the color toward the text color (marks only get stronger on the background). gs: the groups in color order. Returns Map group -> color, or null when families is off. */
+  /* one color made lighter (d > 0) or darker (d < 0) in HSL lightness, hue and saturation kept, so a family reads as one hue */
+  function shade(c, d) {
+    var r = c[0], g = c[1], b = c[2], mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h = 0, s = 0, q, p;
+    if (mx !== mn) { var e = mx - mn; s = l > 0.5 ? e / (2 - mx - mn) : e / (mx + mn); h = mx === r ? (g - b) / e + (g < b ? 6 : 0) : mx === g ? (b - r) / e + 2 : (r - g) / e + 4; h /= 6; }
+    l = Math.max(0.05, Math.min(0.95, l + d)); s = Math.min(1, s * (1 + 2 * Math.abs(d)));   /* a little more color in the darker steps, so they do not turn gray */
+    var f = function (t) { t = t < 0 ? t + 1 : t > 1 ? t - 1 : t; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+    if (!s) return [l, l, l, c[3]];
+    q = l < 0.5 ? l * (1 + s) : l + s - l * s; p = 2 * l - q;
+    return [f(h + 1 / 3), f(h), f(h - 1 / 3), c[3]];
+  }
+  function lumOf(c) { return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
+  function familyColors(gs, T, fam) {
+    if (!fam) return null;
+    var key = function (g) { g = String(g); var i = typeof fam === 'string' ? g.indexOf(fam) : g.search(/[:\/]/); return i > 0 ? g.slice(0, i).trim() : g; };
+    var order = [], mem = new Map(), out = new Map();
+    gs.forEach(function (g) { var k = key(g); if (!mem.has(k)) { mem.set(k, []); order.push(k); } mem.get(k).push(g); });
+    order.forEach(function (k, fi) {
+      var base = T.groups[fi % T.groups.length], list = mem.get(k);
+      list.forEach(function (g, j) { out.set(g, list.length === 1 ? base : shade(base, (lumOf(T.bg) > 0.5 ? -0.24 : 0.2) * j / (list.length - 1))); });
+    });
+    return out;
+  }
   function mix(a, b, t) { t = Math.max(0, Math.min(1, t)); return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t]; }
   function alpha(c, a) { return [c[0], c[1], c[2], a]; }
   function css(c) { return 'rgba(' + Math.round(c[0] * 255) + ',' + Math.round(c[1] * 255) + ',' + Math.round(c[2] * 255) + ',' + (+c[3].toFixed(3)) + ')'; }
@@ -293,9 +317,11 @@ var NFMScene = (function () {
         var all = o.groupOrder.slice(), seenG = new Set(all); gs.forEach(function (g) { if (!seenG.has(g)) all.push(g); }); gs = all;
       }
       gs.forEach(function (g, i) { groupIdx.set(g, i); });
+      var famC = familyColors(gs.filter(function (g) { return g !== '(none)'; }), T, o.families);
     }
     var gcol = function (g) {
       if (g !== undefined && Object.prototype.hasOwnProperty.call(gOver, g) && gOver[g]) return hex(gOver[g]);
+      if (famC && famC.has(g || '')) return famC.get(g || '');
       var i = groupIdx.get(g || '') || 0; return g === '(none)' ? T.neutral : T.groups[i % T.groups.length];
     };
     var maxVisits = 0, maxTraffic = 0.0001;
@@ -1450,7 +1476,7 @@ var NFMScene = (function () {
   }
 
   return {
-    make: make, addTitles: addTitles, rigStyle: rigStyle, pick: pick, hit: hit, pickEdge: pickEdge, pickLabel: pickLabel, inRect: inRect, inLasso: inLasso, restyle: restyle, style: style, toSvg: toSvg, palette: palette, THEMES: THEMES,
+    make: make, addTitles: addTitles, rigStyle: rigStyle, pick: pick, hit: hit, pickEdge: pickEdge, pickLabel: pickLabel, inRect: inRect, inLasso: inLasso, restyle: restyle, style: style, toSvg: toSvg, palette: palette, familyColors: familyColors, THEMES: THEMES,
     PALETTES: PALETTES, RAMPS: RAMPS, RAMP_NAMES: RAMP_NAMES, rampAt: rampAt, ICONS: ICONS, SHAPE_KIND: SHAPE_KIND, SHAPE_NAMES: SHAPE_NAMES, shapePts: shapePts,
     css: css, hex: hex, toHex: toHex, mix: mix, alpha: alpha, arrowTri: arrowTri, bez: bez, HEAD: HEAD, labelBox: labelBox
   };
