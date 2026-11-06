@@ -690,12 +690,25 @@
       }
       return one();
     }
-    function bigProbe() {                 // the card has a fixed cost that hides its speed on 480 x 270: when it looks plausible there, time a 960 x 540 picture too
+    function timeWasmSliced(W, H, B, PX, n, key) {   // the big probe's WebAssembly runs cut into short tasks (about 8 ms each); only the time inside the slices counts
+      if (wasm.state !== 'ready') return Promise.resolve();
+      var times = [], k = 0;
+      function oneRun() {
+        var j = wasmJob(W, H, B), tot = 0, steps = [], y, x, i = 0; j.A.set(PX);
+        for (y = 0; y < H; y += 180) steps.push((function (y0) { return function () { j.hrows(y0, Math.min(H, y0 + 180)); }; })(y));
+        for (x = 0; x < W; x += STRIP * 16) steps.push((function (x0) { return function () { for (var s = x0; s < Math.min(W, x0 + STRIP * 16); s += STRIP) j.vcols(s, Math.min(W, s + STRIP)); }; })(x));
+        function next() { if (i >= steps.length) { j.free(); return tot; } var t0 = now(); steps[i++](); tot += now() - t0; return nextTask().then(next); }
+        return Promise.resolve(next());
+      }
+      function again() { return oneRun().then(function (t) { if (k++ > 0) times.push(t); return k < n ? again() : null; }); }
+      return again().then(function () { times.sort(function (a, c) { return a - c; }); info[key] = times[times.length >> 1]; });
+    }
+    function bigProbe() {                 // the card has a fixed cost that hides its speed on 480 x 270: when it looks plausible there, time a 1280 x 720 picture too (960 x 540 is too near the break-even to tell)
       if (info.glMs == null) return;
       if (info.wasmMs == null) { info.glBig = true; return; }
       if (info.glMs > 10 * info.wasmMs + 2) { info.glBig = false; return; }
-      var W = 960, H = 540, B = boxHalf(12), PX = probePicture(W, H);
-      return timeWasm(W, H, B, PX, 4, 'wasmBigMs').then(function () { return timeGL(W, H, B, { kind: 'bytes', bytes: PX, w: W, h: H }, 4, 'glBigMs'); }).then(function () {
+      var W = 1280, H = 720, B = boxHalf(12), PX = probePicture(W, H);
+      return timeWasmSliced(W, H, B, PX, 4, 'wasmBigMs').then(function () { return timeGL(W, H, B, { kind: 'bytes', bytes: PX, w: W, h: H }, 4, 'glBigMs'); }).then(function () {
         info.glBig = info.glBigMs != null && info.wasmBigMs != null ? info.glBigMs < info.wasmBigMs : false;
       });
     }
