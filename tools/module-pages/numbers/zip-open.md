@@ -2,6 +2,7 @@
 
 Compared: zip-open against fflate and JSZip (400 CSV files, 2.45 MB zip, ms).
 
+<!-- title: zip-open expands 400 CSV files about 1.4 times faster than fflate and 1.9 times faster than JSZip, while also checking every checksum and refusing zip bombs -->
 | library | ms |
 |---|---:|
 | zip-open expand (safe, text out) | 34 |

@@ -2,6 +2,7 @@
 
 Compared: text-columns against Papa Parse and d3-dsv (200,000 rows x 6 columns, 7.9 MB, ms).
 
+<!-- title: text-columns reads 200,000 CSV rows into columns 3.4 times faster than Papa Parse with typed rows, and 1.8 times faster than d3-dsv's arrays -->
 | library and output | ms |
 |---|---:|
 | text-columns (columns out) | 46 |

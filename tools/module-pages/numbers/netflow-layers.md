@@ -2,6 +2,7 @@
 
 Compared: netflow-layers against dagre (ms).
 
+<!-- title: netflow-layers lays out 300 items 710 times faster than dagre -->
 | graph | netflow-layers | dagre | dagre / ours |
 |---|---:|---:|---:|
 | 60 items | 0.5 | 47 | 100x |

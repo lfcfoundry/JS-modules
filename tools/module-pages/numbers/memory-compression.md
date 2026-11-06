@@ -2,6 +2,7 @@
 
 Compared: memory-compression against fflate and pako (ms; packed bytes).
 
+<!-- title: memory-compression packs 8 MB of sensor data to about two thirds of fflate's size and 80,000 objects to about one fifth, 16 to 108 times faster -->
 | case | packed bytes | pack ms | unpack ms |
 |---|---:|---:|---:|
 | Float32 sensor data, 8 MB: memory-compression | 4,772,682 | 5 | 6 |

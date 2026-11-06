@@ -2,6 +2,7 @@
 
 Compared: gif-writer against gifenc and gif.js (30 frames of 320 x 240).
 
+<!-- title: On a typical capture, gif-writer is at least 5 times smaller and 6 to 31 times faster than gifenc and gif.js -->
 | animation | writer | ms | bytes |
 |---|---|---:|---:|
 | typical capture (sprite over still background) | gif-writer (one palette) | 10 | 40,098 |
