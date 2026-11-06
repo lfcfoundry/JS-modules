@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.9.0 (API 2)
+ * Version 2.10.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -229,7 +229,7 @@
 
   /**
    * layout(L, opts). L: the Sankey drawing from the engine (L.nodes with .id .layer .label, L.edges with .from .to .flow .kind and, for long links, .pts).
-   * opts: unweighted (order as the old picture does: every link counts the same, no restarts), stopCap and stopCapFrom (see the stand-in cap below), justifySinks, height (picture height to aim for), nodeW (bar width), gapLayer, pad (space between bars), restarts, budgetMs, seed.
+   * opts: unweighted (order as the old picture does: every link counts the same, no restarts), stopCap and stopCapFrom (see the stand-in cap below), justifySinks, height (picture height to aim for), nodeW (bar width), gapLayer, pad (space between bars), restarts, budgetMs, seed, quick (true: skip the extra restarts of the order search, for speed on small charts; the order is still searched once, so the picture can have more crossings than the default; owner's card 2026.11.05).
    * Returns { nodes: [{id, label, x, y, w, h, layer, flow}], bands: [{edge, from, to, x0, y0a, y0b, x1, y1a, y1b, xm}], loops: [{edge, from, to, d, w, pts}],
    *           width, height, ky (pixels per unit of flow), crossingWeight, order, cols, ms }.
    * options(sk) cleans up a person's settings ({ nodeW, gap, pad, height, fixY, justify, order }) into the opts above; apply(L, r) writes a layout() result into the engine's drawing L (bar positions, picture size, L.sk).
@@ -418,7 +418,7 @@
       restore(best); return bestC;
     };
     var bestC = keepOrder ? total() : run(nV > 1500 ? 2 : 8), bestSnap = snap();
-    var restarts = keepOrder || opts.unweighted ? 0 : opts.restarts === undefined ? (nV <= 300 ? 8 : nV <= 800 ? 3 : 0) : opts.restarts, rnd = rng(opts.seed || 7), budget = opts.budgetMs || 400;
+    var restarts = keepOrder || opts.unweighted ? 0 : opts.restarts === undefined ? opts.quick === true ? 0 : (nV <= 300 ? 8 : nV <= 800 ? 3 : 0) : opts.restarts, rnd = rng(opts.seed || 7), budget = opts.budgetMs || 400;
     for (i = 0; i < restarts && bestC > 0 && Date.now() - t0 < budget; i++) {
       restore(bestSnap);
       for (k = 0; k < nL; k++) {
