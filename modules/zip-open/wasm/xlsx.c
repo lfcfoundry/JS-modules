@@ -183,6 +183,9 @@ static int canonical(const u8 *v, u32 n) {
    about twice as long as the second). */
 static const u8 AQ[256] = { ['"'] = 1, ['&'] = 1, ['<'] = 1, ['>'] = 1 };
 static const u8 VL[256] = { ['<'] = 1, ['&'] = 1 };
+static inline u32 ld4(const u8 *p) { u32 v; __builtin_memcpy(&v, p, 4); return v; }
+#define C4(a, b, c, d) ((u32)(u8)(a) | (u32)(u8)(b) << 8 | (u32)(u8)(c) << 16 | (u32)(u8)(d) << 24)
+static const u8 RT[256] = { ['>'] = 1, ['"'] = 2, ['\''] = 3, ['<'] = 3 };
 typedef struct { const u8 *x, *xf; u32 n, xn, d1904, maxRows, pos, rows; u8 *out, *o, *oe, *rowStart; int lastCol, lastW, inRow, rowHas; } Sh;
 __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
   const u8 *x = sh->x, *xf = sh->xf; u32 n = sh->n, xn = sh->xn, d1904 = sh->d1904, maxRows = sh->maxRows, pos = sh->pos, rows = sh->rows, lt, gt, k, q;
@@ -194,10 +197,24 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
     if (pos >= n) return -1;
     lt = pos;
     u8 ch = lt + 1 < n ? x[lt + 1] : 0;
-    if (ch == 'r' && startsWith(x, n, lt + 1, "row") && lt + 4 < n && (x[lt + 4] == ' ' || x[lt + 4] == '>' || x[lt + 4] == '/')) {
+    if (ch == 'r' && lt + 4 < n && (ld4(x + lt) & 0xffffff00u) == C4(0, 'r', 'o', 'w') && (x[lt + 4] == ' ' || x[lt + 4] == '>' || x[lt + 4] == '/')) {
       if (lt >= stop) { sh->pos = lt; sh->rows = rows; sh->o = o; sh->rowStart = rowStart; sh->lastCol = lastCol; sh->lastW = lastW; sh->inRow = inRow; sh->rowHas = rowHas; return MORE; }
-      for (gt = lt + 4, q = 0; gt < n && x[gt] != '>'; gt++) { if (x[gt] == '"') q++; else if (x[gt] == '\'' || x[gt] == '<') return -1; }
-      if (gt >= n || (q & 1)) return -1;
+      gt = lt + 4; q = 0;
+#ifdef XL_SIMD
+      { const v128_t g = wasm_i8x16_splat('>'), dq = wasm_i8x16_splat('"'), sq = wasm_i8x16_splat('\''), l2 = wasm_i8x16_splat('<'); int fin = 0;
+        while (gt + 16 <= n) {
+          v128_t v = wasm_v128_load(x + gt);
+          u32 mg = wasm_i8x16_bitmask(wasm_i8x16_eq(v, g)), mq = wasm_i8x16_bitmask(wasm_i8x16_eq(v, dq)), mb = wasm_i8x16_bitmask(wasm_v128_or(wasm_i8x16_eq(v, sq), wasm_i8x16_eq(v, l2)));
+          if (mg) { u32 b = __builtin_ctz(mg), lim = (1u << b) - 1; if (mb & lim) return -1; q += __builtin_popcount(mq & lim); gt += b; fin = 1; break; }
+          if (mb) return -1; q += __builtin_popcount(mq); gt += 16;
+        }
+        if (!fin)
+#endif
+      for (; ; gt++) { while (gt < n && !RT[x[gt]]) gt++; if (gt >= n) return -1; u8 cl = RT[x[gt]]; if (cl == 1) break; if (cl == 3) return -1; q++; }
+#ifdef XL_SIMD
+      }
+#endif
+      if (q & 1) return -1;
       FLUSH(); BEGINROW();
       if (x[gt - 1] == '/') FLUSH();
       pos = gt + 1;
@@ -262,12 +279,12 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
         else { int e = findFrom(x, n, gt + 1, "</f>"); if (e < 0) return -1; for (k = gt + 1; k < (u32)e; k++) if (x[k] == '<') return -1; pos = (u32)e + 4; }
       }
       u32 vs = pos, vl = 0, amp = 0;
-      if (startsWith(x, n, pos, "<v>")) {
+      if (pos + 4 <= n && (ld4(x + pos) & 0xffffff) == C4('<', 'v', '>', 0)) {
         vs = pos + 3; k = vs; for (;;) { while (k < n && !VL[x[k]]) k++; if (k < n && x[k] == '&') { amp = 1; k++; continue; } break; }
         if (k + 3 >= n || x[k + 1] != '/' || x[k + 2] != 'v' || x[k + 3] != '>') return -1;
         vl = k - vs; pos = k + 4;
       }
-      if (!startsWith(x, n, pos, "</c>")) return -1;
+      if (pos + 4 > n || ld4(x + pos) != C4('<', '/', 'c', '>')) return -1;
       pos += 4;
       if (skip) continue;
       /* the cell's value */
@@ -300,10 +317,9 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
         if (ci <= lastW) return -1;
         at = o + (lastW < 0 ? ci : ci - lastW); if (at + 10 >= oe) return -2; while (o < at) *o++ = ',';
         int isDate = xfv < xn && xf[xfv];
-        int plain = vl <= 7; for (k = 0; k < vl && plain; k++) if (v[k] < '0' || v[k] > '9') plain = 0;
-        if (plain && vl > 1 && v[0] == '0') plain = 0;
-        if (isDate && plain) {
-          int s = 0; for (k = 0; k < vl; k++) s = s * 10 + (v[k] - '0');
+        int plain = 0, s = 0;
+        if (isDate && vl <= 7) { plain = 1; for (k = 0; k < vl; k++) { if (v[k] < '0' || v[k] > '9') { plain = 0; break; } s = s * 10 + (v[k] - '0'); } if (vl > 1 && v[0] == '0') plain = 0; }
+        if (plain) {
           if (s > 2958465) goto fixit;
           int z = s - (d1904 ? 24107 : 25569) + 719468, era = (z >= 0 ? z : z - 146096) / 146097, doe = z - era * 146097;
           int yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365, doy = doe - (365 * yoe + yoe / 4 - yoe / 100), mp = (5 * doy + 2) / 153;
@@ -326,7 +342,7 @@ __attribute__((noinline)) static int rowsPart(Sh *sh, u32 stop) {
       }
       lastW = ci; rowHas = 1;
     } else if (ch == '/') {
-      if (startsWith(x, n, lt, "</row>")) { FLUSH(); pos = lt + 6; }
+      if (lt + 6 <= n && ld4(x + lt) == C4('<', '/', 'r', 'o') && x[lt + 4] == 'w' && x[lt + 5] == '>') { FLUSH(); pos = lt + 6; }
       else if (startsWith(x, n, lt, "</sheetData>")) {
         if (findFrom(x, n, lt, "<row") >= 0 || findFrom(x, n, lt, "<c ") >= 0) return -1;
         FLUSH(); nrows = rows; return (int)(o - out);
