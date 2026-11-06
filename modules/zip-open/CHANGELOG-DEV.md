@@ -13,6 +13,17 @@ Repeat open, file read in pieces, early-stop A/B both orders, time 1.20.0 / 1.19
 ### Deep
 Before: the page unpacked sharedStrings.xml (19 to 25 ms for the 6.3 MB text-heavy list) while the second thread had already unpacked the whole sheet, so the rows started late. Now xlsx.c `deferStrings(rec, cap)` makes the row reader note (output offset, string index) for each `t="s"` cell and write nothing; `fillStrings(out, len, dst, dcap)` after `sst()` copies the segments 8 bytes at a time, inserts each string (plain flag: straight copy; else `field()`, setting the flags) and shifts the fixups. The deferred output is moved to the end of its room with copyWithin and filled from the start, so no second output area is needed; the writer is bounded by the reader. REDO (-4) for an out-of-order cell, an empty or missing string, or a full record list; -2 when the texts do not fit; both fall back to the usual read of the already-unpacked sheet. The list stays in place in the reader memory ({ wasmAt, len }); it is copied out only for the JavaScript fallback. A damaged list gives the same skip note as before. Tests: one new check (two sheets, a waiting small sheet, empty text, texts longer than the room, a damaged list); 47 of 47. A new fuzz opens 1,350 random workbooks (padded to use both threads) with and without the threads: no differences. Tried first: a separate output area (more memory, and a 6.3 MB copy of the list per open: dropped).
 
+## 1.19.1 · API 1 · 2026-11-06
+
+### Quick
+Fix: the XML reader's fallback attribute pattern was quadratic on a long run of name letters with no value (a 1.1 MB broken tag in sharedStrings.xml took tens of minutes). Now linear. No API change; same results.
+
+### Details
+The fallback runs only when the hand-written attribute reader gives up (an attribute with no value, odd spacing). A 1 MB broken tag now takes about 30 ms in Node. Found by a new fuzz that opens random workbooks padded past 1 MB.
+
+### Deep
+ATTR gains a last alternative, a bare name run, so after a failed name="value" match the search steps past the whole run instead of retrying from each of its letters; matches without a name group are skipped. A name that fails from the start of its run fails from every later letter too (same end, same next character), so the matches are the same: 300,000 random tag texts gave identical attribute lists with the old and new pattern, and the byte-level differential fuzz (20,000 cases) still matches the JavaScript reader. New check: a 400,000-letter broken tag reads in under 2 s, and a mixed attribute list reads as before; 47 of 47.
+
 ## 1.19.0 · API 1 · 2026-11-06
 
 ### Quick

@@ -5,6 +5,9 @@ What changed in each version, newest first, in plain words. The full details (nu
 ## 1.20.0 · API 1 · 2026-11-06
 - Big text-heavy Excel files open 14 to 29% faster (15 to 20% on the first open in a page): a third thread unpacks the list of shared texts while the rows are read. Other files about the same. Same results.
 
+## 1.19.1 · API 1 · 2026-11-06
+- Fixed: a damaged or crafted Excel file with a very long broken tag could freeze the page for many minutes. It now fails or opens in a moment. Same results for every other file.
+
 ## 1.19.0 · API 1 · 2026-11-06
 - The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
 

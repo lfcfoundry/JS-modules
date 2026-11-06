@@ -28,11 +28,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.2 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.19.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.11.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.20.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.12.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.9.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.5.3 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.5.4 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.10.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -62,11 +62,16 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-06 · **zip-open** 1.20.0 · API 1: Big text-heavy Excel files open 14 to 29% faster (15 to 20% on the first open in a page): a third thread unpacks the list of shared texts while the rows are read. Other files about the same. Same results.
+- 2026-11-06 · **zip-open** 1.19.1 · API 1: Fixed: a damaged or crafted Excel file with a very long broken tag could freeze the page for many minutes. It now fails or opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
 - 2026-11-06 · **netflow-layers** 1.12.2 · API 1: Flow pictures: back links use a darker amber (#9a6a00) that reads at 4.5:1 on white.
 - 2026-11-06 · **netflow-layers** 1.12.1 · API 1: Flow pictures: a back link that spans several rows no longer doubles back over itself.
+- 2026-11-06 · **memory-compression** 2.12.0 · API 2: Two smaller files: memory-compression.min.js (83 KB gzipped, was 122.5) and a read-only memory-compression-read.min.js (37 KB) for pages that only open data.
+- 2026-11-06 · **lfc-pack** 0.5.4 · API 0: The first big read on a page is 2 to 3 times faster: a fixed rule replaces the one-time timing probe for building rows.
 - 2026-11-06 · **lfc-pack** 0.5.3 · API 0: Firefox: row reads about 13% faster on IP address columns.
 - 2026-11-06 · **lfc-pack** 0.5.2 · API 0: Chromium: row reads about 7% faster on dense blocks (columns decoded one at a time, table-built IP text).
+- 2026-11-06 · **gpu-blur** 1.3.4 · API 1: Faster big blurs on a laptop with a real graphics card: pictures of a million pixels and up now use the card whenever the start-up probe found it plausible (within 10 times WebAssembly). On the owner's laptop (Firefox 160) the card way took 24 against 39 ms at 1080p and 90 against 174 ms at 4K, but auto had picked WebAssembly. A device whose card looks hopeless on the probe is unchanged.
+- 2026-11-06 · **gpu-blur** 1.3.3 · API 1: Fixed: on a phone, small pictures (under 300,000 pixels, such as 480 x 270) went to the graphics card although WebAssembly was faster (10.9 against 12.7 ms). Small pictures now use the card only when the start-up probe found it strictly faster. Big pictures are unchanged.
 - 2026-11-05 · **zip-open** 1.18.2 · API 1: Text-heavy Excel sheets open 2 to 13% faster; other sheets about the same. Same results.
 - 2026-11-05 · **zip-open** 1.18.1 · API 1: Excel sheets with many numbers and dates open 4 to 14% faster; text-heavy sheets about the same. Same results.
 - 2026-11-05 · **zip-open** 1.18.0 · API 1: The first Excel file you open in a page opens 11 to 45% faster: zip-open warms up its reader on a tiny made-up workbook shortly after it loads (about 20 to 30 ms of work, no file, no network; a real open stops it). Same results.

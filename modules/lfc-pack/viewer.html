@@ -1362,27 +1362,8 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     for (i = 0; i < F.cols.length; i++) { c = F.cols[i]; if (!c) continue; if (c.pre) t.push(c.pre.buffer); else for (q = 0; q < c.fr.length; q++) t.push(c.fr[q].buffer); }
     return t;
   }
-  // one-time timing of the ways to make dense row objects on the first big dense block (its first 8,192 rows: timing the whole block cost a first big open up to 9 extra passes over it; alternating rounds after a warm-up; a way must be at least 20% faster than the plain one, because the probe time and the real read time differ by a few percent in some engines; a way that is more than 2.5 times slower in the warm-up round is dropped at once). Answer: 0 plain (objects first, then one key at a time down each column), 1 clone (objects cloned from one with all the keys), 2 row by row (each object filled with all its keys before the next)
-  var cloneBest = {};   // by number of keys
-  function probeClone(keys, vals, tpl, K) {
-    var m = Math.min(vals[0].length, 8192), i, j, r, t0, sink = 0, q, best = [Infinity, Infinity, Infinity], live = [true, true, true], ways;
-    function plain() { var out = new Array(m); for (i = 0; i < m; i++) out[i] = {}; for (j = 0; j < K; j++) { var v = vals[j], key = keys[j]; for (i = 0; i < m; i++) out[i][key] = v[i]; } return out; }
-    function clone() { var out = new Array(m); for (i = 0; i < m; i++) out[i] = { ...tpl }; for (j = 0; j < K; j++) { var v = vals[j], key = keys[j]; for (i = 0; i < m; i++) out[i][key] = v[i]; } return out; }
-    function rowMajor() { var out = new Array(m), o; for (i = 0; i < m; i++) { o = {}; for (j = 0; j < K; j++) o[keys[j]] = vals[j][i]; out[i] = o; } return out; }
-    ways = [plain, clone, rowMajor];
-    for (r = 0; r < 3; r++) {
-      for (q = 0; q < 3; q++) {
-        if (!live[q]) continue;
-        t0 = clock(); sink += ways[q]().length; t0 = clock() - t0;
-        if (r && t0 < best[q]) best[q] = t0;
-        if (r === 0 && q === 0) best[3] = t0;
-        if (r === 0 && q && t0 > best[3] * 2.5) live[q] = false;
-      }
-    }
-    var win = 0, wt = best[0] * 0.8;
-    for (q = 1; q < 3; q++) if (live[q] && best[q] < wt) { win = q; wt = best[q]; }
-    return sink > 0 ? win : 0;
-  }
+  // dense rows: cloning one object that already has every key lays each row out once; that wins from about 16 keys in Chromium, Firefox and WebKitGTK, and under that the plain way (objects first, then one key at a time down its column) is as fast. A fixed rule: the timing probe it replaced cost 30 to 90 ms on the first big read of each key count (a fresh page with 5 key counts read 0.30 to 0.50 of the time without it), and its pick flipped between runs below 16 keys
+  var CLONE_KEYS = 16;
   // opt-in generated row builders ({ rows: 'generated' }): one function per key set that fills a row with plain assignments. Needs 'unsafe-eval' in the page's security policy; if the engine refuses, the normal ways are used. Never used unless asked for.
   var genCache = {}, genRefused = false;
   function rowBuilder(keys) {
@@ -1400,11 +1381,11 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     function assemble(F, want) {
       var meta = F.meta, n = F.n, K = meta.keys.length, vals = new Array(K), pl = F.pl, ordList = F.ordList, ordIds = F.ordIds, i, j;
       var pb = (n + 7) >> 3, ptr = new Int32Array(K), out = new Array(n), keys = meta.keys, o, hasProto = keys.indexOf('__proto__') >= 0;
-      // Chromium (V8) only, a dense block whose way is already known (plain rows or clones, no generated code): each column is decoded, assigned down and dropped, so fewer column arrays are alive at the next young-generation collection. Same objects, same key order
-      if (V8 && !ordList && !gen && !hasProto && K > 0 && K <= 250 && n >= 2000 && (cloneBest[K] === 0 || cloneBest[K] === 1)) {
+      // Chromium (V8) only, a dense block (plain rows, or clones from CLONE_KEYS keys; no generated code): each column is decoded, assigned down and dropped, so fewer column arrays are alive at the next young-generation collection. Same objects, same key order
+      if (V8 && !ordList && !gen && !hasProto && K > 0 && K <= 250 && n >= 2000) {
         var allDense = true; for (j = 0; j < K && allDense; j++) allDense = F.cols[j] !== null && (F.cols[j].pre ? F.cols[j].pre.length === n : meta.cols[j].n === n);
         if (allDense) {
-          if (cloneBest[K] === 1) { var ts0 = '{'; for (j = 0; j < K; j++) ts0 += (j ? ',' : '') + JSON.stringify(keys[j]) + ':null'; var tpl0 = JSON.parse(ts0 + '}'); for (i = 0; i < n; i++) out[i] = { ...tpl0 }; } else for (i = 0; i < n; i++) out[i] = {};
+          if (K >= CLONE_KEYS) { var ts0 = '{'; for (j = 0; j < K; j++) ts0 += (j ? ',' : '') + JSON.stringify(keys[j]) + ':null'; var tpl0 = JSON.parse(ts0 + '}'); for (i = 0; i < n; i++) out[i] = { ...tpl0 }; } else for (i = 0; i < n; i++) out[i] = {};
           for (j = 0; j < K; j++) { var vv = F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr), kj = keys[j]; for (i = 0; i < n; i++) out[i][kj] = vv[i]; }
           return out;
         }
@@ -1416,11 +1397,9 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       var dense = !hasProto && K > 0 && K <= 250, tpl, ts;
       for (j = 0; j < K && dense; j++) if (!vals[j] || vals[j].length !== n) dense = false;
       if (dense) { for (j = 0, ts = '{'; j < K; j++) ts += (j ? ',' : '') + JSON.stringify(keys[j]) + ':null'; tpl = JSON.parse(ts + '}'); }
-      var useClone = dense && cloneBest[K];
-      if (dense && useClone === undefined && n >= 2000) useClone = cloneBest[K] = probeClone(keys, vals, tpl, K);
+      var useClone = dense && K >= CLONE_KEYS;
       if (dense && gen && n >= 1) { var mk = rowBuilder(keys); if (mk) { for (i = 0; i < n; i++) out[i] = mk(vals, i); return out; } }
-      if (dense && useClone === 2) { for (i = 0; i < n; i++) { o = {}; for (j = 0; j < K; j++) o[keys[j]] = vals[j][i]; out[i] = o; } return out; }
-      if (dense && useClone === 1) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
+      if (useClone) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
       else for (i = 0; i < n; i++) out[i] = {};
       for (j = 0; j < K; j++) {
         var v = vals[j]; if (!v) continue;
