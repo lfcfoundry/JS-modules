@@ -2,7 +2,7 @@
  * gpu-blur.js: blur a picture on the graphics card (WebGL 2), or in WebAssembly, or in plain JavaScript, and give the same picture every way.
  * The module picks the way by what the browser can do, never by the browser's name. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.3 (API 1)
+ * Version 1.3.4 (API 1)
  *
  *   GpuBlur.blur(source, width, height, radius[, opts])   -> Promise of { canvas | pixels | texture, width, height, route }
  *   GpuBlur.blurSync(source, width, height, radius[, opts]) -> the same result at once (the page waits for the whole job)
@@ -32,7 +32,7 @@
 })(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  var VERSION = '1.3.3';
+  var VERSION = '1.3.4';
   var MAX_PIXELS = 33554432;          // 8192 x 4096
   var STRIP = 16;                     // columns per vertical strip (the wasm kernel's limit)
   var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
@@ -667,32 +667,41 @@
   function probe() {
     var info = { glMs: null, wasmMs: null, gl: false, why: '' };
     var w = 480, h = 270, b = boxHalf(12), px = probePicture(w, h), inp = { kind: 'bytes', bytes: px, w: w, h: h };
-    function runW() { var j = wasmJob(w, h, b); j.A.set(px); j.hrows(0, h); for (var s = 0; s < w; s += STRIP) j.vcols(s, Math.min(w, s + STRIP)); j.free(); }
-    function timeWasm() {                 // five runs, each in its own task, the first one only warms up
+    function timeWasm(W, H, B, PX, n, key) {   // n runs, each in its own task, the first one only warms up
       if (wasm.state !== 'ready') return Promise.resolve();
       var times = [], k = 0;
-      function again() { var t0 = now(); runW(); if (k++ > 0) times.push(now() - t0); return k < 5 ? nextTask().then(again) : null; }
-      return again().then(function () { times.sort(function (a, c) { return a - c; }); info.wasmMs = times[times.length >> 1]; });
+      function runOne() { var j = wasmJob(W, H, B); j.A.set(PX); j.hrows(0, H); for (var s = 0; s < W; s += STRIP) j.vcols(s, Math.min(W, s + STRIP)); j.free(); }
+      function again() { var t0 = now(); runOne(); if (k++ > 0) times.push(now() - t0); return k < n ? nextTask().then(again) : null; }
+      return again().then(function () { times.sort(function (a, c) { return a - c; }); info[key] = times[times.length >> 1]; });
     }
-    function timeGL() {
+    function timeGL(W, H, B, I, n, key) {
       var o = ownGL(true);
       if (!o) { info.why = 'no WebGL 2, or only one the browser calls slow'; return Promise.resolve(); }
       var times = [], k = 0;
       function one() {
         var s0 = now();
-        try { glPasses(o.S, inp, w, h, b, 'fbo'); } catch (e) { info.why = 'WebGL 2 failed: ' + (e && e.message); return Promise.resolve(); }
+        try { glPasses(o.S, I, W, H, B, 'fbo'); } catch (e) { info.why = 'WebGL 2 failed: ' + (e && e.message); return Promise.resolve(); }
         return glFence(o.gl, 1500).then(function (ok) {
           if (!ok) { info.why = 'the card did not finish the probe in 1.5 s'; return; }
           var dt = now() - s0; if (k++ > 0) times.push(dt);
-          if (k < 5) return one();
-          times.sort(function (a, c) { return a - c; }); info.glMs = times[times.length >> 1];
+          if (k < n) return one();
+          times.sort(function (a, c) { return a - c; }); info[key] = times[times.length >> 1];
         });
       }
       return one();
     }
-    return timeWasm().then(timeGL).then(function () {
+    function bigProbe() {                 // the card has a fixed cost that hides its speed on 480 x 270: when it looks plausible there, time a 960 x 540 picture too
+      if (info.glMs == null) return;
+      if (info.wasmMs == null) { info.glBig = true; return; }
+      if (info.glMs > 10 * info.wasmMs + 2) { info.glBig = false; return; }
+      var W = 960, H = 540, B = boxHalf(12), PX = probePicture(W, H);
+      return timeWasm(W, H, B, PX, 4, 'wasmBigMs').then(function () { return timeGL(W, H, B, { kind: 'bytes', bytes: PX, w: W, h: H }, 4, 'glBigMs'); }).then(function () {
+        info.glBig = info.glBigMs != null && info.wasmBigMs != null ? info.glBigMs < info.wasmBigMs : false;
+      });
+    }
+    return timeWasm(w, h, b, px, 5, 'wasmMs').then(function () { return timeGL(w, h, b, inp, 5, 'glMs'); }).then(bigProbe).then(function () {
       if (info.glMs != null) {
-        info.gl = info.wasmMs == null ? true : info.glMs <= 2 * info.wasmMs + 2;
+        info.gl = (info.wasmMs == null ? true : info.glMs <= 2 * info.wasmMs + 2) || !!info.glBig;
         if (!info.gl) info.why = 'WebGL 2 took ' + info.glMs.toFixed(1) + ' ms against ' + info.wasmMs.toFixed(1) + ' ms for wasm on a 480 x 270 probe';
       }
       return info;
@@ -716,7 +725,8 @@
   }
   function cardFits(out, q) {             // card way for a drawn picture: worth it by the probe; under 300,000 pixels only when the probe was strictly faster than WebAssembly (phone, 480 x 270: probe 3.7 vs 3.0 ms, picture 12.7 vs 10.9 ms)
     if (out !== 'canvas' || !calInfo || !calInfo.gl || own.lost) return false;
-    return !q || q.w * q.h >= 300000 || calInfo.glMs == null || calInfo.wasmMs == null || calInfo.glMs < calInfo.wasmMs;
+    if (q && q.w * q.h >= 300000) return calInfo.glBig !== false;   // big picture: the 960 x 540 probe decides (undefined = no probe ran, keep the old rule)
+    return !q || calInfo.glMs == null || calInfo.wasmMs == null || calInfo.glMs < calInfo.wasmMs;
   }
   function autoOrder(out, q) {            // after calibrate()
     var order = [];
@@ -780,7 +790,7 @@
     var i = calInfo || {};
     var canvasRoute = i.done ? (i.gl ? 'webgl2' : wasm.state === 'ready' ? 'wasm' : 'js') : null;
     return { version: VERSION, wasm: wasm.state === 'ready', wasmState: wasm.state, wasmWhy: wasm.why, webgl2: !!(i.done && (i.glMs != null)), webgl2Worth: !!i.gl,
-      glMs: i.glMs == null ? null : i.glMs, wasmMs: i.wasmMs == null ? null : i.wasmMs, why: i.why || '', canvasRoute: canvasRoute, pixelsRoute: wasm.state === 'ready' ? 'wasm' : (wasm.state === 'failed' ? 'js' : null), calibrated: !!i.done, threads: canThreads() && !threadsWhy };
+      glMs: i.glMs == null ? null : i.glMs, glBigMs: i.glBigMs == null ? null : i.glBigMs, wasmBigMs: i.wasmBigMs == null ? null : i.wasmBigMs, glBig: i.glBig == null ? null : !!i.glBig, wasmMs: i.wasmMs == null ? null : i.wasmMs, why: i.why || '', canvasRoute: canvasRoute, pixelsRoute: wasm.state === 'ready' ? 'wasm' : (wasm.state === 'failed' ? 'js' : null), calibrated: !!i.done, threads: canThreads() && !threadsWhy };
   }
   function ready() { return calibrate().then(function () { return info(); }); }
   function release() {

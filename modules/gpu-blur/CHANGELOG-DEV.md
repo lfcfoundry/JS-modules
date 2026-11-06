@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.4 · API 1 · 2026-11-06
+
+### Quick
+Auto adds a second probe (960 x 540, 3 timed runs per way) when the 480 x 270 probe put the card within 10x of WebAssembly. Its result decides the route for pictures of 300,000 pixels and up. `info()` gains glBigMs, wasmBigMs and glBig. Old code needs no change.
+
+### Deep
+Owner's laptop (Firefox 160, real card), tester build 2026.11.06.0313: tiny probe card 6.0 ms against WebAssembly 1.0 ms, so auto stayed on WebAssembly; yet drawn canvas out took 23.0 (card) against 38.0 ms at 1080p and 94.0 against 177 ms at 4K (1.7x and 1.9x). Phone (Android Chrome 156): 43.4 against 66.4 and 92.8 against 223. The card's fixed cost hides its speed on a tiny picture. The second probe runs only when glMs <= 10 x wasmMs + 2 (laptop ratio 6, phone 1.5, cloud software path 39: no extra probe, no added start-up there). Offline: 32 checks pass, 7 of 7 broken copies caught; the cloud Chromium run exercised the second probe by forcing the gate (card 172 against 4.4 ms there, so WebAssembly). Not yet confirmed on a real card: needs the laptop and phone to rerun the tester. The tester's verdict line now reads the route auto actually took at each size.
+
 ## 1.3.3 · API 1 · 2026-11-06
 
 ### Quick
