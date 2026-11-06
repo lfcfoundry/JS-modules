@@ -678,4 +678,11 @@ t('A long broken tag (a run of letters with no value) is read in linear time, no
   var got = {}; U._xmlScan('<a x="1" yy zz=\'2\' w = "3"/>', { open: function (t, a) { got = a; } });
   assert.deepStrictEqual(got, { x: '1', zz: '2', w: '3' });
 });
+t('A crafted number format (many unclosed [) is checked in linear time', async function () {
+  var sty = '<styleSheet><numFmts count="1"><numFmt numFmtId="164" formatCode="' + '['.repeat(400000) + 'yyyy"/></numFmts><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="164"/></cellXfs></styleSheet>';
+  var parts = { 'xl/workbook.xml': '<workbook xmlns:r="r"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>', 'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/styles.xml': sty, 'xl/worksheets/sheet1.xml': '<worksheet><sheetData><row r="1"><c r="A1" s="1"><v>45000</v></c></row></sheetData></worksheet>' };
+  var t0 = Date.now(), got = await U._xlsxSheets(parts, { _js: true });
+  assert.ok(Date.now() - t0 < 2000, 'took ' + (Date.now() - t0) + ' ms');
+  assert.equal(got[0].csv, '2023-03-15', 'read as a date, as before');
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });

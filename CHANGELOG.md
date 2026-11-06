@@ -28,7 +28,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.2 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.20.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.20.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.12.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.9.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
@@ -61,6 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-06 · **zip-open** 1.20.1 · API 1: Fixed: an Excel file with a crafted number format could freeze the page for many seconds or minutes. It now opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.20.0 · API 1: Big text-heavy Excel files open 29 to 40% faster (14 to 35% on the first open in a page): a third thread unpacks the list of shared texts while the rows are read. Other files about the same. Same results.
 - 2026-11-06 · **zip-open** 1.19.1 · API 1: Fixed: a damaged or crafted Excel file with a very long broken tag could freeze the page for many minutes. It now fails or opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.

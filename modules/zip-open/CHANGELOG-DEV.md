@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.20.1 · API 1 · 2026-11-06
+
+### Quick
+Fix: isDateFormat() stripped quoted text, brackets and escapes with a regular expression that was quadratic on many unclosed `[` (80,000 took 4.7 s in Node; 1 MB would take minutes). It is now a hand scan in fmtPlain(). No API change; same results.
+
+### Details
+Found by the cross-module slow-pattern sweep. A crafted styles.xml number format of 4 million `[` now takes about 0.4 s in Node; normal formats are a few characters.
+
+### Deep
+fmtPlain() walks the code once. A quote or `[` whose closer is found skips to after it. When no closer follows, no later one can have one either, so the search is not repeated. `\x`, `_x` and `*x` skip two characters unless x ends a line (as `.` does). 2 million random short codes made from the special characters match the old pattern exactly. New check: 400,000 unclosed `[` in a format code read in under 2 s; 49 of 49.
+
 ## 1.20.0 · API 1 · 2026-11-06
 
 ### Quick
