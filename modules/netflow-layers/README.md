@@ -1,8 +1,8 @@
 # netflow-layers
 
-**Version 1.12.0 · API 1**
+**Version 1.12.2 · API 1**
 
-**Tested in:** node test/run.js (all passed, new highlight check); opt-in, default drawing unchanged
+**Tested in:** Node 22 (toSvg is plain text)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

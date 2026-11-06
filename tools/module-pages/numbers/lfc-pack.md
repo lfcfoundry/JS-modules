@@ -20,7 +20,7 @@ Compared: LFC-pack against JSON.parse and gzip (300,000 web-log rows, 32.0 MB ND
 | LFC-pack pack | 333 |
 | gzip | 1,074 |
 
-LFC-pack is 3.2x faster to write and 2.8x smaller than gzip, and reads 3x faster than gunzip plus JSON.parse. Reading row objects is about 1.5x slower than JSON.parse alone.
+LFC-pack is 3.2x faster to write and 2.8x smaller than gzip, and reads 3x faster than gunzip plus JSON.parse. Reading row objects takes about 1.05x (Chromium 156) to 1.2x (Firefox 160) as long as JSON.parse alone (laptop, 300,000 log rows, lfc-pack 0.5.2).
 
 
 **Version against version, real laptop, ungoogled Chromium 156 (Windows), 16 cores, 2026.10.30, 9:47 PM.** Medians; lower is better. One browser on one machine.
