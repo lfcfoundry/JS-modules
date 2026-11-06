@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.12.1 · API 1 · 2026-11-06
+- Flow pictures: a back link that spans several rows no longer doubles back over itself.
+
 ## 1.12.0 · API 1 · 2026-11-05
 - Opt-in highlight: one box and its links keep their colors, the rest fade.
 

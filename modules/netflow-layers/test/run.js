@@ -228,4 +228,17 @@ t('highlight (opt-in): the chosen box and its links keep their colors, the rest 
   ok((h.match(/stroke="#6b7a90"/g) || []).length === 1 && (plain.match(/stroke="#6b7a90"/g) || []).length === 3, 'only the link touching it keeps its color');
   ok(h.indexOf('>Fun<') > 0 && /fill="#222">Fun</.test(h), 'faded boxes keep readable names');
 });
+t('toSvg: a back link that spans several rows runs one way, from its box to the box it returns to (it used to double back over itself)', () => {
+  const ids = ['s', 'a', 'b', 'c', 'd', 'e'], E = [['s', 'a'], ['a', 'b'], ['b', 'c'], ['c', 'd'], ['d', 'e'], ['e', 'a'], ['e', 's']];
+  for (const dir of ['LR', 'TB']) {
+    const R = NL.layout({ root: 's', nodes: ids.map((i) => ({ id: i, label: i, w: 100, h: 36 })), edges: E.map(([f, to]) => ({ from: f, to })) }, { dir }), svg = NL.toSvg(R), ax = dir === 'LR' ? 0 : 1;
+    const dashed = svg.split('\n').filter((l) => /stroke-dasharray/.test(l) && /<path d="M/.test(l));
+    ok(dashed.length === 2, dir + ': two back links drawn, got ' + dashed.length);
+    for (const l of dashed) {
+      const d = l.match(/d="([^"]+)"/)[1], ends = [d.match(/^M([-\d.]+),([-\d.]+)/).slice(1).map(Number)].concat([...d.matchAll(/C[-\d.]+,[-\d.]+ [-\d.]+,[-\d.]+ ([-\d.]+),([-\d.]+)/g)].map((m) => [+m[1], +m[2]]));
+      ok(ends.length >= 4, dir + ': a long back link has its stops');
+      for (let i = 1; i < ends.length; i++) ok(ends[i][ax] < ends[i - 1][ax] + 0.01, dir + ': back link goes backward at every step: ' + d.slice(0, 120));
+    }
+  }
+});
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);
