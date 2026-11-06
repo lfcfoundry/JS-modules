@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.1 · API 1 · 2026-11-05
+
+### Quick
+Faster loads, same answers.
+
+### Deep
+Faster loads, same answers. create().load: a 448-byte save loads 5 to 6% faster and a 20 KB save 6 to 15% faster (new over old, paired alternating runs, early-stop rule, ratio below 1 is faster: 448 B Chromium 0.94, Firefox 0.95, WebKitGTK 0.94; 20 KB Chromium 0.93, Firefox 0.85, WebKitGTK 0.87). Why: the two commonest field types (num, flag) are checked inside the loop instead of a call each, a field is read straight from a plain parsed object (the own-property call stays for names that also exist on Object.prototype and for objects with another prototype), and numbers and key names are tested with a subtraction and string compares instead of isFinite and an object lookup. createLarge().load: a save with no 'raw' field no longer scans the saved text for prototype-pollution names, and one with a raw field scans once with a regular expression instead of three indexOf passes (13 MB of text: 8.5 to 10 ms down to 2.2 to 3 ms in Chromium 155, Firefox 158 and WebKitGTK 2.52.6). Paired 16 MB load, new over old: Chromium 0.72 (noisy), Firefox 0.95, WebKitGTK 0.88; 1 MB and 4 MB: faster or inconclusive within noise, never slower than 5%. Same output: 52 module checks pass, 17 lean builds pass, 20,000 random inputs (inherited fields, objects with no prototype, field names like constructor and toString) validate to identical text in old and new. Not measured: a phone, Safari itself, saves that are mostly raw data.
+
 ## 1.6.0 · API 1 · 2026-10-31
 
 ### Quick

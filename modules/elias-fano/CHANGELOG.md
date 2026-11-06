@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.0 · API 1 · 2026-11-05
+- Lists: openLists(bytes, { cache: true }) hands out the same array again, so repeat reads match plain arrays; decodeAll is faster.
+
 ## 1.9.0 · API 1 · 2026-11-05
 - EliasFano.from(values): sorted numbers in, a searchable list out, in one call.
 

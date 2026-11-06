@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.0 (API 1)
+ * Version 1.6.1 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -47,6 +47,7 @@
   var JSC = typeof navigator !== 'undefined' && /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Firefox/.test(navigator.userAgent);   // experiment: Object.values is much faster than Object.keys here
   var trusted = false;                // set only while createLarge().load() rebuilds a state from bytes that passed their check and contain no prototype-pollution key names
   var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
+  var PROTO_NAMES = /__proto__|"constructor"|"prototype"/;   // does a saved text name a prototype-pollution key (one pass over a big text; three indexOf calls took about 3 times as long)
   var DEFAULT_MAX_KEYS = 1000;        // most names kept in one 'counts' field
 //@begin codes
   var DEFAULT_MAX_BYTES = 262144;     // biggest unpacked save a code may hold: 256 KiB
@@ -56,7 +57,7 @@
 //@end
 
   function bag() { return Object.create(null); }
-  function isNum(v) { return typeof v === 'number' && isFinite(v) && v >= 0; }
+  function isNum(v) { return typeof v === 'number' && v - v === 0 && v >= 0; }   // v - v is 0 for every finite number and NaN for NaN and Infinity
   function has(obj, key) { return Object.prototype.hasOwnProperty.call(obj, key); }
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
 
@@ -105,14 +106,14 @@
         if (!isObj(v)) return out;
         var ks = Object.keys(v), cap = spec.max === 0 ? 0 : spec.max || 1e6, i, k, n;
         if (fresh && ks.length >= 32 && ks.length <= maxKeys && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // every entry already clean: keep the parsed object, without a prototype
-          for (i = 0; i < ks.length; i++) { k = ks[i]; n = v[k]; if (BAD_KEYS[k] || k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n)) break; }
+          for (i = 0; i < ks.length; i++) { k = ks[i]; n = v[k]; if (k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n) || k === '__proto__' || k === 'constructor' || k === 'prototype') break; }
           if (i === ks.length) { Object.setPrototypeOf(v, null); return v; }
         }
         for (i = 0; i < ks.length; i++) {
           k = ks[i];
-          if (BAD_KEYS[k] || k.length > 200 || kept >= maxKeys) continue;
+          if (k.length > 200 || kept >= maxKeys || k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
           n = v[k];
-          if (cap > 0 && typeof n === 'number' && isFinite(n) && n > 0) { out[k] = Math.min(Math.floor(n), cap); kept++; }
+          if (cap > 0 && typeof n === 'number' && n - n === 0 && n > 0) { out[k] = Math.min(Math.floor(n), cap); kept++; }
         }
         return out;
 //@begin raw
@@ -127,15 +128,20 @@
   // The field rules read once: [name, normalized rule] pairs (create() keeps them, so a save or load does not parse the rules again).
   function fieldsOf(schema) {
     var ks = Object.keys(schema), f = [], i;
-    for (i = 0; i < ks.length; i++) f.push([ks[i], norm(schema[ks[i]])]);
+    for (i = 0; i < ks.length; i++) f.push([ks[i], norm(schema[ks[i]]), ks[i] in Object.prototype]);   // third: the name also exists on Object.prototype, so only an own value counts
     return f;
   }
   function validateWith(fields, defaults, input) {
-    var out = {}, i, k;
+    var out = {}, i, f, k, v, t, d, plain;
     input = isObj(input) ? input : {};
+    plain = Object.getPrototypeOf(input) === Object.prototype;   // a plain object (what JSON.parse makes) has no inherited fields to mistake for saved ones, apart from the names on Object.prototype
     for (i = 0; i < fields.length; i++) {
-      k = fields[i][0];
-      out[k] = cleanField(fields[i][1], has(input, k) ? input[k] : undefined, defaults ? defaults[k] : undefined);
+      f = fields[i]; k = f[0]; t = f[1].type;
+      v = (plain && !f[2]) || has(input, k) ? input[k] : undefined;
+      d = defaults ? defaults[k] : undefined;
+      if (t === 'num') out[k] = isNum(v) ? v : d;   // the two commonest types are done here, the rest in cleanField
+      else if (t === 'flag') out[k] = v === 1 ? 1 : v === 0 ? 0 : (d === 1 ? 1 : 0);
+      else out[k] = cleanField(f[1], v, d);
     }
     return out;
   }
@@ -588,7 +594,7 @@
     var dbName = o.name || 'save-kit-large', schema = o.schema || {}, defaults = o.defaults || {}, stamp = o.stamp || 'seen';
     var fields = fieldsOf(schema), after = typeof o.afterValidate === 'function' ? o.afterValidate : null;
     var kinds = function (t) { return fields.filter(function (f) { return f[1].type === t; }).map(function (f) { return f[0]; }); };
-    var soundKeys = o.soundKeys || kinds('num').concat(kinds('int')), countKeys = kinds('counts');
+    var soundKeys = o.soundKeys || kinds('num').concat(kinds('int')), countKeys = kinds('counts'), hasRaw = kinds('raw').length > 0;
     var version = o.version > 0 ? Math.floor(o.version) : 0;
     var backupEvery = o.backupEveryMs == null ? 60000 : o.backupEveryMs, backupAt = 0, off = false;
     var idb = 'indexedDB' in o ? o.indexedDB : typeof indexedDB !== 'undefined' ? indexedDB : null, dbp = null;
@@ -636,7 +642,7 @@
         var t = rec.t, x = JSON.parse(t);
         if (!isObj(x)) return null;
         if (isNum(rec.at)) x[stamp] = rec.at;   // with skipUnchangedMs the stamp is kept beside the text
-        if (t.indexOf('__proto__') < 0 && t.indexOf('"constructor"') < 0 && t.indexOf('"prototype"') < 0) plain.add(x);
+        if (hasRaw && !PROTO_NAMES.test(t)) plain.add(x);   // only 'raw' fields use this, so a save without one skips the pass over the text; one pass, not three
         return x;
       } catch (e) { return null; }
     }

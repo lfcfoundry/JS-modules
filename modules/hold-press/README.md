@@ -74,8 +74,8 @@ Bigger than a one-purpose long-press script, smaller than a gesture suite, and i
 | Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
 | --- | --- | --- | --- | --- |
 | **hold-press 1.1.0** (this module, MIT) | 4,707 B minified (1,754 B gzipped, esbuild) | Cost of one idle `pointermove` with 12 buttons attached, lower is faster: ungoogled Chromium 155.0.8059.39-1 0.075 µs, Firefox 158.0 0.65 µs, WebKitGTK 2.52.6 0.75 µs 0.35 µs | Repeat while held, touch events as a fallback, one finger followed, swallowed release click, opt-in keyboard hold and `lockTouch` | Does the whole "hold to repeat" job. Loses: larger than the one-event scripts |
-| long-press-event (MIT, version not recorded) | About 1 KB | Not measured | Fires one "long press" event after a delay; no repeat, no swallowed click | Wins: smaller. Loses: no repeat |
-| Hammer.js `press` (the maintained fork is `@egjs/hammerjs`, MIT, version not recorded) | Not measured | Not measured | Part of a full gesture suite; `press` is one event and does not repeat | Wins if you already use the suite. Whether it handles Android's `pointercancel`: unverified |
+| long-press-event 2.5.2 (MIT) | 2,819 bytes minified, 1,001 gzipped (the "about 1 KB" earlier was the gzipped size) | Not measured (nothing loops; one timer per press) | Fires one "long press" event after a delay; no repeat, no swallowed click | Wins: smaller. Loses: no repeat |
+| Hammer.js `press` (the maintained fork is `@egjs/hammerjs` 2.0.17, MIT) | 21,741 bytes minified, 7,274 gzipped (the whole suite; `press` alone cannot be split out) | Not measured | Part of a full gesture suite; `press` is one event and does not repeat | Wins if you already use the suite. Whether it handles Android's `pointercancel`: unverified |
 | Pointer capture plus `touch-action: none` (the browser's own, a few lines you write) | A few lines | Not measured | Often enough when the page owns the whole gesture | Wins: no library. Loses: the page cannot scroll from that button (`lockTouch: true` here does the same) |
 
 **Where it loses**

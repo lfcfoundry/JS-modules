@@ -10,7 +10,7 @@ function pageWork(reps) {
   const N = 30000, M = 94597, lists = Array.from({ length: N }, () => []); for (let i = 0; i < M; i++) lists[Math.floor(Math.pow(r(), 2) * N)].push(i);
   const typed = lists.map((a) => Uint32Array.from(a)), maps = new Map(); typed.forEach((a, i) => maps.set(i, Array.from(a)));
   const offsets = new Uint32Array(N + 1), values = new Uint32Array(M); { let p = 0; for (let i = 0; i < N; i++) { offsets[i] = p; values.set(typed[i], p); p += typed[i].length; } offsets[N] = p; }
-  S.setBackend('auto'); const blob = S.buildLists(typed), L = S.openLists(blob);
+  S.setBackend('auto'); const blob = S.buildLists(typed), L = S.openLists(blob), LC = S.openLists(blob, { cache: true }); if (LC.cache) for (let i = 0; i < N; i++) LC.get(i);   // LC: every list already read once (a warm cache)
   let want = 0; for (let i = 0; i < M; i++) want = (want + values[i] * (i % 7 + 1)) >>> 0;
   const out = { sizes: { efLists: blob.length, plainOffsetsValues: (N + 1 + M) * 4 }, accelerated: S.accelerated(), simd: S.simd(), bad: [] };
   const sumOf = (it) => { let s = 0, k = 0; it((v) => { s = (s + v * (k++ % 7 + 1)) >>> 0; }); return s; };
@@ -19,6 +19,8 @@ function pageWork(reps) {
     maps: () => sumOf((f) => { for (let i = 0; i < N; i++) { const a = maps.get(i); for (let j = 0; j < a.length; j++) f(a[j]); } }),
     csr: () => sumOf((f) => { for (let i = 0; i < N; i++) for (let j = offsets[i]; j < offsets[i + 1]; j++) f(values[j]); }),
     'ef get(i), js': withBackend('js', () => sumOf((f) => { for (let i = 0; i < N; i++) { const a = L.get(i); for (let j = 0; j < a.length; j++) f(a[j]); } })),
+    'ef get(i), wasm': withBackend('wasm', () => sumOf((f) => { for (let i = 0; i < N; i++) { const a = L.get(i); for (let j = 0; j < a.length; j++) f(a[j]); } })),
+    'ef cache(true), warm': () => sumOf((f) => { for (let i = 0; i < N; i++) { const a = LC.get(i); for (let j = 0; j < a.length; j++) f(a[j]); } }),
     'ef decodeAll, js': withBackend('js', () => { const d = L.decodeAll(); return sumOf((f) => { for (let j = 0; j < d.values.length; j++) f(d.values[j]); }); }),
     'ef decodeAll, wasm': withBackend('wasm', () => { const d = L.decodeAll(); return sumOf((f) => { for (let j = 0; j < d.values.length; j++) f(d.values[j]); }); })
   };

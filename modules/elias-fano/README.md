@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.9.0 · API 1**
+**Version 1.10.0 · API 1**
 
-**Tested in:** Node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page check
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (cloud container, one browser at a time; no phone, no Safari)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -63,6 +63,8 @@ var set = EliasFano.openLists(blob);
 set.get(2);        // Uint32Array [2, 2, 9]
 set.size(0);       // 2
 var all = set.decodeAll();   // { offsets: Uint32Array(n + 1), values: Uint32Array }: plain offset arrays, decoded in one pass
+var hot = EliasFano.openLists(blob, { cache: true });   // since 1.10.0: get(i) keeps the array it made for list i and returns that same array every time
+hot.get(2) === hot.get(2);   // true; do not change a cached array; hot.cache(false) lets them go
 ```
 
 `build` and `buildLists` give a `Uint8Array` you can store or send; `open` and `openLists` read it back. Lists made in JavaScript and in WebAssembly are byte for byte the same. Call `free()` on a list you are done with when WebAssembly is in use (it copies the bytes into its own memory on first use).
@@ -81,10 +83,11 @@ Same page, alternating rounds, Firefox 158 / Chromium 155 / WebKitGTK 2.52.6 (de
 | Size of 94,597 links in 30,000 lists | 498 KB | 223 KB |
 | Size of 1,000,000 sorted values | 4.0 MB | 1.34 MB |
 | First value at or above x (20,000 lookups, 1,000,000 values) | binary search 4.0 / 3.3 / 3.6 ms | 1.6 / 1.4 / 1.4 ms in WebAssembly (2.3 to 3.0x faster) |
-| Read all 94,597 links | plain arrays 1.3 / 1.2 / 0.6 ms | 1.9 / 2.0 / 1.5 ms (decode all, WebAssembly) |
+| Read all 94,597 links of 30,000 lists, ms (Chromium / Firefox / WebKitGTK) | arrays of arrays 1.38 / 3.2 (noisy, best 2.1) / 1.5 | decode all in WebAssembly 1.46 / 1.3 / 1.2; `cache(true)`, lists already read once, 1.22 / 1.1 / 0.6 |
+| One list at a time, all 30,000, first read (`get(i)`, no cache) | already there, nothing to decode | 7.3 / 12.8 / 9.0 ms (about 5 to 9 times slower: each list is cut out and made into a new array) |
 | Value number i, 20,000 random reads | 0.05 to 0.1 ms | 1.0 to 3.2 ms (14 to 40x slower) |
 
-It is for lists you search or scan, not for hammering single reads: keep a decoded copy (`toArray`, `decodeAll`) when you need those.
+It is for lists you search or scan, not for hammering single reads: keep a decoded copy (`toArray`, `decodeAll`) when you need those. For a list set read list by list, `openLists(bytes, { cache: true })` (since 1.10.0) keeps each list's array after its first read, and a repeat read then costs about what an array of arrays does, at 4 bytes a value again for the lists you touched. Since 1.10.0 `decodeAll` of 30,000 lists is 0.68 / 0.78 / 0.90 times the time it took (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, paired runs). Plain arrays still win on a first read of a single list (they are already there) and the memory they take is about 2.2 times the packed size (498 KB against 223 KB for these lists); arrays of arrays also cost one object each (not measured here).
 
 ## Partitioned lists (since 1.2.0)
 `buildPartitioned` cuts the list into chunks of 128 values (or 32, 64, 256, 512, 1024) and stores each chunk the cheapest way: as a plain run (no bits at all, when the numbers are consecutive), as a bitmap (when more than about a third of the numbers in its range are present) or as Elias-Fano. It wins where a list has dense stretches, such as the document ids of a common word, and costs about the same as the flat form elsewhere. It has the same questions as a single list (`get`, `nextGEQ`, `rank`, `contains`, `count`, `slice`, `toArray`, the batches, `free`) and one more, `stats()`, which says how many chunks took each form.
@@ -134,4 +137,4 @@ Elias-Fano intersection matches binary search on plain arrays when one list is s
 Peter Elias, "Efficient storage and retrieval by content and address of static files", Journal of the ACM, 1974, and Robert Fano, "On the number of bit sequences", MIT technical report, 1971. The select samples follow the usual practical layout (see Vigna, "Quasi-succinct indices", WSDM 2013); the code here is written from scratch for this repository.
 
 ## For AI agents
-Load `elias-fano.js` as a page script (global `EliasFano`) or `require` it. Build once, store the `Uint8Array`, `open` it where you read. For "next id at or above x" over a big sorted list use `nextGEQ` or `nextGEQMany`; for many small lists use `buildLists` and `decodeAll` once at startup. Do not call `get(i)` in a hot loop. The source of the WebAssembly is `wasm/ef.c` (build with `wasm/build.sh`, embed with `wasm/embed.py`; `embed.py --check` says whether the file carries the current build).
+Load `elias-fano.js` as a page script (global `EliasFano`) or `require` it. Build once, store the `Uint8Array`, `open` it where you read. For "next id at or above x" over a big sorted list use `nextGEQ` or `nextGEQMany`; for many small lists use `buildLists` and `decodeAll` once at startup, or open the set with `{ cache: true }` when you read lists one by one and read the same ones again. Do not call `get(i)` without the cache in a hot loop. The source of the WebAssembly is `wasm/ef.c` (build with `wasm/build.sh`, embed with `wasm/embed.py`; `embed.py --check` says whether the file carries the current build).

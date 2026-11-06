@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.0 · API 1 · 2026-11-05
+
+### Quick
+New option, default off: openLists(bytes, { cache: true }) or set.cache(true).
+
+### Deep
+New option, default off: openLists(bytes, { cache: true }) or set.cache(true). get(i) then keeps the Uint32Array it made for list i and returns that same array on every later call, so repeat reads cost about what reading an array of arrays costs (30,000 lists, 94,597 links, a full read of every list, ms, plain / cache warm: Chromium 0.85 / 0.96, Firefox 0.88 / 1.13, WebKitGTK 0.50 / 0.63; 20,000 random lists, plain / cache warm: Chromium 2.74 / 1.89, Firefox 1.63 / 1.63, WebKitGTK 1.13 / 1.00). The first pass after cache(true) is 1.8x faster than get(i) without it in Chromium (5.0 against 9.2 ms) and WebKitGTK (5.3 against 11.5) and 1.4x in Firefox (8.8 against 12.1), because the list positions are decoded once (4 bytes a list) instead of two WebAssembly calls per read. The price: touched lists take 4 bytes a value again and must not be changed; cache(false) lets them go. decodeAll: the base of every list is now taken off in WebAssembly (one new export, ef_lists_decode) instead of a JavaScript loop over every value; 30,000 lists, 94,597 links, same values (byte for byte), paired alternating runs, early-stop rule, ms per call old / new and new over old (below 1 is faster): Chromium 0.98 / 0.69 and 0.68, Firefox 0.76 / 0.60 and 0.78, WebKitGTK 0.64 / 0.60 and 0.90. The wasm files grew by one export; rebuilt with clang 18.1.3 and embedded, wasm/build.sh --check passes. Tried and not kept: one WebAssembly call per get(i) (11.5 ms against 6.7 ms for the 30,000 lists in Chromium: the call round trip costs more than the work for lists of three values). Checks: all 9 module test files pass, new checks compare decodeAll and cached reads with the lists in JavaScript and WebAssembly over 250 chunks. Not measured: a phone, Safari itself, lists much longer than 100 values.
+
 ## 1.9.0 · API 1 · 2026-11-05
 
 ### Quick

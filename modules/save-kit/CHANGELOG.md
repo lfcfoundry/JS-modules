@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.1 · API 1 · 2026-11-05
+- Loads are a little faster: small saves 5 to 15%, big saves up to 12%.
+
 ## 1.6.0 · API 1 · 2026-10-31
 - New save-kit-lite.js: checked fields and a backup slot in 966 bytes minified and gzipped, for small games.
 - Same answers and speed as create() for those field types.

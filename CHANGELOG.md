@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.3 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 1.6.0 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 1.6.1 · API 1 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -30,7 +30,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.18.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.11.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 1.9.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 1.10.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.5.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
@@ -67,6 +67,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **zip-open** 1.17.1 · API 1: Excel files open 1 to 19% faster. Same results.
 - 2026-11-05 · **zip-open** 1.17.0 · API 1: Opening a big Excel sheet again in the same page is 3 to 35% faster: a second thread unpacks it while the page reads rows. The first open is about the same. Same results.
 - 2026-11-05 · **stage-curtains** 1.4.3 · API 1: With worker: true the curtain is ready ahead on a busy page in about 0.12 s instead of 0.65 s; same pixels.
+- 2026-11-05 · **save-kit** 1.6.1 · API 1: Loads are a little faster: small saves 5 to 15%, big saves up to 12%.
 - 2026-11-05 · **netflow-scene** 1.8.0 · API 1: Opt-in Economist frame: frame: true (or theme 'editorial') adds a small red tag top-left and a thin rule under the picture, with the source under it.
 - 2026-11-05 · **netflow-scene** 1.7.0 · API 1: Sankey middle-column names get a background-color halo so they read over their bands.
 - 2026-11-05 · **netflow-scene** 1.6.0 · API 1: Opt-in families: related groups (same name before ':' or '/') share one hue in steps.
@@ -100,6 +101,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **lfc-pack** 0.4.20 · API 0: The first pack after a page opens is faster, and packing holds far less memory (a 20,000-item map uses 66 MB instead of 384 MB).
 - 2026-11-05 · **graph-walk** 0.12.0 · API 0: bfs(links, start): steps from a start item by name, straight from a list of links.
 - 2026-11-05 · **elias-fano** 1.9.0 · API 1: EliasFano.from(values): sorted numbers in, a searchable list out, in one call.
+- 2026-11-05 · **elias-fano** 1.10.0 · API 1: Lists: openLists(bytes, { cache: true }) hands out the same array again, so repeat reads match plain arrays; decodeAll is faster.
 - 2026-11-01 · **zip-open** 1.16.0 · API 1: Excel files open up to 18% faster, the first one in a page the most, and later ones up to 13%. Same results.
 - 2026-11-01 · **zip-open** 1.15.2 · API 1: The first file you open in a page opens 8 to 36% faster (big sheets the most); opening it again is about the same. Same results.
 - 2026-11-01 · **zip-open** 1.15.1 · API 1: Zip and Excel files in memory open up to 6% faster in Firefox and up to 3% in Chromium; WebKitGTK about the same. Same results.

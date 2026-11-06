@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.6.0 · API 1**
+**Version 1.6.1 · API 1**
 
-**Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6 (cloud container, one browser at a time; no phone, no Safari)
 
 ## What it is and how it works
 
@@ -140,7 +140,7 @@ Each field is checked on its own and falls back alone. `__proto__`, `constructor
 
 ## How it compares
 
-Larger than a hand-written `JSON.stringify` save, but the one built for game saves: it checks every field, keeps a backup and makes copy-paste codes with a checksum. Sizes of the others were measured below (whole library builds, same minifier); speed against idb-keyval and localForage is measured on a laptop (Chromium 156 and Firefox 160, 16 cores): a 750-byte save takes 10 to 13 microseconds against 180 to 210 on IndexedDB, and `createLarge` saves and loads 1 to 16 MB 1.4 to 3.8 times as fast (see below). localForage's localStorage driver loads small saves faster (3.3 against 6.7 microseconds), with no backup or checks.
+Larger than a hand-written `JSON.stringify` save, but the one built for game saves: it checks every field, keeps a backup and makes copy-paste codes with a checksum. Sizes of the others were measured below (whole library builds, same minifier); speed against idb-keyval and localForage is measured on a laptop (Chromium 156 and Firefox 160, 16 cores): a 750-byte save takes 10 to 13 microseconds against 180 to 210 on IndexedDB, and `createLarge` saves and loads 1 to 16 MB 1.4 to 3.8 times as fast (see below). localForage's localStorage driver (no backup, no checks) loads a 448-byte save in 0.95 microseconds in ungoogled-chromium 155 against 1.24 here (it was 1.32 before 1.6.1), and in Firefox 158 and WebKitGTK 2.52.6 save-kit is the faster one (0.90 against 3.15 and 0.80 against 1.00); for a 20 KB save it is 1.4 to 2.0 times slower in all three (117, 50 and 153 microseconds against 68, 37 and 77), which is the price of checking every field (a bare `JSON.parse` of it takes 67, 33 and 73). Best of 7 rounds, one cloud machine, `tests/save-kit-small-browser.js` (its "localForage (localStorage driver)" rows); ours/theirs from paired alternating runs: 448 bytes 1.26, 0.28, 0.83; 20 KB 1.78, 1.45, 2.03 (ratio below 1 is faster).
 
 | Alternative | Size (smaller is better) | Features | Where it wins / loses |
 |---|---|---|---|
@@ -164,6 +164,8 @@ A game-like save (a list of small tile objects plus 2,000 named counts), the who
 | 4 MB load | 27.5 / 39.5 / 34.8 | 40 / 97 / 95 | 39 / 34 / 35 |
 | 16 MB save | 182.5 / 190.6 / 174.4 | 191 / 405 / 441 | 102 / 375 / 405 |
 | 16 MB load | 126.6 / 224.5 / 206.3 | 199 / 389 / 386 | 157 / 130 / 167 |
+
+Since 1.6.1 a `createLarge` load spends one pass over the saved text where it spent three (13 MB of text: 8.5 to 10 ms down to 2.2 to 3 ms) and none when the schema has no `raw` field; 16 MB load, new over old, paired runs: Chromium 0.72 (noisy), Firefox 0.95, WebKitGTK 0.88. The table below was measured on 1.3.0 and not repeated.
 
 Where it loses: Chromium 0.8 MB save (about 2 ms slower than idb-keyval), Chromium 16 MB save (5% slower than localForage, 4% faster than idb-keyval), WebKitGTK loads at 0.8, 4 and 16 MB (up to 21% slower than idb-keyval, 6% faster than localForage at 16 MB). Everywhere else it is faster, up to 4.0x (WebKitGTK 16 MB save against localForage). A backup write on every save (`backupEveryMs: 0`) is slower on large saves in Firefox (111 vs 41 ms at 4 MB).
 
