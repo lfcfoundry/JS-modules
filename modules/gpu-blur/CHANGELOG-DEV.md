@@ -2,6 +2,36 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.5 · API 1 · 2026-11-06
+
+### Quick
+WebGL 2 boxes 25 pixels wide and up (radius 24 up) run in two stages: about 2 x sqrt(width) reads a pixel instead of the width. Same bytes. Narrower boxes unchanged.
+
+### Details
+Stage 1 sums a pixels into a 16-bit middle texture padded by B; stage 2 adds m of those spaced a apart plus r source pixels and rounds as before (width = a x m + r, a chosen for the fewest reads). Pixels, drawn canvas and texture out checked against the JavaScript reference: 204 cases in Chromium 155, Firefox 158 and WebKitGTK 2.52.6, radii 1 to 100, odd sizes down to 9 pixels. Firefox 160 laptop, 1920 x 1080 drawn canvas, two over one stage: radius 12 1.12, 18 1.00, 24 0.91, 50 0.71, so it starts at radius 24. Six passes alone (lab, 2048 x 2048, radius 24): Firefox 18.0 to 8.0 ms, Chrome 17.9 to 6.9 ms.
+
+### Deep
+Cause of the Firefox laptop drawn-canvas gap (browser filter 22 to 11 ms, gpu-blur card way 35 to 41 ms at 2048 x 2048 radius 24): the single-stage shader reads 2B+1 pixels each pass, six passes. Texture out against canvas out showed the final copy into a 2D canvas costs under 8 ms. Lab page (integer textures alone 0.94 of the time, two-stage 0.44 on Firefox 160, 0.39 on Chrome 156), then the general split for every width and the private _two switch. In the whole drawn-canvas path the gain is smaller than in the passes alone because the 16.8 MB upload and the copy stay: Firefox 160 laptop, 1920 x 1080, ms one stage / two stages: radius 6 22.0 / 24.0, 12 17.0 / 19.0, 18 21.0 / 21.0, 24 23.0 / 21.0, 50 31.0 / 22.0. Two stages are slower at radius 6 and 12 (up to 12%), so the switch-on width is 25 (radius 24 up). The gap to the browser filter at radius 24 stays (gpu-blur 35 ms, filter 23 ms from a read-heavy source canvas, 11 ms from a plain canvas): upload from bytes costs about 16 ms. The probe keeps the one-stage shader, so the route choice is unchanged. New check tests/gpu-blur-twostage-browser.js. 32 offline checks and tests/gpu-blur-browser.js pass in the three cloud browsers.
+
+## 1.3.4 · API 1 · 2026-11-06
+
+### Quick
+Auto picks the way by size: card from 1,000,000 pixels when the tiny probe looks plausible; small pictures only when the probe was strictly faster.
+
+### Details
+Pictures of 1,000,000 pixels and up take the card way for a drawn canvas when the 480 x 270 probe put the card within 10x of WebAssembly (glMs <= 10 x wasmMs + 2); under 300,000 pixels only when the card was strictly faster. info() gains glBig. Firefox 160 laptop drawn canvas: 1080p 38 to 17 ms, 4K 174 to 65 ms; phone small picture 11.6 to 10.3 ms.
+
+### Deep
+Owner's phone (Chrome 156): probe card 3.7 against WebAssembly 3.0 ms picked the card, but 480 x 270 took 12.7 (card) against 10.9 ms; 1.3.3 made small pictures need a strictly faster probe. Owner's laptop, Firefox 160: tiny probe card 6.0 against 1.0 ms kept WebAssembly, yet drawn canvas took 24.0 (card) against 39.0 ms at 1080p and 90.0 against 174 ms at 4K; Chrome 156 and the phone already took the card. Two bigger probes (960 x 540, 1280 x 720) were tried and dropped: 960 x 540 read 8 against 5 ms at the break-even, 1280 x 720 read 11 against 9 ms while the real drawn picture takes about 13 against 17 ms, because a probe without the drawing underestimates WebAssembly. So the rule is a size rule on the tiny probe ratio. Same release: the device tester times the browser canvas filter against every route to a finished picture (the filter returns in about 0.1 ms without a read-back); 2048 x 2048 radius 24 bytes out, gpu-blur helpers 11.6 to 42 ms against 27 to 83.5 ms for the filter on three devices. 32 offline checks pass, 7 of 7 broken copies caught.
+
+## 1.3.3 · API 1 · 2026-11-06
+
+### Quick
+Auto no longer sends pictures under 300,000 pixels to the card way unless the 480 x 270 probe found the card strictly faster than WebAssembly. Old code needs no change.
+
+### Deep
+The owner's phone (Android Chrome 156), tester build 2026.11.05.2246: probe card 3.7 ms against WebAssembly 3.0 ms passed the old rule (card <= 2 x WebAssembly + 2 ms), but a drawn 480 x 270 picture took 12.7 ms on the card and 10.9 ms in WebAssembly (1.2x, the module's own verdict flagged it). At 1920 x 1080 the card won 43.4 against 66.4 ms and at 4K 92.3 against 237 ms, so the rule is unchanged for 300,000 pixels and up. Not retested on a card: the cloud machine only exercises the WebAssembly pick (its probe loses), so the phone needs one rerun of the tester to confirm. 32 offline checks pass.
+
 ## 1.3.2 · API 1 · 2026-10-31
 
 ### Quick
@@ -27,7 +57,7 @@ New: `opts.into` also takes RGBA bytes for out 'pixels' (the result is written i
 Every route honors it: WebGL 2 reads straight into the array (also a view with a byte offset), WebAssembly copies its result into it, plain JavaScript copies out of its work memory (it used to hand back a view of it), the helpers write their bands into it, and the threads route copies out of shared memory into it. A `Uint8ClampedArray` or a `Uint8Array` of exactly width x height x 4 is used; any other length is left untouched and a new array is made. `blurSync()` honors it too. The private `_intoPx` test switch of 1.2.3 still works. tests/gpu-blur-into-browser.js: 420 same-byte cases in Chromium and WebKitGTK, 332 in Firefox (no WebGL 2 in its test machine), with three kinds of arrays (clamped, plain, offset view), a wrong length, `blurSync()`, and a canvas in `opts.into` for out 'canvas'; then times with and without it, 3 calls in a row, 7 rounds, on a 4-core machine.
 
 ### Deep
-Round 4 pool brief, item 2; the owner picked "Add it" on its card (2026-10-31). Stacked with 1.2.3's kept helper bands, against 1.2.2 (960 x 540 / 1080p / 4K): Chromium 1.19/1.34/1.43x, Firefox 1.51/1.47/1.74x, WebKitGTK 1.09/1.32/1.09x; threads route with `into` against 1.2.2: Chromium 1.35/1.23/1.18x, Firefox 1.10/1.08/1.12x, WebKitGTK 1.20/1.44/1.13x. The one slower cell (Chromium one-thread WebAssembly 960 x 540, 8.6 vs 7.8 ms) is within this machine's noise; Firefox 4K one-thread was the biggest gain (227 to 152 ms, the fresh 33 MB array's zero fill and collection). WebGL 2 was not timed. While testing: WebKitGTK rounds a WebGL canvas drawn into a 2D canvas differently on see-through pixels (up to 3 levels); 1.2.3 does the same, so the canvas check uses opaque pictures.
+Round 4 pool brief, item 2; the owner picked "Add it" on its card (2026-10-31). Stacked with 1.2.3's kept helper bands, against 1.2.2 (1280 x 720 / 1080p / 4K): Chromium 1.19/1.34/1.43x, Firefox 1.51/1.47/1.74x, WebKitGTK 1.09/1.32/1.09x; threads route with `into` against 1.2.2: Chromium 1.35/1.23/1.18x, Firefox 1.10/1.08/1.12x, WebKitGTK 1.20/1.44/1.13x. The one slower cell (Chromium one-thread WebAssembly 1280 x 720, 8.6 vs 7.8 ms) is within this machine's noise; Firefox 4K one-thread was the biggest gain (227 to 152 ms, the fresh 33 MB array's zero fill and collection). WebGL 2 was not timed. While testing: WebKitGTK rounds a WebGL canvas drawn into a 2D canvas differently on see-through pixels (up to 3 levels); 1.2.3 does the same, so the canvas check uses opaque pictures.
 
 ## 1.2.3 · API 1 · 2026-10-31
 

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.12.0 · API 2 · 2026-11-06
+
+### Quick
+Owner card (Both).
+
+### Deep
+Owner card (Both). Minified full file: same API and packed bytes (85 module checks pass on it, same bytes in 3 browsers). Read-only file: unpack, unpackAsync, view and the stream readers; functions a broad corpus never decodes are stubbed with a throw, and its WebAssembly exports only the decoding functions (9.6 + 3.6 KB instead of 24.5 + 7.3). 3,130 held-out checks, generated code allowed and forbidden. Corpus gained a 100,000-row size so 2.11.0's block-by-block view of long lists is kept. Built by min/build.js; test/min.js checks version, source fingerprint and bytes. No change to memory-compression.js itself.
+
 ## 2.11.0 · API 2 · 2026-11-05
 
 ### Quick

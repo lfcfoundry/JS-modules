@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.12.0 · API 2 · 2026-11-06
+- Two smaller files: memory-compression.min.js (83 KB gzipped, was 122.5) and a read-only memory-compression-read.min.js (37 KB) for pages that only open data.
+
 ## 2.11.0 · API 2 · 2026-11-05
 - view() opens date and template text columns, and coordinate pairs, in windows: first row of a big user list about 2.4 to 3 times as fast.
 

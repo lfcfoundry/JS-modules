@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.3 · API 2 · 2026-11-06
+
+### Quick
+Follows ppmd-decode 1.4.0 (build E): the program now has the model address built in (byte 24,576), so the loader places the model first, then the compressed bytes, then the page, and decodes in 64 KB steps (decode_begin, then decode_more).
+
+### Deep
+Follows ppmd-decode 1.4.0 (build E): the program now has the model address built in (byte 24,576), so the loader places the model first, then the compressed bytes, then the page, and decodes in 64 KB steps (decode_begin, then decode_more). Node round-trip sandbox updated for the two calls. Same page out; the loader is a few bytes longer.
+
 ## 2.0.2 · API 2 · 2026-10-31
 
 ### Quick
