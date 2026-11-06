@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.19.0 (API 1)
+ * Version 1.20.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -327,8 +327,8 @@
         var key = 'xl/sharedStrings.xml', n = sstWait.len;
         if (got.err || got.n !== n || got.crc !== sstWait.crc) { parts[key] = { bad: got.err === -2 ? 'unpacks to more than it says it does' : 'looks damaged' + (got.err ? '' : got.n !== n ? ' (its size is not what the zip says)' : ' (its checksum does not match)') }; W.nosst(); sstState = 1; sstWait = null; return; }
         var v = new Uint8Array(mem.buffer, sstPos, n);
-        parts[key] = v.slice();
         if (rawUtf8Like(v) && W.utf8ok(sstPos, n) && W.sst(sstPos, n, sstTab, (n >> 4) + 1) >= 0) sstState = 1;
+        parts[key] = sstState ? { wasmAt: sstPos, len: n } : v.slice();   // kept as a place in the memory; copied out only for the usual way
         sstWait = null; SST_PIPED++;
         if (!sstState) jsStrings();
       });

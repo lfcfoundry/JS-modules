@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.20.0 · API 1 · 2026-11-06
+
+### Quick
+When the biggest sheet is piped (4 MB or more) and sharedStrings.xml is 1 MB or more unpacked, a third thread unpacks the shared strings while the page reads the rows with the strings deferred; they are filled in afterward, in place. Text-heavy sheets 14 to 29% faster on repeat opens, 15 to 20% on the first open; others within noise. No API change.
+
+### Details
+Repeat open, file read in pieces, early-stop A/B both orders, time 1.20.0 / 1.19.0, lower is better, text-heavy sheet: Chromium 155 0.73 to 0.78, Firefox 158 0.71 to 0.79, WebKitGTK 2.52.6 0.84 to 0.86. Number-heavy, formulas and small sheets: 0.95 to 1.03, none proven slower than 5%. First open 6 s after load (6 runs each, medians): text-heavy Chromium 0.85, Firefox 0.80, WebKitGTK 0.83; formulas 0.90 to 0.96; number-heavy sheet 1.01 to 1.02 in Firefox and WebKitGTK over 16 runs, 0.98 in Chromium. The warm-up after load now starts both helper threads. Test hooks: `_pipe(spawn, min, sstMin)` takes a third argument, `_sstPiped()` counts uses.
+
+### Deep
+Before: the page unpacked sharedStrings.xml (19 to 25 ms for the 6.3 MB text-heavy list) while the second thread had already unpacked the whole sheet, so the rows started late. Now xlsx.c `deferStrings(rec, cap)` makes the row reader note (output offset, string index) for each `t="s"` cell and write nothing; `fillStrings(out, len, dst, dcap)` after `sst()` copies the segments 8 bytes at a time, inserts each string (plain flag: straight copy; else `field()`, setting the flags) and shifts the fixups. The deferred output is moved to the end of its room with copyWithin and filled from the start, so no second output area is needed; the writer is bounded by the reader. REDO (-4) for an out-of-order cell, an empty or missing string, or a full record list; -2 when the texts do not fit; both fall back to the usual read of the already-unpacked sheet. The list stays in place in the reader memory ({ wasmAt, len }); it is copied out only for the JavaScript fallback. A damaged list gives the same skip note as before. Tests: one new check (two sheets, a waiting small sheet, empty text, texts longer than the room, a damaged list); 47 of 47. A new fuzz opens 1,350 random workbooks (padded to use both threads) with and without the threads: no differences. Tried first: a separate output area (more memory, and a 6.3 MB copy of the list per open: dropped).
+
 ## 1.19.0 · API 1 · 2026-11-06
 
 ### Quick
