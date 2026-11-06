@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.18.2 · API 1 · 2026-11-05
+- Text-heavy Excel sheets open 2 to 13% faster; other sheets about the same. Same results.
+
 ## 1.18.1 · API 1 · 2026-11-05
 - Excel sheets with many numbers and dates open 4 to 14% faster; text-heavy sheets about the same. Same results.
 
@@ -9,7 +12,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - The first Excel file you open in a page opens 11 to 45% faster: zip-open warms up its reader on a tiny made-up workbook shortly after it loads (about 20 to 30 ms of work, no file, no network; a real open stops it). Same results.
 
 ## 1.17.1 · API 1 · 2026-11-05
-- Excel files open 1 to 19% faster, text-heavy sheets the most. Same results.
+- Excel files open 1 to 19% faster. Same results.
 
 ## 1.17.0 · API 1 · 2026-11-05
 - Opening a big Excel sheet again in the same page is 3 to 35% faster: a second thread unpacks it while the page reads rows. The first open is about the same. Same results.

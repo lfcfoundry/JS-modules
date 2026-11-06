@@ -2,13 +2,24 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.18.2 · API 1 · 2026-11-05
+
+### Quick
+Plain cell text (no entities, no spaces at either end) is copied and checked for quotes in one pass. Text-heavy sheets 2 to 13% faster.
+
+### Details
+Row reading step alone, time 1.18.2 / 1.18.1, shared strings read fresh each run, lower is better: text-heavy sheet Chromium 155 0.93, Firefox 158 0.90, WebKitGTK 2.52.6 0.91; other sheets 0.99 to 1.01. Whole open, text-heavy sheet: later opens (early-stop A/B, both orders) Chromium 0.97 to 0.99, Firefox 0.92 to 0.93, WebKitGTK 0.92 to 0.98; first opens in fresh pages 0.86 to 1.09 (noise: the same code on the formulas sheet read 1.08). Also corrects the row-step numbers given for 1.17.1 and 1.18.1: the bench then kept shared-string state between runs.
+
+### Deep
+field() fast path in xlsx.c: when the text has no entity and its first and last bytes are printable ASCII, copy it while checking for quote, comma, CR or LF (QC table); anything else goes through the full path as before. In a text-heavy sheet where each shared string is used once, field() was 35% of the reader's instructions (callgrind). The sb2.js / sbb2.js benches re-run sst() before each timed sheet() so the plain-string flags start fresh, as in a real open.
+
 ## 1.18.1 · API 1 · 2026-11-05
 
 ### Quick
 Faster row reading again: fixed tags checked 4 bytes at a time, row tags scanned 16 bytes at a time with SIMD, and the date digit check only on date cells. Sheets with many numbers and dates 4 to 14% faster.
 
 ### Details
-Row reading step alone, time 1.18.1 / 1.18.0 (SIMD build), lower is better: Chromium 155 big 0.82, formulas 0.85, text 0.88; Firefox 158 0.83, 0.83, about 1.00; WebKitGTK 2.52.6 0.80, 0.78, 0.80. Whole open, first in a fresh page: 0.91 to 1.04; later opens (early-stop A/B): big 0.87 to 0.95, formulas 0.92 to 1.04, small 0.86 to 0.94, text about even (Firefox text across 5 runs 0.91 to 1.22, so noise in both directions).
+Row reading step alone, time 1.18.1 / 1.18.0 (SIMD build), lower is better: Chromium 155 big 0.84, formulas 0.83, text 0.92; Firefox 158 0.78, 0.90, 1.00; WebKitGTK 2.52.6 0.82, 0.80, 0.83 (re-measured with the shared strings read fresh each run; the first figures kept state between runs). Whole open, first in a fresh page: 0.91 to 1.04; later opens (early-stop A/B): big 0.87 to 0.95, formulas 0.92 to 1.04, small 0.86 to 0.94, text about even (Firefox text across 5 runs 0.91 to 1.22, so noise in both directions).
 
 ### Deep
 xlsx.c rowsPart: ld4()/C4() 4-byte compares replace startsWith for <row, <v>, </c>, </row>; RT class table for the row-tag scan, and in the SIMD build a 16-byte scan for > " ' < with popcount for quotes; the plain-digit check and date serial are computed in one loop and only for date-style cells. Found with a native build under callgrind (startsWith was 15% of instructions, the row-tag scan 12%).
@@ -30,7 +41,7 @@ warmReader() and warmBook() in zip-open.js, started with setTimeout after load w
 Row reading is faster: shared strings that need no quotes are copied straight through after first use, and the usual cell shape is read without the general attribute loop. Whole open 1 to 19% faster.
 
 ### Details
-Row reading alone (WebAssembly sheet step, time new / 1.17.0, lower is better): Chromium 155 big 0.87, formulas 0.87, text 0.63; Firefox 158 0.88, 0.85, 0.65; WebKitGTK 2.52.6 0.76, 0.82, 0.63. Whole open, first in a fresh page: 0.89 to 1.01; later opens (early-stop A/B, both orders): 0.81 to 0.99, Firefox big sheet even (0.94 one order, 1.06 the other).
+Row reading alone (WebAssembly sheet step, time new / 1.17.0, lower is better): Chromium 155 big 0.86, formulas 0.86, text 0.91; Firefox 158 0.89, 0.79, 0.88; WebKitGTK 2.52.6 0.83, 0.80, 0.80 (corrected: the first figures, text 0.63 to 0.65, came from a bench that kept shared-string state between runs). Whole open, first in a fresh page: 0.89 to 1.01; later opens (early-stop A/B, both orders): 0.81 to 0.99, Firefox big sheet even (0.94 one order, 1.06 the other).
 
 ### Deep
 Three changes in xlsx.c rowsPart, stacked: a 256-byte class table for attribute-value and value scans; a per-string flag in the shared-string table (bits 30 and 29 of the length word; strings are capped below 512 MB) so a string that needs no entity decoding or quoting is copied 8 bytes at a time after its first use; and a straight read of <c r="B7" s="2" t="s"> (s and t optional, in that order) that falls back to the general loop on anything else. Tried and not kept: an 8-byte number copy plus a quick attribute-name check (0.99 to 1.04).
