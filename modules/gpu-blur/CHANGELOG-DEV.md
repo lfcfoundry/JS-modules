@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.3 · API 1 · 2026-11-06
+
+### Quick
+Auto no longer sends pictures under 300,000 pixels to the card way unless the 480 x 270 probe found the card strictly faster than WebAssembly. Old code needs no change.
+
+### Deep
+The owner's phone (Android Chrome 156), tester build 2026.11.05.2246: probe card 3.7 ms against WebAssembly 3.0 ms passed the old rule (card <= 2 x WebAssembly + 2 ms), but a drawn 480 x 270 picture took 12.7 ms on the card and 10.9 ms in WebAssembly (1.2x, the module's own verdict flagged it). At 1920 x 1080 the card won 43.4 against 66.4 ms and at 4K 92.3 against 237 ms, so the rule is unchanged for 300,000 pixels and up. Not retested on a card: the cloud machine only exercises the WebAssembly pick (its probe loses), so the phone needs one rerun of the tester to confirm. 32 offline checks pass.
+
 ## 1.3.2 · API 1 · 2026-10-31
 
 ### Quick
