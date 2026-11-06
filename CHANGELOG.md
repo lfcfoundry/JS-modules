@@ -11,7 +11,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
-| [gpu-blur](modules/gpu-blur/README.md) | 1.3.2 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
+| [gpu-blur](modules/gpu-blur/README.md) | 1.3.4 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 · API 1 | [changelog](modules/fly-to-mini/CHANGELOG.md) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
@@ -68,8 +68,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **lfc-pack** 0.5.4 · API 0: The first big read on a page is 2 to 3 times faster: a fixed rule replaces the one-time timing probe for building rows.
 - 2026-11-06 · **lfc-pack** 0.5.3 · API 0: Firefox: row reads about 13% faster on IP address columns.
 - 2026-11-06 · **lfc-pack** 0.5.2 · API 0: Chromium: row reads about 7% faster on dense blocks (columns decoded one at a time, table-built IP text).
-- 2026-11-06 · **gpu-blur** 1.3.4 · API 1: Faster big blurs on a laptop with a real graphics card: pictures of a million pixels and up now use the card whenever the start-up probe found it plausible (within 10 times WebAssembly). On the owner's laptop (Firefox 160) the card way took 24 against 39 ms at 1080p and 90 against 174 ms at 4K, but auto had picked WebAssembly. A device whose card looks hopeless on the probe is unchanged.
-- 2026-11-06 · **gpu-blur** 1.3.3 · API 1: Fixed: on a phone, small pictures (under 300,000 pixels, such as 480 x 270) went to the graphics card although WebAssembly was faster (10.9 against 12.7 ms). Small pictures now use the card only when the start-up probe found it strictly faster. Big pictures are unchanged.
+- 2026-11-06 · **gpu-blur** 1.3.4 · API 1: Big pictures blur on the card way on a laptop: Firefox 1080p 38 to 17 ms, 4K 174 to 65 ms. Small ones stay on WebAssembly.
+- 2026-11-06 · **gpu-blur** 1.3.3 · API 1: Fixed: on a phone, small pictures (480 x 270) went to the card although WebAssembly was faster (10.9 against 12.7 ms). Small ones now use the card only when the start-up probe found it strictly faster.
 - 2026-11-05 · **zip-open** 1.18.2 · API 1: Text-heavy Excel sheets open 2 to 13% faster; other sheets about the same. Same results.
 - 2026-11-05 · **zip-open** 1.18.1 · API 1: Excel sheets with many numbers and dates open 4 to 14% faster; text-heavy sheets about the same. Same results.
 - 2026-11-05 · **zip-open** 1.18.0 · API 1: The first Excel file you open in a page opens 11 to 45% faster: zip-open warms up its reader on a tiny made-up workbook shortly after it loads (about 20 to 30 ms of work, no file, no network; a real open stops it). Same results.

@@ -3,10 +3,10 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.3.4 · API 1 · 2026-11-06
-- Faster big blurs on a laptop with a real graphics card: pictures of a million pixels and up now use the card whenever the start-up probe found it plausible (within 10 times WebAssembly). On the owner's laptop (Firefox 160) the card way took 24 against 39 ms at 1080p and 90 against 174 ms at 4K, but auto had picked WebAssembly. A device whose card looks hopeless on the probe is unchanged.
+- Big pictures blur on the card way on a laptop: Firefox 1080p 38 to 17 ms, 4K 174 to 65 ms. Small ones stay on WebAssembly.
 
 ## 1.3.3 · API 1 · 2026-11-06
-- Fixed: on a phone, small pictures (under 300,000 pixels, such as 480 x 270) went to the graphics card although WebAssembly was faster (10.9 against 12.7 ms). Small pictures now use the card only when the start-up probe found it strictly faster. Big pictures are unchanged.
+- Fixed: on a phone, small pictures (480 x 270) went to the card although WebAssembly was faster (10.9 against 12.7 ms). Small ones now use the card only when the start-up probe found it strictly faster.
 
 ## 1.3.2 · API 1 · 2026-10-31
 - Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.

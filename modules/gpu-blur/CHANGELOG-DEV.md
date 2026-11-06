@@ -5,10 +5,13 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 1.3.4 · API 1 · 2026-11-06
 
 ### Quick
-Pictures of 1,000,000 pixels and up take the card way for a drawn canvas whenever the 480 x 270 probe put the card within 10x of WebAssembly (glMs <= 10 x wasmMs + 2). `info()` gains glBig. Old code needs no change.
+Auto picks the way by size: card from 1,000,000 pixels when the tiny probe looks plausible; small pictures only when the probe was strictly faster.
+
+### Details
+Pictures of 1,000,000 pixels and up take the card way for a drawn canvas when the 480 x 270 probe put the card within 10x of WebAssembly (glMs <= 10 x wasmMs + 2); under 300,000 pixels only when the card was strictly faster. info() gains glBig. Firefox 160 laptop drawn canvas: 1080p 38 to 17 ms, 4K 174 to 65 ms; phone small picture 11.6 to 10.3 ms.
 
 ### Deep
-Owner's laptop, Firefox 160 (real card): tiny probe card 6.0 against WebAssembly 1.0 ms, so auto stayed on WebAssembly; drawn canvas out took 24.0 (card) against 39.0 ms at 1080p and 90.0 against 174 ms at 4K (1.6x and 1.9x). Chrome 156 on the same laptop: card 12.0 against 29.9 and 36.6 against 102 (auto already took the card). Phone, Chrome 156: 43.4 against 66.4 and 92.8 against 223. Cloud software path: probe ratio 39, so the rule keeps WebAssembly. Two bigger probes were tried first and dropped: 960 x 540 read card 8 against WebAssembly 5 ms on Firefox (at the break-even, 1 ms timer step), and 1280 x 720 (WebAssembly cut into short tasks) read 11 against 9 ms while the real drawn picture takes about 13 against 17 ms at that size; a probe without the drawing underestimates WebAssembly's cost. So the rule is a size rule on the tiny probe's ratio. Risk: a weak card within 10x that loses at 1 megapixel; none seen in 3 devices. Offline: 32 checks pass, 7 of 7 broken copies caught. Needs a rerun on the laptop and phone to confirm.
+Owner's phone (Chrome 156): probe card 3.7 against WebAssembly 3.0 ms picked the card, but 480 x 270 took 12.7 (card) against 10.9 ms; 1.3.3 made small pictures need a strictly faster probe. Owner's laptop, Firefox 160: tiny probe card 6.0 against 1.0 ms kept WebAssembly, yet drawn canvas took 24.0 (card) against 39.0 ms at 1080p and 90.0 against 174 ms at 4K; Chrome 156 and the phone already took the card. Two bigger probes (960 x 540, 1280 x 720) were tried and dropped: 960 x 540 read 8 against 5 ms at the break-even, 1280 x 720 read 11 against 9 ms while the real drawn picture takes about 13 against 17 ms, because a probe without the drawing underestimates WebAssembly. So the rule is a size rule on the tiny probe ratio. Same release: the device tester times the browser canvas filter against every route to a finished picture (the filter returns in about 0.1 ms without a read-back); 2048 x 2048 radius 24 bytes out, gpu-blur helpers 11.6 to 42 ms against 27 to 83.5 ms for the filter on three devices. 32 offline checks pass, 7 of 7 broken copies caught.
 
 ## 1.3.3 · API 1 · 2026-11-06
 
