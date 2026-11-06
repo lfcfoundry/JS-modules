@@ -28,7 +28,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.2 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
-| [zip-open](modules/zip-open/README.md) | 1.19.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
+| [zip-open](modules/zip-open/README.md) | 1.19.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.12.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.9.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
