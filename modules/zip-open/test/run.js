@@ -636,9 +636,39 @@ t('Warm-up also starts the second thread, so the first big sheet already unpacks
   U._pipe(spawn, 1024); var q0 = U._piped();
   try {
     U._warm(2); for (var k = 0; k < 300 && !(U._warmed() >= 302 && spawned); k++) await wait(10);
-    assert.equal(spawned, 1, 'the thread started with the warm-up'); await wait(200);
+    assert.equal(spawned, 2, 'both threads started with the warm-up'); await wait(200);
     assert.deepStrictEqual(await U.expand(x, 'b.xlsx'), want);
     assert.equal(U._piped(), q0 + 1, 'the first open used it');
+  } finally { U._pipe(); }
+});
+t('Big shared strings unpack on a third thread while the rows are read, then go in (same tables; odd cases and damage the usual way)', async function () {
+  var WT = require('worker_threads'), spawned = 0, wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var spawn = function (code) {
+    spawned++;
+    var w = new WT.Worker("const {parentPort}=require('worker_threads');globalThis.postMessage=(m,t)=>parentPort.postMessage(m,t);parentPort.on('message',d=>globalThis.onmessage({data:d}));" + code, { eval: true }), o = { postMessage: function (m, t) { w.postMessage(m, t); }, terminate: function () { return w.terminate(); } };
+    w.on('message', function (d) { o.onmessage({ data: d }); }); w.on('error', function (e) { if (o.onerror) o.onerror(e); }); return o;
+  };
+  var mk = function (extra) {
+    var rows = [['id', 'name', 'when', 'note']]; for (var i = 0; i < 9000; i++) rows.push([i, 'name "' + (i % 997) + '", ok', { d: 44000 + i }, i % 3 ? 'n\u00e9 ' + i : 'x' + i]);
+    return u8(Z.makeXlsx([{ name: 'Small', rows: [['a', 'b'], ['name "1", ok', 2]] }, { name: 'Big', rows: rows.concat(extra || []) }]));
+  };
+  var x = mk(), xe = mk([['', 'tail']]);
+  var want = await U.expand(x, 'b.xlsx'), wante = await U.expand(xe, 'b.xlsx'), s0 = U._sstPiped(), q0 = U._piped(), got;
+  U._pipe(spawn, 1024, 1024);
+  try {
+    assert.deepStrictEqual(await U.expand(x, 'b.xlsx'), want); await wait(300);
+    assert.equal(spawned, 2, 'both threads started after the first open: ' + spawned);
+    got = await U.expand(x, 'b.xlsx'); assert.deepStrictEqual(got, want);
+    assert.equal(U._sstPiped(), s0 + 1, 'the shared strings came from the third thread'); assert.equal(U._piped(), q0 + 1, 'the rows were read before them');
+    assert.deepStrictEqual(await U.expand(xe, 'b.xlsx'), wante, 'an empty shared text: read again the usual way');
+    var lr = [['k', 'v']], longT = 'long text '.repeat(30); for (var i = 0; i < 40000; i++) lr.push([i, longT + (i % 20)]);
+    var xl = u8(Z.makeXlsx([{ name: 'L', rows: lr }])), wantl; U._pipe(); wantl = await U.expand(xl, 'b.xlsx'); U._pipe(spawn, 1024, 1024); await U.expand(x, 'b.xlsx'); await wait(300);
+    var sl = U._sstPiped(); assert.deepStrictEqual(await U.expand(xl, 'b.xlsx'), wantl, 'texts longer than the room: the usual way'); assert.equal(U._sstPiped(), sl + 1);
+    var ents = U.list(x).entries, e = ents.filter(function (q) { return /sharedStrings\.xml$/.test(q.path); })[0], bad = x.slice();
+    bad[e.start + 30 + e.path.length + 200] ^= 0x55;
+    var wantb = await U.expand(bad, 'b.xlsx', {}); U._pipe(); var plain = await U.expand(bad, 'b.xlsx'); U._pipe(spawn, 1024, 1024); await U.expand(x, 'b.xlsx'); await wait(300);
+    got = await U.expand(bad, 'b.xlsx');
+    assert.deepStrictEqual(got.files, plain.files); assert.ok(got.notes.some(function (n) { return /sharedStrings\.xml.*(damaged|more than)/.test(n); }), JSON.stringify(got.notes));
   } finally { U._pipe(); }
 });
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });
