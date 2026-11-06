@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.4 · API 2 · 2026-11-05
+- First pack of a big list is 7 to 12% faster in a fresh page.
+
 ## 2.10.3 · API 2 · 2026-11-01
 - view() also opens number and text columns inside nested records and lists block by block: the first row is ready 1.6 to 14 times as fast (38 to 93% less time) on such lists; same results.
 

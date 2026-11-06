@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.4 · API 2 · 2026-11-05
+
+### Quick
+The number path is split into small functions per kind (chunked scan, one fill loop per width, one add loop per width, the mixed-kind scan in its own function), so the browser does not re-optimize one big function on the first call (same c…
+
+### Deep
+The number path is split into small functions per kind (chunked scan, one fill loop per width, one add loop per width, the mixed-kind scan in its own function), so the browser does not re-optimize one big function on the first call (same cause as lfc-pack 0.4.22). First pack of 150,000 records in a fresh worker, new/old (lower is better): Chromium 0.88, Firefox 0.93; unpack on its own: Chromium 0.93, Firefox 1.00. Files are byte for byte the same; no format change, no new setting. Owner's card: ship B.
+
 ## 2.10.3 · API 2 · 2026-11-01
 
 ### Quick
