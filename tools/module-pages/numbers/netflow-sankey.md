@@ -10,7 +10,9 @@ Compared: netflow-sankey against d3-sankey (ms).
 
 On small graphs d3-sankey is faster with the default settings. The default searches for fewer crossings, about 6% fewer than with restarts 0. From 200 nodes up, netflow-sankey is 4x to 5x faster.
 
-**New in 2.10.0: `quick: true` wins small charts on speed.** Opt-in. Cloud-browser runs (shared machine, not the laptop). A 100-item chart, warm, lower is better: Chromium 0.50 ms against d3-sankey's 0.72, Firefox 0.60 against 1.00, WebKitGTK 0.60 against 0.80. It still draws 74 to 78% of d3-sankey's weighted crossings. The default is unchanged (about 2 ms, 68 to 73% of d3-sankey's crossings).
+**Against d3-sankey: `quick: true` wins small charts on speed.** Opt-in. Cloud-browser runs (shared machine, not the laptop). A 100-item chart, warm, lower is better: Chromium 0.50 ms against d3-sankey's 0.72, Firefox 0.60 against 1.00, WebKitGTK 0.60 against 0.80. It still draws 74 to 78% of d3-sankey's weighted crossings. The default is unchanged (about 2 ms, 68 to 73% of d3-sankey's crossings).
+
+Against d3-sankey in Firefox 160 (ms): 72 nodes 2.0 (restarts 0: 0.5) against 1.0, so d3 is faster with the default settings there; 200 nodes 3.0 against 11 (3.7x); 500 nodes 11 against 61 (5.5x).
 
 
 **Version against version, real laptop, ungoogled Chromium 156 (Windows), 16 cores, 2026.10.30, 9:47 PM.** Medians; lower is better. One browser on one machine.
@@ -32,7 +34,6 @@ Same order and crossings from both versions. Only the smallest graph is faster.
 | 200 items, 1500 links | 4.0 | 4.0 |
 | 500 items, 6000 links | 10 | 10 |
 
-Against d3-sankey in Firefox 160 (ms): 72 nodes 2.0 (restarts 0: 0.5) against 1.0, so d3 is faster with the default settings there; 200 nodes 3.0 against 11 (3.7x); 500 nodes 11 against 61 (5.5x).
 
 
 **New in 2.3.3: bars settle into place in WebAssembly.** Same pictures to the last digit. Whole layout of 1,500 items and 2,331 links, time new / old, lower is better:

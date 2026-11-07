@@ -12,7 +12,7 @@ Compared: netflow-layers against dagre (ms).
 dagre was not run at 1000 items because it grows far faster than linearly.
 
 
-**New in 1.6.0: a deeper crossing search, off by default.** `deep: true` with `rows: "best"`, on random maps with no loops (Netflow Map's test data). Row crossings, lower is better:
+**Crossings against dagre and ELK: a deeper search (1.6.0), off by default.** `deep: true` with `rows: "best"`, on random maps with no loops (Netflow Map's test data). Row crossings, lower is better:
 
 | Items | Default in 1.6.0 | deep + best | dagre 0.8.5 | ELK 0.12.1 |
 |---|---:|---:|---:|---:|
@@ -33,7 +33,7 @@ That is 17 to 37% fewer crossings than the default, and 4 to 12% fewer than dagr
 dagre took about 0.8 s at 400 items and 7.2 s at 1,000. With the options off, pictures and speed are unchanged.
 
 
-**Since 1.8.0: the default is as tidy as `deep: true`.** A lighter deep search (at most 12 rounds, and it stops after 4 rounds with no gain; 1.7.0 stopped after 2) and both row choices run unless you set `deep: false` and `rows: "route"`, which keep the old picture. Same random maps as above, row crossings, lower is better:
+**Crossings against dagre and ELK: the default is as tidy (since 1.8.0) as `deep: true`.** A lighter deep search (at most 12 rounds, and it stops after 4 rounds with no gain; 1.7.0 stopped after 2) and both row choices run unless you set `deep: false` and `rows: "route"`, which keep the old picture. Same random maps as above, row crossings, lower is better:
 
 | Items | Old default | 1.7.0 default | 1.8.0 default | `deep: true` | dagre 0.8.5 | ELK 0.12.1 |
 |---|---:|---:|---:|---:|---:|---:|
