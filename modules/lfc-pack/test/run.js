@@ -23,6 +23,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('byte-exact switch', 'node', ['exact.cjs']);
   step('per-path strings pick', 'node', ['pathspick.cjs']);
   step('key and range reads', 'node', ['query.cjs']);
+  step('lazy rows (opt-in)', 'node', ['lazyrows.cjs']);
   step('helper workers', 'node', ['pool.cjs']);
   step('block-parallel pack', 'node', ['parallel.cjs']);
   step('decoder-only build', 'node', ['readonly.cjs']);

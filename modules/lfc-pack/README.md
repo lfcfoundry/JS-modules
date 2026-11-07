@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.5.9 · API 0**
+**Version 0.6.0 · API 0**
 
-**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -66,6 +66,9 @@ Reading:
 LfcPack.unpack(file, { keys: ['ts', 'status'] });
 // rows whose number is in range; blocks outside it are not opened
 LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } });
+// opt-in lazy rows (see "Lazy rows" below): values are read when a key is first used
+LfcPack.unpack(file, { rows: 'lazy' });      // columns decoded at unpack, rows made cheaply
+LfcPack.unpack(file, { rows: 'lazycols' });  // a column is decoded only when some row reads its key
 // Uint8Array of NDJSON text (exact if packed with exact: true)
 LfcPack.unpackText(file);
 // opt-in: same file bytes as pack(), blocks packed by helper Web Workers
@@ -115,6 +118,31 @@ Python (needs `pip install zstandard`, or Python 3.14): `python/lfc_pack.py` giv
 
 Python writer: `python/lfc_pack_write.py` has `write(src, dst, level=3, exact=False)`, `pack(ndjson_bytes)`, `pack_rows(list)` and `pack_exact(ndjson_bytes, level, mode)` (mode `"lines"` or `"spelling"`). It writes nested and flat blocks and link-list columns, values exact (numbers are doubles); files open in `lfc-pack.js` and `lfc_pack.py`. No log templates, no helper-worker splitting. A block never ends up larger than plain zstd of its lines.
 
+## Lazy rows (opt-in, since 0.6.0)
+`unpack(file, { rows: 'lazy' })` and `{ rows: 'lazycols' }` return rows that read their values from the decoded columns instead of copying them into one plain object per row. With `'lazycols'`, a column nobody reads is never decoded. Both are off by default, and nothing changes unless you ask for them. They apply to dense flat blocks. Other blocks (nested, sparse keys, a key named `toJSON` or `__proto__`) give plain rows as before.
+
+Limits:
+- Rows are not plain objects. `row.key`, `'key' in row`, `for...in` and `JSON.stringify(row)` work as usual, but `Object.keys(row)` is empty, and spread (`{...row}`), `Object.assign`, `hasOwnProperty`, `structuredClone` and `postMessage` lose the values. Copy with `JSON.parse(JSON.stringify(row))` before sending rows to a worker.
+- The file's block checks still run at unpack. With `'lazycols'`, a column that passes those checks but cannot be decoded throws the first time a row reads it, not at unpack.
+- The rows keep the block's compressed columns alive until the rows are dropped.
+- If you read every field of every row, plain rows are as fast or faster (see below).
+
+Speed: 300,000 rows of 8 keys (a 33 MB JSON array, a 46 KB `.json.lfc` file). `JSON.parse` gets the same rows as `TextDecoder` + `JSON.parse` of the JSON text. Median of 5 runs taking turns, in ms (lower is better):
+
+| Browser | What the page does | `JSON.parse` | lfc-pack plain rows | `rows: 'lazy'` | `rows: 'lazycols'` |
+|---|---|---|---|---|---|
+| Chromium 155 | open | 206 | 159 | 69 | 22 |
+| | open + read 1 field of every row | 168 | 117 | 58 | 26 |
+| | open + read all 8 fields | 161 | 162 | 118 | 130 |
+| Firefox 158 | open | 213 | 87 | 84 | 40 |
+| | open + read 1 field | 209 | 92 | 78 | 45 |
+| | open + read all 8 fields | 201 | 86 | 112 | 155 |
+| WebKitGTK 2.52.6 | open | 202 | 59 | 42 | 20 |
+| | open + read 1 field | 214 | 60 | 56 | 29 |
+| | open + read all 8 fields | 275 | 61 | 86 | 81 |
+
+All three modes return the same values as `JSON.parse` in each browser. Use `'lazycols'` when a page reads a few fields of big files. Keep plain rows when it reads every field, or when rows go to `postMessage` or spread.
+
 ## How the file is laid out
 - **Nested blocks** (any JSON): each row is split into a *shape* (its keys, nesting and value kinds) and its values. Rows with the same shape share one entry. Strings of the block go into one dictionary (each distinct string once, rows hold small codes); numbers and booleans go into one column per path (`.actor.id`, `.payload.commits[].sha`), stored at the narrowest width that holds every value (8, 16, 32 bits or a 64-bit float). A WebAssembly tokenizer does the splitting and the dictionary.
 - **Flat blocks** (every row an object): one column per key plus one presence bit per row and key, so missing keys cost almost nothing. Columns pick their own coding: delta or zig-zag varints (also for numbers with two decimals), bit-packed offsets, floats, booleans as bits, hex ids and UUIDs as raw bytes, IPv4 as four bytes, a block dictionary, plain strings, or JSON text for anything else. A string column that looks like log lines (long, mostly unique) is also tried as **log templates**: runs of digits and long hex numbers become slots, the rest becomes a template list, and the writer keeps it only when that is at least 5% smaller.
@@ -141,6 +169,7 @@ Speed: measured results, each labeled with its browser and machine (the real lap
 - Input is NDJSON, one value per line. Blank lines and `\r` are dropped in value mode (kept in `exact` mode). Lines that are not valid JSON make `pack` throw.
 - Value mode returns the values `JSON.parse` returns: numbers are doubles (9007199254740993 comes back as 9007199254740992), `1.0` comes back as `1`, `-0` stays `-0`, duplicate keys keep the last value, object keys come back in first-seen order per block (integer-like keys first, as in any JavaScript object).
 - Memory: the writer's wasm instance reserves about 400 MB of address space (not all touched) for a 21 MB block; since 0.4.0 `trim()` gives grown memory back after a job, and idle `packParallel` helpers keep theirs until they close, 3 s after the last call (giving it back at once made each call grow it again, 7 to 25% slower); the packer also gives its memory back by itself after 30 s without packing. Blocks are capped at 48 MB, 4 million numbers and 262,144 rows; a block that exceeds the caps is split.
+- `rows: 'lazy'` and `'lazycols'` rows are not plain objects: `Object.keys`, spread, `structuredClone` and `postMessage` lose the values (see "Lazy rows").
 - Rows are objects; a file of bare numbers or arrays works (nested layout) but gains little.
 - **The format is not frozen until a formal release**: files written by 0.x versions may not open in later ones.
 - Not built yet: the number-spelling section (smaller `exact` files), a streaming reader, the SQL subset, Parquet and CSV converters, and a command-line tool.
