@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.14.2 · API 2 · 2026-11-07
+
+### Quick
+Number axes at 10,000 or more use one unit set by the biggest tick (5k ... 40k, 0.5B ... 3.0B), with the decimals the step needs; was 5,000 next to 10k and 500M next to 1B.
+
+### Details
+axisFor: tu from max(|lo|,|hi|) (1e9/1e6/1e3 at >= 1e4), ud = fewest decimals that keep every tick exact to step/1000, 0 written as 0.
+
+### Deep
+Lead from the test-set review.
+
 ## 2.14.1 · API 2 · 2026-11-07
 
 ### Quick
