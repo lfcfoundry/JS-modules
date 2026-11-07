@@ -80,6 +80,12 @@ h2{font-size:clamp(28px,4vw,40px);font-weight:700;margin-bottom:14px}
 .bar{height:100%;background:var(--bar-other)}.bar.hi{background:var(--hi)}
 .track b{position:absolute;top:50%;transform:translateY(-50%);margin-left:8px;font:700 15px var(--body);color:var(--fg);white-space:nowrap}
 .src{font-size:14px;color:var(--muted);margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.score .track{border-left:0}.score .row:not(.ax) .track:before{content:"";position:absolute;left:13.1%;top:-3px;bottom:-3px;border-left:2px solid var(--fg)}
+.dot{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--hi)}.dot.l{background:#c84d4f}
+.score .track b.lo{margin-left:0;transform:translate(calc(-100% - 12px),-50%)}
+.ax .track{height:18px}.ax span{position:absolute;transform:translateX(-50%);font-size:13px;color:var(--muted)}
+@media (prefers-color-scheme:dark){.dot.l{background:#e07a7c}}
+@media (max-width:600px){.score .track b.lo{transform:translateY(-50%);margin-left:26px}.ax{display:none}}
 @media (max-width:600px){.bench{gap:34px}.row{grid-template-columns:1fr;gap:5px;margin-bottom:16px}.row>span{font-size:15px;color:var(--muted)}.src{font-size:15px;line-height:1.5}.track{height:30px}}
 .code{background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:20px;overflow-x:auto;font:15px/1.6 var(--mono);margin-top:22px}
 .code .c{color:#7d93b0}.code .k{color:#7cc0ff}.code .s{color:#9fe0b4}
@@ -180,6 +186,26 @@ footer a{margin-right:16px}
   <h2>Smaller and faster than the usual choice</h2>
   <p class="lead">Measured against the common alternative. Each chart says where it ran; both come from the module pages.</p>
   <div class="bench">
+    <div class="eco score">
+    <h3>We are ahead of the nearest alternative on 12 of the 14 comparisons we have measured, and behind on 2</h3>
+    <p class="sub">Times faster than the named alternative, one dot per comparison (log scale; the line is level, right is ahead).</p>
+    <div class="row"><span>netflow-layers vs dagre, 300 items</span><div class="track"><i class="dot" style="left:84.4%"></i><b class="" style="left:84.4%">710x</b></div></div>
+    <div class="row"><span>graph-walk vs graphology</span><div class="track"><i class="dot" style="left:59.2%"></i><b class="" style="left:59.2%">70x</b></div></div>
+    <div class="row"><span>save-kit vs idb-keyval, save</span><div class="track"><i class="dot" style="left:44.5%"></i><b class="" style="left:44.5%">18x</b></div></div>
+    <div class="row"><span>memory-compression vs fflate (low end)</span><div class="track"><i class="dot" style="left:43.2%"></i><b class="" style="left:43.2%">16x</b></div></div>
+    <div class="row"><span>lzma-decode vs LZMA-JS (low end)</span><div class="track"><i class="dot" style="left:40.1%"></i><b class="" style="left:40.1%">12x</b></div></div>
+    <div class="row"><span>gif-writer vs gifenc (low end)</span><div class="track"><i class="dot" style="left:32.5%"></i><b class="" style="left:32.5%">6x</b></div></div>
+    <div class="row"><span>clip-writer MP4 vs mp4-muxer</span><div class="track"><i class="dot" style="left:32.5%"></i><b class="" style="left:32.5%">6x</b></div></div>
+    <div class="row"><span>text-columns vs Papa Parse</span><div class="track"><i class="dot" style="left:26.4%"></i><b class="" style="left:26.4%">3.4x</b></div></div>
+    <div class="row"><span>LFC-pack write vs gzip</span><div class="track"><i class="dot" style="left:25.7%"></i><b class="" style="left:25.7%">3.2x</b></div></div>
+    <div class="row"><span>walker-sim vs a plain loop</span><div class="track"><i class="dot" style="left:24.6%"></i><b class="" style="left:24.6%">2.9x</b></div></div>
+    <div class="row"><span>gpu-blur bytes out vs browser filter</span><div class="track"><i class="dot" style="left:22.1%"></i><b class="" style="left:22.1%">2.3x</b></div></div>
+    <div class="row"><span>zip-open vs fflate</span><div class="track"><i class="dot" style="left:16.7%"></i><b class="" style="left:16.7%">1.4x</b></div></div>
+    <div class="row"><span>gpu-blur drawn vs browser filter, Firefox laptop</span><div class="track"><i class="dot l" style="left:7.5%"></i><b class="lo" style="left:7.5%">0.6x</b></div></div>
+    <div class="row"><span>save-kit vs localForage, 20 KB load</span><div class="track"><i class="dot l" style="left:5.5%"></i><b class="lo" style="left:5.5%">0.5x</b></div></div>
+    <div class="row ax"><div></div><div class="track"><span style="left:13.1%">1x</span><span style="left:38.1%">10x</span><span style="left:63.1%">100x</span><span style="left:88.1%">1,000x</span></div></div>
+    <p class="src">Source and notes: each dot is the headline figure from that module's page, the lowest end where it is a range; laptop runs where we have them, otherwise the three cloud browsers. One compares against a plain loop, not a rival library. The netflow-layers dot is speed only; its page has the crossings comparison. The two behind are on their module pages with the reasons.</p>
+  </div>
     <div class="eco">
     <h3>memory-compression makes 300,000 network links about 2.5 times smaller than msgpackr</h3>
     <p class="sub">Size of 300,000 network links, megabytes. Lower is better.</p>
