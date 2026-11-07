@@ -2,6 +2,78 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.1 · API 2 · 2026-11-07
+
+### Quick
+WebKit create().load: the long-name text test is now a sampled scan (every 201st character) instead of a regular expression: about 19 us to 1 us on a 14 KB save; 20 KB kit.load 153-158 to 140-143 us; against localForage's localStorage driver 1.27x to 1.20x.
+
+### Deep
+longRun(t) replaces LONGKEY = /"[^"]{201}/ in parseSlot (JSC only). It answers exactly /[^"]{201}/ (300,000 random texts, 0 differ), a superset of the old test, so the fast values-only check is used only when no name can exceed 200 characters. Cost: WebKitGTK 2.52.6 regex 19.0 us vs sampled scan 1.3 us on 14 KB; worst case linear (stops at the first long run). Equivalence vs 2.2.0 under a WebKit user agent: 20,000 random loads and 4,000 long-name loads (names of 195-206 and up to 600 characters, broken counts), 0 differ. Small-save A/B (tests/save-kit-small-browser.js, WebKitGTK): 20 KB load vs localForage localStorage driver 1.20 (range 1.06-1.44). Profile of what is left: kit.load 140 us vs getItem + JSON.parse 106 us; save 34.5 us vs stringify + setItem 19.5 us, of which about 9.5 us is the counts check (Object.values of two 400-name maps). Also tried: column form for create() counts maps (helper, slower: rebuild costs more than the parse saves).
+
+## 2.2.0 · API 2 · 2026-11-07
+
+### Quick
+Outside Chromium, createLarge stores an array of 10,000+ same-shape plain records (numbers, strings, true/false, null) as columns {k, c}: about 40% less text. WebKitGTK 20 MB load 0.70-0.77x, save 0.80-0.84x; Firefox 20 MB load 0.70x, save 0.73x; 5 MB load 0.7-0.8x. Chromium unchanged. 2.1.0 and older cannot read column saves.
+
+### Deep
+Columns for createLarge. Outside Chromium-family browsers an array field of 10,000+ entries that are all plain objects (constructor Object) with the same names in the same order and only number, string, boolean or null values is stored as {k: names, c: columns}; pieces saves (100,000+) do this per piece (piece f: 1), smaller arrays keep one columns piece inside the head record (rec.q), so still one read. load() rebuilds the same objects (same names, order, values). Refused as broken: short column, repeated or __proto__ name, wrong total, wrong save id. Chromium keeps rows: columns there made 20 MB saves 17-30% slower for an 8% faster load. Hidden cost found and avoided: reading pieces as they arrive (parse on arrival) made the NEXT Chromium save about 30% slower (JSON.stringify of the unrelated state 58-62 -> 73-78 ms); kept the old gather-then-parse order. Parse-on-arrival and asking for pieces with the head gave no gain in WebKit. Measured ms 2.1.0/2.2.0 (2 runs): WebKitGTK 2.52.6 20 MB load 111-116/78-89, save 72-75/58-63, 5 MB load 31/24-26; Firefox 158 20 MB load 143-156/102-109, save 148-150/104-113, 5 MB load 37-38/26-27; Chromium 155 20 MB 88-90/89-92 save, 93-99/93-98 load. Equivalence: 133 cases per browser (odd shapes, undefined, nested, Date, class, null-prototype, toJSON, holes, unicode, -0, NaN, integer-like names, damaged columns) equal to 2.1.0 in Chromium 155, Firefox 158, WebKitGTK 2.52.6; the pieces test (60 cases, WebKitGTK) equal; 43 large-save checks pass in all three. Upgrade note: save-kit 2.1.0 or older cannot read a save written as columns.
+
+## 2.1.0 · API 2 · 2026-11-07
+
+### Quick
+New kit.warm() (off unless called) does the load early, so the next load() takes about 0.5 us (Chromium) to 1.5 us (WebKitGTK) instead of 85-140 us for 20 KB. Big createLarge saves (an array of 100,000+ entries) are stored in up to 8 pieces: 20 MB load 0.76x of the time in WebKitGTK, 0.90x in Chromium and Firefox; saves 0.63-0.99x.
+
+### Deep
+New kit.warm() (off unless called) does the load early, so the next load() takes about 0.5 us (Chromium) to 1.5 us (WebKitGTK) instead of 85-140 us for 20 KB. Big createLarge saves (an array of 100,000+ entries) are stored in up to 8 pieces: 20 MB load 0.76x of the time in WebKitGTK, 0.90x in Chromium and Firefox; saves 0.63-0.99x. Owner cards: Add it, off by default (warm); Yes, all browsers (pieces). Pieces patch from the helper thread Speed up save-kit big loads in WebKit. Upgrade note: save-kit 2.0.2 or older cannot read a big save written in pieces.
+
+## 2.0.2 · API 2 · 2026-11-06
+
+### Quick
+WebKitGTK 2.52.6 20 KB load is about 7% faster in one page harness (128.5-132.5 to 120-121 us; helper harness 10-13%): when the save text holds no backslash and no 201-character quoted run, the counts check reads the values only.
+
+### Deep
+WebKitGTK 2.52.6 20 KB load is about 7% faster in one page harness (128.5-132.5 to 120-121 us; helper harness 10-13%): when the save text holds no backslash and no 201-character quoted run, the counts check reads the values only. Names are still checked: the text test proves no name is over 200 characters, and the three prototype names are looked up once. Chromium and Firefox paths unchanged. Patch from the research helper thread.
+
+## 2.0.1 · API 2 · 2026-11-06
+
+### Quick
+Small loads skip a second walk of each counts map: 448 B load against localForage's localStorage driver in Chromium 155 went from 1.16-1.20x to 1.09-1.10x; same answers as 2.0.0.
+
+### Deep
+Small loads skip a second walk of each counts map: 448 B load against localForage's localStorage driver in Chromium 155 went from 1.16-1.20x to 1.09-1.10x; same answers as 2.0.0. The full counts loop now notes whether a map held a broken number (the same test as the backup check), so load() counts broken fields without walking the maps again.
+
+## 2.0.0 · API 2 · 2026-11-06
+
+### Quick
+In Chromium-family browsers create() saves counts maps of 32 or more names as [names, counts]: a 20 KB save is now faster than localForage's localStorage driver (0.81x, was 1.25x), load 1.05x (was 1.39x). Older copies and save-kit-lite cannot read those saves.
+
+### Deep
+In Chromium-family browsers create() saves counts maps of 32 or more names as [names, counts]: a 20 KB save is now faster than localForage's localStorage driver (0.81x, was 1.25x), load 1.05x (was 1.39x). Older copies and save-kit-lite cannot read those saves. Every browser reads both shapes; the [names, counts] lists are checked entry by entry while the map is rebuilt (a repeated name keeps its first place and last count, as JSON.parse does), and anything off hands the ordinary checks a plain map. Firefox and WebKitGTK keep the object shape (rebuilding maps costs about 50 us there). Owner cards: Chromium only, 2.0.0 with API 2.
+
+## 1.6.3 · API 1 · 2026-11-06
+
+### Quick
+A 20 KB load against localForage's localStorage driver went from 1.78 to 1.41x of its time in Chromium, 1.45 to 1.22 in Firefox and 2.03 to 1.41 in WebKitGTK; same answers.
+
+### Deep
+A 20 KB load against localForage's localStorage driver went from 1.78 to 1.41x of its time in Chromium, 1.45 to 1.22 in Firefox and 2.03 to 1.41 in WebKitGTK; same answers. A clean load now checks each counts map once (a map whose entries are all whole numbers in range keeps the parsed object, without a prototype) and skips the second scan that looked for damaged fields; any miss falls back to the old path. On WebKit the key loop uses for...in (about 12% faster there, about 7% slower in Chromium, so WebKit only). Tried and dropped: for...in everywhere.
+
+## 1.6.2 · API 1 · 2026-11-06
+
+### Quick
+A 16 MB load with a raw field is 0.72x of the time in Chromium (120 to 87 ms) and 0.93x in WebKitGTK; Firefox unchanged within noise.
+
+### Deep
+A 16 MB load with a raw field is 0.72x of the time in Chromium (120 to 87 ms) and 0.93x in WebKitGTK; Firefox unchanged within noise. The depth check on the loaded raw field now uses for...in instead of Object.keys; the answers are the same.
+
+## 1.6.1 · API 1 · 2026-11-05
+
+### Quick
+Faster loads, same answers.
+
+### Deep
+Faster loads, same answers. create().load: a 448-byte save loads 5 to 6% faster and a 20 KB save 6 to 15% faster (new over old, paired alternating runs, early-stop rule, ratio below 1 is faster: 448 B Chromium 0.94, Firefox 0.95, WebKitGTK 0.94; 20 KB Chromium 0.93, Firefox 0.85, WebKitGTK 0.87). Why: the two commonest field types (num, flag) are checked inside the loop instead of a call each, a field is read straight from a plain parsed object (the own-property call stays for names that also exist on Object.prototype and for objects with another prototype), and numbers and key names are tested with a subtraction and string compares instead of isFinite and an object lookup. createLarge().load: a save with no 'raw' field no longer scans the saved text for prototype-pollution names, and one with a raw field scans once with a regular expression instead of three indexOf passes (13 MB of text: 8.5 to 10 ms down to 2.2 to 3 ms in Chromium 155, Firefox 158 and WebKitGTK 2.52.6). Paired 16 MB load, new over old: Chromium 0.72 (noisy), Firefox 0.95, WebKitGTK 0.88; 1 MB and 4 MB: faster or inconclusive within noise, never slower than 5%. Same output: 52 module checks pass, 17 lean builds pass, 20,000 random inputs (inherited fields, objects with no prototype, field names like constructor and toString) validate to identical text in old and new. Not measured: a phone, Safari itself, saves that are mostly raw data.
+
 ## 1.6.0 · API 1 · 2026-10-31
 
 ### Quick

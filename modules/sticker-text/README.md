@@ -1,8 +1,8 @@
 # sticker-text
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** ungoogled Chromium 155.0.8059.39, Firefox 158.0 and WebKitGTK 2.52.6 (one at a time): the 17 Node checks, the demo page loading without errors, and the measurements above. Not tested: a real screen reader, Windows high contrast, Safari itself.
+**Tested in:** cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; screenshots compared (Chromium default byte for byte the same)
 
 ## What it is and how it works
 
@@ -53,9 +53,9 @@ Speed numbers below: 40 words whose text changes every frame, 100 px lettering, 
 
 | Alternative | Size (smaller is better) | Speed (lower ms per frame is better) | Features | Where it wins / loses |
 |---|---|---|---|---|
-| `-webkit-text-stroke` with `paint-order: stroke fill` (built in) | 0 bytes | the plain stroke alone: not measured. This module's `st-stroke` class uses it; with `st-flat` too: 32 ms in ungoogled-chromium 155.0.8059.39, 27 in Firefox 158.0, 35 in WebKitGTK 2.52.6 | one line of CSS; good for thin outlines | Wins on size and speed. Loses: the stroke straddles the glyph edge and chews thin letters; Chromium 155 draws sharp corners (ignores `stroke-linejoin` on HTML text). |
-| SVG `<text>` with `stroke`, `stroke-linejoin="round"` and `paint-order` (built in) | 0 bytes | not measured | the standard route, round joins | Wins on round corners with no shadows. Loses: needs SVG markup, not a class on a span. |
-| Canvas `strokeText` with `lineJoin = "round"` (built in) | 0 bytes | not measured | what canvas games already use | Wins in canvas games. Loses: no DOM text, so no selection or screen reader text. |
+| `-webkit-text-stroke` with `paint-order: stroke fill` (built in) | 0 bytes | the plain stroke alone: at the 16.7 ms frame limit in Chromium and Firefox, 21 ms in WebKitGTK (same page). This module's `st-stroke` class uses it; with `st-flat` too: 32 ms in ungoogled-chromium 155.0.8059.39, 27 in Firefox 158.0, 35 in WebKitGTK 2.52.6 | one line of CSS; good for thin outlines | Wins on size and speed. Loses: the stroke straddles the glyph edge and chews thin letters; Chromium 155 draws sharp corners (ignores `stroke-linejoin` on HTML text). |
+| SVG `<text>` with `stroke`, `stroke-linejoin="round"` and `paint-order` (built in) | 0 bytes | at the 16.7 ms frame limit in all three browsers (18 ms in WebKitGTK) with a window full of 100 px words changing every frame: not slower than a frame, so no finer number | the standard route, round joins | Wins on round corners with no shadows. Loses: needs SVG markup, not a class on a span. |
+| Canvas `strokeText` with `lineJoin = "round"` (built in) | 0 bytes | at the frame limit in Chromium and Firefox; 58 ms in WebKitGTK (160 canvases, text redrawn each frame) | what canvas games already use | Wins in canvas games. Loses: no DOM text, so no selection or screen reader text. |
 | [stroketext.js](https://www.npmjs.com/package/stroketext.js) (MIT); version not read | not measured; the earlier README called it much larger | not measured | draws the stroke on a canvas behind live text | Loses on size (by that earlier note). Wins: nothing measured. |
 | **sticker-text 1.1.0** | about 4.8 KB JS + CSS minified, about 2.1 KB gzipped | default look (32 shadows): about 70 ms Chromium, 135 ms Firefox, 210 ms WebKitGTK; with `st-flat` about 40% less in Chromium and 37% less in Firefox than 1.0.0; with `st-flat st-stroke` 32, 27 and 35 ms | gradient fill, hard lower edge, soft shadow, wraps, live text, one `font-size` | see below |
 
@@ -65,7 +65,9 @@ Where it loses:
 - `st-stroke` draws sharp corners in Chromium.
 - Needs `sticker-text.css`; text must be plain text.
 - Not tested with a real screen reader, Windows high contrast or Safari itself.
-- Not measured: the plain built-in stroke on its own, SVG text, canvas or stroketext.js in any browser, and the size of stroketext.js.
+- Measured 2026-11-06 (ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6, median of 3 pages x 25 frames, one window of 160 words at 100 px with the text changed every frame; frames cap at 16.7 ms, so a built-in method showing 16.7 is "fits in a frame"). Per frame, ms: plain text-stroke 16.7 / 17 / 21; SVG text 16.6 / 17 / 18; canvas 16.7 / 17 / 58; sticker-text default 114 / 198 / 1,605; sticker-text `st-flat st-stroke` 62 / 42 / 244. Both ways of drawing an outline that the browser has built in are 4 to 90 times lighter than the ring of shadows, so the ring is only worth it when you want its round corners on HTML text in Chromium, the gradient fill or the hard lower edge, with a few titles on screen. The absolute sticker-text figures are higher than the table above (a different, busier run); read the ratios.
+- Since 1.2.0 (owner card "Both changes"; same page, per frame, ms, Chromium / Firefox / WebKitGTK): the default outline is one round stroke in Firefox and Safari/WebKit (apply() adds the class `st-round`; Chrome keeps the 32 shadows because it draws sharp stroke corners), 104 / 184 / 1,691 down to about 100 / 90 / 464; `st-flat st-stroke` draws its hard lower edge with the hidden layout text instead of a filter, 59 / 63 / 204 down to 29 / 41 / 96. Both look the same to the eye; edges sit up to about half a pixel from the old pictures. Chrome's default picture is byte for byte the same. A custom `radii` or `steps` ring keeps its shadows.
+- Not measured: stroketext.js in any browser and its size, a phone, Safari itself.
 
 ## Limits
 - Wrapping works since 1.1.0: the copies take the element's width, `white-space` and `text-align`, so a title wraps and honors `white-space: pre-line` newlines the same way plain text would. Set `white-space: nowrap` yourself if you want one line.

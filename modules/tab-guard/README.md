@@ -64,14 +64,22 @@ With the option on, the guard lets go of the lock when the page is about to be l
 A `localStorage` heartbeat needs timers and can be wrong after a crash. A lock is released by the browser itself when the page unloads, so a closed tab does not leave a stale "in use" flag behind. What happens after a hard crash of the browser process is not documented by MDN and has not been tested here; expect the same cleanup, but do not rely on it for anything that cannot be repaired.
 
 ## How it compares
-Smaller than the two leader-election libraries whose sizes are known, with the one thing a game needs (take over, with callbacks); it has fewer features than they do and needs Web Locks. Speed: not measured (no loop runs; there is one lock request at start-up).
+Smaller than `tab-election` and `broadcast-channel` (measured the same way, below), with the one thing a game needs (take over, with callbacks); it has fewer features than they do and needs Web Locks. `leader-tab` is smaller still (1.9 KB) and does less. Speed does not separate them: every one is a single lock request, and in Chromium 155 and Firefox 158 the first copy is in charge after 4 to 6 ms and the next copy hears about it 3 to 8 ms after the first closes, whichever library it is:
+
+| Ms, median of 5 pairs of tabs (smaller is better) | Chromium 155: first copy in charge / next copy after the first closes | Firefox 158: same |
+|---|---|---|
+| tab-guard 1.1.1 | 4.5 / 8 | 4.0 / 6 |
+| tab-election 4.6.2 | 5.8 / 7 | 5.0 / 6 |
+| broadcast-channel 7.4.0 (`createLeaderElection`) | 5.5 / 3 | 4.0 / 6 |
+
+tab-guard waits 700 ms before calling a refused start a twin (so a reloading page can take its own lock back), which is why the second copy was started 1.1 s before the first closed. WebKitGTK was not measured: the test driver there serves one page at a time, so two tabs cannot be open. Tool: `tests/compare/tab-guard-compare-browser.js`.
 
 | Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins / loses |
 | --- | --- | --- | --- | --- |
-| **tab-guard 1.1.0** (this module, MIT) | 2,769 B minified (1,154 B gzipped, esbuild) | Not measured | One copy in charge, player-chosen takeover, "other copy closed" notice, optional Back-button cache support | Wins: smaller than the libraries, built for one job. Loses: no messages between tabs, no fallback without Web Locks |
-| `tab-election` (license not checked, version not recorded) | About 5.1 KB minified (1.9 KB gzipped) | Not measured | Voluntary step-down, a queue for waiting, tab ids, messages between tabs, a fallback without Web Locks | Wins: more features and a fallback. Loses: bigger |
-| `broadcast-channel` (MIT, version not recorded) | 25.8 KB minified for everything | Not measured | Leader election plus messaging between tabs | Wins: messaging and election in one. Loses: much bigger for this job |
-| `leader-tab` (license and size not checked) | Not measured | Not measured | Leader election | Not compared further |
+| **tab-guard 1.1.1** (this module, MIT) | 2,730 B minified (1,120 B gzipped, terser, comments stripped; 2,769 B and 1,154 B with esbuild) | 4.5 ms to be in charge, 8 ms to hear that the first copy closed (Chromium 155) | One copy in charge, player-chosen takeover, "other copy closed" notice, optional Back-button cache support | Wins: smaller than the libraries, built for one job. Loses: no messages between tabs, no fallback without Web Locks |
+| `tab-election` 4.6.2 (MIT) | 6,319 B minified (2,146 B gzipped, bundled) | 5.8 ms and 7 ms (Chromium 155) | Voluntary step-down, a queue for waiting, tab ids, messages between tabs, a fallback without Web Locks | Wins: more features and a fallback. Loses: bigger |
+| `broadcast-channel` 7.4.0 (MIT) | 15,993 B minified (4,874 B gzipped) for `createLeaderElection` and the channel it needs, bundled; 25.8 KB for everything | 5.5 ms and 3 ms (Chromium 155) | Leader election plus messaging between tabs | Wins: messaging and election in one. Loses: much bigger for this job |
+| `leader-tab` 0.0.4 (MIT) | 1,877 B minified (842 B gzipped) | not measured | Leader election | Smaller than tab-guard; no takeover, no "other copy closed" notice (not tried in a browser) |
 | The MDN "navigator.locks leader" pattern, hand-written | A few lines | Not measured | One holder at a time | Wins: nothing to copy in. Loses: you write the twin, takeover and "other copy closed" handling yourself |
 | A `localStorage` heartbeat with `storage` events | A few lines plus a timer | Not measured | Works where Web Locks does not (plain `http://` pages) | Loses: needs timers and can be wrong after a crash, and a closed tab can leave a stale "in use" flag |
 

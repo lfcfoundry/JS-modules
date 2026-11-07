@@ -33,9 +33,18 @@
 .sticker-text.st-flat { filter: drop-shadow(0 .05em 0 var(--st-edge)); }
 /* Fastest outline: one text stroke instead of 32 shadows. Round corners in Firefox and WebKit; Chrome ignores stroke-linejoin on HTML text and draws sharp (mitered) corners. */
 .sticker-text.st-stroke::before { text-shadow: none; -webkit-text-stroke: .196em; stroke-linejoin: round; }
+/* Since 1.2.0, round outline: apply() adds st-round in Firefox and Safari/WebKit, which draw round stroke corners on HTML text. One round stroke draws
+   the same outline as the 32 shadows to the eye (edges up to about half a pixel apart) and is 2 to 3.5 times faster there. Chrome keeps the shadows. */
+.sticker-text.st-round::before { text-shadow: none; -webkit-text-stroke: .196em; stroke-linejoin: round; }
+/* Since 1.2.0, st-flat st-stroke draws its hard lower edge with the hidden layout text (moved down .05em, filled and stroked in the edge color) instead of
+   a filter: about 2x faster per frame in Chrome and WebKit, 1.2x in Firefox. The two copies move up by the same .05em, so they stay where they were. */
+.sticker-text.st-flat.st-stroke { filter: none; top: .05em; -webkit-text-fill-color: var(--st-edge); -webkit-text-stroke: .196em var(--st-edge); stroke-linejoin: round; }
+.sticker-text.st-flat.st-stroke::before, .sticker-text.st-flat.st-stroke::after { inset: -.17em 0 -.07em; }
+.sticker-text.st-flat.st-stroke::before { -webkit-text-fill-color: currentcolor; -webkit-text-stroke: .196em currentcolor; }
+.sticker-text.st-flat.st-stroke::after { -webkit-text-stroke: 0; }
 /* Windows high contrast: the system forces its own colors and removes text shadows, so show the real text and skip the copies. */
 @media (forced-colors: active) {
-  .sticker-text, .sticker-text.st-flat { color: CanvasText; filter: none; transform: none; }
+  .sticker-text, .sticker-text.st-flat, .sticker-text.st-flat.st-stroke { color: CanvasText; filter: none; transform: none; top: 0; -webkit-text-fill-color: currentcolor; -webkit-text-stroke: 0; }
   .sticker-text::before, .sticker-text::after { content: none; display: none; }
 }
 /* Chunky "thick plastic" pill for the subtitle: gradient + hard lip + soft shadow + inner top highlight. */

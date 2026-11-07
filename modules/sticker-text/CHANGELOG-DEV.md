@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-11-06
+
+### Quick
+Default outline is one round stroke in Firefox and Safari/WebKit (184 to 90 ms and 1,691 to 464 ms per frame for 160 changing 100 px words); st-flat st-stroke draws its lower edge without a filter (59/63/204 to 29/41/96 ms in Chromium/Firefox/WebKitGTK).
+
+### Deep
+Default outline is one round stroke in Firefox and Safari/WebKit (184 to 90 ms and 1,691 to 464 ms per frame for 160 changing 100 px words); st-flat st-stroke draws its lower edge without a filter (59/63/204 to 29/41/96 ms in Chromium/Firefox/WebKitGTK). Pictures look the same to the eye; edges move up to about half a pixel. Owner card: Both changes. apply() adds st-round where stroke corners are round (not Chrome); a custom radii or steps ring keeps its shadows.
+
 ## 1.1.0 · API 1 · 2026-10-17
 
 ### Quick

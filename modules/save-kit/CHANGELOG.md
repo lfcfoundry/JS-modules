@@ -2,6 +2,33 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.1 · API 2 · 2026-11-07
+- Loads are a little faster in Safari and other WebKit browsers.
+
+## 2.2.0 · API 2 · 2026-11-07
+- Big saves of many same-shape records open faster in Firefox and Safari-family browsers; older copies cannot read those saves.
+
+## 2.1.0 · API 2 · 2026-11-07
+- New warm(): start the load early so it is ready when the game asks. Big saves are faster to open; older copies cannot read big saves written by this one.
+
+## 2.0.2 · API 2 · 2026-11-06
+- Loads are a little faster in Safari and other WebKit browsers.
+
+## 2.0.1 · API 2 · 2026-11-06
+- Small loads are a little faster.
+
+## 2.0.0 · API 2 · 2026-11-06
+- Faster saves and loads in Chrome and Edge; go-back warning: older copies cannot read the new Chrome saves.
+
+## 1.6.3 · API 1 · 2026-11-06
+- Loads of saves with big count lists take 16 to 31% less time.
+
+## 1.6.2 · API 1 · 2026-11-06
+- A 16 MB load with a raw field is 0.72x of the time in Chromium (120 to 87 ms) and 0.93x in WebKitGTK; Firefox unchanged within noise.
+
+## 1.6.1 · API 1 · 2026-11-05
+- Loads are a little faster: small saves 5 to 15%, big saves up to 12%.
+
 ## 1.6.0 · API 1 · 2026-10-31
 - New save-kit-lite.js: checked fields and a backup slot in 966 bytes minified and gzipped, for small games.
 - Same answers and speed as create() for those field types.

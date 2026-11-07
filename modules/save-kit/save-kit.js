@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.0 (API 1)
+ * Version 2.2.1 (API 2)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -43,10 +43,19 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  var countsSeen = 0, countsBad = 0;  // while load() checks its main slot: counts fields the full loop below looked at whole, and how many of them held a broken number
+  var cleanHits = 0;                  // how many counts fields the clean fast path below kept as they were (load() uses it to skip a second walk)
   var fresh = false;                  // set only while load() rebuilds a state from text it parsed itself, so a clean counts object can be reused instead of copied
+  var shortKeys = false, shortRoots = new WeakSet();   // WebKit load: slot texts proven to hold no name over 200 characters
+  // Does the text hold 201 or more characters in a row with no quote? (A name over 200 characters would.) Looks only around every 201st character, so a
+  // 14 KB save costs about 1 us in WebKitGTK, against about 19 us for the same test as a regular expression; same answer as /[^"]{201}/.
+  function longRun(t) { for (var p = 200, n = t.length, a, b; p < n; p += 201) { if (t.charCodeAt(p) === 34) continue; a = t.lastIndexOf('"', p); b = t.indexOf('"', p); if ((b < 0 ? n : b) - a > 201) return true; } return false; }
   var JSC = typeof navigator !== 'undefined' && /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Firefox/.test(navigator.userAgent);   // experiment: Object.values is much faster than Object.keys here
+  var V8 = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');   // Chromium-family browsers: create() saves big counts maps as [names, counts] (see packed())
+  var packedClean = typeof WeakSet === 'function' ? new WeakSet() : null, packedLive = 0;   // maps unpack() rebuilt from [names, counts] with every entry clean: cleanField keeps them as they are
   var trusted = false;                // set only while createLarge().load() rebuilds a state from bytes that passed their check and contain no prototype-pollution key names
   var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
+  var PROTO_NAMES = /__proto__|"constructor"|"prototype"/;   // does a saved text name a prototype-pollution key (one pass over a big text; three indexOf calls took about 3 times as long)
   var DEFAULT_MAX_KEYS = 1000;        // most names kept in one 'counts' field
 //@begin codes
   var DEFAULT_MAX_BYTES = 262144;     // biggest unpacked save a code may hold: 256 KiB
@@ -56,7 +65,7 @@
 //@end
 
   function bag() { return Object.create(null); }
-  function isNum(v) { return typeof v === 'number' && isFinite(v) && v >= 0; }
+  function isNum(v) { return typeof v === 'number' && v - v === 0 && v >= 0; }   // v - v is 0 for every finite number and NaN for NaN and Infinity
   function has(obj, key) { return Object.prototype.hasOwnProperty.call(obj, key); }
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
 
@@ -71,10 +80,9 @@
   function shallow(v, depth) {
     if (v === null || typeof v !== 'object') return true;
     if (depth > 32) return false;
-    var i, ks;
-    if (Array.isArray(v)) { for (i = 0; i < v.length; i++) if (typeof v[i] === 'object' && v[i] !== null && !shallow(v[i], depth + 1)) return false; return true; }
-    ks = Object.keys(v);
-    for (i = 0; i < ks.length; i++) if (typeof v[ks[i]] === 'object' && v[ks[i]] !== null && !shallow(v[ks[i]], depth + 1)) return false;
+    var i, k, c;
+    if (Array.isArray(v)) { for (i = 0; i < v.length; i++) { c = v[i]; if (typeof c === 'object' && c !== null && !shallow(c, depth + 1)) return false; } return true; }
+    for (k in v) { c = v[k]; if (typeof c === 'object' && c !== null && !shallow(c, depth + 1)) return false; }   // for...in, not Object.keys: no list of names is made for each of a big save's objects (it only ever sees parsed JSON)
     return true;
   }
 //@end
@@ -100,20 +108,36 @@
       case 'flag': return v === 1 ? 1 : v === 0 ? 0 : (d === 1 ? 1 : 0);
       case 'str': return typeof v === 'string' && v.length <= (spec.max === 0 ? 0 : spec.max || 200) ? v : (d == null ? '' : d);
       case 'counts':
-        var out = bag(), kept = 0, maxKeys = spec.maxKeys === 0 ? 0 : spec.maxKeys > 0 ? spec.maxKeys : DEFAULT_MAX_KEYS;
-        if (!isObj(v)) v = d;   // a missing or broken field starts from its default (1.0.0 always gave an empty map here)
-        if (!isObj(v)) return out;
-        var ks = Object.keys(v), cap = spec.max === 0 ? 0 : spec.max || 1e6, i, k, n;
-        if (fresh && ks.length >= 32 && ks.length <= maxKeys && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // every entry already clean: keep the parsed object, without a prototype
-          for (i = 0; i < ks.length; i++) { k = ks[i]; n = v[k]; if (BAD_KEYS[k] || k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n)) break; }
-          if (i === ks.length) { Object.setPrototypeOf(v, null); return v; }
+        var ks, brk, out = bag(), kept = 0, maxKeys = spec.maxKeys === 0 ? 0 : spec.maxKeys > 0 ? spec.maxKeys : DEFAULT_MAX_KEYS;
+        if (isObj(v)) brk = 0;
+        else { if (fresh) countsSeen++; v = d; if (!isObj(v)) return out; brk = -1; }   // a missing or broken field starts from its default (1.0.0 always gave an empty map here); it was not a map, so nothing in it counts as broken
+        if (brk === 0 && packedLive > 0 && fresh && packedClean.has(v)) { packedClean.delete(v); packedLive--; cleanHits++; return v; }   // checked entry by entry while it was rebuilt
+        var cap = spec.max === 0 ? 0 : spec.max || 1e6, i, k, n, ok;
+        if (brk < 0) { ks = Object.keys(v); for (i = 0; i < ks.length; i++) { k = ks[i]; if (k.length > 200 || kept >= maxKeys || k === '__proto__' || k === 'constructor' || k === 'prototype') continue; n = v[k]; if (cap > 0 && typeof n === 'number' && n - n === 0 && n > 0) { out[k] = Math.min(Math.floor(n), cap); kept++; } } return out; }
+        if (JSC && fresh && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // WebKit
+          if (shortKeys) {   // the slot text had no backslash and no quote followed by 201 other characters, so no name is longer than 200: check the values only (Object.values is about 4x faster than walking the names there)
+            var vs = Object.values(v), hop = Object.prototype.hasOwnProperty;
+            i = vs.length; ok = i >= 32 && i <= maxKeys && !hop.call(v, '__proto__') && !hop.call(v, 'constructor') && !hop.call(v, 'prototype');
+            for (var j = 0; ok && j < i; j++) { n = vs[j]; if (typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n)) ok = false; }
+            if (ok) { Object.setPrototypeOf(v, null); cleanHits++; return v; }
+          } else {
+            i = 0; ok = true;
+            for (k in v) { n = v[k]; i++; if (k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n) || k === '__proto__' || k === 'constructor' || k === 'prototype') { ok = false; break; } }
+            if (ok && i >= 32 && i <= maxKeys) { Object.setPrototypeOf(v, null); cleanHits++; return v; }
+          }
+        }
+        ks = Object.keys(v);
+        if (!JSC && fresh && ks.length >= 32 && ks.length <= maxKeys && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // every entry already clean: keep the parsed object, without a prototype
+          for (i = 0; i < ks.length; i++) { k = ks[i]; n = v[k]; if (k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n) || k === '__proto__' || k === 'constructor' || k === 'prototype') break; }
+          if (i === ks.length) { Object.setPrototypeOf(v, null); cleanHits++; return v; }
         }
         for (i = 0; i < ks.length; i++) {
-          k = ks[i];
-          if (BAD_KEYS[k] || k.length > 200 || kept >= maxKeys) continue;
-          n = v[k];
-          if (cap > 0 && typeof n === 'number' && isFinite(n) && n > 0) { out[k] = Math.min(Math.floor(n), cap); kept++; }
+          k = ks[i]; n = v[k];
+          if (!(typeof n === 'number' && n - n === 0 && n >= 0)) brk = 1;   // the same test as countsSound, so load() need not walk the map again
+          if (k.length > 200 || kept >= maxKeys || k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+          if (cap > 0 && typeof n === 'number' && n - n === 0 && n > 0) { out[k] = Math.min(Math.floor(n), cap); kept++; }
         }
+        if (fresh) { countsSeen++; countsBad += brk; }
         return out;
 //@begin raw
       case 'raw': if (trusted && v !== undefined && shallow(v, 0)) return v; try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { try { return scrub(JSON.parse(JSON.stringify(d)), 0); } catch (e2) { return d; } }   // a fresh copy of the default, never the default object itself
@@ -127,15 +151,21 @@
   // The field rules read once: [name, normalized rule] pairs (create() keeps them, so a save or load does not parse the rules again).
   function fieldsOf(schema) {
     var ks = Object.keys(schema), f = [], i;
-    for (i = 0; i < ks.length; i++) f.push([ks[i], norm(schema[ks[i]])]);
+    for (i = 0; i < ks.length; i++) f.push([ks[i], norm(schema[ks[i]]), ks[i] in Object.prototype]);   // third: the name also exists on Object.prototype, so only an own value counts
     return f;
   }
   function validateWith(fields, defaults, input) {
-    var out = {}, i, k;
+    var out = {}, i, f, k, v, t, d, plain;
     input = isObj(input) ? input : {};
+    shortKeys = JSC && shortRoots.has(input);
+    plain = Object.getPrototypeOf(input) === Object.prototype;   // a plain object (what JSON.parse makes) has no inherited fields to mistake for saved ones, apart from the names on Object.prototype
     for (i = 0; i < fields.length; i++) {
-      k = fields[i][0];
-      out[k] = cleanField(fields[i][1], has(input, k) ? input[k] : undefined, defaults ? defaults[k] : undefined);
+      f = fields[i]; k = f[0]; t = f[1].type;
+      v = (plain && !f[2]) || has(input, k) ? input[k] : undefined;
+      d = defaults ? defaults[k] : undefined;
+      if (t === 'num') out[k] = isNum(v) ? v : d;   // the two commonest types are done here, the rest in cleanField
+      else if (t === 'flag') out[k] = v === 1 ? 1 : v === 0 ? 0 : (d === 1 ? 1 : 0);
+      else out[k] = cleanField(f[1], v, d);
     }
     return out;
   }
@@ -309,6 +339,43 @@
     var kinds = function (t) { return fields.filter(function (f) { return f[1].type === t; }).map(function (f) { return f[0]; }); };
     var soundKeys = o.soundKeys || kinds('num').concat(kinds('int'));
     var countKeys = kinds('counts');
+    var countRules = fields.filter(function (f) { return f[1].type === 'counts'; }).map(function (f) {
+      var sp = f[1]; return [f[0], sp.max === 0 ? 0 : sp.max || 1e6, sp.maxKeys === 0 ? 0 : sp.maxKeys > 0 ? sp.maxKeys : DEFAULT_MAX_KEYS]; });
+    // Since 2.0.0 a save written in a Chromium-family browser stores each counts map of 32 or more names as [names, counts]: V8 reads and writes
+    // two arrays far faster than one object with hundreds of names. unpack() turns them back into maps right after JSON.parse, in every browser.
+    function unpack(x) {
+      for (var j = 0; j < countRules.length; j++) {
+        var f = countRules[j][0], a = x[f];
+        if (!Array.isArray(a) || a.length !== 2 || !Array.isArray(a[0]) || !Array.isArray(a[1]) || a[0].length !== a[1].length) continue;
+        var ks = a[0], vs = a[1], cap = countRules[j][1], o = bag(), i, k, n, ok = ks.length <= countRules[j][2] && cap > 0;
+        for (i = 0; ok && i < ks.length; i++) {
+          k = ks[i]; n = vs[i];
+          if (typeof k !== 'string' || k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n) || k === '__proto__' || k === 'constructor' || k === 'prototype') ok = false;   // a repeated name keeps its first place and last count, as JSON.parse does with an object
+          else o[k] = n;
+        }
+        if (ok) { if (packedClean) { packedClean.add(o); packedLive++; } x[f] = o; continue; }
+        o = {};   // something is off: hand the ordinary checks a plain map with the saved entries, as JSON.parse would have made it
+        for (i = 0; i < ks.length; i++) if (typeof ks[i] === 'string') Object.defineProperty(o, ks[i], { value: vs[i], enumerable: true, writable: true, configurable: true });
+        x[f] = o;
+      }
+      return x;
+    }
+    // The object JSON.stringify writes in a Chromium-family browser, or null when a number is broken (the same rule as soundState).
+    function packed(state) {
+      if (!isObj(state) || !isSound(state, soundKeys)) return null;
+      var o = {}, ks = Object.keys(state), i, j, k, v, names, vs;
+      for (i = 0; i < ks.length; i++) if (ks[i] !== '__proto__') o[ks[i]] = state[ks[i]];
+      for (j = 0; j < countKeys.length; j++) {
+        v = state[countKeys[j]];
+        if (!isObj(v)) continue;
+        names = Object.keys(v);
+        if (names.length < 32) { if (!countsSound(v)) return null; continue; }   // small maps stay objects
+        vs = new Array(names.length);
+        for (i = 0; i < names.length; i++) { k = v[names[i]]; if (!isNum(k)) return null; vs[i] = k; }
+        o[countKeys[j]] = [names, vs];
+      }
+      return o;
+    }
 //@begin codes
     var re = new RegExp(escapeRe(prefix) + '([zp])\\.([A-Za-z0-9_-]+)\\.');
     var style = o.codeCheck;
@@ -358,7 +425,7 @@
     function parseSlot(t) {
       try {
         var x = JSON.parse(t || 'null');
-        if (isObj(x)) { if (hasRaw && t.indexOf('__proto__') < 0 && t.indexOf('constructor') < 0 && t.indexOf('prototype') < 0) plainText.add(x); return x; }
+        if (isObj(x)) { if (JSC && t.indexOf('\\') < 0 && !longRun(t)) shortRoots.add(x); if (countRules.length && t.indexOf('[[') >= 0) unpack(x); if (hasRaw && t.indexOf('__proto__') < 0 && t.indexOf('constructor') < 0 && t.indexOf('prototype') < 0) plainText.add(x); return x; }
       } catch (e) {}
       return null;
     }
@@ -366,56 +433,90 @@
     // Schema check, then the game's own afterValidate(clean, raw) if there is one: it may change `clean` in place, return a replacement object, or return
     // false/null to refuse the save. A hook that throws is ignored (the schema-checked state is used). Returns null when refused.
     function finish(raw) {
-      var c, r, was = trusted;
+      var c, was = trusted;
       trusted = plainText.has(raw) && !(typeof migrate !== 'undefined' && migrate && version && isNum(raw.v) && raw.v < version);
       try { c = validateWith(fields, defaults, upgrade(raw)); } finally { trusted = was; }
+      return hook(c, raw);
+    }
+    // The main slot checked once, before it is known whether the backup is needed: { c: clean state, bad: broken fields }. When every counts field came through the
+    // clean fast path unchanged, none of them can hold a broken number, so only the plain number fields are counted again. null when a migrate would change the save.
+    function checkMain(raw) {
+      if (typeof migrate !== 'undefined' && migrate && version && !(isNum(raw.v) && Math.floor(raw.v) >= version)) return null;
+      var c, i, v, n = 0, was = trusted;
+      trusted = plainText.has(raw); cleanHits = 0; countsSeen = 0; countsBad = 0; fresh = true;
+      try { c = validateWith(fields, defaults, raw); } finally { trusted = was; fresh = false; }
+      if (cleanHits + countsSeen !== countKeys.length) return { c: c, bad: badFields(raw) };   // a counts field was not looked at whole: count again the old way
+      n = countsBad;
+      for (i = 0; i < soundKeys.length; i++) { v = raw[soundKeys[i]]; if (v !== undefined && !isNum(v)) n++; }
+      return { c: c, bad: n };
+    }
+    function hook(c, raw) {
+      var r;
       if (!after) return c;
       try { r = after(c, raw); } catch (e) { return c; }
       return r === false || r === null ? null : isObj(r) ? r : c;
+    }
+    var warmed = null;   // what warm() found: { out, mt, bt }; load() hands it out once
+    // One load: { out: clean state or null, mt: main slot text, bt: backup slot text if it was read }.
+    function readNow() {
+      try {
+        var mt = textOf(key), a = parseSlot(mt), b = null, bt, first, second, out = null, used = null;
+        if (mt === null && !orphan) return { out: null, mt: mt };
+        var pre = a && countKeys.length ? checkMain(a) : null, badA = pre ? pre.bad : a ? badFields(a) : 0;
+        if (!a || badA > 0) b = parseSlot(bt = textOf(bak));   // a sound main slot can never lose to the backup, so only read the backup when it could matter
+        if (a || b) {
+          first = !b ? a : !a ? b : (badFields(b) < badA ? b : a);
+          if (pre && first === a) out = hook(pre.c, a);
+          else { fresh = true; try { out = finish(first); } finally { fresh = false; } }
+          used = first;
+          if (!out) {   // refused by afterValidate: try the other slot
+            second = first === a ? (b || parseSlot(bt = textOf(bak))) : a;
+            out = second ? finish(second) : null; used = second;
+          }
+        }
+        if (damaged && mt && (!a || used !== a)) { try { storage.setItem(damaged, mt); } catch (e) {} }
+//@begin durable
+        loadedAt = used && isNum(used[stamp]) ? used[stamp] : 0;
+//@end
+        return { out: out, mt: mt, bt: bt };
+      } catch (e) { return { out: null, mt: undefined, bt: undefined }; }
     }
     var api = {
       validate: function (input) { return validateWith(fields, defaults, input); },
       // Returns a clean state rebuilt from the better slot (the main slot unless the backup has fewer broken numbers), else null.
       // With damagedKey, main-slot text that was not used (unreadable, refused by afterValidate, or worse than the backup) is copied there first.
       load: function () {
-        try {
-          var mt = textOf(key), a = parseSlot(mt), b = null, first, second, out = null, used = null;
-          if (mt === null && !orphan) return null;
-          if (!a || badFields(a) > 0) b = readSlot(bak);   // a sound main slot can never lose to the backup, so only read the backup when it could matter
-          if (a || b) {
-            first = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a);
-            fresh = true; try { out = finish(first); } finally { fresh = false; } used = first;
-            if (!out) {   // refused by afterValidate: try the other slot
-              second = first === a ? (b || readSlot(bak)) : a;
-              out = second ? finish(second) : null; used = second;
-            }
-          }
-          if (damaged && mt && (!a || used !== a)) { try { storage.setItem(damaged, mt); } catch (e) {} }
-//@begin durable
-          loadedAt = used && isNum(used[stamp]) ? used[stamp] : 0;
-//@end
-          return out;
-        } catch (e) { return null; }
+        var w = warmed;
+        warmed = null;
+        if (w) { try { if (textOf(key) === w.mt && (w.bt === undefined || textOf(bak) === w.bt)) return w.out; } catch (e) {} }   // warm() already did this load and neither slot changed since
+        return readNow().out;
       },
+      // Since 2.1.0 (off unless called): does load()'s reading and checking now, for example while the game's page is still starting, so the next
+      // load() only compares the stored text (a few microseconds) and hands over the same result. Any save() or a changed slot makes load() read again.
+      // The game's afterValidate runs during warm(). Returns true when a save was found. Never throws.
+      warm: function () { warmed = null; try { warmed = readNow(); return !!warmed.out; } catch (e) { warmed = null; return false; } },
       // Writes the state. Returns false (and writes nothing) if a number is broken, saving is switched off, or storage fails.
       // Returns true when the main slot was written, even if the backup write failed (the backup is tried again next time).
       // With the skipUnchangedMs option, a save whose fields are all the same as the last written one (only `seen` differs) is not written
       // again until that many ms have passed; save(state, true) always writes.
       save: function (state, force) {
+        warmed = null;
         try {
-          if (off || !storage || !soundState(state)) return false;
+          if (off || !storage) return false;
+          var usePk = V8 && countKeys.length > 0, pk = usePk ? packed(state) : null;   // Chromium-family browsers: the [names, counts] form, checked while it is made
+          if (usePk ? !pk : !soundState(state)) return false;
           var now = Date.now(), probe = null;
 //@begin migrate
-          if (version) state.v = version;
+          if (version) { state.v = version; if (pk) pk.v = version; }
 //@end
 //@begin skipUnchanged
           if (skipMs) {
-            state[stamp] = 0; probe = JSON.stringify(state);
+            state[stamp] = 0; if (pk) pk[stamp] = 0; probe = JSON.stringify(pk || state);
             if (force !== true && probe === lastProbe && now - lastWriteAt < skipMs) { state[stamp] = lastSeen; return true; }
           }
 //@end
-          state[stamp] = now;
-          var txt = JSON.stringify(state);
+          state[stamp] = now; if (pk) pk[stamp] = now;
+          var txt = JSON.stringify(pk || state);
           storage.setItem(key, txt);
 //@begin durable
           if (mirror) mirror.write(txt, now);
@@ -535,7 +636,7 @@
           if (e.key !== null && e.key !== key) return;   // key null: the other tab cleared all storage
           if (e.storageArea && storage && e.storageArea !== storage) return;
           var x = null, clean = null;
-          try { x = e.newValue == null ? null : JSON.parse(e.newValue); } catch (err) {}
+          try { x = e.newValue == null ? null : parseSlot(e.newValue); } catch (err) {}   // parseSlot also turns [names, counts] back into maps
           try { if (isObj(x)) clean = finish(x); } catch (err) {}
           try { cb(clean, e); } catch (err) {}
         }
@@ -588,14 +689,14 @@
     var dbName = o.name || 'save-kit-large', schema = o.schema || {}, defaults = o.defaults || {}, stamp = o.stamp || 'seen';
     var fields = fieldsOf(schema), after = typeof o.afterValidate === 'function' ? o.afterValidate : null;
     var kinds = function (t) { return fields.filter(function (f) { return f[1].type === t; }).map(function (f) { return f[0]; }); };
-    var soundKeys = o.soundKeys || kinds('num').concat(kinds('int')), countKeys = kinds('counts');
+    var soundKeys = o.soundKeys || kinds('num').concat(kinds('int')), countKeys = kinds('counts'), hasRaw = kinds('raw').length > 0;
     var version = o.version > 0 ? Math.floor(o.version) : 0;
     var backupEvery = o.backupEveryMs == null ? 60000 : o.backupEveryMs, backupAt = 0, off = false;
     var idb = 'indexedDB' in o ? o.indexedDB : typeof indexedDB !== 'undefined' ? indexedDB : null, dbp = null;
     var plain = new WeakSet();   // parsed states whose text names no prototype-pollution key
     var chan = null, listeners = [], mine = Math.random().toString(36).slice(2);
     var skipMs = o.skipUnchangedMs > 0 ? o.skipUnchangedMs : 0, lastProbe = null, lastWriteAt = 0, lastSeen = 0;   // skipUnchangedMs: the last stored text, when, and its stamp
-    var useLock = !!o.lock, held = null, first = null, lostCb = null;
+    var useLock = !!o.lock, held = null, first = null, lostCb = null, CHUNK_MIN = 100000, COLS_MIN = 10000, COLS = !V8;   // arrays shorter than CHUNK_MIN entries stay in the one text
 
     function badFields(x) {
       var n = 0, i, v;
@@ -629,14 +730,106 @@
         try { var rq = tx(d, 'readonly').objectStore('slots').get(k); rq.onsuccess = function () { ok(rq.result); }; rq.onerror = function () { ok(undefined); }; } catch (e) { ok(undefined); }
       });
     }
+    // One slot -> Promise<state or null>. A save with a big array field is stored as a head record plus pieces of that array (rec.c = { f: field name, k: piece count, m: entries in all, g: save id }; each piece has the save id g and its index i);
+    // the pieces are read in the same transaction, all requests at once, and parsed one by one (smaller texts parse faster, and the browser reads them side by side).
+    function slot(d, name) {
+      return new Promise(function (ok) {
+        try {
+          var t = tx(d, 'readonly'), s = t.objectStore('slots'), rq = s.get(name);
+          rq.onerror = function () { ok(null); };
+          rq.onsuccess = function () {
+            var rec = rq.result, c = rec && rec.c, k, got = [], left, i;
+            if (!c) { ok(open(rec)); return; }
+            if (rec.q) { ok(c.k === 1 ? open(rec, [rec.q]) : null); return; }   // one columns piece kept inside the head record
+            k = c.k;
+            if (!(k >= 1 && k <= 64 && k % 1 === 0 && typeof c.f === 'string')) { ok(null); return; }
+            left = k;
+            for (i = 0; i < k; i++) (function (i) {
+              var r = s.get(name + '#' + i);
+              r.onsuccess = function () { got[i] = r.result; if (--left === 0) ok(open(rec, got)); };
+              r.onerror = function () { ok(null); };
+            })(i);
+          };
+        } catch (e) { ok(null); }
+      });
+    }
+    // Columns: a piece whose entries are all plain objects with the same names in the same order, holding only numbers, strings, true/false
+    // or null, is stored as { k: names, c: one array per name } (r.f = 1). That text is about 40% shorter and parses faster, and load() builds
+    // the same objects again (same names, same order, same values) in one loop.
+    function cols(a, from, to) {
+      var f = a[from], keys, m, c = [], j;
+      if (!f || f.constructor !== Object) return null;
+      keys = Object.keys(f); m = keys.length;
+      if (m === 0 || m > 64 || keys.indexOf('__proto__') >= 0) return null;
+      for (j = 0; j < m; j++) c.push(V8 ? [] : new Array(to - from));
+      return (V8 ? colsIn : colsKeys)(a, from, to, keys, c) ? { k: keys, c: c } : null;
+    }
+    // V8 lists the names of a row fastest with for-in (no array made per row); the others with Object.keys.
+    function colsIn(a, from, to, keys, c) {
+      var m = keys.length, i, j, o, v, t, key;
+      for (i = from; i < to; i++) {
+        o = a[i];
+        if (!o || o.constructor !== Object) return false;
+        j = 0;
+        for (key in o) {
+          if (j >= m || key !== keys[j]) return false;
+          v = o[key]; t = typeof v;
+          if (t !== 'number' && t !== 'string' && t !== 'boolean' && v !== null) return false;
+          c[j++].push(v);
+        }
+        if (j !== m) return false;
+      }
+      return true;
+    }
+    function colsKeys(a, from, to, keys, c) {
+      var m = keys.length, i, j, o, ks, v, t;
+      for (i = from; i < to; i++) {
+        o = a[i];
+        if (!o || o.constructor !== Object) return false;
+        ks = Object.keys(o);
+        if (ks.length !== m) return false;
+        for (j = 0; j < m; j++) {
+          if (ks[j] !== keys[j]) return false;
+          v = o[keys[j]]; t = typeof v;
+          if (t !== 'number' && t !== 'string' && t !== 'boolean' && v !== null) return false;
+          c[j][i - from] = v;
+        }
+      }
+      return true;
+    }
+    function rows(x) {
+      if (!isObj(x) || !Array.isArray(x.k) || !Array.isArray(x.c)) return null;
+      var k = x.k, c = x.c, m = k.length, n, out, i, j, o;
+      if (m === 0 || m > 64 || c.length !== m || !Array.isArray(c[0])) return null;
+      n = c[0].length;
+      for (j = 0; j < m; j++) { if (typeof k[j] !== 'string' || k[j] === '__proto__' || k.indexOf(k[j]) !== j || !Array.isArray(c[j]) || c[j].length !== n) return null; }
+      out = new Array(n);
+      for (i = 0; i < n; i++) { o = {}; for (j = 0; j < m; j++) o[k[j]] = c[j][i]; out[i] = o; }
+      return out;
+    }
     // The state a record holds, or null when the record is missing, has the wrong length, or is not a JSON object.
-    function open(rec) {
+    function open(rec, parts) {
       try {
         if (!rec || typeof rec.t !== 'string' || rec.t.length !== rec.n) return null;
-        var t = rec.t, x = JSON.parse(t);
+        var t = rec.t, x = JSON.parse(t), clean = hasRaw, arrs, i, r;
         if (!isObj(x)) return null;
+        if (parts) {
+          if (PROTO_NAMES.test(rec.c.f)) return null;
+          if (clean && PROTO_NAMES.test(t)) clean = false;
+          arrs = [];
+          for (i = 0; i < parts.length; i++) {
+            r = parts[i];
+            if (!r || r.g !== rec.c.g || r.i !== i || typeof r.t !== 'string' || r.t.length !== r.n) return null;
+            if (clean && PROTO_NAMES.test(r.t)) clean = false;
+            r = r.f === 1 ? rows(JSON.parse(r.t)) : JSON.parse(r.t);
+            if (!Array.isArray(r)) return null;
+            arrs.push(r);
+          }
+          x[rec.c.f] = Array.prototype.concat.apply([], arrs);
+          if (x[rec.c.f].length !== rec.c.m) return null;
+        } else if (clean && PROTO_NAMES.test(t)) clean = false;
         if (isNum(rec.at)) x[stamp] = rec.at;   // with skipUnchangedMs the stamp is kept beside the text
-        if (t.indexOf('__proto__') < 0 && t.indexOf('"constructor"') < 0 && t.indexOf('"prototype"') < 0) plain.add(x);
+        if (clean) plain.add(x);   // only 'raw' fields use this, so a save without one skips the pass over the text; one pass, not three
         return x;
       } catch (e) { return null; }
     }
@@ -657,7 +850,7 @@
       if (!chan) { chan = new BroadcastChannel('save-kit-large:' + dbName); chan.onmessage = function (e) { if (e.data && e.data.from !== mine && listeners.length) api.load().then(function (s) { listeners.slice().forEach(function (f) { try { f(s); } catch (x) {} }); }); }; }
       return chan;
     }
-    var busy = false, next = null;
+    var busy = false, next = null, lastK = -1;   // lastK: pieces in the last main slot this page wrote (-1: not known yet)
     function put(slot) {
       var started = slot.at;
       return db().then(function (d) {
@@ -665,9 +858,16 @@
         return new Promise(function (ok) {
           try {
             var t = tx(d, 'readwrite'), s = t.objectStore('slots'), now = Date.now(), backup = now - backupAt > backupEvery;
+            var parts = slot.parts, k = parts ? parts.length : 0, i;
+            if (lastK < 0 || k < lastK) s.delete(IDBKeyRange.bound('main#', 'main#\uffff'));   // pieces left over from an older, bigger save
             s.put(slot.rec, 'main');
-            if (backup) s.put(slot.rec, 'backup');
-            t.oncomplete = function () { if (backup) backupAt = now; try { channel().postMessage({ from: mine, at: started }); } catch (e) {} ok(true); };
+            for (i = 0; i < k; i++) s.put(parts[i], 'main#' + i);
+            if (backup) {
+              if (parts || lastK !== 0) s.delete(IDBKeyRange.bound('backup#', 'backup#\uffff'));
+              s.put(slot.rec, 'backup');
+              for (i = 0; i < k; i++) s.put(parts[i], 'backup#' + i);
+            }
+            t.oncomplete = function () { lastK = k; if (backup) backupAt = now; try { channel().postMessage({ from: mine, at: started }); } catch (e) {} ok(true); };
             t.onerror = t.onabort = function () { ok(false); };
           } catch (e) { ok(false); }
         });
@@ -682,11 +882,11 @@
         pump();
       });
     }
-    function enqueue(rec) {
+    function enqueue(rec, parts) {
       return new Promise(function (ok) {
         var done = next ? next.done : [];   // a write waiting behind the running one is replaced; its callers wait for the newer one
         done.push(ok);
-        next = { rec: rec, at: Date.now(), done: done };
+        next = { rec: rec, parts: parts, at: Date.now(), done: done };
         pump();
       });
     }
@@ -697,11 +897,10 @@
       load: function () {
         return db().then(function (d) {
           if (!d) return null;
-          return get(d, 'main').then(function (mr) {
-            var a = open(mr);
+          return slot(d, 'main').then(function (a) {
             if (a && badFields(a) === 0) return fin(a);
-            return get(d, 'backup').then(function (br) {
-              var b = open(br), first = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a), out = first ? fin(first) : null, second;
+            return slot(d, 'backup').then(function (b) {
+              var first = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a), out = first ? fin(first) : null, second;
               if (!out && first) { second = first === a ? b : a; out = second ? fin(second) : null; }
               return out;
             });
@@ -726,9 +925,25 @@
             return useLock && !held ? (lastProbe = null, Promise.resolve(false)) : wrap(enqueue(rec));
           }
           state[stamp] = now;
-          t = JSON.stringify(state); rec = { t: t, n: t.length };
-          if (useLock && held === null) return (first || (first = claim(false))).then(function (g) { return g ? enqueue(rec) : false; });
-          return useLock && !held ? Promise.resolve(false) : enqueue(rec);
+          var parts = null, big = null, bigN = CHUNK_MIN - 1, name, head, g, per, i;
+          for (name in state) if (Array.isArray(state[name]) && state[name].length > bigN) { big = name; bigN = state[name].length; }
+          if (big) {   // the biggest array field goes in pieces of about 40,000 entries (at most 8): reads run side by side and each piece parses faster than one huge text
+            var arr = state[big], k = Math.min(8, Math.ceil(arr.length / 40000));
+            head = {}; for (name in state) if (name !== big) head[name] = state[name];
+            t = JSON.stringify(head); g = now + '-' + Math.random().toString(36).slice(2); rec = { t: t, n: t.length, c: { f: big, k: k, m: arr.length, g: g } };
+            per = Math.ceil(arr.length / k); parts = [];
+            for (i = 0; i < k; i++) { var lo = i * per, hi = Math.min(arr.length, lo + per), cx = COLS ? cols(arr, lo, hi) : null, pt = JSON.stringify(cx || arr.slice(lo, hi)); parts.push(cx ? { t: pt, n: pt.length, g: g, i: i, f: 1 } : { t: pt, n: pt.length, g: g, i: i }); }
+          } else {
+            if (COLS) { bigN = COLS_MIN - 1; for (name in state) if (Array.isArray(state[name]) && state[name].length > bigN) { big = name; bigN = state[name].length; } }
+            var cx = big ? cols(state[big], 0, bigN) : null;
+            if (cx) {   // a smaller list of same-shape records: one columns piece, kept inside the head record (one read)
+              head = {}; for (name in state) if (name !== big) head[name] = state[name];
+              t = JSON.stringify(head); pt = JSON.stringify(cx); g = now + '-' + Math.random().toString(36).slice(2);
+              rec = { t: t, n: t.length, c: { f: big, k: 1, m: bigN, g: g }, q: { t: pt, n: pt.length, g: g, i: 0, f: 1 } };
+            } else { t = JSON.stringify(state); rec = { t: t, n: t.length }; }
+          }
+          if (useLock && held === null) return (first || (first = claim(false))).then(function (gr) { return gr ? enqueue(rec, parts) : false; });
+          return useLock && !held ? Promise.resolve(false) : enqueue(rec, parts);
         } catch (e) { return Promise.resolve(false); }
       },
       // -> Promise<boolean>: removes both slots.
@@ -736,7 +951,7 @@
         return db().then(function (d) {
           if (!d) return false;
           return new Promise(function (ok) {
-            try { var t = tx(d, 'readwrite'), s = t.objectStore('slots'); s.delete('main'); s.delete('backup'); t.oncomplete = function () { ok(true); }; t.onerror = t.onabort = function () { ok(false); }; } catch (e) { ok(false); }
+            try { var t = tx(d, 'readwrite'), s = t.objectStore('slots'); s.delete('main'); s.delete('backup'); s.delete(IDBKeyRange.bound('main#', 'main#\uffff')); s.delete(IDBKeyRange.bound('backup#', 'backup#\uffff')); t.oncomplete = function () { ok(true); }; t.onerror = t.onabort = function () { ok(false); }; } catch (e) { ok(false); }
           });
         });
       },

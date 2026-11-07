@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.1.1 · API 1 · 2026-11-06
+- Moving focus among 1,000 buttons takes 0.66x (Chromium), 0.71x (Firefox) and 0.78x (WebKitGTK) of the 1.1.0 time.
+
 ## 1.1.0 · API 1 · 2026-10-17
 - Finding the buttons a gamepad can reach is about 2.5 times faster in browsers that support it.
 - New optional rule that picks the next button by its edges.

@@ -85,6 +85,52 @@ async function battery(src) {
   var r1 = await a.save(st()); var r2 = await a.save(st(), true); s = st(); s.gold = 9; var r3 = await a.save(s); IDBObjectStore.prototype.put = origPut;
   check('skipUnchanged: unchanged save resolves true without a write, forced and changed saves write', r1 === true && r2 === true && r3 === true && wrote === 2);
   got = await a.load(); check('skipUnchanged: the stored save loads with its stamp', got && got.gold === 9);
+  // 13 a big array field is stored in pieces (head + 'main#i'), read side by side
+  var bigW = function (n) { var w = []; for (var q = 0; q < n; q++) w.push({ x: q, t: 'a' + (q % 5) }); return w; };
+  var bigSt = function (n, g) { var z = st(); z.world = bigW(n); z.gold = g || 1234; return z; };
+  nm = id(); a = mk({ name: nm }); r = await a.save(bigSt(130000)); got = await a.load();
+  check('chunked: 130,000 entries round trip', r === true && got && got.world.length === 130000 && got.world[129999].x === 129999 && got.world[70000].t === 'a0' && got.gold === 1234 && got.items['item 7'] === 8);
+  var keys = await new Promise(function (ok) { var q = indexedDB.open(nm, 1); q.onsuccess = function () { var d = q.result, g = d.transaction('slots').objectStore('slots').getAllKeys(); g.onsuccess = function () { d.close(); ok(g.result.slice().sort().join(',')); }; }; });
+  check('chunked: 4 pieces beside main and backup', keys === 'backup,backup#0,backup#1,backup#2,backup#3,main,main#0,main#1,main#2,main#3');
+  await a.close();
+  await raw(nm, 'main#2', function (rec, store, slot) { rec.t = rec.t.slice(0, -1); store.put(rec, slot); });
+  a = mk({ name: nm }); got = await a.load(); check('chunked: a cut piece in main, the backup is used', got && got.world.length === 130000); await a.close();
+  await raw(nm, 'main#1', function (rec, store, slot) { rec.g = 'other'; store.put(rec, slot); });
+  a = mk({ name: nm }); got = await a.load(); check('chunked: a piece from another save, the backup is used', got && got.world.length === 130000); await a.close();
+  await raw(nm, 'backup#3', function (rec, store, slot) { store.delete(slot); });
+  a = mk({ name: nm }); check('chunked: both slots broken, null', (await a.load()) === null);
+  r = await a.save(bigSt(110000, 5)); got = await a.load(); check('chunked: a smaller save over a bigger one', r === true && got && got.world.length === 110000 && got.gold === 5);
+  keys = await new Promise(function (ok) { var q = indexedDB.open(nm, 1); q.onsuccess = function () { var d = q.result, g = d.transaction('slots').objectStore('slots').getAllKeys(); g.onsuccess = function () { d.close(); ok(g.result.slice().sort().join(',')); }; }; });
+  check('chunked: leftover pieces removed', keys === 'backup,backup#0,backup#1,backup#2,main,main#0,main#1,main#2');
+  r = await a.save(st()); got = await a.load(); keys = await new Promise(function (ok) { var q = indexedDB.open(nm, 1); q.onsuccess = function () { var d = q.result, g = d.transaction('slots').objectStore('slots').getAllKeys(); g.onsuccess = function () { d.close(); ok(g.result.slice().sort().join(',')); }; }; });
+  check('chunked: then a small save drops every piece', r === true && got && got.world.length === 3000 && keys === 'backup,backup#0,backup#1,backup#2,main');
+  nm = id(); a = mk({ name: nm }); await a.save(bigSt(110000)); check('chunked: clear removes the pieces', (await a.clear()) === true && (await a.load()) === null);
+  keys = await new Promise(function (ok) { var q = indexedDB.open(nm, 1); q.onsuccess = function () { var d = q.result, g = d.transaction('slots').objectStore('slots').getAllKeys(); g.onsuccess = function () { d.close(); ok(g.result.length); }; }; });
+  check('chunked: nothing left after clear', keys === 0);
+  nm = id(); a = mk({ name: nm }); s = bigSt(110000); s.world[5] = JSON.parse('{"__proto__":{"polluted":1}}'); await a.save(s);
+  got = await a.load(); check('chunked: __proto__ key in a piece is dropped', got && got.world.length === 110000 && ({}).polluted === undefined && !Object.prototype.hasOwnProperty.call(got.world[5], '__proto__'));
+  // an old single-text save still loads
+  nm = id(); a = mk({ name: nm }); s = bigSt(70000); var old = JSON.stringify(Object.assign({}, s, { seen: 1 }));
+  await new Promise(function (ok) { var q = indexedDB.open(nm, 1); q.onupgradeneeded = function () { q.result.createObjectStore('slots'); }; q.onsuccess = function () { var d = q.result, t = d.transaction('slots', 'readwrite'); t.objectStore('slots').put({ t: old, n: old.length }, 'main'); t.oncomplete = function () { d.close(); ok(); }; }; });
+  got = await a.load(); check('chunked: an old one-text save still loads', got && got.world.length === 70000 && got.gold === 1234);
+  // 14 columns: outside Chromium a list of 10,000+ same-shape records is stored as { k: names, c: columns } and built back the same; every browser reads it
+  var putRec = function (name, rec) { return new Promise(function (ok) { var q = indexedDB.open(name, 1); q.onupgradeneeded = function () { q.result.createObjectStore('slots'); }; q.onsuccess = function () { var d = q.result, t = d.transaction('slots', 'readwrite'); t.objectStore('slots').put(rec, 'main'); t.oncomplete = function () { d.close(); ok(); }; }; }); };
+  var getRec = function (name, slot) { return new Promise(function (ok) { var q = indexedDB.open(name, 1); q.onsuccess = function () { var d = q.result, g = d.transaction('slots').objectStore('slots').get(slot); g.onsuccess = function () { d.close(); ok(g.result); }; }; }); };
+  var v8 = /Chrome\//.test(navigator.userAgent);
+  nm = id(); a = mk({ name: nm }); s = st(); s.world = []; for (i = 0; i < 20000; i++) s.world.push({ x: i, t: 'a"\u00e9' + (i % 5), on: i % 3 === 0 ? null : i % 2 === 0 });
+  var want = JSON.stringify(s.world); await a.save(s); got = await a.load(); r = await getRec(nm, 'main');
+  check('columns: 20,000 same-shape records round trip', got && JSON.stringify(got.world) === want && got.gold === 1234 && got.items['item 7'] === 8);
+  check('columns: stored as columns outside Chromium, as rows in Chromium', v8 ? !r.q : !!(r.q && r.q.f === 1 && r.t.indexOf('world') < 0));
+  s.world[777] = { x: 1, t: 'a', on: true, extra: 1 }; await a.save(s); got = await a.load(); r = await getRec(nm, 'main');
+  check('columns: one record of another shape keeps rows', !r.q && got && got.world[777].extra === 1 && got.world.length === 20000);
+  var colT = '{"k":["x","t"],"c":[[1,2,3],["a","b","c"]]}', headT = '{"gold":5,"name":"C","items":{},"world":[]}';
+  nm = id(); await putRec(nm, { t: headT, n: headT.length, c: { f: 'world', k: 1, m: 3, g: 'g1' }, q: { t: colT, n: colT.length, g: 'g1', i: 0, f: 1 } });
+  a = mk({ name: nm }); got = await a.load(); await a.close();
+  check('columns: every browser reads a columns save', got && got.gold === 5 && JSON.stringify(got.world) === '[{"x":1,"t":"a"},{"x":2,"t":"b"},{"x":3,"t":"c"}]');
+  colT = '{"k":["x","x"],"c":[[1,2,3],[4,5,6]]}'; nm = id(); await putRec(nm, { t: headT, n: headT.length, c: { f: 'world', k: 1, m: 3, g: 'g1' }, q: { t: colT, n: colT.length, g: 'g1', i: 0, f: 1 } });
+  a = mk({ name: nm }); check('columns: a repeated name is refused', (await a.load()) === null); await a.close();
+  colT = '{"k":["x","t"],"c":[[1,2,3],["a","b"]]}'; nm = id(); await putRec(nm, { t: headT, n: headT.length, c: { f: 'world', k: 1, m: 3, g: 'g1' }, q: { t: colT, n: colT.length, g: 'g1', i: 0, f: 1 } });
+  a = mk({ name: nm }); check('columns: a short column is refused', (await a.load()) === null); await a.close();
   // 12 no IndexedDB: everything quietly false/null
   var none = mk({ indexedDB: null }); check('no IndexedDB: save false, load null', (await none.save(st())) === false && (await none.load()) === null);
   return out;
@@ -145,7 +191,7 @@ async function bench(src, libs, sizes, rounds, only) {
     console.log('Browser: ' + await b.version());
     const p = await b.newPage(); const errs = []; p.on && p.on('pageerror', e => errs.push(String(e && e.message || e)));
     await p.goto(url);
-    const got = await p.evaluate(battery, SRC);
+    const got = process.env.NOCHECKS ? {} : await p.evaluate(battery, SRC);   // NOCHECKS=1: speed table only
     const badk = Object.keys(got).filter(k => got[k] !== 'true');
     if (badk.length || errs.length) { fails++; console.log('  FAIL: ' + (badk.join('; ') || 'nothing differs') + (errs.length ? '; page error: ' + errs[0] : '')); }
     else console.log('  ok   ' + Object.keys(got).length + ' large-save checks');

@@ -2,7 +2,7 @@
  * sticker-text.js: die-cut "sticker" lettering for logos and titles, in plain HTML + CSS (no images, scales with font-size).
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.2.0 (API 1)
  *
  * CSS has no good text stroke (-webkit-text-stroke straddles the glyph edge and chews up thin letters). The trick: draw the
  * word three times: (1) the real invisible text for layout and accessibility, (2) a copy behind it whose `text-shadow` is a
@@ -20,6 +20,8 @@
   'use strict';
 
   var DEFAULT_OUTLINE = '#fff7e3';
+  // Firefox and Safari/WebKit draw round stroke corners on HTML text; Chrome draws sharp ones. Where they are round, the default outline is one stroke.
+  var ROUND = typeof navigator !== 'undefined' && !/Chrome\/|Chromium\//.test(navigator.userAgent || '') && /Firefox\/|AppleWebKit\//.test(navigator.userAgent || '');
 
   // A ring of zero-blur shadows. One ring of 32 gives a smooth edge (the old default, three rings of 16 at .05/.075/.098 em, drew the
   // same outline as one ring of 16, so two thirds of its shadows were wasted). Raise `steps` for very large lettering.
@@ -56,6 +58,8 @@
       if (el.classList) el.classList.add('sticker-text');
       if (el.style && typeof el.style.setProperty === 'function') {
         if (opts.radii || opts.steps) el.style.setProperty('--st-ring', ringShadow('currentColor', opts.radii, opts.steps));   // the default ring is in sticker-text.css
+        if (opts.radii || opts.steps) { if (el.classList && el.classList.remove) el.classList.remove('st-round'); }   // a custom ring keeps its shadows
+        else if (ROUND && el.classList) el.classList.add('st-round');
         if (typeof opts.outline === 'string' && opts.outline) el.style.setProperty('--st-outline-default', opts.outline);
       }
     } catch (e) {}

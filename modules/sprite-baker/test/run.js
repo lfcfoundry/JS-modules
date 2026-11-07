@@ -414,5 +414,63 @@ require('./fancy-scenes.js')(SB, SB, check);
   check('sprite-baker-wasm.js carries the module version in its header', head.indexOf('Version ' + SB.version + ' (API 1)') >= 0, head.slice(-60));
 })();
 
+/* cheaper shading (opts.fast, since 1.9.0) */
+(function () {
+  var mat = SB.material([[0, 60, 20, 90], [1, 245, 210, 255]]), red = SB.material([[0, 200, 40, 40], [1, 255, 120, 120]]);
+  var scenes = [
+    [{ fn: SB.sphere(11), nu: 12, nv: 18, material: mat }],
+    [{ fn: SB.torus(9, 3.5), nu: 24, nv: 16, material: mat }, { fn: SB.sphere(3, [0, 0, 5]), nu: 10, nv: 12, material: red }],
+    [{ fn: SB.capsule([-10, 0, 0], [10, 0, 0], 5), nu: 16, nv: 20, material: SB.material([[0, 60, 20, 90], [1, 245, 210, 255]], { specular: 2, rimLight: 2 }) }]
+  ], worst = 0, a, b, j, n = 0;
+  scenes.forEach(function (sc) {
+    [0, 0.7, 1.9, 3.3].forEach(function (phi) {
+      a = SB.bakeSprite(sc, 64, { phi: phi }); b = SB.bakeSprite(sc, 64, { phi: phi, fast: true }); n++;
+      for (j = 0; j < a.data.length; j++) { var d = Math.abs(a.data[j] - b.data[j]); if (d > worst) worst = d; }
+    });
+  });
+  check('fast shading: no byte differs from the default picture by more than 5 levels (' + n + ' scenes and angles, strong highlight and rim light included)', worst <= 5, 'worst ' + worst);
+  var diff = function (p, q) { var w = 0, k; if (p.data.length !== q.data.length) return 999; for (k = 0; k < p.data.length; k++) w = Math.max(w, Math.abs(p.data[k] - q.data[k])); return w; };
+  /* 1.10.0: inside a bake, fast shades once a pixel from a visibility buffer */
+  var lobed = [{ fn: SB.capsule([-8, 0, 0], [8, 0, 0], 5, { lobes: 3 }), nu: 20, nv: 16, material: SB.material([[0, 80, 30, 10], [0.6, 220, 150, 60], [1, 255, 240, 200]]) }];
+  worst = 0; [1, 2, 3].forEach(function (ss) { [0, 1.1, 2.6, 4.4].forEach(function (phi) { worst = Math.max(worst, diff(SB.bakeSprite(lobed, 96, { ss: ss, phi: phi }), SB.bakeSprite(lobed, 96, { ss: ss, phi: phi, fast: true }))); }); });
+  check('fast shading at ss 1, 2 and 3: a lobed capsule (whose pole turns fast inside one pixel) stays within 5 levels', worst <= 5, 'worst ' + worst);
+  check('fast with edge gives the same bytes as fast alone (fast already shades once a pixel)', hash(SB.bakeSprite(scenes[1], 64, { fast: true, edge: true })) === hash(SB.bakeSprite(scenes[1], 64, { fast: true })));
+  var many = [{ fn: SB.torus(9, 3.5), nu: 64, nv: 40, material: mat }];   // 5,120 triangles: the triangle table grows
+  check('fast shading with more than 1,024 triangles stays within 5 levels', diff(SB.bakeSprite(many, 80, { phi: 0.9 }), SB.bakeSprite(many, 80, { phi: 0.9, fast: true })) <= 5);
+  var bk = SB.baker(scenes[1], 48, { fast: true, frames: 6 }), rl = SB.bakeRoll(scenes[1], 6, 48, { fast: true });
+  check('fast: baker() frames are byte for byte the bakeRoll() frames', [0, 3, 5].every(function (i) { return hash(bk.frame(i)) === hash(rl[i]); }));
+  check('fast: a picture lowered to a smaller ss by maxPixels still bakes within 5 levels', diff(SB.bakeSprite(scenes[0], 64, { ss: 4, maxPixels: 64 * 64 * 4 }), SB.bakeSprite(scenes[0], 64, { ss: 4, maxPixels: 64 * 64 * 4, fast: true })) <= 5);
+  check('fast shading off (the default) is unchanged by the option existing', hash(SB.bakeSprite(scenes[0], 48, { fast: false })) === hash(SB.bakeSprite(scenes[0], 48, {})));
+  var tx = SB.material([[0, 60, 20, 90], [1, 245, 210, 255]], { ridge: { count: 3, depth: 0.3 } });
+  var rr = SB.bakeSprite([{ fn: SB.sphere(11), nu: 12, nv: 18, material: tx }], 48, { fast: true }), r0 = SB.bakeSprite([{ fn: SB.sphere(11), nu: 12, nv: 18, material: tx }], 48, {});
+  check('fast shading leaves a ridge or picture material on the exact fill', hash(rr) === hash(r0));
+  var mixed = [{ fn: SB.sphere(11), nu: 12, nv: 18, material: tx }, { fn: SB.sphere(4, [0, 0, 12]), nu: 10, nv: 12, material: red }];
+  check('fast with a ridge part in the scene: the plain parts take the per-sample fast fill, within 5 levels', diff(SB.bakeSprite(mixed, 64, {}), SB.bakeSprite(mixed, 64, { fast: true })) <= 5);
+  check('fast and edge together work and stay within 3 levels', (function () { var e = SB.bakeSprite(scenes[1], 64, { fast: true, edge: true }), o = SB.bakeSprite(scenes[1], 64, {}), w = 0, k; for (k = 0; k < e.data.length; k++) w = Math.max(w, Math.abs(e.data[k] - o.data[k])); return w <= 8; })());
+})();
+
+/* edge-only supersampling (opts.edge, since 1.8.0) */
+(function () {
+  var mat = SB.material([[0, 60, 20, 90], [1, 245, 210, 255]]), red = SB.material([[0, 200, 40, 40], [1, 255, 120, 120]]);
+  var scenes = [
+    [{ fn: SB.sphere(11), nu: 12, nv: 18, material: mat }],
+    [{ fn: SB.torus(9, 3.5), nu: 24, nv: 16, material: mat }, { fn: SB.sphere(3, [0, 0, 5]), nu: 10, nv: 12, material: red }]
+  ], worst = 0, same = true, i, j, a, b, d, off = SB.bakeSprite(scenes[0], 48, {});
+  scenes.forEach(function (sc) {
+    [0, 1.1].forEach(function (phi) {
+      a = SB.bakeSprite(sc, 64, { phi: phi }); b = SB.bakeSprite(sc, 64, { phi: phi, edge: true });
+      same = same && a.width === b.width && a.height === b.height && a.data.length === b.data.length;
+      for (j = 0; j < a.data.length; j++) { d = Math.abs(a.data[j] - b.data[j]); if (d > worst) worst = d; }
+    });
+  });
+  check('edge mode: same size, and no byte differs from the default supersampled picture by more than 8 levels (sphere, torus with a bead, two angles)', same && worst <= 8, 'worst ' + worst);
+  var r1 = SB.bakeRoll(scenes[1], 4, 48, { edge: true }), r2 = SB.bakeRoll(scenes[1], 4, 48, { edge: true });
+  check('edge mode: a roll and a baker give the same pictures, run to run', r1.length === 4 && r1.every(function (f, k) { return hash(f) === hash(r2[k]); }));
+  check('edge mode with ss 1 is the plain one-sample picture', hash(SB.bakeSprite(scenes[0], 48, { edge: true, ss: 1 })) === hash(SB.bakeSprite(scenes[0], 48, { ss: 1 })));
+  check('edge mode off (the default) is unchanged by the option existing', hash(off) === hash(SB.bakeSprite(scenes[0], 48, { edge: false })));
+  var o = SB.bakeSprite(scenes[0], 48, { edge: true, outline: { radius: 2, color: [14, 24, 40] } });
+  check('edge mode works with an outline', o && o.width === 48 && o.data.length === 48 * 48 * 4);
+})();
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

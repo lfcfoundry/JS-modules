@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.0 · API 1 · 2026-11-06
+- Faster to draw: 2 to 3.6 times faster in Firefox and WebKit, and the fast option about twice as fast.
+
 ## 1.1.0 · API 1 · 2026-10-17
 - Lettering now wraps, keeps line breaks and keeps the fill on letters like g, p and y, with a smoother outline.
 - Applying it is about 18 times faster, and a new watch call keeps text current by itself.
