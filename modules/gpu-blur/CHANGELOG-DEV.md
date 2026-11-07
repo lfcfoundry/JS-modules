@@ -5,10 +5,10 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 1.4.2 · API 1 · 2026-11-07
 
 ### Quick
-Under a million pixels the card is picked only when the drawn probe is 15% or more ahead of WebAssembly; a start-up test turns on a kept-in-memory result canvas only where it is 30% or more faster (Firefox laptop 2048 x 2048 radius 24 drawn: 37 to 14 ms against the browser's 23 ms)
+Under 300,000 pixels the card is picked only when the drawn probe is 15% or more ahead of WebAssembly; a start-up test turns on a kept-in-memory result canvas only where it is 30% or more faster (Firefox laptop 2048 x 2048 radius 24 drawn: 37 to 14 ms against the browser's 23 ms)
 
 ### Details
-Pick: phone Chrome 156 read card 6.6 against WebAssembly 6.8 ms, then took 11.5 against 6.8 ms at 480 x 270. Rule was within 1.3 times; now 0.85 or less. Chrome laptop 0.70 keeps the card, Firefox laptop 3.0 vs 1.0 keeps WebAssembly. Kept canvas: module-made result canvases get willReadFrequently when 960 x 540 putImageData plus a copy is at least 30% faster; the card way's final copy never uses it; copied onto another canvas it is about 5% slower on Firefox (38 vs 36 ms).
+Pick: phone Chrome 156 probe read a tie twice (6.6 vs 6.8 and 5.7 vs 5.9 ms) and the card took 11.5 and 12.5 against 6.8 and 10.1 ms at 480 x 270. Under 300,000 pixels the card now needs 0.85 or less; from 300,000 pixels the old 1.3 stays because the card holds steady on the phone while WebAssembly swings (960 x 540: card 16.2 and 17.1, WebAssembly 15.5 and 25.4 ms). Chrome laptop probe 0.70 keeps the card, Firefox laptop 1.5 to 3.0 keeps WebAssembly. Kept canvas: module-made result canvases get willReadFrequently when 960 x 540 putImageData plus a copy is at least 30% faster; the card way's final copy never uses it; copied onto another canvas it is about 5% slower on Firefox (38 vs 36 ms).
 
 ### Deep
 Small drawn pictures on a phone: WebAssembly unless the card is clearly ahead (480 x 270: 11.5 to 6.8 ms). Firefox laptop 2048 x 2048 radius 24 drawn canvas: 37 to 14 ms

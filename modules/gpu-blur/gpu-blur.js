@@ -814,7 +814,7 @@
   function cardFits(out, q) {             // card way for a drawn picture: worth it by the probe; under 300,000 pixels only when the probe was strictly faster than WebAssembly (phone, 480 x 270: probe 3.7 vs 3.0 ms, picture 12.7 vs 10.9 ms)
     if (out !== 'canvas' || !calInfo || !calInfo.gl || own.lost) return false;
     if (q && q.w * q.h >= 1000000) return !!calInfo.glBig;   // a million pixels and up: the card unless it looked hopeless on the tiny probe
-    if (calInfo.drawGl != null && calInfo.drawWasm != null) return calInfo.drawGl <= 0.85 * calInfo.drawWasm;   // drawn probe: the card only when clearly ahead of WebAssembly. Under a million pixels the probe is a coin flip near a tie: phone Chrome 156 read card 6.6 against WebAssembly 6.8 ms, yet the picture took 11.5 against 6.8 ms at 480 x 270 and 12.1 against 9.5 ms at 640 x 360. Chrome laptop read 0.72 (a real win), Firefox laptop 1.5 (a loss)
+    if (calInfo.drawGl != null && calInfo.drawWasm != null) return calInfo.drawGl <= ((q && q.w * q.h >= 300000) ? 1.3 : 0.85) * calInfo.drawWasm;   // drawn probe: under 300,000 pixels the card only when clearly ahead of WebAssembly (the probe is a coin flip near a tie: phone Chrome 156 read 6.6 against 6.8 ms then 5.7 against 5.9, and the picture took 11.5 against 6.8 and 12.5 against 10.1 ms at 480 x 270); from 300,000 pixels the old line of 1.3 stays, because the card's time holds steady on the phone while WebAssembly's swings (960 x 540: card 16.2 and 17.1 ms, WebAssembly 15.5 and 25.4 ms). Chrome laptop reads 0.70 (a real card win), Firefox laptop 1.5 to 3.0 (WebAssembly)
     return !q || calInfo.glMs == null || calInfo.wasmMs == null || calInfo.glMs < calInfo.wasmMs;
   }
   var AUTO_HELPERS_PX = 3000000;
