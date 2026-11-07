@@ -1,6 +1,6 @@
 # netflow-plot developer changelog
 
-## 2.14.6 · API 2 · 2026-11-07
+## 2.14.7 · API 2 · 2026-11-07
 
 ### Quick
 When lines end at different places, their names used to start at each line's own end and could sit on a line that runs on (birdstrikes C 0 on the yellow line); now all names start in one column after the last line end.
@@ -11,7 +11,7 @@ tags x = max tag x before spacing. 1 new check (427).
 ### Deep
 Lead from the 2.14.1 review sheet.
 
-## 2.14.5 · API 2 · 2026-11-07
+## 2.14.6 · API 2 · 2026-11-07
 
 ### Quick
 A dot plot with one dot per name sorts biggest first by the drawn value (an average sorts by the average), writes each value beside its dot one decimal finer than the scale, drops gridlines and the number axis in the clean look, and names the values at the top with a note when the scale does not start at zero. clean:false keeps the old axis.
@@ -21,6 +21,17 @@ CH.dotplot: sort xc.list by cell value when no color and no sort; dv = clean && 
 
 ### Deep
 Follow-up to 2.14.4 dots.
+
+## 2.14.5 · API 2 · 2026-11-07
+
+### Quick
+Big line charts build faster; nothing looks different.
+
+### Details
+series() made two small lists for every x of every line, so 20,000 rows made 40,000 lists to collect. Each x now keeps its first value and row as plain numbers, and a list is made only when a second row lands on the same x; the rows are kept only for charts small enough to get dots. Same SVG on 84,000 random line and area charts (sum, mean, median, count, min, max, with repeats, blanks and -0) and on every test chart. make() on a 20,000-row line, repeated: Chromium 11.4 to 8.2 ms, Firefox 11.0 to 8.7 ms, WebKitGTK 10.5 to 9.2 ms; whole first page draw Chromium 66.8 to 47.1 ms, Firefox and WebKitGTK about even (0.89 to 1.01).
+
+### Deep
+speed only
 
 ## 2.14.4 · API 2 · 2026-11-07
 

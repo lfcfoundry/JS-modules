@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.14.6 (API 2)
+ * Version 2.14.7 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -387,9 +387,9 @@ var NetflowPlot = (function () {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', ck = sp.color ? R.cat(sp.color) : null;
     var xc = catsOf(xk, v, sp.sort || 'value', 60), cc = ck ? catsOf(ck, v, 'value', 8) : { list: [''], other: null }, cell = cross(xk, ck, v, how, xc, cc), all = [];
     cell.forEach(function (e) { all.push(e.v); });
-    if (!ck && !sp.sort) { var cv = function (x) { var e = cell.get(x + '\u0000'); return e && e.v === e.v ? e.v : -Infinity; }; xc.list = xc.list.slice().sort(function (p, q) { return cv(q) - cv(p); }); }   /* one dot per name: biggest first by the drawn value (an average sorts by the average, not the total; since 2.14.5) */
+    if (!ck && !sp.sort) { var cv = function (x) { var e = cell.get(x + '\u0000'); return e && e.v === e.v ? e.v : -Infinity; }; xc.list = xc.list.slice().sort(function (p, q) { return cv(q) - cv(p); }); }   /* one dot per name: biggest first by the drawn value (an average sorts by the average, not the total; since 2.14.6) */
     F.L = Math.min(220, 20 + 7 * Math.min(28, Math.max.apply(null, xc.list.map(function (s) { return String(s).length; }).concat([4]))));
-    var band = bandAxis(xc.list, F.Tp, F.B, 0), val = axisFor(all, false, F.L, F.R - (F.clean && !ck ? 44 : 0), false), dv = F.clean && !ck && band.step >= 11, vt = fmtFor(all);   /* clean look, one dot per name: each dot carries its value, no gridlines or number axis (since 2.14.5) */
+    var band = bandAxis(xc.list, F.Tp, F.B, 0), val = axisFor(all, false, F.L, F.R - (F.clean && !ck ? 44 : 0), false), dv = F.clean && !ck && band.step >= 11, vt = fmtFor(all);   /* clean look, one dot per name: each dot carries its value, no gridlines or number axis (since 2.14.6) */
     if (dv && val.fmt && val.list.length > 1) { var vstep = Math.abs(val.list[1] - val.list[0]), vdp = vstep < 1 ? Math.min(6, Math.ceil(-Math.log10(vstep) - 1e-9) + 1) : -1; if (vdp >= 0) vt = function (v) { return v.toFixed(vdp); }; }   /* values one decimal finer than the scale's steps, so close averages read apart */
     if (!dv) val.list.forEach(function (t) { var x = val.map(t); F.line([x, F.Tp, x, F.B], 1, F.alpha(F.T.boxLine, 0.35)); F.text(x, F.B + 16, val.fmt ? val.fmt(t) : fmtNum(t), 11, F.alpha(F.T.muted, 0.9)); });
     else if (sp.y) F.text(F.L, F.Tp - 8, axisName(how === 'mean' ? 'Average ' + tName(sp.y) : sp.y) + (val.lo > 0 ? ', scale starts at ' + (val.fmt ? val.fmt(val.lo) : fmtNum(val.lo)) : ''), 11, F.alpha(F.T.muted, 0.9), { align: 'l' });   /* the name of the values, and a plain note when the scale does not start at zero */
@@ -406,16 +406,23 @@ var NetflowPlot = (function () {
   /** Rows sorted along x, one line per color category; smooth = moving average, index = each line from 100 at its first value. */
   function series(F, R, sp) {
     var x = R.num(sp.x), y = sp.y ? R.num(sp.y) : null, ck = sp.color ? R.cat(sp.color) : null, how = sp.agg || 'sum';
-    var cc = ck ? catsOf(ck, y, 'value', 12) : { list: [''], other: null }, by = new Map();
+    var cc = ck ? catsOf(ck, y, 'value', 12) : { list: [''], other: null }, by = new Map(), distinct = 0;
+    /* each x of a line keeps its first row and value as plain numbers; a list is made only when a second row lands on the same x (most lines
+       have one row per x, so 20,000 rows no longer make 40,000 small lists; since 2.14.5). The values and rows come out the same. */
     for (var i = 0; i < x.length; i++) {
       if (x[i] !== x[i]) continue;
-      var c = ck ? (cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i]) : '', m = by.get(c); if (!m) { m = new Map(); by.set(c, m); }
-      var l = m.get(x[i]); if (!l) { l = []; l.rows = []; m.set(x[i], l); } l.push(y ? y[i] : 1); l.rows.push(i);
+      var c = ck ? (cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i]) : '', m = by.get(c); if (!m) { m = { at: new Map(), v1: [], r1: [], more: [] }; by.set(c, m); }
+      var k0 = m.at.get(x[i]), yv = y ? y[i] : 1;
+      if (k0 === undefined) { m.at.set(x[i], m.v1.length); m.v1.push(yv); m.r1.push(i); m.more.push(null); distinct++; }
+      else { var mo = m.more[k0]; if (!mo) mo = m.more[k0] = { vals: [m.v1[k0]], rows: [m.r1[k0]] }; mo.vals.push(yv); mo.rows.push(i); }
     }
+    var one = function (v, h) { if (h === 'count') return 1; if (v !== v) return NaN; if (h === 'min' || h === 'max' || h === 'median') return v; var s = 0; s += v; return s; };   /* aggregate() of a one-value list */
     var out = [];
     cc.list.forEach(function (c, ci) {
       var m = by.get(c); if (!m) return;
-      var xs = Array.from(m.keys()).sort(function (a, b) { return a - b; }), ys = xs.map(function (k) { return aggregate(m.get(k), y ? how : 'count'); }), rows = xs.map(function (k) { return m.get(k).rows; });
+      var h = y ? how : 'count', xs = Array.from(m.at.keys()).sort(function (a, b) { return a - b; }), ks = xs.map(function (q) { return m.at.get(q); });
+      var ys = ks.map(function (k) { var mo = m.more[k]; return mo ? aggregate(mo.vals, h) : one(m.v1[k], h); });
+      var rows = distinct <= 400 ? ks.map(function (k) { var mo = m.more[k]; return mo ? mo.rows : [m.r1[k]]; }) : null;   /* the rows are read only for the dots of small charts */
       if (sp.smooth > 1) { var w = Math.floor(sp.smooth), sm = new Array(ys.length), s = 0, q = []; for (var j = 0; j < ys.length; j++) { q.push(ys[j]); s += ys[j]; if (q.length > w) s -= q.shift(); sm[j] = s / q.length; } ys = sm; }
       if (sp.index) { var base = ys.find(function (v) { return v === v && v !== 0; }) || 1; ys = ys.map(function (v) { return v / base * 100; }); }
       out.push({ name: c, ci: ci, xs: xs, ys: ys, rows: rows });
@@ -455,7 +462,7 @@ var NetflowPlot = (function () {
       else if (s.list.length > 1 && pts.length && !F.keyRow) F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, clip(l.name || '(blank)', 16), 11, col, { align: 'l' });
     });
     if (tags.length) {   /* names at the line ends, moved apart (14 px since 2.14.0, was 13) so they never overlap, and kept inside the chart */
-      var tx = 0; tags.forEach(function (g) { if (g.x > tx) tx = g.x; }); tags.forEach(function (g) { g.x = tx; });   /* one column of names after the last line end, so a name never sits on a line that runs on past where its own line stopped (since 2.14.6) */
+      var tx = 0; tags.forEach(function (g) { if (g.x > tx) tx = g.x; }); tags.forEach(function (g) { g.x = tx; });   /* one column of names after the last line end, so a name never sits on a line that runs on past where its own line stopped (since 2.14.7) */
       tags.sort(function (a, b) { return a.y - b.y; });
       var i, lo = F.Tp + 8, hi = F.B - 1;   /* (since 2.14.0: F.B - 1, was F.B + 4, so the lowest name stays clear of the year under the corner) */
       for (i = 0; i < tags.length; i++) tags[i].y = Math.max(tags[i].y, i ? tags[i - 1].y + 14 : lo);
