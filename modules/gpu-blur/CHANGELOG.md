@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.2 · API 1 · 2026-11-07
+- Small drawn pictures pick the faster way on a phone, and Firefox keeps big drawn results in memory
+
 ## 1.4.1 · API 1 · 2026-11-07
 - Auto uses the helpers for big bytes-out pictures: cloud 2048 x 2048 first call 80 to 61 ms in Chromium
 

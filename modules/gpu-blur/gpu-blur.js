@@ -2,7 +2,7 @@
  * gpu-blur.js: blur a picture on the graphics card (WebGL 2), or in WebAssembly, or in plain JavaScript, and give the same picture every way.
  * The module picks the way by what the browser can do, never by the browser's name. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.1 (API 1)
+ * Version 1.4.2 (API 1)
  *
  *   GpuBlur.blur(source, width, height, radius[, opts])   -> Promise of { canvas | pixels | texture, width, height, route }
  *   GpuBlur.blurSync(source, width, height, radius[, opts]) -> the same result at once (the page waits for the whole job)
@@ -32,7 +32,7 @@
 })(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  var VERSION = '1.4.1';
+  var VERSION = '1.4.2';
   var MAX_PIXELS = 33554432;          // 8192 x 4096
   var STRIP = 16;                     // columns per vertical strip (the wasm kernel's limit)
   var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
@@ -62,6 +62,20 @@
   }
 
   function intoPx(opts, len) { var a = isBytes(opts.into) ? opts.into : opts._intoPx; return a && a.length === len ? a : null; }   // _intoPx: the 1.2.3 test name
+  function isOpaque(inp) {   // true only when the picture is bytes and every alpha value is 255 (a kept-in-memory canvas rounds see-through colors a little differently in WebKit: 93.7% equal against the card way, largest gap 2 levels); a picture read from a canvas or image counts as unknown, so it keeps a default canvas
+    if (!inp || !inp.bytes) return false;
+    if (inp.opaque != null) return inp.opaque;
+    var b = inp.bytes, n = Math.min(b.length, inp.w * inp.h * 4), i = 3, ok = true;
+    if (!(b.byteOffset & 3) && (n & 3) === 0 && typeof Uint32Array === 'function' && new Uint8Array(new Uint32Array([1]).buffer)[0] === 1) {
+      var u = new Uint32Array(b.buffer, b.byteOffset, n >> 2), m = u.length;
+      for (i = 0; i < m; i += 8) if ((u[i] >>> 24) !== 255) { ok = false; break; }   // every 8th pixel: a full scan of 4 million pixels costs 5.7 ms of the 14 ms this saves; a see-through patch under 8 pixels wide can be missed, which only costs rounding of up to 2 levels in WebKit
+    } else for (; i < n; i += 32) if (b[i] !== 255) { ok = false; break; }
+    return (inp.opaque = ok);
+  }
+  function ctx2d(cv, opts, card, inp) {   // a canvas this module makes (never one passed in with into) is kept in memory (willReadFrequently) when the start-up test found that this browser draws it sooner that way; _wrf: private test switch. Never for the card way's final copy (Firefox 160 laptop: 37 became 48 ms)
+    var on = opts && opts._wrf != null ? !!opts._wrf : !card && !!(calInfo && calInfo.kept) && isOpaque(inp);
+    return cv.getContext('2d', on && !(opts && opts.into) ? { willReadFrequently: true } : undefined);
+  }
   function intoCv(opts) { return opts.into && !isBytes(opts.into) ? opts.into : null; }
   function isBytes(x) { return typeof Uint8Array !== 'undefined' && (x instanceof Uint8Array || (typeof Uint8ClampedArray !== 'undefined' && x instanceof Uint8ClampedArray)); }
 
@@ -254,7 +268,7 @@
       var cv = intoCv(opts) || makeCanvas(w, h);
       if (!cv) { job.free(); throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"'); }
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-      ctx = cv.getContext('2d');
+      ctx = ctx2d(cv, opts, false, inp);
       if (!ctx) { job.free(); throw new Error('gpu-blur: the target canvas has no 2D context'); }
       res.canvas = cv;
       // Writing goes in a few large fixed bands (about 250,000 pixels): in some engines every turn given back to the browser after a putImageData costs a lot on a big canvas,
@@ -345,7 +359,7 @@
         var cv = intoCv(opts) || makeCanvas(w, h);
         if (!cv) throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"');
         if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-        ctx = cv.getContext('2d'); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
+        ctx = ctx2d(cv, opts, false, inp); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
         res.canvas = cv;
       }
       if (inp.kind !== 'bytes') {
@@ -474,7 +488,7 @@
             var cv = intoCv(opts) || makeCanvas(w, h);
             if (!cv) throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"');
             if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-            ctx = cv.getContext('2d'); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
+            ctx = ctx2d(cv, opts, false, inp); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
             ctx.putImageData(new ImageData(px, w, h), 0, 0); res.canvas = cv;
           }
           return res;
@@ -704,7 +718,7 @@
       glPasses(S, inp, w, h, b, 'canvas', null, two);
       if (gl.isContextLost()) throw new Error('gpu-blur: the WebGL 2 context was lost');
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-      var c2 = cv.getContext('2d');
+      var c2 = ctx2d(cv, opts, true);
       if (!c2) throw new Error('gpu-blur: the target canvas has no 2D context');
       c2.globalCompositeOperation = 'copy'; c2.drawImage(o.canvas, 0, 0); c2.globalCompositeOperation = 'source-over';
       res.canvas = cv;
@@ -767,7 +781,23 @@
         [['drawGl', t.drawGl], ['drawWasm', t.drawWasm]].forEach(function (e) { e[1].sort(function (a, c) { return a - c; }); info[e[0]] = e[1].length ? e[1][e[1].length >> 1] : null; });
       }, function () { info.drawGl = info.drawWasm = null; });
     }
-    return timeWasm(w, h, b, px, 5, 'wasmMs').then(function () { return timeGL(w, h, b, inp, 5, 'glMs'); }).then(bigGuess).then(timeDrawn).then(function () {
+    function timeKept() {                 // putImageData into a default canvas against a kept-in-memory one, each followed by drawing it onto another canvas (the usual next use), 960 x 540. Firefox 160 laptop 2048 x 2048: default 52 against kept 37 ms; Chrome 156 laptop 22 against 31.6 ms, so only a clear win turns it on
+      if (typeof ImageData !== 'function') return Promise.resolve();
+      var kw = 960, kh = 540, kpx = new Uint8ClampedArray(probePicture(kw, kh).buffer), img = new ImageData(kpx, kw, kh), t = { def: [], kept: [] }, k = 0, tgt = makeCanvas(kw, kh), tx = tgt && tgt.getContext('2d', { willReadFrequently: true });
+      if (!tx) return Promise.resolve();
+      function one(kind) {
+        var t0 = now(), c = makeCanvas(kw, kh), x = c && c.getContext('2d', kind === 'kept' ? { willReadFrequently: true } : undefined);
+        if (!x) throw new Error('no canvas');
+        x.putImageData(img, 0, 0); x.getImageData(0, 0, 1, 1); tx.globalCompositeOperation = 'copy'; tx.drawImage(c, 0, 0); tx.getImageData(0, 0, 1, 1);
+        var dt = now() - t0; if (k >= 4) t[kind].push(dt);
+      }
+      function round() { var a = k % 4 < 2 ? ['def', 'kept'] : ['kept', 'def']; one(a[0]); one(a[1]); k += 2; return k < 10 ? nextTask().then(round) : null; }
+      return round().then(function () {
+        [['def', t.def], ['kept', t.kept]].forEach(function (e) { e[1].sort(function (a, c) { return a - c; }); });
+        if (t.def.length && t.kept.length) { info.defMs = t.def[t.def.length >> 1]; info.keptMs = t.kept[t.kept.length >> 1]; info.kept = info.keptMs <= 0.7 * info.defMs; }
+      }, function () {});
+    }
+    return timeWasm(w, h, b, px, 5, 'wasmMs').then(function () { return timeGL(w, h, b, inp, 5, 'glMs'); }).then(bigGuess).then(timeDrawn).then(timeKept).then(function () {
       if (info.glMs != null) {
         info.gl = (info.wasmMs == null ? true : info.glMs <= 2 * info.wasmMs + 2) || !!info.glBig;
         if (!info.gl) info.why = 'WebGL 2 took ' + info.glMs.toFixed(1) + ' ms against ' + info.wasmMs.toFixed(1) + ' ms for wasm on a 480 x 270 probe';
@@ -794,15 +824,17 @@
   function cardFits(out, q) {             // card way for a drawn picture: worth it by the probe; under 300,000 pixels only when the probe was strictly faster than WebAssembly (phone, 480 x 270: probe 3.7 vs 3.0 ms, picture 12.7 vs 10.9 ms)
     if (out !== 'canvas' || !calInfo || !calInfo.gl || own.lost) return false;
     if (q && q.w * q.h >= 1000000) return !!calInfo.glBig;   // a million pixels and up: the card unless it looked hopeless on the tiny probe
-    if (calInfo.drawGl != null && calInfo.drawWasm != null) return calInfo.drawGl <= 1.3 * calInfo.drawWasm;   // drawn probe: card over WebAssembly at most 1.3 (Chrome laptop 1.22 and phone 1.11 in the test were card wins at 640 and up, Firefox laptop 8.3 was a wasm win)
+    if (calInfo.drawGl != null && calInfo.drawWasm != null) return calInfo.drawGl <= ((q && q.w * q.h >= 300000) ? 1.3 : 0.85) * calInfo.drawWasm;   // drawn probe: under 300,000 pixels the card only when clearly ahead of WebAssembly (the probe is a coin flip near a tie: phone Chrome 156 read 6.6 against 6.8 ms then 5.7 against 5.9, and the picture took 11.5 against 6.8 and 12.5 against 10.1 ms at 480 x 270); from 300,000 pixels the old line of 1.3 stays, because the card's time holds steady on the phone while WebAssembly's swings (960 x 540: card 16.2 and 17.1 ms, WebAssembly 15.5 and 25.4 ms). Chrome laptop reads 0.70 (a real card win), Firefox laptop 1.5 to 3.0 (WebAssembly)
     return !q || calInfo.glMs == null || calInfo.wasmMs == null || calInfo.glMs < calInfo.wasmMs;
   }
   var AUTO_HELPERS_PX = 3000000;
   function autoOrder(out, q) {            // after calibrate()
     var order = [], cores = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, px = q ? q.w * q.h : 0;
+    var helpersOk = out !== 'texture' && cores >= 4 && wasm.state === 'ready' && !(q && q.opts && q.opts.workers === 0) && (px >= AUTO_HELPERS_PX || (helpers && px >= HELPER_MIN_PX));
+    if (out === 'canvas' && helpersOk && calInfo && calInfo.kept) order.push('helpers');   // a kept-in-memory canvas makes the helpers' picture draw sooner than the card's here
     if (cardFits(out, q)) order.push('webgl2');
     // helpers (blur() only): a cold start costs about 20 to 35 ms, so a picture of 3 million pixels and up, or any picture of 0.3 million and up while the helpers are already running (they stay 5 s after a job)
-    if (out !== 'texture' && cores >= 4 && wasm.state === 'ready' && !(q && q.opts && q.opts.workers === 0) && (px >= AUTO_HELPERS_PX || (helpers && px >= HELPER_MIN_PX))) order.push('helpers');
+    if (helpersOk && order.indexOf('helpers') < 0) order.push('helpers');
     order.push('wasm', 'js');
     return order;
   }
@@ -872,7 +904,7 @@
     var i = calInfo || {};
     var canvasRoute = i.done ? (i.gl ? 'webgl2' : wasm.state === 'ready' ? 'wasm' : 'js') : null;
     return { version: VERSION, wasm: wasm.state === 'ready', wasmState: wasm.state, wasmWhy: wasm.why, webgl2: !!(i.done && (i.glMs != null)), webgl2Worth: !!i.gl,
-      glMs: i.glMs == null ? null : i.glMs, glBig: i.glBig == null ? null : !!i.glBig, wasmMs: i.wasmMs == null ? null : i.wasmMs, drawGl: i.drawGl == null ? null : i.drawGl, drawWasm: i.drawWasm == null ? null : i.drawWasm, why: i.why || '', canvasRoute: canvasRoute, pixelsRoute: wasm.state === 'ready' ? 'wasm' : (wasm.state === 'failed' ? 'js' : null), calibrated: !!i.done, threads: canThreads() && !threadsWhy };
+      glMs: i.glMs == null ? null : i.glMs, glBig: i.glBig == null ? null : !!i.glBig, wasmMs: i.wasmMs == null ? null : i.wasmMs, kept: i.kept == null ? null : !!i.kept, keptMs: i.keptMs == null ? null : i.keptMs, defMs: i.defMs == null ? null : i.defMs, drawGl: i.drawGl == null ? null : i.drawGl, drawWasm: i.drawWasm == null ? null : i.drawWasm, why: i.why || '', canvasRoute: canvasRoute, pixelsRoute: wasm.state === 'ready' ? 'wasm' : (wasm.state === 'failed' ? 'js' : null), calibrated: !!i.done, threads: canThreads() && !threadsWhy };
   }
   function ready() { return calibrate().then(function () { return info(); }); }
   function release() {

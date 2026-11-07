@@ -1,8 +1,8 @@
 # gpu-blur
 
-**Version 1.4.1 · API 1**
+**Version 1.4.2 · API 1**
 
-**Tested in:** cloud Chromium, Firefox, WebKitGTK (cold first call); laptop and phone run pending
+**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (cloud); Firefox 160, Chrome 156 laptops; Chrome 156 phone
 
 ## What it is and how it works
 
