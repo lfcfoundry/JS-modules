@@ -1,5 +1,38 @@
 # netflow-plot developer changelog
 
+## 2.14.4 · API 2 · 2026-11-07
+
+### Quick
+auto() turns a bar chart of averages into a dot plot when the averages are within 3% of each other (19 bars of 47.7 became dots that show the differences); number ticks closer than 1 apart get the decimals they need below 100 too (47.660, 47.662, not 47.7 six times); the dot plot axis uses the axis format.
+
+### Details
+guess(): bar with agg mean, no color, lo > 0 and hi - lo <= 0.03 hi -> dotplot + why; axisFor: decimals also when two ticks would print the same; CH.dotplot ticks use val.fmt. 2 new checks (425).
+
+### Deep
+udistrict.json drew 19 identical-looking bars.
+
+## 2.14.3 · API 2 · 2026-11-07
+
+### Quick
+guess()/auto() size a treemap by a column named size/value/count/amount/total (or the first other number), never by the parent or id column; flare.json was sized by parent ids. The reason now says what sizes it.
+
+### Details
+treemap put: tn = nums minus par, id and G_ID names; tsz = first G_ADD or size-like name, else tn[0]; why gets ', sized by X'. 1 new check (423).
+
+### Deep
+flare.json tiles were sized by parent id numbers (query looked big, vis small).
+
+## 2.14.2 · API 2 · 2026-11-07
+
+### Quick
+Number axes at 10,000 or more use one unit set by the biggest tick (5k ... 40k, 0.5B ... 3.0B), with the decimals the step needs; was 5,000 next to 10k and 500M next to 1B.
+
+### Details
+axisFor: tu from max(|lo|,|hi|) (1e9/1e6/1e3 at >= 1e4), ud = fewest decimals that keep every tick exact to step/1000, 0 written as 0.
+
+### Deep
+Lead from the test-set review.
+
 ## 2.14.1 · API 2 · 2026-11-07
 
 ### Quick

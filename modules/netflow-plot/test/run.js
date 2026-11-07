@@ -216,6 +216,17 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const longN = ['Aerobacter aerogenes', 'Klebsiella pneumoniae', 'Pseudomonas aeruginosa', 'Mycobacterium tuberculosis', 'Escherichia coli', 'Salmonella schottmuelleri', 'Proteus vulgaris', 'Brucella abortus', 'Streptococcus fecalis', 'Staphylococcus aureus', 'Staphylococcus albus', 'Bacillus anthracis'].map((b, i) => ({ Bacteria: b, Penicillin: 900 - i * 70 }));
   ok(P.auto(longN).spec.horizontal === true && /lie sideways/.test(P.auto(longN).why), 'long names: auto lays the bars sideways');
   ok(!P.auto(longN.map((r, i) => ({ Bacteria: 'b' + i, Penicillin: r.Penicillin }))).spec.horizontal, 'short names stay upright');
+  // since 2.14.2 one unit on a whole number axis, set by its biggest number
+  const axS = P.toSvg([{ x: 0, y: 1 }, { x: 38000, y: 2 }, { x: 19000, y: 3 }], { type: 'scatter', x: 'x', y: 'y' });
+  ok(/>5k<\/text>/.test(axS) && /35k<\/text>/.test(axS) && !/>5,000<\/text>/.test(axS), 'axis 0 to 40,000 reads 5k ... 35k, not 5,000 next to 10k');
+  // since 2.14.3 a tree is sized by a real measure, never by its parent or id numbers
+  const tree = [{ id: 1, name: 'root' }, { id: 2, name: 'a', parent: 1, size: 10 }, { id: 3, name: 'b', parent: 1, size: 90 }, { id: 4, name: 'c', parent: 1, size: 40 }, { id: 5, name: 'd', parent: 1, size: 5 }, { id: 6, name: 'e', parent: 1, size: 7 }];
+  ok(P.guess(tree).spec.size === 'size' || (P.guess(tree).others || []).concat([P.guess(tree)]).some((g) => g.type === 'treemap' && g.spec.size === 'size'), 'treemap pick: sized by the size column, not by parent');
+  // since 2.14.4 averages within 3% of each other become dots on a scale near the values, with ticks that differ
+  const near = []; for (let i = 0; i < 190; i++) near.push({ key: 'food ' + (i % 19), lat: 47.655 + ((i * 37) % 17) / 1000 });
+  const ng = P.guess(near), ns = P.auto(near).svg;
+  ok(ng.type === 'dotplot' && /close together/.test(ng.why), 'close averages: dots, not 19 equal bars');
+  const nt = (ns.match(/>47[.0-9]*</g) || []); ok(nt.length >= 3 && new Set(nt).size === nt.length, 'dot plot ticks all differ (' + nt.join(' ') + ')');
   const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
   ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
 }

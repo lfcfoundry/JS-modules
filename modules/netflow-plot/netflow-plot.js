@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.14.1 (API 2)
+ * Version 2.14.4 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -248,7 +248,9 @@ var NetflowPlot = (function () {
     if (zero) { lo = Math.min(0, lo); hi = Math.max(0, hi); }
     if (isTime) { var tt = timeTicks(lo, hi, n || 8); return { kind: 'time', lo: lo, hi: hi, list: tt.list, fmt: tt.fmt, map: linear(lo, hi === lo ? lo + 1 : hi, a, b) }; }
     var t = ticks(lo, hi, n || 6), ax = { kind: 'num', lo: t.lo, hi: t.hi, list: t.list, map: linear(t.lo, t.hi, a, b) };
-    if (t.step > 0 && t.step < 1 && Math.max(Math.abs(t.lo), Math.abs(t.hi)) >= 100) { var dp = Math.min(6, Math.ceil(-Math.log10(t.step) - 1e-9)); ax.fmt = function (v) { var x = v.toFixed(dp); return +x === 0 ? x.replace('-', '') : x; }; }   /* -118.4, -118.2, not -118 three times: ticks closer than 1 apart keep the decimals their step needs (since 2.13.0) */
+    var tmax = Math.max(Math.abs(t.lo), Math.abs(t.hi)), tu = tmax >= 1e9 ? 1e9 : tmax >= 1e6 ? 1e6 : tmax >= 1e4 ? 1e3 : 1;
+    if (tu > 1 && t.step >= tu / 1000) { var us = tu === 1e9 ? 'B' : tu === 1e6 ? 'M' : 'k', ud = 0; while (ud < 3 && t.list.some(function (v) { return Math.abs(Number((v / tu).toFixed(ud)) * tu - v) > t.step / 1000; })) ud++; ax.fmt = function (v) { if (v === 0) return '0'; var x = (v / tu).toFixed(ud); return (+x === 0 ? x.replace('-', '') : x) + us; }; }   /* one unit on the whole axis, set by its biggest number: 5k, 10k ... 40k, not 5,000 next to 10k (since 2.14.2) */
+    if (t.step > 0 && t.step < 1 && !ax.fmt && (Math.max(Math.abs(t.lo), Math.abs(t.hi)) >= 100 || t.list.some(function (v, i) { return i && fmtNum(v) === fmtNum(t.list[i - 1]); }))) {   /* (since 2.14.4 also below 100 when two ticks would print the same: 47.70, 47.72, not 47.7 six times) */ var dp = Math.min(6, Math.ceil(-Math.log10(t.step) - 1e-9)); ax.fmt = function (v) { var x = v.toFixed(dp); return +x === 0 ? x.replace('-', '') : x; }; }   /* -118.4, -118.2, not -118 three times: ticks closer than 1 apart keep the decimals their step needs (since 2.13.0) */
     if ((lo >= 1800 || (vals.yearName && lo >= 1000)) && hi <= 2200 && hi - lo <= (vals.yearName ? 1200 : 300) && Array.prototype.every.call(vals, function (v) { return v !== v || v === Math.floor(v); })) {   /* whole numbers 1800 to 2200 are years: written 2015, not 2,015, and only whole-year ticks; from 1000 when the column is named year (since 2.12.2) */
       ax.list = ax.list.filter(function (v) { return v === Math.floor(v); }); ax.fmt = function (v) { return String(v); }; ax.years = true;
     }
@@ -387,7 +389,7 @@ var NetflowPlot = (function () {
     cell.forEach(function (e) { all.push(e.v); });
     F.L = Math.min(220, 20 + 7 * Math.min(28, Math.max.apply(null, xc.list.map(function (s) { return String(s).length; }).concat([4]))));
     var band = bandAxis(xc.list, F.Tp, F.B, 0), val = axisFor(all, false, F.L, F.R, false);
-    val.list.forEach(function (t) { var x = val.map(t); F.line([x, F.Tp, x, F.B], 1, F.alpha(F.T.boxLine, 0.35)); F.text(x, F.B + 16, fmtNum(t), 11, F.alpha(F.T.muted, 0.9)); });
+    val.list.forEach(function (t) { var x = val.map(t); F.line([x, F.Tp, x, F.B], 1, F.alpha(F.T.boxLine, 0.35)); F.text(x, F.B + 16, val.fmt ? val.fmt(t) : fmtNum(t), 11, F.alpha(F.T.muted, 0.9)); });
     xc.list.forEach(function (x) {
       var y = band.map(x) + band.bw / 2, xs = [];
       F.line([F.L, y, F.R, y], 1, F.alpha(F.T.boxLine, 0.25));
@@ -892,7 +894,7 @@ var NetflowPlot = (function () {
       if (np > FLOW_MAX && both >= 0.3 * all) put('chord', { from: fsp.from, to: fsp.to, value: fsp.value }, 'it has ' + gQ(from) + ' and ' + gQ(to) + ' columns and most places both send and receive, so it shows the flows around a circle (a chord)' + fsz);
       put('sankey', fsp, fwhy);
     }
-    if (par) { var id = named(/^(id|name|node|label)$/i) || of(['cat', 'id'])[0]; if (id && id !== par) put('treemap', { id: id.k, parent: par.k, size: measure ? measure.k : undefined }, 'it has a ' + gQ(par) + ' column, so it is a tree'); }
+    if (par) { var id = named(/^(id|name|node|label)$/i) || of(['cat', 'id'])[0]; if (id && id !== par) { var tn = nums.filter(function (c) { return c.k !== par.k && c.k !== id.k && !G_ID.test(c.k); }), tsz = tn.filter(function (c) { return G_ADD.test(c.k) || /size|value|count|amount|total/i.test(c.k); })[0] || tn[0]; put('treemap', { id: id.k, parent: par.k, size: tsz ? tsz.k : undefined }, 'it has a ' + gQ(par) + ' column, so it is a tree' + (tsz ? ', sized by ' + gQ(tsz) : '')); } }   /* sized by a real measure, never by the parent or id numbers (since 2.14.3) */
     var lat = named(/^(lat|latitude)$/i), lon = named(/^(lon|lng|long|longitude)$/i);
     if (lat && lon && lat.kind === 'num' && lon.kind === 'num') put('scatter', { x: lon.k, y: lat.k, color: small[0] ? small[0].k : undefined }, 'it has latitude and longitude, so each row is a point on a map-like grid');
     var t = times[0], ms = nums.filter(function (c) { return c !== t; });
@@ -917,6 +919,12 @@ var NetflowPlot = (function () {
     var c0 = groups[0] || of(['cat', 'code', 'month'])[0];
     if (c0) put('bar', { x: c0.k, agg: 'count' }, 'it has no number columns, so it counts the rows for each ' + gQ(c0));
     if (!out.length) return null;
+    out.forEach(function (p) {   /* averages that sit close together (within 3% of their size): bars from zero all look the same, so dots on a scale that starts near the values show the differences (since 2.14.4) */
+      if (p.type !== 'bar' || p.spec.agg !== 'mean' || p.spec.color || !p.spec.y) return;
+      var sm = Object.create(null), lo = Infinity, hi = -Infinity, k, v, j; for (j = 0; j < rows.length; j++) { v = +rows[j][p.spec.y]; k = rows[j][p.spec.x]; if (!isFinite(v) || k === undefined || k === null || k === '') continue; k = String(k); (sm[k] = sm[k] || [0, 0])[0] += v; sm[k][1]++; }
+      for (k in sm) { v = sm[k][0] / sm[k][1]; if (v < lo) lo = v; if (v > hi) hi = v; }
+      if (lo > 0 && hi - lo <= 0.03 * hi) { p.type = 'dotplot'; p.spec.type = 'dotplot'; p.why += '; the averages are close together, so dots on a scale that does not start at zero show how they differ'; }
+    });
     var best = out[0];
     return { type: best.type, spec: best.spec, why: best.why, others: out.slice(1, 4) };
   }
