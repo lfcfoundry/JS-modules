@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.9.0 · API 2 · 2026-11-07
+
+### Quick
+Charts picked from the data with a plain reason, plus an opt-in takeaway sentence and screen-reader text
+
+### Details
+toSvg(rows) with no type, x or y picks the chart from the shape of the rows (Sankey, treemap, map-like scatter, line, scatter, bar, histogram, counts). auto(rows, options) returns { svg, type, spec, why, others, takeaway, alt }; others gives up to three more picks for a one-click change. guess(rows) gives the pick alone. On 54 real public tables (vega-datasets): 39 of 39 and 15 of 15 held out (the prototype: 20 of 39, 10 of 15). takeaway(rows, spec) returns one sentence worked out from the rows and an alt text; title: 'auto' draws it. Percents only on a fair base; ties, negatives, zeros and missing values handled. The same SVG in Node and all three browsers. A call with type, x or y draws as before.
+
+### Deep
+Requested by the owner (auto-chart and takeaway yeses, 2026.11.07).
+
 ## 2.8.0 · API 2 · 2026-11-05
 
 ### Quick

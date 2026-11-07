@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.9.0 · API 2 · 2026-11-07
+- toSvg(rows) picks the chart; auto() says why; opt-in takeaway
+
 ## 2.8.0 · API 2 · 2026-11-05
 - Axis names read like words: sales_total shows as Sales total, and one-letter column names (r, v) are left out.
 
