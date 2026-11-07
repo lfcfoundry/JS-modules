@@ -942,7 +942,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 <script>
 (function () {
 'use strict';
-var BUILD = '2026.11.07.1210';   /*STAMP*/
+var BUILD = '2026.11.07.1214';   /*STAMP*/
 var G = window.GpuBlur, $ = function (id) { return document.getElementById(id); };
 var hash = location.hash || '', QUICK = /quick/.test(hash);
 var R = 12, ROUTES = ['webgl2', 'wasm', 'js', 'auto'], NAMES = { webgl2: 'WebGL 2 (the card way)', wasm: 'WebAssembly', js: 'plain JavaScript', auto: 'auto (what the module picks)' };
@@ -1076,6 +1076,13 @@ async function filterStep(step, steps) {
     ways.push(['g' + rt + 'c', 'gpu-blur ' + rt + ', bytes in, drawn canvas out', async function () { var x = await G.blur(px, W, H, RR, Object.assign({ out: 'canvas' }, op)); force(x.canvas); return x.route; }]);
     ways.push(['g' + rt + 'p', 'gpu-blur ' + rt + ', bytes in, bytes out', async function () { var x = await G.blur(px, W, H, RR, Object.assign({ out: 'pixels' }, op)); return x.route; }]);
   });
+  var copyOnto = function (cv) { var t = document.createElement('canvas'); t.width = W; t.height = H; var x = t.getContext('2d'); x.globalCompositeOperation = 'copy'; x.drawImage(cv, 0, 0); x.getImageData(0, 0, 1, 1); };   // the common next use: draw the result onto another canvas
+  ways.push(['wrfh', 'gpu-blur helpers, drawn canvas out, kept-in-memory canvas (willReadFrequently)', async function () { var x = await G.blur(px, W, H, RR, { out: 'canvas', route: 'helpers', _wrf: true }); force(x.canvas); return 'helpers'; }]);
+  ways.push(['dhcp', 'gpu-blur helpers, drawn canvas out, default canvas, then copied onto another canvas', async function () { var x = await G.blur(px, W, H, RR, { out: 'canvas', route: 'helpers' }); force(x.canvas); copyOnto(x.canvas); return 'helpers'; }]);
+  ways.push(['wrfhcp', 'gpu-blur helpers, drawn canvas out, kept-in-memory canvas, then copied onto another canvas', async function () { var x = await G.blur(px, W, H, RR, { out: 'canvas', route: 'helpers', _wrf: true }); force(x.canvas); copyOnto(x.canvas); return 'helpers'; }]);
+  ways.push(['dwcp', 'gpu-blur card way, drawn canvas out, default canvas, then copied onto another canvas', async function () { var x = await G.blur(px, W, H, RR, { out: 'canvas', route: 'webgl2' }); force(x.canvas); copyOnto(x.canvas); return 'webgl2'; }]);
+  if (okF) ways.push(['cfcp', 'browser canvas filter, canvas to canvas, then copied onto another canvas', async function () { dg.filter = 'blur(' + RR + 'px)'; dg.clearRect(0, 0, W, H); dg.drawImage(src, 0, 0); dg.filter = 'none'; copyOnto(dst); }]);
+  ways.push(['wrfa', 'gpu-blur auto, drawn canvas out, kept-in-memory canvas (willReadFrequently)', async function () { var x = await G.blur(px, W, H, RR, { out: 'canvas', _wrf: true }); force(x.canvas); return x.route; }]);
   if (typeof createImageBitmap === 'function') {   // bitmap out: the picture the browser can show without copying pixels into a 2D canvas; the read-back draws one pixel of it
     var bmEnd = function (bm) { var t = document.createElement('canvas'); t.width = 1; t.height = 1; var x = t.getContext('2d'); x.drawImage(bm, 0, 0, 1, 1, 0, 0, 1, 1); x.getImageData(0, 0, 1, 1); bm.close(); };
     ways.push(['bmhelpers', 'gpu-blur helpers, bytes in, bitmap out (shown without a 2D copy; read back 1 pixel)', async function () { var x = await G.blur(px, W, H, RR, { out: 'bitmap', route: 'helpers' }); bmEnd(x.bitmap); return 'helpers'; }]);
@@ -1102,6 +1109,7 @@ function filterLines(o) {
   var bestP, bnP = ''; Object.keys(o.ways).forEach(function (k) { var x = o.ways[k]; if (/^g/.test(k) && x.med != null && /p$/.test(k) && (!bestP || x.med < bestP)) { bestP = x.med; bnP = x.name; } });
   if (cf && cf.med != null && best) L.push('  Canvas out: fastest gpu-blur (' + bn + ') ' + f1(best) + ' ms against the browser filter ' + f1(cf.med) + ' ms: ' + (best < cf.med ? f1(cf.med / best) + ' times faster.' : f1(best / cf.med) + ' times slower.'));
   if (cb && cb.med != null && bestP) L.push('  Bytes out: fastest gpu-blur (' + bnP + ') ' + f1(bestP) + ' ms against the browser filter ' + f1(cb.med) + ' ms: ' + (bestP < cb.med ? f1(cb.med / bestP) + ' times faster.' : f1(bestP / cb.med) + ' times slower.'));
+  var wh = o.ways.wrfh; if (cf && cf.med != null && wh && wh.med != null) L.push('  Drawn canvas, kept in memory (helpers): ' + f1(wh.med) + ' ms against the browser filter ' + f1(cf.med) + ' ms: ' + (wh.med < cf.med ? f1(cf.med / wh.med) + ' times faster.' : f1(wh.med / cf.med) + ' times slower.'));
   var bmh = o.ways.bmhelpers; if (cf && cf.med != null && bmh && bmh.med != null) L.push('  Bitmap out (helpers, shown without a 2D copy): ' + f1(bmh.med) + ' ms against the browser filter ' + f1(cf.med) + ' ms: ' + (bmh.med < cf.med ? f1(cf.med / bmh.med) + ' times faster.' : f1(bmh.med / cf.med) + ' times slower.'));
   return L;
 }
@@ -1158,7 +1166,7 @@ async function main() {
     T.push('gpu-blur device test, build ' + BUILD);
     T.push('Module ' + G.version + ' (API 1). Device class: ' + deviceClass() + '. Browser: ' + browserLabel() + '. Graphics path: ' + gi.cls + '.');
     T.push('Blur: radius ' + R + ', bytes in, drawn canvas out; each way takes turns, the order rotates every round; 2 warm-up turns per way are thrown away; times are until the picture is really drawn (lower is better); page task = longest stretch the page could not respond (lower is better).');
-    T.push('What auto found on this device (one probe, 480 x 270): WebGL 2 context ' + info.webgl2 + ', probe on the card way ' + (info.glMs == null ? 'n/a' : f1(info.glMs) + ' ms') + ', probe in WebAssembly ' + (info.wasmMs == null ? 'n/a' : f1(info.wasmMs) + ' ms') + ', drawn probe card ' + (info.drawGl == null ? 'n/a' : f1(info.drawGl) + ' ms') + ' against WebAssembly ' + (info.drawWasm == null ? 'n/a' : f1(info.drawWasm) + ' ms') + ', card way worth it: ' + info.webgl2Worth + ' (for big pictures: ' + info.glBig + '). Drawn pictures by (big): ' + info.canvasRoute + '. Bytes by: ' + info.pixelsRoute + '. ' + (info.why ? 'Why: ' + info.why : ''));
+    T.push('What auto found on this device (one probe, 480 x 270): WebGL 2 context ' + info.webgl2 + ', probe on the card way ' + (info.glMs == null ? 'n/a' : f1(info.glMs) + ' ms') + ', probe in WebAssembly ' + (info.wasmMs == null ? 'n/a' : f1(info.wasmMs) + ' ms') + ', drawn probe card ' + (info.drawGl == null ? 'n/a' : f1(info.drawGl) + ' ms') + ' against WebAssembly ' + (info.drawWasm == null ? 'n/a' : f1(info.drawWasm) + ' ms') + ', kept-in-memory canvas test ' + (info.keptMs == null ? 'n/a' : f1(info.keptMs) + ' ms against ' + f1(info.defMs) + ' ms for a default canvas, so kept in memory: ' + info.kept) + ', card way worth it: ' + info.webgl2Worth + ' (for big pictures: ' + info.glBig + '). Drawn pictures by (big): ' + info.canvasRoute + '. Bytes by: ' + info.pixelsRoute + '. ' + (info.why ? 'Why: ' + info.why : ''));
     T.push('');
     results.forEach(function (o) { T = T.concat(table(o)); T.push(''); });
     filterLines(fo).forEach(function (l) { T.push(l); }); T.push('');
