@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.12.2 (API 2)
+ * Version 2.13.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -87,14 +87,16 @@ var NetflowPlot = (function () {
   /** One precision for a chart (visuals review, 2026.11.07): values in the same unit (B, M, k or none) get the same number of decimals, set by the biggest of them, so 9.7M never sits next to 10M. */
   function fmtFor(vals) {
     var U = { B: 1e9, M: 1e6, k: 1e3, '': 1 }, top = { B: 0, M: 0, k: 0, '': 0 }, frac = false, i, v, u;
-    var unit = function (a) { return a >= 1e9 ? 'B' : a >= 1e6 ? 'M' : a >= 1e4 ? 'k' : ''; };
+    var big = 0; for (i = 0; i < vals.length; i++) { v = Math.abs(vals[i]); if (v > big && isFinite(v)) big = v; }
+    var kAt = big < 1e5 ? Infinity : 1e4;   /* below 100,000 every value is written in full (10,000 next to 8,287, not 10.0k next to 8,287; since 2.13.0) */
+    var unit = function (a) { return a >= 1e9 ? 'B' : a >= 1e6 ? 'M' : a >= kAt ? 'k' : ''; };
     for (i = 0; i < vals.length; i++) { v = vals[i]; if (!isFinite(v)) continue; u = unit(Math.abs(v)); top[u] = Math.max(top[u], Math.abs(v) / U[u]); if (!u && v !== Math.round(v)) frac = true; }
     return function (x) {
       if (!isFinite(x)) return '';
       if (PCT && Math.abs(x) <= 1) { var px = (x * 100).toFixed(top[''] * 100 >= 99.95 || frac ? 1 : 0); return (+px === 0 ? px.replace('-', '') : px) + '%'; }
       var a = Math.abs(x), w = unit(a), m = Math.max(top[w], a / U[w]), d, t;
       if (w) d = m >= (w === 'k' ? 100 : 10) ? 0 : 1;
-      else { if (!frac || m >= 100) return fmtNum(Math.round(x)); d = Math.min(6, Math.max(0, 2 - Math.floor(Math.log10(m || 1)))); }
+      else { if (!frac || m >= 100) { var rr = Math.round(x); return Math.abs(rr) >= 1e4 ? (rr < 0 ? '-' : '') + String(Math.abs(rr)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : fmtNum(rr); } d = Math.min(6, Math.max(0, 2 - Math.floor(Math.log10(m || 1)))); }
       t = (x / U[w]).toFixed(d); if (+t === 0) t = t.replace('-', '');
       return t + w;
     };
@@ -213,7 +215,7 @@ var NetflowPlot = (function () {
       F.line([F.L, F.B, F.R, F.B], 1, alpha(T.muted, 0.7));
     };
     F.legend = function (title, names, colorOf) {
-      S.legendTitle = title || ''; names.slice(0, 24).forEach(function (n, i) { S.legend.push({ k: 'group', c: colorOf ? colorOf(n, i) : F.color(i), t: n === '' ? '(blank)' : String(n), key: 'p:' + n }); });
+      title = title ? axisName(title) || String(title) : ''; S.legendTitle = title; names.slice(0, 24).forEach(function (n, i) { S.legend.push({ k: 'group', c: colorOf ? colorOf(n, i) : F.color(i), t: n === '' ? '(blank)' : String(n), key: 'p:' + n }); });
       if (!F.keyRow) return;   /* a row of swatches over the plot (room was made for it), so the picture and its SVG carry their own key */
       var x = F.L, y = 14, cw = 6.6, more = 0;
       if (title) { F.text(x, y + 4, clip(title, 24) + ':', 12, T.fg, { align: 'l', bold: true }); x += Math.min(24, String(title).length + 1) * cw * 1.05 + 10; }
@@ -246,6 +248,7 @@ var NetflowPlot = (function () {
     if (zero) { lo = Math.min(0, lo); hi = Math.max(0, hi); }
     if (isTime) { var tt = timeTicks(lo, hi, n || 8); return { kind: 'time', lo: lo, hi: hi, list: tt.list, fmt: tt.fmt, map: linear(lo, hi === lo ? lo + 1 : hi, a, b) }; }
     var t = ticks(lo, hi, n || 6), ax = { kind: 'num', lo: t.lo, hi: t.hi, list: t.list, map: linear(t.lo, t.hi, a, b) };
+    if (t.step > 0 && t.step < 1 && Math.max(Math.abs(t.lo), Math.abs(t.hi)) >= 100) { var dp = Math.min(6, Math.ceil(-Math.log10(t.step) - 1e-9)); ax.fmt = function (v) { var x = v.toFixed(dp); return +x === 0 ? x.replace('-', '') : x; }; }   /* -118.4, -118.2, not -118 three times: ticks closer than 1 apart keep the decimals their step needs (since 2.13.0) */
     if ((lo >= 1800 || (vals.yearName && lo >= 1000)) && hi <= 2200 && hi - lo <= (vals.yearName ? 1200 : 300) && Array.prototype.every.call(vals, function (v) { return v !== v || v === Math.floor(v); })) {   /* whole numbers 1800 to 2200 are years: written 2015, not 2,015, and only whole-year ticks; from 1000 when the column is named year (since 2.12.2) */
       ax.list = ax.list.filter(function (v) { return v === Math.floor(v); }); ax.fmt = function (v) { return String(v); }; ax.years = true;
     }

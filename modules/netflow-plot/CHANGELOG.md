@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.13.0 · API 2 · 2026-11-07
+- Full numbers below 100,000, tick decimals from the step, tidy key titles.
+
 ## 2.12.2 · API 2 · 2026-11-07
 - Years before 1800 print as 1600, not 1,600, when the column is named year.
 
