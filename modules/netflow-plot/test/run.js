@@ -138,5 +138,56 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const rowsY = new Set(names.map((l) => l.y)); ok(rowsY.size === 2, 'crowded bar names: on two rows');
   ok(names.every((a) => names.every((b) => a === b || a.y !== b.y || Math.abs(a.x - b.x) >= (a.t.length + b.t.length) * 6.05 / 2)), 'crowded bar names: none touch on a row');
 }
+// the chart picked from the shape of the rows (2.9.0): small tables shaped like real ones, each with the kinds a person would accept
+{
+  const days = (n, f) => Array.from({ length: n }, (_, i) => f(i, new Date(Date.UTC(2024, 0, 1 + i)).toISOString().slice(0, 10)));
+  const T = [
+    ['two names and numbers (the README example)', [{ city: 'Detroit', share: 12 }, { city: 'Chicago', share: 16 }], 'bar'],
+    ['dates and a price', days(30, (i, d) => ({ date: d, price: 100 + i })), 'line'],
+    ['"Jan 1 2000" dates', ['Jan 1 2000', 'Feb 1 2000', 'Mar 1 2000', 'Apr 1 2000', 'May 1 2000', 'Jun 1 2000'].map((d, i) => ({ date: d, price: 10 + i * i })), 'line'],
+    ['a year column and a value', Array.from({ length: 20 }, (_, i) => ({ year: 1990 + i, temp: Math.sin(i) })), 'line'],
+    ['one line per symbol', ['A', 'B', 'C'].flatMap((s) => days(10, (i, d) => ({ symbol: s, date: d, price: i + s.charCodeAt(0) }))), 'line'],
+    ['month names are categories, not a time line', ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].map((m, i) => ({ month: m, sales: 5 + i })), 'bar'],
+    ['two measures and a group', Array.from({ length: 60 }, (_, i) => ({ species: ['a', 'b', 'c'][i % 3], length: i % 17, depth: (i * 7) % 13 })), 'scatter'],
+    ['latitude and longitude', Array.from({ length: 30 }, (_, i) => ({ name: 'p' + i, latitude: 40 + i / 10, longitude: -80 - i / 7 })), 'scatter'],
+    ['from and to', [{ from: 'Salary', to: 'Rent', amount: 1800 }, { from: 'Salary', to: 'Food', amount: 600 }, { from: 'Gift', to: 'Food', amount: 300 }], 'sankey'],
+    ['a parent column', [{ id: 1, name: 'root' }, { id: 2, name: 'a', parent: 1, size: 3 }, { id: 3, name: 'b', parent: 1, size: 5 }], 'treemap'],
+    ['an id and one number', Array.from({ length: 80 }, (_, i) => ({ id: 1000 + i, rate: (i * 37) % 11 / 10 })), 'hist'],
+    ['no numbers: rows counted per group', Array.from({ length: 20 }, (_, i) => ({ team: ['red', 'blue'][i % 2], person: 'p' + i })), 'bar'],
+    ['a total per group', Array.from({ length: 40 }, (_, i) => ({ region: ['N', 'S', 'E', 'W'][i % 4], shop: 's' + i, sales: i, staff: i % 7 })), 'bar']
+  ];
+  let right = 0, miss = '';
+  for (const [name, rows, want] of T) { const g = P.guess(rows); if (g && g.type === want && typeof g.why === 'string' && g.why.length > 10) right++; else miss += ' [' + name + ': ' + (g && g.type) + ']'; }
+  ok(right === T.length, 'guess: ' + right + ' of ' + T.length + ' small tables get the chart a person would pick' + miss);
+  const svgOld = P.toSvg([{ city: 'Detroit', share: 12 }, { city: 'Chicago', share: 16 }], { type: 'bar', x: 'city', y: 'share' });
+  ok(P.toSvg([{ city: 'Detroit', share: 12 }, { city: 'Chicago', share: 16 }]) === svgOld, 'toSvg(rows) with no options: the README example draws the same bar chart as before');
+  const a = P.auto(T[4][1]);
+  ok(a.type === 'line' && a.spec.color === 'symbol' && /time column "date"/.test(a.why) && a.svg.indexOf('<svg') === 0, 'auto: the line, its colors and the reason');
+  ok(a.others.length >= 1 && a.others.every((o) => o.spec.type === o.type && o.why), 'auto: other picks, each with its own reason');
+  const b = P.toSvg(T[4][1], a.others[0].spec);
+  ok(b.indexOf('<svg') === 0 && b !== a.svg, 'one-click change: toSvg(rows, others[0].spec) draws the other pick');
+  ok(P.toSvg(T[8][1]) === P.auto(T[8][1]).svg && P.auto(T[8][1]).type === 'sankey', 'a from-to table draws as a Sankey through netflow-sankey');
+  ok(P.auto(T[9][1]).type === 'treemap' && P.auto(T[9][1]).svg.indexOf('<svg') === 0, 'a parent table draws as a treemap through netflow-hierarchy');
+  const big = []; for (let i = 0; i < 60; i++) for (let j = 0; j < 2; j++) big.push({ from: 'f' + i, to: 't' + ((i + j) % 50), count: i + 1 });
+  ok(/the 40 biggest of 120 links/.test(P.auto(big).why), 'a big flow table keeps its 40 biggest links and says so');
+  ok(P.guess([]) === null && P.auto([]).svg.indexOf('<svg') === 0, 'no rows: no guess, an empty picture');
+  // takeaway and screen-reader text (opt-in): worked out from the rows, friendly names, a percent only on a fair base
+  const tk = (rows, sp) => P.takeaway(rows, sp).text;
+  const reg = [{ region: 'West', sales_total: 1227 }, { region: 'East', sales_total: 1080 }, { region: 'North', sales_total: 300 }];
+  ok(tk(reg, { type: 'bar', x: 'region', y: 'sales_total' }) === 'West leads sales total with 1,227, 14% more than East (1,080)', 'takeaway, bar: friendly name and a fair percent: ' + tk(reg, { type: 'bar', x: 'region', y: 'sales_total' }));
+  ok(P.takeaway(reg, { type: 'bar', x: 'region', y: 'sales_total' }).alt === 'sales total by region: West 1,227, East 1,080, North 300.', 'alt text lists every value');
+  ok(tk([{ a: 'x', v: 5 }, { a: 'y', v: 0.1 }], { type: 'bar', x: 'a', y: 'v' }) === 'x leads v with 5, 50 times as much as y (0.1)', 'small base: no huge percent');
+  ok(tk([{ a: 'x', v: 5 }, { a: 'y', v: 5 }, { a: 'z', v: 1 }], { type: 'bar', x: 'a', y: 'v' }) === 'x and y tie for the most v (5)', 'ties');
+  ok(tk([{ a: 'x', v: -5 }, { a: 'y', v: -7 }], { type: 'bar', x: 'a', y: 'v' }) === 'x has the highest v with -5, ahead of y (-7)', 'negatives: no percent, "highest"');
+  ok(tk([{ a: 'x', v: 0 }, { a: 'y', v: 0 }], { type: 'bar', x: 'a', y: 'v' }) === 'x and y tie for the most v (0)', 'zeros');
+  ok(tk([{ a: 'x', v: 3 }, { a: 'y', v: '' }, { a: 'z', v: null }, { a: 'w', v: 1 }], { type: 'bar', x: 'a', y: 'v' }) === 'x leads v with 3, 3 times as much as w (1)', 'missing values are left out');
+  ok(tk([{ d: '2020-03-01', p: 81 }, { d: '2020-01-01', p: 43 }, { d: '2020-02-01', p: 50 }], { type: 'line', x: 'd', y: 'p' }) === 'p rose 88% from 43 to 81', 'line: in time order, not row order');
+  ok(tk([{ d: '2020-01-01', p: 0.2 }, { d: '2020-02-01', p: 50 }, { d: '2020-03-01', p: 81 }], { type: 'line', x: 'd', y: 'p' }) === 'p rose from 0.2 to 81', 'line: no percent from a tiny start');
+  ok(tk([{ x: 1, y: 2 }, { x: 2, y: 4 }, { x: 3, y: 6.1 }], { type: 'scatter', x: 'x', y: 'y' }) === 'y strongly rises with x (r = 1)' && /the same in every row/.test(tk([{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }], { type: 'scatter', x: 'x', y: 'y' })), 'scatter: correlation, and a flat column said plainly');
+  ok(tk([{ from: 'Salary', to: 'Rent', amount: 1200 }, { from: 'Salary', to: 'Food', amount: 500 }], { type: 'sankey', from: 'from', to: 'to', value: 'amount' }) === 'The biggest flow is Salary to Rent: 1,200, 71% of what leaves Salary', 'sankey: the biggest flow and its share');
+  ok(tk([], { type: 'bar', x: 'a' }) === '' && tk(reg, { type: 'words', x: 'region' }) === '', 'nothing to say: empty text');
+  const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
+  ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
+}
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

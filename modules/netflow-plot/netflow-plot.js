@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.8.0 (API 2)
+ * Version 2.9.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -776,13 +776,209 @@ var NetflowPlot = (function () {
     var words = t.split(' ').map(function (w) { return /[A-Z]/.test(w.slice(1)) || w === w.toUpperCase() && /[A-Z]/.test(w) ? w : w.toLowerCase(); }).join(' ');
     return words.charAt(0).toUpperCase() + words.slice(1);
   }
-  var SPEC_KEYS = ['type', 'x', 'y', 'color', 'size', 'agg', 'stack', 'horizontal', 'bins', 'smooth', 'index', 'cols', 'sort'];
+  var SPEC_KEYS = ['type', 'x', 'y', 'color', 'size', 'agg', 'stack', 'horizontal', 'bins', 'smooth', 'index', 'cols', 'sort', 'from', 'to', 'value', 'id', 'parent'];
+  /* ---- picking a chart from the shape of the rows (since 2.9.0; owner's card, 2026.11.07) ----
+     guess(rows) -> { type, spec, why, others }: type is a plot type, or 'sankey' or 'treemap' (drawn by netflow-sankey and netflow-hierarchy).
+     Checked on 54 real tables (vega-datasets): 39 used to set the rules, all right; 15 held out and labeled before the rules ran on them, all right. */
+  var G_MON = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?$/i;
+  var G_DATE = [/^\d{4}-\d{1,2}(-\d{1,2})?([T ]\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/, /^\d{4}\/\d{1,2}\/\d{1,2}( \d{1,2}:\d{2}(:\d{2})?)?$/,
+    /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2},? \d{4}$/i, /^\d{1,2} (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{4}$/i];
+  var G_ADD = /count|total|sum|amount|sales|revenue|cost|spend|people|population|^pop$|deaths|number|qty|quantity|volume|generation|receipts|gross|budget|value|weight$|flow|units|visits|votes/i;   /* measures that add up */
+  var G_ID = /(^|[_ ])(id|code|zip|zip_code|iata|icao|fips|index|idx|key|uuid)$/i;
+  function gTime(s) { s = String(s); var t = Date.parse(s.replace(/^(\d{4})\/(\d+)\/(\d+)/, '$1-$2-$3')); return isNaN(t) ? Date.parse(s) : t; }
+  function gIsDate(s) { for (var i = 0; i < G_DATE.length; i++) if (G_DATE[i].test(s)) return !isNaN(gTime(s)); return false; }
+  function gCols(rows, n) {
+    var keys = [], seenK = {}, i, k;
+    for (i = 0; i < n; i++) for (k in rows[i]) if (!seenK[k]) { seenK[k] = 1; keys.push(k); }
+    return keys.map(function (k) {
+      var num = 0, date = 0, mon = 0, ne = 0, seen = Object.create(null), uniq = 0, intv = 0, mn = Infinity, mx = -Infinity, v, s, x;
+      for (i = 0; i < n; i++) {
+        v = rows[i][k]; if (v === '' || v === null || v === undefined || typeof v === 'object') continue; ne++;
+        s = typeof v === 'string' ? v.trim() : v; x = typeof v === 'number' ? v : (s !== '' && isFinite(s) ? +s : NaN);
+        if (!isNaN(x)) { num++; if (x === Math.floor(x)) intv++; if (x < mn) mn = x; if (x > mx) mx = x; }
+        else if (typeof s === 'string') { if (G_MON.test(s)) mon++; else if (gIsDate(s)) date++; }
+        if (!seen[v]) { seen[v] = 1; uniq++; }
+      }
+      var c = { k: k, n: ne, uniq: uniq, kind: 'cat' };
+      if (ne && num / ne > 0.9) {
+        c.kind = G_ID.test(k) ? 'id' : /year|^yr$/i.test(k) && intv === num && mn >= 1000 && mx <= 2200 ? 'year' : intv === num && uniq <= 6 && uniq * 2 <= ne && !G_ADD.test(k) ? 'code' : 'num';   /* a few whole numbers are groups, not measures */
+      } else if (ne && date / ne > 0.9) c.kind = 'date';
+      else if (ne && mon / ne > 0.9) c.kind = 'month';   /* month names stay in their order as categories, not a time line */
+      return c;
+    });
+  }
+  function gQ(c) { return '"' + c.k + '"'; }
+  function guess(rows) {
+    rows = (rows || []).map(function (r) { return r && r.attrs ? r.attrs : r; }).filter(function (r) { return r && typeof r === 'object'; });
+    if (!rows.length) return null;
+    var n = Math.min(rows.length, 500), cs = gCols(rows, n), out = [], i;
+    function of(kinds) { return cs.filter(function (c) { return kinds.indexOf(c.kind) >= 0; }); }
+    function named(re) { for (var j = 0; j < cs.length; j++) if (re.test(cs[j].k)) return cs[j]; return null; }
+    function put(type, spec, why) { for (var j = 0; j < out.length; j++) if (out[j].type === type) return; for (var q in spec) if (spec[q] === undefined) delete spec[q]; spec.type = type; out.push({ type: type, spec: spec, why: why }); }
+    var nums = of(['num']), times = of(['date', 'year']).filter(function (c) { return c.uniq >= 5; }), small = of(['cat', 'code', 'month']).filter(function (c) { return c.uniq >= 2 && c.uniq <= 12; });
+    var labels = of(['cat', 'month']).filter(function (c) { return c.uniq === c.n; }), groups = of(['cat', 'code', 'month']).filter(function (c) { return c.uniq < c.n && c.uniq >= 2 && c.uniq <= 60; });
+    var add = nums.filter(function (c) { return G_ADD.test(c.k); })[0], measure = add || nums[0];
+    var from = named(/^(from|source|src|origin|from_?id)$/i), to = named(/^(to|target|dest|destination|to_?id)$/i), par = named(/^(parent|parent_?id|parentid)$/i);
+    if (from && to && from.kind !== 'num' && to.kind !== 'num') put('sankey', { from: from.k, to: to.k, value: add ? add.k : undefined }, 'it has ' + gQ(from) + ' and ' + gQ(to) + ' columns, so it shows the flows' + (add ? ' sized by ' + gQ(add) : ', each row counting 1'));
+    if (par) { var id = named(/^(id|name|node|label)$/i) || of(['cat', 'id'])[0]; if (id && id !== par) put('treemap', { id: id.k, parent: par.k, size: measure ? measure.k : undefined }, 'it has a ' + gQ(par) + ' column, so it is a tree'); }
+    var lat = named(/^(lat|latitude)$/i), lon = named(/^(lon|lng|long|longitude)$/i);
+    if (lat && lon && lat.kind === 'num' && lon.kind === 'num') put('scatter', { x: lon.k, y: lat.k, color: small[0] ? small[0].k : undefined }, 'it has latitude and longitude, so each row is a point on a map-like grid');
+    var t = times[0], ms = nums.filter(function (c) { return c !== t; });
+    if (t && ms.length) {   /* a line when the rows follow time (per group), or when the measure adds up for each time step */
+      var m = ms.filter(function (c) { return G_ADD.test(c.k); })[0] || ms[0], tv = function (r) { return t.kind === 'year' ? +r[t.k] : gTime(r[t.k]); };
+      var count = function (g) { var seen = Object.create(null), dup = 0, last = Object.create(null), sorted = 0, key, v, gk; for (var j = 0; j < n; j++) { var r = rows[j]; gk = g ? String(r[g.k]) : ''; key = String(r[t.k]) + '\u0001' + gk; if (seen[key]) dup++; seen[key] = 1; v = tv(r); if (!(gk in last) || v >= last[gk]) sorted++; last[gk] = v; } return { dup: dup / n, sorted: sorted / n }; };
+      var alone = count(null), g = null, by = alone;
+      if (alone.dup >= 0.1) for (i = 0; i < small.length && !g; i++) { var b = count(small[i]); if (b.dup < 0.1) { g = small[i]; by = b; } }   /* a color only when it splits the rows into one series each */
+      if (by.dup < 0.1 && by.sorted > 0.9) put('line', { x: t.k, y: m.k, color: g ? g.k : undefined }, 'it has a time column ' + gQ(t) + ' with one ' + gQ(m) + ' per time step' + (g ? ' for each ' + gQ(g) : ''));
+      else if (G_ADD.test(m.k) && t.uniq <= 400) put('line', { x: t.k, y: m.k, color: small[0] && small[0] !== t ? small[0].k : undefined, agg: 'sum' }, 'it has a time column ' + gQ(t) + ', and ' + gQ(m) + ' adds up, so it shows the total for each time step');
+    }
+    if (nums.length >= 2) {
+      if (labels.length && rows.length <= 50) put('bar', { x: labels[0].k, y: measure.k }, 'each row has its own name in ' + gQ(labels[0]) + ' and there are few rows, so it compares ' + gQ(measure) + ' by name');
+      if (add && groups.length && groups[0] === cs[0]) put('bar', { x: groups[0].k, y: add.k, agg: 'sum' }, gQ(add) + ' adds up, so it shows the total for each ' + gQ(groups[0]));
+      put('scatter', { x: nums[0].k, y: nums[1].k, color: small[0] ? small[0].k : undefined }, 'it has two number columns, ' + gQ(nums[0]) + ' and ' + gQ(nums[1]) + (small[0] ? ', with groups in ' + gQ(small[0]) : ''));
+    }
+    if (nums.length) {
+      var m1 = measure, cat = labels.length && rows.length <= 50 ? labels[0] : groups[0] || of(['month'])[0], many = cat && cat.uniq < cat.n, sum = G_ADD.test(m1.k);
+      if (cat) put('bar', { x: cat.k, y: m1.k, agg: many ? (sum ? 'sum' : 'mean') : undefined }, 'it has the number ' + gQ(m1) + ' and names in ' + gQ(cat) + (many ? ', so it shows the ' + (sum ? 'total' : 'average') + ' for each' : ''));
+      put('hist', { x: m1.k }, 'it has the number ' + gQ(m1) + ', so it shows how its values spread');
+    }
+    var c0 = groups[0] || of(['cat', 'code', 'month'])[0];
+    if (c0) put('bar', { x: c0.k, agg: 'count' }, 'it has no number columns, so it counts the rows for each ' + gQ(c0));
+    if (!out.length) return null;
+    var best = out[0];
+    return { type: best.type, spec: best.spec, why: best.why, others: out.slice(1, 4) };
+  }
+  function lib(name, file) {
+    var g = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : {};
+    if (g[name]) return g[name];
+    if (typeof require === 'function') { try { return require('../' + file + '/' + file + '.js'); } catch (e) { /* not there */ } }
+    return null;
+  }
+  var FLOW_MAX = 40;   /* an automatic Sankey keeps its biggest links; more than this is a tangle */
+  function flowLinks(rows, sp) {
+    var m = Object.create(null), l = [], k, i, r, a, b;
+    for (i = 0; i < rows.length; i++) { r = rows[i]; a = r[sp.from]; b = r[sp.to]; if (a === undefined || a === null || a === '' || b === undefined || b === null || b === '') continue; k = a + '\u0001' + b; var v = sp.value ? +r[sp.value] : 1; if (!(v > 0)) continue; if (m[k]) m[k].value += v; else l.push(m[k] = { from: String(a), to: String(b), value: v }); }
+    l.sort(function (p, q) { return q.value - p.value; });
+    return { links: l.slice(0, FLOW_MAX), all: l.length };
+  }
+  function treeLinks(rows, sp) {
+    var name = Object.create(null), l = [], i, r;
+    for (i = 0; i < rows.length; i++) { r = rows[i]; if (r[sp.id] !== undefined) name[r[sp.id]] = r.name !== undefined && sp.id !== 'name' ? String(r.name) : String(r[sp.id]); }
+    for (i = 0; i < rows.length; i++) { r = rows[i]; if (r[sp.parent] === undefined || r[sp.parent] === null || r[sp.parent] === '') continue; var v = sp.size ? +r[sp.size] : 1; l.push({ from: name[r[sp.parent]] || String(r[sp.parent]), to: name[r[sp.id]], value: v > 0 ? v : 1 }); }
+    return l;
+  }
+  /* ---- a plain-words takeaway and a screen-reader text, computed from the rows (since 2.9.0; opt-in, owner's card 2026.11.07) ----
+     takeaway(rows, spec) -> { text, alt }. Every number in it is worked out from the rows, so it cannot say what the data does not show.
+     A percent is given only on a base that is above zero and at least a tenth of the bigger value; otherwise the sentence uses "times" or the two values. */
+  function tName(k) { var t = axisName(k) || String(k); return /^[A-Z][a-z]/.test(t) && !/[A-Z]/.test(t.slice(1)) ? t.charAt(0).toLowerCase() + t.slice(1) : t; }
+  function tNum(r, k) { var v = r[k]; if (v === '' || v === null || v === undefined) return NaN; v = +v; return isFinite(v) ? v : NaN; }
+  function tList(items, f) { var s = items.slice(0, 20).map(f).join(', '); return items.length > 20 ? s + ' and ' + (items.length - 20) + ' more' : s; }
+  function tLead(a, b) {   /* how far a is ahead of b, in words that hold on any base */
+    if (a === b) return null;
+    if (b > 0 && a > 0) { var q = a / b; if (q >= 2) return q >= 100 ? 'far ahead of' : (Math.round(q * 10) / 10) + ' times as much as'; if (b >= a / 10) return Math.round((a - b) / b * 100) + '% more than'; }
+    return 'ahead of';
+  }
+  function takeaway(rows, spec) {
+    rows = (rows || []).map(function (r) { return r && r.attrs ? r.attrs : r; }).filter(function (r) { return r && typeof r === 'object'; });
+    spec = spec || {};
+    var t = spec.type, none = { text: '', alt: '' }, i;
+    if (!rows.length) return none;
+    if (t === 'bar' || t === 'dotplot' || t === 'donut') {
+      if (!spec.x) return none;
+      var how = spec.agg || (spec.y ? 'sum' : 'count'), m = Object.create(null), order = [], yn = spec.y ? tName(spec.y) : 'rows';
+      rows.forEach(function (r) { var k = r[spec.x]; if (k === undefined || k === null || k === '') return; k = String(k); var v = spec.y ? tNum(r, spec.y) : 1; if (!(k in m)) { m[k] = []; order.push(k); } if (v === v) m[k].push(v); });
+      var g = order.map(function (k) { return { k: k, v: aggregate(m[k], how) }; }).filter(function (x) { return x.v === x.v; });
+      if (!g.length) return none;
+      var alt = yn + (how === 'mean' ? ' (average)' : '') + ' by ' + tName(spec.x) + ': ' + tList(g, function (x) { return x.k + ' ' + fmtNum(x.v); }) + '.';
+      g.sort(function (p, q) { return q.v - p.v; });
+      if (g.length === 1) return { text: g[0].k + ': ' + fmtNum(g[0].v) + ' ' + yn, alt: alt };
+      var top = g[0], nx = g[1], ties = g.filter(function (x) { return x.v === top.v; });
+      if (ties.length > 1) return { text: (ties.length > 2 ? ties.length + ' ' + tName(spec.x) + ' values tie' : ties[0].k + ' and ' + ties[1].k + ' tie') + ' for the most ' + yn + ' (' + fmtNum(top.v) + ')', alt: alt };
+      var lead = tLead(top.v, nx.v), word = top.v > 0 ? 'leads ' + yn : 'has the highest ' + yn;
+      return { text: top.k + ' ' + word + ' with ' + fmtNum(top.v) + ', ' + lead + ' ' + nx.k + ' (' + fmtNum(nx.v) + ')', alt: alt };
+    }
+    if (t === 'line' || t === 'area' || t === 'connected') {
+      if (!spec.x || !spec.y) return none;
+      var tv = function (r) { var v = r[spec.x], x = +v; if (v !== '' && v !== null && isFinite(x)) return x; x = gTime(v); return isNaN(x) ? NaN : x; };
+      var ser = Object.create(null), names = [];
+      rows.forEach(function (r) { var k = spec.color ? String(r[spec.color]) : '', x = tv(r), y = tNum(r, spec.y); if (x !== x || y !== y) return; if (!(k in ser)) { ser[k] = []; names.push(k); } ser[k].push([x, y, r[spec.x]]); });
+      var yname = tName(spec.y), ch = names.map(function (k) {
+        var a = ser[k]; if (spec.agg === 'sum' || spec.agg === 'mean') { var by = Object.create(null), xs = []; a.forEach(function (p) { if (!(p[0] in by)) { by[p[0]] = [p[0], 0, p[2], 0]; xs.push(p[0]); } by[p[0]][1] += p[1]; by[p[0]][3]++; }); a = xs.map(function (x) { var b = by[x]; return [b[0], spec.agg === 'mean' ? b[1] / b[3] : b[1], b[2]]; }); }
+        a.sort(function (p, q) { return p[0] - q[0]; });
+        var f = a[0], l = a[a.length - 1], mx = 0; a.forEach(function (p) { if (Math.abs(p[1]) > mx) mx = Math.abs(p[1]); });
+        return { k: k, f: f, l: l, d: l[1] - f[1], mx: mx };
+      }).filter(function (c) { return c.f; });
+      if (!ch.length) return none;
+      var span = 0; ch.forEach(function (c) { if (c.mx > span) span = c.mx; });
+      var alt2 = ch.length === 1 && !spec.color ? yname + ' went from ' + fmtNum(ch[0].f[1]) + ' (' + ch[0].f[2] + ') to ' + fmtNum(ch[0].l[1]) + ' (' + ch[0].l[2] + ').' : tList(ch, function (c) { return c.k + ' went from ' + fmtNum(c.f[1]) + ' to ' + fmtNum(c.l[1]); }) + '.';
+      ch.sort(function (p, q) { return Math.abs(q.d) - Math.abs(p.d); });
+      var c = ch[0], who = spec.color ? c.k : yname;
+      if (c.d === 0) return { text: who + ' was the same at the start and the end (' + fmtNum(c.f[1]) + ')', alt: alt2 };
+      var pc = c.f[1] > 0 && c.l[1] > 0 && c.f[1] >= c.mx / 10 ? ' ' + Math.round(Math.abs(c.d) / c.f[1] * 100) + '%' : '';
+      return { text: who + ' ' + (c.d > 0 ? 'rose' : 'fell') + pc + ' from ' + fmtNum(c.f[1]) + ' to ' + fmtNum(c.l[1]) + (ch.length > 1 ? ', the biggest change of ' + ch.length : ''), alt: alt2 };
+    }
+    if (t === 'scatter' || t === 'hexbin') {
+      var X = [], Y = []; rows.forEach(function (r) { var a = tNum(r, spec.x), b = tNum(r, spec.y); if (a === a && b === b) { X.push(a); Y.push(b); } });
+      var n = X.length, xn = tName(spec.x), yn2 = tName(spec.y);
+      if (n < 3) return none;
+      var mxx = 0, myy = 0; for (i = 0; i < n; i++) { mxx += X[i]; myy += Y[i]; } mxx /= n; myy /= n;
+      var sxy = 0, sxx = 0, syy = 0; for (i = 0; i < n; i++) { sxy += (X[i] - mxx) * (Y[i] - myy); sxx += (X[i] - mxx) * (X[i] - mxx); syy += (Y[i] - myy) * (Y[i] - myy); }
+      var alt3 = n + ' points of ' + yn2 + ' against ' + xn;
+      if (!sxx || !syy) return { text: (!syy ? yn2 : xn) + ' is the same in every row (' + fmtNum(!syy ? Y[0] : X[0]) + ')', alt: alt3 + '.' };
+      var r = sxy / Math.sqrt(sxx * syy), ar = Math.abs(r), rr = Math.round(r * 100) / 100;
+      return { text: ar < 0.2 ? yn2 + ' shows no clear link with ' + xn + ' (r = ' + rr + ')' : yn2 + ' ' + (ar > 0.7 ? 'strongly' : ar > 0.4 ? 'moderately' : 'slightly') + ' ' + (r > 0 ? 'rises' : 'falls') + ' with ' + xn + ' (r = ' + rr + ')', alt: alt3 + '; correlation ' + rr + '.' };
+    }
+    if (t === 'hist' || t === 'box' || t === 'density' || t === 'beeswarm') {
+      var k2 = t === 'box' ? spec.y : spec.x, v2 = []; rows.forEach(function (r) { var v = tNum(r, k2); if (v === v) v2.push(v); });
+      if (!v2.length) return none;
+      v2.sort(function (p, q) { return p - q; });
+      var q1 = quant(v2, 0.25), q2 = quant(v2, 0.5), q3 = quant(v2, 0.75), nm = tName(k2);
+      return { text: 'Half the rows have ' + nm + ' between ' + fmtNum(q1) + ' and ' + fmtNum(q3) + ' (middle value ' + fmtNum(q2) + ')', alt: v2.length + ' values of ' + nm + ' from ' + fmtNum(v2[0]) + ' to ' + fmtNum(v2[v2.length - 1]) + '; middle value ' + fmtNum(q2) + '.' };
+    }
+    if (t === 'sankey') {
+      var fl = flowLinks(rows, spec), L2 = fl.links; if (!L2.length) return none;
+      var out = Object.create(null); L2.forEach(function (e) { out[e.from] = (out[e.from] || 0) + e.value; });
+      var b0 = L2[0], sh = Math.round(b0.value / out[b0.from] * 100);
+      return { text: 'The biggest flow is ' + b0.from + ' to ' + b0.to + ': ' + fmtNum(b0.value) + (sh < 100 ? ', ' + sh + '% of what leaves ' + b0.from : ''), alt: fl.all + ' links' + (fl.all > L2.length ? ' (the ' + L2.length + ' biggest shown)' : '') + ': ' + tList(L2, function (e) { return e.from + ' to ' + e.to + ' ' + fmtNum(e.value); }) + '.' };
+    }
+    return none;
+  }
+  function autoTitle(rows, spec, o) { var c = {}, k; for (k in o) c[k] = o[k]; var tx = takeaway(rows, spec).text; if (tx) c.title = tx.charAt(0).toUpperCase() + tx.slice(1); else delete c.title; return c; }   /* title: 'auto' draws the takeaway as the title */
+  /* draws one pick; null when the module it needs is not on the page */
+  function drawPick(rows, pick, o) {
+    var d = {}, k; for (k in o) if (SPEC_KEYS.indexOf(k) < 0) d[k] = o[k];
+    if (pick.type === 'sankey') { var SK = lib('NetflowSankey', 'netflow-sankey'); if (!SK) return null; var f = flowLinks(rows, pick.spec); pick.shown = f.links.length; pick.of = f.all; return SK.toSvg(f.links, d); }
+    if (pick.type === 'treemap') { var H = lib('NetflowHierarchy', 'netflow-hierarchy'); if (!H) return null; d.type = 'treemap'; return H.toSvg(treeLinks(rows, pick.spec), d); }
+    for (k in pick.spec) d[k] = pick.spec[k];
+    var NS = sceneLib('netflow-plot');
+    return NS.toSvg(make(rows, pick.spec, d, NS), d.title);
+  }
+  /**
+   * auto(rows, options): picks the chart from the shape of the rows and draws it. Returns { svg, type, spec, why, others }: why is a plain sentence
+   * ("it has a time column ..."), and others holds up to three more good picks; a one-click change is toSvg(rows, others[i].spec).
+   * A Sankey or treemap pick needs netflow-sankey or netflow-hierarchy on the page; without it the next pick is drawn.
+   */
+  function auto(rows, o) {
+    o = o || {}; rows = rows || [];
+    var g = guess(rows);
+    if (!g) return { svg: toSvg(rows, { type: 'bar', title: o.title }), type: 'bar', spec: { type: 'bar' }, why: rows.length ? 'no column could be read as a number or a category' : 'there are no rows', others: [] };
+    var list = [{ type: g.type, spec: g.spec, why: g.why }].concat(g.others), i, svg = null;
+    for (i = 0; i < list.length && svg === null; i++) svg = drawPick(rows, list[i], o.title === 'auto' ? autoTitle(rows, list[i].spec, o) : o);
+    var p = list[i - 1], why = p.why;
+    if (p.type === 'sankey' && p.of > p.shown) why += ' (the ' + p.shown + ' biggest of ' + p.of + ' links)';
+    var tk = takeaway(rows, p.spec);
+    return { svg: svg, type: p.type, spec: p.spec, why: why, others: list.slice(i), takeaway: tk.text, alt: tk.alt };
+  }
   /**
    * One call to a picture: toSvg(rows, options) returns SVG text. options holds the chart words (type, x, y, color, ...) and the drawing words
-   * (theme, width, height, title, subtitle, source, highlight) together. With no type, x or y: a bar chart of the first text column by the first number column.
+   * (theme, width, height, title, subtitle, source, highlight) together. With no type, x or y (since 2.9.0): the chart is picked from the shape of the rows, as auto() does
+   * (auto() also says why). type: 'sankey' with from, to and value, or type: 'treemap' with id, parent and size, draws through netflow-sankey or netflow-hierarchy.
    */
   function toSvg(rows, o) {
     o = o || {}; rows = rows || [];
+    if (o.type === 'sankey' || o.type === 'treemap') { var sp = { from: o.from, to: o.to, value: o.value, id: o.id, parent: o.parent, size: o.size }, pk = { type: o.type, spec: sp }, out = drawPick(rows, pk, o); if (out === null) throw new Error('netflow-plot: type ' + o.type + ' needs ' + (o.type === 'sankey' ? 'netflow-sankey' : 'netflow-hierarchy') + '.js on the page.'); return out; }
+    if (o.type === undefined && o.x === undefined && o.y === undefined && rows.length) return auto(rows, o).svg;
+    if (o.title === 'auto') { var sp2 = {}; SPEC_KEYS.forEach(function (k) { if (o[k] !== undefined) sp2[k] = o[k]; }); o = autoTitle(rows, sp2, o); }
     var spec = {}; SPEC_KEYS.forEach(function (k) { if (o[k] !== undefined) spec[k] = o[k]; });
     if (!spec.x || (!spec.y && !spec.type)) {
       var first = rows[0] ? (rows[0].attrs || rows[0]) : {}, keys = Object.keys(first), txt = null, numk = null;
@@ -808,6 +1004,6 @@ var NetflowPlot = (function () {
     return null;
   }
 
-  return { TYPES: TYPES, NEEDS: NEEDS, AGG: AGG, make: make, toSvg: toSvg, markAt: markAt, ticks: ticks, timeTicks: timeTicks, kde: kde, normInv: normInv, voronoiCells: voronoiCells, quant: quant, fmtNum: fmtNum };
+  return { TYPES: TYPES, NEEDS: NEEDS, AGG: AGG, make: make, toSvg: toSvg, auto: auto, guess: guess, takeaway: takeaway, markAt: markAt, ticks: ticks, timeTicks: timeTicks, kde: kde, normInv: normInv, voronoiCells: voronoiCells, quant: quant, fmtNum: fmtNum };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NetflowPlot;

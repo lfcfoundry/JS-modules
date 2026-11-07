@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.8.0 · API 2**
+**Version 2.9.0 · API 2**
 
-**Tested in:** Node 369 checks; Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page
+**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -29,7 +29,7 @@ Netflow Map's Charts tab draws these charts from a map's table of items or links
 
 ## Use
 
-Load `netflow-scene.js` first, then `netflow-plot.js`. One call, data only (a bar chart of the first text column by the first number column):
+Load `netflow-scene.js` first, then `netflow-plot.js`. One call, data only (since 2.9.0 the chart is picked from the shape of the rows; see below):
 
 ```js
 // netflow-scene.js, then netflow-plot.js
@@ -38,6 +38,42 @@ svgElement.outerHTML = NetflowPlot.toSvg(rows, { type: 'line', x: 'day', y: 'sal
 ```
 
 Name your own columns in the same options: `{ type: 'bar', x: 'Region', y: 'Sales', color: 'Channel' }` (rows straight from a CSV work; numbers written as text are read as numbers). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
+
+### The chart picked for you (since 2.9.0)
+
+With no `type`, `x` or `y`, `toSvg(rows)` looks at the columns and picks the chart a person would most likely pick:
+
+- `from` and `to` columns: a Sankey (needs netflow-sankey.js; the 40 biggest links).
+- A `parent` column: a treemap (needs netflow-hierarchy.js).
+- Latitude and longitude: a scatter.
+- A time column (dates, or a whole-number year column) with one value per time step: a line, one per group. When a value that adds up repeats per time step: the total per step.
+- Two number columns: a scatter, colored by a small group column.
+- One number and names: a bar.
+- One number alone: a histogram.
+- No numbers: the rows counted per group.
+
+Month names (Jan, Feb) stay in order as categories. Columns named like `id`, `zip` or `code` are never read as values.
+
+`NetflowPlot.auto(rows, options)` draws the same pick and also says why. It returns `{ svg, type, spec, why, others, takeaway, alt }`:
+
+- `why` is a plain sentence, such as `it has a time column "date" with one "price" per time step for each "symbol"`.
+- `others` holds up to three more good picks, each with its own `why`. A one-click change is `NetflowPlot.toSvg(rows, result.others[0].spec)`.
+- `NetflowPlot.guess(rows)` gives the pick without drawing it.
+
+We checked it on 54 real public tables (vega-datasets). It picked a chart a person would accept for 39 of 39 tables used to set the rules. It also did so for 15 of 15 held-out tables that were labeled before the rules ran on them. The research prototype got 20 of 39 and 10 of 15.
+
+### Takeaway and screen-reader text (since 2.9.0, opt-in)
+
+`NetflowPlot.takeaway(rows, spec)` returns `{ text, alt }`. `text` is one plain sentence worked out from the rows, such as "West leads sales total with 1,227, 14% more than East (1,080)". `alt` lists the values for a screen reader. `auto()` returns both as `takeaway` and `alt`.
+
+`title: 'auto'` draws the takeaway as the title. Nothing changes unless a call asks for it.
+
+Because the numbers come from the rows, the sentence cannot claim what the data does not show:
+
+- Ties, negatives, zeros and missing values are handled.
+- A percent is given only on a base above zero that is at least a tenth of the bigger value. Otherwise the sentence says "3 times as much as" or gives both values.
+- Column names read as words ("sales_total" reads "sales total").
+- The wording is English only.
 
 The steps below keep the scene, for pointing at marks.
 
