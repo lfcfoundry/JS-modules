@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.14.0 (API 2)
+ * Version 2.14.1 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -443,21 +443,21 @@ var NetflowPlot = (function () {
           var hiK = -1, loK = -1, k2, nk = 0; for (k2 = 0; k2 < l.ys.length; k2++) if (l.ys[k2] === l.ys[k2]) { nk++; if (hiK < 0 || l.ys[k2] > l.ys[hiK]) hiK = k2; if (loK < 0 || l.ys[k2] < l.ys[loK]) loK = k2; }
           var lk = l.ys.length - 1; while (l.ys[lk] !== l.ys[lk]) lk--;
           F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, vt(l.ys[lk]), 11, readable(col, F.T), { align: 'l', bold: true });
-          [hiK, loK].forEach(function (k3, w) { if (nk < 3 || k3 === fi || k3 === lk || (w && l.ys[loK] === l.ys[hiK])) return; var hx = ax.map(l.xs[k3]), hy = ay.map(l.ys[k3]), side = w ? hy + 16 > F.B - 2 : hy - 8 < F.Tp + 2; F.text(side ? hx + 6 : hx, side ? hy + 4 : hy + (w ? 16 : -8), vt(l.ys[k3]), 11, readable(col, F.T), side ? { bold: true, align: 'l' } : { bold: true }); });   /* beside the point when above or below would leave the plot */
+          [hiK, loK].forEach(function (k3, w) { if (nk < 3 || k3 === fi || k3 === lk || (w && l.ys[loK] === l.ys[hiK])) return; var hx = ax.map(l.xs[k3]), hy = ay.map(l.ys[k3]), side = w ? hy + 16 > F.B - 2 : hy - 8 < F.Tp + 2; F.text(side ? hx + 6 : hx, side ? Math.min(hy + 4, F.B - 1) : hy + (w ? 16 : -8), vt(l.ys[k3]), 11, readable(col, F.T), side ? { bold: true, align: 'l' } : { bold: true }); });   /* (since 2.14.1 a value beside the point stays above the bottom edge, clear of the dates under it) beside the point when above or below would leave the plot */
         }
       }
       if (ends && pts.length) tags.push({ x: pts[pts.length - 2] + 6, y: pts[pts.length - 1] + 4, t: clip(l.name || '(blank)', 16) + (F.clean ? ' ' + vt(lastY(l)) : ''), c: readable(col, F.T) });
       else if (s.list.length > 1 && pts.length && !F.keyRow) F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, clip(l.name || '(blank)', 16), 11, col, { align: 'l' });
     });
-    if (tags.length) {   /* names at the line ends, moved apart (13 px) so they never overlap, and kept inside the chart */
+    if (tags.length) {   /* names at the line ends, moved apart (14 px since 2.14.0, was 13) so they never overlap, and kept inside the chart */
       tags.sort(function (a, b) { return a.y - b.y; });
-      var i, lo = F.Tp + 8, hi = F.B + 4;
-      for (i = 0; i < tags.length; i++) tags[i].y = Math.max(tags[i].y, i ? tags[i - 1].y + 13 : lo);
-      for (i = tags.length - 1; i >= 0; i--) tags[i].y = Math.min(tags[i].y, i < tags.length - 1 ? tags[i + 1].y - 13 : hi);
+      var i, lo = F.Tp + 8, hi = F.B - 1;   /* (since 2.14.0: F.B - 1, was F.B + 4, so the lowest name stays clear of the year under the corner) */
+      for (i = 0; i < tags.length; i++) tags[i].y = Math.max(tags[i].y, i ? tags[i - 1].y + 14 : lo);
+      for (i = tags.length - 1; i >= 0; i--) tags[i].y = Math.min(tags[i].y, i < tags.length - 1 ? tags[i + 1].y - 14 : hi);
       tags.forEach(function (g) { F.text(g.x, g.y, g.t, 11, g.c, { align: 'l', bold: true }); });
     }
     if (starts.length) {   /* first values left of their lines: each stays within 7 px of its point; one that would touch a value already placed is left out (visuals review, 2026.11.07) */
-      var kept = [], lo2 = F.Tp + 8, hi2 = F.B + 4;
+      var kept = [], lo2 = F.Tp + 8, hi2 = F.B - 1;
       starts.forEach(function (g) {
         var w = g.t.length * CW, offs = [0, -7, 7];
         for (var q = 0; q < offs.length; q++) {
