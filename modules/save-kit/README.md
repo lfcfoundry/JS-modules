@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-save-kit stores game or app progress in the browser safely. One file, 18.6 KB gzipped (9.9 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves. Since 2.4.1 `save-kit.min.js` is the same code minified (27.4 KB, 10.1 KB gzipped, MIT header kept), and it opens faster than localForage in all three test browsers (see "How it compares").
+save-kit stores game or app progress in the browser safely. One file, 18.6 KB gzipped (9.9 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves. Since 2.4.1 `save-kit.min.js` is the same code minified (27.4 KB, 10.1 KB gzipped, MIT header kept), and it opens a page with a saved game a little faster than localForage in Chrome and about even in Firefox on a laptop and a phone (see "How it compares").
 
 - You describe the save as a schema, and every field is checked on save and load.
 - A backup slot is kept, and a damaged value falls back alone instead of ruining the save.
@@ -161,6 +161,16 @@ What a game does once per visit: run the library's script, then `create()` and t
 | WebKitGTK 2.52.6 | 1.13 (0.73x) | 1.57 (1.01x, about even) | 1.55 |
 
 Checks stay on in every save-kit column. Ship the minified file for this speed: the readable file is about even with localForage in Firefox and WebKitGTK. Most of the first call is the browser compiling code (in Chromium the first `create()` takes about 1.2 ms and the next one 0.1 ms), so a smaller file opens faster; a lean build cut to the small-save parts opened in 4.52 / 4.10 / 1.10 ms. Measured 11.07 on the 2.4.0 code, which 2.4.1 does not change.
+
+The cloud numbers above overstate the lead. On real devices (the owner's laptop and phone, tester page with 58 tries per library, each in a fresh frame; paired median of save-kit's time divided by localForage's, smaller is better):
+
+| Device and browser | save-kit.min.js | save-kit.js (readable) |
+|---|---|---|
+| Laptop, Chrome 156 | 0.92 (faster in 43 of 58 tries) | 1.11 (slower) |
+| Laptop, Firefox 160 | 1.00 (even; its clock counts whole milliseconds) | 1.00 (even) |
+| Android phone, Chrome 156 | 0.95 (faster in 36 of 58 tries) | 1.13 (slower) |
+
+So on devices the minified file is a little faster than localForage in Chrome and even in Firefox, and the readable file is about 10% slower in Chrome.
 
 | Alternative | Size (smaller is better) | Features | Where it wins / loses |
 |---|---|---|---|
