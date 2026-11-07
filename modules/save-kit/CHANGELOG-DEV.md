@@ -5,7 +5,7 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 2.4.0 · API 2 · 2026-11-07
 
 ### Quick
-Columns for createLarge now in Chromium-family browsers too (owner card 'Columns in Chromium too'). Chromium 155 ms 2.3.0 / 2.4.0: 20 MB save 97-100 / 79-82, load 100-116 / 80-113; 5 MB save 34-36 / 23-26; 1 MB save 10-11 / 7.5-8. Now faster than idb-keyval and localForage at every size in all 3 browsers.
+Columns for createLarge now in Chromium-family browsers too (owner card 'Columns in Chromium too'). Chromium 155 ms 2.3.0 / 2.4.0: 20 MB save 97-100 / 79-82, load 100-116 / 80-113; 5 MB save 34-36 / 23-26; 1 MB save 10-11 / 7.5-8. Now faster than idb-keyval and localForage from 4 MB up in all 3 browsers, equal or faster below (WebKitGTK 0.8 MB load ties on its 1 ms clock).
 
 ### Deep
 COLS flag removed: columns are written in every browser. The 2.2.0 Chromium test that kept rows ran on a build that parsed IndexedDB pieces as they arrived, which made the next Chromium save about 30% slower; the clean retest (3 runs each, tests/save-kit-large-browser.js ROUNDS=10) shows columns faster at every size. Full table, Chromium 155, ms ours / idb-keyval / localForage: 1 MB save 7.7 / 9.6 / 8.6, load 5.7 / 8.2 / 7.8; 5 MB save 23.5 / 36.4 / 38.4, load 21.7 / 33.5 / 32.9; 20 MB save 76.2 / 148.3 / 164, load 83.2 / 169.1 / 166.8. Equivalence: 133 cases (Chromium writer and reader) equal to 2.3.0 (which reads columns too); 43 large-save checks pass in all three browsers. Upgrade note: save-kit 2.1.0 or older cannot read column saves, now also when they were written in Chromium.
