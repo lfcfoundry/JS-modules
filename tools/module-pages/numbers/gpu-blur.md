@@ -29,6 +29,19 @@ Compared: gpu-blur against the browser's canvas filter when you only draw the re
 **Where gpu-blur loses.** On the Firefox laptop the browser's own filter is faster when you only draw the result (22 against 38 to 41 ms; earlier runs 30 to 34 against 41), about 1.6x to 2.6x across runs. Chrome laptop second run: filter 52.4, gpu-blur helpers 20.2, auto 29; bytes out 60.1 against 14. Phone: gpu-blur auto 1.2x faster drawn, helpers 2.0x faster for bytes. gpu-blur's strength besides speed for bytes: identical output on every route, which the browser's blur does not promise. These are the owner's laptop and phone runs, not the three cloud test browsers.
 
 
+**New in 1.3.6: a drawn start-up test picks the faster way for small and mid-size pictures.** Owner's laptop and phone runs (Chrome 156), drawn canvas, ms, lower is faster. Auto now runs a short drawn test for pictures under a million pixels, so it stops choosing the slower route there.
+
+<!-- title: Auto now blurs 640 x 360 and 960 x 540 pictures in about half the time in Chrome on the laptop, and 20 percent faster on the phone -->
+| way | 640 x 360 | 960 x 540 |
+|---|---:|---:|
+| Chrome laptop, 1.3.5 | 5.1 | 9.8 |
+| Chrome laptop, 1.3.6 | 2.8 | 4.8 |
+| Phone, 1.3.5 | 15.7 | 22.2 |
+| Phone, 1.3.6 | 12.6 | 17.4 |
+
+Where it loses: on the phone a 480 x 270 picture is 1.1 ms slower in 1.3.6 (the start-up test costs more than it saves at that size). The Firefox laptop picks are unchanged, so the browser's own filter still wins there when you only draw the result.
+
+
 **New in 1.3.5: wide blurs on the card way run in two stages, same bytes.** Laptop runs (Firefox 160, Chrome 156), 1080p drawn canvas, two stages divided by one stage, lower is faster. WebGL 2 boxes of radius 24 and up are split into two stages.
 
 <!-- title: Two-stage wide blurs take 0.58 to 0.71 of the old time at radius 50 and 0.91 to 0.95 at radius 24 -->
