@@ -1,8 +1,8 @@
 # sticker-text
 
-**Version 1.1.0 · API 1**
+**Version 1.2.0 · API 1**
 
-**Tested in:** ungoogled Chromium 155.0.8059.39, Firefox 158.0 and WebKitGTK 2.52.6 (one at a time): the 17 Node checks, the demo page loading without errors, and the measurements above. Not tested: a real screen reader, Windows high contrast, Safari itself.
+**Tested in:** cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; screenshots compared (Chromium default byte for byte the same)
 
 ## What it is and how it works
 
@@ -66,6 +66,7 @@ Where it loses:
 - Needs `sticker-text.css`; text must be plain text.
 - Not tested with a real screen reader, Windows high contrast or Safari itself.
 - Measured 2026-11-06 (ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6, median of 3 pages x 25 frames, one window of 160 words at 100 px with the text changed every frame; frames cap at 16.7 ms, so a built-in method showing 16.7 is "fits in a frame"). Per frame, ms: plain text-stroke 16.7 / 17 / 21; SVG text 16.6 / 17 / 18; canvas 16.7 / 17 / 58; sticker-text default 114 / 198 / 1,605; sticker-text `st-flat st-stroke` 62 / 42 / 244. Both ways of drawing an outline that the browser has built in are 4 to 90 times lighter than the ring of shadows, so the ring is only worth it when you want its round corners on HTML text in Chromium, the gradient fill or the hard lower edge, with a few titles on screen. The absolute sticker-text figures are higher than the table above (a different, busier run); read the ratios.
+- Since 1.2.0 (owner card "Both changes"; same page, per frame, ms, Chromium / Firefox / WebKitGTK): the default outline is one round stroke in Firefox and Safari/WebKit (apply() adds the class `st-round`; Chrome keeps the 32 shadows because it draws sharp stroke corners), 104 / 184 / 1,691 down to about 100 / 90 / 464; `st-flat st-stroke` draws its hard lower edge with the hidden layout text instead of a filter, 59 / 63 / 204 down to 29 / 41 / 96. Both look the same to the eye; edges sit up to about half a pixel from the old pictures. Chrome's default picture is byte for byte the same. A custom `radii` or `steps` ring keeps its shadows.
 - Not measured: stroketext.js in any browser and its size, a phone, Safari itself.
 
 ## Limits

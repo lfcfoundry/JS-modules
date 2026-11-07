@@ -13,7 +13,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
 | [gpu-blur](modules/gpu-blur/README.md) | 1.3.6 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 · API 1 | [changelog](modules/fly-to-mini/CHANGELOG.md) |
-| [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
+| [sticker-text](modules/sticker-text/README.md) | 1.2.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
 | [field-report](modules/field-report/README.md) | 1.1.1 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
@@ -66,6 +66,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **zip-open** 1.19.1 · API 1: Fixed: a damaged or crafted Excel file with a very long broken tag could freeze the page for many minutes. It now fails or opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
 - 2026-11-06 · **walker-sim** 2.4.2 · API 2: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
+- 2026-11-06 · **sticker-text** 1.2.0 · API 1: Faster to draw: 2 to 3.6 times faster in Firefox and WebKit, and the fast option about twice as fast.
 - 2026-11-06 · **sprite-baker** 1.9.0 · API 1: New option fast: true uses cheaper shading in the plain JavaScript fill (a short series for the normal length, the highlight skipped where it adds under a third of a level, a table for the rim-light power).
 - 2026-11-06 · **sprite-baker** 1.8.0 · API 1: New option edge: true fills each pixel once and fills again with ss by ss samples only the pixels on an edge.
 - 2026-11-06 · **sprite-baker** 1.10.0 · API 1: Faster fast: true: one shade a pixel inside a bake (a 12-frame roll 0.47x to 0.58x of the default time); the default fill tests only the columns a triangle can cover (same pixels).
