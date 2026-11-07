@@ -173,7 +173,7 @@ A game-like save (a list of small tile objects plus 2,000 named counts), the who
 | 16 MB save | 76.2 / 148.3 / 164 | 124 / 354 / 357 | 65 / 328 / 339 |
 | 16 MB load | 83.2 / 169.1 / 166.8 | 115 / 328 / 351 | 91 / 123 / 120 |
 
-Measured 11.07 (Chromium on 2.4.0, Firefox and WebKitGTK on 2.3.0, which store the same way there): big arrays are stored in pieces since 2.1.0, and lists of same-shape records as columns since 2.2.0 (Chromium since 2.4.0). save-kit is now faster than both at every size in all three browsers. Older notes below describe how earlier versions got here.
+Measured 11.07 (Chromium on 2.4.0, Firefox and WebKitGTK on 2.3.0, which store the same way there): big arrays are stored in pieces since 2.1.0, and lists of same-shape records as columns since 2.2.0 (Chromium since 2.4.0). save-kit is faster than both from 4 MB up in all three browsers, and equal or faster below that (WebKitGTK 0.8 MB load 7 / 7 / 8 ms is a tie on its 1 ms clock). Older notes below describe how earlier versions got here.
 
 Since 1.6.1 a `createLarge` load spends one pass over the saved text where it spent three (13 MB of text: 8.5 to 10 ms down to 2.2 to 3 ms) and none when the schema has no `raw` field; 16 MB load, new over old, paired runs: Chromium 0.72 (noisy), Firefox 0.95, WebKitGTK 0.88. 
 
