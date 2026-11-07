@@ -160,7 +160,7 @@ What a game does once per visit: run the library's script, then `create()` and t
 | Firefox 158 | 5.30 (0.86x) | 6.38 (1.03x, about even) | 6.17 |
 | WebKitGTK 2.52.6 | 1.13 (0.73x) | 1.57 (1.01x, about even) | 1.55 |
 
-Checks stay on in every save-kit column. Ship the minified file for this speed: the readable file is about even with localForage in Firefox and WebKitGTK. Most of the first call is the browser compiling code (in Chromium the first `create()` takes about 1.2 ms and the next one 0.1 ms), so a smaller file opens faster; a lean build cut to the small-save parts opened in 4.52 / 4.10 / 1.10 ms. Measured 11.07 on the 2.4.0 code, which 2.4.1 does not change.
+Checks stay on in every save-kit column. Ship the minified file for this speed: the readable file is about even with localForage in Firefox and WebKitGTK. Most of the first call is the browser compiling code (in Chromium the first `create()` takes about 1.2 ms and the next one 0.1 ms), so a smaller file opens faster; a lean build cut to the small-save parts opened in 4.52 / 4.10 / 1.10 ms. To make that build for a game that only uses `create()`, run `python3 modules/save-kit/lean.py --without large,codes,durable,raw,stageImport,onOtherTab,twoTap,persist,migrate,compact,nativeBase64,streamLimit` and minify the result (keep any part your game calls). Making the kit and loading the save cost the same in every build; the time saved is the browser reading less script. Measured 11.07 on the 2.4.0 code, which 2.4.1 does not change.
 
 The cloud numbers above overstate the lead. On real devices (the owner's laptop and phone, tester page with 58 tries per library, each in a fresh frame; paired median of save-kit's time divided by localForage's, smaller is better):
 
