@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.0.1 (API 2)
+ * Version 2.0.2 (API 2)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -46,6 +46,7 @@
   var countsSeen = 0, countsBad = 0;  // while load() checks its main slot: counts fields the full loop below looked at whole, and how many of them held a broken number
   var cleanHits = 0;                  // how many counts fields the clean fast path below kept as they were (load() uses it to skip a second walk)
   var fresh = false;                  // set only while load() rebuilds a state from text it parsed itself, so a clean counts object can be reused instead of copied
+  var shortKeys = false, shortRoots = new WeakSet(), LONGKEY = /"[^"]{201}/;   // WebKit load: slot texts proven to hold no name over 200 characters
   var JSC = typeof navigator !== 'undefined' && /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Firefox/.test(navigator.userAgent);   // experiment: Object.values is much faster than Object.keys here
   var V8 = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');   // Chromium-family browsers: create() saves big counts maps as [names, counts] (see packed())
   var packedClean = typeof WeakSet === 'function' ? new WeakSet() : null, packedLive = 0;   // maps unpack() rebuilt from [names, counts] with every entry clean: cleanField keeps them as they are
@@ -110,10 +111,17 @@
         if (brk === 0 && packedLive > 0 && fresh && packedClean.has(v)) { packedClean.delete(v); packedLive--; cleanHits++; return v; }   // checked entry by entry while it was rebuilt
         var cap = spec.max === 0 ? 0 : spec.max || 1e6, i, k, n, ok;
         if (brk < 0) { ks = Object.keys(v); for (i = 0; i < ks.length; i++) { k = ks[i]; if (k.length > 200 || kept >= maxKeys || k === '__proto__' || k === 'constructor' || k === 'prototype') continue; n = v[k]; if (cap > 0 && typeof n === 'number' && n - n === 0 && n > 0) { out[k] = Math.min(Math.floor(n), cap); kept++; } } return out; }
-        if (JSC && fresh && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // WebKit: for...in skips making the list of names (about 12% faster there, slower in Chromium)
-          i = 0; ok = true;
-          for (k in v) { n = v[k]; i++; if (k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n) || k === '__proto__' || k === 'constructor' || k === 'prototype') { ok = false; break; } }
-          if (ok && i >= 32 && i <= maxKeys) { Object.setPrototypeOf(v, null); cleanHits++; return v; }
+        if (JSC && fresh && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // WebKit
+          if (shortKeys) {   // the slot text had no backslash and no quote followed by 201 other characters, so no name is longer than 200: check the values only (Object.values is about 4x faster than walking the names there)
+            var vs = Object.values(v), hop = Object.prototype.hasOwnProperty;
+            i = vs.length; ok = i >= 32 && i <= maxKeys && !hop.call(v, '__proto__') && !hop.call(v, 'constructor') && !hop.call(v, 'prototype');
+            for (var j = 0; ok && j < i; j++) { n = vs[j]; if (typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n)) ok = false; }
+            if (ok) { Object.setPrototypeOf(v, null); cleanHits++; return v; }
+          } else {
+            i = 0; ok = true;
+            for (k in v) { n = v[k]; i++; if (k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n) || k === '__proto__' || k === 'constructor' || k === 'prototype') { ok = false; break; } }
+            if (ok && i >= 32 && i <= maxKeys) { Object.setPrototypeOf(v, null); cleanHits++; return v; }
+          }
         }
         ks = Object.keys(v);
         if (!JSC && fresh && ks.length >= 32 && ks.length <= maxKeys && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // every entry already clean: keep the parsed object, without a prototype
@@ -146,6 +154,7 @@
   function validateWith(fields, defaults, input) {
     var out = {}, i, f, k, v, t, d, plain;
     input = isObj(input) ? input : {};
+    shortKeys = JSC && shortRoots.has(input);
     plain = Object.getPrototypeOf(input) === Object.prototype;   // a plain object (what JSON.parse makes) has no inherited fields to mistake for saved ones, apart from the names on Object.prototype
     for (i = 0; i < fields.length; i++) {
       f = fields[i]; k = f[0]; t = f[1].type;
@@ -413,7 +422,7 @@
     function parseSlot(t) {
       try {
         var x = JSON.parse(t || 'null');
-        if (isObj(x)) { if (countRules.length && t.indexOf('[[') >= 0) unpack(x); if (hasRaw && t.indexOf('__proto__') < 0 && t.indexOf('constructor') < 0 && t.indexOf('prototype') < 0) plainText.add(x); return x; }
+        if (isObj(x)) { if (JSC && t.indexOf('\\') < 0 && !LONGKEY.test(t)) shortRoots.add(x); if (countRules.length && t.indexOf('[[') >= 0) unpack(x); if (hasRaw && t.indexOf('__proto__') < 0 && t.indexOf('constructor') < 0 && t.indexOf('prototype') < 0) plainText.add(x); return x; }
       } catch (e) {}
       return null;
     }

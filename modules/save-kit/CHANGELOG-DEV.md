@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.2 · API 2 · 2026-11-06
+
+### Quick
+WebKitGTK 2.52.6 20 KB load is about 7% faster in one page harness (128.5-132.5 to 120-121 us; helper harness 10-13%): when the save text holds no backslash and no 201-character quoted run, the counts check reads the values only.
+
+### Deep
+WebKitGTK 2.52.6 20 KB load is about 7% faster in one page harness (128.5-132.5 to 120-121 us; helper harness 10-13%): when the save text holds no backslash and no 201-character quoted run, the counts check reads the values only. Names are still checked: the text test proves no name is over 200 characters, and the three prototype names are looked up once. Chromium and Firefox paths unchanged. Patch from the research helper thread.
+
 ## 2.0.1 · API 2 · 2026-11-06
 
 ### Quick

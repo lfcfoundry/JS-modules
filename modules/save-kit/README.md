@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 2.0.1 · API 2**
+**Version 2.0.2 · API 2**
 
-**Tested in:** cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; 20,000 random loads and 9,944 random saves equal to 2.0.0
+**Tested in:** cloud WebKitGTK 2.52.6 (speed), Node with a forced WebKit branch (20,000 random loads equal to 2.0.1; helper: 6,000 random and damaged saves, 7 saves inside real WebKitGTK)
 
 ## What it is and how it works
 

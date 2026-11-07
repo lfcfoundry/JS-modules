@@ -1,4 +1,4 @@
-/*! save-kit-lite, new in save-kit 1.6.0 (API 1). Copyright (c) 2026 LFC Foundry. MIT License. Version 2.0.1 (API 2) */
+/*! save-kit-lite, new in save-kit 1.6.0 (API 1). Copyright (c) 2026 LFC Foundry. MIT License. Version 2.0.2 (API 2) */
 /* The small version of save-kit: checked fields (num, int, flag, str), a backup slot, a save that refuses broken numbers. No counts, raw, codes,
  * autosave, versions, other-tab notice or IndexedDB: use save-kit.js for those. Same stored format and same answers as save-kit's create() for these types.
  *

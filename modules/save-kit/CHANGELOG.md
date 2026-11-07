@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.2 · API 2 · 2026-11-06
+- Loads are a little faster in Safari and other WebKit browsers.
+
 ## 2.0.1 · API 2 · 2026-11-06
 - Small loads are a little faster.
 
