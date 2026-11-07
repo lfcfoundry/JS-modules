@@ -127,7 +127,8 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   /* the 1:00 PM 11.01 rule covers line charts: no gridlines, no number axis, values on the lines */
   const flat = (S2) => S2.curves.filter((c) => c.line && (Math.abs(c.P[1] - c.P[c.P.length - 1]) < 0.01 || Math.abs(c.P[0] - c.P[c.P.length - 2]) < 0.01)).length - 1;   /* straight rules across the plot, less the one base line */
   ok(flat(S) === 0 && flat(S0) > 0, 'line chart: no gridlines (clean: false keeps them)');
-  ok(tags.every((l) => /\d$/.test(l.t)) && S.labels.filter((l) => /^\d/.test(l.t) && l.x < S.labels.find((q) => q.t === '2010').x).length === 7, 'line chart: last value after each name, first value left of each line');
+  const st = S.labels.filter((l) => /^\d/.test(l.t) && l.x < S.labels.find((q) => q.t === '2010').x).map((l) => l.y).sort((p, q) => p - q);
+  ok(tags.every((l) => /\d$/.test(l.t)) && st.length >= 2 && st.length < 7 && st.every((y, i) => !i || y - st[i - 1] >= 13), 'line chart: last value after each name; first values left of the lines, one that would touch another left out (' + st.length + ' of 7 shown)');
   const one = P.make(rows.filter((r) => r.attrs.country === 'Canada').map((r, i) => ({ attrs: { year: r.attrs.year, rate: [3, 9, 4, 1, 6, 5, 7, 2, 8, 4, 5, 6, 3, 4, 5, 6][i] } })), { type: 'line', x: 'year', y: 'rate' }, { width: 640, height: 400 }, NS);
   ok(['3', '6', '9', '1'].every((v) => one.labels.some((l) => l.t === v)) && flat(one) === 0, 'single line: first, last, high and low values written, no gridlines');
   const many = []; for (let k = 0; k < 12; k++) for (let y = 0; y < 5; y++) many.push({ attrs: { x: y, s: 'S' + k, v: k + y } });
@@ -188,6 +189,34 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(tk([], { type: 'bar', x: 'a' }) === '' && tk(reg, { type: 'words', x: 'region' }) === '', 'nothing to say: empty text');
   const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
   ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
+}
+// the visuals review of the auto-chart sheet (2.10.0)
+{
+  const NS = global.NetflowScene, ts = (S) => S.labels.map((l) => l.t);
+  const air = 'ABCDEFGHIJKL'.split(''), loops = []; air.forEach((a, i) => air.forEach((b, j) => { if (i !== j) loops.push({ origin: a, destination: b }); }));
+  const ch = P.auto(loops);
+  ok(ch.type === 'chord' && /chord/.test(ch.why) && /the 40 biggest of 132 links/.test(ch.why) && ch.svg.indexOf('<svg') === 0 && ch.others[0].type === 'sankey', 'many links where places both send and receive: a chord, with the Sankey as the next pick: ' + ch.why);
+  ok(P.auto([{ from: 'Salary', to: 'Rent', amount: 1800 }, { from: 'Salary', to: 'Food', amount: 600 }]).type === 'sankey', 'a small flow table stays a Sankey');
+  ok(P.toSvg(loops, { type: 'chord', from: 'origin', to: 'destination' }).indexOf('<svg') === 0 && /biggest flow/.test(P.takeaway(loops, ch.spec).text), "type: 'chord' draws through netflow-circular; the takeaway reads it like a Sankey");
+  const sq = Array.from({ length: 100 }, (_, i) => ({ income: i * 10, health: i === 0 ? 14000 : 60 + (i % 20) }));
+  ok(/thin line along "health"/.test(P.auto(sq).why) && !/thin line/.test(P.auto(sq.map((r, i) => ({ income: r.income, health: 60 + (i % 20) }))).why), 'a scatter squashed by one far value says so; a normal one does not');
+  const bud = [-0.079, 1.2, 4.31, 2, -10.8].map((v, i) => ({ attrs: { year: 2000 + i, value: v } }));
+  const Sb = P.make(bud, { type: 'line', x: 'year', y: 'value' }, { width: 640, height: 400 }, NS), vb = ts(Sb).filter((t) => /^-?\d+\.\d$/.test(t));
+  ok(vb.includes('-0.1') && vb.includes('4.3') && vb.includes('-10.8') && !ts(Sb).includes('-0.079') && !ts(Sb).includes('4.31'), 'one precision per chart: -0.1, 4.3 and -10.8 (not -0.079, 4.31): ' + vb.join(' '));
+  const pop = [9.7e6, 30e6, 144e6].map((v, i) => ({ attrs: { year: 1900 + i * 50, people: v } }));
+  ok(ts(P.make(pop, { type: 'line', x: 'year', y: 'people' }, { width: 640, height: 400 }, NS)).includes('10M'), 'one precision: 9.7M next to 144M reads 10M');
+  const Sy = P.make(Array.from({ length: 17 }, (_, i) => ({ attrs: { year: 2001 + i, v: i } })), { type: 'line', x: 'year', y: 'v' }, { width: 400, height: 260 }, NS);
+  const yl = Sy.labels.filter((l) => /^20\d\d$/.test(l.t)).sort((p, q) => p.x - q.x);
+  ok(yl.length >= 2 && yl.every((l, i) => !i || l.x - yl[i - 1].x >= 34) && yl.every((l) => +l.t % 5 === 0) && !ts(Sy).includes('Year'), 'year ticks on a narrow line: round years that do not touch, and no "Year" axis name: ' + yl.map((l) => l.t).join(' '));
+  const Sd = P.make(Array.from({ length: 24 }, (_, i) => ({ attrs: { date: new Date(Date.UTC(1854, 3 + i, 1)).toISOString().slice(0, 10), w: i } })), { type: 'line', x: 'date', y: 'w' }, { width: 400, height: 260 }, NS);
+  ok(ts(Sd).some((t) => /^[A-Z][a-z]{2} 185\d$/.test(t)) && !ts(Sd).includes('Date'), 'month ticks keep a year on the first label and on January: ' + Sd.labels.filter((l) => /^[A-Z][a-z]{2}( \d{4})?$/.test(l.t)).map((l) => l.t).join(' '));
+  const Sh = P.make(Array.from({ length: 3000 }, (_, i) => ({ attrs: { rate: ((i * 7919) % 300) / 1000 } })), { type: 'hist', x: 'rate' }, { width: 400, height: 260 }, NS);
+  const hl = Sh.labels.filter((l) => /^0(\.\d+)?$/.test(l.t) && l.y > 200 && l.align !== 'r').sort((p, q) => p.x - q.x);
+  ok(hl.length >= 2 && hl.every((l, i) => !i || l.x - hl[i - 1].x >= (l.t.length + hl[i - 1].t.length) * 6.05 / 2 + 10), 'histogram decimals do not touch: ' + hl.map((l) => l.t).join(' '));
+  const kr = []; 'abcdefgh'.split('').forEach((g) => { for (let i = 0; i < 5; i++) kr.push({ attrs: { x: i, y: i * 2, group: 'group_name_' + g } }); });
+  const Sk = P.make(kr, { type: 'scatter', x: 'x', y: 'y', color: 'group' }, { width: 400, height: 260 }, NS);
+  const more = Sk.labels.find((l) => /^\+\d+ more$/.test(l.t)), keys = Sk.labels.filter((l) => /^group_name/.test(l.t) && l.y === (more && more.y));
+  ok(more && keys.length >= 1 && keys.every((k) => k.x + k.t.length * 6.6 < more.x), 'key row: "+N more" sits after the last name, never on it');
 }
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);
