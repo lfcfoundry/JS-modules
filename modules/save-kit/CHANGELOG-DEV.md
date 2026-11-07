@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.1 · API 2 · 2026-11-07
+
+### Quick
+save-kit.min.js added (terser, ASCII only, header kept); page-open comparison against localForage.
+
+### Deep
+New save-kit.min.js: the same code as save-kit.js, minified with terser 5 (-c passes=2 -m, ASCII only, MIT header kept); the 54 Node checks run on both files. Page open (script, create() and the first load of a 20 KB save, library inline in a fresh page, mean of 40 pages, ms, lower is better), save-kit.min.js / localForage 1.10.0 min with its localStorage driver: Chromium 155 5.47 / 8.31 (0.66x), Firefox 158 5.30 / 6.17 (0.86x), WebKitGTK 2.52.6 1.13 / 1.55 (0.73x). The readable save-kit.js: 6.10 / 6.38 / 1.57 ms (0.73x / 1.03x / 1.01x). No code change.
+
 ## 2.4.0 · API 2 · 2026-11-07
 
 ### Quick
