@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.3 · API 1 · 2026-11-06
+- Loads of saves with big count lists take 16 to 31% less time.
+
 ## 1.6.2 · API 1 · 2026-11-06
 - A 16 MB load with a raw field is 0.72x of the time in Chromium (120 to 87 ms) and 0.93x in WebKitGTK; Firefox unchanged within noise.
 

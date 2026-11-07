@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.2 (API 1)
+ * Version 1.6.3 (API 1)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -43,6 +43,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  var cleanHits = 0;                  // how many counts fields the clean fast path below kept as they were (load() uses it to skip a second walk)
   var fresh = false;                  // set only while load() rebuilds a state from text it parsed itself, so a clean counts object can be reused instead of copied
   var JSC = typeof navigator !== 'undefined' && /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Firefox/.test(navigator.userAgent);   // experiment: Object.values is much faster than Object.keys here
   var trusted = false;                // set only while createLarge().load() rebuilds a state from bytes that passed their check and contain no prototype-pollution key names
@@ -103,10 +104,16 @@
         var out = bag(), kept = 0, maxKeys = spec.maxKeys === 0 ? 0 : spec.maxKeys > 0 ? spec.maxKeys : DEFAULT_MAX_KEYS;
         if (!isObj(v)) v = d;   // a missing or broken field starts from its default (1.0.0 always gave an empty map here)
         if (!isObj(v)) return out;
-        var ks = Object.keys(v), cap = spec.max === 0 ? 0 : spec.max || 1e6, i, k, n;
-        if (fresh && ks.length >= 32 && ks.length <= maxKeys && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // every entry already clean: keep the parsed object, without a prototype
+        var ks, cap = spec.max === 0 ? 0 : spec.max || 1e6, i, k, n, ok;
+        if (JSC && fresh && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // WebKit: for...in skips making the list of names (about 12% faster there, slower in Chromium)
+          i = 0; ok = true;
+          for (k in v) { n = v[k]; i++; if (k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n) || k === '__proto__' || k === 'constructor' || k === 'prototype') { ok = false; break; } }
+          if (ok && i >= 32 && i <= maxKeys) { Object.setPrototypeOf(v, null); cleanHits++; return v; }
+        }
+        ks = Object.keys(v);
+        if (!JSC && fresh && ks.length >= 32 && ks.length <= maxKeys && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // every entry already clean: keep the parsed object, without a prototype
           for (i = 0; i < ks.length; i++) { k = ks[i]; n = v[k]; if (k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n) || k === '__proto__' || k === 'constructor' || k === 'prototype') break; }
-          if (i === ks.length) { Object.setPrototypeOf(v, null); return v; }
+          if (i === ks.length) { Object.setPrototypeOf(v, null); cleanHits++; return v; }
         }
         for (i = 0; i < ks.length; i++) {
           k = ks[i];
@@ -371,9 +378,24 @@
     // Schema check, then the game's own afterValidate(clean, raw) if there is one: it may change `clean` in place, return a replacement object, or return
     // false/null to refuse the save. A hook that throws is ignored (the schema-checked state is used). Returns null when refused.
     function finish(raw) {
-      var c, r, was = trusted;
+      var c, was = trusted;
       trusted = plainText.has(raw) && !(typeof migrate !== 'undefined' && migrate && version && isNum(raw.v) && raw.v < version);
       try { c = validateWith(fields, defaults, upgrade(raw)); } finally { trusted = was; }
+      return hook(c, raw);
+    }
+    // The main slot checked once, before it is known whether the backup is needed: { c: clean state, bad: broken fields }. When every counts field came through the
+    // clean fast path unchanged, none of them can hold a broken number, so only the plain number fields are counted again. null when a migrate would change the save.
+    function checkMain(raw) {
+      if (typeof migrate !== 'undefined' && migrate && version && !(isNum(raw.v) && Math.floor(raw.v) >= version)) return null;
+      var c, i, v, n = 0, was = trusted;
+      trusted = plainText.has(raw); cleanHits = 0; fresh = true;
+      try { c = validateWith(fields, defaults, raw); } finally { trusted = was; fresh = false; }
+      if (cleanHits !== countKeys.length) return { c: c, bad: badFields(raw) };
+      for (i = 0; i < soundKeys.length; i++) { v = raw[soundKeys[i]]; if (v !== undefined && !isNum(v)) n++; }
+      return { c: c, bad: n };
+    }
+    function hook(c, raw) {
+      var r;
       if (!after) return c;
       try { r = after(c, raw); } catch (e) { return c; }
       return r === false || r === null ? null : isObj(r) ? r : c;
@@ -386,10 +408,13 @@
         try {
           var mt = textOf(key), a = parseSlot(mt), b = null, first, second, out = null, used = null;
           if (mt === null && !orphan) return null;
-          if (!a || badFields(a) > 0) b = readSlot(bak);   // a sound main slot can never lose to the backup, so only read the backup when it could matter
+          var pre = a && countKeys.length ? checkMain(a) : null, badA = pre ? pre.bad : a ? badFields(a) : 0;
+          if (!a || badA > 0) b = readSlot(bak);   // a sound main slot can never lose to the backup, so only read the backup when it could matter
           if (a || b) {
-            first = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a);
-            fresh = true; try { out = finish(first); } finally { fresh = false; } used = first;
+            first = !b ? a : !a ? b : (badFields(b) < badA ? b : a);
+            if (pre && first === a) out = hook(pre.c, a);
+            else { fresh = true; try { out = finish(first); } finally { fresh = false; } }
+            used = first;
             if (!out) {   // refused by afterValidate: try the other slot
               second = first === a ? (b || readSlot(bak)) : a;
               out = second ? finish(second) : null; used = second;

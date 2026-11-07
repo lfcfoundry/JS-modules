@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.6.2 · API 1**
+**Version 1.6.3 · API 1**
 
-**Tested in:** Node: 52 plus lean, lite and raw-equivalence checks pass. 16 MB load timed in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one library per page and paired early-stop runs. Not run: a phone.
+**Tested in:** cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; 20,000 random loads equal to 1.6.2 (also with the WebKit branch forced)
 
 ## What it is and how it works
 
@@ -131,6 +131,8 @@ It reads and writes the same stored text as `create()` and gives the same answer
 - **No database wait for small saves.** It is about 90 to 250 times as fast as idb-keyval and localForage for a 448-byte save, and 2 to 25 times as fast for 20 KB, because `localStorage` answers at once.
 - **Small.** The core with checks and backup is 1.8 KB minified and gzipped, against 9.1 KB for localForage and 14.1 KB for zod bundled whole. The full file, with codes, big saves and the crash copy, is 6.1 KB in the lean build. Since 1.6.0, `save-kit-lite.js` keeps checked fields and a backup slot in 966 bytes, about 2.6 times idb-keyval's 370.
 - **The price.** Next to a bare `JSON.stringify` into `localStorage` it is 1.1 to 2.9 times slower, which is the cost of the checks. idb-keyval is smaller still (0.4 KB gzipped, against 1.0 KB for the lite file), but it has no checks and no backup.
+
+Since 1.6.3 a clean load checks each counts map once and skips the second scan for damaged fields, so a 20 KB load against localForage's localStorage driver (which checks nothing) went from 1.78 to 1.41x of its time in Chromium 155, 1.45 to 1.22 in Firefox 158 and 2.03 to 1.41 in WebKitGTK 2.52.6 (early-stop rule; `JSON.parse` alone is about two thirds of the load). It is still slower there; the rest is the per-key checks.
 
 Measured 2026.11.01 on save-kit 1.5.2 in cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6 (early-stop A/B rule), and confirmed on a laptop in Firefox 160 and Chromium 156 (16 cores). The tables are in "Speed and efficiency numbers".
 

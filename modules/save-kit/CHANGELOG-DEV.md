@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.3 · API 1 · 2026-11-06
+
+### Quick
+A 20 KB load against localForage's localStorage driver went from 1.78 to 1.41x of its time in Chromium, 1.45 to 1.22 in Firefox and 2.03 to 1.41 in WebKitGTK; same answers.
+
+### Deep
+A 20 KB load against localForage's localStorage driver went from 1.78 to 1.41x of its time in Chromium, 1.45 to 1.22 in Firefox and 2.03 to 1.41 in WebKitGTK; same answers. A clean load now checks each counts map once (a map whose entries are all whole numbers in range keeps the parsed object, without a prototype) and skips the second scan that looked for damaged fields; any miss falls back to the old path. On WebKit the key loop uses for...in (about 12% faster there, about 7% slower in Chromium, so WebKit only). Tried and dropped: for...in everywhere.
+
 ## 1.6.2 · API 1 · 2026-11-06
 
 ### Quick
