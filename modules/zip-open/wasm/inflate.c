@@ -64,10 +64,10 @@ static int build(u32 *tab, int tb, const u8 *len, int n, int which) {
   return 0;
 }
 
-static u32 FIXL, FIXD;   /* 1 when LT/DT hold the fixed tables */
+static __attribute__((address_space(1))) u32 FIXL, FIXD;   /* 1 when LT/DT hold the fixed tables */
 
 /* CRC-32 of the output, worked out on each 32 KB while it is still in the cache (since 1.16.0): slicing by 16, the same tables as crc32.c. crc() after inflate() gives the checksum of everything written. */
-static u32 CT[16][256], ctReady, CRC;
+static u32 CT[16][256]; static __attribute__((address_space(1))) u32 ctReady, CRC;
 static void crcInit(void) {
   u32 i, c, k;
   for (i = 0; i < 256; i++) { c = i; for (k = 0; k < 8; k++) c = (c & 1) ? (c >> 1) ^ 0xedb88320u : c >> 1; CT[0][i] = c; }
