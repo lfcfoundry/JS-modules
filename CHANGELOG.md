@@ -33,7 +33,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [elias-fano](modules/elias-fano/README.md) | 1.9.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.5.9 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
-| [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
+| [text-columns](modules/text-columns/README.md) | 0.6.6 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.12.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
@@ -62,6 +62,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-07 · **zip-open** 1.20.2 · API 1: Big Excel sheets with mostly numbers open a little faster the first time (about 1 to 8%). Sheets with mostly text can open up to 9% slower the third time in a row in Firefox and WebKit-based browsers.
+- 2026-11-07 · **text-columns** 0.6.6 · API 0: Big tables with repeated text values (cities, categories) read about 10 to 25% faster in Chrome, Edge and other Chromium browsers.
 - 2026-11-07 · **netflow-plot** 2.9.0 · API 2: toSvg(rows) picks the chart; auto() says why; opt-in takeaway
 - 2026-11-07 · **netflow-plot** 2.10.0 · API 2: Busy flow tables where places both send and receive draw as a chord; small ones stay Sankeys. Line labels no longer collide and share one precision; date axes get round ticks and no redundant name. A scatter squashed by a few far values says so; the key's +N more no longer covers a name.
 - 2026-11-07 · **lzma-decode** 1.5.1 · API 1: The JavaScript decoder is faster again, now in WebKitGTK too: about a third faster on the first big file in every test browser.

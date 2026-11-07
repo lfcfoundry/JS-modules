@@ -1,8 +1,8 @@
 # text-columns
 
-**Version 0.6.5 · API 0**
+**Version 0.6.6 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** ungoogled Chromium 155 (Chromium path); Firefox 158 and WebKitGTK 2.52.6 keep the old loop
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

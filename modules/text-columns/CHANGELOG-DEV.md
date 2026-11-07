@@ -2,6 +2,19 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.6 · API 0 · 2026-11-07
+
+### Quick
+Chromium-family only: repeated text values share one string, found by their bytes; other browsers keep the old loop; same values
+
+### Details
+When the user agent contains Chrome/, a text column whose first 2,048 rows have few different values (at most 1 in 8) finds each repeated value by its bytes and shares the first string (a Map of up to 4,096 values during the parse); other columns and other browsers keep the plain loop.
+Chromium 155, 20 MB text: 3 repeating columns 171 to 128 ms, 2 repeating + 1 mostly unique 148 to 119 ms (warm, median of 7). Fresh page per sample, 20 MB 3 repeating columns: first parse 198 to 180 ms, later 186 to 154 ms. A 5 MB table with one repeating column out of three text columns: first parse 72-76 to 79-85 ms (up to 18% slower, noisy), later 56-59 to 54-57 ms.
+Firefox 158 and WebKitGTK 2.52.6 run the old loop. Tests pass with the Chromium path forced on and off (14 checks, parallel parse agrees on 387 files).
+
+### Deep
+Requested by the owner via module research round 58 (breakthroughs-2026.10.31/round58-intern-chromium-only/ROUND58-2026.11.07.md), improving round 11's rejected idea (it slowed Firefox 15-20%). Same Chrome/ check as save-kit. A closure version made the plain path 15% slower, so the shared loop is a separate top-level function.
+
 ## 0.6.5 · API 0 · 2026-10-31
 
 ### Quick
