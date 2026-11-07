@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.0 (API 2)
+ * Version 2.4.0 (API 2)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -700,7 +700,7 @@
     var plain = new WeakSet();   // parsed states whose text names no prototype-pollution key
     var chan = null, listeners = [], mine = Math.random().toString(36).slice(2);
     var skipMs = o.skipUnchangedMs > 0 ? o.skipUnchangedMs : 0, lastProbe = null, lastWriteAt = 0, lastSeen = 0;   // skipUnchangedMs: the last stored text, when, and its stamp
-    var useLock = !!o.lock, held = null, first = null, lostCb = null, CHUNK_MIN = 100000, COLS_MIN = 10000, COLS = !V8;   // arrays shorter than CHUNK_MIN entries stay in the one text
+    var useLock = !!o.lock, held = null, first = null, lostCb = null, CHUNK_MIN = 100000, COLS_MIN = 10000;   // arrays shorter than CHUNK_MIN entries stay in the one text
 
     function badFields(x) {
       var n = 0, i, v;
@@ -936,9 +936,9 @@
             head = {}; for (name in state) if (name !== big) head[name] = state[name];
             t = JSON.stringify(head); g = now + '-' + Math.random().toString(36).slice(2); rec = { t: t, n: t.length, c: { f: big, k: k, m: arr.length, g: g } };
             per = Math.ceil(arr.length / k); parts = [];
-            for (i = 0; i < k; i++) { var lo = i * per, hi = Math.min(arr.length, lo + per), cx = COLS ? cols(arr, lo, hi) : null, pt = JSON.stringify(cx || arr.slice(lo, hi)); parts.push(cx ? { t: pt, n: pt.length, g: g, i: i, f: 1 } : { t: pt, n: pt.length, g: g, i: i }); }
+            for (i = 0; i < k; i++) { var lo = i * per, hi = Math.min(arr.length, lo + per), cx = cols(arr, lo, hi), pt = JSON.stringify(cx || arr.slice(lo, hi)); parts.push(cx ? { t: pt, n: pt.length, g: g, i: i, f: 1 } : { t: pt, n: pt.length, g: g, i: i }); }
           } else {
-            if (COLS) { bigN = COLS_MIN - 1; for (name in state) if (Array.isArray(state[name]) && state[name].length > bigN) { big = name; bigN = state[name].length; } }
+            bigN = COLS_MIN - 1; for (name in state) if (Array.isArray(state[name]) && state[name].length > bigN) { big = name; bigN = state[name].length; }
             var cx = big ? cols(state[big], 0, bigN) : null;
             if (cx) {   // a smaller list of same-shape records: one columns piece, kept inside the head record (one read)
               head = {}; for (name in state) if (name !== big) head[name] = state[name];

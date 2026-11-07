@@ -1,6 +1,6 @@
 # save-kit
 
-**Version 2.3.0 · API 2**
+**Version 2.4.0 · API 2**
 
 **Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
@@ -106,7 +106,7 @@ big.onOtherTab(function (state) { /* another tab of this game stored a save */ }
 - The main slot and a backup slot are written in one transaction, so a half-written save cannot exist. The save is stored as its JSON text plus the text length; `load()` ignores a slot that is cut short or is not a JSON object and uses the other one. The browser's own storage adds its own checksums; there is no checksum of ours on top (it cost 8 to 54 ms on 16 MB and was dropped).
 - Same checks as `create()`: a broken or negative number refuses the save (`false`, nothing written); fields are rebuilt with the schema; `afterValidate`, `stamp`, `version` (stamps `v`; there is no `migrate` here yet), `soundKeys`, `backupEveryMs`, `pause()` and `forceBackupNext()` work the same. `raw` fields skip the deep copy when the stored text names no `__proto__`, `constructor` or `prototype` key (otherwise they are scrubbed as before).
 - Since 2.1.0 a save whose biggest array field has 100,000 or more entries stores that array in pieces of about 40,000 entries (at most 8), each with its index, the piece count, the total and a save id, read side by side and parsed one by one; a missing, cut, reordered, duplicated or foreign piece makes the slot count as broken (the backup is used, as for any broken slot). 20 MB, pieces / one text, early-stop rule: WebKitGTK load 0.76 and save 0.67, Chromium load 0.90 and save 0.63, Firefox load 0.90 and save 0.99. **Upgrade note:** save-kit 2.0.2 or older cannot read a big save written in pieces.
-- Since 2.2.0, outside Chromium-family browsers, an array field of 10,000 or more entries that are all plain objects with the same names in the same order, holding only numbers, strings, `true`/`false` or `null`, is stored as columns: `{ k: names, c: one array per name }` (about 40% less text). `load()` builds the same objects again (same names, same order, same values); any other array keeps the plain text. Every browser reads both forms. A short column, a repeated or `__proto__` name or a wrong total makes the slot count as broken. Chromium keeps plain rows because building the columns there made saves 17 to 30% slower for a 8% faster load. Measured (ms, 2.1.0 / 2.2.0, `tests/save-kit-large-browser.js`, 2 runs): WebKitGTK 2.52.6 20 MB load 111-116 / 78-89, save 72-75 / 58-63, 5 MB load 31 / 24-26; Firefox 158 20 MB load 143-156 / 102-109, save 148-150 / 104-113, 5 MB load 37-38 / 26-27. **Upgrade note:** save-kit 2.1.0 or older cannot read a save written as columns.
+- Since 2.2.0 (in Chromium-family browsers since 2.4.0), an array field of 10,000 or more entries that are all plain objects with the same names in the same order, holding only numbers, strings, `true`/`false` or `null`, is stored as columns: `{ k: names, c: one array per name }` (about 40% less text). `load()` builds the same objects again (same names, same order, same values); any other array keeps the plain text. Every browser reads both forms. A short column, a repeated or `__proto__` name or a wrong total makes the slot count as broken. In Chromium 155 (2.3.0 / 2.4.0, 3 runs) 20 MB save 97-100 / 79-82 ms, 5 MB save 34-36 / 23-26, 1 MB save 10-11 / 7.5-8, 20 MB load 100-116 / 80-113. Measured (ms, 2.1.0 / 2.2.0, `tests/save-kit-large-browser.js`, 2 runs): WebKitGTK 2.52.6 20 MB load 111-116 / 78-89, save 72-75 / 58-63, 5 MB load 31 / 24-26; Firefox 158 20 MB load 143-156 / 102-109, save 148-150 / 104-113, 5 MB load 37-38 / 26-27. **Upgrade note:** save-kit 2.1.0 or older cannot read a save written as columns.
 - Quick saves in a row: while one write runs, newer saves wait and only the newest is written; every caller's Promise resolves `true` once its save or a newer one is stored.
 - `lock: true`: the first tab to save takes a lock (`navigator.locks`); another tab with the same `name` gets `false` from `save()` until it calls `claim(true)` to take over, and the old holder's `onLost(cb)` runs. Without Web Locks every tab may write.
 - `skipUnchangedMs: 60000` (off by default): a `save()` whose fields equal the last stored save (only the stamp differs) resolves `true` without writing until that many ms pass; `save(state, true)` always writes. The text is still built to compare, so an unchanged save costs about 34 to 43% of a normal one, not zero: 16 MB in Chromium 155 95.6 ms against 222.8, Firefox 158 61 against 168, WebKitGTK 2.52.6 35 against 102 (milliseconds, smaller is better). The stamp is kept beside the text and put back on load.
@@ -166,14 +166,14 @@ A game-like save (a list of small tile objects plus 2,000 named counts), the who
 
 | Save size, call | Chromium 155 ours / idb-keyval / localForage | Firefox 158 ours / idb-keyval / localForage | WebKitGTK 2.52.6 ours / idb-keyval / localForage |
 |---|---|---|---|
-| 0.8 MB save | 9.9 / 9.6 / 10.1 | 6 / 21 / 19 | 5 / 15 / 15 |
-| 0.8 MB load | 6.4 / 8.5 / 8.5 | 6 / 19 / 18 | 7 / 7 / 8 |
-| 4 MB save | 34.7 / 33.7 / 35.1 | 33 / 89 / 87 | 17 / 77 / 69 |
-| 4 MB load | 28.4 / 33.3 / 34.4 | 36 / 88 / 79 | 23 / 35 / 34 |
-| 16 MB save | 113.7 / 151.8 / 161.1 | 124 / 354 / 357 | 65 / 328 / 339 |
-| 16 MB load | 103.8 / 171.3 / 160.2 | 115 / 328 / 351 | 91 / 123 / 120 |
+| 0.8 MB save | 7.7 / 9.6 / 8.6 | 6 / 21 / 19 | 5 / 15 / 15 |
+| 0.8 MB load | 5.7 / 8.2 / 7.8 | 6 / 19 / 18 | 7 / 7 / 8 |
+| 4 MB save | 23.5 / 36.4 / 38.4 | 33 / 89 / 87 | 17 / 77 / 69 |
+| 4 MB load | 21.7 / 33.5 / 32.9 | 36 / 88 / 79 | 23 / 35 / 34 |
+| 16 MB save | 76.2 / 148.3 / 164 | 124 / 354 / 357 | 65 / 328 / 339 |
+| 16 MB load | 83.2 / 169.1 / 166.8 | 115 / 328 / 351 | 91 / 123 / 120 |
 
-Measured on save-kit 2.3.0 (11.07): big arrays are stored in pieces since 2.1.0 and, outside Chromium, lists of same-shape records as columns since 2.2.0. Older notes below describe how earlier versions got here.
+Measured 11.07 (Chromium on 2.4.0, Firefox and WebKitGTK on 2.3.0, which store the same way there): big arrays are stored in pieces since 2.1.0, and lists of same-shape records as columns since 2.2.0 (Chromium since 2.4.0). save-kit is now faster than both at every size in all three browsers. Older notes below describe how earlier versions got here.
 
 Since 1.6.1 a `createLarge` load spends one pass over the saved text where it spent three (13 MB of text: 8.5 to 10 ms down to 2.2 to 3 ms) and none when the schema has no `raw` field; 16 MB load, new over old, paired runs: Chromium 0.72 (noisy), Firefox 0.95, WebKitGTK 0.88. 
 

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.0 · API 2 · 2026-11-07
+- Big saves of many same-shape records are faster in Chrome and Edge too; older copies cannot read those saves.
+
 ## 2.3.0 · API 2 · 2026-11-07
 - New trust option (off by default) skips all checks for the fastest small saves and loads.
 
