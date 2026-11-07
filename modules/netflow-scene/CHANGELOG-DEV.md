@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.1 · API 1 · 2026-11-07
+
+### Quick
+toSvg is faster on big charts; output unchanged.
+
+### Details
+toSvg wrote every coordinate with +n.toFixed(2), most of a 20,000-dot scatter's SVG time. A plain hundredths rounding gives the same number; values within 0.0001 of a half, or too big for exact hundredths, still go through toFixed. Same SVG bytes on 5 million random numbers and on every test chart.
+
+### Deep
+speed only
+
 ## 1.10.0 · API 1 · 2026-11-06
 
 ### Quick
