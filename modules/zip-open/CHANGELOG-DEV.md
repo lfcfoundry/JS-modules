@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.20.2 · API 1 · 2026-11-07
+
+### Quick
+Speed: the helper thread unpacks a big sheet into an 8 MB room that slides, and the readers' hot counters live in WebAssembly globals. No API change; same results.
+
+### Details
+Fresh pages, 16 per browser, both orders, new/old time vs 1.20.1: number-heavy 18 MB sheet 0.92 to 0.99 on first, second and third opens in Chromium 155, Firefox 158 and WebKitGTK 2.52.6. Text-heavy sheet: third open 1.06 to 1.09 in Firefox and WebKitGTK; other opens within 5%. The owner chose to ship it with that cost.
+
+### Deep
+The helper thread used to unpack a big sheet into a room as big as the whole sheet, and fresh WebAssembly memory is slow to touch the first time (about 0.6 ms per MB). It now unpacks into an 8 MB room and slides the last 32 KB (the farthest a match reaches back) to the start when the room is nearly full (inflateSlide). A block that unpacks to more than the room starts again in the whole room, handing on only what was not sent yet. Counters the readers update in hot loops (xlsx.c fixups, deferred strings, shared-strings progress; inflate.c fixed-table flags and the checksum state) are WebAssembly globals via clang address_space(1), so byte writes through pointers cannot force them back to memory. Tried and not shipped: helper also reading rows (10 to 34% slower), three threads (even), seven inflate loop variants (no gain), and two threads unpacking one stream from a found block start plus row sharing (first open up to 27% slower in WebKitGTK). Fuzz: random workbooks with and without threads, no differences.
+
 ## 1.20.1 · API 1 · 2026-11-06
 
 ### Quick

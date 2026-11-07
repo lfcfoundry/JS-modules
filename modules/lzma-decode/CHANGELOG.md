@@ -2,6 +2,10 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-11-07
+- The JavaScript decoder (used when WebAssembly is blocked) unpacks about 1.5 to 2 times faster after the first file in Chromium and Firefox.
+- The WebAssembly decoder unpacks about 15% faster in Chromium and Firefox.
+
 ## 1.4.0 · API 1 · 2026-11-06
 - The first WebAssembly decode is 9 to 15% faster.
 

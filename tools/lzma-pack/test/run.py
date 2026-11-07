@@ -83,7 +83,9 @@ needs_node("packing runs the embedded JavaScript decoder and hash in Node and th
 def t_node_catches_decoder_bug():
     real = pack.decoder_source
     try:
-        pack.decoder_source = lambda: real().replace("a[i] = p + ((2048 - p) >> 5)", "a[i] = p + ((2048 - p) >> 4)", 1)
+        src = real()
+        assert "(2048 - p) >> 5)" in src, "the probability update was not found in the decoder; update this test"
+        pack.decoder_source = lambda: src.replace("(2048 - p) >> 5)", "(2048 - p) >> 4)")   # every bit step adapts at the wrong speed
         raises(lambda: pack.pack(APP, encoding="base64"), "self-check failed")
     finally:
         pack.decoder_source = real

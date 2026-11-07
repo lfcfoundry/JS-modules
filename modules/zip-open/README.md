@@ -1,8 +1,8 @@
 # zip-open
 
-**Version 1.20.1 · API 1**
+**Version 1.20.2 · API 1**
 
-**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-05 night (first open 6 s after load: in-memory files 5 fresh pages per browser, Files read in pieces 4; WebKitGTK in-memory rechecked in reverse order with 8); 46 module checks pass.
+**Tested in:** cloud ungoogled Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-06 night (fresh pages 6 s after load, 16 per browser, both orders); 49 module checks pass
 
 ## What it is and how it works
 

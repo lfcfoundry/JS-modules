@@ -1,0 +1,109 @@
+{
+ "note": "Source and notes: each dot is the headline figure from that module's page, the lowest end where it is a range; laptop runs where we have them, otherwise the three cloud browsers. One compares against a plain loop, not a rival library. The netflow-layers dot is speed only; its page has the crossings comparison. The ones behind are on their module pages with the reasons.",
+ "rows": [
+  {
+   "label": "netflow-layers vs dagre, 300 items",
+   "x": 710,
+   "module": "netflow-layers",
+   "proof": [
+    "710 times"
+   ]
+  },
+  {
+   "label": "graph-walk vs graphology",
+   "x": 70,
+   "module": "graph-walk",
+   "proof": [
+    "70 to 390"
+   ]
+  },
+  {
+   "label": "save-kit vs idb-keyval, save",
+   "x": 18,
+   "module": "save-kit",
+   "proof": [
+    "18 times"
+   ]
+  },
+  {
+   "label": "memory-compression vs fflate (low end)",
+   "x": 16,
+   "module": "memory-compression",
+   "proof": [
+    "16 to 108"
+   ]
+  },
+  {
+   "label": "gif-writer vs gifenc (low end)",
+   "x": 6,
+   "module": "gif-writer",
+   "proof": [
+    "6 to 31"
+   ]
+  },
+  {
+   "label": "clip-writer MP4 vs mp4-muxer",
+   "x": 6,
+   "module": "clip-writer",
+   "proof": [
+    "6 times"
+   ]
+  },
+  {
+   "label": "text-columns vs Papa Parse",
+   "x": 3.4,
+   "module": "text-columns",
+   "proof": [
+    "3.4 times"
+   ]
+  },
+  {
+   "label": "LFC-pack write vs gzip",
+   "x": 3.2,
+   "module": "lfc-pack",
+   "proof": [
+    "3.2 times"
+   ]
+  },
+  {
+   "label": "walker-sim vs a plain loop",
+   "x": 2.9,
+   "module": "walker-sim",
+   "proof": [
+    "2.9 times"
+   ]
+  },
+  {
+   "label": "gpu-blur bytes out vs browser filter",
+   "x": 2.1,
+   "module": "gpu-blur",
+   "proof": [
+    "2.1 to 3.3 times"
+   ]
+  },
+  {
+   "label": "zip-open vs fflate",
+   "x": 1.4,
+   "module": "zip-open",
+   "proof": [
+    "1.4 times"
+   ]
+  },
+  {
+   "label": "gpu-blur drawn vs browser filter, Firefox laptop",
+   "x": 0.7,
+   "module": "gpu-blur",
+   "proof": [
+    "still 1.4 times slower"
+   ]
+  },
+  {
+   "label": "save-kit vs localForage, 20 KB load",
+   "x": 0.5,
+   "module": "save-kit",
+   "proof": [
+    "localForage"
+   ]
+  }
+ ]
+}

@@ -2,6 +2,11 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.10.0 · API 2 · 2026-11-07
+- Busy flow tables where places both send and receive draw as a chord; small ones stay Sankeys.
+- Line labels no longer collide and share one precision; date axes get round ticks and no redundant name.
+- A scatter squashed by a few far values says so; the key's +N more no longer covers a name.
+
 ## 2.9.0 · API 2 · 2026-11-07
 - toSvg(rows) picks the chart; auto() says why; opt-in takeaway
 

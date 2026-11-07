@@ -7,14 +7,15 @@ typedef struct { const u8 *src; u32 ip, len, range, code; int bad; } R;
 static u16 P[12*16 + 12*3 + 12*16 + 4*64 + 115 + 16 + 514*2 + (0x300 << 4) + 12];
 AI u32 bit(R *r, u16 *a) {
   u32 p = *a, bound = (r->range >> 11) * p, b;
-  if (r->code < bound) { r->range = bound; *a = p + ((2048 - p) >> 5); b = 0; }
-  else { r->range -= bound; r->code -= bound; *a = p - (p >> 5); b = 1; }
-  if (r->range < 0x1000000) { r->range <<= 8; r->code = (r->code << 8) | (r->ip < r->len ? r->src[r->ip] : (r->bad = 1, 0)); r->ip++; }
+  u32 m = 0u - (u32)(r->code >= bound); b = m & 1;
+  r->range = (bound & ~m) | ((r->range - bound) & m); r->code -= bound & m;
+  *a = (u16)(p + ((((2048 - p) >> 5) & ~m) - ((p >> 5) & m)));
+  if (r->range < 0x1000000) { r->range <<= 8; r->code = (r->code << 8) | r->src[r->ip]; r->ip++; }
   return b;
 }
-static __attribute__((noinline)) u32 tree(R *r, u16 *a, u32 bits) { u32 m = 1, c = bits; while (c--) m = (m << 1) | bit(r, a + m); return m - (1u << bits); }
-static __attribute__((noinline)) u32 rtree(R *r, u16 *a, u32 bits) { u32 m = 1, v = 0, c, b; for (c = 0; c < bits; c++) { b = bit(r, a + m); m = (m << 1) | b; v |= b << c; } return v; }
-static __attribute__((noinline)) u32 length(R *r, u16 *a, u32 ps) {
+AI u32 tree(R *r, u16 *a, u32 bits) { u32 m = 1, c = bits; while (c--) m = (m << 1) | bit(r, a + m); return m - (1u << bits); }
+AI u32 rtree(R *r, u16 *a, u32 bits) { u32 m = 1, v = 0, c, b; for (c = 0; c < bits; c++) { b = bit(r, a + m); m = (m << 1) | b; v |= b << c; } return v; }
+AI u32 length(R *r, u16 *a, u32 ps) {
   if (!bit(r, a)) return tree(r, a + 2 + (ps << 3), 3);
   if (!bit(r, a + 1)) return 8 + tree(r, a + 130 + (ps << 3), 3);
   return 16 + tree(r, a + 258, 8);
@@ -78,7 +79,7 @@ static __attribute__((noinline)) int run(u32 upTo) {
           else {
             u32 x = 0, k = nb - 4, b;
             while (k--) { r.range >>= 1; b = r.code >= r.range ? 1 : 0; if (b) r.code -= r.range;
-              if (r.range < 0x1000000) { r.range <<= 8; r.code = (r.code << 8) | (r.ip < r.len ? r.src[r.ip] : (r.bad = 1, 0)); r.ip++; }
+              if (r.range < 0x1000000) { r.range <<= 8; r.code = (r.code << 8) | r.src[r.ip]; r.ip++; }
               x = (x << 1) | b; }
             dist += (x << 4) + rtree(&r, align, 4);
           }
@@ -86,7 +87,7 @@ static __attribute__((noinline)) int run(u32 upTo) {
         }
       }
       if (rep0 == 0xFFFFFFFFu || rep0 >= op) return_bad
-      for (len += 2; len--; op++) { if (op >= outSize) break; out[op] = out[op - rep0 - 1]; }
+      len += 2; if (len > outSize - op) len = outSize - op; { u8 *d = out + op, *e = d + len; const u8 *q = d - rep0 - 1; op += len; while (d < e) *d++ = *q++; }
     }
   }
   G = r; gOp = op; gState = state; gRep0 = rep0; gRep1 = rep1; gRep2 = rep2; gRep3 = rep3;

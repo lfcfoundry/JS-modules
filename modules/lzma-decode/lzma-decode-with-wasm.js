@@ -1,8 +1,8 @@
 /*! lzma-decode-with-wasm.js: lzma-decode.js and lzma-decode-wasm.js in one file. lzmaDecode(...) here tries the WebAssembly decoder first and uses the JavaScript decoder
  * when WebAssembly is not usable (the page policy lacks 'wasm-unsafe-eval', or an old browser), so it always works and gives the same bytes. lzmaDecode.plain is the JavaScript decoder alone;
  * lzmaDecodeWasm is another name for lzmaDecode. Built by wasm/join.js from the two files named above: edit those, not this one. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.4.0 (API 1) */
-/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.4.0 (API 1) */
+ * Version 1.5.0 (API 1) */
+/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.5.0 (API 1) */
 
 /* Decodes a raw LZMA1 stream (no .lzma header) into a Uint8Array.
 
@@ -32,98 +32,90 @@ function lzmaDecode(src, outSize, opts) {
   var lc = opts.lc === undefined ? 4 : opts.lc, lp = opts.lp === undefined ? 0 : opts.lp, pb = opts.pb === undefined ? 0 : opts.pb;
   if (!(lc >= 0 && lc <= 8 && lp >= 0 && lp <= 4 && pb >= 0 && pb <= 4)) throw new Error('LZMA: lc 0-8, lp 0-4 and pb 0-4 are supported');   // lean-cut
   if (opts.maxSize !== undefined && !(outSize <= opts.maxSize)) throw new Error('LZMA: the result would be ' + outSize + ' bytes, more than the allowed maxSize of ' + opts.maxSize);   // lean-cut
-  var out = new Uint8Array(outSize), ip = 0, op = 0;
-  var range = 0xFFFFFFFF, code = 0;            // the range coder: both stay unsigned 32-bit
-  var state = 0, rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;   // the match state (0-11) and the four most recent distances (minus one)
+  var out = new Uint8Array(outSize), ip = 0, op = 0, slen = src.length;
+  var range = 0xFFFFFFFF, code = 0;
+  var state = 0, rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;
   var pbMask = (1 << pb) - 1, lpMask = (1 << lp) - 1;
-  function probs(n) { return new Uint16Array(n).fill(1024); }   // 1024 = probability 0.5 in 11 bits
-  var isMatch = probs(12 << 4), isRep = probs(12), isRepG0 = probs(12), isRepG1 = probs(12), isRepG2 = probs(12), isRep0Long = probs(12 << 4),
-      posSlot = probs(4 << 6), posSpecial = probs(115), align = probs(16),
-      lenCoder = probs(514), repLenCoder = probs(514),   // each: choice, choice2, 16 low trees of 8, 16 mid trees of 8, one high tree of 256
-      literal = probs(0x300 << (lc + lp));
-  var bitVal;                                   // scratch for rtree
-  function next() { return src[ip++]; }
-  function bit(a, i) {   // decode one adaptive bit with probability a[i], then move the probability toward what was seen
-    var p = a[i], bound = (range >>> 11) * p, b;
-    if (code < bound) { range = bound; a[i] = p + ((2048 - p) >> 5); b = 0; }
-    else { range -= bound; code -= bound; a[i] = p - (p >> 5); b = 1; }
-    if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | next()) >>> 0; }
-    return b;
-  }
-  function tree(a, base, bits) {   // a bit tree, most significant bit first
-    var m = 1, c = bits;
-    while (c--) m = (m << 1) | bit(a, base + m);
-    return m - (1 << bits);
-  }
-  function rtree(a, base, bits) {   // a bit tree, least significant bit first
-    var m = 1, r = 0, c;
-    for (c = 0; c < bits; c++) { bitVal = bit(a, base + m); m = (m << 1) | bitVal; r |= bitVal << c; }
-    return r;
-  }
-  function length(a, posState) {   // a match length minus 2: low (0-7), mid (8-15) or high (16-271)
-    if (!bit(a, 0)) return tree(a, 2 + (posState << 3), 3);
-    if (!bit(a, 1)) return 8 + tree(a, 130 + (posState << 3), 3);
-    return 16 + tree(a, 258, 8);
-  }
-  var i, posState, prev, base, sym, matchByte, matchBit, len, slot, nb, dist, x, k, b;
-  for (i = 0; i < 4; i++) code = (code * 256 + next()) >>> 0;   // the first 4 bytes of the stream seed the range coder
+  // one probability array; offsets of each part
+  var IM = 0, IR = IM + 192, IG0 = IR + 12, IG1 = IG0 + 12, IG2 = IG1 + 12, IRL = IG2 + 12, PS = IRL + 192, PSP = PS + 256, AL = PSP + 115, LEN = AL + 16, RLEN = LEN + 514, LIT = RLEN + 514;
+  var P = new Uint16Array(LIT + (0x300 << (lc + lp))).fill(1024);
+  var i, posState, prev, base, sym, matchByte, matchBit, len, slot, nb, dist, x, k, b, p, bound, m, c, L, r;
+  for (i = 0; i < 4; i++) code = (code * 256 + (ip < slen ? src[ip] : 0)) >>> 0, ip++;
   while (op < outSize) {
-    if (ip > src.length) throw new Error('LZMA: the compressed data ended early');   // a valid stream never reads past its end: stop at once, not after decoding garbage to the full size
+    if (ip > slen) throw new Error('LZMA: the compressed data ended early');
     posState = op & pbMask;
-    if (!bit(isMatch, (state << 4) + posState)) {   // a literal byte
+    { i = IM + (state << 4) + posState; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+    if (!b) {
       prev = op ? out[op - 1] : 0;
-      base = 0x300 * (((op & lpMask) << lc) + (prev >> (8 - lc))); sym = 1;
-      if (state >= 7) {   // just after a match: the byte at the last distance guides the first bits
+      base = LIT + 0x300 * (((op & lpMask) << lc) + (prev >> (8 - lc))); sym = 1;
+      if (state >= 7) {
         matchByte = out[op - rep0 - 1];
         do {
           matchBit = (matchByte >> 7) & 1; matchByte <<= 1;
-          b = bit(literal, base + ((1 + matchBit) << 8) + sym); sym = (sym << 1) | b;
+          { i = base + ((1 + matchBit) << 8) + sym; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+          sym = (sym << 1) | b;
           if (matchBit !== b) break;
         } while (sym < 256);
       }
-      while (sym < 256) sym = (sym << 1) | bit(literal, base + sym);
+      while (sym < 256) { { i = base + sym; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } sym = (sym << 1) | b; }
       out[op++] = sym;
       state = state < 4 ? 0 : state < 10 ? state - 3 : state - 6;
     } else {
-      if (bit(isRep, state)) {   // repeat an earlier distance
-        if (!bit(isRepG0, state)) {
-          if (!bit(isRep0Long, (state << 4) + posState)) {   // a "short rep": one byte at the last distance
+      { i = IR + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+      if (b) {
+        { i = IG0 + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+        if (!b) {
+          { i = IRL + (state << 4) + posState; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+          if (!b) {
             if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
             state = state < 7 ? 9 : 11; out[op] = out[op - rep0 - 1]; op++; continue;
           }
         } else {
-          if (!bit(isRepG1, state)) dist = rep1;
-          else { if (!bit(isRepG2, state)) dist = rep2; else { dist = rep3; rep3 = rep2; } rep2 = rep1; }
+          { i = IG1 + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+          if (!b) dist = rep1;
+          else { { i = IG2 + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } if (!b) dist = rep2; else { dist = rep3; rep3 = rep2; } rep2 = rep1; }
           rep1 = rep0; rep0 = dist;
         }
-        len = length(repLenCoder, posState); state = state < 7 ? 8 : 11;
-      } else {   // a new match: a length, then a distance
+        L = RLEN; state = state < 7 ? 8 : 11;
+      } else {
         rep3 = rep2; rep2 = rep1; rep1 = rep0;
-        len = length(lenCoder, posState); state = state < 7 ? 7 : 10;
-        slot = tree(posSlot, (len < 4 ? len : 3) << 6, 6);
+        L = LEN; state = state < 7 ? 7 : 10;
+      }
+      // length
+      { i = L; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+      if (!b) { L += 2 + (posState << 3); c = 3; len = 0; }
+      else { { i = L + 1; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } if (!b) { L += 130 + (posState << 3); c = 3; len = 8; } else { L += 258; c = 8; len = 16; } }
+      for (m = 1, k = c; k--;) { { i = L + m; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } m = (m << 1) | b; }
+      len += m - (1 << c);
+      if (state === 7 || state === 10) {
+        L = PS + ((len < 4 ? len : 3) << 6);
+        for (m = 1, k = 6; k--;) { { i = L + m; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } m = (m << 1) | b; }
+        slot = m - 64;
         if (slot < 4) rep0 = slot;
         else {
           nb = (slot >> 1) - 1; dist = (2 | (slot & 1)) << nb;
-          if (slot < 14) dist += rtree(posSpecial, dist - slot, nb);
-          else {   // the middle bits are coded at probability 0.5 ("direct bits"), the last four with the align tree
+          if (slot < 14) { L = PSP + dist - slot; c = nb; }
+          else {
             for (x = 0, k = nb - 4; k--;) {
               range >>>= 1; b = code >= range ? 1 : 0; if (b) code -= range;
-              if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | next()) >>> 0; }
+              if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; }
               x = (x << 1) | b;
             }
-            dist += (x << 4) + rtree(align, 0, 4);
+            dist += x << 4; L = AL; c = 4;
           }
-          rep0 = dist >>> 0;
+          for (m = 1, r = 0, k = 0; k < c; k++) { { i = L + m; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } m = (m << 1) | b; r |= b << k; }
+          rep0 = (dist + r) >>> 0;
         }
       }
       if (rep0 === 0xFFFFFFFF) throw new Error('LZMA: the end marker came before ' + outSize + ' bytes were decoded');
       if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
-      for (len += 2; len--; op++) out[op] = out[op - rep0 - 1];   // copy byte by byte: the source may overlap the destination
+      for (len += 2; len--; op++) out[op] = out[op - rep0 - 1];
     }
   }
-  if (ip > src.length) throw new Error('LZMA: the compressed data ended early');
+  if (ip > slen) throw new Error('LZMA: the compressed data ended early');
   return out;
 }
+
 
 function lzmaDecodeFile(bytes, size, opts) {   // a classic .lzma file: props byte, 4-byte dictionary size, 8-byte uncompressed size, then the stream
   if (bytes.length < 14) throw new Error('LZMA: file too short');
@@ -154,7 +146,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
  *
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.0 (API 1)
+ * Version 1.5.0 (API 1)
  */
 
 (function (root, factory) {
@@ -168,7 +160,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
   var bin = null;     // the decoded program, kept only until it is compiled once
   function wasmBytes() {
     if (bin) return bin;
-    var src = /*WASM:BEGIN*/'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'/*WASM:END*/;
+    var src = /*WASM:BEGIN*/'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'/*WASM:END*/;
     if (typeof Uint8Array.fromBase64 === 'function') return (bin = Uint8Array.fromBase64(src));
     var txt = atob(src), bytes = new Uint8Array(txt.length);
     for (var i = 0; i < txt.length; i++) bytes[i] = txt.charCodeAt(i);

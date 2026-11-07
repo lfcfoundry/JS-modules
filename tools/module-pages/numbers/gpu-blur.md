@@ -29,6 +29,21 @@ Compared: gpu-blur against the browser's canvas filter when you only draw the re
 **Where gpu-blur loses.** On the Firefox laptop the browser's own filter is faster when you only draw the result (22 against 38 to 41 ms; earlier runs 30 to 34 against 41), about 1.6x to 2.6x across runs. Chrome laptop second run: filter 52.4, gpu-blur helpers 20.2, auto 29; bytes out 60.1 against 14. Phone: gpu-blur auto 1.2x faster drawn, helpers 2.0x faster for bytes. gpu-blur's strength besides speed for bytes: identical output on every route, which the browser's blur does not promise. These are the owner's laptop and phone runs, not the three cloud test browsers.
 
 
+**New in 1.4.1: auto uses helper threads for big bytes-out pictures, and 1.4.0 adds a bitmap result.** Owner's laptop and phone runs, 2048 x 2048, radius 24, timed to a finished picture, ms, lower is faster. Auto now uses the helpers for bytes-out pictures of 3 million pixels and up. The browser's own blur takes 28 to 86 ms on these devices, so bytes out is 2.1 to 3.3 times faster everywhere.
+
+<!-- title: Bytes out at 2048 x 2048 is now 2.1 to 3.3 times faster than the browser's own blur on every device we tested, and 5 times faster than before on the Firefox laptop -->
+| device | way | ms |
+|---|---|---:|
+| Firefox laptop | gpu-blur auto, 1.4.1 | 11 |
+|  | gpu-blur auto, 1.4.0 | 51 |
+| Chrome laptop | gpu-blur auto, 1.4.1 | 11.2 |
+|  | gpu-blur auto, 1.4.0 | 50 |
+| Chrome phone | gpu-blur auto, 1.4.1 | 41.0 |
+|  | gpu-blur auto, 1.4.0 | 65.8 |
+
+With `out: 'bitmap'` (1.4.0) on the Firefox laptop gpu-blur takes 20 ms against 25 ms for the browser's blur. Chrome keeps drawn canvas. Where it loses: drawn canvas on Firefox is still 1.4 times slower than the browser's own blur, so there the browser's filter stays the faster way to draw the result.
+
+
 **New in 1.3.6: a drawn start-up test picks the faster way for small and mid-size pictures.** Owner's laptop and phone runs (Chrome 156), drawn canvas, ms, lower is faster. Auto now runs a short drawn test for pictures under a million pixels, so it stops choosing the slower route there.
 
 <!-- title: Auto now blurs 640 x 360 and 960 x 540 pictures in about half the time in Chrome on the laptop, and 20 percent faster on the phone -->

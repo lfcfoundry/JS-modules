@@ -1,8 +1,8 @@
 # lzma-decode
 
-**Version 1.4.0 · API 1**
+**Version 1.5.0 · API 1**
 
-**Tested in:** cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6, 16 fresh pages each, 809 KB text: first decode 0.90 / 0.85 / 0.91 of 1.3.1 (repeat even); 279 runs against the JavaScript decoder incl. damaged and cut streams: 0 differences
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud); Firefox 160 and Chromium 156 (owner's laptop page)
 
 ## What it is and how it works
 
@@ -60,7 +60,7 @@ Set `maxSize` whenever the data or its size did not come from your own packer: a
 
 ### WebAssembly first (the default since 1.2.0)
 
-`lzmaDecode` in the default file decodes with a 4,701-byte WebAssembly program and hands the call to the JavaScript decoder when it cannot: the page's Content-Security-Policy lacks `'wasm-unsafe-eval'` (Chromium and Firefox), the browser is too old, lc + lp is above 4, or the stream is bad (the JavaScript decoder then throws its own error messages). Either way the bytes are the same.
+`lzmaDecode` in the default file decodes with a 5,024-byte WebAssembly program and hands the call to the JavaScript decoder when it cannot: the page's Content-Security-Policy lacks `'wasm-unsafe-eval'` (Chromium and Firefox), the browser is too old, lc + lp is above 4, or the stream is bad (the JavaScript decoder then throws its own error messages). Either way the bytes are the same.
 
 ### Which file to copy
 
@@ -82,7 +82,7 @@ First decode of the 569,513-byte Pineapple Defense page (141,872 bytes of LZMA),
 
 On a laptop (16 cores) the default file is 2.17 times as fast in Firefox 160 (63.0 to 29.0 ms) and 2.97 times in Chromium 156 (58.5 to 19.7 ms), on a newer 569,513-byte Pineapple page with 193,108 bytes of LZMA, so the times are not directly comparable with the table.
 
-The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all three browsers. A warm 1.5 MB decode in Node 22 (a Node figure, not a browser one): 98.6 ms (JavaScript) to 47.3 ms (WebAssembly), 2.1x. The result is a copy with its own buffer of exactly `outSize` bytes, so the 2x working memory of the run is freed at once. Source: `wasm/lzma-decode.c` (a line-for-line port of `lzma-decode.js`; since 1.4.0 it decodes 64 KB of output per call, `lzma_begin` then `lzma_more`, so the browser moves the loop to its optimized code between calls: first decode 0.85 to 0.91 of 1.3.1 in the three cloud browsers), `wasm/build.sh` rebuilds `wasm/lzma-decode.wasm` (clang with the wasm32 target; 4,701 bytes since 1.4.0. Chromium 155, Firefox 158 and WebKitGTK 2.52.6 all compile it on the main thread: the old 4 KB limit on that in Chromium is gone), `wasm/embed.py` puts it into `lzma-decode-wasm.js`, and `wasm/join.js` builds the default file.
+The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all three browsers. A warm 1.5 MB decode in Node 22 (a Node figure, not a browser one), 1.5.0: 69.6 ms (JavaScript) to 33.1 ms (WebAssembly), 2.1x. Against 1.4.0 the JavaScript decoder unpacks about 1.5 to 2 times faster after the first file in Chromium and Firefox (its first big unpack in WebKitGTK is 5 to 14% slower), and the WebAssembly one about 15% faster in Chromium and Firefox. The result is a copy with its own buffer of exactly `outSize` bytes, so the 2x working memory of the run is freed at once. Source: `wasm/lzma-decode.c` (the same model and checks as `lzma-decode.js`; since 1.4.0 it decodes 64 KB of output per call, `lzma_begin` then `lzma_more`, so the browser moves the loop to its optimized code between calls: first decode 0.85 to 0.91 of 1.3.1 in the three cloud browsers), `wasm/build.sh` rebuilds `wasm/lzma-decode.wasm` (clang with the wasm32 target; 5,024 bytes since 1.5.0, 4,701 in 1.4.0. Chromium 155, Firefox 158 and WebKitGTK 2.52.6 all compile it on the main thread: the old 4 KB limit on that in Chromium is gone), `wasm/embed.py` puts it into `lzma-decode-wasm.js`, and `wasm/join.js` builds the default file.
 
 ## Compile early (since 1.3.0)
 
@@ -127,7 +127,7 @@ The build steps of [Story Editor](https://lfcfoundry.github.io/story-editor/play
 ## For AI agents
 
 - The decoder is a direct state machine from the LZMA specification: `isMatch`, `isRep`, `isRepG0/G1/G2`, `isRep0Long`, `posSlot`, `posSpecial`, `align`, two length coders, and `literal`. Do not "simplify" the order of bit decodes: one misplaced call corrupts everything after it, usually without an error.
-- `lzma-decode-wasm.js` and `lzma-decode-with-wasm.js` are generated: change `wasm/lzma-decode.c`, run `sh modules/lzma-decode/wasm/build.sh`, then `python3 modules/lzma-decode/wasm/embed.py`, then `node modules/lzma-decode/wasm/join.js` (the default file is the plain file followed by the WebAssembly file), and keep the .wasm under 4,096 bytes. Any change to the JavaScript decoder's model must be made in the C port too; the tests compare both with liblzma and with each other on damaged streams.
+- `lzma-decode-wasm.js` and `lzma-decode-with-wasm.js` are generated: change `wasm/lzma-decode.c`, run `sh modules/lzma-decode/wasm/build.sh`, then `python3 modules/lzma-decode/wasm/embed.py`, then `node modules/lzma-decode/wasm/join.js` (the default file is the plain file followed by the WebAssembly file), and keep the .wasm small (5,024 bytes in 1.5.0; the page compiles it with the synchronous constructor, checked in all three test browsers by tests/lzma-wasm-browser.js). Any change to the JavaScript decoder's model must be made in the C port too; the tests compare both with liblzma and with each other on damaged streams.
 - Keep `lzmaDecodeFile` the last function before the export line (`tools/lzma-pack/pack.py` cuts the file there), and keep the file ES5 syntax (repository rule). Run the test after any change.
 
 ## Prior art and credits
