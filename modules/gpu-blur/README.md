@@ -1,8 +1,8 @@
 # gpu-blur
 
-**Version 1.4.0 · API 1**
+**Version 1.4.1 · API 1**
 
-**Tested in:** Firefox 160 laptop, Chrome 156 laptop; cloud Chromium, Firefox, WebKitGTK
+**Tested in:** cloud Chromium, Firefox, WebKitGTK (cold first call); laptop and phone run pending
 
 ## What it is and how it works
 
@@ -61,7 +61,7 @@ GpuBlur.ready().then(function (info) { /* info.canvasRoute: the way a drawn pict
 ## How it picks a way
 
 1. **A drawn picture (`out: 'canvas'`).** On first use the module compiles the WebAssembly, then times a 480 x 270, radius 12 probe on both ways (the card way includes upload and a fence that says the card has finished). The card way is taken when its probe time is at most 2 x the WebAssembly time + 2 ms; otherwise the WebAssembly. The probe runs in short tasks, never one long one. A browser that refuses a "major performance caveat" context counts as no card.
-2. **Bytes out (`out: 'pixels'`).** WebAssembly, then JavaScript. Reading the blurred picture back from the card costs about as much as blurring it in WebAssembly (lab test: 27 and 39 ms with read-back against 37.5 and 33 ms), so the card is not worth its fuss for bytes. `route: 'webgl2'` still does it, with a read-back that waits for the card without stalling the page.
+2. **Bytes out (`out: 'pixels'`).** Since 1.4.1, with 4 or more cores and a picture of 3 million pixels or more (or 0.3 million or more while the helpers are already running), the helpers (route 5); otherwise WebAssembly, then JavaScript. Cold first call, 2048 x 2048, radius 24, cloud Chromium / Firefox / WebKitGTK: 80 / 82 / 109 ms before, 61 / 63 / 70 ms after. Reading the blurred picture back from the card costs about as much as blurring it in WebAssembly (lab test: 27 and 39 ms with read-back against 37.5 and 33 ms), so the card is not worth its fuss for bytes. `route: 'webgl2'` still does it, with a read-back that waits for the card without stalling the page.
 3. **A texture (`out: 'texture'`).** The card, in your context.
 4. **Fallbacks.** No WebGL 2, a lost context (`webglcontextlost`; the module also uses the way again after `webglcontextrestored`), a card way that throws, no WebAssembly, a page policy without `'wasm-unsafe-eval'`, or a WebAssembly file whose self-test differs from the JavaScript twin: the next way answers and the picture is the same. Each of those is a check in `tests/gpu-blur-browser.js`.
 
