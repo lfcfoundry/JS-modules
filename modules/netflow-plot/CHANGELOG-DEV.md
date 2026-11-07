@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.14.6 · API 2 · 2026-11-07
+
+### Quick
+When lines end at different places, their names used to start at each line's own end and could sit on a line that runs on (birdstrikes C 0 on the yellow line); now all names start in one column after the last line end.
+
+### Details
+tags x = max tag x before spacing. 1 new check (427).
+
+### Deep
+Lead from the 2.14.1 review sheet.
+
 ## 2.14.5 · API 2 · 2026-11-07
 
 ### Quick

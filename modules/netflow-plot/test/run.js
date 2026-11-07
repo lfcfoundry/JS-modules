@@ -228,6 +228,10 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(ng.type === 'dotplot' && /close together/.test(ng.why), 'close averages: dots, not 19 equal bars');
   const nt = (ns.match(/>47\.[0-9]+</g) || []).map((t) => +t.slice(1, -1)); ok(nt.length === 19 && nt.every((v, i) => !i || v <= nt[i - 1]), 'dot plot (since 2.14.5): every dot carries its value, biggest first (' + nt.slice(0, 4).join(' ') + ' ...)');
   ok(/scale starts at 47/.test(ns) && P.toSvg(near, { type: 'dotplot', x: 'key', y: 'lat', agg: 'mean', clean: false }).indexOf('scale starts') < 0, 'dot plot says when its scale does not start at zero; clean: false keeps the number axis');
+  // since 2.14.6 line-end names stand in one column after the last line end
+  const ragged = []; for (let y = 2000; y <= 2010; y++) ['a', 'b', 'c'].forEach((s, k) => { if (!(k === 2 && y > 2006)) ragged.push({ year: y, s: 'series ' + s, v: 10 + k * 5 + (y % 3) }); });
+  const rg = P.make(ragged, { type: 'line', x: 'year', y: 'v', color: 's' }, { width: 640, height: 400 }, global.NetflowScene).labels.filter((l) => /^series/.test(l.t));
+  ok(rg.length === 3 && rg.every((l) => l.x === rg[0].x), 'line-end names line up in one column (' + rg.map((l) => Math.round(l.x)).join(' ') + ')');
   const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
   ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
 }
