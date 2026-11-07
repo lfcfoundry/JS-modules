@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-save-kit stores game or app progress in the browser safely. One file, 18.6 KB gzipped (7.4 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves.
+save-kit stores game or app progress in the browser safely. One file, 18.6 KB gzipped (9.9 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves.
 
 - You describe the save as a schema, and every field is checked on save and load.
 - A backup slot is kept, and a damaged value falls back alone instead of ruining the save.
@@ -179,7 +179,7 @@ Since 1.6.1 a `createLarge` load spends one pass over the saved text where it sp
 
 Since 1.6.2 the depth check on a big `raw` field uses `for...in` instead of `Object.keys` (it only ever sees parsed JSON, so the answers are the same), which took 19 ms of a 16 MB load in Chromium: 16 MB load, one library per page, median of 3 pages, ms: Chromium 120 to 87 (0.72x; idb-keyval 144), WebKitGTK 125 to 117 (0.93x; idb-keyval 120, so roughly equal), Firefox unchanged within noise (about 150; idb-keyval 300 to 440). A plain `get` plus `JSON.parse` of the same text with no checks takes 73 / 145 / 105 ms, so the checks are now 14 / 5 / 12 ms of it. These are new runs of the same harness shape, not the 1.3.0 table above.
 
-Where it loses: Chromium 0.8 MB save (about 2 ms slower than idb-keyval), Chromium 16 MB save (5% slower than localForage, 4% faster than idb-keyval), WebKitGTK loads at 0.8, 4 and 16 MB (up to 21% slower than idb-keyval, 6% faster than localForage at 16 MB). Everywhere else it is faster, up to 4.0x (WebKitGTK 16 MB save against localForage). A backup write on every save (`backupEveryMs: 0`) is slower on large saves in Firefox (111 vs 41 ms at 4 MB).
+Where it loses: nowhere in this table; the one tie is the WebKitGTK 0.8 MB load (7 / 7 / 8 ms, a 1 ms clock). Plain `localStorage` with `JSON.stringify` stays faster for small saves, because it checks nothing. A backup write on every save (`backupEveryMs: 0`) is slower on large saves in Firefox (111 vs 41 ms at 4 MB).
 
 Where it loses: larger than a hand-written save (the lean build cuts parts a game does not use); `create()` is `localStorage` only (or any object with synchronous `getItem`/`setItem`); `createLarge()` covers IndexedDB; squeezed codes need `CompressionStream`, with no old-browser fallback.
 
