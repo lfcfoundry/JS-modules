@@ -2,6 +2,22 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-11-07
+
+### Quick
+Faster JavaScript decoder (one function, one loop) and a faster WebAssembly build (B); same bytes and same errors, no API change
+
+### Details
+lzmaDecode is now one function: each range-coder bit step is written out in place (13 copies), all probabilities live in one Uint16Array at fixed offsets, trees are plain loops, and range/code/ip are plain locals instead of variables shared with inner functions.
+Ratio vs 1.4.0, lower is better. Cloud, fresh page per sample: first decode 3 MB Chromium 155 0.67-0.79, Firefox 158 0.70-0.79, WebKitGTK 2.52.6 1.05-1.14 (slower); next decode 400 KB 0.41-0.47, 0.50-0.52, 0.59-0.67. Owner's laptop, 1.2 MB first / second: Firefox 160 0.78 / 0.56, Chromium 156 0.93 / 0.64. Node 22 here: 1.6 MB 28.5 to 18.1 ms median.
+Size: minified 2,156 to 3,653 bytes (+1.5 KB), gzip 1,179 to 1,151 bytes; a --no-wasm packed page grows about 1.5 KB. WebKitGTK's first big unpack is 5 to 14% slower; later ones are a third faster.
+171 cases (4 streams, 40 cut or flipped copies each, 6 lc/lp/pb mixes, tiny inputs): identical output hash or identical error message.
+WebAssembly build B (wasm/lzma-decode.c): tree, rtree and length built into the main loop so range/code/ip stay in wasm locals; the per-byte past-the-end branch removed (ip > len already covers it; a read beyond memory traps and the wrapper falls back to JavaScript); repeat copy works out its length once; the bit step uses a mask. Still -Os; 4,701 to 5,024 bytes (+430 B of base64). Ratio vs 1.4.0, lower is better: cloud first 3 MB unpack Chromium 155 0.845, Firefox 158 0.815, WebKitGTK 2.52.6 0.964; next 400 KB 0.886, 0.875, 0.900. Owner's laptop, 1.2 MB first / second: Chromium 156 0.86 / 0.87, Firefox 160 0.90 / 0.88. Node 22 here: 1.5 MB warm 43 to 33 ms. Built here byte for byte the same as the researched build, which gave the shipped build's result on 170 cases. Needs the 64 KB calls (lzma_begin/lzma_more) that tools/lzma-pack already uses: in one long call it is 1.18x slower in Firefox.
+Packed pages open with and without WebAssembly in Chromium 155, Firefox 158 and WebKitGTK 2.52.6 (tests/lzma-wasm-browser.js).
+
+### Deep
+Requested by the owner (Yes, ship it card, 10:51 AM ET 2026.11.07). Decoder from the PPMd/compression thread's research (lzma-decode/kernel-2026.11.07, j1; template tpl.js). Tried: 64 KB calls (j2, WebKit still 1.07, Chromium small decode worse) and only the literal loops inlined (j4, 0.91-0.98). WebAssembly build B approved separately (Yes, ship it card, 10:54 AM ET 2026.11.07); research in FINDING-LZMA-KERNEL-2026.11.07.md. Story Editor's own copy is its thread's change.
+
 ## 1.4.0 · API 1 · 2026-11-06
 
 ### Quick
