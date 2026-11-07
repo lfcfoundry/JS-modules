@@ -12,3 +12,19 @@
 | | glove | 42.5 | 40.8 | 1.04x | 1.19x |
 
 Picture path compared with Fancy Banana's own filler, on the same textured sphere, 48 pictures, median of 5: Firefox 160 145 ms against 145 (even), Chromium 156 117.4 ms against 132.3.
+
+
+**Against three.js, owner's laptop runs (2026.11.06).**
+
+Compared: sprite-baker against three.js (12-frame roll of a 96 px sphere, ms, owner's laptop runs, lower is faster).
+
+<!-- title: With the fast option sprite-baker rolls a sphere about as fast as three.js without smoothing, and 1.6 times slower than three.js with smooth edges -->
+| way | Firefox 160 laptop | Chrome 156 laptop |
+|---|---:|---:|
+| sprite-baker, default | 43.3 | 35.9 |
+| sprite-baker, fast | 21.0 | 13.9 |
+| sprite-baker, fast, one sample a pixel | 12.0 | 7.53 |
+| three.js plain | 10.7 | 7.43 |
+| three.js smooth (4x MSAA) | 12.7 | 8.63 |
+
+Owner's laptop run, 2026.11.06, three.js 0.187 (WebGL), `tests/compare/sprite-baker-compare-browser.js`. Where it loses: with smooth edges three.js is still faster (fast against smooth 1.65x in Firefox, 1.61x in Chrome); the one-sample row ties three.js plain (1.12x and 1.01x). The first picture, start-up included, takes 9 ms against 35 in Chrome. The fast and edge options change the picture slightly (max 5 levels of 255 from the default, mean 0.03); the default stays byte for byte. The bundle is 18,364 bytes against 538,037 for three.js.
