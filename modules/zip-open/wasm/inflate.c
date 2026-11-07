@@ -85,6 +85,10 @@ static u32 crcRun(const u8 *p, u32 n, u32 s) {
   return s;
 }
 u32 crc(void) { return CRC; }
+/* a running checksum over pieces handed in (start with s = 0xffffffff, finish with ~s), for a thread that checks what another unpacked */
+u32 crcAdd(const u8 *p, u32 n, u32 s) { if (!ctReady) crcInit(); return crcRun(p, n, s); }
+static u32 NOCRC;   /* 1: inflateStep() skips the checksum (another thread does it) */
+void inflateCrc(u32 on) { NOCRC = !on; }
 
 /* The codes of one block. A function of its own, called once per block, so that a browser that first runs the
    quick-to-compile version of this code (Chromium and Firefox do) switches to the optimized one at the next block,
@@ -92,7 +96,7 @@ u32 crc(void) { return CRC; }
 typedef struct { const u8 *ip, *iend; u64 bb; u32 bc, padded, o, cp, cs; } St;
 __attribute__((noinline)) static int codes(St *st, u8 *out, u32 outcap) {
   const u8 *ip = st->ip, *iend = st->iend; u64 bb = st->bb; u32 bc = st->bc, padded = st->padded, o = st->o, cp = st->cp, cs = st->cs;
-  #define CRC_STEP() do { if (o - cp >= 32768) { cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
+  #define CRC_STEP() do { if (o - cp >= 32768) { if (!NOCRC) cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
   #define REFILL_SLOW() do { while (bc <= 56) { if (ip < iend) bb |= (u64)*ip++ << bc; else padded += 8; bc += 8; } } while (0)
   #define NEED(n) do { if (bc < (u32)(n)) REFILL_SLOW(); } while (0)
   #define TAKE(n) (bb & ((1ull << (n)) - 1))
@@ -159,17 +163,21 @@ __attribute__((noinline)) static int codes(St *st, u8 *out, u32 outcap) {
 
 /* Unpacking a piece at a time: inflateBegin() then inflateStep(target) until inflateDone(), so another thread can
    hand the pieces to the reader while it unpacks the next ones. inflate() does it in one go. */
-static struct { const u8 *ip, *iend; u64 bb; u32 bc, padded, o, cp, cs, done; u8 *out; u32 outcap; } IS;
+static struct { const u8 *ip, *iend, *in0; u64 bb; u32 bc, padded, o, cp, cs, done, stop; u8 *out; u32 outcap; } IS;
 void inflateBegin(const u8 *in, u32 inlen, u8 *out, u32 outcap) {
   if (!ctReady) crcInit();
-  IS.ip = in; IS.iend = in + inlen; IS.bb = 0; IS.bc = 0; IS.padded = 0; IS.o = 0; IS.cp = 0; IS.cs = 0xffffffffu; IS.done = 0; IS.out = out; IS.outcap = outcap;
+  IS.in0 = in; IS.stop = 0; IS.ip = in; IS.iend = in + inlen; IS.bb = 0; IS.bc = 0; IS.padded = 0; IS.o = 0; IS.cp = 0; IS.cs = 0xffffffffu; IS.done = 0; IS.out = out; IS.outcap = outcap;
 }
 u32 inflateDone(void) { return IS.done; }
+/* two threads on one stream: this one stops at the block that starts at bit `stop` (another thread unpacks from there) */
+void inflateStopAt(u32 stop) { IS.stop = stop; }
+u32 inflateBits(void) { return (u32)(IS.ip - IS.in0) * 8 + IS.padded - IS.bc; }   /* bits read so far */
+u32 inflateState(void) { if (!NOCRC && IS.o > IS.cp) { IS.cs = crcRun(IS.out + IS.cp, IS.o - IS.cp, IS.cs); IS.cp = IS.o; } return IS.cs; }   /* the running checksum of all bytes out (before its final flip) */
 /* unpacks whole blocks until at least target bytes are out (or the end): the bytes out so far, or -1 damaged, -2 more than outcap */
 int inflateStep(u32 target) {
   const u8 *ip = IS.ip, *iend = IS.iend; u64 bb = IS.bb; u32 bc = IS.bc, padded = IS.padded, o = IS.o, cp = IS.cp, cs = IS.cs; u8 *out = IS.out; u32 outcap = IS.outcap; int last = 0;
   if (IS.done) return (int)o;
-  #define CRC_STEP() do { if (o - cp >= 32768) { cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
+  #define CRC_STEP() do { if (o - cp >= 32768) { if (!NOCRC) cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
   #define REFILL_SLOW() do { while (bc <= 56) { if (ip < iend) bb |= (u64)*ip++ << bc; else padded += 8; bc += 8; } } while (0)
   #define NEED(n) do { if (bc < (u32)(n)) REFILL_SLOW(); } while (0)
   #define TAKE(n) (bb & ((1ull << (n)) - 1))
@@ -217,9 +225,9 @@ int inflateStep(u32 target) {
       ip = st.ip; bb = st.bb; bc = st.bc; padded = st.padded; o = st.o; cp = st.cp; cs = st.cs; }
     if (padded > bc) return -1;
     CRC_STEP();
-  } while (!last && o < target);
+  } while (!last && o < target && (!IS.stop || (u32)(ip - IS.in0) * 8 + padded - bc < IS.stop));
   IS.ip = ip; IS.bb = bb; IS.bc = bc; IS.padded = padded; IS.o = o; IS.cp = cp; IS.cs = cs;
-  if (last) { IS.done = 1; CRC = ~crcRun(out + cp, o - cp, cs); }
+  if (last) { IS.done = 1; CRC = NOCRC ? 0 : ~crcRun(out + cp, o - cp, cs); }
   return (int)o;
 }
 /* keeps only the last keep bytes (the window later matches can reach) at the start of out, so a thread that hands
@@ -227,9 +235,143 @@ int inflateStep(u32 target) {
 u32 inflateSlide(u32 keep) {
   u32 o = IS.o, d;
   if (IS.done || o < keep * 2) return 0;
-  IS.cs = crcRun(IS.out + IS.cp, o - IS.cp, IS.cs);
+  if (!NOCRC) IS.cs = crcRun(IS.out + IS.cp, o - IS.cp, IS.cs);
   d = o - keep; __builtin_memcpy(IS.out, IS.out + d, keep);
   IS.o = keep; IS.cp = keep;
   return d;
 }
+/* Two threads on one stream (the idea of pugz: Kerbiriou and Chikhi, 2019). A second thread finds a block start
+   near a chosen place (a dynamic header, then 2,000 codes that decode cleanly with the earlier 32 KB unknown), and
+   reads the codes from there on into a list (letters and copies) without knowing those bytes. When the first thread
+   has stopped exactly at that block (checked), the list is replayed on top of the last 32 KB it put out. Any doubt:
+   the first thread just goes on, so the bytes are always the ones one thread would have made. */
+typedef unsigned short u16t;
+/* a bit reader from any bit position */
+typedef struct { const u8 *ip, *iend; u64 bb; u32 bc, padded; } BR;
+static void brAt(BR *b, const u8 *in, u32 inlen, u64 bit) { b->ip = in + (bit >> 3); b->iend = in + inlen; b->bb = 0; b->bc = 0; b->padded = 0;
+  while (b->bc <= 56) { if (b->ip < b->iend) b->bb |= (u64)*b->ip++ << b->bc; else b->padded += 8; b->bc += 8; }
+  b->bb >>= (bit & 7); b->bc -= (u32)(bit & 7); }
+#define BNEED(b, n) do { if ((b)->bc < (u32)(n)) { while ((b)->bc <= 56) { if ((b)->ip < (b)->iend) (b)->bb |= (u64)*(b)->ip++ << (b)->bc; else (b)->padded += 8; (b)->bc += 8; } } } while (0)
+#define BTAKE(b, n) ((b)->bb & ((1ull << (n)) - 1))
+#define BDROP(b, n) do { (b)->bb >>= (n); (b)->bc -= (n); } while (0)
+/* reads a dynamic block header into LT/DT; 0 ok. Only dynamic, non-final blocks are taken as a starting point. */
+static int dynHeader(BR *b, int needNotLast) {
+  u8 lens[320], cl[320]; int nl, nd, nc, i, n = 0;
+  BNEED(b, 17); int last = (int)BTAKE(b, 1); BDROP(b, 1); u32 type = (u32)BTAKE(b, 2); BDROP(b, 2);
+  if (type != 2 || (needNotLast && last)) return -1;
+  nl = (int)BTAKE(b, 5) + 257; BDROP(b, 5); nd = (int)BTAKE(b, 5) + 1; BDROP(b, 5); nc = (int)BTAKE(b, 4) + 4; BDROP(b, 4);
+  if (nl > 286 || nd > 30) return -1;
+  for (i = 0; i < 19; i++) lens[i] = 0;
+  for (i = 0; i < nc; i++) { BNEED(b, 3); lens[CLORDER[i]] = (u8)BTAKE(b, 3); BDROP(b, 3); }
+  if (build(LT, 7, lens, 19, 0)) return -1;
+  while (n < nl + nd) {
+    BNEED(b, 16); u32 e = LT[BTAKE(b, 7)]; if (!e) return -1; BDROP(b, CL(e)); int s = (int)VAL(e), rep, v = 0;
+    if (s < 16) cl[n++] = (u8)s;
+    else { if (s == 16) { if (n == 0) return -1; v = cl[n - 1]; rep = 3 + (int)BTAKE(b, 2); BDROP(b, 2); }
+      else if (s == 17) { rep = 3 + (int)BTAKE(b, 3); BDROP(b, 3); } else { rep = 11 + (int)BTAKE(b, 7); BDROP(b, 7); }
+      if (n + rep > nl + nd) return -1; while (rep--) cl[n++] = (u8)v; }
+    if (b->padded > b->bc) return -1;
+  }
+  if (cl[256] == 0) return -1;
+  if (build(LT, LB, cl, nl, 1)) return -1;
+  if (build(DT, DB, cl + nl, nd, 2)) return -1;
+  FIXL = 0; return 0;
+}
+/* the codes of one block into u16 out (values >= 256 stand for unknown bytes of the window); returns 0 at the block end, -1 damaged, -2 room */
+static int codes16(BR *b, u16t *out, u32 *po, u32 cap, u32 maxSyms) {
+  u32 o = *po, e, len, dist, syms = 0;
+  for (;;) {
+    if (maxSyms && ++syms > maxSyms) { *po = o; return 1; }
+    BNEED(b, 48);
+    e = LT[b->bb & ((1u << LB) - 1)];
+    if (KIND(e) == K_SUB) { BDROP(b, LB); e = LT[VAL(e) + (u32)BTAKE(b, XB(e))]; }
+    if (!e) return -1;
+    BDROP(b, CL(e));
+    if (KIND(e) == K_LIT) { if (o >= cap) return -2; out[o++] = (u16t)VAL(e); continue; }
+    if (KIND(e) == K_END) break;
+    len = VAL(e) + (u32)BTAKE(b, XB(e)); BDROP(b, XB(e));
+    e = DT[b->bb & ((1u << DB) - 1)];
+    if (KIND(e) == K_SUB) { BDROP(b, DB); e = DT[VAL(e) + (u32)BTAKE(b, XB(e))]; }
+    if (!e) return -1;
+    BDROP(b, CL(e));
+    dist = VAL(e) + (u32)BTAKE(b, XB(e)); BDROP(b, XB(e));
+    if (dist > o) return -1;
+    if (o + len + 8 > cap) return -2;
+    { u16t *d = out + o, *s = d - dist; o += len;
+      if (dist >= 4) { u16t *end = d + len; do { u64 v; __builtin_memcpy(&v, s, 8); __builtin_memcpy(d, &v, 8); d += 4; s += 4; } while (d < end); }
+      else while (len--) *d++ = *s++; }
+    if (b->padded > b->bc) return -1;
+  }
+  *po = o; return 0;
+}
+/* does a block start at this bit? a dynamic header, then some symbols decode without error */
+static int probe(const u8 *in, u32 inlen, u64 bit, u16t *scratch, u32 scap) {
+  BR b; brAt(&b, in, inlen, bit);
+  if (dynHeader(&b, 1)) return 0;
+  u32 o = 32768; for (u32 i = 0; i < 32768; i++) scratch[i] = (u16t)(256 + i);
+  int r = codes16(&b, scratch, &o, scap, 2000);
+  return r >= 0;
+}
+/* finds the first block start at or after bit `from` (up to `to`): the bit, or -1 */
+int parFind(const u8 *in, u32 inlen, u32 from, u32 to, u16t *scratch, u32 scap) {
+  for (u32 bit = from; bit < to; bit++) if (probe(in, inlen, bit, scratch, scap)) return (int)bit;
+  return -1;
+}
+static int codesTok(BR *b, u32 *tok, u32 *pn, u32 cap, u32 *pout) {
+  u32 n = *pn, e, len, dist, outn = *pout;
+  for (;;) {
+    BNEED(b, 48);
+    e = LT[b->bb & ((1u << LB) - 1)];
+    if (KIND(e) == K_SUB) { BDROP(b, LB); e = LT[VAL(e) + (u32)BTAKE(b, XB(e))]; }
+    if (!e) return -1;
+    BDROP(b, CL(e));
+    if (n + 2 > cap) return -2;
+    if (KIND(e) == K_LIT) { tok[n++] = VAL(e); outn++; continue; }
+    if (KIND(e) == K_END) break;
+    len = VAL(e) + (u32)BTAKE(b, XB(e)); BDROP(b, XB(e));
+    e = DT[b->bb & ((1u << DB) - 1)];
+    if (KIND(e) == K_SUB) { BDROP(b, DB); e = DT[VAL(e) + (u32)BTAKE(b, XB(e))]; }
+    if (!e) return -1;
+    BDROP(b, CL(e));
+    dist = VAL(e) + (u32)BTAKE(b, XB(e)); BDROP(b, XB(e));
+    if (dist > outn + 32768) return -1;
+    tok[n++] = (len << 16) | (dist - 1); outn += len;   /* a copy: len >= 3, so never below 256 like a letter */
+    if (b->padded > b->bc) return -1;
+  }
+  *pn = n; *pout = outn; return 0;
+}
+static u32 PAROUT;
+u32 parOut(void) { return PAROUT; }   /* the bytes the list makes */
+/* the list from the block at `bit` to the stream's end: its length, or -1 (not a real start, or damaged), -2 (room), -3 (a stored block: not handled) */
+int parTok(const u8 *in, u32 inlen, u32 bit, u32 *tok, u32 cap) {
+  BR b; brAt(&b, in, inlen, bit); u32 n = 0, i, on = 0; u32 *outn = &on; PAROUT = 0;
+  for (;;) {
+    BNEED(&b, 3); int last = (int)BTAKE(&b, 1);
+    u32 type = (u32)((b.bb >> 1) & 3);
+    if (type == 2) { if (dynHeader(&b, 0)) return -1; }
+    else if (type == 1) { BDROP(&b, 3); u8 l[288]; for (i = 0; i < 144; i++) l[i] = 8; for (; i < 256; i++) l[i] = 9; for (; i < 280; i++) l[i] = 7; for (; i < 288; i++) l[i] = 8; build(LT, LB, l, 288, 1); for (i = 0; i < 32; i++) l[i] = 5; build(DT, DB, l, 32, 2); FIXL = 1; }
+    else return -3;
+    int r = codesTok(&b, tok, &n, cap, outn); if (r) return r;
+    if (last) break;
+  }
+  PAROUT = on; return (int)n;
+}
+/* replays the list a piece at a time into out, where the 32 KB before out already hold the bytes before the block */
+static struct { const u32 *tok; u32 n, i; u8 *out, *d; } RP;
+void parReplayBegin(const u32 *tok, u32 n, u8 *out) { RP.tok = tok; RP.n = n; RP.i = 0; RP.out = RP.d = out; }
+/* until at least target bytes are in out: the bytes in out so far */
+u32 parReplay(u32 target) {
+  const u32 *tok = RP.tok; u32 n = RP.n, i = RP.i; u8 *d = RP.d, *stop = RP.out + target;
+  for (; i < n && d < stop; i++) { u32 t = tok[i];
+    if (t < 256) { *d++ = (u8)t; continue; }
+    u32 len = t >> 16, dist = (t & 0xffff) + 1; u8 *s = d - dist, *end = d + len;
+    if (dist >= 8) { do { u64 v; __builtin_memcpy(&v, s, 8); __builtin_memcpy(d, &v, 8); d += 8; s += 8; } while (d < end); }
+    else if (dist == 1) { u64 v = (u64)s[0] * 0x0101010101010101ull; do { __builtin_memcpy(d, &v, 8); d += 8; } while (d < end); }
+    else { do { *d++ = *s++; } while (d < end); }
+    d = end; }
+  RP.i = i; RP.d = d; return (u32)(d - RP.out);
+}
+u32 parReplayDone(void) { return RP.i >= RP.n; }
+/* keeps the last 32 KB at the start of the room (out - 32768): the bytes dropped */
+u32 parReplaySlide(void) { u32 have = (u32)(RP.d - RP.out), drop; if (have < 32768) return 0; drop = have; __builtin_memcpy(RP.out - 32768, RP.d - 32768, 32768); RP.d = RP.out; return drop; }
 int inflate(const u8 *in, u32 inlen, u8 *out, u32 outcap) { inflateBegin(in, inlen, out, outcap); return inflateStep(0xffffffffu); }
