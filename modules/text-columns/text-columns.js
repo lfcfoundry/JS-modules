@@ -27,7 +27,7 @@
   'use strict';
   /* Chromium family only (its garbage collector pays for every short string; other engines make them cheaply, so they keep the plain loop). A column with few different values
      (a city, a category): a repeated value is found by its bytes and shares the first string, so no new string is made for it. Decided from the first 2,048 rows; a column with
-     many different values keeps the plain loop. Same strings as the plain loop. */
+     many different values keeps the plain loop. Only for input of 16 MB or more: on smaller tables the plain loop is faster (first parse 1.1-2x slower with sharing). Same strings as the plain loop. */
   var CHROMISH = typeof navigator === 'object' && navigator !== null && /Chrome\//.test(navigator.userAgent || '');
   function internVals(vals, nrows, firstRow, ncols, j, starts, ends, qflag, inp, str) {
     var i, k, smp = Math.min(nrows, 2048), dict = new Map(), nd = 0, a0, b0, L0, key, cand, c, p, hit, sv;
@@ -346,7 +346,7 @@
         else col = lazyColumn(names[j], os, oe, oq, u, ascii, sh);
       } else {
         var vals = new Array(nrows), k;
-        if (CHROMISH) internVals(vals, nrows, firstRow, ncols, j, starts, ends, qflag, inp, str);
+        if (CHROMISH && inp.length >= 16777216) internVals(vals, nrows, firstRow, ncols, j, starts, ends, qflag, inp, str);
         else for (i = 0; i < nrows; i++) { k = (i + firstRow) * ncols + j; vals[i] = str(starts[k], ends[k], qflag[k]); }
         col.values = vals;
       }
