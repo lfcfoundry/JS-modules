@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-Opens `.zip` and Excel `.xlsx` files safely, in the browser or Node. About 42 KB gzipped (32.1 KB minified and gzipped), no dependencies.
+Opens `.zip` and Excel `.xlsx` files safely, in the browser or Node. About 61 KB gzipped (49.4 KB minified and gzipped), no dependencies.
 
 - Text files come out as strings, and every Excel sheet comes out as CSV text.
 - Each entry is unpacked with the platform's own deflate and its checksum is checked.
