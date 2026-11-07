@@ -35,8 +35,8 @@ Two smaller files sit next to it, built from the same version (gzipped sizes, lo
 | File | What it holds | Gzipped |
 |---|---|---|
 | `memory-compression.js` | everything, readable, with comments | 122.5 KB |
-| `memory-compression.min.js` | everything, minified: same API, same packed bytes | 83.1 KB |
-| `memory-compression-read.min.js` | opening only: `unpack`, `unpackAsync`, `view` and the stream readers | 37.1 KB |
+| `memory-compression.min.js` | everything, minified: same API, same packed bytes | 80.8 KB |
+| `memory-compression-read.min.js` | opening only: `unpack`, `unpackAsync`, `view` and the stream readers | 35.0 KB |
 
 Use the read-only file on pages that only open data packed elsewhere. Its packing parts (`pack`, `packAsync`, `pager`, `keeper`, `pool`, the stream writers) throw "this part is only in the full file". It never makes code at run time. It keeps only the code a broad test corpus needed to decode, so a packed shape that corpus never met would also throw that error (never a wrong value). Maintainers rebuild both files with `node modules/memory-compression/min/build.js` after any change; `test/min.js` fails when they are out of date.
 
