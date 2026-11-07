@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.8 · API 0 · 2026-11-07
+- Firefox: faster first reads of IP-address columns
+
 ## 0.5.7 · API 0 · 2026-11-06
 - Smaller tokenizer program
 
