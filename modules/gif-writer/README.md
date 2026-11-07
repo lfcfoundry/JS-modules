@@ -1,6 +1,6 @@
 # gif-writer
 
-**Version 1.6.3 · API 1**
+**Version 1.6.4 · API 1**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud); laptop not run
 

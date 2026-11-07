@@ -184,6 +184,8 @@ function goldenHashes(G) {
     c.add(f2, 100); c.add(f1, 100); const dc = decode(c.finish());
     ok(dc.shots.length === 3 && same(dc.shots[0].px, f1) && same(dc.shots[1].px, f2) && same(dc.shots[2].px, f1), 'kept instance: an encoder whose instance was taken carries on with right pictures');
     ok(decode(other.finish()).shots.length === 1, 'kept instance: the encoder that took it finishes too');
+    const pj = JSON.stringify(G.makePalette([busy, f2], 255, { wasm: false })), pw = [1, 2, 3].map(() => { const e = G.createEncoder(W, H, pal); e.add(busy, 100); e.finish(); return JSON.stringify(G.makePalette([busy, f2], 255)); });
+    ok(pw.every((x) => x === pj), 'kept instance: palette searches between encoders give the JavaScript colors');
   }
   if (fails) { console.log(fails + ' FAILED'); process.exit(1); } else console.log('gif-writer: all passed');
 })();
