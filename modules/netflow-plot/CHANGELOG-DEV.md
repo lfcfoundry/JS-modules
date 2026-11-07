@@ -3,7 +3,7 @@
 ## 2.14.1 · API 2 · 2026-11-07
 
 ### Quick
-Line-end names are spaced 14 px (was 13, their boxes touched by half a pixel) and the lowest name and first value stay above the bottom edge (were 4 px below, touching the last year).
+Line-end names are spaced 14 px (was 13, their boxes touched by half a pixel) and the lowest name and first value stay above the bottom edge (were 4 px below, touching the last year). A single line's low value beside its point stays above the bottom edge too (weather.csv's 0 sat on 2012).
 
 ### Details
 tags spacing 13 -> 14; tags hi and starts hi2 F.B + 4 -> F.B - 1. Touching pairs on the 53-chart sheet: disasters 4 -> 0, unemployment 3 -> 0.

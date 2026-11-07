@@ -443,7 +443,7 @@ var NetflowPlot = (function () {
           var hiK = -1, loK = -1, k2, nk = 0; for (k2 = 0; k2 < l.ys.length; k2++) if (l.ys[k2] === l.ys[k2]) { nk++; if (hiK < 0 || l.ys[k2] > l.ys[hiK]) hiK = k2; if (loK < 0 || l.ys[k2] < l.ys[loK]) loK = k2; }
           var lk = l.ys.length - 1; while (l.ys[lk] !== l.ys[lk]) lk--;
           F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, vt(l.ys[lk]), 11, readable(col, F.T), { align: 'l', bold: true });
-          [hiK, loK].forEach(function (k3, w) { if (nk < 3 || k3 === fi || k3 === lk || (w && l.ys[loK] === l.ys[hiK])) return; var hx = ax.map(l.xs[k3]), hy = ay.map(l.ys[k3]), side = w ? hy + 16 > F.B - 2 : hy - 8 < F.Tp + 2; F.text(side ? hx + 6 : hx, side ? hy + 4 : hy + (w ? 16 : -8), vt(l.ys[k3]), 11, readable(col, F.T), side ? { bold: true, align: 'l' } : { bold: true }); });   /* beside the point when above or below would leave the plot */
+          [hiK, loK].forEach(function (k3, w) { if (nk < 3 || k3 === fi || k3 === lk || (w && l.ys[loK] === l.ys[hiK])) return; var hx = ax.map(l.xs[k3]), hy = ay.map(l.ys[k3]), side = w ? hy + 16 > F.B - 2 : hy - 8 < F.Tp + 2; F.text(side ? hx + 6 : hx, side ? Math.min(hy + 4, F.B - 1) : hy + (w ? 16 : -8), vt(l.ys[k3]), 11, readable(col, F.T), side ? { bold: true, align: 'l' } : { bold: true }); });   /* (since 2.14.1 a value beside the point stays above the bottom edge, clear of the dates under it) beside the point when above or below would leave the plot */
         }
       }
       if (ends && pts.length) tags.push({ x: pts[pts.length - 2] + 6, y: pts[pts.length - 1] + 4, t: clip(l.name || '(blank)', 16) + (F.clean ? ' ' + vt(lastY(l)) : ''), c: readable(col, F.T) });
