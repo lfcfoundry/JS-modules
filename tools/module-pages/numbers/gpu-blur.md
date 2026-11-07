@@ -22,12 +22,12 @@ Compared: gpu-blur 1.4.2 against the browser's canvas filter when you only draw 
 | Chrome laptop | gpu-blur auto | 21 |
 |  | canvas filter blur() | 34 |
 | Chrome phone | gpu-blur auto | 61 |
-|  | canvas filter blur() | 75 |
+|  | canvas filter blur() | 73 |
 
 **What else to know.** The browser's blur is lazy, so it has to be timed to a finished picture, as above. gpu-blur's strength besides speed: identical output on every route, which the browser's blur does not promise. These are the owner's laptop and phone runs, not the three cloud test browsers.
 
 
-**Newest version against the browser's own blur (gpu-blur 1.4.2).** Owner's laptop and phone runs, 2048 x 2048, radius 24, timed to a finished picture. Getting the pixels out as bytes is 2.2 to 3.3 times faster than the browser's own blur in Firefox and Chrome on a laptop and in Chrome on a phone. Drawing the result is 1.2 to 1.6 times faster on all three. With `out: 'bitmap'` the Firefox laptop result is ready in 20 ms against 25 ms for the browser's blur.
+**Newest version against the browser's own blur (gpu-blur 1.4.2).** Owner's laptop and phone runs, 2048 x 2048, radius 24, timed to a finished picture, a single first-look run per device. Getting the pixels out as bytes is 2.0 to 3.3 times faster than the browser's own blur in Firefox and Chrome on a laptop and in Chrome on a phone. Drawing the result is 1.2 to 1.6 times faster on all three. With `out: 'bitmap'` the Firefox laptop result is ready in 20 ms against 25 ms for the browser's blur.
 
 
 **New in 1.3.6: a drawn start-up test picks the faster way for small and mid-size pictures.** Owner's laptop and phone runs (Chrome 156), drawn canvas, ms, lower is faster. Auto now runs a short drawn test for pictures under a million pixels, so it stops choosing the slower route there.
