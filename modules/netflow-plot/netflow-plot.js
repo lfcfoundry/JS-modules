@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.13.0 (API 2)
+ * Version 2.14.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -366,7 +366,7 @@ var NetflowPlot = (function () {
     });
     /* clean look: every bar end gets its value when all of them fit beside their bars; otherwise the number axis stays */
     if (F.clean) F.noY = ends.every(function (q) { return horiz ? q.sw >= 12 : q.t.length * CW <= q.sw + Math.max(4, band.step - band.bw - 4); }) && (ends.length || segs.length);
-    if (horiz) { F.axes(null, null); var vy = val; if (!F.noY) vy.list.forEach(function (t) { var x = vy.map(t); F.line([x, F.Tp, x, F.B], 1, F.alpha(F.T.boxLine, 0.35)); F.text(x, F.B + 16, mode === 'normalize' ? Math.round(t * 100) + '%' : fmtNum(t), 11, F.alpha(F.T.muted, 0.9)); }); var every = Math.max(1, Math.ceil(13 / Math.max(1, band.step || (F.B - F.Tp) / Math.max(1, xc.list.length)))); xc.list.forEach(function (x, xi) { if (xi % every) return; F.text(F.L - 8, band.map(x) + band.bw / 2 + 4, clip(x === '' ? '(blank)' : x, 28), 11, F.T.fg, { align: 'r' }); });   /* names 13 px apart at least: when the bars are thinner, every k-th name */ F.line([zero, F.Tp, zero, F.B], 1, F.alpha(F.T.muted, 0.8)); }
+    if (horiz) { F.axes(null, null); var vy = val; if (!F.noY) { var hvt = function (t) { return mode === 'normalize' ? Math.round(t * 100) + '%' : fmtNum(t); }, hev = 1; while (hev < vy.list.length && vy.list.some(function (t, ti) { if (ti % hev || ti + hev >= vy.list.length) return false; var t2 = vy.list[ti + hev]; return vy.map(t2) - vy.map(t) < (hvt(t).length + hvt(t2).length) * CW / 2 + 10; })) hev++; vy.list.forEach(function (t, ti) { var x = vy.map(t); F.line([x, F.Tp, x, F.B], 1, F.alpha(F.T.boxLine, 0.35)); if (ti % hev === 0) F.text(x, F.B + 16, hvt(t), 11, F.alpha(F.T.muted, 0.9)); }); }   /* every 2nd (3rd, ...) number when two would touch (since 2.13.0) */ var every = Math.max(1, Math.ceil(13 / Math.max(1, band.step || (F.B - F.Tp) / Math.max(1, xc.list.length)))); xc.list.forEach(function (x, xi) { if (xi % every) return; F.text(F.L - 8, band.map(x) + band.bw / 2 + 4, clip(x === '' ? '(blank)' : x, 28), 11, F.T.fg, { align: 'r' }); });   /* names 13 px apart at least: when the bars are thinner, every k-th name */ F.line([zero, F.Tp, zero, F.B], 1, F.alpha(F.T.muted, 0.8)); }
     else { F.axes(band, val, sp.x, sp.y ? (how === 'sum' ? '' : how + ' of ') + sp.y : 'Rows'); F.line([F.L, zero, F.R, zero], 1, F.alpha(F.T.muted, 0.8)); }
     if (F.noY) {
       ends.forEach(function (q) {
@@ -1060,6 +1060,13 @@ var NetflowPlot = (function () {
       if (p.spec.y && rows.some(function (r) { var y = r && r.attrs && Object.prototype.hasOwnProperty.call(r.attrs, p.spec.y) ? r.attrs[p.spec.y] : r && r[p.spec.y]; return +y < 0; })) return;   /* values below zero: the biggest 10 would hide the most negative ones */
       var seen = new Set(), q, rq, av; for (q = 0; q < rows.length && seen.size <= 25; q++) { rq = rows[q]; av = rq && rq.attrs && Object.prototype.hasOwnProperty.call(rq.attrs, p.spec.x) ? rq.attrs[p.spec.x] : rq && rq[p.spec.x]; seen.add(String(av)); }
       if (seen.size > 25) { p.spec = Object.assign({}, p.spec, { top: 10, horizontal: true }); p.why += '; there are more than 25 names, so it shows the 10 biggest and one bar for the rest, laid sideways so every name fits'; }
+    });
+    list.forEach(function (p) {   /* long names that would touch under upright bars: the bars lie sideways instead, so every name reads flat (since 2.13.0) */
+      if (p.type !== 'bar' || !p.spec.x || p.spec.color || p.spec.horizontal || p.spec.stack) return;
+      var names = new Set(), q, rq, av; for (q = 0; q < rows.length && names.size <= 26; q++) { rq = rows[q]; av = rq && rq.attrs && Object.prototype.hasOwnProperty.call(rq.attrs, p.spec.x) ? rq.attrs[p.spec.x] : rq && rq[p.spec.x]; if (av !== undefined && av !== null && av !== '') names.add(String(av)); }
+      if (names.size < 3 || names.size > 26) return;
+      var need = 0, long = 0; names.forEach(function (t) { var L = (axisName(t) || t).length; need += Math.min(14, L) * 6.05 + 9; if (L > 12) long++; });
+      if (long * 3 >= names.size && need > ((o.width || 640) - 100) * 1.6) { p.spec = Object.assign({}, p.spec, { horizontal: true }); p.why += '; the names are long, so the bars lie sideways and every name reads flat'; }
     });
     for (i = 0; i < list.length && svg === null; i++) svg = drawPick(rows, list[i], o.title === 'auto' ? autoTitle(rows, list[i].spec, o) : o);
     var p = list[i - 1], why = p.why;
