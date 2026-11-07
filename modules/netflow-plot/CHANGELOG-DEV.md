@@ -1,5 +1,18 @@
 # netflow-plot developer changelog
 
+## 2.10.0 · API 2 · 2026-11-07
+
+### Quick
+Fixes from the visual review of the auto-chart sheet; picks and labels change look, no API change for calls that name a type
+
+### Details
+auto()/guess(): many-to-many flow tables (over 40 links, at least 30% of places both send and receive, counted on up to 5,000 rows spread over the table) pick type 'chord' (netflow-circular, 40 biggest links), Sankey next. type: 'chord' in toSvg. A scatter whose points nearly all sit in 1/150 of a column's range says so in why.
+Lines: first values stay within 7 px of their line, ones that would touch are left out, later-starting lines get none; one precision per unit per chart. Axes: fewer, rounder number and date ticks when labels touch; month steps align (Jan, Apr, Jul, Oct) and the first month label keeps its year; no Date/Year axis name under a date or year axis; a first label at the corner starts at the axis. Key row keeps room for +N more.
+Contact sheet of 53 public tables: touching label pairs 295 to 13 (Chromium text boxes). 402 checks (10 new; 9 fail on 2.9.0). 39 of 39 and 15 of 15 tables still right (flight tables relabeled to also accept chord).
+
+### Deep
+Requested by the owner via the visuals review (RESCORE-AUTO-CHART-SHEET-2026.11.07.md). The empty-looking health scatter came from the test loader splitting quoted CSV names on their commas; loader fixed, the squash rule added anyway. Tried: moving start labels apart (old way) overflowed with 11 lines; greedy keep within 7 px reads cleaner. Thinning every 2nd time tick dropped the January-with-year labels, so time ticks are rebuilt with fewer steps instead.
+
 ## 2.9.0 · API 2 · 2026-11-07
 
 ### Quick

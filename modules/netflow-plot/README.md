@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.9.0 · API 2**
+**Version 2.10.0 · API 2**
 
-**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (the same SVG as Node for 12 public tables)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -43,7 +43,7 @@ Name your own columns in the same options: `{ type: 'bar', x: 'Region', y: 'Sale
 
 With no `type`, `x` or `y`, `toSvg(rows)` looks at the columns and picks the chart a person would most likely pick:
 
-- `from` and `to` columns: a Sankey (needs netflow-sankey.js; the 40 biggest links).
+- `from` and `to` columns: a Sankey (needs netflow-sankey.js; the 40 biggest links). When there are more than 40 links and most places both send and receive (flights between airports), a chord of the 40 biggest links instead, with the Sankey as the next pick (needs netflow-hierarchy.js and netflow-circular.js; since 2.10.0). `type: 'chord'` with `from`, `to` and `value` asks for one.
 - A `parent` column: a treemap (needs netflow-hierarchy.js).
 - Latitude and longitude: a scatter.
 - A time column (dates, or a whole-number year column) with one value per time step: a line, one per group. When a value that adds up repeats per time step: the total per step.
@@ -59,8 +59,18 @@ Month names (Jan, Feb) stay in order as categories. Columns named like `id`, `zi
 - `why` is a plain sentence, such as `it has a time column "date" with one "price" per time step for each "symbol"`.
 - `others` holds up to three more good picks, each with its own `why`. A one-click change is `NetflowPlot.toSvg(rows, result.others[0].spec)`.
 - `NetflowPlot.guess(rows)` gives the pick without drawing it.
+- A scatter where nearly every point sits on one thin line, because a few values are far out, says so in `why` (since 2.10.0).
 
-We checked it on 54 real public tables (vega-datasets). It picked a chart a person would accept for 39 of 39 tables used to set the rules. It also did so for 15 of 15 held-out tables that were labeled before the rules ran on them. The research prototype got 20 of 39 and 10 of 15.
+We checked it on 54 real public tables (vega-datasets). It picked a chart a person would accept for 39 of 39 tables used to set the rules. It also did so for 15 of 15 held-out tables that were labeled before the rules ran on them. The research prototype got 20 of 39 and 10 of 15. In 2.10.0 the three flight tables were relabeled to also accept a chord, after a visual review found their Sankeys a tangle.
+
+### Tidier labels (since 2.10.0)
+
+- A line's first value stays beside its line. One that would touch another is left out, and lines that start later get none.
+- Values on a line chart share one precision: -0.1, 4.3 and -10.8, not -0.079, 4.31 and -10.8; 10M next to 144M, not 9.7M.
+- Number and date axes use fewer, rounder ticks when labels would touch (2005, 2010; Jan 1855, Jul). The first month label carries its year. A date or year axis has no "Date" or "Year" name under it.
+- The key row's "+N more" never sits on the last name.
+
+On the 53 public tables of the contact sheet, touching label pairs went from 295 to 13 (measured with the browser's own text boxes in Chromium; most of the 13 are tilted labels, whose boxes the count reads unturned).
 
 ### Takeaway and screen-reader text (since 2.9.0, opt-in)
 
