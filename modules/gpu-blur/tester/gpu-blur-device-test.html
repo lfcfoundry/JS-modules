@@ -31,7 +31,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
  * gpu-blur.js: blur a picture on the graphics card (WebGL 2), or in WebAssembly, or in plain JavaScript, and give the same picture every way.
  * The module picks the way by what the browser can do, never by the browser's name. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.3.5 (API 1)
+ * Version 1.3.6 (API 1)
  *
  *   GpuBlur.blur(source, width, height, radius[, opts])   -> Promise of { canvas | pixels | texture, width, height, route }
  *   GpuBlur.blurSync(source, width, height, radius[, opts]) -> the same result at once (the page waits for the whole job)
@@ -61,7 +61,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 })(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  var VERSION = '1.3.5';
+  var VERSION = '1.3.6';
   var MAX_PIXELS = 33554432;          // 8192 x 4096
   var STRIP = 16;                     // columns per vertical strip (the wasm kernel's limit)
   var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
@@ -777,7 +777,26 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
     function bigGuess() {                 // a tiny picture hides the card's speed behind its fixed cost (the owner's laptop: probe card 6 against WebAssembly 1 ms, yet the card took 24 against 39 ms at 1080p). A second, bigger probe was tried and did not read true, so pictures of a million pixels and up use the card whenever the tiny probe found it within 10 times WebAssembly
       info.glBig = info.glMs != null && (info.wasmMs == null || info.glMs <= 10 * info.wasmMs + 2);
     }
-    return timeWasm(w, h, b, px, 5, 'wasmMs').then(function () { return timeGL(w, h, b, inp, 5, 'glMs'); }).then(bigGuess).then(function () {
+    function timeDrawn() {                // the same 480 x 270 blur with the drawing step in, each way finished by reading one pixel back: the tiny probe leaves the drawing step out and read 1.0 / 4.0 / 2.2 (card over WebAssembly) on three devices whose drawn ratios were 0.73 / 6.25 / 1.08
+      if (info.glMs == null || wasm.state !== 'ready') return Promise.resolve();
+      var q = normalize(px, w, h, 12, { out: 'canvas' }), ways = [['webgl2', 'drawGl'], ['wasm', 'drawWasm']], t = { drawGl: [], drawWasm: [] }, k = 0, f = 0;
+      function one(way) {
+        var t0 = now();
+        return tryRoutes(q, [way[0]], false).then(function (res) {
+          if (res.route !== way[0]) throw new Error('other route');
+          res.canvas.getContext('2d').getImageData(0, 0, 1, 1);
+          var dt = now() - t0; if (k >= 4) t[way[1]].push(dt);
+        });
+      }
+      function round() {   // rounds 0 and 1 warm both ways up (the first drawn calls cost extra: Chrome laptop read card 4.5 against 3.7 ms here, then 2.6 against 3.7 ms in the test), rounds 2 to 4 count; the order flips each round
+        var a = ways[k % 2], c = ways[(k + 1) % 2];
+        return one(a).then(function () { return one(c); }).then(function () { k += 2; return k < 10 ? nextTask().then(round) : null; });
+      }
+      return round().then(function () {
+        [['drawGl', t.drawGl], ['drawWasm', t.drawWasm]].forEach(function (e) { e[1].sort(function (a, c) { return a - c; }); info[e[0]] = e[1].length ? e[1][e[1].length >> 1] : null; });
+      }, function () { info.drawGl = info.drawWasm = null; });
+    }
+    return timeWasm(w, h, b, px, 5, 'wasmMs').then(function () { return timeGL(w, h, b, inp, 5, 'glMs'); }).then(bigGuess).then(timeDrawn).then(function () {
       if (info.glMs != null) {
         info.gl = (info.wasmMs == null ? true : info.glMs <= 2 * info.wasmMs + 2) || !!info.glBig;
         if (!info.gl) info.why = 'WebGL 2 took ' + info.glMs.toFixed(1) + ' ms against ' + info.wasmMs.toFixed(1) + ' ms for wasm on a 480 x 270 probe';
@@ -804,6 +823,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
   function cardFits(out, q) {             // card way for a drawn picture: worth it by the probe; under 300,000 pixels only when the probe was strictly faster than WebAssembly (phone, 480 x 270: probe 3.7 vs 3.0 ms, picture 12.7 vs 10.9 ms)
     if (out !== 'canvas' || !calInfo || !calInfo.gl || own.lost) return false;
     if (q && q.w * q.h >= 1000000) return !!calInfo.glBig;   // a million pixels and up: the card unless it looked hopeless on the tiny probe
+    if (calInfo.drawGl != null && calInfo.drawWasm != null) return calInfo.drawGl <= 1.3 * calInfo.drawWasm;   // drawn probe: card over WebAssembly at most 1.3 (Chrome laptop 1.22 and phone 1.11 in the test were card wins at 640 and up, Firefox laptop 8.3 was a wasm win)
     return !q || calInfo.glMs == null || calInfo.wasmMs == null || calInfo.glMs < calInfo.wasmMs;
   }
   function autoOrder(out, q) {            // after calibrate()
@@ -868,7 +888,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
     var i = calInfo || {};
     var canvasRoute = i.done ? (i.gl ? 'webgl2' : wasm.state === 'ready' ? 'wasm' : 'js') : null;
     return { version: VERSION, wasm: wasm.state === 'ready', wasmState: wasm.state, wasmWhy: wasm.why, webgl2: !!(i.done && (i.glMs != null)), webgl2Worth: !!i.gl,
-      glMs: i.glMs == null ? null : i.glMs, glBig: i.glBig == null ? null : !!i.glBig, wasmMs: i.wasmMs == null ? null : i.wasmMs, why: i.why || '', canvasRoute: canvasRoute, pixelsRoute: wasm.state === 'ready' ? 'wasm' : (wasm.state === 'failed' ? 'js' : null), calibrated: !!i.done, threads: canThreads() && !threadsWhy };
+      glMs: i.glMs == null ? null : i.glMs, glBig: i.glBig == null ? null : !!i.glBig, wasmMs: i.wasmMs == null ? null : i.wasmMs, drawGl: i.drawGl == null ? null : i.drawGl, drawWasm: i.drawWasm == null ? null : i.drawWasm, why: i.why || '', canvasRoute: canvasRoute, pixelsRoute: wasm.state === 'ready' ? 'wasm' : (wasm.state === 'failed' ? 'js' : null), calibrated: !!i.done, threads: canThreads() && !threadsWhy };
   }
   function ready() { return calibrate().then(function () { return info(); }); }
   function release() {
@@ -887,11 +907,11 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 <script>
 (function () {
 'use strict';
-var BUILD = '2026.11.06.1110';   /*STAMP*/
+var BUILD = '2026.11.06.2153';   /*STAMP*/
 var G = window.GpuBlur, $ = function (id) { return document.getElementById(id); };
 var hash = location.hash || '', QUICK = /quick/.test(hash);
 var R = 12, ROUTES = ['webgl2', 'wasm', 'js', 'auto'], NAMES = { webgl2: 'WebGL 2 (the card way)', wasm: 'WebAssembly', js: 'plain JavaScript', auto: 'auto (what the module picks)' };
-var SIZES = [{ w: 480, h: 270, reps: 25, name: '480 x 270' }, { w: 1920, h: 1080, reps: 25, name: '1920 x 1080' }, { w: 3840, h: 2160, reps: 11, name: '3840 x 2160', big: true }];
+var SIZES = [{ w: 480, h: 270, reps: 25, name: '480 x 270' }, { w: 640, h: 360, reps: 25, name: '640 x 360' }, { w: 960, h: 540, reps: 25, name: '960 x 540' }, { w: 1920, h: 1080, reps: 25, name: '1920 x 1080' }, { w: 3840, h: 2160, reps: 11, name: '3840 x 2160', big: true }];
 var CAP_MS = 110000;   // most time one size may take; the reps stop early (and the report says so)
 if (QUICK) SIZES.forEach(function (s) { s.reps = 5; });
 $('title').textContent = 'gpu-blur device test, build ' + BUILD;
@@ -1097,7 +1117,7 @@ async function main() {
     T.push('gpu-blur device test, build ' + BUILD);
     T.push('Module ' + G.version + ' (API 1). Device class: ' + deviceClass() + '. Browser: ' + browserLabel() + '. Graphics path: ' + gi.cls + '.');
     T.push('Blur: radius ' + R + ', bytes in, drawn canvas out; each way takes turns, the order rotates every round; 2 warm-up turns per way are thrown away; times are until the picture is really drawn (lower is better); page task = longest stretch the page could not respond (lower is better).');
-    T.push('What auto found on this device (one probe, 480 x 270): WebGL 2 context ' + info.webgl2 + ', probe on the card way ' + (info.glMs == null ? 'n/a' : f1(info.glMs) + ' ms') + ', probe in WebAssembly ' + (info.wasmMs == null ? 'n/a' : f1(info.wasmMs) + ' ms') + ', card way worth it: ' + info.webgl2Worth + ' (for big pictures: ' + info.glBig + '). Drawn pictures by (big): ' + info.canvasRoute + '. Bytes by: ' + info.pixelsRoute + '. ' + (info.why ? 'Why: ' + info.why : ''));
+    T.push('What auto found on this device (one probe, 480 x 270): WebGL 2 context ' + info.webgl2 + ', probe on the card way ' + (info.glMs == null ? 'n/a' : f1(info.glMs) + ' ms') + ', probe in WebAssembly ' + (info.wasmMs == null ? 'n/a' : f1(info.wasmMs) + ' ms') + ', drawn probe card ' + (info.drawGl == null ? 'n/a' : f1(info.drawGl) + ' ms') + ' against WebAssembly ' + (info.drawWasm == null ? 'n/a' : f1(info.drawWasm) + ' ms') + ', card way worth it: ' + info.webgl2Worth + ' (for big pictures: ' + info.glBig + '). Drawn pictures by (big): ' + info.canvasRoute + '. Bytes by: ' + info.pixelsRoute + '. ' + (info.why ? 'Why: ' + info.why : ''));
     T.push('');
     results.forEach(function (o) { T = T.concat(table(o)); T.push(''); });
     filterLines(fo).forEach(function (l) { T.push(l); }); T.push('');

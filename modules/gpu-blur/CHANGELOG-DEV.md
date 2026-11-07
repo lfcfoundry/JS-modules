@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.6 · API 1 · 2026-11-06
+
+### Quick
+Auto times a drawn 480 x 270 blur on both ways at start-up and picks the card for pictures under a million pixels when it is within 1.3 times WebAssembly; Chrome laptop 960 x 540 9.8 to 4.8 ms, same picture
+
+### Deep
+Small and mid-size drawn pictures now pick the faster way on Chrome: the start-up probe times a drawn 480 x 270 blur (card and WebAssembly, two warm-up rounds, three counted) and uses the card under a million pixels when it is within 1.3 times WebAssembly. Chrome 156 laptop, drawn canvas, radius 12: 480 x 270 3.8 to 2.9 ms, 640 x 360 5.1 to 2.8 ms, 960 x 540 9.8 to 4.8 ms. Chrome phone: 640 x 360 15.7 to 12.6 ms, 960 x 540 22.2 to 17.4 ms, 480 x 270 10.6 to 11.7 ms (1.1 ms slower). Firefox laptop picks do not change (WebAssembly under a million pixels). Same picture byte for byte.
+
 ## 1.3.5 · API 1 · 2026-11-06
 
 ### Quick

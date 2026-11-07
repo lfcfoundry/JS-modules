@@ -1,8 +1,8 @@
 # gpu-blur
 
-**Version 1.3.5 · API 1**
+**Version 1.3.6 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud, same bytes); speed on Firefox 160 and Chrome 156 (owner's laptop)
+**Tested in:** Chrome 156 laptop, Chrome 156 phone, Firefox 160 laptop; cloud Chromium, Firefox, WebKitGTK
 
 ## What it is and how it works
 
