@@ -60,7 +60,7 @@ GpuBlur.ready().then(function (info) { /* info.canvasRoute: the way a drawn pict
 
 ## How it picks a way
 
-1. **A drawn picture (`out: 'canvas'`).** On first use the module compiles the WebAssembly, then times a 480 x 270, radius 12 probe on both ways (the card way includes upload and a fence that says the card has finished). The card way is taken when its probe time is at most 2 x the WebAssembly time + 2 ms; otherwise the WebAssembly. The probe runs in short tasks, never one long one. A browser that refuses a "major performance caveat" context counts as no card.
+1. **A drawn picture (`out: 'canvas'`).** On first use the module compiles the WebAssembly, then times a 480 x 270, radius 12 probe on both ways (the card way includes upload and a fence that says the card has finished). The card way is taken when its probe time is at most 2 x the WebAssembly time + 2 ms; otherwise the WebAssembly. The probe runs in short tasks, never one long one. A browser that refuses a "major performance caveat" context counts as no card. Since 1.4.2, under 300,000 pixels the card way is taken only when the probe shows it 15% or more ahead of the WebAssembly, so small pictures on phones use WebAssembly. A start-up test also decides whether the module's own result canvas is kept in memory; that is used only for opaque pictures given as bytes, and only when it is 30% or more faster.
 2. **Bytes out (`out: 'pixels'`).** Since 1.4.1, with 4 or more cores and a picture of 3 million pixels or more (or 0.3 million or more while the helpers are already running), the helpers (route 5); otherwise WebAssembly, then JavaScript. Cold first call, 2048 x 2048, radius 24, cloud Chromium / Firefox / WebKitGTK: 80 / 82 / 109 ms before, 61 / 63 / 70 ms after. Reading the blurred picture back from the card costs about as much as blurring it in WebAssembly (lab test: 27 and 39 ms with read-back against 37.5 and 33 ms), so the card is not worth its fuss for bytes. `route: 'webgl2'` still does it, with a read-back that waits for the card without stalling the page.
 3. **A texture (`out: 'texture'`).** The card, in your context.
 4. **Fallbacks.** No WebGL 2, a lost context (`webglcontextlost`; the module also uses the way again after `webglcontextrestored`), a card way that throws, no WebAssembly, a page policy without `'wasm-unsafe-eval'`, or a WebAssembly file whose self-test differs from the JavaScript twin: the next way answers and the picture is the same. Each of those is a check in `tests/gpu-blur-browser.js`.
@@ -130,6 +130,18 @@ Same 1920 x 1080 picture, a blur that looks like a Gaussian of sigma 6, time unt
 - gpu-blur was faster than stackblur-canvas in all three browsers (about 1.2 to 2.5 times from bytes, 1.0 to 1.7 times from a canvas; Firefox from a canvas, 116 against 114 ms, is a tie), and faster than glfx by 6 to 25 times; glfx and the WebGL 2 route both ran on the slow graphics path, so neither of those two says anything about a real card.
 - CSS `filter` lets the browser blur on its own thread; it is the cheapest way to blur something that is only shown, and it is not available when you need the blurred pixels or a texture.
 
+
+### Against the browser's own blur on laptops and a phone (1.4.2)
+
+A 2048 x 2048 picture, radius 24, result drawn on a canvas, milliseconds, lower is better. The browser's own blur is `ctx.filter = "blur(24px)"` with `drawImage`. Device class only, one run each on the owner's devices through `tester/gpu-blur-device-test.html`.
+
+| | gpu-blur 1.4.2 | Browser's own blur |
+|---|---:|---:|
+| Firefox 160, laptop | 14 | 23 |
+| Chrome 156, laptop | 21 | 34 |
+| Chrome 156, phone | 61 | 75 |
+
+Where the browser's own blur still wins is the cloud table above (Chromium 155 from bytes, 36.4 against 48.7 ms) and anywhere you only need to show the blur: CSS `filter` on the element costs the page almost nothing.
 
 ## Test it on your own device (one button)
 
