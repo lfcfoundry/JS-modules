@@ -222,4 +222,14 @@ int inflateStep(u32 target) {
   if (last) { IS.done = 1; CRC = ~crcRun(out + cp, o - cp, cs); }
   return (int)o;
 }
+/* keeps only the last keep bytes (the window later matches can reach) at the start of out, so a thread that hands
+   each piece on can unpack a big part in a small room: the bytes dropped, or 0 when there is too little to drop */
+u32 inflateSlide(u32 keep) {
+  u32 o = IS.o, d;
+  if (IS.done || o < keep * 2) return 0;
+  IS.cs = crcRun(IS.out + IS.cp, o - IS.cp, IS.cs);
+  d = o - keep; __builtin_memcpy(IS.out, IS.out + d, keep);
+  IS.o = keep; IS.cp = keep;
+  return d;
+}
 int inflate(const u8 *in, u32 inlen, u8 *out, u32 outcap) { inflateBegin(in, inlen, out, outcap); return inflateStep(0xffffffffu); }
