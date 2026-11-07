@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.1 · API 2 · 2026-11-06
+
+### Quick
+Small loads skip a second walk of each counts map: 448 B load against localForage's localStorage driver in Chromium 155 went from 1.16-1.20x to 1.09-1.10x; same answers as 2.0.0.
+
+### Deep
+Small loads skip a second walk of each counts map: 448 B load against localForage's localStorage driver in Chromium 155 went from 1.16-1.20x to 1.09-1.10x; same answers as 2.0.0. The full counts loop now notes whether a map held a broken number (the same test as the backup check), so load() counts broken fields without walking the maps again.
+
 ## 2.0.0 · API 2 · 2026-11-06
 
 ### Quick

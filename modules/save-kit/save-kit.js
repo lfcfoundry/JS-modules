@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.0.0 (API 2)
+ * Version 2.0.1 (API 2)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -43,6 +43,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  var countsSeen = 0, countsBad = 0;  // while load() checks its main slot: counts fields the full loop below looked at whole, and how many of them held a broken number
   var cleanHits = 0;                  // how many counts fields the clean fast path below kept as they were (load() uses it to skip a second walk)
   var fresh = false;                  // set only while load() rebuilds a state from text it parsed itself, so a clean counts object can be reused instead of copied
   var JSC = typeof navigator !== 'undefined' && /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Firefox/.test(navigator.userAgent);   // experiment: Object.values is much faster than Object.keys here
@@ -103,11 +104,12 @@
       case 'flag': return v === 1 ? 1 : v === 0 ? 0 : (d === 1 ? 1 : 0);
       case 'str': return typeof v === 'string' && v.length <= (spec.max === 0 ? 0 : spec.max || 200) ? v : (d == null ? '' : d);
       case 'counts':
-        var out = bag(), kept = 0, maxKeys = spec.maxKeys === 0 ? 0 : spec.maxKeys > 0 ? spec.maxKeys : DEFAULT_MAX_KEYS;
-        if (!isObj(v)) v = d;   // a missing or broken field starts from its default (1.0.0 always gave an empty map here)
-        if (!isObj(v)) return out;
-        if (packedLive > 0 && fresh && packedClean.has(v)) { packedClean.delete(v); packedLive--; cleanHits++; return v; }   // checked entry by entry while it was rebuilt
-        var ks, cap = spec.max === 0 ? 0 : spec.max || 1e6, i, k, n, ok;
+        var ks, brk, out = bag(), kept = 0, maxKeys = spec.maxKeys === 0 ? 0 : spec.maxKeys > 0 ? spec.maxKeys : DEFAULT_MAX_KEYS;
+        if (isObj(v)) brk = 0;
+        else { if (fresh) countsSeen++; v = d; if (!isObj(v)) return out; brk = -1; }   // a missing or broken field starts from its default (1.0.0 always gave an empty map here); it was not a map, so nothing in it counts as broken
+        if (brk === 0 && packedLive > 0 && fresh && packedClean.has(v)) { packedClean.delete(v); packedLive--; cleanHits++; return v; }   // checked entry by entry while it was rebuilt
+        var cap = spec.max === 0 ? 0 : spec.max || 1e6, i, k, n, ok;
+        if (brk < 0) { ks = Object.keys(v); for (i = 0; i < ks.length; i++) { k = ks[i]; if (k.length > 200 || kept >= maxKeys || k === '__proto__' || k === 'constructor' || k === 'prototype') continue; n = v[k]; if (cap > 0 && typeof n === 'number' && n - n === 0 && n > 0) { out[k] = Math.min(Math.floor(n), cap); kept++; } } return out; }
         if (JSC && fresh && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // WebKit: for...in skips making the list of names (about 12% faster there, slower in Chromium)
           i = 0; ok = true;
           for (k in v) { n = v[k]; i++; if (k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n) || k === '__proto__' || k === 'constructor' || k === 'prototype') { ok = false; break; } }
@@ -119,11 +121,12 @@
           if (i === ks.length) { Object.setPrototypeOf(v, null); cleanHits++; return v; }
         }
         for (i = 0; i < ks.length; i++) {
-          k = ks[i];
+          k = ks[i]; n = v[k];
+          if (!(typeof n === 'number' && n - n === 0 && n >= 0)) brk = 1;   // the same test as countsSound, so load() need not walk the map again
           if (k.length > 200 || kept >= maxKeys || k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
-          n = v[k];
           if (cap > 0 && typeof n === 'number' && n - n === 0 && n > 0) { out[k] = Math.min(Math.floor(n), cap); kept++; }
         }
+        if (fresh) { countsSeen++; countsBad += brk; }
         return out;
 //@begin raw
       case 'raw': if (trusted && v !== undefined && shallow(v, 0)) return v; try { return scrub(JSON.parse(JSON.stringify(v)), 0); } catch (e) { try { return scrub(JSON.parse(JSON.stringify(d)), 0); } catch (e2) { return d; } }   // a fresh copy of the default, never the default object itself
@@ -428,9 +431,10 @@
     function checkMain(raw) {
       if (typeof migrate !== 'undefined' && migrate && version && !(isNum(raw.v) && Math.floor(raw.v) >= version)) return null;
       var c, i, v, n = 0, was = trusted;
-      trusted = plainText.has(raw); cleanHits = 0; fresh = true;
+      trusted = plainText.has(raw); cleanHits = 0; countsSeen = 0; countsBad = 0; fresh = true;
       try { c = validateWith(fields, defaults, raw); } finally { trusted = was; fresh = false; }
-      if (cleanHits !== countKeys.length) return { c: c, bad: badFields(raw) };
+      if (cleanHits + countsSeen !== countKeys.length) return { c: c, bad: badFields(raw) };   // a counts field was not looked at whole: count again the old way
+      n = countsBad;
       for (i = 0; i < soundKeys.length; i++) { v = raw[soundKeys[i]]; if (v !== undefined && !isNum(v)) n++; }
       return { c: c, bad: n };
     }

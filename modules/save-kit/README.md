@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 2.0.0 · API 2**
+**Version 2.0.1 · API 2**
 
-**Tested in:** cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; 9,944 random saves equal to 1.6.3 (Chromium and Firefox paths, damaged lists included)
+**Tested in:** cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; 20,000 random loads and 9,944 random saves equal to 2.0.0
 
 ## What it is and how it works
 

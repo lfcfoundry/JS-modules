@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.3 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 2.0.0 · API 2 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 2.0.1 · API 2 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -69,6 +69,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **sprite-baker** 1.9.0 · API 1: New option fast: true uses cheaper shading in the plain JavaScript fill (a short series for the normal length, the highlight skipped where it adds under a third of a level, a table for the rim-light power).
 - 2026-11-06 · **sprite-baker** 1.8.0 · API 1: New option edge: true fills each pixel once and fills again with ss by ss samples only the pixels on an edge.
 - 2026-11-06 · **sprite-baker** 1.10.0 · API 1: Faster fast: true: one shade a pixel inside a bake (a 12-frame roll 0.47x to 0.58x of the default time); the default fill tests only the columns a triangle can cover (same pixels).
+- 2026-11-06 · **save-kit** 2.0.1 · API 2: Small loads are a little faster.
 - 2026-11-06 · **save-kit** 2.0.0 · API 2: Faster saves and loads in Chrome and Edge; go-back warning: older copies cannot read the new Chrome saves.
 - 2026-11-06 · **save-kit** 1.6.3 · API 1: Loads of saves with big count lists take 16 to 31% less time.
 - 2026-11-06 · **save-kit** 1.6.2 · API 1: A 16 MB load with a raw field is 0.72x of the time in Chromium (120 to 87 ms) and 0.93x in WebKitGTK; Firefox unchanged within noise.
