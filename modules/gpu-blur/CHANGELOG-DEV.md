@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.1 · API 1 · 2026-11-07
+
+### Quick
+Auto now runs the helpers for bytes-out pictures of 3 million pixels and up (or 0.3 million while they already run) with 4 or more cores; cloud first call at 4K 196 to 111 ms in Chromium, 160 to 81 in Firefox, 220 to 125 in WebKitGTK
+
+### Deep
+Auto picks the helpers for out 'pixels' (and as the next try after the card for out 'canvas') when the picture has 3 million pixels or more, or 0.3 million or more while the helpers are already running, and the page has 4 or more cores; smaller pictures keep one-thread WebAssembly because a cold helper start costs 20 to 35 ms (960 x 540 first call 8 against 27 ms in cloud Chromium). Cloud, radius 24, bytes out, auto, first call then second call in ms: 2048 x 2048 Chromium 80/67 to 61/30, Firefox 82/64 to 63/32, WebKitGTK 109/121 to 70/38; 3840 x 2160 Chromium 196/149 to 111/54, Firefox 160/126 to 81/49, WebKitGTK 220/197 to 125/70. 1920 x 1080 does not change (under 3 million pixels, helpers not yet running). Same bytes. Laptop and phone runs of the tester page pending.
+
 ## 1.4.0 · API 1 · 2026-11-06
 
 ### Quick
