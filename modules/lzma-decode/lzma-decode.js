@@ -1,4 +1,4 @@
-/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.4.0 (API 1) */
+/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.5.0 (API 1) */
 
 /* Decodes a raw LZMA1 stream (no .lzma header) into a Uint8Array.
 
@@ -28,98 +28,90 @@ function lzmaDecode(src, outSize, opts) {
   var lc = opts.lc === undefined ? 4 : opts.lc, lp = opts.lp === undefined ? 0 : opts.lp, pb = opts.pb === undefined ? 0 : opts.pb;
   if (!(lc >= 0 && lc <= 8 && lp >= 0 && lp <= 4 && pb >= 0 && pb <= 4)) throw new Error('LZMA: lc 0-8, lp 0-4 and pb 0-4 are supported');   // lean-cut
   if (opts.maxSize !== undefined && !(outSize <= opts.maxSize)) throw new Error('LZMA: the result would be ' + outSize + ' bytes, more than the allowed maxSize of ' + opts.maxSize);   // lean-cut
-  var out = new Uint8Array(outSize), ip = 0, op = 0;
-  var range = 0xFFFFFFFF, code = 0;            // the range coder: both stay unsigned 32-bit
-  var state = 0, rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;   // the match state (0-11) and the four most recent distances (minus one)
+  var out = new Uint8Array(outSize), ip = 0, op = 0, slen = src.length;
+  var range = 0xFFFFFFFF, code = 0;
+  var state = 0, rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;
   var pbMask = (1 << pb) - 1, lpMask = (1 << lp) - 1;
-  function probs(n) { return new Uint16Array(n).fill(1024); }   // 1024 = probability 0.5 in 11 bits
-  var isMatch = probs(12 << 4), isRep = probs(12), isRepG0 = probs(12), isRepG1 = probs(12), isRepG2 = probs(12), isRep0Long = probs(12 << 4),
-      posSlot = probs(4 << 6), posSpecial = probs(115), align = probs(16),
-      lenCoder = probs(514), repLenCoder = probs(514),   // each: choice, choice2, 16 low trees of 8, 16 mid trees of 8, one high tree of 256
-      literal = probs(0x300 << (lc + lp));
-  var bitVal;                                   // scratch for rtree
-  function next() { return src[ip++]; }
-  function bit(a, i) {   // decode one adaptive bit with probability a[i], then move the probability toward what was seen
-    var p = a[i], bound = (range >>> 11) * p, b;
-    if (code < bound) { range = bound; a[i] = p + ((2048 - p) >> 5); b = 0; }
-    else { range -= bound; code -= bound; a[i] = p - (p >> 5); b = 1; }
-    if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | next()) >>> 0; }
-    return b;
-  }
-  function tree(a, base, bits) {   // a bit tree, most significant bit first
-    var m = 1, c = bits;
-    while (c--) m = (m << 1) | bit(a, base + m);
-    return m - (1 << bits);
-  }
-  function rtree(a, base, bits) {   // a bit tree, least significant bit first
-    var m = 1, r = 0, c;
-    for (c = 0; c < bits; c++) { bitVal = bit(a, base + m); m = (m << 1) | bitVal; r |= bitVal << c; }
-    return r;
-  }
-  function length(a, posState) {   // a match length minus 2: low (0-7), mid (8-15) or high (16-271)
-    if (!bit(a, 0)) return tree(a, 2 + (posState << 3), 3);
-    if (!bit(a, 1)) return 8 + tree(a, 130 + (posState << 3), 3);
-    return 16 + tree(a, 258, 8);
-  }
-  var i, posState, prev, base, sym, matchByte, matchBit, len, slot, nb, dist, x, k, b;
-  for (i = 0; i < 4; i++) code = (code * 256 + next()) >>> 0;   // the first 4 bytes of the stream seed the range coder
+  // one probability array; offsets of each part
+  var IM = 0, IR = IM + 192, IG0 = IR + 12, IG1 = IG0 + 12, IG2 = IG1 + 12, IRL = IG2 + 12, PS = IRL + 192, PSP = PS + 256, AL = PSP + 115, LEN = AL + 16, RLEN = LEN + 514, LIT = RLEN + 514;
+  var P = new Uint16Array(LIT + (0x300 << (lc + lp))).fill(1024);
+  var i, posState, prev, base, sym, matchByte, matchBit, len, slot, nb, dist, x, k, b, p, bound, m, c, L, r;
+  for (i = 0; i < 4; i++) code = (code * 256 + (ip < slen ? src[ip] : 0)) >>> 0, ip++;
   while (op < outSize) {
-    if (ip > src.length) throw new Error('LZMA: the compressed data ended early');   // a valid stream never reads past its end: stop at once, not after decoding garbage to the full size
+    if (ip > slen) throw new Error('LZMA: the compressed data ended early');
     posState = op & pbMask;
-    if (!bit(isMatch, (state << 4) + posState)) {   // a literal byte
+    { i = IM + (state << 4) + posState; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+    if (!b) {
       prev = op ? out[op - 1] : 0;
-      base = 0x300 * (((op & lpMask) << lc) + (prev >> (8 - lc))); sym = 1;
-      if (state >= 7) {   // just after a match: the byte at the last distance guides the first bits
+      base = LIT + 0x300 * (((op & lpMask) << lc) + (prev >> (8 - lc))); sym = 1;
+      if (state >= 7) {
         matchByte = out[op - rep0 - 1];
         do {
           matchBit = (matchByte >> 7) & 1; matchByte <<= 1;
-          b = bit(literal, base + ((1 + matchBit) << 8) + sym); sym = (sym << 1) | b;
+          { i = base + ((1 + matchBit) << 8) + sym; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+          sym = (sym << 1) | b;
           if (matchBit !== b) break;
         } while (sym < 256);
       }
-      while (sym < 256) sym = (sym << 1) | bit(literal, base + sym);
+      while (sym < 256) { { i = base + sym; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } sym = (sym << 1) | b; }
       out[op++] = sym;
       state = state < 4 ? 0 : state < 10 ? state - 3 : state - 6;
     } else {
-      if (bit(isRep, state)) {   // repeat an earlier distance
-        if (!bit(isRepG0, state)) {
-          if (!bit(isRep0Long, (state << 4) + posState)) {   // a "short rep": one byte at the last distance
+      { i = IR + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+      if (b) {
+        { i = IG0 + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+        if (!b) {
+          { i = IRL + (state << 4) + posState; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+          if (!b) {
             if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
             state = state < 7 ? 9 : 11; out[op] = out[op - rep0 - 1]; op++; continue;
           }
         } else {
-          if (!bit(isRepG1, state)) dist = rep1;
-          else { if (!bit(isRepG2, state)) dist = rep2; else { dist = rep3; rep3 = rep2; } rep2 = rep1; }
+          { i = IG1 + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+          if (!b) dist = rep1;
+          else { { i = IG2 + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } if (!b) dist = rep2; else { dist = rep3; rep3 = rep2; } rep2 = rep1; }
           rep1 = rep0; rep0 = dist;
         }
-        len = length(repLenCoder, posState); state = state < 7 ? 8 : 11;
-      } else {   // a new match: a length, then a distance
+        L = RLEN; state = state < 7 ? 8 : 11;
+      } else {
         rep3 = rep2; rep2 = rep1; rep1 = rep0;
-        len = length(lenCoder, posState); state = state < 7 ? 7 : 10;
-        slot = tree(posSlot, (len < 4 ? len : 3) << 6, 6);
+        L = LEN; state = state < 7 ? 7 : 10;
+      }
+      // length
+      { i = L; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+      if (!b) { L += 2 + (posState << 3); c = 3; len = 0; }
+      else { { i = L + 1; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } if (!b) { L += 130 + (posState << 3); c = 3; len = 8; } else { L += 258; c = 8; len = 16; } }
+      for (m = 1, k = c; k--;) { { i = L + m; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } m = (m << 1) | b; }
+      len += m - (1 << c);
+      if (state === 7 || state === 10) {
+        L = PS + ((len < 4 ? len : 3) << 6);
+        for (m = 1, k = 6; k--;) { { i = L + m; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } m = (m << 1) | b; }
+        slot = m - 64;
         if (slot < 4) rep0 = slot;
         else {
           nb = (slot >> 1) - 1; dist = (2 | (slot & 1)) << nb;
-          if (slot < 14) dist += rtree(posSpecial, dist - slot, nb);
-          else {   // the middle bits are coded at probability 0.5 ("direct bits"), the last four with the align tree
+          if (slot < 14) { L = PSP + dist - slot; c = nb; }
+          else {
             for (x = 0, k = nb - 4; k--;) {
               range >>>= 1; b = code >= range ? 1 : 0; if (b) code -= range;
-              if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | next()) >>> 0; }
+              if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; }
               x = (x << 1) | b;
             }
-            dist += (x << 4) + rtree(align, 0, 4);
+            dist += x << 4; L = AL; c = 4;
           }
-          rep0 = dist >>> 0;
+          for (m = 1, r = 0, k = 0; k < c; k++) { { i = L + m; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } m = (m << 1) | b; r |= b << k; }
+          rep0 = (dist + r) >>> 0;
         }
       }
       if (rep0 === 0xFFFFFFFF) throw new Error('LZMA: the end marker came before ' + outSize + ' bytes were decoded');
       if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
-      for (len += 2; len--; op++) out[op] = out[op - rep0 - 1];   // copy byte by byte: the source may overlap the destination
+      for (len += 2; len--; op++) out[op] = out[op - rep0 - 1];
     }
   }
-  if (ip > src.length) throw new Error('LZMA: the compressed data ended early');
+  if (ip > slen) throw new Error('LZMA: the compressed data ended early');
   return out;
 }
+
 
 function lzmaDecodeFile(bytes, size, opts) {   // a classic .lzma file: props byte, 4-byte dictionary size, 8-byte uncompressed size, then the stream
   if (bytes.length < 14) throw new Error('LZMA: file too short');
