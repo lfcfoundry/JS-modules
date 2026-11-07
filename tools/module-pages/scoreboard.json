@@ -75,10 +75,10 @@
   },
   {
    "label": "gpu-blur bytes out vs browser filter",
-   "x": 2.2,
+   "x": 2.0,
    "module": "gpu-blur",
    "proof": [
-    "2.2 to 3.3 times"
+    "2.0 to 3.3 times"
    ]
   },
   {
