@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.0 · API 0 · 2026-11-07
+
+### Quick
+Opt-in lazy rows: open plus read one field of 300,000 rows in 26 ms (Chromium), 45 ms (Firefox), 29 ms (WebKitGTK); JSON.parse takes 168-214 ms.
+
+### Details
+Round 59 (module research). rows:'lazy' makes each row a small object holding its index under a symbol, with one getter per key on a per-block class (no generated code). rows:'lazycols' also decodes each column on first read. Dense flat blocks only; nested, sparse, toJSON or __proto__ keys give plain rows. Against plain rows (300k rows x 8 keys, median of 5): open + read 1 field Chromium 117 to 26 ms, Firefox 92 to 45, WebKitGTK 60 to 29; reading all 8 fields is level in Chromium (162 to 130) but slower in Firefox (86 to 155) and WebKitGTK (61 to 81), which is why it is opt-in. Default path unchanged. New test/lazyrows.cjs (30 checks); all lfc-pack checks pass.
+
+### Deep
+Opt-in lazy rows (rows: 'lazy' and 'lazycols'). Default unchanged. Rows are not plain objects: Object.keys, spread, structuredClone and postMessage lose the values.
+
 ## 0.5.9 · API 0 · 2026-11-07
 
 ### Quick

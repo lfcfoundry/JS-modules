@@ -178,6 +178,7 @@ def fold(h, first_open=True):
         m = re.match(r'<p><strong>(.*?)</strong>(.*?)</p>(.*)$', c, re.S)
         if not m: out.append(c); continue
         t = re.sub(r'<[^>]+>', '', m.group(1)).rstrip('.:')
+        if re.match(r'(New in|Since|What is new|Version against version|Same tests in|zip-open 1\.9\.0 against)', t): continue   # version-to-version notes belong in the changelog, not on the page (owner, 2026.11.07)
         rest = ('<p>%s</p>' % m.group(2).strip()) if m.group(2).strip() else ''
         inner = rest + m.group(3)
         if '<div class="chart">' in inner: inner += '<p class="src">Source: %s.</p>' % t
