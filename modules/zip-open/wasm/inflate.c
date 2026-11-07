@@ -85,6 +85,10 @@ static u32 crcRun(const u8 *p, u32 n, u32 s) {
   return s;
 }
 u32 crc(void) { return CRC; }
+/* a running checksum over pieces handed in (start with s = 0xffffffff, finish with ~s), for a thread that checks what another unpacked */
+u32 crcAdd(const u8 *p, u32 n, u32 s) { if (!ctReady) crcInit(); return crcRun(p, n, s); }
+static u32 NOCRC;   /* 1: inflateStep() skips the checksum (another thread does it) */
+void inflateCrc(u32 on) { NOCRC = !on; }
 
 /* The codes of one block. A function of its own, called once per block, so that a browser that first runs the
    quick-to-compile version of this code (Chromium and Firefox do) switches to the optimized one at the next block,
@@ -92,7 +96,7 @@ u32 crc(void) { return CRC; }
 typedef struct { const u8 *ip, *iend; u64 bb; u32 bc, padded, o, cp, cs; } St;
 __attribute__((noinline)) static int codes(St *st, u8 *out, u32 outcap) {
   const u8 *ip = st->ip, *iend = st->iend; u64 bb = st->bb; u32 bc = st->bc, padded = st->padded, o = st->o, cp = st->cp, cs = st->cs;
-  #define CRC_STEP() do { if (o - cp >= 32768) { cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
+  #define CRC_STEP() do { if (o - cp >= 32768) { if (!NOCRC) cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
   #define REFILL_SLOW() do { while (bc <= 56) { if (ip < iend) bb |= (u64)*ip++ << bc; else padded += 8; bc += 8; } } while (0)
   #define NEED(n) do { if (bc < (u32)(n)) REFILL_SLOW(); } while (0)
   #define TAKE(n) (bb & ((1ull << (n)) - 1))
@@ -169,7 +173,7 @@ u32 inflateDone(void) { return IS.done; }
 int inflateStep(u32 target) {
   const u8 *ip = IS.ip, *iend = IS.iend; u64 bb = IS.bb; u32 bc = IS.bc, padded = IS.padded, o = IS.o, cp = IS.cp, cs = IS.cs; u8 *out = IS.out; u32 outcap = IS.outcap; int last = 0;
   if (IS.done) return (int)o;
-  #define CRC_STEP() do { if (o - cp >= 32768) { cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
+  #define CRC_STEP() do { if (o - cp >= 32768) { if (!NOCRC) cs = crcRun(out + cp, o - cp, cs); cp = o; } } while (0)
   #define REFILL_SLOW() do { while (bc <= 56) { if (ip < iend) bb |= (u64)*ip++ << bc; else padded += 8; bc += 8; } } while (0)
   #define NEED(n) do { if (bc < (u32)(n)) REFILL_SLOW(); } while (0)
   #define TAKE(n) (bb & ((1ull << (n)) - 1))
@@ -219,7 +223,7 @@ int inflateStep(u32 target) {
     CRC_STEP();
   } while (!last && o < target);
   IS.ip = ip; IS.bb = bb; IS.bc = bc; IS.padded = padded; IS.o = o; IS.cp = cp; IS.cs = cs;
-  if (last) { IS.done = 1; CRC = ~crcRun(out + cp, o - cp, cs); }
+  if (last) { IS.done = 1; CRC = NOCRC ? 0 : ~crcRun(out + cp, o - cp, cs); }
   return (int)o;
 }
 /* keeps only the last keep bytes (the window later matches can reach) at the start of out, so a thread that hands
@@ -227,7 +231,7 @@ int inflateStep(u32 target) {
 u32 inflateSlide(u32 keep) {
   u32 o = IS.o, d;
   if (IS.done || o < keep * 2) return 0;
-  IS.cs = crcRun(IS.out + IS.cp, o - IS.cp, IS.cs);
+  if (!NOCRC) IS.cs = crcRun(IS.out + IS.cp, o - IS.cp, IS.cs);
   d = o - keep; __builtin_memcpy(IS.out, IS.out + d, keep);
   IS.o = keep; IS.cp = keep;
   return d;
