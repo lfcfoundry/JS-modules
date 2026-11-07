@@ -1,9 +1,9 @@
 /*! ppmd-decode-with-wasm.js: ppmd-decode.js and ppmd-decode-wasm.js in one file. ppmd7Decode(...) here tries the WebAssembly decoder first and uses the JavaScript decoder
  * when WebAssembly is not usable (the page policy lacks 'wasm-unsafe-eval', or an old browser), so it always works and gives the same bytes. ppmd7Decode.plain is the JavaScript decoder alone;
  * ppmd7DecodeWasm is another name for ppmd7Decode. Built by wasm/join.js from the two files named above: edit those, not this one. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.4.0 (API 1) */
+ * Version 1.5.0 (API 1) */
 /* ppmd-decode: a PPMd (variant H, "PPMd7" as 7-Zip writes it) decoder. Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
-   Version 1.4.0 (API 1)
+   Version 1.5.0 (API 1)
 
    Decodes a raw PPMd7 stream (the range-coder bytes 7-Zip stores inside a .7z archive; no header) into a Uint8Array.
 
@@ -683,7 +683,8 @@ ppmd7Decode.fromProps = function (src, outSize, props, opts) {
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root). PPMd is by Dmitry Shkarin; the C code this follows is public domain (Igor Pavlov, 7-Zip).
  * ppmd7DecodeWasm.ready() is a promise: true once the wasm has compiled in the background (it starts when this file loads), false when it cannot be used;
  * ppmd7DecodeWasm.module() is the compiled WebAssembly.Module once ready, else null (send it to a worker with postMessage so the worker does not compile it again).
- * Version 1.4.0 (API 1)
+ * ppmd7DecodeWasm.async(src, outSize, order, memSize, opts) is the same decode as a promise that hands the page back about every 8 ms, so a big decode does not freeze the page.
+ * Version 1.5.0 (API 1)
  */
 
 (function (root, factory) {
@@ -721,14 +722,11 @@ ppmd7Decode.fromProps = function (src, outSize, props, opts) {
   var CHUNK = 65536;     // bytes of output per decode_more call
   function up16(n) { return Math.ceil(n / 16) * 16; }
 
-  function ppmd7DecodeWasm(src, outSize, order, memSize, opts) {
-    var srcLen, srcOff, outOff, modelOff, total, memory, r, out, x, done;
-    // anything unusual goes to the JavaScript decoder, which has the exact errors for it
+  // shared start for both ways: null means "hand the call to the JavaScript decoder", which has the exact errors for anything unusual
+  function begin(src, outSize, order, memSize, opts) {
+    var srcLen, srcOff, outOff, modelOff, total, memory, x;
     if (ensure() === null || !(src && src.length >= 5 && src[0] === 0 && outSize > 0 && outSize === Math.floor(outSize) && order >= 2 && order <= 64 && order === (order | 0) &&
-        memSize >= 2048 && memSize === (memSize | 0) && (!opts || opts.maxSize === undefined || outSize <= opts.maxSize))) {
-      ppmd7DecodeWasm.engine = 'js';
-      return ppmd7Decode(src, outSize, order, memSize, opts);
-    }
+        memSize >= 2048 && memSize === (memSize | 0) && (!opts || opts.maxSize === undefined || outSize <= opts.maxSize))) return null;
     srcLen = src.length;
     modelOff = SCRATCH + SCRATCH_BYTES;     // the model sits at a fixed address (byte 24576, built into the program), then the compressed bytes, then the result
     srcOff = up16(modelOff + (4 - (memSize & 3)) + memSize + 12);
@@ -737,17 +735,48 @@ ppmd7Decode.fromProps = function (src, outSize, props, opts) {
     try {
       if (!(total <= MAX_BYTES)) throw 0;
       memory = new WebAssembly.Memory({ initial: Math.ceil(total / 65536) });
-    } catch (e) { ppmd7DecodeWasm.engine = 'js'; return ppmd7Decode(src, outSize, order, memSize, opts); }
+    } catch (e) { return null; }
     new Uint8Array(memory.buffer, srcOff, srcLen).set(src);
     x = new WebAssembly.Instance(mod, { env: { memory: memory } }).exports;
-    r = x.decode_begin(srcOff, srcLen, outOff, outSize, order, memSize, modelOff, SCRATCH);
-    for (done = 0; r === 0 && done < outSize;) { done = done + CHUNK < outSize ? done + CHUNK : outSize; r = x.decode_more(done); }       // short calls: the browser moves to its optimized code between them
-    if (r !== 0) throw new Error(r === 1 ? 'PPMd: the compressed data ended early' : r === 3 ? 'PPMd: bad stream header' : 'PPMd: corrupt data');
-    out = new Uint8Array(outSize);
-    out.set(new Uint8Array(memory.buffer, outOff, outSize));
-    ppmd7DecodeWasm.engine = 'wasm';
-    return out;
+    return { x: x, memory: memory, outOff: outOff, r: x.decode_begin(srcOff, srcLen, outOff, outSize, order, memSize, modelOff, SCRATCH) };
   }
+  function fail(r) { return new Error(r === 1 ? 'PPMd: the compressed data ended early' : r === 3 ? 'PPMd: bad stream header' : 'PPMd: corrupt data'); }
+  function result(b, outSize) { var out = new Uint8Array(outSize); out.set(new Uint8Array(b.memory.buffer, b.outOff, outSize)); ppmd7DecodeWasm.engine = 'wasm'; return out; }
+
+  function ppmd7DecodeWasm(src, outSize, order, memSize, opts) {
+    var b = begin(src, outSize, order, memSize, opts), r, x, done;
+    if (b === null) { ppmd7DecodeWasm.engine = 'js'; return ppmd7Decode(src, outSize, order, memSize, opts); }
+    x = b.x; r = b.r;
+    for (done = 0; r === 0 && done < outSize;) { done = done + CHUNK < outSize ? done + CHUNK : outSize; r = x.decode_more(done); }       // short calls: the browser moves to its optimized code between them
+    if (r !== 0) throw fail(r);
+    return result(b, outSize);
+  }
+  /* the same decode, as a promise that hands the page back about every 8 ms (one page turn through a MessageChannel), so a big decode never freezes the page for long.
+     Same bytes and the same error texts (as a rejected promise). Laptop, 2026.11.06: the longest freeze went from 56 to 9 ms (Chromium 156) and 57 to 8 ms (Firefox 160); total time 1.02 and 1.00 */
+  var BUDGET_MS = 8, STEP = 8192;
+  ppmd7DecodeWasm.async = function (src, outSize, order, memSize, opts) {
+    var b, x, r, done = 0, mc = null, waiting = null;
+    try { b = begin(src, outSize, order, memSize, opts); } catch (e) { return Promise.reject(e); }
+    if (b === null) { ppmd7DecodeWasm.engine = 'js'; try { return Promise.resolve(ppmd7Decode(src, outSize, order, memSize, opts)); } catch (e) { return Promise.reject(e); } }
+    x = b.x; r = b.r;
+    function turn() {
+      if (typeof MessageChannel !== 'function') return new Promise(function (res) { setTimeout(res, 0); });
+      if (!mc) { mc = new MessageChannel(); mc.port1.onmessage = function () { var f = waiting; waiting = null; f(); }; }
+      return new Promise(function (res) { waiting = res; mc.port2.postMessage(0); });
+    }
+    function close() { if (mc) { mc.port1.close(); mc.port2.close(); mc = null; } }
+    return new Promise(function (resolve, reject) {
+      (function loop() {
+        try {
+          var t0 = performance.now();
+          while (r === 0 && done < outSize) { done = done + STEP < outSize ? done + STEP : outSize; r = x.decode_more(done); if (performance.now() - t0 >= BUDGET_MS) break; }
+          if (r !== 0) { close(); reject(fail(r)); return; }
+          if (done >= outSize) { close(); resolve(result(b, outSize)); return; }
+          turn().then(loop);
+        } catch (e) { close(); reject(e); }
+      })();
+    });
+  };
   ppmd7DecodeWasm.plain = ppmd7Decode;     // the JavaScript decoder itself, for a caller that wants no WebAssembly at all
   Object.defineProperty(ppmd7DecodeWasm, 'wasm', { get: function () { return ensure() !== null; }, enumerable: true });     // asking before the early compile is done compiles on the spot
   Object.defineProperty(ppmd7DecodeWasm, 'engine', { get: function () { return engineNow || (ensure() !== null ? 'wasm' : 'js'); }, set: function (v) { engineNow = v; }, enumerable: true });

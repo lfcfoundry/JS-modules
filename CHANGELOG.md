@@ -24,12 +24,12 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
 | [lzma-decode](modules/lzma-decode/README.md) | 1.4.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.4.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.20.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.12.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.12.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.9.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.5.7 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -67,6 +67,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
 - 2026-11-06 · **walker-sim** 2.4.2 · API 2: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 - 2026-11-06 · **ppmd-pack** 2.0.3 · API 2: Packed pages use the new ppmd-decode 1.4.0 WebAssembly decoder, which is faster.
+- 2026-11-06 · **ppmd-decode** 1.5.0 · API 1: New ppmd7DecodeWasm.async: decode without freezing the page
 - 2026-11-06 · **ppmd-decode** 1.4.0 · API 1: WebAssembly decoding is 8 to 29% faster.
 - 2026-11-06 · **netflow-scene** 1.9.0 · API 1: Sankey: amounts and shares beside the names (valueLabel, unit, percentOf), and notes with live numbers and a thin line to what they are about.
 - 2026-11-06 · **netflow-scene** 1.10.0 · API 1: {topbox} note word, amount on {top}
@@ -77,6 +78,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **netflow-layers** 1.12.2 · API 1: Flow pictures: back links use a darker amber (#9a6a00) that reads at 4.5:1 on white.
 - 2026-11-06 · **netflow-layers** 1.12.1 · API 1: Flow pictures: a back link that spans several rows no longer doubles back over itself.
 - 2026-11-06 · **netflow-engine** 2.4.1 · API 2: Smaller force layout program
+- 2026-11-06 · **memory-compression** 2.12.1 · API 2: Smaller minified files
 - 2026-11-06 · **memory-compression** 2.12.0 · API 2: Two smaller files: memory-compression.min.js (83 KB gzipped, was 122.5) and a read-only memory-compression-read.min.js (37 KB) for pages that only open data.
 - 2026-11-06 · **lzma-pack** 2.0.4 · API 2: Packed pages unpack faster on first open with the lzma-decode 1.4.0 decoder (about 600 bytes bigger).
 - 2026-11-06 · **lzma-decode** 1.4.0 · API 1: The first WebAssembly decode is 9 to 15% faster.
