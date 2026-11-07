@@ -417,6 +417,34 @@ int sheetMore(u32 n, u32 last) {
   while ((r = rowsPart(&SHS, last ? SHS.pos + 262144 : stop)) == MORE) { if (!last) return MORE; }
   return r;
 }
+/* Two readers: the sheet is cut at fixed places, and the rows that START in a stretch belong to that stretch (a row
+   start is the text <row followed by a space, > or /; the reader refuses comments and CDATA, so that text is always a tag).
+   segBegin(x, n, ...) starts a reader at x without looking for <sheetData>; segRows(n, stop) reads the rows that start
+   before stop and closes the last one: the output length, or what sheet() returns at the sheet's end (or -1, -2, -3).
+   segSkip(at, n) moves the page's reader to the first row start at or after at: 0, or -1 when none is in sight yet. */
+static int segClose(void) {
+  if (SHS.inRow) { if (!SHS.rowHas) SHS.o = SHS.rowStart; else SHS.rows++; SHS.inRow = 0; }
+  return (int)(SHS.o - SHS.out);
+}
+int segBegin(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap, u32 *fx, u32 fcap) {
+  fix = fx; fixcap = fcap; nfix = 0; DEF = 0;
+  Sh sh = { x, xf, n, xn, d1904, 0xffffffffu, 0, 0, out, out, out + cap, 0, -1, -1, 0, 0 }; SHS = sh;
+  return 0;
+}
+int segRows(u32 n, u32 stop) {
+  int r;
+  SHS.n = n;
+  while ((r = rowsPart(&SHS, SHS.pos + 262144 < stop ? SHS.pos + 262144 : stop)) == MORE) { if (SHS.pos >= stop) return segClose(); }
+  return r;
+}
+u32 segRowCount(void) { return SHS.rows; }
+int segSkip(u32 at, u32 n) {
+  const u8 *x = SHS.x; u32 k = at;
+  for (; k + 4 < n; k++) if (x[k] == '<' && x[k + 1] == 'r' && x[k + 2] == 'o' && x[k + 3] == 'w' && (x[k + 4] == ' ' || x[k + 4] == '>' || x[k + 4] == '/')) { SHS.pos = k; SHS.n = n; return 0; }
+  return -1;
+}
+u32 segOut(void) { return (u32)(SHS.o - SHS.out); }
+u32 segPos(void) { return SHS.pos; }
 int sheet(const u8 *x, u32 n, const u8 *xf, u32 xn, u32 d1904, u8 *out, u32 cap, u32 *fx, u32 fcap, u32 maxRows) {
   int r = sheetBegin(x, n, xf, xn, d1904, out, cap, fx, fcap, maxRows); if (r) return r;
   return sheetMore(n, 1);
