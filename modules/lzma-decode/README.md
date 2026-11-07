@@ -1,8 +1,8 @@
 # lzma-decode
 
-**Version 1.5.0 · API 1**
+**Version 1.5.1 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud); Firefox 160 and Chromium 156 (owner's laptop page)
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud)
 
 ## What it is and how it works
 
@@ -82,7 +82,7 @@ First decode of the 569,513-byte Pineapple Defense page (141,872 bytes of LZMA),
 
 On a laptop (16 cores) the default file is 2.17 times as fast in Firefox 160 (63.0 to 29.0 ms) and 2.97 times in Chromium 156 (58.5 to 19.7 ms), on a newer 569,513-byte Pineapple page with 193,108 bytes of LZMA, so the times are not directly comparable with the table.
 
-The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all three browsers. A warm 1.5 MB decode in Node 22 (a Node figure, not a browser one), 1.5.0: 69.6 ms (JavaScript) to 33.1 ms (WebAssembly), 2.1x. Against 1.4.0 the JavaScript decoder unpacks about 1.5 to 2 times faster after the first file in Chromium and Firefox (its first big unpack in WebKitGTK is 5 to 14% slower), and the WebAssembly one about 15% faster in Chromium and Firefox. The result is a copy with its own buffer of exactly `outSize` bytes, so the 2x working memory of the run is freed at once. Source: `wasm/lzma-decode.c` (the same model and checks as `lzma-decode.js`; since 1.4.0 it decodes 64 KB of output per call, `lzma_begin` then `lzma_more`, so the browser moves the loop to its optimized code between calls: first decode 0.85 to 0.91 of 1.3.1 in the three cloud browsers), `wasm/build.sh` rebuilds `wasm/lzma-decode.wasm` (clang with the wasm32 target; 5,024 bytes since 1.5.0, 4,701 in 1.4.0. Chromium 155, Firefox 158 and WebKitGTK 2.52.6 all compile it on the main thread: the old 4 KB limit on that in Chromium is gone), `wasm/embed.py` puts it into `lzma-decode-wasm.js`, and `wasm/join.js` builds the default file.
+The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all three browsers. A warm 1.5 MB decode in Node 22 (a Node figure, not a browser one), 1.5.0: 69.6 ms (JavaScript) to 33.1 ms (WebAssembly), 2.1x. Against 1.4.0 (1.5.1), the JavaScript decoder unpacks a first 3 MB file in 0.57 to 0.71 of the time in the three cloud browsers and later files in about 0.4, and the WebAssembly one about 15% faster in Chromium and Firefox. The result is a copy with its own buffer of exactly `outSize` bytes, so the 2x working memory of the run is freed at once. Source: `wasm/lzma-decode.c` (the same model and checks as `lzma-decode.js`; since 1.4.0 it decodes 64 KB of output per call, `lzma_begin` then `lzma_more`, so the browser moves the loop to its optimized code between calls: first decode 0.85 to 0.91 of 1.3.1 in the three cloud browsers), `wasm/build.sh` rebuilds `wasm/lzma-decode.wasm` (clang with the wasm32 target; 5,024 bytes since 1.5.0, 4,701 in 1.4.0. Chromium 155, Firefox 158 and WebKitGTK 2.52.6 all compile it on the main thread: the old 4 KB limit on that in Chromium is gone), `wasm/embed.py` puts it into `lzma-decode-wasm.js`, and `wasm/join.js` builds the default file.
 
 ### Faster decoders (1.5.0)
 
@@ -93,11 +93,11 @@ Two changes, both with byte-identical output (170 cases per build, including cut
 | WebAssembly | first unpack after load, 3 MB text | 0.85 | 0.82 | 0.96 |
 | WebAssembly | next unpack, 400 KB | 0.89 | 0.88 | 0.90 |
 | WebAssembly | laptop, first / second | 0.86 / 0.87 | 0.90 / 0.88 | not run |
-| JavaScript <!-- js-decoder-numbers: update here when the follow-up decoder lands --> | first unpack after load, 3 MB text | 0.67 to 0.79 | 0.70 to 0.79 | 1.05 to 1.14 (slower) |
-| JavaScript | next unpack, 400 KB | 0.41 to 0.47 | 0.50 to 0.52 | 0.59 to 0.67 |
-| JavaScript | laptop, first / second | 0.93 / 0.64 | 0.78 / 0.56 | not run |
+| JavaScript (1.5.1) | first unpack after load, 3 MB text | 0.67 | 0.57 | 0.71 |
+| JavaScript (1.5.1) | next unpack, 400 KB | 0.39 | 0.44 | 0.39 |
+| JavaScript (1.5.0) | laptop, first / second | 0.93 / 0.64 | 0.78 / 0.56 | not run |
 
-What it costs: the first big unpack in WebKitGTK is 5 to 14% slower on the JavaScript path (every later one is about a third faster), the WebAssembly program grows from 4,701 to 5,024 bytes, and the minified JavaScript decoder from 2,156 to 3,653 bytes (gzipped 1,179 to 1,151), so a packed page that carries it grows about 1.5 KB. Further gains in the loop are close to the native ceiling (the same C built natively runs about as fast as the system liblzma), so the next step would be a format change, such as independent blocks unpacked on several threads.
+What it costs: the WebAssembly program grows from 4,701 to 5,024 bytes, and the minified JavaScript decoder from 2,156 to 4,020 bytes (gzipped 1,179 to 1,167), so a packed page that carries it grows about 1.9 KB. 1.5.0's 5 to 14% slower first big unpack in WebKitGTK is gone in 1.5.1, which keeps the range coder in 32-bit integers. Further gains in the loop are close to the native ceiling (the same C built natively runs about as fast as the system liblzma), so the next step would be a format change, such as independent blocks unpacked on several threads.
 
 ## Compile early (since 1.3.0)
 
