@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-11-06
+- New out: 'bitmap' hands the browser a finished bitmap: Firefox laptop 2048 x 2048 27 ms against 50 ms drawn
+
 ## 1.3.6 · API 1 · 2026-11-06
 - Small and mid-size drawn pictures pick the faster way: Chrome laptop 960 x 540 9.8 to 4.8 ms
 
