@@ -26,7 +26,8 @@ void *memset(void *d, int c, unsigned long n) { u8 *p = d; while (n--) *p++ = (u
 void *memcpy(void *d, const void *s, unsigned long n) { u8 *p = d; const u8 *q = s; while (n--) *p++ = *q++; return d; }
 u32 base(void) { return (u32)&__heap_base; }
 
-static u32 nfix, fixcap, nrows; static u32 *fix;
+#define G __attribute__((address_space(1)))   /* WebAssembly globals: byte writes through a pointer cannot change them, so they stay in registers */
+static G u32 nfix, fixcap, nrows; static u32 *fix;
 u32 lines(void) { return nrows; }
 u32 fixups(void) { return nfix; }
 
@@ -35,7 +36,7 @@ static u32 *T; static u32 tn; static const u8 *S;
 /* Rows before the shared strings: deferStrings(rec, cap) after sheetBegin() makes the reader note (place, index) for each
    shared-string cell instead of writing it, so rows can be read while the strings are still being unpacked. */
 #define REDO (-4)   /* read this sheet again the usual way (an empty or missing string, a cell out of order, or too many to note) */
-static u32 *DR, drcap, ndr; static int DEF;
+static u32 *DR; static G u32 drcap, ndr; static G int DEF;
 void deferStrings(u32 *rec, u32 cap) { DR = rec; drcap = cap; ndr = 0; DEF = 1; }
 
 static int isWsCp(u32 c) { return c == 9 || c == 10 || c == 11 || c == 12 || c == 13 || c == 32 || c == 0xa0 || c == 0x1680 || (c >= 0x2000 && c <= 0x200a) || c == 0x2028 || c == 0x2029 || c == 0x202f || c == 0x205f || c == 0x3000 || c == 0xfeff; }
@@ -146,7 +147,7 @@ int deferred(void) { return (int)ndr; }
 
 /* sst() a piece at a time, as the list arrives: sstBegin(x, tab, cap), then sstMore(have, stop, done) after each piece.
    have: bytes here so far; stop: where the last "<si" seen begins (every element before it is whole). MORE until done. */
-static u32 sp_pos, sp_cnt, sp_cap, *sp_tab; static int sp_go;
+static G u32 sp_pos, sp_cnt, sp_cap; static u32 *sp_tab; static G int sp_go;
 void sstBegin(const u8 *x, u32 *tab, u32 cap) { T = tab; S = x; sp_tab = tab; sp_cap = cap; sp_pos = 0; sp_cnt = 0; sp_go = 0; }
 int sstMore(u32 have, u32 stop, int done) {
   const u8 *x = S; u32 pos = sp_pos; int r;
@@ -159,7 +160,7 @@ int sstMore(u32 have, u32 stop, int done) {
   for (;;) {
     u32 s2 = sp_pos + 262144;
     if (!done) { if (s2 > stop) s2 = stop; if (sp_pos >= s2) return MORE; }
-    r = sstPart(x, have, sp_tab, sp_cap, &sp_pos, &sp_cnt, s2);
+    { u32 pp = sp_pos, pc = sp_cnt; r = sstPart(x, have, sp_tab, sp_cap, &pp, &pc, s2); sp_pos = pp; sp_cnt = pc; }
     if (r != MORE) return r;
   }
 }
