@@ -22,8 +22,8 @@
     },
     {
       "id": "save-kit",
-      "version": "1.6.3",
-      "api": 1,
+      "version": "2.0.0",
+      "api": 2,
       "global": "SaveKit",
       "summary": "Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to; createLarge() does big saves in IndexedDB, with an optional copy that survives a browser crash.",
       "short": "Safe saves in localStorage and IndexedDB: backup slot, checksums, copy-paste save codes.",

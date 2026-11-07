@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.0 · API 2 · 2026-11-06
+- Faster saves and loads in Chrome and Edge; go-back warning: older copies cannot read the new Chrome saves.
+
 ## 1.6.3 · API 1 · 2026-11-06
 - Loads of saves with big count lists take 16 to 31% less time.
 

@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.3 (API 1)
+ * Version 2.0.0 (API 2)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -46,6 +46,8 @@
   var cleanHits = 0;                  // how many counts fields the clean fast path below kept as they were (load() uses it to skip a second walk)
   var fresh = false;                  // set only while load() rebuilds a state from text it parsed itself, so a clean counts object can be reused instead of copied
   var JSC = typeof navigator !== 'undefined' && /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Firefox/.test(navigator.userAgent);   // experiment: Object.values is much faster than Object.keys here
+  var V8 = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');   // Chromium-family browsers: create() saves big counts maps as [names, counts] (see packed())
+  var packedClean = typeof WeakSet === 'function' ? new WeakSet() : null, packedLive = 0;   // maps unpack() rebuilt from [names, counts] with every entry clean: cleanField keeps them as they are
   var trusted = false;                // set only while createLarge().load() rebuilds a state from bytes that passed their check and contain no prototype-pollution key names
   var BAD_KEYS = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
   var PROTO_NAMES = /__proto__|"constructor"|"prototype"/;   // does a saved text name a prototype-pollution key (one pass over a big text; three indexOf calls took about 3 times as long)
@@ -104,6 +106,7 @@
         var out = bag(), kept = 0, maxKeys = spec.maxKeys === 0 ? 0 : spec.maxKeys > 0 ? spec.maxKeys : DEFAULT_MAX_KEYS;
         if (!isObj(v)) v = d;   // a missing or broken field starts from its default (1.0.0 always gave an empty map here)
         if (!isObj(v)) return out;
+        if (packedLive > 0 && fresh && packedClean.has(v)) { packedClean.delete(v); packedLive--; cleanHits++; return v; }   // checked entry by entry while it was rebuilt
         var ks, cap = spec.max === 0 ? 0 : spec.max || 1e6, i, k, n, ok;
         if (JSC && fresh && cap > 0 && Object.getPrototypeOf(v) === Object.prototype) {   // WebKit: for...in skips making the list of names (about 12% faster there, slower in Chromium)
           i = 0; ok = true;
@@ -321,6 +324,43 @@
     var kinds = function (t) { return fields.filter(function (f) { return f[1].type === t; }).map(function (f) { return f[0]; }); };
     var soundKeys = o.soundKeys || kinds('num').concat(kinds('int'));
     var countKeys = kinds('counts');
+    var countRules = fields.filter(function (f) { return f[1].type === 'counts'; }).map(function (f) {
+      var sp = f[1]; return [f[0], sp.max === 0 ? 0 : sp.max || 1e6, sp.maxKeys === 0 ? 0 : sp.maxKeys > 0 ? sp.maxKeys : DEFAULT_MAX_KEYS]; });
+    // Since 2.0.0 a save written in a Chromium-family browser stores each counts map of 32 or more names as [names, counts]: V8 reads and writes
+    // two arrays far faster than one object with hundreds of names. unpack() turns them back into maps right after JSON.parse, in every browser.
+    function unpack(x) {
+      for (var j = 0; j < countRules.length; j++) {
+        var f = countRules[j][0], a = x[f];
+        if (!Array.isArray(a) || a.length !== 2 || !Array.isArray(a[0]) || !Array.isArray(a[1]) || a[0].length !== a[1].length) continue;
+        var ks = a[0], vs = a[1], cap = countRules[j][1], o = bag(), i, k, n, ok = ks.length <= countRules[j][2] && cap > 0;
+        for (i = 0; ok && i < ks.length; i++) {
+          k = ks[i]; n = vs[i];
+          if (typeof k !== 'string' || k.length > 200 || typeof n !== 'number' || !(n >= 1 && n <= cap) || n !== Math.floor(n) || k === '__proto__' || k === 'constructor' || k === 'prototype') ok = false;   // a repeated name keeps its first place and last count, as JSON.parse does with an object
+          else o[k] = n;
+        }
+        if (ok) { if (packedClean) { packedClean.add(o); packedLive++; } x[f] = o; continue; }
+        o = {};   // something is off: hand the ordinary checks a plain map with the saved entries, as JSON.parse would have made it
+        for (i = 0; i < ks.length; i++) if (typeof ks[i] === 'string') Object.defineProperty(o, ks[i], { value: vs[i], enumerable: true, writable: true, configurable: true });
+        x[f] = o;
+      }
+      return x;
+    }
+    // The object JSON.stringify writes in a Chromium-family browser, or null when a number is broken (the same rule as soundState).
+    function packed(state) {
+      if (!isObj(state) || !isSound(state, soundKeys)) return null;
+      var o = {}, ks = Object.keys(state), i, j, k, v, names, vs;
+      for (i = 0; i < ks.length; i++) if (ks[i] !== '__proto__') o[ks[i]] = state[ks[i]];
+      for (j = 0; j < countKeys.length; j++) {
+        v = state[countKeys[j]];
+        if (!isObj(v)) continue;
+        names = Object.keys(v);
+        if (names.length < 32) { if (!countsSound(v)) return null; continue; }   // small maps stay objects
+        vs = new Array(names.length);
+        for (i = 0; i < names.length; i++) { k = v[names[i]]; if (!isNum(k)) return null; vs[i] = k; }
+        o[countKeys[j]] = [names, vs];
+      }
+      return o;
+    }
 //@begin codes
     var re = new RegExp(escapeRe(prefix) + '([zp])\\.([A-Za-z0-9_-]+)\\.');
     var style = o.codeCheck;
@@ -370,7 +410,7 @@
     function parseSlot(t) {
       try {
         var x = JSON.parse(t || 'null');
-        if (isObj(x)) { if (hasRaw && t.indexOf('__proto__') < 0 && t.indexOf('constructor') < 0 && t.indexOf('prototype') < 0) plainText.add(x); return x; }
+        if (isObj(x)) { if (countRules.length && t.indexOf('[[') >= 0) unpack(x); if (hasRaw && t.indexOf('__proto__') < 0 && t.indexOf('constructor') < 0 && t.indexOf('prototype') < 0) plainText.add(x); return x; }
       } catch (e) {}
       return null;
     }
@@ -433,19 +473,21 @@
       // again until that many ms have passed; save(state, true) always writes.
       save: function (state, force) {
         try {
-          if (off || !storage || !soundState(state)) return false;
+          if (off || !storage) return false;
+          var usePk = V8 && countKeys.length > 0, pk = usePk ? packed(state) : null;   // Chromium-family browsers: the [names, counts] form, checked while it is made
+          if (usePk ? !pk : !soundState(state)) return false;
           var now = Date.now(), probe = null;
 //@begin migrate
-          if (version) state.v = version;
+          if (version) { state.v = version; if (pk) pk.v = version; }
 //@end
 //@begin skipUnchanged
           if (skipMs) {
-            state[stamp] = 0; probe = JSON.stringify(state);
+            state[stamp] = 0; if (pk) pk[stamp] = 0; probe = JSON.stringify(pk || state);
             if (force !== true && probe === lastProbe && now - lastWriteAt < skipMs) { state[stamp] = lastSeen; return true; }
           }
 //@end
-          state[stamp] = now;
-          var txt = JSON.stringify(state);
+          state[stamp] = now; if (pk) pk[stamp] = now;
+          var txt = JSON.stringify(pk || state);
           storage.setItem(key, txt);
 //@begin durable
           if (mirror) mirror.write(txt, now);
@@ -565,7 +607,7 @@
           if (e.key !== null && e.key !== key) return;   // key null: the other tab cleared all storage
           if (e.storageArea && storage && e.storageArea !== storage) return;
           var x = null, clean = null;
-          try { x = e.newValue == null ? null : JSON.parse(e.newValue); } catch (err) {}
+          try { x = e.newValue == null ? null : parseSlot(e.newValue); } catch (err) {}   // parseSlot also turns [names, counts] back into maps
           try { if (isObj(x)) clean = finish(x); } catch (err) {}
           try { cb(clean, e); } catch (err) {}
         }

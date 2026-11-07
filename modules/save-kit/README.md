@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 1.6.3 · API 1**
+**Version 2.0.0 · API 2**
 
-**Tested in:** cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; 20,000 random loads equal to 1.6.2 (also with the WebKit branch forced)
+**Tested in:** cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; 9,944 random saves equal to 1.6.3 (Chromium and Firefox paths, damaged lists included)
 
 ## What it is and how it works
 
@@ -122,7 +122,7 @@ Minified size with terser 5.36.0 (`-c passes=2 -m`), bytes, smaller is better: 1
 
 For a small game that only needs checked numbers, whole numbers, flags and short text with a backup slot, copy `save-kit-lite.js` instead (global `SaveKitLite`). **1,811 bytes minified, 966 gzipped** (terser 5.51.2, `-c passes=2 -m`, header kept), against 3,978 / 1,847 for the full file with every part cut by `lean.py`. It has `load()`, `save()`, `validate()` and `clear()` and the options `key`, `schema`, `defaults`, `storage`, `backupEveryMs`, `backupKey`, `stamp`. No `counts` or `raw` fields, codes, autosave, versions, other-tab notice, IndexedDB or damaged-slot copy; those stay in `save-kit.js`.
 
-It reads and writes the same stored text as `create()` and gives the same answers: `test/lite.js` feeds 3,000 random damaged main and backup slots to both and requires identical results, and checks hostile keys, the backup interval and blocked storage. Speed against `create()` on a six-field save (early-stop rule, limit 5%, lite/full, lower is better): Chromium 155 save 0.98 (inconclusive), load 0.91 (faster); Firefox 158 save 1.01, load 0.95 (both ok); WebKitGTK 2.52.6 save 0.89, load 0.97 (both ok). So it matches the full file in speed; it is smaller, not faster.
+It reads and writes the same stored text as `create()` and gives the same answers (except since 2.0.0 a `create()` save written in a Chromium-family browser with a counts map of 32 or more names, which lite cannot read; see below): `test/lite.js` feeds 3,000 random damaged main and backup slots to both and requires identical results, and checks hostile keys, the backup interval and blocked storage. Speed against `create()` on a six-field save (early-stop rule, limit 5%, lite/full, lower is better): Chromium 155 save 0.98 (inconclusive), load 0.91 (faster); Firefox 158 save 1.01, load 0.95 (both ok); WebKitGTK 2.52.6 save 0.89, load 0.97 (both ok). So it matches the full file in speed; it is smaller, not faster.
 
 ## What it does that plain JSON saves do not
 
@@ -131,6 +131,8 @@ It reads and writes the same stored text as `create()` and gives the same answer
 - **No database wait for small saves.** It is about 90 to 250 times as fast as idb-keyval and localForage for a 448-byte save, and 2 to 25 times as fast for 20 KB, because `localStorage` answers at once.
 - **Small.** The core with checks and backup is 1.8 KB minified and gzipped, against 9.1 KB for localForage and 14.1 KB for zod bundled whole. The full file, with codes, big saves and the crash copy, is 6.1 KB in the lean build. Since 1.6.0, `save-kit-lite.js` keeps checked fields and a backup slot in 966 bytes, about 2.6 times idb-keyval's 370.
 - **The price.** Next to a bare `JSON.stringify` into `localStorage` it is 1.1 to 2.9 times slower, which is the cost of the checks. idb-keyval is smaller still (0.4 KB gzipped, against 1.0 KB for the lite file), but it has no checks and no backup.
+
+**Since 2.0.0 (API 2), in Chromium-family browsers, `create()` stores each counts map of 32 or more names as two lists, `[names, counts]`.** V8 reads and writes two lists much faster than one object with hundreds of names. Every browser reads both shapes, and the checks are the same (9,944 random saves, damaged ones included, give the same answers as 1.6.3). 20 KB, ours/theirs against localForage's localStorage driver, Chromium 155: save 1.25 to 0.81 (now faster), load 1.39 to 1.05 (about even). Firefox and WebKitGTK keep the object shape, because rebuilding the maps is slow there. Small maps, codes, `createLarge()` and `save-kit-lite.js` are unchanged. **Upgrade note:** save-kit 1.6.3 or older, and `save-kit-lite.js`, cannot read such a save, so do not go back to an older copy once players have saved with 2.0.0 in Chromium.
 
 Since 1.6.3 a clean load checks each counts map once and skips the second scan for damaged fields, so a 20 KB load against localForage's localStorage driver (which checks nothing) went from 1.78 to 1.41x of its time in Chromium 155, 1.45 to 1.22 in Firefox 158 and 2.03 to 1.41 in WebKitGTK 2.52.6 (early-stop rule; `JSON.parse` alone is about two thirds of the load). It is still slower there; the rest is the per-key checks.
 

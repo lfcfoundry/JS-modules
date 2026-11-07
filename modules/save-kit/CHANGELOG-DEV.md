@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.0 · API 2 · 2026-11-06
+
+### Quick
+In Chromium-family browsers create() saves counts maps of 32 or more names as [names, counts]: a 20 KB save is now faster than localForage's localStorage driver (0.81x, was 1.25x), load 1.05x (was 1.39x). Older copies and save-kit-lite cannot read those saves.
+
+### Deep
+In Chromium-family browsers create() saves counts maps of 32 or more names as [names, counts]: a 20 KB save is now faster than localForage's localStorage driver (0.81x, was 1.25x), load 1.05x (was 1.39x). Older copies and save-kit-lite cannot read those saves. Every browser reads both shapes; the [names, counts] lists are checked entry by entry while the map is rebuilt (a repeated name keeps its first place and last count, as JSON.parse does), and anything off hands the ordinary checks a plain map. Firefox and WebKitGTK keep the object shape (rebuilding maps costs about 50 us there). Owner cards: Chromium only, 2.0.0 with API 2.
+
 ## 1.6.3 · API 1 · 2026-11-06
 
 ### Quick
