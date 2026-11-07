@@ -2,6 +2,20 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-11-07
+
+### Quick
+JavaScript decoder keeps its range coder in 32-bit integers; same bytes and same errors, no API change
+
+### Details
+range and code stay 32-bit integers: unsigned compares flip the top bit, Math.imul for the bound, !(range >>> 24) for the refill test, so values of 2^31 and above no longer become doubles.
+Ratio vs 1.4.0, lower is better, fresh page per sample (31 pages x 3 runs), first 3 MB / next 400 KB: Chromium 155 0.67 / 0.39 (1.5.0: 0.79 / 0.46), Firefox 158 0.57 / 0.44 (0.71 / 0.52), WebKitGTK 2.52.6 0.71 / 0.39 (1.04 / 0.58): the 1.5.0 WebKitGTK first-file slowdown is gone. Node 22 here, 1.6 MB: 1.5.0 20.5 to 16.5 ms median.
+Size: minified 4,020 bytes (1.5.0 3,653; 1.4.0 2,156), gzip 1,167 (1.4.0 1,179).
+171 cases give the same output bytes or error message as 1.4.0. Module tests 350 pass; lzma-pack 25 pass; packed pages open with and without WebAssembly in all three browsers.
+
+### Deep
+Requested by the owner. Research j9 (lzma-decode/kernel-2026.11.07, BRIEF-apply-js-v2.md). Alone the int32 coder on 1.4.0 gave Chromium 0.95/0.91, Firefox 0.92/0.91, WebKitGTK 0.71/0.74; stacked with the 1.5.0 one-loop rewrite it wins in every browser. Splitting out the distance decode (j7) gave WebKitGTK 1.06 and was dropped.
+
 ## 1.5.0 · API 1 · 2026-11-07
 
 ### Quick
