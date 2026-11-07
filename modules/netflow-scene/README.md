@@ -1,6 +1,6 @@
 # netflow-scene
 
-**Version 1.10.1 · API 1**
+**Version 1.10.2 · API 1**
 
 **Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6
 

@@ -107,3 +107,12 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(S2.labels.some((l) => l.note && l.t === 'Salary \u2192 Rent, $1,800 | Salary, $3,000'), '{top} is the biggest flow and {topbox} the biggest box, each with its amount');
   console.log('ok   sankey value labels and notes');
 }
+/* straight curve pieces (handles at a third and two thirds) are written as L; real curves stay C (since 1.10.2) */
+{
+  const S = SC.make({ kind: 'network', view: 'network', dir: 'none', nodes: [], edges: [], width: 200, height: 100 }, {});
+  const ax = 10, ay = 20, bx = 70, by = 50;
+  S.curves = [{ P: [ax, ay, ax + (bx - ax) / 3, ay + (by - ay) / 3, ax + 2 * (bx - ax) / 3, ay + 2 * (by - ay) / 3, bx, by, 90, 10, 120, 90, 150, 40], w: 2, color: [0, 0, 0, 1] }];
+  const svg = SC.toSvg(S);
+  ok(svg.includes('d="M10 20L70 50C90 10 120 90 150 40"'), 'a straight piece is L, a bent one stays C');
+  console.log('ok   straight curve pieces as L');
+}
