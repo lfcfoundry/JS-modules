@@ -155,3 +155,16 @@ Compared: save-kit's createLarge against idb-keyval and localForage (game-like s
 
 
 Cloud-browser runs (shared machine, not the laptop), median of 14 rounds over two passes, one library at a time. idb-keyval and localForage store the object as it is, with no checks and no backup; save-kit also checks every field and keeps a backup. Below 4 MB it is equal or faster (WebKitGTK 0.8 MB load is a tie at 7, 7 and 8 ms on a 1 ms clock). Where it loses: with `create()` and small saves, in WebKitGTK a 20 KB load takes up to 1.5 times and a 20 KB save 1.3 times as long as localForage's localStorage driver, because that driver checks nothing (with `trust: true` the load is level at 0.99).
+
+**Opening the page against localForage, cloud-browser runs.**
+
+Compared: save-kit.min.js against localForage (run the script, create, and load a 20 KB save in a fresh page, ms, lower is faster).
+
+<!-- title: Opening a page and loading a 20 KB save takes save-kit.min.js 0.66 to 0.86 of localForage's time in all three browsers -->
+| way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| save-kit.min.js 2.4.1 | 5.47 | 5.30 | 1.13 |
+| save-kit.js 2.4.1 (readable file) | 6.10 | 6.38 | 1.57 |
+| localForage 1.10.0 | 8.31 | 6.17 | 1.55 |
+
+Cloud-browser runs (shared machine, not the laptop), mean of 40 fresh pages per library, checks on. Name the minified file in any speed claim: the readable file is about even with localForage in Firefox and WebKitGTK.

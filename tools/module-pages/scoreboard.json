@@ -138,6 +138,14 @@
    ]
   },
   {
+   "label": "save-kit.min.js page open + 20 KB load vs localForage",
+   "x": 1.16,
+   "module": "save-kit",
+   "proof": [
+    "0.66 to 0.86 of localForage"
+   ]
+  },
+  {
    "label": "pad-nav vs js-spatial-navigation, WebKitGTK",
    "x": 1.05,
    "module": "pad-nav",
