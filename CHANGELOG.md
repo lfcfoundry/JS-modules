@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.3 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 2.1.0 · API 2 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 2.2.0 · API 2 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -61,6 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-07 · **save-kit** 2.2.0 · API 2: Big saves of many same-shape records open faster in Firefox and Safari-family browsers; older copies cannot read those saves.
 - 2026-11-07 · **save-kit** 2.1.0 · API 2: New warm(): start the load early so it is ready when the game asks. Big saves are faster to open; older copies cannot read big saves written by this one.
 - 2026-11-06 · **zip-open** 1.20.1 · API 1: Fixed: an Excel file with a crafted number format could freeze the page for many seconds or minutes. It now opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.20.0 · API 1: Big text-heavy Excel files open 29 to 40% faster (14 to 35% on the first open in a page): a third thread unpacks the list of shared texts while the rows are read. Other files about the same. Same results.

@@ -113,6 +113,24 @@ async function battery(src) {
   nm = id(); a = mk({ name: nm }); s = bigSt(70000); var old = JSON.stringify(Object.assign({}, s, { seen: 1 }));
   await new Promise(function (ok) { var q = indexedDB.open(nm, 1); q.onupgradeneeded = function () { q.result.createObjectStore('slots'); }; q.onsuccess = function () { var d = q.result, t = d.transaction('slots', 'readwrite'); t.objectStore('slots').put({ t: old, n: old.length }, 'main'); t.oncomplete = function () { d.close(); ok(); }; }; });
   got = await a.load(); check('chunked: an old one-text save still loads', got && got.world.length === 70000 && got.gold === 1234);
+  // 14 columns: outside Chromium a list of 10,000+ same-shape records is stored as { k: names, c: columns } and built back the same; every browser reads it
+  var putRec = function (name, rec) { return new Promise(function (ok) { var q = indexedDB.open(name, 1); q.onupgradeneeded = function () { q.result.createObjectStore('slots'); }; q.onsuccess = function () { var d = q.result, t = d.transaction('slots', 'readwrite'); t.objectStore('slots').put(rec, 'main'); t.oncomplete = function () { d.close(); ok(); }; }; }); };
+  var getRec = function (name, slot) { return new Promise(function (ok) { var q = indexedDB.open(name, 1); q.onsuccess = function () { var d = q.result, g = d.transaction('slots').objectStore('slots').get(slot); g.onsuccess = function () { d.close(); ok(g.result); }; }; }); };
+  var v8 = /Chrome\//.test(navigator.userAgent);
+  nm = id(); a = mk({ name: nm }); s = st(); s.world = []; for (i = 0; i < 20000; i++) s.world.push({ x: i, t: 'a"\u00e9' + (i % 5), on: i % 3 === 0 ? null : i % 2 === 0 });
+  var want = JSON.stringify(s.world); await a.save(s); got = await a.load(); r = await getRec(nm, 'main');
+  check('columns: 20,000 same-shape records round trip', got && JSON.stringify(got.world) === want && got.gold === 1234 && got.items['item 7'] === 8);
+  check('columns: stored as columns outside Chromium, as rows in Chromium', v8 ? !r.q : !!(r.q && r.q.f === 1 && r.t.indexOf('world') < 0));
+  s.world[777] = { x: 1, t: 'a', on: true, extra: 1 }; await a.save(s); got = await a.load(); r = await getRec(nm, 'main');
+  check('columns: one record of another shape keeps rows', !r.q && got && got.world[777].extra === 1 && got.world.length === 20000);
+  var colT = '{"k":["x","t"],"c":[[1,2,3],["a","b","c"]]}', headT = '{"gold":5,"name":"C","items":{},"world":[]}';
+  nm = id(); await putRec(nm, { t: headT, n: headT.length, c: { f: 'world', k: 1, m: 3, g: 'g1' }, q: { t: colT, n: colT.length, g: 'g1', i: 0, f: 1 } });
+  a = mk({ name: nm }); got = await a.load(); await a.close();
+  check('columns: every browser reads a columns save', got && got.gold === 5 && JSON.stringify(got.world) === '[{"x":1,"t":"a"},{"x":2,"t":"b"},{"x":3,"t":"c"}]');
+  colT = '{"k":["x","x"],"c":[[1,2,3],[4,5,6]]}'; nm = id(); await putRec(nm, { t: headT, n: headT.length, c: { f: 'world', k: 1, m: 3, g: 'g1' }, q: { t: colT, n: colT.length, g: 'g1', i: 0, f: 1 } });
+  a = mk({ name: nm }); check('columns: a repeated name is refused', (await a.load()) === null); await a.close();
+  colT = '{"k":["x","t"],"c":[[1,2,3],["a","b"]]}'; nm = id(); await putRec(nm, { t: headT, n: headT.length, c: { f: 'world', k: 1, m: 3, g: 'g1' }, q: { t: colT, n: colT.length, g: 'g1', i: 0, f: 1 } });
+  a = mk({ name: nm }); check('columns: a short column is refused', (await a.load()) === null); await a.close();
   // 12 no IndexedDB: everything quietly false/null
   var none = mk({ indexedDB: null }); check('no IndexedDB: save false, load null', (await none.save(st())) === false && (await none.load()) === null);
   return out;

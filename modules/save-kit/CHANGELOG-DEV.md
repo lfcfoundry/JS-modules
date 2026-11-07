@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.0 · API 2 · 2026-11-07
+
+### Quick
+Outside Chromium, createLarge stores an array of 10,000+ same-shape plain records (numbers, strings, true/false, null) as columns {k, c}: about 40% less text. WebKitGTK 20 MB load 0.70-0.77x, save 0.80-0.84x; Firefox 20 MB load 0.70x, save 0.73x; 5 MB load 0.7-0.8x. Chromium unchanged. 2.1.0 and older cannot read column saves.
+
+### Deep
+Columns for createLarge. Outside Chromium-family browsers an array field of 10,000+ entries that are all plain objects (constructor Object) with the same names in the same order and only number, string, boolean or null values is stored as {k: names, c: columns}; pieces saves (100,000+) do this per piece (piece f: 1), smaller arrays keep one columns piece inside the head record (rec.q), so still one read. load() rebuilds the same objects (same names, order, values). Refused as broken: short column, repeated or __proto__ name, wrong total, wrong save id. Chromium keeps rows: columns there made 20 MB saves 17-30% slower for an 8% faster load. Hidden cost found and avoided: reading pieces as they arrive (parse on arrival) made the NEXT Chromium save about 30% slower (JSON.stringify of the unrelated state 58-62 -> 73-78 ms); kept the old gather-then-parse order. Parse-on-arrival and asking for pieces with the head gave no gain in WebKit. Measured ms 2.1.0/2.2.0 (2 runs): WebKitGTK 2.52.6 20 MB load 111-116/78-89, save 72-75/58-63, 5 MB load 31/24-26; Firefox 158 20 MB load 143-156/102-109, save 148-150/104-113, 5 MB load 37-38/26-27; Chromium 155 20 MB 88-90/89-92 save, 93-99/93-98 load. Equivalence: 133 cases per browser (odd shapes, undefined, nested, Date, class, null-prototype, toJSON, holes, unicode, -0, NaN, integer-like names, damaged columns) equal to 2.1.0 in Chromium 155, Firefox 158, WebKitGTK 2.52.6; the pieces test (60 cases, WebKitGTK) equal; 43 large-save checks pass in all three. Upgrade note: save-kit 2.1.0 or older cannot read a save written as columns.
+
 ## 2.1.0 · API 2 · 2026-11-07
 
 ### Quick

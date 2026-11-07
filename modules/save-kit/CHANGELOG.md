@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.0 · API 2 · 2026-11-07
+- Big saves of many same-shape records open faster in Firefox and Safari-family browsers; older copies cannot read those saves.
+
 ## 2.1.0 · API 2 · 2026-11-07
 - New warm(): start the load early so it is ready when the game asks. Big saves are faster to open; older copies cannot read big saves written by this one.
 

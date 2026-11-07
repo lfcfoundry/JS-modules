@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.1.0 (API 2)
+ * Version 2.2.0 (API 2)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -693,7 +693,7 @@
     var plain = new WeakSet();   // parsed states whose text names no prototype-pollution key
     var chan = null, listeners = [], mine = Math.random().toString(36).slice(2);
     var skipMs = o.skipUnchangedMs > 0 ? o.skipUnchangedMs : 0, lastProbe = null, lastWriteAt = 0, lastSeen = 0;   // skipUnchangedMs: the last stored text, when, and its stamp
-    var useLock = !!o.lock, held = null, first = null, lostCb = null, CHUNK_MIN = 100000;   // arrays shorter than CHUNK_MIN entries stay in the one text
+    var useLock = !!o.lock, held = null, first = null, lostCb = null, CHUNK_MIN = 100000, COLS_MIN = 10000, COLS = !V8;   // arrays shorter than CHUNK_MIN entries stay in the one text
 
     function badFields(x) {
       var n = 0, i, v;
@@ -737,6 +737,7 @@
           rq.onsuccess = function () {
             var rec = rq.result, c = rec && rec.c, k, got = [], left, i;
             if (!c) { ok(open(rec)); return; }
+            if (rec.q) { ok(c.k === 1 ? open(rec, [rec.q]) : null); return; }   // one columns piece kept inside the head record
             k = c.k;
             if (!(k >= 1 && k <= 64 && k % 1 === 0 && typeof c.f === 'string')) { ok(null); return; }
             left = k;
@@ -748,6 +749,60 @@
           };
         } catch (e) { ok(null); }
       });
+    }
+    // Columns: a piece whose entries are all plain objects with the same names in the same order, holding only numbers, strings, true/false
+    // or null, is stored as { k: names, c: one array per name } (r.f = 1). That text is about 40% shorter and parses faster, and load() builds
+    // the same objects again (same names, same order, same values) in one loop.
+    function cols(a, from, to) {
+      var f = a[from], keys, m, c = [], j;
+      if (!f || f.constructor !== Object) return null;
+      keys = Object.keys(f); m = keys.length;
+      if (m === 0 || m > 64 || keys.indexOf('__proto__') >= 0) return null;
+      for (j = 0; j < m; j++) c.push(V8 ? [] : new Array(to - from));
+      return (V8 ? colsIn : colsKeys)(a, from, to, keys, c) ? { k: keys, c: c } : null;
+    }
+    // V8 lists the names of a row fastest with for-in (no array made per row); the others with Object.keys.
+    function colsIn(a, from, to, keys, c) {
+      var m = keys.length, i, j, o, v, t, key;
+      for (i = from; i < to; i++) {
+        o = a[i];
+        if (!o || o.constructor !== Object) return false;
+        j = 0;
+        for (key in o) {
+          if (j >= m || key !== keys[j]) return false;
+          v = o[key]; t = typeof v;
+          if (t !== 'number' && t !== 'string' && t !== 'boolean' && v !== null) return false;
+          c[j++].push(v);
+        }
+        if (j !== m) return false;
+      }
+      return true;
+    }
+    function colsKeys(a, from, to, keys, c) {
+      var m = keys.length, i, j, o, ks, v, t;
+      for (i = from; i < to; i++) {
+        o = a[i];
+        if (!o || o.constructor !== Object) return false;
+        ks = Object.keys(o);
+        if (ks.length !== m) return false;
+        for (j = 0; j < m; j++) {
+          if (ks[j] !== keys[j]) return false;
+          v = o[keys[j]]; t = typeof v;
+          if (t !== 'number' && t !== 'string' && t !== 'boolean' && v !== null) return false;
+          c[j][i - from] = v;
+        }
+      }
+      return true;
+    }
+    function rows(x) {
+      if (!isObj(x) || !Array.isArray(x.k) || !Array.isArray(x.c)) return null;
+      var k = x.k, c = x.c, m = k.length, n, out, i, j, o;
+      if (m === 0 || m > 64 || c.length !== m || !Array.isArray(c[0])) return null;
+      n = c[0].length;
+      for (j = 0; j < m; j++) { if (typeof k[j] !== 'string' || k[j] === '__proto__' || k.indexOf(k[j]) !== j || !Array.isArray(c[j]) || c[j].length !== n) return null; }
+      out = new Array(n);
+      for (i = 0; i < n; i++) { o = {}; for (j = 0; j < m; j++) o[k[j]] = c[j][i]; out[i] = o; }
+      return out;
     }
     // The state a record holds, or null when the record is missing, has the wrong length, or is not a JSON object.
     function open(rec, parts) {
@@ -763,7 +818,7 @@
             r = parts[i];
             if (!r || r.g !== rec.c.g || r.i !== i || typeof r.t !== 'string' || r.t.length !== r.n) return null;
             if (clean && PROTO_NAMES.test(r.t)) clean = false;
-            r = JSON.parse(r.t);
+            r = r.f === 1 ? rows(JSON.parse(r.t)) : JSON.parse(r.t);
             if (!Array.isArray(r)) return null;
             arrs.push(r);
           }
@@ -874,8 +929,16 @@
             head = {}; for (name in state) if (name !== big) head[name] = state[name];
             t = JSON.stringify(head); g = now + '-' + Math.random().toString(36).slice(2); rec = { t: t, n: t.length, c: { f: big, k: k, m: arr.length, g: g } };
             per = Math.ceil(arr.length / k); parts = [];
-            for (i = 0; i < k; i++) { var pt = JSON.stringify(arr.slice(i * per, (i + 1) * per)); parts.push({ t: pt, n: pt.length, g: g, i: i }); }
-          } else { t = JSON.stringify(state); rec = { t: t, n: t.length }; }
+            for (i = 0; i < k; i++) { var lo = i * per, hi = Math.min(arr.length, lo + per), cx = COLS ? cols(arr, lo, hi) : null, pt = JSON.stringify(cx || arr.slice(lo, hi)); parts.push(cx ? { t: pt, n: pt.length, g: g, i: i, f: 1 } : { t: pt, n: pt.length, g: g, i: i }); }
+          } else {
+            if (COLS) { bigN = COLS_MIN - 1; for (name in state) if (Array.isArray(state[name]) && state[name].length > bigN) { big = name; bigN = state[name].length; } }
+            var cx = big ? cols(state[big], 0, bigN) : null;
+            if (cx) {   // a smaller list of same-shape records: one columns piece, kept inside the head record (one read)
+              head = {}; for (name in state) if (name !== big) head[name] = state[name];
+              t = JSON.stringify(head); pt = JSON.stringify(cx); g = now + '-' + Math.random().toString(36).slice(2);
+              rec = { t: t, n: t.length, c: { f: big, k: 1, m: bigN, g: g }, q: { t: pt, n: pt.length, g: g, i: 0, f: 1 } };
+            } else { t = JSON.stringify(state); rec = { t: t, n: t.length }; }
+          }
           if (useLock && held === null) return (first || (first = claim(false))).then(function (gr) { return gr ? enqueue(rec, parts) : false; });
           return useLock && !held ? Promise.resolve(false) : enqueue(rec, parts);
         } catch (e) { return Promise.resolve(false); }
