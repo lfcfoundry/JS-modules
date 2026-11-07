@@ -11,7 +11,7 @@ const FULL = require('../sprite-baker.js');
 const py = (...a) => cp.spawnSync('python3', [path.join(dir, 'lean.py'), ...a], { encoding: 'utf8' });
 const parts = py('--list').stdout.trim().split('\n').map(l => l.split(/\s+/)[0]);
 const EXPORTS = { ramps: ['material', 'bakeRamp'], mesh: ['mesh'], rotation: ['rotationMatrix', 'rotateAxis', 'rotateX'], shapes: ['sphere', 'rod', 'capsule', 'torus'],
-  baking: ['downsample', 'outline', 'bakeSprite', 'bakeRoll', 'baker', 'toImageData', 'toCanvas', 'DEFAULT_MAX_PIXELS'], sheets: ['alphaMask', 'hit', 'toSheet'], checks: [] };
+  baking: ['downsample', 'outline', 'bakeSprite', 'bakeRoll', 'baker', 'toImageData', 'toCanvas', 'DEFAULT_MAX_PIXELS'], sheets: ['alphaMask', 'hit', 'toSheet'], fast: [], checks: [] };
 const NEEDS = { baking: ['mesh', 'rotation'], sheets: ['baking'] };
 const closure = set => { set = new Set(set); for (let again = true; again;) { again = false; for (const p in NEEDS) if (!set.has(p) && NEEDS[p].some(u => set.has(u))) { set.add(p); again = true; } } return set; };
 const FANCY = ['ramps', 'mesh', 'rotation', 'shapes', 'baking', 'sheets'];
@@ -42,6 +42,7 @@ function battery(L, cut, label) {   // the kept parts answer like the full modul
     eq(L.bakeRoll(scene, 3, [40, 30], { ss: 2 }), FULL.bakeRoll(scene, 3, [40, 30], { ss: 2 }));
     const b = L.baker(scene, 30, { ss: 1 }); eq(b.frame(1), FULL.baker(scene, 30, { ss: 1 }).frame(1));
     const R = new FULL.Rast(20, 20); FULL.drawMesh(R, ball, m1, { scale: 1, ox: 10, oy: 10 }); eq(L.downsample(R, 2), FULL.downsample(R, 2)); eq(L.outline(A, 1, [9, 9, 9]), FULL.outline(A, 1, [9, 9, 9]));
+    if (has('fast')) { eq(L.bakeRoll(scene, 3, [40, 30], { ss: 2, fast: true }), FULL.bakeRoll(scene, 3, [40, 30], { ss: 2, fast: true })); eq(L.bakeSprite(scene, 30, { ss: 1, fast: true }), FULL.bakeSprite(scene, 30, { ss: 1, fast: true })); }
     eq(L.toImageData(A), FULL.toImageData(A)); eq(L.DEFAULT_MAX_PIXELS, FULL.DEFAULT_MAX_PIXELS); assert.strictEqual(L.toCanvas(A), null); n++;
   }
   if (has('sheets')) { eq(L.alphaMask(A, { threshold: 10 }), FULL.alphaMask(A, { threshold: 10 })); eq(L.hit(A, 1, 1), FULL.hit(A, 1, 1)); eq(L.hit(A, 99, 1), FULL.hit(A, 99, 1)); const fr = [A, A, A]; const s1 = L.toSheet(fr, { padding: 1 }), s2 = FULL.toSheet(fr, { padding: 1 }); eq(s1 && s1.image, s2 && s2.image); }

@@ -277,6 +277,16 @@ void ef_gather(const u8 *b, u32 chunk, u32 C, u32 K, const u32 *ids, const u32 *
     for (u32 t = 0; t < c; t++) out[d + t] -= bs;
   }
 }
+// the values of one list-set chunk, in order, with each list's base taken off in place of the caller's loop: the chunk holds nl lists, offs[0..nl] are their absolute value
+// positions (offs[0] is where the chunk starts), K is the list-set step; list j sits at out[offs[j] - offs[0] .. offs[j+1] - offs[0]) and had j * K added when it was built
+void ef_lists_decode(const u8 *b, u32 K, const u32 *offs, u32 nl, u32 *out) {
+  ef_decode(b, out);
+  u32 cs = offs[0];
+  for (u32 j = 1; j < nl; j++) {
+    u32 bs = j * K, e = offs[j + 1] - cs;
+    for (u32 t = offs[j] - cs; t < e; t++) out[t] -= bs;
+  }
+}
 static void rangeOf(const u8 *b, u32 kind, u32 a, u32 cnt, u32 *out) { if (kind == 0) efRange(b, a, cnt, out); else pef_decode_range(b, a, a + cnt, out); }
 static u32 nextOf(const u8 *b, u32 kind, u32 x) { return kind == 0 ? nextOne(b, x) : pef_next(b, x); }
 // two lists, a the shorter; writes the distinct common values to out, returns how many

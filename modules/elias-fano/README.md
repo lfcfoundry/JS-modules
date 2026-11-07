@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 1.9.0 · API 1**
+**Version 2.0.1 · API 2**
 
-**Tested in:** Node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page check
+**Tested in:** Node: all elias-fano checks pass (2 new for the bulk views). First-read speed in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, paired runs. Not run: a phone.
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -63,6 +63,8 @@ var set = EliasFano.openLists(blob);
 set.get(2);        // Uint32Array [2, 2, 9]
 set.size(0);       // 2
 var all = set.decodeAll();   // { offsets: Uint32Array(n + 1), values: Uint32Array }: plain offset arrays, decoded in one pass
+set.get(2) === set.get(2);   // true since 2.0.0: get(i) keeps the array it made for list i and returns that same array every time; do not change it
+var lean = EliasFano.openLists(blob, { cache: false });   // no cache: every get(i) is a new array you may change; set.cache(false) turns it off later
 ```
 
 `build` and `buildLists` give a `Uint8Array` you can store or send; `open` and `openLists` read it back. Lists made in JavaScript and in WebAssembly are byte for byte the same. Call `free()` on a list you are done with when WebAssembly is in use (it copies the bytes into its own memory on first use).
@@ -81,10 +83,11 @@ Same page, alternating rounds, Firefox 158 / Chromium 155 / WebKitGTK 2.52.6 (de
 | Size of 94,597 links in 30,000 lists | 498 KB | 223 KB |
 | Size of 1,000,000 sorted values | 4.0 MB | 1.34 MB |
 | First value at or above x (20,000 lookups, 1,000,000 values) | binary search 4.0 / 3.3 / 3.6 ms | 1.6 / 1.4 / 1.4 ms in WebAssembly (2.3 to 3.0x faster) |
-| Read all 94,597 links | plain arrays 1.3 / 1.2 / 0.6 ms | 1.9 / 2.0 / 1.5 ms (decode all, WebAssembly) |
+| Read all 94,597 links of 30,000 lists, ms (Chromium / Firefox / WebKitGTK) | arrays of arrays 1.38 / 3.2 (noisy, best 2.1) / 1.5 | decode all in WebAssembly 1.46 / 1.3 / 1.2; `cache(true)`, lists already read once, 1.22 / 1.1 / 0.6 |
+| One list at a time, all 30,000, first read (`get(i)`, no cache) | already there, nothing to decode | default (cache on, since 2.0.1): 3.9 / 5.6 / 4.1 ms, against 7.9 / 12.6 / 7.9 ms before 2.0.1 (about 0.5 times); `{ cache: false }`: 7.3 / 12.8 / 9.0 ms (each list is cut out and made into a new array). Still about 3 to 5 times a first read of plain arrays (1.1 / 1.25 / 0.75 ms), which are already there |
 | Value number i, 20,000 random reads | 0.05 to 0.1 ms | 1.0 to 3.2 ms (14 to 40x slower) |
 
-It is for lists you search or scan, not for hammering single reads: keep a decoded copy (`toArray`, `decodeAll`) when you need those.
+It is for lists you search or scan, not for hammering single reads: keep a decoded copy (`toArray`, `decodeAll`) when you need those. A list set read list by list keeps each list's array after its first read (the default since 2.0.0; `{ cache: false }` turns it off), and a repeat read then costs about what an array of arrays does, at 4 bytes a value again for the lists you touched. Since 1.10.0 `decodeAll` of 30,000 lists is 0.68 / 0.78 / 0.90 times the time it took (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, paired runs). Since 2.0.1, once a quarter of the values have been read one list at a time, the set decodes the rest in one go and hands out views (`subarray`) of one decoded array instead of a new array per list (repeat reads 0.8 to 0.9 times the time they took, first read of all lists 0.45 to 0.52 times, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6; a few reads stay separate arrays; the views share one buffer, so do not change them, as before). Plain arrays still win on a first read of a single list (they are already there) and the memory they take is about 2.2 times the packed size (498 KB against 223 KB for these lists); arrays of arrays also cost one object each (not measured here).
 
 ## Partitioned lists (since 1.2.0)
 `buildPartitioned` cuts the list into chunks of 128 values (or 32, 64, 256, 512, 1024) and stores each chunk the cheapest way: as a plain run (no bits at all, when the numbers are consecutive), as a bitmap (when more than about a third of the numbers in its range are present) or as Elias-Fano. It wins where a list has dense stretches, such as the document ids of a common word, and costs about the same as the flat form elsewhere. It has the same questions as a single list (`get`, `nextGEQ`, `rank`, `contains`, `count`, `slice`, `toArray`, the batches, `free`) and one more, `stats()`, which says how many chunks took each form.
@@ -134,4 +137,4 @@ Elias-Fano intersection matches binary search on plain arrays when one list is s
 Peter Elias, "Efficient storage and retrieval by content and address of static files", Journal of the ACM, 1974, and Robert Fano, "On the number of bit sequences", MIT technical report, 1971. The select samples follow the usual practical layout (see Vigna, "Quasi-succinct indices", WSDM 2013); the code here is written from scratch for this repository.
 
 ## For AI agents
-Load `elias-fano.js` as a page script (global `EliasFano`) or `require` it. Build once, store the `Uint8Array`, `open` it where you read. For "next id at or above x" over a big sorted list use `nextGEQ` or `nextGEQMany`; for many small lists use `buildLists` and `decodeAll` once at startup. Do not call `get(i)` in a hot loop. The source of the WebAssembly is `wasm/ef.c` (build with `wasm/build.sh`, embed with `wasm/embed.py`; `embed.py --check` says whether the file carries the current build).
+Load `elias-fano.js` as a page script (global `EliasFano`) or `require` it. Build once, store the `Uint8Array`, `open` it where you read. For "next id at or above x" over a big sorted list use `nextGEQ` or `nextGEQMany`; for many small lists use `buildLists` and `decodeAll` once at startup, or just call `get(i)`: the cache is on by default, so repeat reads are cheap. Do not change an array `get(i)` gave you, and do not call `get(i)` in a hot loop with `{ cache: false }`. The source of the WebAssembly is `wasm/ef.c` (build with `wasm/build.sh`, embed with `wasm/embed.py`; `embed.py --check` says whether the file carries the current build).

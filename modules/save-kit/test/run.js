@@ -357,6 +357,34 @@ function countUnpacked(counter) {
     assert.strictEqual(k.load().score, 9); assert.strictEqual(backupReads, 1);
     st._d.g = undefined; delete st._d.g; assert.strictEqual(k.load().score, 9); assert.strictEqual(backupReads, 2);   // main missing
   });
+  await test('warm(): the next load() hands over the warmed result without reading again; a save or a changed slot makes load() read again', async K => {
+    const st = mem(); let parses = 0; const realParse = JSON.parse; const k = K.create({ key: 'w', schema, storage: st, backupEveryMs: 0 });
+    k.save({ score: 3, level: 2, name: 'A', owned: { x: 2 } });
+    assert.strictEqual(k.warm(), true);
+    JSON.parse = function () { parses++; return realParse.apply(JSON, arguments); };
+    let got;
+    try { got = k.load(); } finally { JSON.parse = realParse; }
+    assert.strictEqual(parses, 0); assert.strictEqual(got.score, 3); assert.strictEqual(got.owned.x, 2);
+    assert.strictEqual(JSON.stringify(k.load()), JSON.stringify(got));                       // used once: the next load reads again and gives the same
+    k.warm(); k.save({ score: 4, level: 2, name: 'A', owned: {} }); assert.strictEqual(k.load().score, 4);   // a save drops the warmed result
+    k.warm(); st.setItem('w', '{"score":7,"level":1}'); assert.strictEqual(k.load().score, 7);              // another tab changed the slot
+    const plain = () => JSON.stringify(K.create({ key: 'w', schema, storage: st }).load());   // what a load without warm() gives
+    k.warm(); st.setItem('w', '{"score":null}'); assert.strictEqual(JSON.stringify(k.load()), plain());       // main broken: the backup wins, as without warm
+    st.setItem('w', '{"score":null}'); st.setItem('w-backup', '{"score":8}'); k.warm(); st.setItem('w-backup', '{"score":9}'); assert.strictEqual(k.load().score, 9); assert.strictEqual(JSON.stringify(k.load()), plain());   // backup changed after warm
+    const e = K.create({ key: 'none', schema, storage: mem() }); assert.strictEqual(e.warm(), false); assert.strictEqual(e.load(), null);
+  });
+  await test('trust: true skips the checks: the stored JSON comes back as it is, the backup only when main is unreadable, and save writes without looking', async K => {
+    const st = mem(), k = K.create({ key: 't', schema, storage: st, trust: true, backupEveryMs: 0 });
+    assert.strictEqual(k.save({ score: NaN, level: -2, extra: 'kept', owned: { a: -1 } }), true);   // a checked kit refuses this
+    const got = k.load(); assert.strictEqual(got.score, null); assert.strictEqual(got.level, -2); assert.strictEqual(got.extra, 'kept'); assert.strictEqual(got.owned.a, -1);
+    st.setItem('t', '{"score":null}'); assert.strictEqual(k.load().score, null);   // a broken number is not a reason to use the backup here
+    st.setItem('t', 'x{'); assert.strictEqual(k.load().extra, 'kept');                // unreadable main: the backup
+    st.setItem('t', '[1,2]'); assert.strictEqual(k.load().extra, 'kept');             // not an object: the backup
+    assert.strictEqual(k.save('nope'), false); assert.strictEqual(k.save(null), false);
+    st.setItem('t', '{"owned":[["a","b"],[2,3]]}'); assert.strictEqual(k.load().owned.b, 3);   // a [names, counts] save from a checked Chromium kit still opens
+    assert.strictEqual(k.warm(), true); assert.strictEqual(k.load().owned.a, 2);
+    const e = K.create({ key: 'none', schema, storage: mem(), trust: true }); assert.strictEqual(e.load(), null);
+  });
   await test('skipUnchangedMs: an unchanged save is not written again until the time is up; save(state, true) and changes always write', async K => {
     const st = mem(); let writes = 0; const real = st.setItem; st.setItem = (k, v) => { if (k === 'g') writes++; real(k, v); };
     const k = K.create({ key: 'g', schema, storage: st, skipUnchangedMs: 5000, backupEveryMs: 1e9 });

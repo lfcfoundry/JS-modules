@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-"""Makes a smaller sprite-baker by cutting out the parts a game does not use. Version 1.7.2 (API 1)
+"""Makes a smaller sprite-baker by cutting out the parts a game does not use. Version 1.10.0 (API 1)
 
   python3 modules/sprite-baker/lean.py --list                                  the parts that can be cut, and what each one is
   python3 modules/sprite-baker/lean.py --without ramps,mesh,rotation,shapes,baking,sheets -o out.js     write a copy without those parts
@@ -22,6 +22,7 @@ PARTS = {
     'shapes': 'sphere(), rod(), capsule(), torus()',
     'baking': 'bakeSprite(), bakeRoll(), baker(), downsample(), outline(), toImageData(), toCanvas() and DEFAULT_MAX_PIXELS',
     'sheets': 'alphaMask(), hit(), toSheet()',
+    'fast': 'the `fast` option: triVB and resolveVB (one shade a pixel inside a bake) and triFast (cheaper shading), pictures within 5 levels',
     'checks': 'the argument checks that only protect callers who pass bad data (a NaN triangle is still skipped, as the full file does)',
 }
 NEEDS = {'baking': ['mesh', 'rotation'], 'sheets': ['baking']}   # part: parts it uses; cutting any of those cuts it too

@@ -2,6 +2,30 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.0 · API 1 · 2026-11-06
+
+### Quick
+fast: true now shades each output pixel once inside bakeSprite, bakeRoll and baker (pictures within 5 levels of the default); the default fill skips columns a triangle cannot cover, same bytes.
+
+### Deep
+fast: true inside bakeSprite, bakeRoll and baker now fills a visibility buffer (depth and nearest triangle per sample, normals kept as planes per triangle) and then shades each output pixel once per triangle that covers it, at the pixel center or, at an edge, at the middle of that triangle's samples; a triangle whose normal turns more than 0.1 across one pixel is shaded at each sample. A 12-frame roll of the test sphere at ss 2: 14.3 against 30.5 ms (Chromium 155), 21.3 against 37.0 (Firefox 158), 13.3 against 29.0 (WebKitGTK 2.52.6); 1.9.0's fast took 21 to 28. 525 test pictures: max 5 levels from the default, mean 0.03. fast with edge equals fast alone. The default tri() now computes each row's possible columns from the three weights' slopes and still runs its exact test on each, so the bytes are the same (40,000 random triangle scenes, color and depth compared). Tried and not kept: blending neighbor pixels (slower, 5 levels off), redoing highlight pixels per sample (slower), plain WebAssembly for the shading (no faster here).
+
+## 1.9.0 · API 1 · 2026-11-06
+
+### Quick
+New option fast: true uses cheaper shading in the plain JavaScript fill (a short series for the normal length, the highlight skipped where it adds under a third of a level, a table for the rim-light power).
+
+### Deep
+New option fast: true uses cheaper shading in the plain JavaScript fill (a short series for the normal length, the highlight skipped where it adds under a third of a level, a table for the rim-light power). A 12-frame roll takes 0.69x (Chromium), 0.77x (Firefox) and 0.62x (WebKitGTK) of the time; no byte differs from the default picture by more than 1 level in the tests. Off by default, so every picture is byte for byte as before; ridge and picture materials and the WebAssembly add-on keep the exact fill.
+
+## 1.8.0 · API 1 · 2026-11-06
+
+### Quick
+New option edge: true fills each pixel once and fills again with ss by ss samples only the pixels on an edge.
+
+### Deep
+New option edge: true fills each pixel once and fills again with ss by ss samples only the pixels on an edge. A 12-frame roll at the default ss takes 0.80x (Chromium), 0.90x (Firefox) and 0.84x (WebKitGTK) of the time; edge and smooth pixels differ from the default picture by at most 4 levels of 255 in the test scenes, and a feature thinner than a pixel can be missed. Off by default, so every picture is byte for byte as before. drawMesh accepts an internal gate option used by it.
+
 ## 1.7.2 · API 1 · 2026-10-31
 
 ### Quick
