@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.5.0 · API 2 · 2026-11-07
+- New save-kit-small.min.js: create() only, the fastest page open.
+
 ## 2.4.1 · API 2 · 2026-11-07
 - New save-kit.min.js, the same code minified, opens faster than localForage.
 

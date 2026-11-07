@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.5.0 · API 2 · 2026-11-07
+
+### Quick
+save-kit-small.min.js added (create() without codes, big saves or the crash copy; terser, ASCII only, header kept).
+
+### Deep
+New save-kit-small.min.js (owner card): save-kit.js without codes, createLarge and the durable crash copy (lean.py --without codes,compact,nativeBase64,streamLimit,large,durable), minified with terser 5 (ASCII only, MIT header kept). For games that only use create(). test/min.js checks both minified files and runs the checks that apply to each. No code change to save-kit.js.
+
 ## 2.4.1 · API 2 · 2026-11-07
 
 ### Quick
