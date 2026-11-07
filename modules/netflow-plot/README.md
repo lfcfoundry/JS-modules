@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.12.1 · API 2**
+**Version 2.12.2 · API 2**
 
-**Tested in:** node test/run.js 414 checks
+**Tested in:** node test/run.js 416 checks; 108 vega charts: only wheat.json light+dark change; same SVG in Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
