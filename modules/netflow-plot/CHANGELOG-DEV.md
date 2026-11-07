@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.14.4 · API 2 · 2026-11-07
+
+### Quick
+auto() turns a bar chart of averages into a dot plot when the averages are within 3% of each other (19 bars of 47.7 became dots that show the differences); number ticks closer than 1 apart get the decimals they need below 100 too (47.660, 47.662, not 47.7 six times); the dot plot axis uses the axis format.
+
+### Details
+guess(): bar with agg mean, no color, lo > 0 and hi - lo <= 0.03 hi -> dotplot + why; axisFor: decimals also when two ticks would print the same; CH.dotplot ticks use val.fmt. 2 new checks (425).
+
+### Deep
+udistrict.json drew 19 identical-looking bars.
+
 ## 2.14.3 · API 2 · 2026-11-07
 
 ### Quick

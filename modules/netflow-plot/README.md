@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.14.3 · API 2**
+**Version 2.14.4 · API 2**
 
-**Tested in:** node test/run.js 423 checks; vega test set picks 39/39 and 15/15; 108 charts: only flare.json light+dark change; same SVG in Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** node test/run.js 425 checks; vega picks 39/39 and 15/15 (udistrict now dotplot); 108 charts: only udistrict.json light+dark change; label browser check 0 in 3 browsers; same SVG in Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
