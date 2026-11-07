@@ -1,12 +1,12 @@
 # save-kit
 
-**Version 2.4.1 · API 2**
+**Version 2.5.0 · API 2**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud)
 
 ## What it is and how it works
 
-save-kit stores game or app progress in the browser safely. One file, 18.6 KB gzipped (9.9 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves. Since 2.4.1 `save-kit.min.js` is the same code minified (27.4 KB, 10.1 KB gzipped, MIT header kept), and it opens a page with a saved game a little faster than localForage in Chrome and about even in Firefox on a laptop and a phone (see "How it compares").
+save-kit stores game or app progress in the browser safely. One file, 18.6 KB gzipped (9.9 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves. Since 2.4.1 `save-kit.min.js` is the same code minified (27.4 KB, 10.1 KB gzipped, MIT header kept), and it opens a page with a saved game a little faster than localForage in Chrome and about even in Firefox on a laptop and a phone (see "How it compares"). Since 2.5.0 `save-kit-small.min.js` (14.0 KB) leaves out codes, `createLarge` and the crash copy and opens faster still.
 
 - You describe the save as a schema, and every field is checked on save and load.
 - A backup slot is kept, and a damaged value falls back alone instead of ruining the save.
@@ -160,7 +160,9 @@ What a game does once per visit: run the library's script, then `create()` and t
 | Firefox 158 | 5.30 (0.86x) | 6.38 (1.03x, about even) | 6.17 |
 | WebKitGTK 2.52.6 | 1.13 (0.73x) | 1.57 (1.01x, about even) | 1.55 |
 
-Checks stay on in every save-kit column. Ship the minified file for this speed: the readable file is about even with localForage in Firefox and WebKitGTK. Most of the first call is the browser compiling code (in Chromium the first `create()` takes about 1.2 ms and the next one 0.1 ms), so a smaller file opens faster; a lean build cut to the small-save parts opened in 4.52 / 4.10 / 1.10 ms. To make that build for a game that only uses `create()`, run `python3 modules/save-kit/lean.py --without large,codes,durable,raw,stageImport,onOtherTab,twoTap,persist,migrate,compact,nativeBase64,streamLimit` and minify the result (keep any part your game calls). Making the kit and loading the save cost the same in every build; the time saved is the browser reading less script. Measured 11.07 on the 2.4.0 code, which 2.4.1 does not change.
+Checks stay on in every save-kit column. Ship the minified file for this speed: the readable file is about even with localForage in Firefox and WebKitGTK. Most of the first call is the browser compiling code (in Chromium the first `create()` takes about 1.2 ms and the next one 0.1 ms), so a smaller file opens faster; a lean build cut to the small-save parts opened in 4.52 / 4.10 / 1.10 ms. Making the kit and loading the save cost the same in every build; the time saved is the browser reading less script.
+
+**Since 2.5.0, `save-kit-small.min.js`** is that kind of build ready to copy, for a game that only uses `create()`: everything except copy-paste codes, `createLarge()` and the `durable` crash copy (14.0 KB, 5.8 KB gzipped, MIT header kept). Page open as above, 40 fresh pages each, cloud browsers, ms, smaller is better: Chromium 155 4.32 against localForage 8.45 (0.51x), Firefox 158 4.13 against 5.90 (0.70x), WebKitGTK 2.52.6 1.15 against 1.50 (0.77x); `save-kit.min.js` in the same runs 0.62x / 1.00x / 0.87x. The cloud overstates these leads (see the device table below), so expect smaller ones on a real laptop or phone. To cut a different set of parts, use `lean.py`. Measured 11.07 on the 2.4.0 code, which 2.4.1 does not change.
 
 The cloud numbers above overstate the lead. On real devices (the owner's laptop and phone, tester page with 58 tries per library, each in a fresh frame; paired median of save-kit's time divided by localForage's, smaller is better):
 
