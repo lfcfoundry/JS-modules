@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.2 · API 1 · 2026-11-07
+
+### Quick
+Under a million pixels the card way is chosen only when the start-up drawn probe shows it at least 15% ahead of WebAssembly
+
+### Details
+Phone Chrome 156 read card 6.6 against WebAssembly 6.8 ms on the drawn probe, then took 11.5 against 6.8 ms at 480 x 270 and 12.1 against 9.5 ms at 640 x 360. The rule was card when its probe was within 1.3 times WebAssembly; it is now 0.85 or less. Chrome laptop probe ratio 0.72 (card wins, kept), Firefox laptop 1.5 (WebAssembly, kept).
+
+### Deep
+Small drawn pictures on a phone: WebAssembly unless the card is clearly ahead (480 x 270: 11.5 to 6.8 ms)
+
 ## 1.4.1 · API 1 · 2026-11-07
 
 ### Quick
