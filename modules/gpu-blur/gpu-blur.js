@@ -62,8 +62,18 @@
   }
 
   function intoPx(opts, len) { var a = isBytes(opts.into) ? opts.into : opts._intoPx; return a && a.length === len ? a : null; }   // _intoPx: the 1.2.3 test name
-  function ctx2d(cv, opts, card) {   // a canvas this module makes (never one passed in with into) is kept in memory (willReadFrequently) when the start-up test found that this browser draws it sooner that way; _wrf: private test switch. Never for the card way's final copy (Firefox 160 laptop: 37 became 48 ms)
-    var on = opts && opts._wrf != null ? !!opts._wrf : !card && !!(calInfo && calInfo.kept);
+  function isOpaque(inp) {   // true only when the picture is bytes and every alpha value is 255 (a kept-in-memory canvas rounds see-through colors a little differently in WebKit: 93.7% equal against the card way, largest gap 2 levels); a picture read from a canvas or image counts as unknown, so it keeps a default canvas
+    if (!inp || !inp.bytes) return false;
+    if (inp.opaque != null) return inp.opaque;
+    var b = inp.bytes, n = Math.min(b.length, inp.w * inp.h * 4), i = 3, ok = true;
+    if (!(b.byteOffset & 3) && (n & 3) === 0 && typeof Uint32Array === 'function' && new Uint8Array(new Uint32Array([1]).buffer)[0] === 1) {
+      var u = new Uint32Array(b.buffer, b.byteOffset, n >> 2), m = u.length;
+      for (i = 0; i < m; i += 8) if ((u[i] >>> 24) !== 255) { ok = false; break; }   // every 8th pixel: a full scan of 4 million pixels costs 5.7 ms of the 14 ms this saves; a see-through patch under 8 pixels wide can be missed, which only costs rounding of up to 2 levels in WebKit
+    } else for (; i < n; i += 32) if (b[i] !== 255) { ok = false; break; }
+    return (inp.opaque = ok);
+  }
+  function ctx2d(cv, opts, card, inp) {   // a canvas this module makes (never one passed in with into) is kept in memory (willReadFrequently) when the start-up test found that this browser draws it sooner that way; _wrf: private test switch. Never for the card way's final copy (Firefox 160 laptop: 37 became 48 ms)
+    var on = opts && opts._wrf != null ? !!opts._wrf : !card && !!(calInfo && calInfo.kept) && isOpaque(inp);
     return cv.getContext('2d', on && !(opts && opts.into) ? { willReadFrequently: true } : undefined);
   }
   function intoCv(opts) { return opts.into && !isBytes(opts.into) ? opts.into : null; }
@@ -258,7 +268,7 @@
       var cv = intoCv(opts) || makeCanvas(w, h);
       if (!cv) { job.free(); throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"'); }
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-      ctx = ctx2d(cv, opts);
+      ctx = ctx2d(cv, opts, false, inp);
       if (!ctx) { job.free(); throw new Error('gpu-blur: the target canvas has no 2D context'); }
       res.canvas = cv;
       // Writing goes in a few large fixed bands (about 250,000 pixels): in some engines every turn given back to the browser after a putImageData costs a lot on a big canvas,
@@ -349,7 +359,7 @@
         var cv = intoCv(opts) || makeCanvas(w, h);
         if (!cv) throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"');
         if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-        ctx = ctx2d(cv, opts); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
+        ctx = ctx2d(cv, opts, false, inp); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
         res.canvas = cv;
       }
       if (inp.kind !== 'bytes') {
@@ -478,7 +488,7 @@
             var cv = intoCv(opts) || makeCanvas(w, h);
             if (!cv) throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"');
             if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-            ctx = ctx2d(cv, opts); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
+            ctx = ctx2d(cv, opts, false, inp); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
             ctx.putImageData(new ImageData(px, w, h), 0, 0); res.canvas = cv;
           }
           return res;
