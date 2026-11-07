@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.12.2 · API 2 · 2026-11-07
+
+### Quick
+A number column named year (or yr) reads as years from 1000 to 2200: no thousands comma, whole-year ticks, no Year axis title. Other columns keep the 1800-2200 rule.
+
+### Details
+reader num() tags out.yearName for /year|^yr$/ columns; axisFor accepts lo >= 1000 and a span up to 1200 when tagged; line chart carries the tag onto allX. 2 new checks (416).
+
+### Deep
+Fixes the old open item: wheat.json years before 1800 printed as 1,600.
+
 ## 2.12.1 · API 2 · 2026-11-07
 
 ### Quick

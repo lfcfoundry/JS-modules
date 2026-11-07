@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.12.1 (API 2)
+ * Version 2.12.2 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -246,7 +246,7 @@ var NetflowPlot = (function () {
     if (zero) { lo = Math.min(0, lo); hi = Math.max(0, hi); }
     if (isTime) { var tt = timeTicks(lo, hi, n || 8); return { kind: 'time', lo: lo, hi: hi, list: tt.list, fmt: tt.fmt, map: linear(lo, hi === lo ? lo + 1 : hi, a, b) }; }
     var t = ticks(lo, hi, n || 6), ax = { kind: 'num', lo: t.lo, hi: t.hi, list: t.list, map: linear(t.lo, t.hi, a, b) };
-    if (lo >= 1800 && hi <= 2200 && hi - lo <= 300 && vals.every(function (v) { return v !== v || v === Math.floor(v); })) {   /* whole numbers 1800 to 2200 are years: written 2015, not 2,015, and only whole-year ticks */
+    if ((lo >= 1800 || (vals.yearName && lo >= 1000)) && hi <= 2200 && hi - lo <= (vals.yearName ? 1200 : 300) && Array.prototype.every.call(vals, function (v) { return v !== v || v === Math.floor(v); })) {   /* whole numbers 1800 to 2200 are years: written 2015, not 2,015, and only whole-year ticks; from 1000 when the column is named year (since 2.12.2) */
       ax.list = ax.list.filter(function (v) { return v === Math.floor(v); }); ax.fmt = function (v) { return String(v); }; ax.years = true;
     }
     return ax;
@@ -266,6 +266,7 @@ var NetflowPlot = (function () {
         var raw = R.raw(k), out = new Float64Array(rows.length), good = 0, dates = 0, i;
         for (i = 0; i < raw.length; i++) { var v = num(raw[i]); out[i] = v; if (v === v) good++; }
         if (good < 0.8 * countFilled(raw)) { var dt = new Float64Array(rows.length), seen = new Map(); for (i = 0; i < raw.length; i++) { var rv = raw[i], d = typeof rv === 'string' ? seen.get(rv) : undefined; if (d === undefined) { d = dateMs(rv); if (typeof rv === 'string') seen.set(rv, d); } dt[i] = d; if (d === d) dates++; }   /* each date text is read once */ if (dates > good) { dt.time = true; out = dt; } }
+        if (!out.time && /year|^yr$/i.test(k)) out.yearName = true;   /* a column named year: 1565 is a year, not 1,565 (since 2.12.2) */
         cache.set(key, out); return out;
       },
       cat: function (k) { var key = 'c' + k; if (cache.has(key)) return cache.get(key); var raw = R.raw(k), out = new Array(raw.length); for (var i = 0; i < raw.length; i++) out[i] = raw[i] === undefined || raw[i] === null ? '' : String(raw[i]); cache.set(key, out); return out; },
@@ -415,7 +416,7 @@ var NetflowPlot = (function () {
   }
   CH.line = function (F, R, sp) {
     var s = series(F, R, sp), allX = [], allY = [];
-    s.list.forEach(function (l) { allX = allX.concat(l.xs); allY = allY.concat(l.ys); });
+    s.list.forEach(function (l) { allX = allX.concat(l.xs); allY = allY.concat(l.ys); }); if (sp.x && R.num(sp.x).yearName) allX.yearName = true;
     /* clean look: each line is named at its right end (no key row over the chart), up to 10 lines; room for the names is kept on the right */
     var ends = F.clean && !!sp.color && !F.keyRow && s.list.length > 1, ew = 0;
     if (ends && s.list.length > Math.min(16, Math.max(10, Math.floor((F.B - F.Tp) / 14)))) { ends = false; F.keyRow = true; F.Tp = 44; }   /* names at the line ends while each can have 14 px (up to 16 lines), else the key row */

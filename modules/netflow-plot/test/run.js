@@ -198,6 +198,12 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(tk([{ yr: 2000, share: 0.12 }, { yr: 2010, share: 0.18 }, { yr: 2020, share: 0.231 }], { type: 'line', x: 'yr', y: 'share' }) === 'share rose 11.1 points from 12% to 23.1%', 'takeaway, line of fractions: change in points');
   ok(tk([{ c: 'A', p_value: 0.04 }, { c: 'B', p_value: 0.03 }], { type: 'bar', x: 'c', y: 'p_value' }).indexOf('with 0.04,') > 0, 'names that are not rates (p value) stay plain numbers')
   ok(P.auto(rates).takeaway === 'A leads rate with 20.1%, 5.1 points more than B (15%)' && P.toSvg(rates, { type: 'bar', x: 'c', y: 'rate', title: 'auto' }).indexOf('>A leads rate with 20.1%, 5.1 points more than B (15%)</text>') > 0, "auto() and title: 'auto' use the same percent takeaway");
+  // since 2.12.2 a column named year reads as years from 1000 on (1565, not 1,565); other whole numbers below 1800 keep their commas
+  const wheatY = []; for (let y = 1565; y <= 1820; y += 5) wheatY.push({ year: y, wheat: 40 + (y % 17) });
+  const wsvg = P.toSvg(wheatY, { type: 'line', x: 'year', y: 'wheat' });
+  ok(/>1600<\/text>/.test(wsvg) && !/>1,600<\/text>/.test(wsvg), 'year column before 1800 prints 1600, not 1,600');
+  const notY = wheatY.map(r => ({ count: r.year, wheat: r.wheat }));
+  ok(/>1,600<\/text>/.test(P.toSvg(notY, { type: 'line', x: 'count', y: 'wheat' })), 'a column not named year keeps 1,600');
   const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
   ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
 }

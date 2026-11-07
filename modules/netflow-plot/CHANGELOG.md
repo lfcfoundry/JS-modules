@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.12.2 · API 2 · 2026-11-07
+- Years before 1800 print as 1600, not 1,600, when the column is named year.
+
 ## 2.12.1 · API 2 · 2026-11-07
 - The takeaway sentence writes percents like the chart.
 
