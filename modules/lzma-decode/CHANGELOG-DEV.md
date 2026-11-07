@@ -16,6 +16,21 @@ Size: minified 4,020 bytes (1.5.0 3,653; 1.4.0 2,156), gzip 1,167 (1.4.0 1,179).
 ### Deep
 Requested by the owner. Research j9 (lzma-decode/kernel-2026.11.07, BRIEF-apply-js-v2.md). Alone the int32 coder on 1.4.0 gave Chromium 0.95/0.91, Firefox 0.92/0.91, WebKitGTK 0.71/0.74; stacked with the 1.5.0 one-loop rewrite it wins in every browser. Splitting out the distance decode (j7) gave WebKitGTK 1.06 and was dropped.
 
+### Version-to-version table (moved from the README, 1.5.0 and 1.5.1)
+
+Two changes, both with byte-identical output (170 cases per build, including cut and flipped streams: same bytes or the same error message). Ratio against 1.4.0, lower is better, fresh page per sample, cloud browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6) unless it says laptop (Chromium 156, Firefox 160, 16 cores):
+
+| Decoder | Test | Chromium | Firefox | WebKitGTK |
+|---|---|---|---|---|
+| WebAssembly | first unpack after load, 3 MB text | 0.85 | 0.82 | 0.96 |
+| WebAssembly | next unpack, 400 KB | 0.89 | 0.88 | 0.90 |
+| WebAssembly | laptop, first / second | 0.86 / 0.87 | 0.90 / 0.88 | not run |
+| JavaScript (1.5.1) | first unpack after load, 3 MB text | 0.67 | 0.57 | 0.71 |
+| JavaScript (1.5.1) | next unpack, 400 KB | 0.39 | 0.44 | 0.39 |
+| JavaScript (1.5.0) | laptop, first / second | 0.93 / 0.64 | 0.78 / 0.56 | not run |
+
+What it costs: the WebAssembly program grows from 4,701 to 5,024 bytes, and the minified JavaScript decoder from 2,156 to 4,020 bytes (gzipped 1,179 to 1,167), so a packed page that carries it grows about 1.9 KB. 1.5.0's 5 to 14% slower first big unpack in WebKitGTK is gone in 1.5.1, which keeps the range coder in 32-bit integers. Further gains in the loop are close to the native ceiling (the same C built natively runs about as fast as the system liblzma), so the next step would be a format change, such as independent blocks unpacked on several threads.
+
 ## 1.5.0 · API 1 · 2026-11-07
 
 ### Quick
