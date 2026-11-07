@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.9.0 (API 1)
+ * Version 1.10.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -903,12 +903,13 @@ var NFMScene = (function () {
     sums = sankeySums(X); pct = pctText(tot, sk.percentOf === 'column' ? sums.col[n.layer] : sums.all);   /* the sums only when a share is shown */
     return mode === 'percent' ? pct : pct ? val + ' (' + pct + ')' : val;
   }
-  /** Note text with its live words filled in: {total}, {value:id}, {share:id}, {flow:from>to}, {top} (the biggest flow, "From \u2192 To"). An unknown word stays as typed. */
-  function noteWords(text, find, total, flowOf, top, sk) {
-    return String(text === undefined || text === null ? '' : text).replace(/\{(total|top|value:[^{}]*|share:[^{}]*|flow:[^{}]*)\}/g, function (all, w) {
+  /** Note text with its live words filled in: {total}, {value:id}, {share:id}, {flow:from>to}, {top} (the biggest flow, "From \u2192 To, amount"), {topbox} (the biggest box, "Name, amount"). An unknown word stays as typed. */
+  function noteWords(text, find, total, flowOf, top, sk, topbox) {
+    return String(text === undefined || text === null ? '' : text).replace(/\{(total|topbox|top|value:[^{}]*|share:[^{}]*|flow:[^{}]*)\}/g, function (all, w) {
       var c = w.indexOf(':'), k = c < 0 ? w : w.slice(0, c), a = c < 0 ? '' : w.slice(c + 1).trim(), n, v;
       if (k === 'total') return withUnit(fmtNum(total), total, sk);
       if (k === 'top') return top || all;
+      if (k === 'topbox') return topbox || all;
       if (k === 'flow') { v = flowOf(a); return v === v ? withUnit(fmtNum(v), v, sk) : all; }
       n = find(a); if (!n || n.v !== n.v) return all;
       return k === 'value' ? withUnit(fmtNum(n.v), n.v, sk) : pctText(n.v, total) || all;
@@ -937,10 +938,13 @@ var NFMScene = (function () {
     };
     var top = '', best = -Infinity;
     L.edges.forEach(function (e) { if (e.widthV === e.widthV && e.kind !== 'self' && e.widthV > best && byId[e.from] && byId[e.to]) { best = e.widthV; top = byId[e.from].label + ' \u2192 ' + byId[e.to].label; } });
+    if (top) top += ', ' + withUnit(fmtNum(best), best, sk);
+    var topbox = '', bigB = -Infinity;
+    L.nodes.forEach(function (n) { var v = sankeyTotal(X, n); if (v === v && v > bigB) { bigB = v; topbox = n.label + ', ' + withUnit(fmtNum(v), v, sk); } });   /* {topbox}: the biggest box (first one on a tie) */
     var total = sankeySums(X).all;
     notes.forEach(function (nt) {
       if (!nt || nt.text === undefined || nt.text === null || nt.text === '') return;
-      var t = noteWords(nt.text, item, total, function (a) { var b = flowOf(a); return b ? b.v : NaN; }, top, sk);
+      var t = noteWords(nt.text, item, total, function (a) { var b = flowOf(a); return b ? b.v : NaN; }, top, sk, topbox);
       var x = (+nt.x || 0) * W, y = (+nt.y || 0) * H, size = +nt.size || 12, col = nt.color ? hex(nt.color) : T.fg;
       var al = nt.align === 'right' || nt.align === 'r' ? 'r' : nt.align === 'center' || nt.align === 'c' ? 'c' : 'l';
       S.labels.push({ x: x, y: y, t: t, size: size, color: col, align: al, bold: !!nt.bold, rot: 0, minK: 0, node: -1, note: true, bound: true, boundXY: true });

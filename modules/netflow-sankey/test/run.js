@@ -315,7 +315,9 @@ t('value labels and notes (opt-in): valueLabel, unit, percentOf, notes with live
   ok(texts(RL.toSvg(d, { valueLabel: 'under', unit: 'EUR', unitAt: 'before' })).includes('EUR3,000'), 'unitAt overrides the rule');
   const n = RL.toSvg(d, { unit: '$', notes: [{ text: 'Total {total}, food {share:Food}, rent {flow:Salary>Rent}, {value:Gift}, {nope}', x: 0.4, y: 0.05, anchor: 'Food', bold: true }, { text: 'Rent', x: 0.3, y: 0.9, anchor: 'Salary>Rent' }, { text: 'Top: {top}', x: 0.1, y: 0.99 }] }), nt = texts(n);
   ok(nt.includes('Total $3,300, food 45%, rent $1,800, $300, {nope}'), 'live words, an unknown one kept: ' + nt.join('|'));
-  ok(nt.some((x) => /^Top: Salary .* Rent$/.test(x)), 'top: the biggest flow');
+  ok(nt.some((x) => /^Top: Salary .* Rent, \$1,800$/.test(x)), 'top: the biggest flow with its amount');
+  const tb = texts(RL.toSvg(d, { unit: '$', notes: [{ text: 'Box: {topbox}', x: 0.1, y: 0.99 }] }));
+  ok(tb.includes('Box: Salary, $3,000'), 'topbox: the biggest box with its amount: ' + tb.join('|'));
   ok((n.match(/<line /g) || []).length === 2 && n.indexOf('font-weight="700"') > 0, 'two leader lines (item and flow), the bold note is bold');
   const wide = RL.toSvg(d, { notes: [{ text: 'A very long note that runs well past the right edge of the picture', x: 0.9, y: 0.5 }] });
   ok(+/width="([\d.]+)"/.exec(wide)[1] > RL.layoutFlows({ links: d }).width, 'a note past the edge widens the picture');

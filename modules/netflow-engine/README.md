@@ -1,8 +1,8 @@
 # netflow-engine
 
-**Version 2.4.0 · API 2**
+**Version 2.4.1 · API 2**
 
-**Tested in:** Node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page check
+**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license.
 
