@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.6 · API 1 · 2026-11-06
+- Small and mid-size drawn pictures pick the faster way: Chrome laptop 960 x 540 9.8 to 4.8 ms
+
 ## 1.3.5 · API 1 · 2026-11-06
 - Wide blurs (radius 24 and up) on the card way finish sooner: Firefox laptop 1080p drawn canvas, radius 24 23 to 21 ms, radius 50 31 to 22 ms. Same picture byte for byte.
 
