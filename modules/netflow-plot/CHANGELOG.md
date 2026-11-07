@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.14.3 · API 2 · 2026-11-07
+- A tree picked by auto() is sized by its real measure, not by the parent numbers.
+
 ## 2.14.2 · API 2 · 2026-11-07
 - One unit on a whole number axis.
 

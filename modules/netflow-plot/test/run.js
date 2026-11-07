@@ -219,6 +219,9 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   // since 2.14.2 one unit on a whole number axis, set by its biggest number
   const axS = P.toSvg([{ x: 0, y: 1 }, { x: 38000, y: 2 }, { x: 19000, y: 3 }], { type: 'scatter', x: 'x', y: 'y' });
   ok(/>5k<\/text>/.test(axS) && /35k<\/text>/.test(axS) && !/>5,000<\/text>/.test(axS), 'axis 0 to 40,000 reads 5k ... 35k, not 5,000 next to 10k');
+  // since 2.14.3 a tree is sized by a real measure, never by its parent or id numbers
+  const tree = [{ id: 1, name: 'root' }, { id: 2, name: 'a', parent: 1, size: 10 }, { id: 3, name: 'b', parent: 1, size: 90 }, { id: 4, name: 'c', parent: 1, size: 40 }, { id: 5, name: 'd', parent: 1, size: 5 }, { id: 6, name: 'e', parent: 1, size: 7 }];
+  ok(P.guess(tree).spec.size === 'size' || (P.guess(tree).others || []).concat([P.guess(tree)]).some((g) => g.type === 'treemap' && g.spec.size === 'size'), 'treemap pick: sized by the size column, not by parent');
   const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
   ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
 }
