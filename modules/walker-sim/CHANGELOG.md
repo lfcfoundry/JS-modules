@@ -9,7 +9,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 
 ## 2.4.0 · API 2 · 2026-10-24
-- sweep and exactEndpoints now run their rounds in a second 1 KB WebAssembly program in the default file: what-if sweeps are about 40% (Chromium) and 60% (Firefox) faster, the same numbers to the last digit. New hook WalkerSim.useSweepKernel.
+- sweep and exactEndpoints now run in a second 1 KB WebAssembly program in the default file: what-if sweeps are about 40% (Chromium) and 60% (Firefox) faster, the same numbers to the last digit. New hook WalkerSim.useSweepKernel.
 
 ## 2.3.0 · API 2 · 2026-10-22
 - The WebAssembly loop now starts compiling in the background when the file loads; walker-sim-wasm adds wasmReady() and wasmModule().

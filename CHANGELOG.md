@@ -104,7 +104,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **netflow-sankey** 2.10.0 · API 2: Opt-in quick: true skips the extra order-search restarts: small charts lay out faster than d3-sankey and still with fewer crossings.
 - 2026-11-05 · **netflow-plot** 2.8.0 · API 2: Axis names read like words: sales_total shows as Sales total, and one-letter column names (r, v) are left out.
 - 2026-11-05 · **netflow-plot** 2.7.0 · API 2: Line charts follow the clean look: no number axis or gridlines, first and last values on each line.
-- 2026-11-05 · **netflow-plot** 2.6.0 · API 2: Line charts name each line at its end instead of in a key row, crowded bar names show on two rows instead of every other name, years print as 2015, not 2,015, and a highlight keeps the other series faint in their own colors instead of gray.
+- 2026-11-05 · **netflow-plot** 2.6.0 · API 2: Line charts name each line at its end instead of in a key row, crowded bar names show on two rows not every other name, years print as 2015, not 2,015, and a highlight keeps the other series faint in their own colors instead of gray.
 - 2026-11-05 · **netflow-layers** 1.12.0 · API 1: Opt-in highlight: one box and its links keep their colors, the rest fade.
 - 2026-11-05 · **netflow-layers** 1.11.0 · API 1: Flow charts can take a title, subtitle and source line (opt-in), drawn the same way as in the other chart modules.
 - 2026-11-05 · **netflow-layers** 1.10.1 · API 1: Labels use one shared font list (Inter, Segoe UI, Roboto, then the system font) in every chart module; pictures stay the same where those fonts match.
@@ -236,7 +236,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **lfc-pack** 0.3.2 · API 0: Packing with small blocks is 1.3-3.7x faster: the string and shape tables are cleared only as far as each block used them. Same bytes.
 - 2026-10-31 · **grown-ups-door** 1.0.1 · API 1: Same behavior, lighter in memory: the characters above U+00FF in the code (arrows, an ellipsis, curly quotes) are now written as escapes, so a page that bundles the file can keep its text at 1 byte per character.
 - 2026-10-31 · **graph-walk** 0.9.0 · API 0: New: closenessAsync splits closeness across kept helper threads (2.3 to 3.8 times as fast on 4 cores in all three test browsers).
-- 2026-10-31 · **graph-walk** 0.8.0 · API 0: New: max-flow and min-cut, closeness, triangle counts, communities (Louvain), critical path and landmark paths, in plain JavaScript and WebAssembly; 1.5x to 230x faster than graphology, ngraph and a Dinic library in all three test browsers.
+- 2026-10-31 · **graph-walk** 0.8.0 · API 0: New: max-flow and min-cut, closeness, triangle counts, communities (Louvain), critical path and landmark paths, in JavaScript and WebAssembly; 1.5x to 230x faster than graphology, ngraph and a Dinic library in all three test browsers.
 - 2026-10-31 · **graph-walk** 0.7.2 · API 0: betweennessAsync starts faster: up to 1.9x on the first call and on a new graph.
 - 2026-10-31 · **graph-walk** 0.11.2 · API 0: Same behavior, lighter in memory: the characters above U+00FF in the code (arrows, an ellipsis, curly quotes) are now written as escapes, so a page that bundles the file can keep its text at 1 byte per character.
 - 2026-10-31 · **graph-walk** 0.11.1 · API 0: Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
@@ -259,7 +259,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-30 · **text-columns** 0.5.0 · API 0: New, opt-in: types option turns YYYY-MM-DD columns into dates (milliseconds) and true/false columns into booleans. Without it nothing changes.
 - 2026-10-30 · **text-columns** 0.4.0 · API 0: New: columns can be a function that says yes or no for each column name. Nothing else changed; same speed.
 - 2026-10-30 · **text-columns** 0.3.0 · API 0: New: `columns` reads only the columns you name; `lazy: true` cuts text strings only when read (or one cell with `get(i)`). Big files with quotes split faster; a 150 MB number file reads up to 3 times faster.
-- 2026-10-30 · **text-columns** 0.2.0 · API 0: New: `parseParallel` reads a big CSV in Web Workers and gives the same table as `parse` (up to 2.9 times as fast on number columns of a 150 MB file). `warm` and `closeHelpers` start and stop the helpers. Files under 32 MB are read directly.
+- 2026-10-30 · **text-columns** 0.2.0 · API 0: New: `parseParallel` reads a big CSV in Web Workers and gives the same table as `parse` (up to 2.9 times as fast on number columns of a 150 MB file). `warm` and `closeHelpers` start and stop the helpers. Under 32 MB it reads directly.
 - 2026-10-30 · **save-kit** 1.3.1 · API 1: Loads with a raw field are 2 to 3 times faster (same clean state): parsed objects are used as they are when the text names no __proto__, constructor or prototype key.
 - 2026-10-30 · **save-kit** 1.3.0 · API 1: New SaveKit.createLarge(): big saves in IndexedDB with a backup slot and an optional cross-tab lock. Up to 4x faster than idb-keyval and localForage on 16 MB; slower in a few cases (README). create() is unchanged.
 - 2026-10-30 · **netflow-sankey** 2.3.2 · API 2: Small graphs lay out about 15% faster with the same pictures.
@@ -326,7 +326,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-25 · **elias-fano** 1.0.0 · API 1: New module: sorted number lists packed small and searched without unpacking.
 - 2026-10-25 · **clip-writer** 1.0.0 · API 1: New module: pictures into a short MP4 or WebM video, cut from Netflow Map.
 - 2026-10-24 · **webkit-driver** 1.4.1 · API 1: README says GNOME Web is no longer a test browser; the option still works. No code change.
-- 2026-10-24 · **walker-sim** 2.4.0 · API 2: sweep and exactEndpoints now run their rounds in a second 1 KB WebAssembly program in the default file: what-if sweeps are about 40% (Chromium) and 60% (Firefox) faster, the same numbers to the last digit. New hook WalkerSim.useSweepKernel.
+- 2026-10-24 · **walker-sim** 2.4.0 · API 2: sweep and exactEndpoints now run in a second 1 KB WebAssembly program in the default file: what-if sweeps are about 40% (Chromium) and 60% (Firefox) faster, the same numbers to the last digit. New hook WalkerSim.useSweepKernel.
 - 2026-10-24 · **test-runner** 1.2.1 · API 1: GNOME Web is out of the default list: a full run is now three browsers, not four.
 - 2026-10-24 · **test-runner** 1.2.0 · API 1: Long runs survive a machine restart: cli.js all skips the browsers that already passed for this build, a heartbeat file records the boot id, and cli.js status says ALIVE, FINISHED or DEAD.
 - 2026-10-24 · **tab-guard** 1.1.1 · API 1: Notes now say copies opened from a phone's Files app also share locks, so pick a unique lock name. No code change.
@@ -429,7 +429,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **lzma-pack** 2.0.0 · API 2: Packed pages now carry the WebAssembly decoder by default (about 4.5 KB or 3% bigger, opens faster); --no-wasm gives the old smaller page. --wasm still works.
 - 2026-10-18 · **lzma-decode** 1.3.0 · API 1: The wasm now compiles in the background when the file loads (ready() and module() added); the compile it saves is under 1 ms. Same bytes out.
 - 2026-10-18 · **lzma-decode** 1.2.0 · API 1: The default file is now lzma-decode-with-wasm.js: lzmaDecode tries WebAssembly first and uses the JavaScript decoder by itself when it cannot. About 1.5 to 2.6 times faster to open a page in the four test browsers.
-- 2026-10-18 · **gif-writer** 1.2.0 · API 1: Pictures are written 1.1 to 2.3 times faster and palettes up to 1.7 times faster with WebAssembly, same colors and bytes. The palette for flat pictures is up to 11% slower in the two WebKit browsers. The fast path needs 'wasm-unsafe-eval'.
+- 2026-10-18 · **gif-writer** 1.2.0 · API 1: Pictures are written 1.1 to 2.3 times faster and palettes up to 1.7 times faster with WebAssembly, same colors and bytes. Flat-picture palettes are up to 11% slower in the two WebKit browsers. The fast path needs 'wasm-unsafe-eval'.
 - 2026-10-17 · **zip-open** 1.1.0 · API 1: The check on every unpacked file is about 3.9 times faster, so large zips open sooner. Same answers.
 - 2026-10-17 · **zip-open** 1.0.0 · API 1: New module: opens .zip and Excel .xlsx files in the browser or in Node with no libraries, with every problem reported in plain words. Zip bombs are refused quickly.
 - 2026-10-17 · **webkit-driver** 1.2.0 · API 1: Scripted input in GNOME Web now behaves like a real mouse and keyboard for pages that use pointer events, so all five piece checks pass there.
