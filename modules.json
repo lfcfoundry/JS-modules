@@ -25,7 +25,7 @@
       "version": "2.5.0",
       "api": 2,
       "global": "SaveKit",
-      "summary": "Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to; createLarge() does big saves in IndexedDB, about 2 to 5 times faster saves and 1.3 to 3 times faster loads than localForage and idb-keyval at 16 MB in Chromium, Firefox and WebKitGTK (cloud browsers), with an optional copy that survives a browser crash.",
+      "summary": "Safe localStorage saves, backup slot, checksummed copy-paste save codes with a size limit on what a paste may unpack to; createLarge() does big saves in IndexedDB, about 2 to 5 times faster saves and 1.3 to 3 times faster loads than localForage and idb-keyval at 16 MB in Chromium, Firefox and WebKitGTK (cloud browsers), with an optional copy that survives a browser crash. The small build (save-kit-small.min.js, 5.8 KB gzipped, create() only) opens a page with a saved game about a third faster than localForage on a laptop and an Android phone.",
       "short": "Safe saves in localStorage and IndexedDB: backup slot, checksums, copy-paste save codes.",
       "file": "modules/save-kit/save-kit.js",
       "readme": "modules/save-kit/README.md",
