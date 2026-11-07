@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.14.0 · API 2 · 2026-11-07
+
+### Quick
+auto() picks horizontal bars when a third of the names are longer than 12 letters and they would not fit upright; sideways bars thin their numbers when two would touch.
+
+### Details
+auto: names <= 26, long*3 >= n and sum(min(14,len)*6.05+9) > (width-100)*1.6 -> horizontal; CH.bar horizontal value ticks: every hev-th label so neighbors keep 10 px. 2 new checks (421).
+
+### Deep
+burtin.json tilted and clipped 16 long bacteria names.
+
 ## 2.13.0 · API 2 · 2026-11-07
 
 ### Quick

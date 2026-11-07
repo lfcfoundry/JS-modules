@@ -212,6 +212,10 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const lrs = P.toSvg(lr, { type: 'scatter', x: 'longitude', y: 'latitude' });
   ok(/>-118.4<\/text>/.test(lrs) && (lrs.match(/>-118<\/text>/g) || []).length === 0, 'ticks 0.1 apart at -118 keep one decimal');
   ok(P.make([{ a: 1, b: 2, home_team: 'x' }, { a: 2, b: 3, home_team: 'y' }], { type: 'scatter', x: 'a', y: 'b', color: 'home_team' }, {}, require('../../netflow-scene/netflow-scene.js')).legendTitle === 'Home team', 'key title is tidied like axis names');
+  // since 2.14.0 auto() lays bars sideways when long names would tilt; short names stay upright
+  const longN = ['Aerobacter aerogenes', 'Klebsiella pneumoniae', 'Pseudomonas aeruginosa', 'Mycobacterium tuberculosis', 'Escherichia coli', 'Salmonella schottmuelleri', 'Proteus vulgaris', 'Brucella abortus', 'Streptococcus fecalis', 'Staphylococcus aureus', 'Staphylococcus albus', 'Bacillus anthracis'].map((b, i) => ({ Bacteria: b, Penicillin: 900 - i * 70 }));
+  ok(P.auto(longN).spec.horizontal === true && /lie sideways/.test(P.auto(longN).why), 'long names: auto lays the bars sideways');
+  ok(!P.auto(longN.map((r, i) => ({ Bacteria: 'b' + i, Penicillin: r.Penicillin }))).spec.horizontal, 'short names stay upright');
   const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
   ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
 }

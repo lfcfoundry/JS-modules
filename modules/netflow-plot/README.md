@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.13.0 · API 2**
+**Version 2.14.0 · API 2**
 
-**Tested in:** node test/run.js 419 checks; 108 vega charts: 24 change (light+dark of 12); same SVG in Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** node test/run.js 421 checks; 108 vega charts: only burtin.json light+dark change; same SVG in Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -74,7 +74,7 @@ On the 53 public tables of the contact sheet, touching label pairs went from 295
 
 ### Takeaway and screen-reader text (since 2.9.0, opt-in)
 
-`NetflowPlot.takeaway(rows, spec)` returns `{ text, alt }`. `text` is one plain sentence worked out from the rows, such as "West leads sales total with 1,227, 14% more than East (1,080)". `alt` lists the values for a screen reader. `auto()` returns both as `takeaway` and `alt`. Since 2.13.0, values on a chart whose biggest value is below 100,000 are written in full (10,048 next to 8,287, not 10k), axis ticks closer than 1 apart keep their decimals (-118.4, -118.2), and the key title is tidied like axis names (Incumbent challenger status, not Incumbent_Challenger_Status). Since 2.12.1, when the chart writes its values as percents (fractions between 0 and 1), the takeaway does too and gives the gap in points, such as "A leads rate with 20.1%, 5.1 points more than B (15%)". Pass the chart's options as a third argument, `takeaway(rows, spec, options)`, so `percent: false` keeps plain numbers.
+`NetflowPlot.takeaway(rows, spec)` returns `{ text, alt }`. `text` is one plain sentence worked out from the rows, such as "West leads sales total with 1,227, 14% more than East (1,080)". `alt` lists the values for a screen reader. `auto()` returns both as `takeaway` and `alt`. Since 2.14.0, `auto()` lays bars sideways when at least a third of the names are long (more than 12 letters) and they would not fit upright, so every name reads flat; the numbers under sideways bars thin out when two would touch. Since 2.13.0, values on a chart whose biggest value is below 100,000 are written in full (10,048 next to 8,287, not 10k), axis ticks closer than 1 apart keep their decimals (-118.4, -118.2), and the key title is tidied like axis names (Incumbent challenger status, not Incumbent_Challenger_Status). Since 2.12.1, when the chart writes its values as percents (fractions between 0 and 1), the takeaway does too and gives the gap in points, such as "A leads rate with 20.1%, 5.1 points more than B (15%)". Pass the chart's options as a third argument, `takeaway(rows, spec, options)`, so `percent: false` keeps plain numbers.
 
 `title: 'auto'` draws the takeaway as the title. Nothing changes unless a call asks for it.
 
