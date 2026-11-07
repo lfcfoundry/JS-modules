@@ -132,7 +132,7 @@ On the laptop, the lite file also loads 11 to 24% faster; its saves are even. No
 
 Compared: save-kit's createLarge against idb-keyval and localForage (game-like save with 2,000 named counts, whole call to data stored or in hand, ms, lower is faster).
 
-<!-- title: save-kit saves a 16 MB game state 1.9 to 5.2 times as fast as idb-keyval and localForage, and loads it 1.3 to 2.9 times as fast -->
+<!-- title: save-kit saves a 16 MB game state 2 to 5 times as fast as idb-keyval and localForage, and loads it 1.3 to 3 times as fast -->
 | way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
 |---|---:|---:|---:|
 | save-kit, 16 MB save | 76.2 | 124 | 65 |

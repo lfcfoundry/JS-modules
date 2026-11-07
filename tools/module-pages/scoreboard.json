@@ -130,11 +130,11 @@
    ]
   },
   {
-   "label": "save-kit big saves (4 MB and up) vs idb-keyval and localForage",
-   "x": 1.5,
+   "label": "save-kit 16 MB load vs idb-keyval and localForage",
+   "x": 1.3,
    "module": "save-kit",
    "proof": [
-    "1.5 to 4.5 times"
+    "loads it 1.3 to 3 times as fast"
    ]
   },
   {
