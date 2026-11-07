@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.14.5 · API 2 · 2026-11-07
+- Dot plots sort by value and carry their values, clean look.
+
 ## 2.14.4 · API 2 · 2026-11-07
 - Averages that sit close together show as dots, with ticks that differ.
 

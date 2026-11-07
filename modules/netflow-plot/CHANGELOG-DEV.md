@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.14.5 · API 2 · 2026-11-07
+
+### Quick
+A dot plot with one dot per name sorts biggest first by the drawn value (an average sorts by the average), writes each value beside its dot one decimal finer than the scale, drops gridlines and the number axis in the clean look, and names the values at the top with a note when the scale does not start at zero. clean:false keeps the old axis.
+
+### Details
+CH.dotplot: sort xc.list by cell value when no color and no sort; dv = clean && !ck && step >= 11; val axis ends 44 px early for the values; vt from step decimals + 1; header 'Average lat, scale starts at 47.658'. 1 new check (426).
+
+### Deep
+Follow-up to 2.14.4 dots.
+
 ## 2.14.4 · API 2 · 2026-11-07
 
 ### Quick
