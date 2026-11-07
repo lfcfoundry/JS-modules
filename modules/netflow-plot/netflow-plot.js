@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.14.1 (API 2)
+ * Version 2.14.2 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -248,6 +248,8 @@ var NetflowPlot = (function () {
     if (zero) { lo = Math.min(0, lo); hi = Math.max(0, hi); }
     if (isTime) { var tt = timeTicks(lo, hi, n || 8); return { kind: 'time', lo: lo, hi: hi, list: tt.list, fmt: tt.fmt, map: linear(lo, hi === lo ? lo + 1 : hi, a, b) }; }
     var t = ticks(lo, hi, n || 6), ax = { kind: 'num', lo: t.lo, hi: t.hi, list: t.list, map: linear(t.lo, t.hi, a, b) };
+    var tmax = Math.max(Math.abs(t.lo), Math.abs(t.hi)), tu = tmax >= 1e9 ? 1e9 : tmax >= 1e6 ? 1e6 : tmax >= 1e4 ? 1e3 : 1;
+    if (tu > 1 && t.step >= tu / 1000) { var us = tu === 1e9 ? 'B' : tu === 1e6 ? 'M' : 'k', ud = 0; while (ud < 3 && t.list.some(function (v) { return Math.abs(Number((v / tu).toFixed(ud)) * tu - v) > t.step / 1000; })) ud++; ax.fmt = function (v) { if (v === 0) return '0'; var x = (v / tu).toFixed(ud); return (+x === 0 ? x.replace('-', '') : x) + us; }; }   /* one unit on the whole axis, set by its biggest number: 5k, 10k ... 40k, not 5,000 next to 10k (since 2.14.2) */
     if (t.step > 0 && t.step < 1 && Math.max(Math.abs(t.lo), Math.abs(t.hi)) >= 100) { var dp = Math.min(6, Math.ceil(-Math.log10(t.step) - 1e-9)); ax.fmt = function (v) { var x = v.toFixed(dp); return +x === 0 ? x.replace('-', '') : x; }; }   /* -118.4, -118.2, not -118 three times: ticks closer than 1 apart keep the decimals their step needs (since 2.13.0) */
     if ((lo >= 1800 || (vals.yearName && lo >= 1000)) && hi <= 2200 && hi - lo <= (vals.yearName ? 1200 : 300) && Array.prototype.every.call(vals, function (v) { return v !== v || v === Math.floor(v); })) {   /* whole numbers 1800 to 2200 are years: written 2015, not 2,015, and only whole-year ticks; from 1000 when the column is named year (since 2.12.2) */
       ax.list = ax.list.filter(function (v) { return v === Math.floor(v); }); ax.fmt = function (v) { return String(v); }; ax.years = true;
