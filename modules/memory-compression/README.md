@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.12.0 · API 2**
+**Version 2.12.1 · API 2**
 
-**Tested in:** Node 85 checks on the minified file; 3,130 held-out checks on the read-only file; Chromium 155, Firefox 158, WebKitGTK 2.52.6 under a no-eval policy
+**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6; laptop Chromium 156, Firefox 160 (research run)
 
 ## What it is and how it works
 
@@ -35,8 +35,8 @@ Two smaller files sit next to it, built from the same version (gzipped sizes, lo
 | File | What it holds | Gzipped |
 |---|---|---|
 | `memory-compression.js` | everything, readable, with comments | 122.5 KB |
-| `memory-compression.min.js` | everything, minified: same API, same packed bytes | 83.1 KB |
-| `memory-compression-read.min.js` | opening only: `unpack`, `unpackAsync`, `view` and the stream readers | 37.1 KB |
+| `memory-compression.min.js` | everything, minified: same API, same packed bytes | 80.8 KB |
+| `memory-compression-read.min.js` | opening only: `unpack`, `unpackAsync`, `view` and the stream readers | 35.0 KB |
 
 Use the read-only file on pages that only open data packed elsewhere. Its packing parts (`pack`, `packAsync`, `pager`, `keeper`, `pool`, the stream writers) throw "this part is only in the full file". It never makes code at run time. It keeps only the code a broad test corpus needed to decode, so a packed shape that corpus never met would also throw that error (never a wrong value). Maintainers rebuild both files with `node modules/memory-compression/min/build.js` after any change; `test/min.js` fails when they are out of date.
 
@@ -152,7 +152,7 @@ Size is smaller-is-better and times are lower-is-better in every table. Every re
 | avsc 5.7.9 (needs a schema) | 18.767 MB | 38.1 and 31.2 | 59.6 and 94.0 | 67 and 83 |
 | JSON text | 57.258 MB | 73.5 and 38.3 | 69.6 and 52.3 | 52 and 33 |
 
-2.5 times smaller than msgpackr with records, and its unpack is as fast or faster in all three browsers; it loses on download size (since 2.12.0 the minified full file is 83.1 KB gzipped and the read-only file 37.1 KB, against 11 KB for msgpackr; the shipped unminified file is about 121 KB) and on packing text-heavy records (up to 2.4 times slower than msgpackr in WebKit).
+2.5 times smaller than msgpackr with records, and its unpack is as fast or faster in all three browsers; it loses on download size (since 2.12.0 the minified full file is 80.8 KB gzipped and the read-only file 35.0 KB, against 11 KB for msgpackr; the shipped unminified file is about 121 KB) and on packing text-heavy records (up to 2.4 times slower than msgpackr in WebKit).
 
 **The same 60,000 links kept in pages of 2,048 rows, one page opened at a time** (version 2.2.0, `pager()` against page-by-page copies made with each library; median of 5 turns, one browser at a time; times in ms, lower is better, each cell is Chromium 155 / Firefox 158.0 / WebKitGTK 2.52.6; "open" is the mean of 29 pages timed as one block; every contender gave back equal rows):
 

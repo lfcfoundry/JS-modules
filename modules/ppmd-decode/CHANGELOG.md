@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-11-06
+- New ppmd7DecodeWasm.async: decode without freezing the page
+
 ## 1.4.0 · API 1 · 2026-11-06
 - WebAssembly decoding is 8 to 29% faster.
 

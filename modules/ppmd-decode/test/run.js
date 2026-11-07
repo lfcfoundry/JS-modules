@@ -268,5 +268,42 @@ check('the fixtures include memory that is not a multiple of 4', cases.some((c) 
   }
 }
 
-console.log(`ppmd-decode: ${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+// 14. ppmd7DecodeWasm.async: the same bytes and the same error texts as the plain call, as a promise that hands the page back between short calls
+(async () => {
+  const W = require(path.join(__dirname, '..', 'ppmd-decode-wasm.js'));
+  const settle = (p) => p.then((value) => ({ ok: true, value }), (err) => ({ ok: false, err }));
+  let allSame = true;
+  for (const c of cases) { const r = await settle(W.async(c.src, c.m.size, c.m.order, c.m.mem)); if (!(r.ok && same(r.value, c.raw))) allSame = false; }
+  check('async: every fixture decodes to the same bytes (' + cases.length + ' fixtures)', allSame);
+  // a clock that jumps 10 ms per look: every short call is followed by a page turn, so the stepping and the turns are exercised on small fixtures too
+  const pm = byName('page-30k-o12'), realPerf = globalThis.performance; let now = 0, looks = 0, ticks = 0, tick = setInterval(() => ticks++, 0);
+  Object.defineProperty(globalThis, 'performance', { value: { now: () => { looks++; return (now += 10); } }, configurable: true, writable: true });
+  const stepped = await settle(W.async(pm.src, pm.m.size, pm.m.order, pm.m.mem));
+  Object.defineProperty(globalThis, 'performance', { value: realPerf, configurable: true, writable: true }); clearInterval(tick);
+  check('async: with every call over the time budget it still gives the same bytes, one short call per page turn (' + looks + ' looks at the clock)', stepped.ok && same(stepped.value, pm.raw) && looks >= Math.ceil(pm.m.size / 8192));
+  const r = rng(4242), picks = [byName('js-5000'), byName('html-100'), byName('page-12k-m2048'), byName('page-30k-o12')];
+  let agree = 0, disagree = '';
+  for (let i = 0; i < 80; i++) {
+    const c = picks[i % picks.length], bad = Uint8Array.from(c.src), mode = i % 4;
+    let size = c.m.size, order = c.m.order, mem = c.m.mem;
+    if (mode === 0) bad[1 + ((r() * (bad.length - 1)) | 0)] ^= 1 + ((r() * 255) | 0);
+    else if (mode === 1) { for (let k = 0; k < 4; k++) bad[1 + ((r() * (bad.length - 1)) | 0)] = (r() * 256) | 0; }
+    else if (mode === 2) size = c.m.size + 1 + ((r() * 400) | 0);
+    else { mem = Math.max(2048, c.m.mem + 1 + ((r() * 3000) | 0)); order = 2 + ((r() * 30) | 0); }
+    const a = attempt(() => W(bad, size, order, mem)), b = await settle(W.async(bad, size, order, mem));
+    if (a.ok ? (b.ok && same(a.value, b.value)) : (!b.ok && a.err.message === b.err.message)) agree++; else disagree += ' #' + i;
+  }
+  check('async: 80 damaged or mismatched copies end the same way as the plain call' + (disagree ? ' (differ:' + disagree + ')' : ''), agree === 80);
+  const c = byName('js-5000'), good = [c.src, c.m.size, c.m.order, c.m.mem];
+  let sameText = true, badList = '';
+  for (const [label, i, v] of [['order 1', 2, 1], ['memSize 100', 3, 100], ['outSize 1.5', 1, 1.5]]) {
+    const g = good.slice(); g[i] = v;
+    const ra = attempt(() => W.apply(null, g)), rb = await settle(W.async.apply(null, g));
+    if (ra.ok || rb.ok || ra.err.message !== rb.err.message) { sameText = false; badList += ' ' + label; }
+  }
+  check('async: bad arguments are a rejected promise with the same Error text' + (badList ? ' (differ:' + badList + ')' : ''), sameText);
+  const fp = await settle(W.async(new Uint8Array(0), 0, 12, 1 << 20));
+  check('async: a result size of 0 resolves to an empty result through the JavaScript decoder', fp.ok && fp.value.length === 0 && W.engine === 'js');
+  console.log(`ppmd-decode: ${pass} passed, ${fail} failed`);
+  process.exit(fail ? 1 : 0);
+})();

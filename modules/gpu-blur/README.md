@@ -1,8 +1,8 @@
 # gpu-blur
 
-**Version 1.3.6 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Chrome 156 laptop, Chrome 156 phone, Firefox 160 laptop; cloud Chromium, Firefox, WebKitGTK
+**Tested in:** Firefox 160 laptop, Chrome 156 laptop; cloud Chromium, Firefox, WebKitGTK
 
 ## What it is and how it works
 
@@ -50,7 +50,7 @@ GpuBlur.ready().then(function (info) { /* info.canvasRoute: the way a drawn pict
 
 - `GpuBlur.blur(source, width, height, radius[, opts])` returns a Promise of `{ canvas | pixels | texture, width, height, route }`. `source` is a canvas, OffscreenCanvas, ImageBitmap, loaded Image, ImageData, or RGBA bytes (`Uint8Array` or `Uint8ClampedArray`, `width * height * 4`). `width` and `height` may be left out (`null`) for everything except bytes. The call rejects with an `Error` for a bad argument (wrong size, empty source, more than 33,554,432 pixels), never with a wrong picture.
 - `radius` is 0 to 100 (larger values stop at 100); 0 returns the picture unchanged. Radius 12 looks like CSS `blur(6px)`: the Gaussian it stands for has a sigma of half the radius. Edges repeat the border pixel.
-- `opts.out`: `'canvas'` (default), `'pixels'` or `'texture'` (needs `opts.gl`).
+- `opts.out`: `'canvas'` (default), `'pixels'`, `'texture'` (needs `opts.gl`) or, since 1.4.0, `'bitmap'` (`blur()` only): the bytes route, then `result.bitmap`, an `ImageBitmap` the browser shows without copying pixels into a 2D canvas (show it with a `bitmaprenderer` canvas's `transferFromImageBitmap`, or `drawImage`). It is not a 2D canvas, so a 2D context on the result costs the copy again. 2048 x 2048, radius 24, bytes in, drawn until a 1-pixel read-back, `route: 'helpers'`: Firefox 160 laptop 27 ms against 50 ms for the best drawn canvas way and 32 ms for the browser's own blur; Chrome 156 laptop 36 ms against 22 ms for a drawn canvas (use `out: 'canvas'` there). Same picture as putImageData in cloud Chromium, Firefox and WebKitGTK (`tests/gpu-blur-bitmap-browser.js`, 25 cases).
 - `opts.route`: `'auto'` (default), `'webgl2'`, `'wasm'` or `'js'`. A way that cannot run gives way to the next one (webgl2, wasm, js); `result.route` always says which one ran. A texture request has no fallback and rejects if the context is missing or lost.
 - `opts.into`: a canvas to draw into (out `'canvas'`), so a game can reuse one canvas every frame; or, since 1.3.0, RGBA bytes of width x height x 4 (a `Uint8ClampedArray` or `Uint8Array`) to write into (out `'pixels'`): `result.pixels` is that same array, so blurring every frame makes no new megabyte arrays. An array of another length is left untouched and a new one is made. Every way (WebGL 2, WebAssembly, JavaScript, helpers, threads; `blur()` and `blurSync()`) gives the same bytes into it (`tests/gpu-blur-into-browser.js`, 332 to 420 cases per browser). Bytes in, radius 12, 960 x 540 to 3840 x 2160, against a fresh array: one-thread WebAssembly 0.91 to 1.49x faster, helpers 0.98 to 1.21x, threads 1.06 to 1.43x; the helpers route with kept bands plus `into` against 1.2.2: Chromium 1.19 to 1.43x, Firefox 1.47 to 1.74x, WebKitGTK 1.09 to 1.32x. `opts.gl`: your WebGL 2 context (out `'texture'`); the module saves and restores the bindings and switches it touches. `opts.budget`: milliseconds of work per slice for the WebAssembly and JavaScript ways (default 3).
 - `GpuBlur.blurSync(...)`: the same, but the answer comes back at once and the page waits for the whole job (about 45 ms for 1920 x 1080 in WebAssembly in the test browsers, see "Measured"). Use it in a loader, a worker or a test.

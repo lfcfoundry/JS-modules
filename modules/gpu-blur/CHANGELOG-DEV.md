@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-11-06
+
+### Quick
+New out: 'bitmap' (blur() only) returns an ImageBitmap the browser shows without a 2D copy; with route helpers Firefox laptop 2048 x 2048 radius 24 takes 27 ms against 50 ms for the best drawn canvas, 32 ms for the browser filter
+
+### Deep
+New option out: 'bitmap' (blur() only, off by default): the bytes route, then result.bitmap, an ImageBitmap the browser can show without copying pixels into a 2D canvas (bitmaprenderer canvas or drawImage). 2048 x 2048, radius 24, bytes in, route helpers, ms until drawn with a 1-pixel read-back: Firefox 160 laptop 27 against 50 for out 'canvas' with the best way and 32 for the browser filter; Chrome 156 laptop 36 against 22 for out 'canvas' (use out 'canvas' there). Nothing else changes; same picture as putImageData in cloud Chromium, Firefox and WebKitGTK (new tests/gpu-blur-bitmap-browser.js, 25 cases each).
+
 ## 1.3.6 · API 1 · 2026-11-06
 
 ### Quick
