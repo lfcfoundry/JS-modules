@@ -41,7 +41,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.10.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.10.1 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.11.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -68,6 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **save-kit** 2.2.0 · API 2: Big saves of many same-shape records open faster in Firefox and Safari-family browsers; older copies cannot read those saves.
 - 2026-11-07 · **save-kit** 2.1.0 · API 2: New warm(): start the load early so it is ready when the game asks. Big saves are faster to open; older copies cannot read big saves written by this one.
 - 2026-11-07 · **netflow-plot** 2.9.0 · API 2: toSvg(rows) picks the chart; auto() says why; opt-in takeaway
+- 2026-11-07 · **netflow-plot** 2.11.0 · API 2: Auto bar charts with more than 25 names show the 10 biggest plus one bar for the rest, sideways; fractions between 0 and 1 are written as percents.
 - 2026-11-07 · **netflow-plot** 2.10.1 · API 2: A bar chart given the number as x and the names as y now draws sideways bars instead of an empty chart.
 - 2026-11-07 · **netflow-plot** 2.10.0 · API 2: Busy flow tables where places both send and receive draw as a chord; small ones stay Sankeys. Line labels no longer collide and share one precision; date axes get round ticks and no redundant name. A scatter squashed by a few far values says so; the key's +N more no longer covers a name.
 - 2026-11-07 · **lzma-decode** 1.5.1 · API 1: The JavaScript decoder is faster again, now in WebKitGTK too: about a third faster on the first big file in every test browser.

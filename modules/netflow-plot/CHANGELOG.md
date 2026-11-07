@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.11.0 · API 2 · 2026-11-07
+- Auto bar charts with more than 25 names show the 10 biggest plus one bar for the rest, sideways; fractions between 0 and 1 are written as percents.
+
 ## 2.10.1 · API 2 · 2026-11-07
 - A bar chart given the number as x and the names as y now draws sideways bars instead of an empty chart.
 
