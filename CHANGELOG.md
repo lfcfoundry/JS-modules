@@ -26,7 +26,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lzma-decode](modules/lzma-decode/README.md) | 1.4.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.4.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
-| [gif-writer](modules/gif-writer/README.md) | 1.6.3 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
+| [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.20.1 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.12.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
@@ -84,6 +84,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **gpu-blur** 1.3.5 · API 1: Wide blurs (radius 24 and up) on the card way finish sooner: Firefox laptop 1080p drawn canvas, radius 24 23 to 21 ms, radius 50 31 to 22 ms. Same picture byte for byte.
 - 2026-11-06 · **gpu-blur** 1.3.4 · API 1: Big pictures blur on the card way on a laptop: Firefox 1080p 38 to 17 ms, 4K 174 to 65 ms. Small ones stay on WebAssembly.
 - 2026-11-06 · **gpu-blur** 1.3.3 · API 1: Fixed: on a phone, small pictures (480 x 270) went to the card although WebAssembly was faster (10.9 against 12.7 ms). Small ones now use the card only when the start-up probe found it strictly faster.
+- 2026-11-06 · **gif-writer** 1.6.4 · API 1: Making repeat GIFs is a little faster again: the color search now reuses the same working memory as the writer, about 5 to 10% less time per GIF after the first. Same files.
 - 2026-11-06 · **gif-writer** 1.6.3 · API 1: Making a second or later GIF on the same page is faster: 0.33 to 0.8 of the old time, most of all in WebKit on pages holding a lot of data. The first GIF and the file bytes are unchanged.
 - 2026-11-05 · **zip-open** 1.18.2 · API 1: Text-heavy Excel sheets open 2 to 13% faster; other sheets about the same. Same results.
 - 2026-11-05 · **zip-open** 1.18.1 · API 1: Excel sheets with many numbers and dates open 4 to 14% faster; text-heavy sheets about the same. Same results.

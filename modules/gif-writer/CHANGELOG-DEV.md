@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.4 · API 1 · 2026-11-06
+
+### Quick
+makePalette shares the kept WebAssembly instance with createEncoder (1.6.3). No API change; same palettes and bytes.
+
+### Details
+Palette + 30-picture GIF, 320x240, repeat median ms, 1.6.3 to 1.6.4, cloud: Chromium 155 8.4-9.5 to 8.3-8.6, Firefox 158 8-9 to 8-9, WebKitGTK 2.52.6 10 to 8-10. In the WebKit sweep page (13 modules on one page, 1.5 million objects held), gif-writer sprite capture went from 108 ms (1.6.3: 37 without the held objects) to 10 ms.
+
+### Deep
+Follow-up to 1.6.3 from the WebKit sweep: makePalette still made a fresh WebAssembly instance (7.25 MB memory) for every search, so on the sweep page WebKitGTK still paid a garbage collection per GIF (gif-writer sprite capture 37 ms plain, 108 ms with a big heap, against 8 in Chromium). makePalette now takes the kept instance (or makes one) and keeps it again afterwards (only up to 32 MB, so the large histogram tables of very colorful sets are not kept). An encoder whose instance a palette search took makes a new one, as in 1.6.3. New check: three palette searches between encoders give the JavaScript colors. A/B 1.6.2 / 1.6.3 / 1.6.4, 3 runs each, plain page and 1.5M-object heap, all 3 browsers: same 39,996 bytes; repeat GIF WebKitGTK 13-37 / 10 / 8-10 ms, Firefox 11-21 / 8-9 / 8-9, Chromium 11.7-13.7 / 8.4-10.1 / 8.3-8.6. Sweep page after: sprite 10 ms warm in WebKitGTK with the heap.
+
 ## 1.6.3 · API 1 · 2026-11-06
 
 ### Quick
