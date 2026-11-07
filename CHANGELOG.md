@@ -41,7 +41,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.10.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.12.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.12.1 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -68,6 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **save-kit** 2.2.0 · API 2: Big saves of many same-shape records open faster in Firefox and Safari-family browsers; older copies cannot read those saves.
 - 2026-11-07 · **save-kit** 2.1.0 · API 2: New warm(): start the load early so it is ready when the game asks. Big saves are faster to open; older copies cannot read big saves written by this one.
 - 2026-11-07 · **netflow-plot** 2.9.0 · API 2: toSvg(rows) picks the chart; auto() says why; opt-in takeaway
+- 2026-11-07 · **netflow-plot** 2.12.1 · API 2: The takeaway sentence writes percents like the chart.
 - 2026-11-07 · **netflow-plot** 2.12.0 · API 2: Bars and boxes now use the same mauve colors as every other chart (navy and red stay for bars below zero); the Others bar is light gray; busy line charts name each line.
 - 2026-11-07 · **netflow-plot** 2.11.0 · API 2: Auto bar charts with more than 25 names show the 10 biggest plus one bar for the rest, sideways; fractions between 0 and 1 are written as percents.
 - 2026-11-07 · **netflow-plot** 2.10.1 · API 2: A bar chart given the number as x and the names as y now draws sideways bars instead of an empty chart.

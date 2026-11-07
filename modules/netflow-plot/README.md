@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.12.0 · API 2**
+**Version 2.12.1 · API 2**
 
-**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6
+**Tested in:** node test/run.js 414 checks
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -74,7 +74,7 @@ On the 53 public tables of the contact sheet, touching label pairs went from 295
 
 ### Takeaway and screen-reader text (since 2.9.0, opt-in)
 
-`NetflowPlot.takeaway(rows, spec)` returns `{ text, alt }`. `text` is one plain sentence worked out from the rows, such as "West leads sales total with 1,227, 14% more than East (1,080)". `alt` lists the values for a screen reader. `auto()` returns both as `takeaway` and `alt`.
+`NetflowPlot.takeaway(rows, spec)` returns `{ text, alt }`. `text` is one plain sentence worked out from the rows, such as "West leads sales total with 1,227, 14% more than East (1,080)". `alt` lists the values for a screen reader. `auto()` returns both as `takeaway` and `alt`. Since 2.12.1, when the chart writes its values as percents (fractions between 0 and 1), the takeaway does too and gives the gap in points, such as "A leads rate with 20.1%, 5.1 points more than B (15%)". Pass the chart's options as a third argument, `takeaway(rows, spec, options)`, so `percent: false` keeps plain numbers.
 
 `title: 'auto'` draws the takeaway as the title. Nothing changes unless a call asks for it.
 
