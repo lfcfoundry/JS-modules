@@ -4,7 +4,7 @@
  * are left transparent, and every picture is compressed the moment it is added.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.2 (API 1)
+ * Version 1.6.3 (API 1)
  *
  *   var pal = GifWriter.makePalette([rgba1, rgba2], 255);          // rgba: Uint8ClampedArray from ctx.getImageData(...).data
  *   var enc = GifWriter.createEncoder(width, height, pal, { loop: true });
@@ -309,11 +309,20 @@
    * Pixels that did not change since the last picture are left transparent, so still parts cost almost nothing.
    */
   /** One instance for one encoder: its own memory holds the pictures, the palette cache and the LZW table. Null when it cannot be had (no WebAssembly, refused, too big): the JavaScript code then runs. */
+  /* One finished encoder's instance is kept for the next createEncoder (for 10 s at most, and only up to 32 MB of memory). A new instance means new memory,
+     and in WebKit that often set off a full garbage collection: about 20 ms on a page holding a lot of data, for every GIF after the first. */
+  var SPARE = null, SPARE_OF = null, SPARE_T = null, SPARE_MAX = 32 << 20;
+  function spareDrop() { SPARE = SPARE_OF = null; if (SPARE_T) { clearTimeout(SPARE_T); SPARE_T = null; } }
+  function spareKeep(W) {
+    if (SPARE || W.ex.memory.buffer.byteLength > SPARE_MAX) return;
+    SPARE = W.ex; SPARE_OF = W; SPARE_T = setTimeout(spareDrop, 10000); if (SPARE_T && SPARE_T.unref) SPARE_T.unref();
+  }
   function wasmEncoder(width, height, NP, SI, SR, SG, SB) {
     var mod = wasmModule(), n = width * height;
     if (!mod || !(n > 0) || n > WASM_MAXPIX || width !== (width | 0) || height !== (height | 0)) return null;
     try {
-      var ex = new WebAssembly.Instance(mod, {}).exports, base = (ex.__heap_base.value + 15) & ~15, cap = Math.ceil((n + 8) * 1.51) + 64;
+      var ex = SPARE; if (ex) { SPARE_OF.ex = null; spareDrop(); }   // the encoder that let it go makes a new one if it is used again
+      ex = ex || new WebAssembly.Instance(mod, {}).exports; var base = (ex.__heap_base.value + 15) & ~15, cap = Math.ceil((n + 8) * 1.51) + 64;
       var oIn = base, oIn2 = oIn + n * 4, oIdx = oIn2 + n * 4, oChg = (oIdx + n + 3) & ~3, oData = oChg + n * 4, oOut = oData + n, oRes = (oOut + cap + 15) & ~15, oPal = oRes + 16, end = oPal + NP * 16;
       var have = ex.memory.buffer.byteLength, need = Math.ceil(end / 65536) * 65536;
       if (need > have) ex.memory.grow((need - have) / 65536);
@@ -370,6 +379,11 @@
     };
     var wFirst = true, wSide = 0;   // wSide: which of the two picture areas the next picture is copied into (the other holds the last one)
     var addWasm = function (rgba, delayMs) {
+      if (SPARE_OF === W) spareDrop();   // added to again after finish(): take the kept instance back
+      else if (!W.ex) {                  // another encoder took it: carry on in a new one, starting from a whole picture
+        var W2 = wasmEncoder(width, height, NP, SI, SR, SG, SB); if (!W2) throw new Error('gif-writer: could not make a new WebAssembly instance');
+        for (var q in W2) W[q] = W2[q]; wFirst = true; wSide = 0;
+      }
       var ex = W.ex, first = wFirst, nchg, x0 = 0, y0 = 0, fw = width, fh = height, len, here = wSide ? W.o1 : W.o0, there = wSide ? W.o0 : W.o1;
       if (rgba.length < W.n * 4) throw new RangeError('gif-writer: the picture has ' + (rgba.length >> 2) + ' pixels, ' + W.n + ' expected');
       (wSide ? W.in1 : W.in0).set(rgba.length === W.n * 4 ? rgba : rgba.subarray(0, W.n * 4));
@@ -417,6 +431,7 @@
         frames.push({ x: x0, y: y0, w: fw, h: fh, delay: delayMs, trans: frames.length > 0, code: lzw(data, 8) });
       },
       finish: function () {
+        if (W && W.ex) spareKeep(W);
         var size = 800 + frames.length * 32, f, i;
         for (f = 0; f < frames.length; f++) size += frames[f].code.length + Math.ceil(frames[f].code.length / 255) + 40;
         var out = new Uint8Array(size), o = 0;
