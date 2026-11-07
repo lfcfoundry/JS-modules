@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.5.8 (API 0)
+ * Version 0.5.9 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1896,7 +1896,7 @@
             return x;
           });
         };
-        var rn = null, rf = null, readers = function () { if (!rf) { rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))); rf = arenaReader(makeFlatReader(arenaZs(S.zdec))); } };
+        var rn = null, rf = null, cf = null, readers = function () { if (!rf) { rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))); rf = arenaReader(makeFlatReader(arenaZs(S.zdec))); } };
         var decode = function (i, x, lo, hi) { readers(); var b = blocks[i], r; if (b[4] === 'f') return rf.readRange(x, lo, hi); r = rn.readBlock(x); return lo === 0 && hi >= r.length ? r : r.slice(lo, hi); };
         var R = {
           size: size, blocks: blocks.map(function (b, k) { return { offset: b[0], length: b[1], rows: b[3], kind: b[4], table: b[5] || 0, first: at[k] }; }),
@@ -1904,6 +1904,19 @@
           block: function (i) {
             if (raw) return getAll().then(function (all) { var b = blocks[i]; if (!b) throw new Error('block ' + i + ' out of range'); return unpackRows(all, { table: b[5] || 0, from: at[i], count: b[3] }); });
             return fetch(i).then(function (x) { return decode(i, x, 0, blocks[i][3]); });
+          },
+          // columns(i, { keys }) (since 0.5.9): block i as typed columns, the same entry unpackColumns gives for that block, fetching only that block. Flat-row blocks only (others throw)
+          columns: function (i, o) {
+            var b = blocks[i]; if (!b) return Promise.reject(new Error('block ' + i + ' out of range'));
+            if (b[4] !== 'f') return Promise.reject(new Error('LfcPack: columns() needs a flat-row block; block ' + i + ' is ' + (b[4] === 'r' ? 'raw (exact mode)' : 'nested') + ': read it with block(i)'));
+            var want = null, q; if (o && o.keys) { want = {}; for (q = 0; q < o.keys.length; q++) want[o.keys[q]] = 1; }
+            return fetch(i).then(function (x) { if (!cf) cf = makeFlatReader(S.zdec); return cf.columnsOf(x, want, false); });   /* its own reader, not the shared arena: the arrays stay valid after the next block */
+          },
+          // zone(i, key) (since 0.5.9): { min, max, count } of the number column key in block i, from the footer (nothing is decoded), or null when the block has none for that key. A filter such as id >= 7000000 can skip block i when max < 7000000
+          zone: function (i, key) {
+            var z = file.zone && file.zone[i], h = fnvStr('.' + key), q; if (!z) return null;
+            for (q = 0; q < z.length; q++) if (z[q][0] === h) return { min: z[q][1], max: z[q][2], count: z[q][3] };
+            return null;
           },
           rows: function (o) {
             o = o || {}; var from = o.from || 0, count = o.count == null ? Infinity : o.count, tb = o.table || 0, out = [], k = 0;
@@ -1931,7 +1944,7 @@
       return init(write ? undefined : { readOnly: true }).then(function () { return fn.apply(null, a); });
     };
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.5.8', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.5.9', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

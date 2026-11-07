@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.9 · API 0 · 2026-11-07
+
+### Quick
+The reader from open() gives one block's columns and the footer's number ranges
+
+### Details
+R.columns(i, { keys }) returns block i as typed columns, the same entry unpackColumns gives, fetching only that block (its own reader, so arrays stay valid). R.zone(i, key) returns { min, max, count } of a number column from the footer, or null, so filters can skip blocks without decoding. Flat-row blocks only; nested and raw blocks throw with a pointer to block(i). Asked for by the LFC Workbench (per-block memory, block skipping).
+
+### Deep
+Requested by the owner (Workbench brief, 2026.11.07).
+
 ## 0.5.8 · API 0 · 2026-11-07
 
 ### Quick
