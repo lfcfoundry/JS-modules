@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.5.7 (API 0)
+ * Version 0.5.9 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -995,8 +995,6 @@
   var V8 = (typeof process === 'object' && process !== null && !!process.versions && !!process.versions.v8) || (typeof navigator === 'object' && navigator !== null && /Chrome\//.test(navigator.userAgent));
   // Firefox (Gecko) only: joining four short pieces makes one flat string there (no rope), and that beats writing the digits and cutting them out of one decoded text (cloud Firefox 158, 300,000 log rows: unpack 0.87 of the time). Chromium keeps ipColV8; WebKitGTK, whose joins make ropes, keeps ipCol
   var GECKO = !V8 && typeof navigator === 'object' && navigator !== null && /Firefox\//.test(navigator.userAgent);
-  var IPS = [], IPT = []; (function () { for (var v = 0; v < 256; v++) { IPS.push(String(v)); IPT.push(v + '.'); } })();
-  function ipColCat(r, n) { var o = new Array(n), i, q; for (i = 0; i < n; i++) { q = 4 * i; o[i] = IPT[r[q]] + IPT[r[q + 1]] + IPT[r[q + 2]] + IPS[r[q + 3]]; } return o; }
   // ascending id lists for Firefox and WebKitGTK: array literals for 1 to 4 items (packed arrays, no growth), a push loop beyond. Kept out of decodeColumn on purpose: adding it inline slowed the plain fill that V8 uses
   function ascLit(o, al, av, n) {
     var i, an, aa, ac, aj, a3, ap = 0;
@@ -1044,7 +1042,7 @@
     if ((t === 'H' && frames[0].length < n * (p.L / 2)) || (t === 'U' && frames[0].length < n * 16) || (t === 'I' && frames[0].length < n * 4)) throw new Error('damaged block: ' + t + ' column cut off');   // fixed-width columns: the frame must hold n values
     if (t === 'H') return hexCol(frames[0], n, p.L);
     if (t === 'U') return uuidCol(frames[0], n);
-    if (t === 'I') return V8 ? ipColV8(frames[0], n) : GECKO ? ipColCat(frames[0], n) : ipCol(frames[0], n);
+    if (t === 'I') return V8 ? ipColV8(frames[0], n) : ipCol(frames[0], n);   // Firefox too (since 0.5.8): it used to join four pieces per address, and the two throwaway pieces per address kept Firefox copying every new value out of its young memory for the first reads of a page (cloud Firefox 158, 100k log rows: young-memory cleanup per read 29 and 27 ms -> 10 and 1 ms; reads 1-2 80, 79 -> 74, 63 ms; warm reads 47 -> 43 ms)
     if (t === 'A') {
       var al = unvarints32(frames[0], n) || unvarints(frames[0], n), av = unvarints32(frames[1], p.m) || unvarints(frames[1], p.m), ap = 0, aa, aj, ac, an, ar = p.asc;
       o = new Array(n);
@@ -1898,7 +1896,7 @@
             return x;
           });
         };
-        var rn = null, rf = null, readers = function () { if (!rf) { rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))); rf = arenaReader(makeFlatReader(arenaZs(S.zdec))); } };
+        var rn = null, rf = null, cf = null, readers = function () { if (!rf) { rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))); rf = arenaReader(makeFlatReader(arenaZs(S.zdec))); } };
         var decode = function (i, x, lo, hi) { readers(); var b = blocks[i], r; if (b[4] === 'f') return rf.readRange(x, lo, hi); r = rn.readBlock(x); return lo === 0 && hi >= r.length ? r : r.slice(lo, hi); };
         var R = {
           size: size, blocks: blocks.map(function (b, k) { return { offset: b[0], length: b[1], rows: b[3], kind: b[4], table: b[5] || 0, first: at[k] }; }),
@@ -1906,6 +1904,19 @@
           block: function (i) {
             if (raw) return getAll().then(function (all) { var b = blocks[i]; if (!b) throw new Error('block ' + i + ' out of range'); return unpackRows(all, { table: b[5] || 0, from: at[i], count: b[3] }); });
             return fetch(i).then(function (x) { return decode(i, x, 0, blocks[i][3]); });
+          },
+          // columns(i, { keys }) (since 0.5.9): block i as typed columns, the same entry unpackColumns gives for that block, fetching only that block. Flat-row blocks only (others throw)
+          columns: function (i, o) {
+            var b = blocks[i]; if (!b) return Promise.reject(new Error('block ' + i + ' out of range'));
+            if (b[4] !== 'f') return Promise.reject(new Error('LfcPack: columns() needs a flat-row block; block ' + i + ' is ' + (b[4] === 'r' ? 'raw (exact mode)' : 'nested') + ': read it with block(i)'));
+            var want = null, q; if (o && o.keys) { want = {}; for (q = 0; q < o.keys.length; q++) want[o.keys[q]] = 1; }
+            return fetch(i).then(function (x) { if (!cf) cf = makeFlatReader(S.zdec); return cf.columnsOf(x, want, false); });   /* its own reader, not the shared arena: the arrays stay valid after the next block */
+          },
+          // zone(i, key) (since 0.5.9): { min, max, count } of the number column key in block i, from the footer (nothing is decoded), or null when the block has none for that key. A filter such as id >= 7000000 can skip block i when max < 7000000
+          zone: function (i, key) {
+            var z = file.zone && file.zone[i], h = fnvStr('.' + key), q; if (!z) return null;
+            for (q = 0; q < z.length; q++) if (z[q][0] === h) return { min: z[q][1], max: z[q][2], count: z[q][3] };
+            return null;
           },
           rows: function (o) {
             o = o || {}; var from = o.from || 0, count = o.count == null ? Infinity : o.count, tb = o.table || 0, out = [], k = 0;
@@ -1933,7 +1944,7 @@
       return init(write ? undefined : { readOnly: true }).then(function () { return fn.apply(null, a); });
     };
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.5.7', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.5.9', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

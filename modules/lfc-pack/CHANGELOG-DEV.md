@@ -2,6 +2,28 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.9 · API 0 · 2026-11-07
+
+### Quick
+The reader from open() gives one block's columns and the footer's number ranges
+
+### Details
+R.columns(i, { keys }) returns block i as typed columns, the same entry unpackColumns gives, fetching only that block (its own reader, so arrays stay valid). R.zone(i, key) returns { min, max, count } of a number column from the footer, or null, so filters can skip blocks without decoding. Flat-row blocks only; nested and raw blocks throw with a pointer to block(i). Asked for by the LFC Workbench (per-block memory, block skipping).
+
+### Deep
+Requested by the owner (Workbench brief, 2026.11.07).
+
+## 0.5.8 · API 0 · 2026-11-07
+
+### Quick
+Firefox: first two big reads 0.93 and 0.80 of the time, warm reads 0.91
+
+### Details
+Firefox built each IPv4 text from four pieces, leaving two throwaway pieces per address. That garbage kept Firefox from learning to place lfc-pack's values straight into long-lived memory, so the first reads of a page paid 25 to 35 ms of young-memory copying each, more after a small read. Firefox now builds the addresses like WebKit does (one text, then slices). Cloud Firefox 158, 100k log rows, 12 fresh pages: reads 1-2 80, 79 -> 74, 63 ms; after small reads 72, 80 -> 69, 61 ms; warm 47 -> 43 ms. Same values; Chromium and WebKit unchanged.
+
+### Deep
+Requested by the owner (card: Dig for a real fix).
+
 ## 0.5.7 · API 0 · 2026-11-06
 
 ### Quick

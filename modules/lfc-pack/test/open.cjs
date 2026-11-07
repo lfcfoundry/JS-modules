@@ -47,6 +47,22 @@ const JF = require('../lfc-pack.js');
   ok((await JF.open(files.find((f) => f[0] === 'exact raw')[1])).blocks.some((b) => b.kind === 'r'), 'the exact raw case has raw blocks');
   let e1 = ''; try { await JF.open(new Blob([Buffer.from('not a file at all, just text')])); } catch (e) { e1 = e.message; } ok(/not an LFC-pack/.test(e1), 'not a file: ' + e1);
   let e2 = ''; try { await JF.open((o, l) => new Uint8Array(l)); } catch (e) { e2 = e.message; } ok(/read.size/.test(e2), 'read() without size: ' + e2);
+  // columns(i, { keys }) and zone(i, key) (0.5.9): the same columns as unpackColumns, one block at a time; the footer's number ranges
+  { const fb = files.find((f) => f[0] === 'flat')[1], R = await JF.open(new Blob([fb])), j = (x) => JSON.stringify(x, (k, v) => ArrayBuffer.isView(v) ? Array.from(v) : v);
+    const A = JF.unpackColumns(fb, { keys: ['id', 'v'] }), B = JF.unpackColumns(fb); let sameC = true, inZone = true;
+    for (let i = 0; i < R.blocks.length; i++) {
+      const c = await R.columns(i, { keys: ['id', 'v'] }), d = await R.columns(i);
+      if (j(c) !== j(A[i]) || j(d) !== j(B[i])) sameC = false;
+      const z = R.zone(i, 'id'), ids = Array.from(c.cols.id);
+      if (!z || z.min !== Math.min(...ids) || z.max !== Math.max(...ids) || z.count !== ids.length) inZone = false;
+    }
+    ok(R.blocks.length > 3 && sameC, 'columns(i): the same entries as unpackColumns, with and without keys (' + R.blocks.length + ' blocks)');
+    const first = await R.columns(0, { keys: ['id'] }), keep = j(first); await R.columns(1, { keys: ['id'] }); await R.block(2);
+    ok(j(first) === keep, 'columns(i): the arrays stay the same after later reads');
+    ok(inZone && R.zone(0, 'name') === null && R.zone(0, 'nope') === null, 'zone(i, key): min, max and count of a number column; null for text or a missing key');
+    const Rn = await JF.open(files.find((f) => f[0] === 'nested')[1]); let e3 = ''; try { await Rn.columns(0); } catch (e) { e3 = e.message; }
+    ok(/flat-row block/.test(e3), 'columns(i) on a nested block says to use block(i): ' + e3);
+    let e4 = ''; try { await R.columns(999); } catch (e) { e4 = e.message; } ok(/out of range/.test(e4), 'columns(i) past the end: ' + e4); }
   console.log((bad ? 'FAIL' : 'ok  ') + ' open(): ' + n + ' checks, bad ' + bad);
   process.exitCode = bad ? 1 : 0; if (JF.close) JF.close();
 })();
