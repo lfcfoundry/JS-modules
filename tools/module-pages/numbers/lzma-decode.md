@@ -15,4 +15,12 @@
 | WebAssembly build, first unpack | 0.90 | 0.86 |
 | WebAssembly build, second unpack | 0.88 | 0.87 |
 
-Where it is not a win: in WebKitGTK the first big unpack with the JavaScript decoder is 5 to 14% slower than before, then about a third faster on later unpacks.
+**New in 1.5.1: the JavaScript decoder uses 32-bit integers.** Cloud-browser runs (shared machine, not the laptop), new time divided by old time, so lower is faster. It costs 370 bytes more in the decoder (minified JavaScript 2,156 to 4,020 bytes before gzip; gzipped 1,179 to 1,167).
+
+<!-- title: lzma-decode 1.5.1's JavaScript decoder unpacks 3 MB the first time in 0.57 to 0.71 of the old time and later unpacks in about 0.4 -->
+| way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| JavaScript, first unpack after load, 3 MB text | 0.67 | 0.57 | 0.71 |
+| JavaScript, next unpack, 400 KB | 0.39 | 0.44 | 0.39 |
+
+The 1.5.0 JavaScript decoder was 5 to 14% slower than before on the first big unpack in WebKitGTK; 1.5.1 removes that, so there is no browser where the JavaScript decoder is now slower.
