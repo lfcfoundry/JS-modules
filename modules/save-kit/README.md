@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 2.0.2 · API 2**
+**Version 2.1.0 · API 2**
 
-**Tested in:** cloud WebKitGTK 2.52.6 (speed), Node with a forced WebKit branch (20,000 random loads equal to 2.0.1; helper: 6,000 random and damaged saves, 7 saves inside real WebKitGTK)
+**Tested in:** cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; warm(): 9,944 random saves equal to load(); pieces: 120 damaged and random cases per browser equal to 2.0.2, 37 large-save checks
 
 ## What it is and how it works
 
@@ -46,6 +46,7 @@ Try `demo.html`. Checks: `node modules/save-kit/test/run.js` (plain Node, no bro
 Also exported: `SaveKit.validate(schema, defaults, untrusted)`, `SaveKit.has(obj, key)` (for counts) and `SaveKit.twoTap(fn, ms, onArm)` ("tap again to confirm" on destructive buttons). Schema types are listed at the top of `save-kit.js`.
 
 - `kit.pause(true)` switches saving off (`false` on again); `stageImport` uses it while a loaded save waits for a reload. `kit.forceBackupNext()` makes the next `save()` also refresh the backup slot.
+- `kit.warm()` (new in 2.1.0, off unless you call it) does `load()`'s reading and checking right away, for example at the top of the page while images and sounds still load; the next `load()` only checks that the stored text did not change and hands over the same result (20 KB save: about 0.5 us in Chromium 155 and 1.5 us in WebKitGTK 2.52.6, against 85 to 140 us for a full load). Same total work, done earlier. A `save()` or a slot changed by another tab makes `load()` read again. `afterValidate` runs during `warm()`. Returns `true` when a save was found.
 - `kit.save(state, true)` writes even when `skipUnchangedMs` would skip it (autosave does this by itself when the page is hidden or closed).
 - `kit.onOtherTab(function (state, event) {...})` is called when another tab of the same site writes the save (`state` is the clean new save, or `null` if removed). The browser never tells the tab that wrote it. Use it so an old tab does not overwrite newer progress: `kit.pause(true)` and show "This game changed in another tab. Reload." Returns a function that stops listening. Does nothing outside a browser.
 - `kit.persist()` asks the browser not to delete this site's storage when space runs low. Resolves `true`/`false`, never rejects. Chrome answers by itself (often `false` for a page nobody installed), Firefox 158 asks the player and the promise waits for the answer, WebKitGTK 2.52.6 has no `persist()` (so `false`). Call it after a first save, never at page load.
@@ -103,6 +104,7 @@ big.onOtherTab(function (state) { /* another tab of this game stored a save */ }
 
 - The main slot and a backup slot are written in one transaction, so a half-written save cannot exist. The save is stored as its JSON text plus the text length; `load()` ignores a slot that is cut short or is not a JSON object and uses the other one. The browser's own storage adds its own checksums; there is no checksum of ours on top (it cost 8 to 54 ms on 16 MB and was dropped).
 - Same checks as `create()`: a broken or negative number refuses the save (`false`, nothing written); fields are rebuilt with the schema; `afterValidate`, `stamp`, `version` (stamps `v`; there is no `migrate` here yet), `soundKeys`, `backupEveryMs`, `pause()` and `forceBackupNext()` work the same. `raw` fields skip the deep copy when the stored text names no `__proto__`, `constructor` or `prototype` key (otherwise they are scrubbed as before).
+- Since 2.1.0 a save whose biggest array field has 100,000 or more entries stores that array in pieces of about 40,000 entries (at most 8), each with its index, the piece count, the total and a save id, read side by side and parsed one by one; a missing, cut, reordered, duplicated or foreign piece makes the slot count as broken (the backup is used, as for any broken slot). 20 MB, pieces / one text, early-stop rule: WebKitGTK load 0.76 and save 0.67, Chromium load 0.90 and save 0.63, Firefox load 0.90 and save 0.99. **Upgrade note:** save-kit 2.0.2 or older cannot read a big save written in pieces.
 - Quick saves in a row: while one write runs, newer saves wait and only the newest is written; every caller's Promise resolves `true` once its save or a newer one is stored.
 - `lock: true`: the first tab to save takes a lock (`navigator.locks`); another tab with the same `name` gets `false` from `save()` until it calls `claim(true)` to take over, and the old holder's `onLost(cb)` runs. Without Web Locks every tab may write.
 - `skipUnchangedMs: 60000` (off by default): a `save()` whose fields equal the last stored save (only the stamp differs) resolves `true` without writing until that many ms pass; `save(state, true)` always writes. The text is still built to compare, so an unchanged save costs about 34 to 43% of a normal one, not zero: 16 MB in Chromium 155 95.6 ms against 222.8, Firefox 158 61 against 168, WebKitGTK 2.52.6 35 against 102 (milliseconds, smaller is better). The stamp is kept beside the text and put back on load.

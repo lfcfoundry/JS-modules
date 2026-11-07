@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.1.0 · API 2 · 2026-11-07
+
+### Quick
+New kit.warm() (off unless called) does the load early, so the next load() takes about 0.5 us (Chromium) to 1.5 us (WebKitGTK) instead of 85-140 us for 20 KB. Big createLarge saves (an array of 100,000+ entries) are stored in up to 8 pieces: 20 MB load 0.76x of the time in WebKitGTK, 0.90x in Chromium and Firefox; saves 0.63-0.99x.
+
+### Deep
+New kit.warm() (off unless called) does the load early, so the next load() takes about 0.5 us (Chromium) to 1.5 us (WebKitGTK) instead of 85-140 us for 20 KB. Big createLarge saves (an array of 100,000+ entries) are stored in up to 8 pieces: 20 MB load 0.76x of the time in WebKitGTK, 0.90x in Chromium and Firefox; saves 0.63-0.99x. Owner cards: Add it, off by default (warm); Yes, all browsers (pieces). Pieces patch from the helper thread Speed up save-kit big loads in WebKit. Upgrade note: save-kit 2.0.2 or older cannot read a big save written in pieces.
+
 ## 2.0.2 · API 2 · 2026-11-06
 
 ### Quick

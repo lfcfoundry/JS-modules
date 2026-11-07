@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.0.2 (API 2)
+ * Version 2.1.0 (API 2)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -453,38 +453,51 @@
       try { r = after(c, raw); } catch (e) { return c; }
       return r === false || r === null ? null : isObj(r) ? r : c;
     }
+    var warmed = null;   // what warm() found: { out, mt, bt }; load() hands it out once
+    // One load: { out: clean state or null, mt: main slot text, bt: backup slot text if it was read }.
+    function readNow() {
+      try {
+        var mt = textOf(key), a = parseSlot(mt), b = null, bt, first, second, out = null, used = null;
+        if (mt === null && !orphan) return { out: null, mt: mt };
+        var pre = a && countKeys.length ? checkMain(a) : null, badA = pre ? pre.bad : a ? badFields(a) : 0;
+        if (!a || badA > 0) b = parseSlot(bt = textOf(bak));   // a sound main slot can never lose to the backup, so only read the backup when it could matter
+        if (a || b) {
+          first = !b ? a : !a ? b : (badFields(b) < badA ? b : a);
+          if (pre && first === a) out = hook(pre.c, a);
+          else { fresh = true; try { out = finish(first); } finally { fresh = false; } }
+          used = first;
+          if (!out) {   // refused by afterValidate: try the other slot
+            second = first === a ? (b || parseSlot(bt = textOf(bak))) : a;
+            out = second ? finish(second) : null; used = second;
+          }
+        }
+        if (damaged && mt && (!a || used !== a)) { try { storage.setItem(damaged, mt); } catch (e) {} }
+//@begin durable
+        loadedAt = used && isNum(used[stamp]) ? used[stamp] : 0;
+//@end
+        return { out: out, mt: mt, bt: bt };
+      } catch (e) { return { out: null, mt: undefined, bt: undefined }; }
+    }
     var api = {
       validate: function (input) { return validateWith(fields, defaults, input); },
       // Returns a clean state rebuilt from the better slot (the main slot unless the backup has fewer broken numbers), else null.
       // With damagedKey, main-slot text that was not used (unreadable, refused by afterValidate, or worse than the backup) is copied there first.
       load: function () {
-        try {
-          var mt = textOf(key), a = parseSlot(mt), b = null, first, second, out = null, used = null;
-          if (mt === null && !orphan) return null;
-          var pre = a && countKeys.length ? checkMain(a) : null, badA = pre ? pre.bad : a ? badFields(a) : 0;
-          if (!a || badA > 0) b = readSlot(bak);   // a sound main slot can never lose to the backup, so only read the backup when it could matter
-          if (a || b) {
-            first = !b ? a : !a ? b : (badFields(b) < badA ? b : a);
-            if (pre && first === a) out = hook(pre.c, a);
-            else { fresh = true; try { out = finish(first); } finally { fresh = false; } }
-            used = first;
-            if (!out) {   // refused by afterValidate: try the other slot
-              second = first === a ? (b || readSlot(bak)) : a;
-              out = second ? finish(second) : null; used = second;
-            }
-          }
-          if (damaged && mt && (!a || used !== a)) { try { storage.setItem(damaged, mt); } catch (e) {} }
-//@begin durable
-          loadedAt = used && isNum(used[stamp]) ? used[stamp] : 0;
-//@end
-          return out;
-        } catch (e) { return null; }
+        var w = warmed;
+        warmed = null;
+        if (w) { try { if (textOf(key) === w.mt && (w.bt === undefined || textOf(bak) === w.bt)) return w.out; } catch (e) {} }   // warm() already did this load and neither slot changed since
+        return readNow().out;
       },
+      // Since 2.1.0 (off unless called): does load()'s reading and checking now, for example while the game's page is still starting, so the next
+      // load() only compares the stored text (a few microseconds) and hands over the same result. Any save() or a changed slot makes load() read again.
+      // The game's afterValidate runs during warm(). Returns true when a save was found. Never throws.
+      warm: function () { warmed = null; try { warmed = readNow(); return !!warmed.out; } catch (e) { warmed = null; return false; } },
       // Writes the state. Returns false (and writes nothing) if a number is broken, saving is switched off, or storage fails.
       // Returns true when the main slot was written, even if the backup write failed (the backup is tried again next time).
       // With the skipUnchangedMs option, a save whose fields are all the same as the last written one (only `seen` differs) is not written
       // again until that many ms have passed; save(state, true) always writes.
       save: function (state, force) {
+        warmed = null;
         try {
           if (off || !storage) return false;
           var usePk = V8 && countKeys.length > 0, pk = usePk ? packed(state) : null;   // Chromium-family browsers: the [names, counts] form, checked while it is made
@@ -680,7 +693,7 @@
     var plain = new WeakSet();   // parsed states whose text names no prototype-pollution key
     var chan = null, listeners = [], mine = Math.random().toString(36).slice(2);
     var skipMs = o.skipUnchangedMs > 0 ? o.skipUnchangedMs : 0, lastProbe = null, lastWriteAt = 0, lastSeen = 0;   // skipUnchangedMs: the last stored text, when, and its stamp
-    var useLock = !!o.lock, held = null, first = null, lostCb = null;
+    var useLock = !!o.lock, held = null, first = null, lostCb = null, CHUNK_MIN = 100000;   // arrays shorter than CHUNK_MIN entries stay in the one text
 
     function badFields(x) {
       var n = 0, i, v;
@@ -714,14 +727,51 @@
         try { var rq = tx(d, 'readonly').objectStore('slots').get(k); rq.onsuccess = function () { ok(rq.result); }; rq.onerror = function () { ok(undefined); }; } catch (e) { ok(undefined); }
       });
     }
+    // One slot -> Promise<state or null>. A save with a big array field is stored as a head record plus pieces of that array (rec.c = { f: field name, k: piece count, m: entries in all, g: save id }; each piece has the save id g and its index i);
+    // the pieces are read in the same transaction, all requests at once, and parsed one by one (smaller texts parse faster, and the browser reads them side by side).
+    function slot(d, name) {
+      return new Promise(function (ok) {
+        try {
+          var t = tx(d, 'readonly'), s = t.objectStore('slots'), rq = s.get(name);
+          rq.onerror = function () { ok(null); };
+          rq.onsuccess = function () {
+            var rec = rq.result, c = rec && rec.c, k, got = [], left, i;
+            if (!c) { ok(open(rec)); return; }
+            k = c.k;
+            if (!(k >= 1 && k <= 64 && k % 1 === 0 && typeof c.f === 'string')) { ok(null); return; }
+            left = k;
+            for (i = 0; i < k; i++) (function (i) {
+              var r = s.get(name + '#' + i);
+              r.onsuccess = function () { got[i] = r.result; if (--left === 0) ok(open(rec, got)); };
+              r.onerror = function () { ok(null); };
+            })(i);
+          };
+        } catch (e) { ok(null); }
+      });
+    }
     // The state a record holds, or null when the record is missing, has the wrong length, or is not a JSON object.
-    function open(rec) {
+    function open(rec, parts) {
       try {
         if (!rec || typeof rec.t !== 'string' || rec.t.length !== rec.n) return null;
-        var t = rec.t, x = JSON.parse(t);
+        var t = rec.t, x = JSON.parse(t), clean = hasRaw, arrs, i, r;
         if (!isObj(x)) return null;
+        if (parts) {
+          if (PROTO_NAMES.test(rec.c.f)) return null;
+          if (clean && PROTO_NAMES.test(t)) clean = false;
+          arrs = [];
+          for (i = 0; i < parts.length; i++) {
+            r = parts[i];
+            if (!r || r.g !== rec.c.g || r.i !== i || typeof r.t !== 'string' || r.t.length !== r.n) return null;
+            if (clean && PROTO_NAMES.test(r.t)) clean = false;
+            r = JSON.parse(r.t);
+            if (!Array.isArray(r)) return null;
+            arrs.push(r);
+          }
+          x[rec.c.f] = Array.prototype.concat.apply([], arrs);
+          if (x[rec.c.f].length !== rec.c.m) return null;
+        } else if (clean && PROTO_NAMES.test(t)) clean = false;
         if (isNum(rec.at)) x[stamp] = rec.at;   // with skipUnchangedMs the stamp is kept beside the text
-        if (hasRaw && !PROTO_NAMES.test(t)) plain.add(x);   // only 'raw' fields use this, so a save without one skips the pass over the text; one pass, not three
+        if (clean) plain.add(x);   // only 'raw' fields use this, so a save without one skips the pass over the text; one pass, not three
         return x;
       } catch (e) { return null; }
     }
@@ -742,7 +792,7 @@
       if (!chan) { chan = new BroadcastChannel('save-kit-large:' + dbName); chan.onmessage = function (e) { if (e.data && e.data.from !== mine && listeners.length) api.load().then(function (s) { listeners.slice().forEach(function (f) { try { f(s); } catch (x) {} }); }); }; }
       return chan;
     }
-    var busy = false, next = null;
+    var busy = false, next = null, lastK = -1;   // lastK: pieces in the last main slot this page wrote (-1: not known yet)
     function put(slot) {
       var started = slot.at;
       return db().then(function (d) {
@@ -750,9 +800,16 @@
         return new Promise(function (ok) {
           try {
             var t = tx(d, 'readwrite'), s = t.objectStore('slots'), now = Date.now(), backup = now - backupAt > backupEvery;
+            var parts = slot.parts, k = parts ? parts.length : 0, i;
+            if (lastK < 0 || k < lastK) s.delete(IDBKeyRange.bound('main#', 'main#\uffff'));   // pieces left over from an older, bigger save
             s.put(slot.rec, 'main');
-            if (backup) s.put(slot.rec, 'backup');
-            t.oncomplete = function () { if (backup) backupAt = now; try { channel().postMessage({ from: mine, at: started }); } catch (e) {} ok(true); };
+            for (i = 0; i < k; i++) s.put(parts[i], 'main#' + i);
+            if (backup) {
+              if (parts || lastK !== 0) s.delete(IDBKeyRange.bound('backup#', 'backup#\uffff'));
+              s.put(slot.rec, 'backup');
+              for (i = 0; i < k; i++) s.put(parts[i], 'backup#' + i);
+            }
+            t.oncomplete = function () { lastK = k; if (backup) backupAt = now; try { channel().postMessage({ from: mine, at: started }); } catch (e) {} ok(true); };
             t.onerror = t.onabort = function () { ok(false); };
           } catch (e) { ok(false); }
         });
@@ -767,11 +824,11 @@
         pump();
       });
     }
-    function enqueue(rec) {
+    function enqueue(rec, parts) {
       return new Promise(function (ok) {
         var done = next ? next.done : [];   // a write waiting behind the running one is replaced; its callers wait for the newer one
         done.push(ok);
-        next = { rec: rec, at: Date.now(), done: done };
+        next = { rec: rec, parts: parts, at: Date.now(), done: done };
         pump();
       });
     }
@@ -782,11 +839,10 @@
       load: function () {
         return db().then(function (d) {
           if (!d) return null;
-          return get(d, 'main').then(function (mr) {
-            var a = open(mr);
+          return slot(d, 'main').then(function (a) {
             if (a && badFields(a) === 0) return fin(a);
-            return get(d, 'backup').then(function (br) {
-              var b = open(br), first = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a), out = first ? fin(first) : null, second;
+            return slot(d, 'backup').then(function (b) {
+              var first = !b ? a : !a ? b : (badFields(b) < badFields(a) ? b : a), out = first ? fin(first) : null, second;
               if (!out && first) { second = first === a ? b : a; out = second ? fin(second) : null; }
               return out;
             });
@@ -811,9 +867,17 @@
             return useLock && !held ? (lastProbe = null, Promise.resolve(false)) : wrap(enqueue(rec));
           }
           state[stamp] = now;
-          t = JSON.stringify(state); rec = { t: t, n: t.length };
-          if (useLock && held === null) return (first || (first = claim(false))).then(function (g) { return g ? enqueue(rec) : false; });
-          return useLock && !held ? Promise.resolve(false) : enqueue(rec);
+          var parts = null, big = null, bigN = CHUNK_MIN - 1, name, head, g, per, i;
+          for (name in state) if (Array.isArray(state[name]) && state[name].length > bigN) { big = name; bigN = state[name].length; }
+          if (big) {   // the biggest array field goes in pieces of about 40,000 entries (at most 8): reads run side by side and each piece parses faster than one huge text
+            var arr = state[big], k = Math.min(8, Math.ceil(arr.length / 40000));
+            head = {}; for (name in state) if (name !== big) head[name] = state[name];
+            t = JSON.stringify(head); g = now + '-' + Math.random().toString(36).slice(2); rec = { t: t, n: t.length, c: { f: big, k: k, m: arr.length, g: g } };
+            per = Math.ceil(arr.length / k); parts = [];
+            for (i = 0; i < k; i++) { var pt = JSON.stringify(arr.slice(i * per, (i + 1) * per)); parts.push({ t: pt, n: pt.length, g: g, i: i }); }
+          } else { t = JSON.stringify(state); rec = { t: t, n: t.length }; }
+          if (useLock && held === null) return (first || (first = claim(false))).then(function (gr) { return gr ? enqueue(rec, parts) : false; });
+          return useLock && !held ? Promise.resolve(false) : enqueue(rec, parts);
         } catch (e) { return Promise.resolve(false); }
       },
       // -> Promise<boolean>: removes both slots.
@@ -821,7 +885,7 @@
         return db().then(function (d) {
           if (!d) return false;
           return new Promise(function (ok) {
-            try { var t = tx(d, 'readwrite'), s = t.objectStore('slots'); s.delete('main'); s.delete('backup'); t.oncomplete = function () { ok(true); }; t.onerror = t.onabort = function () { ok(false); }; } catch (e) { ok(false); }
+            try { var t = tx(d, 'readwrite'), s = t.objectStore('slots'); s.delete('main'); s.delete('backup'); s.delete(IDBKeyRange.bound('main#', 'main#\uffff')); s.delete(IDBKeyRange.bound('backup#', 'backup#\uffff')); t.oncomplete = function () { ok(true); }; t.onerror = t.onabort = function () { ok(false); }; } catch (e) { ok(false); }
           });
         });
       },
