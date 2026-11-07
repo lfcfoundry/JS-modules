@@ -1,12 +1,12 @@
 # save-kit
 
-**Version 2.4.0 · API 2**
+**Version 2.4.1 · API 2**
 
-**Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud)
 
 ## What it is and how it works
 
-save-kit stores game or app progress in the browser safely. One file, 18.6 KB gzipped (9.9 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves.
+save-kit stores game or app progress in the browser safely. One file, 18.6 KB gzipped (9.9 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves. Since 2.4.1 `save-kit.min.js` is the same code minified (27.4 KB, 10.1 KB gzipped, MIT header kept), and it opens faster than localForage in all three test browsers (see "How it compares").
 
 - You describe the save as a schema, and every field is checked on save and load.
 - A backup slot is kept, and a damaged value falls back alone instead of ruining the save.
@@ -149,6 +149,18 @@ Each field is checked on its own and falls back alone. `__proto__`, `constructor
 ## How it compares
 
 Larger than a hand-written `JSON.stringify` save, but the one built for game saves: it checks every field, keeps a backup and makes copy-paste codes with a checksum. Against localForage's localStorage driver (no backup, no checks), ours/theirs from the early-stop A/B in `tests/save-kit-small-browser.js` (save-kit 2.2.1 to 2.3.0, one cloud machine, ratio below 1 is faster): 448 B save 0.89 / 0.37 / 0.72 and load 1.12 / 0.29 / 0.95; 20 KB save 0.82 / 0.92 / 1.28 and load 0.99 / 1.03 / 1.53 (ungoogled Chromium 155 / Firefox 158 / WebKitGTK 2.52.6; long-run paired medians, 3 fresh launches x 80 (448 B) or 40 (20 KB) interleaved rounds per browser; WebKitGTK's 20 KB rows spread widely, 10th to 90th percentile 1.03 to 2.21 for the load). Where we are slower, that is the price of checking every field (in WebKitGTK the 20 KB load spends about 20 us just giving the two 400-name maps a null prototype, so a saved name like `toString` can never look like a built-in). With `trust: true` (new in 2.3.0, off by default; no checks) it is 448 B save 0.81 / 0.36 / 0.64 and load 0.55 / 0.16 / 0.53, 20 KB save 0.98 / 0.87 / 1.04 and load 0.98 / 0.93 / 0.99 (even where a bare `JSON.parse` is all either side does). Against localForage's default IndexedDB mode and idb-keyval, save-kit is faster at every size: see below.
+
+### Opening the page: the first load
+
+What a game does once per visit: run the library's script, then `create()` and the first `load()` of a 20 KB save (localForage: `config`, `setDriver` to its localStorage driver and the first `getItem`). Each library sits inline in a fresh page, like a single-file game, and the clock runs from before its script to the save in hand. Mean of 40 fresh pages per library in one cloud browser session, order rotated, ms, smaller is better (Firefox and WebKitGTK count in whole milliseconds, so their means carry about 0.1 ms of noise).
+
+| Browser | save-kit.min.js 2.4.1 | save-kit.js 2.4.1 (readable) | localForage 1.10.0 (localforage.min.js) |
+|---|---|---|---|
+| ungoogled Chromium 155 | 5.47 (0.66x) | 6.10 (0.73x) | 8.31 |
+| Firefox 158 | 5.30 (0.86x) | 6.38 (1.03x, about even) | 6.17 |
+| WebKitGTK 2.52.6 | 1.13 (0.73x) | 1.57 (1.01x, about even) | 1.55 |
+
+Checks stay on in every save-kit column. Ship the minified file for this speed: the readable file is about even with localForage in Firefox and WebKitGTK. Most of the first call is the browser compiling code (in Chromium the first `create()` takes about 1.2 ms and the next one 0.1 ms), so a smaller file opens faster; a lean build cut to the small-save parts opened in 4.52 / 4.10 / 1.10 ms. Measured 11.07 on the 2.4.0 code, which 2.4.1 does not change.
 
 | Alternative | Size (smaller is better) | Features | Where it wins / loses |
 |---|---|---|---|

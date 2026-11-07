@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.3 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 2.4.0 · API 2 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 2.4.1 · API 2 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -62,6 +62,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-07 · **zip-open** 1.20.2 · API 1: Big Excel sheets with mostly numbers open a little faster the first time (about 1 to 8%). Sheets with mostly text can open up to 9% slower the third time in a row in Firefox and WebKit-based browsers.
+- 2026-11-07 · **save-kit** 2.4.1 · API 2: New save-kit.min.js, the same code minified, opens faster than localForage.
 - 2026-11-07 · **save-kit** 2.4.0 · API 2: Big saves of many same-shape records are faster in Chrome and Edge too; older copies cannot read those saves.
 - 2026-11-07 · **save-kit** 2.3.0 · API 2: New trust option (off by default) skips all checks for the fastest small saves and loads.
 - 2026-11-07 · **save-kit** 2.2.1 · API 2: Loads are a little faster in Safari and other WebKit browsers.
