@@ -4,3 +4,15 @@
 |---|---:|---:|---:|
 | Laptop Firefox 160 | 63.0 ms | 29.0 ms | 2.17x |
 | Laptop Chromium 156 | 58.5 ms | 19.7 ms | 2.97x |
+
+**New in 1.5.0: faster JavaScript and WebAssembly decoders, same bytes out.** Owner's laptop runs (Firefox 160, Chromium 156), new time divided by old time, so lower is faster.
+
+<!-- title: lzma-decode 1.5.0 unpacks the second time in 0.56 to 0.64 of the old time with the JavaScript decoder, and 0.87 to 0.88 with WebAssembly -->
+| way | Firefox 160 | Chromium 156 |
+|---|---:|---:|
+| JavaScript decoder, first unpack | 0.78 | 0.93 |
+| JavaScript decoder, second unpack | 0.56 | 0.64 |
+| WebAssembly build, first unpack | 0.90 | 0.86 |
+| WebAssembly build, second unpack | 0.88 | 0.87 |
+
+Where it is not a win: in WebKitGTK the first big unpack with the JavaScript decoder is 5 to 14% slower than before, then about a third faster on later unpacks.

@@ -6,7 +6,7 @@
 
 ## What it is and how it works
 
-An LZMA decoder for the browser: WebAssembly first, with a small readable JavaScript fallback (about 135 lines). The matching packer is [`tools/lzma-pack`](../../tools/lzma-pack/README.md).
+An LZMA decoder for the browser: WebAssembly first, with a small readable JavaScript fallback (about 130 lines). The matching packer is [`tools/lzma-pack`](../../tools/lzma-pack/README.md).
 
 - It reads the compressed bits through a range coder with the standard LZMA model.
 - Output goes into one buffer that also serves as the dictionary.
@@ -66,9 +66,9 @@ Set `maxSize` whenever the data or its size did not come from your own packer: a
 
 | File | What it is | Size (smaller is better) |
 |---|---|---|
-| `lzma-decode-with-wasm.js` | **The default.** WebAssembly first, JavaScript fallback, in one file. | 20,832 bytes (8,241 gzipped) |
-| `lzma-decode.js` | The plain JavaScript decoder alone: readable, works under any page policy, and the part `tools/lzma-pack` pastes into packed pages. Use it when the page must stay as small as possible. | 9,530 bytes (3,709 gzipped); about 1.9 KB in a packed page |
-| `lzma-decode-wasm.js` | The WebAssembly part alone, to load after `lzma-decode.js` (it adds `lzmaDecodeWasm`). The default file already holds both. | 10,433 bytes |
+| `lzma-decode-with-wasm.js` | **The default.** WebAssembly first, JavaScript fallback, in one file. | 26,854 bytes (8,349 gzipped) |
+| `lzma-decode.js` | The plain JavaScript decoder alone: readable, works under any page policy, and the part `tools/lzma-pack` pastes into packed pages. Use it when the page must stay as small as possible. | 11,961 bytes (3,308 gzipped); about 3.4 KB in a packed page (1.5.0 added about 1.5 KB) |
+| `lzma-decode-wasm.js` | The WebAssembly part alone, to load after `lzma-decode.js` (it adds `lzmaDecodeWasm`). The default file already holds both. | 14,024 bytes |
 
 `lzma-decode-with-wasm.js` is built from the other two by `node modules/lzma-decode/wasm/join.js`; edit those, never the joined file (the tests fail when it is stale).
 
@@ -84,11 +84,26 @@ On a laptop (16 cores) the default file is 2.17 times as fast in Firefox 160 (63
 
 The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all three browsers. A warm 1.5 MB decode in Node 22 (a Node figure, not a browser one), 1.5.0: 69.6 ms (JavaScript) to 33.1 ms (WebAssembly), 2.1x. Against 1.4.0 (1.5.1), the JavaScript decoder unpacks a first 3 MB file in 0.57 to 0.71 of the time in the three cloud browsers and later files in about 0.4, and the WebAssembly one about 15% faster in Chromium and Firefox. The result is a copy with its own buffer of exactly `outSize` bytes, so the 2x working memory of the run is freed at once. Source: `wasm/lzma-decode.c` (the same model and checks as `lzma-decode.js`; since 1.4.0 it decodes 64 KB of output per call, `lzma_begin` then `lzma_more`, so the browser moves the loop to its optimized code between calls: first decode 0.85 to 0.91 of 1.3.1 in the three cloud browsers), `wasm/build.sh` rebuilds `wasm/lzma-decode.wasm` (clang with the wasm32 target; 5,024 bytes since 1.5.0, 4,701 in 1.4.0. Chromium 155, Firefox 158 and WebKitGTK 2.52.6 all compile it on the main thread: the old 4 KB limit on that in Chromium is gone), `wasm/embed.py` puts it into `lzma-decode-wasm.js`, and `wasm/join.js` builds the default file.
 
+### Faster decoders (1.5.0)
+
+Two changes, both with byte-identical output (170 cases per build, including cut and flipped streams: same bytes or the same error message). Ratio against 1.4.0, lower is better, fresh page per sample, cloud browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6) unless it says laptop (Chromium 156, Firefox 160, 16 cores):
+
+| Decoder | Test | Chromium | Firefox | WebKitGTK |
+|---|---|---|---|---|
+| WebAssembly | first unpack after load, 3 MB text | 0.85 | 0.82 | 0.96 |
+| WebAssembly | next unpack, 400 KB | 0.89 | 0.88 | 0.90 |
+| WebAssembly | laptop, first / second | 0.86 / 0.87 | 0.90 / 0.88 | not run |
+| JavaScript (1.5.1) | first unpack after load, 3 MB text | 0.67 | 0.57 | 0.71 |
+| JavaScript (1.5.1) | next unpack, 400 KB | 0.39 | 0.44 | 0.39 |
+| JavaScript (1.5.0) | laptop, first / second | 0.93 / 0.64 | 0.78 / 0.56 | not run |
+
+What it costs: the WebAssembly program grows from 4,701 to 5,024 bytes, and the minified JavaScript decoder from 2,156 to 4,020 bytes (gzipped 1,179 to 1,167), so a packed page that carries it grows about 1.9 KB. 1.5.0's 5 to 14% slower first big unpack in WebKitGTK is gone in 1.5.1, which keeps the range coder in 32-bit integers. Further gains in the loop are close to the native ceiling (the same C built natively runs about as fast as the system liblzma), so the next step would be a format change, such as independent blocks unpacked on several threads.
+
 ## Compile early (since 1.3.0)
 
 **What.** lzma-decode-wasm.js and lzma-decode-with-wasm.js start compiling the WebAssembly in the background as soon as the file loads, so the first decode only has to start it. lzmaDecodeWasm.ready() is a promise that says (true or false) whether that worked, and lzmaDecodeWasm.module() gives the compiled `WebAssembly.Module` once it is ready (else null) so a worker can be sent it with `postMessage` instead of compiling it again. Asked for before the compile is done, the code compiles on the spot as it always did, so nothing waits and the answers are the same.
 
-**Why, and how much.** Compiling the 4,087-byte program on the page costs 0.5 ms in Chromium 155, under 1 ms in Firefox 158 and WebKitGTK 2.52.6 (median of 9 fresh pages, smaller is better; Firefox and WebKit report whole milliseconds), so for this size the saving is at most that. Loading the file plus the first use, old against new, in ms (median of 11 fresh pages, taking turns): within about 1 ms in Chromium, Firefox and WebKitGTK; the differences go both ways, so treat it as no change you can measure. It matters more for the large programs (pcodec-js) and for handing the module to workers. Nothing is stored in the browser.
+**Why, and how much.** Compiling the 4,087-byte program (the size in 1.3.0) on the page costs 0.5 ms in Chromium 155, under 1 ms in Firefox 158 and WebKitGTK 2.52.6 (median of 9 fresh pages, smaller is better; Firefox and WebKit report whole milliseconds), so for this size the saving is at most that. Loading the file plus the first use, old against new, in ms (median of 11 fresh pages, taking turns): within about 1 ms in Chromium, Firefox and WebKitGTK; the differences go both ways, so treat it as no change you can measure. It matters more for the large programs (pcodec-js) and for handing the module to workers. Nothing is stored in the browser.
 
 ## How it compares
 
@@ -96,7 +111,7 @@ Smaller than the npm `lzma` decoder (the only other one with a size on record he
 
 | Alternative | Size (smaller is better) | Speed (faster is better) | Features | Where it wins or loses |
 |---|---|---|---|---|
-| lzma-decode 1.2.0 (MIT, this module) | Default file 20,832 bytes; the plain JavaScript file alone is about 1.9 KB in a packed page (1,896 bytes minified), and the WebAssembly program is 4,087 bytes | First decode of a 569,513-byte page, default file against plain file (smaller is better): 17.9 ms against 46.6 in ungoogled-chromium 155 and 24.0 against 38.0 in Firefox 158.0 | Decodes LZMA1 only, readable, tested against Python's `lzma` | Wins on size and readability; loses on features |
+| lzma-decode 1.5.0 (MIT, this module) | Default file 26,854 bytes; the plain JavaScript file alone is about 3.4 KB in a packed page (3,653 bytes minified), and the WebAssembly program is 5,024 bytes | First decode of a 569,513-byte page, default file against plain file, measured on 1.2.0 (smaller is better): 17.9 ms against 46.6 in ungoogled-chromium 155 and 24.0 against 38.0 in Firefox 158.0 | Decodes LZMA1 only, readable, tested against Python's `lzma` | Wins on size and readability; loses on features |
 | [`lzma` on npm](https://www.npmjs.com/package/lzma) (license not checked) | 6.8 KB minified, 3.0 KB gzipped | Not measured | Compresses and decompresses | Wins if you need to compress in the browser |
 | [kripken/lzma.js](https://github.com/kripken/lzma.js) (license not checked) | Not measured | Not measured | As far as I know an Emscripten build of the C LZMA code | Not measured |
 | The browser's own API (`DecompressionStream`) | Nothing to ship | Not measured | Gzip and deflate only, no LZMA | Wins when gzip or deflate is tight enough (the Zopfli packer in [`tools/single-file-tools`](../../tools/single-file-tools/README.md), which needs no decoder at all and wins for small pages) |

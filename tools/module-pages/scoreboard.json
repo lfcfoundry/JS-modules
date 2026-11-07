@@ -75,10 +75,10 @@
   },
   {
    "label": "gpu-blur bytes out vs browser filter",
-   "x": 2.3,
+   "x": 2.1,
    "module": "gpu-blur",
    "proof": [
-    "2.3 times"
+    "2.1 to 3.3 times"
    ]
   },
   {
@@ -91,10 +91,10 @@
   },
   {
    "label": "gpu-blur drawn vs browser filter, Firefox laptop",
-   "x": 0.6,
+   "x": 0.7,
    "module": "gpu-blur",
    "proof": [
-    "22 against 38"
+    "still 1.4 times slower"
    ]
   },
   {
