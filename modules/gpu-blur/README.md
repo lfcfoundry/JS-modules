@@ -133,15 +133,18 @@ Same 1920 x 1080 picture, a blur that looks like a Gaussian of sigma 6, time unt
 
 ### Against the browser's own blur on laptops and a phone (1.4.2)
 
-A 2048 x 2048 picture, radius 24, result drawn on a canvas, milliseconds, lower is better. The browser's own blur is `ctx.filter = "blur(24px)"` with `drawImage`. Device class only, one run each on the owner's devices through `tester/gpu-blur-device-test.html`.
+A 2048 x 2048 picture, radius 24, milliseconds, lower is better. The browser's own blur is the canvas filter `blur(24px)`. Each time runs until the picture is really finished (the browser's filter is lazy, so it is timed with a read-back). One run per device with `tester/gpu-blur-device-test.html`, device class only: a first look, not a lab number. The Chrome laptop and phone runs are on builds just before 1.4.2's kept-in-memory canvas, which is off on the Chrome laptop and neutral on the phone.
 
-| | gpu-blur 1.4.2 | Browser's own blur |
-|---|---:|---:|
-| Firefox 160, laptop | 14 | 23 |
-| Chrome 156, laptop | 21 | 34 |
-| Chrome 156, phone | 61 | 75 |
+| Result | Device | gpu-blur | Browser's own blur | Faster by |
+|---|---|---:|---:|---:|
+| Bytes out (all pixels read back) | Firefox 160 laptop | 11 | 24 | 2.2x |
+| Bytes out | Chrome 156 laptop | 11.3 | 36.9 | 3.3x |
+| Bytes out | Chrome 156 phone | 41.8 | 85.2 | 2.0x |
+| Drawn canvas out | Firefox 160 laptop | 14 | 23 | 1.6x |
+| Drawn canvas out | Chrome 156 laptop | 21.4 | 34.1 | 1.6x |
+| Drawn canvas out | Chrome 156 phone | 60.5 | 73.0 | 1.2x |
 
-Where the browser's own blur still wins is the cloud table above (Chromium 155 from bytes, 36.4 against 48.7 ms) and anywhere you only need to show the blur: CSS `filter` on the element costs the page almost nothing.
+Where the browser's own blur still wins is the cloud table above (Chromium 155 from bytes, 36.4 against 48.7 ms) and anywhere you only need to show the blur: CSS `filter` on the element costs the page almost nothing. Source: `js-modules-research/gpu-blur-vs-browser-2026.11.05/BYTES-OUT-RESULTS-2026.11.07.md`.
 
 ## Test it on your own device (one button)
 
