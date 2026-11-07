@@ -1,6 +1,6 @@
 # lfc-pack
 
-**Version 0.5.8 · API 0**
+**Version 0.5.9 · API 0**
 
 **Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
@@ -102,7 +102,12 @@ Metadata: `pack`, `packStream` and `packParallel` take an optional `meta` object
 
 Reading part of a file: `LfcPack.unpackRows(bytes, { from, count })` decodes only the blocks that hold those rows, `LfcPack.stats(bytes)` reads per-column facts from the footer, and `LfcPack.hash(bytes, kind)` gives `'crc32'` or `'xxh64'`.
 
-Files too big to hold in memory (since 0.5.0): `const R = await LfcPack.open(file)` takes a `File` or `Blob` (or a function `read(offset, length)` with its `size` set, or bytes) and reads only the 16-byte trailer and the footer. Then `await R.rows({ from, count, table })` and `await R.block(i)` fetch just the byte ranges of the blocks they need and give the same rows as `unpackRows`; `R.info`, `R.meta` and `R.blocks` (`{ offset, length, rows, kind, table, first }`) describe the file. Memory is bounded by the footer and one block. Files with raw blocks (byte-exact text that is not plain rows) are still read whole on the first call. Each block is checked against its checksum when it is read. `viewer.html` is a single-file viewer for `.json.lfc` files (open it in a browser and drop a file on it).
+Files too big to hold in memory (since 0.5.0): `const R = await LfcPack.open(file)` takes a `File` or `Blob` (or a function `read(offset, length)` with its `size` set, or bytes) and reads only the 16-byte trailer and the footer. Then `await R.rows({ from, count, table })` and `await R.block(i)` fetch just the byte ranges of the blocks they need and give the same rows as `unpackRows`; `R.info`, `R.meta` and `R.blocks` (`{ offset, length, rows, kind, table, first }`) describe the file. Memory is bounded by the footer and one block. Files with raw blocks (byte-exact text that is not plain rows) are still read whole on the first call. Each block is checked against its checksum when it is read. Since 0.5.9 the reader adds two calls for column work:
+
+- `await R.columns(i, { keys })` gives block `i` as typed columns, the same entry `unpackColumns` gives for that block, while fetching only that block. It works on flat-row blocks only; nested and raw blocks throw and are read with `R.block(i)`.
+- `R.zone(i, key)` gives `{ min, max, count }` of a number column in block `i` from the footer, without decoding anything, or `null`. A filter such as `id >= 7000000` can skip a block whose `max` is lower.
+
+`viewer.html` is a single-file viewer for `.json.lfc` files (open it in a browser and drop a file on it).
 
 Specs: `SPEC.md` (container), `LAYOUT-SPEC.md` (flat and nested block layouts) and `INTEROP.md` (what every reader must agree on, with test vectors in `vectors/`). The Go reader in `go-reader/` is built from them.
 
