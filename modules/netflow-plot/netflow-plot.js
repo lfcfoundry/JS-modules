@@ -1,13 +1,13 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.10.0 (API 2)
+ * Version 2.11.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
  *
  * rows: plain objects (an item or a link); a column is read with get(row, key) (o.get, default row.attrs[key] ?? row[key]).
  * spec: { type, x, y, color, size, agg ('sum' | 'mean' | 'count' | 'min' | 'max' | 'median'), stack ('stack' | 'group' | 'normalize' | 'stream' | 'none'),
- *         horizontal, bins, smooth (moving average window), index (lines from 100), cols (parallel / matrix), sort ('value' | 'name' | 'none') }.
+ *         horizontal, top (bars: the N biggest plus one bar for the rest), bins, smooth (moving average window), index (lines from 100), cols (parallel / matrix), sort ('value' | 'name' | 'none') }.
  * Marks: S.marks = [{ x0, y0, x1, y1, row (index) or rows, t (tooltip text) }] for pointing at things.
  */
 var NetflowPlot = (function () {
@@ -73,8 +73,10 @@ var NetflowPlot = (function () {
     function adv(x, s) { if (s[1] === 'd') x.setUTCDate(x.getUTCDate() + s[0]); else if (s[1] === 'm') x.setUTCMonth(x.getUTCMonth() + s[0]); else x.setUTCFullYear(x.getUTCFullYear() + s[0]); }
   }
   function dayText(t) { var x = new Date(t); return MONTHS[x.getUTCMonth()] + ' ' + x.getUTCDate(); }
+  var PCT = false;   /* while make() draws a chart whose values are fractions between 0 and 1 (since 2.11.0): those values are written as percents */
   function fmtNum(v) {
     if (!isFinite(v)) return '';
+    if (PCT && Math.abs(v) <= 1) { var pc = Number((v * 100).toFixed(1)); return (pc === 0 ? 0 : pc) + '%'; }
     var a = Math.abs(v);
     if (a >= 1e9) return (v / 1e9).toFixed(a >= 1e10 ? 0 : 1).replace(/\.0$/, '') + 'B';
     if (a >= 1e6) return (v / 1e6).toFixed(a >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
@@ -89,6 +91,7 @@ var NetflowPlot = (function () {
     for (i = 0; i < vals.length; i++) { v = vals[i]; if (!isFinite(v)) continue; u = unit(Math.abs(v)); top[u] = Math.max(top[u], Math.abs(v) / U[u]); if (!u && v !== Math.round(v)) frac = true; }
     return function (x) {
       if (!isFinite(x)) return '';
+      if (PCT && Math.abs(x) <= 1) { var px = (x * 100).toFixed(top[''] * 100 >= 99.95 || frac ? 1 : 0); return (+px === 0 ? px.replace('-', '') : px) + '%'; }
       var a = Math.abs(x), w = unit(a), m = Math.max(top[w], a / U[w]), d, t;
       if (w) d = m >= (w === 'k' ? 100 : 10) ? 0 : 1;
       else { if (!frac || m >= 100) return fmtNum(Math.round(x)); d = Math.min(6, Math.max(0, 2 - Math.floor(Math.log10(m || 1)))); }
@@ -270,6 +273,20 @@ var NetflowPlot = (function () {
     };
     return R;
   }
+  function mostlyNum(R, k) { var v = R.num(k), g = 0; for (var i = 0; i < v.length; i++) if (v[i] === v[i]) g++; return g > 0 && g >= 0.8 * countFilled(R.raw(k)); }
+  var NOT_PCT = /p.?val|corr|coef|^r2$|index|score|^lat|^lon|^x$|^y$/i;
+  /** Fractions: every value of y is between 0 and 1, some are not whole, the name does not say it is something else, and each bar or point is one row or an average (a sum of rates is not a rate). */
+  function fractionCol(R, sp, type) {
+    if (!(type === 'bar' || type === 'dotplot' || type === 'line') || !sp.y || sp.color || sp.stack || NOT_PCT.test(sp.y)) return false;
+    var v = R.num(sp.y), i, frac = 0, n = 0; if (v.time) return false;
+    for (i = 0; i < v.length; i++) { if (v[i] !== v[i]) continue; if (v[i] < 0 || v[i] > 1) return false; n++; if (v[i] > 0 && v[i] < 1) frac++; }
+    if (!n || frac < n / 2) return false;
+    if (sp.agg === 'mean' || sp.agg === 'median') return true;
+    if (sp.agg && sp.agg !== 'sum') return false;
+    var xs = sp.x ? R.raw(sp.x) : null, seen = new Set(); if (!xs) return false;
+    for (i = 0; i < xs.length; i++) { var key = String(xs[i]); if (seen.has(key)) return false; seen.add(key); }
+    return true;
+  }
   function countFilled(a) { var c = 0; for (var i = 0; i < a.length; i++) if (a[i] !== undefined && a[i] !== null && a[i] !== '') c++; return c; }
   /** Categories in a stable order: by total (biggest first), by name, or as they come. */
   var HI = null;   /* while make() runs with options.highlight: { name, F, ck: color column, xk: x column } */
@@ -306,8 +323,12 @@ var NetflowPlot = (function () {
   var CH = {};
   CH.bar = function (F, R, sp) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', ck = sp.color && sp.color !== sp.x ? R.cat(sp.color) : null;
-    var xc = catsOf(xk, v, sp.sort || 'value', sp.horizontal ? 60 : 50), cc = ck ? catsOf(ck, v, 'value', 12) : { list: [''], other: null };
+    var xc = catsOf(xk, v, sp.top > 0 ? 'value' : sp.sort || 'value', sp.top > 0 ? Math.floor(sp.top) + 1 : sp.horizontal ? 60 : 50), cc = ck ? catsOf(ck, v, 'value', 12) : { list: [''], other: null };
     var cell = cross(xk, ck, v, how, xc, cc), mode = ck ? (sp.stack || 'stack') : 'none', horiz = !!sp.horizontal;
+    if (sp.top > 0 && xc.other && v && how === 'sum' && !G_ADD.test(sp.y)) {   /* top: the rest is one bar; a value that does not add up (a rate, a score) shows the average of the rest, named so */
+      var OA = 'Others, average'; xc.list = xc.list.map(function (x) { return x === 'Other' ? OA : x; });
+      cc.list.forEach(function (c) { var e = cell.get('Other\u0000' + c); if (!e) return; cell.delete('Other\u0000' + c); cell.set(OA + '\u0000' + c, { v: aggregate(e.rows.map(function (r) { return v[r]; }), 'mean'), rows: e.rows }); });
+    } else if (sp.top > 0 && xc.other) { xc.list = xc.list.map(function (x) { return x === 'Other' ? 'Others' : x; }); cc.list.forEach(function (c) { var e = cell.get('Other\u0000' + c); if (e) { cell.delete('Other\u0000' + c); cell.set('Others\u0000' + c, e); } }); }
     var totals = new Map(), lo = 0, hi = 0;
     xc.list.forEach(function (x) { var pos = 0, neg = 0, t = 0; cc.list.forEach(function (c) { var e = cell.get(x + '\u0000' + c); if (!e || e.v !== e.v) return; if (e.v >= 0) pos += e.v; else neg += e.v; t += Math.abs(e.v); }); totals.set(x, t); if (mode === 'group' || mode === 'none') { cc.list.forEach(function (c) { var e = cell.get(x + '\u0000' + c); if (e && e.v === e.v) { lo = Math.min(lo, e.v); hi = Math.max(hi, e.v); } }); } else { lo = Math.min(lo, neg); hi = Math.max(hi, pos); } });
     if (mode === 'normalize') { lo = 0; hi = 1; }
@@ -764,7 +785,7 @@ var NetflowPlot = (function () {
 
   /** What a chart needs: which settings mean something for each type. */
   var NEEDS = {
-    bar: { x: 'cat', y: 'num?', color: 'cat?', agg: 1, stack: 1, horizontal: 1, sort: 1 }, dotplot: { x: 'cat', y: 'num?', color: 'cat?', agg: 1, sort: 1 },
+    bar: { x: 'cat', y: 'num?', color: 'cat?', agg: 1, stack: 1, horizontal: 1, sort: 1, top: 1 }, dotplot: { x: 'cat', y: 'num?', color: 'cat?', agg: 1, sort: 1 },
     line: { x: 'num', y: 'num?', color: 'cat?', agg: 1, smooth: 1, index: 1 }, area: { x: 'num', y: 'num?', color: 'cat?', agg: 1, stack: 1, smooth: 1 },
     scatter: { x: 'num', y: 'num', color: 'cat?', size: 'num?' }, connected: { x: 'num', y: 'num', color: 'cat?' }, voronoi: { x: 'num', y: 'num', color: 'cat?' },
     beeswarm: { x: 'num', color: 'cat?' }, hist: { x: 'num', color: 'cat?', bins: 1 }, box: { x: 'cat?', y: 'num' }, density: { x: 'num', color: 'cat?' }, ridgeline: { x: 'num', color: 'cat' },
@@ -775,12 +796,16 @@ var NetflowPlot = (function () {
   function make(rows, spec, o, NS) {
     o = o || {}; spec = spec || {};
     var F = frame(spec, o, NS), R = reader(rows, o), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
+    if ((type === 'bar' || type === 'dotplot') && spec.x && spec.y && rows.length && !mostlyNum(R, spec.y) && mostlyNum(R, spec.x)) {   /* x is the number and y the names: swap them and lay the bars sideways instead of drawing an empty chart */
+      spec = Object.assign({}, spec, { x: spec.y, y: spec.x }); if (type === 'bar') spec.horizontal = true;
+    }
     var hl = o.highlight !== undefined && o.highlight !== null && o.highlight !== '' ? String(o.highlight) : undefined;
     HI = hl !== undefined && rows.length ? { name: hl, F: F, ck: spec.color ? R.cat(spec.color) : null, xk: spec.x ? R.cat(spec.x) : null } : null;
+    PCT = o.percent !== false && rows.length > 0 && fractionCol(R, spec, type);
     try {
       if (!rows.length) F.text(F.W / 2, F.H / 2, 'No rows to draw.', 14, F.T.muted);
       else { if (spec.color && !NOKEYROW[type] && !(F.clean && type === 'line')) { F.keyRow = true; F.Tp = 44; } if (type === 'bar' || type === 'box') F.calm(); CH[type](F, R, spec); }   /* the clean look's calm colors go with its value labels (bars and boxes) */
-    } finally { HI = null; }
+    } finally { HI = null; PCT = false; }
     if (F.yName) {   /* the small axis name is left out when a value written on a mark would touch it */
       var yl = F.yName, x1 = yl.x + yl.t.length * CW + 4;
       if (F.S.labels.some(function (l) { if (l === yl) return false; var w = l.t.length * CW, lx = l.align === 'l' ? l.x : l.align === 'r' ? l.x - w : l.x - w / 2; return lx < x1 && lx + w > yl.x - 4 && l.y - l.size < yl.y + 4 && l.y + 3 > yl.y - yl.size; })) F.S.labels.splice(F.S.labels.indexOf(yl), 1);
@@ -807,7 +832,7 @@ var NetflowPlot = (function () {
     var words = t.split(' ').map(function (w) { return /[A-Z]/.test(w.slice(1)) || w === w.toUpperCase() && /[A-Z]/.test(w) ? w : w.toLowerCase(); }).join(' ');
     return words.charAt(0).toUpperCase() + words.slice(1);
   }
-  var SPEC_KEYS = ['type', 'x', 'y', 'color', 'size', 'agg', 'stack', 'horizontal', 'bins', 'smooth', 'index', 'cols', 'sort', 'from', 'to', 'value', 'id', 'parent'];
+  var SPEC_KEYS = ['type', 'x', 'y', 'color', 'size', 'agg', 'stack', 'horizontal', 'top', 'bins', 'smooth', 'index', 'cols', 'sort', 'from', 'to', 'value', 'id', 'parent'];
   /* ---- picking a chart from the shape of the rows (since 2.9.0; owner's card, 2026.11.07) ----
      guess(rows) -> { type, spec, why, others }: type is a plot type, or 'sankey' or 'treemap' (drawn by netflow-sankey and netflow-hierarchy).
      Checked on 54 real tables (vega-datasets): 39 used to set the rules, all right; 15 held out and labeled before the rules ran on them, all right. */
@@ -1016,6 +1041,12 @@ var NetflowPlot = (function () {
     var g = guess(rows);
     if (!g) return { svg: toSvg(rows, { type: 'bar', title: o.title }), type: 'bar', spec: { type: 'bar' }, why: rows.length ? 'no column could be read as a number or a category' : 'there are no rows', others: [] };
     var list = [{ type: g.type, spec: g.spec, why: g.why }].concat(g.others), i, svg = null;
+    if (o.top !== false) list.forEach(function (p) {   /* more than 25 bars: only about 1 name in 5 fits, so the 10 biggest plus one bar for the rest (since 2.11.0; top: false keeps every bar) */
+      if (p.type !== 'bar' || !p.spec.x || p.spec.color || p.spec.top) return;
+      if (p.spec.y && rows.some(function (r) { var y = r && r.attrs && Object.prototype.hasOwnProperty.call(r.attrs, p.spec.y) ? r.attrs[p.spec.y] : r && r[p.spec.y]; return +y < 0; })) return;   /* values below zero: the biggest 10 would hide the most negative ones */
+      var seen = new Set(), q, rq, av; for (q = 0; q < rows.length && seen.size <= 25; q++) { rq = rows[q]; av = rq && rq.attrs && Object.prototype.hasOwnProperty.call(rq.attrs, p.spec.x) ? rq.attrs[p.spec.x] : rq && rq[p.spec.x]; seen.add(String(av)); }
+      if (seen.size > 25) { p.spec = Object.assign({}, p.spec, { top: 10, horizontal: true }); p.why += '; there are more than 25 names, so it shows the 10 biggest and one bar for the rest, laid sideways so every name fits'; }
+    });
     for (i = 0; i < list.length && svg === null; i++) svg = drawPick(rows, list[i], o.title === 'auto' ? autoTitle(rows, list[i].spec, o) : o);
     var p = list[i - 1], why = p.why;
     if ((p.type === 'sankey' || p.type === 'chord') && p.of > p.shown) why += ' (the ' + p.shown + ' biggest of ' + p.of + ' links)';

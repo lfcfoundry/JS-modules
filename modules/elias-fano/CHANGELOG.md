@@ -2,6 +2,15 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.1 · API 2 · 2026-11-06
+- Reading all lists one at a time with get(i) is about half the time (0.45x to 0.52x of the first-read time in Chromium, Firefox and WebKitGTK; repeat reads 0.8x to 0.9x).
+
+## 2.0.0 · API 2 · 2026-11-06
+- Breaking: Lists.get(i) now keeps and returns the same array for a list (set { cache: false } for the old behavior).
+
+## 1.10.0 · API 1 · 2026-11-05
+- Lists: openLists(bytes, { cache: true }) hands out the same array again, so repeat reads match plain arrays; decodeAll is faster.
+
 ## 1.9.0 · API 1 · 2026-11-05
 - EliasFano.from(values): sorted numbers in, a searchable list out, in one call.
 

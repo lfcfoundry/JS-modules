@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.10.0 · API 2**
+**Version 2.11.0 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (the same SVG as Node for 12 public tables)
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -97,7 +97,8 @@ var hit = NetflowPlot.markAt(S, x, y);   // { rows, t } or null
 ```
 
 - `rows`: plain objects. A column is read from `row.attrs[key]`, then `row[key]`; pass `options.get(row, key)` to read it another way.
-- `spec`: `type` (one of `NetflowPlot.TYPES`), `x`, `y`, `color`, `size`, `agg` (`sum`, `mean`, `count`, `min`, `max`, `median`), `stack` (`stack`, `group`, `normalize`, `stream`, `none`), `horizontal`, `bins`, `smooth` (moving average window), `index` (lines from 100), `cols` (parallel lines and scatter matrix), `sort` (`value`, `name`, `none`).
+- `spec`: `type` (one of `NetflowPlot.TYPES`), `x`, `y`, `color`, `size`, `agg` (`sum`, `mean`, `count`, `min`, `max`, `median`), `stack` (`stack`, `group`, `normalize`, `stream`, `none`), `horizontal`, `top` (bars: the N biggest plus one bar for the rest, named Others; for a value that does not add up, such as a rate, that bar is the average and is named "Others, average"), `bins`, `smooth` (moving average window), `index` (lines from 100), `cols` (parallel lines and scatter matrix), `sort` (`value`, `name`, `none`).
+- Auto charts (since 2.11.0): a bar pick with more than 25 names and no values below zero becomes the 10 biggest plus Others, laid sideways so every name fits; pass `top: false` to keep every bar. Bar, dot and line charts whose values are all fractions between 0 and 1 (each bar one row or an average, and a name that is not a p-value, correlation, score or index) are written as percents; pass `percent: false` to keep plain numbers.
 - `options`: `theme`, `palette`, `width`, `height`, `get`, and the optional `title`, `subtitle`, `source`, `highlight`.
 - Clean look (on by default): bar and box charts write their values on the bars (and inside stacked parts that have room) and the median over each box, with no number axis or gridlines, in a calm blue-first color set. When the values would not fit, the number axis comes back on its own. Line charts (since 2.7.0) have no number axis or gridlines either: each line's first value sits at its left end and its last value after its name at the right end; a single line also gets its high and low. `clean: false` keeps the number axis and gridlines.
 - Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `options` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.

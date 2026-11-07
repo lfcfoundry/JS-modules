@@ -1,5 +1,27 @@
 # netflow-plot developer changelog
 
+## 2.11.0 · API 2 · 2026-11-07
+
+### Quick
+Busy auto bar charts: top 10 plus Others; rates as percents. top: false and percent: false keep the old look.
+
+### Details
+New spec key top and drawing option percent. Auto: bar picks with more than 25 names and no negative values get top 10 and horizontal. Others is the sum, or the average for a measure whose name does not add up (G_ADD). Percents: bar, dotplot, line with all y in 0..1, at least half not whole, no color or stack, one row per x or mean/median, name not p-value, corr, coef, r2, index, score, lat, lon, x, y. Of 61 vega-datasets tables, 2 auto charts change (obesity, income). Same SVG in Firefox 158, Chromium 155 and WebKitGTK 2.52.6 as in Node (5 of 5). 406 checks pass. Look goes to the owner's picture card.
+
+### Deep
+Top 10 plus Others for busy auto bar charts, and percents for fractions. Look change, picture card.
+
+## 2.10.1 · API 2 · 2026-11-07
+
+### Quick
+Bar and dot charts with x and y swapped draw correctly.
+
+### Details
+When type is bar or dotplot, y is not mostly numbers and x is (80% of filled values), x and y are swapped; bars also turn horizontal. Same SVG in Firefox 158, Chromium 155 and WebKitGTK 2.52.6 as in Node (5 of 5 cases). 403 checks pass.
+
+### Deep
+Swapped x and y on bar and dot charts used to draw a flat line with axes from -1 to 1. Now detected and fixed by swapping and laying bars sideways.
+
 ## 2.10.0 · API 2 · 2026-11-07
 
 ### Quick

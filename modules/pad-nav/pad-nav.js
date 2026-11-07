@@ -2,7 +2,7 @@
  * pad-nav.js: gamepad (Gamepad API) navigation for ordinary on-screen DOM menus and panels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.1.0 (API 1)
+ * Version 1.1.1 (API 1)
  *
  *   var pn = new PadNav({ getScope: function () { return openPanel; }, hintEl: hintDiv, onBack: closePanel });
  *   pn.start();   // or call pn.step() once per frame from your own loop
@@ -268,6 +268,13 @@
       for (i = 0; i < 4; i++) {
         k = PadNav.DIRS[i];
         if (!D[k] || !(E[k] || now >= this.rep[k])) continue;
+        if (!this.adjust && !this.filter) {   // plain press: no filter hook to call on every button, so check only what the search reaches
+          this.rep[k] = now + (E[k] ? this.repeatDelay : this.repeatRate);
+          var raw = scope.querySelectorAll(this.selector);
+          if (this.ringShownFast(raw)) { if (!woke) this.moveLazy(scope, raw, k); }
+          else if (!woke) { if (!cands) cands = this.candidates(scope); this.showFocus(scope, cands, true); woke = true; }
+          continue;
+        }
         if (!cands) cands = this.candidates(scope);
         this.rep[k] = now + (E[k] ? this.repeatDelay : this.repeatRate);
         if (this.adjust && !(this.ringEl === this.adjust && this.ringShown(cands))) this.exitAdjust();   // the slider went away
@@ -403,21 +410,41 @@
     return c.length > 0;
   };
 
+  // The checks for one element: not disabled, not inert, shown (display and visibility). The filter hook is separate.
+  PadNav.prototype.eligible = function (el) {
+    if (el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true' || (el.closest && el.closest('[inert]'))) return false;
+    if (typeof el.checkVisibility === 'function') return el.checkVisibility(PadNav.VISIBLE);   // one call instead of two: display:none anywhere above, or visibility:hidden
+    if (!el.getClientRects().length) return false;                                              // older browsers: display:none on it or an ancestor, or not rendered
+    return getComputedStyle(el).visibility !== 'hidden';
+  };
+
   PadNav.prototype.candidates = function (scope) {
     var l = scope.querySelectorAll(this.selector), o = [], i, el;
     for (i = 0; i < l.length; i++) {
       el = l[i];
-      if (el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true' || (el.closest && el.closest('[inert]'))) continue;
-      if (typeof el.checkVisibility === 'function') {                    // one call instead of two: display:none anywhere above, or visibility:hidden
-        if (!el.checkVisibility(PadNav.VISIBLE)) continue;
-      } else {                                                           // older browsers
-        if (!el.getClientRects().length) continue;                       // display:none on it or an ancestor, or not rendered
-        if (getComputedStyle(el).visibility === 'hidden') continue;
-      }
+      if (!this.eligible(el)) continue;
       if (this.filter && this.hook(this.filter, 'filter', el) === false) continue;
       o.push(el);
     }
     return o;
+  };
+
+  // The same answer as ringShown(candidates(scope)) without checking every button: the ring is shown when its element is in the search result and passes the checks.
+  PadNav.prototype.ringShownFast = function (raw) {
+    var el = this.ringEl;
+    return !!el && Array.prototype.indexOf.call(raw, el) >= 0 && this.eligible(el);
+  };
+
+  // The same move as move(scope, candidates(scope), dir), but the checks run only on the button the search picks (and on the next pick if that one fails them), not on all of them first.
+  PadNav.prototype.moveLazy = function (scope, raw, dir) {
+    var cur = this.ringEl, rects = [], map = [], i, r, j;
+    r = cur.getBoundingClientRect();
+    for (i = 0; i < raw.length; i++) if (raw[i] !== cur) { rects.push(raw[i].getBoundingClientRect()); map.push(raw[i]); }
+    while ((j = PadNav.nearest(r, rects, dir, this.nextRule)) >= 0) {
+      if (this.eligible(map[j])) { this.focus(map[j]); return; }
+      rects.splice(j, 1); map.splice(j, 1);
+    }
+    if (dir === 'u' || dir === 'd') this.scrollScope(scope, dir);   // nothing further that way (no wrap): a tall scope scrolls instead
   };
 
   PadNav.prototype.ringShown = function (cands) { return !!this.ringEl && cands.indexOf(this.ringEl) >= 0; };

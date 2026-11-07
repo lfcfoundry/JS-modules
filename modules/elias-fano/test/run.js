@@ -24,7 +24,7 @@ let sd = 1; for (const kind of ['dense', 'sparse', 'dups', 'clustered', 'full', 
 (async () => {
   await S.ready(); const wasm = S.accelerated() && !process.argv.includes('--js-only');
   console.log('backend: ' + (wasm ? (S.simd() ? 'WebAssembly with SIMD and plain JavaScript' : 'WebAssembly and plain JavaScript') : 'plain JavaScript only'));
-  ok(/^1\.\d+\.\d+$/.test(S.version) && S.api === 1, 'runtime version and API match the published module label');
+  ok(/^2\.\d+\.\d+$/.test(S.version) && S.api === 2, 'runtime version and API match the published module label');
   const one = S.build(new Uint32Array([7]));
   const lyingCount = one.slice(); new DataView(lyingCount.buffer).setUint32(4, 1073741824, true);
   let rejected = false; try { S.open(lyingCount); } catch (e) { rejected = e instanceof RangeError; }

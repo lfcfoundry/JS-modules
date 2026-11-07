@@ -18,7 +18,8 @@ async function bench(src, libs, abSrc) {
   var zodNs = (function () { new Function('globalThis', libs.zod)(globalThis); return globalThis.__zod; })(), z = zodNs;
   var zs = z.object({ count: z.number().min(0), total: z.number().min(0), name: z.string().max(19), sound: z.union([z.literal(0), z.literal(1)]), upgrades: z.record(z.string().max(200), z.number().int().min(1).max(1e6)), owned: z.record(z.string().max(200), z.number().int().min(1).max(1e6)) });
   var AB = (function () { var m = { exports: {} }; new Function('module', 'exports', abSrc)(m, m.exports); return m.exports; })();
-  lf.config({ name: 'lf-small' }); var store = idbk.createStore('idbk-small', 'kv');
+  var lfl = (function () { var m = { exports: {} }; new Function('module', 'exports', libs.lf)(m, m.exports); return m.exports; })();   // a second copy of localForage, on its localStorage driver (no database wait; no checks or backup)
+  lf.config({ name: 'lf-small' }); lfl.config({ name: 'lf-small-ls' }); lfl.setDriver(lfl.LOCALSTORAGE); await lfl.ready(); var store = idbk.createStore('idbk-small', 'kv');
   var schema = { count: 'num', total: 'num', name: 'str:19', sound: 'flag', upgrades: { type: 'counts' }, owned: { type: 'counts' } };
   var defaults = { count: 0, total: 0, name: '', sound: 1, upgrades: {}, owned: {} };
   function state(n) { var s = { count: 1234, total: 99999, name: 'Apple Fan', sound: 1, upgrades: {}, owned: {} }, i; for (i = 0; i < n; i++) { s.upgrades['Upgrade number ' + i] = i % 9 + 1; s.owned['Item ' + i] = i % 3 + 1; } return s; }
@@ -28,13 +29,14 @@ async function bench(src, libs, abSrc) {
   function asy(fn, n) { return async function () { var t = performance.now(), i; for (i = 0; i < n; i++) await fn(); return (performance.now() - t) * 1000 / n; }; }
   for (var z = 0; z < sizes.length; z++) {
     var s = state(sizes[z][1]), n = sizes[z][2], m = n > 1000 ? 60 : 30;
-    kit.save(s); localStorage.setItem('pj', JSON.stringify(s)); localStorage.setItem('pz', JSON.stringify(s)); await idbk.set('k', s, store); await lf.setItem('k', s);
+    kit.save(s); localStorage.setItem('pj', JSON.stringify(s)); localStorage.setItem('pz', JSON.stringify(s)); await idbk.set('k', s, store); await lf.setItem('k', s); await lfl.setItem('k', s);
     var ours = { save: sync(function () { s.count++; kit.save(s); }, n), load: sync(function () { kit.load(); }, n) };
     var pairs = [
       ['save', 'JSON + zod', sync(function () { s.count++; localStorage.setItem('pz', JSON.stringify(zs.parse(s))); }, n)], ['load', 'JSON + zod', sync(function () { zs.parse(JSON.parse(localStorage.getItem('pz'))); }, n)],
       ['save', 'plain JSON', sync(function () { s.count++; localStorage.setItem('pj', JSON.stringify(s)); }, n)], ['load', 'plain JSON', sync(function () { JSON.parse(localStorage.getItem('pj')); }, n)],
       ['save', 'idb-keyval', asy(function () { return idbk.set('k', s, store); }, m)], ['load', 'idb-keyval', asy(function () { return idbk.get('k', store); }, m)],
-      ['save', 'localForage', asy(function () { return lf.setItem('k', s); }, m)], ['load', 'localForage', asy(function () { return lf.getItem('k'); }, m)]
+      ['save', 'localForage', asy(function () { return lf.setItem('k', s); }, m)], ['load', 'localForage', asy(function () { return lf.getItem('k'); }, m)],
+      ['save', 'localForage (localStorage driver)', asy(function () { s.count++; return lfl.setItem('k', s); }, n)], ['load', 'localForage (localStorage driver)', asy(function () { return lfl.getItem('k'); }, n)]
     ];
     for (var i = 0; i < pairs.length; i++) {
       var d = await AB.abSequential(pairs[i][2], ours[pairs[i][0]], { limit: 0.05, minRounds: 4, maxRounds: 16 });

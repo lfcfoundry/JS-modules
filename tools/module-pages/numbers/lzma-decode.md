@@ -24,3 +24,17 @@
 | JavaScript, next unpack, 400 KB | 0.39 | 0.44 | 0.39 |
 
 The 1.5.0 JavaScript decoder was 5 to 14% slower than before on the first big unpack in WebKitGTK; 1.5.1 removes that, so there is no browser where the JavaScript decoder is now slower.
+
+
+**Against LZMA-JS, cloud-browser runs.**
+
+Compared: lzma-decode against LZMA-JS (first decode in a fresh page, ms, lower is faster, 197,878-byte stream).
+
+<!-- title: lzma-decode unpacks a game page 12 to 24 times as fast as the npm LZMA decoder with WebAssembly, and 7 to 9 times with plain JavaScript -->
+| way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| lzma-decode, WebAssembly | 17.5 | 22 | 19 |
+| lzma-decode, plain JavaScript | 48.5 | 36 | 33 |
+| LZMA-JS 2.3.2 lzma-d | 418.6 | 265 | 287 |
+
+Cloud-browser runs (shared machine, not the laptop). The same 747,467-byte single-file game page packed with lc 3, lp 0, pb 2 and an 8 MB dictionary. LZMA-JS hands back a string for text, which is part of its time. Not measured: a phone, a stream that is not text.

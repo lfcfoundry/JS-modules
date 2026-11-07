@@ -127,3 +127,31 @@ It is smaller, not faster. Not in lite: counts and raw fields, codes, autosave, 
 | Six-field load, lite / create() | 0.76 | 0.89 |
 
 On the laptop, the lite file also loads 11 to 24% faster; its saves are even. Not run on the laptop: 1.5.1 old against new, and the WebKit-only 1.5.2 check.
+
+**Large saves against idb-keyval and localForage, cloud-browser runs.**
+
+Compared: save-kit's createLarge against idb-keyval and localForage (game-like save with 2,000 named counts, whole call to data stored or in hand, ms, lower is faster).
+
+<!-- title: save-kit saves a 16 MB game state 2 to 5 times as fast as idb-keyval and localForage, and loads it 1.3 to 3 times as fast -->
+| way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| save-kit, 16 MB save | 76.2 | 124 | 65 |
+| idb-keyval, 16 MB save | 148.3 | 354 | 328 |
+| localForage, 16 MB save | 164 | 357 | 339 |
+| save-kit, 16 MB load | 83.2 | 115 | 91 |
+| idb-keyval, 16 MB load | 169.1 | 328 | 123 |
+| localForage, 16 MB load | 166.8 | 351 | 120 |
+
+
+<!-- title: At 4 MB save-kit is faster than idb-keyval and localForage in all three browsers, 1.5 to 4.5 times on load and save -->
+| way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| save-kit, 4 MB save | 23.5 | 33 | 17 |
+| idb-keyval, 4 MB save | 36.4 | 89 | 77 |
+| localForage, 4 MB save | 38.4 | 87 | 69 |
+| save-kit, 4 MB load | 21.7 | 36 | 23 |
+| idb-keyval, 4 MB load | 33.5 | 88 | 35 |
+| localForage, 4 MB load | 32.9 | 79 | 34 |
+
+
+Cloud-browser runs (shared machine, not the laptop), median of 14 rounds over two passes, one library at a time. idb-keyval and localForage store the object as it is, with no checks and no backup; save-kit also checks every field and keeps a backup. Below 4 MB it is equal or faster (WebKitGTK 0.8 MB load is a tie at 7, 7 and 8 ms on a 1 ms clock). Where it loses: with `create()` and small saves, in WebKitGTK a 20 KB load takes up to 1.5 times and a 20 KB save 1.3 times as long as localForage's localStorage driver, because that driver checks nothing (with `trust: true` the load is level at 0.99).
