@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.2.1 (API 2)
+ * Version 2.3.0 (API 2)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -321,7 +321,7 @@
 //@end
 
   // ---- the store ----
-  // create({ key, schema, defaults, soundKeys, prefix, storage, maxCodeBytes, maxCodeChars, backupEveryMs })
+  // create({ key, schema, defaults, soundKeys, prefix, storage, maxCodeBytes, maxCodeChars, backupEveryMs, trust })
   //   key: localStorage key. schema/defaults: see validate(). soundKeys: numeric fields that must be sound to write a save
   //   (default: every 'num'/'int' field; every value inside a 'counts' field is always checked too). prefix: 2 capital letters + digit for codes,
   //   default 'SK1'. maxCodeBytes: biggest save a code may unpack to (default 262144 = 256 KiB). maxCodeChars: longest pasted text
@@ -457,9 +457,13 @@
       return r === false || r === null ? null : isObj(r) ? r : c;
     }
     var warmed = null;   // what warm() found: { out, mt, bt }; load() hands it out once
-    // One load: { out: clean state or null, mt: main slot text, bt: backup slot text if it was read }.
+    // Since 2.3.0, trust: true (off by default) skips every check: load() hands back the stored JSON as it is (the backup only when the main slot is
+    // missing or not a JSON object), and save() writes the state without looking at it. No schema, defaults, soundKeys, migrate or afterValidate.
+    var trustMe = o.trust === true;
+    function trustSlot(t) { try { var x = JSON.parse(t || 'null'); if (!isObj(x)) return null; if (countRules.length && t.indexOf('[[') >= 0) unpack(x); return x; } catch (e) { return null; } }
     function readNow() {
       try {
+        if (trustMe) { var tm = textOf(key), tx = trustSlot(tm), tb; if (!tx && (tm !== null || orphan)) tx = trustSlot(tb = textOf(bak)); return { out: tx, mt: tm, bt: tb }; }
         var mt = textOf(key), a = parseSlot(mt), b = null, bt, first, second, out = null, used = null;
         if (mt === null && !orphan) return { out: null, mt: mt };
         var pre = a && countKeys.length ? checkMain(a) : null, badA = pre ? pre.bad : a ? badFields(a) : 0;
@@ -503,8 +507,8 @@
         warmed = null;
         try {
           if (off || !storage) return false;
-          var usePk = V8 && countKeys.length > 0, pk = usePk ? packed(state) : null;   // Chromium-family browsers: the [names, counts] form, checked while it is made
-          if (usePk ? !pk : !soundState(state)) return false;
+          var usePk = V8 && countKeys.length > 0 && !trustMe, pk = usePk ? packed(state) : null;   // Chromium-family browsers: the [names, counts] form, checked while it is made
+          if (trustMe ? !isObj(state) : usePk ? !pk : !soundState(state)) return false;
           var now = Date.now(), probe = null;
 //@begin migrate
           if (version) { state.v = version; if (pk) pk.v = version; }

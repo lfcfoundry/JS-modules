@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 2.2.1 · API 2**
+**Version 2.3.0 · API 2**
 
-**Tested in:** WebKitGTK 2.52.6 (browser), Node with WebKit, Chromium and Firefox user agents
+**Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 ## What it is and how it works
 
@@ -65,6 +65,7 @@ Also exported: `SaveKit.validate(schema, defaults, untrusted)`, `SaveKit.has(obj
 | `codeCheck` | Ending of a save code: `'padded36'` (7 base-36 characters), `'plain36'` (base 36 without leading zeros, 1 to 7 characters; Apple Press's old codes), `'hex8'` (8 hex characters; Fancy the Banana's old codes). Same FNV-1a hash behind all three | `'padded36'` |
 | `damagedKey` | Unusable main-slot text is copied here first so it can be looked at | off |
 | `readBackupWithoutMain` | `false`: no main slot means `load()` returns `null`, not a leftover backup | `true` |
+| `trust` | `true` (new in 2.3.0): skip every check. `load()` returns the stored JSON as it is (the backup only when the main slot is missing or not JSON), `save()` writes without looking. No schema, defaults, broken-number refusal, `migrate` or `afterValidate`. For games that check their own data and want the bare speed: ours/theirs against localForage's localStorage driver in Firefox 158, Chromium 155 and WebKitGTK 2.52.6: 448 B load 0.16 to 0.54, save 0.33 to 0.68; 20 KB load 0.86 to 1.02, save 0.80 to 0.91. With checks on, small loads stay 1.0 to 1.2 of it | `false` (all checks on) |
 | `afterValidate` | `function (clean, raw)` at the end of `load()`, `importCode()`, `onOtherTab()`: change `clean`, return a replacement, or `false`/`null` to refuse. A throwing hook is ignored | off |
 | `stamp` | Name of the timestamp field written on every save, code and staged import | `'seen'` |
 | `maxCodeBytes` | Biggest save a code may unpack to and `exportCode` will write | 262144 (256 KiB) |

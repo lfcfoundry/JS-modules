@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-"""Makes a smaller save-kit by cutting out the parts a game does not use. Version 2.2.1 (API 2)
+"""Makes a smaller save-kit by cutting out the parts a game does not use. Version 2.3.0 (API 2)
 
   python3 modules/save-kit/lean.py --list                              the parts that can be cut, and what each one is
   python3 modules/save-kit/lean.py --without autosave,twoTap,persist   write save-kit-lean.js next to save-kit.js without those parts

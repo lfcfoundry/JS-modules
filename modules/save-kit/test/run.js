@@ -373,6 +373,18 @@ function countUnpacked(counter) {
     st.setItem('w', '{"score":null}'); st.setItem('w-backup', '{"score":8}'); k.warm(); st.setItem('w-backup', '{"score":9}'); assert.strictEqual(k.load().score, 9); assert.strictEqual(JSON.stringify(k.load()), plain());   // backup changed after warm
     const e = K.create({ key: 'none', schema, storage: mem() }); assert.strictEqual(e.warm(), false); assert.strictEqual(e.load(), null);
   });
+  await test('trust: true skips the checks: the stored JSON comes back as it is, the backup only when main is unreadable, and save writes without looking', async K => {
+    const st = mem(), k = K.create({ key: 't', schema, storage: st, trust: true, backupEveryMs: 0 });
+    assert.strictEqual(k.save({ score: NaN, level: -2, extra: 'kept', owned: { a: -1 } }), true);   // a checked kit refuses this
+    const got = k.load(); assert.strictEqual(got.score, null); assert.strictEqual(got.level, -2); assert.strictEqual(got.extra, 'kept'); assert.strictEqual(got.owned.a, -1);
+    st.setItem('t', '{"score":null}'); assert.strictEqual(k.load().score, null);   // a broken number is not a reason to use the backup here
+    st.setItem('t', 'x{'); assert.strictEqual(k.load().extra, 'kept');                // unreadable main: the backup
+    st.setItem('t', '[1,2]'); assert.strictEqual(k.load().extra, 'kept');             // not an object: the backup
+    assert.strictEqual(k.save('nope'), false); assert.strictEqual(k.save(null), false);
+    st.setItem('t', '{"owned":[["a","b"],[2,3]]}'); assert.strictEqual(k.load().owned.b, 3);   // a [names, counts] save from a checked Chromium kit still opens
+    assert.strictEqual(k.warm(), true); assert.strictEqual(k.load().owned.a, 2);
+    const e = K.create({ key: 'none', schema, storage: mem(), trust: true }); assert.strictEqual(e.load(), null);
+  });
   await test('skipUnchangedMs: an unchanged save is not written again until the time is up; save(state, true) and changes always write', async K => {
     const st = mem(); let writes = 0; const real = st.setItem; st.setItem = (k, v) => { if (k === 'g') writes++; real(k, v); };
     const k = K.create({ key: 'g', schema, storage: st, skipUnchangedMs: 5000, backupEveryMs: 1e9 });

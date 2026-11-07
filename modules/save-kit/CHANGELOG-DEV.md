@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.0 · API 2 · 2026-11-07
+
+### Quick
+create({ trust: true }) (off by default, owner card 'Add opt-in trust: true switch'): load returns the stored JSON as is (backup only when main is missing or not JSON), save writes without checks. Against localForage localStorage driver: 448 B load 0.16-0.54, save 0.33-0.68; 20 KB load 0.86-1.02, save 0.80-0.91.
+
+### Deep
+trust: true for create(). Owner card 11.07 10:45 AM ET. Skips schema, defaults, soundKeys refusal, migrate and afterValidate; still reads [names, counts] saves written by a checked Chromium kit (unpack with its checks), still falls back to the backup when the main slot is missing (readBackupWithoutMain) or not a JSON object. warm() works with it. Small A/B, tests/save-kit-small-browser.js with trust forced, ours/theirs vs localForage localStorage driver: WebKitGTK 2.52.6 448 B save 0.56 load 0.52, 20 KB save 0.84 load 1.02; Firefox 158 448 B 0.33 / 0.16, 20 KB 0.80 / 0.86; Chromium 155 448 B 0.68 / 0.54, 20 KB 0.91 / 1.01. The 20 KB load is the JSON.parse floor (microbench WebKit: trust load 108 us vs getItem + JSON.parse 108.5). Tried: trust saves in Chromium as unchecked [names, counts] - save 110 -> 183 us (Object.keys/values on big maps is slow in V8) and load no faster; dropped. Checks: 54 Node checks (new trust test), also with a Chromium user agent; 17 lean builds.
+
 ## 2.2.1 · API 2 · 2026-11-07
 
 ### Quick
