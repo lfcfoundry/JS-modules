@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.10.0 · API 2**
+**Version 2.10.1 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (the same SVG as Node for 12 public tables)
+**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
