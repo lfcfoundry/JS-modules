@@ -509,13 +509,11 @@ var NetflowPlot = (function () {
     var cc = ck ? catsOf(ck, null, 'value', 12) : null, ci = cc ? new Map(cc.list.map(function (c, i) { return [c, i]; })) : null;
     var smax = 0; if (sz) for (var i = 0; i < n; i++) if (sz[i] > smax) smax = sz[i];
     var base = n > 20000 ? 1.6 : n > 2000 ? 2.4 : 3.6, op = n > 20000 ? 0.45 : n > 2000 ? 0.65 : 0.85, pts = [];
-    /* each color's fill (and ring) is worked out once, not once a dot; every dot still gets its own copy, as before (since 2.14.6) */
-    var fills = [], rings = [], fillOf = function (c) { return fills[c] || (fills[c] = F.alpha(F.color(c), sz ? 0.6 : op)); }, ringOf = function (c) { return rings[c] || (rings[c] = F.alpha(F.color(c), 1)); };
     for (i = 0; i < n; i++) {
       if (x[i] !== x[i] || y[i] !== y[i]) continue;
       var r = sz ? 2 + 22 * Math.sqrt(Math.max(0, sz[i]) / (smax || 1)) : base, c = ck ? (cc.other && cc.other.has(ck[i]) ? ci.get('Other') : ci.get(ck[i])) : 0;
-      var px = ax.map(x[i]), py = ay.map(y[i]); if (join) pts.push(px, py);
-      F.dot(px, py, r, fillOf(c || 0).slice(), n <= 5000 ? { rows: i, t: R.label(i) + ': ' + fmtNum(x[i]) + ', ' + fmtNum(y[i]) } : null, sz ? ringOf(c || 0).slice() : null);
+      var px = ax.map(x[i]), py = ay.map(y[i]); pts.push(px, py);
+      F.dot(px, py, r, F.alpha(F.color(c || 0), sz ? 0.6 : op), n <= 5000 ? { rows: i, t: R.label(i) + ': ' + fmtNum(x[i]) + ', ' + fmtNum(y[i]) } : null, sz ? F.alpha(F.color(c || 0), 1) : null);
     }
     if (join) F.line(pts, 1.4, F.alpha(F.T.line, 0.8));
     if (n > 5000) F.S.plotGrid = { x: x, y: y, ax: ax, ay: ay, label: R.label };   /* big scatters: pointing uses a grid, not one mark a dot */
