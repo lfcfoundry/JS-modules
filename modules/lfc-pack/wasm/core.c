@@ -22,16 +22,18 @@ typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u
 extern u8 __heap_base;
 #define IN_BASE (8u<<20)
 #define IN ((u8*)IN_BASE)   /* the input buffer sits at a fixed address above the fixed buffers (about 6.6 MB): a constant, so every IN[i] is one load with a constant offset, as with the old fixed array */
-static u8 *TEXT, *SHAPES, *DDOUT; static f64 *NUMV; static u32 *NUMP, *SIDE, *SLOWN, *NODD, *DDCODES, *DDTAB, *DDOFF, *DDLEN;
-static u32 textCap, numCap, sideCap, slowCap, noddCap, shapeCap, ddOutCap, ddMaxs;
+/* scalar and pointer state lives in WebAssembly globals (not memory), so stores through byte pointers do not force reloads: the same output, a smaller program */
+#define GV __attribute__((address_space(1)))
+static u8 *GV TEXT, *GV SHAPES, *GV DDOUT; static f64 *GV NUMV; static u32 *GV NUMP, *GV SIDE, *GV SLOWN, *GV NODD, *GV DDCODES, *GV DDTAB, *GV DDOFF, *GV DDLEN;
+static GV u32 textCap, numCap, sideCap, slowCap, noddCap, shapeCap, ddOutCap, ddMaxs;
 static u32 IDS[ROW_CAP]; static u32 ROWSTART[ROW_CAP]; static u32 ROWEND[ROW_CAP]; static u8 SK[SK_CAP];
 static u32 SHOFF[SHAPE_N+1]; static u32 SHTAB[SHAPE_N*2]; static u32 SHSLOT[SHAPE_N]; // open addressing: [id+1]; SHSLOT: the slot each shape took, so reset clears only those
-static u32 slowN;
-static u8 ODD[1u<<18]; static u32 odd; static u32 nOddN, rowNumK, exactMode;
-static u32 fbBeg;
-static u32 lastShape=0xFFFFFFFFu; /* the shape the last row took (shapeFor) */
-static u32 inLen, pos, textPos, numN, sideN, strN, rowN, skLen, shapeN, shapeBytes, fbStart, fbEnd;
-static u32 KS_OBJ[8192], KS_PTR[8192], KS_LEN[8192]; static u32 ksGen, KS_GEN[8192], objSerial, rowKeys;
+static GV u32 slowN;
+static u8 ODD[1u<<18]; static GV u32 odd; static GV u32 nOddN, rowNumK, exactMode;
+static GV u32 fbBeg;
+static GV u32 lastShape=0xFFFFFFFFu; /* the shape the last row took (shapeFor) */
+static GV u32 inLen, pos, textPos, numN, sideN, strN, rowN, skLen, shapeN, shapeBytes, fbStart, fbEnd;
+static u32 KS_OBJ[8192], KS_PTR[8192], KS_LEN[8192]; static GV u32 ksGen; static u32 KS_GEN[8192]; static GV u32 objSerial, rowKeys;
 EXPORT("in_ptr") u8* in_ptr(void){return IN;} EXPORT("text_ptr") u8* text_ptr(void){return TEXT;}
 EXPORT("numv_ptr") f64* numv_ptr(void){return NUMV;} EXPORT("nump_ptr") u32* nump_ptr(void){return NUMP;}
 EXPORT("side_ptr") u32* side_ptr(void){return SIDE;} EXPORT("ids_ptr") u32* ids_ptr(void){return IDS;}
@@ -206,7 +208,7 @@ EXPORT("run") u32 run(void){
 #define DD_OUT_CAP (48u<<20)
 #define DD_MAXS (8u<<20)
 #define DD_TBITS 22
-static u32 ddN, ddOutLen;
+static GV u32 ddN, ddOutLen;
 /* ---- numbers grouped by path: a dense id per path hash (in first-seen order), then a stable counting sort, so JavaScript takes each column as one slice.
    Doing this in JavaScript cost a Map lookup per number (about 60 ns each in all three browsers). Returns the number of paths, or 0xFFFFFFFF when there are more than NG_MAX (the caller then groups in JavaScript). */
 #define NG_TBITS 16

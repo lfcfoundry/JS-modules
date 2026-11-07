@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.7 · API 0 · 2026-11-06
+
+### Quick
+Same output, 718 bytes smaller tokenizer program
+
+### Details
+The tokenizer keeps its counters in WebAssembly globals instead of memory: same bytes out, same speed, core.wasm 16,822 to 16,104 bytes.
+
+### Deep
+Requested by the owner (card: Ship them).
+
 ## 0.5.6 · API 0 · 2026-11-06
 
 ### Quick

@@ -32,15 +32,15 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.12.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 1.9.0 · API 1 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.5.6 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.5.7 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.11.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.4.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.12.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.9.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.10.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.8.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -69,14 +69,18 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-06 · **ppmd-pack** 2.0.3 · API 2: Packed pages use the new ppmd-decode 1.4.0 WebAssembly decoder, which is faster.
 - 2026-11-06 · **ppmd-decode** 1.4.0 · API 1: WebAssembly decoding is 8 to 29% faster.
 - 2026-11-06 · **netflow-scene** 1.9.0 · API 1: Sankey: amounts and shares beside the names (valueLabel, unit, percentOf), and notes with live numbers and a thin line to what they are about.
+- 2026-11-06 · **netflow-scene** 1.10.0 · API 1: {topbox} note word, amount on {top}
+- 2026-11-06 · **netflow-sankey** 2.12.0 · API 2: {topbox} note word, amount on {top}
 - 2026-11-06 · **netflow-sankey** 2.11.0 · API 2: toSvg: amounts and shares beside the names (valueLabel, unit, percentOf), and notes with live numbers and a thin line to what they are about.
 - 2026-11-06 · **netflow-sankey** 2.10.1 · API 2: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 - 2026-11-06 · **netflow-layers** 1.12.3 · API 1: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 - 2026-11-06 · **netflow-layers** 1.12.2 · API 1: Flow pictures: back links use a darker amber (#9a6a00) that reads at 4.5:1 on white.
 - 2026-11-06 · **netflow-layers** 1.12.1 · API 1: Flow pictures: a back link that spans several rows no longer doubles back over itself.
+- 2026-11-06 · **netflow-engine** 2.4.1 · API 2: Smaller force layout program
 - 2026-11-06 · **memory-compression** 2.12.0 · API 2: Two smaller files: memory-compression.min.js (83 KB gzipped, was 122.5) and a read-only memory-compression-read.min.js (37 KB) for pages that only open data.
 - 2026-11-06 · **lzma-pack** 2.0.4 · API 2: Packed pages unpack faster on first open with the lzma-decode 1.4.0 decoder (about 600 bytes bigger).
 - 2026-11-06 · **lzma-decode** 1.4.0 · API 1: The first WebAssembly decode is 9 to 15% faster.
+- 2026-11-06 · **lfc-pack** 0.5.7 · API 0: Smaller tokenizer program
 - 2026-11-06 · **lfc-pack** 0.5.6 · API 0: Fixed: packing one very big JSON document (for example an array of 30,000 or more items in one piece) stopped with an error. It is now kept whole and reads back exactly.
 - 2026-11-06 · **lfc-pack** 0.5.5 · API 0: Fixed: packing text with a long run of blank lines no longer slows to a crawl (80,000 blank lines: 5 s before, 0.04 s now).
 - 2026-11-06 · **lfc-pack** 0.5.4 · API 0: The first big read on a page is 2 to 3 times faster: a fixed rule replaces the one-time timing probe for building rows.

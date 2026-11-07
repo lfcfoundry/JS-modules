@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.0 · API 1 · 2026-11-06
+- {topbox} note word, amount on {top}
+
 ## 1.9.0 · API 1 · 2026-11-06
 - Sankey: amounts and shares beside the names (valueLabel, unit, percentOf), and notes with live numbers and a thin line to what they are about.
 

@@ -4,8 +4,10 @@
    The caller (JS) computes the temperature, so it matches the JS Math.pow exactly. */
 typedef unsigned int u32; typedef double f64;
 static inline f64 vsqrt(f64 x) { return __builtin_sqrt(x); }
-static f64 *X, *mass, *FX, *tm, *tcx, *tc, *th; static int *tn, *tb, *tch, *stack, *pairs;
-static int dim, NC, cap, cnt;
+/* scalar and pointer state lives in WebAssembly globals (not memory): the same output, a smaller program */
+#define GV __attribute__((address_space(1)))
+static f64 *GV X; static f64 *GV mass; static f64 *GV FX; static f64 *GV tm; static f64 *GV tcx; static f64 *GV tc; static f64 *GV th; static int *GV tn; static int *GV tb; static int *GV tch; static int *GV stack; static int *GV pairs;
+static GV int dim; static GV int NC; static GV int cap; static GV int cnt;
 /* The page's own random generator (mulberry32 in engine.js): the rare "two items on the same spot" branch draws from it, so wasm and JavaScript agree even there. */
 __attribute__((import_module("env"), import_name("rnd"))) extern f64 rnd(void);
 static int newNode(int parent, int q) {

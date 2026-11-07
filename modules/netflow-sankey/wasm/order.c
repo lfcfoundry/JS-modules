@@ -1,11 +1,13 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. The order search of netflow-sankey (barycenter sweeps, neighbor swaps, crossing count) in WebAssembly.
    Same arithmetic, in the same order, as the JavaScript in netflow-sankey.js (build with -ffp-contract=off, no fast-math). */
 typedef int i32; typedef double f64;
-static i32 nV, nL;
-static i32 *layerOf, *layerStart, *ord, *pos, *tmp, *best, *uS, *uI, *dS, *dI, *xBot, *seenOrd, *seenRem;
-static i32 nSeen, seenCap;
-static i32 *memo, memoN, stamp, *lver, *sig;   /* swapPass shortcuts: decisions kept per pair for one call, and layers whose neighborhood did not change since they last settled */
-static f64 *lenOf, *bary, *uO, *dO, *xW, *xBit;
+/* scalar and pointer state lives in WebAssembly globals (not memory): the same output, a smaller program */
+#define GV __attribute__((address_space(1)))
+static GV i32 nV; static GV i32 nL;
+static i32 *GV layerOf; static i32 *GV layerStart; static i32 *GV ord; static i32 *GV pos; static i32 *GV tmp; static i32 *GV best; static i32 *GV uS; static i32 *GV uI; static i32 *GV dS; static i32 *GV dI; static i32 *GV xBot; static i32 *GV seenOrd; static i32 *GV seenRem;
+static GV i32 nSeen; static GV i32 seenCap;
+static i32 *GV memo; static GV i32 memoN; static GV i32 stamp; static i32 *GV lver; static i32 *GV sig;   /* swapPass shortcuts: decisions kept per pair for one call, and layers whose neighborhood did not change since they last settled */
+static f64 *GV lenOf; static f64 *GV bary; static f64 *GV uO; static f64 *GV dO; static f64 *GV xW; static f64 *GV xBit;
 
 void bind(i32 nV_, i32 nL_, i32 *layerOf_, i32 *layerStart_, i32 *ord_, i32 *pos_, f64 *lenOf_, f64 *bary_, i32 *tmp_, i32 *best_,
           i32 *uS_, i32 *uI_, f64 *uO_, i32 *dS_, i32 *dI_, f64 *dO_, i32 *xBot_, f64 *xW_, f64 *xBit_, i32 *seenOrd_, i32 *seenRem_, i32 seenCap_, i32 *memo_, i32 memoN_, i32 *lver_, i32 *sig_) {
