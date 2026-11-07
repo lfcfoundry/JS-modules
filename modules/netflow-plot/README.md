@@ -1,6 +1,6 @@
 # netflow-plot
 
-**Version 2.14.5 · API 2**
+**Version 2.14.6 · API 2**
 
 **Tested in:** node test/run.js 426 checks; 108 charts: only udistrict.json light+dark change; label browser check 0 in 3 browsers; same SVG in Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
