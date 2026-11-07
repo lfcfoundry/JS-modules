@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.14.3 · API 2 · 2026-11-07
+
+### Quick
+guess()/auto() size a treemap by a column named size/value/count/amount/total (or the first other number), never by the parent or id column; flare.json was sized by parent ids. The reason now says what sizes it.
+
+### Details
+treemap put: tn = nums minus par, id and G_ID names; tsz = first G_ADD or size-like name, else tn[0]; why gets ', sized by X'. 1 new check (423).
+
+### Deep
+flare.json tiles were sized by parent id numbers (query looked big, vis small).
+
 ## 2.14.2 · API 2 · 2026-11-07
 
 ### Quick

@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.14.2 (API 2)
+ * Version 2.14.3 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -894,7 +894,7 @@ var NetflowPlot = (function () {
       if (np > FLOW_MAX && both >= 0.3 * all) put('chord', { from: fsp.from, to: fsp.to, value: fsp.value }, 'it has ' + gQ(from) + ' and ' + gQ(to) + ' columns and most places both send and receive, so it shows the flows around a circle (a chord)' + fsz);
       put('sankey', fsp, fwhy);
     }
-    if (par) { var id = named(/^(id|name|node|label)$/i) || of(['cat', 'id'])[0]; if (id && id !== par) put('treemap', { id: id.k, parent: par.k, size: measure ? measure.k : undefined }, 'it has a ' + gQ(par) + ' column, so it is a tree'); }
+    if (par) { var id = named(/^(id|name|node|label)$/i) || of(['cat', 'id'])[0]; if (id && id !== par) { var tn = nums.filter(function (c) { return c.k !== par.k && c.k !== id.k && !G_ID.test(c.k); }), tsz = tn.filter(function (c) { return G_ADD.test(c.k) || /size|value|count|amount|total/i.test(c.k); })[0] || tn[0]; put('treemap', { id: id.k, parent: par.k, size: tsz ? tsz.k : undefined }, 'it has a ' + gQ(par) + ' column, so it is a tree' + (tsz ? ', sized by ' + gQ(tsz) : '')); } }   /* sized by a real measure, never by the parent or id numbers (since 2.14.3) */
     var lat = named(/^(lat|latitude)$/i), lon = named(/^(lon|lng|long|longitude)$/i);
     if (lat && lon && lat.kind === 'num' && lon.kind === 'num') put('scatter', { x: lon.k, y: lat.k, color: small[0] ? small[0].k : undefined }, 'it has latitude and longitude, so each row is a point on a map-like grid');
     var t = times[0], ms = nums.filter(function (c) { return c !== t; });
