@@ -148,7 +148,7 @@ Each field is checked on its own and falls back alone. `__proto__`, `constructor
 
 ## How it compares
 
-Larger than a hand-written `JSON.stringify` save, but the one built for game saves: it checks every field, keeps a backup and makes copy-paste codes with a checksum. Sizes of the others were measured below (whole library builds, same minifier); speed against idb-keyval and localForage is measured on a laptop (Chromium 156 and Firefox 160, 16 cores): a 750-byte save takes 10 to 13 microseconds against 180 to 210 on IndexedDB, and `createLarge` saves and loads 1 to 16 MB 1.4 to 3.8 times as fast (see below). localForage's localStorage driver (no backup, no checks) loads a 448-byte save in 0.95 microseconds in ungoogled-chromium 155 against 1.24 here (it was 1.32 before 1.6.1), and in Firefox 158 and WebKitGTK 2.52.6 save-kit is the faster one (0.90 against 3.15 and 0.80 against 1.00); for a 20 KB save it is 1.4 to 2.0 times slower in all three (117, 50 and 153 microseconds against 68, 37 and 77), which is the price of checking every field (a bare `JSON.parse` of it takes 67, 33 and 73). Best of 7 rounds, one cloud machine, `tests/save-kit-small-browser.js` (its "localForage (localStorage driver)" rows); ours/theirs from paired alternating runs: 448 bytes 1.26, 0.28, 0.83; 20 KB 1.78, 1.45, 2.03 (ratio below 1 is faster).
+Larger than a hand-written `JSON.stringify` save, but the one built for game saves: it checks every field, keeps a backup and makes copy-paste codes with a checksum. Against localForage's localStorage driver (no backup, no checks), ours/theirs from the early-stop A/B in `tests/save-kit-small-browser.js` (save-kit 2.2.1 to 2.3.0, one cloud machine, ratio below 1 is faster): 448 B save 0.83 / 0.33 / 0.74 and load 1.06 / 0.31 / 0.97; 20 KB save 0.86 / 0.88 / 1.21 and load 1.02 / 1.06 / 1.20 (ungoogled Chromium 155 / Firefox 158 / WebKitGTK 2.52.6). Where we are still a little slower, that is the price of checking every field. With `trust: true` (new in 2.3.0, off by default; no checks) it is 448 B save 0.68 / 0.33 / 0.56 and load 0.54 / 0.16 / 0.52, 20 KB save 0.91 / 0.80 / 0.84 and load 1.01 / 0.86 / 1.02 (even where a bare `JSON.parse` is all either side does). Against localForage's default IndexedDB mode and idb-keyval, save-kit is faster at every size: see below.
 
 | Alternative | Size (smaller is better) | Features | Where it wins / loses |
 |---|---|---|---|
@@ -166,14 +166,16 @@ A game-like save (a list of small tile objects plus 2,000 named counts), the who
 
 | Save size, call | Chromium 155 ours / idb-keyval / localForage | Firefox 158 ours / idb-keyval / localForage | WebKitGTK 2.52.6 ours / idb-keyval / localForage |
 |---|---|---|---|
-| 0.8 MB save | 11.6 / 9.4 / 9.7 | 9 / 21 / 24 | 7 / 19 / 15 |
-| 0.8 MB load | 7.2 / 7.9 / 8.0 | 7 / 19 / 20 | 11 / 9 / 8 |
-| 4 MB save | 36.6 / 41.0 / 46.9 | 41 / 91 / 90 | 26 / 79 / 73 |
-| 4 MB load | 27.5 / 39.5 / 34.8 | 40 / 97 / 95 | 39 / 34 / 35 |
-| 16 MB save | 182.5 / 190.6 / 174.4 | 191 / 405 / 441 | 102 / 375 / 405 |
-| 16 MB load | 126.6 / 224.5 / 206.3 | 199 / 389 / 386 | 157 / 130 / 167 |
+| 0.8 MB save | 9.9 / 9.6 / 10.1 | 6 / 21 / 19 | 5 / 15 / 15 |
+| 0.8 MB load | 6.4 / 8.5 / 8.5 | 6 / 19 / 18 | 7 / 7 / 8 |
+| 4 MB save | 34.7 / 33.7 / 35.1 | 33 / 89 / 87 | 17 / 77 / 69 |
+| 4 MB load | 28.4 / 33.3 / 34.4 | 36 / 88 / 79 | 23 / 35 / 34 |
+| 16 MB save | 113.7 / 151.8 / 161.1 | 124 / 354 / 357 | 65 / 328 / 339 |
+| 16 MB load | 103.8 / 171.3 / 160.2 | 115 / 328 / 351 | 91 / 123 / 120 |
 
-Since 1.6.1 a `createLarge` load spends one pass over the saved text where it spent three (13 MB of text: 8.5 to 10 ms down to 2.2 to 3 ms) and none when the schema has no `raw` field; 16 MB load, new over old, paired runs: Chromium 0.72 (noisy), Firefox 0.95, WebKitGTK 0.88. The table below was measured on 1.3.0 and not repeated.
+Measured on save-kit 2.3.0 (11.07): big arrays are stored in pieces since 2.1.0 and, outside Chromium, lists of same-shape records as columns since 2.2.0. Older notes below describe how earlier versions got here.
+
+Since 1.6.1 a `createLarge` load spends one pass over the saved text where it spent three (13 MB of text: 8.5 to 10 ms down to 2.2 to 3 ms) and none when the schema has no `raw` field; 16 MB load, new over old, paired runs: Chromium 0.72 (noisy), Firefox 0.95, WebKitGTK 0.88. 
 
 Since 1.6.2 the depth check on a big `raw` field uses `for...in` instead of `Object.keys` (it only ever sees parsed JSON, so the answers are the same), which took 19 ms of a 16 MB load in Chromium: 16 MB load, one library per page, median of 3 pages, ms: Chromium 120 to 87 (0.72x; idb-keyval 144), WebKitGTK 125 to 117 (0.93x; idb-keyval 120, so roughly equal), Firefox unchanged within noise (about 150; idb-keyval 300 to 440). A plain `get` plus `JSON.parse` of the same text with no checks takes 73 / 145 / 105 ms, so the checks are now 14 / 5 / 12 ms of it. These are new runs of the same harness shape, not the 1.3.0 table above.
 
