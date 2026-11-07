@@ -252,10 +252,10 @@
     },
     {
       "id": "lzma-decode",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "api": 1,
       "global": "lzmaDecode",
-      "summary": "LZMA1 decoder that uses WebAssembly first (about 1.5 to 2.6 times faster to open a page in Chromium 155, Firefox 158, WebKitGTK 2.52.6, and 2.2 to 3.0 times on a laptop in Firefox 160 and Chromium 156) and falls back to a small readable ES5 JavaScript decoder; tested against Python's lzma. Browsers can only unpack gzip and deflate natively.",
+      "summary": "LZMA1 decoder that uses WebAssembly first (14 to 30 times faster than the npm lzma package on 3 MB of text in Chromium 155, Firefox 158 and WebKitGTK 2.52.6; 4 to 19 times with its plain JavaScript fallback) and falls back to a small readable ES5 JavaScript decoder; tested against Python's lzma. Browsers can only unpack gzip and deflate natively.",
       "short": "LZMA decoder: WebAssembly first, small readable JavaScript fallback; tested against Python's lzma.",
       "file": "modules/lzma-decode/lzma-decode-with-wasm.js",
       "readme": "modules/lzma-decode/README.md",
@@ -375,7 +375,7 @@
     },
     {
       "id": "lfc-pack",
-      "version": "0.5.9",
+      "version": "0.6.0",
       "api": 0,
       "global": "LfcPack",
       "summary": "Packs newline-delimited JSON (logs, events, API dumps) into LFC-pack (.json.lfc): every field becomes a typed column inside zstd blocks, with a footer of per-block number ranges. Reads back the same rows as JSON.parse (or the exact original bytes), only some keys, or only a time range, with helper workers for big files. WebAssembly is required; a Python reader is included.",
@@ -499,7 +499,7 @@
     },
     {
       "id": "netflow-plot",
-      "version": "2.10.0",
+      "version": "2.10.1",
       "api": 2,
       "global": "NetflowPlot",
       "summary": "Plain charts from a table's columns, 22 types from bars and lines to box plots, hexbins, density, Q-Q, Voronoi cells and word clouds, drawn as netflow-scene drawing lists so the map's renderer, themes and SVG export draw them; the charts of Netflow Map's Charts tab; one call, toSvg(rows), draws a picture.",

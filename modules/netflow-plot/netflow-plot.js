@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.10.0 (API 2)
+ * Version 2.10.1 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -270,6 +270,7 @@ var NetflowPlot = (function () {
     };
     return R;
   }
+  function mostlyNum(R, k) { var v = R.num(k), g = 0; for (var i = 0; i < v.length; i++) if (v[i] === v[i]) g++; return g > 0 && g >= 0.8 * countFilled(R.raw(k)); }
   function countFilled(a) { var c = 0; for (var i = 0; i < a.length; i++) if (a[i] !== undefined && a[i] !== null && a[i] !== '') c++; return c; }
   /** Categories in a stable order: by total (biggest first), by name, or as they come. */
   var HI = null;   /* while make() runs with options.highlight: { name, F, ck: color column, xk: x column } */
@@ -775,6 +776,9 @@ var NetflowPlot = (function () {
   function make(rows, spec, o, NS) {
     o = o || {}; spec = spec || {};
     var F = frame(spec, o, NS), R = reader(rows, o), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
+    if ((type === 'bar' || type === 'dotplot') && spec.x && spec.y && rows.length && !mostlyNum(R, spec.y) && mostlyNum(R, spec.x)) {   /* x is the number and y the names: swap them and lay the bars sideways instead of drawing an empty chart */
+      spec = Object.assign({}, spec, { x: spec.y, y: spec.x }); if (type === 'bar') spec.horizontal = true;
+    }
     var hl = o.highlight !== undefined && o.highlight !== null && o.highlight !== '' ? String(o.highlight) : undefined;
     HI = hl !== undefined && rows.length ? { name: hl, F: F, ck: spec.color ? R.cat(spec.color) : null, xk: spec.x ? R.cat(spec.x) : null } : null;
     try {

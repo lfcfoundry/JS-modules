@@ -1,4 +1,4 @@
-/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.5.0 (API 1) */
+/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.5.1 (API 1) */
 
 /* Decodes a raw LZMA1 stream (no .lzma header) into a Uint8Array.
 
@@ -29,18 +29,18 @@ function lzmaDecode(src, outSize, opts) {
   if (!(lc >= 0 && lc <= 8 && lp >= 0 && lp <= 4 && pb >= 0 && pb <= 4)) throw new Error('LZMA: lc 0-8, lp 0-4 and pb 0-4 are supported');   // lean-cut
   if (opts.maxSize !== undefined && !(outSize <= opts.maxSize)) throw new Error('LZMA: the result would be ' + outSize + ' bytes, more than the allowed maxSize of ' + opts.maxSize);   // lean-cut
   var out = new Uint8Array(outSize), ip = 0, op = 0, slen = src.length;
-  var range = 0xFFFFFFFF, code = 0;
+  var range = -1, code = 0;   // both kept as 32-bit integers; unsigned compares flip the top bit
   var state = 0, rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;
   var pbMask = (1 << pb) - 1, lpMask = (1 << lp) - 1;
   // one probability array; offsets of each part
   var IM = 0, IR = IM + 192, IG0 = IR + 12, IG1 = IG0 + 12, IG2 = IG1 + 12, IRL = IG2 + 12, PS = IRL + 192, PSP = PS + 256, AL = PSP + 115, LEN = AL + 16, RLEN = LEN + 514, LIT = RLEN + 514;
   var P = new Uint16Array(LIT + (0x300 << (lc + lp))).fill(1024);
   var i, posState, prev, base, sym, matchByte, matchBit, len, slot, nb, dist, x, k, b, p, bound, m, c, L, r;
-  for (i = 0; i < 4; i++) code = (code * 256 + (ip < slen ? src[ip] : 0)) >>> 0, ip++;
+  for (i = 0; i < 4; i++) code = (code << 8) | (ip < slen ? src[ip] : 0), ip++;
   while (op < outSize) {
     if (ip > slen) throw new Error('LZMA: the compressed data ended early');
     posState = op & pbMask;
-    { i = IM + (state << 4) + posState; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+    { i = IM + (state << 4) + posState; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } }
     if (!b) {
       prev = op ? out[op - 1] : 0;
       base = LIT + 0x300 * (((op & lpMask) << lc) + (prev >> (8 - lc))); sym = 1;
@@ -48,28 +48,28 @@ function lzmaDecode(src, outSize, opts) {
         matchByte = out[op - rep0 - 1];
         do {
           matchBit = (matchByte >> 7) & 1; matchByte <<= 1;
-          { i = base + ((1 + matchBit) << 8) + sym; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+          { i = base + ((1 + matchBit) << 8) + sym; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } }
           sym = (sym << 1) | b;
           if (matchBit !== b) break;
         } while (sym < 256);
       }
-      while (sym < 256) { { i = base + sym; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } sym = (sym << 1) | b; }
+      while (sym < 256) { { i = base + sym; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } } sym = (sym << 1) | b; }
       out[op++] = sym;
       state = state < 4 ? 0 : state < 10 ? state - 3 : state - 6;
     } else {
-      { i = IR + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+      { i = IR + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } }
       if (b) {
-        { i = IG0 + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+        { i = IG0 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } }
         if (!b) {
-          { i = IRL + (state << 4) + posState; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+          { i = IRL + (state << 4) + posState; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } }
           if (!b) {
             if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
             state = state < 7 ? 9 : 11; out[op] = out[op - rep0 - 1]; op++; continue;
           }
         } else {
-          { i = IG1 + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+          { i = IG1 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } }
           if (!b) dist = rep1;
-          else { { i = IG2 + state; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } if (!b) dist = rep2; else { dist = rep3; rep3 = rep2; } rep2 = rep1; }
+          else { { i = IG2 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } } if (!b) dist = rep2; else { dist = rep3; rep3 = rep2; } rep2 = rep1; }
           rep1 = rep0; rep0 = dist;
         }
         L = RLEN; state = state < 7 ? 8 : 11;
@@ -78,14 +78,14 @@ function lzmaDecode(src, outSize, opts) {
         L = LEN; state = state < 7 ? 7 : 10;
       }
       // length
-      { i = L; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } }
+      { i = L; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } }
       if (!b) { L += 2 + (posState << 3); c = 3; len = 0; }
-      else { { i = L + 1; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } if (!b) { L += 130 + (posState << 3); c = 3; len = 8; } else { L += 258; c = 8; len = 16; } }
-      for (m = 1, k = c; k--;) { { i = L + m; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } m = (m << 1) | b; }
+      else { { i = L + 1; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } } if (!b) { L += 130 + (posState << 3); c = 3; len = 8; } else { L += 258; c = 8; len = 16; } }
+      for (m = 1, k = c; k--;) { { i = L + m; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } } m = (m << 1) | b; }
       len += m - (1 << c);
       if (state === 7 || state === 10) {
         L = PS + ((len < 4 ? len : 3) << 6);
-        for (m = 1, k = 6; k--;) { { i = L + m; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } m = (m << 1) | b; }
+        for (m = 1, k = 6; k--;) { { i = L + m; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } } m = (m << 1) | b; }
         slot = m - 64;
         if (slot < 4) rep0 = slot;
         else {
@@ -93,13 +93,13 @@ function lzmaDecode(src, outSize, opts) {
           if (slot < 14) { L = PSP + dist - slot; c = nb; }
           else {
             for (x = 0, k = nb - 4; k--;) {
-              range >>>= 1; b = code >= range ? 1 : 0; if (b) code -= range;
-              if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; }
+              range >>>= 1; b = (code ^ -2147483648) >= (range ^ -2147483648) ? 1 : 0; if (b) code = (code - range) | 0;
+              if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; }
               x = (x << 1) | b;
             }
             dist += x << 4; L = AL; c = 4;
           }
-          for (m = 1, r = 0, k = 0; k < c; k++) { { i = L + m; { p = P[i]; bound = (range >>> 11) * p; if (code < bound) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range -= bound; code -= bound; P[i] = p - (p >> 5); b = 1; } if (range < 0x1000000) { range = (range << 8) >>> 0; code = ((code << 8) | (ip < slen ? src[ip] : 0)) >>> 0; ip++; } } } m = (m << 1) | b; r |= b << k; }
+          for (m = 1, r = 0, k = 0; k < c; k++) { { i = L + m; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | (ip < slen ? src[ip] : 0); ip++; } } } m = (m << 1) | b; r |= b << k; }
           rep0 = (dist + r) >>> 0;
         }
       }

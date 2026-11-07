@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.5.9 (API 0)
+ * Version 0.6.0 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1303,14 +1303,42 @@
     return f;
   }
   var popc8 = new Uint8Array(256); (function () { for (var i = 1; i < 256; i++) popc8[i] = (i & 1) + popc8[i >> 1]; })();
+
+  /* rows: 'lazy' and 'lazycols' (opt-in, no generated code). A row is a small object holding only its index (under a symbol, so it never clashes with a key and
+     Object.keys(row) is empty); each key is a getter on one class per block. JSON.stringify gives the same text through toJSON and for..in lists the keys,
+     but Object.keys, spread, hasOwnProperty, structuredClone and postMessage do not carry the values. 'lazycols' also decodes a column the first time any
+     row reads its key, so a damaged column throws on that first read instead of at unpack. */
+  var ROWI = typeof Symbol === 'function' ? Symbol('row') : '\u0001row';
+  function lazyRows(keys, vals, n) {
+    var K = keys.length, j;
+    function R(i) { this[ROWI] = i; }
+    for (j = 0; j < K; j++) (function (arr, key) { Object.defineProperty(R.prototype, key, { get: function () { return arr[this[ROWI]]; }, enumerable: true, configurable: true }); })(vals[j], keys[j]);
+    Object.defineProperty(R.prototype, 'toJSON', { value: function () { var o = {}, k; for (k = 0; k < K; k++) o[keys[k]] = vals[k][this[ROWI]]; return o; }, enumerable: false });
+    var out = new Array(n), i; for (i = 0; i < n; i++) out[i] = new R(i);
+    return out;
+  }
+  function lazyRows2(keys, K, n, decodeAt) {
+    var cols = new Array(K), j;
+    function R(i) { this[ROWI] = i; }
+    for (j = 0; j < K; j++) (function (j, key) { Object.defineProperty(R.prototype, key, { get: function () { var a = cols[j]; if (a === undefined) a = cols[j] = decodeAt(j); return a[this[ROWI]]; }, enumerable: true, configurable: true }); })(j, keys[j]);
+    Object.defineProperty(R.prototype, 'toJSON', { value: function () { var o = {}, k; for (k = 0; k < K; k++) o[keys[k]] = this[keys[k]]; return o; }, enumerable: false });
+    var out = new Array(n), i; for (i = 0; i < n; i++) out[i] = new R(i);
+    return out;
+  }
   function makeFlatReader(zs) {
     // assemble rows from the decompressed frames of flatFrames; want: null, or an object whose own keys are the only keys to decode
-    var gen = false;
+    var gen = false, lazyOn = false;
     function assemble(F, want) {
       var meta = F.meta, n = F.n, K = meta.keys.length, vals = new Array(K), pl = F.pl, ordList = F.ordList, ordIds = F.ordIds, i, j;
       var pb = (n + 7) >> 3, ptr = new Int32Array(K), out = new Array(n), keys = meta.keys, o, hasProto = keys.indexOf('__proto__') >= 0;
       // Chromium (V8) only, a dense block (plain rows, or clones from CLONE_KEYS keys; no generated code): each column is decoded, assigned down and dropped, so fewer column arrays are alive at the next young-generation collection. Same objects, same key order
-      if (V8 && !ordList && !gen && !hasProto && K > 0 && K <= 250 && n >= 2000) {
+      var lazyOk = lazyOn && !hasProto && keys.indexOf('toJSON') < 0;   // a key named toJSON or __proto__ keeps plain rows
+      if (lazyOk && lazyOn === 2 && !ordList && K > 0 && K <= 250 && n >= 1) {
+        var dl = true; for (j = 0; j < K && dl; j++) dl = F.cols[j] !== null && (F.cols[j].pre ? F.cols[j].pre.length === n : meta.cols[j].n === n);
+        if (dl) { for (j = 0; j < K; j++) if (F.cols[j].fr) F.cols[j].fr = F.cols[j].fr.map(function (x) { return x.slice(); }); }   // the frames may be views of memory the next block reuses: keep copies
+        if (dl) return lazyRows2(keys, K, n, function (c) { return F.cols[c].pre ? F.cols[c].pre : decodeColumn(meta.cols[c], zs, F.cols[c].fr); });
+      }
+      if (V8 && !ordList && !gen && !lazyOn && !hasProto && K > 0 && K <= 250 && n >= 2000) {
         var allDense = true; for (j = 0; j < K && allDense; j++) allDense = F.cols[j] !== null && (F.cols[j].pre ? F.cols[j].pre.length === n : meta.cols[j].n === n);
         if (allDense) {
           if (K >= CLONE_KEYS) { var ts0 = '{'; for (j = 0; j < K; j++) ts0 += (j ? ',' : '') + JSON.stringify(keys[j]) + ':null'; var tpl0 = JSON.parse(ts0 + '}'); for (i = 0; i < n; i++) out[i] = { ...tpl0 }; } else for (i = 0; i < n; i++) out[i] = {};
@@ -1326,6 +1354,7 @@
       for (j = 0; j < K && dense; j++) if (!vals[j] || vals[j].length !== n) dense = false;
       if (dense) { for (j = 0, ts = '{'; j < K; j++) ts += (j ? ',' : '') + JSON.stringify(keys[j]) + ':null'; tpl = JSON.parse(ts + '}'); }
       var useClone = dense && K >= CLONE_KEYS;
+      if (dense && lazyOk && n >= 1) return lazyRows(keys, vals, n);
       if (dense && gen && n >= 1) { var mk = rowBuilder(keys); if (mk) { for (i = 0; i < n; i++) out[i] = mk(vals, i); return out; } }
       if (useClone) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
       else for (i = 0; i < n; i++) out[i] = {};
@@ -1376,7 +1405,7 @@
       }
       return { n: n, keys: Object.keys(cols), cols: cols, present: present };
     }
-    return { generated: function (on) { gen = !!on; }, readBlock: readBlock, readRange: readRange, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
+    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
@@ -1770,7 +1799,7 @@
   }
   function unpackSome(bytes, opts) {
     var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, j, r, kd, want = null, range = opts.range || null;
-    rf.generated(opts.rows === 'generated');
+    rf.generated(opts.rows === 'generated'); rf.lazy(opts.rows === 'lazy' ? 1 : opts.rows === 'lazycols' ? 2 : false);
     if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; if (range) want[range.key] = 1; }
     for (i = 0; i < file.blocks.length; i++) {
       if (opts.table != null && (file.blocks[i][5] || 0) !== opts.table) continue;
@@ -1944,7 +1973,7 @@
       return init(write ? undefined : { readOnly: true }).then(function () { return fn.apply(null, a); });
     };
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.5.9', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.6.0', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

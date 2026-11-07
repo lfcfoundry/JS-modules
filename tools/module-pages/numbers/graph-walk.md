@@ -35,7 +35,7 @@ New since 0.1.0: components 2.0 ms, scc 14 ms, shortest (fewest links) 9.0 ms, k
 **New in 0.7.1 and 0.7.2: faster betweenness with helpers.** Cloud-browser runs (shared machine, not noise-guarded, not the laptop). 0.7.1 stops a `pool: false` call from shutting kept helpers down. 0.7.2 makes `betweennessAsync` start faster on first calls and new graphs, against 0.7.1: up to 1.14x in Chromium, 1.45 to 1.9x in Firefox, 1.2 to 1.4x in WebKitGTK. Repeat calls are within noise.
 
 
-**New in 0.8.0: max-flow and min-cut, closeness, triangles, communities, critical path and landmark paths.** Each job runs in plain JavaScript and WebAssembly with identical answers. Compared with other libraries or hand-written code, ms per job, median of 5 rounds, one cloud browser at a time (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6); lower is better.
+**Against other libraries: max-flow and min-cut, closeness, triangles, communities, critical path and landmark paths.** Each job runs in plain JavaScript and WebAssembly with identical answers. Compared with other libraries or hand-written code, ms per job, median of 5 rounds, one cloud browser at a time (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6); lower is better.
 
 | Job | Compared with | Other | graph-walk JS | graph-walk wasm |
 |---|---|---|---|---|

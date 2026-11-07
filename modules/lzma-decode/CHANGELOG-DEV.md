@@ -2,6 +2,35 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-11-07
+
+### Quick
+JavaScript decoder keeps its range coder in 32-bit integers; same bytes and same errors, no API change
+
+### Details
+range and code stay 32-bit integers: unsigned compares flip the top bit, Math.imul for the bound, !(range >>> 24) for the refill test, so values of 2^31 and above no longer become doubles.
+Ratio vs 1.4.0, lower is better, fresh page per sample (31 pages x 3 runs), first 3 MB / next 400 KB: Chromium 155 0.67 / 0.39 (1.5.0: 0.79 / 0.46), Firefox 158 0.57 / 0.44 (0.71 / 0.52), WebKitGTK 2.52.6 0.71 / 0.39 (1.04 / 0.58): the 1.5.0 WebKitGTK first-file slowdown is gone. Node 22 here, 1.6 MB: 1.5.0 20.5 to 16.5 ms median.
+Size: minified 4,020 bytes (1.5.0 3,653; 1.4.0 2,156), gzip 1,167 (1.4.0 1,179).
+171 cases give the same output bytes or error message as 1.4.0. Module tests 350 pass; lzma-pack 25 pass; packed pages open with and without WebAssembly in all three browsers.
+
+### Deep
+Requested by the owner. Research j9 (lzma-decode/kernel-2026.11.07, BRIEF-apply-js-v2.md). Alone the int32 coder on 1.4.0 gave Chromium 0.95/0.91, Firefox 0.92/0.91, WebKitGTK 0.71/0.74; stacked with the 1.5.0 one-loop rewrite it wins in every browser. Splitting out the distance decode (j7) gave WebKitGTK 1.06 and was dropped.
+
+### Version-to-version table (moved from the README, 1.5.0 and 1.5.1)
+
+Two changes, both with byte-identical output (170 cases per build, including cut and flipped streams: same bytes or the same error message). Ratio against 1.4.0, lower is better, fresh page per sample, cloud browsers (Chromium 155, Firefox 158, WebKitGTK 2.52.6) unless it says laptop (Chromium 156, Firefox 160, 16 cores):
+
+| Decoder | Test | Chromium | Firefox | WebKitGTK |
+|---|---|---|---|---|
+| WebAssembly | first unpack after load, 3 MB text | 0.85 | 0.82 | 0.96 |
+| WebAssembly | next unpack, 400 KB | 0.89 | 0.88 | 0.90 |
+| WebAssembly | laptop, first / second | 0.86 / 0.87 | 0.90 / 0.88 | not run |
+| JavaScript (1.5.1) | first unpack after load, 3 MB text | 0.67 | 0.57 | 0.71 |
+| JavaScript (1.5.1) | next unpack, 400 KB | 0.39 | 0.44 | 0.39 |
+| JavaScript (1.5.0) | laptop, first / second | 0.93 / 0.64 | 0.78 / 0.56 | not run |
+
+What it costs: the WebAssembly program grows from 4,701 to 5,024 bytes, and the minified JavaScript decoder from 2,156 to 4,020 bytes (gzipped 1,179 to 1,167), so a packed page that carries it grows about 1.9 KB. 1.5.0's 5 to 14% slower first big unpack in WebKitGTK is gone in 1.5.1, which keeps the range coder in 32-bit integers. Further gains in the loop are close to the native ceiling (the same C built natively runs about as fast as the system liblzma), so the next step would be a format change, such as independent blocks unpacked on several threads.
+
 ## 1.5.0 · API 1 · 2026-11-07
 
 ### Quick

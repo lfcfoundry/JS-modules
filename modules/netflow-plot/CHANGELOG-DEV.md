@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.10.1 · API 2 · 2026-11-07
+
+### Quick
+Bar and dot charts with x and y swapped draw correctly.
+
+### Details
+When type is bar or dotplot, y is not mostly numbers and x is (80% of filled values), x and y are swapped; bars also turn horizontal. Same SVG in Firefox 158, Chromium 155 and WebKitGTK 2.52.6 as in Node (5 of 5 cases). 403 checks pass.
+
+### Deep
+Swapped x and y on bar and dot charts used to draw a flat line with axes from -1 to 1. Now detected and fixed by swapping and laying bars sideways.
+
 ## 2.10.0 · API 2 · 2026-11-07
 
 ### Quick
