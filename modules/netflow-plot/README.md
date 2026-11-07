@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.14.0 · API 2**
+**Version 2.14.1 · API 2**
 
-**Tested in:** node test/run.js 421 checks; 108 vega charts: only burtin.json light+dark change; same SVG in Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** node test/run.js 421 checks; 108 vega charts: 12 change (6 line charts, light+dark); touching line-end name pairs 7 -> 0; same SVG in Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
