@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.5.5 · API 0**
+**Version 0.5.6 · API 0**
 
-**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6 2026-11-06; module tests pass; packing 80,000 blank lines 5,011 ms before, 36 ms after (Node 22); 300k-row packing time unchanged
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud); laptop not run
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 

@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.6 · API 0 · 2026-11-06
+
+### Quick
+pack() no longer throws RangeError when one row's shape outgrows the 1 MB shape buffer; that row is stored whole as text. Same bytes for every other input.
+
+### Details
+Before: pack('[...30,000 objects...]') threw 'offset is out of bounds' (Uint8Array.set in shred). Now the row is stored raw (like rows nested deeper than the limit): values and exact text read back the same. A 7.8 MB one-array document packs to 928 KB. Other inputs: same packed bytes (checked on 100,000 log rows in 3 browsers).
+
+### Deep
+Found while testing the PPMd 'WebAssembly globals' idea on lfc-pack's tokenizer (that idea gave no measurable change and was not shipped). A JSON text whose top level is one big array is one row; its shape key (JSON of the walked structure) grew past the 1 MB SK buffer, and v.SK.set threw RangeError: offset is out of bounds at about 30,000 items. Fix in src/shred.js: when the encoded shape is larger than the buffer, the text, number and side-string positions are rolled back and the row is kept raw (putStr(line), shape '5'), the same path as rows nested too deep. New test test/bigdoc.cjs (1,000 and 40,000 items plus a small row, values and exact text); it fails on 0.5.5 and passes now. All lfc-pack checks pass. Packed bytes of 100,000 log rows are the same before and after in Chromium 155, Firefox 158 and WebKitGTK 2.52.6.
+
 ## 0.5.5 · API 0 · 2026-11-06
 
 ### Quick
