@@ -1517,6 +1517,36 @@ var NFMScene = (function () {
     var n = run.length, i;
     if (!n) return;
     if (n < 1000) { for (i = 0; i < n; i++) { var c = run[i]; out.push('<circle cx="' + f(c.cx) + '" cy="' + f(c.cy) + '" r="' + f(c.r) + '"/>'); } run.length = 0; return; }
+    var mr = 0, X = new Float64Array(n), Y = new Float64Array(n), Rr = new Float64Array(n), fin = true;
+    for (i = 0; i < n; i++) { var dd = run[i]; X[i] = dd.cx; Y[i] = dd.cy; Rr[i] = dd.r; if (dd.r > mr) mr = dd.r; if (!(isFinite(dd.cx) && isFinite(dd.cy) && isFinite(dd.r))) fin = false; }
+    var cs = 2 * mr + 1, GX = new Int32Array(n), GY = new Int32Array(n), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    if (fin) for (i = 0; i < n; i++) { var gx = Math.floor(X[i] / cs), gy = Math.floor(Y[i] / cs); GX[i] = gx; GY[i] = gy; if (gx < x0) x0 = gx; if (gx > x1) x1 = gx; if (gy < y0) y0 = gy; if (gy > y1) y1 = gy; }
+    var nx = x1 - x0 + 3, ny = y1 - y0 + 3;
+    if (!fin || nx * ny > 4194304) { flushRunMap(run, out, f); return; }   /* far-flung or broken numbers: the plain way */
+    /* dots by grid cell (a border of empty cells all round), each cell's dots in their own order */
+    var cells = nx * ny, start = new Int32Array(cells + 1), ord = new Int32Array(n), cellOf = new Int32Array(n), lay = new Int32Array(n), seen = new Int32Array(n + 1), L = [], arc = {};
+    for (i = 0; i < n; i++) { cellOf[i] = (GX[i] - x0 + 1) * ny + (GY[i] - y0 + 1); start[cellOf[i] + 1]++; }
+    for (i = 0; i < cells; i++) start[i + 1] += start[i];
+    var fill = start.slice(0, cells);
+    for (i = 0; i < n; i++) ord[fill[cellOf[i]]++] = i;
+    for (i = 0; i < n; i++) {
+      var ci = cellOf[i], a, b, q, j, k, xi = X[i], yi = Y[i], ri = Rr[i];
+      for (a = -1; a <= 1; a++) for (b = -1; b <= 1; b++) {
+        var cc = ci + a * ny + b, qe = start[cc + 1];
+        for (q = start[cc]; q < qe; q++) { j = ord[q]; if (j >= i) break; var dx = X[j] - xi, dy = Y[j] - yi, m = Rr[j] + ri + 1; if (dx * dx + dy * dy < m * m) seen[lay[j]] = i + 1; }
+      }
+      for (k = 0; seen[k] === i + 1; k++);
+      lay[i] = k;
+      var tail = arc[ri]; if (tail === undefined) { var R = f(ri), D = f(2 * ri); tail = arc[ri] = 'a' + R + ' ' + R + ' 0 1 0 ' + D + ' 0a' + R + ' ' + R + ' 0 1 0 -' + D + ' 0'; }
+      (L[k] || (L[k] = [])).push('M' + f(xi - ri) + ' ' + f(yi) + tail);
+    }
+    for (k = 0; k < L.length; k++) out.push('<path d="' + L[k].join('') + '"/>');
+    run.length = 0;
+  }
+  function flushRunMap(run, out, f) {
+    var n = run.length, i;
+    if (!n) return;
+    if (n < 1000) { for (i = 0; i < n; i++) { var c = run[i]; out.push('<circle cx="' + f(c.cx) + '" cy="' + f(c.cy) + '" r="' + f(c.r) + '"/>'); } run.length = 0; return; }
     var mr = 0; for (i = 0; i < n; i++) if (run[i].r > mr) mr = run[i].r;
     var cs = 2 * mr + 1, grid = new Map(), lay = new Int32Array(n), seen = [], L = [];
     for (i = 0; i < n; i++) {
