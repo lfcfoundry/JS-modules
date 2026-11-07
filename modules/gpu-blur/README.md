@@ -2,7 +2,7 @@
 
 **Version 1.4.2 · API 1**
 
-**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (cloud)
+**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6 (cloud); Firefox 160, Chrome 156 laptops
 
 ## What it is and how it works
 

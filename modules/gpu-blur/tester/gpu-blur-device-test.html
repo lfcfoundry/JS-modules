@@ -91,6 +91,10 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
   }
 
   function intoPx(opts, len) { var a = isBytes(opts.into) ? opts.into : opts._intoPx; return a && a.length === len ? a : null; }   // _intoPx: the 1.2.3 test name
+  function ctx2d(cv, opts, card) {   // a canvas this module makes (never one passed in with into) is kept in memory (willReadFrequently) when the start-up test found that this browser draws it sooner that way; _wrf: private test switch. Never for the card way's final copy (Firefox 160 laptop: 37 became 48 ms)
+    var on = opts && opts._wrf != null ? !!opts._wrf : !card && !!(calInfo && calInfo.kept);
+    return cv.getContext('2d', on && !(opts && opts.into) ? { willReadFrequently: true } : undefined);
+  }
   function intoCv(opts) { return opts.into && !isBytes(opts.into) ? opts.into : null; }
   function isBytes(x) { return typeof Uint8Array !== 'undefined' && (x instanceof Uint8Array || (typeof Uint8ClampedArray !== 'undefined' && x instanceof Uint8ClampedArray)); }
 
@@ -283,7 +287,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
       var cv = intoCv(opts) || makeCanvas(w, h);
       if (!cv) { job.free(); throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"'); }
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-      ctx = cv.getContext('2d');
+      ctx = ctx2d(cv, opts);
       if (!ctx) { job.free(); throw new Error('gpu-blur: the target canvas has no 2D context'); }
       res.canvas = cv;
       // Writing goes in a few large fixed bands (about 250,000 pixels): in some engines every turn given back to the browser after a putImageData costs a lot on a big canvas,
@@ -374,7 +378,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
         var cv = intoCv(opts) || makeCanvas(w, h);
         if (!cv) throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"');
         if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-        ctx = cv.getContext('2d'); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
+        ctx = ctx2d(cv, opts); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
         res.canvas = cv;
       }
       if (inp.kind !== 'bytes') {
@@ -503,7 +507,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
             var cv = intoCv(opts) || makeCanvas(w, h);
             if (!cv) throw new Error('gpu-blur: no canvas can be made here; use out: "pixels"');
             if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-            ctx = cv.getContext('2d'); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
+            ctx = ctx2d(cv, opts); if (!ctx) throw new Error('gpu-blur: the target canvas has no 2D context');
             ctx.putImageData(new ImageData(px, w, h), 0, 0); res.canvas = cv;
           }
           return res;
@@ -733,7 +737,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
       glPasses(S, inp, w, h, b, 'canvas', null, two);
       if (gl.isContextLost()) throw new Error('gpu-blur: the WebGL 2 context was lost');
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-      var c2 = cv.getContext('2d');
+      var c2 = ctx2d(cv, opts, true);
       if (!c2) throw new Error('gpu-blur: the target canvas has no 2D context');
       c2.globalCompositeOperation = 'copy'; c2.drawImage(o.canvas, 0, 0); c2.globalCompositeOperation = 'source-over';
       res.canvas = cv;
@@ -796,7 +800,23 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
         [['drawGl', t.drawGl], ['drawWasm', t.drawWasm]].forEach(function (e) { e[1].sort(function (a, c) { return a - c; }); info[e[0]] = e[1].length ? e[1][e[1].length >> 1] : null; });
       }, function () { info.drawGl = info.drawWasm = null; });
     }
-    return timeWasm(w, h, b, px, 5, 'wasmMs').then(function () { return timeGL(w, h, b, inp, 5, 'glMs'); }).then(bigGuess).then(timeDrawn).then(function () {
+    function timeKept() {                 // putImageData into a default canvas against a kept-in-memory one, each followed by drawing it onto another canvas (the usual next use), 960 x 540. Firefox 160 laptop 2048 x 2048: default 52 against kept 37 ms; Chrome 156 laptop 22 against 31.6 ms, so only a clear win turns it on
+      if (typeof ImageData !== 'function') return Promise.resolve();
+      var kw = 960, kh = 540, kpx = new Uint8ClampedArray(probePicture(kw, kh).buffer), img = new ImageData(kpx, kw, kh), t = { def: [], kept: [] }, k = 0, tgt = makeCanvas(kw, kh), tx = tgt && tgt.getContext('2d', { willReadFrequently: true });
+      if (!tx) return Promise.resolve();
+      function one(kind) {
+        var t0 = now(), c = makeCanvas(kw, kh), x = c && c.getContext('2d', kind === 'kept' ? { willReadFrequently: true } : undefined);
+        if (!x) throw new Error('no canvas');
+        x.putImageData(img, 0, 0); x.getImageData(0, 0, 1, 1); tx.globalCompositeOperation = 'copy'; tx.drawImage(c, 0, 0); tx.getImageData(0, 0, 1, 1);
+        var dt = now() - t0; if (k >= 4) t[kind].push(dt);
+      }
+      function round() { var a = k % 4 < 2 ? ['def', 'kept'] : ['kept', 'def']; one(a[0]); one(a[1]); k += 2; return k < 10 ? nextTask().then(round) : null; }
+      return round().then(function () {
+        [['def', t.def], ['kept', t.kept]].forEach(function (e) { e[1].sort(function (a, c) { return a - c; }); });
+        if (t.def.length && t.kept.length) { info.defMs = t.def[t.def.length >> 1]; info.keptMs = t.kept[t.kept.length >> 1]; info.kept = info.keptMs <= 0.7 * info.defMs; }
+      }, function () {});
+    }
+    return timeWasm(w, h, b, px, 5, 'wasmMs').then(function () { return timeGL(w, h, b, inp, 5, 'glMs'); }).then(bigGuess).then(timeDrawn).then(timeKept).then(function () {
       if (info.glMs != null) {
         info.gl = (info.wasmMs == null ? true : info.glMs <= 2 * info.wasmMs + 2) || !!info.glBig;
         if (!info.gl) info.why = 'WebGL 2 took ' + info.glMs.toFixed(1) + ' ms against ' + info.wasmMs.toFixed(1) + ' ms for wasm on a 480 x 270 probe';
@@ -829,9 +849,11 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
   var AUTO_HELPERS_PX = 3000000;
   function autoOrder(out, q) {            // after calibrate()
     var order = [], cores = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, px = q ? q.w * q.h : 0;
+    var helpersOk = out !== 'texture' && cores >= 4 && wasm.state === 'ready' && !(q && q.opts && q.opts.workers === 0) && (px >= AUTO_HELPERS_PX || (helpers && px >= HELPER_MIN_PX));
+    if (out === 'canvas' && helpersOk && calInfo && calInfo.kept) order.push('helpers');   // a kept-in-memory canvas makes the helpers' picture draw sooner than the card's here
     if (cardFits(out, q)) order.push('webgl2');
     // helpers (blur() only): a cold start costs about 20 to 35 ms, so a picture of 3 million pixels and up, or any picture of 0.3 million and up while the helpers are already running (they stay 5 s after a job)
-    if (out !== 'texture' && cores >= 4 && wasm.state === 'ready' && !(q && q.opts && q.opts.workers === 0) && (px >= AUTO_HELPERS_PX || (helpers && px >= HELPER_MIN_PX))) order.push('helpers');
+    if (helpersOk && order.indexOf('helpers') < 0) order.push('helpers');
     order.push('wasm', 'js');
     return order;
   }
@@ -901,7 +923,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
     var i = calInfo || {};
     var canvasRoute = i.done ? (i.gl ? 'webgl2' : wasm.state === 'ready' ? 'wasm' : 'js') : null;
     return { version: VERSION, wasm: wasm.state === 'ready', wasmState: wasm.state, wasmWhy: wasm.why, webgl2: !!(i.done && (i.glMs != null)), webgl2Worth: !!i.gl,
-      glMs: i.glMs == null ? null : i.glMs, glBig: i.glBig == null ? null : !!i.glBig, wasmMs: i.wasmMs == null ? null : i.wasmMs, drawGl: i.drawGl == null ? null : i.drawGl, drawWasm: i.drawWasm == null ? null : i.drawWasm, why: i.why || '', canvasRoute: canvasRoute, pixelsRoute: wasm.state === 'ready' ? 'wasm' : (wasm.state === 'failed' ? 'js' : null), calibrated: !!i.done, threads: canThreads() && !threadsWhy };
+      glMs: i.glMs == null ? null : i.glMs, glBig: i.glBig == null ? null : !!i.glBig, wasmMs: i.wasmMs == null ? null : i.wasmMs, kept: i.kept == null ? null : !!i.kept, keptMs: i.keptMs == null ? null : i.keptMs, defMs: i.defMs == null ? null : i.defMs, drawGl: i.drawGl == null ? null : i.drawGl, drawWasm: i.drawWasm == null ? null : i.drawWasm, why: i.why || '', canvasRoute: canvasRoute, pixelsRoute: wasm.state === 'ready' ? 'wasm' : (wasm.state === 'failed' ? 'js' : null), calibrated: !!i.done, threads: canThreads() && !threadsWhy };
   }
   function ready() { return calibrate().then(function () { return info(); }); }
   function release() {
@@ -920,7 +942,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 <script>
 (function () {
 'use strict';
-var BUILD = '2026.11.07.1152';   /*STAMP*/
+var BUILD = '2026.11.07.1205';   /*STAMP*/
 var G = window.GpuBlur, $ = function (id) { return document.getElementById(id); };
 var hash = location.hash || '', QUICK = /quick/.test(hash);
 var R = 12, ROUTES = ['webgl2', 'wasm', 'js', 'auto'], NAMES = { webgl2: 'WebGL 2 (the card way)', wasm: 'WebAssembly', js: 'plain JavaScript', auto: 'auto (what the module picks)' };

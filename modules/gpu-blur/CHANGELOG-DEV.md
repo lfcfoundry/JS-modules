@@ -5,13 +5,13 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 1.4.2 · API 1 · 2026-11-07
 
 ### Quick
-Under a million pixels the card way is chosen only when the start-up drawn probe shows it at least 15% ahead of WebAssembly
+Under a million pixels the card is picked only when the drawn probe is 15% or more ahead of WebAssembly; a start-up test turns on a kept-in-memory result canvas only where it is 30% or more faster (Firefox laptop 2048 x 2048 radius 24 drawn: 37 to 14 ms against the browser's 23 ms)
 
 ### Details
-Phone Chrome 156 read card 6.6 against WebAssembly 6.8 ms on the drawn probe, then took 11.5 against 6.8 ms at 480 x 270 and 12.1 against 9.5 ms at 640 x 360. The rule was card when its probe was within 1.3 times WebAssembly; it is now 0.85 or less. Chrome laptop probe ratio 0.72 (card wins, kept), Firefox laptop 1.5 (WebAssembly, kept).
+Pick: phone Chrome 156 read card 6.6 against WebAssembly 6.8 ms, then took 11.5 against 6.8 ms at 480 x 270. Rule was within 1.3 times; now 0.85 or less. Chrome laptop 0.70 keeps the card, Firefox laptop 3.0 vs 1.0 keeps WebAssembly. Kept canvas: module-made result canvases get willReadFrequently when 960 x 540 putImageData plus a copy is at least 30% faster; the card way's final copy never uses it; copied onto another canvas it is about 5% slower on Firefox (38 vs 36 ms).
 
 ### Deep
-Small drawn pictures on a phone: WebAssembly unless the card is clearly ahead (480 x 270: 11.5 to 6.8 ms)
+Small drawn pictures on a phone: WebAssembly unless the card is clearly ahead (480 x 270: 11.5 to 6.8 ms). Firefox laptop 2048 x 2048 radius 24 drawn canvas: 37 to 14 ms
 
 ## 1.4.1 · API 1 · 2026-11-07
 
