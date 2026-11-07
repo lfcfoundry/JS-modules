@@ -190,7 +190,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 1.9.0 | 74.3 | 24.5 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.5.7 | 380.1 | 198.8 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
-| [memory-compression](modules/memory-compression/README.md) | 2.12.0 | 410.7 | 119.1 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [memory-compression](modules/memory-compression/README.md) | 2.12.1 | 410.7 | 119.1 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 | 62.9 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
@@ -228,7 +228,7 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 | [lzma-decode](modules/lzma-decode/README.md) | 1.4.0 | 23.4 | 9.3 | LZMA decoder: WebAssembly first, small readable JavaScript fallback; tested against Python's lzma. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/lzma-pack/example/packed-base64.html) |
 | [lzma-pack](tools/lzma-pack/README.md) *(tool)* | 2.0.4 | 30.3 | 11.5 | Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3). | — |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 | 105.8 | 60.5 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.4.0 | 46.4 | 16.3 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.0 | 48.6 | 17.0 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.3 | 48.5 | 14.8 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
 | [zip-open](modules/zip-open/README.md) | 1.20.1 | 172.9 | 61.0 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 

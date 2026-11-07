@@ -3,7 +3,7 @@
 //   memory-compression-read.min.js  opens packed data only (unpack, unpackAsync, view); every part the decoding never runs is replaced by a throw
 // Run after every change to memory-compression.js (test/min.js fails when the files carry an older version):
 //   node modules/memory-compression/min/build.js
-// Needs clang (wasm32 target) with wasm-ld, esbuild and acorn; found through NODE_PATH or MC_MIN_ESBUILD (the esbuild program) and MC_MIN_ACORN (the acorn folder). They are used only here, never shipped.
+// Needs clang (wasm32 target) with wasm-ld, esbuild, terser and acorn; found through NODE_PATH or MC_MIN_ESBUILD (the esbuild program), MC_MIN_TERSER (the terser program) and MC_MIN_ACORN (the acorn folder). They are used only here, never shipped.
 // About 3 to 4 minutes: it packs a broad corpus, records which functions decoding it runs (V8 coverage, with and without WebAssembly), strips the rest, swaps in WebAssembly with only the decoding functions, then runs held-out checks.
 'use strict';
 const fs = require('fs'), os = require('os'), path = require('path'), cp = require('child_process');
@@ -18,7 +18,13 @@ const esbuild = process.env.MC_MIN_ESBUILD || path.join(find('esbuild', 'MC_MIN_
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-min-'));
 const env = Object.assign({}, process.env, { MC_MIN_TMP: tmp, MC_MIN_ACORN: acorn });
 const run = (args) => { const r = cp.spawnSync(process.execPath, args, { cwd: here, env, encoding: 'utf8', maxBuffer: 1 << 26 }); if (r.status !== 0) { console.error((r.stdout || '') + (r.stderr || '')); process.exit(1); } return (r.stdout + r.stderr).trim(); };
-const mini = (file) => cp.execFileSync(esbuild, [file, '--minify', '--target=es2017', '--legal-comments=none', '--charset=ascii', '--log-level=warning'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+const terser = process.env.MC_MIN_TERSER || path.join(find('terser', 'MC_MIN_TERSER_DIR'), 'bin', 'terser');
+// esbuild, then one light terser pass with exactly these settings: stronger ones (passes=2, inlining) made Chromium's warm open up to 1.29x slower. ascii_only is required (without it terser writes characters above U+00FF literally)
+const TERSER = ['-c', 'passes=1,inline=false,reduce_funcs=false,reduce_vars=false,collapse_vars=false', '-m', '--format', 'ascii_only=true', '--comments', '/Copyright|License|Version|sha256/i'];
+const mini = (file) => {
+  const e = cp.execFileSync(esbuild, [file, '--minify', '--target=es2017', '--legal-comments=none', '--charset=ascii', '--log-level=warning'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  return cp.execFileSync(process.execPath, [terser].concat(TERSER), { input: e, encoding: 'utf8', maxBuffer: 1 << 26 }).replace(/\n$/, '') + '\n';
+};
 const t0 = Date.now();
 // 1. the full file, minified
 const src = fs.readFileSync(path.join(dir, 'memory-compression.js'), 'utf8'), srcId = require('crypto').createHash('sha256').update(src).digest('hex').slice(0, 16);   // test/min.js compares this with the readable file, so a stale build fails

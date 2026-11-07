@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.12.1 · API 2 · 2026-11-06
+
+### Quick
+Smaller minified files: full 0.972, read-only 0.943 of the old gzipped size
+
+### Details
+min/build.js adds one light terser pass after esbuild (passes=1, no inlining, ascii_only). Gzipped: memory-compression.min.js 83,091 to 80,762 bytes, memory-compression-read.min.js 37,131 to 35,013. Laptop start-up 0.93 in Chromium 156 and Firefox 160, warm speed level. Same WebAssembly, 0 output differences; the 36 module checks pass on the new min file in all 3 cloud browsers.
+
+### Deep
+Requested by the owner (card: Yes, ship it).
+
 ## 2.12.0 · API 2 · 2026-11-06
 
 ### Quick

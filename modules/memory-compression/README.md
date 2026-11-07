@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.12.0 · API 2**
+**Version 2.12.1 · API 2**
 
-**Tested in:** Node 85 checks on the minified file; 3,130 held-out checks on the read-only file; Chromium 155, Firefox 158, WebKitGTK 2.52.6 under a no-eval policy
+**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6; laptop Chromium 156, Firefox 160 (research run)
 
 ## What it is and how it works
 

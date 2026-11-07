@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-11-06
+
+### Quick
+New async decode: the page stays responsive (longest freeze 56 to 9 ms on the laptop)
+
+### Details
+ppmd7DecodeWasm.async(src, outSize, order, memSize, opts) returns a promise of the same bytes. It decodes in 8 KB steps and hands the page back about every 8 ms through a MessageChannel. Laptop: longest freeze 56 to 9 ms (Chromium 156) and 57 to 8 ms (Firefox 160); totals 1.02 and 1.00. Errors are rejected promises with the same texts; the plain call is unchanged.
+
+### Deep
+Requested by the owner (card: Yes, ship it).
+
 ## 1.4.0 · API 1 · 2026-11-06
 
 ### Quick

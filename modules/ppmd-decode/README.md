@@ -1,8 +1,8 @@
 # ppmd-decode
 
-**Version 1.4.0 · API 1**
+**Version 1.5.0 · API 1**
 
-**Tested in:** Laptop Firefox 160 and Chromium 156 (first and repeat decode); cloud Chromium 155, Firefox 158, WebKitGTK 2.52.6; 583 runs against the JavaScript decoder including damaged streams and outputs past 64 KB: 0 differences
+**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6; laptop Chromium 156, Firefox 160 (research run)
 
 ## What it is and how it works
 
@@ -84,6 +84,16 @@ Errors are always an `Error` whose message starts with `PPMd:` (argument out of 
 On a laptop (16 cores, same input) the default file is 1.78 times as fast in Firefox 160 (132.0 to 74.0 ms) and 1.88 times in Chromium 156 (129.3 to 68.6 ms).
 
 The same default file loaded on a page whose policy forbids WebAssembly decoded the same bytes on the JavaScript path in all three browsers. Earlier 1.1.0 measurements of the separate add-on (Node 22: 159 to 71 ms, 2.2x; a repeat decode in the same page is 1.8 to 2.4 times faster with WebAssembly in every browser) agree with these. Both decoders gave the same bytes or the same `Error` text on 15 fixtures, 160 more streams and 798 damaged copies of them (0 differences). Source: `wasm/ppmd7.c` is a line-by-line port of the JavaScript; `wasm/build.sh` (clang with the wasm32 target) builds `wasm/ppmd7.wasm`, `wasm/embed.py` puts it into `ppmd-decode-wasm.js` and `wasm/join.js` builds the default file. Browser timings: `tests/wasm-default-bench.js`.
+
+## Decode without freezing the page (since 1.5.0)
+
+**What.** `ppmd7DecodeWasm.async(src, outSize, order, memSize, opts)` takes the same arguments as `ppmd7DecodeWasm` and returns a promise of the same bytes. It decodes in 8 KB steps, and about every 8 ms it hands the page back for one turn (through a `MessageChannel`), so clicks, typing and drawing go on during a big decode. Errors are a rejected promise with the same texts. When WebAssembly cannot be used, the JavaScript decoder does the work and the promise gets its result. The plain call is unchanged.
+
+```js
+const bytes = await ppmd7DecodeWasm.async(src, outSize, order, memSize);
+```
+
+**Why, and how much.** One big decode used to freeze the page for its whole length. On the laptop the longest freeze went from 56 to 9 ms in Chromium 156 and from 57 to 8 ms in Firefox 160, and the total time was 1.02 and 1.00 of the plain call (lower is better). In the cloud browsers the steps were about 8 to 10 ms in Chromium 155, Firefox 158 and WebKitGTK 2.52.6, with the total time level. Every output was the same.
 
 ## Compile early (since 1.3.0)
 
