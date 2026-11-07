@@ -120,10 +120,10 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(tags.length === 7, 'line ends: every line named (' + tags.length + ')');
   const ys = tags.map((l) => l.y).sort((a, b) => a - b); ok(ys.every((y, i) => !i || y - ys[i - 1] >= 12.99), 'line ends: names 13 px apart, never overlapping');
   ok(tags.every((l) => l.x + l.t.length * 6.05 <= 640 && l.y > 20 && l.y < 400), 'line ends: names inside the picture');
-  ok(!S.labels.some((l) => l.t === 'country:'), 'line ends: no key row over the chart');
+  ok(!S.labels.some((l) => l.t === 'Country:' || l.t === 'country:'), 'line ends: no key row over the chart');
   ok(S.labels.some((l) => l.t === '2010') && !S.labels.some((l) => /^2,0/.test(l.t)), 'years print as 2010, not 2,010');
   const S0 = P.make(rows, { type: 'line', x: 'year', y: 'rate', color: 'country' }, { width: 640, height: 400, clean: false }, NS);
-  ok(S0.labels.some((l) => l.t === 'country:'), 'clean: false keeps the key row');
+  ok(S0.labels.some((l) => l.t === 'Country:'), 'clean: false keeps the key row');
   /* the 1:00 PM 11.01 rule covers line charts: no gridlines, no number axis, values on the lines */
   const flat = (S2) => S2.curves.filter((c) => c.line && (Math.abs(c.P[1] - c.P[c.P.length - 1]) < 0.01 || Math.abs(c.P[0] - c.P[c.P.length - 2]) < 0.01)).length - 1;   /* straight rules across the plot, less the one base line */
   ok(flat(S) === 0 && flat(S0) > 0, 'line chart: no gridlines (clean: false keeps them)');
@@ -204,6 +204,14 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(/>1600<\/text>/.test(wsvg) && !/>1,600<\/text>/.test(wsvg), 'year column before 1800 prints 1600, not 1,600');
   const notY = wheatY.map(r => ({ count: r.year, wheat: r.wheat }));
   ok(/>1,600<\/text>/.test(P.toSvg(notY, { type: 'line', x: 'count', y: 'wheat' })), 'a column not named year keeps 1,600');
+  // since 2.13.0: full numbers below 100,000, tick decimals from the step, key titles tidied
+  const u2 = []; for (let y = 2000; y < 2010; y++) { u2.push({ year: y, s: 'a', v: 10000 + y }); u2.push({ year: y, s: 'b', v: 8287 + y }); }
+  const u2s = P.toSvg(u2, { type: 'line', x: 'year', y: 'v', color: 's' });
+  ok(/>12,000<\/text>/.test(u2s) && !/k<\/text>/.test(u2s), 'values below 100,000 are written in full, not 12k next to 10,287');
+  const lr = []; for (let i = 0; i < 40; i++) lr.push({ longitude: -118.47 + i * 0.019, latitude: 33.7 + i * 0.015 });
+  const lrs = P.toSvg(lr, { type: 'scatter', x: 'longitude', y: 'latitude' });
+  ok(/>-118.4<\/text>/.test(lrs) && (lrs.match(/>-118<\/text>/g) || []).length === 0, 'ticks 0.1 apart at -118 keep one decimal');
+  ok(P.make([{ a: 1, b: 2, home_team: 'x' }, { a: 2, b: 3, home_team: 'y' }], { type: 'scatter', x: 'a', y: 'b', color: 'home_team' }, {}, require('../../netflow-scene/netflow-scene.js')).legendTitle === 'Home team', 'key title is tidied like axis names');
   const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
   ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
 }

@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.13.0 · API 2 · 2026-11-07
+
+### Quick
+Values on marks below 100,000 are written in full (10,048 not 10k); ticks closer than 1 apart at 100+ keep their decimals (la-riots longitude printed -118 four times); the key title goes through axisName.
+
+### Details
+fmtFor: kAt = Infinity when the biggest value < 1e5, commas for whole numbers >= 1e4; axisFor: ax.fmt with toFixed(ceil(-log10(step))) when step < 1 and |lo|,|hi| >= 100; F.legend title = axisName(title). 3 new checks (419).
+
+### Deep
+Leads from the 53-chart test-set review (2026.11.07).
+
 ## 2.12.2 · API 2 · 2026-11-07
 
 ### Quick
