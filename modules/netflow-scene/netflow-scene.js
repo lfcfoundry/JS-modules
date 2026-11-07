@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.10.0 (API 1)
+ * Version 1.10.1 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1507,8 +1507,11 @@ var NFMScene = (function () {
 
   /* ---------------------------------------------------------------- SVG export (same lists) */
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  /* the same number as +n.toFixed(2), about 20 times faster in Chromium (toFixed was most of a 20,000-dot scatter's SVG time): a rounding that lands
+     within 0.0001 of a half, or a number too big for exact hundredths, goes through toFixed itself (since 1.10.1) */
+  function fix2(n) { var m = n * 100, r = Math.round(m), d = m - r; if (d > 0.4999 || d < -0.4999 || !(m < 1e15 && m > -1e15)) return +n.toFixed(2); r /= 100; return r === 0 ? 0 : r; }
   function toSvg(S, title) {
-    var T = S.theme, f = function (n) { return +n.toFixed(2); }, out = [];
+    var T = S.theme, f = fix2, out = [];
     var op = function (o) { return o.a !== undefined && o.a < 1 ? ' opacity="' + f(Math.max(0, o.a)) + '"' : ''; };   /* dimmed things (a < 1) are exported dimmed, like the canvas draws them */
     out.push('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="' + f(S.x0) + ' ' + f(S.y0) + ' ' + f(S.w) + ' ' + f(S.h) + '" width="' + Math.round(Math.min(S.w, 3000)) + '" height="' + Math.round(Math.min(S.w, 3000) * S.h / S.w) + '" font-family="Inter, \'Segoe UI\', Roboto, system-ui, sans-serif">');
     if (title) out.push('<title>' + esc(title) + '</title>');
