@@ -11,7 +11,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
-| [gpu-blur](modules/gpu-blur/README.md) | 1.4.1 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
+| [gpu-blur](modules/gpu-blur/README.md) | 1.4.2 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 · API 1 | [changelog](modules/fly-to-mini/CHANGELOG.md) |
 | [sticker-text](modules/sticker-text/README.md) | 1.1.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
@@ -68,6 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **lzma-decode** 1.5.0 · API 1: The JavaScript decoder (used when WebAssembly is blocked) unpacks about 1.5 to 2 times faster after the first file in Chromium and Firefox. The WebAssembly decoder unpacks about 15% faster in Chromium and Firefox.
 - 2026-11-07 · **lfc-pack** 0.5.9 · API 0: open(): columns(i) and zone(i, key) for column work
 - 2026-11-07 · **lfc-pack** 0.5.8 · API 0: Firefox: faster first reads of IP-address columns
+- 2026-11-07 · **gpu-blur** 1.4.2 · API 1: Start-up test keeps module-made canvases in memory where that draws sooner (Firefox laptop 2048 x 2048: 38 to 15 ms)
 - 2026-11-07 · **gpu-blur** 1.4.1 · API 1: Auto uses the helpers for big bytes-out pictures: cloud 2048 x 2048 first call 80 to 61 ms in Chromium
 - 2026-11-06 · **zip-open** 1.20.1 · API 1: Fixed: an Excel file with a crafted number format could freeze the page for many seconds or minutes. It now opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.20.0 · API 1: Big text-heavy Excel files open 29 to 40% faster (14 to 35% on the first open in a page): a third thread unpacks the list of shared texts while the rows are read. Other files about the same. Same results.

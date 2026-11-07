@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.2 · API 1 · 2026-11-07
+
+### Quick
+A start-up test (960 x 540 putImageData plus a copy onto another canvas) turns on a kept-in-memory result canvas only where it is at least 30% faster; with it auto uses the helpers for big drawn pictures. Firefox laptop 2048 x 2048 radius 24: 38 to 15 ms drawn, 49 to 37 ms drawn and copied; Chrome unchanged
+
+### Deep
+Result canvases the module makes itself (never one passed in with into) are created with willReadFrequently when a start-up test finds that putImageData plus a copy onto another canvas is at least 30% faster that way (960 x 540, three counted rounds); the card way's final copy never uses it. When it is on, auto tries the helpers before the card for drawn pictures of 3 million pixels and up. Measured with the private _wrf switch, helpers route, 2048 x 2048, radius 24, ms drawn / drawn then copied: Firefox 160 laptop 42/52 to 15/37 (card way today 38/49, the browser's own blur 22/26); Chrome 156 laptop 17.4/22.0 to 18.4/31.6 and phone 64.0/67.3 to 59.7/72.7, so the test keeps them on default canvases. Same bytes in cloud Chromium, Firefox and WebKitGTK. Real-device runs of the start-up test pending.
+
 ## 1.4.1 · API 1 · 2026-11-07
 
 ### Quick
