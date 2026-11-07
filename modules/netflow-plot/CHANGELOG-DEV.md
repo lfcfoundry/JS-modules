@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.12.1 · API 2 · 2026-11-07
+
+### Quick
+takeaway() and title:'auto' write fraction values as percents and gaps in points, matching the chart (was 0.201 and '34% more than'); options as third argument honors percent:false.
+
+### Details
+takeaway wraps takeaway0 in a PCT scope from fractionCol on the takeaway spec; tLead and the line change use percentage points (tPts) when PCT. auto() and autoTitle pass their options. 6 new checks (414).
+
+### Deep
+Fixes the known 2.11.0 gap: the takeaway sentence printed 0.201 while the chart printed 20.1%.
+
 ## 2.12.0 · API 2 · 2026-11-07
 
 ### Quick

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.12.1 · API 2 · 2026-11-07
+- The takeaway sentence writes percents like the chart.
+
 ## 2.12.0 · API 2 · 2026-11-07
 - Bars and boxes now use the same mauve colors as every other chart (navy and red stay for bars below zero); the Others bar is light gray; busy line charts name each line.
 

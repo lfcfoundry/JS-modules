@@ -190,6 +190,14 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(tk([{ x: 1, y: 2 }, { x: 2, y: 4 }, { x: 3, y: 6.1 }], { type: 'scatter', x: 'x', y: 'y' }) === 'y strongly rises with x (r = 1)' && /the same in every row/.test(tk([{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }], { type: 'scatter', x: 'x', y: 'y' })), 'scatter: correlation, and a flat column said plainly');
   ok(tk([{ from: 'Salary', to: 'Rent', amount: 1200 }, { from: 'Salary', to: 'Food', amount: 500 }], { type: 'sankey', from: 'from', to: 'to', value: 'amount' }) === 'The biggest flow is Salary to Rent: 1,200, 71% of what leaves Salary', 'sankey: the biggest flow and its share');
   ok(tk([], { type: 'bar', x: 'a' }) === '' && tk(reg, { type: 'words', x: 'region' }) === '', 'nothing to say: empty text');
+  // since 2.12.1 the takeaway writes fractions as percents, like the chart, and gaps between them in points
+  const rates = [{ c: 'A', rate: 0.201 }, { c: 'B', rate: 0.15 }, { c: 'C', rate: 0.05 }];
+  ok(tk(rates, { type: 'bar', x: 'c', y: 'rate' }) === 'A leads rate with 20.1%, 5.1 points more than B (15%)', 'takeaway, fractions: percents and points: ' + tk(rates, { type: 'bar', x: 'c', y: 'rate' }));
+  ok(P.takeaway(rates, { type: 'bar', x: 'c', y: 'rate' }).alt === 'rate by c: A 20.1%, B 15%, C 5%.', 'alt text writes percents too');
+  ok(P.takeaway(rates, { type: 'bar', x: 'c', y: 'rate' }, { percent: false }).text === 'A leads rate with 0.201, 34% more than B (0.15)', 'percent: false keeps plain numbers in the takeaway');
+  ok(tk([{ yr: 2000, share: 0.12 }, { yr: 2010, share: 0.18 }, { yr: 2020, share: 0.231 }], { type: 'line', x: 'yr', y: 'share' }) === 'share rose 11.1 points from 12% to 23.1%', 'takeaway, line of fractions: change in points');
+  ok(tk([{ c: 'A', p_value: 0.04 }, { c: 'B', p_value: 0.03 }], { type: 'bar', x: 'c', y: 'p_value' }).indexOf('with 0.04,') > 0, 'names that are not rates (p value) stay plain numbers')
+  ok(P.auto(rates).takeaway === 'A leads rate with 20.1%, 5.1 points more than B (15%)' && P.toSvg(rates, { type: 'bar', x: 'c', y: 'rate', title: 'auto' }).indexOf('>A leads rate with 20.1%, 5.1 points more than B (15%)</text>') > 0, "auto() and title: 'auto' use the same percent takeaway");
   const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
   ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
 }

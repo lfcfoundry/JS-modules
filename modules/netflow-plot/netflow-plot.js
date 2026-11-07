@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.12.0 (API 2)
+ * Version 2.12.1 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -941,14 +941,20 @@ var NetflowPlot = (function () {
   function tName(k) { var t = axisName(k) || String(k); return /^[A-Z][a-z]/.test(t) && !/[A-Z]/.test(t.slice(1)) ? t.charAt(0).toLowerCase() + t.slice(1) : t; }
   function tNum(r, k) { var v = r[k]; if (v === '' || v === null || v === undefined) return NaN; v = +v; return isFinite(v) ? v : NaN; }
   function tList(items, f) { var s = items.slice(0, 20).map(f).join(', '); return items.length > 20 ? s + ' and ' + (items.length - 20) + ' more' : s; }
+  function tPts(d) { var p = Math.round(Math.abs(d) * 1000) / 10; return p + (p === 1 ? ' point' : ' points'); }   /* a gap between two percents, in percentage points (since 2.12.1) */
   function tLead(a, b) {   /* how far a is ahead of b, in words that hold on any base */
     if (a === b) return null;
-    if (b > 0 && a > 0) { var q = a / b; if (q >= 2) return q >= 100 ? 'far ahead of' : (Math.round(q * 10) / 10) + ' times as much as'; if (b >= a / 10) return Math.round((a - b) / b * 100) + '% more than'; }
+    if (b > 0 && a > 0) { var q = a / b; if (q >= 2) return q >= 100 ? 'far ahead of' : (Math.round(q * 10) / 10) + ' times as much as'; if (PCT) return tPts(a - b) + ' more than'; if (b >= a / 10) return Math.round((a - b) / b * 100) + '% more than'; }
     return 'ahead of';
   }
-  function takeaway(rows, spec) {
-    rows = (rows || []).map(function (r) { return r && r.attrs ? r.attrs : r; }).filter(function (r) { return r && typeof r === 'object'; });
-    spec = spec || {};
+  function takeaway(rows, spec, o) {   /* o: the chart's options; values written as percents when the chart writes them so (since 2.12.1), percent: false turns it off */
+    var was = PCT;
+    try { rows = (rows || []).map(function (r) { return r && r.attrs ? r.attrs : r; }).filter(function (r) { return r && typeof r === 'object'; }); spec = spec || {};
+      PCT = !(o && o.percent === false) && rows.length > 0 && !!spec.type && fractionCol(reader(rows, {}), spec, spec.type);
+      return takeaway0(rows, spec);
+    } finally { PCT = was; }
+  }
+  function takeaway0(rows, spec) {
     var t = spec.type, none = { text: '', alt: '' }, i;
     if (!rows.length) return none;
     if (t === 'bar' || t === 'dotplot' || t === 'donut') {
@@ -982,7 +988,7 @@ var NetflowPlot = (function () {
       ch.sort(function (p, q) { return Math.abs(q.d) - Math.abs(p.d); });
       var c = ch[0], who = spec.color ? c.k : yname;
       if (c.d === 0) return { text: who + ' was the same at the start and the end (' + fmtNum(c.f[1]) + ')', alt: alt2 };
-      var pc = c.f[1] > 0 && c.l[1] > 0 && c.f[1] >= c.mx / 10 ? ' ' + Math.round(Math.abs(c.d) / c.f[1] * 100) + '%' : '';
+      var pc = PCT ? ' ' + tPts(c.d) : c.f[1] > 0 && c.l[1] > 0 && c.f[1] >= c.mx / 10 ? ' ' + Math.round(Math.abs(c.d) / c.f[1] * 100) + '%' : '';
       return { text: who + ' ' + (c.d > 0 ? 'rose' : 'fell') + pc + ' from ' + fmtNum(c.f[1]) + ' to ' + fmtNum(c.l[1]) + (ch.length > 1 ? ', the biggest change of ' + ch.length : ''), alt: alt2 };
     }
     if (t === 'scatter' || t === 'hexbin') {
@@ -1011,7 +1017,7 @@ var NetflowPlot = (function () {
     }
     return none;
   }
-  function autoTitle(rows, spec, o) { var c = {}, k; for (k in o) c[k] = o[k]; var tx = takeaway(rows, spec).text; if (tx) c.title = tx.charAt(0).toUpperCase() + tx.slice(1); else delete c.title; return c; }   /* title: 'auto' draws the takeaway as the title */
+  function autoTitle(rows, spec, o) { var c = {}, k; for (k in o) c[k] = o[k]; var tx = takeaway(rows, spec, o).text; if (tx) c.title = tx.charAt(0).toUpperCase() + tx.slice(1); else delete c.title; return c; }   /* title: 'auto' draws the takeaway as the title */
   /** The column whose points nearly all fall in one 1/150 of its range (a few far values squash the rest), or ''. */
   function squashed(rows, sp) {
     var ks = [sp.y, sp.x];
@@ -1056,7 +1062,7 @@ var NetflowPlot = (function () {
     if ((p.type === 'sankey' || p.type === 'chord') && p.of > p.shown) why += ' (the ' + p.shown + ' biggest of ' + p.of + ' links)';
     var sq = p.type === 'scatter' ? squashed(rows, p.spec) : '';
     if (sq) why += '; but most points sit on one thin line along ' + sq + ' because a few values are far out, so this chart says little (others has more picks)';
-    var tk = takeaway(rows, p.spec);
+    var tk = takeaway(rows, p.spec, o);
     return { svg: svg, type: p.type, spec: p.spec, why: why, others: list.slice(i), takeaway: tk.text, alt: tk.alt };
   }
   /**
