@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.14.5 · API 2 · 2026-11-07
+
+### Quick
+Big line charts build faster; nothing looks different.
+
+### Details
+series() made two small lists for every x of every line, so 20,000 rows made 40,000 lists to collect. Each x now keeps its first value and row as plain numbers, and a list is made only when a second row lands on the same x; the rows are kept only for charts small enough to get dots. Same SVG on 84,000 random line and area charts (sum, mean, median, count, min, max, with repeats, blanks and -0) and on every test chart. make() on a 20,000-row line, repeated: Chromium 11.4 to 8.2 ms, Firefox 11.0 to 8.7 ms, WebKitGTK 10.5 to 9.2 ms; whole first page draw Chromium 66.8 to 47.1 ms, Firefox and WebKitGTK about even (0.89 to 1.01).
+
+### Deep
+speed only
+
 ## 2.14.4 · API 2 · 2026-11-07
 
 ### Quick
