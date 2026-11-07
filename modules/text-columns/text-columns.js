@@ -27,8 +27,18 @@
   'use strict';
   /* Chromium family only (its garbage collector pays for every short string; other engines make them cheaply, so they keep the plain loop). A column with few different values
      (a city, a category): a repeated value is found by its bytes and shares the first string, so no new string is made for it. Decided from the first 2,048 rows; a column with
-     many different values keeps the plain loop. Only for input of 16 MB or more: on smaller tables the plain loop is faster (first parse 1.1-2x slower with sharing). Same strings as the plain loop. */
+     many different values keeps the plain loop. Only for input of 16 MB or more with at least two such columns: otherwise the plain loop is faster (first parse 1.1-2x slower below 5 MB, 7-12% slower at 20 MB with one repeating column). Same strings as the plain loop. */
   var CHROMISH = typeof navigator === 'object' && navigator !== null && /Chrome\//.test(navigator.userAgent || '');
+  /* how many text columns repeat a lot in the first 256 rows (at most 32 different values; columns of digits are left out, they become numbers) */
+  function repeatCols(inp, starts, ends, ncols, firstRow, sel) {
+    var cnt = 0, si, j, i, k, a, b, num, set, c;
+    for (si = 0; si < (sel ? sel.length : ncols); si++) {
+      j = sel ? sel[si] : si; set = new Set(); num = true;
+      for (i = 0; i < 256 && set.size <= 32; i++) { k = (i + firstRow) * ncols + j; a = starts[k]; b = ends[k]; if (b > a) { set.add((b - a) * 65536 + inp[a] * 256 + inp[b - 1]); if (num) for (c = a; c < b; c++) { var ch = inp[c]; if (!(ch >= 48 && ch <= 57) && ch !== 45 && ch !== 46) { num = false; break; } } } }
+      if (!num && set.size <= 32) cnt++;
+    }
+    return cnt;
+  }
   function internVals(vals, nrows, firstRow, ncols, j, starts, ends, qflag, inp, str) {
     var i, k, smp = Math.min(nrows, 2048), dict = new Map(), nd = 0, a0, b0, L0, key, cand, c, p, hit, sv;
     for (i = 0; i < nrows; i++) {
@@ -332,7 +342,7 @@
     var nrows = header ? Math.max(nrowsAll - 1, 0) : nrowsAll, firstRow = header ? 1 : 0;
     for (j = 0; j < ncols; j++) names.push(header && nrowsAll > 0 ? fix(td.decode(inp.subarray(starts[j], ends[j])), qflag[j]) : 'c' + (j + 1));   // the header alone, so a lazy table never decodes the whole text for it
     var sel = pickColumns(o && o.columns, names, ncols), lazy = !!(o && o.lazy), si, outNames = [];
-    var columns = [];
+    var columns = [], shareOn = CHROMISH && inp.length >= 16777216 && nrows >= 2048 && repeatCols(inp, starts, ends, ncols, firstRow, sel) >= 2;
     for (si = 0; si < (sel ? sel.length : ncols); si++) {
       j = sel ? sel[si] : si; outNames.push(names[j]);
       var col = { name: names[j], type: 'text', values: null, get: getAt }, nums = null;
@@ -346,7 +356,7 @@
         else col = lazyColumn(names[j], os, oe, oq, u, ascii, sh);
       } else {
         var vals = new Array(nrows), k;
-        if (CHROMISH && inp.length >= 16777216) internVals(vals, nrows, firstRow, ncols, j, starts, ends, qflag, inp, str);
+        if (shareOn) internVals(vals, nrows, firstRow, ncols, j, starts, ends, qflag, inp, str);
         else for (i = 0; i < nrows; i++) { k = (i + firstRow) * ncols + j; vals[i] = str(starts[k], ends[k], qflag[k]); }
         col.values = vals;
       }
