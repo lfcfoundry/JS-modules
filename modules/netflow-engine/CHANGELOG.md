@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.1 · API 2 · 2026-11-06
+- Smaller force layout program
+
 ## 2.4.0 · API 2 · 2026-11-05
 - toSvg(links, options): links in, a finished picture out, in one call.
 

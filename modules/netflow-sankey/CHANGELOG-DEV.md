@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.12.0 · API 2 · 2026-11-06
+
+### Quick
+Notes: {top} adds the amount, new {topbox}; smaller ordering program
+
+### Details
+{top} now reads 'Salary to Rent, $1,800'; {topbox} names the biggest item with its amount. order.wasm 10,026 to 9,848 bytes with the same output.
+
+### Deep
+Requested by the owner (cards: Offer both, Ship them).
+
 ## 2.11.0 · API 2 · 2026-11-06
 
 ### Quick

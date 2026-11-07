@@ -103,5 +103,7 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(S.labels.some((l) => l.note && l.t === 'Food is 45% of $3,300'), 'a note with live words');
   ok(S.curves.filter((c) => c.note).length === 2, 'two leader lines');
   ok(S.labels.some((l) => l.note && l.t === 'Gift $300'), 'a note finds an item by the data\'s own id');
+  const S2 = SC.make(L, { sk: { unit: '$' }, notes: [{ text: '{top} | {topbox}', x: 0.5, y: 0.02 }] });
+  ok(S2.labels.some((l) => l.note && l.t === 'Salary \u2192 Rent, $1,800 | Salary, $3,000'), '{top} is the biggest flow and {topbox} the biggest box, each with its amount');
   console.log('ok   sankey value labels and notes');
 }

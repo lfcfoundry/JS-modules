@@ -21,7 +21,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - New: closenessAsync splits closeness across kept helper threads (2.3 to 3.8 times as fast on 4 cores in all three test browsers).
 
 ## 0.8.0 · API 0 · 2026-10-31
-- New: max-flow and min-cut, closeness, triangle counts, communities (Louvain), critical path and landmark paths, in plain JavaScript and WebAssembly; 1.5x to 230x faster than graphology, ngraph and a Dinic library in all three test browsers.
+- New: max-flow and min-cut, closeness, triangle counts, communities (Louvain), critical path and landmark paths, in JavaScript and WebAssembly; 1.5x to 230x faster than graphology, ngraph and a Dinic library in all three test browsers.
 
 ## 0.7.2 · API 0 · 2026-10-31
 - betweennessAsync starts faster: up to 1.9x on the first call and on a new graph.

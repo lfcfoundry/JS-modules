@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.0 · API 1 · 2026-11-06
+
+### Quick
+Notes: {top} adds the amount, new {topbox}
+
+### Details
+Same words as netflow-sankey 2.12.0.
+
+### Deep
+Requested by the owner (card: Offer both).
+
 ## 1.9.0 · API 1 · 2026-11-06
 
 ### Quick
