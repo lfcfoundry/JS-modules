@@ -1,8 +1,8 @@
 # save-kit
 
-**Version 2.2.0 · API 2**
+**Version 2.2.1 · API 2**
 
-**Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** WebKitGTK 2.52.6 (browser), Node with WebKit, Chromium and Firefox user agents
 
 ## What it is and how it works
 

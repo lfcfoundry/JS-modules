@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.1 · API 2 · 2026-11-07
+- Loads are a little faster in Safari and other WebKit browsers.
+
 ## 2.2.0 · API 2 · 2026-11-07
 - Big saves of many same-shape records open faster in Firefox and Safari-family browsers; older copies cannot read those saves.
 

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.1 · API 2 · 2026-11-07
+
+### Quick
+WebKit create().load: the long-name text test is now a sampled scan (every 201st character) instead of a regular expression: about 19 us to 1 us on a 14 KB save; 20 KB kit.load 153-158 to 140-143 us; against localForage's localStorage driver 1.27x to 1.20x.
+
+### Deep
+longRun(t) replaces LONGKEY = /"[^"]{201}/ in parseSlot (JSC only). It answers exactly /[^"]{201}/ (300,000 random texts, 0 differ), a superset of the old test, so the fast values-only check is used only when no name can exceed 200 characters. Cost: WebKitGTK 2.52.6 regex 19.0 us vs sampled scan 1.3 us on 14 KB; worst case linear (stops at the first long run). Equivalence vs 2.2.0 under a WebKit user agent: 20,000 random loads and 4,000 long-name loads (names of 195-206 and up to 600 characters, broken counts), 0 differ. Small-save A/B (tests/save-kit-small-browser.js, WebKitGTK): 20 KB load vs localForage localStorage driver 1.20 (range 1.06-1.44). Profile of what is left: kit.load 140 us vs getItem + JSON.parse 106 us; save 34.5 us vs stringify + setItem 19.5 us, of which about 9.5 us is the counts check (Object.values of two 400-name maps). Also tried: column form for create() counts maps (helper, slower: rebuild costs more than the parse saves).
+
 ## 2.2.0 · API 2 · 2026-11-07
 
 ### Quick
