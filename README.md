@@ -210,7 +210,7 @@ Draw maps, flow charts and animated pictures from data.
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 | 30.9 | 9.7 | Turns pictures into an MP4 or WebM video file. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/clip-writer/demo.html) |
-| [gif-writer](modules/gif-writer/README.md) | 1.6.2 | 44.2 | 17.2 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
+| [gif-writer](modules/gif-writer/README.md) | 1.6.3 | 45.5 | 17.7 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 | 22.0 | 7.9 | Chord and Bundles views for netflow-engine, drawn with netflow-scene. | — |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.0 | 210.1 | 65.9 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 | 55.4 | 18.9 | Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine. | — |

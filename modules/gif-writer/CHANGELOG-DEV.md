@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.3 · API 1 · 2026-11-06
+
+### Quick
+createEncoder reuses the WebAssembly instance of the last finished encoder (kept 10 s, up to 32 MB). No API change; same bytes.
+
+### Details
+Repeat GIFs (320x240, 30 pictures), median ms old to new, cloud: WebKitGTK 2.52.6 13-14 to 10 (plain page) and 15-37 to 10-12 (page holding 1.5 million objects); Firefox 158 12-13 to 10 and 21-26 to 8-10; Chromium 155 12.3-12.9 to 9.3-11.1. First GIF on a page: unchanged within noise. Memory: one instance (7.25 MB at 320x240, never more than 32 MB) stays alive up to 10 s after finish(), then is let go.
+
+### Deep
+Found by the WebKit speed sweep (2026.11.06): gif-writer was 5.6x slower in WebKitGTK than in the best other browser when run after other modules on one page. Cause: each createEncoder made a new WebAssembly instance with a fresh 7.25 MB memory; WebKitGTK often ran a full garbage collection for it, costing about 20-25 ms on a page with a big heap (createEncoder alone went from 3 ms to 24 ms). Fix: finish() keeps the encoder's instance as a spare (only one, at most 32 MB, dropped after 10 s by a timer that does not keep Node running); the next createEncoder takes it and setup() clears its tables. If the old encoder is added to again after its instance was taken, it makes a new instance and starts again from a whole picture (correct pictures; the next frame is a full frame instead of a changed part). Adding again after finish() with no other encoder in between takes the instance back, with the same bytes as before. Tests: 4 new checks (three encoders in a row give the JavaScript bytes; add after finish; carrying on after the instance was taken; the taker finishes). A/B in 3 browsers, 3 runs each, with and without a 1.5 million object heap: same bytes (39,996) everywhere.
+
 ## 1.6.2 · API 1 · 2026-10-31
 
 ### Quick

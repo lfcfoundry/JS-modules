@@ -173,5 +173,17 @@ function goldenHashes(G) {
     ok(JSON.stringify(b) === JSON.stringify(c), 'thorough palette: wasm and JavaScript give the same colors');
     const e = G.createEncoder(w, h, b, { loop: true }); pics.forEach(x => e.add(x, 50)); const out = e.finish(); ok(decode(out).shots.length === 6, 'thorough palette: the GIF decodes with all pictures');
   }
+  {   // the kept instance: a second encoder reuses the first one's, and an encoder used again after another took it still writes right pictures
+    const js = (() => { const e = G.createEncoder(W, H, pal, { wasm: false }); e.add(f1, 100); e.add(f2, 100); e.add(f3, 100); return Buffer.from(e.finish()).toString('hex'); })();
+    const run3 = () => { const e = G.createEncoder(W, H, pal); e.add(f1, 100); e.add(f2, 100); e.add(f3, 100); return Buffer.from(e.finish()).toString('hex'); };
+    ok(run3() === js && run3() === js && run3() === js, 'kept instance: three encoders in a row write the same bytes as the JavaScript code');
+    const a = G.createEncoder(W, H, pal); a.add(f1, 100); a.finish(); a.add(f2, 100); const again = Buffer.from(a.finish()).toString('hex');
+    const b = G.createEncoder(W, H, pal); b.add(f1, 100); b.add(f2, 100); ok(again === Buffer.from(b.finish()).toString('hex'), 'kept instance: adding after finish() with no other encoder in between gives the same bytes');
+    const c = G.createEncoder(W, H, pal); c.add(f1, 100); c.finish();
+    const other = G.createEncoder(W, H, G.makePalette([f2], 255)); other.add(f2, 100);   // takes c's instance
+    c.add(f2, 100); c.add(f1, 100); const dc = decode(c.finish());
+    ok(dc.shots.length === 3 && same(dc.shots[0].px, f1) && same(dc.shots[1].px, f2) && same(dc.shots[2].px, f1), 'kept instance: an encoder whose instance was taken carries on with right pictures');
+    ok(decode(other.finish()).shots.length === 1, 'kept instance: the encoder that took it finishes too');
+  }
   if (fails) { console.log(fails + ' FAILED'); process.exit(1); } else console.log('gif-writer: all passed');
 })();

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.3 · API 1 · 2026-11-06
+- Making a second or later GIF on the same page is faster: 0.33 to 0.8 of the old time, most of all in WebKit on pages holding a lot of data. The first GIF and the file bytes are unchanged.
+
 ## 1.6.2 · API 1 · 2026-10-31
 - Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 
