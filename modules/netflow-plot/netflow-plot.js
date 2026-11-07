@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.14.4 (API 2)
+ * Version 2.14.5 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -403,16 +403,23 @@ var NetflowPlot = (function () {
   /** Rows sorted along x, one line per color category; smooth = moving average, index = each line from 100 at its first value. */
   function series(F, R, sp) {
     var x = R.num(sp.x), y = sp.y ? R.num(sp.y) : null, ck = sp.color ? R.cat(sp.color) : null, how = sp.agg || 'sum';
-    var cc = ck ? catsOf(ck, y, 'value', 12) : { list: [''], other: null }, by = new Map();
+    var cc = ck ? catsOf(ck, y, 'value', 12) : { list: [''], other: null }, by = new Map(), distinct = 0;
+    /* each x of a line keeps its first row and value as plain numbers; a list is made only when a second row lands on the same x (most lines
+       have one row per x, so 20,000 rows no longer make 40,000 small lists; since 2.14.5). The values and rows come out the same. */
     for (var i = 0; i < x.length; i++) {
       if (x[i] !== x[i]) continue;
-      var c = ck ? (cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i]) : '', m = by.get(c); if (!m) { m = new Map(); by.set(c, m); }
-      var l = m.get(x[i]); if (!l) { l = []; l.rows = []; m.set(x[i], l); } l.push(y ? y[i] : 1); l.rows.push(i);
+      var c = ck ? (cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i]) : '', m = by.get(c); if (!m) { m = { at: new Map(), v1: [], r1: [], more: [] }; by.set(c, m); }
+      var k0 = m.at.get(x[i]), yv = y ? y[i] : 1;
+      if (k0 === undefined) { m.at.set(x[i], m.v1.length); m.v1.push(yv); m.r1.push(i); m.more.push(null); distinct++; }
+      else { var mo = m.more[k0]; if (!mo) mo = m.more[k0] = { vals: [m.v1[k0]], rows: [m.r1[k0]] }; mo.vals.push(yv); mo.rows.push(i); }
     }
+    var one = function (v, h) { if (h === 'count') return 1; if (v !== v) return NaN; if (h === 'min' || h === 'max' || h === 'median') return v; var s = 0; s += v; return s; };   /* aggregate() of a one-value list */
     var out = [];
     cc.list.forEach(function (c, ci) {
       var m = by.get(c); if (!m) return;
-      var xs = Array.from(m.keys()).sort(function (a, b) { return a - b; }), ys = xs.map(function (k) { return aggregate(m.get(k), y ? how : 'count'); }), rows = xs.map(function (k) { return m.get(k).rows; });
+      var h = y ? how : 'count', xs = Array.from(m.at.keys()).sort(function (a, b) { return a - b; }), ks = xs.map(function (q) { return m.at.get(q); });
+      var ys = ks.map(function (k) { var mo = m.more[k]; return mo ? aggregate(mo.vals, h) : one(m.v1[k], h); });
+      var rows = distinct <= 400 ? ks.map(function (k) { var mo = m.more[k]; return mo ? mo.rows : [m.r1[k]]; }) : null;   /* the rows are read only for the dots of small charts */
       if (sp.smooth > 1) { var w = Math.floor(sp.smooth), sm = new Array(ys.length), s = 0, q = []; for (var j = 0; j < ys.length; j++) { q.push(ys[j]); s += ys[j]; if (q.length > w) s -= q.shift(); sm[j] = s / q.length; } ys = sm; }
       if (sp.index) { var base = ys.find(function (v) { return v === v && v !== 0; }) || 1; ys = ys.map(function (v) { return v / base * 100; }); }
       out.push({ name: c, ci: ci, xs: xs, ys: ys, rows: rows });
