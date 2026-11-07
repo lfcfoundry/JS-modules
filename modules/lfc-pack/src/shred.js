@@ -57,8 +57,10 @@
           if (Array.isArray(o)) return o.map(function (x) { return walk(x, p + '[]'); });
           var s = {}; for (var k in o) setKey(s, k, walk(o[k], p + '.' + k)); return s;
         };
-        var sk; if (raw) { putStr(line); sk = '5'; } else sk = JSON.stringify(walk(row, ''));
-        var b = te.encode(sk); v.SK.set(b); var id = X.commit_shape(b.length); v.IDS[rowN] = id;
+        var sk, b, t0 = textPos, n0 = numN, s0 = strN, d0 = sideAll.length;
+        if (!raw) { sk = JSON.stringify(walk(row, '')); b = te.encode(sk);
+          if (b.length > v.SK.length) { textPos = t0; numN = n0; strN = s0; sideAll.length = d0; raw = true; } }   // a row whose shape outgrows the shape buffer (one huge document): kept whole as text
+        if (raw) { putStr(line); sk = '5'; b = te.encode(sk); } v.SK.set(b); var id = X.commit_shape(b.length); v.IDS[rowN] = id;
         X.set_state(textPos, numN, v.ST[2], strN, rowN + 1);
       }
       // exactness lists: rows flagged structural in C (spaces, escapes) and fallback rows get one exact check; rows whose only oddity is number spelling are read from the flagged number spans

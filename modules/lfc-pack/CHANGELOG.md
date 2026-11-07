@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.5.6 · API 0 · 2026-11-06
+- Fixed: packing one very big JSON document (for example an array of 30,000 or more items in one piece) stopped with an error. It is now kept whole and reads back exactly.
+
 ## 0.5.5 · API 0 · 2026-11-06
 - Fixed: packing text with a long run of blank lines no longer slows to a crawl (80,000 blank lines: 5 s before, 0.04 s now).
 
