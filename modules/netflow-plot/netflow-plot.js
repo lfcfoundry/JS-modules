@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.11.0 (API 2)
+ * Version 2.12.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -145,7 +145,7 @@ var NetflowPlot = (function () {
     var F = { S: S, T: T, NS: NS, alpha: alpha, W: W, H: H, L: 70, R: W - 24, Tp: 24, B: H - 56, groups: T.groups };
     /* clean look: values written on the bars and boxes instead of a number axis and gridlines (where they fit), and a calmer color set */
     F.clean = o.clean !== undefined ? !!o.clean : (o.theme === 'editorial' || CLEAN_DEFAULT);
-    F.calm = function () { if (F.clean && !o.palette) { T.groups = (isDark(T) ? CALM.dark : CALM.light).map(function (h) { return NS.hex(h); }); F.groups = T.groups; } };
+    F.palette0 = !!o.palette; F.navy = NS.hex(isDark(T) ? CALM.dark[0] : CALM.light[0]); F.calm = function () { if (F.clean && !o.palette) { T.groups = (isDark(T) ? CALM.dark : CALM.light).map(function (h) { return NS.hex(h); }); F.groups = T.groups; } };
     F.text = function (x, y, t, size, col, op) { var l = { x: x, y: y, t: String(t), size: size || 12, color: col || T.fg, align: 'c', bold: false, rot: 0, minK: 0, node: -1 }; if (op) for (var k in op) l[k] = op[k]; if (l.rot) l.rot *= 180 / Math.PI; S.labels.push(l); return l; };   /* angles in radians here, the renderer takes degrees */
     F.line = function (pts, w, col, extra) { if (pts.length < 4) return; var P = [], n = pts.length / 2; P.push(pts[0], pts[1]); for (var i = 1; i < n; i++) { var ax = pts[i * 2 - 2], ay = pts[i * 2 - 1], bx = pts[i * 2], by = pts[i * 2 + 1]; P.push(ax + (bx - ax) / 3, ay + (by - ay) / 3, ax + 2 * (bx - ax) / 3, ay + 2 * (by - ay) / 3, bx, by); } var c = { P: P, w: w, color: col, arrow: false, line: n === 2, edge: -1 }; if (extra) for (var k in extra) c[k] = extra[k]; S.curves.push(c); return c; };
     F.rect = function (x, y, w, h, fill, mark) { if (w < 0) { x += w; w = -w; } if (h < 0) { y += h; h = -h; } S.rects.push({ x: x, y: y, w: w, h: h, r: 0, fill: fill, stroke: [0, 0, 0, 0], sw: 0, layer: 1, node: -1, a: 1 }); if (mark) { mark.x0 = x; mark.y0 = y; mark.x1 = x + w; mark.y1 = y + h; S.marks.push(mark); } };
@@ -305,6 +305,7 @@ var NetflowPlot = (function () {
     var other = null;
     var hi = HI && (keys === HI.ck || keys === HI.xk) ? HI.name : undefined;   /* the highlighted series (or bar) keeps its own place, never folded into Other */
     if (cap && list.length > cap) { var keep = hi !== undefined && list.indexOf(hi) >= cap - 1; other = list.slice(keep ? cap - 2 : cap - 1); if (keep) other.splice(other.indexOf(hi), 1); list = list.slice(0, keep ? cap - 2 : cap - 1).concat(keep ? [hi, 'Other'] : ['Other']); }
+    if (other && list.indexOf('Other') >= 0 && list.indexOf('Other') < list.length - 1) { list.splice(list.indexOf('Other'), 1); other.push('Other'); }   /* a real value named Other joins the folded rest, so there are never two series called Other */
     if (hi !== undefined) { if (keys === HI.ck) HI.F.hiCi = list.indexOf(hi); if (keys === HI.xk) HI.F.hiX = list.indexOf(hi) >= 0 ? hi : undefined; }
     return { list: list, other: other ? new Set(other) : null, tot: tot };
   }
@@ -337,7 +338,8 @@ var NetflowPlot = (function () {
     if (mode === 'normalize') val.fmt = function (p) { return Math.round(p * 100) + '%'; };
     if (!ck) F.hiCi = -1;   /* no color column (or color is x): a highlight picks one bar */
     else F.hiX = undefined;
-    var zero = val.map(0), colOf = function (ci) { return ck ? F.color(ci) : F.color(0); }, segs = [], ends = [];
+    var navy = mode === 'none' && !ck && lo < 0 && F.clean && !F.palette0 ? F.navy : null;   /* a bar chart with values below zero: navy above, red below */
+    var zero = val.map(0), colOf = function (ci) { return ck ? F.color(ci) : navy || F.color(0); }, segs = [], ends = [];
     xc.list.forEach(function (x) {
       var b0 = band.map(x), up = 0, dn = 0, tot = totals.get(x) || 1, nC = cc.list.length, sUp = 0, sDn = 0;
       cc.list.forEach(function (c, ci) {
@@ -349,21 +351,22 @@ var NetflowPlot = (function () {
         else { v0 = 0; v1 = e.v; }
         var a = val.map(v0), b = val.map(v1), col = mode === 'none' && !ck && e.v < 0 ? F.T.bad : colOf(ci);
         if (F.hiX !== undefined && x !== F.hiX) col = F.gray;   /* highlight one bar, gray the rest (no color column) */
+        if (sp.top > 0 && !ck && (x === 'Others' || x === 'Others, average')) col = F.gray;   /* the rest of a top-N chart is a lighter gray, so the named bars lead */
         var mark = { rows: e.rows, t: (x === '' ? '(blank)' : x) + (ck ? ' \u00b7 ' + (c || '(blank)') : '') + ': ' + fmtNum(e.v) };
         if (horiz) F.rect(a, s0, b - a, sw, col, mark); else F.rect(s0, b, sw, a - b, col, mark);
         var vt = mode === 'normalize' ? Math.round(Math.abs(e.v) / tot * 100) + '%' : fmtNum(e.v);
         if (mode === 'stack' || mode === 'normalize') { segs.push({ s0: s0, sw: sw, a: a, b: b, t: vt, col: col }); if (e.v >= 0) sUp += e.v; else sDn += e.v; }
-        else ends.push({ s0: s0, sw: sw, end: b, neg: v1 < v0, t: vt });
+        else ends.push({ s0: s0, sw: sw, end: b, neg: v1 < v0, t: vt, col: col });
       });
       if (mode === 'stack') { if (sUp > 0 || !sDn) ends.push({ s0: b0, sw: band.bw, end: val.map(up), neg: false, t: fmtNum(sUp) }); if (sDn < 0) ends.push({ s0: b0, sw: band.bw, end: val.map(dn), neg: true, t: fmtNum(sDn) }); }
     });
     /* clean look: every bar end gets its value when all of them fit beside their bars; otherwise the number axis stays */
     if (F.clean) F.noY = ends.every(function (q) { return horiz ? q.sw >= 12 : q.t.length * CW <= q.sw + Math.max(4, band.step - band.bw - 4); }) && (ends.length || segs.length);
-    if (horiz) { F.axes(null, null); var vy = val; if (!F.noY) vy.list.forEach(function (t) { var x = vy.map(t); F.line([x, F.Tp, x, F.B], 1, F.alpha(F.T.boxLine, 0.35)); F.text(x, F.B + 16, mode === 'normalize' ? Math.round(t * 100) + '%' : fmtNum(t), 11, F.alpha(F.T.muted, 0.9)); }); xc.list.forEach(function (x) { F.text(F.L - 8, band.map(x) + band.bw / 2 + 4, clip(x === '' ? '(blank)' : x, 28), 11, F.T.fg, { align: 'r' }); }); F.line([zero, F.Tp, zero, F.B], 1, F.alpha(F.T.muted, 0.8)); }
+    if (horiz) { F.axes(null, null); var vy = val; if (!F.noY) vy.list.forEach(function (t) { var x = vy.map(t); F.line([x, F.Tp, x, F.B], 1, F.alpha(F.T.boxLine, 0.35)); F.text(x, F.B + 16, mode === 'normalize' ? Math.round(t * 100) + '%' : fmtNum(t), 11, F.alpha(F.T.muted, 0.9)); }); var every = Math.max(1, Math.ceil(13 / Math.max(1, band.step || (F.B - F.Tp) / Math.max(1, xc.list.length)))); xc.list.forEach(function (x, xi) { if (xi % every) return; F.text(F.L - 8, band.map(x) + band.bw / 2 + 4, clip(x === '' ? '(blank)' : x, 28), 11, F.T.fg, { align: 'r' }); });   /* names 13 px apart at least: when the bars are thinner, every k-th name */ F.line([zero, F.Tp, zero, F.B], 1, F.alpha(F.T.muted, 0.8)); }
     else { F.axes(band, val, sp.x, sp.y ? (how === 'sum' ? '' : how + ' of ') + sp.y : 'Rows'); F.line([F.L, zero, F.R, zero], 1, F.alpha(F.T.muted, 0.8)); }
     if (F.noY) {
       ends.forEach(function (q) {
-        if (horiz) { var room = F.R - q.end; F.text(q.neg ? q.end - 5 : (room > q.t.length * CW + 6 ? q.end + 5 : q.end - 5), q.s0 + q.sw / 2 + 4, q.t, 11, room > q.t.length * CW + 6 || q.neg ? F.T.fg : inkOn(F.color(0)), { align: q.neg || room <= q.t.length * CW + 6 ? 'r' : 'l' }); }
+        if (horiz) { var room = F.R - q.end; F.text(q.neg ? q.end - 5 : (room > q.t.length * CW + 6 ? q.end + 5 : q.end - 5), q.s0 + q.sw / 2 + 4, q.t, 11, room > q.t.length * CW + 6 || q.neg ? F.T.fg : inkOn(q.col || F.color(0)), { align: q.neg || room <= q.t.length * CW + 6 ? 'r' : 'l' }); }
         else F.text(q.s0 + q.sw / 2, q.neg ? q.end + 14 : q.end - 5, q.t, 11, F.T.fg, null);
       });
       /* a stacked part is named inside itself when the number fits there */
@@ -415,7 +418,7 @@ var NetflowPlot = (function () {
     s.list.forEach(function (l) { allX = allX.concat(l.xs); allY = allY.concat(l.ys); });
     /* clean look: each line is named at its right end (no key row over the chart), up to 10 lines; room for the names is kept on the right */
     var ends = F.clean && !!sp.color && !F.keyRow && s.list.length > 1, ew = 0;
-    if (ends && s.list.length > 10) { ends = false; F.keyRow = true; F.Tp = 44; }
+    if (ends && s.list.length > Math.min(16, Math.max(10, Math.floor((F.B - F.Tp) / 14)))) { ends = false; F.keyRow = true; F.Tp = 44; }   /* names at the line ends while each can have 14 px (up to 16 lines), else the key row */
     /* clean look: no number axis and no gridlines; each line's first and last values are written on it (a single line also gets its high and low) */
     var vt = fmtFor(allY), lastY = function (l) { for (var j = l.ys.length - 1; j >= 0; j--) if (l.ys[j] === l.ys[j]) return l.ys[j]; return NaN; };
     if (ends) { s.list.forEach(function (l) { ew = Math.max(ew, (clip(l.name || '(blank)', 16).length + 1 + vt(lastY(l)).length) * CW); }); F.R = Math.max(F.L + 120, F.R - ew - 8); }
@@ -431,7 +434,7 @@ var NetflowPlot = (function () {
       if (many <= 400) for (var k = 0; k < l.xs.length; k++) if (l.ys[k] === l.ys[k]) F.dot(ax.map(l.xs[k]), ay.map(l.ys[k]), 2.5, col, { rows: l.rows[k], t: (l.name ? l.name + ' \u00b7 ' : '') + (s.time ? dayText(l.xs[k]) : ax.fmt ? ax.fmt(l.xs[k]) : fmtNum(l.xs[k])) + ': ' + fmtNum(l.ys[k]) });
       if (F.clean && pts.length) {   /* values on the line: first point to the left of the plot, last point after the name (or alone for one line) */
         var fi = 0; while (l.ys[fi] !== l.ys[fi]) fi++;
-        if (pts[0] <= F.L + 2 || s.list.length === 1) starts.push({ x: pts[0] - 6, y: pts[1] + 4, t: vt(l.ys[fi]), c: readable(col, F.T) });   /* in series order: the biggest series first */
+        if ((pts[0] <= F.L + 2 && (ends || s.list.length === 1 || !sp.color)) || s.list.length === 1) starts.push({ x: pts[0] - 6, y: pts[1] + 4, t: vt(l.ys[fi]), c: readable(col, F.T) });   /* in series order: the biggest series first */
         if (s.list.length === 1) {
           var hiK = -1, loK = -1, k2, nk = 0; for (k2 = 0; k2 < l.ys.length; k2++) if (l.ys[k2] === l.ys[k2]) { nk++; if (hiK < 0 || l.ys[k2] > l.ys[hiK]) hiK = k2; if (loK < 0 || l.ys[k2] < l.ys[loK]) loK = k2; }
           var lk = l.ys.length - 1; while (l.ys[lk] !== l.ys[lk]) lk--;
@@ -798,13 +801,14 @@ var NetflowPlot = (function () {
     var F = frame(spec, o, NS), R = reader(rows, o), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
     if ((type === 'bar' || type === 'dotplot') && spec.x && spec.y && rows.length && !mostlyNum(R, spec.y) && mostlyNum(R, spec.x)) {   /* x is the number and y the names: swap them and lay the bars sideways instead of drawing an empty chart */
       spec = Object.assign({}, spec, { x: spec.y, y: spec.x }); if (type === 'bar') spec.horizontal = true;
+      if (type === 'bar' && spec.top === undefined && o.top !== false) { var sx = new Set(R.cat(spec.x)); if (sx.size > 25 && !Array.prototype.some.call(R.num(spec.y), function (y) { return y < 0; })) spec.top = 10; }   /* our own swap, so the same rule as auto: more than 25 names gives the 10 biggest plus the rest */
     }
     var hl = o.highlight !== undefined && o.highlight !== null && o.highlight !== '' ? String(o.highlight) : undefined;
     HI = hl !== undefined && rows.length ? { name: hl, F: F, ck: spec.color ? R.cat(spec.color) : null, xk: spec.x ? R.cat(spec.x) : null } : null;
     PCT = o.percent !== false && rows.length > 0 && fractionCol(R, spec, type);
     try {
       if (!rows.length) F.text(F.W / 2, F.H / 2, 'No rows to draw.', 14, F.T.muted);
-      else { if (spec.color && !NOKEYROW[type] && !(F.clean && type === 'line')) { F.keyRow = true; F.Tp = 44; } if (type === 'bar' || type === 'box') F.calm(); CH[type](F, R, spec); }   /* the clean look's calm colors go with its value labels (bars and boxes) */
+      else { if (spec.color && !NOKEYROW[type] && !(F.clean && type === 'line')) { F.keyRow = true; F.Tp = 44; } CH[type](F, R, spec); }   /* since 2.12.0 bars and boxes use the same mauve-first colors as every other chart (owner card, 2026.11.07); the calm navy stays for bars that go below zero (navy and red pairs) */
     } finally { HI = null; PCT = false; }
     if (F.yName) {   /* the small axis name is left out when a value written on a mark would touch it */
       var yl = F.yName, x1 = yl.x + yl.t.length * CW + 4;

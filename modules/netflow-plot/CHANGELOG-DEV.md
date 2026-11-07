@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.12.0 · API 2 · 2026-11-07
+
+### Quick
+One color family everywhere; gray Others; up to 16 named lines; crowded sideways names thinned; swapped 50-name bars get top 10.
+
+### Details
+Owner card 'Mauve bars, one color everywhere' (12:26 PM ET 11.07): F.calm() no longer called for bar and box; navy (CALM[0]) kept for single-series bars with values below zero. Visuals check leads: Others bar F.gray with ink picked on the bar's own color; horizontal names at least 13 px apart (every k-th); our own x/y swap applies top 10 above 25 names; line-end names up to min(16, plot height / 14) lines; no start values when lines are not named; a real category named Other folds into the rest (no two series called Other). 11 of 61 vega-datasets auto charts change (color and the line names). SVG identical to Node in Firefox 158, Chromium 155 and WebKitGTK 2.52.6 for 6 cases in light and dark (12 of 12). 408 checks pass.
+
+### Deep
+Mauve bars everywhere, gray Others, named busy lines, thinned sideways names.
+
 ## 2.11.0 · API 2 · 2026-11-07
 
 ### Quick
