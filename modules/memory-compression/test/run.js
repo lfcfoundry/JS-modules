@@ -792,6 +792,19 @@ tAsync('warm() resolves and leaves packing unchanged', function () {
   var v = many(3000, function (i) { return { id: i, v: i * 1.5, name: 'n' + (i % 13) }; }), before = J.pack(v, opt({ mode: 'balanced' }));
   return require(path.resolve(modPath)).warm(opt()).then(function () { assert.strictEqual(Buffer.compare(Buffer.from(before), Buffer.from(J.pack(v, opt({ mode: 'balanced' })))), 0, 'bytes changed after warm'); });
 });
+tAsync('warm({ sample }) (2.13.0): packs and opens the page rows too (4 more tasks), resolves true, and leaves packing unchanged; a sample under 16 rows or not a list adds nothing', function () {
+  var g = typeof globalThis !== 'undefined' ? globalThis : self, M = require(path.resolve(modPath)), counts = [], count = 0, undo;
+  var sample = many(500, function (i) { return { id: i, pt: [i % 97, i * 0.5], pair: ['n' + (i % 13), i % 9] }; }), before = J.pack(sample, opt({ mode: 'balanced' }));
+  if (typeof g.setImmediate === 'function') { var si = g.setImmediate; g.setImmediate = function () { count++; return si.apply(this, arguments); }; undo = function () { g.setImmediate = si; }; }
+  else { var pm = MessagePort.prototype.postMessage; MessagePort.prototype.postMessage = function () { count++; return pm.apply(this, arguments); }; undo = function () { MessagePort.prototype.postMessage = pm; }; }
+  var run = function (o) { count = 0; return M.warm(opt(o)).then(function (r) { assert.strictEqual(r, true, 'warm resolves true'); counts.push(count); }); };
+  return run({}).then(function () { return run({ sample: sample }); }).then(function () { return run({ sample: sample.slice(0, 10) }); }).then(function () { return run({ sample: 'no' }); }).then(function () {
+    undo();
+    assert.strictEqual(counts[1] - counts[0], 4, 'sample adds 4 tasks, got ' + counts.join(','));
+    assert.strictEqual(counts[2], counts[0], 'short sample adds nothing'); assert.strictEqual(counts[3], counts[0], 'non-list sample adds nothing');
+    assert.strictEqual(Buffer.compare(Buffer.from(before), Buffer.from(J.pack(sample, opt({ mode: 'balanced' })))), 0, 'bytes changed after warm({ sample })');
+  }, function (e) { undo(); throw e; });
+});
 tAsync('warm() works in short tasks: it yields to the page at least 18 times (a pack and an open for each of 9 columns) and never packs the whole list in one block', function () {
   var g = typeof globalThis !== 'undefined' ? globalThis : self, count = 0, undo, M = require(path.resolve(modPath));
   if (typeof g.setImmediate === 'function') { var si = g.setImmediate; g.setImmediate = function () { count++; return si.apply(this, arguments); }; undo = function () { g.setImmediate = si; }; }

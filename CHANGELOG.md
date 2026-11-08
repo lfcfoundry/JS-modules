@@ -17,30 +17,30 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
 | [field-report](modules/field-report/README.md) | 1.1.1 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
-| [sprite-baker](modules/sprite-baker/README.md) | 1.10.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
+| [sprite-baker](modules/sprite-baker/README.md) | 1.11.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.1 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.2 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
-| [lzma-decode](modules/lzma-decode/README.md) | 1.6.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.6.2 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.1 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.20.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.12.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 2.0.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.13.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.6.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.6.2 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.12.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-circular](modules/netflow-circular/README.md) | 1.3.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.10.3 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.10.5 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.14.8 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -62,6 +62,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-07 · **zip-open** 1.20.2 · API 1: Big Excel sheets with mostly numbers open a little faster the first time (about 1 to 8%). Sheets with mostly text can open up to 9% slower the third time in a row in Firefox and WebKit-based browsers.
+- 2026-11-07 · **sprite-baker** 1.11.0 · API 1: Opt-in release() frees the wasm engine's 16 MB of memory between bakes
 - 2026-11-07 · **save-kit** 2.5.0 · API 2: New save-kit-small.min.js: create() only, the fastest page open.
 - 2026-11-07 · **save-kit** 2.4.1 · API 2: New save-kit.min.js, the same code minified, opens faster than localForage.
 - 2026-11-07 · **save-kit** 2.4.0 · API 2: Big saves of many same-shape records are faster in Chrome and Edge too; older copies cannot read those saves.
@@ -69,6 +70,9 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **save-kit** 2.2.1 · API 2: Loads are a little faster in Safari and other WebKit browsers.
 - 2026-11-07 · **save-kit** 2.2.0 · API 2: Big saves of many same-shape records open faster in Firefox and Safari-family browsers; older copies cannot read those saves.
 - 2026-11-07 · **save-kit** 2.1.0 · API 2: New warm(): start the load early so it is ready when the game asks. Big saves are faster to open; older copies cannot read big saves written by this one.
+- 2026-11-07 · **ppmd-decode** 1.5.1 · API 1: The plain JavaScript decoder is faster on its first file.
+- 2026-11-07 · **netflow-scene** 1.10.5 · API 1: Area, hexbin and density charts write less SVG text and draw faster.
+- 2026-11-07 · **netflow-scene** 1.10.4 · API 1: Long line charts draw faster in WebKit.
 - 2026-11-07 · **netflow-scene** 1.10.3 · API 1: frame: true no longer draws a rule above the source line; the chart's own baseline is the one line.
 - 2026-11-07 · **netflow-scene** 1.10.1 · API 1: toSvg rounds numbers about 1.4 to 2.7 times faster; same SVG
 - 2026-11-07 · **netflow-plot** 2.9.0 · API 2: toSvg(rows) picks the chart; auto() says why; opt-in takeaway
@@ -88,14 +92,25 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **netflow-plot** 2.11.0 · API 2: Auto bar charts with more than 25 names show the 10 biggest plus one bar for the rest, sideways; fractions between 0 and 1 are written as percents.
 - 2026-11-07 · **netflow-plot** 2.10.1 · API 2: A bar chart given the number as x and the names as y now draws sideways bars instead of an empty chart.
 - 2026-11-07 · **netflow-plot** 2.10.0 · API 2: Busy flow tables where places both send and receive draw as a chord; small ones stay Sankeys. Line labels no longer collide and share one precision; date axes get round ticks and no redundant name. A scatter squashed by a few far values says so; the key's +N more no longer covers a name.
+- 2026-11-07 · **netflow-hierarchy** 1.5.1 · API 1: Chord and treemap amounts written as '1,200' are read as 1,200.
+- 2026-11-07 · **netflow-hierarchy** 1.5.0 · API 1: A treemap is laid out at the width and height you pass.
+- 2026-11-07 · **netflow-circular** 1.3.0 · API 1: A chord ring fits the width and height you pass, names included.
+- 2026-11-07 · **memory-compression** 2.13.0 · API 2: warm() can take a sample of your own rows for a faster first unpack.
+- 2026-11-07 · **lzma-decode** 1.6.2 · API 1: The plain JavaScript decoder's first unpack in a page is faster, most in Chromium.
+- 2026-11-07 · **lzma-decode** 1.6.1 · API 1: The plain JavaScript decoder is faster in Firefox and WebKit.
 - 2026-11-07 · **lzma-decode** 1.6.0 · API 1: Repeat unpacks are faster: one WebAssembly Instance is kept between calls, up to 16 MB of memory
 - 2026-11-07 · **lzma-decode** 1.5.1 · API 1: The JavaScript decoder is faster again, now in WebKitGTK too: about a third faster on the first big file in every test browser.
 - 2026-11-07 · **lzma-decode** 1.5.0 · API 1: The JavaScript decoder (used when WebAssembly is blocked) unpacks about 1.5 to 2 times faster after the first file in Chromium and Firefox. The WebAssembly decoder unpacks about 15% faster in Chromium and Firefox.
+- 2026-11-07 · **lfc-pack** 0.6.2 · API 0: packStream is faster when it is fed many small pieces.
+- 2026-11-07 · **lfc-pack** 0.6.1 · API 0: New opt-in warm() makes the first save and open faster.
 - 2026-11-07 · **lfc-pack** 0.6.0 · API 0: New opt-in unpack(file, { rows: 'lazy' | 'lazycols' }): rows read their values when used, so opening a big file and reading a few fields is much faster. Off by default.
 - 2026-11-07 · **lfc-pack** 0.5.9 · API 0: open(): columns(i) and zone(i, key) for column work
 - 2026-11-07 · **lfc-pack** 0.5.8 · API 0: Firefox: faster first reads of IP-address columns
 - 2026-11-07 · **gpu-blur** 1.4.2 · API 1: Small drawn pictures pick the faster way on a phone, and Firefox keeps big drawn results in memory
 - 2026-11-07 · **gpu-blur** 1.4.1 · API 1: Auto uses the helpers for big bytes-out pictures: cloud 2048 x 2048 first call 80 to 61 ms in Chromium
+- 2026-11-07 · **elias-fano** 2.1.2 · API 2: Default block lists intersect 1.6 to 1.8 times faster and now beat roaring-wasm on spread-out values in Chromium and Firefox; decoding block lists up to 2 times faster.
+- 2026-11-07 · **elias-fano** 2.1.1 · API 2: Block lists: intersecting is 2 to 3 times faster with arrays: true, now faster than roaring-wasm on spread-out lists too.
+- 2026-11-07 · **elias-fano** 2.1.0 · API 2: New block lists (buildBlocks, openBlocks): bitmaps where values are dense, so intersecting and lookups beat roaring-wasm on dense data.
 - 2026-11-07 · **elias-fano** 2.0.2 · API 2: getMany and nextGEQMany (batches) take 0.79x to 0.88x the time; same answers.
 - 2026-11-06 · **zip-open** 1.20.1 · API 1: Fixed: an Excel file with a crafted number format could freeze the page for many seconds or minutes. It now opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.20.0 · API 1: Big text-heavy Excel files open 29 to 40% faster (14 to 35% on the first open in a page): a third thread unpacks the list of shared texts while the rows are read. Other files about the same. Same results.

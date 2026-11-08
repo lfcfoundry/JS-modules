@@ -2,6 +2,28 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.5 · API 1 · 2026-11-07
+
+### Quick
+Shapes whose outline is fully see-through no longer write stroke and stroke-width. Same pixels in 3 browsers. Text: hexbin 85 to 61 KB, density 31 to 24 KB, 20k-row area 353 to 269 KB. 20k-row area page time 0.82 Chromium, 0.85 Firefox; others level.
+
+### Details
+toSvg polys: stroke attributes only when the stroke's alpha is above 0 (no stroke is the SVG default). No API change.
+
+### Deep
+Less SVG text for shapes with no visible outline.
+
+## 1.10.4 · API 1 · 2026-11-07
+
+### Quick
+Solid opaque lines over 8,000 segments are written as pieces of 2048 that overlap by one segment, without building the full path text. 20k-point line: WebKitGTK 0.63, Firefox 0.88, Chromium 1.01; 10k: 0.86, 0.91, 0.93. At or below 8,000 segments nothing changes. Pixels: 99.6% the same for a 3-series 20k line, 98.3-98.7% for a dense self-crossing zigzag (edge pixels only).
+
+### Details
+toSvg curves: the piece path is chosen before the full d string is built (building both was what made an earlier 128-piece try 1.12-1.17x slower in Chromium and Firefox). WebKitGTK pays a fixed cost per path, so 512-piece splits made 5k-10k lines slower; 2048 above 8,000 segments is faster or level at every size tried. Approved by the owner on a card.
+
+### Deep
+Faster long line charts in WebKit.
+
 ## 1.10.3 · API 1 · 2026-11-07
 
 ### Quick
