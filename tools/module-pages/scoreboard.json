@@ -155,18 +155,26 @@
   },
   {
    "label": "elias-fano vs roaring-wasm, first value at or above x",
-   "x": 50,
+   "x": 38,
    "module": "elias-fano",
    "proof": [
-    "50 to 64 times faster with elias-fano"
+    "38 to 47 times faster with elias-fano flat lists"
    ]
   },
   {
-   "label": "elias-fano vs roaring-wasm, intersecting two lists",
-   "x": 0.25,
+   "label": "elias-fano (arrays: true) vs roaring-wasm, intersecting",
+   "x": 1.4,
    "module": "elias-fano",
    "proof": [
-    "intersecting (2 to 4 times faster)"
+    "1.4 to 3.1 times faster than roaring-wasm"
+   ]
+  },
+  {
+   "label": "elias-fano default block lists vs roaring-wasm, spread-out intersect",
+   "x": 0.7,
+   "module": "elias-fano",
+   "proof": [
+    "default block lists are 1.2 to 1.4 times slower"
    ]
   }
  ]
