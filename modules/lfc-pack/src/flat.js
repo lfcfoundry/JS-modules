@@ -387,11 +387,12 @@
   }
   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
   function dropSmallWasm() { TPLW = null; FSW = null; }   // trim(): the template and flat-scan helpers start again small when next needed
-  var FSW = null, FSB64 = "/*FS:BEGIN*//*FS:END*/";
+  var FSW = null, FSB64 = "/*FS:BEGIN*//*FS:END*/", FSP64 = "/*FP:BEGIN*//*FP:END*/";
   function fsw() {
     if (FSW) return FSW;
-    if (!MODS['FSB64']) MODS['FSB64'] = new WebAssembly.Module(fromB64(FSB64));
-    var x = new WebAssembly.Instance(MODS['FSB64'], {}).exports;
+    var fk = hasSimd() ? 'FSB64' : 'FSP64';   // flatscan.wasm counts with SIMD; flatscan-plain.wasm is the same code without it (same results)
+    if (!MODS[fk]) MODS[fk] = new WebAssembly.Module(fromB64(fk === 'FSB64' ? FSB64 : FSP64));
+    var x = new WebAssembly.Instance(MODS[fk], {}).exports;
     return (FSW = { x: x, heap: x.__heap_base.value });
   }
   // FD: a number column's scale is 10 to its largest fraction digit count, at least 100 for 1 or 2 digits (as before: same files), up to 9 digits like the JSON.parse path
@@ -443,7 +444,7 @@
     if (opts.noLists && nlist) return null;
     // scratch for text columns (hex ids, dictionaries, joined values), laid out only when the block has a text column: number-only blocks keep their wasm memory smaller
     var hasStr = 0, kt0 = new Uint8Array(mem.buffer, P.ktype, nk); for (j = 0; j < nk; j++) if (kt0[j] === 3) hasStr = 1;
-    if (asciiIn && hasStr) { lay('hexL', 4 * NK); lay('hoff', 4 * NK); lay('hex', (len >> 1) + 16); var T2 = 16; while (T2 < nrows + 2) T2 *= 2; lay('sht', 8 * T2); lay('kix', 4 * cells); lay('kixo', 4 * NK); lay('scodes', 4 * nrows + 16); lay('slab', 4 * nrows + 16);   /* a key has at most one value a row (scan rejects repeated keys), so the dictionary scratch is sized by rows */ lay('sout', len + cells + 16); lay('sres', 16); }
+    if (asciiIn && hasStr) { lay('hexL', 4 * NK); lay('hoff', 4 * NK); lay('hex', (len >> 1) + 16); var T2 = 16; while (T2 < nrows + 2) T2 *= 2; lay('sht', 16 * T2); lay('kix', 4 * cells); lay('kixo', 4 * NK); lay('scodes', 4 * nrows + 16); lay('slab', 4 * nrows + 16);   /* a key has at most one value a row (scan rejects repeated keys), so the dictionary scratch is sized by rows */ lay('sout', len + cells + 16); lay('sres', 16); }
     if (asciiIn && hasStr) { if (o > 1610612736) return null; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536)); m8 = new Uint8Array(mem.buffer); }
     var keys = [], ktype = new Uint8Array(mem.buffer, P.ktype, NK), kfd = new Uint8Array(mem.buffer, P.kfd, NK);
     var ckey = new Uint8Array(mem.buffer, P.ckey, nc), cval = new Float64Array(mem.buffer, P.cval, nc), cfd = new Uint8Array(mem.buffer, P.cfd, nc), llen = new Uint32Array(mem.buffer, P.llen, nlist), lval = new Uint32Array(mem.buffer, P.lval, nlv), clen = new Uint32Array(mem.buffer, P.clen, nc), text = null;

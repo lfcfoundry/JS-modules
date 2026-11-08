@@ -1,6 +1,9 @@
 // LFC-pack flat writer, fast path: scans NDJSON rows whose values are numbers (integers or decimals with a plain fraction), arrays of whole numbers, strings without escapes, true/false and null,
 // straight from the text bytes. Anything else (nested objects, escapes in strings, exponents, blank lines, CR, duplicate keys, integer-like keys, __proto__) returns a bail code and the caller uses the JSON.parse path.
 // No libc, no static buffers apart from two small tables; the caller lays every output array out in linear memory.
+#ifdef __wasm_simd128__
+#include <wasm_simd128.h>
+#endif
 typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u64; typedef long long i64;
 #define EXPORT(n) __attribute__((export_name(n)))
 #define MAXK 128
@@ -143,6 +146,13 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
 EXPORT("count") u32 count(const u8*in,u32 len,u32*out){   // newlines, colons, commas: bounds for the output arrays; out[3] is 1 when some byte is 128 or more
   /* 8 bytes at a time: a byte equal to t becomes 0 in w^T, and Z() sets the top bit of exactly the zero bytes (no carries between bytes), so a popcount counts them */
   u32 nl=0,co=0,cm=0,hi=0,i=0; u64 H=0;
+#ifdef __wasm_simd128__   /* the SIMD build (flatscan.wasm) counts 16 bytes a step; flatscan-plain.wasm keeps the 8-byte steps below, same counts */
+  { v128_t vn=wasm_i8x16_splat(10), vc=wasm_i8x16_splat(58), vm=wasm_i8x16_splat(44), hv=wasm_i8x16_splat(0);
+    for(;i+16<=len;i+=16){ v128_t w=wasm_v128_load(in+i);
+      nl+=(u32)__builtin_popcount(wasm_i8x16_bitmask(wasm_i8x16_eq(w,vn))); co+=(u32)__builtin_popcount(wasm_i8x16_bitmask(wasm_i8x16_eq(w,vc))); cm+=(u32)__builtin_popcount(wasm_i8x16_bitmask(wasm_i8x16_eq(w,vm)));
+      hv=wasm_v128_or(hv,w); }
+    if(wasm_i8x16_bitmask(hv)) hi=1; }
+#endif
   #define LO7 0x7F7F7F7F7F7F7F7FULL
   #define Z(x) (~((((x)&LO7)+LO7)|(x)|LO7))
   for(;i+8<=len;i+=8){ u64 w; __builtin_memcpy(&w,in+i,8); H|=w;
@@ -179,7 +189,13 @@ EXPORT("keyix") void keyix(u32 nc,const u8*ckey,u32 nk,const u32*count,u32*ix,u3
   for(i=0;i<nc;i++) ix[GWP[ckey[i]]++]=i;
 }
 static inline u32 rotl(u32 x,u32 r){ return (x<<r)|(x>>(32-r)); }
-static inline u32 hbytes(const u8*a,u32 L){   /* 4 bytes a step (murmur3 mix); only the table's spread depends on it, never the output */
+static inline u32 hbytes_slow(const u8*a,u32 L);
+static inline u32 hbytes(const u8*a,u32 L){   /* 4 to 16 bytes: two overlapping loads and one multiply-mix, no loop */
+  if(L>=8&&L<=16){ u64 x,y; __builtin_memcpy(&x,a,8); __builtin_memcpy(&y,a+L-8,8); x*=0x9E3779B97F4A7C15ULL; y=(y^(y>>29))*0xBF58476D1CE4E5B9ULL; x^=y^((u64)L<<56); x^=x>>32; x*=0x94D049BB133111EBULL; return (u32)(x>>32); }
+  if(L<8&&L>=4){ u32 p,q; __builtin_memcpy(&p,a,4); __builtin_memcpy(&q,a+L-4,4); u64 x=((u64)p<<32|q)^((u64)L<<59); x*=0x9E3779B97F4A7C15ULL; x^=x>>32; x*=0x94D049BB133111EBULL; return (u32)(x>>32); }
+  return hbytes_slow(a,L);
+}
+static inline u32 hbytes_slow(const u8*a,u32 L){   /* 4 bytes a step (murmur3 mix); only the table's spread depends on it, never the output */
   u32 h=L*0x9E3779B1u,q=0,w;
   for(;q+4<=L;q+=4){ __builtin_memcpy(&w,a+q,4); w*=0xcc9e2d51u; w=rotl(w,15); w*=0x1b873593u; h^=w; h=rotl(h,13)*5+0xe6546b64u; }
   w=0; for(;q<L;q++) w=(w<<8)|a[q]; w*=0xcc9e2d51u; w=rotl(w,15); w*=0x1b873593u; h^=w;
@@ -188,22 +204,22 @@ static inline u32 hbytes(const u8*a,u32 L){   /* 4 bytes a step (murmur3 mix); o
 static inline u32 sameb(const u8*a,const u8*b,u32 L){ u32 q=0; u64 x,y; for(;q+8<=L;q+=8){ __builtin_memcpy(&x,a+q,8); __builtin_memcpy(&y,b+q,8); if(x!=y) return 0; } for(;q<L;q++) if(a[q]!=b[q]) return 0; return 1; }
 static inline u32 digdot(const u8*a,u32 L){ u32 q; for(q=0;q<L;q++){ u8 c=a[q]; if(!((c>=48&&c<=57)||c==46)) return 0; } return 1; }
 // first-seen dictionary of key k's n string values (cells ix[0..n)): codes, labels (cell of each distinct value's first use), and out = the distinct values (or, with D*4 > n, all values) joined by 0 bytes.
-// ht: 2*T u32 (id+1, hash). res: [0] out length, [1] every value only digits and dots, [2] more than n/2 distinct (out = all values joined), [3] every value 36 long
+// ht: 4*T u32 (id+1, hash, offset, length: a probe compares inside the table, no second lookup). res: [0] out length, [1] every value only digits and dots, [2] more than n/2 distinct (out = all values joined), [3] every value 36 long
 EXPORT("strdict") u32 strdict(const u8*in,const double*cval,const u32*clen,const u32*ix,u32 n,u32*ht,u32*codes,u32*lab,u8*out,u32*res){
   u32 T=16,i,D=0,m=0,all36=1,dd=1,L,o,h,s,c2;
   res[1]=0; res[2]=0; res[3]=0;
   while(T<n+2) T<<=1;
-  for(i=0;i<2*T;i+=2) ht[i]=0;
+  for(i=0;i<4*T;i+=4) ht[i]=0;
   for(m=0;m<n;m++){ c2=ix[m]; s=(u32)cval[c2]; L=clen[c2]; const u8*a=in+s;
     if(L!=36) all36=0;
     if(dd&&!digdot(a,L)) dd=0;
     h=hbytes(a,L); u32 at=h&(T-1),e,id=0xFFFFFFFFu;
-    while((e=ht[2*at])!=0){ if(ht[2*at+1]==h){ u32 c3=lab[e-1]; if(clen[c3]==L&&sameb(a,in+(u32)cval[c3],L)){ id=e-1; break; } } at=(at+1)&(T-1); }
+    while((e=ht[4*at])!=0){ if(ht[4*at+1]==h&&ht[4*at+3]==L&&sameb(a,in+ht[4*at+2],L)){ id=e-1; break; } at=(at+1)&(T-1); }
     if(id==0xFFFFFFFFu){ if(D*2>n){   /* more than n/2 distinct values: encodeColumn's dictionary loop stops here too; hand over every value joined by 0 bytes ('s'), and whether every value is 36 long (res[3]) or only digits and dots (res[1]) */
         o=0; all36=1; dd=1;
         for(i=0;i<n;i++){ c2=ix[i]; if(i) out[o++]=0; s=(u32)cval[c2]; L=clen[c2]; if(L!=36) all36=0; if(dd&&!digdot(in+s,L)) dd=0; __builtin_memcpy(out+o,in+s,L); o+=L; }
         res[0]=o; res[1]=dd; res[2]=1; res[3]=all36; return 0; }
-      id=D++; lab[id]=c2; ht[2*at]=id+1; ht[2*at+1]=h; }
+      id=D++; lab[id]=c2; ht[4*at]=id+1; ht[4*at+1]=h; ht[4*at+2]=s; ht[4*at+3]=L; }
     codes[m]=id; }
   res[1]=dd; if(D*2>n||all36||dd) return 0;
   o=0;

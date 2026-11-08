@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.14.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.7.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.7.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.13.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -71,6 +71,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-08 · **memory-compression** 2.14.1 · API 2: Unpacking lists of small tuples (coordinate pairs, name and count pairs) is up to 10% faster in Firefox; same data.
 - 2026-11-08 · **memory-compression** 2.14.0 · API 2: warm() also warms a small view and pager, so their first use is 1 to 4 ms faster.
 - 2026-11-08 · **lzma-decode** 1.7.0 · API 1: New optional lzmaDecode.warm(): call it from an idle callback and the first plain-JavaScript unpack is 4-9% faster (6-8 ms of idle work).
+- 2026-11-08 · **lfc-pack** 0.7.1 · API 0: Packing flat rows is 4 to 11% faster, same file bytes.
 - 2026-11-08 · **lfc-pack** 0.7.0 · API 0: packBlock() and packStream().pushPacked(): pack chunks in workers, same file bytes
 - 2026-11-07 · **zip-open** 1.20.2 · API 1: Big Excel sheets with mostly numbers open a little faster the first time (about 1 to 8%). Sheets with mostly text can open up to 9% slower the third time in a row in Firefox and WebKit-based browsers.
 - 2026-11-07 · **sprite-baker** 1.11.0 · API 1: Opt-in release() frees the wasm engine's 16 MB of memory between bakes
