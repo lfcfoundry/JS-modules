@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.14.7 (API 2)
+ * Version 2.14.8 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -391,15 +391,17 @@ var NetflowPlot = (function () {
     F.L = Math.min(220, 20 + 7 * Math.min(28, Math.max.apply(null, xc.list.map(function (s) { return String(s).length; }).concat([4]))));
     var band = bandAxis(xc.list, F.Tp, F.B, 0), val = axisFor(all, false, F.L, F.R - (F.clean && !ck ? 44 : 0), false), dv = F.clean && !ck && band.step >= 11, vt = fmtFor(all);   /* clean look, one dot per name: each dot carries its value, no gridlines or number axis (since 2.14.6) */
     if (dv && val.fmt && val.list.length > 1) { var vstep = Math.abs(val.list[1] - val.list[0]), vdp = vstep < 1 ? Math.min(6, Math.ceil(-Math.log10(vstep) - 1e-9) + 1) : -1; if (vdp >= 0) vt = function (v) { return v.toFixed(vdp); }; }   /* values one decimal finer than the scale's steps, so close averages read apart */
-    if (!dv) val.list.forEach(function (t) { var x = val.map(t); F.line([x, F.Tp, x, F.B], 1, F.alpha(F.T.boxLine, 0.35)); F.text(x, F.B + 16, val.fmt ? val.fmt(t) : fmtNum(t), 11, F.alpha(F.T.muted, 0.9)); });
+    var tkT = function (t) { return val.fmt ? val.fmt(t) : fmtNum(t); }, tkE = 1; while (tkE < val.list.length && val.list.some(function (t, ti) { if (ti % tkE || ti + tkE >= val.list.length) return false; var t2 = val.list[ti + tkE]; return Math.abs(val.map(t2) - val.map(t)) < (tkT(t).length + tkT(t2).length) * CW / 2 + 10; })) tkE++;   /* every 2nd (3rd, ...) number when two would touch (since 2.14.8) */
+    if (!dv) val.list.forEach(function (t, ti) { var x = val.map(t); F.line([x, F.Tp, x, F.B], 1, F.alpha(F.T.boxLine, 0.35)); if (ti % tkE === 0) F.text(x, F.B + 16, tkT(t), 11, F.alpha(F.T.muted, 0.9)); });
     else if (sp.y) F.text(F.L, F.Tp - 8, axisName(how === 'mean' ? 'Average ' + tName(sp.y) : sp.y) + (val.lo > 0 ? ', scale starts at ' + (val.fmt ? val.fmt(val.lo) : fmtNum(val.lo)) : ''), 11, F.alpha(F.T.muted, 0.9), { align: 'l' });   /* the name of the values, and a plain note when the scale does not start at zero */
-    xc.list.forEach(function (x) {
+    var nEvery = Math.max(1, Math.ceil(13 / Math.max(1, band.step))), dr = Math.max(2, Math.min(5, band.step / 2 - 0.5));   /* names 13 px apart at least (every k-th name when the rows are thinner) and dots that fit their row (since 2.14.8; before, names and dots piled up) */
+    xc.list.forEach(function (x, xi) {
       var y = band.map(x) + band.bw / 2, xs = [];
       F.line([F.L, y, F.R, y], 1, F.alpha(F.T.boxLine, 0.25));
       cc.list.forEach(function (c, ci) { var e = cell.get(x + '\u0000' + c); if (e && e.v === e.v) xs.push(val.map(e.v)); });
       if (xs.length > 1) F.line([Math.min.apply(null, xs), y, Math.max.apply(null, xs), y], 2, F.alpha(F.T.muted, 0.8));
-      cc.list.forEach(function (c, ci) { var e = cell.get(x + '\u0000' + c); if (e && e.v === e.v) { F.dot(val.map(e.v), y, 5, F.color(ci), { rows: e.rows, t: x + (ck ? ' \u00b7 ' + c : '') + ': ' + fmtNum(e.v) }); if (dv) F.text(val.map(e.v) + 9, y + 4, vt(e.v), 11, readable(F.color(ci), F.T), { align: 'l', bold: true }); } });
-      F.text(F.L - 8, y + 4, clip(x === '' ? '(blank)' : x, 28), 11, F.T.fg, { align: 'r' });
+      cc.list.forEach(function (c, ci) { var e = cell.get(x + '\u0000' + c); if (e && e.v === e.v) { F.dot(val.map(e.v), y, dr, F.color(ci), { rows: e.rows, t: x + (ck ? ' \u00b7 ' + c : '') + ': ' + fmtNum(e.v) }); if (dv) F.text(val.map(e.v) + dr + 4, y + 4, vt(e.v), 11, readable(F.color(ci), F.T), { align: 'l', bold: true }); } });
+      if (xi % nEvery === 0) F.text(F.L - 8, y + 4, clip(x === '' ? '(blank)' : x, 28), 11, F.T.fg, { align: 'r' });
     });
     if (ck) F.legend(sp.color, cc.list);
   };
@@ -437,7 +439,9 @@ var NetflowPlot = (function () {
     if (ends && s.list.length > Math.min(16, Math.max(10, Math.floor((F.B - F.Tp) / 14)))) { ends = false; F.keyRow = true; F.Tp = 44; }   /* names at the line ends while each can have 14 px (up to 16 lines), else the key row */
     /* clean look: no number axis and no gridlines; each line's first and last values are written on it (a single line also gets its high and low) */
     var vt = fmtFor(allY), lastY = function (l) { for (var j = l.ys.length - 1; j >= 0; j--) if (l.ys[j] === l.ys[j]) return l.ys[j]; return NaN; };
-    if (ends) { s.list.forEach(function (l) { ew = Math.max(ew, (clip(l.name || '(blank)', 16).length + 1 + vt(lastY(l)).length) * CW); }); F.R = Math.max(F.L + 120, F.R - ew - 8); }
+    var nameRows = function (l, w) { var n = l.name || '(blank)'; if (!w || n.length <= 16 || n.indexOf(' ') < 0) return [clip(n, 16)]; var ws = n.split(' '), a = ws[0], k = 1; while (k < ws.length && (a + ' ' + ws[k]).length <= 16) a += ' ' + ws[k++]; return k < ws.length ? [clip(a, 16), clip(ws.slice(k).join(' '), 16)] : [clip(a, 16)]; };
+    var wrapN = false; if (ends) { var rows = 0; s.list.forEach(function (l) { rows += nameRows(l, true).length; }); wrapN = (rows - 1) * 14 <= F.B - 1 - (F.Tp + 8); }   /* a long name goes on two lines, when every name still gets its own 14 px rows (since 2.14.8; before, it was cut off with ...) */
+    if (ends) { s.list.forEach(function (l) { var nr = nameRows(l, wrapN); nr[nr.length - 1] += F.clean ? ' ' + vt(lastY(l)) : ''; nr.forEach(function (t) { ew = Math.max(ew, t.length * CW); }); }); F.R = Math.max(F.L + 120, F.R - ew - 8); }
     else if (F.clean && s.list.length === 1) { var lw = vt(lastY(s.list[0])).length * CW; F.R = Math.max(F.L + 120, F.R - lw - 8); }
     var ax = axisFor(allX, s.time, F.L, F.R, false, 8), ay = axisFor(allY, false, F.B, F.Tp, !!sp.zero);
     if (F.clean) F.noY = true;
@@ -458,16 +462,16 @@ var NetflowPlot = (function () {
           [hiK, loK].forEach(function (k3, w) { if (nk < 3 || k3 === fi || k3 === lk || (w && l.ys[loK] === l.ys[hiK])) return; var hx = ax.map(l.xs[k3]), hy = ay.map(l.ys[k3]), side = w ? hy + 16 > F.B - 2 : hy - 8 < F.Tp + 2; F.text(side ? hx + 6 : hx, side ? Math.min(hy + 4, F.B - 1) : hy + (w ? 16 : -8), vt(l.ys[k3]), 11, readable(col, F.T), side ? { bold: true, align: 'l' } : { bold: true }); });   /* (since 2.14.1 a value beside the point stays above the bottom edge, clear of the dates under it) beside the point when above or below would leave the plot */
         }
       }
-      if (ends && pts.length) tags.push({ x: pts[pts.length - 2] + 6, y: pts[pts.length - 1] + 4, t: clip(l.name || '(blank)', 16) + (F.clean ? ' ' + vt(lastY(l)) : ''), c: readable(col, F.T) });
+      if (ends && pts.length) { var nr = nameRows(l, wrapN); nr[nr.length - 1] += F.clean ? ' ' + vt(lastY(l)) : ''; tags.push({ x: pts[pts.length - 2] + 6, y: pts[pts.length - 1] + 4, t: nr, c: readable(col, F.T) }); }
       else if (s.list.length > 1 && pts.length && !F.keyRow) F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, clip(l.name || '(blank)', 16), 11, col, { align: 'l' });
     });
     if (tags.length) {   /* names at the line ends, moved apart (14 px since 2.14.0, was 13) so they never overlap, and kept inside the chart */
       var tx = 0; tags.forEach(function (g) { if (g.x > tx) tx = g.x; }); tags.forEach(function (g) { g.x = tx; });   /* one column of names after the last line end, so a name never sits on a line that runs on past where its own line stopped (since 2.14.7) */
       tags.sort(function (a, b) { return a.y - b.y; });
       var i, lo = F.Tp + 8, hi = F.B - 1;   /* (since 2.14.0: F.B - 1, was F.B + 4, so the lowest name stays clear of the year under the corner) */
-      for (i = 0; i < tags.length; i++) tags[i].y = Math.max(tags[i].y, i ? tags[i - 1].y + 14 : lo);
-      for (i = tags.length - 1; i >= 0; i--) tags[i].y = Math.min(tags[i].y, i < tags.length - 1 ? tags[i + 1].y - 14 : hi);
-      tags.forEach(function (g) { F.text(g.x, g.y, g.t, 11, g.c, { align: 'l', bold: true }); });
+      for (i = 0; i < tags.length; i++) tags[i].y = Math.max(tags[i].y, i ? tags[i - 1].y + 14 * tags[i - 1].t.length : lo);   /* a two-line name takes two rows */
+      for (i = tags.length - 1; i >= 0; i--) tags[i].y = Math.min(tags[i].y, i < tags.length - 1 ? tags[i + 1].y - 14 * tags[i].t.length : hi - 14 * (tags[i].t.length - 1));
+      tags.forEach(function (g) { g.t.forEach(function (t, r) { F.text(g.x, g.y + 14 * r, t, 11, g.c, { align: 'l', bold: true }); }); });
     }
     if (starts.length) {   /* first values left of their lines: each stays within 7 px of its point; one that would touch a value already placed is left out (visuals review, 2026.11.07) */
       var kept = [], lo2 = F.Tp + 8, hi2 = F.B - 1;

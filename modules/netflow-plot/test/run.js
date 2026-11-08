@@ -276,5 +276,14 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const more = Sk.labels.find((l) => /^\+\d+ more$/.test(l.t)), keys = Sk.labels.filter((l) => /^group_name/.test(l.t) && l.y === (more && more.y));
   ok(more && keys.length >= 1 && keys.every((k) => k.x + k.t.length * 6.6 < more.x), 'key row: "+N more" sits after the last name, never on it');
 }
+{ /* 2.14.8: long line names wrap instead of being cut; thin dot plots thin their names */
+  const yrs = [2000, 2001, 2002], names = ['Wholesale and Retail Trade', 'Leisure and hospitality', 'Construction'], lr = [];
+  names.forEach((n, k) => yrs.forEach((y) => lr.push({ year: y, series: n, count: 100 * (k + 1) + y % 7 })));
+  const Sl = P.make(lr, { type: 'line', x: 'year', y: 'count', color: 'series' }, { width: 420, height: 300 }, global.NetflowScene), lt = Sl.labels.map((l) => l.t);
+  ok(lt.includes('Wholesale and') && lt.some((t) => /^Retail Trade /.test(t)) && !lt.some((t) => /\u2026|\.\.\./.test(t)), 'a long line name wraps onto two lines, not cut: ' + lt.join(' | '));
+  const dr = []; for (let i = 0; i < 20; i++) dr.push({ name: 'n' + i, v: 47.658 + i * 0.0005 });
+  const Sd = P.make(dr, { type: 'dotplot', x: 'name', y: 'v' }, { width: 300, height: 200 }, global.NetflowScene), nm = Sd.labels.filter((l) => /^n\d+$/.test(l.t)).sort((a, b) => a.y - b.y);
+  ok(nm.length < 20 && nm.every((l, i) => !i || l.y - nm[i - 1].y >= 13), 'a thin dot plot writes names 13 px apart at least (' + nm.length + ' of 20)');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);
