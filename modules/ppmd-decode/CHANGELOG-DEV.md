@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.1 · API 1 · 2026-11-08
+
+### Quick
+Three rare branches were rewritten so Chromium no longer throws away the optimized decoder on first use. First decode vs 1.6.0: Chromium 0.93 (400 KB) and 1.00 (3 MB), Firefox 0.96 and 1.00, WebKitGTK 1.00 and 1.00 (41 pairs). Second decode: 0.96, 0.97, 1.03. Same output.
+
+### Details
+rescale() is called through one helper, rescaleIf(f); updateModel's two rare branches are written as expressions with the same rule. No API change. Requested by the owner (standing research order).
+
+### Deep
+The rare branches had no type feedback when V8 optimized, so their first use deoptimized (2-3 per decode). Brief: js-modules-research/ppmd-decode/hoist-2026.11.07/BRIEF-apply-p21.md.
+
 ## 1.6.0 · API 1 · 2026-11-07
 
 ### Quick

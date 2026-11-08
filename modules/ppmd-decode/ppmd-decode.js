@@ -1,5 +1,5 @@
 /* ppmd-decode: a PPMd (variant H, "PPMd7" as 7-Zip writes it) decoder. Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
-   Version 1.6.0 (API 1)
+   Version 1.6.1 (API 1)
 
    Decodes a raw PPMd7 stream (the range-coder bytes 7-Zip stores inside a .7z archive; no header) into a Uint8Array.
 
@@ -328,7 +328,7 @@ function factory(memSize) {   // one model per memory size: the helpers below ar
       }
       if (--orderFall === 0) {
         successor = fSuccessor;
-        if (maxContext !== minContext) { text--; }
+        text -= maxContext !== minContext ? 1 : 0;   // written without a branch, so the engine has seen this subtraction before it optimizes
       }
     } else {
       setSucc(foundState, successor);
@@ -359,7 +359,7 @@ function factory(memSize) {   // one model per memory size: the helpers below ar
         if (s === 0) { restartModel(); return; }
         copyState(s, c + 2);
         U32[(c >> 2) + 1] = s;
-        if (U8[s + 1] < MAX_FREQ / 4 - 1) { U8[s + 1] <<= 1; } else { U8[s + 1] = MAX_FREQ - 4; }
+        var f2 = U8[s + 1] << 1; U8[s + 1] = f2 < 60 ? f2 : 120;   // same rule as f < MAX_FREQ / 4 - 1 ? 2f : MAX_FREQ - 4, with the shift always run (no rare-branch deopt)
         U16[(c >> 1) + 1] = U8[s + 1] + initEsc + (ns > 3 ? 1 : 0);
       }
       sfq = U16[(c >> 1) + 1];
@@ -382,6 +382,7 @@ function factory(memSize) {   // one model per memory size: the helpers below ar
   }
 
   /* Halve all frequencies of minContext (when one exceeds MAX_FREQ). */
+  function rescaleIf(f) { if (f > MAX_FREQ) rescale(); }   // one shared call site: the engine sees the first rescale once, not once per caller
   function rescale() {
     var mc = minContext, stats = U32[(mc >> 2) + 1], s = foundState;
     var tf, s1, adder, sumFreq, escFreq, i, numStats0, n0, n1;
@@ -467,7 +468,7 @@ function factory(memSize) {   // one model per memory size: the helpers below ar
     if (U8[s + 1] > U8[s - 5]) {
       swapStates(s, s - 6);
       foundState = s -= 6;
-      if (U8[s + 1] > MAX_FREQ) { rescale(); }
+      rescaleIf(U8[s + 1]);
     }
     nextContext();
   }
@@ -476,7 +477,7 @@ function factory(memSize) {   // one model per memory size: the helpers below ar
     runLength += prevSuccess;
     U16[(minContext >> 1) + 1] += 4;
     U8[foundState + 1] += 4;
-    if (U8[foundState + 1] > MAX_FREQ) { rescale(); }
+    rescaleIf(U8[foundState + 1]);
     nextContext();
   }
   function updateBin() {
@@ -488,7 +489,7 @@ function factory(memSize) {   // one model per memory size: the helpers below ar
   function update2() {
     U16[(minContext >> 1) + 1] += 4;
     U8[foundState + 1] += 4;
-    if (U8[foundState + 1] > MAX_FREQ) { rescale(); }
+    rescaleIf(U8[foundState + 1]);
     runLength = initRL;
     updateModel();
   }
