@@ -50,3 +50,33 @@ Plain arrays still read single lists faster, at about 2x the memory.
 | Chromium 155 | 0.75 | 0.80 |
 | Firefox 158 | 0.80 | 0.72 |
 | WebKitGTK 2.52.6 | 0.98 (no gain) | 0.65 |
+
+**Against roaring-wasm and FastIntegerCompression, cloud-browser runs.**
+
+Compared: elias-fano against roaring-wasm 1.1.0 and FastIntegerCompression 0.1.0 (1,000,000 sorted values with gaps of 1 to 500, size in bytes, smaller is better).
+
+<!-- title: elias-fano holds 1,000,000 spread-out sorted values in 0.66 of the bytes of roaring-wasm and 0.77 of FastIntegerCompression -->
+| way | bytes |
+|---|---:|
+| elias-fano | 1336608 |
+| FastIntegerCompression | 1746299 |
+| roaring-wasm | 2030536 |
+
+Compared: elias-fano against roaring-wasm on "first value at or above x" (20,000 lookups, spread-out values, ms, lower is faster).
+
+<!-- title: Finding the first value at or above x is 50 to 64 times faster with elias-fano than with roaring-wasm on spread-out values -->
+| way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| elias-fano | 0.83 | 1.0 | 1.0 |
+| roaring-wasm | 52.8 | 51 | 50 |
+
+Compared: elias-fano against roaring-wasm and FastIntegerCompression on decoding everything (spread-out values, ms, lower is faster).
+
+<!-- title: Decoding everything, elias-fano is 2.1 to 2.8 times slower than roaring-wasm and 2 to 3 times faster than FastIntegerCompression -->
+| way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| roaring-wasm | 2.2 | 2.7 | 1.3 |
+| elias-fano | 4.6 | 6.0 | 3.7 |
+| FastIntegerCompression | 9.1 | 12 | 11.3 |
+
+Cloud-browser runs (shared machine, not the laptop), one page per browser, median of 11 rounds. Where roaring-wasm wins: size on dense values (about half; the partitioned form gets within about 7%), "is x present" on dense values (2 to 3 times faster), decoding everything (1.3 to 2.8 times faster) and intersecting (2 to 4 times faster). FastIntegerCompression has no lookups or intersecting.
