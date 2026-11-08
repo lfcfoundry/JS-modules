@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.4 · API 1 · 2026-11-07
+
+### Quick
+The four rare single-bit decodes in the match step share one small top-level helper, lzmaBit, so Chromium no longer throws away the optimized match step on its first unpack. First unpack vs 1.6.3: Chromium 0.93 (500 KB) and 0.92 (2.5 MB); Firefox 0.81 and 1.02; WebKitGTK 0.97 and 0.93. Later unpacks: Chromium 0.99, Firefox 0.85, WebKitGTK 1.00. Same output.
+
+### Details
+New internal helper lzmaBit(P, src, i, S) above lzmaMatchStep, used for the short-rep bit, the two rep-distance choices and the second length choice. No API change. Requested by the owner (standing research order).
+
+### Deep
+Those rare sites collected small-integer feedback in V8, and the first range value above 2^30 there deoptimized the match step ('not a Smi', 1-2 per first unpack). One shared site sees full-range values early. Brief: js-modules-research/lzma-decode/kernel-2026.11.07/BRIEF-apply-js-j26.md.
+
 ## 1.6.3 · API 1 · 2026-11-07
 
 ### Quick
