@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.7.1 · API 0 · 2026-11-08
+
+### Quick
+Flat-row packing is a few percent faster in all three browsers (WebAssembly line counter reads 16 bytes at a time, quicker string-dictionary lookups). Same file bytes, no API change. First pack of 100,000 5-column rows (8 MB): Chromium 0.95, Firefox 0.96, WebKitGTK 0.89; second pack 0.88, 1.00, 0.87.
+
+### Details
+flatscan.wasm now counts newlines, colons and commas with SIMD (flatscan-plain.wasm, the same code without it, loads when the browser has no SIMD, as core.wasm already does). The string dictionary hashes 4 to 16 byte values with two overlapping loads and keeps each value's offset and length inside its table slot, so a hit needs no second lookup. Node alone: line counter 0.94, hash 0.975, table 0.984, all three 0.86. 100,000 rows of id, name, city, date, score, fresh page, 15 paired runs, order alternated, median: first pack Chromium 156 99 to 94 ms (0.95), Firefox 158 84 to 81 (0.96), WebKitGTK 2.52.6 114 to 101 (0.89); second pack 53 to 47 (0.88), 54 to 54 (1.00), 54 to 47 (0.87). Output bytes identical in all runs (482,185) and with the SIMD probe forced off. The full file grows by about 22 KB (the second flat scanner); the decoder-only file does not.
+
+### Deep
+Requested by the owner (11.08): change the scanners for a performance gain. Profile (Node cpu profile, 32 MB of rows): string dictionary 19%, flat scanner 19%, zstd 9%, line counter 9% before this change (4% after). Tried alone and stacked; kept all three. Not changed: scanner (already word-at-a-time digits and predicted keys), number-column loops in JavaScript (about 17% together, next lead).
+
 ## 0.7.0 · API 0 · 2026-11-08
 
 ### Quick
