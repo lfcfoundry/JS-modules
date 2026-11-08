@@ -134,7 +134,7 @@ Curtains, flying elements, lettering and 3D-looking sprites.
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 | 50.3 | 20.6 | A written style guide and demo for the soft, glossy cartoon 3D look in CSS and SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/cartoon-3d-kit/demo.html) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 | 18.1 | 6.3 | A big element scrolls away and a copy flies to its sticky mini version. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fly-to-mini/demo.html) |
 | [gpu-blur](modules/gpu-blur/README.md) | 1.4.2 | 73.9 | 22.9 | Blurs a picture on the card (WebGL 2), in WebAssembly or plain JavaScript; same picture every way. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gpu-blur/demo.html) |
-| [sprite-baker](modules/sprite-baker/README.md) | 1.10.0 | 76.3 | 23.5 | Tiny software 3D rasterizer that bakes shaded sprites to canvases. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sprite-baker/demo.html) |
+| [sprite-baker](modules/sprite-baker/README.md) | 1.11.0 | 76.3 | 23.5 | Tiny software 3D rasterizer that bakes shaded sprites to canvases. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sprite-baker/demo.html) |
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.3 | 48.0 | 17.1 | Velvet stage curtains that slide shut over a page and fly open. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/stage-curtains/demo.html) |
 | [sticker-text](modules/sticker-text/README.md) | 1.2.0 | 5.5 | 2.3 | Die-cut sticker lettering in plain CSS, no images. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/sticker-text/demo.html) |
 
@@ -189,8 +189,8 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 2.1.0 | 112.3 | 37.4 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.6.0 | 384.2 | 200.0 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
-| [memory-compression](modules/memory-compression/README.md) | 2.12.1 | 410.7 | 119.1 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.6.1 | 385.7 | 200.5 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [memory-compression](modules/memory-compression/README.md) | 2.13.0 | 411.1 | 119.2 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 | 62.9 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 
@@ -211,9 +211,9 @@ Draw maps, flow charts and animated pictures from data.
 |---|---|---:|---:|---|---|
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 | 30.9 | 9.7 | Turns pictures into an MP4 or WebM video file. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/clip-writer/demo.html) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 | 45.8 | 17.7 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
-| [netflow-circular](modules/netflow-circular/README.md) | 1.2.0 | 22.0 | 7.9 | Chord and Bundles views for netflow-engine, drawn with netflow-scene. | — |
+| [netflow-circular](modules/netflow-circular/README.md) | 1.3.0 | 22.9 | 8.3 | Chord and Bundles views for netflow-engine, drawn with netflow-scene. | — |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 | 209.9 | 65.9 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.4.2 | 55.4 | 18.9 | Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine. | — |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.5.0 | 55.6 | 19.0 | Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine. | — |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 | 64.2 | 22.7 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.14.6 | 115.3 | 36.7 | 22 plain chart types from a table, drawn with netflow-scene. | — |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.12.0 | 75.8 | 27.0 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
@@ -225,10 +225,10 @@ Open zip and Excel files safely, and pack a finished page into a smaller file th
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [lzma-decode](modules/lzma-decode/README.md) | 1.6.0 | 27.4 | 8.5 | LZMA decoder: WebAssembly first, small readable JavaScript fallback; tested against Python's lzma. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/lzma-pack/example/packed-base64.html) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.6.1 | 27.3 | 8.5 | LZMA decoder: WebAssembly first, small readable JavaScript fallback; tested against Python's lzma. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/lzma-pack/example/packed-base64.html) |
 | [lzma-pack](tools/lzma-pack/README.md) *(tool)* | 2.0.4 | 30.3 | 11.5 | Packs one HTML file into a smaller self-unpacking file with LZMA (Python 3). | — |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 | 105.8 | 60.5 | Pcodec number compression for web pages: unpack, and optionally pack, big lists of numbers. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pcodec-js/demo.html) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.0 | 48.6 | 17.0 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.1 | 48.7 | 17.0 | A PPMd (7-Zip PPMd7) decoder: WebAssembly first, JavaScript fallback; smaller than LZMA. | [Demo](https://lfcfoundry.github.io/JS-modules/tools/ppmd-pack/example/packed-base64.html) |
 | [ppmd-pack](tools/ppmd-pack/README.md) *(tool)* | 2.0.3 | 48.5 | 14.8 | Packs one HTML file into a self-unpacking file with PPMd (pure Python). | — |
 | [zip-open](modules/zip-open/README.md) | 1.20.2 | 174.8 | 61.8 | Opens .zip and .xlsx files safely, with limits counted on what really unpacks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/zip-open/demo.html) |
 

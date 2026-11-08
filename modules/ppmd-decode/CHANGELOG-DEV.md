@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-11-07
+
+### Quick
+Range coder kept in 32-bit integers (Math.imul, signed compare flip): first decode 0.87x Chromium 155, 0.96x Firefox 158, 0.88x WebKitGTK 2.52.6; laptop Firefox 160 0.97x, Chromium 156 0.98x. Same output.
+
+### Details
+decodeAll's range coder keeps rng and code as 32-bit integers instead of doubles with >>> 0 after every step. Products use Math.imul, the probability compare flips the top bit, divisions read unsigned values. No format or API change. Requested by the owner.
+
+### Deep
+Faster plain-JavaScript decode; same output.
+
 ## 1.5.0 · API 1 · 2026-11-06
 
 ### Quick

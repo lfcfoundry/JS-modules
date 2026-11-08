@@ -8,6 +8,8 @@ Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Found
 
 ## What it is and how it works
 
+**Load order:** `netflow-scene.js`, then `netflow-plot.js` (this module draws through [netflow-scene](../netflow-scene/README.md)).
+
 Plain charts from a table's columns: 22 chart types, drawn as the same drawing lists a [netflow-scene](../netflow-scene/README.md) map picture uses (rects, dots, curves, polys, labels).
 
 - `make(rows, spec, options, NetflowScene)` reads the columns named in `spec` and returns a scene.
@@ -100,7 +102,7 @@ var hit = NetflowPlot.markAt(S, x, y);   // { rows, t } or null
 - `spec`: `type` (one of `NetflowPlot.TYPES`), `x`, `y`, `color`, `size`, `agg` (`sum`, `mean`, `count`, `min`, `max`, `median`), `stack` (`stack`, `group`, `normalize`, `stream`, `none`), `horizontal`, `top` (bars: the N biggest plus one bar for the rest, named Others; for a value that does not add up, such as a rate, that bar is the average and is named "Others, average"), `bins`, `smooth` (moving average window), `index` (lines from 100), `cols` (parallel lines and scatter matrix), `sort` (`value`, `name`, `none`).
 - Auto charts (since 2.11.0): a bar pick with more than 25 names and no values below zero becomes the 10 biggest plus Others, laid sideways so every name fits; pass `top: false` to keep every bar. Bar, dot and line charts whose values are all fractions between 0 and 1 (each bar one row or an average, and a name that is not a p-value, correlation, score or index) are written as percents; pass `percent: false` to keep plain numbers.
 - Colors (since 2.12.0): bars and boxes use the same mauve-first colors as every other chart; a bar chart that goes below zero keeps navy above and red below. The Others bar of a top-N chart is light gray. Up to 16 lines are named at their ends when each has 14 px of height; with more, the key row comes back and the start values are left out.
-- `options`: `theme`, `palette`, `width`, `height`, `get`, and the optional `title`, `subtitle`, `source`, `highlight`.
+- `options`: `theme`, `palette`, `width`, `height`, `get`, and the optional `title`, `subtitle`, `source`, `highlight`, and `frame: true` (or `theme: 'editorial'`) for the opt-in Economist frame: a small red tag at the top left and the source under the picture, with no rule above the source.
 - Clean look (on by default): bar and box charts write their values on the bars (and inside stacked parts that have room) and the median over each box, with no number axis or gridlines, in a calm blue-first color set. When the values would not fit, the number axis comes back on its own. Line charts (since 2.7.0) have no number axis or gridlines either: each line's first value sits at its left end and its last value after its name at the right end; a single line also gets its high and low. `clean: false` keeps the number axis and gridlines.
 - Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `options` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
 - `highlight` (optional): a series name from the `color` column (or, with no color column, one bar) keeps its color and is drawn on top; the rest turn one gray. Works on every type that colors by a column. A name that is not there changes nothing, and a highlighted name is never folded into Other.

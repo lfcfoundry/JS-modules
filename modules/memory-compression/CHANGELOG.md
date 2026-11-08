@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.13.0 · API 2 · 2026-11-07
+- warm() can take a sample of your own rows for a faster first unpack.
+
 ## 2.12.1 · API 2 · 2026-11-06
 - Smaller minified files
 

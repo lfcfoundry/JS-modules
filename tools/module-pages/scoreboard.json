@@ -152,6 +152,22 @@
    "proof": [
     "1.6 times slower than three.js"
    ]
+  },
+  {
+   "label": "elias-fano vs roaring-wasm, first value at or above x",
+   "x": 50,
+   "module": "elias-fano",
+   "proof": [
+    "50 to 64 times faster with elias-fano"
+   ]
+  },
+  {
+   "label": "elias-fano vs roaring-wasm, intersecting two lists",
+   "x": 0.25,
+   "module": "elias-fano",
+   "proof": [
+    "intersecting (2 to 4 times faster)"
+   ]
   }
  ]
 }

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-11-07
+- A treemap is laid out at the width and height you pass.
+
 ## 1.4.2 · API 1 · 2026-11-05
 - Tiles that neither dark nor white names read on get a shade darker (white names) or lighter, the smallest change that reaches 4.5:1.
 

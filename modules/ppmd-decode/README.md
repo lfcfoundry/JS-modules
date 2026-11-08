@@ -1,8 +1,8 @@
 # ppmd-decode
 
-**Version 1.5.0 · API 1**
+**Version 1.5.1 · API 1**
 
-**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6; laptop Chromium 156, Firefox 160 (research run)
+**Tested in:** Node 22: 142 module checks; 900 damaged streams decode to the same bytes or the same error as 1.5.0
 
 ## What it is and how it works
 
