@@ -1,5 +1,16 @@
 # netflow-circular developer changelog
 
+## 1.3.0 · API 1 · 2026-11-07
+
+### Quick
+chord with width and height: ring radius from the smaller side, then toSvg measures the picture and shrinks the ring (at most twice) until the names fit. The SVG is then at most that size and fills it on the short side (a circle cannot fill a wide box). Without them nothing changes.
+
+### Details
+chord(): R = min(width, height)/2 - 45 (at least 40) or the internal _ringR from toSvg's refit; th scales with R. toSvg reads the viewBox and refits. Requested by the owner (card: lay out at that size).
+
+### Deep
+Chord charts fit the width and height you pass.
+
 ## 1.2.0 · API 1 · 2026-11-01
 
 ### Quick

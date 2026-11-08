@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.5.0 · API 1 · 2026-11-07
+
+### Quick
+toSvg/layout treemap: with width and height, the boxes are laid out at width-60 by height-60 so the SVG is exactly that size (was always about 960 x 660). Without them nothing changes. netflow-plot auto() and toSvg pass width and height through, so their treemaps now follow too.
+
+### Details
+treemap(): W and Ht come from o.width - 60 and o.height - 60 (at least 160 x 120) when both are given. Requested by the owner (card: lay out at that size).
+
+### Deep
+Treemaps honor width and height.
+
 ## 1.4.2 · API 1 · 2026-11-05
 
 ### Quick

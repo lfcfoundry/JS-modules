@@ -146,5 +146,19 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   ok(blk.length === 0, 'no name falls back to pure black: the shape changes shade instead' + (blk.length ? ': ' + blk.slice(0, 4).join('; ') : ''));
   ok(low.length <= 4, 'circle names that cross two shades: at most 4 of them below 4.5:1 (' + low.length + ')');
 }
+{ // width and height given: a treemap is laid out at that size (hierarchy 1.5.0); a chord ring fits inside it with its names (circular 1.3.0)
+  const HY = require('../netflow-hierarchy.js'), CI = require('../../netflow-circular/netflow-circular.js');
+  const tree = [{ from: 'all', to: 'a', value: 5 }, { from: 'all', to: 'b', value: 3 }, { from: 'a', to: 'a1', value: 2 }, { from: 'a', to: 'a2', value: 3 }, { from: 'b', to: 'b1', value: 3 }];
+  const names = ['Detroit', 'Chicago', 'Toronto', 'Cleveland', 'Buffalo', 'Columbus'], flows = [];
+  names.forEach((a, i) => names.forEach((b, j) => { if (i !== j) flows.push({ from: a, to: b, value: (i * 7 + j * 3) % 11 + 1 }); }));
+  const dims = (svg) => { const m = /viewBox="[-\d.e]+ [-\d.e]+ ([\d.e]+) ([\d.e]+)"/.exec(svg); return m ? [+m[1], +m[2]] : [NaN, NaN]; };
+  [[400, 300], [900, 300], [640, 480]].forEach(([w, h]) => {
+    const t = dims(HY.toSvg(tree, { width: w, height: h }));
+    ok(Math.abs(t[0] - w) < 0.5 && Math.abs(t[1] - h) < 0.5, 'treemap with width ' + w + ' and height ' + h + ' is that size (got ' + t.join(' x ') + ')');
+    const c = dims(CI.toSvg(flows, { width: w, height: h }));
+    ok(c[0] <= w + 0.5 && c[1] <= h + 0.5 && Math.max(c[0] / w, c[1] / h) > 0.85, 'chord with width ' + w + ' and height ' + h + ' fits and fills the box (got ' + c.map(Math.round).join(' x ') + ')');
+  });
+  ok(dims(HY.toSvg(tree, {}))[0] === 960, 'treemap without width and height keeps its own size');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks FAILED' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);
