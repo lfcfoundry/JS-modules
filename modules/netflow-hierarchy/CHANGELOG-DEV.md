@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.5.1 · API 1 · 2026-11-07
+
+### Quick
+Amounts given as text now read thousands commas, a currency sign ($, pound, yen) and a percent sign, as netflow-plot already does. Before, '1,200' was not a number, so that link was lost or the column was not found. Plain numbers read as before.
+
+### Details
+asLinks: a new amount() reader (plot's num rule) for link values and for finding the amount column when none is named. netflow-circular draws through this, so chords get the fix with no change of their own. Approved by the owner on a card.
+
+### Deep
+Text amounts with commas read as numbers.
+
 ## 1.5.0 · API 1 · 2026-11-07
 
 ### Quick
