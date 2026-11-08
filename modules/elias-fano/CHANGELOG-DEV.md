@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.1.2 · API 2 · 2026-11-07
+
+### Quick
+The SIMD build decodes Elias-Fano blocks 8 values at a time (a byte table for the high bits, a swizzle and multiply for the low bits); used by block-list intersect and toArray.
+
+### Deep
+The SIMD build decodes Elias-Fano blocks 8 values at a time: a 256-entry byte table gives the high parts of up to 8 values per byte of high bits, and a swizzle, multiply, shift and mask cut out 8 low parts at once (2 bytes per lane up to 8 low bits, 4 bytes per lane for 9 to 16). Block-list intersect and toArray use it; toArray decodes each block as u16 into the back half of its output and widens forward. 1,000,000 x 200,000 values, ms, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, lower is better (tester page, one library per fresh frame): default sparse intersect 3.97 / 3.67 / 4.67 -> 2.17 / 2.00 / 3.00 (roaring-wasm 3.03 / 3.00 / 3.33); default dense intersect 0.93 / 0.67 / 0.67 -> 0.57 / 0.33 / 0.33; default sparse toArray 4.37 / 4.67 / 3.67 -> 2.77 / 3.00 / 2.00 (roaring 2.33 / 2.67 / 1.67). arrays: true lists, contains, flat and partitioned lists unchanged (same code). The plain build is unchanged. Same answers: all elias-fano tests, 631,200 random checks, and toArray checked value by value in the tester. Tried and not kept: probing Elias-Fano blocks without decoding them (about 2x slower in Node: unpredictable branches per probe), a scalar byte-table high decode (slower than the bit loop), scalar 8-at-a-time low bits (5-10%, inside noise).
+
 ## 2.1.1 · API 2 · 2026-11-07
 
 ### Quick
