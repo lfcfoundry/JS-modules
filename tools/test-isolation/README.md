@@ -35,7 +35,7 @@ Put it first on the test page, before the game's own script:
 ```
 or paste the same thing as one short piece of script at the very top of `<head>` when you build the test page with a script:
 ```js
-var inline = "<script>" + TestIsolation.snippet("speedtest:") + "<\/script>";   // about 1,960 characters (it carries the same Proxy code as the file, so it is bigger than 1.0.0's 641), shows no error if storage is blocked
+var inline = "<script>" + TestIsolation.snippet("speedtest:") + "<\/script>";   // about 1,960 characters (it carries the same Proxy code as the file), shows no error if storage is blocked
 ```
 From then on `localStorage.getItem("save")` reads the key `speedtest:save`. `install` returns `{ ok, prefix, names, restore() }`; `restore()` puts the real storage back. `wrap(storage, prefix)` gives you the prefixed object over any Storage, which is what the Node tests use.
 
