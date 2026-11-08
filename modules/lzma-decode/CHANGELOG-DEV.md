@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.1 · API 1 · 2026-11-08
+
+### Quick
+warm() now decodes 16 KB of real text (code and markdown from our own repositories) instead of made-up text. First plain-JavaScript unpack vs no warm-up: Chromium 156 0.73, Firefox 158 0.83, WebKitGTK 2.52.6 0.89, Android Chrome 156 0.86 (12 of 12 pairs); the made-up sample gave 0.92, 1.02, 1.11 and 0.94. Same API, same output, no new setting.
+
+### Details
+Only the built-in sample changed (r16.lz, 6,149 B packed, lc3 lp0 pb2, decodes to r16.raw; 0.7 KB smaller than before). Idle cost 6-13 ms (12.6 ms on the phone). Fresh browser per sample, paired, order alternated. The sample is our own repository text; Story streams were not tested.
+
+### Deep
+Requested by the PPMd/LZMA thread (brief BRIEF-apply-warm-real-text, 11.08). Finding: js-modules-research/lzma-decode/warm-2026.11.08/FINDING-LZMA-WARM-REAL-TEXT-2026.11.08.md. Auto-merge: output identical, no new setting, nothing slower.
+
 ## 1.7.0 · API 1 · 2026-11-08
 
 ### Quick

@@ -23,7 +23,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
-| [lzma-decode](modules/lzma-decode/README.md) | 1.7.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.7.1 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.6.1 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
@@ -70,6 +70,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-08 · **netflow-circular** 1.3.1 · API 1: Chord names never overlap on small rings; bigger arcs keep their names first.
 - 2026-11-08 · **memory-compression** 2.14.1 · API 2: Unpacking lists of small tuples (coordinate pairs, name and count pairs) is up to 10% faster in Firefox; same data.
 - 2026-11-08 · **memory-compression** 2.14.0 · API 2: warm() also warms a small view and pager, so their first use is 1 to 4 ms faster.
+- 2026-11-08 · **lzma-decode** 1.7.1 · API 1: The optional warm() makes the first plain-JavaScript unpack 11 to 27% faster.
 - 2026-11-08 · **lzma-decode** 1.7.0 · API 1: New optional lzmaDecode.warm(): call it from an idle callback and the first plain-JavaScript unpack is 4-9% faster (6-8 ms of idle work).
 - 2026-11-08 · **lfc-pack** 0.7.1 · API 0: Packing flat rows is 4 to 11% faster, same file bytes.
 - 2026-11-08 · **lfc-pack** 0.7.0 · API 0: packBlock() and packStream().pushPacked(): pack chunks in workers, same file bytes

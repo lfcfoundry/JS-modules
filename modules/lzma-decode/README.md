@@ -1,8 +1,8 @@
 # lzma-decode
 
-**Version 1.7.0 · API 1**
+**Version 1.7.1 · API 1**
 
-**Tested in:** ungoogled Chromium 156.0.8078.79-1, WebKitGTK 2.52.6 (Firefox 158 measured by the research thread)
+**Tested in:** Node suite; Chromium 156, Firefox 158, WebKitGTK 2.52.6, Android Chrome 156 (paired, fresh browser per sample)
 
 ## What it is and how it works
 
@@ -54,7 +54,7 @@ Test it: `node modules/lzma-decode/test/run.js` (needs `python3` on the PATH; of
 |---|---|
 | `lzmaDecode(src, outSize, opts)` | `src` raw stream minus its leading zero byte; `outSize` exact result length; `opts.lc` (0-8, default 4), `opts.lp` (0-4, default 0), `opts.pb` (0-4, default 0), `opts.maxSize` (optional ceiling for `outSize`). Returns `Uint8Array`. Throws on a cut-short stream (as soon as it reads past the end), a distance before the start of the output, or `outSize` above `maxSize`. |
 | `lzmaDecode.file(bytes, size?, opts?)` | A `.lzma` file with its 13-byte header. If the header says "size unknown" (xz and Python write that) pass `size`. `opts.maxSize` works here too; the other settings come from the header. |
-| `lzmaDecode.warm()` | Optional (since 1.7.0). Decodes a built-in 16 KB sample once; call it from an idle callback before the real unpack. About 6-12 ms of work; the first plain-JavaScript unpack of a 730 KB stream then took 0.84 (Chromium 156) and 0.85 (WebKitGTK 2.52.6) of the time without it (Firefox 158: 0.96). On Android Chrome 156 it is a tie (paired 1.046, faster in 8 of 16 rounds, 13.5 ms of idle work), so it helps desktop browsers and is neutral on that phone. Warms the JavaScript decoder only. Returns `true`. |
+| `lzmaDecode.warm()` | Optional (since 1.7.0). Decodes a built-in 16 KB sample (real text from our own repositories) once; call it from an idle callback before the real unpack. About 6-13 ms of work. The first plain-JavaScript unpack then took 0.73 (Chromium 156), 0.83 (Firefox 158), 0.89 (WebKitGTK 2.52.6) and 0.86 (Android Chrome 156, faster in 12 of 12 rounds) of the time without it. Measured on our own repository text; other kinds of text were not tested. Warms the JavaScript decoder only. Returns `true`. |
 | `lzmaDecode.engine`, `.available`, `.plain` | In the default file: `.engine` is `'wasm'` or `'js'` (which decoder did the last call); `.available` says whether WebAssembly was usable on this page; `.plain` is the JavaScript decoder alone. `lzmaDecodeWasm` is another name for `lzmaDecode`, kept for pages written for 1.1.0. |
 
 Set `maxSize` whenever the data or its size did not come from your own packer: a `.lzma` header can ask for up to 4 GB, which is a `RangeError` or an out-of-memory tab. `lzma-pack`'s own pages do not need it.
