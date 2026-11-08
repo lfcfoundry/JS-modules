@@ -90,6 +90,24 @@ Same page, alternating rounds, Firefox 158 / Chromium 155 / WebKitGTK 2.52.6 (de
 
 It is for lists you search or scan, not for hammering single reads: keep a decoded copy (`toArray`, `decodeAll`) when you need those. A list set read list by list keeps each list's array after its first read (the default since 2.0.0; `{ cache: false }` turns it off), and a repeat read then costs about what an array of arrays does, at 4 bytes a value again for the lists you touched. Since 1.10.0 `decodeAll` of 30,000 lists is 0.68 / 0.78 / 0.90 times the time it took (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, paired runs). Since 2.0.1, once a quarter of the values have been read one list at a time, the set decodes the rest in one go and hands out views (`subarray`) of one decoded array instead of a new array per list (repeat reads 0.8 to 0.9 times the time they took, first read of all lists 0.45 to 0.52 times, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6; a few reads stay separate arrays; the views share one buffer, so do not change them, as before). Plain arrays still win on a first read of a single list (they are already there) and the memory they take is about 2.2 times the packed size (498 KB against 223 KB for these lists); arrays of arrays also cost one object each (not measured here).
 
+### Against other libraries
+roaring-wasm 1.1.0 (CRoaring in WebAssembly) and FastIntegerCompression 0.1.0 (varint; given the gaps between values, its best case), 1,000,000 sorted values, one page per browser, median of 11 rounds, ms (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6). Lower is better in every column. Libraries are only measured, never copied in.
+
+| Job | elias-fano | roaring-wasm | FastIntegerCompression |
+|---|---|---|---|
+| Size, sparse (gaps 1 to 500) | 1,336,608 B | 2,030,536 B | 1,746,299 B |
+| Size, dense (gaps 1 to 3) | 390,728 B (partitioned, chunk 1024: about 202,000 B) | 188,608 B | 1,000,000 B |
+| First value at or above x, 20,000 lookups (`nextGEQMany`; roaring `rank`), sparse | 0.83 / 1.0 / 1.0 | 52.8 / 51 / 50 | no lookups |
+| Same, dense | 0.80 / 1.0 / 0.67 | 8.6 / 8 / 7 | no lookups |
+| Is x present, 20,000 lookups, sparse | 2.7 / 3.0 / 1.7 | 2.8 / 3.7 / 3.3 | no lookups |
+| Same, dense | 2.1 / 2.7 / 1.7 | 0.9 / 1.0 / 0.67 | no lookups |
+| Decode everything, sparse | 4.6 / 6.0 / 3.7 | 2.2 / 2.7 / 1.3 | 9.1 / 12 / 11.3 |
+| Same, dense | 4.4 / 4.3 / 4.0 | 3.2 / 3.3 / 2.0 | 4.6 / 9.7 / 6.3 |
+| Intersect with a 200,000-value list, sparse | 7.9 / 7.0 / 6.7 | 3.0 / 3.0 / 3.3 | none |
+| Same, dense | 6.6 / 6.3 / 4.7 | 1.6 / 1.7 / 1.3 | none |
+
+Where elias-fano wins: size on spread-out values (0.66x roaring's), and "first value at or above x" (8 to 60 times faster). Where roaring wins: size on dense values (about half; the partitioned form gets within about 7%), "is x present" on dense values (2 to 3 times faster), decoding everything (1.3 to 2.8 times faster) and intersecting (2 to 4 times faster). Value number i: roaring's `select` gave wrong answers past about 68,000 values in this test (off by one), so it is not compared. Test: the repository's `tests/compare/elias-fano-compare-browser.js` (needs `LIBS=<folder with node_modules>`).
+
 ## Partitioned lists (since 1.2.0)
 `buildPartitioned` cuts the list into chunks of 128 values (or 32, 64, 256, 512, 1024) and stores each chunk the cheapest way: as a plain run (no bits at all, when the numbers are consecutive), as a bitmap (when more than about a third of the numbers in its range are present) or as Elias-Fano. It wins where a list has dense stretches, such as the document ids of a common word, and costs about the same as the flat form elsewhere. It has the same questions as a single list (`get`, `nextGEQ`, `rank`, `contains`, `count`, `slice`, `toArray`, the batches, `free`) and one more, `stats()`, which says how many chunks took each form.
 
