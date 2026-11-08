@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.4 · API 1 · 2026-11-07
+- Long line charts draw faster in WebKit.
+
 ## 1.10.3 · API 1 · 2026-11-07
 - frame: true no longer draws a rule above the source line; the chart's own baseline is the one line.
 
