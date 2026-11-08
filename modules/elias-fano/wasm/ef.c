@@ -78,8 +78,41 @@ static inline u32 nextOneV(const u8 *b, u32 x, u32 *val) {
 }
 u32 ef_get(const u8 *b, u32 i) { return getOne(b, i); }
 u32 ef_next(const u8 *b, u32 x) { return nextOne(b, x); }
-void ef_get_many(const u8 *b, const u32 *idx, u32 *out, u32 k) { for (u32 j = 0; j < k; j++) out[j] = getOne(b, idx[j]); }
-void ef_next_many(const u8 *b, const u32 *xs, u32 *out, u32 k) { for (u32 j = 0; j < k; j++) out[j] = nextOne(b, xs[j]); }
+void ef_get_many(const u8 *b, const u32 *idx, u32 *out, u32 k) {
+  // B at a time, each step done for all B before the next, so the memory reads overlap instead of waiting in turn
+  OPEN(b)
+  u32 j = 0, I[8], P[8]; u64 C[8], LO[8];
+  for (; j + 8 <= k; j += 8) {
+    for (u32 q = 0; q < 8; q++) I[q] = idx[j + q];
+    for (u32 q = 0; q < 8; q++) P[q] = s1[I[q] >> s];
+    for (u32 q = 0; q < 8; q++) { C[q] = H[P[q] >> 6]; LO[q] = lowAt(low, l, I[q]); }
+    for (u32 q = 0; q < 8; q++) { u32 i = I[q], p = P[q], rem = i - ((i >> s) << s), w = p >> 6, c; u64 cur = C[q] & (~0ULL << (p & 63));
+      while (rem >= (c = POP(cur))) { rem -= c; cur = H[++w]; } out[j + q] = (u32)(((u64)(w * 64 + sel64(cur, rem) - i) << l) | LO[q]); }
+  }
+  for (; j < k; j++) out[j] = getOne(b, idx[j]);
+}
+void ef_next_many(const u8 *b, const u32 *xs, u32 *out, u32 k) {
+  // 8 at a time like ef_get_many: the sample reads and the first word reads of all 8 overlap
+  OPEN(b)
+  u32 j = 0, X[8], P[8]; u64 C[8];
+  if (n > 0) for (; j + 8 <= k; j += 8) {
+    for (u32 q = 0; q < 8; q++) X[q] = xs[j + q];
+    for (u32 q = 0; q < 8; q++) { u32 h = (u32)((u64)X[q] >> l); P[q] = (h == 0 || X[q] > maxv) ? 0 : s0[(h - 1) >> s]; }
+    for (u32 q = 0; q < 8; q++) C[q] = ~H[P[q] >> 6];
+    for (u32 q = 0; q < 8; q++) {
+      u32 x = X[q], h = (u32)((u64)x >> l), i, sp;
+      if (x > maxv) { out[j + q] = n; continue; }
+      u64 xl = (u64)x & mask(l);
+      if (h == 0) { i = 0; sp = 0; }
+      else { u32 jj = h - 1, p = P[q], rem = jj - ((jj >> s) << s), w = p >> 6, c; u64 cur = C[q] & (~0ULL << (p & 63));
+        while (rem >= (c = POP(cur))) { rem -= c; cur = ~H[++w]; }
+        u32 pz = w * 64 + sel64(cur, rem); i = pz - (h - 1); sp = pz + 1; }
+      while (i < n) { if (!((H[sp >> 6] >> (sp & 63)) & 1)) break; if (lowAt(low, l, i) >= xl) break; i++; sp++; }
+      out[j + q] = i;
+    }
+  }
+  for (; j < k; j++) out[j] = nextOne(b, xs[j]);
+}
 
 // every value, in order, into out[n]
 void ef_decode(const u8 *b, u32 *out) {
@@ -335,3 +368,146 @@ u32 ef_intersect(const u32 *h, u32 k, u32 *out) {
   }
   return leapfrog(h, k, out);
 }
+
+// ---- block lists (format in the module's .js, buildBlocks): blocks of 65,536 values, each Elias-Fano, a bitmap or a sorted u16 array ----
+#define BHDR 64
+typedef struct { u32 key, kind, l, c; const u8 *d; } Blk;
+static inline Blk blkAt(const u8 *b, u32 k) {
+  const u32 *t = (const u32 *)(b + BHDR) + 4 * k; u32 n = rd32(b, 4), nb = rd32(b, 8);
+  Blk r; r.key = t[0]; r.kind = t[1] & 255; r.l = t[1] >> 8; r.c = (k + 1 < nb ? t[6] : n) - t[2]; r.d = b + t[3]; return r;
+}
+static inline u32 efBlkLowB(u32 c, u32 l) { return ((((c * l + 31) >> 5) + 2) * 4 + 7) & ~7u; }
+static inline u32 efLowBits(const u8 *low, u32 l, u32 q) { return (u32)lowAt(low, l, q); }
+#ifdef __wasm_simd128__
+static u8 QT[256][8], Q8[256]; static u32 qtOk;   // for each byte value: where its set bits are, each minus its rank, and how many there are
+static void qtInit(void) { for (u32 x = 0; x < 256; x++) { u32 n = 0; for (u32 b = 0; b < 8; b++) if (x >> b & 1) { QT[x][n] = (u8)(b - n); n++; } Q8[x] = (u8)n; } qtOk = 1; }
+#endif
+// block values as u16 into out (EF and array blocks); returns the count. out needs 8 spare slots after the count.
+static u32 blkU16(Blk B, u16 *out) {
+  if (B.kind == 2) { const u16 *a = (const u16 *)B.d; for (u32 q = 0; q < B.c; q++) out[q] = a[q]; return B.c; }
+  const u8 *low = B.d; const u64 *H = (const u64 *)(B.d + efBlkLowB(B.c, B.l)); u32 i = 0, l = B.l, c = B.c;
+#ifdef __wasm_simd128__
+  // high parts, one byte of high bits at a time: the table gives 8 candidate values at once and the byte's bit count says how many to keep
+  if (!qtOk) qtInit();
+  const u8 *Hb = (const u8 *)H;
+  for (u32 k = 0; i < c; k++) { u32 x = Hb[k]; wasm_v128_store(out + i, wasm_i16x8_add(wasm_u16x8_load8x8(QT[x]), wasm_i16x8_splat((short)(k * 8 - i)))); i += Q8[x]; }
+  if (l <= 8) {   // low parts, 8 values (l bytes) at a time: each lane takes the 2 bytes holding its bits, a multiply lines them up, a shift and a mask cut them out
+    u8 sw[16]; u16 mu[8];
+    for (u32 t = 0; t < 8; t++) { u32 bo = t * l; sw[2 * t] = (u8)(bo >> 3); sw[2 * t + 1] = (u8)((bo >> 3) + 1); mu[t] = (u16)(1u << (8 - (bo & 7))); }
+    v128_t SW = wasm_v128_load(sw), MU = wasm_v128_load(mu), MK = wasm_i16x8_splat((short)mask(l));
+    for (u32 g = 0; g < c; g += 8) {
+      v128_t f = wasm_i8x16_swizzle(wasm_v128_load64_zero(low + (g >> 3) * l), SW);
+      f = wasm_v128_and(wasm_u16x8_shr(wasm_i16x8_mul(f, MU), 8), MK);
+      wasm_v128_store(out + g, wasm_v128_or(wasm_i16x8_shl(wasm_v128_load(out + g), l), f));
+    }
+    return c;
+  }
+  if (l <= 16) {   // 9 to 16 low bits: 8 values are 9 to 16 bytes, read as two 8-byte halves; each lane takes 4 bytes
+    u8 sw[32]; u32 mu[8]; u32 h2 = (4 * l) >> 3;
+    for (u32 t = 0; t < 8; t++) { u32 bo = t * l, base = t < 4 ? 0 : h2, by = (bo >> 3) - base + (t < 4 ? 0 : 8); for (u32 z = 0; z < 4; z++) sw[4 * t + z] = (u8)(by + z); mu[t] = 1u << (16 - (bo & 7)); }
+    v128_t S0 = wasm_v128_load(sw), S1 = wasm_v128_load(sw + 16), M0 = wasm_v128_load(mu), M1 = wasm_v128_load(mu + 4), MK = wasm_i32x4_splat((int)mask(l));
+    for (u32 g = 0; g < c; g += 8) {
+      const u8 *p = low + (g >> 3) * l; v128_t v = wasm_v128_load64_lane(p + h2, wasm_v128_load64_zero(p), 1);
+      v128_t f0 = wasm_v128_and(wasm_u32x4_shr(wasm_i32x4_mul(wasm_i8x16_swizzle(v, S0), M0), 16), MK);
+      v128_t f1 = wasm_v128_and(wasm_u32x4_shr(wasm_i32x4_mul(wasm_i8x16_swizzle(v, S1), M1), 16), MK);
+      wasm_v128_store(out + g, wasm_v128_or(wasm_i16x8_shl(wasm_v128_load(out + g), l), wasm_u16x8_narrow_i32x4(f0, f1)));
+    }
+    return c;
+  }
+  for (u32 q = 0; q < c; q++) out[q] = (u16)(((u32)out[q] << l) | efLowBits(low, l, q));
+#else
+  for (u32 w = 0; i < c; w++) { u64 x = H[w]; while (x && i < c) { u32 bit = CTZ(x); out[i] = (u16)((((w * 64 + bit) - i) << l) | efLowBits(low, l, i)); i++; x &= x - 1; } }
+#endif
+  return c;
+}
+static __attribute__((noinline)) u32 bmpDecode(const u64 *M, u32 hi, u32 *out) { u32 o = 0; for (u32 w = 0; w < 1024; w++) { u64 x = M[w]; while (x) { out[o++] = hi | (w * 64 + CTZ(x)); x &= x - 1; } } return o; }
+void bl_decode(const u8 *b, u32 *out) {   // out needs 32 spare bytes
+  u32 nb = rd32(b, 8), o = 0;
+  for (u32 k = 0; k < nb; k++) {
+    Blk B = blkAt(b, k); u32 hi = B.key << 16;
+    if (B.kind == 1) o += bmpDecode((const u64 *)B.d, hi, out + o);
+    else if (B.kind == 2) { const u16 *a = (const u16 *)B.d; for (u32 q = 0; q < B.c; q++) out[o + q] = hi | a[q]; o += B.c; }
+#ifdef __wasm_simd128__
+    else {   // decode as u16 into the back half of this block's output, then widen forward 8 at a time (writes never pass the values still to be read)
+      u16 *t = (u16 *)(out + o) + B.c; blkU16(B, t); v128_t vh = wasm_i32x4_splat((int)hi);
+      for (u32 q = 0; q < B.c; q += 8) { v128_t v = wasm_v128_load(t + q); wasm_v128_store(out + o + q, wasm_v128_or(wasm_u32x4_extend_low_u16x8(v), vh)); wasm_v128_store(out + o + q + 4, wasm_v128_or(wasm_u32x4_extend_high_u16x8(v), vh)); }
+      o += B.c; }
+#else
+    else { const u8 *low = B.d; const u64 *H = (const u64 *)(B.d + efBlkLowB(B.c, B.l)); u32 i = 0, l = B.l;
+      for (u32 w = 0; i < B.c; w++) { u64 x = H[w]; while (x && i < B.c) { u32 bit = CTZ(x); out[o + i] = hi | ((((w * 64 + bit) - i) << l) | efLowBits(low, l, i)); i++; x &= x - 1; } }
+      o += B.c; }
+#endif
+  }
+}
+static u32 blkHas(Blk B, u32 v) {
+  if (B.kind == 1) return (u32)((((const u64 *)B.d)[v >> 6] >> (v & 63)) & 1);
+  if (B.kind == 2) { const u16 *a = (const u16 *)B.d; u32 lo = 0, h = B.c; while (lo < h) { u32 m = (lo + h) >> 1; if (a[m] < v) lo = m + 1; else h = m; } return lo < B.c && a[lo] == v; }
+  const u8 *low = B.d; const u64 *H = (const u64 *)(B.d + efBlkLowB(B.c, B.l)); u32 l = B.l, hb = v >> l, vl = v & (u32)mask(l), sp = 0, i = 0;
+  if (hb) {   // start of bucket hb: after the hb-th zero
+    u32 need = hb, w = 0;
+    for (;; w++) { u64 z = ~H[w]; u32 c = POP(z); if (c < need) { need -= c; continue; } u32 pos = w * 64 + sel64(z, need - 1); sp = pos + 1; i = sp - hb; break; }
+  }
+  while (i < B.c && ((H[sp >> 6] >> (sp & 63)) & 1)) { u32 lo = efLowBits(low, l, i); if (lo >= vl) return lo == vl; i++; sp++; }
+  return 0;
+}
+void bl_contains_many(const u8 *b, const u32 *xs, u8 *out, u32 k) {
+  u32 nb = rd32(b, 8); const u32 *t = (const u32 *)(b + BHDR);
+  for (u32 q = 0; q < k; q++) {
+    u32 x = xs[q], key = x >> 16, lo = 0, h = nb;
+    while (lo < h) { u32 m = (lo + h) >> 1; if (t[4 * m] < key) lo = m + 1; else h = m; }
+    out[q] = (lo < nb && t[4 * lo] == key) ? (u8)blkHas(blkAt(b, lo), x & 65535) : 0;
+  }
+}
+#define SIMDR 8    // a at least 1/8 of b: SIMD 8-by-8 compare (ef-simd.wasm); shorter: galloping
+#define GALLOP 4   // plain build: gallop when a is under 1/4 of b, else a merge without branches
+static u32 andU16(const u16 *a, u32 na, const u16 *b, u32 nb, u32 hi, u32 *out) {   // a the shorter; out has one spare slot
+  u32 i = 0, j = 0, o = 0;
+#ifdef __wasm_simd128__
+  if (na * SIMDR >= nb) {   // 8 against 8: each value of a's 8 compared with every rotation of b's 8 at once; matches are rare in sparse blocks, so they are written one by one
+    while (i + 8 <= na && j + 8 <= nb) {
+      v128_t va = wasm_v128_load(a + i), vb = wasm_v128_load(b + j);
+      v128_t m = wasm_i16x8_eq(va, vb);
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,1)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 4,5,6,7,8,9,10,11,12,13,14,15,0,1,2,3)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 6,7,8,9,10,11,12,13,14,15,0,1,2,3,4,5)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 10,11,12,13,14,15,0,1,2,3,4,5,6,7,8,9)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 12,13,14,15,0,1,2,3,4,5,6,7,8,9,10,11)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 14,15,0,1,2,3,4,5,6,7,8,9,10,11,12,13)));
+      u32 bits = wasm_i16x8_bitmask(m);
+      while (bits) { u32 t = CTZ(bits); out[o++] = hi | a[i + t]; bits &= bits - 1; }
+      u16 am = a[i + 7], bm = b[j + 7]; i += am <= bm ? 8 : 0; j += bm <= am ? 8 : 0;
+    }
+    while (i < na && j < nb) { u16 x = a[i], y = b[j]; out[o] = hi | x; o += x == y; i += x <= y; j += y <= x; }
+    return o;
+  }
+#endif
+  if (na * GALLOP < nb) {   // much shorter: gallop through b
+    for (; i < na; i++) { u16 x = a[i]; u32 step = 1, lo = j; while (lo + step < nb && b[lo + step] < x) { lo += step; step <<= 1; }
+      u32 h = lo + step < nb ? lo + step : nb; while (lo < h) { u32 m = (lo + h) >> 1; if (b[m] < x) lo = m + 1; else h = m; }
+      j = lo; if (j >= nb) break; out[o] = hi | x; o += b[j] == x; }
+    return o;
+  }
+  while (i < na && j < nb) { u16 x = a[i], y = b[j]; out[o] = hi | x; o += x == y; i += x <= y; j += y <= x; }
+  return o;
+}
+static u32 andU16Bmp(const u16 *a, u32 na, const u64 *M, u32 hi, u32 *out) { u32 o = 0; for (u32 i = 0; i < na; i++) { u16 x = a[i]; out[o] = hi | x; o += (u32)((M[x >> 6] >> (x & 63)) & 1); } return o; }
+u32 bl_and(const u8 *a, const u8 *b, u32 *out, u16 *BUFA) {   // BUFA: scratch of 2 x 65,536 u16 from the caller
+  u16 *BUFB = BUFA + 65536;
+  u32 na = rd32(a, 8), nb = rd32(b, 8), i = 0, j = 0, o = 0; const u32 *ta = (const u32 *)(a + BHDR), *tb = (const u32 *)(b + BHDR);
+  while (i < na && j < nb) {
+    u32 ka = ta[4 * i], kb = tb[4 * j];
+    if (ka < kb) { i++; continue; } if (kb < ka) { j++; continue; }
+    Blk A = blkAt(a, i), B = blkAt(b, j); u32 hi = ka << 16;
+    if (A.kind == 1 && B.kind == 1) { const u64 *X = (const u64 *)A.d, *Y = (const u64 *)B.d; for (u32 w = 0; w < 1024; w++) { u64 x = X[w] & Y[w]; while (x) { out[o++] = hi | (w * 64 + CTZ(x)); x &= x - 1; } } }
+    else if (A.kind == 1 || B.kind == 1) { Blk S = A.kind == 1 ? B : A, M = A.kind == 1 ? A : B; const u16 *s = S.kind == 2 ? (const u16 *)S.d : BUFA; if (S.kind != 2) blkU16(S, BUFA); o += andU16Bmp(s, S.c, (const u64 *)M.d, hi, out + o); }
+    else {
+      const u16 *x = A.kind == 2 ? (const u16 *)A.d : BUFA, *y = B.kind == 2 ? (const u16 *)B.d : BUFB;
+      if (A.kind != 2) blkU16(A, BUFA); if (B.kind != 2) blkU16(B, BUFB);
+      o += A.c <= B.c ? andU16(x, A.c, y, B.c, hi, out + o) : andU16(y, B.c, x, A.c, hi, out + o);
+    }
+    i++; j++;
+  }
+  return o;
+}
+u32 bl_contains(const u8 *b, u32 x) { u8 r; bl_contains_many(b, &x, &r, 1); return r; }

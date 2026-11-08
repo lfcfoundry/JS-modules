@@ -2,6 +2,21 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.11.0 · API 1 · 2026-11-07
+- Big scatters draw 1.3 to 2.9 times faster on the page; dots look the same
+
+## 1.10.6 · API 1 · 2026-11-07
+- Line charts draw 1.1 to 1.7 times faster; straight pieces written as L
+
+## 1.10.5 · API 1 · 2026-11-07
+- Area, hexbin and density charts write less SVG text and draw faster.
+
+## 1.10.4 · API 1 · 2026-11-07
+- Long line charts draw faster in WebKit.
+
+## 1.10.3 · API 1 · 2026-11-07
+- frame: true no longer draws a rule above the source line; the chart's own baseline is the one line.
+
 ## 1.10.1 · API 1 · 2026-11-07
 - toSvg rounds numbers about 1.4 to 2.7 times faster; same SVG
 

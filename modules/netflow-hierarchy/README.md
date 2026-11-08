@@ -1,12 +1,14 @@
 # netflow-hierarchy
 
-**Version 1.4.2 · API 1**
+**Version 1.5.1 · API 1**
 
-**Tested in:** Node tests (940 checks); Chromium 155, Firefox 158, WebKitGTK 2.52.6 in-page check; 20,000-tile treemap speed even
+**Tested in:** Node 22: 949 hierarchy and circular checks, including 2 new text-amount checks
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
 ## What it is and how it works
+
+**Load order:** `netflow-scene.js`, then `netflow-hierarchy.js` (this module draws through [netflow-scene](../netflow-scene/README.md)).
 
 The nested views of Netflow Map as an add-on for [netflow-engine](../netflow-engine/README.md): Treemap, Sunburst, Icicle, Circle pack and Tree.
 
@@ -34,10 +36,11 @@ Load `netflow-scene.js` first, then `netflow-hierarchy.js`. One call, data only 
 ```js
 // netflow-scene.js, then netflow-hierarchy.js
 svgElement.outerHTML = NetflowHierarchy.toSvg(links);                         // treemap
+containerDiv.innerHTML = NetflowHierarchy.toSvg(links);   // the same call into a <div> you already have
 svgElement.outerHTML = NetflowHierarchy.toSvg(links, { type: 'sunburst', title: 'Budget' });
 ```
 
-Links point from parent to child: `from` is the outer box, `to` the box inside it. Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
+Links point from parent to child: `from` is the outer box, `to` the box inside it. A box with no size (leave `value` out or empty) takes the sum of the boxes inside it, and a row whose `from` is never a `to` is the root. Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
 
 The steps below keep the layout and scene:
 

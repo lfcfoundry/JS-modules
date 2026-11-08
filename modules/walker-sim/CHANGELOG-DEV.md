@@ -65,3 +65,7 @@ New module: sends random walkers through a network and reports where they end, h
 
 ### Deep
 New module, cut from Netflow Map's simulator. It sends random walkers through a network and reports where they end, how many steps and what it cost, with a 95% range on every result and the exact odds beside them for checking. Runs are repeatable from a seed, however they are cut into batches. Measured in Node on a network of 199 items and 561 links: 100,000 walkers in 57 ms (about 1.75 million a second), and the worst gap to the exact odds fell from 1.74 percentage points at 1,000 walkers to 0.12 at 100,000. New compared with the Netflow Map original, which was built into the app: `graph` turns a plain list of `{ from, to, weight }` links into the network (an unknown start item is a plain-words error), and the exact solver and what-if sweep run without the app around them. 16 kinds of random number are included.
+
+## Moved from the README (2026-11-07)
+
+- **1,000,000 walkers on the same kind of network, version 2.1.0** (ms, lower is better): Node 22 80, ungoogled Chromium 155 102, Firefox 158 115, WebKitGTK 2.52.6 62 53. Version 2.1.0 is 2.4 times faster than 2.0.0 in Node (192 ms); same counts for the same seed.

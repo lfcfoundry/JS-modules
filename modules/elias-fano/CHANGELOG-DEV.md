@@ -2,6 +2,38 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.1.2 · API 2 · 2026-11-07
+
+### Quick
+The SIMD build decodes Elias-Fano blocks 8 values at a time (a byte table for the high bits, a swizzle and multiply for the low bits); used by block-list intersect and toArray.
+
+### Deep
+The SIMD build decodes Elias-Fano blocks 8 values at a time: a 256-entry byte table gives the high parts of up to 8 values per byte of high bits, and a swizzle, multiply, shift and mask cut out 8 low parts at once (2 bytes per lane up to 8 low bits, 4 bytes per lane for 9 to 16). Block-list intersect and toArray use it; toArray decodes each block as u16 into the back half of its output and widens forward. 1,000,000 x 200,000 values, ms, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, lower is better (tester page, one library per fresh frame): default sparse intersect 3.97 / 3.67 / 4.67 -> 2.17 / 2.00 / 3.00 (roaring-wasm 3.03 / 3.00 / 3.33); default dense intersect 0.93 / 0.67 / 0.67 -> 0.57 / 0.33 / 0.33; default sparse toArray 4.37 / 4.67 / 3.67 -> 2.77 / 3.00 / 2.00 (roaring 2.33 / 2.67 / 1.67). arrays: true lists, contains, flat and partitioned lists unchanged (same code). The plain build is unchanged. Same answers: all elias-fano tests, 631,200 random checks, and toArray checked value by value in the tester. Tried and not kept: probing Elias-Fano blocks without decoding them (about 2x slower in Node: unpredictable branches per probe), a scalar byte-table high decode (slower than the bit loop), scalar 8-at-a-time low bits (5-10%, inside noise).
+
+## 2.1.1 · API 2 · 2026-11-07
+
+### Quick
+Block-list intersect in the SIMD build compares 8 values against 8 (every rotation at once) when one block is at least 1/8 the size of the other; shorter ones still gallop.
+
+### Deep
+Block-list intersect in the SIMD build compares 8 values against 8 (every rotation at once) when one block is at least 1/8 the size of the other; shorter ones still gallop. 1,000,000 x 200,000 values, ms, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, lower is better: sparse, arrays: true 2.7 / 4.3 / 3.3 -> 1.4 / 1.3 / 2.3 (roaring-wasm 3.4 / 4.0 / 3.3 in the same run); sparse default 4.8 / 8.0 / 5.7 -> 4.2 / 4.7 / 4.7; dense unchanged within noise (0.97 / 1.0 / 1.0, arrays 0.47 / 0.67 / 0.33, roaring 1.5 / 2.0 / 1.3). Node, same lists: arrays sparse 3.9 -> 1.1-1.4 ms, default sparse 6.6 -> 3.0-3.8. Same answers: all elias-fano tests, plus 631,200 random checks. Flat and partitioned lists untouched (only the block-list merge changed). Tried and not kept: one 8-byte load for Elias-Fano block low bits (0-10% in Node, inside noise).
+
+## 2.1.0 · API 2 · 2026-11-07
+
+### Quick
+New list type, block lists: EliasFano.buildBlocks(values, { arrays }) and EliasFano.openBlocks(bytes).
+
+### Deep
+New list type, block lists: EliasFano.buildBlocks(values, { arrays }) and EliasFano.openBlocks(bytes). Values are split by their top 16 bits into blocks of 65,536, each stored as a bitmap or Elias-Fano (the smaller), or with arrays: true as a bitmap or a sorted u16 array. Methods: get, nextGEQ, rank, contains, containsMany (new, Uint8Array), nextValue, count, toArray, slice, stats, free; EliasFano.intersect takes block lists (block by block in WebAssembly: bitmap AND, bit tests, merges; mixed with other kinds it uses nextGEQ steps). A set: duplicates kept once. Against roaring-wasm 1.1.0 (1,000,000 values, ms, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6): dense intersect 0.9 / 1.0 / 0.67 vs 1.5 / 1.7 / 1.7 (arrays 0.5 / 0.33 / 0.67); dense containsMany 0.33 / 0.67 / 0.33 vs contains 0.8 / 1.0 / 0.67; sparse size 1,398,768 B vs 2,030,536 B; sparse intersect still slower (4.8 / 8.0 / 5.7, arrays 2.7 / 4.3 / 3.3, vs 2.4 / 3.0 / 3.0). Existing list kinds unchanged; the file grows from 88,175 to about 115,000 bytes (WebAssembly about 4.5 KB more each). Checks: new test/blocks.js (25 lists, 64,100 queries vs a plain set in JavaScript and WebAssembly, 3,000 damaged blobs: 2,314 refused at open, the rest answer without an error), all other elias-fano tests, plus 631,200 random checks during development.
+
+## 2.0.2 · API 2 · 2026-11-07
+
+### Quick
+getMany and nextGEQMany on a single list take 0.79x to 0.88x the time they took (20,000 random positions or values in a list of 1,000,000; median of 2 runs x 15 rounds; getMany Chromium 155 0.89 to 0.79 ms, Firefox 158 0.95 to 0.83, WebKit…
+
+### Deep
+getMany and nextGEQMany on a single list take 0.79x to 0.88x the time they took (20,000 random positions or values in a list of 1,000,000; median of 2 runs x 15 rounds; getMany Chromium 155 0.89 to 0.79 ms, Firefox 158 0.95 to 0.83, WebKitGTK 2.52.6 0.85 to 0.68; nextGEQMany 1.22 to 1.06, 1.30 to 1.10, 1.20 to 1.00). Same answers. In WebAssembly the batch now does 8 queries at a time, each step for all 8 before the next, so the memory reads of the 8 overlap instead of waiting one after another. Single get(i) and nextGEQ(x) are unchanged. Checks: all 9 elias-fano test files, plus 116,542 random batch queries against plain arrays (lists of 0 to 3,000 values, gaps up to 100,000, values at 0 and 4,294,967,295). The wasm files grow by about 0.9 KB each.
+
 ## 2.0.1 · API 2 · 2026-11-06
 
 ### Quick

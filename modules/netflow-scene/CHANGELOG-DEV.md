@@ -2,6 +2,61 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.11.0 · API 1 · 2026-11-07
+
+### Quick
+SVG with 1,000 or more plain dots in one look opens much faster in the browser.
+
+### Details
+toSvg wrote one <circle> per dot, and a browser spends most of a big scatter's time reading and laying out those elements (about 150 ms for 20,000). From 1,000 plain dots in a row with one look, the dots now go in a few <path> layers (about 30 for 20,000), and no two dots in a layer touch, so each dot is blended as its own circle would be. Whole page draw, 20,000 dots: Chromium 173 to 83 ms, Firefox 183 to 83 ms, WebKitGTK 209 to 83 ms; 2,000 dots Chromium 32.5 to 25.7 ms, Firefox 38 to 19 ms, WebKitGTK 26 to 21 ms. The layers are found on a flat grid of typed arrays (20,000 dots: about 19 ms of SVG writing, against 12 ms for the old circles). Pixels: 87 to 99 percent identical at 2,000 to 20,000 dots (differences sit on dot edges; WebKitGTK lowest); 999 dots or fewer are byte-identical. The SVG text is about 30 percent longer.
+
+### Deep
+look kept, speed
+
+## 1.10.6 · API 1 · 2026-11-07
+
+### Quick
+SVG line charts are about a third the text and open faster.
+
+### Details
+Line charts (and gridlines) reach toSvg as curve pieces whose two handles sit a third and two thirds of the way along, which is a straight line. toSvg now writes those pieces as L instead of C: the same line in a third of the text. Whole page draw of a 20,000-point line: Chromium 73.9 to 52.2 ms, Firefox 63 to 38 ms, WebKitGTK 76 to 47 ms; 2,000 points 1.1 to 1.3 times faster. Pixels on the 24 label-check charts plus the 20,000-point line: 99.1 to 100 percent identical in all three browsers (antialiasing on line edges); text 825 KB to 276 KB for the big line.
+
+### Deep
+speed, same lines (was 1.10.2 before 1.10.3 merged first)
+
+## 1.10.5 · API 1 · 2026-11-07
+
+### Quick
+Shapes whose outline is fully see-through no longer write stroke and stroke-width. Same pixels in 3 browsers. Text: hexbin 85 to 61 KB, density 31 to 24 KB, 20k-row area 353 to 269 KB. 20k-row area page time 0.82 Chromium, 0.85 Firefox; others level.
+
+### Details
+toSvg polys: stroke attributes only when the stroke's alpha is above 0 (no stroke is the SVG default). No API change.
+
+### Deep
+Less SVG text for shapes with no visible outline.
+
+## 1.10.4 · API 1 · 2026-11-07
+
+### Quick
+Solid opaque lines over 8,000 segments are written as pieces of 2048 that overlap by one segment, without building the full path text. 20k-point line: WebKitGTK 0.63, Firefox 0.88, Chromium 1.01; 10k: 0.86, 0.91, 0.93. At or below 8,000 segments nothing changes. Pixels: 99.6% the same for a 3-series 20k line, 98.3-98.7% for a dense self-crossing zigzag (edge pixels only).
+
+### Details
+toSvg curves: the piece path is chosen before the full d string is built (building both was what made an earlier 128-piece try 1.12-1.17x slower in Chromium and Firefox). WebKitGTK pays a fixed cost per path, so 512-piece splits made 5k-10k lines slower; 2048 above 8,000 segments is faster or level at every size tried. Approved by the owner on a card.
+
+### Deep
+Faster long line charts in WebKit.
+
+## 1.10.3 · API 1 · 2026-11-07
+
+### Quick
+frame: no rule above the source
+
+### Details
+With frame: true (or theme 'editorial'), the thin dark rule under the picture is gone and the source sits where it sits without a frame (15 units under the picture). The red tag stays. Pictures without a frame are unchanged.
+
+### Deep
+Requested by the owner (Economist frame card, 2026.11.07).
+
 ## 1.10.1 · API 1 · 2026-11-07
 
 ### Quick

@@ -2,6 +2,39 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.2 · API 1 · 2026-11-07
+
+### Quick
+Matches and repeats are decoded in a small helper outside the main loop, so the loop is optimized sooner. First unpack of a 500 KB text (149 KB packed) vs 1.6.1: Chromium 0.78, Firefox 0.92, WebKitGTK 0.92. A second unpack in the same page is slower than 1.6.1 (Chromium 25 to 31 ms, Firefox 15 to 19, WebKitGTK 19 to 26) but still faster than 1.4.0. Same output.
+
+### Details
+lzmaDecode: match and repeat decoding moved into matchStep(), which keeps its state in a small Int32Array. This fixes a first-unpack slowdown in Chromium (1.05-1.53x of 1.4.0 before; 0.72-1.02 now on 256-730 KB files). Requested by the owner, who accepted the slower repeat unpacks.
+
+### Deep
+Faster first unpack; later unpacks in one page a little slower.
+
+## 1.6.1 · API 1 · 2026-11-07
+
+### Quick
+Refill reads src[ip++] (past the end reads as 0, as before); long matches far enough back use copyWithin. Decode of 3 MB text plus 1.3 MB HTML vs 1.6.0: Chromium 1.00 (level), Firefox 0.85, WebKitGTK 0.96. Same output.
+
+### Details
+Two edits in lzmaDecode: the range coder refill drops the bounds check (a typed array read past the end gives undefined, which | turns into 0, the same as the old check), and matches longer than 24 bytes whose distance is at least the length are copied with copyWithin, clamped to the output size. Requested by the owner.
+
+### Deep
+Faster plain-JavaScript decode in Firefox and WebKit; same output.
+
+## 1.6.0 · API 1 · 2026-11-07
+
+### Quick
+Repeat unpacks 0.86-0.96x; one Instance kept while its memory is 16 MB or less.
+
+### Details
+lzmaDecodeWasm keeps one WebAssembly Instance between calls instead of starting a fresh one each time. lzma_begin already resets all decoder state and tables, so results are the same bytes. When a call leaves the memory above 16 MB, or a call fails, the Instance is dropped and the next call starts a new one, so a big unpack never pins its memory. Repeat 400 KB unpack after a 3 MB one, early-stop A/B, fresh page per run: Chromium 155 0.95 (ok), Firefox 158 0.96 (ok), WebKitGTK 2.52.6 0.86 (faster). First unpack unchanged. Tests: A, B, A again give the same bytes with at most one Instance; a 17 MB result is followed by a fresh Instance; a bad stream is followed by a fresh Instance and the right bytes.
+
+### Deep
+Requested by the owner (card 'Yes, with a 16 MB limit', 2026.11.07).
+
 ## 1.5.1 · API 1 · 2026-11-07
 
 ### Quick

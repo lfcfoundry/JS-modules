@@ -2,6 +2,12 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.2 · API 0 · 2026-11-07
+- packStream is faster when it is fed many small pieces.
+
+## 0.6.1 · API 0 · 2026-11-07
+- New opt-in warm() makes the first save and open faster.
+
 ## 0.6.0 · API 0 · 2026-11-07
 - New opt-in unpack(file, { rows: 'lazy' | 'lazycols' }): rows read their values when used, so opening a big file and reading a few fields is much faster. Off by default.
 

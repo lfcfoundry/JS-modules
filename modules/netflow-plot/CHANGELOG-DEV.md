@@ -1,5 +1,38 @@
 # netflow-plot developer changelog
 
+## 2.14.8 · API 2 · 2026-11-07
+
+### Quick
+When lines end at different places, their names used to start at each line's own end and could sit on a line that runs on (birdstrikes C 0 on the yellow line); now all names start in one column after the last line end.
+
+### Details
+tags x = max tag x before spacing. 1 new check (427).
+
+### Deep
+Lead from the 2.14.1 review sheet.
+
+## 2.14.7 · API 2 · 2026-11-07
+
+### Quick
+A dot plot with one dot per name sorts biggest first by the drawn value (an average sorts by the average), writes each value beside its dot one decimal finer than the scale, drops gridlines and the number axis in the clean look, and names the values at the top with a note when the scale does not start at zero. clean:false keeps the old axis.
+
+### Details
+CH.dotplot: sort xc.list by cell value when no color and no sort; dv = clean && !ck && step >= 11; val axis ends 44 px early for the values; vt from step decimals + 1; header 'Average lat, scale starts at 47.658'. 1 new check (426).
+
+### Deep
+Follow-up to 2.14.4 dots.
+
+## 2.14.6 · API 2 · 2026-11-07
+
+### Quick
+Collision-safe keys for (x, color) cells; same pictures.
+
+### Details
+Cells of grouped charts (bars, dot plots, heatmaps, donuts, mosaics, slopes) were keyed by x + NUL + color, so a name holding NUL could merge two cells. Keys now put the first name's length in front, which no two pairs can share. Rows are grouped in two maps (x, then color) and the key is made once a cell, so make() is no slower (Node 22, 50,000-row grouped bar: 11.1-19.3 ms to 9.8-11.3 ms). 1,203 charts on the vega-datasets tables draw the same SVG bytes. Two tests ported from an earlier repair branch (2026.11.01): NUL inside names keeps 1 and 10 apart; the donut cap keeps every value with one folded Other (the current choice, kept).
+
+### Deep
+Requested by the owner (review card: port the ideas, close the old branches).
+
 ## 2.14.5 · API 2 · 2026-11-07
 
 ### Quick

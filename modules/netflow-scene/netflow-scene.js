@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.10.1 (API 1)
+ * Version 1.11.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1471,7 +1471,7 @@ var NFMScene = (function () {
 
   /**
    * Title block (the owner's cards, 2026.11.01 and 2026.11.05): o.title (bold, left), o.subtitle (lighter, under it) and o.source (small, under the picture) are text and appear only when given.
-   * o.frame: true (or theme 'editorial') adds the Economist frame: a small red tag top-left and a thin dark rule under the picture, with the source under the rule (opt-in, owner's card 2026.11.05).
+   * o.frame: true (or theme 'editorial') adds the Economist frame: a small red tag top-left, with the source under the picture and no rule above it (opt-in, owner's cards 2026.11.05 and 2026.11.07).
    * With no text and no frame, S stays as it was. The block is added above (and the rule and source below) the picture, so nothing in it moves.
    * Sizes grow with very wide pictures so they keep their size in an SVG drawn at most 3,000 wide.
    */
@@ -1490,13 +1490,11 @@ var NFMScene = (function () {
     var head = list.length || frame ? y + pad * 0.6 : 0, x = S.x0 + pad, top = S.y0 - head, foot = 0;
     list.forEach(function (l) { l.x = x; l.y = top + l.y; });
     var bottom = S.y0 + S.h;
-    if (frame) { foot = 8 * u; S.rects.push({ x: x, y: bottom + 2 * u, w: 0, h: 1.2 * u, r: 0, fill: T.fg, stroke: [0, 0, 0, 0], sw: 0, layer: 1, node: -1, a: 1, frame: 'rule' }); }
-    if (o.source) { var lc = add(o.source, 11 * u, src, false); lc.x = x; lc.y = bottom + (frame ? 21 : 15) * u; list.push(lc); foot = (frame ? 28 : 24) * u; }
+    if (o.source) { var lc = add(o.source, 11 * u, src, false); lc.x = x; lc.y = bottom + 15 * u; list.push(lc); foot = 24 * u; }   /* the frame has no rule above the source: the chart's own baseline is the one line (owner's card, 2026.11.07) */
     S.y0 -= head; S.h += head + foot;
     if (wMax + 2 * pad > S.w) S.w = wMax + 2 * pad;
     if (frame) {
       S.rects.push({ x: x, y: top + tagY, w: 46 * u, h: 10 * u, r: 0, fill: TAG_RED, stroke: [0, 0, 0, 0], sw: 0, layer: 1, node: -1, a: 1, frame: 'tag' });
-      S.rects.forEach(function (r) { if (r.frame === 'rule') r.w = S.x0 + S.w - pad - x; });   /* the rule runs across the whole picture */
       S.frame = true;
     }
     for (var i = list.length - 1; i >= 0; i--) S.labels.unshift(list[i]);   /* first in the list, so the export's 2,500-name limit never drops them */
@@ -1510,6 +1508,61 @@ var NFMScene = (function () {
   /* the same number as +n.toFixed(2), about 20 times faster in Chromium (toFixed was most of a 20,000-dot scatter's SVG time): a rounding that lands
      within 0.0001 of a half, or a number too big for exact hundredths, goes through toFixed itself (since 1.10.1) */
   function fix2(n) { var m = n * 100, r = Math.round(m), d = m - r; if (d > 0.4999 || d < -0.4999 || !(m < 1e15 && m > -1e15)) return +n.toFixed(2); r /= 100; return r === 0 ? 0 : r; }
+  /* Plain round dots in one look, written for toSvg. Up to 999 in a row stay one <circle> each. From 1,000 on (since 1.11.0) they go in a few
+     <path> layers, and no two dots in a layer touch, so every dot is drawn and blended just as its own circle would be. A browser reads and lays
+     out 20,000 circles in about 150 ms; about 30 layers take about 30 ms. */
+  function flushRun(run, out, f) {
+    var n = run.length, i;
+    if (!n) return;
+    if (n < 1000) { for (i = 0; i < n; i++) { var c = run[i]; out.push('<circle cx="' + f(c.cx) + '" cy="' + f(c.cy) + '" r="' + f(c.r) + '"/>'); } run.length = 0; return; }
+    var mr = 0, X = new Float64Array(n), Y = new Float64Array(n), Rr = new Float64Array(n), fin = true;
+    for (i = 0; i < n; i++) { var dd = run[i]; X[i] = dd.cx; Y[i] = dd.cy; Rr[i] = dd.r; if (dd.r > mr) mr = dd.r; if (!(isFinite(dd.cx) && isFinite(dd.cy) && isFinite(dd.r))) fin = false; }
+    var cs = 2 * mr + 1, GX = new Int32Array(n), GY = new Int32Array(n), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    if (fin) for (i = 0; i < n; i++) { var gx = Math.floor(X[i] / cs), gy = Math.floor(Y[i] / cs); GX[i] = gx; GY[i] = gy; if (gx < x0) x0 = gx; if (gx > x1) x1 = gx; if (gy < y0) y0 = gy; if (gy > y1) y1 = gy; }
+    var nx = x1 - x0 + 3, ny = y1 - y0 + 3;
+    if (!fin || nx * ny > 4194304) { flushRunMap(run, out, f); return; }   /* far-flung or broken numbers: the plain way */
+    /* dots by grid cell (a border of empty cells all round), each cell's dots in their own order */
+    var cells = nx * ny, start = new Int32Array(cells + 1), ord = new Int32Array(n), cellOf = new Int32Array(n), lay = new Int32Array(n), seen = new Int32Array(n + 1), L = [], arc = {};
+    for (i = 0; i < n; i++) { cellOf[i] = (GX[i] - x0 + 1) * ny + (GY[i] - y0 + 1); start[cellOf[i] + 1]++; }
+    for (i = 0; i < cells; i++) start[i + 1] += start[i];
+    var fill = start.slice(0, cells);
+    for (i = 0; i < n; i++) ord[fill[cellOf[i]]++] = i;
+    for (i = 0; i < n; i++) {
+      var ci = cellOf[i], a, b, q, j, k, xi = X[i], yi = Y[i], ri = Rr[i];
+      for (a = -1; a <= 1; a++) for (b = -1; b <= 1; b++) {
+        var cc = ci + a * ny + b, qe = start[cc + 1];
+        for (q = start[cc]; q < qe; q++) { j = ord[q]; if (j >= i) break; var dx = X[j] - xi, dy = Y[j] - yi, m = Rr[j] + ri + 1; if (dx * dx + dy * dy < m * m) seen[lay[j]] = i + 1; }
+      }
+      for (k = 0; seen[k] === i + 1; k++);
+      lay[i] = k;
+      var tail = arc[ri]; if (tail === undefined) { var R = f(ri), D = f(2 * ri); tail = arc[ri] = 'a' + R + ' ' + R + ' 0 1 0 ' + D + ' 0a' + R + ' ' + R + ' 0 1 0 -' + D + ' 0'; }
+      (L[k] || (L[k] = [])).push('M' + f(xi - ri) + ' ' + f(yi) + tail);
+    }
+    for (k = 0; k < L.length; k++) out.push('<path d="' + L[k].join('') + '"/>');
+    run.length = 0;
+  }
+  function flushRunMap(run, out, f) {
+    var n = run.length, i;
+    if (!n) return;
+    if (n < 1000) { for (i = 0; i < n; i++) { var c = run[i]; out.push('<circle cx="' + f(c.cx) + '" cy="' + f(c.cy) + '" r="' + f(c.r) + '"/>'); } run.length = 0; return; }
+    var mr = 0; for (i = 0; i < n; i++) if (run[i].r > mr) mr = run[i].r;
+    var cs = 2 * mr + 1, grid = new Map(), lay = new Int32Array(n), seen = [], L = [];
+    for (i = 0; i < n; i++) {
+      var d = run[i], gx = Math.floor(d.cx / cs), gy = Math.floor(d.cy / cs), a, b, j, k;
+      for (a = -1; a <= 1; a++) for (b = -1; b <= 1; b++) {
+        var cell = grid.get((gx + a) * 1048576 + (gy + b));
+        if (cell) for (k = 0; k < cell.length; k++) { j = cell[k]; var e = run[j], dx = e.cx - d.cx, dy = e.cy - d.cy, m = e.r + d.r + 1; if (dx * dx + dy * dy < m * m) seen[lay[j]] = i + 1; }
+      }
+      for (k = 0; seen[k] === i + 1; k++);
+      lay[i] = k;
+      var R = f(d.r), D = f(2 * d.r);
+      L[k] = (L[k] || '') + 'M' + f(d.cx - d.r) + ' ' + f(d.cy) + 'a' + R + ' ' + R + ' 0 1 0 ' + D + ' 0a' + R + ' ' + R + ' 0 1 0 -' + D + ' 0';
+      var key = gx * 1048576 + gy, own = grid.get(key);
+      if (own) own.push(i); else grid.set(key, [i]);
+    }
+    for (k = 0; k < L.length; k++) out.push('<path d="' + L[k] + '"/>');
+    run.length = 0;
+  }
   function toSvg(S, title) {
     var T = S.theme, f = fix2, out = [];
     var op = function (o) { return o.a !== undefined && o.a < 1 ? ' opacity="' + f(Math.max(0, o.a)) + '"' : ''; };   /* dimmed things (a < 1) are exported dimmed, like the canvas draws them */
@@ -1517,13 +1570,31 @@ var NFMScene = (function () {
     if (title) out.push('<title>' + esc(title) + '</title>');
     out.push('<rect x="' + f(S.x0) + '" y="' + f(S.y0) + '" width="' + f(S.w) + '" height="' + f(S.h) + '" fill="' + css(T.bg) + '"/>');
     S.rects.filter(function (r) { return r.layer === 0; }).forEach(function (r) { out.push(rectSvg(r, css, f, op)); });
-    S.polys.forEach(function (p) { var d = 'M'; for (var i = 0; i < p.pts.length; i += 2) d += (i ? 'L' : '') + f(p.pts[i]) + ' ' + f(p.pts[i + 1]); out.push('<path d="' + d + 'Z" fill="' + css(p.fill) + '" stroke="' + css(p.stroke) + '" stroke-width="1.5"' + op(p) + '/>'); });
+    S.polys.forEach(function (p) { var d = 'M'; for (var i = 0; i < p.pts.length; i += 2) d += (i ? 'L' : '') + f(p.pts[i]) + ' ' + f(p.pts[i + 1]); out.push('<path d="' + d + 'Z" fill="' + css(p.fill) + '"' + (p.stroke && !(p.stroke[3] <= 0) ? ' stroke="' + css(p.stroke) + '" stroke-width="1.5"' : '') + op(p) + '/>'); });   /* a fully see-through outline is left out (since 1.10.5): same pixels, less text */
     var defs = [];
     S.ribbons.forEach(function (r, ri) { var fill = css(r.color); if (r.color2) { defs.push('<linearGradient id="rg' + ri + '" gradientUnits="userSpaceOnUse" x1="' + f(r.x0) + '" y1="0" x2="' + f(r.x1) + '" y2="0"><stop offset="0" stop-color="' + css([r.color[0], r.color[1], r.color[2], 1]) + '"/><stop offset="1" stop-color="' + css([r.color2[0], r.color2[1], r.color2[2], 1]) + '"/></linearGradient>'); fill = 'url(#rg' + ri + ')'; } out.push('<path d="M' + f(r.x0) + ' ' + f(r.y0a) + 'C' + f(r.xm) + ' ' + f(r.y0a) + ' ' + f(r.xm) + ' ' + f(r.y1a) + ' ' + f(r.x1) + ' ' + f(r.y1a) + 'L' + f(r.x1) + ' ' + f(r.y1b) + 'C' + f(r.xm) + ' ' + f(r.y1b) + ' ' + f(r.xm) + ' ' + f(r.y0b) + ' ' + f(r.x0) + ' ' + f(r.y0b) + 'Z" fill="' + fill + '"' + (r.color2 ? ' fill-opacity="' + f(r.color[3]) + '"' : '') + op(r) + '/>'); });
     if (defs.length) out.splice(out.length - S.ribbons.length, 0, '<defs>' + defs.join('') + '</defs>');
     S.curves.forEach(function (c) {
-      var d = 'M' + f(c.P[0]) + ' ' + f(c.P[1]);
-      for (var i = 2; i < c.P.length; i += 6) d += 'C' + f(c.P[i]) + ' ' + f(c.P[i + 1]) + ' ' + f(c.P[i + 2]) + ' ' + f(c.P[i + 3]) + ' ' + f(c.P[i + 4]) + ' ' + f(c.P[i + 5]);
+      var P = c.P;
+      /* a piece whose two handles sit a third and two thirds of the way along it is a straight line: written as L, the same line in shorter
+         text (line charts draw every step this way; since 1.10.6) */
+      var seg = function (i) {
+        var ax = P[i - 2], ay = P[i - 1], bx = P[i + 4], by = P[i + 5];
+        if (P[i] === ax + (bx - ax) / 3 && P[i + 1] === ay + (by - ay) / 3 && P[i + 2] === ax + 2 * (bx - ax) / 3 && P[i + 3] === ay + 2 * (by - ay) / 3) return 'L' + f(bx) + ' ' + f(by);
+        return 'C' + f(P[i]) + ' ' + f(P[i + 1]) + ' ' + f(P[i + 2]) + ' ' + f(P[i + 3]) + ' ' + f(bx) + ' ' + f(by);
+      };
+      var nSeg = (P.length - 2) / 6, oc = op(c), PL = 2048;   /* since 1.10.4: a solid line over 8,000 segments goes out in pieces of 2048 that overlap by one segment; WebKit paints one long path far slower than its length suggests, and each extra path costs it a little, so only long lines are split. The full path text is not built for them. */
+      if (c.w1 === undefined && nSeg > 8000 && !c.dash && !c.arrow && !oc && !(c.color[3] < 1)) {
+        var tl = '" fill="none" stroke="' + css(c.color) + '" stroke-width="' + f(c.w) + '"/>';
+        for (var s0 = 0; s0 < nSeg; s0 += PL - 1) {
+          var b = 2 + s0 * 6, dd = 'M' + f(P[b - 2]) + ' ' + f(P[b - 1]), e = Math.min(nSeg, s0 + PL);
+          for (var q = b; q < 2 + e * 6; q += 6) dd += seg(q);
+          out.push('<path d="' + dd + tl); if (e === nSeg) break;
+        }
+        return;
+      }
+      var d = 'M' + f(P[0]) + ' ' + f(P[1]);
+      for (var i = 2; i < P.length; i += 6) d += seg(i);
       if (c.w1 !== undefined) { out.push('<path d="' + taperSvg(c, f) + 'Z" fill="' + css(c.color) + '"' + op(c) + '/>'); return; }
       out.push('<path d="' + d + '" fill="none" stroke="' + css(c.color) + '" stroke-width="' + f(c.w) + '"' + (c.dash ? ' stroke-dasharray="' + (c.dash === 1 ? '1 ' + f(c.w * 2.2) + '" stroke-linecap="round' : c.dash === 3 ? f(c.w * 6) + ' ' + f(c.w * 3) : f(c.w * 3) + ' ' + f(c.w * 2)) + '"' : '') + op(c) + '/>');
       if (c.arrow) { var tri = arrowTri(c); out.push('<path d="M' + tri.map(f).join(' ').replace(/(\S+ \S+) /g, '$1L') + 'Z" fill="' + css(c.color) + '"' + op(c) + '/>'); }
@@ -1531,18 +1602,21 @@ var NFMScene = (function () {
     S.rects.filter(function (r) { return r.layer === 1; }).forEach(function (r) { out.push(rectSvg(r, css, f, op)); });
     /* dots in a row that share fill, stroke and width go in one <g> that carries the look (the same picture, much shorter text on big
        scatters); dimming stays on each dot, since opacity on a group would blend overlapping dots differently */
-    var lf = null, ls = null, lw, open = false;
+    var lf = null, ls = null, lw, open = false, run = [];
     S.dots.forEach(function (d) {
       var k = d.kind === undefined ? 1 : d.kind, F0 = d.fill, S0 = d.stroke, attrs = op(d);
       if (!(lf && F0[0] === lf[0] && F0[1] === lf[1] && F0[2] === lf[2] && F0[3] === lf[3] && S0[0] === ls[0] && S0[1] === ls[1] && S0[2] === ls[2] && S0[3] === ls[3] && d.sw === lw)) {
-        if (open) out.push('</g>');
+        if (open) { flushRun(run, out, f); out.push('</g>'); }
         out.push('<g fill="' + css(F0) + '"' + (d.sw > 0 && S0[3] > 0 ? ' stroke="' + css(S0) + '" stroke-width="' + f(d.sw) + '"' : '') + '>'); open = true;
         lf = F0.slice(); ls = S0.slice(); lw = d.sw;
       }
+      if (k === 1 && !attrs) { run.push(d); return; }
+      flushRun(run, out, f);
       if (k === 1) out.push('<circle cx="' + f(d.cx) + '" cy="' + f(d.cy) + '" r="' + f(d.r) + '"' + attrs + '/>');
       else if (k === 0) out.push('<rect x="' + f(d.cx - d.r) + '" y="' + f(d.cy - d.r) + '" width="' + f(2 * d.r) + '" height="' + f(2 * d.r) + '" rx="3"' + attrs + '/>');
       else { var p = shapePts(k, d.cx, d.cy, d.r), dd = 'M'; for (var i = 0; i < p.length; i += 2) dd += (i ? 'L' : '') + f(p[i]) + ' ' + f(p[i + 1]); out.push('<path d="' + dd + 'Z"' + attrs + ' stroke-linejoin="round"/>'); }
     });
+    flushRun(run, out, f);
     if (open) out.push('</g>');
     S.icons.forEach(function (ic) {
       if (ic.img) out.push('<image x="' + f(ic.cx - ic.r) + '" y="' + f(ic.cy - ic.r) + '" width="' + f(2 * ic.r) + '" height="' + f(2 * ic.r) + '" xlink:href="' + esc(ic.img) + '" preserveAspectRatio="xMidYMid meet"' + op(ic) + '/>');

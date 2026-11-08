@@ -34,7 +34,7 @@ for (const [n, seed] of [[0, 1], [1, 2], [7, 3], [2000, 4]]) {
     let S = null; try { S = P.make(rows, spec, { width: 900, height: 560 }, global.NetflowScene); } catch (e) { ok(false, t + ' at ' + n + ' rows threw ' + e.message); continue; }
     const bad = finite(S); ok(!bad.length, t + ' at ' + n + ' rows: ' + bad.slice(0, 3).join(', '));
     ok(S.w === 920 && S.h === 580 && !S.frame, t + ' frame');
-    if (n === 7) { const F1 = P.make(rows, spec, { width: 900, height: 560, frame: true }, global.NetflowScene); ok(F1.w === 920 && F1.h > 580 && F1.frame && F1.rects.filter((r) => r.frame).length === 2, t + ' frame: true adds the red tag and the rule'); }
+    if (n === 7) { const F1 = P.make(rows, spec, { width: 900, height: 560, frame: true }, global.NetflowScene); ok(F1.w === 920 && F1.h > 580 && F1.frame && F1.rects.filter((r) => r.frame).length === 1 && F1.rects.some((r) => r.frame === 'tag'), t + ' frame: true adds the red tag and no rule above the source'); }
     if (n >= 7 && t !== 'words') ok(S.rects.length + S.dots.length + S.polys.length + (S.curves || []).length > 0, t + ' at ' + n + ' rows draws shapes');
     /* a missing or wrong column draws a note, not a crash */
     try { const S2 = P.make(rows, Object.assign({}, spec, { x: 'nope', y: 'blank', color: 'nope2' }), { width: 400, height: 300 }, global.NetflowScene); ok(!finite(S2).length, t + ' with missing columns'); } catch (e) { ok(false, t + ' with missing columns threw ' + e.message); }
@@ -226,7 +226,12 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const near = []; for (let i = 0; i < 190; i++) near.push({ key: 'food ' + (i % 19), lat: 47.655 + ((i * 37) % 17) / 1000 });
   const ng = P.guess(near), ns = P.auto(near).svg;
   ok(ng.type === 'dotplot' && /close together/.test(ng.why), 'close averages: dots, not 19 equal bars');
-  const nt = (ns.match(/>47[.0-9]*</g) || []); ok(nt.length >= 3 && new Set(nt).size === nt.length, 'dot plot ticks all differ (' + nt.join(' ') + ')');
+  const nt = (ns.match(/>47\.[0-9]+</g) || []).map((t) => +t.slice(1, -1)); ok(nt.length === 19 && nt.every((v, i) => !i || v <= nt[i - 1]), 'dot plot (since 2.14.5): every dot carries its value, biggest first (' + nt.slice(0, 4).join(' ') + ' ...)');
+  ok(/scale starts at 47/.test(ns) && P.toSvg(near, { type: 'dotplot', x: 'key', y: 'lat', agg: 'mean', clean: false }).indexOf('scale starts') < 0, 'dot plot says when its scale does not start at zero; clean: false keeps the number axis');
+  // since 2.14.6 line-end names stand in one column after the last line end
+  const ragged = []; for (let y = 2000; y <= 2010; y++) ['a', 'b', 'c'].forEach((s, k) => { if (!(k === 2 && y > 2006)) ragged.push({ year: y, s: 'series ' + s, v: 10 + k * 5 + (y % 3) }); });
+  const rg = P.make(ragged, { type: 'line', x: 'year', y: 'v', color: 's' }, { width: 640, height: 400 }, global.NetflowScene).labels.filter((l) => /^series/.test(l.t));
+  ok(rg.length === 3 && rg.every((l) => l.x === rg[0].x), 'line-end names line up in one column (' + rg.map((l) => Math.round(l.x)).join(' ') + ')');
   const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
   ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
 }
@@ -270,6 +275,29 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const Sk = P.make(kr, { type: 'scatter', x: 'x', y: 'y', color: 'group' }, { width: 400, height: 260 }, NS);
   const more = Sk.labels.find((l) => /^\+\d+ more$/.test(l.t)), keys = Sk.labels.filter((l) => /^group_name/.test(l.t) && l.y === (more && more.y));
   ok(more && keys.length >= 1 && keys.every((k) => k.x + k.t.length * 6.6 < more.x), 'key row: "+N more" sits after the last name, never on it');
+}
+/* from an earlier repair branch (2026.11.01), adapted to main's choice: a real Other is folded into the rest, so there is one Other and no value is lost */
+{
+  const rows = [{ attrs: { cat: 'Other', v: 100 } }];
+  for (let i = 0; i < 12; i++) rows.push({ attrs: { cat: 'c' + i, v: 1 } });
+  const s = P.make(rows, { type: 'donut', x: 'cat', y: 'v' }, { width: 600, height: 600 }, global.NetflowScene);
+  const values = s.marks.map((m) => Number((/:\s*(-?\d+(?:\.\d+)?)/.exec(m.t) || [])[1]));
+  const covered = s.marks.flatMap((m) => m.rows || []);
+  ok(values.reduce((a, b) => a + b, 0) === 112, 'donut cap keeps all 112 of the category values');
+  ok(s.marks.filter((m) => /^Others?\b/.test(m.t)).length === 1, 'one Other wedge: a real Other is folded into the rest');
+  ok(covered.length === 13 && new Set(covered).size === 13, 'each donut row belongs to exactly one wedge');
+}
+/* from the same repair branch: names holding the key separator (NUL) stay separate grouped-bar cells (since 2.14.6) */
+{
+  const z = '\0', rows = [
+    { attrs: { x: 'a' + z + 'b', color: 'c', v: 1 } },
+    { attrs: { x: 'a', color: 'b' + z + 'c', v: 10 } }
+  ];
+  const s = P.make(rows, { type: 'bar', x: 'x', color: 'color', y: 'v', stack: 'group' }, { width: 600, height: 400 }, global.NetflowScene);
+  const values = s.marks.map((m) => Number((/: (-?\d+(?:\.\d+)?)$/.exec(m.t) || [])[1])).sort((a, b) => a - b);
+  const covered = s.marks.flatMap((m) => m.rows || []);
+  ok(s.marks.length === 2 && values.join(',') === '1,10', 'NUL inside names: values 1 and 10 stay apart (' + values.join(',') + ')');
+  ok(covered.length === 2 && new Set(covered).size === 2, 'each grouped bar keeps only its own source row');
 }
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);
