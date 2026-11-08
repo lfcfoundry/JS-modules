@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.14.9 · API 2 · 2026-11-07
+
+### Quick
+line names wrap; thin dot plots stay readable
+
+### Details
+Line-end names longer than 16 letters wrap at a space onto a second line (each name keeps its own 14 px rows), when all names still fit; otherwise they are cut as before. In a dot plot whose rows are thinner than 13 px, every k-th name is written, dots shrink to fit their row, and the number axis writes every 2nd (3rd, ...) number when two would touch. Charts with roomy rows and short names draw the same as before.
+
+### Deep
+Requested by the owner (visuals review of 2.14.5).
+
 ## 2.14.8 · API 2 · 2026-11-07
 
 ### Quick
