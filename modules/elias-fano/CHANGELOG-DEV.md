@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.1.1 · API 2 · 2026-11-07
+
+### Quick
+Block-list intersect in the SIMD build compares 8 values against 8 (every rotation at once) when one block is at least 1/8 the size of the other; shorter ones still gallop.
+
+### Deep
+Block-list intersect in the SIMD build compares 8 values against 8 (every rotation at once) when one block is at least 1/8 the size of the other; shorter ones still gallop. 1,000,000 x 200,000 values, ms, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, lower is better: sparse, arrays: true 2.7 / 4.3 / 3.3 -> 1.4 / 1.3 / 2.3 (roaring-wasm 3.4 / 4.0 / 3.3 in the same run); sparse default 4.8 / 8.0 / 5.7 -> 4.2 / 4.7 / 4.7; dense unchanged within noise (0.97 / 1.0 / 1.0, arrays 0.47 / 0.67 / 0.33, roaring 1.5 / 2.0 / 1.3). Node, same lists: arrays sparse 3.9 -> 1.1-1.4 ms, default sparse 6.6 -> 3.0-3.8. Same answers: all elias-fano tests, plus 631,200 random checks. Flat and partitioned lists untouched (only the block-list merge changed). Tried and not kept: one 8-byte load for Elias-Fano block low bits (0-10% in Node, inside noise).
+
 ## 2.1.0 · API 2 · 2026-11-07
 
 ### Quick

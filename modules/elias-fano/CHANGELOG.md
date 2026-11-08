@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.1.1 · API 2 · 2026-11-07
+- Block lists: intersecting is 2 to 3 times faster with arrays: true, now faster than roaring-wasm on spread-out lists too.
+
 ## 2.1.0 · API 2 · 2026-11-07
 - New block lists (buildBlocks, openBlocks): bitmaps where values are dense, so intersecting and lookups beat roaring-wasm on dense data.
 
