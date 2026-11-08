@@ -23,7 +23,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
-| [lzma-decode](modules/lzma-decode/README.md) | 1.6.2 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.6.3 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.1 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
@@ -100,6 +100,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **netflow-hierarchy** 1.5.0 · API 1: A treemap is laid out at the width and height you pass.
 - 2026-11-07 · **netflow-circular** 1.3.0 · API 1: A chord ring fits the width and height you pass, names included.
 - 2026-11-07 · **memory-compression** 2.13.0 · API 2: warm() can take a sample of your own rows for a faster first unpack.
+- 2026-11-07 · **lzma-decode** 1.6.3 · API 1: Later unpacks in the same page are about twice as fast in Chromium and WebKit; same output.
 - 2026-11-07 · **lzma-decode** 1.6.2 · API 1: The plain JavaScript decoder's first unpack in a page is faster, most in Chromium.
 - 2026-11-07 · **lzma-decode** 1.6.1 · API 1: The plain JavaScript decoder is faster in Firefox and WebKit.
 - 2026-11-07 · **lzma-decode** 1.6.0 · API 1: Repeat unpacks are faster: one WebAssembly Instance is kept between calls, up to 16 MB of memory

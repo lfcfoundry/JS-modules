@@ -12,7 +12,7 @@
  *
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.2 (API 1)
+ * Version 1.6.3 (API 1)
  */
 
 (function (root, factory) {

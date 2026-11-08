@@ -1,8 +1,8 @@
 /*! lzma-decode-with-wasm.js: lzma-decode.js and lzma-decode-wasm.js in one file. lzmaDecode(...) here tries the WebAssembly decoder first and uses the JavaScript decoder
  * when WebAssembly is not usable (the page policy lacks 'wasm-unsafe-eval', or an old browser), so it always works and gives the same bytes. lzmaDecode.plain is the JavaScript decoder alone;
  * lzmaDecodeWasm is another name for lzmaDecode. Built by wasm/join.js from the two files named above: edit those, not this one. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.6.2 (API 1) */
-/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.6.2 (API 1) */
+ * Version 1.6.3 (API 1) */
+/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.6.3 (API 1) */
 
 /* Decodes a raw LZMA1 stream (no .lzma header) into a Uint8Array.
 
@@ -27,6 +27,60 @@
    Syntax is ES5, but Uint16Array.prototype.fill (used in probs) is an ES2015 method: a browser from before 2015 lacks it.
    This file is deliberately not wrapped in a UMD function: tools/lzma-pack/pack.py cuts it where the file helper below begins and pastes
    the part above into every packed page; that helper must stay the last function. The packer also drops lines that end in the marker comment "lean-cut" and turns every error throw into a bare throw (the packed page shows its own message), so keep each such line self-contained. Keep it plain ASCII for the same reason (the packed page is read as windows-1252). */
+function lzmaMatchStep(P, src, out, S, posState, outSize) {   // a match or a repeat: kept out of the main loop so the loop stays small and gets optimized sooner
+  var range = S[0], code = S[1], ip = S[2], op = S[3], state = S[4], rep0 = S[5] >>> 0, rep1 = S[6] >>> 0, rep2 = S[7] >>> 0, rep3 = S[8] >>> 0, i, p, bound, b, len, slot, nb, dist, x, k, m, c, L, r;
+    { i = 192 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
+    if (b) {
+      { i = 204 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
+      if (!b) {
+        { i = 240 + (state << 4) + posState; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
+        if (!b) {
+          if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
+          state = state < 7 ? 9 : 11; out[op] = out[op - rep0 - 1]; op++; { S[0] = range; S[1] = code; S[2] = ip; S[3] = op; S[4] = state; S[5] = rep0; S[6] = rep1; S[7] = rep2; S[8] = rep3; return; }
+        }
+      } else {
+        { i = 216 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
+        if (!b) dist = rep1;
+        else { { i = 228 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } if (!b) dist = rep2; else { dist = rep3; rep3 = rep2; } rep2 = rep1; }
+        rep1 = rep0; rep0 = dist;
+      }
+      L = 1333; state = state < 7 ? 8 : 11;
+    } else {
+      rep3 = rep2; rep2 = rep1; rep1 = rep0;
+      L = 819; state = state < 7 ? 7 : 10;
+    }
+    // length
+    { i = L; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
+    if (!b) { L += 2 + (posState << 3); c = 3; len = 0; }
+    else { { i = L + 1; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } if (!b) { L += 130 + (posState << 3); c = 3; len = 8; } else { L += 258; c = 8; len = 16; } }
+    for (m = 1, k = c; k--;) { { i = L + m; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } m = (m << 1) | b; }
+    len += m - (1 << c);
+    if (state === 7 || state === 10) {
+      L = 432 + ((len < 4 ? len : 3) << 6);
+      for (m = 1, k = 6; k--;) { { i = L + m; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } m = (m << 1) | b; }
+      slot = m - 64;
+      if (slot < 4) rep0 = slot;
+      else {
+        nb = (slot >> 1) - 1; dist = (2 | (slot & 1)) << nb;
+        if (slot < 14) { L = 688 + dist - slot; c = nb; }
+        else {
+          for (x = 0, k = nb - 4; k--;) {
+            range >>>= 1; b = (code ^ -2147483648) >= (range ^ -2147483648) ? 1 : 0; if (b) code = (code - range) | 0;
+            if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; }
+            x = (x << 1) | b;
+          }
+          dist += x << 4; L = 803; c = 4;
+        }
+        for (m = 1, r = 0, k = 0; k < c; k++) { { i = L + m; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } m = (m << 1) | b; r |= b << k; }
+        rep0 = (dist + r) >>> 0;
+      }
+    }
+    if (rep0 === 0xFFFFFFFF) throw new Error('LZMA: the end marker came before ' + outSize + ' bytes were decoded');
+    if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
+    len += 2; if (len > 24 && rep0 >= len) { if (op + len > outSize) len = outSize - op; out.copyWithin(op, op - rep0 - 1, op - rep0 - 1 + len); op += len; } else for (; len--; op++) out[op] = out[op - rep0 - 1];
+  S[0] = range; S[1] = code; S[2] = ip; S[3] = op; S[4] = state; S[5] = rep0; S[6] = rep1; S[7] = rep2; S[8] = rep3;
+}
+
 function lzmaDecode(src, outSize, opts) {
   opts = opts || {};
   var lc = opts.lc === undefined ? 4 : opts.lc, lp = opts.lp === undefined ? 0 : opts.lp, pb = opts.pb === undefined ? 0 : opts.pb;
@@ -40,59 +94,6 @@ function lzmaDecode(src, outSize, opts) {
   var IM = 0, IR = IM + 192, IG0 = IR + 12, IG1 = IG0 + 12, IG2 = IG1 + 12, IRL = IG2 + 12, PS = IRL + 192, PSP = PS + 256, AL = PSP + 115, LEN = AL + 16, RLEN = LEN + 514, LIT = RLEN + 514;
   var P = new Uint16Array(LIT + (0x300 << (lc + lp))).fill(1024);
   var S = new Int32Array(9);
-  function matchStep(posState) {   // a match or a repeat: kept out of the main loop so the loop stays small and gets optimized sooner
-    var range = S[0], code = S[1], ip = S[2], op = S[3], state = S[4], rep0 = S[5] >>> 0, rep1 = S[6] >>> 0, rep2 = S[7] >>> 0, rep3 = S[8] >>> 0, i, p, bound, b, len, slot, nb, dist, x, k, m, c, L, r;
-      { i = IR + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
-      if (b) {
-        { i = IG0 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
-        if (!b) {
-          { i = IRL + (state << 4) + posState; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
-          if (!b) {
-            if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
-            state = state < 7 ? 9 : 11; out[op] = out[op - rep0 - 1]; op++; { S[0] = range; S[1] = code; S[2] = ip; S[3] = op; S[4] = state; S[5] = rep0; S[6] = rep1; S[7] = rep2; S[8] = rep3; return; }
-          }
-        } else {
-          { i = IG1 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
-          if (!b) dist = rep1;
-          else { { i = IG2 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } if (!b) dist = rep2; else { dist = rep3; rep3 = rep2; } rep2 = rep1; }
-          rep1 = rep0; rep0 = dist;
-        }
-        L = RLEN; state = state < 7 ? 8 : 11;
-      } else {
-        rep3 = rep2; rep2 = rep1; rep1 = rep0;
-        L = LEN; state = state < 7 ? 7 : 10;
-      }
-      // length
-      { i = L; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
-      if (!b) { L += 2 + (posState << 3); c = 3; len = 0; }
-      else { { i = L + 1; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } if (!b) { L += 130 + (posState << 3); c = 3; len = 8; } else { L += 258; c = 8; len = 16; } }
-      for (m = 1, k = c; k--;) { { i = L + m; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } m = (m << 1) | b; }
-      len += m - (1 << c);
-      if (state === 7 || state === 10) {
-        L = PS + ((len < 4 ? len : 3) << 6);
-        for (m = 1, k = 6; k--;) { { i = L + m; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } m = (m << 1) | b; }
-        slot = m - 64;
-        if (slot < 4) rep0 = slot;
-        else {
-          nb = (slot >> 1) - 1; dist = (2 | (slot & 1)) << nb;
-          if (slot < 14) { L = PSP + dist - slot; c = nb; }
-          else {
-            for (x = 0, k = nb - 4; k--;) {
-              range >>>= 1; b = (code ^ -2147483648) >= (range ^ -2147483648) ? 1 : 0; if (b) code = (code - range) | 0;
-              if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; }
-              x = (x << 1) | b;
-            }
-            dist += x << 4; L = AL; c = 4;
-          }
-          for (m = 1, r = 0, k = 0; k < c; k++) { { i = L + m; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } m = (m << 1) | b; r |= b << k; }
-          rep0 = (dist + r) >>> 0;
-        }
-      }
-      if (rep0 === 0xFFFFFFFF) throw new Error('LZMA: the end marker came before ' + outSize + ' bytes were decoded');
-      if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
-      len += 2; if (len > 24 && rep0 >= len) { if (op + len > outSize) len = outSize - op; out.copyWithin(op, op - rep0 - 1, op - rep0 - 1 + len); op += len; } else for (; len--; op++) out[op] = out[op - rep0 - 1];
-    S[0] = range; S[1] = code; S[2] = ip; S[3] = op; S[4] = state; S[5] = rep0; S[6] = rep1; S[7] = rep2; S[8] = rep3;
-  }
   var i, posState, prev, base, sym, matchByte, matchBit, len, slot, nb, dist, x, k, b, p, bound, m, c, L, r;
   for (i = 0; i < 4; i++) code = (code << 8) | (ip < slen ? src[ip] : 0), ip++;
   while (op < outSize) {
@@ -116,7 +117,7 @@ function lzmaDecode(src, outSize, opts) {
       state = state < 4 ? 0 : state < 10 ? state - 3 : state - 6;
     } else {
       S[0] = range; S[1] = code; S[2] = ip; S[3] = op; S[4] = state; S[5] = rep0; S[6] = rep1; S[7] = rep2; S[8] = rep3;
-      matchStep(posState);
+      lzmaMatchStep(P, src, out, S, posState, outSize);
       range = S[0]; code = S[1]; ip = S[2]; op = S[3]; state = S[4]; rep0 = S[5] >>> 0; rep1 = S[6] >>> 0; rep2 = S[7] >>> 0; rep3 = S[8] >>> 0;
     }
   }
@@ -154,7 +155,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
  *
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.2 (API 1)
+ * Version 1.6.3 (API 1)
  */
 
 (function (root, factory) {
