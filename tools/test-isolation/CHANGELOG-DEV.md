@@ -17,3 +17,7 @@ New tool, cut from Apple Press's speed-test page: a test page can no longer read
 
 ### Deep
 New tool, cut from Apple Press's speed-test page. It puts a prefix in front of every localStorage (and, if asked, sessionStorage) key on a test page, so a speed test, a random-play run or any test build never reads or overwrites the real saved game; its own keys never mix with the real ones. 4.7 KB; `snippet()` gives the same thing as a 641-character inline script for the top of `<head>`. Real localStorage check in Firefox 158 and ungoogled Chromium 155: the real save stayed untouched while the page wrote its own, and `clear()` removed only the prefixed keys. 6 checks on a fake Storage. Found while testing: Firefox does not keep keys in the order they were written, so `key(i)` order must not be relied on (documented).
+
+## Moved from the README (2026-11-08)
+
+- The snippet is about 1,960 characters (it carries the same Proxy code as the file, so it is bigger than 1.0.0's 641).
