@@ -160,5 +160,12 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   });
   ok(dims(HY.toSvg(tree, {}))[0] === 960, 'treemap without width and height keeps its own size');
 }
+{ // amounts written as text with thousands commas, a currency sign or a percent sign read as numbers (1.5.1); before, '1,200' was not a number
+  const HY = require('../netflow-hierarchy.js');
+  const w = HY.asGraph([{ from: 'a', to: 'b', value: '1,200' }, { from: 'b', to: 'c', value: '40' }, { from: 'c', to: 'd', value: '$2,500.5' }, { from: 'd', to: 'e', value: '45%' }]).edges.map((e) => e.weight);
+  ok(JSON.stringify(w) === '[1200,40,2500.5,45]', 'text amounts with commas, $ and % read as numbers (' + JSON.stringify(w) + ')');
+  const g = HY.asGraph([{ s: 'a', t: 'b', amt: '1,200' }, { s: 'b', t: 'c', amt: '40' }]).edges.map((e) => [e.from, e.to, e.weight]);
+  ok(JSON.stringify(g) === '[["a","b",1200],["b","c",40]]', 'a column of comma amounts is found as the amount column (' + JSON.stringify(g) + ')');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks FAILED' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

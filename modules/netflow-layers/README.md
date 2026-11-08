@@ -35,6 +35,7 @@ Load `netflow-layers.js` (nothing else needed). One call, data only (items are m
 
 ```js
 svgElement.outerHTML = NetflowLayers.toSvg([{ from: "start", to: "a" }, { from: "start", to: "b" }, { from: "a", to: "b" }]);
+containerDiv.innerHTML = NetflowLayers.toSvg([{ from: "start", to: "a" }, { from: "start", to: "b" }, { from: "a", to: "b" }]);   // the same call into a <div> you already have
 ```
 
 Links point from an item to the next one. Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file.

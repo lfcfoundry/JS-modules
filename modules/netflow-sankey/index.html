@@ -68,7 +68,8 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 <p><strong>Test it:</strong> <code>node modules/netflow-sankey/test/run.js</code> (31 checks, about 1 s). <strong>Try it:</strong> <code>demo.html</code> (type links, the chart redraws).</p>
 <h3>Use</h3>
 <p>Load <code>netflow-sankey.js</code> (nothing else needed). One call, data only:</p>
-<pre><code>svgElement.outerHTML = NetflowSankey.toSvg([{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }]);</code></pre>
+<pre><code>svgElement.outerHTML = NetflowSankey.toSvg([{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }]);
+containerDiv.innerHTML = NetflowSankey.toSvg([{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }]);   // the same call into a &lt;div&gt; you already have</code></pre>
 <p><code>value</code>, <code>weight</code> or <code>count</code> names the amount. Options (the same words in every chart module) go in a second argument: <code>NetflowSankey.toSvg(links, { title: "Where the wages go", height: 360 })</code>. The two steps below give you the layout to draw yourself.</p>
 <p>Your table can keep its own column names: <code>toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })</code>, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). <code>toSvg</code> returns SVG text (a string): put it in the page with <code>element.outerHTML = ...</code> or save it as a <code>.svg</code> file. <code>title</code> is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.</p>
 <pre><code>var R = NetflowSankey.layoutFlows({ links: [

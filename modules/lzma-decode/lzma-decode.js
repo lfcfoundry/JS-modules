@@ -1,4 +1,4 @@
-/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.6.1 (API 1) */
+/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.6.2 (API 1) */
 
 /* Decodes a raw LZMA1 stream (no .lzma header) into a Uint8Array.
 
@@ -29,34 +29,15 @@ function lzmaDecode(src, outSize, opts) {
   if (!(lc >= 0 && lc <= 8 && lp >= 0 && lp <= 4 && pb >= 0 && pb <= 4)) throw new Error('LZMA: lc 0-8, lp 0-4 and pb 0-4 are supported');   // lean-cut
   if (opts.maxSize !== undefined && !(outSize <= opts.maxSize)) throw new Error('LZMA: the result would be ' + outSize + ' bytes, more than the allowed maxSize of ' + opts.maxSize);   // lean-cut
   var out = new Uint8Array(outSize), ip = 0, op = 0, slen = src.length;
-  var range = -1, code = 0;   // both kept as 32-bit integers; unsigned compares flip the top bit
+  var range = -1, code = 0;
   var state = 0, rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;
   var pbMask = (1 << pb) - 1, lpMask = (1 << lp) - 1;
   // one probability array; offsets of each part
   var IM = 0, IR = IM + 192, IG0 = IR + 12, IG1 = IG0 + 12, IG2 = IG1 + 12, IRL = IG2 + 12, PS = IRL + 192, PSP = PS + 256, AL = PSP + 115, LEN = AL + 16, RLEN = LEN + 514, LIT = RLEN + 514;
   var P = new Uint16Array(LIT + (0x300 << (lc + lp))).fill(1024);
-  var i, posState, prev, base, sym, matchByte, matchBit, len, slot, nb, dist, x, k, b, p, bound, m, c, L, r;
-  for (i = 0; i < 4; i++) code = (code << 8) | (ip < slen ? src[ip] : 0), ip++;
-  while (op < outSize) {
-    if (ip > slen) throw new Error('LZMA: the compressed data ended early');
-    posState = op & pbMask;
-    { i = IM + (state << 4) + posState; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
-    if (!b) {
-      prev = op ? out[op - 1] : 0;
-      base = LIT + 0x300 * (((op & lpMask) << lc) + (prev >> (8 - lc))); sym = 1;
-      if (state >= 7) {
-        matchByte = out[op - rep0 - 1];
-        do {
-          matchBit = (matchByte >> 7) & 1; matchByte <<= 1;
-          { i = base + ((1 + matchBit) << 8) + sym; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
-          sym = (sym << 1) | b;
-          if (matchBit !== b) break;
-        } while (sym < 256);
-      }
-      while (sym < 256) { { i = base + sym; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } sym = (sym << 1) | b; }
-      out[op++] = sym;
-      state = state < 4 ? 0 : state < 10 ? state - 3 : state - 6;
-    } else {
+  var S = new Int32Array(9);
+  function matchStep(posState) {   // a match or a repeat: kept out of the main loop so the loop stays small and gets optimized sooner
+    var range = S[0], code = S[1], ip = S[2], op = S[3], state = S[4], rep0 = S[5] >>> 0, rep1 = S[6] >>> 0, rep2 = S[7] >>> 0, rep3 = S[8] >>> 0, i, p, bound, b, len, slot, nb, dist, x, k, m, c, L, r;
       { i = IR + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
       if (b) {
         { i = IG0 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
@@ -64,7 +45,7 @@ function lzmaDecode(src, outSize, opts) {
           { i = IRL + (state << 4) + posState; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
           if (!b) {
             if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
-            state = state < 7 ? 9 : 11; out[op] = out[op - rep0 - 1]; op++; continue;
+            state = state < 7 ? 9 : 11; out[op] = out[op - rep0 - 1]; op++; { S[0] = range; S[1] = code; S[2] = ip; S[3] = op; S[4] = state; S[5] = rep0; S[6] = rep1; S[7] = rep2; S[8] = rep3; return; }
           }
         } else {
           { i = IG1 + state; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
@@ -106,6 +87,33 @@ function lzmaDecode(src, outSize, opts) {
       if (rep0 === 0xFFFFFFFF) throw new Error('LZMA: the end marker came before ' + outSize + ' bytes were decoded');
       if (rep0 >= op) throw new Error('LZMA: distance before the start of the output');
       len += 2; if (len > 24 && rep0 >= len) { if (op + len > outSize) len = outSize - op; out.copyWithin(op, op - rep0 - 1, op - rep0 - 1 + len); op += len; } else for (; len--; op++) out[op] = out[op - rep0 - 1];
+    S[0] = range; S[1] = code; S[2] = ip; S[3] = op; S[4] = state; S[5] = rep0; S[6] = rep1; S[7] = rep2; S[8] = rep3;
+  }
+  var i, posState, prev, base, sym, matchByte, matchBit, len, slot, nb, dist, x, k, b, p, bound, m, c, L, r;
+  for (i = 0; i < 4; i++) code = (code << 8) | (ip < slen ? src[ip] : 0), ip++;
+  while (op < outSize) {
+    if (ip > slen) throw new Error('LZMA: the compressed data ended early');
+    posState = op & pbMask;
+    { i = IM + (state << 4) + posState; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
+    if (!b) {
+      prev = op ? out[op - 1] : 0;
+      base = LIT + 0x300 * (((op & lpMask) << lc) + (prev >> (8 - lc))); sym = 1;
+      if (state >= 7) {
+        matchByte = out[op - rep0 - 1];
+        do {
+          matchBit = (matchByte >> 7) & 1; matchByte <<= 1;
+          { i = base + ((1 + matchBit) << 8) + sym; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } }
+          sym = (sym << 1) | b;
+          if (matchBit !== b) break;
+        } while (sym < 256);
+      }
+      while (sym < 256) { { i = base + sym; { p = P[i]; bound = Math.imul(range >>> 11, p); if ((code ^ -2147483648) < (bound ^ -2147483648)) { range = bound; P[i] = p + ((2048 - p) >> 5); b = 0; } else { range = (range - bound) | 0; code = (code - bound) | 0; P[i] = p - (p >> 5); b = 1; } if (!(range >>> 24)) { range <<= 8; code = (code << 8) | src[ip++]; } } } sym = (sym << 1) | b; }
+      out[op++] = sym;
+      state = state < 4 ? 0 : state < 10 ? state - 3 : state - 6;
+    } else {
+      S[0] = range; S[1] = code; S[2] = ip; S[3] = op; S[4] = state; S[5] = rep0; S[6] = rep1; S[7] = rep2; S[8] = rep3;
+      matchStep(posState);
+      range = S[0]; code = S[1]; ip = S[2]; op = S[3]; state = S[4]; rep0 = S[5] >>> 0; rep1 = S[6] >>> 0; rep2 = S[7] >>> 0; rep3 = S[8] >>> 0;
     }
   }
   if (ip > slen) throw new Error('LZMA: the compressed data ended early');

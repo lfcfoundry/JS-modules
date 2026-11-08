@@ -36,6 +36,7 @@ Load `netflow-scene.js` first, then `netflow-plot.js`. One call, data only (sinc
 ```js
 // netflow-scene.js, then netflow-plot.js
 svgElement.outerHTML = NetflowPlot.toSvg([{ city: 'Detroit', share: 12 }, { city: 'Chicago', share: 16 }]);
+containerDiv.innerHTML = NetflowPlot.toSvg([{ city: 'Detroit', share: 12 }, { city: 'Chicago', share: 16 }]);   // the same call into a <div> you already have
 svgElement.outerHTML = NetflowPlot.toSvg(rows, { type: 'line', x: 'day', y: 'sales', color: 'region', title: 'Sales' });
 ```
 
