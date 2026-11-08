@@ -23,7 +23,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
-| [lzma-decode](modules/lzma-decode/README.md) | 1.6.1 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.6.2 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.1 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
@@ -32,13 +32,13 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.13.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.1 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.6.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.6.2 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.12.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.3.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.5.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.11.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.14.6 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
@@ -72,6 +72,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **save-kit** 2.1.0 · API 2: New warm(): start the load early so it is ready when the game asks. Big saves are faster to open; older copies cannot read big saves written by this one.
 - 2026-11-07 · **ppmd-decode** 1.5.1 · API 1: The plain JavaScript decoder is faster on its first file.
 - 2026-11-07 · **netflow-scene** 1.11.0 · API 1: Big scatters draw 1.3 to 2.9 times faster on the page; dots look the same
+- 2026-11-07 · **netflow-scene** 1.10.5 · API 1: Area, hexbin and density charts write less SVG text and draw faster.
 - 2026-11-07 · **netflow-scene** 1.10.4 · API 1: Long line charts draw faster in WebKit.
 - 2026-11-07 · **netflow-scene** 1.10.3 · API 1: frame: true no longer draws a rule above the source line; the chart's own baseline is the one line.
 - 2026-11-07 · **netflow-scene** 1.10.1 · API 1: toSvg rounds numbers about 1.4 to 2.7 times faster; same SVG
@@ -90,13 +91,16 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **netflow-plot** 2.11.0 · API 2: Auto bar charts with more than 25 names show the 10 biggest plus one bar for the rest, sideways; fractions between 0 and 1 are written as percents.
 - 2026-11-07 · **netflow-plot** 2.10.1 · API 2: A bar chart given the number as x and the names as y now draws sideways bars instead of an empty chart.
 - 2026-11-07 · **netflow-plot** 2.10.0 · API 2: Busy flow tables where places both send and receive draw as a chord; small ones stay Sankeys. Line labels no longer collide and share one precision; date axes get round ticks and no redundant name. A scatter squashed by a few far values says so; the key's +N more no longer covers a name.
+- 2026-11-07 · **netflow-hierarchy** 1.5.1 · API 1: Chord and treemap amounts written as '1,200' are read as 1,200.
 - 2026-11-07 · **netflow-hierarchy** 1.5.0 · API 1: A treemap is laid out at the width and height you pass.
 - 2026-11-07 · **netflow-circular** 1.3.0 · API 1: A chord ring fits the width and height you pass, names included.
 - 2026-11-07 · **memory-compression** 2.13.0 · API 2: warm() can take a sample of your own rows for a faster first unpack.
+- 2026-11-07 · **lzma-decode** 1.6.2 · API 1: The plain JavaScript decoder's first unpack in a page is faster, most in Chromium.
 - 2026-11-07 · **lzma-decode** 1.6.1 · API 1: The plain JavaScript decoder is faster in Firefox and WebKit.
 - 2026-11-07 · **lzma-decode** 1.6.0 · API 1: Repeat unpacks are faster: one WebAssembly Instance is kept between calls, up to 16 MB of memory
 - 2026-11-07 · **lzma-decode** 1.5.1 · API 1: The JavaScript decoder is faster again, now in WebKitGTK too: about a third faster on the first big file in every test browser.
 - 2026-11-07 · **lzma-decode** 1.5.0 · API 1: The JavaScript decoder (used when WebAssembly is blocked) unpacks about 1.5 to 2 times faster after the first file in Chromium and Firefox. The WebAssembly decoder unpacks about 15% faster in Chromium and Firefox.
+- 2026-11-07 · **lfc-pack** 0.6.2 · API 0: packStream is faster when it is fed many small pieces.
 - 2026-11-07 · **lfc-pack** 0.6.1 · API 0: New opt-in warm() makes the first save and open faster.
 - 2026-11-07 · **lfc-pack** 0.6.0 · API 0: New opt-in unpack(file, { rows: 'lazy' | 'lazycols' }): rows read their values when used, so opening a big file and reading a few fields is much faster. Off by default.
 - 2026-11-07 · **lfc-pack** 0.5.9 · API 0: open(): columns(i) and zone(i, key) for column work

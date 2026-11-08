@@ -31,6 +31,7 @@ A flow chart is read through its thick bands, so a crossing between two big flow
 Load `netflow-sankey.js` (nothing else needed). One call, data only:
 ```js
 svgElement.outerHTML = NetflowSankey.toSvg([{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }]);
+containerDiv.innerHTML = NetflowSankey.toSvg([{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }]);   // the same call into a <div> you already have
 ```
 `value`, `weight` or `count` names the amount. Options (the same words in every chart module) go in a second argument: `NetflowSankey.toSvg(links, { title: "Where the wages go", height: 360 })`. The two steps below give you the layout to draw yourself.
 

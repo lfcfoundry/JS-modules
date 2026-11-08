@@ -13,6 +13,17 @@ toSvg wrote one <circle> per dot, and a browser spends most of a big scatter's t
 ### Deep
 look kept, speed
 
+## 1.10.5 · API 1 · 2026-11-07
+
+### Quick
+Shapes whose outline is fully see-through no longer write stroke and stroke-width. Same pixels in 3 browsers. Text: hexbin 85 to 61 KB, density 31 to 24 KB, 20k-row area 353 to 269 KB. 20k-row area page time 0.82 Chromium, 0.85 Firefox; others level.
+
+### Details
+toSvg polys: stroke attributes only when the stroke's alpha is above 0 (no stroke is the SVG default). No API change.
+
+### Deep
+Less SVG text for shapes with no visible outline.
+
 ## 1.10.4 · API 1 · 2026-11-07
 
 ### Quick

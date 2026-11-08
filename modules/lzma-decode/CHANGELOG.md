@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.2 · API 1 · 2026-11-07
+- The plain JavaScript decoder's first unpack in a page is faster, most in Chromium.
+
 ## 1.6.1 · API 1 · 2026-11-07
 - The plain JavaScript decoder is faster in Firefox and WebKit.
 

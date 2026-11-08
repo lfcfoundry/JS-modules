@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.6.1 (API 0)
+ * Version 0.6.2 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1851,7 +1851,7 @@
     opts = packOpts(opts); need(true);
     if (opts.exact) throw new Error('LfcPack: packStream does not support exact mode yet');
     var st = opts.share ? sharedState() : null, mopts = st ? Object.assign({}, opts, { _st: st }) : opts;
-    var bb = opts.blockBytes || BLOCK_BYTES, buf = new Uint8Array(0), blocks = [], zone = [], off = 0, rows = 0, tail = true, done = false;
+    var bb = opts.blockBytes || BLOCK_BYTES, blocks = [], zone = [], off = 0, rows = 0, tail = true, done = false;
     function cut(chunk) {   // one chunk of whole lines -> its block bytes, with the table entries moved to this file's offsets
       var mini = packMany([{ name: null, bytes: chunk }], mopts), f = openFile(mini), out = [], i, b, e;
       for (i = 0; i < f.blocks.length; i++) {
@@ -1860,11 +1860,20 @@
       }
       return out;
     }
+    /* the text not yet packed is kept as a list of pushed pieces (parts, plen bytes in all) and joined only when a block is cut, so many small pushes
+       do not copy the waiting text again on every push (since 0.6.2); scan says how far the search for a line end past the block size has already gone */
+    var parts = [], plen = 0, scan = 0;
+    function joined() { if (parts.length === 1) return parts[0]; var u = new Uint8Array(plen), p = 0, i; for (i = 0; i < parts.length; i++) { u.set(parts[i], p); p += parts[i].length; } parts = [u]; return u; }
     function take(final) {
-      var out = [], e, nl;
-      while (buf.length) {
-        if (buf.length > bb && (nl = buf.indexOf(10, bb)) >= 0) e = nl + 1; else if (final) e = buf.length; else break;
-        out = out.concat(cut(buf.subarray(0, e))); buf = buf.subarray(e);
+      var out = [], e, nl, u;
+      while (plen) {
+        if (plen > bb) {
+          /* find the first line end at or after bb without joining: walk the pieces from where the last search stopped */
+          nl = -1; var p0 = 0, i, a, from;
+          for (i = 0; i < parts.length && nl < 0; i++) { a = parts[i]; if (p0 + a.length > Math.max(bb, scan)) { from = Math.max(0, Math.max(bb, scan) - p0); var k = a.indexOf(10, from); if (k >= 0) nl = p0 + k; } p0 += a.length; }
+          if (nl < 0) { scan = plen; if (!final) break; e = plen; } else e = nl + 1;
+        } else if (final) e = plen; else break;
+        u = joined(); out = out.concat(cut(u.subarray(0, e))); u = u.subarray(e); parts = u.length ? [u] : []; plen = u.length; scan = 0;
       }
       return out;
     }
@@ -1872,8 +1881,10 @@
       push: function (bytes) {
         if (done) throw new Error('LfcPack: packStream is finished');
         bytes = bytesOf(bytes); if (!bytes.length) return [];
-        var nb = new Uint8Array(buf.length + bytes.length); nb.set(buf); nb.set(bytes, buf.length); buf = nb; tail = bytes[bytes.length - 1] === 10;
-        return take(false);
+        parts.push(bytes); plen += bytes.length; tail = bytes[bytes.length - 1] === 10;
+        var out = take(false), i;
+        for (i = 0; i < parts.length; i++) if (parts[i].buffer === bytes.buffer) parts[i] = parts[i].slice();   /* only what waits is copied: the caller may reuse its buffer after push */
+        return out;
       },
       finish: function () {
         if (done) throw new Error('LfcPack: packStream is finished');
@@ -1988,7 +1999,7 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, warm: warm, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.6.1', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, warm: warm, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.6.2', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
