@@ -104,3 +104,9 @@ New module: turns pictures drawn on a canvas into an animated GIF in the browser
 
 ### Deep
 New module, cut from Netflow Map's GIF maker. It turns pictures drawn on a canvas into an animated GIF, in the browser or in Node, with no libraries. It keeps one color palette for the whole animation (so nothing flickers) and writes only the part of each picture that changed. Measured in Node on 30 pictures of 640 x 400 with a small ball moving on a still background: 23.3 KB in 101 ms, where gifenc 1.0.3 made 159 KB in 152 ms (about 6.8 times larger). When every pixel changes in all 20 pictures: 1.09 MB in 562 ms against gifenc's 1.14 MB in 294 ms (about 5% smaller, about 1.9 times slower). Changes from the Netflow Map original: a stale comment fixed and the test now lives in the module's own folder (an independent GIF decoder checks every pixel).
+
+## Version-to-version numbers moved from the README (2026-11-08)
+
+- ; 1.2.0 was 25,310 and 12,278)
+- Encoding 1.1 to 2.3 times faster and the palette search 0.9 to 1.7 times (the two tables above); before that, the palette for a busy animation, 1.1.0 against 1.0.0 (faster is better): 1.3 times in Chromium 155, 1.7 in Firefox 158, 3.0 in WebKitGTK 2.52.6. Against gifenc and gif.js: see the gifenc and gif.js rows
+- Costs bytes: +20,124 as written (20,789 to 40,913), +16,195 minified (9,115 to 25,310) and +7,929 gzipped (4,349 to 12,278) with terser 5.51.2 (smaller is better).
