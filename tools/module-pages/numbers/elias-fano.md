@@ -74,32 +74,33 @@ Compared: elias-fano against roaring-wasm on "first value at or above x" (20,000
 
 Compared: elias-fano against roaring-wasm on intersecting with a 200,000-value list (spread-out values, ms, lower is faster).
 
-<!-- title: Intersecting spread-out lists, elias-fano with arrays: true is 1.4 to 3.1 times faster than roaring-wasm, and default block lists are 1.2 to 1.4 times slower -->
+<!-- title: Intersecting spread-out lists, elias-fano default block lists are 1.4 to 1.6 times faster than roaring-wasm in Chromium and Firefox, and 1.3 to 2.7 times faster with arrays: true -->
 | way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
 |---|---:|---:|---:|
-| elias-fano, block lists with arrays: true | 1.4 | 1.3 | 2.3 |
-| roaring-wasm | 3.4 | 4.0 | 3.3 |
-| elias-fano, block lists | 4.2 | 4.7 | 4.7 |
-| elias-fano, flat lists | 8.2 | 8.7 | 7.3 |
+| elias-fano, block lists with arrays: true | 1.2 | 1.0 | 2.3 |
+| elias-fano, block lists | 2.0 | 1.7 | 3.3 |
+| roaring-wasm | 2.7 | 2.7 | 3.0 |
+| elias-fano, flat lists | 7.0 | 5.7 | 7.3 |
 
 Compared: elias-fano against roaring-wasm on intersecting with a 200,000-value list (dense values, ms, lower is faster).
 
-<!-- title: Intersecting dense lists, elias-fano block lists are 1.3 to 2 times faster than roaring-wasm, and 3 to 4 times faster with arrays: true -->
+<!-- title: Intersecting dense lists, elias-fano default block lists are 2.5 to 3.9 times faster than roaring-wasm, and 3 to 3.9 times faster with arrays: true -->
 | way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
 |---|---:|---:|---:|
-| elias-fano, block lists with arrays: true | 0.47 | 0.67 | 0.33 |
-| elias-fano, block lists | 0.97 | 1.0 | 1.0 |
-| roaring-wasm | 1.5 | 2.0 | 1.3 |
-| elias-fano, flat lists | 6.2 | 5.7 | 5.7 |
+| elias-fano, block lists with arrays: true | 0.47 | 0.33 | 0.33 |
+| elias-fano, block lists | 0.57 | 0.33 | 0.33 |
+| roaring-wasm | 1.4 | 1.0 | 1.3 |
+| elias-fano, flat lists | 6.1 | 4.7 | 5.3 |
 
 Compared: elias-fano against roaring-wasm and FastIntegerCompression on decoding everything (spread-out values, ms, lower is faster).
 
-<!-- title: Decoding everything, block lists with arrays: true keep level with roaring-wasm on spread-out values, while flat lists take about 2 times as long -->
+<!-- title: Decoding everything on spread-out values, block lists with arrays: true are level with roaring-wasm, default block lists take 1.1 to 1.3 times as long, and flat lists 1.6 to 3.3 times -->
 | way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
 |---|---:|---:|---:|
+| elias-fano, block lists with arrays: true | 2.1 | 2.7 | 1.0 |
 | roaring-wasm | 2.2 | 2.7 | 1.3 |
-| elias-fano, block lists with arrays: true | 2.4 | 2.3 | 1.3 |
-| elias-fano, flat lists | 5.5 | 4.3 | 4.7 |
+| elias-fano, block lists | 2.6 | 3.0 | 1.7 |
+| elias-fano, flat lists | 4.2 | 4.3 | 4.3 |
 | FastIntegerCompression | 7.9 | 12 | 11 |
 
-Cloud-browser runs (shared machine, not the laptop), one page per browser, median of 11 rounds; intersect times are since 2.1.1. Where roaring-wasm still wins: intersecting spread-out lists against default block lists (3.3 to 4.0 ms against 4.2 to 4.7, which keep the smaller size), and decoding everything from flat or default block lists on spread-out values (about 2 times faster). With arrays: true the lists are bigger than roaring-wasm's on spread-out values (2,072,584 against 2,030,536 bytes). FastIntegerCompression has no lookups or intersecting.
+Cloud-browser runs (shared machine, not the laptop), one page per browser, median of 11 rounds; intersect and decode times are since 2.1.2. Where roaring-wasm still wins: intersecting spread-out lists with default block lists in WebKitGTK (3.3 ms against 3.0, about even in the tester page), and decoding everything on spread-out values (default block lists 1.1 to 1.3 times as long, flat lists 1.6 to 3.3 times). With arrays: true the lists are bigger than roaring-wasm's on spread-out values (2,072,584 against 2,030,536 bytes). FastIntegerCompression has no lookups or intersecting.
