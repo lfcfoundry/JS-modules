@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.2 · API 1 · 2026-11-07
+
+### Quick
+Matches and repeats are decoded in a small helper outside the main loop, so the loop is optimized sooner. First unpack of a 500 KB text (149 KB packed) vs 1.6.1: Chromium 0.78, Firefox 0.92, WebKitGTK 0.92. A second unpack in the same page is slower than 1.6.1 (Chromium 25 to 31 ms, Firefox 15 to 19, WebKitGTK 19 to 26) but still faster than 1.4.0. Same output.
+
+### Details
+lzmaDecode: match and repeat decoding moved into matchStep(), which keeps its state in a small Int32Array. This fixes a first-unpack slowdown in Chromium (1.05-1.53x of 1.4.0 before; 0.72-1.02 now on 256-730 KB files). Requested by the owner, who accepted the slower repeat unpacks.
+
+### Deep
+Faster first unpack; later unpacks in one page a little slower.
+
 ## 1.6.1 · API 1 · 2026-11-07
 
 ### Quick
