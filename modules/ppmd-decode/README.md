@@ -1,8 +1,8 @@
 # ppmd-decode
 
-**Version 1.5.0 · API 1**
+**Version 1.5.1 · API 1**
 
-**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6; laptop Chromium 156, Firefox 160 (research run)
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud); Firefox 160 and Chromium 156 (owner's laptop page)
 
 ## What it is and how it works
 

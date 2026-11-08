@@ -24,7 +24,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
 | [lzma-decode](modules/lzma-decode/README.md) | 1.6.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.1 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
@@ -69,6 +69,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **save-kit** 2.2.1 · API 2: Loads are a little faster in Safari and other WebKit browsers.
 - 2026-11-07 · **save-kit** 2.2.0 · API 2: Big saves of many same-shape records open faster in Firefox and Safari-family browsers; older copies cannot read those saves.
 - 2026-11-07 · **save-kit** 2.1.0 · API 2: New warm(): start the load early so it is ready when the game asks. Big saves are faster to open; older copies cannot read big saves written by this one.
+- 2026-11-07 · **ppmd-decode** 1.5.1 · API 1: The JavaScript decoder (used when WebAssembly is blocked) unpacks a few percent faster, up to 13% in Chromium.
 - 2026-11-07 · **netflow-scene** 1.10.3 · API 1: frame: true no longer draws a rule above the source line; the chart's own baseline is the one line.
 - 2026-11-07 · **netflow-scene** 1.10.1 · API 1: toSvg rounds numbers about 1.4 to 2.7 times faster; same SVG
 - 2026-11-07 · **netflow-plot** 2.9.0 · API 2: toSvg(rows) picks the chart; auto() says why; opt-in takeaway

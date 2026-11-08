@@ -2,6 +2,19 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.1 · API 1 · 2026-11-07
+
+### Quick
+JavaScript range coder kept in 32-bit integers; same bytes and same errors, no API change
+
+### Details
+decodeAll keeps rng and cd as 32-bit integers: unsigned compares flip the top bit, Math.imul for the multiplies, | 0 on stored values, !(rng >>> 24) for the refill test; only the two divisions read unsigned values.
+Ratio vs 1.5.0, lower is better, 400 KB page, order 6, fresh page per sample, first / second decode: Chromium 155 0.87 / 0.91, Firefox 158 0.96 / 0.95, WebKitGTK 2.52.6 0.88 / 0.95. Owner's laptop: Firefox 160 0.967 / 0.985, Chromium 156 0.975 / 0.990. About +40 bytes.
+900 damaged or cut fixture streams give identical output or error message; tests 142 pass.
+
+### Deep
+Requested by the owner (Yes, ship it card, 7:30 PM ET 2026.11.07). Research: ppmd-decode/js-int32-2026.11.07 (FINDING-PPMD-JS-INT32-2026.11.07.md), an improvement on the 2026.10.17 partial try. Rejected after: local aliases of the U8/U16/U32 views (Chromium 1.04-1.09 slower).
+
 ## 1.5.0 · API 1 · 2026-11-06
 
 ### Quick
