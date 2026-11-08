@@ -73,15 +73,15 @@ curtains.prepare()                    // paints the velvet in small slices of id
 
 **Why.** On a freshly loaded page one phone-size curtain half (295,475 pixels) paints about 1.4 to 1.6 times as fast: 23.9 to 17.0 ms in Chromium 155, 23.0 to 14.0 ms in Firefox 158.0 and 24.0 to 17.0 ms in WebKitGTK 2.52.6 (median of three passes of seven fresh pages; lower is better). The picture is identical: 112 curtains, 0 pixels differ in all three browsers, and the same on a page that forbids WebAssembly.
 
-**Faster exact kernel (1.3.1).** The kernel now looks up the per-column values (the position along the curtain, the leading-edge ratio) and the per-fold-column values (hem, shade, sheen, gold base, crease flag) in tables that the page builds once with the same expressions, rounds with integers and clamps without branches. The bytes it paints are unchanged (the same hash as 1.3.0 for a 1280 x 720 curtain, smooth and stepped, in all three test browsers). Main-thread paint of one 1280 x 720 curtain (both halves and the mirror; median of 15 fresh pages; lower is better): Chromium 155 45.6 to 30.0 ms, Firefox 158 40 to 28 ms, WebKitGTK 2.52.6 37 to 27 ms.
+**Faster exact kernel (1.3.1).** The kernel now looks up the per-column values (the position along the curtain, the leading-edge ratio) and the per-fold-column values (hem, shade, sheen, gold base, crease flag) in tables that the page builds once with the same expressions, rounds with integers and clamps without branches. The bytes it paints are unchanged (the same hash as 1.3.0 for a 1280 x 720 curtain, smooth and stepped, in all three test browsers).
 
-**SIMD kernel (1.4.0).** The main loop now works on four pixels at a time (WebAssembly SIMD, single precision), with the exact double-precision loop kept for stepped curtains and for the last `width % 4` columns of a row. The picture is the same to within the **picture gate**: at least 99.5% of the pixels within 5/255 on every channel of the plain JavaScript loop's picture, which stays the reference (`row()`). Measured: the worst of the 412 test curtains has 99.986% of its pixels within 5 (99.951% byte for byte; the largest single difference is 56 counts, on a handful of pixels at a fold or crease edge), the 1280 x 720 benchmark half 99.9998% (identical in all three test browsers). Stepped curtains are byte for byte the JavaScript curtain. Main-thread paint of one 1280 x 720 curtain, both halves plus the mirror (median of 15 fresh pages; lower is better), 1.3.0 to 1.4.0: Chromium 155 45.4 to 13.7 ms, Firefox 158 40 to 15 ms, WebKitGTK 2.52.6 38 to 13 ms; the first curtain in a fresh page 54 to 26, 44 to 22 and 49 to 27 ms. A browser without WebAssembly SIMD cannot compile the module, so the JavaScript loop paints (as with no WebAssembly at all); `StageCurtains.wasmAvailable()` is then `false`.
+**SIMD kernel (1.4.0).** The main loop now works on four pixels at a time (WebAssembly SIMD, single precision), with the exact double-precision loop kept for stepped curtains and for the last `width % 4` columns of a row. The picture is the same to within the **picture gate**: at least 99.5% of the pixels within 5/255 on every channel of the plain JavaScript loop's picture, which stays the reference (`row()`). Measured: the worst of the 412 test curtains has 99.986% of its pixels within 5 (99.951% byte for byte; the largest single difference is 56 counts, on a handful of pixels at a fold or crease edge), the 1280 x 720 benchmark half 99.9998% (identical in all three test browsers). Stepped curtains are byte for byte the JavaScript curtain. A browser without WebAssembly SIMD cannot compile the module, so the JavaScript loop paints (as with no WebAssembly at all); `StageCurtains.wasmAvailable()` is then `false`.
 
 **Rules.**
 - Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it (or in a browser without WebAssembly SIMD) the module quietly paints with plain JavaScript (same picture to within a few counts, no speed-up). No other loosening is needed.
 - `create({ wasm: false })` forces the plain JavaScript loop. If the WebAssembly part fails for any reason, the plain loop finishes the remaining rows.
 - Each `step()` still stops between 16-row chunks, so the slowest single slice stays at 4 to 5 ms in every browser (no change, no loss).
-- Costs bytes: +3,923 minified and +2,038 gzipped (smaller is better; 15,353 to 19,276 and 6,275 to 8,313).
+- Costs bytes: 19,276 minified and 8,313 gzipped (smaller is better).
 
 **Honest limits.** The first paint is the win. A repeat paint in the same page gains little (1.0 to 1.36x), the slowest slice and the frame rate do not change, and the gain on a phone is an estimate, not a measurement (no phone or Safari run). The valance texture (`curtainTexture`, `addPile`) stays plain JavaScript.
 
@@ -93,7 +93,7 @@ curtains.prepare()                    // paints the velvet in small slices of id
 
 **Why.** One phone-size curtain half no longer holds up the page. Page busy time (milliseconds of the page's own work to get both halves painted; lower is better) and the longest single stall (lower is better), median of seven fresh pages, main thread now → worker:
 
-Since 1.4.1 the page puts a half on its canvas the moment the worker's pixels arrive, instead of at its next idle slice (up to 45 ms later, plus the wait for an idle moment), and uses the arrived pixels without copying them. Same pixels. Time until `prepare()` resolves, 1280 x 720 and 1920 x 1080 pages, against 1.4.0: Chromium 155 1.7 to 2.5x sooner (77 to 45 ms at 1920 x 1080), Firefox 158 2.8 to 4.4x (128 to 46 ms), WebKitGTK 2.52.6 1.5 to 2.0x (`tests/stage-curtains-wake-browser.js`, 15 rounds).
+Since 1.4.1 the page puts a half on its canvas the moment the worker's pixels arrive, instead of at its next idle slice (up to 45 ms later, plus the wait for an idle moment), and uses the arrived pixels without copying them. Same pixels.
 
 
 | Browser | Page busy, ms | Longest stall, ms | Both halves ready, ms (lower is better) |
@@ -114,7 +114,7 @@ Starting the worker costs time, so a curtain painted the moment the page loads i
 - Needs `worker-src blob:` beside `'wasm-unsafe-eval'` if your page has a Content Security Policy. If the worker is refused or fails for any reason (no Worker, a blocked blob, an error), the page paints that half itself from the start; nothing is shown to the user and the worker is not tried again.
 - One shared worker serves every half. It ends itself 4 seconds after its last job, and `StageCurtains.release()` ends it at once. `StageCurtains.startWorker()` starts it early and returns `false` when workers cannot be used.
 - Off by default: with no `worker` option the module never touches `Worker`, and the 1.2.0 behavior and numbers stay as they were.
-- Costs bytes: +2,422 minified and +951 gzipped (smaller is better; 19,284 to 21,706 and 8,322 to 9,273). The worker's source is built from the painter's own text, so the painter exists once.
+- Costs bytes: 21,706 minified and 9,273 gzipped with the worker (smaller is better). The worker's source is built from the painter's own text, so the painter exists once.
 
 **Honest limits.** The picture is ready later, not sooner: the win is a free page, not a faster curtain. Phones were not measured.
 

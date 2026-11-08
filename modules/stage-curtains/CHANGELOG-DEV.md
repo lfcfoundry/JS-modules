@@ -76,3 +76,16 @@ First labeled version. Nothing in the code changed.
 
 ### Deep
 First labeled version. Nothing in the code changed; everything under "Before version labels" is already in it.
+
+## Version-to-version numbers moved from the README (2026-11-08)
+
+The README compares against other products only; these old-version measurements are kept here.
+
+- Main-thread paint of one 1280 x 720 curtain (both halves and the mirror; median of 15 fresh pages; lower is better): Chromium 155 45.6 to 30.0 ms, Firefox 158 40 to 28 ms, WebKitGTK 2.52.6 37 to 27 ms.
+
+- Main-thread paint of one 1280 x 720 curtain, both halves plus the mirror (median of 15 fresh pages; lower is better), 1.3.0 to 1.4.0: Chromium 155 45.4 to 13.7 ms, Firefox 158 40 to 15 ms, WebKitGTK 2.52.6 38 to 13 ms; the first curtain in a fresh page 54 to 26, 44 to 22 and 49 to 27 ms.
+
+- Time until `prepare()` resolves, 1280 x 720 and 1920 x 1080 pages, against 1.4.0: Chromium 155 1.7 to 2.5x sooner (77 to 45 ms at 1920 x 1080), Firefox 158 2.8 to 4.4x (128 to 46 ms), WebKitGTK 2.52.6 1.5 to 2.0x (`tests/stage-curtains-wake-browser.js`, 15 rounds).
+
+- - Costs bytes: +3,923 minified and +2,038 gzipped (smaller is better; 15,353 to 19,276 and 6,275 to 8,313).
+- Costs bytes: +2,422 minified and +951 gzipped (smaller is better; 19,284 to 21,706 and 8,322 to 9,273).
