@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.13.0 · API 2 · 2026-11-07
+- New warm(): an idle warm-up so the first Sankey draws sooner
+
 ## 2.12.0 · API 2 · 2026-11-06
 - {topbox} note word, amount on {top}
 

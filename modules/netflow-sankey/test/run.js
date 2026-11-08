@@ -212,8 +212,8 @@ t('one call from table rows: own column names, named or found (first two text co
   ok(RL.toSvg([{ Source: 'Wages', Target: 'Rent', Amount: '30' }, { Source: 'Wages', Target: 'Food', Amount: '14' }]) === b, 'found');
   ok(RL.toSvg([{ a: 'Wages', b: 'Rent', n: 30 }, { a: 'Wages', b: 'Food', n: 14 }], { from: 'a', to: 'b', value: 'n' }) === b, 'named');
 });
-t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier, wasmAvailable, wasmReady, wasmModule', () => {
-  ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg,wasmAvailable,wasmModule,wasmReady', Object.keys(RL).sort().join());
+t('the public list: layoutFlows, toSvg, fromLinks, layout, apply, options, layering, crossWeight, roundPath, toBezier, warm, wasmAvailable, wasmReady, wasmModule', () => {
+  ok(Object.keys(RL).sort().join() === 'apply,crossWeight,fromLinks,layering,layout,layoutFlows,options,roundPath,toBezier,toSvg,warm,wasmAvailable,wasmModule,wasmReady', Object.keys(RL).sort().join());
 });
 
 // 2.3.0: the order search in WebAssembly. Same layout either way, to the last digit; plain JavaScript when WebAssembly is missing, refused, or a flow is not an ordinary number.
@@ -322,4 +322,17 @@ t('value labels and notes (opt-in): valueLabel, unit, percentOf, notes with live
   const wide = RL.toSvg(d, { notes: [{ text: 'A very long note that runs well past the right edge of the picture', x: 0.9, y: 0.5 }] });
   ok(+/width="([\d.]+)"/.exec(wide)[1] > RL.layoutFlows({ links: d }).width, 'a note past the edge widens the picture');
 });
-console.log(bad ? 'netflow-sankey: ' + bad + ' FAILED' : 'netflow-sankey: all passed'); process.exit(bad ? 1 : 0);
+// 2.13.0: warm() lays out and draws a made-up Sankey in two idle tasks, keeps nothing, and later pictures are the same
+const warmTest = (async () => {
+  const fresh = () => { delete require.cache[require.resolve('../netflow-sankey.js')]; return require('../netflow-sankey.js'); };
+  const links = []; for (let i = 0; i < 40; i++) links.push({ from: 'a' + (i % 7), to: 'b' + ((i * 5) % 9), value: 1 + (i % 4) }, { from: 'b' + (i % 9), to: 'c' + ((i * 3) % 6), value: 2 + (i % 3) });
+  const A = fresh(), before = A.toSvg(A.layoutFlows({ links }));
+  const B = fresh(), p = B.warm();
+  const got = await p, again = await B.warm(), after = B.toSvg(B.layoutFlows({ links }));
+  t('warm(): resolves true, a second call gives the same promise, and the next picture is the same as without it', () => {
+    ok(got === true && again === true && p === B.warm(), 'warm ' + got + ' ' + again);
+    ok(after === before, 'picture changed after warm()');
+  });
+})();
+warmTest.then(() => { console.log(bad ? 'netflow-sankey: ' + bad + ' FAILED' : 'netflow-sankey: all passed'); process.exit(bad ? 1 : 0); });
+
